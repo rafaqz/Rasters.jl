@@ -50,8 +50,7 @@ reduce(+, g; dims=Time) |> plot
 # Or something more complicated: 
 # plot the mean sea surface temperature around Australia from August to December 2002
 dimranges = Time((DateTime360Day(2002, 08, 1), DateTime360Day(2002, 012, 30))), Lat(-45:0.5), Lon(110:160)
-ausmean = select(g, dimranges) |> x->mean(x; dims=Time)
-ausmean |> plot
+select(g, dimranges) |> x->mean(x; dims=Time) |> plot
 
 # Reorganise the dimensions in the underlying data
 # It stil plots the right way up
@@ -64,13 +63,12 @@ g[Lat(1:80), Lon(170), Time(10)] |> plot
 
 
 # Save data ################################################################
-# Losing a bit of metadata becase we only imported one variable, not the whole 
-# stack as a GeoStack, because that isn't implemented yet...
+# needs work
 g = replace_missing(g, NaN)
-newds = Dataset("austmean.nc","c")
+newds = Dataset("out.nc","c")
 
-# Define the dimension "lon" and "lat" with the size 100 and 110 resp.
-defDim(newds, "lon", size(DimensionalData.getdim(dims(g), Lon), 1))
+# Need to add the actual lat and long vars too, but how?
+defDim(newds, "lon", size(getdim(g, Lon), 1))
 defDim(newds, "lat", size(getdim(g, Lat), 1))
 
 # Define the sea surface temperature variable
@@ -82,18 +80,7 @@ for (key, val) in attrib
     v.attrib[key] = val
 end
 v[:,:] = parent(g)
-
-v.attrib = metadata(g)[:attrib]
 close(newds)
-
-ds = Dataset("austmean.nc","c")
-dimz = (Lon(ncfields(ds, "lon")...,), Lat(ncfields(ds, "lat")...,))
-attrib = ds["tos"].attrib
-
-# The type has some fixed names it want in metadata.
-# Have to think about how to inluce all the other arbitrary metadata
-g = GeoArray(ds["tos"][:,:,:], dimz; units=attrib["units"]); 
-close(ds)
 
 # Benchmark #####################################################
 
