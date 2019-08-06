@@ -8,8 +8,9 @@ Examples:
 `SpatialGrids.Raster`
 `GeoStatsBase.AbstractSpatialObject`
 """
-abstract type AbstractGeoData{T,N,D} end
+abstract type AbstractGeoDataset{N,D} <: AbstractDimensionalDataset{N,D} end
 
+abstract type AbstractGeoArray{T,N,D} <: AbstractDimensionalArray{T,N,D} end
 
 """
 Stack object for holding multiple arrays and datasets
@@ -18,5 +19,3 @@ with the same spatial metadata and bounds. As in Rs raster stack.
 Contained objects must share common dims D?
 """
 abstract type AbstractGeoStack{D} end
-
-

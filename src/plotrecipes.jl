@@ -1,21 +1,9 @@
-cleanup(x::AbstractFloat) = round(x, sigdigits=4)
-cleanup(x) = x
-
-getstring(::Nothing) = ""
-getstring(x) = string(x)
-
-dimlabel(dim) = join((dimname(dim), getstring(units(dim))), " ")
-
-reflabel(a) = join(join.(zip(shortname.(refdims(a)), cleanup(val.(refdims(a)))), ": ", ), ", ")
-
-datalabel(a) = join(name(a), getstring(units(a)), " ")
-
 @recipe function f(ga::AbstractGeoArray{T,3,<:Tuple{<:Lat,<:Lon,D}}) where {T,D}
     nplots = size(ga, 3)
     if nplots > 1
         layout --> nplots
         # How to make this work?
-        plot_title --> join(datalabel(ga), dimlabel(dims(ga)[3]), " ")
+        plot_title --> join(label(ga), label(dims(ga)[3]), " ")
         for i in 1:nplots
             @series begin
                 seriestype := :heatmap
@@ -38,35 +26,14 @@ end
     seriestype --> :heatmap
     aspect_ratio --> 1
     grid --> false
-    ylabel --> dimlabel(dims(ga)[1])
-    xlabel --> dimlabel(dims(ga)[2])
-    colorbar_title --> datalabel(ga)
-    title --> reflabel(ga)
+    ylabel --> label(dims(ga)[1])
+    xlabel --> label(dims(ga)[2])
+    colorbar_title --> label(ga)
+    title --> label(refdims(ga))
     data = replace(parent(ga), missingval(ga) => NaN)
     reverse(val.(dims(ga)))..., data
 end
 
 @recipe function f(ga::AbstractGeoArray{T,2,<:Tuple{<:Lon,<:Lat}}) where T
     permutedims(ga)
-end
-
-@recipe function f(ga::AbstractGeoArray{T,2,<:Tuple{<:AbstractGeoDim,<:Time}}) where T
-    ticks --> true
-    ylabel --> datalabel(ga)
-    xlabel --> dimlabel(dims(ga)[1])
-    legendtitle --> dimlabel(dims(ga)[1])
-    title --> reflabel(ga)
-    replace(parent(ga), missingval(ga) => NaN)
-end
-
-@recipe function f(ga::AbstractGeoArray{T,2,<:Tuple{<:Time,<:AbstractGeoDim}}) where T
-    permutedims(ga)
-end
-
-@recipe function f(ga::AbstractGeoArray{T,1,<:Tuple{<:AbstractGeoDim}}) where T
-    ylabel --> datalabel(ga)
-    xlabel --> dimlabel(dims(ga)[1])
-    legend --> false
-    title --> reflabel(ga)
-    val(dims(ga)[1]), replace(parent(ga), missingval(ga) => NaN)
 end
