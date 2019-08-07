@@ -3,7 +3,8 @@ module GeoData
 using Reexport, RecipesBase
 @reexport using CoordinateReferenceSystemsBase, DimensionalData
 
-using DimensionalData: checkdims, val, rebuild
+using DimensionalData: formatdims, slicedims, val
+import DimensionalData: dims, refdims, rebuild
 
 export AbstractGeoArray, GeoArray
 export AbstractGeoData, GeoData
