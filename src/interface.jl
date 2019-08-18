@@ -16,8 +16,3 @@ metatdata(x) = Dict()
 Replace missing values
 """
 function replace_missing end
-
-replace_missing(a::AbstractGeoArray, x) = begin
-    newa = replace(a, missing=>x)
-    rebuild(newa, parent(newa), dims(newa), refdims(newa), missingval(newa))
-end

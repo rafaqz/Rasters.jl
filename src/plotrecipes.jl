@@ -19,7 +19,7 @@
 end
 
 @recipe function f(ga::AbstractGeoArray{T,3,<:Tuple{<:Lon,<:Lat,D}}) where {T,D}
-    permutedims(ga, (Lat(), Lon(), 3))
+    permutedims(ga, (Lat(), Lon(), basetype(D)()))
 end
 
 @recipe function f(ga::AbstractGeoArray{T,2,<:Tuple{<:Lat,<:Lon}}) where T
