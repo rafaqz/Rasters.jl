@@ -3,7 +3,7 @@ Spacial array types that can be indexed using dimensions.
 """
 abstract type AbstractGeoArray{T,N,D} <: AbstractDimensionalArray{T,N,D} end
 
-DimensionalData.metadata(a::AbstractGeoArray) = a.metadata
+metadata(a::AbstractGeoArray) = a.metadata
 missingval(a::AbstractGeoArray) = a.missingval
 
 replace_missing(a::AbstractGeoArray, x) = begin
@@ -15,27 +15,34 @@ end
 """
 A generic, memory-backed spacial array type.
 """
-struct GeoArray{T,N,D,R,A<:AbstractArray{T,N},Mi,Me} <: AbstractGeoArray{T,N,D}
+struct GeoArray{T,N,D,R,A<:AbstractArray{T,N},Me,Mi} <: AbstractGeoArray{T,N,D}
     data::A
     dims::D
     refdims::R
-    missingval::Mi
     metadata::Me
+    missingval::Mi
 end
-GeoArray(a::AbstractArray{T,N}, dims; refdims=(), missingval=missing,
-         metadata=Dict()) where {T,N} = 
-    GeoArray(a, formatdims(a, dims), refdims, missingval, metadata)
+GeoArray(a::A, dims::D, refdims::R, metadata::Me, missingval::Mi
+        ) where {A<:AbstractArray{T,N},D,R,Me,Mi} where {T,N} = begin
+    dims = formatdims(a, dims)
+    GeoArray{T,N,typeof(dims),R,A,Me,Mi}(a, dims, refdims, metadata, missingval)
+end
+
+GeoArray(a::AbstractArray{T,N}, dims; refdims=(), metadata=Dict(), missingval=missing
+        ) where {T,N} = 
+    GeoArray(a, formatdims(a, dims), refdims, metadata, missingval)
 
 # Interfaces
 Base.parent(a::GeoArray) = a.data
 Base.convert(::Type{GeoArray}, a::GeoArray) = a
 
-DimensionalData.refdims(a::GeoArray) = a.refdims
-DimensionalData.rebuild(a::GeoArray, data, dims, refdims, missingval=missingval(a)) =
+metadata(a::GeoArray) = a.metadata
+refdims(a::GeoArray) = a.refdims
+rebuild(a::GeoArray, data, dims, refdims, missingval=missingval(a)) =
     GeoArray(data, dims, refdims, missingval, metadata(a))
-DimensionalData.units(a::GeoArray) = getmeta(a, :units, "")  
-DimensionalData.name(a::GeoArray) = getmeta(a, :name, "")
-DimensionalData.shortname(a::GeoArray) = getmeta(a, :shortname, "")
+units(a::GeoArray) = getmeta(a, :units, "")  
+name(a::GeoArray) = getmeta(a, :name, "")
+shortname(a::GeoArray) = getmeta(a, :shortname, "")
 
 CoordinateReferenceSystemsBase.crs(a::GeoArray) = get(metadata(a), :crs, nothing)
 
