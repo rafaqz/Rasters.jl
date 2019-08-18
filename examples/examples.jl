@@ -1,36 +1,109 @@
-# First time: 
+# First time:
 # ] dev http://github.com/rafaqz/CoordinateReferenceSystemsBase.jl
 # ] dev http://github.com/rafaqz/DimensionalData.jl
 # ] dev http://github.com/rafaqz/GeoData.jl
-
-using GeoData, Test, CoordinateReferenceSystemsBase, 
-      NCDatasets, Plots, Statistics, BenchmarkTools
-
 # Load data #######################################################################
 
 # Download an example file (monthly global sea surface temperature)
-filename = "tos_O1_2001-2002.nc"
-# download("https://www.unidata.ucar.edu/software/netcdf/examples/$filename", filename)
-ds = Dataset(filename)
+using GeoData, NCDatasets, Statistics, Plots
 
-# Convert to a GeoArray 
-# This is code that could be added to NCDatasets and similar packages
-# so this happens automatically.
-ncfields(ds, index) = ds[index][:], ds[index].attrib["units"]
-dimz = (Lon(ncfields(ds, "lon")...,), Lat(ncfields(ds, "lat")...,), Time(ncfields(ds, "time")...,))
-attrib = ds["tos"].attrib
-# The type has some fixed names it want in metadata.
-# Have to think about how to inluce all the other arbitrary metadata
-meta = Dict(:name=>attrib["long_name"],
-            :shortname=>attrib["standard_name"],
-            :attrib=>Dict(attrib))  
-g = GeoArray(ds["tos"][:,:,:], dimz; units=attrib["units"], metadata=meta); 
-close(ds)
+load(fname) = begin
+    ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
+    isfile(fname) || download(joinpath(ncexamples, fname), fname)
+    Dataset(filename)
+end
 
+# Sea surface temperatures collected by PCMDI for use by the IPCC.
+filename = "tos_O1_2001-2002.nc" 
+ds = load(filename)
+metadata(ds)
+typeof(ds)
+v = ds["tos"]
+v[]
+dimranges = Time((DateTime360Day(2002, 08, 1), DateTime360Day(2002, 012, 30))), 
+            Lat((-45, 0.5)), 
+            Lon((110, 160))
+select(v, dimranges) |> x->mean(x; dims=Time) |> plot
+
+# Example model output from the ECHAM general circulation model. 
+# Almost CF, but not quite. Has a spectral coordinate for variables 
+# such as temperature (st) and vorticity (svo). 
+filename = "test_echam_spectral.nc"
+ds = load(filename)
+v = ds["sn"][:,:,:]
+reverse(v[Time(1)]; dims=Lat) |> plot # FIXME: Upside down
+v |> plot # FIXME: Upside down
+ds["xl"][Time(2), Dim{:mlev}(25:33)] |> plot
+show(v)
+reverse(v; dims=Lon)
+show(dims(v))
+size(v, Lon)
+
+# Surface data for July 2002 from the ECMWF 40 Years Re-Analysis, daily fields. 
+# (ECMWF ERA-40 data used in this study/project have been obtained from 
+# the ECMWF data server which has these conditions of use.)
+filename = "ECMWF_ERA-40_subset.nc"
+ds = load(filename)
+# Show every second (daytime) time
+ds["msl"][Time(1:2:23)] |> plot
+
+# From the Community Climate System Model (CCSM), one time step of 
+# precipitation flux, air temperature, and eastward wind. More details.
+filename = "sresa1b_ncar_ccsm3-example.nc"
+ds = load(filename)
+ds["time_bnds"]
+ds["pr"][Time(1)] |> plot
+
+# Initialization data for a CAM 3.0 model run
+filename = "cami_0000-09-01_64x128_L26_c030918.nc" 
+ds = load(filename)
+ds["LCWAT"][Time(1), Dim{:lev}(15)] |> plot
+
+# Smith & Sandwell v. 8.2: 1/30-degree topography and bathymetry
+filename = "smith_sandwell_topo_v8_2.nc" 
+ds = load(filename)
+# ds["ROSE"] |> plot # VERY high res and slow
+
+# NCEP/NCAR Reanalysis 1 data for relative humidity at multiple levels, daily averages for 2003
+filename = "rhum.2003.nc" 
+ds = load(filename)
+v = ds["rhum"]
+reverse(v[Time(1)]; dims=Lat) |> plot # FIXME: Upside down. use actual_range
+ 
+# Other conventions
+
+# Sample files following other conventions CDL (metadata) 	netCDF file 	Description
+filename = "madis-hydro.nc" # Meteorological Assimilation Data Ingest System (MADIS) hydro data for a single hour within a flood control district. The MADIS data emphasizes quality control and uses AWIPS conventions.
+filename = "madis-maritime.nc" # MADIS maritime data for a single hour.
+filename = "madis-mesonet.nc" # MADIS mesonet data for a single hour.
+filename = "madis-metar.nc" # MADIS METAR data for a single hour.
+filename = "madis-profiler.nc" # MADIS profiler data for a single hour.
+filename = "madis-raob.nc" # MADIS RAOB data for a single hour.
+filename = "madis-sao.nc" # MADIS SAO data for a single hour.
+filename = "GLASS.nc" # NCAR Mobile GLASS atmospheric sounding generated from the ASPEN system. This file is an upsonde (ground release). Dropsondes have a similar format.
+filename = "WMI_Lear.nc" # Aircraft track files used by Zebra and IDV from BAMEX field project. A flight is broken down into separate hourly files (based on clock time not flight time).
+filename = "04091217_ruc.nc" # Output from Rapid Update Cycle model run, uses NUWG conventions.
+filename = "GOTEX.C130-example.nc" # An example of sensor data from instruments on an aircraft, stored using NCAR-RAF/nimbus conventions.
+filename = "ncswp_SPOL_RHI_.nc"
+filename = "ncswp_SPOL_PPI_.nc" # NCAR S-band dual-polarized (S-Pol) radar netCDF sweep file format. Range Height Indicator (RHI) files are vertical scans, Plan Position Indicator (PPI) files are horizontal scans. Each file contains one sweep (azimuth (up/down) for RHI or elevation (horizontal) for PPI).
+filename = "HRDL_iop12-example.nc" # HRDL Lidar Data collected during the CASES-99 Experiment near Leon, Kansas. Uses unspecified conventions: more details.
+filename = "wrfout_v2_Lambert.nc" # WRF output with staggered axes. Grids that are offset from each other, such as in the WRF model output, are currently difficult to deal with because no commonly used convention expresses the relations between staggered grids.
+filename = "slim_100897_198.nc" # SLIMCAT Reference Atmosphere for UTLS-Ozone, see catalog record
+filename = "sgpsondewnpnC1.nc" # Atmospheric Radiation Measurement (ARM) sounding file. ARM uses netCDF extensively.
+filename = "19981111_0045.nc" # Single-banded satellite image example from the NWS AWIPS system.
+filename = "IMAGE0002.nc" # Multi-banded satellite image generated by McIDAS program.
+
+ 
+# Example netCDF-4 files
+filename = "test_hgroups.nc" # A couple of aircraft flight data sets stored as individual groups. For the sake of experimenting, the first group has its dimension (recNum) and the time variable defined at root level. All other groups have all dimensions stored inside the group.
+filename = "OMI-Aura_L2-example.nc" # Example of a satellite data file with averaging kernels. Has variables with two dimensions of the same name in it (short O3.COLUMN.PARTIAL_AVK(DATETIME, PRESSURE, PRESSURE)).
+filename = "test_echam_spectral-deflated.nc" # Example model output from the ECHAM general circulation model. Same as test_echam_spectral.nc netCDF-classic format file above, but this uses netCDF-4 chunking and compression to store the same data in a smaller file, only 43% as large. Subsets of the data can be accessed efficiently without uncompressing the whole file. 
+ds = load(filename)
 
 
 # Manipulate data and plot #################################################
 pyplot()
+plotlyjs()
 
 # Plot 3d data in a grid
 g[Time(1:4)] |> plot
@@ -47,14 +120,14 @@ minimum(x->ismissing(x) ? NaN : x, g; dims=Time) |> plot
 maximum(x->ismissing(x) ? NaN : x, g; dims=Time) |> plot
 reduce(+, g; dims=Time) |> plot
 
-# Or something more complicated: 
+# Or something more complicated:
 # plot the mean sea surface temperature around Australia from August to December 2002
 dimranges = Time((DateTime360Day(2002, 08, 1), DateTime360Day(2002, 012, 30))), Lat(-45:0.5), Lon(110:160)
-select(g, dimranges) |> x->mean(x; dims=Time) |> plot
+select(v, dimranges) |> x->mean(x; dims=Time) |> plot
 
 # Reorganise the dimensions in the underlying data
 # It stil plots the right way up
-permutedims(g, [Lat, Lon, Time]) |> plot
+permutedims(g, (Lat, Lon, Time]) |> plot
 
 # Line plots have useful labels
 replace(g[Lat(20)], missing=>NaN) |> surface
@@ -64,20 +137,17 @@ g[Lat(1:80), Lon(170), Time(10)] |> plot
 
 # Save data ################################################################
 # needs work
-g = replace_missing(g, NaN)
+g = replace_missing(v, NaN)
 newds = Dataset("out.nc","c")
 
 # Need to add the actual lat and long vars too, but how?
-defDim(newds, "lon", size(getdim(g, Lon), 1))
-defDim(newds, "lat", size(getdim(g, Lat), 1))
+defDim(newds, "lon", size(val(getdim(v, Lon())), 1))
+defDim(newds, "lat", size(val(getdim(v, Lat())), 1))
 
 # Define the sea surface temperature variable
-v = defVar(newds, shortname(g) , eltype(g) , ("lon", "lat"))
-attrib = metadata(g)[:attrib]
-attrib["_FillValue"] = Float64(attrib["_FillValue"])
-attrib["_missingvalue"] = NaN 
-for (key, val) in attrib
-    v.attrib[key] = val
+newvar = defVar(newds, , eltype(v) , ("lon", "lat"))
+for (key, val) in newvar.attrib
+    newvar.attrib[key] = val
 end
 v[:,:] = parent(g)
 close(newds)
