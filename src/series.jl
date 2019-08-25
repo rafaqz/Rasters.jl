@@ -1,27 +1,34 @@
 """
-Holds or points to a series of stacks over one or more dimensions.
+An AbstractGeoArray that holds or points to a series of stacks.
 
 This is useful abstraction where data is broken into separate
 files accross one or more dimensions, and need to be loaded 
 separately. 
 """
-abstract type AbstractGeoSeries{T,N,D} <: AbstractDimensionalArray{T,N,D} end
+abstract type AbstractGeoSeries{T,N,D,C} <: AbstractGeoArray{T,N,D} end
 
-DimensionalData.dims(a::AbstractGeoSeries) = a.dims
+(::Type{T})(data, dims; refdims=(), metadata=Dict(), childtype=GeoArray) where T<:AbstractGeoSeries = 
+    T(data, dims, refdims, metadata, childtype)
+
+@inline rebuild(s::T, data, newdims, newrefdims) where T <: AbstractGeoSeries =
+    T(data, newdims, newrefdims, metadata(s), childtype(s))
+childtype(series::AbstractGeoSeries) = series.childtype
+
+Base.getindex(s::AbstractGeoSeries{<:AbstractString}, i::Vararg{Integer}) = 
+    childtype(s)(parent(s)[i...])
+Base.getindex(s::AbstractGeoSeries{<:AbstractGeoStack}, i::Vararg{Integer}) = 
+    parent(s)[i...]
 
 """
 Holds stacks along some dimension(s)
+
+Probably not as useful as format-specific AbstractLazySeries that lazily
+loads specific files. 
 """
-struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},M} <: AbstractGeoSeries{T,N,D}
-    stacks::A
+struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},M,C} <: AbstractGeoSeries{T,N,D,C}
+    data::A
     dims::D
     refdims::R
     metadata::M
+    childtype::C
 end
-
-Base.parent(s::GeoSeries) = s.stacks
-
-DimensionalData.refdims(a::GeoSeries) = a.refdims
-DimensionalData.metadata(a::GeoSeries) = a.metadata
-DimensionalData.rebuild(s::GeoSeries, data, newdims, newrefdims) =
-    GeoSeries(data, newdims, newrefdims, metadata(s))

@@ -14,16 +14,39 @@ load(fname) = begin
 end
 
 # Sea surface temperatures collected by PCMDI for use by the IPCC.
-filename = "tos_O1_2001-2002.nc" 
-ds = load(filename)
-metadata(ds)
-typeof(ds)
-v = ds["tos"]
-v[]
-dimranges = Time((DateTime360Day(2002, 08, 1), DateTime360Day(2002, 012, 30))), 
-            Lat((-45, 0.5)), 
-            Lon((110, 160))
-select(v, dimranges) |> x->mean(x; dims=Time) |> plot
+filename = "tos_O1_2001-2002.nc"
+dimranges = Time<|Between(DateTime360Day(2002, 08, 1), DateTime360Day(2002, 012, 30)), 
+            Lat<|Between(-45, 0.5), 
+            Lon<|Between(110, 160)
+select(NCstack(filename)["tos"], dimranges...) |> x->mean(x; dims=Time) |> plot
+stack = NCstack(filename)
+keys(stack)
+
+ds = (Time<|[DateTime360Day(2001, 01, 1), DateTime360Day(2001, 02, 1), DateTime360Day(2001, 03, 1)],)
+filenames = ["tos_O1_2001-2002.nc","tos_O1_2001-2002.nc","tos_O1_2001-2002.nc"]
+series = GeoSeries(filenames, ds; childtype=NCstack)
+series[Time(1)]
+array = select(series, Time<|Near<|DateTime360Day(2001, 01, 1))["tos"][Lon(1:100), Time(1)]
+array = NCarray(filename)
+dims(array)
+
+using CFTime
+filename = "TA1cm_0pctShade_1990.nc"
+d = Dataset(filename)
+data = Float64.(d["time"].var[:])
+units = d["time"].attrib["units"]
+units = "seconds since 1-1-1970"
+
+tunit_mixedcase,starttime = strip.(split(units," since "))
+tunit = lowercase(tunit_mixedcase)
+replace(starttime, " " => "-")
+t0 = CFTime.parseDT(DT,starttime)
+DT = DateTimeStandard
+t0, plength = CFTime.timeunits(DT,units)
+CFTime.timedecode(DT, data, units)
+
+stack = NCstack(filenames)
+stack["TA1cm"]
 
 # Example model output from the ECHAM general circulation model. 
 # Almost CF, but not quite. Has a spectral coordinate for variables 
@@ -127,7 +150,7 @@ select(v, dimranges) |> x->mean(x; dims=Time) |> plot
 
 # Reorganise the dimensions in the underlying data
 # It stil plots the right way up
-permutedims(g, (Lat, Lon, Time]) |> plot
+permutedims(g, (Lat, Lon, Time) |> plot
 
 # Line plots have useful labels
 replace(g[Lat(20)], missing=>NaN) |> surface
@@ -138,7 +161,7 @@ g[Lat(1:80), Lon(170), Time(10)] |> plot
 # Save data ################################################################
 # needs work
 g = replace_missing(v, NaN)
-newds = Dataset("out.nc","c")
+newds = Dataset("out.nc", "c")
 
 # Need to add the actual lat and long vars too, but how?
 defDim(newds, "lon", size(val(getdim(v, Lon())), 1))
@@ -166,3 +189,91 @@ normalindex(g) = @inbounds parent(g)[80, 17, 20]
 # the dimensions as well as retreiving the data, but can be imroved.
 
 # There are more benchmarks with the DimensionalData.jl tests
+
+using HDF5, GeoData, Dates, Plots
+using GeoData: Time
+
+# start_date = Date("2016-01-01")
+# end_date = Date("2016-12-31")
+# end_date = Date("2016-02-28")
+filepath = "/home/raf/CESAR/SMAP/SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5" # raw climatic data
+path = "/home/raf/CESAR/SMAP/" # raw climatic data
+series = smapseries(path)
+metadata(series)
+x = series[Time<|1] ["surface_temp", Lon<|1:1, Lat<|1:5]
+dropdims(x; dims=Lon())
+@code_warntype series[Time<|1]["surface_temp"][Lon<|1:12, Lat<|1:5]
+stack = series[Time(1)]
+keys(stack)
+
+dims(series)
+refdims(stack)
+@time array[Lon(1), Lat(1)]
+
+using GeoData, GDAL, ArchGDAL#, Plots
+const AG = ArchGDAL
+
+filepath = "/home/raf/CESAR/Raster/limited_growth/limited_growth_2016_01.tif"
+filepath = "/home/raf/CESAR/Raster/human_footprint_cea_project.tif"
+array = GDALarray(filepath; missingval=-3.4f38)
+plot(array)
+dims(array)
+# heatmap(4size(array, 2):-4:1, val(dims(array)[1]), parent(array))
+
+nt = (a=filepath, b=filepath1, c=filepath)
+stack = GDALstack(nt)
+stack[:b] |> plot
+split(metadata(stack), "\n")
+x = CoordinateReferenceSystemsBase.crs(stack)
+
+ArchGDAL.registerdrivers() do
+   ArchGDAL.read(filepath) do ds
+       println(ArchGDAL.getband(ds, 1))
+   end
+end
+GeoData.gdalrun(filepath) do ds
+    ArchGDAL.read(ds, 1, 1:1, 1:2)
+end
+
+#        # println(fieldnames(dataset))
+#        # AG.read(dataset, 1)
+#        # println(names(dataset))
+#        # println(ArchGDAL.height(dataset))
+#        # println(ArchGDAL.width(dataset))
+#        # drv = ArchGDAL.getdriver(dataset)
+#        # println(ArchGDAL.shortname(drv))
+#        # println(ArchGDAL.longname(drv))
+#        # println(ArchGDAL.nraster(dataset))
+#        # geotransform = ArchGDAL.getgeotransform(dataset)
+#        # WellKnownText <| string(ArchGDAL.importWKT(AG.getproj(dataset)))
+#        # GDAL.getmetadatadomainlist(dataset.ptr)
+#hjj
+gdal_url = "https://download.osgeo.org/geotiff/samples/GeogToWGS84GeoKey/GeogToWGS84GeoKey5.tif"
+download(gdal_url, "GeogToWGS84GeoKey5.tif") 
+filepath = geturl(gdal_url)
+
+GeoData.gdalrun("GeogToWGS84GeoKey5.tif") do dataset
+    band = ArchGDAL.getband(dataset, 1)
+    # GDAL.datasetgetlayercount(ds.ptr)
+    # drv = ArchGDAL.getdriver(dataset)
+end
+
+using REPL
+?→ # Primes the symbols_latex cache
+assoc = :right
+minprec = 0
+maxprec = 20
+
+for x in 1:20000
+    op = Symbol(Char(x))
+    Base.operator_associativity(op) == assoc || continue
+    prec = Base.operator_precedence(op)
+    prec > minprec && prec < maxprec || continue 
+    print((op, prec))
+    cstr = string(op)
+    if haskey(REPL.symbols_latex, cstr)
+        print(" ", REPL.symbols_latex[cstr])
+    end
+    println()
+end
+
