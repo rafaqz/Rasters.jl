@@ -27,7 +27,10 @@ data(s::SMAPstack, ds, key::Key, I...) = begin
 end
 data(s::SMAPstack, ds, key::Key, I::Vararg{Integer}) = ds[smappath(key)][I...]
 
+# HDF5 uses `names` instead of `keys` so we have to special case it
 Base.keys(stack::SMAPstack) = run(ds -> names(ds[SMAPGEODATA]), stack, source(stack))
+Base.copy!(dst::AbstractArray, src::SMAPstack, key) = 
+    run(ds -> dst .= read(ds[smappath(key)]), src, source(src))
 
 """
 Series loader for SMAP folders (files in the time dimension). 
@@ -37,7 +40,6 @@ SMAPseries(path::AbstractString) = SMAPseries(joinpath.(path, filter_ext(path, "
 SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths); 
            refdims=(), metadata=nothing, childtype=SMAPstack) = 
     GeoSeries(filepaths, dims, refdims, metadata, childtype)
-
 
 # smap utilities
 

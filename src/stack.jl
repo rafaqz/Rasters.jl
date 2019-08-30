@@ -5,7 +5,7 @@ const Key = Union{Symbol,AbstractString}
 Stack object for holding multiple arrays and datasets
 with the same spatial metadata and bounds. As in R's raster stack.
 
-Contained objects should share common dims D?
+Contained objects should share some common dims D?
 """
 abstract type AbstractGeoStack{T} end
 
@@ -23,6 +23,8 @@ for func in (:dims, :metadata, :missingval)
         @inline $func(stack::AbstractGeoStack, source, key::Key) = $func(source)
     end
 end
+@inline refdims(s::AbstractGeoStack) = s.refdims
+@inline metadata(s::AbstractGeoStack) = s.metadata
 
 # Named tuple of paths to single-layer files
 @inline source(stack::AbstractGeoStack{<:NamedTuple}) = parent(stack)
@@ -31,8 +33,6 @@ end
 @inline source(stack::AbstractGeoStack{<:AbstractString}, args...) = parent(stack)
 
 
-@inline refdims(s::AbstractGeoStack) = s.refdims
-@inline metadata(s::AbstractGeoStack) = s.metadata
 
 @inline rebuild(s::AbstractGeoStack, values::Base.Generator) =
     rebuild(s, NamedTuple{keys(s)}(values))
@@ -43,12 +43,13 @@ select(s::AbstractGeoStack, I...) = rebuild(s, (select(a, I...) for a in values(
 selectview(s::AbstractGeoStack, I...) = rebuild(s, (selectview(a, I...) for a in values(s)))
 
 Base.parent(s::AbstractGeoStack) = s.data
-Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, destkeys=keys(a)) = begin
+
+Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, destkeys=keys(dst)) = begin
     for key in destkeys
-        key in keys(dst) || throw(ArgumentError("key $key not found in dest keys"))
-        key in keys(src) || throw(ArgumentError("key $key not found in source keys"))
+        key in Symbol.(keys(dst)) || throw(ArgumentError("key $key not found in dest keys"))
+        key in Symbol.(keys(src)) || throw(ArgumentError("key $key not found in source keys"))
     end
-    for key in keys(dst)
+    for key in Symbol.(keys(dst))
         copy!(dst[key], src, key)
     end
 end
@@ -59,17 +60,13 @@ end
 # Dict/Array hybrid
 @inline Base.getindex(stack::AbstractGeoStack, key::Key, I::Vararg{<:AbstractDimension}) =
     getindex(stack, key, dims2indices(dims(stack, key), I)...)
-@inline Base.getindex(stack::AbstractGeoStack, key::Key, I...) =
-    data(stack, key, I...)
-@inline Base.getindex(stack::AbstractGeoStack, key::Key) =
-    data(stack, key)
+@inline Base.getindex(stack::AbstractGeoStack, key::Key, I...) = data(stack, key, I...)
+@inline Base.getindex(stack::AbstractGeoStack, key::Key) = data(stack, key)
 
-@inline Base.keys(stack::AbstractGeoStack{<:AbstractString}) = run(keys, stack, source(stack))
-@inline Base.values(stack::AbstractGeoStack{<:AbstractString}) = run(values, stack, source(stack))
-@inline Base.length(stack::AbstractGeoStack{<:AbstractString}) = run(length, stack, source(stack))
-@inline Base.keys(stack::AbstractGeoStack{<:NamedTuple}) = keys(parent(stack))
-@inline Base.values(stack::AbstractGeoStack{<:NamedTuple}) = values(parent(stack))
-@inline Base.length(stack::AbstractGeoStack{<:NamedTuple}) = length(parent(stack))
+@inline Base.values(stack::AbstractGeoStack) = (stack[key] for key in keys(stack))
+@inline Base.length(stack::AbstractGeoStack) = length(keys(stack))
+@inline Base.keys(stack::AbstractGeoStack{<:AbstractString}) = Symbol.(run(keys, stack, source(stack)))
+@inline Base.keys(stack::AbstractGeoStack) = Symbol.(keys(parent(stack)))
 @inline Base.names(stack::AbstractGeoStack) = keys(stack)
 
 @mix struct GeoStackMixin{T,D,R,M}
@@ -88,16 +85,13 @@ applied to all layers.
 @GeoStackMixin struct GeoStack{T,D,R,M} <: AbstractGeoStack{T} end
 
 GeoStack(data::Vararg{<:AbstractGeoArray};
-         keys=Symbol.(name.(data)), dims=(), refdims=(), metadata=nothing) =
+         keys=Symbol.(name.(data)), dims=(), refdims=(first(data)), metadata=nothing) =
     GeoStack(NamedTuple{keys}(data), dims, refdims, metadata)
-
-"""
-Subset constructor. Create a GeoArray from a subset of the keys in another AbstractGeoArray.
-"""
-GeoStack(s::AbstractGeoStack, key::Key) = GeoStack(s, (key,))
-GeoStack(s::AbstractGeoStack, keys::Tuple=keys(s)) = begin
-    data = NamedTuple{keys} <| convert.(GeoArray, (s[Symbol(key)] for key in keys))
-    GeoStack(data, dims(s), refdims(s), metadata(s))
+GeoStack(stack::AbstractGeoStack; keys=keys(stack), dims=(), 
+         refdims=refdims(stack), metadata=metadata(stack)) = begin
+    keys = Tuple(Symbol.(keys))
+    data = NamedTuple{keys}((GeoArray(stack[key]) for key in keys))
+    # GeoStack(data, dims, refdims, metadata)
 end
 
 # GeoStack is in-memory so we don't have to fetch anything here,

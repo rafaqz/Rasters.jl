@@ -65,15 +65,20 @@ struct GDALstack{T} <: AbstractGeoStack{T}
 end 
 
 run(f, stack::GDALstack, path::AbstractString) = gdalrun(f, path::AbstractString)
-data(stack::GDALstack, ds, key::Key) = GDALarray(ds)
-data(stack::GDALstack, ds, key::Key, I...) = GDALarray(ds)[I...] 
 data(stack::GDALstack, ds, key::Key, I::Vararg{Integer}) = ArchGDAL.read(ds, I...)
+data(stack::GDALstack, ds, key::Key, I...) = GDALarray(ds)[I...] 
+data(stack::GDALstack, ds, key::Key) = GDALarray(ds)
 
+refdims(stack::GDALstack) = ()
+metadata(stack::GDALstack) = nothing
 metadata(stack::GDALstack, source, key::Key) = nothing
 missingval(stack::GDALstack, source, key::Key) = NaN
 
 crs(stack::GDALstack{<:NamedTuple}) = gdalrun(gdalcrs, first(parent(stack))[2])
 crs(stack::GDALstack{<:AbstractString}) = gdalrun(gdalcrs, parent(stack))
+
+Base.copy!(dst::AbstractArray, src::GDALstack, key::Key) = 
+    copy!(dst, gdalrun(ArchGDAL.read, source(src, key)))
 
 
 # gdal utils

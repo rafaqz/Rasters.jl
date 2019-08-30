@@ -14,6 +14,8 @@ abstract type AbstractDiskGeoArray{T,N,D} <: AbstractGeoArray{T,N,D} end
 units(a::AbstractGeoArray) = getmeta(a, :units, "")  
 longname(a::AbstractGeoArray) = getmeta(a, :longname, "")
 shortname(a::AbstractGeoArray) = getmeta(a, :shortname, "")
+mask(a::AbstractGeoArray) = parent(a) .!= missingval(a)
+mask(a::AbstractGeoArray{<:Union{Missing}}) = (!).(ismissing.(parent(a)))
 
 replace_missing(a::AbstractGeoArray, mv) = 
     rebuild(a, replace(a, missingval(a) => mv), dims(a), refdims(a), mv)
@@ -41,11 +43,12 @@ A generic, memory-backed spatial array type.
     GeoArray{T,N,typeof(dims),R,A,Me,Mi}(a, dims, refdims, metadata, missingval)
 end
 
-@inline GeoArray(a::AbstractArray{T,N}, dims; refdims=(), metadata=Dict(), missingval=missing
-        ) where {T,N} = 
+@inline GeoArray(a::AbstractArray{T,N}, dims; 
+                 refdims=(), metadata=Dict(), missingval=missing) where {T,N} = 
     GeoArray(a, formatdims(a, dims), refdims, metadata, missingval)
+# Move disk backed array to memory
 @inline GeoArray(a::AbstractGeoArray) = 
-    GeoArray(Array(parent(a)), dims(a), refdims(a), metadata(a), missingval(a))
+    GeoArray(parent(a), dims(a), refdims(a), metadata(a), missingval(a))
 
 Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
 
