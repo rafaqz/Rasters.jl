@@ -32,11 +32,11 @@ stack = GeoStack(ga1, ga2; keys=(:ga1, :ga2), dims=dims)
 # @test data(stack, :ga1) == ga1
 @test dims(stack) == formatdims(data1, dims1)
 @test dims(stack, :ga1) == formatdims(data1, dims1)
-@test refdims(stack) == ()
+# @test refdims(stack) == ()
 @test metadata(stack) == nothing
 @test metadata(stack, :ga1) == nothing
 @test Base.keys(stack) == (:ga1, :ga2)
-@test values(stack) == (ga1, ga2)
+@test Tuple(values(stack)) == (ga1, ga2)
 
 # Indexing the stack is the same as indexing its child array
 a = stack[:ga1][Lon<|2:4, Lat<|5:6]
@@ -93,10 +93,11 @@ v = view(stack, Lon(2:4), Lat(5:6))
 @test v[:ga1] == view(data1, 2:4, 5:6)
 @test v[:ga2] == view(data2, 2:4, 5:6, 1:1)
 
+GeoStack(stack)
 # New stack with specific key(s)
-x = GeoStack(stack, :ga2)
+x = GeoStack(stack; keys=(:ga2,))
 @test keys(x) == (:ga2,)
-y = GeoStack(stack, (:ga1, :ga2))
+y = GeoStack(stack; keys=(:ga1, :ga2))
 @test keys(y) == (:ga1, :ga2)
 
 
@@ -138,6 +139,7 @@ geturl(url) = begin
     fname
 end
 
+
 # NCDatasets
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
@@ -157,7 +159,7 @@ ncstack = NCstack(geturl(ncmulti))
 @test typeof(ncstack[:albedo, 2, 3, 1]) <: Float32
 @test typeof(ncstack[:albedo, :, 3, 1]) <: GeoArray{Union{Missing,Float32},1}
 @test typeof(dims(ncstack, :albedo)) <: Tuple{<:Lon,<:Lat,<:Time}
-@test length(keys(ncstack)) == 136
+@test length(keys(ncstack)) == 131
 @test first(keys(ncstack)) == "abso4"
 # Test some DimensionalData.jl tools work
 # Time dim should be reduced to length 1 by mean
@@ -180,6 +182,16 @@ geoarray = GeoArray(ncarray)
 @test dims(geoarray) == dims(ncarray)
 @test metadata(geoarray) == metadata(ncarray)
 @test ismissing(missingval(geoarray))
+
+# Stack Constructors
+stack = GeoStack(ncstack)
+@test Symbol.(Tuple(keys(ncstack))) == keys(stack)
+smallstack = GeoStack(ncstack; keys=(:albedo, :evap, :runoff))
+@test keys(smallstack) == (:albedo, :evap, :runoff)
+
+# copy!
+array = GeoArray(ncstack[:albedo])
+copy!(array, ncstack, :albedo)
 
 
 # ArchGDAL
@@ -206,7 +218,6 @@ gdalarray = GDALarray(geturl(gdal_url))
 @test missingval(geoarray) == -1.0e10
 
 gdalstack = GDALstack((a=geturl(gdal_url),))
-parent(gdalstack)
 
 # Broken: gdal read() indexing is non-standard
 # band is first when it is last in the returned array.
@@ -214,18 +225,41 @@ parent(gdalstack)
 @test_broken gdalstack[:a][Lat([2,3]), Lon(1), Band(1)]
 @test_broken gdalstack[:a][Lat(1), Lon(1), Band(1)]
 
+# Stack Constructors
+stack = GeoStack(gdalstack)
+@test Symbol.(Tuple(keys(gdalstack))) == keys(stack)
+keys(smallstack) == (:a,)
+
+# copy!
+array = zero(GeoArray(gdalstack[:a]))
+copy!(array, gdalstack, :a)
+
 
 # SMAP
 
-smapfile = "SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5"
-smapstack = SMAPstack(smapfile);
-dims(smapstack, "soil_temp_layer1")
-keys(smapstack)
-names(smapstack)
-geoarray = smapstack["soil_temp_layer1", Lon(1:100), Lat(1:100)]
-geoarray == smapstack["soil_temp_layer1"][Lon(1:100), Lat(1:100)]
-@test typeof(geoarray) <: GeoArray{Float32,2}
-@test size(geoarray) == (100, 100)
-@test typeof(dims(geoarray)) <: Tuple{<:Lon{<:Array{Float32,1}}, <:Lat{<:Array{Float32,1}}}
+# TODO example files without a login requirement
 
+# smapfile1 = "SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5"
+# smapfile2 = "SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5"
+# smapstack = SMAPstack(smapfile1);
+# dims(smapstack, "soil_temp_layer1")
+# keys(smapstack)
+# names(smapstack)
+# geoarray = smapstack["soil_temp_layer1", Lon(1:100), Lat(1:100)]
+# geoarray == smapstack["soil_temp_layer1"][Lon(1:100), Lat(1:100)]
+# @test typeof(geoarray) <: GeoArray{Float32,2}
+# @test size(geoarray) == (100, 100)
+# @test typeof(dims(geoarray)) <: Tuple{<:Lon{<:Array{Float32,1}}, <:Lat{<:Array{Float32,1}}}
+
+# Stack Constructors
+# This uses too much ram! There is a lingering memory leak in HDF5.
+# stack = GeoStack(smapstack) 
+# keys(stack)
+# @test Symbol.(Tuple(keys(smapstack))) == keys(smapstack)
+# stack = GeoStack(smapstack; keys=("baseflow_flux", "snow_mass", "soil_temp_layer1"))
+# keys(stack) == (:baseflow_flux, :snow_mass, :soil_temp_layer1)
+
+# copy!
+# array = GeoArray(smapstack[:snow_mass])
+# @time copy!(array, smapstack, :snow_mass)
 
