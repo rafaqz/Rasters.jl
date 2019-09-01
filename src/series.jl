@@ -12,8 +12,13 @@ abstract type AbstractGeoSeries{T,N,D,C} <: AbstractGeoArray{T,N,D} end
 
 @inline rebuild(s::T, data, newdims, newrefdims) where T <: AbstractGeoSeries =
     T(data, newdims, newrefdims, metadata(s), childtype(s))
+
 childtype(series::AbstractGeoSeries) = series.childtype
 
+Base.getindex(s::AbstractGeoSeries{<:LazySubArray}, i::Vararg{Integer}) = 
+    lsa = parent(s)
+    childtype(s)(LazySubArray(lsa[i...], indices(lsa)))
+end
 Base.getindex(s::AbstractGeoSeries{<:AbstractString}, i::Vararg{Integer}) = 
     childtype(s)(parent(s)[i...])
 Base.getindex(s::AbstractGeoSeries{<:AbstractGeoStack}, i::Vararg{Integer}) = 
