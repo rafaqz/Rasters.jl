@@ -20,7 +20,7 @@ can be indexed using named dimensions, which can also be used in most methods li
 - Easy no-config plotting
 - Lazy loading: minimisation of ram requirements for large datasets
 - Automation of multi-file/multi-layer tasks with single line commands
-- Ecosystem integration: work as much as possible with existing packages
+- Ecosystem integration: work as much as possible with existing geospatial packages
 - Ubiquitous DimensionalData.jl dims and selectors for indexing and dimension
   names, but hidden from custom implementations through the AbstractGeoXX interfaces.
 - Automatic detection of dimension order, axis range and data orientation and
