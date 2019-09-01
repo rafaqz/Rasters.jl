@@ -39,9 +39,6 @@ end
 @inline rebuild(s::AbstractGeoStack, data, newdims, newref=refdims(s)) =
     GeoStack(data, newdims, newref, metadata(s))
 
-select(s::AbstractGeoStack, I...) = rebuild(s, (select(a, I...) for a in values(s)))
-selectview(s::AbstractGeoStack, I...) = rebuild(s, (selectview(a, I...) for a in values(s)))
-
 Base.parent(s::AbstractGeoStack) = s.data
 
 Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, destkeys=keys(dst)) = begin
