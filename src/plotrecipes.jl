@@ -7,6 +7,7 @@
         for i in 1:nplots
             @series begin
                 seriestype := :heatmap
+                aspect_ratio := 1
                 colorbar := false
                 ticks := false
                 subplot := i
@@ -31,6 +32,11 @@ end
     colorbar_title --> label(ga)
     title --> label(refdims(ga))
     data = replace(parent(ga), missingval(ga) => NaN)
+    for (i, dim) in enumerate(dims(ga))
+        if order(dim) == Reverse()
+            data = reverse(data; dims=i)
+        end
+    end
     reverse(val.(dims(ga)))..., data
 end
 

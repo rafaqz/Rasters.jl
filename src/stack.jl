@@ -9,35 +9,49 @@ Contained objects should share some common dims D?
 """
 abstract type AbstractGeoStack{T} end
 
-@inline data(stack, key, I...) =
-    run(ds -> data(stack, ds, key, I...), stack, source(stack, key))
+(::Type{T})(data, keys; kwargs...) where T<:AbstractGeoStack =
+    T(NamedTuple{Tuple(Symbol.(keys))}(Tuple(data)); kwargs...)
+(::Type{T})(data; refdims=(), window=()) where T<:AbstractGeoStack =
+    T(data, window, refdims)
 
-# We use `do` blocks to get dims and metadata from the source file safely
+@premix struct GeoStackMixin{T,W,R}
+    data::T
+    window::W
+    refdims::R
+end
+
+# Get the data source with a wrapper method. This means disk datasets are
+# correctly closed after use but are accessed in a standardised way.
+data(s, key, I...) =
+    run(ds -> data(s, ds, key, I...), s, source(s, key))
+
+# Core methods
 for func in (:dims, :metadata, :missingval)
     @eval begin
-        @inline $func(stack::AbstractGeoStack) = $func(stack, first(keys(stack)))
-        @inline $func(stack::AbstractGeoStack{<:NamedTuple}, key::Key) =
-            run(ds -> $func(stack, ds, key), stack, source(stack, key))
-        @inline $func(stack::AbstractGeoStack{<:AbstractString}, key::Key) =
-            run(ds -> $func(stack, ds, key), stack, source(stack, key))
-        @inline $func(stack::AbstractGeoStack, source, key::Key) = $func(source)
+        $func(s::AbstractGeoStack) = $func(s, first(keys(s)))
+        $func(s::AbstractGeoStack, key::Key) =
+            run(ds -> $func(s, ds, key), s, source(s, key))
+        $func(s::AbstractGeoStack, source, key::Key) = $func(source)
     end
 end
-@inline refdims(s::AbstractGeoStack) = s.refdims
-@inline metadata(s::AbstractGeoStack) = s.metadata
+window(s::AbstractGeoStack) = s.window
+refdims(s::AbstractGeoStack) = s.refdims
 
-# Named tuple of paths to single-layer files
-@inline source(stack::AbstractGeoStack{<:NamedTuple}) = parent(stack)
-@inline source(stack::AbstractGeoStack{<:NamedTuple}, key::Key) = parent(stack)[Symbol(key)]
+# The data source is abstracted to handle a named tuple of filepaths,
+# a single filepath containing layers with multiple keys, or a NamedTuple
+# that contains memory back GeoArrays
+source(s::AbstractGeoStack{<:NamedTuple}) = parent(s)
+source(s::AbstractGeoStack{<:NamedTuple}, key::Key) = parent(s)[Symbol(key)]
 # Single filepath for multi-layer files
-@inline source(stack::AbstractGeoStack{<:AbstractString}, args...) = parent(stack)
+source(s::AbstractGeoStack{<:AbstractString}, args...) = parent(s)
 
 
 
-@inline rebuild(s::AbstractGeoStack, values::Base.Generator) =
-    rebuild(s, NamedTuple{keys(s)}(values))
-@inline rebuild(s::AbstractGeoStack, data, newdims, newref=refdims(s)) =
-    GeoStack(data, newdims, newref, metadata(s))
+rebuild(s::AbstractGeoStack, values::Base.Generator; kwargs...) =
+    rebuild(s; parent=NamedTuple{keys(s)}(values), kwargs...)
+rebuild(s::AbstractGeoStack; parent=parent(s), refdims=refdims(s),
+        window=window(s), metadata=metadata(s)) =
+    GeoStack(parent, refdims, window, metadata)
 
 Base.parent(s::AbstractGeoStack) = s.data
 
@@ -51,27 +65,22 @@ Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, destkeys=keys(dst)) = b
     end
 end
 
-# Array interface
-@inline Base.view(s::AbstractGeoStack, I...) = rebuild(s, (view(a, I...) for a in values(s)))
+# Array interface: delete this and just use window?
+# @inline Base.view(s::AbstractGeoStack, I...) = rebuild(s, (view(a, I...) for a in values(s)))
 @inline Base.getindex(s::AbstractGeoStack, I...) = rebuild(s, (a[I...] for a in values(s)))
 # Dict/Array hybrid
-@inline Base.getindex(stack::AbstractGeoStack, key::Key, I::Vararg{<:AbstractDimension}) =
-    getindex(stack, key, dims2indices(dims(stack, key), I)...)
-@inline Base.getindex(stack::AbstractGeoStack, key::Key, I...) = data(stack, key, I...)
-@inline Base.getindex(stack::AbstractGeoStack, key::Key) = data(stack, key)
+Base.getindex(s::AbstractGeoStack, key::Key, I::Vararg{<:AbstractDimension}) =
+    getindex(s, key, dims2indices(dims(s, key), I)...)
+Base.getindex(s::AbstractGeoStack, key::Key, I...) = 
+    data(s, key, applywindow(s, key, I)...)
+Base.getindex(s::AbstractGeoStack, key::Key) = data(s, key, windoworempty(s, key)...)
 
-@inline Base.values(stack::AbstractGeoStack) = (stack[key] for key in keys(stack))
-@inline Base.length(stack::AbstractGeoStack) = length(keys(stack))
-@inline Base.keys(stack::AbstractGeoStack{<:AbstractString}) = Symbol.(run(keys, stack, source(stack)))
-@inline Base.keys(stack::AbstractGeoStack) = Symbol.(keys(parent(stack)))
-@inline Base.names(stack::AbstractGeoStack) = keys(stack)
+Base.values(s::AbstractGeoStack) = (s[key] for key in keys(s))
+Base.length(s::AbstractGeoStack) = length(keys(s))
+Base.keys(s::AbstractGeoStack{<:AbstractString}) = Symbol.(run(keys, s, source(s)))
+Base.keys(s::AbstractGeoStack) = Symbol.(keys(parent(s)))
+Base.names(s::AbstractGeoStack) = keys(s)
 
-@mix struct GeoStackMixin{T,D,R,M}
-    data::T
-    dims::D
-    refdims::R
-    metadata::M
-end
 
 """
 Basic stack object. Holds AbstractGeoArray layers
@@ -79,25 +88,34 @@ Basic stack object. Holds AbstractGeoArray layers
 `view` or `getindex` return another stack with the method
 applied to all layers.
 """
-@GeoStackMixin struct GeoStack{T,D,R,M} <: AbstractGeoStack{T} end
-
-GeoStack(data::Vararg{<:AbstractGeoArray};
-         keys=Symbol.(name.(data)), dims=(), refdims=(first(data)), metadata=nothing) =
-    GeoStack(NamedTuple{keys}(data), dims, refdims, metadata)
-GeoStack(stack::AbstractGeoStack; keys=keys(stack), dims=(), 
-         refdims=refdims(stack), metadata=metadata(stack)) = begin
-    keys = Tuple(Symbol.(keys))
-    data = NamedTuple{keys}((GeoArray(stack[key]) for key in keys))
-    # GeoStack(data, dims, refdims, metadata)
+@GeoStackMixin struct GeoStack{M} <: AbstractGeoStack{T}
+    metadata::M
 end
+
+GeoStack(data::Vararg{<:AbstractGeoArray}; keys=Symbol.(name.(data)), kwargs...) =
+    GeoStack(NamedTuple{keys}(data); kwargs...)
+GeoStack(data::NamedTuple; refdims=(), window=(), metadata=nothing) =
+    GeoStack(data, window, refdims, metadata)
+GeoStack(s::AbstractGeoStack;
+         keys=Tuple(Symbol.(keys(s))),
+         parent = NamedTuple{keys}((GeoArray(s[key]) for key in keys)),
+         dims=dims(s), refdims=refdims(s),
+         metadata=metadata(s), window=window(s)) =
+    GeoStack(parent, window, refdims, metadata)
+
+metadata(s::GeoStack) = s.metadata
+rebuild(s::GeoStack; parent=parent(s), refdims=refdims(s),
+        window=window(s), metadata=metadata(s)) =
+    GeoStack(parent, window, refdims, metadata)
 
 # GeoStack is in-memory so we don't have to fetch anything here,
 # just run the function on the contained object.
-@inline run(f, stack::GeoStack, source) = f(source)
-@inline data(stack::GeoStack, source, key::Key, I...) = source[I...]
+run(f, s::GeoStack, source) = f(source)
+data(s::GeoStack, key::Key, I...) = data(s, key)[I...]
+data(s::GeoStack, key::Key) = parent(s)[key]
 
-# GeoStack keys are in memory objects so we just return them
-@inline Base.getindex(stack::GeoStack, key::Key) = parent(stack)[Symbol(key)]
-@inline Base.getindex(stack::GeoStack, key::Key) = getindex(parent(stack), key)
+# GeoStack keys are in-memory objects so we just return them
+# @inline Base.getindex(s::GeoStack, key::Key) = parent(s)[Symbol(key)]
+# @inline Base.getindex(s::GeoStack, key::Key) = getindex(parent(s), key)
 
-Base.convert(::GeoStack, stack::AbstractGeoStack) = GeoStack(stack)
+Base.convert(::GeoStack, s::AbstractGeoStack) = GeoStack(s)

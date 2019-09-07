@@ -8,9 +8,7 @@ const SMAPMISSING = -9999.0
 const SMAPEXTENT = "Metadata/Extent"
 const SMAPGEODATA = "Geophysical_Data"
 
-struct SMAPstack{T<:AbstractString} <: AbstractGeoStack{T}
-    data::T
-end
+@GeoStackMixin struct SMAPstack{} <: AbstractGeoStack{T} end
 
 dims(stack::SMAPstack, ds, key::Key) = smapcoords(ds)
 refdims(stack::SMAPstack) = (run(smaptime, stack, source(stack)),)
@@ -19,27 +17,28 @@ missingval(stack::SMAPstack, args...) = SMAPMISSING
 
 @inline run(f, stack::SMAPstack, path::AbstractString) = h5open(f, path)
 
-data(s::SMAPstack, ds, key::Key) = 
-    GeoArray(read(ds[smappath(key)]), dims(s, key), refdims(s), metadata(s), missingval(s))
+data(s::SMAPstack, ds, key::Key) =
+    GeoArray(read(ds[smappath(key)]), dims(s, key), refdims(s), metadata(s), missingval(s), Symbol(key))
 data(s::SMAPstack, ds, key::Key, I...) = begin
     data = ds[smappath(key)][I...]
-    GeoArray(data, slicedims(dims(s, key), refdims(s), I)..., metadata(s), missingval(s))
+    GeoArray(data, slicedims(dims(s, key), refdims(s), I)..., metadata(s), missingval(s), Symbol(key))
 end
 data(s::SMAPstack, ds, key::Key, I::Vararg{Integer}) = ds[smappath(key)][I...]
 
 # HDF5 uses `names` instead of `keys` so we have to special case it
-Base.keys(stack::SMAPstack) = run(ds -> names(ds[SMAPGEODATA]), stack, source(stack))
-Base.copy!(dst::AbstractArray, src::SMAPstack, key) = 
-    run(ds -> dst .= read(ds[smappath(key)]), src, source(src))
+Base.keys(stack::SMAPstack) = run(ds -> Tuple(Symbol.(names(ds[SMAPGEODATA]))), stack, source(stack))
+Base.copy!(dst::AbstractArray, src::SMAPstack, key) =
+    run(ds -> dst .= ds[smappath(key)][window2indices(src, key)...], src, source(src))
 
 """
-Series loader for SMAP folders (files in the time dimension). 
+Series loader for SMAP folders (files in the time dimension).
 It outputs a GeoSeries
 """
-SMAPseries(path::AbstractString) = SMAPseries(joinpath.(path, filter_ext(path, ".h5")))
-SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths); 
-           refdims=(), metadata=nothing, childtype=SMAPstack) = 
-    GeoSeries(filepaths, dims, refdims, metadata, childtype)
+SMAPseries(path::AbstractString; kwargs...) =
+    SMAPseries(joinpath.(path, filter_ext(path, ".h5")); kwargs...)
+SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths);
+           childtype=SMAPstack, kwargs...) =
+    GeoSeries(filepaths, dims; childtype=childtype, kwargs...)
 
 # smap utilities
 
@@ -56,7 +55,7 @@ end
 smapseriestime(filepaths) = begin
     timeseries = h5open.(ds -> smaptime(ds), filepaths)
     timemeta = metadata(first(timeseries))
-    (Time(val.(timeseries), timemeta),)
+    (Time(val.(timeseries); metadata=timemeta),)
 end
 
 smapcoords(ds) = begin
@@ -66,7 +65,7 @@ smapcoords(ds) = begin
         # For performance we just take a vector slice of each dim.
         latvec = read(root(ds)["cell_lat"])[1, :]
         lonvec = read(root(ds)["cell_lon"])[:, 1]
-        (Lon(lonvec), Lat(latvec))
+        (Lon(lonvec), Lat(latvec; order=Reverse()))
     else
         error("projection $proj not supported")
     end

@@ -4,15 +4,17 @@ using Mixers, RecipesBase, Reexport, Requires
 @reexport using CoordinateReferenceSystemsBase, DimensionalData
 
 
-using DimensionalData: Time, formatdims, slicedims, basetype, dims2indices, @dim
+using DimensionalData: Time, Forward, Reverse, formatdims, slicedims, basetype, dims2indices, @dim
+using Base: tail
 
-import DimensionalData: val, dims, refdims, metadata, rebuild, select, selectview
+import DimensionalData: val, dims, refdims, metadata, rebuild, rebuildsliced, name, label, units
 import CoordinateReferenceSystemsBase: crs
 
 export AbstractGeoArray, GeoArray
 export AbstractGeoStack, GeoStack
 export AbstractGeoSeries, GeoSeries
-export missingval, metadata, mask, replace_missing
+export missingval, mask, replace_missing
+export Lon, Lat, Vert, Band
 
 @dim Lon "Longitude"
 @dim Lat "Latitude"
@@ -23,7 +25,6 @@ include("interface.jl")
 include("array.jl")
 include("stack.jl")
 include("series.jl")
-include("coordinates.jl")
 include("plotrecipes.jl")
 include("utils.jl")
 
