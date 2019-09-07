@@ -1,7 +1,8 @@
 using GeoData, Test, Statistics, Dates
 using NCDatasets, HDF5, ArchGDAL
-using GeoData: Time, formatdims, data
+using GeoData: Time, formatdims, data, dims2indices, rebuild, window
 
+# Set up some test data
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
 dims1 = Lon<|(10, 100), Lat<|(-50, 50) 
@@ -9,8 +10,9 @@ dims2 = (dims1..., Time<|[DateTime(2019)])
 refdimz = ()
 mval = -9999.0
 meta = nothing
+key = :test
 
-ga1 = GeoArray(data1, dims1, refdimz, meta, mval)
+ga1 = GeoArray(data1, dims1, refdimz, meta, mval, key)
 ga2 = GeoArray(data2, dims2)
 # Dims have been formatted
 @test val.(dims(ga2)) == val.((Lon<|LinRange(10.0, 100.0, 10), 
@@ -19,24 +21,29 @@ ga2 = GeoArray(data2, dims2)
 @test dims(ga1)[1:2] == dims(ga2)[1:2]
 
 
-# GeoStack. This also tests GeoArray for the same methods.
+# GeoStack
 
 # Constructor
-stack = GeoStack(ga1, ga2; keys=(:ga1, :ga2), dims=dims)
+stack = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
 @test typeof(parent(stack)) <: NamedTuple
 @test length(parent(stack)) == 2
-@test stack[:ga1] === ga1
-@test stack[:ga2] === ga2
+@test stack[:ga1] == ga1
+@test stack[:ga2] == ga2
+@test parent(stack[:ga1]) == data1
+@test typeof(parent(stack[:ga1])) <: Array{Float64,2}
+
 
 # getters
 # @test data(stack, :ga1) == ga1
 @test dims(stack) == formatdims(data1, dims1)
 @test dims(stack, :ga1) == formatdims(data1, dims1)
 # @test refdims(stack) == ()
+@test window(stack) == ()
+@test refdims(stack) == ()
 @test metadata(stack) == nothing
 @test metadata(stack, :ga1) == nothing
-@test Base.keys(stack) == (:ga1, :ga2)
-@test Tuple(values(stack)) == (ga1, ga2)
+@test keys(stack) == (:ga1, :ga2)
+@test collect(values(stack)) == [ga1, ga2]
 
 # Indexing the stack is the same as indexing its child array
 a = stack[:ga1][Lon<|2:4, Lat<|5:6]
@@ -44,10 +51,7 @@ a = stack[:ga1][Lon<|2:4, Lat<|5:6]
 
 @inferred stack[:ga1][Lon<|2:4, Lat<|5:6] 
 # FIXME: This isn't inferred, the constants don't propagate like they 
-# do in the above call. Probably due to the anonymous wrapper funcion. 
-# It's not actually needed for GeoStack so could be worked around
-# But its also means it wont infer for other types, so should be fixed at
-# the source.
+# do in the above call. Probably due to the anonymous wrapper function. 
 @test_broken @inferred stack[:ga1, Lon<|2:4, Lat<|5:6] 
 
 # Getindex for a whole stack of new GeoArrays
@@ -59,8 +63,8 @@ a = stack[Lon<|2:4, Lat<|5:6]
 @test a[:ga2] == data2[2:4, 5:6, 1:1]
 
 # Select new arrays for the whole stack
-s = select(stack, Lat<|At(-10, 10.0), Time<|DateTime(2019))
-select(stack, Lat<|At(-10, 10.0), Time<|DateTime(2019))
+s = stack[Lat<|Between(-10, 10.0), Time<|At<|DateTime(2019)]
+stack[Lat<|Between(-10, 10.0), Time<|At<|DateTime(2019)]
 typeof(s)
 keys(s)
 @test typeof(s) <: GeoStack
@@ -72,28 +76,27 @@ keys(s)
                         Lat<|LinRange(-10.0, 10.0, 3))
 @test dims(s, :ga2) == dims(s[:ga2])
 @test refdims(s[:ga2]) == (Time<|DateTime(2019),)
-# @test missingval(s, :ga2) == missingval(s[:ga2])
+@test ismissing(missingval(s, :ga2)) && ismissing(missingval(s[:ga2]))
 
 # Select views of arrays for the whole stack
-sv = selectview(stack, Lat<|Between(-4.0, 27.0), Time<|DateTime(2019))
-@test typeof(sv) <: GeoStack
-@test typeof(sv[:ga1]) <: GeoArray
-@test typeof(parent(sv[:ga1])) <: SubArray
-@test sv[:ga1] == data1[:, 6:8]
-@test sv[:ga2] == data2[:, 6:8, 1]
-@test dims(sv[:ga2]) == (Lon<|LinRange(10.0, 100.0, 10), Lat<|LinRange(0.0, 20.0, 3))
-@test refdims(sv[:ga2]) == (Time<|DateTime(2019),)
+# sv = view(stack, Lat<|Between(-4.0, 27.0), Time<|At<|DateTime(2019))
+# @test typeof(sv) <: GeoStack
+# @test typeof(sv[:ga1]) <: GeoArray
+# @test typeof(parent(sv[:ga1])) <: SubArray
+# @test sv[:ga1] == data1[:, 6:8]
+# @test sv[:ga2] == data2[:, 6:8, 1]
+# @test dims(sv[:ga2]) == (Lon<|LinRange(10.0, 100.0, 10), Lat<|LinRange(0.0, 20.0, 3))
+# @test refdims(sv[:ga2]) == (Time<|DateTime(2019),)
 
 # Stack of view-based GeoArrays
-v = view(stack, Lon(2:4), Lat(5:6))
+# v = view(stack, Lon(2:4), Lat(5:6))
 # @inferred view(stack, Lon(2:4), Lat(5:6))
-@test typeof(v) <: GeoStack
-@test typeof(v[:ga1]) <: GeoArray
-@test typeof(parent(v[:ga1])) <: SubArray
-@test v[:ga1] == view(data1, 2:4, 5:6)
-@test v[:ga2] == view(data2, 2:4, 5:6, 1:1)
+# @test typeof(v) <: GeoStack
+# @test typeof(v[:ga1]) <: GeoArray
+# @test typeof(parent(v[:ga1])) <: SubArray
+# @test v[:ga1] == view(data1, 2:4, 5:6)
+# @test v[:ga2] == view(data2, 2:4, 5:6, 1:1)
 
-GeoStack(stack)
 # New stack with specific key(s)
 x = GeoStack(stack; keys=(:ga2,))
 @test keys(x) == (:ga2,)
@@ -101,7 +104,7 @@ y = GeoStack(stack; keys=(:ga1, :ga2))
 @test keys(y) == (:ga1, :ga2)
 
 
-# GeoSeries
+# GeoSeries from GeoArray/GeoStack components
 
 data1 = [1 2 3 4
          5 6 7 8]
@@ -113,15 +116,15 @@ ga1 = GeoArray(data1, dimz)
 ga2 = GeoArray(data2, dimz)
 ga1a = GeoArray(data3, dimz)
 ga2a = GeoArray(data4, dimz)
-stack1 = GeoStack(ga1, ga2; keys=(:ga1, :ga2), dims=dims)
-stack2 = GeoStack(ga1a, ga2a; keys=(:ga1, :ga2), dims=dims)
+stack1 = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
+stack2 = GeoStack(ga1a, ga2a; keys=(:ga1, :ga2))
 series = GeoSeries([stack1, stack2], (Time<|[DateTime(2017), DateTime(2018)],));
 
-@test select(series, Time<|Near<|DateTime(2017))[:ga1][Lon(1), Lat(3)] === 3
-@test select(series, Time<|At<|DateTime(2018))[:ga2][Lon(2), Lat(4)] === 32
+@test series[Time<|Near<|DateTime(2017)][:ga1][Lon(1), Lat(3)] === 3
+@test series[Time<|At<|DateTime(2018)][:ga2][Lon(2), Lat(4)] === 32
 
-@test select(series, Time<|DateTime(2017))[:ga1, Lon<|1, Lat<|3] === 3
-@test select(series, Time<|DateTime(2018))[:ga2, Lon<|2, Lat<|4] === 32
+@test series[Time<|At<|DateTime(2017)][:ga1, Lon<|1, Lat<|3] === 3
+@test series[Time<|At<|DateTime(2018)][:ga2, Lon<|2, Lat<|4] === 32
 
 @test series[Time(1)][:ga1, Lon(1), Lat(2)] == 2
 @test series[Time(1)][:ga2, Lon(2), Lat(3:4)] == [14, 16] 
@@ -129,6 +132,18 @@ series = GeoSeries([stack1, stack2], (Time<|[DateTime(2017), DateTime(2018)],));
 @inferred series[Time(1)][:ga1, Lon(1), Lat(2)]
 @inferred series[Time(1)][:ga1, Lon(1), Lat(2:4)]
 @inferred series[1][:ga1, Lon(1:2), Lat(:)]
+
+
+# Lazy view window
+dimz = (Time<|[DateTime(2017), DateTime(2018)],)
+dat = [stack1, stack2]
+windowdimz = Lon(1:2), Lat(3:4)
+series = GeoSeries(dat, dimz; window=windowdimz)
+@test window(series) == windowdimz
+stack = series[1]
+@test window(stack) == windowdimz
+@test stack[:ga1] == [3 4; 7 8]
+@test stack[:ga1, 1, 2] == 4
 
 
 # External sources
@@ -151,31 +166,40 @@ ncarray = NCarray(geturl(ncsingle))
 @test typeof(ncarray[Time(1)]) <: GeoArray{Union{Missing,Float32},2}
 @test typeof(dims(ncarray)) <: Tuple{<:Lon,<:Lat,<:Time}
 @test length(val(dims(dims(ncarray), Time))) == 24
+@test refdims(ncarray) == ()
+# @test window(ncarray) == ()
+@test ismissing(missingval(ncarray))
+@test typeof(metadata(ncarray)) <: Dict
 
 ncstack = NCstack(geturl(ncmulti))
 @test typeof(ncstack) <: NCstack{String}
-# Rebuilds as a regular GeoArray
-@test typeof(ncstack[:albedo]) <: NCarray{Union{Missing,Float32},3} 
+@test ismissing(missingval(ncstack))
+@test typeof(metadata(ncstack)) <: Dict
+@test refdims(ncstack) == ()
+
+# Loads child as a regular GeoArray
+@test typeof(ncstack[:albedo]) <: GeoArray{Union{Missing,Float32},3} 
 @test typeof(ncstack[:albedo, 2, 3, 1]) <: Float32
 @test typeof(ncstack[:albedo, :, 3, 1]) <: GeoArray{Union{Missing,Float32},1}
 @test typeof(dims(ncstack, :albedo)) <: Tuple{<:Lon,<:Lat,<:Time}
-@test length(keys(ncstack)) == 131
-@test first(keys(ncstack)) == "abso4"
+@test typeof(keys(ncstack)) == NTuple{131,Symbol}
+@test first(keys(ncstack)) == :abso4
+@test typeof(metadata(ncstack, :albedo)) <: Dict
+@test metadata(ncstack, :albedo)["institution"] == "Max-Planck-Institute for Meteorology"
+
 # Test some DimensionalData.jl tools work
 # Time dim should be reduced to length 1 by mean
 @test axes(mean(ncstack[:albedo, Lat(1:20)], dims=Time)) == (Base.OneTo(192), Base.OneTo(20), Base.OneTo(1))
-ncstack[:albedo, Lat(1:20)]
-metadata(ncstack, :albedo)
-keys(ncstack)
 array = ncstack[:albedo][Time(4:6), Lon(1), Lat(2)] 
 @test array == ncstack[:albedo, Time(4:6), Lon(1), Lat(2)] 
 size(array) == (3,)
 
 ncmultistack = NCstack([geturl(ncsingle)])
 ncmultistack = NCstack((geturl(ncsingle),))
-@test typeof(ncmultistack[:tos]) <: NCarray{Union{Missing,Float32},3}
-@test typeof(ncstack[:albedo, 2, 3, 1]) <: Float32
-@test typeof(ncstack[:albedo, Time(1)]) <: GeoArray{Union{Missing,Float32},2}
+@test typeof(ncmultistack[:tos]) <: GeoArray{Union{Missing,Float32},3}
+@which ncmultistack[:tos]
+@test typeof(ncmultistack[:tos, 8, 30, 10]) <: Float32
+@test typeof(ncmultistack[:tos, Time(1)]) <: GeoArray{Union{Missing,Float32},2}
 
 geoarray = GeoArray(ncarray)
 @test typeof(dims(geoarray)) <: Tuple{<:Lon,<:Lat,<:Time}
@@ -203,17 +227,24 @@ gdalarray = GDALarray(geturl(gdal_url))
 @test typeof(gdalarray) <: GDALarray{UInt8,3}
 @test typeof(dims(gdalarray)) <: Tuple{Lon,<:Lat,<:Band}
 @test length(val(dims(dims(gdalarray), Lon))) == 514
+@test missingval(gdalarray) == -1.0e10
+@test metadata(gdalarray).filepath == "cea.tif"
+# TODO test metadata
+@test GeoData.name(gdalarray) == Symbol("")
 
-# getindex to memory-backed GeoArray
-@time gdalarray[Lon(1:50), Lat(1), Band(1)]
 # Doesn't handle returning a single value
 @test_broken typeof(gdalarray[Lon(1), Lat(1), Band(1)]) <: UInt8
 @test_broken typeof(gdalarray[1, 1, 1]) <: UInt8
-@time geoarray = gdalarray[Lon(1), Lat(1:50), Band(1)]
+@time geoarray = gdalarray[Lon(1:1), Lat(1:50), Band(1)]
+
+# getindex to memory-backed GeoArray
+geoarray = gdalarray[Lon(1:50), Lat(1:1), Band(1)]
+@test size(geoarray) == (50, 1)
+@test eltype(geoarray) <: UInt8
 
 @time typeof(geoarray) <: GeoArray{UInt8,1} 
-@test typeof(dims(geoarray)) <: Tuple{<:Lat}
-@test typeof(refdims(geoarray)) <: Tuple{<:Lon,<:Band} 
+@test typeof(dims(geoarray)) <: Tuple{<:Lon,Lat}
+@test typeof(refdims(geoarray)) <: Tuple{<:Band} 
 @test metadata(geoarray) == metadata(gdalarray)
 @test missingval(geoarray) == -1.0e10
 
@@ -237,7 +268,7 @@ copy!(array, gdalstack, :a)
 
 # SMAP
 
-# TODO example files without a login requirement
+# TODO example files without a login requirement so 
 
 # smapfile1 = "SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5"
 # smapfile2 = "SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5"
@@ -256,6 +287,8 @@ copy!(array, gdalstack, :a)
 # stack = GeoStack(smapstack) 
 # keys(stack)
 # @test Symbol.(Tuple(keys(smapstack))) == keys(smapstack)
+# stack = GeoStack(smapstack; keys=(:baseflow_flux, :snow_mass, :soil_temp_layer1))
+# keys(stack) == (:baseflow_flux, :snow_mass, :soil_temp_layer1)
 # stack = GeoStack(smapstack; keys=("baseflow_flux", "snow_mass", "soil_temp_layer1"))
 # keys(stack) == (:baseflow_flux, :snow_mass, :soil_temp_layer1)
 

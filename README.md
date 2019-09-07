@@ -18,52 +18,59 @@ can be indexed using named dimensions, which can also be used in most methods li
 - Standardisation: data from multiple sources behaves in identical ways, as
   similar to Base methods as possible 
 - Easy no-config plotting
-- Lazy loading: minimisation of ram requirements for large datasets
+- Lazy loading: minimisation of RAM requirements for large datasets
 - Automation of multi-file/multi-layer tasks with single line commands
-- Ecosystem integration: work as much as possible with existing geospatial packages
+- Ecosystem integration: work as much as possible with existing packages
 - Ubiquitous DimensionalData.jl dims and selectors for indexing and dimension
   names, but hidden from custom implementations through the AbstractGeoXX interfaces.
 - Automatic detection of dimension order, axis range and data orientation and
-  order in implementations
+  order in format-specific implementations.
 
 
 ## Concepts: arrays, stacks, and series
 
 ### AbstractGeoArray
 
-AbstractGeoArray may be memory (`GeoArray`) or disk backed (`NCarray`,
-`GDAlarray`). They can be indexed as regular julia arrays or with
+`AbstractGeoArray` wraps an array (or location of an array) and metadata 
+about its contents. It may be memory (`GeoArray`) or disk-backed (`NCarray`,
+`GDAlarray`). They can be indexed as regular Julia arrays or with
 DimensionalData.jl dimensions. They will plot as a heatmap in Plots.jl with correct
-coordinates and labels, even after slicing with `getindex` or `view`.
+coordinates and labels, even after slicing with `getindex` or `view`. `getindex`
+on a `AbstractGeoArray` will always return a standard `GeoArray`.
 
 ### AbstractGeoStack
 
 These are Dict/NamedTuple like structures that may either contain `NamedTuple`
-of `AbstractGeoArray` or paths that will load `AbstractGeoArray`, or a single
-path that points to as a multi-layered stack of raster arrays. Use and syntax is
-identical for all cases. `geoarray[:somelayer] |> plot` plots the whole array,
+of `AbstractGeoArray`, string paths that will load `AbstractGeoArray`, or a single
+path that points to as a multi-layered stack of arrays. 
+
+The primary purpose is that use and syntax is identical for all cases,
+abstracting away data source and simplifying access code. `getindex` on any
+`AbstractGeoStack` may return a memory backed standard `GeoArray`, or a disk
+base AbstractGeoArray. `geoarray[:somelayer] |> plot` plots the layers array,
 while `geoarray[:somelayer, Lon(1:100), Band(2)] |> plot` will plot the
-subsetted array directly from disk where possible. 
+subsetted array directly from disk, without loading the whole array. 
 
 `GeoStack` is the generic memory backed type, while `NCstack`, `GDALstack` and
-`SMAPstack` are the format specific implementations currently available.
+`SMAPstack` are the currently available format-specific implementations.
 
 ### AbstractGeoSeries
 
-These are a high-level `AbstractGeoArray` that hold other stacks or arrays or
-point to files that they can be loaded from. `GeoSeries` can be indexed with
-dimensions as with a `AbstractGeoArray`. This is useful when you have multiple
-files containing rasters or stacks of rasters spread over dimensions like time
-and elevation.
+These are a high-level `AbstractGeoArray` that hold stacks or arrays of paths
+they can be loaded from. `GeoSeries` are indexed with dimensions as with a
+`AbstractGeoArray`. This is useful when you have multiple files containing
+rasters or stacks of rasters spread over dimensions like time and elevation.
+As much as possible, implementations should facilitate loading entire
+directories and detecting the dimensions from metadata.
 
-This allow `series[Time(Near(DateTime(2001, 1))][:temp][Lat(Between(70, 150)), Lon(Between(-20,20))]
-|> plot` and in future will enable syntax like `series[Time(1:2:10), :temp,
+This currently allows `series[Time(Near(DateTime(2001,
+1))][:temp][Lat(Between(70, 150)), Lon(Between(-20,20))]
+|> plot` and in future it will enable syntax like `series[Time(1:2:10), :temp,
 Lat(Between(70, 150)), Lon(Between(-20,20))]` to retrieve data from multiple
-files efficiently without intermediates.
+files efficiently.
 
-GeoSeries is the only implementation, which includes a field indicating its
-child type used for loading stacks or arrays from disk.
-
+`GeoSeries` is the only implementation, as it includes a field indicating its
+child type used if loading stacks or arrays from disk.
 
 
 ## Works in progress
