@@ -1,6 +1,6 @@
-path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 path = geturl("https://download.osgeo.org/geotiff/samples/usgs/c41078a1.tif")
 path = geturl("https://download.osgeo.org/geotiff/samples/usgs/i30dem.tif")
+path = geturl("https://download.osgeo.orgtgeotiff/samples/gdal_eg/cea.tif")
 
 @testset "array" begin
     array = GDALarray(path)
@@ -15,7 +15,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/usgs/i30dem.tif")
         @test ndims(array) == 3
         @test typeof(dims(array)) <: Tuple{<:Lon,<:Lat,<:Band}
         @test refdims(array) == ()
-        # @test bounds(array) 
+        @test_broken bounds(array) 
     end
 
     @testset "other fields" begin
@@ -36,9 +36,9 @@ path = geturl("https://download.osgeo.org/geotiff/samples/usgs/i30dem.tif")
     end
 
     @testset "selectors" begin
-        a = array[Lon(At(3)), Lat(:), Band(1)]
-        @test typeof(a) <: GeoArray{UInt8,2}
-        @test bounds(a) == ((20, 30), (20, 30))
+        a = array[Lat(Near(3)), Lon(:), Band(1)]
+        @test typeof(a) <: GeoArray{UInt8,1}
+        # @test bounds(a) == ()
         # Doesn't handle returning a single value
         # a = array[Lon(At(20), Lat(Near(10), Band(1)]) <: UInt8
     end
@@ -57,7 +57,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/usgs/i30dem.tif")
 end
 
 @testset "stack" begin
-    gdalstack = GDALstack((a=geturl(gdal_url),))
+    gdalstack = GDALstack((a=path,))
 
     # Broken: ArchGDAL read() indexing is non-standard
     # band is first when it is last in the returned array.
@@ -76,86 +76,8 @@ end
     @testset "copy" begin
         array = zero(GeoArray(gdalstack[:a]))
         copy!(array, gdalstack, :a)
+        # First wrap with GeoArray() here or == loads from disk for each cell.
+        # we need a general way of avoiding this in all disk-based sources
+        @test array == GeoArray(gdalstack[:a])
     end
 end
-
-"Driver: GTiff/GeoTIFF
-Files: /home/raf/CESAR/Raster/limited_growth/limited_growth_2016_01.tif
-Size is 3856, 1624
-Coordinate System is:
-PROJCS[\"unnamed\",
-    GEOGCS[\"WGS 84\",
-        DATUM[\"WGS_1984\",
-            SPHEROID[\"WGS 84\",6378137,298.257223563,
-                AUTHORITY[\"EPSG\",\"7030\"]],
-            AUTHORITY[\"EPSG\",\"6326\"]],
-        PRIMEM[\"Greenwich\",0],
-        UNIT[\"degree\",0.0174532925199433],
-        AUTHORITY[\"EPSG\",\"4326\"]],
-    PROJECTION[\"Cylindrical_Equal_Area\"],
-    PARAMETER[\"standard_parallel_1\",30],
-    PARAMETER[\"central_meridian\",0],
-    PARAMETER[\"false_easting\",0],
-    PARAMETER[\"false_northing\",0],
-    UNIT[\"metre\",1,
-        AUT
-HORITY[\"EPSG\",\"9001\"]]]
-Origin = (-17367530.445161368697882,7314540.795860165730119)
-Pixel Size = (9008.055210145937963,-9008.055167315476865)
-Metadata:
-  AREA_OR_POINT=Area
-Image Structure Metadata:
-  COMPRESSION=LZW
-  INTERLEAVE=BAND
-Corner Coordinates:
-Upper Left  (-17367530.445, 7314540.796) (180d 0' 0.00\"W, 85d 2'40.43\"N)
-Lower Left  (-1
-7367530.445,-7314540.796) (180d 0' 0.00\"W, 85d 2'40.43\"S)
-Upper Right (17367530.445, 7314540.796) (180d 0' 0.00\"E, 8
-5d 2'40.43\"N)
-Lower Right (17367530.445,-7314540.796) (180d 0' 0.00\"E, 85d 2'40.43\"S)
-Center      (   0.0000000,  -
-0.0000000) (  0d 0' 0.01\"E,  0d 0' 0.00\"S)
-Band 1 Block=3856x1 Type=Float32, ColorInterp=Gray
-  Min=-59.869 Max=11.4
-85 
-  Minimum=-59.869, Maximum=11.485, Mean=-13.064, StdDev=13.656
-  NoData Value=-3.39999999999999996e+38
-  Metadata
-:
-    STATISTICS_MAXIMUM=11.484945361028
-    STATISTICS_MEAN=-13.064166792583
-    STATISTICS_MINIMUM=-59.868704210423
-
-    STATISTICS_STDDEV=13.656090472918
-"
-
-path = geturl("https://download.osgeo.org/geotiff/samples/usgs/o41078a7.tif")
-
-path = "/home/raf/CESAR/Raster/limited_growth/limited_growth_2016_01.tif"
-
-using GeoArrays
-using Plots
-geoarray = GeoArrays.read(path)
-geoarray.f
-geoarray.crs
-coords(geoarray, [1,1]) ./ 9008.055210145937963
-coords(geoarray, [size(geoarray)[1:2]...]) .* 1e-5
-indices(geoarray, [440720.0, 3.75132e6])
-coords(geoarray)
-using ArchGDAL
-ArchGDAL.registerdrivers() do 
-    ArchGDAL.read(path) do ds
-        ArchGDAL.gdalinfo(ds)
-    end
-end
-
-    bounds(array)
-    map((s, b)-> (b[2]-b[1]) / s, size(array), bounds(array))
-    size(array)
-    3856 * 0.09008055210145939
-    360/3856
-    missingval(array)
-    display(string(crs(array)))
-    plotly()
-    plot(array)

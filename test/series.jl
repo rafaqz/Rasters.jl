@@ -14,27 +14,40 @@ stack1 = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
 stack2 = GeoStack(ga1a, ga2a; keys=(:ga1, :ga2))
 series = GeoSeries([stack1, stack2], (Time<|[DateTime(2017), DateTime(2018)],));
 
-@test series[Time<|Near<|DateTime(2017)][:ga1][Lon(1), Lat(3)] === 3
-@test series[Time<|At<|DateTime(2018)][:ga2][Lon(2), Lat(4)] === 32
+@testset "getindex returns the currect types" begin
+    typeof(series[Time(1)]) <: GeoStack{<:NamedTuple}
+    typeof(series[Time(1)][:ga2]) <: GeoArray{Int,2}
+    typeof(series[Time(1)][:ga2, 1, 1]) <: Int
+    typeof(series[Time(1)][:ga2][1, 1]) <: Int
+end
 
-@test series[Time<|At<|DateTime(2017)][:ga1, Lon<|1, Lat<|3] === 3
-@test series[Time<|At<|DateTime(2018)][:ga2, Lon<|2, Lat<|4] === 32
+@testset "getindex returns the currect results" begin
+    @test series[Time<|Near<|DateTime(2017)][:ga1][Lon(1), Lat(3)] === 3
+    @test series[Time<|At<|DateTime(2017)][:ga1, Lon<|1, Lat<|3] === 3
+    @test series[Time<|At<|DateTime(2018)][:ga2][Lon(2), Lat(4)] === 32
+    @test series[Time<|At<|DateTime(2018)][:ga2, Lon<|2, Lat<|4] === 32
+    @test series[Time(1)][:ga1, Lon(1), Lat(2)] == 2
+    @test series[Time(1)][:ga2, Lon(2), Lat(3:4)] == [14, 16] 
+end
 
-@test series[Time(1)][:ga1, Lon(1), Lat(2)] == 2
-@test series[Time(1)][:ga2, Lon(2), Lat(3:4)] == [14, 16] 
-# The contained arrays have the same dimensions, this should be type stable
-@inferred series[Time(1)][:ga1, Lon(1), Lat(2)]
-@inferred series[Time(1)][:ga1, Lon(1), Lat(2:4)]
-@inferred series[1][:ga1, Lon(1:2), Lat(:)]
+@testset "getindex is type stable all the way down" begin
+    @inferred series[Time<|At(DateTime(2017))][:ga1, Lon(1), Lat(2)]
+    @inferred series[Time(1)][:ga1][Lon(1), Lat(2)]
+    @inferred series[Time(1)][:ga1, Lon(1), Lat(2:4)]
+    @inferred series[Time(1)][:ga1][Lon(1), Lat(2:4)]
+    @inferred series[1][:ga1, Lon(1:2), Lat(:)]
+    @inferred series[1][:ga1][Lon(1:2), Lat(:)]
+end
 
 
-# Lazy view window
-dimz = (Time<|[DateTime(2017), DateTime(2018)],)
-dat = [stack1, stack2]
-windowdimz = Lon(1:2), Lat(3:4)
-series = GeoSeries(dat, dimz; window=windowdimz)
-@test window(series) == windowdimz
-stack = series[1]
-@test window(stack) == windowdimz
-@test stack[:ga1] == [3 4; 7 8]
-@test stack[:ga1, 1, 2] == 4
+@testset "lazy view windows" begin
+    dimz = (Time<|[DateTime(2017), DateTime(2018)],)
+    dat = [stack1, stack2]
+    windowdimz = Lon(1:2), Lat(3:4)
+    series = GeoSeries(dat, dimz; window=windowdimz)
+    @test window(series) == windowdimz
+    stack = series[1]
+    @test window(stack) == windowdimz
+    @test stack[:ga1] == [3 4; 7 8]
+    @test stack[:ga1, 1, 2] == 4
+end

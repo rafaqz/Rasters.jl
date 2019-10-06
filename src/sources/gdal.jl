@@ -9,8 +9,8 @@ dims(ds::ArchGDAL.Dataset, args...) = begin
     sze = ArchGDAL.width(ds), ArchGDAL.height(ds) 
     ax, ay = gdal_coord_convert(affine([0, 0]))
     bx, by = gdal_coord_convert(affine([sze...]))
-    println("ax, bx: ", (ax, bx))
-    println("ay, by: ", (ay, by))
+    # println("ax, bx: ", (ax, bx))
+    # println("ay, by: ", (ay, by))
     nbands = ArchGDAL.nraster(ds)
     # TODO get an affine transform from the transformation
     lon = Lon((min(ax, bx), max(ax, bx))) 

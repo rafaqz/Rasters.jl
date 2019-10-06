@@ -5,7 +5,7 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
 @testset "array" begin
     array = NCarray(ncsingle)
 
-    @testset "array data" begin
+    @testset "array properties" begin
         @test size(array) == (180, 170, 24)
         @test typeof(array) <: NCarray{Union{Missing,Float32},3}
     end
@@ -28,8 +28,8 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
 
     @testset "indexing" begin
         @test typeof(array[Time(1)]) <: GeoArray{Union{Missing,Float32},2}
-        @test typeof(array[Lat(1), Band(1)]) <: GeoArray{UInt8,1}
-        @test typeof(array[Lon(1), Band(1)]) <: GeoArray{UInt8,1}
+        @test typeof(array[Lat(1), Time(1)]) <: GeoArray{Union{Missing,Float32},1}
+        @test typeof(array[Lon(1), Time(1)]) <: GeoArray{Union{Missing,Float32},1}
         @test typeof(array[Lon(1), Lat(1), Time(1)]) <: Missing
         @test typeof(array[Lon(30), Lat(30), Time(1)]) <: Float32
         @test typeof(array[30, 30, 2]) <: Float32
@@ -47,6 +47,7 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         geoarray = array[Lon(1:50), Lat(20:20), Time(1)]
         @test size(geoarray) == (50, 1)
         @test eltype(geoarray) <: Union{Missing,Float32}
+        @time typeof(geoarray) <: GeoArray{Float32,1} 
         @test typeof(dims(geoarray)) <: Tuple{<:Lon,<:Lat}
         @test typeof(refdims(geoarray)) <: Tuple{<:Time} 
         @test metadata(geoarray) == metadata(array)
