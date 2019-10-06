@@ -11,6 +11,7 @@ abstract type AbstractGeoSeries{T,N,D,C} <: AbstractGeoArray{T,N,D} end
            ) where T<:AbstractGeoSeries = 
     T(data, dims, refdims, metadata, childtype, window)
 
+
 childtype(series::AbstractGeoSeries) = series.childtype
 window(series::AbstractGeoSeries) = series.window
 

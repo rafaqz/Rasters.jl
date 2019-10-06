@@ -3,7 +3,11 @@ Spacial array types that can be indexed using dimensions.
 """
 abstract type AbstractGeoArray{T,N,D} <: AbstractDimensionalArray{T,N,D} end
 
-@premix struct GeoArrayMixin{T,N,D,R,Me,Mi,Na}
+"""
+We specifically don't include A in the mixing: it may not actually be an 
+AbstractArray
+"""
+@premix struct GeoArrayMixin{T,N,D<:Tuple,R<:Tuple,Me,Mi,Na}
     data::A
     dims::D
     refdims::R
@@ -12,6 +16,7 @@ abstract type AbstractGeoArray{T,N,D} <: AbstractDimensionalArray{T,N,D} end
     name::Na
 end
 
+dims(a::AbstractGeoArray) = a.dims
 refdims(a::AbstractGeoArray) = a.refdims
 metadata(a::AbstractGeoArray) = a.metadata
 missingval(a::AbstractGeoArray) = a.missingval
@@ -20,10 +25,10 @@ name(a::AbstractGeoArray) = a.name
 units(a::AbstractGeoArray) = getmeta(a, :units, "")  
 label(a::AbstractGeoArray) = string(name(a), " ", units(a))
 
-rebuild(a::AbstractGeoArray, data, dims, refdims) =
-    GeoArray(data, dims, refdims, metadata(a), missingval(a), name(a))
+rebuild(a::AbstractGeoArray, parent, dims, refdims) =
+    GeoArray(parent, dims, refdims, metadata(a), missingval(a), name(a))
 rebuild(a::AbstractGeoArray; parent=parent(a), dims=dims(a), refdims=refdims(a), missingval=missingval(a)) =
-    GeoArray(data, dims, refdims, metadata(a), missingval, name(a))
+    GeoArray(parent, dims, refdims, metadata(a), missingval, name(a))
 
 CoordinateReferenceSystemsBase.crs(a::AbstractGeoArray) = getmeta(a, :crs, nothing)
 
@@ -35,7 +40,7 @@ A generic, memory-backed spatial array type.
 @GeoArrayMixin struct GeoArray{A<:AbstractArray{T,N}} <: AbstractGeoArray{T,N,D} end
 
 @inline GeoArray(a::A, dims::D, refdims::R, metadata::Me, missingval::Mi, name::Na
-        ) where {A<:AbstractArray{T,N},D,R,Me,Mi,Na} where {T,N} = begin
+        ) where {A<:AbstractArray{T,N},D<:Tuple,R<:Tuple,Me,Mi,Na} where {T,N} = begin
     dims = formatdims(a, dims)
     GeoArray{T,N,typeof(dims),R,Me,Mi,Na,A}(a, dims, refdims, metadata, missingval, name)
 end
@@ -51,6 +56,7 @@ end
 
 Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
 
+dims(a::GeoArray) = a.dims
 
 # utils
 
@@ -58,8 +64,10 @@ Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
 @inline getmeta(m::Nothing, key, fallback) = fallback
 @inline getmeta(m::Union{NamedTuple,Dict}, key, fallback) = key in keys(m) ?  m[key] : fallback
 
-mask(a::AbstractGeoArray) = parent(a) .!= missingval(a)
-mask(a::AbstractGeoArray{<:Union{Missing}}) = (!).(ismissing.(parent(a)))
+mask(a::AbstractGeoArray) = mask(a, missingval(a))
+mask(a::AbstractArray) = mask(a, missing)
+mask(a::AbstractGeoArray, missingval) = parent(a) .!= missingval
+mask(a::AbstractGeoArray, ::Missing) = .!(ismissing.(parent(a)))
 
 replace_missing(a::AbstractGeoArray, mv) = 
     rebuild(a; parent=replace(a, missingval(a) => mv), missingval=mv)

@@ -7,10 +7,10 @@ export GDALarray, GDALstack
 dims(ds::ArchGDAL.Dataset, args...) = begin
     affine = geotransform_to_affine(ArchGDAL.getgeotransform(ds))
     sze = ArchGDAL.width(ds), ArchGDAL.height(ds) 
-    ax, ay = affine([0, 0])
-    bx, by = affine([sze...])
-    println((ax, bx))
-    println((ay, by))
+    ax, ay = gdal_coord_convert(affine([0, 0]))
+    bx, by = gdal_coord_convert(affine([sze...]))
+    println("ax, bx: ", (ax, bx))
+    println("ay, by: ", (ay, by))
     nbands = ArchGDAL.nraster(ds)
     # TODO get an affine transform from the transformation
     lon = Lon((min(ax, bx), max(ax, bx))) 
@@ -27,7 +27,7 @@ metadata(ds::ArchGDAL.Dataset, args...) = begin
     offset = ArchGDAL.getoffset(band)
     norvw = ArchGDAL.noverview(band)
     units = ArchGDAL.getunittype(band)
-    crs = WellKnownText(string(ArchGDAL.importWKT(ArchGDAL.getproj(ds))))
+    crs = WellKnownText(string(ArchGDAL.getproj(ds)))
     path = first(ArchGDAL.filelist(ds))
     (filepath=path, crs=crs, scale=scale, offset=offset, color=color, units=units)
 end
@@ -96,7 +96,7 @@ end
 # See https://lists.osgeo.org/pipermail/gdal-dev/2011-July/029449.html
 # for an explanation of the geotransform format
 geotransform_to_affine(gt) = begin
-    println(gt)
+    # println(gt)
     AffineMap([gt[2] gt[3]; gt[5] gt[6]], [gt[1], gt[4]])
 end
 
@@ -116,3 +116,4 @@ get_affine_map(ds::ArchGDAL.Dataset) = begin
     geotransform_to_affine(gt)
 end
 
+gdal_coord_convert(x) = x * 1e-5

@@ -60,14 +60,16 @@ Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, destkeys=keys(dst)) = b
         key in Symbol.(keys(dst)) || throw(ArgumentError("key $key not found in dest keys"))
         key in Symbol.(keys(src)) || throw(ArgumentError("key $key not found in source keys"))
     end
-    for key in Symbol.(keys(dst))
+    for key in Symbol.(destkeys)
         copy!(dst[key], src, key)
     end
 end
+Base.copy!(dst::AbstractArray, src::AbstractGeoStack, key) = copy!(dst, src[key])
 
 # Array interface: delete this and just use window?
-# @inline Base.view(s::AbstractGeoStack, I...) = rebuild(s, (view(a, I...) for a in values(s)))
+@inline Base.view(s::AbstractGeoStack, I...) = rebuild(s, (view(a, I...) for a in values(s)))
 @inline Base.getindex(s::AbstractGeoStack, I...) = rebuild(s, (a[I...] for a in values(s)))
+
 # Dict/Array hybrid
 Base.getindex(s::AbstractGeoStack, key::Key, I::Vararg{<:AbstractDimension}) =
     getindex(s, key, dims2indices(dims(s, key), I)...)
@@ -92,12 +94,14 @@ applied to all layers.
     metadata::M
 end
 
-GeoStack(data::Vararg{<:AbstractGeoArray}; keys=Symbol.(name.(data)), kwargs...) =
-    GeoStack(NamedTuple{keys}(data); kwargs...)
+stackkeys(keys) = Tuple(Symbol.(keys))
+
+GeoStack(data::Vararg{<:AbstractGeoArray}; keys=name.(data), kwargs...) = 
+    GeoStack(NamedTuple{stackkeys(keys)}(data); kwargs...)
 GeoStack(data::NamedTuple; refdims=(), window=(), metadata=nothing) =
     GeoStack(data, window, refdims, metadata)
 GeoStack(s::AbstractGeoStack;
-         keys=Tuple(Symbol.(keys(s))),
+         keys=stackkeys(Base.keys(s)),
          parent = NamedTuple{keys}((GeoArray(s[key]) for key in keys)),
          dims=dims(s), refdims=refdims(s),
          metadata=metadata(s), window=window(s)) =
