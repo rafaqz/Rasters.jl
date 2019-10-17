@@ -2,7 +2,7 @@ using ArchGDAL, GDAL, CoordinateTransformations
 
 export GDALarray, GDALstack
 
-# Interface methods for ArchGDAL types
+# DimensionalData methods for ArchGDAL types ###############################
 
 dims(ds::ArchGDAL.Dataset, args...) = begin
     affine = geotransform_to_affine(ArchGDAL.getgeotransform(ds))
@@ -14,7 +14,7 @@ dims(ds::ArchGDAL.Dataset, args...) = begin
     nbands = ArchGDAL.nraster(ds)
     # TODO get an affine transform from the transformation
     lon = Lon((min(ax, bx), max(ax, bx))) 
-    lat = Lat((min(ay, by), max(ay, by)); order=Reverse())
+    lat = Lat((min(ay, by), max(ay, by)); order=Order(Forward(), Reverse()))
     band = Band(1:nbands)
     formatdims((sze..., nbands), (lon, lat, band)) 
 end
@@ -32,13 +32,14 @@ metadata(ds::ArchGDAL.Dataset, args...) = begin
     (filepath=path, crs=crs, scale=scale, offset=offset, color=color, units=units)
 end
 
+# Array ########################################################################
 
 @GeoArrayMixin struct GDALarray{W,S,A} <: AbstractGeoArray{T,N,D}
     window::W
     size::S
 end
 
-GDALarray(path::AbstractString; kwargs...) = gdalrun(ds -> GDALarray(ds; kwargs...), path)
+GDALarray(path::AbstractString; kwargs...) = gdalapply(ds -> GDALarray(ds; kwargs...), path)
 GDALarray(ds::ArchGDAL.Dataset; 
           dims=dims(ds),
           refdims=(),
@@ -60,25 +61,33 @@ GDALarray(ds::ArchGDAL.Dataset;
 end
 
 Base.size(a::GDALarray) = a.size
-Base.parent(a::GDALarray) = gdalrun(ds -> gdalread(ds, windoworempty(a)...), a.data)
+Base.parent(a::GDALarray) = gdalapply(ds -> gdalread(ds, windoworempty(a)...), a.data)
 Base.getindex(a::GDALarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) = begin
     I = applywindow(a, I)
-    rebuildsliced(a, gdalrun(ds -> gdalread(ds, I...), a.data), I)
+    rebuildsliced(a, gdalapply(ds -> gdalread(ds, I...), a.data), I)
 end
+
+# Stack ########################################################################
 
 @GeoStackMixin struct GDALstack{} <: AbstractGeoStack{T} end 
 
-run(f, stack::GDALstack, path::AbstractString) = gdalrun(f, path)
+GDALstack(data::NamedTuple; 
+          dims=gdalapply(dims, first(values(data))), 
+          refdims=(), window=(), 
+          metadata=gdalapply(metadata, first(values(data)))) =
+    GDALstack(data, dims, refdims, window, metadata)
+
+safeapply(f, ::GDALstack, path::AbstractString) = gdalapply(f, path)
 data(stack::GDALstack, ds, key::Key, I...) = GDALarray(ds; window=I)
 data(stack::GDALstack, ds, key::Key) = GDALarray(ds)
 
 Base.copy!(dst::AbstractArray, src::GDALstack, key::Key) = 
-    copy!(dst, gdalrun(ArchGDAL.read, source(src, key)))
+    copy!(dst, gdalapply(ArchGDAL.read, source(src, key)))
 
 
-# gdal utils
+# Utils ########################################################################
 
-gdalrun(f, path::AbstractString) = 
+gdalapply(f, path::AbstractString) = 
     ArchGDAL.registerdrivers() do
         ArchGDAL.read(path) do ds::ArchGDAL.Dataset
             f(ds)

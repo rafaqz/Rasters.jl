@@ -4,7 +4,8 @@ using Mixers, RecipesBase, Reexport, Requires
 @reexport using CoordinateReferenceSystemsBase, DimensionalData
 
 
-using DimensionalData: Time, Forward, Reverse, formatdims, slicedims, basetype, dims2indices, @dim
+using DimensionalData: Time, Forward, Reverse, formatdims, slicedims, 
+      basetype, dims2indices, @dim, dimorder, arrayorder
 using Base: tail
 
 import DimensionalData: val, dims, refdims, metadata, rebuild, rebuildsliced, name, label, units

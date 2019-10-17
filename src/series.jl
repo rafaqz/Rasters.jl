@@ -5,40 +5,45 @@ This is useful abstraction where data is broken into separate
 files accross one or more dimensions, and need to be loaded 
 separately. 
 """
-abstract type AbstractGeoSeries{T,N,D,C} <: AbstractGeoArray{T,N,D} end
+abstract type AbstractGeoSeries{T,N,D,CT} <: AbstractGeoArray{T,N,D} end
 
-(::Type{T})(data, dims; refdims=(), metadata=Dict(), childtype=GeoArray, window=()
-           ) where T<:AbstractGeoSeries = 
-    T(data, dims, refdims, metadata, childtype, window)
-
+# Interface methods ####################################################
 
 childtype(series::AbstractGeoSeries) = series.childtype
+childdims(s::AbstractGeoSeries) = s.childdims
 window(series::AbstractGeoSeries) = series.window
 
+# Array interface methods ##############################################
+# Mostly these inherit from AbstractGeoArray
+
 Base.getindex(s::AbstractGeoSeries{<:AbstractString}, I::Vararg{<:Integer}) = 
-    childtype(s)(parent(s)[I...]; refdims=slicedims(s, I)[2], window=window(s))
-Base.getindex(series::AbstractGeoSeries{<:AbstractGeoStack}, I::Vararg{<:Integer}) = begin
-    stack = parent(series)[I...]
-    rebuild(stack; window=window(series))
-end
+    childtype(s)(parent(s)[I...]; dims=childdims(s), refdims=slicedims(s, I)[2], 
+                 window=window(s), metadata=metadata(s))
+Base.getindex(s::AbstractGeoSeries{<:AbstractGeoStack}, I::Vararg{<:Integer}) = 
+    rebuild(parent(s)[I...]; window=window(s), refdims=slicedims(s, I)[2])
+
+
+# Concrete implementation ##############################################
 
 """
-Holds stacks along some dimension(s)
-
-Probably not as useful as format-specific AbstractLazySeries that lazily
-loads specific files. 
+Series hold paths to array or stack files, along some dimension(s).
 """
-struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},M,C,V} <: AbstractGeoSeries{T,N,D,C}
+struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},M,CT,CD,V} <: AbstractGeoSeries{T,N,D,CT}
     data::A
     dims::D
     refdims::R
     metadata::M
-    childtype::C
+    childtype::CT
+    childdims::CD
     window::V
 end
 
+GeoSeries(data, dims; refdims=(), metadata=Dict(), childtype=GeoStack, childdims=(), window=()) = 
+    GeoSeries(data, dims, refdims, metadata, childtype, childdims, window)
+
 @inline rebuild(s::GeoSeries; parent=parent(s), dims=dims(s), 
-                refdims=refdims(s), metadata=metadata(s), window=window(s)) =
-    GeoSeries(data, dims, refdims, metadata, childtype, window)
+                refdims=refdims(s), metadata=metadata(s), childtype=childtype(s), 
+                childdims=childdims(s), window=window(s)) =
+    GeoSeries(data, dims, refdims, metadata, childtype, childdims, window)
 @inline rebuild(s::GeoSeries, data, newdims, newrefdims) =
-    GeoSeries(data, newdims, newrefdims, metadata(s), childtype(s), window(s))
+    GeoSeries(data, newdims, newrefdims, metadata(s), childtype(s), childdims(s), window(s))
