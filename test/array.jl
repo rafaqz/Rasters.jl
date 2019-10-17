@@ -7,8 +7,9 @@ mval = -9999.0
 meta = nothing
 key = :test
 
-ga1 = GeoArray(data1, dims1, refdimz, meta, mval, key)
+# Formatting only occurs in shorthand constructors
 ga2 = GeoArray(data2, dims2)
+ga1 = GeoArray(data1, formatdims(data1, dims1), refdimz, meta, mval, key)
 
 @testset "arary dims have been formatted" begin
     @test val.(dims(ga2)) == val.((Lon<|LinRange(10.0, 100.0, 10), 

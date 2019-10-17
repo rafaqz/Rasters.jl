@@ -27,7 +27,7 @@ for func in (:dims, :metadata, :missingval)
     @eval begin
         $func(s::AbstractGeoStack) = $func(s, first(keys(s)))
         $func(s::AbstractGeoStack, key::Key) =
-            safeapply(ds -> $func(s, ds, key), s, source(s, key))
+            safeapply(dataset -> $func(s, dataset, key), s, source(s, key))
         $func(s::AbstractGeoStack, source, key::Key) = $func(source)
     end
 end
@@ -55,7 +55,7 @@ Extending types should implement various combinations of
 either whole or partial datasets, depending on the arguments.
 """
 data(stack, key, I...) =
-    safeapply(datasets -> data(stack, dataset, key, I...), stack, source(stack, key))
+    safeapply(dataset -> data(stack, dataset, key, I...), stack, source(stack, key))
 
 """
     source(s::AbstractGeoStack, [key])

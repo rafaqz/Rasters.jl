@@ -33,8 +33,15 @@ series = GeoSeries(filenames, dimz; childtype=NCstack)
 
 # Get a single array from the series
 a = series[Near<|DateTime360Day(2001, 01, 1)]["tos"][Lon<|Between(50, 200)]
+dims(a)
 
-# Do some manipulations and plotting ###################################
+
+# Do some more manipulations and plotting ###################################
+
+# Plot the mean sea surface temperature for australia in the second half of 2002 
+stack = NCstack(ncfilename)
+t = Time<|Between(DateTime360Day(2002, 07, 1), DateTime360Day(2002, 012, 30)) 
+stack["tos"][t, Lat<|Between(-45, 0.5), Lon<|Between(110, 160)] |> x->mean(x; dims=Time) |> plot
 
 # Plot single slices
 view(a, Time(4)) |> plot
@@ -47,11 +54,6 @@ std(a; dims=Time) |> plot
 minimum(x->ismissing(x) ? NaN : x, a; dims=Time) |> plot
 maximum(x->ismissing(x) ? NaN : x, a; dims=Time) |> plot
 reduce(+, a; dims=Time) |> plot
-
-# Plot the mean sea surface temperature for australia in the second half of 2002 
-stack = NCstack(ncfilename)
-t = Time<|Between(DateTime360Day(2002, 07, 1), DateTime360Day(2002, 012, 30)) 
-stack["tos"][t, Lat<|Between(-45, 0.5), Lon<|Between(110, 160)] |> x->mean(x; dims=Time) |> plot
 
 # Permute the dimensions in the underlying data
 # It stil plots the right way up
@@ -87,7 +89,7 @@ GeoData.window(diskarray)
 size(diskarray)
 metadata(diskarray)
 
-# Move it to a regular memory based GeoArray
+# Move it to a regular disk based GeoArray
 memarray = GeoArray(diskarray) 
 size(memarray)
 dims(memarray)

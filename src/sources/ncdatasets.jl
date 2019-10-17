@@ -112,19 +112,19 @@ nondimkeys(dataset) = begin
 end
 
 # save(s::NCstack, path) = begin
-#     ds = Dataset(path, "c")
+#     dataset = Dataset(path, "c")
 
 #     for (key, val) in metadata(s)
-#         ds[key] = val 
+#         dataset[key] = val 
 #     end
 
 #     for (key, layer) in s
 #         dimstrings = (shortname(dim) for dim in dims(value))
 
-#         defDim.(Ref(ds), dimstrings, size.(val.(dims.(layer))))
+#         defDim.(Ref(dataset), dimstrings, size.(val.(dims.(layer))))
 
 #         # Define a variable
-#         v = defVar(ds, key, eltype(v), size(layer))
+#         v = defVar(dataset, key, eltype(v), size(layer))
 #         # TODO: add dims to variable
 
 #         for (key, val) in metadata(layer)
@@ -132,5 +132,5 @@ end
 #         end
 #         v .= replace_missing(parent(layer), NaN)
 #     end
-#     close(ds)
+#     close(dataset)
 # end
