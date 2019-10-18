@@ -3,56 +3,56 @@ ncsingle = geturl(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
 ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
 
 @testset "array" begin
-    array = NCarray(ncsingle)
+    A = NCarray(ncsingle)
 
     @testset "array properties" begin
-        @test size(array) == (180, 170, 24)
-        @test typeof(array) <: NCarray{Union{Missing,Float32},3}
+        @test size(A) == (180, 170, 24)
+        @test typeof(A) <: NCarray{Union{Missing,Float32},3}
     end
 
     @testset "dimensions" begin
-        @test ndims(array) == 3
-        @test length.(val.(dims(array))) == (180, 170, 24)
-        @test typeof(dims(array)) <: Tuple{<:Lon,<:Lat,<:Time}
-        @test refdims(array) == ()
-        @test bounds(array) == ((1.0, 359.0), (-79.5, 89.5), (DateTime360Day(2001, 1, 16), DateTime360Day(2002, 12, 16)))
+        @test ndims(A) == 3
+        @test length.(val.(dims(A))) == (180, 170, 24)
+        @test typeof(dims(A)) <: Tuple{<:Lon,<:Lat,<:Time}
+        @test refdims(A) == ()
+        @test bounds(A) == ((1.0, 359.0), (-79.5, 89.5), (DateTime360Day(2001, 1, 16), DateTime360Day(2002, 12, 16)))
     end
 
     @testset "other fields" begin
-        @test window(array) == ()
-        @test ismissing(missingval(array))
-        @test typeof(metadata(array)) <: Dict # TODO make this a namedtuple
-        @test_broken metadata(array).filepath == "tos_O1_2001-2002.nc"
-        @test name(array) == :tos
+        @test window(A) == ()
+        @test ismissing(missingval(A))
+        @test typeof(metadata(A)) <: Dict # TODO make this a namedtuple
+        @test_broken metadata(A).filepath == "tos_O1_2001-2002.nc"
+        @test name(A) == :tos
     end
 
     @testset "indexing" begin
-        @test typeof(array[Time(1)]) <: GeoArray{Union{Missing,Float32},2}
-        @test typeof(array[Lat(1), Time(1)]) <: GeoArray{Union{Missing,Float32},1}
-        @test typeof(array[Lon(1), Time(1)]) <: GeoArray{Union{Missing,Float32},1}
-        @test typeof(array[Lon(1), Lat(1), Time(1)]) <: Missing
-        @test typeof(array[Lon(30), Lat(30), Time(1)]) <: Float32
-        @test typeof(array[30, 30, 2]) <: Float32
+        @test typeof(A[Time(1)]) <: GeoArray{Union{Missing,Float32},2}
+        @test typeof(A[Lat(1), Time(1)]) <: GeoArray{Union{Missing,Float32},1}
+        @test typeof(A[Lon(1), Time(1)]) <: GeoArray{Union{Missing,Float32},1}
+        @test typeof(A[Lon(1), Lat(1), Time(1)]) <: Missing
+        @test typeof(A[Lon(30), Lat(30), Time(1)]) <: Float32
+        @test typeof(A[30, 30, 2]) <: Float32
     end
 
     @testset "selectors" begin
-        a = array[Lon(At(21.0)), Lat(Between(50, 52)), Time(Near(DateTime360Day(2002, 12)))]
+        a = A[Lon(At(21.0)), Lat(Between(50, 52)), Time(Near(DateTime360Day(2002, 12)))]
         @test bounds(a) == ((50.5, 51.5),)
-        x = array[Lon(Near(150)), Lat(Near(30)), Time(1)]
+        x = A[Lon(Near(150)), Lat(Near(30)), Time(1)]
         @test typeof(x) <: Float32
         # TODO make sure we are getting the right cell.
     end
 
     @testset "conversion to GeoArray" begin
-        geoarray = array[Lon(1:50), Lat(20:20), Time(1)]
+        geoarray = A[Lon(1:50), Lat(20:20), Time(1)]
         @test size(geoarray) == (50, 1)
         @test eltype(geoarray) <: Union{Missing,Float32}
         @time typeof(geoarray) <: GeoArray{Float32,1} 
         @test typeof(dims(geoarray)) <: Tuple{<:Lon,<:Lat}
         @test typeof(refdims(geoarray)) <: Tuple{<:Time} 
-        @test metadata(geoarray) == metadata(array)
+        @test metadata(geoarray) == metadata(A)
         @test ismissing(missingval(geoarray))
-        @test name(array) == :tos
+        @test name(geoarray) == :tos
     end
 end
 
@@ -78,14 +78,14 @@ end
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
         @test axes(mean(stack[:albedo, Lat(1:20)], dims=Time)) == (Base.OneTo(192), Base.OneTo(20), Base.OneTo(1))
-        array = stack[:albedo][Time(4:6), Lon(1), Lat(2)] 
-        @test array == stack[:albedo, Time(4:6), Lon(1), Lat(2)] 
-        size(array) == (3,)
+        A = stack[:albedo][Time(4:6), Lon(1), Lat(2)] 
+        @test A == stack[:albedo, Time(4:6), Lon(1), Lat(2)] 
+        size(A) == (3,)
     end
 
     @testset "copy" begin
-        array = GeoArray(stack[:albedo])
-        copy!(array, stack, :albedo)
+        A = GeoArray(stack[:albedo])
+        copy!(A, stack, :albedo)
     end
 
     @testset "indexing" begin
