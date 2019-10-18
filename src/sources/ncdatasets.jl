@@ -16,7 +16,7 @@ const dimmap = Dict("lat" => Lat,
 
 # DimensionalData methods for NCDatasets types ###############################
 
-dims(dataset::NCDatasets.Dataset) = dims(first(keys(dataset)))
+dims(dataset::NCDatasets.Dataset) = dims(dataset, first(nondimkeys(dataset)))
 dims(dataset::NCDatasets.Dataset, key::Key) = begin
     v = dataset[string(key)]
     dims = []
@@ -75,10 +75,15 @@ layer of each file will be used in the stack.
 
 This constructor is intended for handling simple single-layer netcdfs.
 """
-NCstack(filepaths::Union{Tuple,Vector}; dims=(), refdims=(), window=(), metadata=Nothing) = begin
+NCstack(filepaths::Union{Tuple,Vector}; dims=ncapply(dims, first(filepaths)), 
+        refdims=(), window=(), metadata=Nothing) = begin
     keys = Tuple(Symbol.((ncapply(dataset->first(nondimkeys(dataset)), fp) for fp in filepaths)))
     NCstack(NamedTuple{keys}(filepaths), dims, refdims, window, metadata)
 end
+NCstack(data::String; dims=ncapply(dims, data), 
+        refdims=(), window=(), metadata=ncapply(metadata, data)) =
+    NCstack(data, dims, refdims, window, metadata)
+
 
 safeapply(f, ::NCstack, path) = ncapply(f, path) 
 data(s::NCstack, dataset, key::Key, I...) = 
@@ -89,12 +94,15 @@ data(s::NCstack, dataset, key::Key) =
     GeoArray(Array(dataset[string(key)]), dims(dataset, key), refdims(s), 
              metadata(s), missingval(s), Symbol(key))
 dims(::NCstack, dataset, key::Key) = dims(dataset, key)
+dims(::NCstack, dataset, key::Key) = dims(dataset, key)
 missingval(stack::NCstack) = missing
 
 Base.keys(stack::NCstack{<:AbstractString}) = 
     Tuple(Symbol.(safeapply(nondimkeys, stack, source(stack))))
-Base.copy!(dataset::AbstractArray, src::NCstack, key) = 
-    safeapply(dataset -> copy!(dataset, dataset[string(key)]), src, source(src))
+Base.copy!(dst::AbstractArray, src::NCstack, key) = 
+    safeapply(dataset -> copy!(dst, dataset[string(key)]), src, source(src))
+Base.copy!(dst::AbstractGeoArray, src::NCstack, key::Key) = 
+    safeapply(dataset -> copy!(parent(dst), dataset[string(key)]), src, source(src))
 
 
 # Utils ########################################################################

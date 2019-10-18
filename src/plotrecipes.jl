@@ -5,10 +5,7 @@ preparedata(A) = begin
     data = parent(replace_missing(A, NaN))
     for (i, dim) in enumerate(dims(A))
         if arrayorder(dim) == Reverse()
-            println(typeof(dim), " reversed")
             data = reverse(data; dims=i)
-        else
-            println(typeof(dim), " forward")
         end
     end
     data

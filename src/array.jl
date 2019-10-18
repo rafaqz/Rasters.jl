@@ -52,8 +52,8 @@ A generic, memory-backed spatial array type.
                  missingval=missing, name=Symbol("")) where {T,N} = 
     GeoArray(a, formatdims(a, dims), refdims, metadata, missingval, name)
 
-@inline GeoArray(a::AbstractGeoArray; data=parent(a), dims=dims(a), refdims=refdims(a), 
-                 metadata=metadata(a), missingval=missingval(a), name=name(a)) =
+@inline GeoArray(A::AbstractGeoArray; data=parent(A), dims=dims(A), refdims=refdims(A), 
+                 metadata=metadata(A), missingval=missingval(A), name=name(A)) =
     GeoArray(data, dims, refdims, metadata, missingval, name)
 
 dims(a::GeoArray) = a.dims

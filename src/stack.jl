@@ -9,8 +9,6 @@ abstract type AbstractGeoStack{T} end
 
 (::Type{T})(data, keys; kwargs...) where T<:AbstractGeoStack =
     T(NamedTuple{Tuple(Symbol.(keys))}(Tuple(data)); kwargs...)
-(::Type{T})(data; dims=dims(first(values(data))), refdims=(), window=(), metadata=nothing) where T<:AbstractGeoStack =
-    T(data, dims, refdims, window, metadata)
 
 @premix struct GeoStackMixin{T,D,R,W,M}
     data::T
@@ -121,7 +119,10 @@ stackkeys(keys) = Tuple(Symbol.(keys))
 
 GeoStack(data::Vararg{<:AbstractGeoArray}; keys=name.(data), kwargs...) =
     GeoStack(NamedTuple{stackkeys(keys)}(data); kwargs...)
-GeoStack(data::NamedTuple, dims; refdims=(), window=(), metadata=nothing) =
+GeoStack(data::NamedTuple; 
+         dims=dims(first(values(data))),
+         refdims=refdims(first(values(data))),
+         window=(), metadata=nothing) =
     GeoStack(data, dims, refdims, window, metadata)
 GeoStack(s::AbstractGeoStack;
          keys=stackkeys(Base.keys(s)),

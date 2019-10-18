@@ -3,54 +3,54 @@ path = geturl("https://download.osgeo.org/geotiff/samples/usgs/i30dem.tif")
 path = geturl("https://download.osgeo.orgtgeotiff/samples/gdal_eg/cea.tif")
 
 @testset "array" begin
-    A = GDALarray(path)
+    gdalarray = GDALarray(path)
 
     @testset "array properties" begin
-        @test size(A) == (514, 515, 1)
-        @test typeof(A) <: GDALarray{UInt8,3}
+        @test size(gdalarray) == (514, 515, 1)
+        @test typeof(gdalarray) <: GDALarray{UInt8,3}
     end
 
     @testset "dimensions" begin
-        @test length(val(dims(dims(A), Lon))) == 514
-        @test ndims(A) == 3
-        @test typeof(dims(A)) <: Tuple{<:Lon,<:Lat,<:Band}
-        @test refdims(A) == ()
-        @test_broken bounds(A) 
+        @test length(val(dims(dims(gdalarray), Lon))) == 514
+        @test ndims(gdalarray) == 3
+        @test typeof(dims(gdalarray)) <: Tuple{<:Lon,<:Lat,<:Band}
+        @test refdims(gdalarray) == ()
+        @test_broken bounds(gdalarray) 
     end
 
     @testset "other fields" begin
-        @test window(A) == ()
-        @test missingval(A) == -1.0e10
-        @test typeof(metadata(A)) <: NamedTuple
-        @test metadata(A).filepath == "cea.tif"
-        @test name(A) == Symbol("")
+        @test window(gdalarray) == ()
+        @test missingval(gdalarray) == -1.0e10
+        @test typeof(metadata(gdalarray)) <: NamedTuple
+        @test metadata(gdalarray).filepath == "cea.tif"
+        @test name(gdalarray) == Symbol("")
     end
 
     @testset "indexing" begin 
-        @test typeof(A[Band(1)]) <: GeoArray{UInt8,2} 
-        @test typeof(A[Lat(1), Band(1)]) <: GeoArray{UInt8,1} 
-        @test typeof(A[Lon(1), Band(1)]) <: GeoArray{UInt8,1}
+        @test typeof(gdalarray[Band(1)]) <: GeoArray{UInt8,2} 
+        @test typeof(gdalarray[Lat(1), Band(1)]) <: GeoArray{UInt8,1} 
+        @test typeof(gdalarray[Lon(1), Band(1)]) <: GeoArray{UInt8,1}
         # Doesn't handle returning a single value
-        @test_broken typeof(A[Lon(1), Lat(1), Band(1)]) <: UInt8 
-        @test_broken typeof(A[1, 1, 1]) <: UInt8
+        @test_broken typeof(gdalarray[Lon(1), Lat(1), Band(1)]) <: UInt8 
+        @test_broken typeof(gdalarray[1, 1, 1]) <: UInt8
     end
 
     @testset "selectors" begin
-        a = A[Lat(Near(3)), Lon(:), Band(1)]
-        @test typeof(a) <: GeoArray{UInt8,1}
+        geoarray = gdalarray[Lat(Near(3)), Lon(:), Band(1)]
+        @test typeof(geoarray) <: GeoArray{UInt8,1}
         # @test bounds(a) == ()
         # Doesn't handle returning a single value
-        # a = A[Lon(At(20), Lat(Near(10), Band(1)]) <: UInt8
+        # x = gdalarray[Lon(At(20), Lat(Near(10), Band(1)]) <: UInt8
     end
 
     @testset "conversion to GeoArray" begin
-        geoarray = A[Lon(1:50), Lat(1:1), Band(1)]
+        geoarray = gdalarray[Lon(1:50), Lat(1:1), Band(1)]
         @test size(geoarray) == (50, 1)
         @test eltype(geoarray) <: UInt8
         @time typeof(geoarray) <: GeoArray{UInt8,1} 
         @test typeof(dims(geoarray)) <: Tuple{<:Lon,Lat}
         @test typeof(refdims(geoarray)) <: Tuple{<:Band} 
-        @test metadata(geoarray) == metadata(A)
+        @test metadata(geoarray) == metadata(gdalarray)
         @test missingval(geoarray) == -1.0e10
         @test name(geoarray) == Symbol("")
     end
@@ -75,10 +75,10 @@ end
     end
 
     @testset "copy" begin
-        A = zero(GeoArray(gdalstack[:a]))
-        copy!(A, gdalstack, :a)
+        geoarray = zero(GeoArray(gdalstack[:a]))
+        copy!(geoarray, gdalstack, :a)
         # First wrap with GeoArray() here or == loads from disk for each cell.
         # we need a general way of avoiding this in all disk-based sources
-        @test A == GeoArray(gdalstack[:a])
+        @test geoarray == GeoArray(gdalstack[:a])
     end
 end

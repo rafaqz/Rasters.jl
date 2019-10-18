@@ -13,12 +13,17 @@ const SMAPGEODATA = "Geophysical_Data"
 
 @GeoStackMixin struct SMAPstack{} <: AbstractGeoStack{T} end
 
+SMAPstack(data::String; dims=smapapply(smapdims, data), 
+          refdims=(), window=(), metadata=ncapply(metadata, data)) =
+    SMAPstack(data, dims, refdims, window, metadata)
+
 dims(stack::SMAPstack) = stack.dims
+dims(stack::SMAPstack, ::Key) = stack.dims
 refdims(stack::SMAPstack) = (safeapply(smaptime, stack, source(stack)),)
 metadata(stack::SMAPstack, args...) = nothing
 missingval(stack::SMAPstack, args...) = SMAPMISSING
 
-@inline safeapply(f, ::SMAPstack, path::AbstractString) = h5open(f, path)
+@inline safeapply(f, ::SMAPstack, path::AbstractString) = smapapply(f, path)
 
 data(s::SMAPstack, dataset, key::Key) =
     GeoArray(read(dataset[smappath(key)]), dims(s), refdims(s), metadata(s), missingval(s), Symbol(key))
@@ -31,8 +36,10 @@ data(::SMAPstack, dataset, key::Key, I::Vararg{Integer}) = dataset[smappath(key)
 # HDF5 uses `names` instead of `keys` so we have to special-case it
 Base.keys(stack::SMAPstack) = 
     safeapply(dataset -> Tuple(Symbol.(names(dataset[SMAPGEODATA]))), stack, source(stack))
-Base.copy!(dataset::AbstractArray, src::SMAPstack, key) =
-    safeapply(dataset -> copy!(dataset, dataset[smappath(key)][window2indices(src, key)...]), src, source(src))
+Base.copy!(dst::AbstractArray, src::SMAPstack, key) =
+    safeapply(dataset -> copy!(dst, dataset[smappath(key)][window2indices(src)...]), src, source(src))
+Base.copy!(dst::AbstractGeoArray, src::SMAPstack, key) =
+    safeapply(dataset -> copy!(parent(dst), dataset[smappath(key)][window2indices(src)...]), src, source(src))
 
 # Series #######################################################################
 
@@ -44,12 +51,14 @@ SMAPseries(path::AbstractString; kwargs...) =
     SMAPseries(joinpath.(path, filter_ext(path, ".h5")); kwargs...)
 SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths);
            childtype=SMAPstack, 
-           childdims=h5open(smapcoords, first(filepaths)), 
+           childdims=h5open(smapdims, first(filepaths)), 
            window=(), kwargs...) =
     GeoSeries(filepaths, dims; childtype=childtype, childdims=childdims, window=window, kwargs...)
 
 
 # Utils ########################################################################
+
+smapapply(f, path) = h5open(f, path)
 
 smappath(key) = joinpath(GeoData.SMAPGEODATA, string(key))
 
@@ -67,7 +76,7 @@ smapseriestime(filepaths) = begin
     (Time(val.(timeseries); metadata=timemeta),)
 end
 
-smapcoords(dataset) = begin
+smapdims(dataset) = begin
     proj = read(attrs(root(dataset)["EASE2_global_projection"]), "grid_mapping_name")
     if proj == "lambert_cylindrical_equal_area"
         # There are matrices for lookup but all rows/colums are identical.

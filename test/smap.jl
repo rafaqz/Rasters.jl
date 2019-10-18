@@ -9,18 +9,18 @@ path2 = "SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5"
     names(stack)
 
     @testset "conversion to GeoArray" begin
-        A = stack["soil_temp_layer1", Lon(1:100), Lat(1:100)]
+        smaparray = stack["soil_temp_layer1", Lon(1:100), Lat(1:100)]
         dims(stack, :soil_temp_layer1)
-        @test typeof(A) <: GeoArray{Float32,2}
-        @test size(A) == (100, 100)
-        @test typeof(dims(A)) <: Tuple{<:Lon{<:Array{Float32,1}}, <:Lat{<:Array{Float32,1}}}
-        @test typeof(refdims(A)) <: Tuple{<:Time} 
-        @test missingval(A) == -9999.0
-        @test A[1] == -9999.0
-        @test name(A) == :soil_temp_layer1
+        @test typeof(smaparray) <: GeoArray{Float32,2}
+        @test size(smaparray) == (100, 100)
+        @test typeof(dims(smaparray)) <: Tuple{<:Lon{<:Array{Float32,1}}, <:Lat{<:Array{Float32,1}}}
+        @test typeof(refdims(smaparray)) <: Tuple{<:Time} 
+        @test missingval(smaparray) == -9999.0
+        @test smaparray[1] == -9999.0
+        @test name(smaparray) == :soil_temp_layer1
         # Why is tagged time different to the filename time? is that just rounded?
         @test refdims(stack) == (Time(DateTime(2016, 1, 1, 22, 28, 55, 816)),)
-        @test_broken metadata(A) = "not implemented yet"
+        @test_broken metadata(smaparray) = "not implemented yet"
     end
 
     @testset "conversion to GeoStack" begin
@@ -34,11 +34,11 @@ path2 = "SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5"
     end
 
     @testset "copy" begin
-        A = GeoArray(stack[:soil_temp_layer1])
-        @test typeof(A) <: GeoArray
-        @test A == stack[:soil_temp_layer1]
-        copy!(A, stack, :soil_temp_layer2)
-        @test A == stack[:soil_temp_layer2]
+        smaparray = GeoArray(stack[:soil_temp_layer1])
+        @test typeof(smaparray) <: GeoArray
+        @test smaparray == stack[:soil_temp_layer1]
+        copy!(smaparray, stack, :soil_temp_layer2)
+        @test smaparray == stack[:soil_temp_layer2]
     end
 
 end
