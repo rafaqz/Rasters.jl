@@ -68,7 +68,7 @@ Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
 
 mask(a::AbstractGeoArray) = mask(a, missingval(a))
 mask(a::AbstractArray) = mask(a, missing)
-mask(a::AbstractGeoArray, missingval) = parent(a) .!= missingval
+mask(a::AbstractGeoArray, missingval) = parent(a) .!= convert(eltype(a), missingval)
 mask(a::AbstractGeoArray, ::Missing) = .!(ismissing.(parent(a)))
 
 """
