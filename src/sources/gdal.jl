@@ -58,6 +58,7 @@ GDALarray(dataset::ArchGDAL.Dataset;
     end
     T = ArchGDAL.getdatatype(ArchGDAL.getband(dataset, 1))
     N = length(sze)
+    missingval = convert(T, missingval)
     GDALarray{T,N,typeof.((dims,refdims,metadata,missingval,name,window,sze,path))...
        }(path, dims, refdims, metadata, missingval, name, window, sze)
 end

@@ -68,7 +68,7 @@ Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
 
 mask(a::AbstractGeoArray) = mask(a, missingval(a))
 mask(a::AbstractArray) = mask(a, missing)
-mask(a::AbstractGeoArray, missingval) = parent(a) .!= convert(eltype(a), missingval)
+mask(a::AbstractGeoArray, missingval) = parent(a) .!== missingval
 mask(a::AbstractGeoArray, ::Missing) = .!(ismissing.(parent(a)))
 
 """
@@ -78,8 +78,7 @@ Replace missing values in the array with a new missing value, also
 updating the missingval field.
 """
 replace_missing(a::AbstractGeoArray, newmissing) = 
-    # We need type conversion to avoid bad comparisions between Float64 and Float32 from GDAL 
-    rebuild(a; data=replace(a, convert(eltype(a), missingval(a)) => newmissing), missingval=newmissing)
+    rebuild(a; data=replace(a, missingval(a) => newmissing), missingval=newmissing)
 
 
 # Utils ########################################################################
