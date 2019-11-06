@@ -1,9 +1,17 @@
+using ArchGDAL, GDAL, GeoInterface
+using GeoData, Test, Statistics, Dates
+# using Plots
+# plot(gdalarray)
+
 path = geturl("https://download.osgeo.org/geotiff/samples/usgs/c41078a1.tif")
 path = geturl("https://download.osgeo.org/geotiff/samples/usgs/i30dem.tif")
 path = geturl("https://download.osgeo.orgtgeotiff/samples/gdal_eg/cea.tif")
 
 @testset "array" begin
     gdalarray = GDALarray(path)
+    bounds(gdalarray)
+    dims(gdalarray)
+    gdalarray[Lon(Near(-117.31)), Lat(Between(33.9, 34))]
 
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
@@ -19,7 +27,7 @@ path = geturl("https://download.osgeo.orgtgeotiff/samples/gdal_eg/cea.tif")
     end
 
     @testset "other fields" begin
-        @test window(gdalarray) == ()
+        @test GeoData.window(gdalarray) == ()
         @test missingval(gdalarray) == -1.0e10
         @test typeof(metadata(gdalarray)) <: NamedTuple
         @test metadata(gdalarray).filepath == "cea.tif"

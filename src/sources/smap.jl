@@ -1,4 +1,7 @@
+# """
 # A data source for SMAP (Soil moisture active-passive) datatsets.
+# """
+# module SMAPgeoData
 
 using HDF5, Dates
 
@@ -80,11 +83,14 @@ smapdims(dataset) = begin
     proj = read(attrs(root(dataset)["EASE2_global_projection"]), "grid_mapping_name")
     if proj == "lambert_cylindrical_equal_area"
         # There are matrices for lookup but all rows/colums are identical.
-        # For performance we just take a vector slice of each dim.
+        # For performance and simplicity we just take a vector slice for each dim.
         latvec = read(root(dataset)["cell_lat"])[1, :]
         lonvec = read(root(dataset)["cell_lon"])[:, 1]
-        (Lon(lonvec), Lat(latvec; order=Order(Reverse(), Reverse())))
+        latgrid=AllignedGrid(order=Ordered(Reverse(), Reverse()))
+        (Lon(lonvec), Lat(latvec; grid=latgrid))
     else
         error("projection $proj not supported")
     end
 end
+
+# end

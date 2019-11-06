@@ -1,6 +1,8 @@
+# module NCDgeoData
+
 using NCDatasets
 
-export NCarray, NCstack
+export NCDarray, NCDstack
 
 # CF standards don't enforce dimension names. 
 # But these are common, and should take care most dims.
@@ -27,10 +29,11 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
             # the generic Dim with the dim name as type parameter
             dimconstructor = get(dimmap, dimname, Dim{Symbol(dimname)})
             # Get the attrib metadata
+            order = dvar[end] > dvar[1] ? Ordered(Forward(), Forward()) : Ordered(Reverse(), Reverse())
+            grid = AllignedGrid(order=order)
             meta = Dict(metadata(dvar))
-            order = dvar[end] > dvar[1] ? Order(Forward(), Forward()) : Order(Reverse(), Reverse())
             # Add the dim containing the dimension var array 
-            push!(dims, dimconstructor(dvar[:], meta, order))
+            push!(dims, dimconstructor(dvar[:], grid, meta))
         else
             # The var doesn't exist. Maybe its `complex` or some other marker
             # so just make it a Dim with that name and range matching the indices
@@ -48,60 +51,60 @@ missingval(var::NCDatasets.CFVariable{<:Union{Missing}}) = missing
 
 # Array ########################################################################
 
-@GeoArrayMixin struct NCarray{A<:AbstractArray{T,N},W} <: AbstractGeoArray{T,N,D} 
+@GeoArrayMixin struct NCDarray{A<:AbstractArray{T,N},W} <: AbstractGeoArray{T,N,D} 
     window::W
 end
 
 # TODO make this lazy?
-NCarray(path::AbstractString; refdims=(), window=()) = 
-    ncapply(dataset -> NCarray(dataset; refdims=refdims, window=window), path) 
-NCarray(dataset::NCDatasets.Dataset, key=first(nondimkeys(dataset)); 
+NCDarray(path::AbstractString; refdims=(), window=()) = 
+    ncapply(dataset -> NCDarray(dataset; refdims=refdims, window=window), path) 
+NCDarray(dataset::NCDatasets.Dataset, key=first(nondimkeys(dataset)); 
         refdims=(), name=Symbol(key), window=()) = begin
     var = dataset[string(key)]
-    NCarray(Array(var), dims(dataset, key), refdims, metadata(var), missingval(var), name, window)
+    NCDarray(Array(var), dims(dataset, key), refdims, metadata(var), missingval(var), name, window)
 end
 
 
 # Stack ########################################################################
 
 
-@GeoStackMixin struct NCstack{} <: AbstractGeoStack{T} end
+@GeoStackMixin struct NCDstack{} <: AbstractGeoStack{T} end
 
 """
-    NCstack(filepaths::Union{Tuple,Vector}; dims=(), refdims=(), window=(), metadata=Nothing)
+    NCDstack(filepaths::Union{Tuple,Vector}; dims=(), refdims=(), window=(), metadata=Nothing)
 
 Create a stack from an array or tuple of paths to netcdf files. The first non-dimension 
 layer of each file will be used in the stack.
 
 This constructor is intended for handling simple single-layer netcdfs.
 """
-NCstack(filepaths::Union{Tuple,Vector}; dims=ncapply(dims, first(filepaths)), 
+NCDstack(filepaths::Union{Tuple,Vector}; dims=ncapply(dims, first(filepaths)), 
         refdims=(), window=(), metadata=Nothing) = begin
     keys = Tuple(Symbol.((ncapply(dataset->first(nondimkeys(dataset)), fp) for fp in filepaths)))
-    NCstack(NamedTuple{keys}(filepaths), dims, refdims, window, metadata)
+    NCDstack(NamedTuple{keys}(filepaths), dims, refdims, window, metadata)
 end
-NCstack(data::String; dims=ncapply(dims, data), 
+NCDstack(data::String; dims=ncapply(dims, data), 
         refdims=(), window=(), metadata=ncapply(metadata, data)) =
-    NCstack(data, dims, refdims, window, metadata)
+    NCDstack(data, dims, refdims, window, metadata)
 
 
-safeapply(f, ::NCstack, path) = ncapply(f, path) 
-data(s::NCstack, dataset, key::Key, I...) = 
+safeapply(f, ::NCDstack, path) = ncapply(f, path) 
+data(s::NCDstack, dataset, key::Key, I...) = 
     GeoArray(dataset[string(key)][I...], slicedims(dims(s, key), refdims(s), I)..., 
              metadata(s), missingval(s), Symbol(key))
-data(::NCstack, dataset, key::Key, I::Vararg{Integer}) = dataset[string(key)][I...]
-data(s::NCstack, dataset, key::Key) = 
+data(::NCDstack, dataset, key::Key, I::Vararg{Integer}) = dataset[string(key)][I...]
+data(s::NCDstack, dataset, key::Key) = 
     GeoArray(Array(dataset[string(key)]), dims(dataset, key), refdims(s), 
              metadata(s), missingval(s), Symbol(key))
-dims(::NCstack, dataset, key::Key) = dims(dataset, key)
-dims(::NCstack, dataset, key::Key) = dims(dataset, key)
-missingval(stack::NCstack) = missing
+dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
+dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
+missingval(stack::NCDstack) = missing
 
-Base.keys(stack::NCstack{<:AbstractString}) = 
+Base.keys(stack::NCDstack{<:AbstractString}) = 
     Tuple(Symbol.(safeapply(nondimkeys, stack, source(stack))))
-Base.copy!(dst::AbstractArray, src::NCstack, key) = 
+Base.copy!(dst::AbstractArray, src::NCDstack, key) = 
     safeapply(dataset -> copy!(dst, dataset[string(key)]), src, source(src))
-Base.copy!(dst::AbstractGeoArray, src::NCstack, key::Key) = 
+Base.copy!(dst::AbstractGeoArray, src::NCDstack, key::Key) = 
     safeapply(dataset -> copy!(parent(dst), dataset[string(key)]), src, source(src))
 
 
@@ -119,7 +122,7 @@ nondimkeys(dataset) = begin
     setdiff(keys(dataset), dimkeys)
 end
 
-# save(s::NCstack, path) = begin
+# save(s::NCDstack, path) = begin
 #     dataset = Dataset(path, "c")
 
 #     for (key, val) in metadata(s)

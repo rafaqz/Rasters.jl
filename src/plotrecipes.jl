@@ -1,5 +1,5 @@
 
-reorderdims(dims) = map(d -> dimorder(d) == Reverse() ? rebuild(d, reverse(val(d))) : d, dims)
+reorderdims(dims) = map(d -> indexorder(d) == Reverse() ? rebuild(d, reverse(val(d))) : d, dims)
 
 preparedata(A) = begin
     data = parent(replace_missing(A, NaN))

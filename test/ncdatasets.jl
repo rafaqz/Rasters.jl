@@ -2,12 +2,12 @@ ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = geturl(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
 ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
 
-@testset "array" begin
-    ncarray = NCarray(ncsingle)
+@testset "NCarray" begin
+    ncarray = NCDarray(ncsingle)
 
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)
-        @test typeof(ncarray) <: NCarray{Union{Missing,Float32},3}
+        @test typeof(ncarray) <: NCDarray{Union{Missing,Float32},3}
     end
 
     @testset "dimensions" begin
@@ -57,11 +57,11 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
 
 end
 
-@testset "NCstack" begin
-    ncstack = NCstack(geturl(ncmulti))
+@testset "NCDstack" begin
+    ncstack = NCDstack(geturl(ncmulti))
 
     @testset "load ncstack" begin
-        @test typeof(ncstack) <: NCstack{String}
+        @test typeof(ncstack) <: NCDstack{String}
         @test ismissing(missingval(ncstack))
         @test typeof(metadata(ncstack)) <: Dict
         @test refdims(ncstack) == ()
@@ -88,8 +88,8 @@ end
     end
 
     @testset "indexing" begin
-        ncmultistack = NCstack([geturl(ncsingle)])
-        ncmultistack = NCstack((geturl(ncsingle),))
+        ncmultistack = NCDstack([geturl(ncsingle)])
+        ncmultistack = NCDstack((geturl(ncsingle),))
         @test typeof(dims(ncmultistack)) <: Tuple{<:Lon,<:Lat,<:Time}
         @test typeof(ncmultistack[:tos]) <: GeoArray{Union{Missing,Float32},3}
         @test typeof(ncmultistack[:tos, Time(1)]) <: GeoArray{Union{Missing,Float32},2}
