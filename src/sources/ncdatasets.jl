@@ -1,11 +1,9 @@
-# module NCDgeoData
-
-using NCDatasets
+using .NCDatasets
 
 export NCDarray, NCDstack
 
 # CF standards don't enforce dimension names. 
-# But these are common, and should take care most dims.
+# But these are common, and should take care of most dims.
 const dimmap = Dict("lat" => Lat, 
                     "latitude" => Lat, 
                     "lon" => Lon, 
@@ -14,7 +12,11 @@ const dimmap = Dict("lat" => Lat,
                     "time" => Time, 
                     "lev" => Vert, 
                     "level" => Vert, 
-                    "vertical" => Vert) 
+                    "vertical" => Vert,
+                    "x" => X,
+                    "y" => Y,
+                    "z" => Z,
+                   ) 
 
 # DimensionalData methods for NCDatasets types ###############################
 
@@ -114,34 +116,12 @@ ncapply(f, path) = NCDatasets.Dataset(f, path)
 
 nondimkeys(dataset) = begin
     dimkeys = keys(dataset.dim)
-    if "bnds" in dimkeys
+    removekeys = if "bnds" in dimkeys
         dimkeys = setdiff(dimkeys, ("bnds",))
-        boundskeys = (k -> dataset[k].attrib["bounds"]).(dimkeys)
-        dimkeys = union(dimkeys, boundskeys)
+        boundskeys = map(k -> dataset[k].attrib["bounds"], dimkeys)
+        union(dimkeys, boundskeys)
+    else
+        dimkeys
     end
-    setdiff(keys(dataset), dimkeys)
+    setdiff(keys(dataset), removekeys)
 end
-
-# save(s::NCDstack, path) = begin
-#     dataset = Dataset(path, "c")
-
-#     for (key, val) in metadata(s)
-#         dataset[key] = val 
-#     end
-
-#     for (key, layer) in s
-#         dimstrings = (shortname(dim) for dim in dims(value))
-
-#         defDim.(Ref(dataset), dimstrings, size.(val.(dims.(layer))))
-
-#         # Define a variable
-#         v = defVar(dataset, key, eltype(v), size(layer))
-#         # TODO: add dims to variable
-
-#         for (key, val) in metadata(layer)
-#             metadata(v)[key] = val
-#         end
-#         v .= replace_missing(parent(layer), NaN)
-#     end
-#     close(dataset)
-# end

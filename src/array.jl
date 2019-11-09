@@ -36,7 +36,7 @@ rebuild(a::AbstractGeoArray; data=parent(a), dims=dims(a), refdims=refdims(a), m
 
 # Base/Other methods ###########################################################
 
-CoordinateReferenceSystemsBase.crs(a::AbstractGeoArray) = getmeta(a, :crs, nothing)
+crs(a::AbstractGeoArray) = getmeta(a, :crs, nothing)
 
 Base.parent(a::AbstractGeoArray) = a.data
 

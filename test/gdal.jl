@@ -1,7 +1,4 @@
-using ArchGDAL, GDAL, GeoInterface
-using GeoData, Test, Statistics, Dates
-# using Plots
-# plot(gdalarray)
+using ArchGDAL, GeoData, Test, Statistics, Dates
 
 path = geturl("https://download.osgeo.org/geotiff/samples/usgs/c41078a1.tif")
 path = geturl("https://download.osgeo.org/geotiff/samples/usgs/i30dem.tif")

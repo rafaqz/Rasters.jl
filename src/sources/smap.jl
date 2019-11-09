@@ -1,9 +1,4 @@
-# """
-# A data source for SMAP (Soil moisture active-passive) datatsets.
-# """
-# module SMAPgeoData
-
-using HDF5, Dates
+using .HDF5
 
 export SMAPstack, SMAPseries
 
@@ -92,5 +87,3 @@ smapdims(dataset) = begin
         error("projection $proj not supported")
     end
 end
-
-# end

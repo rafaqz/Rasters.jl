@@ -1,6 +1,6 @@
-# module GDALgeoData
+using .ArchGDAL
 
-using ArchGDAL, GDAL, CoordinateTransformations, GeoInterface
+const AG = ArchGDAL
 
 export GDALarray, GDALstack
 
@@ -13,21 +13,21 @@ end
 
 GDALarray(path::AbstractString; kwargs...) =
     gdalapply(dataset -> GDALarray(dataset; kwargs...), path)
-GDALarray(dataset::ArchGDAL.Dataset;
+GDALarray(dataset::AG.Dataset;
           dims=dims(dataset),
           refdims=(),
           metadata=metadata(dataset),
           missingval=missingval(dataset),
           name=Symbol(""),
           window=()) = begin
-    path = first(ArchGDAL.filelist(dataset))
+    path = first(AG.filelist(dataset))
     if window == ()
         sze = gdalsize(dataset)
     else
         sze = windowsize(window)
         dims, refdims = slicedims(dims, refdims, window)
     end
-    T = ArchGDAL.getdatatype(ArchGDAL.getband(dataset, 1))
+    T = AG.getdatatype(AG.getband(dataset, 1))
     N = length(sze)
     try
         missingval = convert(T, missingval)
@@ -65,20 +65,19 @@ data(::GDALstack, dataset, key::Key, I...) = GDALarray(dataset; window=I)
 data(::GDALstack, dataset, key::Key) = GDALarray(dataset)
 
 Base.copy!(dst::AbstractArray, src::GDALstack, key::Key) =
-    copy!(dst, gdalapply(ArchGDAL.read, source(src, key)))
+    copy!(dst, gdalapply(AG.read, source(src, key)))
 Base.copy!(dst::AbstractGeoArray, src::GDALstack, key::Key) =
-copy!(parent(dst), gdalapply(ArchGDAL.read, source(src, key)))
+copy!(parent(dst), gdalapply(AG.read, source(src, key)))
 
 
 # DimensionalData methods for ArchGDAL types ###############################
 
-dims(dataset::ArchGDAL.Dataset) = begin
-    gt = ArchGDAL.getgeotransform(dataset)
-    ysize, xsize = ArchGDAL.height(dataset), ArchGDAL.width(dataset)
-    # crs = convert(Proj4string, 
-    crs = WellKnownText(string(ArchGDAL.getproj(dataset)))
+dims(dataset::AG.Dataset) = begin
+    gt = AG.getgeotransform(dataset)
+    ysize, xsize = AG.height(dataset), AG.width(dataset)
+    crs = WellKnownText(string(AG.getproj(dataset)))
 
-    nbands = ArchGDAL.nraster(dataset)
+    nbands = AG.nraster(dataset)
     band = Band(1:nbands, grid=CategoricalGrid())
 
     # Output a AllignedGrid dims when the transformation is lat/lon alligned,
@@ -118,22 +117,32 @@ dims(dataset::ArchGDAL.Dataset) = begin
     end
 end
 
-missingval(dataset::ArchGDAL.Dataset, args...) =
-    ArchGDAL.getnodatavalue(ArchGDAL.getband(dataset, 1))
-metadata(dataset::ArchGDAL.Dataset, args...) = begin
-    band = ArchGDAL.getband(dataset, 1)
-    color = ArchGDAL.getname(ArchGDAL.getcolorinterp(band))
-    scale = ArchGDAL.getscale(band)
-    offset = ArchGDAL.getoffset(band)
-    norvw = ArchGDAL.noverview(band)
-    units = ArchGDAL.getunittype(band)
-    crs = WellKnownText(string(ArchGDAL.getproj(dataset)))
-    path = first(ArchGDAL.filelist(dataset))
+missingval(dataset::AG.Dataset, args...) =
+    AG.getnodatavalue(AG.getband(dataset, 1))
+metadata(dataset::AG.Dataset, args...) = begin
+    band = AG.getband(dataset, 1)
+    color = AG.getname(AG.getcolorinterp(band))
+    scale = AG.getscale(band)
+    offset = AG.getoffset(band)
+    norvw = AG.noverview(band)
+    units = AG.getunittype(band)
+    crs = WellKnownText(string(AG.getproj(dataset)))
+    path = first(AG.filelist(dataset))
     (filepath=path, crs=crs, scale=scale, offset=offset, color=color, units=units)
 end
 
 
 # Utils ########################################################################
+
+#=
+In the particular, but common, case of a “north up” image without any rotation or shearing, the georeferencing transform takes the following form :
+adfGeoTransform[0] /* top left x */
+adfGeoTransform[1] /* w-e pixel resolution */
+adfGeoTransform[2] /* 0 */
+adfGeoTransform[3] /* top left y */
+adfGeoTransform[4] /* 0 */
+adfGeoTransform[5] /* n-s pixel resolution (negative value) */
+=#
 
 const GDAL_TOPLEFT_X = 1
 const GDAL_WE_RES = 2
@@ -146,30 +155,20 @@ isalligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT
 latres(geotransform) = geotransform[GDAL_NS_RES]
 lonres(geotransform) = geotransform[GDAL_WE_RES]
 
-#=
-In the particular, but common, case of a “north up” image without any rotation or shearing, the georeferencing transform takes the following form :
-adfGeoTransform[0] /* top left x */
-adfGeoTransform[1] /* w-e pixel resolution */
-adfGeoTransform[2] /* 0 */
-adfGeoTransform[3] /* top left y */
-adfGeoTransform[4] /* 0 */
-adfGeoTransform[5] /* n-s pixel resolution (negative value) */
-=#
-
 
 gdalapply(f, path::AbstractString) =
-    ArchGDAL.registerdrivers() do
-        ArchGDAL.read(path) do dataset::ArchGDAL.Dataset
+    AG.registerdrivers() do
+        AG.read(path) do dataset::AG.Dataset
             f(dataset)
         end
     end
 
-gdalread(dataset, I...) = ArchGDAL.read(dataset, reverse(I)...)
-gdalread(dataset) = ArchGDAL.read(dataset)
+gdalread(dataset, I...) = AG.read(dataset, reverse(I)...)
+gdalread(dataset) = AG.read(dataset)
 
 gdalsize(dataset) = begin
-    band = ArchGDAL.getband(dataset, 1)
-    ArchGDAL.width(band), ArchGDAL.height(band), ArchGDAL.nraster(dataset)
+    band = AG.getband(dataset, 1)
+    AG.width(band), AG.height(band), AG.nraster(dataset)
 end
 
 # See https://lists.osgeo.org/pipermail/gdal-dev/2011-July/029449.html
@@ -179,9 +178,9 @@ geotransform_to_affine(gt) = begin
 end
 
 reproject(coords, crs) =  begin
-    ArchGDAL.importWKT(CoordinateReferenceSystemsBase.val(crs)) do source
-        ArchGDAL.importEPSG(4326) do target
-            ArchGDAL.createcoordtrans(source, target) do transform
+    AG.importWKT(GeoFormatTypes.val(crs)) do source
+        AG.importEPSG(4326) do target
+            AG.createcoordtrans(source, target) do transform
                 transformcoord.(coords, Ref(transform))
             end
         end
@@ -189,6 +188,6 @@ reproject(coords, crs) =  begin
 end
 
 transformcoord(coord, transform) =
-    ArchGDAL.createpoint(coord...) do point
-        GeoInterface.coordinates(ArchGDAL.transform!(point, transform))
+    AG.createpoint(coord...) do point
+        AG.coordinates(AG.transform!(point, transform))
     end
