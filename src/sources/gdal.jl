@@ -1,4 +1,4 @@
-using .ArchGDAL
+using ArchGDAL, GDAL
 
 const AG = ArchGDAL
 
@@ -74,6 +74,7 @@ copy!(parent(dst), gdalapply(AG.read, source(src, key)))
 
 dims(dataset::AG.Dataset) = begin
     gt = AG.getgeotransform(dataset)
+    # gt = GDAL_EMPTY_TRANSFORM
     ysize, xsize = AG.height(dataset), AG.width(dataset)
     crs = WellKnownText(string(AG.getproj(dataset)))
 
@@ -131,6 +132,47 @@ metadata(dataset::AG.Dataset, args...) = begin
     (filepath=path, crs=crs, scale=scale, offset=offset, color=color, units=units)
 end
 
+save(GDALarray, filename, a::AbstractGeoArray) = 
+    save(GDALarray, filename, GeoArray(a))
+
+save(GDALarray, filename, A::GeoArray{T,2}) where T = begin
+    AG.registerdrivers() do
+        driver = AG.getdriver("GTiff")
+        dataset = AG.unsafe_create(filename, driver;
+            width = size(A, 1),
+            height = size(A, 2),
+            nbands = 1,
+            dtype = T
+        )
+        proj = convert(String, crs(A))
+        dataset = AG.setproj!(dataset, proj)
+        AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
+        AG.write!(dataset, parent(A), 1)
+        AG.destroy(dataset)
+    end
+end
+
+save(GDALarray, filename, A::GeoArray{T,3}) where T = begin
+    hasdim(A, Band()) || error("Band must be a dimension to save a 3 dimension array")
+    nbands = size(A, Band())
+    AG.registerdrivers() do
+        driver = AG.getdriver("GTiff") # Returns NULL Driver?
+        println(driver)
+        a = permutedims(A, (Lon(), Lat(), Band()))
+        dataset = AG.unsafe_create(filename, driver;
+            width = size(A, 1),
+            height = size(A, 2),
+            nbands = nbands,
+            dtype = T
+        )
+        proj = convert(String, crs(A))
+        AG.setproj!(dataset, proj)
+        AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
+        AG.write!(dataset, parent(A), Cint[1])
+        AG.destroy(dataset)
+    end
+end
+
 
 # Utils ########################################################################
 
@@ -144,6 +186,7 @@ adfGeoTransform[4] /* 0 */
 adfGeoTransform[5] /* n-s pixel resolution (negative value) */
 =#
 
+const GDAL_EMPTY_TRANSFORM = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 const GDAL_TOPLEFT_X = 1
 const GDAL_WE_RES = 2
 const GDAL_ROT1 = 3
