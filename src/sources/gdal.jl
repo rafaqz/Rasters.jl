@@ -1,26 +1,40 @@
-using ArchGDAL, GDAL
+using ArchGDAL
 
 const AG = ArchGDAL
 
-export GDALarray, GDALstack
+export GDALarray, GDALstack, GDALmetadata, GDALdimMetadata
+
+struct GDALmetadata{M} <: AbstractArrayMetadata
+    val::M
+end
+
+struct GDALdimMetadata{M} <: AbstractDimMetadata
+    val::M
+end
 
 # Array ########################################################################
 
-@GeoArrayMixin struct GDALarray{W,S,A} <: AbstractGeoArray{T,N,D}
+struct GDALarray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D}
+    filename::A
+    dims::D
+    refdims::R
+    metadata::Me
+    missingval::Mi
+    name::Na
     window::W
     size::S
 end
 
-GDALarray(path::AbstractString; kwargs...) =
-    gdalapply(dataset -> GDALarray(dataset; kwargs...), path)
+GDALarray(filename::AbstractString; kwargs...) =
+    gdalapply(dataset -> GDALarray(dataset; kwargs...), filename)
 GDALarray(dataset::AG.Dataset;
           dims=dims(dataset),
           refdims=(),
           metadata=metadata(dataset),
           missingval=missingval(dataset),
-          name=Symbol(""),
+          name="Unnamed",
           window=()) = begin
-    path = first(AG.filelist(dataset))
+    filename = first(AG.filelist(dataset))
     if window == ()
         sze = gdalsize(dataset)
     else
@@ -34,27 +48,77 @@ GDALarray(dataset::AG.Dataset;
     catch
         @warn "No data value from GDAL $(missingval) is not convertible to data type $T. `missingval` is probably incorrect."
     end
-    GDALarray{T,N,typeof.((dims,refdims,metadata,missingval,name,window,sze,path))...
-       }(path, dims, refdims, metadata, missingval, name, window, sze)
+    GDALarray{T,N,typeof.((filename,dims,refdims,metadata,missingval,name,window,sze))...
+       }(filename, dims, refdims, metadata, missingval, name, window, sze)
 end
 
 Base.size(A::GDALarray) = A.size
 Base.parent(A::GDALarray) =
-    gdalapply(dataset -> gdalread(dataset, windoworempty(A)...), A.data)
+    gdalapply(dataset -> gdalread(dataset, windoworempty(A)...), A.filename)
 Base.getindex(A::GDALarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) = begin
     I = applywindow(A, I)
-    rebuildsliced(A, gdalapply(dataset -> gdalread(dataset, I...), A.data), I)
+    rebuildsliced(A, gdalapply(dataset -> gdalread(dataset, I...), A.filename), I)
 end
 
-# Stack ########################################################################
-
-@GeoStackMixin struct GDALstack{} <: AbstractGeoStack{T} end
+struct GDALstack{T,D,R,W,M} <: AbstractGeoStack{T}
+    data::T
+    dims::D
+    refdims::R
+    window::W
+    metadata::M
+end
 
 GDALstack(data::NamedTuple;
           dims=gdalapply(dims, first(values(data))),
           refdims=(), window=(),
           metadata=gdalapply(metadata, first(values(data)))) =
     GDALstack(data, dims, refdims, window, metadata)
+
+# Stack ########################################################################
+
+Base.write(filename::AbstractString, ::Type{<:AbstractGeoArray}, a::AbstractGeoArray) =
+    Base.write(GDALarray, filename, GeoArray(a))
+Base.write(filename::AbstractString, ::Type{GDALarray}, A::GeoArray{T,2}) where T = begin
+    AG.registerdrivers() do
+        driver = AG.getdriver("GTiff")
+        A = permutedims(A, (Lon(), Lat()))
+        dataset = AG.unsafe_create(filename, driver;
+            width = size(A, 1),
+            height = size(A, 2),
+            nbands = 1,
+            dtype = T
+        )
+        proj = convert(String, crs(A))
+        AG.setproj!(dataset, proj)
+        AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
+        AG.write!(dataset, source(A), 1)
+        AG.destroy(dataset)
+    end
+end
+Base.write(filename::AbstractString, ::Type{GDALarray}, A::GeoArray{T,3}) where T = begin
+    DimensionalData.hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
+    nbands = size(A, Band())
+    AG.registerdrivers() do
+        driver = AG.getdriver("GTiff") # Returns NULL Driver?
+        A = permutedims(A, (Lon(), Lat(), Band()))
+        dataset = AG.unsafe_create(filename, driver;
+            width = size(A, 1),
+            height = size(A, 2),
+            nbands = nbands,
+            dtype = T
+        )
+        proj = convert(String, projection(A))
+        AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
+        AG.setproj!(dataset, proj)
+        AG.write!(dataset, source(A), Cint[1])
+        AG.destroy(dataset)
+    end
+end
+Base.write(filename::AbstractString, ::Type{GDALarray}, s::AbstractGeoStack) =
+    for key in keys(s)
+        fn = joinpath(dirname(filename), string(key, "_", basename(filename)))
+        write(fn, GDALarray, s[key])
+    end
 
 @inline rebuild(s::GDALstack; data=parent(s), dims=dims(s), refdims=refdims(s),
         window=window(s), metadata=metadata(s)) =
@@ -87,25 +151,26 @@ dims(dataset::AG.Dataset) = begin
         lonspan = lonres(gt)
 
         lonmin = gt[GDAL_TOPLEFT_X]
-        lonmax = lonmin + lonspan * (xsize - 1)
-        loncoords = reproject(tuple.(LinRange(lonmin, lonmax, xsize), 0.0), crs)
+        lonmax = lonmin + lonspan * xsize
+        loncoords = reproject(tuple.(LinRange(lonmin, lonmax - lonspan, xsize), 0.0), crs)
         if loncoords[1][2] != loncoords[end][2]
             error("Longitude dimension is not grid-alligned $(loncoords[1][2]) $(loncoords[end][2])")
         end
         lonrange = first.(loncoords)
-        longrid = AllignedGrid(span=abs(lonspan))
-        lon = Lon(lonrange; grid=longrid)
+        lon = Lon(lonrange;
+                  grid=RegularGrid(span=abs(lonspan)))
 
         latspan = latres(gt)
         latmax = gt[GDAL_TOPLEFT_Y]
         latmin = latmax + latspan * (ysize - 1)
         latcoords = reproject(tuple.(0.0, LinRange(latmin, latmax, ysize)), crs)
-        if latcoords[1][1] != latcoords[end][1] 
+        if latcoords[1][1] != latcoords[end][1]
             error("Latitude dimension is not grid-alligned $(latcoords[1][1]) $(latcoords[end][1])")
         end
-        latrange = last.(latcoords) 
-        latgrid = AllignedGrid(order=Ordered(Forward(), Reverse()), span=abs(latspan))
-        lat = Lat(latrange; grid=latgrid)
+        latrange = last.(latcoords)
+        lat = Lat(latrange;
+                  grid=RegularGrid(order=Ordered(Forward(), Reverse()),
+                                   span=abs(latspan)))
 
         formatdims((xsize, ysize, nbands), (lon, lat, band))
     else
@@ -122,57 +187,14 @@ missingval(dataset::AG.Dataset, args...) =
     AG.getnodatavalue(AG.getband(dataset, 1))
 metadata(dataset::AG.Dataset, args...) = begin
     band = AG.getband(dataset, 1)
-    color = AG.getname(AG.getcolorinterp(band))
+    # color = AG.getname(AG.getcolorinterp(band))
     scale = AG.getscale(band)
     offset = AG.getoffset(band)
-    norvw = AG.noverview(band)
+    # norvw = AG.noverview(band)
     units = AG.getunittype(band)
-    crs = WellKnownText(string(AG.getproj(dataset)))
     path = first(AG.filelist(dataset))
-    (filepath=path, crs=crs, scale=scale, offset=offset, color=color, units=units)
+    GDALmetadata(Dict("filepath"=>path, "scale"=>scale, "offset"=>offset, "units"=>units))
 end
-
-save(GDALarray, filename, a::AbstractGeoArray) = 
-    save(GDALarray, filename, GeoArray(a))
-
-save(GDALarray, filename, A::GeoArray{T,2}) where T = begin
-    AG.registerdrivers() do
-        driver = AG.getdriver("GTiff")
-        dataset = AG.unsafe_create(filename, driver;
-            width = size(A, 1),
-            height = size(A, 2),
-            nbands = 1,
-            dtype = T
-        )
-        proj = convert(String, crs(A))
-        dataset = AG.setproj!(dataset, proj)
-        AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
-        AG.write!(dataset, parent(A), 1)
-        AG.destroy(dataset)
-    end
-end
-
-save(GDALarray, filename, A::GeoArray{T,3}) where T = begin
-    hasdim(A, Band()) || error("Band must be a dimension to save a 3 dimension array")
-    nbands = size(A, Band())
-    AG.registerdrivers() do
-        driver = AG.getdriver("GTiff") # Returns NULL Driver?
-        println(driver)
-        a = permutedims(A, (Lon(), Lat(), Band()))
-        dataset = AG.unsafe_create(filename, driver;
-            width = size(A, 1),
-            height = size(A, 2),
-            nbands = nbands,
-            dtype = T
-        )
-        proj = convert(String, crs(A))
-        AG.setproj!(dataset, proj)
-        AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
-        AG.write!(dataset, parent(A), Cint[1])
-        AG.destroy(dataset)
-    end
-end
-
 
 # Utils ########################################################################
 

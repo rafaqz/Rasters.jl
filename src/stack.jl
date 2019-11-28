@@ -10,14 +10,9 @@ abstract type AbstractGeoStack{T} end
 (::Type{T})(data, keys; kwargs...) where T<:AbstractGeoStack =
     T(NamedTuple{Tuple(Symbol.(keys))}(Tuple(data)); kwargs...)
 
-@premix struct GeoStackMixin{T,D,R,W,M}
-    data::T
-    dims::D
-    refdims::R
-    window::W
-    metadata::M
-end
+abstract type DiskGeoStack{T} <: AbstractGeoStack{T} end
 
+abstract type MemGeoStack{T} <: AbstractGeoStack{T} end
 
 # Interface methods ############################################################
 
@@ -113,7 +108,13 @@ Basic stack object. Holds concrete GeoArray layers.
 `view` or `getindex` return another stack with the method
 applied to all layers.
 """
-@GeoStackMixin struct GeoStack{} <: AbstractGeoStack{T} end
+struct GeoStack{T,D,R,W,M} <: AbstractGeoStack{T}
+    data::T
+    dims::D
+    refdims::R
+    window::W
+    metadata::M
+end
 
 stackkeys(keys) = Tuple(Symbol.(keys))
 
@@ -140,7 +141,7 @@ rebuild(s::GeoStack; data=parent(s), dims=dims(s), refdims=refdims(s),
 
 # GeoStack is in-memory so we don't have to fetch anything here,
 # just run the function on the contained object.
-safeapply(f, ::GeoStack, source) = f(source)
+safeapply(f, ::GeoStack, data) = f(data)
 data(s::GeoStack, key::Key, I...) = data(s, key)[I...]
 data(s::GeoStack, key::Key) = parent(s)[key]
 

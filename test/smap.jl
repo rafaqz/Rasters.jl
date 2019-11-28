@@ -1,3 +1,7 @@
+using HDF5, GeoData, Test, Statistics, Dates
+using GeoData: Time, window, name
+include("utils.jl")
+
 # TODO example files without a login requirement
 path1 = "SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5"
 path2 = "SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5"

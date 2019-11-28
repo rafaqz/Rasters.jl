@@ -3,20 +3,6 @@ Spatial array types that can be indexed using dimensions.
 """
 abstract type AbstractGeoArray{T,N,D} <: AbstractDimensionalArray{T,N,D} end
 
-"""
-Common fields for AbstractGeoArray. We explicitly *don't* include the 
-type parameter A in the mixin: it may not actually be an AbstractArray. 
-Implementations must specify the A parameter and decide its type.
-"""
-@premix struct GeoArrayMixin{T,N,D<:Tuple,R<:Tuple,Me,Mi,Na}
-    data::A
-    dims::D
-    refdims::R
-    metadata::Me
-    missingval::Mi
-    name::Na
-end
-
 # Interface methods ###########################################################
 
 dims(a::AbstractGeoArray) = a.dims
@@ -30,13 +16,19 @@ label(a::AbstractGeoArray) = string(name(a), " ", units(a))
 
 rebuild(a::AbstractGeoArray, data, dims, refdims) =
     GeoArray(data, dims, refdims, metadata(a), missingval(a), name(a))
-rebuild(a::AbstractGeoArray; data=parent(a), dims=dims(a), refdims=refdims(a), missingval=missingval(a)) =
-    GeoArray(data, dims, refdims, metadata(a), missingval, name(a))
+rebuild(a::AbstractGeoArray; data=parent(a), dims=dims(a), refdims=refdims(a), 
+        metadata=metadata(a), missingval=missingval(a), name=name(a)) =
+    GeoArray(data, dims, refdims, metadata, missingval, name)
 
+abstract type MemGeoArray{T,N,D} <: AbstractGeoArray{T,N,D} end
+
+abstract type DiskGeoArray{T,N,D} <: AbstractGeoArray{T,N,D} end
+
+filename(A::DiskGeoArray) = A.filename
+Base.size(A::DiskGeoArray) = A.size
+window(a::DiskGeoArray) = a.window
 
 # Base/Other methods ###########################################################
-
-crs(a::AbstractGeoArray) = getmeta(a, :crs, nothing)
 
 Base.parent(a::AbstractGeoArray) = a.data
 
@@ -46,7 +38,14 @@ Base.parent(a::AbstractGeoArray) = a.data
 """
 A generic, memory-backed spatial array type.
 """
-@GeoArrayMixin struct GeoArray{A<:AbstractArray{T,N}} <: AbstractGeoArray{T,N,D} end
+struct GeoArray{T,N,A<:AbstractArray{T,N},D<:Tuple,R<:Tuple,Me,Mi,Na} <: AbstractGeoArray{T,N,D}
+    data::A
+    dims::D
+    refdims::R
+    metadata::Me
+    missingval::Mi
+    name::Na
+end
 
 @inline GeoArray(a::AbstractArray{T,N}, dims; refdims=(), metadata=NamedTuple(), 
                  missingval=missing, name=Symbol("")) where {T,N} = 
@@ -65,11 +64,14 @@ Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
 
 
 # Helper methods ##############################################################
+boolmask(A::AbstractArray) = boolmask(A, missing)
+boolmask(A::AbstractGeoArray) = boolmask(A, missingval(A))
+boolmask(A::AbstractGeoArray, missingval) = parent(A) .!== missingval
 
-mask(a::AbstractGeoArray) = mask(a, missingval(a))
-mask(a::AbstractArray) = mask(a, missing)
-mask(a::AbstractGeoArray, missingval) = parent(a) .!== missingval
-mask(a::AbstractGeoArray, ::Missing) = .!(ismissing.(parent(a)))
+missingmask(A::AbstractArray) = missingmask(A, missing)
+missingmask(A::AbstractGeoArray) = missingmask(A, missingval(A))
+missingmask(A::AbstractGeoArray, missingval) = 
+    (a -> a === missingval ? missing : false).(parent(A))
 
 """
     replace_missing(a::AbstractGeoArray, newmissing) 
@@ -77,8 +79,14 @@ mask(a::AbstractGeoArray, ::Missing) = .!(ismissing.(parent(a)))
 Replace missing values in the array with a new missing value, also
 updating the missingval field.
 """
-replace_missing(a::AbstractGeoArray, newmissing) = 
-    rebuild(a; data=replace(a, missingval(a) => newmissing), missingval=newmissing)
+replace_missing(a::AbstractGeoArray, newmissing) = begin
+    data = if ismissing(missingval(a))
+        collect(Missings.replace(parent(a), newmissing))
+    else
+        replace(parent(a), missingval(a) => newmissing)
+    end
+    rebuild(a; data=data, missingval=newmissing)
+end
 
 
 # Utils ########################################################################
@@ -86,3 +94,4 @@ replace_missing(a::AbstractGeoArray, newmissing) =
 @inline getmeta(a::AbstractGeoArray, key, fallback) = getmeta(metadata(a), key, fallback)
 @inline getmeta(m::Nothing, key, fallback) = fallback
 @inline getmeta(m::Union{NamedTuple,Dict}, key, fallback) = key in keys(m) ?  m[key] : fallback
+@inline getmeta(m::Metadata, key, fallback) = getmeta(val(m), key, fallback) 

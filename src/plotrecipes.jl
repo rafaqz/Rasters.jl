@@ -2,13 +2,17 @@
 reorderdims(dims) = map(d -> indexorder(d) == Reverse() ? rebuild(d, reverse(val(d))) : d, dims)
 
 preparedata(A) = begin
-    data = parent(replace_missing(A, NaN))
+    A = forwardorder(A)
+    parent(replace_missing(A, NaN))
+end
+
+forwardorder(A) = begin
     for (i, dim) in enumerate(dims(A))
         if arrayorder(dim) == Reverse()
-            data = reverse(data; dims=i)
+            A = reverse(A; dims=dim)
         end
     end
-    data
+    A
 end
 
 @recipe function f(A::AbstractGeoArray{T,3,<:Tuple{<:Lat,<:Lon,D}}) where {T,D}

@@ -1,4 +1,5 @@
 using ArchGDAL, GeoData, Test, Statistics, Dates
+include("utils.jl")
 
 path = geturl("https://download.osgeo.org/geotiff/samples/usgs/c41078a1.tif")
 path = geturl("https://download.osgeo.org/geotiff/samples/usgs/i30dem.tif")
@@ -26,9 +27,9 @@ path = geturl("https://download.osgeo.orgtgeotiff/samples/gdal_eg/cea.tif")
     @testset "other fields" begin
         @test GeoData.window(gdalarray) == ()
         @test missingval(gdalarray) == -1.0e10
-        @test typeof(metadata(gdalarray)) <: NamedTuple
-        @test metadata(gdalarray).filepath == "cea.tif"
-        @test name(gdalarray) == Symbol("")
+        @test typeof(metadata(gdalarray)) <: GDALmetadata
+        @test metadata(gdalarray).val["filepath"] == "cea.tif"
+        @test name(gdalarray) == "Unnamed"
     end
 
     @testset "indexing" begin 
@@ -57,7 +58,7 @@ path = geturl("https://download.osgeo.orgtgeotiff/samples/gdal_eg/cea.tif")
         @test typeof(refdims(geoarray)) <: Tuple{<:Band} 
         @test metadata(geoarray) == metadata(gdalarray)
         @test missingval(geoarray) == -1.0e10
-        @test name(geoarray) == Symbol("")
+        @test name(geoarray) == "Unnamed"
     end
 
 end
