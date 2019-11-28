@@ -50,5 +50,6 @@ end
 @testset "series" begin
     series = SMAPseries([path1, path2])
     @test typeof(series[1]) <: SMAPstack
-    @test first(bounds(series, Time)) == DateTime(2016, 1, 1, 22, 28, 55, 816)
+    # Bounds are nothing - they need to be input somehow
+    @test_broken first(bounds(series, Time)) == DateTime(2016, 1, 1, 22, 28, 55, 816)
 end

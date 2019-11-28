@@ -5,14 +5,17 @@ data1 = [1 2 3 4
 data2 = 2data1
 data3 = 3data1
 data4 = 4data1
-dimz = Lon<|[30, 40], Lat<|(-10, 20)
+dimz = Lon([30, 40]), Lat((-10, 20))
 ga1 = GeoArray(data1, dimz)
 ga2 = GeoArray(data2, dimz)
 ga1a = GeoArray(data3, dimz)
 ga2a = GeoArray(data4, dimz)
 stack1 = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
 stack2 = GeoStack(ga1a, ga2a; keys=(:ga1, :ga2))
-series = GeoSeries([stack1, stack2], (Time<|[DateTime(2017), DateTime(2018)],));
+dates =[DateTime(2017), DateTime(2018)]
+series = GeoSeries([stack1, stack2], (Time(dates),));
+issorted(dates)
+dims(series)
 
 @testset "getindex returns the currect types" begin
     typeof(series[Time(1)]) <: GeoStack{<:NamedTuple}
