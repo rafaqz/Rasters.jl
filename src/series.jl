@@ -39,7 +39,7 @@ struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},M,CT,CD,V} <: AbstractGeoSeries{T
 end
 
 GeoSeries(data, dims; refdims=(), metadata=Dict(), childtype=GeoStack, childdims=(), window=()) = 
-    GeoSeries(data, dims, refdims, metadata, childtype, childdims, window)
+    GeoSeries(data, formatdims(data, dims), refdims, metadata, childtype, childdims, window)
 
 @inline rebuild(s::GeoSeries; parent=parent(s), dims=dims(s), 
                 refdims=refdims(s), metadata=metadata(s), childtype=childtype(s), 
