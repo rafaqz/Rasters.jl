@@ -7,18 +7,32 @@ const SMAPEXTENT = "Metadata/Extent"
 const SMAPGEODATA = "Geophysical_Data"
 
 
+struct SMAPmetadata{M} <: AbstractArrayMetadata
+    val::M 
+end
+
+struct SMAPdimMetadata{M} <: AbstractDimMetadata
+    val::M 
+end
+
 # Stack ########################################################################
 
-@GeoStackMixin struct SMAPstack{} <: AbstractGeoStack{T} end
+struct SMAPstack{T,D,R,W,M} <: DiskGeoStack{T}
+    data::T
+    dims::D
+    refdims::R
+    window::W
+    metadata::M
+end
 
 SMAPstack(data::String; dims=smapapply(smapdims, data), 
-          refdims=(), window=(), metadata=ncapply(metadata, data)) =
+          refdims=(), window=(), metadata=smapapply(smapmetadata, data)) =
     SMAPstack(data, dims, refdims, window, metadata)
 
 dims(stack::SMAPstack) = stack.dims
 dims(stack::SMAPstack, ::Key) = stack.dims
 refdims(stack::SMAPstack) = (safeapply(smaptime, stack, source(stack)),)
-metadata(stack::SMAPstack, args...) = nothing
+metadata(stack::SMAPstack, args...) = SMAPmetadata(nothing)
 missingval(stack::SMAPstack, args...) = SMAPMISSING
 
 @inline safeapply(f, ::SMAPstack, path::AbstractString) = smapapply(f, path)
@@ -73,6 +87,8 @@ smapseriestime(filepaths) = begin
     timemeta = metadata(first(timeseries))
     (Time(val.(timeseries); metadata=timemeta),)
 end
+
+smapmetadata(dataset) = SMAPmetadata(Dict)
 
 smapdims(dataset) = begin
     proj = read(attrs(root(dataset)["EASE2_global_projection"]), "grid_mapping_name")
