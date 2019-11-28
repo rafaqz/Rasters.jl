@@ -148,7 +148,7 @@ addvar!(dataset, A) = begin
             # defVar(dataset, key, index, (key,); attrib=[metadata(dim)...])
         # end
     end
-    attrib = Dict(metadata(A))
+    attrib = Dict()
     if !ismissing(missingval(A))
         attrib["_FillValue"] = convert(eltype(A), missingval(A))
     end
