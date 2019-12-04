@@ -20,7 +20,7 @@ using Mixers,
 
 using Base: tail
 using DimensionalData: Time, X, Y, Z, Forward, Reverse, formatdims, slicedims, 
-      basetypeof, dims2indices, @dim, indexorder, arrayorder, hasdim
+      dims2indices, @dim, indexorder, arrayorder, hasdim
 
 import DimensionalData: val, dims, refdims, metadata, rebuild, rebuildsliced, name, label, units
 

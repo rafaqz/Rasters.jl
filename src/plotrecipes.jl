@@ -38,7 +38,7 @@ end
 
 # TODO generalise for any dimension order
 @recipe function f(A::AbstractGeoArray{T,3,<:Tuple{<:Lon,<:Lat,D}}) where {T,D}
-    permutedims(A, (Lat(), Lon(), basetypeof(D)()))
+    permutedims(A, (Lat, Lon, D))
 end
 
 @recipe function f(A::AbstractGeoArray{T,2,<:Tuple{<:Lat,<:Lon}}) where T
