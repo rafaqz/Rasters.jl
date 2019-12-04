@@ -1,4 +1,7 @@
-export GrdArray
+export GrdArray, GrdMetadata, GrdDimMetadata
+
+
+# Metadata ########################################################################
 
 struct GrdMetadata{M} <: AbstractArrayMetadata
     val::M 
@@ -8,9 +11,10 @@ struct GrdDimMetadata{M} <: AbstractDimMetadata
     val::M 
 end
 
+
 # Array ########################################################################
 
-struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,P,W,S} <: DiskGeoArray{T,N,D}
+struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D}
     filename::A
     dims::D
     refdims::R
@@ -30,32 +34,32 @@ GrdArray(filepath::String; refdims=(), metadata=Dict(), window=()) = begin
     nrows = parse(Int, data["nrows"])
     ncols = parse(Int, data["ncols"])
     nbands = parse(Int, data["nbands"])
+    _size = ncols, nrows, nbands
 
     T = datatype_translation[data["datatype"]]
+    N = length(_size)
     xmin, xmax = parse.(Float64, (data["xmin"], data["xmax"]))
     ymin, ymax = parse.(Float64, (data["ymin"], data["ymax"]))
     cellx = (xmax - xmin) / nrows
     celly = (ymax - ymin) / ncols
 
-    lon = Lon(LinRange(ymin, ymax - celly, ncols); 
-              grid=RegularGrid(; locus=Start(), span=celly))
     lat = Lat(LinRange(xmin, xmax - cellx, nrows); 
               grid=RegularGrid(; order=Ordered(Forward(), Reverse), locus=Start(), span=cellx)) 
+    lon = Lon(LinRange(ymin, ymax - celly, ncols); 
+              grid=RegularGrid(; locus=Start(), span=celly))
     band = Band(1:nbands; grid=CategoricalGrid())
     dims = lon, lat, band
     for key in ("creator", "created", "history")
-        val = get(data, key, nothing)
-        if val !== nothing
-            metadata[key] = history
+        val = get(data, key, "")
+        if val !== ""
+            metadata[key] = val 
         end
     end
     metadata = GrdMetadata(metadata)
     missingval = parse(T, data["nodatavalue"])
     name = get(data, "layername", "unnamed")
 
-    _size = ncols, nrows, nbands
-
-    GrdArray{T,length(_size),typeof.((filepath,dims,refdims,metadata,missingval,name))
+    GrdArray{T,N,typeof.((filepath,dims,refdims,metadata,missingval,name,window,_size))...
             }(filepath, dims, refdims, metadata, missingval, name, window, _size)
 end
 
@@ -74,14 +78,8 @@ Base.setindex!(A::GrdArray, x, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) = 
     grdapply(A -> A[I...] = x, A, "w+")
 end
 
-grdapply(f, A, mode="r") = begin
-    open(filename(A) * ".gri", mode) do io
-        mmap = Mmap.mmap(io, Array{eltype(A),3}, size(A))
-        output = f(mmap)
-        close(io)
-        output 
-    end
-end
+Base.copy(A::GrdArray, I::Vararg{<:Integer}) = 
+    grdapply(mmap -> mmap[applywindow(A, I)...], A)
 
 Base.write(filename::String, GrdArray, A::AbstractGeoArray) = begin
     # grid(dims(A) <: RegularGrid || throw(ArgumentError("Can only save `RegularGrid` arrays to a grd file"))
@@ -90,9 +88,9 @@ Base.write(filename::String, GrdArray, A::AbstractGeoArray) = begin
     # Standardise dimensions
     # A = permutedims(A, [Lon, Lat])
     ncols, nrows = size(A)
-    xmin, xmax = bounds(dims(A, Lon()))
-    ymin, ymax = bounds(dims(A, Lat()))
-    proj = convert(String, projection(A))
+    xmin, xmax = bounds(dims(A, Lat()))
+    ymin, ymax = bounds(dims(A, Lon()))
+    proj = "" #convert(String, projection(A))
     datatype = rev_datatype_translation[eltype(A)]
     nodatavalue = missingval(A)
     minvalue = minimum(filter(x -> x != missingval(A), parent(A)))
@@ -132,6 +130,17 @@ Base.write(filename::String, GrdArray, A::AbstractGeoArray) = begin
         )
     end
     return
+end
+
+# Utils ########################################################################
+
+grdapply(f, A, mode="r") = begin
+    open(filename(A) * ".gri", mode) do io
+        mmap = Mmap.mmap(io, Array{eltype(A),3}, size(A))
+        output = f(mmap)
+        close(io)
+        output 
+    end
 end
 
 const datatype_translation = Dict{String, DataType}(

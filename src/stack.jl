@@ -71,6 +71,7 @@ source(s::AbstractGeoStack{<:AbstractString}, args...) = parent(s)
 
 Base.parent(s::AbstractGeoStack) = s.data
 
+Base.copy(stack::AbstractGeoStack) = rebuild(stack; data=map(copy, parent(stack)))
 Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, destkeys=keys(dst)) = begin
     for key in destkeys
         key in Symbol.(keys(dst)) || throw(ArgumentError("key $key not found in dest keys"))
@@ -80,7 +81,7 @@ Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, destkeys=keys(dst)) = b
         copy!(dst[key], src, key)
     end
 end
-Base.copy!(dst::AbstractArray, src::AbstractGeoStack, key) = copy!(dst, parent(src[key]))
+Base.copy!(dst::AbstractArray, src::AbstractGeoStack, key) = copy!(dst, src[key])
 
 # Array interface: delete this and just use window?
 @inline Base.view(s::AbstractGeoStack, I...) = rebuild(s, (view(a, I...) for a in values(s)))
@@ -91,6 +92,7 @@ Base.copy!(dst::AbstractArray, src::AbstractGeoStack, key) = copy!(dst, parent(s
     getindex(s, key, dims2indices(dims(s), I)...)
 @inline Base.getindex(s::AbstractGeoStack, key::Key, I...) =
     data(s, key, applywindow(s, key, I)...)
+@inline Base.getindex(s::AbstractGeoStack, i::Integer) = data(s, i)
 @inline Base.getindex(s::AbstractGeoStack, key::Key) = data(s, key, windoworempty(s)...)
 
 Base.values(s::AbstractGeoStack) = (s[key] for key in keys(s))
@@ -144,6 +146,7 @@ rebuild(s::GeoStack; data=parent(s), dims=dims(s), refdims=refdims(s),
 safeapply(f, ::GeoStack, data) = f(data)
 data(s::GeoStack, key::Key, I...) = data(s, key)[I...]
 data(s::GeoStack, key::Key) = parent(s)[key]
+data(s::GeoStack, i::Integer) = parent(s)[i]
 
 # GeoStack keys are in-memory objects so we just return them
 # @inline Base.getindex(s::GeoStack, key::Key) = parent(s)[Symbol(key)]

@@ -4,6 +4,9 @@ const AG = ArchGDAL
 
 export GDALarray, GDALstack, GDALmetadata, GDALdimMetadata
 
+
+# Metadata ########################################################################
+
 struct GDALmetadata{M} <: AbstractArrayMetadata
     val::M
 end
@@ -11,6 +14,7 @@ end
 struct GDALdimMetadata{M} <: AbstractDimMetadata
     val::M
 end
+
 
 # Array ########################################################################
 
@@ -53,12 +57,17 @@ GDALarray(dataset::AG.Dataset;
 end
 
 Base.size(A::GDALarray) = A.size
+
 Base.parent(A::GDALarray) =
     gdalapply(dataset -> gdalread(dataset, windoworempty(A)...), A.filename)
+
 Base.getindex(A::GDALarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) = begin
     I = applywindow(A, I)
     rebuildsliced(A, gdalapply(dataset -> gdalread(dataset, I...), A.filename), I)
 end
+
+
+# Stack ########################################################################
 
 struct GDALstack{T,D,R,W,M} <: AbstractGeoStack{T}
     data::T
@@ -74,7 +83,16 @@ GDALstack(data::NamedTuple;
           metadata=gdalapply(metadata, first(values(data)))) =
     GDALstack(data, dims, refdims, window, metadata)
 
-# Stack ########################################################################
+
+@inline rebuild(s::GDALstack; data=parent(s), dims=dims(s), refdims=refdims(s),
+        window=window(s), metadata=metadata(s)) =
+    GDALstack(data, dims, refdims, window, metadata)
+
+safeapply(f, ::GDALstack, path::AbstractString) = gdalapply(f, path)
+
+data(::GDALstack, dataset, key::Key, I...) = GDALarray(dataset; window=I)
+data(::GDALstack, dataset, key::Key) = GDALarray(dataset)
+
 
 Base.write(filename::AbstractString, ::Type{<:AbstractGeoArray}, a::AbstractGeoArray) =
     Base.write(GDALarray, filename, GeoArray(a))
@@ -120,18 +138,11 @@ Base.write(filename::AbstractString, ::Type{GDALarray}, s::AbstractGeoStack) =
         write(fn, GDALarray, s[key])
     end
 
-@inline rebuild(s::GDALstack; data=parent(s), dims=dims(s), refdims=refdims(s),
-        window=window(s), metadata=metadata(s)) =
-    GDALstack(data, dims, refdims, window, metadata)
-
-safeapply(f, ::GDALstack, path::AbstractString) = gdalapply(f, path)
-data(::GDALstack, dataset, key::Key, I...) = GDALarray(dataset; window=I)
-data(::GDALstack, dataset, key::Key) = GDALarray(dataset)
-
 Base.copy!(dst::AbstractArray, src::GDALstack, key::Key) =
     copy!(dst, gdalapply(AG.read, source(src, key)))
 Base.copy!(dst::AbstractGeoArray, src::GDALstack, key::Key) =
-copy!(parent(dst), gdalapply(AG.read, source(src, key)))
+    copy!(parent(dst), gdalapply(AG.read, source(src, key)))
+
 
 
 # DimensionalData methods for ArchGDAL types ###############################
@@ -195,6 +206,7 @@ metadata(dataset::AG.Dataset, args...) = begin
     path = first(AG.filelist(dataset))
     GDALmetadata(Dict("filepath"=>path, "scale"=>scale, "offset"=>offset, "units"=>units))
 end
+
 
 # Utils ########################################################################
 

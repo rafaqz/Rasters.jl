@@ -1,6 +1,4 @@
-using GeoData, Test, Statistics, Dates
-using GeoData: Time, formatdims, data, dims2indices, rebuild, window, name
-
+include("grd.jl")
 include("array.jl")
 include("stack.jl")
 include("series.jl")

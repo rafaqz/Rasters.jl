@@ -7,16 +7,23 @@ module GeoData
     read(path, String)
 end GeoData
 
-using Mixers, RecipesBase, Reexport, Requires, GeoFormatTypes, Dates
+using Mixers, 
+      RecipesBase, 
+      Reexport, 
+      Requires, 
+      GeoFormatTypes, 
+      Dates, 
+      Mmap
 
 @reexport using DimensionalData
 
 
-using DimensionalData: Time, X, Y, Z, Forward, Reverse, formatdims, slicedims, 
-      basetypeof, dims2indices, @dim, indexorder, arrayorder
 using Base: tail
+using DimensionalData: Time, X, Y, Z, Forward, Reverse, formatdims, slicedims, 
+      basetypeof, dims2indices, @dim, indexorder, arrayorder, hasdim
 
 import DimensionalData: val, dims, refdims, metadata, rebuild, rebuildsliced, name, label, units
+
 
 export AbstractGeoArray, GeoArray
 export AbstractGeoStack, GeoStack
@@ -35,6 +42,7 @@ include("stack.jl")
 include("series.jl")
 include("plotrecipes.jl")
 include("utils.jl")
+include("sources/grd.jl")
 
 
 function __init__()

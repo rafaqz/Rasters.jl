@@ -20,7 +20,7 @@ end
     if nplots > 1
         layout --> nplots
         # How to make this work?
-        plot_title --> join(label(A), label(dims(A)[3]), " ")
+        plot_title --> join(name(A), name(dims(A)[3]), " ")
         for i in 1:nplots
             @series begin
                 seriestype := :heatmap
@@ -45,10 +45,10 @@ end
     seriestype --> :heatmap
     aspect_ratio --> 1
     grid --> false
-    ylabel --> label(dims(A)[1])
-    xlabel --> label(dims(A)[2])
-    colorbar_title --> label(A)
-    title --> label(refdims(A))
+    ylabel --> name(dims(A)[1])
+    xlabel --> name(dims(A)[2])
+    colorbar_title --> name(A)
+    title --> join(map(d -> string(name(d), " ", val(d)), refdims(A)), ", ")
     reverse(val.(reorderdims(dims(A))))..., preparedata(A)
 end
 

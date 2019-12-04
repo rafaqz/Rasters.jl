@@ -1,3 +1,6 @@
+using GeoData, Test, Dates
+using GeoData: Time, formatdims, dims
+
 # GeoSeries from GeoArray/GeoStack components
 
 data1 = [1 2 3 4
@@ -18,10 +21,10 @@ issorted(dates)
 dims(series)
 
 @testset "getindex returns the currect types" begin
-    typeof(series[Time(1)]) <: GeoStack{<:NamedTuple}
-    typeof(series[Time(1)][:ga2]) <: GeoArray{Int,2}
-    typeof(series[Time(1)][:ga2, 1, 1]) <: Int
-    typeof(series[Time(1)][:ga2][1, 1]) <: Int
+    @test typeof(series[Time(1)]) <: GeoStack{<:NamedTuple}
+    @test typeof(series[Time(1)][:ga2]) <: GeoArray{Int,2}
+    @test typeof(series[Time(1)][:ga2, 1, 1]) <: Int
+    @test typeof(series[Time(1)][:ga2][1, 1]) <: Int
 end
 
 @testset "getindex returns the currect results" begin

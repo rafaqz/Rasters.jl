@@ -1,3 +1,6 @@
+using GeoData, Test, Statistics, Dates
+using GeoData: Time, formatdims, data, dims2indices, rebuild, window, name
+
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
 dims1 = Lon<|(10, 100), Lat<|(-50, 50) 
@@ -8,8 +11,8 @@ meta = nothing
 key = :test
 
 # Formatting only occurs in shorthand constructors
-ga2 = GeoArray(data2, dims2)
 ga1 = GeoArray(data1, formatdims(data1, dims1), refdimz, meta, mval, key)
+ga2 = GeoArray(data2, dims2)
 
 stack = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
 
@@ -53,7 +56,7 @@ end
     @test a[:ga2] == data2[2:4, 5:6, 1:1]
 
     @testset "select new arrays for the whole stack" begin
-        s = stack[Lat<|Between(-10, 10.0), Time<|At<|DateTime(2019)]
+        s = stack[Lat<|Between(-10, 10.0), Time<|At(DateTime(2019))]
         stack[Lat<|Between(-10, 10.0), Time<|At<|DateTime(2019)]
         @test typeof(s) <: GeoStack
         @test typeof(s[:ga1]) <: GeoArray
