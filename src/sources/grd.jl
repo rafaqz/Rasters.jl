@@ -44,7 +44,7 @@ GrdArray(filepath::String; refdims=(), metadata=Dict(), window=()) = begin
     celly = (ymax - ymin) / ncols
 
     lat = Lat(LinRange(xmin, xmax - cellx, nrows); 
-              grid=RegularGrid(; order=Ordered(Forward(), Reverse), locus=Start(), span=cellx)) 
+              grid=RegularGrid(; order=Ordered(Forward(), Reverse(), Forward()), locus=Start(), span=cellx)) 
     lon = Lon(LinRange(ymin, ymax - celly, ncols); 
               grid=RegularGrid(; locus=Start(), span=celly))
     band = Band(1:nbands; grid=CategoricalGrid())

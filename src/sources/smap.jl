@@ -97,7 +97,7 @@ smapdims(dataset) = begin
         # For performance and simplicity we just take a vector slice for each dim.
         latvec = read(root(dataset)["cell_lat"])[1, :]
         lonvec = read(root(dataset)["cell_lon"])[:, 1]
-        latgrid=AllignedGrid(order=Ordered(Reverse(), Reverse()))
+        latgrid=AllignedGrid(order=Ordered(Reverse(), Reverse(), Forward()))
         (Lon(lonvec), Lat(latvec; grid=latgrid))
     else
         error("projection $proj not supported")

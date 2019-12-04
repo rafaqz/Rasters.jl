@@ -180,7 +180,7 @@ dims(dataset::AG.Dataset) = begin
         end
         latrange = last.(latcoords)
         lat = Lat(latrange;
-                  grid=RegularGrid(order=Ordered(Forward(), Reverse()),
+                  grid=RegularGrid(order=Ordered(Forward(), Reverse(), Forward()),
                                    span=abs(latspan)))
 
         formatdims((xsize, ysize, nbands), (lon, lat, band))

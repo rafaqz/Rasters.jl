@@ -175,7 +175,8 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
             # the generic Dim with the dim name as type parameter
             dimconstructor = get(dimmap, dimname, Dim{Symbol(dimname)})
             # Get the attrib metadata
-            order = dvar[end] > dvar[1] ? Ordered(Forward(), Forward()) : Ordered(Reverse(), Reverse())
+            order = dvar[end] > dvar[1] ? Ordered(Forward(), Forward(), Forward()) : 
+                                          Ordered(Reverse(), Reverse(), Forward())
             grid = AllignedGrid(order=order)
             meta = metadata(dvar)
             # Add the dim containing the dimension var array
