@@ -1,7 +1,6 @@
 include("array.jl")
 include("stack.jl")
 include("series.jl")
-include("aggregation.jl")
 include("gdal.jl")
 include("ncdatasets.jl")
 include("smap.jl")
