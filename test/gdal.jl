@@ -1,9 +1,7 @@
 using ArchGDAL, GeoData, Test, Statistics, Dates
 include("utils.jl")
 
-path = geturl("https://download.osgeo.org/geotiff/samples/usgs/c41078a1.tif")
-path = geturl("https://download.osgeo.org/geotiff/samples/usgs/i30dem.tif")
-path = geturl("https://download.osgeo.orgtgeotiff/samples/gdal_eg/cea.tif")
+path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
 @testset "array" begin
     gdalarray = GDALarray(path)
