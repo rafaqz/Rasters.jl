@@ -5,9 +5,6 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
 @testset "array" begin
     gdalarray = GDALarray(path)
-    bounds(gdalarray)
-    dims(gdalarray)
-    gdalarray[Lon(Near(-117.31)), Lat(Between(33.9, 34))]
 
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
@@ -44,7 +41,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test typeof(geoarray) <: GeoArray{UInt8,1}
         # @test bounds(a) == ()
         # Doesn't handle returning a single value
-        # x = gdalarray[Lon(At(20), Lat(Near(10), Band(1)]) <: UInt8
+        # val = gdalarray[Lon(10), Lat(10), Band(1)] <: UInt8
     end
 
     @testset "conversion to GeoArray" begin
