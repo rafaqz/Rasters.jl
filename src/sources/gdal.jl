@@ -32,12 +32,14 @@ end
 GDALarray(filename::AbstractString; kwargs...) =
     gdalapply(dataset -> GDALarray(dataset; kwargs...), filename)
 GDALarray(dataset::AG.Dataset;
-          dims=dims(dataset),
+          selector_crs=nothing,
+          dims=dims(dataset; selector_crs=selector_crs),
           refdims=(),
           metadata=metadata(dataset),
           missingval=missingval(dataset),
           name="Unnamed",
-          window=()) = begin
+          window=(),
+         ) = begin
     filename = first(AG.filelist(dataset))
     if window == ()
         sze = gdalsize(dataset)
@@ -106,7 +108,7 @@ Base.write(filename::AbstractString, ::Type{GDALarray}, A::GeoArray{T,2}) where 
             nbands = 1,
             dtype = T
         )
-        proj = convert(String, crs(A))
+        proj = convert(String, crs(dims(A, Lon)))
         AG.setproj!(dataset, proj)
         AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
         AG.write!(dataset, source(A), 1)
@@ -125,7 +127,7 @@ Base.write(filename::AbstractString, ::Type{GDALarray}, A::GeoArray{T,3}) where 
             nbands = nbands,
             dtype = T
         )
-        proj = convert(String, projection(A))
+        crs = convert(String, crs(A, Lon))
         AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
         AG.setproj!(dataset, proj)
         AG.write!(dataset, source(A), Cint[1])
@@ -147,7 +149,7 @@ Base.copy!(dst::AbstractGeoArray, src::GDALstack, key::Key) =
 
 # DimensionalData methods for ArchGDAL types ###############################
 
-dims(dataset::AG.Dataset) = begin
+dims(dataset::AG.Dataset; selector_crs=nothing) = begin
     gt = AG.getgeotransform(dataset)
     # gt = GDAL_EMPTY_TRANSFORM
     ysize, xsize = AG.height(dataset), AG.width(dataset)
@@ -168,8 +170,8 @@ dims(dataset::AG.Dataset) = begin
             error("Longitude dimension is not grid-alligned $(loncoords[1][2]) $(loncoords[end][2])")
         end
         lonrange = first.(loncoords)
-        lon = Lon(lonrange;
-                  grid=RegularGrid(span=abs(lonspan)))
+        lon = Lon(lonrange; 
+                  grid=RegularGrid(span=abs(lonspan), crs=crs, selector_crs=selector_crs))
 
         latspan = latres(gt)
         latmax = gt[GDAL_TOPLEFT_Y]
@@ -181,7 +183,7 @@ dims(dataset::AG.Dataset) = begin
         latrange = last.(latcoords)
         lat = Lat(latrange;
                   grid=RegularGrid(order=Ordered(Forward(), Reverse(), Forward()),
-                                   span=abs(latspan)))
+                                   span=abs(latspan), crs=crs, selector_crs=selector_crs))
 
         formatdims((xsize, ysize, nbands), (lon, lat, band))
     else

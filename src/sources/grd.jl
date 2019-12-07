@@ -63,8 +63,11 @@ GrdArray(filepath::String; refdims=(), metadata=Dict(), window=()) = begin
             }(filepath, dims, refdims, metadata, missingval, name, window, _size)
 end
 
-Base.parent(A::GrdArray) =
-    grdapply(mmap -> (w = windoworempty(A); w == () ? Array(mmap) : mmap[w...]), A)
+Base.parent(A::GrdArray) = 
+    grdapply(A) do mmap
+        w = windoworempty(A)
+        w == () ? Array(mmap) : mmap[w...] 
+    end
 
 Base.getindex(A::GrdArray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) = begin
     I = applywindow(A, I)
@@ -90,7 +93,7 @@ Base.write(filename::String, GrdArray, A::AbstractGeoArray) = begin
     ncols, nrows = size(A)
     xmin, xmax = bounds(dims(A, Lat()))
     ymin, ymax = bounds(dims(A, Lon()))
-    proj = "" #convert(String, projection(A))
+    proj = convert(String, crs(A))
     datatype = rev_datatype_translation[eltype(A)]
     nodatavalue = missingval(A)
     minvalue = minimum(filter(x -> x != missingval(A), parent(A)))
