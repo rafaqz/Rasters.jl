@@ -81,7 +81,7 @@ end
 Base.copy(A::GrdArray, I::Vararg{<:Integer}) = 
     grdapply(mmap -> mmap[applywindow(A, I)...], A)
 
-Base.write(filename::String, GrdArray, A::AbstractGeoArray) = begin
+Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray) = begin
     # grid(dims(A) <: RegularGrid || throw(ArgumentError("Can only save `RegularGrid` arrays to a grd file"))
     # Remove extension
     filename = splitext(filename)[1]
