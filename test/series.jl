@@ -5,9 +5,9 @@ using GeoData: Time, formatdims, dims
 
 data1 = [1 2 3 4
          5 6 7 8]
-data2 = 2data1
-data3 = 3data1
-data4 = 4data1
+data2 = 2 * data1
+data3 = 3 * data1
+data4 = 4 * data1
 dimz = Lon([30, 40]), Lat((-10, 20))
 ga1 = GeoArray(data1, dimz)
 ga2 = GeoArray(data2, dimz)
@@ -17,8 +17,7 @@ stack1 = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
 stack2 = GeoStack(ga1a, ga2a; keys=(:ga1, :ga2))
 dates =[DateTime(2017), DateTime(2018)]
 series = GeoSeries([stack1, stack2], (Time(dates),));
-issorted(dates)
-dims(series)
+@test issorted(dates)
 
 @testset "getindex returns the currect types" begin
     @test typeof(series[Time(1)]) <: GeoStack{<:NamedTuple}
