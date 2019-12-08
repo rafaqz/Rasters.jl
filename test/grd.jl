@@ -116,14 +116,16 @@ end
         keys(smallstack) == (:a,)
     end
 
-    @testset "copy" begin
-        geoarray = zero(GeoArray(grdstack[:a]))
-        copy!(geoarray, grdstack, :a)
-        maximum(grdstack[:a])
-        maximum(geoarray)
-        # First wrap with GeoArray() here or == loads from disk for each cell.
-        # we need a general way of avoiding this in all disk-based sources
-        @test geoarray == GeoArray(grdstack[:a])
+    if VERSION > v"1.1-"
+        @testset "copy" begin
+            geoarray = zero(GeoArray(grdstack[:a]))
+            copy!(geoarray, grdstack, :a)
+            maximum(grdstack[:a])
+            maximum(geoarray)
+            # First wrap with GeoArray() here or == loads from disk for each cell.
+            # we need a general way of avoiding this in all disk-based sources
+            @test geoarray == GeoArray(grdstack[:a])
+        end
     end
 
 end

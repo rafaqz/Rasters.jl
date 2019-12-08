@@ -37,12 +37,14 @@ path2 = "SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5"
         keys(geostack) == (:baseflow_flux, :snow_mass, :soil_temp_layer1)
     end
 
-    @testset "copy" begin
-        smaparray = GeoArray(stack[:soil_temp_layer1])
-        @test typeof(smaparray) <: GeoArray
-        @test smaparray == stack[:soil_temp_layer1]
-        copy!(smaparray, stack, :soil_temp_layer2)
-        @test smaparray == stack[:soil_temp_layer2]
+    if VERSION > v"1.1-"
+        @testset "copy" begin
+            smaparray = GeoArray(stack[:soil_temp_layer1])
+            @test typeof(smaparray) <: GeoArray
+            @test smaparray == stack[:soil_temp_layer1]
+            copy!(smaparray, stack, :soil_temp_layer2)
+            @test smaparray == stack[:soil_temp_layer2]
+        end
     end
 
 end

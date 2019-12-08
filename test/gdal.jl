@@ -75,11 +75,13 @@ end
         keys(smallstack) == (:a,)
     end
 
-    @testset "copy" begin
-        geoarray = zero(GeoArray(gdalstack[:a]))
-        copy!(geoarray, gdalstack, :a)
-        # First wrap with GeoArray() here or == loads from disk for each cell.
-        # we need a general way of avoiding this in all disk-based sources
-        @test geoarray == GeoArray(gdalstack[:a])
+    if VERSION > v"1.1-"
+        @testset "copy" begin
+            geoarray = zero(GeoArray(gdalstack[:a]))
+            copy!(geoarray, gdalstack, :a)
+            # First wrap with GeoArray() here or == loads from disk for each cell.
+            # we need a general way of avoiding this in all disk-based sources
+            @test geoarray == GeoArray(gdalstack[:a])
+        end
     end
 end

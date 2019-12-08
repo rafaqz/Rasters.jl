@@ -87,9 +87,11 @@ end
         @test size(geoarray) == (3,)
     end
 
-    @testset "copy" begin
-        geoarray = GeoArray(ncstack[:albedo])
-        copy!(geoarray, ncstack, :albedo)
+    if VERSION > v"1.1-"
+        @testset "copy" begin
+            geoarray = GeoArray(ncstack[:albedo])
+            copy!(geoarray, ncstack, :albedo)
+        end
     end
 
     @testset "indexing" begin
