@@ -2,9 +2,10 @@ using GeoData, Test, Statistics, Dates
 include("utils.jl")
 
 grdpath = geturl("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd")
-gripath = geturl("https://github.com/rspatial/raster/blob/master/inst/external/rlogo.gri?raw=true", "rlogo.gri")
+gripath = geturl("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri")
 path = "rlogo"
 @test isfile(path * ".grd")
+@test isfile(path * ".gri")
 
 @testset "array" begin
     grdarray = GeoData.GrdArray(path);
@@ -37,17 +38,17 @@ path = "rlogo"
     end
 
     @testset "setindex" begin 
-        # Make a copy to write to
-        path2 = "rlogo2"
-        cp(path * ".grd", path2 * ".grd"; force=true)
-        cp(path * ".gri", path2 * ".gri"; force=true)
-        grdarray2 = GeoData.GrdArray(path2);
-        @test grdarray2[1, 1, 1] != 100.0f0
-        grdarray2[1, 1, 1] = 100.0f0
-        @test grdarray2[1, 1, 1] == 100.0f0
-        @test grdarray2[20, 10, 3] != 200.0f0
-        grdarray2[Lon(20), Lat(10), Band(3)] = 200.0f0
-        @test grdarray2[20, 10, 3] == 200.0f0
+        temp = grdarray[1, 1, 1]
+        @test temp != 100.0f0
+        grdarray[1, 1, 1] = 100.0f0
+        @test grdarray[1, 1, 1] == 100.0f0
+        grdarray[1, 1, 1] = temp
+
+        temp = grdarray[20, 10, 3]
+        @test temp != 200.0f0
+        grdarray[Lon(20), Lat(10), Band(3)] = 200.0f0
+        @test grdarray[20, 10, 3] == 200.0f0
+        grdarray[20, 10, 3] = temp
     end
 
     @testset "selectors" begin
