@@ -66,17 +66,13 @@ end
 Base.parent(A::GrdArray) =
     grdapply(mmap -> (w = windoworempty(A); w == () ? Array(mmap) : mmap[w...]), A)
 
-Base.getindex(A::GrdArray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) = begin
-    I = applywindow(A, I)
-    rebuildsliced(A, grdapply(mmap -> mmap[I...], A), I)
-end
+Base.getindex(A::GrdArray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
+    rebuildsliced(A, grdapply(mmap -> mmap[applywindow(A, I)...], A), I)
 Base.getindex(A::GrdArray, I::Vararg{<:Integer}) = 
     grdapply(mmap -> mmap[applywindow(A, I)...], A)
 
-Base.setindex!(A::GrdArray, x, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) = begin
-    I = applywindow(A, I)
-    grdapply(A -> A[I...] = x, A, "w+")
-end
+Base.setindex!(A::GrdArray, x, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
+    grdapply(mmap -> mmap[applywindow(A, I)...] = x, A, "w+")
 
 Base.copy(A::GrdArray, I::Vararg{<:Integer}) = 
     grdapply(mmap -> mmap[applywindow(A, I)...], A)
