@@ -17,4 +17,6 @@ window2indices(dims, window::Tuple{Vararg{<:AbstractDimension}}) = dims2indices(
 
 windoworempty(x) = (w = window(x); w == () ? () : window2indices(x))
 
-windowsize(window::Tuple) = tuple((length(w) for w in window if length(w) > 1)...)
+windowsize(window::Tuple, sze::Tuple) = map(windowsize, window, sze)
+windowsize(window::Colon, sze) = sze
+windowsize(window, sze) = window

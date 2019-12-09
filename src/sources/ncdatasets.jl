@@ -110,7 +110,7 @@ Base.copy!(dst::AbstractGeoArray, src::NCDstack, key::Key) =
     safeapply(dataset -> copy!(parent(dst), dataset[string(key)]), src, source(src))
 
 Base.write(filename::AbstractString, ::Type{NCDstack}, s::AbstractGeoStack) = begin
-    dataset = NCDatasets.Dataset(filename, "c"; attrib=metadata(s))
+    dataset = NCDatasets.Dataset(filename, "c"; attrib=val(metadata(s)))
     try
         map(key -> addvar!(dataset, s[key]), keys(s))
     finally

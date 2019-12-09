@@ -42,7 +42,7 @@ GDALarray(dataset::AG.Dataset;
     if window == ()
         sze = gdalsize(dataset)
     else
-        sze = windowsize(window)
+        sze = windowsize(window, size(dataset))
         dims, refdims = slicedims(dims, refdims, window)
     end
     T = AG.getdatatype(AG.getband(dataset, 1))
@@ -106,7 +106,7 @@ Base.write(filename::AbstractString, ::Type{GDALarray}, A::GeoArray{T,2}) where 
             nbands = 1,
             dtype = T
         )
-        proj = convert(String, crs(A))
+        proj = "" #convert(String, crs(A))
         AG.setproj!(dataset, proj)
         AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
         AG.write!(dataset, source(A), 1)

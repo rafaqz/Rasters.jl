@@ -7,7 +7,8 @@ module GeoData
     read(path, String)
 end GeoData
 
-using Mixers, 
+using Missings,
+      Mixers, 
       RecipesBase, 
       Reexport, 
       Requires, 
