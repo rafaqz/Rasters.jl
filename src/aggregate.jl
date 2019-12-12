@@ -13,7 +13,7 @@ aggregate(stack::AbstractGeoStack, aggregator, scale) = begin
     data = map(namedtuple_mapper) do key
         aggregate(GeoArray(stack[key]), aggregator, scale)
     end
-    rebuild(stack; data=data)
+    GeoStack(stack; data=data, dims=dims(first(data)))
 end
 
 const DimOrTuple = Union{AbstractDimension,Tuple{Vararg{<:AbstractDimension}}}
@@ -21,7 +21,7 @@ const DimOrTuple = Union{AbstractDimension,Tuple{Vararg{<:AbstractDimension}}}
 aggregate(src::AbstractGeoArray, aggregator, scale::DimOrTuple) =
     aggregate(src, aggregator, dims2indices(src, scale))
 aggregate(src::AbstractGeoArray, aggregator, scale) =
-    aggregate!(init_aggregation(src, scale), src, aggregator, scale)
+    aggregate!(init_aggregation(src, aggregator, scale), src, aggregator, scale)
 
 """
     downsample!(out::AbstractMatrix, a::AbstractMatrix, aggregator, scale)
@@ -32,9 +32,11 @@ Downsample matrix `a` to another matrix `out` of the correct size.
     value of multiple cells to generate the aggregated cell.
 - `scale` is the aggregation factor.
 """
-aggregate!(dst, src, aggregator, scale::DimOrTuple) = 
+aggregate!(dst, src, aggregator, scale::DimOrTuple) =
     aggregate!(dst, src, aggregator, dims2indices(src, scale))
-aggregate!(dst::AbstractGeoArray, src, aggregator::Union{Locus,Tuple{Locus,Vararg}}, scale) = begin
+aggregate!(dst::AbstractGeoArray, src, aggregator::Locus, scale) =
+    aggregate!(dst::AbstractGeoArray, src, (aggregator,), scale)
+aggregate!(dst::AbstractGeoArray, src, aggregator::Tuple{Locus,Vararg}, scale) = begin
     offset = locusoffset.(aggregator, scale)
     for I in CartesianIndices(dst)
         dst[I] = src[(upsample.(Tuple(I), scale) .+ offset)...]
@@ -56,7 +58,13 @@ end
 
 Generate an array for aggregating array `A` by `scale`.
 """
-init_aggregation(A::AbstractArray, scale) = similar(A, size(A) .÷ scale)
+init_aggregation(A::AbstractArray, aggregator, scale) = begin
+    _dims = map(aggregate, dims(A), scale)
+    rebuild(A; data=similar(A, size(A) .÷ scale), dims=_dims)
+end
+
+aggregate(dim::AbstractDimension, scale) =
+    rebuild(dim; val=dim[firstindex(dim):scale:lastindex(dim)])
 
 """
     upsample(index, scale)
