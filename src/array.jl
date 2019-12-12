@@ -14,6 +14,7 @@ name(a::AbstractGeoArray) = a.name
 units(a::AbstractGeoArray) = getmeta(a, :units, "")  
 label(a::AbstractGeoArray) = string(name(a), " ", units(a))
 
+# Rebuild as GeoArray by default
 rebuild(a::AbstractGeoArray, data, dims, refdims) =
     GeoArray(data, dims, refdims, metadata(a), missingval(a), name(a))
 rebuild(a::AbstractGeoArray; data=parent(a), dims=dims(a), refdims=refdims(a), 
@@ -38,7 +39,7 @@ Base.parent(a::AbstractGeoArray) = a.data
 """
 A generic, memory-backed spatial array type.
 """
-struct GeoArray{T,N,A<:AbstractArray{T,N},D<:Tuple,R<:Tuple,Me,Mi,Na} <: AbstractGeoArray{T,N,D}
+struct GeoArray{T,N,A<:AbstractArray{T,N},D<:Tuple,R<:Tuple,Me,Mi,Na} <: MemGeoArray{T,N,D}
     data::A
     dims::D
     refdims::R
@@ -51,9 +52,16 @@ end
                  missingval=missing, name=Symbol("")) where {T,N} = 
     GeoArray(a, formatdims(a, dims), refdims, metadata, missingval, name)
 
-@inline GeoArray(A::AbstractGeoArray; data=parent(A), dims=dims(A), refdims=refdims(A), 
+@inline GeoArray(A::MemGeoArray; data=parent(A), dims=dims(A), refdims=refdims(A), 
                  metadata=metadata(A), missingval=missingval(A), name=name(A)) =
     GeoArray(data, dims, refdims, metadata, missingval, name)
+@inline GeoArray(A::DiskGeoArray; 
+                 metadata=metadata(A), missingval=missingval(A), name=name(A)) = begin
+    _window = maybewindow2indices(dataset, dims(A), window(A))
+    _dims, _refdims = slicedims(dims(A), refdims(A), _window)
+    data = parent(A) 
+    GeoArray(data, _dims, _refdims, metadata, missingval, name)
+end
 
 dims(a::GeoArray) = a.dims
 

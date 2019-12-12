@@ -1,5 +1,6 @@
 using GeoData, Test, Statistics, Dates
-include("utils.jl")
+using GeoData: name
+include("test_utils.jl")
 
 grdpath = geturl("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd")
 gripath = geturl("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri")
@@ -88,21 +89,18 @@ path = "rlogo"
         @test size(saved) == size(geoarray)
         @test missingval(saved) === missingval(geoarray)
         @test metadata(saved) != metadata(geoarray)
-        @test val(metadata(saved))["creator"] == "GeoData.jl" 
+        @test metadata(saved)["creator"] == "GeoData.jl"
         @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
         @test GeoData.name(saved) == GeoData.name(geoarray)
         @test all(DimensionalData.grid.(dims(saved[Band(1)])) .== DimensionalData.grid.(dims(geoarray)))
         @test typeof(dims(saved)) == typeof(dims(geoarray))
-        @test val(dims(saved)[1]) == val(dims(geoarray)[1])
-        @test val(dims(saved)[2]) == val(dims(geoarray)[2])
         @test all(val.(dims(saved)) .== val.(dims(geoarray)))
         @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
         @test all(parent(saved) .=== parent(geoarray))
         @test typeof(saved) == typeof(geoarray)
-        geoarray = grdarray
-        write(filename, GrdArray, geoarray)
+        write(filename, GrdArray, grdarray)
         saved = GeoArray(GrdArray(filename))
-        @test size(saved) == size(geoarray)
+        @test size(saved) == size(grdarray)
     end
 
 end
@@ -110,8 +108,8 @@ end
 @testset "stack" begin
     grdstack = GeoStack((a=GrdArray(path), b=GrdArray(path)))
 
-    @test grdstack[:a][Lat(1), Lon(1), Band(1)] == 255.0
-    @test grdstack[:a][Lat([2,3]), Lon(1), Band(1)] == [255.0, 255.0] 
+    @test grdstack[:a][Lat(1), Lon(1), Band(1)] == 100.0f0
+    @test grdstack[:a][Lat([2,3]), Lon(1), Band(1)] == [0.0f0, 00.0f0] 
 
     # Stack Constructors
     @testset "conversion to GeoStack" begin
@@ -131,6 +129,16 @@ end
             # we need a general way of avoiding this in all disk-based sources
             @test geoarray == GeoArray(grdstack[:a])
         end
+    end
+
+    @testset "save" begin
+        geoarray = GeoArray(grdstack[:a])
+        filename = tempname()
+        write(filename, GrdArray, grdstack)
+        base, ext = splitext(filename)
+        filename_b = string(base, "_b", ext)
+        saved = GeoArray(GrdArray(filename_b))
+        @test saved == geoarray
     end
 
 end

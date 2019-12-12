@@ -1,5 +1,5 @@
 using GeoData, Test, Statistics, Dates
-using GeoData: Time, formatdims, data, dims2indices, rebuild, window, name
+using GeoData: Time, formatdims, data, dims2indices, rebuild, window, name, source
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
@@ -17,8 +17,8 @@ ga2 = GeoArray(data2, dims2)
 stack = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
 
 @testset "stack layers" begin
-    @test typeof(parent(stack)) <: NamedTuple
-    @test length(parent(stack)) == 2
+    @test typeof(source(stack)) <: NamedTuple
+    @test length(source(stack)) == 2
     @test stack[:ga1] == ga1
     @test stack[:ga2] == ga2
     @test parent(stack[:ga1]) == data1

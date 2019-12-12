@@ -41,10 +41,6 @@ end
 GeoSeries(data, dims; refdims=(), metadata=Dict(), childtype=GeoStack, childdims=(), window=()) = 
     GeoSeries(data, formatdims(data, dims), refdims, metadata, childtype, childdims, window)
 
-@inline rebuild(s::GeoSeries; parent=parent(s), dims=dims(s), 
-                refdims=refdims(s), metadata=metadata(s), childtype=childtype(s), 
-                childdims=childdims(s), window=window(s)) =
-    GeoSeries(data, dims, refdims, metadata, childtype, childdims, window)
 @inline rebuild(s::GeoSeries, data, newdims, newrefdims) =
     GeoSeries(data, newdims, newrefdims, metadata(s), childtype(s), childdims(s), window(s))
 

@@ -19,17 +19,14 @@ end
     nplots = size(A, 3)
     if nplots > 1
         layout --> nplots
-        # How to make this work?
-        plot_title --> join(name(A), name(dims(A)[3]), " ")
+        xlabel --> permutedims(string.(val(dims(A, D))))
         for i in 1:nplots
             @series begin
                 seriestype := :heatmap
                 aspect_ratio := 1
-                colorbar := false
-                ticks := false
                 subplot := i
-                preparedata(A)
-            end   
+                (reverse(val.(reorderdims(dims(A, (Lat, Lon)))))..., preparedata(A[:, :, i]))
+            end
         end
     else
         A[:, :, 1]
@@ -37,7 +34,7 @@ end
 end
 
 # TODO generalise for any dimension order
-@recipe function f(A::AbstractGeoArray{T,3,<:Tuple{<:Lon,<:Lat,D}}) where {T,D}
+@recipe function f(A::AbstractGeoArray{T,3,<:Tuple{Vararg{Union{<:Lon,<:Lat,D}}}}) where {T,D}
     permutedims(A, (Lat, Lon, D))
 end
 
@@ -49,7 +46,7 @@ end
     xlabel --> name(dims(A)[2])
     colorbar_title --> name(A)
     title --> join(map(d -> string(name(d), " ", val(d)), refdims(A)), ", ")
-    reverse(val.(reorderdims(dims(A))))..., preparedata(A)
+    (reverse(val.(reorderdims(dims(A))))..., preparedata(A))
 end
 
 @recipe function f(A::AbstractGeoArray{T,2,<:Tuple{<:Lon,<:Lat}}) where T

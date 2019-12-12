@@ -3,12 +3,12 @@ export GrdArray, GrdMetadata, GrdDimMetadata
 
 # Metadata ########################################################################
 
-struct GrdMetadata{M} <: AbstractArrayMetadata
-    val::M 
+struct GrdMetadata{K,V} <: AbstractArrayMetadata{K,V}
+    val::Dict{K,V}
 end
 
-struct GrdDimMetadata{M} <: AbstractDimMetadata
-    val::M 
+struct GrdDimMetadata{K,V} <: AbstractDimMetadata{K,V}
+    val::Dict{K,V}
 end
 
 
@@ -43,16 +43,16 @@ GrdArray(filepath::String; refdims=(), metadata=Dict(), window=()) = begin
     cellx = (xmax - xmin) / nrows
     celly = (ymax - ymin) / ncols
 
-    lat = Lat(LinRange(xmin, xmax - cellx, nrows); 
-              grid=RegularGrid(; order=Ordered(Forward(), Reverse(), Forward()), locus=Start(), span=cellx)) 
-    lon = Lon(LinRange(ymin, ymax - celly, ncols); 
+    lat = Lat(LinRange(xmin, xmax - cellx, nrows);
+              grid=RegularGrid(; order=Ordered(Forward(), Reverse(), Forward()), locus=Start(), span=cellx))
+    lon = Lon(LinRange(ymin, ymax - celly, ncols);
               grid=RegularGrid(; locus=Start(), span=celly))
     band = Band(1:nbands; grid=CategoricalGrid())
     dims = lon, lat, band
     for key in ("creator", "created", "history")
         val = get(data, key, "")
         if val !== ""
-            metadata[key] = val 
+            metadata[key] = val
         end
     end
     metadata = GrdMetadata(metadata)
@@ -64,18 +64,26 @@ GrdArray(filepath::String; refdims=(), metadata=Dict(), window=()) = begin
 end
 
 Base.parent(A::GrdArray) =
-    grdapply(mmap -> (w = windoworempty(A); w == () ? Array(mmap) : mmap[w...]), A)
-
+    grdapply(A) do mmap
+        _window = maybewindow2indices(mmap, dims(A), window(A))
+        readwindowed(mmap, _window)
+    end
 Base.getindex(A::GrdArray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
-    rebuildsliced(A, grdapply(mmap -> mmap[applywindow(A, I)...], A), I)
-Base.getindex(A::GrdArray, I::Vararg{<:Integer}) = 
-    grdapply(mmap -> mmap[applywindow(A, I)...], A)
+    grdapply(A) do mmap
+        _window = maybewindow2indices(mmap, dims(A), window(A))
+        _dims, _refdims = slicedims(slicedims(dims(A), refdims(A), _window)..., I)
+        data = readwindowed(mmap, _window, I...)
+        rebuild(A, data, _dims, _refdims)
+    end
+Base.getindex(A::GrdArray, i1::Integer, I::Vararg{<:Integer}) =
+    grdapply(A) do mmap
+        _window = maybewindow2indices(mmap, dims(A), window(A))
+        readwindowed(mmap, _window, i1, I...)
+    end
 
-Base.setindex!(A::GrdArray, x, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
-    grdapply(mmap -> mmap[applywindow(A, I)...] = x, A, "w+")
 
-Base.copy(A::GrdArray, I::Vararg{<:Integer}) = 
-    grdapply(mmap -> mmap[applywindow(A, I)...], A)
+# Base.setindex!(A::GrdArray, x, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
+    # grdapply(mmap -> mmap[applywindow(A, I)...] = x, A, "w+")
 
 Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray) = begin
     # grid(dims(A) <: RegularGrid || throw(ArgumentError("Can only save `RegularGrid` arrays to a grd file"))
@@ -128,6 +136,7 @@ Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray) = begin
     return
 end
 
+
 # Utils ########################################################################
 
 grdapply(f, A, mode="r") = begin
@@ -135,7 +144,7 @@ grdapply(f, A, mode="r") = begin
         mmap = Mmap.mmap(io, Array{eltype(A),3}, size(A))
         output = f(mmap)
         close(io)
-        output 
+        output
     end
 end
 

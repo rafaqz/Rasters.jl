@@ -7,12 +7,12 @@ export GDALarray, GDALstack, GDALmetadata, GDALdimMetadata
 
 # Metadata ########################################################################
 
-struct GDALmetadata{M} <: AbstractArrayMetadata
-    val::M
+struct GDALmetadata{K,V} <: AbstractArrayMetadata{K,V}
+    val::Dict{K,V}
 end
 
-struct GDALdimMetadata{M} <: AbstractDimMetadata
-    val::M
+struct GDALdimMetadata{K,V} <: AbstractDimMetadata{K,V}
+    val::Dict{K,V}
 end
 
 
@@ -42,60 +42,37 @@ GDALarray(dataset::AG.Dataset;
     if window == ()
         sze = gdalsize(dataset)
     else
-        sze = windowsize(window, size(dataset))
-        dims, refdims = slicedims(dims, refdims, window)
+        window = dims2indices(dims, window)
+        sze = windowsize(window)
     end
     T = AG.getdatatype(AG.getband(dataset, 1))
     N = length(sze)
-    try
-        missingval = convert(T, missingval)
-    catch
-        @warn "No data value from GDAL $(missingval) is not convertible to data type $T. `missingval` is probably incorrect."
-    end
     GDALarray{T,N,typeof.((filename,dims,refdims,metadata,missingval,name,window,sze))...
        }(filename, dims, refdims, metadata, missingval, name, window, sze)
 end
 
 Base.size(A::GDALarray) = A.size
 
+
 Base.parent(A::GDALarray) =
-    gdalapply(dataset -> gdalread(dataset, windoworempty(A)...), A.filename)
+    gdalapply(filename(A)) do dataset
+        _window = maybewindow2indices(dataset, dims(A), window(A))
+        readwindowed(dataset, _window)
+    end
+Base.getindex(A::GDALarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
+    gdalapply(filename(A)) do dataset
+        _window = maybewindow2indices(dataset, dims(A), window(A))
+        # Slice for both window and indices
+        _dims, _refdims = slicedims(slicedims(dims(A), refdims(A), _window)..., I)
+        data = readwindowed(dataset, _window, I...)
+        rebuild(A, data, _dims, _refdims)
+    end
+Base.getindex(A::GDALarray, i1::Integer, I::Vararg{<:Integer}) =
+    gdalapply(filename(A)) do dataset
+        _window = maybewindow2indices(dataset, dims(A), window(A))
+        readwindowed(dataset, _window, i1, I...)
+    end
 
-Base.getindex(A::GDALarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) = begin
-    I = applywindow(A, I)
-    rebuildsliced(A, gdalapply(dataset -> gdalread(dataset, I...), A.filename), I)
-end
-
-
-# Stack ########################################################################
-
-struct GDALstack{T,D,R,W,M} <: AbstractGeoStack{T}
-    data::T
-    dims::D
-    refdims::R
-    window::W
-    metadata::M
-end
-
-GDALstack(data::NamedTuple;
-          dims=gdalapply(dims, first(values(data))),
-          refdims=(), window=(),
-          metadata=gdalapply(metadata, first(values(data)))) =
-    GDALstack(data, dims, refdims, window, metadata)
-
-
-@inline rebuild(s::GDALstack; data=parent(s), dims=dims(s), refdims=refdims(s),
-        window=window(s), metadata=metadata(s)) =
-    GDALstack(data, dims, refdims, window, metadata)
-
-safeapply(f, ::GDALstack, path::AbstractString) = gdalapply(f, path)
-
-data(::GDALstack, dataset, key::Key, I...) = GDALarray(dataset; window=I)
-data(::GDALstack, dataset, key::Key) = GDALarray(dataset)
-
-
-Base.write(filename::AbstractString, ::Type{<:AbstractGeoArray}, a::AbstractGeoArray) =
-    Base.write(GDALarray, filename, GeoArray(a))
 Base.write(filename::AbstractString, ::Type{GDALarray}, A::GeoArray{T,2}) where T = begin
     AG.registerdrivers() do
         driver = AG.getdriver("GTiff")
@@ -109,7 +86,7 @@ Base.write(filename::AbstractString, ::Type{GDALarray}, A::GeoArray{T,2}) where 
         proj = "" #convert(String, crs(A))
         AG.setproj!(dataset, proj)
         AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
-        AG.write!(dataset, source(A), 1)
+        AG.write!(dataset, parent(A), 1)
         AG.destroy(dataset)
     end
 end
@@ -128,21 +105,58 @@ Base.write(filename::AbstractString, ::Type{GDALarray}, A::GeoArray{T,3}) where 
         proj = convert(String, projection(A))
         AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
         AG.setproj!(dataset, proj)
-        AG.write!(dataset, source(A), Cint[1])
+        AG.write!(dataset, parent(A), Cint[1])
         AG.destroy(dataset)
     end
 end
-Base.write(filename::AbstractString, ::Type{GDALarray}, s::AbstractGeoStack) =
-    for key in keys(s)
-        fn = joinpath(dirname(filename), string(key, "_", basename(filename)))
-        write(fn, GDALarray, s[key])
+
+
+# Stack ########################################################################
+
+struct GDALstack{T,D,R,W,M} <: DiskGeoStack{T}
+    filename::T
+    dims::D
+    refdims::R
+    window::W
+    metadata::M
+end
+
+GDALstack(filenames::NamedTuple;
+          dims=gdalapply(dims, first(values(filenames))),
+          refdims=(), window=(),
+          metadata=gdalapply(metadata, first(values(filenames)))) =
+    GDALstack(filenames, dims, refdims, window, metadata)
+
+
+@inline rebuild(s::GDALstack; data=filename(s), dims=dims(s), refdims=refdims(s),
+        window=window(s), metadata=metadata(s)) =
+    GDALstack(data, dims, refdims, window, metadata)
+
+safeapply(f, ::GDALstack, path::AbstractString) = gdalapply(f, path)
+
+@inline Base.getindex(s::GDALstack, key::Key, i1::Integer, I::Integer...) =
+    gdalapply(filename(s, key)) do dataset
+        _window = maybewindow2indices(dataset, dims(s), window(s))
+        readwindowed(dataset, _window, I...)
+    end
+@inline Base.getindex(s::GDALstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
+    gdalapply(filename(s, key)) do dataset
+        _dims = dims(s)
+        _window = maybewindow2indices(dataset, _dims, window(s))
+        _dims, _refdims = slicedims(slicedims(_dims, refdims(s), _window)..., I)
+        A = readwindowed(dataset, _window, I...)
+        GeoArray(A, _dims, _refdims, metadata(dataset), missingval(dataset), string(key))
     end
 
-Base.copy!(dst::AbstractArray, src::GDALstack, key::Key) =
-    copy!(dst, gdalapply(AG.read, source(src, key)))
-Base.copy!(dst::AbstractGeoArray, src::GDALstack, key::Key) =
-    copy!(parent(dst), gdalapply(AG.read, source(src, key)))
 
+Base.copy!(dst::AbstractGeoArray, src::GDALstack, key::Key) =
+    copy!(parent(dst), src, key)
+Base.copy!(dst::AbstractArray, src::GDALstack, key::Key) =
+    gdalapply(filename(src, key)) do dataset
+        key = string(key)
+        _window = maybewindow2indices(dataset, dims(dataset), window(src))
+        copy!(dst, readwindowed(dataset, _window))
+    end
 
 
 # DimensionalData methods for ArchGDAL types ###############################
@@ -168,8 +182,8 @@ dims(dataset::AG.Dataset) = begin
             error("Longitude dimension is not grid-alligned $(loncoords[1][2]) $(loncoords[end][2])")
         end
         lonrange = first.(loncoords)
-        lon = Lon(lonrange;
-                  grid=RegularGrid(span=abs(lonspan)))
+        lonbounds = lonrange[1], reproject([(lonmax, 0.0)], crs)[1][1]
+        lon = Lon(lonrange; grid=AllignedGrid(bounds=lonbounds))
 
         latspan = latres(gt)
         latmax = gt[GDAL_TOPLEFT_Y]
@@ -179,9 +193,9 @@ dims(dataset::AG.Dataset) = begin
             error("Latitude dimension is not grid-alligned $(latcoords[1][1]) $(latcoords[end][1])")
         end
         latrange = last.(latcoords)
-        lat = Lat(latrange;
-                  grid=RegularGrid(order=Ordered(Forward(), Reverse(), Forward()),
-                                   span=abs(latspan)))
+        latbounds = latrange[1], reproject([(0.0, latmax)], crs)[1][2]
+        latgrid = AllignedGrid(order=Ordered(Forward(), Reverse(), Forward()), bounds=latbounds)
+        lat = Lat(latrange; grid=latgrid)
 
         formatdims((xsize, ysize, nbands), (lon, lat, band))
     else
@@ -194,8 +208,17 @@ dims(dataset::AG.Dataset) = begin
     end
 end
 
-missingval(dataset::AG.Dataset, args...) =
-    AG.getnodatavalue(AG.getband(dataset, 1))
+missingval(dataset::AG.Dataset, args...) = begin
+    band = AG.getband(dataset, 1)
+    missingval = AG.getnodatavalue(band)
+    T = AG.getdatatype(band)
+    try
+        missingval = convert(T, missingval)
+    catch
+        @warn "No data value from GDAL $(missingval) is not convertible to data type $T. `missingval` is probably incorrect."
+    end
+    missingval
+end
 metadata(dataset::AG.Dataset, args...) = begin
     band = AG.getband(dataset, 1)
     # color = AG.getname(AG.getcolorinterp(band))
@@ -233,15 +256,21 @@ latres(geotransform) = geotransform[GDAL_NS_RES]
 lonres(geotransform) = geotransform[GDAL_WE_RES]
 
 
-gdalapply(f, path::AbstractString) =
+gdalapply(f, filepath::AbstractString) =
     AG.registerdrivers() do
-        AG.read(path) do dataset::AG.Dataset
+        AG.read(filepath) do dataset
             f(dataset)
         end
     end
 
-gdalread(dataset, I...) = AG.read(dataset, reverse(I)...)
-gdalread(dataset) = AG.read(dataset)
+gdalread(s::GDALstack, key, I...) =
+    gdalapply(filename(s, key)) do dataset
+        readwindowed(dataset, window(s), I...)
+    end
+gdalread(A::GDALarray, I...) =
+    gdalapply(filename(A)) do dataset
+        readwindowed(dataset, window(A), I...)
+    end
 
 gdalsize(dataset) = begin
     band = AG.getband(dataset, 1)

@@ -7,51 +7,72 @@ const SMAPEXTENT = "Metadata/Extent"
 const SMAPGEODATA = "Geophysical_Data"
 
 
-struct SMAPmetadata{M} <: AbstractArrayMetadata
-    val::M 
+struct SMAPmetadata{K,V} <: AbstractArrayMetadata{K,V}
+    val::Dict{K,V}
 end
 
-struct SMAPdimMetadata{M} <: AbstractDimMetadata
-    val::M 
+struct SMAPdimMetadata{K,V} <: AbstractDimMetadata{K,V}
+    val::Dict{K,V}
 end
 
 # Stack ########################################################################
 
 struct SMAPstack{T,D,R,W,M} <: DiskGeoStack{T}
-    data::T
+    filename::T
     dims::D
     refdims::R
     window::W
     metadata::M
 end
 
-SMAPstack(data::String; dims=smapapply(smapdims, data), 
-          refdims=(), window=(), metadata=smapapply(smapmetadata, data)) =
-    SMAPstack(data, dims, refdims, window, metadata)
+SMAPstack(filename::String; 
+          dims=smapapply(smapdims, filename),
+          refdims=(smapapply(smaptime, filename),), 
+          window=(), 
+          metadata=smapapply(smapmetadata, filename)) =
+    SMAPstack(filename, dims, refdims, window, metadata)
 
-dims(stack::SMAPstack) = stack.dims
 dims(stack::SMAPstack, ::Key) = stack.dims
-refdims(stack::SMAPstack) = (safeapply(smaptime, stack, source(stack)),)
-metadata(stack::SMAPstack, args...) = SMAPmetadata(nothing)
-missingval(stack::SMAPstack, args...) = SMAPMISSING
+refdims(stack::SMAPstack) = stack.refdims
+metadata(stack::SMAPstack) = stack.metadata
+missingval(stack::SMAPstack) = SMAPMISSING
 
 @inline safeapply(f, ::SMAPstack, path::AbstractString) = smapapply(f, path)
 
-data(s::SMAPstack, dataset, key::Key) =
-    GeoArray(read(dataset[smappath(key)]), dims(s), refdims(s), metadata(s), missingval(s), Symbol(key))
-data(s::SMAPstack, dataset, key::Key, I...) = begin
-    data = dataset[smappath(key)][I...]
-    GeoArray(data, slicedims(dims(s), refdims(s), I)..., metadata(s), missingval(s), Symbol(key))
-end
-data(::SMAPstack, dataset, key::Key, I::Vararg{Integer}) = dataset[smappath(key)][I...]
+@inline Base.getindex(s::SMAPstack, key::Key, i1::Integer, I::Integer...) =
+    smapapply(filename(s)) do file
+        dataset = file[smappath(key)]
+        _window = maybewindow2indices(dataset, _dims, window(s))
+        smapread(dataset, _window, I...)
+    end
+@inline Base.getindex(s::SMAPstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
+    smapapply(filename(s)) do file
+        dataset = file[smappath(key)]
+        _dims = dims(s)
+        _window = maybewindow2indices(dataset, _dims, window(s))
+        _dims, _refdims = slicedims(slicedims(_dims, refdims(s), _window)..., I)
+        A = smapread(dataset, _window, I...)
+        GeoArray(A, _dims, _refdims, metadata(s), missingval(s), string(key))
+    end
 
 # HDF5 uses `names` instead of `keys` so we have to special-case it
-Base.keys(stack::SMAPstack) = 
-    safeapply(dataset -> Tuple(Symbol.(names(dataset[SMAPGEODATA]))), stack, source(stack))
+Base.keys(stack::SMAPstack) =
+    smapapply(filename(stack)) do dataset 
+        Tuple(Symbol.(names(dataset[SMAPGEODATA]))) 
+    end
+
 Base.copy!(dst::AbstractArray, src::SMAPstack, key) =
-    safeapply(dataset -> copy!(dst, dataset[smappath(key)][window2indices(src)...]), src, source(src))
+    smapapply(filename(src)) do file
+        dataset = file[smappath(key)]
+        _window = maybewindow2indices(dataset, _dims, window(dst))
+        copy!(dst, smapread(dataset, _window))
+    end
 Base.copy!(dst::AbstractGeoArray, src::SMAPstack, key) =
-    safeapply(dataset -> copy!(parent(dst), dataset[smappath(key)][window2indices(src)...]), src, source(src))
+    smapapply(filename(src)) do file
+        dataset = file[smappath(key)]
+        _window = maybewindow2indices(dataset, dims(src), window(src))
+        copy!(parent(dst), smapread(dataset, _window))
+    end
 
 # Series #######################################################################
 
@@ -62,17 +83,27 @@ It outputs a GeoSeries
 SMAPseries(path::AbstractString; kwargs...) =
     SMAPseries(joinpath.(path, filter_ext(path, ".h5")); kwargs...)
 SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths);
-           childtype=SMAPstack, 
-           childdims=h5open(smapdims, first(filepaths)), 
+           childtype=SMAPstack,
+           childdims=h5open(smapdims, first(filepaths)),
            window=(), kwargs...) =
     GeoSeries(filepaths, dims; childtype=childtype, childdims=childdims, window=window, kwargs...)
 
 
 # Utils ########################################################################
 
-smapapply(f, path) = h5open(f, path)
+smapapply(f, filepath) = h5open(f, filepath)
 
-smappath(key) = joinpath(GeoData.SMAPGEODATA, string(key))
+smapread(s::SMAPstack, key, window, I...) =
+    smapapply(filename(s)) do file 
+        smapread(file[smappath(key)], window, I...) 
+    end
+smapread(A, window::Tuple{}) = HDF5.read(A)
+smapread(A, window::Tuple{}, I...) = A[I...]
+smapread(A, window, I...) = A[Base.reindex(window, I)...]
+smapread(A, window) = A[window...]
+
+
+smappath(key) = joinpath(SMAPGEODATA, string(key))
 
 smaptime(dataset) = begin
     meta = attrs(root(dataset)["time"])
@@ -88,7 +119,7 @@ smapseriestime(filepaths) = begin
     (Time(val.(timeseries); metadata=timemeta),)
 end
 
-smapmetadata(dataset) = SMAPmetadata(Dict)
+smapmetadata(dataset) = SMAPmetadata(Dict())
 
 smapdims(dataset) = begin
     proj = read(attrs(root(dataset)["EASE2_global_projection"]), "grid_mapping_name")

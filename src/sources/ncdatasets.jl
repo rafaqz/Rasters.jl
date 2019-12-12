@@ -1,18 +1,18 @@
-using NCDatasets
+using .NCDatasets
 
 export NCDarray, NCDstack, NCDmetadata, NCDdimMetadata
 
-struct NCDmetadata{M} <: AbstractArrayMetadata
-    val::M
+struct NCDmetadata{K,V} <: AbstractArrayMetadata{K,V}
+    val::Dict{K,V}
 end
 
-struct NCDdimMetadata{M} <: AbstractDimMetadata
-    val::M
+struct NCDdimMetadata{K,V} <: AbstractDimMetadata{K,V}
+    val::Dict{K,V}
 end
 
 # Array ########################################################################
 
-struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: AbstractGeoArray{T,N,D}
+struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D}
     filename::A
     dims::D
     refdims::R
@@ -35,34 +35,53 @@ NCDarray(dataset::NCDatasets.Dataset, filename;
     if window == ()
         sze = size(var)
     else
+        window = dims2indices(dims, window)
         sze = windowsize(window)
-        dims, refdims = slicedims(dims, refdims, window)
     end
     missingval = missing
     T = eltype(var)
-    N = ndims(var)
+    N = length(sze)
     NCDarray{T,N,typeof.((filename,dims,refdims,metadata,missingval,name,window,sze))...
        }(filename, dims, refdims, metadata, missingval, name, window, sze)
 end
 
+filename(A::NCDarray) = A.filename
 Base.size(A::NCDarray) = A.size
-Base.parent(A::NCDarray) = ncapply(A.filename) do dataset
-    ncread(dataset[name(A)], windoworempty(A)...)
-end
-Base.getindex(A::NCDarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) = begin
-    I = applywindow(A, I)
-    rebuildsliced(A, ncapply(dataset -> ncread(dataset[name(A)], I...), A.filename), I)
-end
-Base.getindex(A::NCDarray, I::Vararg{<:Integer}) = begin
-    I = applywindow(A, I)
-    ncapply(dataset -> ncread(dataset[name(A)], I...), A.filename)
-end
+Base.parent(A::NCDarray) =
+    ncapply(filename(A)) do dataset
+        var = dataset[name(A)]
+        _window = maybewindow2indices(var, dims(A), window(A))
+        ncread(var, _window)
+    end
+Base.getindex(A::NCDarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
+    ncapply(filename(A)) do dataset
+        var = dataset[name(A)]
+        _window = maybewindow2indices(var, dims(A), window(A))
+        # Slice for both window and indices
+        _dims, _refdims = slicedims(slicedims(dims(A), refdims(A), _window)..., I)
+        data = ncread(var, _window, I...)
+        rebuild(A, data, _dims, _refdims)
+    end
+Base.getindex(A::NCDarray, I::Vararg{<:Integer}) =
+    ncapply(filename(A)) do dataset
+        var = dataset[name(A)]
+        _window = maybewindow2indices(var, dims(A), window(A))
+        ncread(var, _window, I...)
+    end
 
+Base.write(filename::AbstractString, ::Type{NCDarray}, A::AbstractGeoArray) = begin
+    dataset = NCDatasets.Dataset(filename, "c")
+    try
+        ncaddvar!(dataset, A)
+    finally
+        close(dataset)
+    end
+end
 
 # Stack ########################################################################
 
 struct NCDstack{T,D,R,W,M} <: DiskGeoStack{T}
-    data::T
+    filename::T
     dims::D
     refdims::R
     window::W
@@ -79,23 +98,32 @@ This constructor is intended for handling simple single-layer netcdfs.
 """
 NCDstack(filepaths::Union{Tuple,Vector}; dims=ncapply(dims, first(filepaths)),
         refdims=(), window=(), metadata=Nothing) = begin
-    keys = Tuple(Symbol.((ncapply(dataset->first(nondimkeys(dataset)), fp) for fp in filepaths)))
+    keys = Tuple(Symbol.((ncapply(dataset -> first(nondimkeys(dataset)), fp) for fp in filepaths)))
     NCDstack(NamedTuple{keys}(filepaths), dims, refdims, window, metadata)
 end
-NCDstack(data::String; dims=ncapply(dims, data),
-        refdims=(), window=(), metadata=ncapply(metadata, data)) =
-    NCDstack(data, dims, refdims, window, metadata)
-
+NCDstack(filename::String; dims=ncapply(dims, filename),
+        refdims=(), window=(), metadata=ncapply(metadata, filename)) =
+    NCDstack(filename, dims, refdims, window, metadata)
 
 safeapply(f, ::NCDstack, path) = ncapply(f, path)
 
-data(s::NCDstack, dataset, key::Key, I...) =
-    GeoArray(dataset[string(key)][I...], slicedims(dims(s, key), refdims(s), I)...,
-             metadata(s), missingval(s), Symbol(key))
-data(::NCDstack, dataset, key::Key, I::Vararg{Integer}) = dataset[string(key)][I...]
-data(s::NCDstack, dataset, key::Key) =
-    GeoArray(Array(dataset[string(key)]), dims(dataset, key), refdims(s),
-             metadata(s), missingval(s), Symbol(key))
+@inline Base.getindex(s::NCDstack, key::Key, i1::Integer, I::Integer...) =
+    ncapply(filename(s, key)) do dataset
+        key = string(key)
+        var = dataset[key]
+        _window = maybewindow2indices(var, dims(dataset, key), window(s))
+        ncread(var, _window, i1, I...)
+    end
+@inline Base.getindex(s::NCDstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
+    ncapply(filename(s, key)) do dataset
+        key = string(key)
+        var = dataset[key]
+        _dims = dims(dataset, key)
+        _window = maybewindow2indices(var, _dims, window(s))
+        _dims, _refdims = slicedims(slicedims(_dims, refdims(s), _window)..., I)
+        A = ncread(var, _window, I...)
+        GeoArray(A, _dims, _refdims, metadata(s), missingval(s), key)
+    end
 
 dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
 dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
@@ -104,30 +132,27 @@ missingval(stack::NCDstack) = missing
 
 Base.keys(stack::NCDstack{<:AbstractString}) =
     Tuple(Symbol.(safeapply(nondimkeys, stack, source(stack))))
-Base.copy!(dst::AbstractArray, src::NCDstack, key) =
-    safeapply(dataset -> copy!(dst, dataset[string(key)]), src, source(src))
+
 Base.copy!(dst::AbstractGeoArray, src::NCDstack, key::Key) =
-    safeapply(dataset -> copy!(parent(dst), dataset[string(key)]), src, source(src))
+    copy!(parent(dst), src, key)
+Base.copy!(dst::AbstractArray, src::NCDstack, key) =
+    ncapply(filename(src)) do dataset
+        key = string(key)
+        var = dataset[key]
+        _window = maybewindow2indices(var, dims(dataset, key), window(src))
+        copy!(dst, readwindowed(var, _window))
+    end
 
 Base.write(filename::AbstractString, ::Type{NCDstack}, s::AbstractGeoStack) = begin
     dataset = NCDatasets.Dataset(filename, "c"; attrib=val(metadata(s)))
     try
-        map(key -> addvar!(dataset, s[key]), keys(s))
+        map(key -> ncaddvar!(dataset, s[key]), keys(s))
     finally
         close(dataset)
     end
 end
 
-Base.write(filename::AbstractString, ::Type{NCDarray}, A::AbstractGeoArray) = begin
-    dataset = NCDatasets.Dataset(filename, "c")
-    try
-        addvar!(dataset, A)
-    finally
-        close(dataset)
-    end
-end
-
-addvar!(dataset, A) = begin
+ncaddvar!(dataset, A) = begin
     A = forwardorder(A)
     if ismissing(missingval(A))
         fillvalue = get(metadata(A), "_FillValue", NaN)
@@ -175,7 +200,7 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
             # the generic Dim with the dim name as type parameter
             dimconstructor = get(dimmap, dimname, Dim{Symbol(dimname)})
             # Get the attrib metadata
-            order = dvar[end] > dvar[1] ? Ordered(Forward(), Forward(), Forward()) : 
+            order = dvar[end] > dvar[1] ? Ordered(Forward(), Forward(), Forward()) :
                                           Ordered(Reverse(), Reverse(), Forward())
             grid = AllignedGrid(order=order)
             meta = metadata(dvar)
@@ -216,8 +241,10 @@ const dimmap = Dict("lat" => Lat,
 
 ncapply(f, path::String) = NCDatasets.Dataset(f, path)
 
-ncread(var, I...) = var[I...]
-ncread(var) = Array(var)
+ncread(A, window::Tuple{}) = Array(A)
+ncread(A, window::Tuple{}, I...) = A[I...]
+ncread(A, window, I...) = A[Base.reindex(window, I)...]
+ncread(A, window) = A[window...]
 
 
 nondimkeys(dataset) = begin
