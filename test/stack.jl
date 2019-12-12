@@ -66,7 +66,7 @@ end
         @test dims(s[:ga2]) == (Lon(LinRange(10.0, 100.0, 10); grid=RegularGrid(; span=10.0)), 
                                 Lat(LinRange(-10.0, 10.0, 3); grid=RegularGrid(; span=10.0)))
         @test dims(s, :ga2) == dims(s[:ga2])
-        @test refdims(s[:ga2]) == (Time(DateTime(2019); grid=AllignedGrid()),)
+        @test refdims(s[:ga2]) == (Time(DateTime(2019); grid=AlignedGrid()),)
         @test ismissing(missingval(s, :ga2)) && ismissing(missingval(s[:ga2]))
     end
 
@@ -79,7 +79,7 @@ end
         @test sv[:ga2] == data2[:, 6:8, 1]
         @test dims(sv[:ga2]) == (Lon(LinRange(10.0, 100.0, 10); grid=RegularGrid(; span=10.0)), 
                                  Lat(LinRange(0.0, 20.0, 3); grid=RegularGrid(; span=10.0)))
-        @test refdims(sv[:ga2]) == (Time(DateTime(2019); grid=AllignedGrid()),)
+        @test refdims(sv[:ga2]) == (Time(DateTime(2019); grid=AlignedGrid()),)
 
         # Stack of view-based GeoArrays
         v = view(stack, Lon(2:4), Lat(5:6))

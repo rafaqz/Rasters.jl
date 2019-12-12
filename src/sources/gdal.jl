@@ -170,7 +170,7 @@ dims(dataset::AG.Dataset) = begin
     nbands = AG.nraster(dataset)
     band = Band(1:nbands, grid=CategoricalGrid())
 
-    # Output a AllignedGrid dims when the transformation is lat/lon alligned,
+    # Output a AlignedGrid dims when the transformation is lat/lon alligned,
     # otherwise use TransformedGrid with an affine map.
     if isalligned(gt)
         lonspan = lonres(gt)
@@ -183,7 +183,7 @@ dims(dataset::AG.Dataset) = begin
         end
         lonrange = first.(loncoords)
         lonbounds = lonrange[1], reproject([(lonmax, 0.0)], crs)[1][1]
-        lon = Lon(lonrange; grid=AllignedGrid(bounds=lonbounds))
+        lon = Lon(lonrange; grid=AlignedGrid(bounds=lonbounds))
 
         latspan = latres(gt)
         latmax = gt[GDAL_TOPLEFT_Y]
@@ -194,7 +194,7 @@ dims(dataset::AG.Dataset) = begin
         end
         latrange = last.(latcoords)
         latbounds = latrange[1], reproject([(0.0, latmax)], crs)[1][2]
-        latgrid = AllignedGrid(order=Ordered(Forward(), Reverse(), Forward()), bounds=latbounds)
+        latgrid = AlignedGrid(order=Ordered(Forward(), Reverse(), Forward()), bounds=latbounds)
         lat = Lat(latrange; grid=latgrid)
 
         formatdims((xsize, ysize, nbands), (lon, lat, band))

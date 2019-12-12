@@ -202,7 +202,7 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
             # Get the attrib metadata
             order = dvar[end] > dvar[1] ? Ordered(Forward(), Forward(), Forward()) :
                                           Ordered(Reverse(), Reverse(), Forward())
-            grid = AllignedGrid(order=order)
+            grid = AlignedGrid(order=order)
             meta = metadata(dvar)
             # Add the dim containing the dimension var array
             push!(dims, dimconstructor(dvar[:], grid, meta))

@@ -43,7 +43,7 @@ missingval(stack::SMAPstack) = SMAPMISSING
     smapapply(filename(s)) do file
         dataset = file[smappath(key)]
         _window = maybewindow2indices(dataset, _dims, window(s))
-        smapread(dataset, _window, I...)
+        readwindowed(dataset, _window, I...)
     end
 @inline Base.getindex(s::SMAPstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
     smapapply(filename(s)) do file
@@ -51,7 +51,7 @@ missingval(stack::SMAPstack) = SMAPMISSING
         _dims = dims(s)
         _window = maybewindow2indices(dataset, _dims, window(s))
         _dims, _refdims = slicedims(slicedims(_dims, refdims(s), _window)..., I)
-        A = smapread(dataset, _window, I...)
+        A = readwindowed(dataset, _window, I...)
         GeoArray(A, _dims, _refdims, metadata(s), missingval(s), string(key))
     end
 
@@ -65,13 +65,13 @@ Base.copy!(dst::AbstractArray, src::SMAPstack, key) =
     smapapply(filename(src)) do file
         dataset = file[smappath(key)]
         _window = maybewindow2indices(dataset, _dims, window(dst))
-        copy!(dst, smapread(dataset, _window))
+        copy!(dst, readwindowed(dataset, _window))
     end
 Base.copy!(dst::AbstractGeoArray, src::SMAPstack, key) =
     smapapply(filename(src)) do file
         dataset = file[smappath(key)]
         _window = maybewindow2indices(dataset, dims(src), window(src))
-        copy!(parent(dst), smapread(dataset, _window))
+        copy!(parent(dst), readwindowed(dataset, _window))
     end
 
 # Series #######################################################################
@@ -93,14 +93,7 @@ SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths);
 
 smapapply(f, filepath) = h5open(f, filepath)
 
-smapread(s::SMAPstack, key, window, I...) =
-    smapapply(filename(s)) do file 
-        smapread(file[smappath(key)], window, I...) 
-    end
-smapread(A, window::Tuple{}) = HDF5.read(A)
-smapread(A, window::Tuple{}, I...) = A[I...]
-smapread(A, window, I...) = A[Base.reindex(window, I)...]
-smapread(A, window) = A[window...]
+readwindowed(A::HDF5Dataset, window::Tuple{}) = HDF5.read(A)
 
 
 smappath(key) = joinpath(SMAPGEODATA, string(key))
@@ -128,7 +121,7 @@ smapdims(dataset) = begin
         # For performance and simplicity we just take a vector slice for each dim.
         latvec = read(root(dataset)["cell_lat"])[1, :]
         lonvec = read(root(dataset)["cell_lon"])[:, 1]
-        latgrid=AllignedGrid(order=Ordered(Reverse(), Reverse(), Forward()))
+        latgrid=AlignedGrid(order=Ordered(Reverse(), Reverse(), Forward()))
         (Lon(lonvec), Lat(latvec; grid=latgrid))
     else
         error("projection $proj not supported")
