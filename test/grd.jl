@@ -2,8 +2,9 @@ using GeoData, Test, Statistics, Dates
 using GeoData: name
 include("test_utils.jl")
 
-grdpath = geturl("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd")
-gripath = geturl("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri")
+
+download("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd", "rlogo.grd")
+download("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri", "rlogo.gri")
 path = "rlogo"
 @test isfile(path * ".grd")
 @test isfile(path * ".gri")
@@ -108,8 +109,8 @@ end
 @testset "stack" begin
     grdstack = GeoStack((a=GrdArray(path), b=GrdArray(path)))
 
-    @test grdstack[:a][Lat(1), Lon(1), Band(1)] == 100.0f0
-    @test grdstack[:a][Lat([2,3]), Lon(1), Band(1)] == [0.0f0, 00.0f0] 
+    @test grdstack[:a][Lat(1), Lon(1), Band(1)] == 255.0f0
+    @test grdstack[:a][Lat([2,3]), Lon(1), Band(1)] == [255.0f0, 255.0f0] 
 
     # Stack Constructors
     @testset "conversion to GeoStack" begin
