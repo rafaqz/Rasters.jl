@@ -1,4 +1,4 @@
-using NCDatasets, GeoData, Test, Statistics, Dates
+using NCDatasets, GeoData, Test, Statistics, Dates, CFTime
 using GeoData: Time, window, name
 include("test_utils.jl")
 
