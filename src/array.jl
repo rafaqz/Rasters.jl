@@ -57,7 +57,7 @@ end
     GeoArray(data, dims, refdims, metadata, missingval, name)
 @inline GeoArray(A::DiskGeoArray; 
                  metadata=metadata(A), missingval=missingval(A), name=name(A)) = begin
-    _window = maybewindow2indices(dataset, dims(A), window(A))
+    _window = maybewindow2indices(A, dims(A), window(A))
     _dims, _refdims = slicedims(dims(A), refdims(A), _window)
     data = parent(A) 
     GeoArray(data, _dims, _refdims, metadata, missingval, name)
