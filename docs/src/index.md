@@ -1,6 +1,6 @@
 # GeoData.jl
 
 ```@autodocs
-Modules = [DynamicGrids]
+Modules = [GeoData]
 Order   = [:module, :type, :function, :macro]
 ```
