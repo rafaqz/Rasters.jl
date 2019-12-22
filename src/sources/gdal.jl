@@ -1,4 +1,4 @@
-using ArchGDAL
+using .ArchGDAL
 
 const AG = ArchGDAL
 
@@ -113,35 +113,33 @@ end
 
 # Stack ########################################################################
 
-struct GDALstack{T,D,R,W,M} <: DiskGeoStack{T}
+struct GDALstack{T,R,W,M} <: DiskGeoStack{T}
     filename::T
-    dims::D
     refdims::R
     window::W
     metadata::M
 end
 
 GDALstack(filenames::NamedTuple;
-          dims=gdalapply(dims, first(values(filenames))),
           refdims=(), window=(),
           metadata=gdalapply(metadata, first(values(filenames)))) =
-    GDALstack(filenames, dims, refdims, window, metadata)
+    GDALstack(filenames, refdims, window, metadata)
 
 
-@inline rebuild(s::GDALstack; data=filename(s), dims=dims(s), refdims=refdims(s),
-        window=window(s), metadata=metadata(s)) =
-    GDALstack(data, dims, refdims, window, metadata)
+# @inline rebuild(s::GDALstack; data=filename(s), refdims=refdims(s),
+        # window=window(s), metadata=metadata(s)) =
+    # GDALstack(data, refdims, window, metadata)
 
 safeapply(f, ::GDALstack, path::AbstractString) = gdalapply(f, path)
 
 @inline Base.getindex(s::GDALstack, key::Key, i1::Integer, I::Integer...) =
     gdalapply(filename(s, key)) do dataset
-        _window = maybewindow2indices(dataset, dims(s), window(s))
+        _window = maybewindow2indices(dataset, dims(s, key), window(s))
         readwindowed(dataset, _window, I...)
     end
 @inline Base.getindex(s::GDALstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
     gdalapply(filename(s, key)) do dataset
-        _dims = dims(s)
+        _dims = dims(s, key)
         _window = maybewindow2indices(dataset, _dims, window(s))
         _dims, _refdims = slicedims(slicedims(_dims, refdims(s), _window)..., I)
         A = readwindowed(dataset, _window, I...)
@@ -197,7 +195,7 @@ dims(dataset::AG.Dataset) = begin
         latgrid = BoundedGrid(order=Ordered(Forward(), Reverse(), Forward()), bounds=latbounds)
         lat = Lat(latrange; grid=latgrid)
 
-        formatdims((xsize, ysize, nbands), (lon, lat, band))
+        formatdims((1:xsize, 1:ysize, 1:nbands), (lon, lat, band))
     else
         error("Rotated grids not handled currently")
         # affinemap = geotransform_to_affine(geotransform)
@@ -271,8 +269,6 @@ gdalread(A::GDALarray, I...) =
     gdalapply(filename(A)) do dataset
         readwindowed(dataset, window(A), I...)
     end
-
-readwindowed(A::AG.Dataset, window::Tuple{}) = AG.read(A)
 
 gdalsize(dataset) = begin
     band = AG.getband(dataset, 1)

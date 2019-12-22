@@ -17,6 +17,7 @@ end
 
 # Stack ########################################################################
 
+
 struct SMAPstack{T,D,R,W,M} <: DiskGeoStack{T}
     filename::T
     dims::D
@@ -32,6 +33,7 @@ SMAPstack(filename::String;
           metadata=smapapply(smapmetadata, filename)) =
     SMAPstack(filename, dims, refdims, window, metadata)
 
+# SMAP has fixed dims for all layers, so we store them on the stack.
 dims(stack::SMAPstack, ::Key) = stack.dims
 refdims(stack::SMAPstack) = stack.refdims
 metadata(stack::SMAPstack) = stack.metadata

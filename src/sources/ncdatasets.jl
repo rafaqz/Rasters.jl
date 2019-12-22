@@ -80,30 +80,26 @@ end
 
 # Stack ########################################################################
 
-struct NCDstack{T,D,R,W,M} <: DiskGeoStack{T}
+struct NCDstack{T,R,W,M} <: DiskGeoStack{T}
     filename::T
-    dims::D
     refdims::R
     window::W
     metadata::M
 end
 
 """
-    NCDstack(filepaths::Union{Tuple,Vector}; dims=(), refdims=(), window=(), metadata=Nothing)
+    NCDstack(filepaths::Union{Tuple,Vector}; refdims=(), window=(), metadata=Nothing)
 
 Create a stack from an array or tuple of paths to netcdf files. The first non-dimension
 layer of each file will be used in the stack.
 
 This constructor is intended for handling simple single-layer netcdfs.
 """
-NCDstack(filepaths::Union{Tuple,Vector}; dims=ncapply(dims, first(filepaths)),
-        refdims=(), window=(), metadata=Nothing) = begin
-    keys = Tuple(Symbol.((ncapply(dataset -> first(nondimkeys(dataset)), fp) for fp in filepaths)))
-    NCDstack(NamedTuple{keys}(filepaths), dims, refdims, window, metadata)
-end
-NCDstack(filename::String; dims=ncapply(dims, filename),
-        refdims=(), window=(), metadata=ncapply(metadata, filename)) =
-    NCDstack(filename, dims, refdims, window, metadata)
+NCDstack(filepaths::Union{Tuple,Vector}; refdims=(), window=(), metadata=Nothing,
+         keys=Tuple(Symbol.((ncapply(ds -> first(nondimkeys(ds)), fp) for fp in filepaths)))) =
+    NCDstack(NamedTuple{keys}(filepaths), refdims, window, metadata)
+NCDstack(filename::String; refdims=(), window=(), metadata=ncapply(metadata, filename)) =
+    NCDstack(filename, refdims, window, metadata)
 
 safeapply(f, ::NCDstack, path) = ncapply(f, path)
 

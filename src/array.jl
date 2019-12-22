@@ -11,13 +11,13 @@ metadata(a::AbstractGeoArray) = a.metadata
 missingval(a::AbstractGeoArray) = a.missingval
 window(a::AbstractGeoArray) = a.window
 name(a::AbstractGeoArray) = a.name
-units(a::AbstractGeoArray) = getmeta(a, :units, "")  
+units(a::AbstractGeoArray) = getmeta(a, :units, "")
 label(a::AbstractGeoArray) = string(name(a), " ", units(a))
 
 # Rebuild as GeoArray by default
 rebuild(a::AbstractGeoArray, data, dims, refdims) =
     GeoArray(data, dims, refdims, metadata(a), missingval(a), name(a))
-rebuild(a::AbstractGeoArray; data=parent(a), dims=dims(a), refdims=refdims(a), 
+rebuild(a::AbstractGeoArray; data=parent(a), dims=dims(a), refdims=refdims(a),
         metadata=metadata(a), missingval=missingval(a), name=name(a)) =
     GeoArray(data, dims, refdims, metadata, missingval, name)
 
@@ -48,18 +48,18 @@ struct GeoArray{T,N,A<:AbstractArray{T,N},D<:Tuple,R<:Tuple,Me,Mi,Na} <: MemGeoA
     name::Na
 end
 
-@inline GeoArray(a::AbstractArray{T,N}, dims; refdims=(), metadata=NamedTuple(), 
-                 missingval=missing, name=Symbol("")) where {T,N} = 
-    GeoArray(a, formatdims(a, dims), refdims, metadata, missingval, name)
+@inline GeoArray(A::AbstractArray{T,N}, dims; refdims=(), metadata=NamedTuple(),
+                 missingval=missing, name=Symbol("")) where {T,N} =
+    GeoArray(A, formatdims(A, dims), refdims, metadata, missingval, name)
 
-@inline GeoArray(A::MemGeoArray; data=parent(A), dims=dims(A), refdims=refdims(A), 
+@inline GeoArray(A::MemGeoArray; data=parent(A), dims=dims(A), refdims=refdims(A),
                  metadata=metadata(A), missingval=missingval(A), name=name(A)) =
     GeoArray(data, dims, refdims, metadata, missingval, name)
-@inline GeoArray(A::DiskGeoArray; 
+@inline GeoArray(A::DiskGeoArray;
                  metadata=metadata(A), missingval=missingval(A), name=name(A)) = begin
     _window = maybewindow2indices(A, dims(A), window(A))
     _dims, _refdims = slicedims(dims(A), refdims(A), _window)
-    data = parent(A) 
+    data = parent(A)
     GeoArray(data, _dims, _refdims, metadata, missingval, name)
 end
 
@@ -78,11 +78,11 @@ boolmask(A::AbstractGeoArray, missingval) = parent(A) .!== missingval
 
 missingmask(A::AbstractArray) = missingmask(A, missing)
 missingmask(A::AbstractGeoArray) = missingmask(A, missingval(A))
-missingmask(A::AbstractGeoArray, missingval) = 
+missingmask(A::AbstractGeoArray, missingval) =
     (a -> a === missingval ? missing : false).(parent(A))
 
 """
-    replace_missing(a::AbstractGeoArray, newmissing) 
+    replace_missing(a::AbstractGeoArray, newmissing)
 
 Replace missing values in the array with a new missing value, also
 updating the missingval field.
@@ -102,4 +102,4 @@ end
 @inline getmeta(a::AbstractGeoArray, key, fallback) = getmeta(metadata(a), key, fallback)
 @inline getmeta(m::Nothing, key, fallback) = fallback
 @inline getmeta(m::Union{NamedTuple,Dict}, key, fallback) = key in keys(m) ?  m[key] : fallback
-@inline getmeta(m::Metadata, key, fallback) = getmeta(val(m), key, fallback) 
+@inline getmeta(m::Metadata, key, fallback) = getmeta(val(m), key, fallback)

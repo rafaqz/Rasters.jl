@@ -20,7 +20,6 @@ for func in (:dims, :metadata, :missingval)
         $func(s::AbstractGeoStack, source, key::Key) = $func(source)
     end
 end
-dims(s::AbstractGeoStack) = s.dims
 refdims(s::AbstractGeoStack) = s.refdims
 window(s::AbstractGeoStack) = s.window
 
@@ -107,9 +106,8 @@ Basic stack object. Holds concrete GeoArray layers.
 `view` or `getindex` return another stack with the method
 applied to all layers.
 """
-struct GeoStack{T,D,R,W,M} <: MemGeoStack{T}
+struct GeoStack{T,R,W,M} <: MemGeoStack{T}
     data::T
-    dims::D
     refdims::R
     window::W
     metadata::M
@@ -119,22 +117,16 @@ stackkeys(keys) = Tuple(Symbol.(keys))
 
 GeoStack(data::Vararg{<:AbstractGeoArray}; keys=name.(data), kwargs...) =
     GeoStack(NamedTuple{stackkeys(keys)}(data); kwargs...)
-GeoStack(data::NamedTuple;
-         dims=dims(first(values(data))),
-         refdims=refdims(first(values(data))),
-         window=(), metadata=nothing) =
-    GeoStack(data, dims, refdims, window, metadata)
+GeoStack(data::NamedTuple; refdims=(), window=(), metadata=nothing) =
+    GeoStack(data, refdims, window, metadata)
 GeoStack(s::AbstractGeoStack;
          keys=stackkeys(Base.keys(s)),
          data=NamedTuple{keys}((GeoArray(s[key]) for key in keys)),
-         dims=dims(first(data)),
-         refdims=refdims(first(data)),
-         window=(),
+         refdims=refdims(s),
+         window=(), # Window is allready applied retrieving arrays
          metadata=metadata(s)) =
-    GeoStack(data, dims, refdims, window, metadata)
+    GeoStack(data, refdims, window, metadata)
 
-
-data(s::GeoStack) = s.data
 metadata(s::GeoStack) = s.metadata
 
 safeapply(f, ::GeoStack, source) = f(source)
