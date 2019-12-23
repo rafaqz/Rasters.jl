@@ -9,7 +9,7 @@ windowsize(window::Tuple{}) = ()
 maybewindow2indices(A, dims, window) = 
     window == () ? () : to_indices(A, dims2indices(dims, window))
 
-readwindowed(A, window::Tuple{}) = (println(typeof(A)); Array(A))
+readwindowed(A, window::Tuple{}) = Array(A)
 readwindowed(A, window::Tuple{}, I...) = A[I...]
 readwindowed(A, window, I...) = A[Base.reindex(window, I)...]
 readwindowed(A, window) = A[window...]

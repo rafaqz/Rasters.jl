@@ -3,8 +3,8 @@ using GeoData: name
 include("test_utils.jl")
 
 
-download("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd", "rlogo.grd")
-download("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri", "rlogo.gri")
+geturl("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd", "rlogo.grd")
+geturl("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri", "rlogo.gri")
 path = "rlogo"
 @test isfile(path * ".grd")
 @test isfile(path * ".gri")

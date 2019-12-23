@@ -24,7 +24,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test window(gdalarray) == ()
         @test missingval(gdalarray) == -1.0e10
         @test typeof(metadata(gdalarray)) <: GDALmetadata
-        @test metadata(gdalarray).val["filepath"] == "cea.tif"
+        @test basename(metadata(gdalarray).val["filepath"]) == "cea.tif"
         @test name(gdalarray) == "Unnamed"
     end
 
@@ -32,7 +32,6 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test typeof(gdalarray[Band(1)]) <: GeoArray{UInt8,2} 
         @test typeof(gdalarray[Lat(1), Band(1)]) <: GeoArray{UInt8,1} 
         @test typeof(gdalarray[Lon(1), Band(1)]) <: GeoArray{UInt8,1}
-        # Doesn't handle returning a single value
         @test typeof(gdalarray[Lon(1), Lat(1), Band(1)]) <: UInt8 
         @test typeof(gdalarray[1, 1, 1]) <: UInt8
     end
@@ -55,6 +54,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test name(geoarray) == "Unnamed"
     end
 
+    # Works but saved raster has no geotransform so can't be loaded
     # @testset "save" begin
     #     geoarray = gdalarray[Band(1)]
     #     filename = tempname()
@@ -88,7 +88,7 @@ end
 
     @testset "child array properties" begin
         @test size(gdalstack[:a]) == (514, 515, 1)
-        @test typeof(gdalstack[:a]) <: GeoArray{UInt8,3}
+        @test typeof(gdalstack[:a]) <: GDALarray{UInt8,3}
     end
 
     @testset "indexing" begin
@@ -99,7 +99,7 @@ end
     @testset "window" begin
         windowedstack = GDALstack((a=path, b=path); window=(Lat(1:5), Lon(1:5), Band(1)))
         @test window(windowedstack) == (Lat(1:5), Lon(1:5), Band(1))
-        windowedarray = windowedstack[:a]
+        windowedarray = GeoArray(windowedstack[:a])
         @test typeof(windowedarray) <: GeoArray{UInt8,2}
         @test length.(dims(windowedarray)) == (5, 5)
         @test size(windowedarray) == (5, 5)
@@ -112,12 +112,11 @@ end
         @test windowedarray[1:3, 2:2, 1] == reshape([0x00, 0x00, 0x00], 3, 1)
         @test windowedarray[1:3, 2, 1] == [0x00, 0x00, 0x00]
         @test windowedarray[1, 2, 1] == 0x00
-        windowedstack = GDALstack((a=path, b=path); window=(Band(1),))
-        windowedarray = windowedstack[:b]
-        @test windowedarray[1:3, 2:2, 1:1] == reshape([0x00, 0x00, 0x00], 3, 1, 1)
-        @test windowedarray[1:3, 2:2, 1] == reshape([0x00, 0x00, 0x00], 3, 1)
-        @test windowedarray[1:3, 2, 1] == [0x00, 0x00, 0x00]
-        @test windowedarray[1, 2, 1] == 0x00
+        windowedstack = GDALstack((a=path, b=path); window=Band(1))
+        windowedarray = GeoArray(windowedstack[:b])
+        @test windowedarray[1:3, 2:2] == reshape([0x00, 0x00, 0x00], 3, 1)
+        @test windowedarray[1:3, 2] == [0x00, 0x00, 0x00]
+        @test windowedarray[1, 2] == 0x00
     end
 
 
@@ -140,7 +139,7 @@ end
     end
 
     # @testset "save" begin
-    #     geoarray = GeoArray(grdstack[:a])
+    #     geoarray = GeoArray(geostack[:a])
     #     filename = tempname()
     #     write(filename, GDALarray, gdalstack)
     #     base, ext = splitext(filename)

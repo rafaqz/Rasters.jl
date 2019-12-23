@@ -39,10 +39,10 @@ GDALarray(dataset::AG.Dataset;
           name="Unnamed",
           window=()) = begin
     filename = first(AG.filelist(dataset))
-    if window == ()
-        sze = gdalsize(dataset)
-    else
-        window = dims2indices(dims, window)
+    sze = gdalsize(dataset)
+    if window != ()
+        window = to_indices(dataset, dims2indices(dims, window))
+        println(window)
         sze = windowsize(window)
     end
     T = AG.getdatatype(AG.getband(dataset, 1))
@@ -125,26 +125,14 @@ GDALstack(filenames::NamedTuple;
           metadata=gdalapply(metadata, first(values(filenames)))) =
     GDALstack(filenames, refdims, window, metadata)
 
-
-# @inline rebuild(s::GDALstack; data=filename(s), refdims=refdims(s),
-        # window=window(s), metadata=metadata(s)) =
-    # GDALstack(data, refdims, window, metadata)
-
 safeapply(f, ::GDALstack, path::AbstractString) = gdalapply(f, path)
 
-@inline Base.getindex(s::GDALstack, key::Key, i1::Integer, I::Integer...) =
+@inline Base.getindex(s::GDALstack, key::Key) =
     gdalapply(filename(s, key)) do dataset
-        _window = maybewindow2indices(dataset, dims(s, key), window(s))
-        readwindowed(dataset, _window, I...)
+        GDALarray(dataset; refdims=refdims(s), name=string(key), window=window(s))
     end
 @inline Base.getindex(s::GDALstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
-    gdalapply(filename(s, key)) do dataset
-        _dims = dims(s, key)
-        _window = maybewindow2indices(dataset, _dims, window(s))
-        _dims, _refdims = slicedims(slicedims(_dims, refdims(s), _window)..., I)
-        A = readwindowed(dataset, _window, I...)
-        GeoArray(A, _dims, _refdims, metadata(dataset), missingval(dataset), string(key))
-    end
+    s[key][I...]
 
 
 Base.copy!(dst::AbstractGeoArray, src::GDALstack, key::Key) =
