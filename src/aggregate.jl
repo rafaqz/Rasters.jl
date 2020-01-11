@@ -9,11 +9,10 @@ to sample from.
 function aggregate end
 
 aggregate(stack::AbstractGeoStack, aggregator, scale) = begin
-    namedtuple_mapper = NamedTuple{keys(stack)}(keys(stack))
-    data = map(namedtuple_mapper) do key
+    data = map(NamedTuple{keys(stack)}(keys(stack))) do key
         aggregate(GeoArray(stack[key]), aggregator, scale)
     end
-    GeoStack(stack; data=data, dims=dims(first(data)))
+    GeoStack(stack; data=data)
 end
 
 const DimOrTuple = Union{AbstractDimension,Tuple{Vararg{<:AbstractDimension}}}

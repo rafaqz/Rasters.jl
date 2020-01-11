@@ -86,7 +86,7 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         @test_broken typeof(dims(saved)) == typeof(dims(geoarray))
         @test val(dims(saved)[3]) == val(dims(geoarray)[3])
         @test all(val.(dims(saved)) .== val.(dims(geoarray)))
-        @test all(parent(saved) .=== parent(geoarray))
+        @test all(data(saved) .=== data(geoarray))
         @test_broken typeof(saved) == typeof(geoarray)
     end
 

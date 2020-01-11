@@ -73,7 +73,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
     #     @test_broken val(dims(saved)[3]) == val(dims(geoarray)[3])
     #     @test_broken all(val.(dims(saved)) .== val.(dims(geoarray)))
     #     @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
-    #     @test all(parent(saved) .=== parent(geoarray))
+    #     @test all(data(saved) .=== data(geoarray))
     #     @test typeof(saved) == typeof(geoarray)
     #     geoarray = gdalarray
     #     GeoData.write(filename, GDALarray, geoarray)

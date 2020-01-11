@@ -3,7 +3,7 @@ reorderdims(dims) = map(d -> indexorder(d) == Reverse() ? rebuild(d, reverse(val
 
 preparedata(A) = begin
     A = forwardorder(A)
-    parent(replace_missing(A, NaN))
+    data(replace_missing(A, NaN))
 end
 
 forwardorder(A) = begin

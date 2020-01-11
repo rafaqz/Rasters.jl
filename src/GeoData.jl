@@ -23,8 +23,8 @@ using Base: tail
 using DimensionalData: Time, X, Y, Z, Forward, Reverse, formatdims, slicedims,
       dims2indices, @dim, indexorder, arrayorder, hasdim, StandardIndices
 
-import DimensionalData: val, dims, refdims, metadata, rebuild, rebuildsliced, name, label, units
-
+import DimensionalData: val, data, dims, refdims, metadata, rebuild, rebuildsliced, 
+                        name, label, units
 
 export AbstractGeoArray, GeoArray
 export AbstractGeoStack, GeoStack
@@ -38,6 +38,7 @@ export Lon, Lat, Vert, Band
 @dim Band
 
 include("interface.jl")
+include("metadata.jl")
 include("array.jl")
 include("stack.jl")
 include("series.jl")
@@ -46,6 +47,7 @@ include("utils.jl")
 include("aggregate.jl")
 include("sources/grd.jl")
 
+include("sources/gdal.jl")
 
 function __init__()
     @require HDF5="f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f" begin
@@ -56,7 +58,6 @@ function __init__()
         include("sources/ncdatasets.jl")
     end
     @require ArchGDAL="c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3" begin
-        include("sources/gdal.jl")
     end
 end
 

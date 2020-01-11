@@ -71,6 +71,12 @@ Base.length(s::AbstractGeoStack) = length(keys(s))
 Base.keys(s::AbstractGeoStack{<:AbstractString}) = Symbol.(safeapply(keys, s, source(s)))
 Base.keys(s::AbstractGeoStack{<:NamedTuple}) = Symbol.(keys(source(s)))
 Base.names(s::AbstractGeoStack) = keys(s)
+Base.cat(stacks::AbstractGeoStack...; keys=keys(stacks[1]), dims) = begin
+    vals = Tuple(cat((s[key] for s in stacks)...; dims=dims) for key in keys)
+    GeoStack(stacks[1], data=NamedTuple{keys}(vals))
+end
+Base.first(s::AbstractGeoStack) = s[first(keys(s))]
+Base.last(s::AbstractGeoStack) = s[last(keys(s))]
 
 
 # abstract disk-based stack ######################################################

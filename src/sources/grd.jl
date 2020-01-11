@@ -3,11 +3,11 @@ export GrdArray, GrdMetadata, GrdDimMetadata
 
 # Metadata ########################################################################
 
-struct GrdMetadata{K,V} <: AbstractArrayMetadata{K,V}
+struct GrdMetadata{K,V} <: ArrayMetadata{K,V}
     val::Dict{K,V}
 end
 
-struct GrdDimMetadata{K,V} <: AbstractDimMetadata{K,V}
+struct GrdDimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
 
@@ -25,7 +25,7 @@ struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D}
     size::S
 end
 
-GrdArray(filepath::String; refdims=(), metadata=Dict(), window=()) = begin
+GrdArray(filepath::String; refdims=(), metadata=GrdMetadata(Dict()), window=()) = begin
     filepath = joinpath(dirname(filepath), first(splitext(filepath)))
     lines = readlines(filepath * ".grd")
     entries = filter!(x -> !isempty(x) && !(x[1] == '['), lines)
@@ -40,13 +40,18 @@ GrdArray(filepath::String; refdims=(), metadata=Dict(), window=()) = begin
     N = length(_size)
     xmin, xmax = parse.(Float64, (data["xmin"], data["xmax"]))
     ymin, ymax = parse.(Float64, (data["ymin"], data["ymax"]))
+    crs = ProjString(data["projection"])
     cellx = (xmax - xmin) / nrows
     celly = (ymax - ymin) / ncols
+    latlon_metadata = GrdDimMetadata(Dict(:crs => crs))
 
     lat = Lat(LinRange(xmin, xmax - cellx, nrows);
-              grid=RegularGrid(; order=Ordered(Forward(), Reverse(), Forward()), locus=Start(), span=cellx))
+              grid=RegularGrid(; order=Ordered(Forward(), Reverse(), Forward()), 
+                               locus=Start(), step=cellx),
+              metadata=latlon_metadata)
     lon = Lon(LinRange(ymin, ymax - celly, ncols);
-              grid=RegularGrid(; locus=Start(), span=celly))
+              grid=RegularGrid(; locus=Start(), step=celly),
+              metadata=latlon_metadata)
     band = Band(1:nbands; grid=CategoricalGrid())
     dims = lon, lat, band
     for key in ("creator", "created", "history")
@@ -55,7 +60,6 @@ GrdArray(filepath::String; refdims=(), metadata=Dict(), window=()) = begin
             metadata[key] = val
         end
     end
-    metadata = GrdMetadata(metadata)
     missingval = parse(T, data["nodatavalue"])
     name = get(data, "layername", "unnamed")
 
@@ -63,7 +67,7 @@ GrdArray(filepath::String; refdims=(), metadata=Dict(), window=()) = begin
             }(filepath, dims, refdims, metadata, missingval, name, window, _size)
 end
 
-Base.parent(A::GrdArray) =
+data(A::GrdArray) =
     grdapply(A) do mmap
         _window = maybewindow2indices(mmap, dims(A), window(A))
         readwindowed(mmap, _window)
@@ -94,16 +98,16 @@ Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray) = begin
     ncols, nrows = size(A)
     xmin, xmax = bounds(dims(A, Lat()))
     ymin, ymax = bounds(dims(A, Lon()))
-    proj = "" #convert(String, projection(A))
+    proj = convert(String, crs(dims(A, Lat())))
     datatype = rev_datatype_translation[eltype(A)]
     nodatavalue = missingval(A)
-    minvalue = minimum(filter(x -> x != missingval(A), parent(A)))
-    maxvalue = maximum(filter(x -> x != missingval(A), parent(A)))
+    minvalue = minimum(filter(x -> x != missingval(A), data(A)))
+    maxvalue = maximum(filter(x -> x != missingval(A), data(A)))
     nbands = hasdim(A, Band()) ? length(val(dims(A, Band()))) : 1
 
     # Data: gri file
     open(filename  * ".gri", "w") do IO
-        write(IO, parent(A))
+        write(IO, data(A))
     end
 
     # Metadata: grd file
@@ -114,20 +118,20 @@ Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray) = begin
             creator=GeoData.jl
             created= $(string(now()))
             [georeference]
-            nrows= $(nrows)
-            ncols= $(ncols)
-            xmin= $(xmin)
-            ymin= $(ymin)
-            xmax= $(xmax)
-            ymax= $(ymax)
-            projection= $(proj)
+            nrows= $nrows
+            ncols= $ncols
+            xmin= $xmin
+            ymin= $ymin
+            xmax= $xmax
+            ymax= $ymax
+            projection= $proj
             [data]
-            datatype= $(datatype)
-            nodatavalue= $(nodatavalue)
+            datatype= $datatype
+            nodatavalue= $nodatavalue
             byteorder= little
             nbands= $nbands
-            minvalue= $(minvalue)
-            maxvalue= $(maxvalue)
+            minvalue= $minvalue
+            maxvalue= $maxvalue
             [description]
             layername= $(name(A))
             """

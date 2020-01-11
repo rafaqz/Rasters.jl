@@ -5,6 +5,7 @@ abstract type AbstractGeoArray{T,N,D} <: AbstractDimensionalArray{T,N,D} end
 
 # Interface methods ###########################################################
 
+data(a::AbstractGeoArray) = a.data
 dims(a::AbstractGeoArray) = a.dims
 refdims(a::AbstractGeoArray) = a.refdims
 metadata(a::AbstractGeoArray) = a.metadata
@@ -14,10 +15,13 @@ name(a::AbstractGeoArray) = a.name
 units(a::AbstractGeoArray) = getmeta(a, :units, "")
 label(a::AbstractGeoArray) = string(name(a), " ", units(a))
 
+crs(a::AbstractGeoArray, dim) = crs(dims(a, dim))
+crs(dim::AbstractDimension) = crs(metadata(dim))
+
 # Rebuild as GeoArray by default
 rebuild(a::AbstractGeoArray, data, dims, refdims) =
     GeoArray(data, dims, refdims, metadata(a), missingval(a), name(a))
-rebuild(a::AbstractGeoArray; data=parent(a), dims=dims(a), refdims=refdims(a),
+rebuild(a::AbstractGeoArray; data=data(a), dims=dims(a), refdims=refdims(a),
         metadata=metadata(a), missingval=missingval(a), name=name(a)) =
     GeoArray(data, dims, refdims, metadata, missingval, name)
 
@@ -27,11 +31,15 @@ abstract type DiskGeoArray{T,N,D} <: AbstractGeoArray{T,N,D} end
 
 filename(A::DiskGeoArray) = A.filename
 Base.size(A::DiskGeoArray) = A.size
-window(a::DiskGeoArray) = a.window
+window(A::DiskGeoArray) = A.window
+
+Base.write(A::T) where T <: DiskGeoArray = write(filename(A), A)
+Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray = 
+    write(filename, basetypeof(T), A)
+Base.write(::Type{T}, A::DiskGeoArray) where T <: DiskGeoArray = 
+    write(filename(A), T, A)
 
 # Base/Other methods ###########################################################
-
-Base.parent(a::AbstractGeoArray) = a.data
 
 
 # Concrete implementation ######################################################
@@ -52,21 +60,21 @@ end
                  missingval=missing, name=Symbol("")) where {T,N} =
     GeoArray(A, formatdims(A, dims), refdims, metadata, missingval, name)
 
-@inline GeoArray(A::MemGeoArray; data=parent(A), dims=dims(A), refdims=refdims(A),
+@inline GeoArray(A::MemGeoArray; data=data(A), dims=dims(A), refdims=refdims(A),
                  metadata=metadata(A), missingval=missingval(A), name=name(A)) =
     GeoArray(data, dims, refdims, metadata, missingval, name)
 @inline GeoArray(A::DiskGeoArray;
                  metadata=metadata(A), missingval=missingval(A), name=name(A)) = begin
     _window = maybewindow2indices(A, dims(A), window(A))
     _dims, _refdims = slicedims(dims(A), refdims(A), _window)
-    data = parent(A)
-    GeoArray(data, _dims, _refdims, metadata, missingval, name)
+    _data = data(A)
+    GeoArray(_data, _dims, _refdims, metadata, missingval, name)
 end
 
 dims(a::GeoArray) = a.dims
 
 Base.@propagate_inbounds Base.setindex!(a::GeoArray, x, I::Vararg{<:Union{AbstractArray,Colon,Real}}) =
-    setindex!(parent(a), x, I...)
+    setindex!(data(a), x, I...)
 
 Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
 
@@ -74,12 +82,12 @@ Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
 # Helper methods ##############################################################
 boolmask(A::AbstractArray) = boolmask(A, missing)
 boolmask(A::AbstractGeoArray) = boolmask(A, missingval(A))
-boolmask(A::AbstractGeoArray, missingval) = parent(A) .!== missingval
+boolmask(A::AbstractGeoArray, missingval) = data(A) .!== missingval
 
 missingmask(A::AbstractArray) = missingmask(A, missing)
 missingmask(A::AbstractGeoArray) = missingmask(A, missingval(A))
 missingmask(A::AbstractGeoArray, missingval) =
-    (a -> a === missingval ? missing : false).(parent(A))
+    (a -> a === missingval ? missing : false).(data(A))
 
 """
     replace_missing(a::AbstractGeoArray, newmissing)
@@ -88,12 +96,12 @@ Replace missing values in the array with a new missing value, also
 updating the missingval field.
 """
 replace_missing(a::AbstractGeoArray, newmissing) = begin
-    data = if ismissing(missingval(a))
-        collect(Missings.replace(parent(a), newmissing))
+    newdata = if ismissing(missingval(a))
+        collect(Missings.replace(data(a), newmissing))
     else
-        replace(parent(a), missingval(a) => newmissing)
+        replace(data(a), missingval(a) => newmissing)
     end
-    rebuild(a; data=data, missingval=newmissing)
+    rebuild(a; data=newdata, missingval=newmissing)
 end
 
 

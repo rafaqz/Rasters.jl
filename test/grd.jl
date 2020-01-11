@@ -97,7 +97,7 @@ path = "rlogo"
         @test typeof(dims(saved)) == typeof(dims(geoarray))
         @test all(val.(dims(saved)) .== val.(dims(geoarray)))
         @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
-        @test all(parent(saved) .=== parent(geoarray))
+        @test all(data(saved) .=== data(geoarray))
         @test typeof(saved) == typeof(geoarray)
         write(filename, GrdArray, grdarray)
         saved = GeoArray(GrdArray(filename))

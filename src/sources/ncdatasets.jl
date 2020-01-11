@@ -2,11 +2,11 @@ using .NCDatasets
 
 export NCDarray, NCDstack, NCDmetadata, NCDdimMetadata
 
-struct NCDmetadata{K,V} <: AbstractArrayMetadata{K,V}
+struct NCDmetadata{K,V} <: ArrayMetadata{K,V}
     val::Dict{K,V}
 end
 
-struct NCDdimMetadata{K,V} <: AbstractDimMetadata{K,V}
+struct NCDdimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
 
@@ -45,14 +45,17 @@ NCDarray(dataset::NCDatasets.Dataset, filename;
        }(filename, dims, refdims, metadata, missingval, name, window, sze)
 end
 
-filename(A::NCDarray) = A.filename
-Base.size(A::NCDarray) = A.size
-Base.parent(A::NCDarray) =
+
+data(A::NCDarray) =
     ncapply(filename(A)) do dataset
         var = dataset[name(A)]
         _window = maybewindow2indices(var, dims(A), window(A))
         ncread(var, _window)
     end
+filename(A::NCDarray) = A.filename
+crs(A::NCDarray) = ncapply(crs, filename(A))
+
+Base.size(A::NCDarray) = A.size
 Base.getindex(A::NCDarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
     ncapply(filename(A)) do dataset
         var = dataset[name(A)]
@@ -130,7 +133,7 @@ Base.keys(stack::NCDstack{<:AbstractString}) =
     Tuple(Symbol.(safeapply(nondimkeys, stack, source(stack))))
 
 Base.copy!(dst::AbstractGeoArray, src::NCDstack, key::Key) =
-    copy!(parent(dst), src, key)
+    copy!(data(dst), src, key)
 Base.copy!(dst::AbstractArray, src::NCDstack, key) =
     ncapply(filename(src)) do dataset
         key = string(key)
@@ -176,11 +179,11 @@ ncaddvar!(dataset, A) = begin
     # println("FillValue: ", attrib["_FillValue"])
     _name = string(name(A))
     if _name == "" _name = "Unnamed" end
-    println("writing key: ", _name, " of type: ", eltype(parent(A)))
-    var = defVar(dataset, _name, eltype(parent(A)), lowercase.(name.(dims(A)));
+    println("writing key: ", _name, " of type: ", eltype(data(A)))
+    var = defVar(dataset, _name, eltype(data(A)), lowercase.(name.(dims(A)));
                  attrib=[attrib...])
 
-    var[:] = parent(A)
+    var[:] = data(A)
 end
 
 # DimensionalData methods for NCDatasets types ###############################
@@ -210,11 +213,15 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
     end
     dims = formatdims(v, (dims...,))
 end
+
 metadata(dataset::NCDatasets.Dataset) = NCDmetadata(Dict(dataset.attrib))
 metadata(dataset::NCDatasets.Dataset, key::Key) = metadata(dataset[string(key)])
-
 metadata(var::NCDatasets.CFVariable) = NCDmetadata(Dict(var.attrib))
+
 missingval(var::NCDatasets.CFVariable{<:Union{Missing}}) = missing
+
+# crs(dataset::NCDatasets.Dataset)
+crs(var::NCDatasets.CFVariable) = NCDmetadata(Dict(var.attrib))
 
 
 # Utils ########################################################################

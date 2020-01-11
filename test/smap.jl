@@ -9,30 +9,28 @@ path2 = "SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5"
 if isfile(path1)
     @testset "stack" begin
         stack = SMAPstack(path1)
-        dims(stack, :soil_temp_layer1)
-        keys(stack)
-        names(stack)
 
         @testset "conversion to GeoArray" begin
             smaparray = stack["soil_temp_layer1"][Lon(1:100), Lat(1:100)]
-            @test typeof(smaparray) <: GeoArray{Float32,2}
+            @test smaparray isa GeoArray{Float32,2}
             @test size(smaparray) == (100, 100)
-            @test typeof(dims(smaparray)) <: Tuple{<:Lon{<:Array{Float32,1}}, <:Lat{<:Array{Float32,1}}}
-            @test typeof(refdims(smaparray)) <: Tuple{<:Time} 
+            @test dims(smaparray) isa Tuple{<:Lon{<:Array{Float32,1}}, <:Lat{<:Array{Float32,1}}}
+            @test refdims(smaparray) isa Tuple{<:Time} 
             @test missingval(smaparray) == -9999.0
             @test smaparray[1] == -9999.0
             @test name(smaparray) == "soil_temp_layer1"
             # Why is tagged time different to the filename time? is that just rounded?
-            @test refdims(stack) == (Time(DateTime(2016, 1, 1, 22, 28, 55, 816)),)
+            dt = DateTime(2016, 1, 1, 22, 28, 55, 816)
+            step = Second(10800)
+            @test refdims(stack) == (Time(dt:step:dt; grid= RegularGrid(;step=step)),)
             @test_broken metadata(smaparray) = "not implemented yet"
         end
 
         @testset "conversion to GeoStack" begin
             # Stack Constructors
             # This uses too much ram! There is a lingering memory leak in HDF5.
-            # stack = GeoStack(stack) 
-            # keys(stack)
-            # @test Symbol.(Tuple(keys(stack))) == keys(stack)
+            # geostack = GeoStack(stack) 
+            # @test Symbol.(Tuple(keys(stack))) == keys(geostack)
             geostack = GeoStack(stack; keys=(:baseflow_flux, :snow_mass, :soil_temp_layer1))
             keys(geostack) == (:baseflow_flux, :snow_mass, :soil_temp_layer1)
         end
@@ -40,7 +38,7 @@ if isfile(path1)
         if VERSION > v"1.1-"
             @testset "copy" begin
                 geoarray = zero(stack[:soil_temp_layer1])
-                @test typeof(geoarray) <: GeoArray
+                @test geoarray isa GeoArray
                 @test geoarray != stack[:soil_temp_layer1]
                 copy!(geoarray, stack, :soil_temp_layer1)
                 @test geoarray == stack[:soil_temp_layer1]
@@ -70,10 +68,11 @@ if isfile(path1)
     end
 
     @testset "series" begin
-        series = SMAPseries([path1, path2])
-        @test typeof(series[1]) <: SMAPstack
-        # Bounds are nothing - they need to be input somehow
+        series = SMAPseries([path1, path2]);
+        val.(dims(series))
+        @test series[1] isa SMAPstack
         @test first(bounds(series, Time)) == DateTime(2016, 1, 1, 22, 28, 55, 816)
+        # @test_broken last(bounds(series, Time)) == DateTime(2016, 1, 2, 1, 28, 55, 816)
     end
     
 end

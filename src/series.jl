@@ -9,18 +9,19 @@ abstract type AbstractGeoSeries{T,N,D,CT} <: AbstractGeoArray{T,N,D} end
 
 # Interface methods ####################################################
 
-childtype(series::AbstractGeoSeries) = series.childtype
-childdims(s::AbstractGeoSeries) = s.childdims
-window(series::AbstractGeoSeries) = series.window
+data(A::AbstractGeoSeries) = A.data
+childtype(A::AbstractGeoSeries) = A.childtype
+childdims(A::AbstractGeoSeries) = A.childdims
+window(A::AbstractGeoSeries) = A.window
 
 # Array interface methods ##############################################
 # Mostly these inherit from AbstractGeoArray
 
-Base.getindex(s::AbstractGeoSeries{<:AbstractString}, I::Vararg{<:Integer}) = 
-    childtype(s)(parent(s)[I...]; dims=childdims(s), refdims=slicedims(s, I)[2], 
-                 window=window(s), metadata=metadata(s))
-Base.getindex(s::AbstractGeoSeries{<:AbstractGeoStack}, I::Vararg{<:Integer}) = 
-    rebuild(parent(s)[I...]; window=window(s), refdims=slicedims(s, I)[2])
+Base.getindex(A::AbstractGeoSeries{<:AbstractString}, I::Vararg{<:Integer}) = 
+    childtype(A)(data(A)[I...]; dims=childdims(A), refdims=slicedims(A, I)[2], 
+                 window=window(A), metadata=metadata(A))
+Base.getindex(A::AbstractGeoSeries{<:AbstractGeoStack}, I::Vararg{<:Integer}) = 
+    rebuild(data(A)[I...]; window=window(A), refdims=slicedims(A, I)[2])
 
 
 # Concrete implementation ##############################################
@@ -41,8 +42,8 @@ end
 GeoSeries(data, dims; refdims=(), metadata=Dict(), childtype=GeoStack, childdims=(), window=()) = 
     GeoSeries(data, formatdims(data, dims), refdims, metadata, childtype, childdims, window)
 
-@inline rebuild(s::GeoSeries, data, newdims, newrefdims) =
-    GeoSeries(data, newdims, newrefdims, metadata(s), childtype(s), childdims(s), window(s))
+@inline rebuild(A::GeoSeries, data, newdims, newrefdims) =
+    GeoSeries(data, newdims, newrefdims, metadata(A), childtype(A), childdims(A), window(A))
 
-Base.@propagate_inbounds Base.setindex!(a::GeoSeries, x, I::Vararg{<:Union{AbstractArray,Colon,Real}}) =
-    setindex!(parent(a), x, I...)
+Base.@propagate_inbounds Base.setindex!(A::GeoSeries, x, I::Vararg{<:Union{AbstractArray,Colon,Real}}) =
+    setindex!(data(A), x, I...)

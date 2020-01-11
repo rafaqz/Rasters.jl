@@ -7,11 +7,11 @@ const SMAPEXTENT = "Metadata/Extent"
 const SMAPGEODATA = "Geophysical_Data"
 
 
-struct SMAPmetadata{K,V} <: AbstractArrayMetadata{K,V}
+struct SMAPmetadata{K,V} <: ArrayMetadata{K,V}
     val::Dict{K,V}
 end
 
-struct SMAPdimMetadata{K,V} <: AbstractDimMetadata{K,V}
+struct SMAPdimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
 
@@ -86,7 +86,7 @@ SMAPseries(path::AbstractString; kwargs...) =
     SMAPseries(joinpath.(path, filter_ext(path, ".h5")); kwargs...)
 SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths);
            childtype=SMAPstack,
-           childdims=h5open(smapdims, first(filepaths)),
+           childdims=smapapply(smapdims, first(filepaths)),
            window=(), kwargs...) =
     GeoSeries(filepaths, dims; childtype=childtype, childdims=childdims, window=window, kwargs...)
 
@@ -105,13 +105,14 @@ smaptime(dataset) = begin
     units = read(meta["units"])
     datestart = replace(replace(units, "seconds since " => ""), " " => "T")
     dt = DateTime(datestart) + Dates.Second(read(meta["actual_range"])[1])
-    Time(dt)
+    step = Second(Dates.Time(split(read(meta["delta_t"]))[2]) - Dates.Time("00:00:00"))
+    Time(dt:step:dt; grid=RegularGrid(; step=step))
 end
 
 smapseriestime(filepaths) = begin
-    timeseries = h5open.(dataset -> smaptime(dataset), filepaths)
-    timemeta = metadata(first(timeseries))
-    (Time(val.(timeseries); metadata=timemeta),)
+    timeseries = smapapply.(smaptime, filepaths)
+    # Use the first files time dim as a template, but join vals into an array of times.
+    (rebuild(first(timeseries), first.(timeseries)),)
 end
 
 smapmetadata(dataset) = SMAPmetadata(Dict())
@@ -121,10 +122,15 @@ smapdims(dataset) = begin
     if proj == "lambert_cylindrical_equal_area"
         # There are matrices for lookup but all rows/colums are identical.
         # For performance and simplicity we just take a vector slice for each dim.
+        extent = attrs(root(dataset)[SMAPEXTENT])
         latvec = read(root(dataset)["cell_lat"])[1, :]
         lonvec = read(root(dataset)["cell_lon"])[:, 1]
-        latgrid=AlignedGrid(order=Ordered(Reverse(), Reverse(), Forward()))
-        (Lon(lonvec), Lat(latvec; grid=latgrid))
+        lonbounds = extent["westBoundLongitude"], extent["eastBoundLongitude"]
+        latbounds = extent["northBoundLatitude"], extent["southBoundLatitude"]
+        longrid=BoundedGrid(; bounds=lonbounds)
+        latgrid=BoundedGrid(; order=Ordered(Reverse(), Reverse(), Forward()),
+                            bounds=latbounds)
+        (Lon(lonvec; grid=longrid), Lat(latvec; grid=latgrid))
     else
         error("projection $proj not supported")
     end
