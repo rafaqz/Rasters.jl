@@ -34,9 +34,9 @@ Base.size(A::DiskGeoArray) = A.size
 window(A::DiskGeoArray) = A.window
 
 Base.write(A::T) where T <: DiskGeoArray = write(filename(A), A)
-Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray = 
+Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
     write(filename, basetypeof(T), A)
-Base.write(::Type{T}, A::DiskGeoArray) where T <: DiskGeoArray = 
+Base.write(::Type{T}, A::DiskGeoArray) where T <: DiskGeoArray =
     write(filename(A), T, A)
 
 # Base/Other methods ###########################################################
@@ -47,7 +47,7 @@ Base.write(::Type{T}, A::DiskGeoArray) where T <: DiskGeoArray =
 """
 A generic, memory-backed spatial array type.
 """
-struct GeoArray{T,N,A<:AbstractArray{T,N},D<:Tuple,R<:Tuple,Me,Mi,Na} <: MemGeoArray{T,N,D}
+struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Me,Mi,Na} <: MemGeoArray{T,N,D}
     data::A
     dims::D
     refdims::R
@@ -81,13 +81,21 @@ Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
 
 # Helper methods ##############################################################
 boolmask(A::AbstractArray) = boolmask(A, missing)
-boolmask(A::AbstractGeoArray) = boolmask(A, missingval(A))
-boolmask(A::AbstractGeoArray, missingval) = data(A) .!== missingval
+boolmask(A::AbstractGeoArray) =
+    rebuild(A; data=boolmask(A, missingval(A)), missingval=false, name="Boolean mask")
+boolmask(A::AbstractGeoArray, missingval::Missing) =
+    (x -> !ismissing(x)).(data(A))
+boolmask(A::AbstractGeoArray, missingval) =
+    (x -> !isapprox(x, missingval)).(data(A))
 
 missingmask(A::AbstractArray) = missingmask(A, missing)
-missingmask(A::AbstractGeoArray) = missingmask(A, missingval(A))
+missingmask(A::AbstractGeoArray) =
+    rebuild(A; data=missingmask(A, missingval(A)), missingval=missing, name="Missing mask")
+missingmask(A::AbstractGeoArray, missingval::Missing) =
+    (a -> ismissing(a) ? missing : true).(data(A))
 missingmask(A::AbstractGeoArray, missingval) =
-    (a -> a === missingval ? missing : false).(data(A))
+    (a -> isapprox(a, missingval) ? missing : true).(data(A))
+
 
 """
     replace_missing(a::AbstractGeoArray, newmissing)
@@ -103,7 +111,6 @@ replace_missing(a::AbstractGeoArray, newmissing) = begin
     end
     rebuild(a; data=newdata, missingval=newmissing)
 end
-
 
 # Utils ########################################################################
 
