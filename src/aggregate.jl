@@ -8,14 +8,19 @@ to sample from.
 """
 function aggregate end
 
+
+const DimOrTuple = Union{AbstractDimension,Tuple{Vararg{<:AbstractDimension}}}
+
+aggregate(series::AbstractGeoSeries, aggregator, scale::DimOrTuple) =
+    map(x -> aggregate(x, aggregator, scale), series)
+aggregate(series::AbstractGeoSeries, aggregator, scale) =
+    map(x -> aggregate(x, aggregator, scale), series)
 aggregate(stack::AbstractGeoStack, aggregator, scale) = begin
     data = map(NamedTuple{keys(stack)}(keys(stack))) do key
         aggregate(GeoArray(stack[key]), aggregator, scale)
     end
     GeoStack(stack; data=data)
 end
-
-const DimOrTuple = Union{AbstractDimension,Tuple{Vararg{<:AbstractDimension}}}
 
 aggregate(src::AbstractGeoArray, aggregator, scale::DimOrTuple) =
     aggregate(src, aggregator, dims2indices(src, scale))
