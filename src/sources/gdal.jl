@@ -168,7 +168,7 @@ dims(dataset::AG.Dataset) = begin
         lonmin = gt[GDAL_TOPLEFT_X]
         lonmax = lonmin + lonspan * xsize
         loncoords = reproject(tuple.(LinRange(lonmin, lonmax - lonspan, xsize), 0.0), sourcecrs, targetcrs)
-        if loncoords[1][1] != loncoords[end][1]
+        if !isapprox(loncoords[1][1], loncoords[end][1]; rtol=1e-5)
             error("Longitude dimension is not grid-alligned $(loncoords[1][1]) $(loncoords[end][1])")
         end
         lonrange = last.(loncoords)
@@ -180,7 +180,7 @@ dims(dataset::AG.Dataset) = begin
         latmax = gt[GDAL_TOPLEFT_Y]
         latmin = latmax + latspan * (ysize - 1)
         latcoords = reproject(tuple.(0.0, LinRange(latmin, latmax, ysize)), sourcecrs, targetcrs)
-        if latcoords[1][2] != latcoords[end][2]
+        if !isapprox(latcoords[1][2], latcoords[end][2]; rtol=1e-5)
             error("Latitude dimension is not grid-alligned $(latcoords[1][2]) $(latcoords[end][2])")
         end
         latrange = first.(latcoords)
