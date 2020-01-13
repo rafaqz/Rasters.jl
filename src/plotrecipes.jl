@@ -1,10 +1,10 @@
 
 reorderdims(dims) = map(d -> indexorder(d) == Reverse() ? rebuild(d, reverse(val(d))) : d, dims)
 
-preparedata(A) = begin
-    A = forwardorder(A)
-    data(replace_missing(A, NaN))
-end
+preparedata(A) = A |> forwardorder |> maybenanmissing |> data
+
+maybenanmissing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, missing)
+maybenanmissing(A) = A
 
 forwardorder(A) = begin
     for (i, dim) in enumerate(dims(A))
@@ -15,7 +15,11 @@ forwardorder(A) = begin
     A
 end
 
-@recipe function f(A::AbstractGeoArray{T,3,<:Tuple{<:Lat,<:Lon,D}}) where {T,D}
+@recipe function f(A::AbstractGeoArray)
+    GeoArray(A)
+end
+
+@recipe function f(A::GeoArray{T,3,<:Tuple{<:Lat,<:Lon,D}}) where {T,D}
     nplots = size(A, 3)
     if nplots > 1
         layout --> nplots
@@ -34,11 +38,11 @@ end
 end
 
 # TODO generalise for any dimension order
-@recipe function f(A::AbstractGeoArray{T,3,<:Tuple{Vararg{Union{<:Lon,<:Lat,D}}}}) where {T,D}
+@recipe function f(A::GeoArray{T,3,<:Tuple{Vararg{Union{<:Lon,<:Lat,D}}}}) where {T,D}
     permutedims(A, (Lat, Lon, D))
 end
 
-@recipe function f(A::AbstractGeoArray{T,2,<:Tuple{<:Lat,<:Lon}}) where T
+@recipe function f(A::GeoArray{T,2,<:Tuple{<:Lat,<:Lon}}) where T
     seriestype --> :heatmap
     aspect_ratio --> 1
     grid --> false
@@ -49,6 +53,6 @@ end
     (reverse(val.(reorderdims(dims(A))))..., preparedata(A))
 end
 
-@recipe function f(A::AbstractGeoArray{T,2,<:Tuple{<:Lon,<:Lat}}) where T
+@recipe function f(A::GeoArray{T,2,<:Tuple{<:Lon,<:Lat}}) where T
     permutedims(A)
 end
