@@ -56,7 +56,7 @@ GrdArray(filepath::String; refdims=(), metadata=GrdMetadata(Dict()), window=()) 
     dims = lon, lat, band
     for key in ("creator", "created", "history")
         val = get(data, key, "")
-        if val !== ""
+        if val != ""
             metadata[key] = val
         end
     end

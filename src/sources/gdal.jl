@@ -1,4 +1,4 @@
-using ArchGDAL
+using .ArchGDAL
 
 const AG = ArchGDAL
 
