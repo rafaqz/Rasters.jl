@@ -22,8 +22,9 @@ crs(dim::AbstractDimension) = crs(metadata(dim))
 rebuild(a::AbstractGeoArray, data, dims, refdims) =
     GeoArray(data, dims, refdims, metadata(a), missingval(a), name(a))
 rebuild(a::AbstractGeoArray; data=data(a), dims=dims(a), refdims=refdims(a),
-        metadata=metadata(a), missingval=missingval(a), name=name(a)) =
+        metadata=metadata(a), missingval=missingval(a), name=name(a)) = begin
     GeoArray(data, dims, refdims, metadata, missingval, name)
+end
 
 abstract type MemGeoArray{T,N,D} <: AbstractGeoArray{T,N,D} end
 
@@ -63,12 +64,11 @@ end
 @inline GeoArray(A::MemGeoArray; data=data(A), dims=dims(A), refdims=refdims(A),
                  metadata=metadata(A), missingval=missingval(A), name=name(A)) =
     GeoArray(data, dims, refdims, metadata, missingval, name)
-@inline GeoArray(A::DiskGeoArray;
+@inline GeoArray(A::DiskGeoArray; data=data(A), dims=dims(A), refdims=refdims(A),
                  metadata=metadata(A), missingval=missingval(A), name=name(A)) = begin
-    _window = maybewindow2indices(A, dims(A), window(A))
-    _dims, _refdims = slicedims(dims(A), refdims(A), _window)
-    _data = data(A)
-    GeoArray(_data, _dims, _refdims, metadata, missingval, name)
+    _window = maybewindow2indices(A, dims, window(A))
+    _dims, _refdims = slicedims(dims, refdims, _window)
+    GeoArray(data, _dims, _refdims, metadata, missingval, name)
 end
 
 dims(a::GeoArray) = a.dims
@@ -103,7 +103,7 @@ missingmask(A::AbstractGeoArray, missingval) =
 Replace missing values in the array with a new missing value, also
 updating the missingval field.
 """
-replace_missing(a::AbstractGeoArray, newmissing) = begin
+replace_missing(a::AbstractGeoArray, newmissing=missing) = begin
     newdata = if ismissing(missingval(a))
         collect(Missings.replace(data(a), newmissing))
     else
