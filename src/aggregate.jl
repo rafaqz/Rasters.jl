@@ -1,6 +1,9 @@
 
+const DimOrTuple = Union{AbstractDimension,Tuple{Vararg{<:AbstractDimension}}}
+const IntOrTuple = Union{Int,Tuple{Vararg{<:Int}}}
+
 """
-    aggregate(x, aggregator, scale)
+    aggregate(x, method, scale)
 
 Aggregate array, or the arrays in a stack or series by some scale,
 using some aggregation function or a [`Locus`] type to specify the position
@@ -8,51 +11,53 @@ to sample from.
 """
 function aggregate end
 
+aggregate(x; method=Center(), scale) = aggregate(x, method, scale)
 
-const DimOrTuple = Union{AbstractDimension,Tuple{Vararg{<:AbstractDimension}}}
-
-aggregate(series::AbstractGeoSeries, aggregator, scale::DimOrTuple) =
-    map(x -> aggregate(x, aggregator, scale), series)
-aggregate(series::AbstractGeoSeries, aggregator, scale) =
-    map(x -> aggregate(x, aggregator, scale), series)
-aggregate(stack::AbstractGeoStack, aggregator, scale) = begin
+aggregate(series::AbstractGeoSeries, method, scale::DimOrTuple) =
+    map(x -> aggregate(x, method, scale), series)
+aggregate(series::AbstractGeoSeries, method, scale) =
+    map(x -> aggregate(x, method, scale), series)
+aggregate(stack::AbstractGeoStack, method, scale) = begin
     data = map(NamedTuple{keys(stack)}(keys(stack))) do key
-        aggregate(GeoArray(stack[key]), aggregator, scale)
+        aggregate(stack[key], method, scale)
     end
     GeoStack(stack; data=data)
 end
 
-aggregate(src::AbstractGeoArray, aggregator, scale::DimOrTuple) =
-    aggregate(src, aggregator, dims2indices(src, scale))
-aggregate(src::AbstractGeoArray, aggregator, scale) =
-    aggregate!(init_aggregation(src, aggregator, scale), src, aggregator, scale)
+aggregate(src::AbstractGeoArray, method, scale::DimOrTuple) =
+    aggregate(src, method, dims2indices(src, scale))
+aggregate(src::AbstractGeoArray, method, scale::IntOrTuple) =
+    aggregate(GeoArray(src), method, scale)
+aggregate(src::GeoArray, method, scale::IntOrTuple) =
+    aggregate!(init_aggregation(src, method, scale), src, method, scale)
 
 """
-    downsample!(out::AbstractMatrix, a::AbstractMatrix, aggregator, scale)
+    downsample!(out::AbstractMatrix, a::AbstractMatrix, method, scale)
 
 Downsample matrix `a` to another matrix `out` of the correct size.
 
-- `aggregator` is a function such as mean or sum that can combine the
+- `method` is a function such as mean or sum that can combine the
     value of multiple cells to generate the aggregated cell.
 - `scale` is the aggregation factor.
 """
-aggregate!(dst, src, aggregator, scale::DimOrTuple) =
-    aggregate!(dst, src, aggregator, dims2indices(src, scale))
-aggregate!(dst::AbstractGeoArray, src, aggregator::Locus, scale) =
-    aggregate!(dst::AbstractGeoArray, src, (aggregator,), scale)
-aggregate!(dst::AbstractGeoArray, src, aggregator::Tuple{Locus,Vararg}, scale) = begin
-    offset = locusoffset.(aggregator, scale)
+aggregate!(dst, src, method, scale::DimOrTuple) =
+    aggregate!(dst, src, method, dims2indices(src, scale))
+# Loci methods
+aggregate!(dst::AbstractGeoArray, src, locus::Locus, scale) =
+    aggregate!(dst, src, (locus,), scale)
+aggregate!(dst::AbstractGeoArray, src, loci::Tuple{Locus,Vararg}, scale) = begin
+    offsets = beginoffset.(loci, scale)
     for I in CartesianIndices(dst)
-        dst[I] = src[(upsample.(Tuple(I), scale) .+ offset)...]
+        dst[I] = src[(upsample.(Tuple(I), scale) .+ offsets)...]
     end
     dst
 end
-
-aggregate!(dst::AbstractGeoArray, src, aggregator, scale) = begin
+# Func/functor methods
+aggregate!(dst::AbstractGeoArray, src, f, scale) = begin
     for I in CartesianIndices(dst)
-        I1 = upsample.(Tuple(I), scale)
-        I2 = min.(size(src), I1 .+ scale .- 1)
-        dst[I] = aggregator(view(src, map(:, I1, I2)...))
+        topleft = upsample.(Tuple(I), scale)
+        bottomright = topleft .+ scale .- 1
+        dst[I] = f(view(src, map(:, topleft, bottomright)...))
     end
     dst
 end
@@ -62,13 +67,15 @@ end
 
 Generate an array for aggregating array `A` by `scale`.
 """
-init_aggregation(A::AbstractArray, aggregator, scale) = begin
-    _dims = map(aggregate, dims(A), scale)
-    rebuild(A; data=similar(A, size(A) .÷ scale), dims=_dims)
+init_aggregation(A::AbstractArray, method, scale) =
+    init_aggregation(A::AbstractArray, (method,), scale)
+init_aggregation(A::AbstractArray, method::Tuple, scale) = begin
+    _dims = aggregate.(dims(A), method, scale)
+    # Dim aggregation determines the array size 
+    lengths = map(length, _dims)
+    _data = similar(data(A), lengths)
+    rebuild(A; data=_data, dims=_dims)
 end
-
-aggregate(dim::AbstractDimension, scale) =
-    rebuild(dim; val=dim[firstindex(dim):scale:lastindex(dim)])
 
 """
     upsample(index, scale)
@@ -84,22 +91,21 @@ Convert indicies from the original array to the aggregated array.
 """
 downsample(index, scale) = (index - 1) ÷ scale + 1
 
-
-aggregate(dim::AbstractDimension, aggregator, scale) =
-    aggregate(grid(dim), dim, aggregator, scale)
-aggregate(grid, dim::AbstractDimension, aggregator, scale) =
-    aggregate(val(dim), grid, dim, aggregator, scale)
-
-aggregate(index::AbstractRange, grid, dim, aggregator, scale) = begin
-    offset = locusoffset(aggregator, scale)
-    rebuild(dim, LinRange(index[1 + offset], index[end - scale + 1 + offset], length(index) ÷ scale))
+aggregate(dim::AbstractDimension, method, scale) =
+    aggregate(grid(dim), dim, method, scale)
+aggregate(grid, dim::AbstractDimension, method, scale) = begin
+    start, stop = endpoints(dim, method, scale)
+    rebuild(dim, val(dim)[start:scale:stop])
 end
 
-aggregate(index::AbstractArray, grid, dim, aggregator, scale) = begin
-    offset = locusoffset(aggregator, scale)
-    rebuild(dim, [index[(i - 1) * scale + offset] for i in 1:(length(index) ÷ scale)])
+endpoints(dim, method, scale) = begin
+    start = firstindex(dim) + beginoffset(dim, method, scale)
+    stop = (length(dim) ÷ scale) * scale
+    start, stop
 end
 
-locusoffset(locus::Start, scale) = 0
-locusoffset(locus::End, scale) = scale - 1
-locusoffset(locus::Center, scale) = scale ÷ 2
+beginoffset(dim, locus::Locus, scale) = beginoffset(locus, scale)
+beginoffset(dim, method, scale) = beginoffset(locus(dim), scale)
+beginoffset(locus::Start, scale) = 0
+beginoffset(locus::End, scale) = scale - 1
+beginoffset(locus::Center, scale) = scale ÷ 2
