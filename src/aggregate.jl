@@ -24,10 +24,10 @@ aggregate(stack::AbstractGeoStack, method, scale) = begin
     GeoStack(stack; data=data)
 end
 
-aggregate(src::AbstractGeoArray, method, scale::DimOrTuple) =
-    aggregate(src, method, dims2indices(src, scale))
-aggregate(src::AbstractGeoArray, method, scale::IntOrTuple) =
+aggregate(src::AbstractGeoArray, method, scale) =
     aggregate(GeoArray(src), method, scale)
+aggregate(src::GeoArray, method, scale::DimOrTuple) =
+    aggregate(src, method, dims2indices(src, scale))
 aggregate(src::GeoArray, method, scale::IntOrTuple) =
     aggregate!(init_aggregation(src, method, scale), src, method, scale)
 
@@ -71,7 +71,7 @@ init_aggregation(A::AbstractArray, method, scale) =
     init_aggregation(A::AbstractArray, (method,), scale)
 init_aggregation(A::AbstractArray, method::Tuple, scale) = begin
     _dims = aggregate.(dims(A), method, scale)
-    # Dim aggregation determines the array size 
+    # Dim aggregation determines the array size
     lengths = map(length, _dims)
     _data = similar(data(A), lengths)
     rebuild(A; data=_data, dims=_dims)
