@@ -164,13 +164,8 @@ ncaddvar!(dataset, A) = begin
         haskey(dataset.dim, key) && continue
         index = [val(dim)...]
         defDim(dataset, key, length(index))
-        # if isnothing(metadata(dim))
         println("writing key: ", string(key))
         defVar(dataset, key, index, (key,))
-        # TODO this hangs.
-        # if typeof(dim) <: DimensionalData.Time
-            # defVar(dataset, key, index, (key,); attrib=[metadata(dim)...])
-        # end
     end
     attrib = Dict()
     if !ismissing(missingval(A))
@@ -201,7 +196,24 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
             # Get the attrib metadata
             order = dvar[end] > dvar[1] ? Ordered(Forward(), Forward(), Forward()) :
                                           Ordered(Reverse(), Reverse(), Forward())
-            grid = AlignedGrid(order=order)
+
+            # Assume the locus is at the center of the cell if boundaries aren't provided.
+            # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
+
+            if eltype(dvar) isa Number
+                beginhalfcell = abs((dvar[2] - dvar[1]) * 0.5)
+                endhalfcell = abs((dvar[end] - dvar[end-1]) * 0.5)
+                bounds = if isrev(indexorder(order))
+                    dvar[end] - endhalfcell, dvar[1] + beginhalfcell
+                else
+                    dvar[1] - beginhalfcell, dvar[end] + endhalfcell
+                end
+                grid = BoundedGrid(order=order, locus=Center(), bounds=bounds)
+            else
+                grid = AlignedGrid(order=order)
+            end
+
+
             meta = metadata(dvar)
             # Add the dim containing the dimension var array
             push!(dims, dimconstructor(dvar[:], grid, meta))
@@ -221,7 +233,7 @@ metadata(var::NCDatasets.CFVariable) = NCDmetadata(Dict(var.attrib))
 missingval(var::NCDatasets.CFVariable{<:Union{Missing}}) = missing
 
 # crs(dataset::NCDatasets.Dataset)
-crs(var::NCDatasets.CFVariable) = NCDmetadata(Dict(var.attrib))
+# crs(var::NCDatasets.CFVariable) = NCDmetadata(Dict(var.attrib))
 
 
 # Utils ########################################################################

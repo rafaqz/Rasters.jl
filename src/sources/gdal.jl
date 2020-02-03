@@ -186,7 +186,7 @@ dims(dataset::AG.Dataset) = begin
         latrange = first.(latcoords)
         latbounds = latrange[1], reproject([(0.0, latmax)], sourcecrs, targetcrs)[1][2]
         # latbounds = latmin, latmax
-        latgrid = BoundedGrid(order=Ordered(Forward(), Reverse(), Forward()), bounds=latbounds)
+        latgrid = BoundedGrid(order=Ordered(Forward(), Reverse(), Reverse()), bounds=latbounds)
         lat = Lat(latrange; grid=latgrid, metadata=lonlat_metadata)
 
         formatdims((1:xsize, 1:ysize, 1:nbands), (lon, lat, band))

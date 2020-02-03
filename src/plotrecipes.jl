@@ -1,5 +1,12 @@
 
-reorderdims(dims) = map(d -> indexorder(d) == Reverse() ? rebuild(d, reverse(val(d))) : d, dims)
+reorderdims(dims) =
+    map(dims) do d
+        if isrev(DimensionalData.indexorder(d))
+            rebuild(d, reverse(val(d)))
+        else
+            d
+        end
+    end
 
 preparedata(A) = A |> forwardorder |> maybenanmissing |> data
 
