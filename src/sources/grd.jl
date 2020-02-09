@@ -26,7 +26,7 @@ struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D}
 end
 
 GrdArray(filepath::String; refdims=(), metadata=GrdMetadata(Dict()), window=()) = begin
-    filepath = joinpath(dirname(filepath), first(splitext(filepath)))
+    filepath = first(splitext(filepath))
     lines = readlines(filepath * ".grd")
     entries = filter!(x -> !isempty(x) && !(x[1] == '['), lines)
     data = Dict((c = match(r"([^=]+)=(.*)", st); string(c.captures[1]) => string(strip(c.captures[2]))) for st in entries)
