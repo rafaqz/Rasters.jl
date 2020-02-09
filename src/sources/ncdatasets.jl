@@ -12,7 +12,7 @@ end
 
 # Array ########################################################################
 
-struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D}
+struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D,LazyArray{T,N}}
     filename::A
     dims::D
     refdims::R

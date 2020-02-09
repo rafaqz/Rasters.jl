@@ -17,8 +17,8 @@ end
 
 # Array ########################################################################
 
-struct GDALarray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D}
-    filename::A
+struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D,LazyArray{T,N}}
+    filename::F
     dims::D
     refdims::R
     metadata::Me

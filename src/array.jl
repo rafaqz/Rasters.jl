@@ -1,7 +1,12 @@
 """
 Spatial array types that can be indexed using dimensions.
 """
-abstract type AbstractGeoArray{T,N,D} <: AbstractDimensionalArray{T,N,D} end
+abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
+
+# Marker singlton for lazy loaded arrays, only used for broadcasting
+# Can be removed when DiskArrays.jl is used everywhere
+struct LazyArray{T,N} <: AbstractArray{T,N} end
+
 
 # Interface methods ###########################################################
 
@@ -26,9 +31,18 @@ rebuild(a::AbstractGeoArray; data=data(a), dims=dims(a), refdims=refdims(a),
     GeoArray(data, dims, refdims, metadata, missingval, name)
 end
 
-abstract type MemGeoArray{T,N,D} <: AbstractGeoArray{T,N,D} end
 
-abstract type DiskGeoArray{T,N,D} <: AbstractGeoArray{T,N,D} end
+"""
+Abstract supertype for all memory-backed GeoArrays where the data is an array.
+"""
+abstract type MemGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
+
+
+"""
+Abstract supertype for all disk-backed GeoArrays. 
+For these the data is lazyily loaded from disk.
+"""
+abstract type DiskGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
 
 filename(A::DiskGeoArray) = A.filename
 Base.size(A::DiskGeoArray) = A.size
@@ -40,15 +54,13 @@ Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
 Base.write(::Type{T}, A::DiskGeoArray) where T <: DiskGeoArray =
     write(filename(A), T, A)
 
-# Base/Other methods ###########################################################
-
 
 # Concrete implementation ######################################################
 
 """
 A generic, memory-backed spatial array type.
 """
-struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Me,Mi,Na} <: MemGeoArray{T,N,D}
+struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Me,Mi,Na} <: MemGeoArray{T,N,D,A}
     data::A
     dims::D
     refdims::R
@@ -78,38 +90,11 @@ Base.@propagate_inbounds Base.setindex!(a::GeoArray, x, I::DimensionalData.Stand
 
 Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
 
-
-# Helper methods ##############################################################
-boolmask(A::AbstractArray) = boolmask(A, missing)
-boolmask(A::AbstractGeoArray) =
-    rebuild(A; data=boolmask(A, missingval(A)), missingval=false, name="Boolean mask")
-boolmask(A::AbstractGeoArray, missingval::Missing) =
-    (x -> !ismissing(x)).(data(A))
-boolmask(A::AbstractGeoArray, missingval) =
-    (x -> !isapprox(x, missingval)).(data(A))
-
-missingmask(A::AbstractArray) = missingmask(A, missing)
-missingmask(A::AbstractGeoArray) =
-    rebuild(A; data=missingmask(A, missingval(A)), missingval=missing, name="Missing mask")
-missingmask(A::AbstractGeoArray, missingval::Missing) =
-    (a -> ismissing(a) ? missing : true).(data(A))
-missingmask(A::AbstractGeoArray, missingval) =
-    (a -> isapprox(a, missingval) ? missing : true).(data(A))
-
-
-"""
-    replace_missing(a::AbstractGeoArray, newmissing)
-
-Replace missing values in the array with a new missing value, also
-updating the missingval field.
-"""
-replace_missing(a::AbstractGeoArray, newmissing=missing) = begin
-    newdata = if ismissing(missingval(a))
-        collect(Missings.replace(data(a), newmissing))
-    else
-        replace(data(a), missingval(a) => newmissing)
-    end
-    rebuild(a; data=newdata, missingval=newmissing)
+# Manually add broadcast style to GeoArray until all sources are real arrays
+# and we have access to type parameter A for all of them.
+Base.BroadcastStyle(::Type{<:GeoArray{T,N,D,R,A}}) where {T,N,D,R,A} = begin
+    inner_style = typeof(Base.BroadcastStyle(A))
+    return DimensionalData.DimensionalStyle{inner_style}()
 end
 
 # Utils ########################################################################

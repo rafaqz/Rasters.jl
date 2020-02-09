@@ -44,6 +44,7 @@ include("series.jl")
 include("plotrecipes.jl")
 include("utils.jl")
 include("aggregate.jl")
+include("methods.jl")
 include("sources/grd.jl")
 
 

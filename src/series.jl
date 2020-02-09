@@ -5,7 +5,7 @@ This is useful abstraction where data is broken into separate
 files accross one or more dimensions, and need to be loaded
 separately.
 """
-abstract type AbstractGeoSeries{T,N,D,CT} <: AbstractGeoArray{T,N,D} end
+abstract type AbstractGeoSeries{T,N,D,A,C} <: AbstractDimensionalArray{T,N,D,A} end
 
 # Interface methods ####################################################
 
@@ -31,18 +31,17 @@ Base.getindex(A::AbstractGeoSeries{<:AbstractGeoStack}, I::Vararg{<:Integer}) =
 """
 Series hold paths to array or stack files, along some dimension(s).
 """
-struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},M,CT,CD,V} <: AbstractGeoSeries{T,N,D,CT}
+struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},M,C,V} <: AbstractGeoSeries{T,N,D,A,C}
     data::A
     dims::D
     refdims::R
     metadata::M
-    childtype::CT
-    childdims::CD
+    childtype::C
     window::V
 end
 
-GeoSeries(data, dims; refdims=(), metadata=Dict(), childtype=GeoStack, childdims=(), window=()) =
-    GeoSeries(data, formatdims(data, dims), refdims, metadata, childtype, childdims, window)
+GeoSeries(data, dims; refdims=(), metadata=Dict(), childtype=GeoStack, window=()) =
+    GeoSeries(data, formatdims(data, dims), refdims, metadata, childtype, window)
 
 @inline rebuild(A::GeoSeries, data, newdims, newrefdims) =
     GeoSeries(data, newdims, newrefdims, metadata(A), childtype(A), childdims(A), window(A))
