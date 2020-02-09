@@ -31,10 +31,10 @@ export AbstractGeoSeries, GeoSeries
 export missingval, mask, replace_missing, aggregate
 export Lon, Lat, Vert, Band
 
-@dim Lon "Longitude"
-@dim Lat "Latitude"
-@dim Vert "Vertical"
-@dim Band
+@dim Lon XDim "Longitude" "Lon"
+@dim Lat YDim "Latitude" "Lat"
+@dim Vert ZDim "Vertical" "Vert"
+@dim Band CategoricalDim
 
 include("interface.jl")
 include("metadata.jl")

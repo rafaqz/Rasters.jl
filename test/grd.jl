@@ -5,7 +5,7 @@ include("test_utils.jl")
 
 geturl("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd", "rlogo.grd")
 geturl("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri", "rlogo.gri")
-path = "rlogo"
+path = "data/rlogo"
 @test isfile(path * ".grd")
 @test isfile(path * ".gri")
 
