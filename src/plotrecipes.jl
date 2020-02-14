@@ -53,8 +53,8 @@ end
     seriestype --> :heatmap
     aspect_ratio --> 1
     grid --> false
-    ylabel --> name(dims(A)[1])
-    xlabel --> name(dims(A)[2])
+    #ylabel --> name(dims(A)[1])
+    #xlabel --> name(dims(A)[2])
     colorbar_title --> name(A)
     title --> join(map(d -> string(name(d), " ", val(d)), refdims(A)), ", ")
     (reverse(val.(reorderdims(dims(A))))..., preparedata(A))

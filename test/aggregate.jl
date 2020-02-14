@@ -1,5 +1,5 @@
 using GeoData, Test, Dates, Statistics
-using GeoData: Time, Start, Center, End,
+using GeoData: Start, Center, End,
       formatdims, dims, aggregate, upsample, downsample
 
 
@@ -35,7 +35,7 @@ array2a = GeoArray(data4, dimz)
 stack1 = GeoStack(array1, array2; keys=(:array1, :array2))
 stack2 = GeoStack(array1a, array2a; keys=(:array1, :array2))
 dates = [DateTime(2017), DateTime(2018)]
-series = GeoSeries([stack1, stack2], (Time(dates),));
+series = GeoSeries([stack1, stack2], (Ti(dates),));
 
 @testset "Aggregate at a locus" begin
     @testset "single scale single locus" begin
@@ -60,6 +60,7 @@ series = GeoSeries([stack1, stack2], (Time(dates),));
         @test length.(dims(A)) == size(A)
     end
     @testset "mixed locus" begin
+        scale = 3
         @test aggregate(array1, (End(), Start()), 3) == [13 16]
         @test aggregate(array1, (End(), Start()), (3, 2)) == [13 15 17]
         A = aggregate(array1, (End(), Start()), scale)

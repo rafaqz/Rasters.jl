@@ -13,6 +13,8 @@ data(A::AbstractGeoSeries) = A.data
 childtype(A::AbstractGeoSeries) = A.childtype
 childdims(A::AbstractGeoSeries) = A.childdims
 window(A::AbstractGeoSeries) = A.window
+name(A::AbstractGeoSeries) = ""
+label(A::AbstractGeoSeries) = ""
 
 # Array interface methods ##############################################
 # Mostly these inherit from AbstractGeoArray
