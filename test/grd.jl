@@ -68,7 +68,7 @@ path = "data/rlogo"
     @testset "conversion to GeoArray" begin
         geoarray = grdarray[Lon(1:50), Lat(1:1), Band(1)]
         @test size(geoarray) == (50, 1)
-        @test eltype(geoarray isa Float32
+        @test eltype(geoarray) isa Float32
         @time geoarray isa GeoArray{Float32,1} 
         @test dims(geoarray) isa Tuple{<:Lon,Lat}
         @test refdims(geoarray) isa Tuple{<:Band} 
