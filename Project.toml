@@ -15,8 +15,8 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 
 [compat]
-DimensionalData = "0.5, 0.7"
-GeoFormatTypes = "0.2"
+DimensionalData = "^0.7.1"
+GeoFormatTypes = "^0.2.1"
 Missings = "0.4"
 Mixers = "0.1"
 RecipesBase = "0.7, 0.8"

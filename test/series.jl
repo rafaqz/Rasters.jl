@@ -20,10 +20,10 @@ series = GeoSeries([stack1, stack2], (Time(dates),));
 @test issorted(dates)
 
 @testset "getindex returns the currect types" begin
-    @test typeof(series[Time(1)]) <: GeoStack{<:NamedTuple}
-    @test typeof(series[Time(1)][:ga2]) <: GeoArray{Int,2}
-    @test typeof(series[Time(1)][:ga2, 1, 1]) <: Int
-    @test typeof(series[Time(1)][:ga2][1, 1]) <: Int
+    @test series[Time(1)] isa GeoStack{<:NamedTuple}
+    @test series[Time(1)][:ga2] isa GeoArray{Int,2}
+    @test series[Time(1)][:ga2, 1, 1] isa Int
+    @test series[Time(1)][:ga2][1, 1] isa Int
 end
 
 @testset "getindex returns the currect results" begin

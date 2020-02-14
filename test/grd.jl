@@ -13,13 +13,13 @@ path = "data/rlogo"
     grdarray = GeoData.GrdArray(path);
 
     @testset "array properties" begin
-        @test typeof(grdarray) <: GrdArray{Float32,3}
+        @test grdarray isa GrdArray{Float32,3}
     end
 
     @testset "dimensions" begin
         @test length(val(dims(dims(grdarray), Lon))) == 101
         @test ndims(grdarray) == 3
-        @test typeof(dims(grdarray)) <: Tuple{<:Lon,<:Lat,<:Band}
+        @test dims(grdarray) isa Tuple{<:Lon,<:Lat,<:Band}
         @test refdims(grdarray) == ()
         @test bounds(grdarray) == ((0.0, 77.0), (0.0, 101.0), (1, 3))
     end
@@ -27,16 +27,16 @@ path = "data/rlogo"
     @testset "other fields" begin
         @test GeoData.window(grdarray) == ()
         @test missingval(grdarray) == -3.4f38 
-        @test typeof(metadata(grdarray)) <: GrdMetadata
+        @test metadata(grdarray) isa GrdMetadata
         @test name(grdarray) == "red:green:blue"
     end
 
     @testset "getindex" begin 
-        @test typeof(grdarray[Band(1)]) <: GeoArray{Float32,2} 
-        @test typeof(grdarray[Lat(1), Band(1)]) <: GeoArray{Float32,1} 
-        @test typeof(grdarray[Lon(1), Band(1)]) <: GeoArray{Float32,1}
-        @test typeof(grdarray[Lon(1), Lat(1), Band(1)]) <: Float32 
-        @test typeof(grdarray[1, 1, 1]) <: Float32
+        @test grdarray[Band(1)] isa GeoArray{Float32,2} 
+        @test grdarray[Lat(1), Band(1)] isa GeoArray{Float32,1} 
+        @test grdarray[Lon(1), Band(1)] isa GeoArray{Float32,1}
+        @test grdarray[Lon(1), Lat(1), Band(1)] isa Float32 
+        @test grdarray[1, 1, 1] isa Float32
     end
 
     # @testset "setindex" begin 
@@ -60,18 +60,18 @@ path = "data/rlogo"
 
     @testset "selectors" begin
         geoarray = grdarray[Lat(Near(3)), Lon(:), Band(1)]
-        @test typeof(geoarray) <: GeoArray{Float32,1}
+        @test geoarray isa GeoArray{Float32,1}
         # @test bounds(a) == ()
-        @test typeof(grdarray[Lon(Near(20)), Lat(Near(10)), Band(1)]) <: Float32
+        @test grdarray[Lon(Near(20)), Lat(Near(10)), Band(1)] isa Float32
     end
 
     @testset "conversion to GeoArray" begin
         geoarray = grdarray[Lon(1:50), Lat(1:1), Band(1)]
         @test size(geoarray) == (50, 1)
         @test eltype(geoarray) <: Float32
-        @time typeof(geoarray) <: GeoArray{Float32,1} 
-        @test typeof(dims(geoarray)) <: Tuple{<:Lon,Lat}
-        @test typeof(refdims(geoarray)) <: Tuple{<:Band} 
+        @time geoarray isa GeoArray{Float32,1} 
+        @test dims(geoarray) isa Tuple{<:Lon,Lat}
+        @test refdims(geoarray) isa Tuple{<:Band} 
         @test metadata(geoarray) == metadata(grdarray)
         @test missingval(geoarray) == -3.4f38
         @test name(geoarray) == "red:green:blue"
@@ -94,11 +94,11 @@ path = "data/rlogo"
         @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
         @test GeoData.name(saved) == GeoData.name(geoarray)
         @test all(DimensionalData.grid.(dims(saved[Band(1)])) .== DimensionalData.grid.(dims(geoarray)))
-        @test typeof(dims(saved)) == typeof(dims(geoarray))
+        @test dims(saved) isa typeof(dims(geoarray))
         @test all(val.(dims(saved)) .== val.(dims(geoarray)))
         @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
         @test all(data(saved) .=== data(geoarray))
-        @test typeof(saved) == typeof(geoarray)
+        @test saved isa typeof(geoarray)
         write(filename, GrdArray, grdarray)
         saved = GeoArray(GrdArray(filename))
         @test size(saved) == size(grdarray)

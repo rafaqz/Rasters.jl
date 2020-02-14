@@ -17,13 +17,14 @@ end
 
 # Array ########################################################################
 
-struct GDALarray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D}
-    filename::A
+struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
+                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
+    filename::F
     dims::D
     refdims::R
+    name::Na
     metadata::Me
     missingval::Mi
-    name::Na
     window::W
     size::S
 end
@@ -33,9 +34,9 @@ GDALarray(filename::AbstractString; kwargs...) =
 GDALarray(dataset::AG.Dataset;
           dims=dims(dataset),
           refdims=(),
+          name="",
           metadata=metadata(dataset),
           missingval=missingval(dataset),
-          name="Unnamed",
           window=()) = begin
     filename = first(AG.filelist(dataset))
     sze = gdalsize(dataset)
@@ -45,8 +46,8 @@ GDALarray(dataset::AG.Dataset;
     end
     T = AG.pixeltype(AG.getband(dataset, 1))
     N = length(sze)
-    GDALarray{T,N,typeof.((filename,dims,refdims,metadata,missingval,name,window,sze))...
-       }(filename, dims, refdims, metadata, missingval, name, window, sze)
+    GDALarray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,window,sze))...
+       }(filename, dims, refdims, name, metadata, missingval, window, sze)
 end
 
 filename(A::GDALarray) = A.filename

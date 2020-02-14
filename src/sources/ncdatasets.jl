@@ -1,8 +1,12 @@
 using .NCDatasets
 
-export NCDarray, NCDstack, NCDmetadata, NCDdimMetadata
+export NCDarray, NCDstack, NCDstackMetadata, NCDarrayMetadata, NCDdimMetadata
 
-struct NCDmetadata{K,V} <: ArrayMetadata{K,V}
+struct NCDstackMetadata{K,V} <: ArrayMetadata{K,V}
+    val::Dict{K,V}
+end
+
+struct NCDarrayMetadata{K,V} <: ArrayMetadata{K,V}
     val::Dict{K,V}
 end
 
@@ -12,13 +16,14 @@ end
 
 # Array ########################################################################
 
-struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D}
+struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
+               } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
     filename::A
     dims::D
     refdims::R
+    name::Na
     metadata::Me
     missingval::Mi
-    name::Na
     window::W
     size::S
 end
@@ -28,10 +33,17 @@ NCDarray(filename::AbstractString; kwargs...) =
 NCDarray(dataset::NCDatasets.Dataset, filename;
          dims=dims(dataset),
          refdims=(),
-         name=first(nondimkeys(dataset)),
-         metadata = metadata(dataset),
+         name=nothing,
+         metadata=nothing,
          window=()) = begin
-    var = dataset[name]
+    key = first(nondimkeys(dataset))
+    var = dataset[key]
+    if name isa Nothing
+        name = key
+    end
+    if metadata isa Nothing
+        metadata = GeoData.metadata(var, GeoData.metadata(dataset))
+    end
     if window == ()
         sze = size(var)
     else
@@ -41,8 +53,8 @@ NCDarray(dataset::NCDatasets.Dataset, filename;
     missingval = missing
     T = eltype(var)
     N = length(sze)
-    NCDarray{T,N,typeof.((filename,dims,refdims,metadata,missingval,name,window,sze))...
-       }(filename, dims, refdims, metadata, missingval, name, window, sze)
+    NCDarray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,window,sze))...
+       }(filename, dims, refdims, name, metadata, missingval, window, sze)
 end
 
 
@@ -73,7 +85,9 @@ Base.getindex(A::NCDarray, I::Vararg{<:Integer}) =
     end
 
 Base.write(filename::AbstractString, ::Type{NCDarray}, A::AbstractGeoArray) = begin
-    dataset = NCDatasets.Dataset(filename, "c")
+    # Remove the dataset metadata
+    stackmd = pop!(deepcopy(val(metadata(A))), "dataset", Dict())
+    dataset = NCDatasets.Dataset(filename, "c"; attrib=stackmd)
     try
         ncaddvar!(dataset, A)
     finally
@@ -98,7 +112,7 @@ layer of each file will be used in the stack.
 
 This constructor is intended for handling simple single-layer netcdfs.
 """
-NCDstack(filepaths::Union{Tuple,Vector}; refdims=(), window=(), metadata=Nothing,
+NCDstack(filepaths::Union{Tuple,Vector}; refdims=(), window=(), metadata=nothing,
          keys=Tuple(Symbol.((ncapply(ds -> first(nondimkeys(ds)), fp) for fp in filepaths)))) =
     NCDstack(NamedTuple{keys}(filepaths), refdims, window, metadata)
 NCDstack(filename::String; refdims=(), window=(), metadata=ncapply(metadata, filename)) =
@@ -121,7 +135,7 @@ safeapply(f, ::NCDstack, path) = ncapply(f, path)
         _window = maybewindow2indices(var, _dims, window(s))
         _dims, _refdims = slicedims(slicedims(_dims, refdims(s), _window)..., I)
         A = ncread(var, _window, I...)
-        GeoArray(A, _dims, _refdims, metadata(s), missingval(s), key)
+        GeoArray(A, _dims, _refdims, key, metadata(s), missingval(s))
     end
 
 dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
@@ -149,36 +163,6 @@ Base.write(filename::AbstractString, ::Type{NCDstack}, s::AbstractGeoStack) = be
     finally
         close(dataset)
     end
-end
-
-ncaddvar!(dataset, A) = begin
-    A = forwardorder(A)
-    if ismissing(missingval(A))
-        fillvalue = get(metadata(A), "_FillValue", NaN)
-        A = replace_missing(A, convert(eltype(A), fillvalue))
-    end
-
-    # Define required dims
-    for dim in dims(A)
-        key = lowercase(name(dim))
-        haskey(dataset.dim, key) && continue
-        index = [val(dim)...]
-        defDim(dataset, key, length(index))
-        println("writing key: ", string(key))
-        defVar(dataset, key, index, (key,))
-    end
-    attrib = Dict()
-    if !ismissing(missingval(A))
-        attrib["_FillValue"] = convert(eltype(A), missingval(A))
-    end
-    # println("FillValue: ", attrib["_FillValue"])
-    _name = string(name(A))
-    if _name == "" _name = "Unnamed" end
-    println("writing key: ", _name, " of type: ", eltype(data(A)))
-    var = defVar(dataset, _name, eltype(data(A)), lowercase.(name.(dims(A)));
-                 attrib=[attrib...])
-
-    var[:] = data(A)
 end
 
 # DimensionalData methods for NCDatasets types ###############################
@@ -226,9 +210,14 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
     dims = formatdims(v, (dims...,))
 end
 
-metadata(dataset::NCDatasets.Dataset) = NCDmetadata(Dict(dataset.attrib))
+metadata(dataset::NCDatasets.Dataset) = NCDstackMetadata(Dict{String,Any}(dataset.attrib))
 metadata(dataset::NCDatasets.Dataset, key::Key) = metadata(dataset[string(key)])
-metadata(var::NCDatasets.CFVariable) = NCDmetadata(Dict(var.attrib))
+metadata(var::NCDatasets.CFVariable) = NCDarrayMetadata(Dict{String,Any}(var.attrib))
+metadata(var::NCDatasets.CFVariable, stackmetadata::NCDstackMetadata) = begin
+    md = metadata(var)
+    md["dataset"] = stackmetadata
+    md
+end
 
 missingval(var::NCDatasets.CFVariable{<:Union{Missing}}) = missing
 
@@ -261,7 +250,6 @@ ncread(A, window::Tuple{}, I...) = A[I...]
 ncread(A, window, I...) = A[Base.reindex(window, I)...]
 ncread(A, window) = A[window...]
 
-
 nondimkeys(dataset) = begin
     dimkeys = keys(dataset.dim)
     removekeys = if "bnds" in dimkeys
@@ -272,4 +260,41 @@ nondimkeys(dataset) = begin
         dimkeys
     end
     setdiff(keys(dataset), removekeys)
+end
+
+"""
+Add a var array to a dataset before writing it. 
+"""
+ncaddvar!(dataset, A) = begin
+    A = forwardorder(A)
+    if ismissing(missingval(A))
+        # TODO default _FillValue for Int?
+        fillvalue = get(metadata(A), "_FillValue", NaN)
+        A = replace_missing(A, convert(eltype(A), fillvalue))
+    end
+    # Define required dims
+    for dim in dims(A)
+        key = lowercase(name(dim))
+        haskey(dataset.dim, key) && continue
+        index = [val(dim)...]
+        md = metadata(dim)
+        attribvec = md isa Nothing ? [] : [val(md)...]
+        defDim(dataset, key, length(index))
+        println("writing key: ", key, " of type: ", eltype(index))
+        defVar(dataset, key, index, (key,); attrib=attribvec)
+    end
+    # TODO actually convert the metadata type
+    attrib = deepcopy(val(metadata(A)))
+    # Remove stack metdata if it is attached
+    pop!(attrib, "dataset", nothing)
+    # Set missing value
+    if !ismissing(missingval(A))
+        attrib["_FillValue"] = convert(eltype(A), missingval(A))
+    end
+    key = name(A)
+    println("writing key: ", key, " of type: ", eltype(A))
+    dimnames = lowercase.(name.(dims(A)))
+    attribvec=[attrib...]
+    var = defVar(dataset, key, eltype(A), dimnames; attrib=attribvec)
+    var[:] = data(A)
 end

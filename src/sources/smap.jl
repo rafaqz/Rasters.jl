@@ -86,9 +86,8 @@ SMAPseries(path::AbstractString; kwargs...) =
     SMAPseries(joinpath.(path, filter_ext(path, ".h5")); kwargs...)
 SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths);
            childtype=SMAPstack,
-           childdims=smapapply(smapdims, first(filepaths)),
            window=(), kwargs...) =
-    GeoSeries(filepaths, dims; childtype=childtype, childdims=childdims, window=window, kwargs...)
+    GeoSeries(filepaths, dims; childtype=childtype, window=window, kwargs...)
 
 
 # Utils ########################################################################
