@@ -14,18 +14,24 @@ end
 
 # Array ########################################################################
 
-struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D,LazyArray{T,N}}
+struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
+               } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
     filename::A
     dims::D
     refdims::R
+    name::Na
     metadata::Me
     missingval::Mi
-    name::Na
     window::W
     size::S
 end
 
-GrdArray(filepath::String; refdims=(), metadata=GrdMetadata(Dict()), window=()) = begin
+GrdArray(filepath::String; 
+         refdims=(), 
+         name=nothing, 
+         metadata=GrdMetadata(Dict()), 
+         window=(),
+        ) = begin
     filepath = first(splitext(filepath))
     lines = readlines(filepath * ".grd")
     entries = filter!(x -> !isempty(x) && !(x[1] == '['), lines)
@@ -61,10 +67,12 @@ GrdArray(filepath::String; refdims=(), metadata=GrdMetadata(Dict()), window=()) 
         end
     end
     missingval = parse(T, data["nodatavalue"])
-    name = get(data, "layername", "unnamed")
+    if !(name isa String)
+        name = get(data, "layername", "")
+    end
 
-    GrdArray{T,N,typeof.((filepath,dims,refdims,metadata,missingval,name,window,_size))...
-            }(filepath, dims, refdims, metadata, missingval, name, window, _size)
+    GrdArray{T,N,typeof.((filepath,dims,refdims,name,metadata,missingval,window,_size))...
+            }(filepath, dims, refdims, name, metadata, missingval, window, _size)
 end
 
 data(A::GrdArray) =

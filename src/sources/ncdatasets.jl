@@ -12,13 +12,14 @@ end
 
 # Array ########################################################################
 
-struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,S} <: DiskGeoArray{T,N,D,LazyArray{T,N}}
+struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
+               } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
     filename::A
     dims::D
     refdims::R
+    name::Na
     metadata::Me
     missingval::Mi
-    name::Na
     window::W
     size::S
 end
@@ -41,8 +42,8 @@ NCDarray(dataset::NCDatasets.Dataset, filename;
     missingval = missing
     T = eltype(var)
     N = length(sze)
-    NCDarray{T,N,typeof.((filename,dims,refdims,metadata,missingval,name,window,sze))...
-       }(filename, dims, refdims, metadata, missingval, name, window, sze)
+    NCDarray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,window,sze))...
+       }(filename, dims, refdims, name, metadata, missingval, window, sze)
 end
 
 
@@ -121,7 +122,7 @@ safeapply(f, ::NCDstack, path) = ncapply(f, path)
         _window = maybewindow2indices(var, _dims, window(s))
         _dims, _refdims = slicedims(slicedims(_dims, refdims(s), _window)..., I)
         A = ncread(var, _window, I...)
-        GeoArray(A, _dims, _refdims, metadata(s), missingval(s), key)
+        GeoArray(A, _dims, _refdims, key, metadata(s), missingval(s))
     end
 
 dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
