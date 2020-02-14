@@ -9,13 +9,13 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
-        @test typeof(gdalarray) <: GDALarray{UInt8,3}
+        @test gdalarray isa GDALarray{UInt8,3}
     end
 
     @testset "dimensions" begin
         @test length(val(dims(dims(gdalarray), Lon))) == 514
         @test ndims(gdalarray) == 3
-        @test typeof(dims(gdalarray)) <: Tuple{<:Lon,<:Lat,<:Band}
+        @test dims(gdalarray) isa Tuple{<:Lon,<:Lat,<:Band}
         @test refdims(gdalarray) == ()
         @test_broken bounds(gdalarray) 
     end
@@ -23,22 +23,22 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
     @testset "other fields" begin
         @test window(gdalarray) == ()
         @test missingval(gdalarray) == -1.0e10
-        @test typeof(metadata(gdalarray)) <: GDALmetadata
+        @test metadata(gdalarray) isa GDALmetadata
         @test basename(metadata(gdalarray).val["filepath"]) == "cea.tif"
         @test name(gdalarray) == "Unnamed"
     end
 
     @testset "indexing" begin 
-        @test typeof(gdalarray[Band(1)]) <: GeoArray{UInt8,2} 
-        @test typeof(gdalarray[Lat(1), Band(1)]) <: GeoArray{UInt8,1} 
-        @test typeof(gdalarray[Lon(1), Band(1)]) <: GeoArray{UInt8,1}
-        @test typeof(gdalarray[Lon(1), Lat(1), Band(1)]) <: UInt8 
-        @test typeof(gdalarray[1, 1, 1]) <: UInt8
+        @test gdalarray[Band(1)] isa GeoArray{UInt8,2} 
+        @test gdalarray[Lat(1), Band(1)] isa GeoArray{UInt8,1} 
+        @test gdalarray[Lon(1), Band(1)] isa GeoArray{UInt8,1}
+        @test gdalarray[Lon(1), Lat(1), Band(1)] isa UInt8 
+        @test gdalarray[1, 1, 1] isa UInt8
     end
 
     @testset "selectors" begin
         geoarray = gdalarray[Lat(Near(3)), Lon(:), Band(1)]
-        @test typeof(geoarray) <: GeoArray{UInt8,1}
+        @test geoarray isa GeoArray{UInt8,1}
         @test gdalarray[Lon(10), Lat(10), Band(1)] == 0x73
     end
 
@@ -46,9 +46,9 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         geoarray = gdalarray[Lon(1:50), Lat(1:1), Band(1)]
         @test size(geoarray) == (50, 1)
         @test eltype(geoarray) <: UInt8
-        @time typeof(geoarray) <: GeoArray{UInt8,1} 
-        @test typeof(dims(geoarray)) <: Tuple{<:Lon,Lat}
-        @test typeof(refdims(geoarray)) <: Tuple{<:Band} 
+        @time geoarray isa GeoArray{UInt8,1} 
+        @test dims(geoarray) isa Tuple{<:Lon,Lat}
+        @test refdims(geoarray) isa Tuple{<:Band} 
         @test metadata(geoarray) == metadata(gdalarray)
         @test missingval(geoarray) == -1.0e10
         @test name(geoarray) == "Unnamed"
@@ -88,7 +88,7 @@ end
 
     @testset "child array properties" begin
         @test size(gdalstack[:a]) == (514, 515, 1)
-        @test typeof(gdalstack[:a]) <: GDALarray{UInt8,3}
+        @test gdalstack[:a] isa GDALarray{UInt8,3}
     end
 
     @testset "indexing" begin
@@ -100,7 +100,7 @@ end
         windowedstack = GDALstack((a=path, b=path); window=(Lat(1:5), Lon(1:5), Band(1)))
         @test window(windowedstack) == (Lat(1:5), Lon(1:5), Band(1))
         windowedarray = GeoArray(windowedstack[:a])
-        @test typeof(windowedarray) <: GeoArray{UInt8,2}
+        @test windowedarray isa GeoArray{UInt8,2}
         @test length.(dims(windowedarray)) == (5, 5)
         @test size(windowedarray) == (5, 5)
         @test windowedarray[1:3, 2:2] == reshape([0x00, 0x00, 0x00], 3, 1)
