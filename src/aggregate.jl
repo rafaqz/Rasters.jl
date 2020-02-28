@@ -1,5 +1,5 @@
 
-const DimOrTuple = Union{AbstractDimension,Tuple{Vararg{<:AbstractDimension}}}
+const DimOrTuple = Union{Dimension,Tuple{Vararg{<:Dimension}}}
 const IntOrTuple = Union{Int,Tuple{Vararg{<:Int}}}
 
 """
@@ -91,9 +91,9 @@ Convert indicies from the original array to the aggregated array.
 """
 downsample(index, scale) = (index - 1) ÷ scale + 1
 
-aggregate(dim::AbstractDimension, method, scale) =
+aggregate(dim::Dimension, method, scale) =
     aggregate(grid(dim), dim, method, scale)
-aggregate(grid, dim::AbstractDimension, method, scale) = begin
+aggregate(grid, dim::Dimension, method, scale) = begin
     start, stop = endpoints(dim, method, scale)
     rebuild(dim, val(dim)[start:scale:stop])
 end

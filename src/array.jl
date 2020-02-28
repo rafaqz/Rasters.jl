@@ -20,16 +20,16 @@ name(A::AbstractGeoArray) = A.name
 units(A::AbstractGeoArray) = getmeta(A, :units, "")
 label(A::AbstractGeoArray) = string(name(A), " ", units(A))
 
+# TODO fix this
 crs(A::AbstractGeoArray, dim) = crs(dims(A, dim))
-crs(dim::AbstractDimension) = crs(metadata(dim))
+crs(dim::Dimension) = get(metadata(dim), :crs, nothing)
 
 # Rebuild all types of AbstractGeoArray as GeoArray
 rebuild(A::AbstractGeoArray, data, dims::Tuple, refdims, name=name(A)) =
     GeoArray(data, dims, refdims, name, metadata(A), missingval(A))
 rebuild(A::AbstractGeoArray; data=data(A), dims=dims(A), refdims=refdims(A),
-        name=name(A), metadata=metadata(A), missingval=missingval(A)) = begin
+        name=name(A), metadata=metadata(A), missingval=missingval(A)) =
     GeoArray(data, dims, refdims, name, metadata, missingval)
-end
 
 
 """
@@ -39,7 +39,7 @@ abstract type MemGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
 
 
 """
-Abstract supertype for all disk-backed GeoArrays. 
+Abstract supertype for all disk-backed GeoArrays.
 For these the data is lazyily loaded from disk.
 """
 abstract type DiskGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
@@ -69,9 +69,9 @@ struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na<:AbstractString,M
     missingval::Mi
 end
 
-@inline GeoArray(A::AbstractArray{T,N}, dims; 
-                 refdims=(), 
-                 name="", 
+@inline GeoArray(A::AbstractArray{T,N}, dims;
+                 refdims=(),
+                 name="",
                  metadata=NamedTuple(),
                  missingval=missing,
                 ) where {T,N} =

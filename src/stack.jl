@@ -63,7 +63,7 @@ Base.copy!(dst::AbstractArray, src::AbstractGeoStack, key) =
     rebuild(s; data=NamedTuple{keys(s)}(a[I...] for a in values(s)))
 
 # Dict/Array hybrid
-@inline Base.getindex(s::AbstractGeoStack, key::Key, I::Vararg{<:AbstractDimension}) =
+@inline Base.getindex(s::AbstractGeoStack, key::Key, I::Vararg{<:Dimension}) =
     getindex(s, key, dims2indices(dims(s), I)...)
 
 Base.values(s::AbstractGeoStack) = (s[key] for key in keys(s))

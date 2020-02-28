@@ -105,7 +105,7 @@ smaptime(dataset) = begin
     datestart = replace(replace(units, "seconds since " => ""), " " => "T")
     dt = DateTime(datestart) + Dates.Second(read(meta["actual_range"])[1])
     step = Second(Dates.Time(split(read(meta["delta_t"]))[2]) - Dates.Time("00:00:00"))
-    Time(dt:step:dt; grid=RegularGrid(; step=step))
+    Ti(dt:step:dt; grid=RegularGrid(; step=step))
 end
 
 smapseriestime(filepaths) = begin

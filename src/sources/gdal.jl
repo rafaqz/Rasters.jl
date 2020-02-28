@@ -76,36 +76,36 @@ Base.getindex(A::GDALarray, i1::Integer, I::Vararg{<:Integer}) =
 
 Base.write(filename::AbstractString, ::Type{GDALarray}, A::GeoArray{T,2}) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GTiff")
-    driver = AG.getdriver("GTiff")
     A = permutedims(A, (Lon(), Lat()))
-    dataset = AG.unsafe_create(filename, driver;
-        width = size(A, 1),
-        height = size(A, 2),
-        nbands = 1,
-        dtype = T
+    dataset = AG.unsafe_create(filename;
+        width=size(A, 1),
+        height=size(A, 2),
+        nbands=1,
+        dtype=T
     )
-    proj = convert(String, crs(A))
+    proj = convert(String, crs(dims(A, Lat)))
     AG.setproj!(dataset, proj)
     AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
     AG.write!(dataset, data(A), 1)
     AG.destroy(dataset)
+    return filename
 end
 Base.write(filename::AbstractString, ::Type{GDALarray}, A::GeoArray{T,3}) where T = begin
     DimensionalData.hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
     nbands = size(A, Band())
-    driver = AG.getdriver("GTiff") # Returns NULL Driver?
     A = permutedims(A, (Lon(), Lat(), Band()))
-    dataset = AG.unsafe_create(filename, driver;
-        width = size(A, 1),
-        height = size(A, 2),
-        nbands = nbands,
-        dtype = T
+    dataset = AG.unsafe_create(filename;
+        width=size(A, 1),
+        height=size(A, 2),
+        nbands=nbands,
+        dtype=T,
     )
-    proj = convert(String, projection(A))
+    proj = convert(String, crs(dims(A, Lat)))
     AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
     AG.setproj!(dataset, proj)
     AG.write!(dataset, data(A), Cint[1])
     AG.destroy(dataset)
+    return filename
 end
 
 

@@ -234,7 +234,7 @@ const dimmap = Dict("lat" => Lat,
                     "lon" => Lon,
                     "long" => Lon,
                     "longitude" => Lon,
-                    "time" => Time,
+                    "time" => Ti,
                     "lev" => Vert,
                     "level" => Vert,
                     "vertical" => Vert,
@@ -263,7 +263,7 @@ nondimkeys(dataset) = begin
 end
 
 """
-Add a var array to a dataset before writing it. 
+Add a var array to a dataset before writing it.
 """
 ncaddvar!(dataset, A) = begin
     A = forwardorder(A)
@@ -278,7 +278,7 @@ ncaddvar!(dataset, A) = begin
         haskey(dataset.dim, key) && continue
         index = [val(dim)...]
         md = metadata(dim)
-        attribvec = md isa Nothing ? [] : [val(md)...]
+        attribvec = [] #md isa Nothing ? [] : [val(md)...]
         defDim(dataset, key, length(index))
         println("writing key: ", key, " of type: ", eltype(index))
         defVar(dataset, key, index, (key,); attrib=attribvec)

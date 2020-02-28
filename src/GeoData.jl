@@ -19,7 +19,7 @@ using Missings,
 @reexport using DimensionalData
 
 using Base: tail
-using DimensionalData: Time, X, Y, Z, Forward, Reverse, formatdims, slicedims,
+using DimensionalData: Forward, Reverse, formatdims, slicedims,
       dims2indices, @dim, indexorder, arrayorder, hasdim, StandardIndices, isrev
 
 import DimensionalData: val, data, dims, refdims, metadata, rebuild, rebuildsliced,
