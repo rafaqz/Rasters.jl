@@ -22,7 +22,7 @@ if isfile(path1)
             # Why is tagged time different to the filename time? is that just rounded?
             dt = DateTime(2016, 1, 1, 22, 28, 55, 816)
             step = Second(10800)
-            @test refdims(stack) == (Time(dt:step:dt; grid= RegularGrid(;step=step)),)
+            @test refdims(stack) == (Ti(dt:step:dt; grid= RegularGrid(;step=step)),)
             @test_broken metadata(smaparray) = "not implemented yet"
         end
 
@@ -46,19 +46,19 @@ if isfile(path1)
         end
 
         @testset "window" begin
-            windowedstack = SMAPstack(path1; window=(Lat(1:5), Lon(1:5), Time(1)))
-            @test window(windowedstack) == (Lat(1:5), Lon(1:5), Time(1))
+            windowedstack = SMAPstack(path1; window=(Lat(1:5), Lon(1:5), Ti(1)))
+            @test window(windowedstack) == (Lat(1:5), Lon(1:5), Ti(1))
             windowedarray = windowedstack[:soil_temp_layer1]
             @test size(windowedarray) == (5, 5)
             @test windowedarray[1:3, 2:2] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
             @test windowedarray[1:3, 2] == [-9999.0, -9999.0, -9999.0]
             @test windowedarray[1, 2] == -9999.0 
-            windowedstack = SMAPstack(path1; window=(Lat(1:5), Lon(1:5), Time(1:1)))
+            windowedstack = SMAPstack(path1; window=(Lat(1:5), Lon(1:5), Ti(1:1)))
             windowedarray = windowedstack[:soil_temp_layer1]
             @test windowedarray[1:3, 2:2, 1] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
             @test windowedarray[1:3, 2, 1] == [-9999.0, -9999.0, -9999.0]
             @test windowedarray[1, 2, 1] == -9999.0
-            windowedstack = SMAPstack(path1; window=(Time(1),))
+            windowedstack = SMAPstack(path1; window=(Ti(1),))
             windowedarray = windowedstack[:soil_temp_layer1]
             @test windowedarray[1:3, 2:2] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
             @test windowedarray[1:3, 2] == [-9999.0, -9999.0, -9999.0]

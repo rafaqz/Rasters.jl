@@ -12,7 +12,7 @@ using DimensionalData: refdims_title
                 aspect_ratio := 1
                 subplot := i
                 lat, lon = forwardorder(dims(A, (Lat, Lon)))
-                val(lon), val(lat), preparedata(A[:, :, i])
+                _reproject(lon), _reproject(lat), preparedata(A[:, :, i])
             end
         end
     else
@@ -32,8 +32,14 @@ end
     :colorbar_title --> name(A)
     :title --> refdims_title(A)
     lat, lon = forwardorder(dims(A))
-    val(lon), val(lat), preparedata(A)
+    _reproject(lon), _reproject(lat), preparedata(A)
 end
+
+_reproject(dim::Dimension) = _reproject(grid(dim), dim, val(dim))
+_reproject(grid, dim::Lat, vals::AbstractArray) = 
+    [r[1] for r in ArchGDAL.reproject([(0.0, v) for v in vals], crs(grid), selectorcrs(grid))]
+_reproject(grid, dim::Lon, vals::AbstractArray) =                                           
+    [r[2] for r in ArchGDAL.reproject([(v, 0.0) for v in vals], crs(grid), selectorcrs(grid))]
 
 @recipe function f(A::AbstractGeoArray{T,2,<:Tuple{<:Lon,<:Lat}}) where T
     permutedims(A)

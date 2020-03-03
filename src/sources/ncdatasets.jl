@@ -194,7 +194,7 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
                 end
                 grid = BoundedGrid(order=order, locus=Center(), bounds=bounds)
             else
-                grid = AlignedGrid(order=order)
+                grid = PointGrid(order=order)
             end
 
 

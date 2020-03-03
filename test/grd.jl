@@ -59,10 +59,10 @@ path = "data/rlogo"
     # end
 
     @testset "selectors" begin
-        geoarray = grdarray[Lat(Near(3)), Lon(:), Band(1)]
+        geoarray = grdarray[Lat(In(3)), Lon(:), Band(1)]
         @test geoarray isa GeoArray{Float32,1}
         # @test bounds(a) == ()
-        @test grdarray[Lon(Near(20)), Lat(Near(10)), Band(1)] isa Float32
+        @test grdarray[Lon(In(20)), Lat(In(10)), Band(1)] isa Float32
     end
 
     @testset "conversion to GeoArray" begin
@@ -78,6 +78,7 @@ path = "data/rlogo"
     end
 
     @testset "save" begin
+        # TODO save and load subset
         geoarray = grdarray[Band(1)]
         filename = tempname()
         write(filename, GrdArray, geoarray)

@@ -20,9 +20,12 @@ name(A::AbstractGeoArray) = A.name
 units(A::AbstractGeoArray) = getmeta(A, :units, "")
 label(A::AbstractGeoArray) = string(name(A), " ", units(A))
 
-# TODO fix this
+crs(A::AbstractGeoArray) = crs(dims(A, Lat))
 crs(A::AbstractGeoArray, dim) = crs(dims(A, dim))
-crs(dim::Dimension) = get(metadata(dim), :crs, nothing)
+crs(dim::Dimension) = crs(grid(dim), dim)
+selectorcrs(A::AbstractGeoArray) = selectorcrs(dims(A, Lat))
+selectorcrs(A::AbstractGeoArray, dim) = selectorcrs(dims(A, dim))
+selectorcrs(dim::Dimension) = selectorcrs(grid(dim), dim)
 
 # Rebuild all types of AbstractGeoArray as GeoArray
 rebuild(A::AbstractGeoArray, data, dims::Tuple, refdims, name=name(A)) =

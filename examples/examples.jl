@@ -19,7 +19,10 @@ ncurl = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.
 ncfilename = geturl(ncurl)
 
 # Create a stack from a netcdf file
-stack = NCstack(ncfilename)
+stack = NCDstack(ncfilename)
+A = first(stack)
+A[Ti(1)] |> plot
+DimensionalData.grid(dims(A, 1))
 
 # Create a GeoSeries from multiple files.
 # This uses the same data three times to avoid downloads, you 
@@ -66,9 +69,7 @@ gdal_url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 filepath = geturl(gdal_url)
 
 array = GDALarray(filepath)
-GeoData.window(array)
-array[1:2, 3:4, 1]
-dims(array)
+array[Band(1)] |> plot
 
 filepaths = [filepath, filepath, filepath]
 keyz = (:one, :two, :three)

@@ -32,7 +32,8 @@ end
 GDALarray(filename::AbstractString; kwargs...) =
     gdalapply(dataset -> GDALarray(dataset; kwargs...), filename)
 GDALarray(dataset::AG.Dataset;
-          dims=dims(dataset),
+          selectorcrs=nothing,
+          dims=dims(dataset, selectorcrs),
           refdims=(),
           name="",
           metadata=metadata(dataset),
@@ -74,38 +75,54 @@ Base.getindex(A::GDALarray, i1::Integer, I::Vararg{<:Integer}) =
         readwindowed(dataset, _window, i1, I...)
     end
 
-Base.write(filename::AbstractString, ::Type{GDALarray}, A::GeoArray{T,2}) where T = begin
+Base.write(filename::AbstractString, ::Type{GDALarray}, A::Union{<:GDALarray{T,3},<:GeoArray{T,3}}) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GTiff")
+    driver = AG.getdriver("GTiff")
     A = permutedims(A, (Lon(), Lat()))
     dataset = AG.unsafe_create(filename;
+        driver=driver,
         width=size(A, 1),
         height=size(A, 2),
         nbands=1,
         dtype=T
     )
-    proj = convert(String, crs(dims(A, Lat)))
+    proj = convert(String, crs(grid(dims(A, Lat))))
     AG.setproj!(dataset, proj)
-    AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
+    AG.setgeotransform!(dataset, build_geotransform(lat, lon))
     AG.write!(dataset, data(A), 1)
     AG.destroy(dataset)
     return filename
 end
-Base.write(filename::AbstractString, ::Type{GDALarray}, A::GeoArray{T,3}) where T = begin
+Base.write(filename::AbstractString, ::Type{GDALarray}, A::Union{<:GDALarray{T,3},<:GeoArray{T,3}}) where T = begin
     DimensionalData.hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
     nbands = size(A, Band())
+    driver = AG.getdriver("GTiff")
     A = permutedims(A, (Lon(), Lat(), Band()))
     dataset = AG.unsafe_create(filename;
+        driver=driver,
         width=size(A, 1),
         height=size(A, 2),
         nbands=nbands,
         dtype=T,
     )
-    proj = convert(String, crs(dims(A, Lat)))
-    AG.setgeotransform!(dataset, GDAL_EMPTY_TRANSFORM)
+    lat, lon = dims(A, (Lat, Lon))
+    proj = convert(String, crs(lat))
+    AG.setgeotransform!(dataset, build_geotransform(lat, lon))
     AG.setproj!(dataset, proj)
     AG.write!(dataset, data(A), Cint[1])
     AG.destroy(dataset)
     return filename
+end
+
+build_geotransform(lat, lon) = begin
+    gt = zeros(6)
+    gt[GDAL_TOPLEFT_X] = first(lon)
+    gt[GDAL_WE_RES] = step(lon)
+    gt[GDAL_ROT1] = 0.0
+    gt[GDAL_TOPLEFT_Y] = last(lat)
+    gt[GDAL_ROT2] = 0.0
+    gt[GDAL_NS_RES] = step(lat)
+    return gt
 end
 
 
@@ -145,59 +162,47 @@ Base.copy!(dst::AbstractArray, src::GDALstack, key::Key) =
 
 # DimensionalData methods for ArchGDAL types ###############################
 
-dims(dataset::AG.Dataset) = begin
+dims(dataset::AG.Dataset, selectorcrs=nothing) = begin
     gt = try
         AG.getgeotransform(dataset)
     catch
         GDAL_EMPTY_TRANSFORM
     end
 
-    ysize, xsize = AG.height(dataset), AG.width(dataset)
+    latsize, lonsize = AG.height(dataset), AG.width(dataset)
 
     nbands = AG.nraster(dataset)
     band = Band(1:nbands, grid=CategoricalGrid())
     sourcecrs = crs(dataset)
-    targetcrs = EPSG(4326)
 
-    lonlat_metadata=Dict(:crs => sourcecrs)
+    lonlat_metadata=GDALdimMetadata()
 
     # Output a BoundedGrid dims when the transformation is lat/lon alligned,
     # otherwise use TransformedGrid with an affine map.
     if isalligned(gt)
-        lonspan = lonres(gt)
-
+        lonstep = lonres(gt)
         lonmin = gt[GDAL_TOPLEFT_X]
-        lonmax = lonmin + lonspan * xsize
-        loncoords = reproject(tuple.(LinRange(lonmin, lonmax - lonspan, xsize), 0.0), sourcecrs, targetcrs)
-        if !isapprox(loncoords[1][1], loncoords[end][1]; rtol=1e-5)
-            error("Longitude dimension is not grid-alligned $(loncoords[1][1]) $(loncoords[end][1])")
-        end
-        lonrange = last.(loncoords)
-        lonbounds = lonrange[1], reproject([(lonmax, 0.0)], sourcecrs, targetcrs)[1][1]
-        # lonbounds = lonmin, lonmax
-        lon = Lon(lonrange; grid=BoundedGrid(bounds=lonbounds), metadata=lonlat_metadata)
+        lonmax = lonmin + lonstep * (lonsize - 1)
+        lonrange = LinRange(lonmin, lonmax, lonsize)
+        longrid = ProjectedGrid(step=lonstep, crs=sourcecrs, selectorcrs=selectorcrs)
+        lon = Lon(lonrange; grid=longrid, metadata=lonlat_metadata)
 
-        latspan = latres(gt)
+        latstep = latres(gt)
         latmax = gt[GDAL_TOPLEFT_Y]
-        latmin = latmax + latspan * (ysize - 1)
-        latcoords = reproject(tuple.(0.0, LinRange(latmin, latmax, ysize)), sourcecrs, targetcrs)
-        if !isapprox(latcoords[1][2], latcoords[end][2]; rtol=1e-5)
-            error("Latitude dimension is not grid-alligned $(latcoords[1][2]) $(latcoords[end][2])")
-        end
-        latrange = first.(latcoords)
-        latbounds = latrange[1], reproject([(0.0, latmax)], sourcecrs, targetcrs)[1][2]
-        # latbounds = latmin, latmax
-        latgrid = BoundedGrid(order=Ordered(Forward(), Reverse(), Reverse()), bounds=latbounds)
+        latmin = latmax + latstep * (latsize - 1)
+        latrange = LinRange(latmin, latmax, latsize)
+        latgrid = ProjectedGrid(order=Ordered(Forward(), Reverse(), Reverse()), 
+                                step=latstep, crs=sourcecrs, selectorcrs=selectorcrs)
         lat = Lat(latrange; grid=latgrid, metadata=lonlat_metadata)
 
-        formatdims((1:xsize, 1:ysize, 1:nbands), (lon, lat, band))
+        formatdims(map(Base.OneTo, (lonsize, latsize, nbands)), (lon, lat, band))
     else
         error("Rotated grids not handled currently")
         # affinemap = geotransform_to_affine(geotransform)
         # x = X(affinemap; grid=TransformedGrid(dims=Lon()))
         # y = Y(affinemap; grid=TransformedGrid(dims=Lat()))
 
-        # formatdims((xsize, ysize, nbands), (x, y, band))
+        # formatdims((lonsize, latsize, nbands), (x, y, band))
     end
 end
 
@@ -250,7 +255,6 @@ const GDAL_NS_RES = 6
 isalligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
 
 latres(geotransform) = geotransform[GDAL_NS_RES]
-
 lonres(geotransform) = geotransform[GDAL_WE_RES]
 
 

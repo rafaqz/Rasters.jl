@@ -31,6 +31,7 @@ GrdArray(filepath::String;
          name=nothing, 
          metadata=GrdMetadata(Dict()), 
          window=(),
+         selectorcrs=nothing,
         ) = begin
     filepath = first(splitext(filepath))
     lines = readlines(filepath * ".grd")
@@ -52,11 +53,11 @@ GrdArray(filepath::String;
     latlon_metadata = GrdDimMetadata(Dict(:crs => crs))
 
     lat = Lat(LinRange(xmin, xmax - cellx, nrows);
-              grid=RegularGrid(; order=Ordered(Forward(), Reverse(), Forward()), 
-                               locus=Start(), step=cellx),
+              grid=ProjectedGrid(; order=Ordered(Forward(), Reverse(), Forward()), 
+                               locus=Start(), step=cellx, crs=crs, selectorcrs=selectorcrs),
               metadata=latlon_metadata)
     lon = Lon(LinRange(ymin, ymax - celly, ncols);
-              grid=RegularGrid(; locus=Start(), step=celly),
+              grid=ProjectedGrid(; locus=Start(), step=celly, crs=crs, selectorcrs=selectorcrs),
               metadata=latlon_metadata)
     band = Band(1:nbands; grid=CategoricalGrid())
     dims = lon, lat, band

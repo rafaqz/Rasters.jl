@@ -1,5 +1,5 @@
 using GeoData, Test, Dates
-using GeoData: Time, formatdims, dims
+using GeoData: formatdims, dims
 
 # GeoSeries from GeoArray/GeoStack components
 
@@ -16,37 +16,37 @@ ga2a = GeoArray(data4, dimz)
 stack1 = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
 stack2 = GeoStack(ga1a, ga2a; keys=(:ga1, :ga2))
 dates =[DateTime(2017), DateTime(2018)]
-series = GeoSeries([stack1, stack2], (Time(dates),));
+series = GeoSeries([stack1, stack2], (Ti(dates),));
 @test issorted(dates)
 
 @testset "getindex returns the currect types" begin
-    @test series[Time(1)] isa GeoStack{<:NamedTuple}
-    @test series[Time(1)][:ga2] isa GeoArray{Int,2}
-    @test series[Time(1)][:ga2, 1, 1] isa Int
-    @test series[Time(1)][:ga2][1, 1] isa Int
+    @test series[Ti(1)] isa GeoStack{<:NamedTuple}
+    @test series[Ti(1)][:ga2] isa GeoArray{Int,2}
+    @test series[Ti(1)][:ga2, 1, 1] isa Int
+    @test series[Ti(1)][:ga2][1, 1] isa Int
 end
 
 @testset "getindex returns the currect results" begin
-    @test series[Time<|Near<|DateTime(2017)][:ga1][Lon(1), Lat(3)] === 3
-    @test series[Time<|At<|DateTime(2017)][:ga1, Lon<|1, Lat<|3] === 3
-    @test series[Time<|At<|DateTime(2018)][:ga2][Lon(2), Lat(4)] === 32
-    @test series[Time<|At<|DateTime(2018)][:ga2, Lon<|2, Lat<|4] === 32
-    @test series[Time(1)][:ga1, Lon(1), Lat(2)] == 2
-    @test series[Time(1)][:ga2, Lon(2), Lat(3:4)] == [14, 16] 
+    @test series[Ti<|Near<|DateTime(2017)][:ga1][Lon(1), Lat(3)] === 3
+    @test series[Ti<|At<|DateTime(2017)][:ga1, Lon<|1, Lat<|3] === 3
+    @test series[Ti<|At<|DateTime(2018)][:ga2][Lon(2), Lat(4)] === 32
+    @test series[Ti<|At<|DateTime(2018)][:ga2, Lon<|2, Lat<|4] === 32
+    @test series[Ti(1)][:ga1, Lon(1), Lat(2)] == 2
+    @test series[Ti(1)][:ga2, Lon(2), Lat(3:4)] == [14, 16] 
 end
 
 @testset "getindex is type stable all the way down" begin
-    @inferred series[Time<|At(DateTime(2017))][:ga1, Lon(1), Lat(2)]
-    @inferred series[Time(1)][:ga1][Lon(1), Lat(2)]
-    @inferred series[Time(1)][:ga1, Lon(1), Lat(2:4)]
-    @inferred series[Time(1)][:ga1][Lon(1), Lat(2:4)]
+    @inferred series[Ti<|At(DateTime(2017))][:ga1, Lon(1), Lat(2)]
+    @inferred series[Ti(1)][:ga1][Lon(1), Lat(2)]
+    @inferred series[Ti(1)][:ga1, Lon(1), Lat(2:4)]
+    @inferred series[Ti(1)][:ga1][Lon(1), Lat(2:4)]
     @inferred series[1][:ga1, Lon(1:2), Lat(:)]
     @inferred series[1][:ga1][Lon(1:2), Lat(:)]
 end
 
 
 # @testset "lazy view windows" begin
-#     dimz = (Time<|[DateTime(2017), DateTime(2018)],)
+#     dimz = (Ti<|[DateTime(2017), DateTime(2018)],)
 #     dat = [stack1, stack2]
 #     windowdimz = Lon(1:2), Lat(3:4)
 #     series = GeoSeries(dat, dimz; window=windowdimz)

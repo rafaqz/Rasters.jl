@@ -1,11 +1,11 @@
 using ArchGDAL, GeoData, Test, Statistics, Dates
-using GeoData: window
+using GeoData: window, grid
 include("test_utils.jl")
 
 path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
 @testset "array" begin
-    gdalarray = GDALarray(path)
+    gdalarray = GDALarray(path; selectorcrs=EPSG(4326))
 
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
@@ -25,7 +25,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test missingval(gdalarray) == -1.0e10
         @test metadata(gdalarray) isa GDALmetadata
         @test basename(metadata(gdalarray).val["filepath"]) == "cea.tif"
-        @test name(gdalarray) == "Unnamed"
+        @test name(gdalarray) == ""
     end
 
     @testset "indexing" begin 
@@ -37,9 +37,8 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
     end
 
     @testset "selectors" begin
-        geoarray = gdalarray[Lat(Near(3)), Lon(:), Band(1)]
-        @test geoarray isa GeoArray{UInt8,1}
-        @test gdalarray[Lon(10), Lat(10), Band(1)] == 0x73
+        @test gdalarray[Lat(In(33.8)), Lon(In(-117.5)), Band(1)] == 0x5a
+        @test gdalarray[Lat(Between(33.7, 33.9)), Band(1)] isa GeoArray
     end
 
     @testset "conversion to GeoArray" begin
@@ -51,35 +50,42 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test refdims(geoarray) isa Tuple{<:Band} 
         @test metadata(geoarray) == metadata(gdalarray)
         @test missingval(geoarray) == -1.0e10
-        @test name(geoarray) == "Unnamed"
+        @test name(geoarray) == ""
     end
 
     # Works but saved raster has no geotransform so can't be loaded
-    # @testset "save" begin
-    #     geoarray = gdalarray[Band(1)]
-    #     filename = tempname()
-    #     GeoData.write(filename, GDALarray, geoarray)
-    #     saved = GeoArray(GDALarray(filename))
-    #     # 1 bands is added again on save
-    #     @test size(saved) != size(geoarray)
-    #     @test size(saved[Band(1)]) == size(geoarray)
-    #     @test refdims(saved) == refdims(geoarray)
-    #     @test missingval(saved) === missingval(geoarray)
-    #     @test metadata(saved) == metadata(geoarray)
-    #     @test GeoData.name(saved) == GeoData.name(geoarray)
-    #     @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
-    #     @test all(DimensionalData.grid.(dims(saved)) .== DimensionalData.grid.(dims(geoarray)))
-    #     @test typeof(dims(saved)) == typeof(dims(geoarray))
-    #     @test_broken val(dims(saved)[3]) == val(dims(geoarray)[3])
-    #     @test_broken all(val.(dims(saved)) .== val.(dims(geoarray)))
-    #     @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
-    #     @test all(data(saved) .=== data(geoarray))
-    #     @test typeof(saved) == typeof(geoarray)
-    #     geoarray = gdalarray
-    #     GeoData.write(filename, GDALarray, geoarray)
-    #     saved = GeoArray(GDALarray(filename))
-    #     @test size(saved) == size(geoarray)
-    # end
+    @testset "save" begin
+        gdalarray = GDALarray(path; selectorcrs=EPSG(4326));
+        filename = tempname()
+        GeoData.write(filename, GDALarray, gdalarray)
+        saved1 = GeoArray(GDALarray(filename; selectorcrs=EPSG(4326)));
+        geoarray1 = GeoArray(gdalarray)
+        @test saved1 == geoarray1
+        @test typeof(saved1) == typeof(geoarray1)
+        @test val(dims(saved1, Band)) == val(dims(geoarray1, Band))
+        @test val(dims(saved1, Lon)) == val(dims(geoarray1, Lon))
+        @test val(dims(saved1, Lat)) == val(dims(geoarray1, Lat))
+        geoarray2 = gdalarray[Lat(Between(33.7, 33.9)), 
+                              Lon(Between(-117.6, -117.4))]
+        filename = tempname()
+        write(filename, GDALarray, geoarray2)
+        saved2 = GeoArray(GDALarray(filename; selectorcrs=EPSG(4326)))
+        @test size(saved2) == size(geoarray2) == length.(dims(saved2)) == length.(dims(geoarray2))
+        @test refdims(saved2) == refdims(geoarray2)
+        @test missingval(saved2) === missingval(geoarray2)
+        @test metadata(saved2)["filepath"] == filename
+        #TODO test a file with more metadata
+        @test GeoData.name(saved2) == GeoData.name(geoarray2)
+        @test all(metadata.(dims(saved2)) .== metadata.(dims(geoarray2)))
+        @test grid(dims(saved2, Lat)) == grid(dims(geoarray2, Lat))
+        @test typeof(dims(saved2)) == typeof(dims(geoarray2))
+        @test all(val(dims(saved2, Band)) .≈ val(dims(geoarray2, Band)))
+        @test all(val(dims(saved2, Lon)) .≈ val(dims(geoarray2, Lon)))
+        @test all(val(dims(saved2, Lat)) .≈ val(dims(geoarray2, Lat)))
+        @test all(metadata.(dims(saved2)) .== metadata.(dims(geoarray2)))
+        @test data(saved2) == data(geoarray2)
+        @test typeof(saved2) == typeof(geoarray2)
+    end
 
 end
 
