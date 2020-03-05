@@ -92,8 +92,8 @@ end
 
 dims(A::GeoArray) = A.dims
 
-Base.@propagate_inbounds Base.setindex!(a::GeoArray, x, I::DimensionalData.StandardIndices) =
-    setindex!(data(a), x, I...)
+Base.@propagate_inbounds Base.setindex!(A::GeoArray, x, I::Vararg{DimensionalData.StandardIndices}) =
+    setindex!(data(A), x, I...)
 
 Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
 
