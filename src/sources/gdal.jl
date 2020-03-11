@@ -75,42 +75,39 @@ Base.getindex(A::GDALarray, i1::Integer, I::Vararg{<:Integer}) =
         readwindowed(dataset, _window, i1, I...)
     end
 
-Base.write(filename::AbstractString, ::Type{GDALarray}, A::Union{<:GDALarray{T,3},<:GeoArray{T,3}}) where T = begin
+Base.write(filename::AbstractString, ::Type{GDALarray}, 
+           A::Union{<:GDALarray{T,2},<:GeoArray{T,2}}; kwargs...) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GTiff")
-    driver = AG.getdriver("GTiff")
     A = permutedims(A, (Lon(), Lat()))
-    dataset = AG.unsafe_create(filename;
-        driver=driver,
-        width=size(A, 1),
-        height=size(A, 2),
-        nbands=1,
-        dtype=T
-    )
-    proj = convert(String, crs(grid(dims(A, Lat))))
-    AG.setproj!(dataset, proj)
-    AG.setgeotransform!(dataset, build_geotransform(lat, lon))
-    AG.write!(dataset, data(A), 1)
-    AG.destroy(dataset)
-    return filename
+    nbands = 1
+    indices = 1
+    write_gdal(filename, A, nbands, indices)
 end
-Base.write(filename::AbstractString, ::Type{GDALarray}, A::Union{<:GDALarray{T,3},<:GeoArray{T,3}}) where T = begin
-    DimensionalData.hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
-    nbands = size(A, Band())
-    driver = AG.getdriver("GTiff")
+Base.write(filename::AbstractString, ::Type{GDALarray}, 
+           A::Union{<:GDALarray{T,3},<:GeoArray{T,3}}; kwargs...) where T = begin
+    all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GeoTiff")
+    hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array to GeoTiff")
     A = permutedims(A, (Lon(), Lat(), Band()))
-    dataset = AG.unsafe_create(filename;
-        driver=driver,
-        width=size(A, 1),
+    nbands = size(A, Band())
+    indices = Cint[1]
+    write_gdal(filename, A, nbands, indices)
+end
+
+write_gdal(filename, A, nbands, indices; compress="DEFLATE", tiled="YES") = begin
+    AG.create(filename;
+        driver=AG.getdriver("GTiff"),
+        width=size(A, 1), 
         height=size(A, 2),
         nbands=nbands,
-        dtype=T,
-    )
-    lat, lon = dims(A, (Lat, Lon))
-    proj = convert(String, crs(lat))
-    AG.setgeotransform!(dataset, build_geotransform(lat, lon))
-    AG.setproj!(dataset, proj)
-    AG.write!(dataset, data(A), Cint[1])
-    AG.destroy(dataset)
+        dtype=eltype(A),
+        options=["COMPRESS=$compress", "TILED=$tiled"],
+       ) do dataset
+        lon, lat = dims(A, (Lon(), Lat()))
+        proj = convert(String, crs(grid(dims(A, Lat()))))
+        AG.setproj!(dataset, proj)
+        AG.setgeotransform!(dataset, build_geotransform(lat, lon))
+        AG.write!(dataset, data(A), indices)
+    end
     return filename
 end
 
@@ -184,15 +181,24 @@ dims(dataset::AG.Dataset, selectorcrs=nothing) = begin
         lonmin = gt[GDAL_TOPLEFT_X]
         lonmax = lonmin + lonstep * (lonsize - 1)
         lonrange = LinRange(lonmin, lonmax, lonsize)
-        longrid = ProjectedGrid(step=lonstep, crs=sourcecrs, selectorcrs=selectorcrs)
-        lon = Lon(lonrange; grid=longrid, metadata=lonlat_metadata)
 
         latstep = latres(gt)
         latmax = gt[GDAL_TOPLEFT_Y]
         latmin = latmax + latstep * (latsize - 1)
         latrange = LinRange(latmin, latmax, latsize)
+        # areaorpoint = gdalmetadata(dataset, "AREA_OR_POINT")
+        # if areaorpoint == "" || areaorpoint == "Area"
         latgrid = ProjectedGrid(order=Ordered(Forward(), Reverse(), Reverse()), 
-                                step=latstep, crs=sourcecrs, selectorcrs=selectorcrs)
+                            step=latstep, crs=sourcecrs, selectorcrs=selectorcrs)
+        longrid = ProjectedGrid(step=lonstep, crs=sourcecrs, selectorcrs=selectorcrs)
+        # elseif areaorpoint == "Point"
+        #     # TODO projected point grid
+        #     latgrid = ProjectedGrid(order=Ordered(Forward(), Reverse(), Reverse()), 
+        #                         step=latstep, crs=sourcecrs, selectorcrs=selectorcrs)
+        #     longrid = ProjectedGrid(step=lonstep, crs=sourcecrs, selectorcrs=selectorcrs)
+        # end
+
+        lon = Lon(lonrange; grid=longrid, metadata=lonlat_metadata)
         lat = Lat(latrange; grid=latgrid, metadata=lonlat_metadata)
 
         formatdims(map(Base.OneTo, (lonsize, latsize, nbands)), (lon, lat, band))
@@ -276,6 +282,17 @@ gdalsize(dataset) = begin
     band = AG.getband(dataset, 1)
     AG.width(band), AG.height(band), AG.nraster(dataset)
 end
+
+gdalmetadata(dataset, key) = begin
+    meta = AG.metadata(dataset)
+    i = findfirst(f -> occursin(key, f), meta)
+    if i === nothing 
+        ""
+    else
+        match(r"$key=(.*)", meta[i])
+    end
+end
+
 
 # See https://lists.osgeo.org/pipermail/gdal-dev/2011-July/029449.html
 # for an explanation of the geotransform format

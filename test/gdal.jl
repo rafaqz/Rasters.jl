@@ -37,7 +37,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
     end
 
     @testset "selectors" begin
-        @test gdalarray[Lat(In(33.8)), Lon(In(-117.5)), Band(1)] == 0x5a
+        @test gdalarray[Lat(Contains(33.8)), Lon(Contains(-117.5)), Band(1)] == 0x5a
         @test gdalarray[Lat(Between(33.7, 33.9)), Band(1)] isa GeoArray
     end
 
@@ -57,7 +57,8 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
     @testset "save" begin
         gdalarray = GDALarray(path; selectorcrs=EPSG(4326));
         filename = tempname()
-        GeoData.write(filename, GDALarray, gdalarray)
+        # Write a GDALarray
+        write(filename, GDALarray, gdalarray)
         saved1 = GeoArray(GDALarray(filename; selectorcrs=EPSG(4326)));
         geoarray1 = GeoArray(gdalarray)
         @test saved1 == geoarray1
@@ -68,6 +69,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         geoarray2 = gdalarray[Lat(Between(33.7, 33.9)), 
                               Lon(Between(-117.6, -117.4))]
         filename = tempname()
+        # Write a GeoArray
         write(filename, GDALarray, geoarray2)
         saved2 = GeoArray(GDALarray(filename; selectorcrs=EPSG(4326)))
         @test size(saved2) == size(geoarray2) == length.(dims(saved2)) == length.(dims(geoarray2))
@@ -143,15 +145,5 @@ end
             @test geoarray == GeoArray(gdalstack[:a])
         end
     end
-
-    # @testset "save" begin
-    #     geoarray = GeoArray(geostack[:a])
-    #     filename = tempname()
-    #     write(filename, GDALarray, gdalstack)
-    #     base, ext = splitext(filename)
-    #     filename_b = string(base, "_b", ext)
-    #     saved = GeoArray(GrdArray(filename_b))
-    #     @test saved == geoarray
-    # end
 
 end

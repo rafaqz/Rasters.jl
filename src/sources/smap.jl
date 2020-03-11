@@ -5,7 +5,7 @@ export SMAPstack, SMAPseries
 const SMAPMISSING = -9999.0
 const SMAPEXTENT = "Metadata/Extent"
 const SMAPGEODATA = "Geophysical_Data"
-
+const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 struct SMAPmetadata{K,V} <: ArrayMetadata{K,V}
     val::Dict{K,V}
@@ -96,7 +96,6 @@ smapapply(f, filepath) = h5open(f, filepath)
 
 readwindowed(A::HDF5Dataset, window::Tuple{}) = HDF5.read(A)
 
-
 smappath(key) = joinpath(SMAPGEODATA, string(key))
 
 smaptime(dataset) = begin
@@ -122,10 +121,10 @@ smapdims(dataset) = begin
         # There are matrices for lookup but all rows/colums are identical.
         # For performance and simplicity we just take a vector slice for each dim.
         extent = attrs(root(dataset)[SMAPEXTENT])
-        latvec = read(root(dataset)["cell_lat"])[1, :]
-        lonvec = read(root(dataset)["cell_lon"])[:, 1]
         lonbounds = extent["westBoundLongitude"], extent["eastBoundLongitude"]
         latbounds = extent["northBoundLatitude"], extent["southBoundLatitude"]
+        latvec = read(root(dataset)["cell_lat"])[1, :]
+        lonvec = read(root(dataset)["cell_lon"])[:, 1]
         longrid=BoundedGrid(; bounds=lonbounds)
         latgrid=BoundedGrid(; order=Ordered(Reverse(), Reverse(), Forward()),
                             bounds=latbounds)
