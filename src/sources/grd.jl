@@ -52,13 +52,22 @@ GrdArray(filepath::String;
     celly = (ymax - ymin) / ncols
     latlon_metadata = GrdDimMetadata(Dict(:crs => crs))
 
-    lat = Lat(LinRange(xmin, xmax - cellx, nrows);
-              grid=ProjectedGrid(; order=Ordered(Forward(), Reverse(), Forward()), 
-                               locus=Start(), step=cellx, crs=crs, selectorcrs=selectorcrs),
-              metadata=latlon_metadata)
-    lon = Lon(LinRange(ymin, ymax - celly, ncols);
-              grid=ProjectedGrid(; locus=Start(), step=celly, crs=crs, selectorcrs=selectorcrs),
-              metadata=latlon_metadata)
+    latgrid = ProjectedGrid(
+        order=Ordered(Forward(), Reverse(), Forward()), 
+        span=RegularSpan(cellx), 
+        sampling=IntervalSampling(Start()), 
+        crs=crs, 
+        selectorcrs=selectorcrs,
+    )
+    lat = Lat(LinRange(xmin, xmax - cellx, nrows), latgrid, latlon_metadata)
+    longrid = ProjectedGrid(
+        order=Ordered(),
+        span=RegularSpan(celly), 
+        sampling=IntervalSampling(Start()), 
+        crs=crs, 
+        selectorcrs=selectorcrs,
+    ) 
+    lon = Lon(LinRange(ymin, ymax - celly, ncols), longrid, latlon_metadata)
     band = Band(1:nbands; grid=CategoricalGrid())
     dims = lon, lat, band
     for key in ("creator", "created", "history")

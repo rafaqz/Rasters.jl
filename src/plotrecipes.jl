@@ -49,21 +49,3 @@ preparedata(A) = A |> forwardorder |> maybenanmissing |> data
 
 maybenanmissing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, missing)
 maybenanmissing(A) = A
-
-forwardorder(A::AbstractArray) = begin
-    for (i, dim) in enumerate(dims(A))
-        if arrayorder(dim) == Reverse()
-            A = reverse(A; dims=dim)
-        end
-    end
-    A
-end
-
-forwardorder(dims::Tuple) =
-    map(dims) do d
-        if isrev(DimensionalData.indexorder(d))
-            rebuild(d, reverse(val(d)))
-        else
-            d
-        end
-    end

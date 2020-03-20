@@ -18,8 +18,8 @@ end
 # Array ########################################################################
 
 struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
-                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
-    filename::F
+                } <: DiskGeoArray{T,N,D,LazyArray{T,N}} 
+    filename::F 
     dims::D
     refdims::R
     name::Na
@@ -29,8 +29,10 @@ struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
     size::S
 end
 
-GDALarray(filename::AbstractString; kwargs...) =
+GDALarray(filename::AbstractString; kwargs...) = begin
+    isfile(filename) || error("file not found: $filename")
     gdalapply(dataset -> GDALarray(dataset; kwargs...), filename)
+end
 GDALarray(dataset::AG.Dataset;
           selectorcrs=nothing,
           dims=dims(dataset, selectorcrs),
@@ -75,7 +77,7 @@ Base.getindex(A::GDALarray, i1::Integer, I::Vararg{<:Integer}) =
         readwindowed(dataset, _window, i1, I...)
     end
 
-Base.write(filename::AbstractString, ::Type{GDALarray}, 
+Base.write(filename::AbstractString, ::Type{GDALarray},
            A::Union{<:GDALarray{T,2},<:GeoArray{T,2}}; kwargs...) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GTiff")
     A = permutedims(A, (Lon(), Lat()))
@@ -83,7 +85,7 @@ Base.write(filename::AbstractString, ::Type{GDALarray},
     indices = 1
     write_gdal(filename, A, nbands, indices)
 end
-Base.write(filename::AbstractString, ::Type{GDALarray}, 
+Base.write(filename::AbstractString, ::Type{GDALarray},
            A::Union{<:GDALarray{T,3},<:GeoArray{T,3}}; kwargs...) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GeoTiff")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array to GeoTiff")
@@ -96,7 +98,7 @@ end
 write_gdal(filename, A, nbands, indices; compress="DEFLATE", tiled="YES") = begin
     AG.create(filename;
         driver=AG.getdriver("GTiff"),
-        width=size(A, 1), 
+        width=size(A, 1),
         height=size(A, 2),
         nbands=nbands,
         dtype=eltype(A),
@@ -111,12 +113,13 @@ write_gdal(filename, A, nbands, indices; compress="DEFLATE", tiled="YES") = begi
     return filename
 end
 
+# TODO handle Forward/Reverse orders
 build_geotransform(lat, lon) = begin
     gt = zeros(6)
     gt[GDAL_TOPLEFT_X] = first(lon)
     gt[GDAL_WE_RES] = step(lon)
     gt[GDAL_ROT1] = 0.0
-    gt[GDAL_TOPLEFT_Y] = last(lat)
+    gt[GDAL_TOPLEFT_Y] = first(lat)
     gt[GDAL_ROT2] = 0.0
     gt[GDAL_NS_RES] = step(lat)
     return gt
@@ -177,33 +180,47 @@ dims(dataset::AG.Dataset, selectorcrs=nothing) = begin
     # Output a BoundedGrid dims when the transformation is lat/lon alligned,
     # otherwise use TransformedGrid with an affine map.
     if isalligned(gt)
-        lonstep = lonres(gt)
+        lonstep = gt[GDAL_WE_RES]
         lonmin = gt[GDAL_TOPLEFT_X]
         lonmax = lonmin + lonstep * (lonsize - 1)
         lonrange = LinRange(lonmin, lonmax, lonsize)
 
-        latstep = latres(gt)
+        latstep = gt[GDAL_NS_RES]
         latmax = gt[GDAL_TOPLEFT_Y]
         latmin = latmax + latstep * (latsize - 1)
-        latrange = LinRange(latmin, latmax, latsize)
-        # areaorpoint = gdalmetadata(dataset, "AREA_OR_POINT")
-        # if areaorpoint == "" || areaorpoint == "Area"
-        latgrid = ProjectedGrid(order=Ordered(Forward(), Reverse(), Reverse()), 
-                            step=latstep, crs=sourcecrs, selectorcrs=selectorcrs)
-        longrid = ProjectedGrid(step=lonstep, crs=sourcecrs, selectorcrs=selectorcrs)
-        # elseif areaorpoint == "Point"
-        #     # TODO projected point grid
-        #     latgrid = ProjectedGrid(order=Ordered(Forward(), Reverse(), Reverse()), 
-        #                         step=latstep, crs=sourcecrs, selectorcrs=selectorcrs)
-        #     longrid = ProjectedGrid(step=lonstep, crs=sourcecrs, selectorcrs=selectorcrs)
-        # end
+        latrange = LinRange(latmax, latmin, latsize)
+
+        areaorpoint = gdalmetadata(dataset, "AREA_OR_POINT")
+        # Spatial data defaults to area/inteval?
+        if areaorpoint == "Point"
+            sampling = PointSampling()
+        else areaorpoint 
+            # GeoTiff uses the "pixelCorner" convention
+            sampling = IntervalSampling(Start())
+        end
+
+        latgrid = ProjectedGrid(
+            # Latitude is in reverse to how plot it.
+            order=Ordered(Reverse(), Reverse(), Forward()), 
+            sampling=sampling,
+            # Use the range step as is will be different to latstep due to float error
+            span=RegularSpan(step(latrange)), 
+            crs=sourcecrs, 
+            selectorcrs=selectorcrs
+        )
+        longrid = ProjectedGrid(
+            span=RegularSpan(step(lonrange)), 
+            sampling=sampling,
+            crs=sourcecrs, 
+            selectorcrs=selectorcrs
+        )
 
         lon = Lon(lonrange; grid=longrid, metadata=lonlat_metadata)
         lat = Lat(latrange; grid=latgrid, metadata=lonlat_metadata)
 
         formatdims(map(Base.OneTo, (lonsize, latsize, nbands)), (lon, lat, band))
     else
-        error("Rotated grids not handled currently")
+        error("Rotated/transformed grids not handled currently")
         # affinemap = geotransform_to_affine(geotransform)
         # x = X(affinemap; grid=TransformedGrid(dims=Lon()))
         # y = Y(affinemap; grid=TransformedGrid(dims=Lat()))
@@ -240,30 +257,6 @@ crs(dataset::AG.Dataset, args...) =
 
 # Utils ########################################################################
 
-#=
-In the particular, but common, case of a “north up” image without any rotation or shearing, the georeferencing transform takes the following form :
-adfGeoTransform[0] /* top left x */
-adfGeoTransform[1] /* w-e pixel resolution */
-adfGeoTransform[2] /* 0 */
-adfGeoTransform[3] /* top left y */
-adfGeoTransform[4] /* 0 */
-adfGeoTransform[5] /* n-s pixel resolution (negative value) */
-=#
-
-const GDAL_EMPTY_TRANSFORM = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-const GDAL_TOPLEFT_X = 1
-const GDAL_WE_RES = 2
-const GDAL_ROT1 = 3
-const GDAL_TOPLEFT_Y = 4
-const GDAL_ROT2 = 5
-const GDAL_NS_RES = 6
-
-isalligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
-
-latres(geotransform) = geotransform[GDAL_NS_RES]
-lonres(geotransform) = geotransform[GDAL_WE_RES]
-
-
 gdalapply(f, filepath::AbstractString) =
     AG.read(filepath) do dataset
         f(dataset)
@@ -285,32 +278,44 @@ end
 
 gdalmetadata(dataset, key) = begin
     meta = AG.metadata(dataset)
-    i = findfirst(f -> occursin(key, f), meta)
-    if i === nothing 
-        ""
+    regex = Regex("$key=(.*)")
+    i = findfirst(f -> occursin(regex, f), meta)
+    if i isa Nothing
+        nothing
     else
-        match(r"$key=(.*)", meta[i])
+        match(regex, meta[i])[1]
     end
 end
 
 
-# See https://lists.osgeo.org/pipermail/gdal-dev/2011-July/029449.html
-# for an explanation of the geotransform format
+#= Geotranforms ########################################################################
+
+See https://lists.osgeo.org/pipermail/gdal-dev/2011-July/029449.html
+
+"In the particular, but common, case of a “north up” image without any rotation or 
+shearing, the georeferencing transform takes the following form" :
+adfGeoTransform[0] /* top left x */
+adfGeoTransform[1] /* w-e pixel resolution */
+adfGeoTransform[2] /* 0 */
+adfGeoTransform[3] /* top left y */
+adfGeoTransform[4] /* 0 */
+adfGeoTransform[5] /* n-s pixel resolution (negative value) */
+=#
+
+const GDAL_EMPTY_TRANSFORM = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+const GDAL_TOPLEFT_X = 1
+const GDAL_WE_RES = 2
+const GDAL_ROT1 = 3
+const GDAL_TOPLEFT_Y = 4
+const GDAL_ROT2 = 5
+const GDAL_NS_RES = 6
+
+isalligned(geotransform) = 
+    geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
+
 geotransform_to_affine(gt) = begin
-    AffineMap([gt[2] gt[3]; gt[5] gt[6]], [gt[1], gt[4]])
+    AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]], 
+              [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
 end
 
-reproject(coords, crs, taaaarget) =  begin
-    AG.importWKT(GeoFormatTypes.val(crs)) do source
-        AG.importEPSG(4326) do target
-            AG.createcoordtrans(source, target) do transform
-                transformcoord.(coords, Ref(transform))
-            end
-        end
-    end
-end
 
-transformcoord(coord, transform) =
-    AG.createpoint(coord...) do point
-        AG.coordinates(AG.transform!(point, transform))
-    end

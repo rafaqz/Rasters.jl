@@ -168,7 +168,7 @@ end
     @testset "save" begin
         geostack = GeoStack(ncstack);
         filename = tempname()
-        GeoData.write(filename, NCDstack, geostack)
+        GeoData.write(filename, NCDstack, geostack);
         saved = GeoStack(NCDstack(filename))
         @test keys(saved) == keys(geostack)
         @test metadata(saved)["advection"] == "Lin & Rood"

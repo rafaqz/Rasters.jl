@@ -4,17 +4,18 @@ using GeoData: formatdims, data, dims2indices, rebuild, window, name, source
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
 dims1 = Lon<|(10, 100), Lat<|(-50, 50) 
-dims2 = (dims1..., Ti<|[DateTime(2019)])
+dims2 = (dims1..., Ti([DateTime(2019)]))
 refdimz = ()
 nme = "test"
 mval = -9999.0
 meta = nothing
 
 # Formatting only occurs in shorthand constructors
-ga1 = GeoArray(data1, formatdims(data1, dims1), refdimz, nme, meta, mval)
+ga1 = GeoArray(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=mval)
 ga2 = GeoArray(data2, dims2)
 
 stack = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
+dims(stack[:ga2], Ti)
 
 @testset "stack layers" begin
     @test source(stack) isa NamedTuple
@@ -63,23 +64,23 @@ end
         @test data(s[:ga1]) isa Array
         @test s[:ga1] == data1[:, 5:7]
         @test s[:ga2] == data2[:, 5:7, 1]
-        @test dims(s[:ga2]) == (Lon(LinRange(10.0, 100.0, 10); grid=PointGrid()), 
-                                Lat(LinRange(-10.0, 10.0, 3); grid=PointGrid()))
+        @test dims(s[:ga2]) == (Lon(LinRange(10.0, 100.0, 10); grid=SampledGrid(span=RegularSpan(10.0))), 
+                                Lat(LinRange(-10.0, 10.0, 3); grid=SampledGrid(span=RegularSpan(10.0))))
         @test dims(s, :ga2) == dims(s[:ga2])
-        @test refdims(s[:ga2]) == (Ti(DateTime(2019); grid=PointGrid()),)
+        @test refdims(s[:ga2]) == (Ti(DateTime(2019); grid=SampledGrid(span=IrregularSpan())),)
         @test ismissing(missingval(s, :ga2)) && ismissing(missingval(s[:ga2]))
     end
 
     @testset "select views of arrays for the whole stack" begin
-        sv = view(stack, Lat<|Between(-4.0, 27.0), Ti<|At<|DateTime(2019))
+        sv = view(stack, Lat<|Between(-4.0, 27.0), Ti(At(DateTime(2019))))
         @test sv isa GeoStack
         @test sv[:ga1] isa GeoArray
         @test data(sv[:ga1]) isa SubArray
         @test sv[:ga1] == data1[:, 6:8]
         @test sv[:ga2] == data2[:, 6:8, 1]
-        @test dims(sv[:ga2]) == (Lon(LinRange(10.0, 100.0, 10); grid=PointGrid()), 
-                                 Lat(LinRange(0.0, 20.0, 3); grid=PointGrid()))
-        @test refdims(sv[:ga2]) == (Ti(DateTime(2019); grid=PointGrid()),)
+        @test dims(sv[:ga2]) == (Lon(LinRange(10.0, 100.0, 10); grid=SampledGrid(span=RegularSpan(10.0))), 
+                                 Lat(LinRange(0.0, 20.0, 3); grid=SampledGrid(span=RegularSpan(10.0))))
+        @test refdims(sv[:ga2])[1] == (Ti(DateTime(2019); grid=SampledGrid(span=IrregularSpan())),)[1]
         # Stack of view-based GeoArrays
         v = view(stack, Lon(2:4), Lat(5:6))
         @test_broken @inferred view(stack, Lon(2:4), Lat(5:6))
@@ -102,8 +103,8 @@ end
 end
 
 @testset "concatenate stacks" begin
-    dims1b = Lon<|(110, 200), Lat<|(-50, 50) 
-    dims2b = (dims1b..., Ti<|[DateTime(2019)])
+    dims1b = Lon((110, 200)), Lat((-50, 50))
+    dims2b = (dims1b..., Ti([DateTime(2019)]))
     stack_a = GeoStack((ga1=ga1, ga2=ga2))
     stack_b = GeoStack((ga1=GeoArray(data1 .+ 10, dims1b), ga2=GeoArray(data2 .+ 20, dims2b)))
     catstack = cat(stack_a, stack_b; dims=Lon())

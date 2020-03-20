@@ -192,11 +192,10 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
                 else
                     dvar[1] - beginhalfcell, dvar[end] + endhalfcell
                 end
-                grid = BoundedGrid(order=order, locus=Center(), bounds=bounds)
+                grid = SampledGrid(order, IrregularSpan(bounds), IntervalSampling(Center()))
             else
-                grid = PointGrid(order=order)
+                grid = SampledGrid(order, IrregularSpan(), PointSampling())
             end
-
 
             meta = metadata(dvar)
             # Add the dim containing the dimension var array
@@ -204,10 +203,10 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
         else
             # The var doesn't exist. Maybe its `complex` or some other marker
             # so just make it a Dim with that name and range matching the indices
-            push!(dims, Dim{Symbol(dimname)}(1:size(v, i)))
+            push!(dims, Dim{Symbol(dimname)}(1:size(v, i), SampledGrid(span=RegularSpan(1)), nothing))
         end
     end
-    dims = formatdims(v, (dims...,))
+    (dims...,)
 end
 
 metadata(dataset::NCDatasets.Dataset) = NCDstackMetadata(Dict{String,Any}(dataset.attrib))
