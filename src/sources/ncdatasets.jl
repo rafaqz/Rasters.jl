@@ -15,7 +15,9 @@ struct NCDdimMetadata{K,V} <: DimMetadata{K,V}
 end
 
 # Array ########################################################################
-
+"""
+A lazy GeoArray that loads a netcdf file using NCDatasets.jl.
+"""
 struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
     filename::A
@@ -27,7 +29,12 @@ struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
     window::W
     size::S
 end
+"""
+    NCDarray(filepath::AbstractString; refdims=(), window=(), metadata=Nothing)
 
+Create an array from a paths to a netcdf file. The first non-dimension
+layer of the file will be used as the array
+"""
 NCDarray(filename::AbstractString; kwargs...) =
     ncapply(dataset -> NCDarray(dataset, filename; kwargs...), filename)
 NCDarray(dataset::NCDatasets.Dataset, filename;
@@ -84,6 +91,11 @@ Base.getindex(A::NCDarray, I::Vararg{<:Integer}) =
         ncread(var, _window, I...)
     end
 
+"""
+    Base.write(filename::AbstractString, ::Type{NCDarray}, s::AbstractGeoArray)
+
+Write an NCDarray to a netcdf file using NCDatasets.jl
+"""
 Base.write(filename::AbstractString, ::Type{NCDarray}, A::AbstractGeoArray) = begin
     # Remove the dataset metadata
     stackmd = pop!(deepcopy(val(metadata(A))), "dataset", Dict())
@@ -97,6 +109,9 @@ end
 
 # Stack ########################################################################
 
+"""
+A lazy GeoStack that loads netcdf files using NCDatasets.jl
+"""
 struct NCDstack{T,R,W,M} <: DiskGeoStack{T}
     filename::T
     refdims::R
@@ -115,19 +130,33 @@ This constructor is intended for handling simple single-layer netcdfs.
 NCDstack(filepaths::Union{Tuple,Vector}; refdims=(), window=(), metadata=nothing,
          keys=Tuple(Symbol.((ncapply(ds -> first(nondimkeys(ds)), fp) for fp in filepaths)))) =
     NCDstack(NamedTuple{keys}(filepaths), refdims, window, metadata)
-NCDstack(filename::String; refdims=(), window=(), metadata=ncapply(metadata, filename)) =
+
+"""
+    NCDstack(filenameAbstractString; window=())
+
+Create a stack from a path to a netcdf file. All non-dimension layers
+will are accessible using Symbol or String keys.
+
+i# Example:
+
+```julia
+stack = NCDstack(filename)
+stack[:soil_temperature]
+```
+"""
+NCDstack(filename::AbstractString; refdims=(), window=(), metadata=ncapply(metadata, filename)) =
     NCDstack(filename, refdims, window, metadata)
 
 safeapply(f, ::NCDstack, path) = ncapply(f, path)
 
-@inline Base.getindex(s::NCDstack, key::Key, i1::Integer, I::Integer...) =
+Base.getindex(s::NCDstack, key::Key, i1::Integer, I::Integer...) =
     ncapply(filename(s, key)) do dataset
         key = string(key)
         var = dataset[key]
         _window = maybewindow2indices(var, dims(dataset, key), window(s))
         ncread(var, _window, i1, I...)
     end
-@inline Base.getindex(s::NCDstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
+Base.getindex(s::NCDstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
     ncapply(filename(s, key)) do dataset
         key = string(key)
         var = dataset[key]
@@ -156,6 +185,12 @@ Base.copy!(dst::AbstractArray, src::NCDstack, key) =
         copy!(dst, readwindowed(var, _window))
     end
 
+
+"""
+    Base.write(filename::AbstractString, ::Type{NCDstack}, s::AbstractGeoStack)
+
+Write an NCDstack to a netcdf file using NCDatasets.jl
+"""
 Base.write(filename::AbstractString, ::Type{NCDstack}, s::AbstractGeoStack) = begin
     dataset = NCDatasets.Dataset(filename, "c"; attrib=val(metadata(s)))
     try
@@ -192,18 +227,18 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
                 else
                     dvar[1] - beginhalfcell, dvar[end] + endhalfcell
                 end
-                grid = SampledGrid(order, IrregularSpan(bounds), IntervalSampling(Center()))
+                mode = Sampled(order, Irregular(bounds), Intervals(Center()))
             else
-                grid = SampledGrid(order, IrregularSpan(), PointSampling())
+                mode = Sampled(order, Irregular(), Points())
             end
 
             meta = metadata(dvar)
             # Add the dim containing the dimension var array
-            push!(dims, dimconstructor(dvar[:], grid, meta))
+            push!(dims, dimconstructor(dvar[:], mode, meta))
         else
             # The var doesn't exist. Maybe its `complex` or some other marker
             # so just make it a Dim with that name and range matching the indices
-            push!(dims, Dim{Symbol(dimname)}(1:size(v, i), SampledGrid(span=RegularSpan(1)), nothing))
+            push!(dims, Dim{Symbol(dimname)}(1:size(v, i), Sampled(span=Regular(1)), nothing))
         end
     end
     (dims...,)
@@ -261,9 +296,7 @@ nondimkeys(dataset) = begin
     setdiff(keys(dataset), removekeys)
 end
 
-"""
-Add a var array to a dataset before writing it.
-"""
+# Add a var array to a dataset before writing it.
 ncaddvar!(dataset, A) = begin
     A = forwardorder(A)
     if ismissing(missingval(A))

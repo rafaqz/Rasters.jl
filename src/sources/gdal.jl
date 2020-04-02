@@ -6,10 +6,17 @@ export GDALarray, GDALstack, GDALmetadata, GDALdimMetadata
 
 
 # Metadata ########################################################################
+
+"""
+[`ArrayMetadata`](@ref) wrapper for `GDALarray`.
+"""
 struct GDALmetadata{K,V} <: ArrayMetadata{K,V}
     val::Dict{K,V}
 end
 
+"""
+[`DimMetadata`](@ref) wrapper for `GDALarray` dimensions.
+"""
 struct GDALdimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
@@ -17,6 +24,19 @@ end
 
 # Array ########################################################################
 
+"""
+    GDALarray(filename; usercrs=nothing, name="", window=())
+
+Load a file lazily with gdal. GDALarray will be converted to GeoArray after
+indexing or other manipulations. `GeoArray(GDAlarray(filename))` will do this
+immediately.
+
+`usercrs` can be any CRS `GeoFormat` form GeoFormatTypes.jl, such as `WellKnownText`
+`EPSG` or `ProjString`. If `usercrs` is passed to the constructor, all selectors will 
+use its projection, converting automatically to the underlying projection from GDAL.
+
+`window` can be a tuple of Dimensions, selectors or regular indices.
+"""
 struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
                 } <: DiskGeoArray{T,N,D,LazyArray{T,N}} 
     filename::F 
@@ -28,19 +48,12 @@ struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
     window::W
     size::S
 end
-
 GDALarray(filename::AbstractString; kwargs...) = begin
     isfile(filename) || error("file not found: $filename")
     gdalapply(dataset -> GDALarray(dataset; kwargs...), filename)
 end
-GDALarray(dataset::AG.Dataset;
-          selectorcrs=nothing,
-          dims=dims(dataset, selectorcrs),
-          refdims=(),
-          name="",
-          metadata=metadata(dataset),
-          missingval=missingval(dataset),
-          window=()) = begin
+GDALarray(dataset::AG.Dataset; usercrs=nothing, dims=dims(dataset, usercrs), refdims=(), 
+          name="", metadata=metadata(dataset), missingval=missingval(dataset), window=()) = begin
     filename = first(AG.filelist(dataset))
     sze = gdalsize(dataset)
     if window != ()
@@ -53,15 +66,11 @@ GDALarray(dataset::AG.Dataset;
        }(filename, dims, refdims, name, metadata, missingval, window, sze)
 end
 
-filename(A::GDALarray) = A.filename
-crs(A::GDALarray) = gdalapply(crs, filename(A))
 data(A::GDALarray) =
     gdalapply(filename(A)) do dataset
         _window = maybewindow2indices(dataset, dims(A), window(A))
         readwindowed(dataset, _window)
     end
-
-Base.size(A::GDALarray) = A.size
 
 Base.getindex(A::GDALarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
     gdalapply(filename(A)) do dataset
@@ -83,7 +92,7 @@ Base.write(filename::AbstractString, ::Type{GDALarray},
     A = permutedims(A, (Lon(), Lat()))
     nbands = 1
     indices = 1
-    write_gdal(filename, A, nbands, indices)
+    gdalwrite(filename, A, nbands, indices)
 end
 Base.write(filename::AbstractString, ::Type{GDALarray},
            A::Union{<:GDALarray{T,3},<:GeoArray{T,3}}; kwargs...) where T = begin
@@ -92,77 +101,59 @@ Base.write(filename::AbstractString, ::Type{GDALarray},
     A = permutedims(A, (Lon(), Lat(), Band()))
     nbands = size(A, Band())
     indices = Cint[1]
-    write_gdal(filename, A, nbands, indices)
-end
-
-write_gdal(filename, A, nbands, indices; compress="DEFLATE", tiled="YES") = begin
-    AG.create(filename;
-        driver=AG.getdriver("GTiff"),
-        width=size(A, 1),
-        height=size(A, 2),
-        nbands=nbands,
-        dtype=eltype(A),
-        options=["COMPRESS=$compress", "TILED=$tiled"],
-       ) do dataset
-        lon, lat = dims(A, (Lon(), Lat()))
-        proj = convert(String, crs(grid(dims(A, Lat()))))
-        AG.setproj!(dataset, proj)
-        AG.setgeotransform!(dataset, build_geotransform(lat, lon))
-        AG.write!(dataset, data(A), indices)
-    end
-    return filename
-end
-
-# TODO handle Forward/Reverse orders
-build_geotransform(lat, lon) = begin
-    gt = zeros(6)
-    gt[GDAL_TOPLEFT_X] = first(lon)
-    gt[GDAL_WE_RES] = step(lon)
-    gt[GDAL_ROT1] = 0.0
-    gt[GDAL_TOPLEFT_Y] = first(lat)
-    gt[GDAL_ROT2] = 0.0
-    gt[GDAL_NS_RES] = step(lat)
-    return gt
+    gdalwrite(filename, A, nbands, indices)
 end
 
 
 # Stack ########################################################################
 
-struct GDALstack{T,R,W,M} <: DiskGeoStack{T}
+"""
+    GDALstack(filename::NamedTuple; refdims=(), window=())
+
+Load a stack of files lazily with gdal.
+
+- `filename`: a NamedTuple of `String` filenames.
+- `window`: can be a tuple of Dimensions, selectors or regular indices.
+- `metadata`: is a GDALmetadata object.
+"""
+struct GDALstack{T,R,W} <: DiskGeoStack{T}
     filename::T
     refdims::R
     window::W
-    metadata::M
 end
-
-GDALstack(filenames::NamedTuple;
-          refdims=(), window=(),
-          metadata=gdalapply(metadata, first(values(filenames)))) =
-    GDALstack(filenames, refdims, window, metadata)
+GDALstack(filename::NamedTuple; refdims=(), window=()) =
+    GDALstack(filename, refdims, window)
 
 safeapply(f, ::GDALstack, path::AbstractString) = gdalapply(f, path)
 
-@inline Base.getindex(s::GDALstack, key::Key) =
+metadata(stack::GDALstack) = gdalapply(metadata, first(values(filename(stack))))
+
+Base.getindex(s::GDALstack, key::Key) =
     gdalapply(filename(s, key)) do dataset
         GDALarray(dataset; refdims=refdims(s), name=string(key), window=window(s))
     end
-@inline Base.getindex(s::GDALstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
+Base.getindex(s::GDALstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
     s[key][I...]
 
 
-Base.copy!(dst::AbstractGeoArray, src::GDALstack, key::Key) =
-    copy!(data(dst), src, key)
+"""
+    Base.copy!(dst::AbstractArray, src::GDALstack, key::Key)
+
+Copy the stack layer `key` to `dst`, which can be any `AbstractArray`.
+"""
 Base.copy!(dst::AbstractArray, src::GDALstack, key::Key) =
     gdalapply(filename(src, key)) do dataset
         key = string(key)
         _window = maybewindow2indices(dataset, dims(dataset), window(src))
         copy!(dst, readwindowed(dataset, _window))
     end
+Base.copy!(dst::AbstractGeoArray, src::GDALstack, key::Key) =
+    copy!(data(dst), src, key)
 
 
 # DimensionalData methods for ArchGDAL types ###############################
 
-dims(dataset::AG.Dataset, selectorcrs=nothing) = begin
+dims(dataset::AG.Dataset, usercrs=nothing) = begin
     gt = try
         AG.getgeotransform(dataset)
     catch
@@ -172,13 +163,13 @@ dims(dataset::AG.Dataset, selectorcrs=nothing) = begin
     latsize, lonsize = AG.height(dataset), AG.width(dataset)
 
     nbands = AG.nraster(dataset)
-    band = Band(1:nbands, grid=CategoricalGrid())
+    band = Band(1:nbands, mode=Categorical())
     sourcecrs = crs(dataset)
 
     lonlat_metadata=GDALdimMetadata()
 
-    # Output a BoundedGrid dims when the transformation is lat/lon alligned,
-    # otherwise use TransformedGrid with an affine map.
+    # Output a BoundedIndex dims when the transformation is lat/lon alligned,
+    # otherwise use TransformedIndex with an affine map.
     if isalligned(gt)
         lonstep = gt[GDAL_WE_RES]
         lonmin = gt[GDAL_TOPLEFT_X]
@@ -193,37 +184,37 @@ dims(dataset::AG.Dataset, selectorcrs=nothing) = begin
         areaorpoint = gdalmetadata(dataset, "AREA_OR_POINT")
         # Spatial data defaults to area/inteval?
         if areaorpoint == "Point"
-            sampling = PointSampling()
+            sampling = Points()
         else areaorpoint 
             # GeoTiff uses the "pixelCorner" convention
-            sampling = IntervalSampling(Start())
+            sampling = Intervals(Start())
         end
 
-        latgrid = ProjectedGrid(
+        latmode = ProjectedIndex(
             # Latitude is in reverse to how plot it.
             order=Ordered(Reverse(), Reverse(), Forward()), 
             sampling=sampling,
             # Use the range step as is will be different to latstep due to float error
-            span=RegularSpan(step(latrange)), 
+            span=Regular(step(latrange)), 
             crs=sourcecrs, 
-            selectorcrs=selectorcrs
+            usercrs=usercrs
         )
-        longrid = ProjectedGrid(
-            span=RegularSpan(step(lonrange)), 
+        lonmode = ProjectedIndex(
+            span=Regular(step(lonrange)), 
             sampling=sampling,
             crs=sourcecrs, 
-            selectorcrs=selectorcrs
+            usercrs=usercrs
         )
 
-        lon = Lon(lonrange; grid=longrid, metadata=lonlat_metadata)
-        lat = Lat(latrange; grid=latgrid, metadata=lonlat_metadata)
+        lon = Lon(lonrange; mode=lonmode, metadata=lonlat_metadata)
+        lat = Lat(latrange; mode=latmode, metadata=lonlat_metadata)
 
         formatdims(map(Base.OneTo, (lonsize, latsize, nbands)), (lon, lat, band))
     else
-        error("Rotated/transformed grids not handled currently")
+        error("Rotated/transformed mode not handled currently")
         # affinemap = geotransform_to_affine(geotransform)
-        # x = X(affinemap; grid=TransformedGrid(dims=Lon()))
-        # y = Y(affinemap; grid=TransformedGrid(dims=Lat()))
+        # x = X(affinemap; mode=TransformedIndex(dims=Lon()))
+        # y = Y(affinemap; mode=TransformedIndex(dims=Lat()))
 
         # formatdims((lonsize, latsize, nbands), (x, y, band))
     end
@@ -254,6 +245,7 @@ end
 
 crs(dataset::AG.Dataset, args...) =
     WellKnownText(GeoFormatTypes.CRS(), string(AG.getproj(dataset)))
+
 
 # Utils ########################################################################
 
@@ -287,6 +279,23 @@ gdalmetadata(dataset, key) = begin
     end
 end
 
+gdalwrite(filename, A, nbands, indices; compress="DEFLATE", tiled="YES") = begin
+    AG.create(filename;
+        driver=AG.getdriver("GTiff"),
+        width=size(A, 1),
+        height=size(A, 2),
+        nbands=nbands,
+        dtype=eltype(A),
+        options=["COMPRESS=$compress", "TILED=$tiled"],
+       ) do dataset
+        lon, lat = dims(A, (Lon(), Lat()))
+        proj = convert(String, crs(mode(dims(A, Lat()))))
+        AG.setproj!(dataset, proj)
+        AG.setgeotransform!(dataset, build_geotransform(lat, lon))
+        AG.write!(dataset, data(A), indices)
+    end
+    return filename
+end
 
 #= Geotranforms ########################################################################
 
@@ -318,4 +327,15 @@ geotransform_to_affine(gt) = begin
               [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
 end
 
+# TODO handle Forward/Reverse orders
+build_geotransform(lat, lon) = begin
+    gt = zeros(6)
+    gt[GDAL_TOPLEFT_X] = first(lon)
+    gt[GDAL_WE_RES] = step(lon)
+    gt[GDAL_ROT1] = 0.0
+    gt[GDAL_TOPLEFT_Y] = first(lat)
+    gt[GDAL_ROT2] = 0.0
+    gt[GDAL_NS_RES] = step(lat)
+    return gt
+end
 

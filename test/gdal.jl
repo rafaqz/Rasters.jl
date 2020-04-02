@@ -1,11 +1,11 @@
-using ArchGDAL, GeoData, Test, Statistics, Dates
-using GeoData: window, grid
-include("test_utils.jl")
+using ArchGDAL, GeoData, Test, Statistics, Dates, Plots
+using GeoData: window, mode
+include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
 @testset "array" begin
-    gdalarray = GDALarray(path; selectorcrs=EPSG(4326))
+    gdalarray = GDALarray(path; usercrs=EPSG(4326))
 
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
@@ -37,7 +37,6 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
     end
 
     @testset "selectors" begin
-        DimensionalData.sampling.(grid.(dims(gdalarray, (Lat, Lon))))
         # TODO verify the value with R/gdal etc
         @test gdalarray[Lat(Contains(33.8)), Lon(Contains(-117.5)), Band(1)] isa UInt8
         @test gdalarray[Lat(Between(33.7, 33.9)), Band(1)] isa GeoArray
@@ -57,12 +56,12 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
     # Works but saved raster has no geotransform so can't be loaded
     @testset "save" begin
-        gdalarray = GDALarray(path; selectorcrs=EPSG(4326));
+        gdalarray = GDALarray(path; usercrs=EPSG(4326));
         filename = tempname()
         # Write a GDALarray
         val(dims(gdalarray, Lat))
         write(filename, GDALarray, gdalarray)
-        saved1 = GeoArray(GDALarray(filename; selectorcrs=EPSG(4326)));
+        saved1 = GeoArray(GDALarray(filename; usercrs=EPSG(4326)));
         geoarray1 = GeoArray(gdalarray)
         @test saved1 == geoarray1
         @test typeof(saved1) == typeof(geoarray1)
@@ -74,7 +73,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         filename = tempname()
         # Write a GeoArray
         write(filename, GDALarray, geoarray2)
-        saved2 = GeoArray(GDALarray(filename; selectorcrs=EPSG(4326)))
+        saved2 = GeoArray(GDALarray(filename; usercrs=EPSG(4326)))
         @test size(saved2) == size(geoarray2) == length.(dims(saved2)) == length.(dims(geoarray2))
         @test refdims(saved2) == refdims(geoarray2)
         @test missingval(saved2) === missingval(geoarray2)
@@ -83,7 +82,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test GeoData.name(saved2) == GeoData.name(geoarray2)
         @test all(metadata.(dims(saved2)) .== metadata.(dims(geoarray2)))
         @test typeof(dims(saved2, Lat)) == typeof(dims(geoarray2, Lat))
-        @test step(grid(dims(saved2, Lat))) ≈ step(grid(dims(geoarray2, Lat)))
+        @test step(mode(dims(saved2, Lat))) ≈ step(mode(dims(geoarray2, Lat)))
         @test typeof(dims(saved2)) == typeof(dims(geoarray2))
         @test all(val(dims(saved2, Band)) .≈ val(dims(geoarray2, Band)))
         @test all(val(dims(saved2, Lon)) .≈ val(dims(geoarray2, Lon)))
@@ -91,6 +90,11 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test all(metadata.(dims(saved2)) .== metadata.(dims(geoarray2)))
         @test data(saved2) == data(geoarray2)
         @test typeof(saved2) == typeof(geoarray2)
+    end
+
+    @testset "plot" begin
+        # TODO write some tests for this
+        p = gdalarray |> plot
     end
 
 end

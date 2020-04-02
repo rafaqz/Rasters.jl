@@ -1,11 +1,12 @@
 using GeoData, Test, Statistics, Dates
-using GeoData: name
-include("test_utils.jl")
+using GeoData: name, mode
+testpath = joinpath(dirname(pathof(GeoData)), "../test/")
+include(joinpath(testpath, "test_utils.jl"))
 
 
 geturl("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd", "rlogo.grd")
 geturl("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri", "rlogo.gri")
-path = "data/rlogo"
+path = joinpath(testpath, "data/rlogo")
 @test isfile(path * ".grd")
 @test isfile(path * ".gri")
 
@@ -94,7 +95,7 @@ path = "data/rlogo"
         @test metadata(saved)["creator"] == "GeoData.jl"
         @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
         @test GeoData.name(saved) == GeoData.name(geoarray)
-        @test all(DimensionalData.grid.(dims(saved[Band(1)])) .== DimensionalData.grid.(dims(geoarray)))
+        @test all(mode.(dims(saved[Band(1)])) .== mode.(dims(geoarray)))
         @test dims(saved) isa typeof(dims(geoarray))
         @test all(val.(dims(saved)) .== val.(dims(geoarray)))
         @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))

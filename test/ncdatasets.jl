@@ -1,6 +1,6 @@
 using NCDatasets, GeoData, Test, Statistics, Dates, CFTime
-using GeoData: window, name
-include("test_utils.jl")
+using GeoData: window, name, mode
+include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = geturl(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
@@ -84,7 +84,7 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         @test metadata(saved) == metadata(geoarray)
         @test GeoData.name(saved) == GeoData.name(geoarray)
         @test_broken all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
-        @test all(DimensionalData.grid.(dims(saved)) .== DimensionalData.grid.(dims(geoarray)))
+        @test all(mode.(dims(saved)) .== mode.(dims(geoarray)))
         @test dims(saved) isa typeof(dims(geoarray))
         @test val(dims(saved)[3]) == val(dims(geoarray)[3])
         @test all(val.(dims(saved)) .== val.(dims(geoarray)))

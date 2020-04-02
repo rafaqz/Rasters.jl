@@ -18,8 +18,15 @@ Base.IteratorEltype(::Metadata{M}) where M = IteratorEltype(M)
 Base.eltype(::Metadata{M}) where M = eltype(M)
 Base.length(metadata::Metadata) = length(val(metadata))
 
+
+"""
+Metadata wrappers to be attached to `Dimension`s.
+"""
 abstract type DimMetadata{K,V} <: Metadata{K,V} end
 
+"""
+Metadata wrappers to be attached to `AbstractGeoArrays`.
+"""
 abstract type ArrayMetadata{K,V} <: Metadata{K,V} end
 
 crs(metadata::DimMetadata) = get(metadata, :crs, nothing)

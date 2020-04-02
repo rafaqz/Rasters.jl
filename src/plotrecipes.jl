@@ -35,11 +35,11 @@ end
     _reproject(lon), _reproject(lat), preparedata(A)
 end
 
-_reproject(dim::Dimension) = _reproject(grid(dim), dim, val(dim))
-_reproject(grid, dim::Lat, vals::AbstractArray) = 
-    [r[1] for r in ArchGDAL.reproject([(0.0, v) for v in vals], crs(grid), selectorcrs(grid))]
-_reproject(grid, dim::Lon, vals::AbstractArray) =                                           
-    [r[2] for r in ArchGDAL.reproject([(v, 0.0) for v in vals], crs(grid), selectorcrs(grid))]
+_reproject(dim::Dimension) = _reproject(mode(dim), dim, val(dim))
+_reproject(mode::ProjectedIndex, dim::Lat, vals::AbstractArray) = 
+    [r[1] for r in ArchGDAL.reproject([(0.0, v) for v in vals], crs(mode), usercrs(mode))]
+_reproject(mode::ProjectedIndex, dim::Lon, vals::AbstractArray) =                                           
+    [r[2] for r in ArchGDAL.reproject([(v, 0.0) for v in vals], crs(mode), usercrs(mode))]
 
 @recipe function f(A::AbstractGeoArray{T,2,<:Tuple{<:Lon,<:Lat}}) where T
     permutedims(A)

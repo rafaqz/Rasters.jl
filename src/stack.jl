@@ -2,8 +2,20 @@
 const Key = Union{Symbol,AbstractString}
 
 """
-Stack objects hold multiple raster array that
-share spatial metadata and bounds.
+Stack objects hold multiple raster array that share spatial metadata and bounds.
+
+These are NamedTuple-like structures that may either contain `NamedTuple`
+of `AbstractGeoArray`, string paths that will load `AbstractGeoArray`, or a single
+path that points to as a multi-layered stack of arrays. 
+
+The primary purpose of  is that use and syntax is identical for all cases,
+abstracting away data source and simplifying access code. `getindex` on any
+`AbstractGeoStack` may return a memory backed standard `GeoArray`, or a disk
+base AbstractGeoArray. `geoarray[:somelayer] |> plot` plots the layers array,
+while `geoarray[:somelayer, Lon(1:100), Band(2)] |> plot` will plot the
+subsetted array directly from disk, without loading the whole array. 
+
+`getindex` on a GeoStack returns another stack with the method applied to all layers.
 """
 abstract type AbstractGeoStack{T} end
 
@@ -23,6 +35,7 @@ end
 refdims(s::AbstractGeoStack) = s.refdims
 window(s::AbstractGeoStack) = s.window
 
+
 """
     source(s::AbstractGeoStack, [key])
 
@@ -31,13 +44,24 @@ a named tuple of filepaths to files containing single layers; a single filepath
 for a file containing layers with multiple keys; or a NamedTuple that contains
 multiple AbstractGeoArrays.
 
-This abstraction allows the same methods to apply to many different file types
-and structures.
+It allows the same methods to apply to many different file types and structures.
 """
-
+function source end
 
 # Base methods #################################################################
 
+"""
+    Base.write(filename::AbstractString, T::Type{<:AbstractGeoArray}, s::AbstractGeoStack)
+
+Save all layers of an `AbstractGeoStack` to separate files, using the backend determined
+by `T`.
+
+## Example
+
+```julia
+write(filename, GDALArray, stack)
+```
+"""
 Base.write(filename::AbstractString, ::Type{T}, s::AbstractGeoStack) where T <: AbstractGeoArray =
     for key in keys(s)
         base, ext = splitext(filename)
@@ -47,12 +71,22 @@ Base.write(filename::AbstractString, ::Type{T}, s::AbstractGeoStack) where T <: 
 
 Base.copy(stack::AbstractGeoStack) = rebuild(stack; data=map(copy, source(stack)))
 
-Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, destkeys=keys(dst)) = begin
-    for key in destkeys
-        key in Symbol.(keys(dst)) || throw(ArgumentError("key $key not found in dest keys"))
-        key in Symbol.(keys(src)) || throw(ArgumentError("key $key not found in source keys"))
+"""
+    Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, [keys=keys(dst)])
+
+Copy all or a subset of layers from one stack to another.
+
+## Example
+```julia
+copy!(dst::AbstractGeoStack, src::AbstractGeoStack, keys=(:sea_surface_temp, :humidity))
+```
+"""
+Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, keys=keys(dst)) = begin
+    for key in keys
+        key in Symbol.(Base.keys(dst)) || throw(ArgumentError("key $key not found in dest keys"))
+        key in Symbol.(Base.keys(src)) || throw(ArgumentError("key $key not found in source keys"))
     end
-    for key in Symbol.(destkeys)
+    for key in Symbol.(keys)
         copy!(dst[key], src, key)
     end
 end
@@ -71,6 +105,17 @@ Base.length(s::AbstractGeoStack) = length(keys(s))
 Base.keys(s::AbstractGeoStack{<:AbstractString}) = Symbol.(safeapply(keys, s, source(s)))
 Base.keys(s::AbstractGeoStack{<:NamedTuple}) = Symbol.(keys(source(s)))
 Base.names(s::AbstractGeoStack) = keys(s)
+
+"""
+    Base.cat(stacks::AbstractGeoStack...; [keys=keys(stacks[1])], dims)
+
+Concatenate all or a subset of layers for all passed in stacks.
+
+## Example
+```julia
+cat(stacks...; keys=(:sea_surface_temp, :humidity), dims)
+```
+"""
 Base.cat(stacks::AbstractGeoStack...; keys=keys(stacks[1]), dims) = begin
     vals = Tuple(cat((s[key] for s in stacks)...; dims=dims) for key in keys)
     GeoStack(stacks[1], data=NamedTuple{keys}(vals))
@@ -81,11 +126,28 @@ Base.last(s::AbstractGeoStack) = s[last(keys(s))]
 
 # abstract disk-based stack ######################################################
 
+"""
+Abstract supertype for all disk backed [`AbstractGeoStack`](@ref)s
+"""
 abstract type DiskGeoStack{T} <: AbstractGeoStack{T} end
 
 source(s::DiskGeoStack, args...) = filename(s, args...)
 
+"""
+    filename(s::DiskGeoStack)
+
+Return the filename field of a `DiskGeoStack`. This may be a `Vector` of `String`,
+or a `String`.
+"""
 filename(s::DiskGeoStack) = s.filename
+"""
+    filename(s::DiskGeoStack, key)
+
+Return the filename field of a `DiskGeoStack` for a given key.
+
+This will always be a single string. However, in some cases 
+all keys may have the same filename.
+"""
 filename(s::DiskGeoStack{<:NamedTuple}, key::Key) = filename(s)[Symbol(key)]
 filename(s::DiskGeoStack, key::Key) = filename(s)
 
@@ -93,7 +155,10 @@ filename(s::DiskGeoStack, key::Key) = filename(s)
 
 
 # abstract memory-based stack ######################################################
-#
+
+"""
+[`AbstractGeoStack`](@ref) backed by memory.
+"""
 abstract type MemGeoStack{T} <: AbstractGeoStack{T} end
 
 data(s::MemGeoStack) = s.data
@@ -107,10 +172,13 @@ source(s::MemGeoStack{<:NamedTuple}, args...) = data(s, args...)
 # Concrete MemGeoStack implementation ######################################################
 
 """
-Basic stack object. Holds concrete GeoArray layers.
+Concrete `MemGeoStack` implementation. Holds concrete [`GeoArray`](@ref) layers in memory.
 
-`view` or `getindex` return another stack with the method
-applied to all layers.
+- `data`: A `NamedTuple` of `GeoArray`.
+- `window`: A `Tuple` of Dimensions/Selectors/Indices that will be applied to the contained
+            arrays when they are accessed.
+- `refdims`: reference dimensions from earlier subsetting.
+- `metadata`: Any metadata object.
 """
 struct GeoStack{T,R,W,M} <: MemGeoStack{T}
     data::T
@@ -118,20 +186,32 @@ struct GeoStack{T,R,W,M} <: MemGeoStack{T}
     window::W
     metadata::M
 end
+"""
+    GeoStack(data::Vararg{<:AbstractGeoArray}; kwargs...)
 
-stackkeys(keys) = Tuple(Symbol.(keys))
+Convert `GeoArray`s arguments to a `GeoStack`.
+"""
+GeoStack(data::AbstractGeoArray...; keys=name.(data), kwargs...) =
+    GeoStack(NamedTuple{_stackkeys(keys)}(data); kwargs...)
+"""
+    GeoStack(data::NamedTuple; [refdims=()], [window=()], [metadata=nothing]) =
 
-GeoStack(data::Vararg{<:AbstractGeoArray}; keys=name.(data), kwargs...) =
-    GeoStack(NamedTuple{stackkeys(keys)}(data); kwargs...)
+Construct a `GeoStack` from a NamedTuple of [`GeoArray`](@ref) and keyword arguments.
+"""
 GeoStack(data::NamedTuple; refdims=(), window=(), metadata=nothing) =
     GeoStack(data, refdims, window, metadata)
-GeoStack(s::AbstractGeoStack;
-         keys=stackkeys(Base.keys(s)),
+"""
+    GeoStack(s::AbstractGeoStack; [keys, data, refdims, window, metadata])
+
+Construct a `GeoStack` from another `GeoStack` and keyword arguments.
+`data` is a `NamedTuple` of `GeoArray`.
+"""
+GeoStack(s::AbstractGeoStack; keys=_stackkeys(Base.keys(s)),
          data=NamedTuple{keys}((GeoArray(s[key]) for key in keys)),
-         refdims=refdims(s),
-         window=(), # Window is allready applied retrieving arrays
-         metadata=metadata(s)) =
+         refdims=refdims(s), window=window(s), metadata=metadata(s)) =
     GeoStack(data, refdims, window, metadata)
+
+_stackkeys(keys) = Tuple(Symbol.(keys))
 
 metadata(s::GeoStack) = s.metadata
 

@@ -1,4 +1,6 @@
 
+export ASCIIarray, ASCIImetadata, ASCIIdimMetadata
+
 # Metadata ########################################################################
 struct ASCIImetadata{K,V} <: ArrayMetadata{K,V}
     val::Dict{K,V}
@@ -50,8 +52,8 @@ ASCIIarray(x::AbstractString; refdims=(), name="Unnamed", window=()) =
         end
         yll = parse(Float64, yllmatch.captures[1])
 
-        dims = Lon(xll; grid=RegularGrid(locus=xlocus, step=step)), 
-               Lat(yll; grid=RegularGrid(locus=ylocus, step=step))
+        dims = Lon(xll; mode=RegularIndex(locus=xlocus, step=step)), 
+               Lat(yll; mode=RegularIndex(locus=ylocus, step=step))
         size = nrows, ncols
         if window != ()
             window = to_indices(dataset, dims2indices(dims, window))
@@ -75,6 +77,7 @@ Base.parent(A::ASCIIarray) =
         _window = maybewindow2indices(file, dims(A), window(A))
         readwindowed(data, _window)
     end
+
 Base.getindex(A::ASCIIarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
     asciiapply(A) do data
         _window = maybewindow2indices(file, dims(A), window(A))
@@ -109,7 +112,7 @@ Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray{Any,2}) = beg
     y = dims(A, Lon())
     xmin = bounds(lon)[1]
     ymin = bounds(lon)[1]
-    xlocus = locus(grid(x))
+    xlocus = locus(mode(x))
     xll = if xlocus == Start() 
         "XLLCORNER"
     elseif xlocus == Center()
@@ -118,7 +121,7 @@ Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray{Any,2}) = beg
         error("$xlocus is not a valid locus for ASCII files. Use `Start` or `Center`")
     end
 
-    ylocus = locus(grid(y))
+    ylocus = locus(mode(y))
     yll = if ylocus == Start() 
         "YLLCORNER"
     elseif ylocus == Center()

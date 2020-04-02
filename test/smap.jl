@@ -1,6 +1,6 @@
 using HDF5, GeoData, Test, Statistics, Dates
 using GeoData: Time, window, name
-include("test_utils.jl")
+include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 # TODO example files without a login requirement
 path1 = "SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5"
@@ -22,7 +22,7 @@ if isfile(path1)
             # Why is tagged time different to the filename time? is that just rounded?
             dt = DateTime(2016, 1, 1, 22, 28, 55, 816)
             step = Second(10800)
-            @test refdims(stack) == (Ti(dt:step:dt; grid= RegularGrid(;step=step)),)
+            @test refdims(stack) == (Ti(dt:step:dt; mode=RegularIndex(;step=step)),)
             @test_broken metadata(smaparray) = "not implemented yet"
         end
 

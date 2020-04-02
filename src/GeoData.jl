@@ -24,12 +24,21 @@ using DimensionalData: Forward, Reverse, formatdims, slicedims,
       dims2indices, indexorder, arrayorder, relationorder, StandardIndices, isrev
 
 import DimensionalData: val, data, dims, refdims, metadata, rebuild, rebuildsliced,
-                        name, label, units, bounds, sel2indices, grid, locus, order
+                        name, label, units, bounds, sel2indices, mode, 
+                        order, locus, span, sampling
+
+export Metadata, ArrayMetadata, DimMetadata
 
 export AbstractGeoArray, GeoArray
+
 export AbstractGeoStack, GeoStack
+
 export AbstractGeoSeries, GeoSeries
-export missingval, mask, replace_missing, aggregate, crs, selectorcrs
+
+export ProjectedIndex
+
+export missingval, boolmask, missingmask, replace_missing, aggregate, aggregate!, crs, usercrs
+
 export Lon, Lat, Vert, Band
 
 @dim Lon XDim "Longitude" "Lon"
@@ -42,12 +51,12 @@ include("metadata.jl")
 include("array.jl")
 include("stack.jl")
 include("series.jl")
-include("plotrecipes.jl")
 include("utils.jl")
 include("aggregate.jl")
 include("methods.jl")
-include("grid.jl")
+include("mode.jl")
 include("sources/grd.jl")
+include("plotrecipes.jl")
 
 
 function __init__()

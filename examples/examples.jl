@@ -22,7 +22,7 @@ ncfilename = geturl(ncurl)
 stack = NCDstack(ncfilename)
 A = first(stack)
 A[Ti(1)] |> plot
-DimensionalData.grid(dims(A, 1))
+mode(dims(A, 1))
 
 # Create a GeoSeries from multiple files.
 # This uses the same data three times to avoid downloads, you 
