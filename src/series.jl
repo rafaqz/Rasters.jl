@@ -52,8 +52,8 @@ end
 GeoSeries(data, dims; refdims=(), metadata=Dict(), childtype=GeoStack, window=()) =
     GeoSeries(data, formatdims(data, dims), refdims, metadata, childtype, window)
 
-@inline rebuild(A::GeoSeries, data, newdims, newrefdims, name) =
-    GeoSeries(data, newdims, newrefdims, metadata(A), childtype(A), window(A))
+@inline rebuild(A::GeoSeries, data, dims::Tuple, refdims, name, metadata) =
+    GeoSeries(data, dims, refdims, metadata, childtype(A), window(A))
 
 Base.@propagate_inbounds Base.setindex!(A::GeoSeries, x, I::Vararg{<:Union{AbstractArray,Colon,Real}}) =
     setindex!(data(A), x, I...)

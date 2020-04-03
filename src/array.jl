@@ -1,7 +1,7 @@
 """
-`AbstractGeoArray` wraps an array (or location of an array) and metadata 
+`AbstractGeoArray` wraps an array (or location of an array) and metadata
 about its contents. It may be memory (`GeoArray`) or disk-backed (`NCarray`,
-`GDAlarray`). 
+`GDAlarray`).
 
 `AbstractGeoArray`s inherit from `AbstractDimensionalArray` from
 DimensionalData. They can be indexed as regular Julia arrays or with
@@ -36,9 +36,9 @@ label(A::AbstractGeoArray) = string(name(A), " ", units(A))
 Get the coordinate reference system of the array.
 """
 crs(A::AbstractGeoArray) =
-    if hasdim(Lat) 
+    if hasdim(Lat)
         crs(dims(A, Lat))
-    elseif hasdim(Lon) 
+    elseif hasdim(Lon)
         crs(dims(A, Lon))
     else
         error("No Lat or Lon dimension, crs not available")
@@ -53,9 +53,9 @@ crs(dim::Dimension) = crs(mode(dim), dim)
 Get the coordinate reference system of the array.
 """
 usercrs(A::AbstractGeoArray) =
-    if hasdim(Lat) 
+    if hasdim(Lat)
         usercrs(dims(A, Lat))
-    elseif hasdim(Lon) 
+    elseif hasdim(Lon)
         usercrs(dims(A, Lon))
     else
         error("No Lat or Lon dimension, usercrs not available")
@@ -115,7 +115,7 @@ end
     GeoArray(A::AbstractArray{T,N}, dims::Tuple;
              refdims=(), name="", metadata=nothing, missingval=missing)
 
-Construct a [`GeoArray`](@ref) from an `AbstractArray`, a `Tuple` of 
+Construct a [`GeoArray`](@ref) from an `AbstractArray`, a `Tuple` of
 `Dimension` and keyword arguments.
 """
 @inline GeoArray(A::AbstractArray{T,N}, dims::Tuple;
@@ -156,7 +156,7 @@ Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
 
 # Utils ########################################################################
 
-@inline getmeta(a::AbstractGeoArray, key, fallback) = getmeta(metadata(a), key, fallback)
+@inline getmeta(A::AbstractGeoArray, key, fallback) = getmeta(metadata(A), key, fallback)
 @inline getmeta(m::Nothing, key, fallback) = fallback
 @inline getmeta(m::Union{NamedTuple,Dict}, key, fallback) = key in keys(m) ?  m[key] : fallback
 @inline getmeta(m::Metadata, key, fallback) = getmeta(val(m), key, fallback)
