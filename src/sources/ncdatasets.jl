@@ -238,7 +238,7 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
         else
             # The var doesn't exist. Maybe its `complex` or some other marker
             # so just make it a Dim with that name and range matching the indices
-            push!(dims, Dim{Symbol(dimname)}(1:size(v, i), Sampled(span=Regular(1)), nothing))
+            push!(dims, Dim{Symbol(dimname)}(1:size(v, i), NoIndex(), nothing))
         end
     end
     (dims...,)
