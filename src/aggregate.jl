@@ -54,11 +54,27 @@ aggregate(method, src::AbstractDimensionalArray, scale) =
 
 Aggregate a Dimension 
 """
+# aggregate(method, dim::Dimension, scale) = begin
+#     intscale = dims2indices(dim, scale)
+#     start = firstindex(dim) + beginoffset(method, dim, scale)
+#     stop = (length(dim) ÷ scale) * scale
+#     d = rebuild(dim, val(dim)[start:intscale:stop])
+#     println(d)
+#     d
+# end
+
+
+aggregate(method, dim::Dimension, scale) =
+    aggregate(method, dim, scale)
 aggregate(method, dim::Dimension, scale) = begin
-    intscale = dims2indices(dim, scale)
+    start, stop = endpoints(dim, method, scale)
+    rebuild(dim, val(dim)[start:scale:stop])
+end
+
+endpoints(dim, method, scale) = begin
     start = firstindex(dim) + beginoffset(method, dim, scale)
     stop = (length(dim) ÷ scale) * scale
-    rebuild(dim, val(dim)[start:intscale:stop])
+    start, stop
 end
 
 """
@@ -102,15 +118,15 @@ ag_array(method, A::AbstractDimensionalArray, scale) =
 ag_array(method::Tuple, A::AbstractDimensionalArray, scale) = begin
     intscale = scale2int(dims(A), scale)
     # Aggregate the dimensions
-    dims_ = map((m, d, s) -> aggregate(m, d, s), method, dims(A), intscale)
+    dims_ = aggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size
-    data_ = similar(data(A), map(length, dims_))
+    data_ = similar(data(A), map(length, dims_)...)
     rebuild(A; data=data_, dims=dims_)
 end
 
 # Convert scale or tuple of scale to integer using dims2indices
-scale2int(dims::Tuple, scale::Tuple) = map((d, s) -> dims2indices(d, s), dims, scale)
-scale2int(dims::Tuple, scale) = map(d -> dims2indices(d, scale), dims)
+scale2int(dims::Tuple, scale::Tuple) = dims2indices(dims, scale)
+scale2int(dims::Tuple, scale::Int) = scale
 
 """
     upsample(index::Int, scale::Int)

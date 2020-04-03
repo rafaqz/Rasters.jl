@@ -44,8 +44,8 @@ series = GeoSeries([stack1, stack2], (Ti(dates),));
         @test aggregate(End(), array1, scale) == [15 18]
         @test aggregate(Start(), stack1, scale)[:array2] == [2 8]
         @test aggregate(Center(), stack1, scale)[:array2] == [16 22]
-        @test map(x -> aggregate(Start(), x, scale), series)[2][:array2] == [4 16]
-        @test typeof(map(x -> aggregate(Start(), x, scale), series)) <: GeoSeries
+        @test aggregate(Start(), series, scale)[2][:array2] == [4 16]
+        @test typeof(aggregate(Start(), series, scale)) <: GeoSeries
         A = aggregate(Start(), array1, scale)
         @test length.(dims(A)) == size(A)
     end
@@ -65,6 +65,12 @@ series = GeoSeries([stack1, stack2], (Ti(dates),));
         A = aggregate((End(), Start()), array1, scale)
         @test length.(dims(A)) == size(A)
     end
+    @testset "dim scale" begin
+        @test aggregate(Start(), array1, (Lat(3), Lon(1))) == 
+            aggregate(Start(), array1, (1, 3))
+        @test aggregate(Start(), array1, (Lon(1), Lat(Near(-4)))) == 
+            aggregate(Start(), array1, (1, 2))
+    end
 end
 
 @testset "Aggregate with a function" begin
@@ -75,15 +81,10 @@ end
     @test length.(dims(A)) == size(A)
 end
 
-
 @testset "Aggregate different index modes" begin
-    dimz = Band(1:3), Dim{:category}([:a, :b, :c]), X(10:10:30; mode=Sampled())
+    dimz = Band(1:3), Dim{:category}([:a, :b, :c]), X([10, 20, 30, 40])
     a1 = [1 2 3; 4 5 6; 7 8 9]
-    A = cat(a1, a1 .+ 10, a1 .+ 20, dims=3)
+    A = cat(a1, a1 .+ 10, a1 .+ 20, a1 .+ 30, dims=3)
     da = DimensionalArray(A, dimz)
-    @test aggregate(sum, da, 3) == [72 99]
-    @test aggregate(median, array1, 3) == [8 11]
-    @test aggregate(sum, array1, (3, 2)) == [45 57 69]
-    A = aggregate(sum, array1, (3, 2))
-    @test length.(dims(A)) == size(A)
+    @test vec(aggregate(sum, da, (3, 2, 2))) == [114, 354]
 end
