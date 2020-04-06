@@ -3,17 +3,28 @@ export GrdArray, GrdMetadata, GrdDimMetadata
 
 # Metadata ########################################################################
 
+"""
+[`ArrayMetadata`](@ref) wrapper for `GrdArray`.
+"""
 struct GrdMetadata{K,V} <: ArrayMetadata{K,V}
     val::Dict{K,V}
 end
+GrdMetadata() = GrdMetadata(Dict())
 
+"""
+[`DimMetadata`](@ref) wrapper for `GrdArray` dimensions.
+"""
 struct GrdDimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
+GrdDimMetadata() = GrdDimMetadata(Dict())
 
 
 # Array ########################################################################
 
+"""
+An [`AbstractGeoArray`](@ref) that loads .grd files lazily from disk.
+"""
 struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
     filename::A
@@ -25,13 +36,18 @@ struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
     window::W
     size::S
 end
+"""
+    GrdArray(filepath::String; refdims=(), name=nothing, window=(), 
+             metadata=GrdMetadata(), usercrs=nothing)
 
-GrdArray(filepath::String; 
-         refdims=(), 
-         name=nothing, 
-         metadata=GrdMetadata(Dict()), 
-         window=(),
-        ) = begin
+Constuct a `GrdArray` from a filename and keyword arguments.
+
+```julia
+GrdArray("folder/file.grd"; usercrs=EPSG(4326)) 
+```
+"""
+GrdArray(filepath::String; refdims=(), name=nothing, 
+         metadata=GrdMetadata(), window=(), usercrs=nothing) = begin
     filepath = first(splitext(filepath))
     lines = readlines(filepath * ".grd")
     entries = filter!(x -> !isempty(x) && !(x[1] == '['), lines)
@@ -51,14 +67,23 @@ GrdArray(filepath::String;
     celly = (ymax - ymin) / ncols
     latlon_metadata = GrdDimMetadata(Dict(:crs => crs))
 
-    lat = Lat(LinRange(xmin, xmax - cellx, nrows);
-              grid=RegularGrid(; order=Ordered(Forward(), Reverse(), Forward()), 
-                               locus=Start(), step=cellx),
-              metadata=latlon_metadata)
-    lon = Lon(LinRange(ymin, ymax - celly, ncols);
-              grid=RegularGrid(; locus=Start(), step=celly),
-              metadata=latlon_metadata)
-    band = Band(1:nbands; grid=CategoricalGrid())
+    latmode = ProjectedIndex(
+        order=Ordered(Forward(), Reverse(), Forward()), 
+        span=Regular(cellx), 
+        sampling=Intervals(Start()), 
+        crs=crs, 
+        usercrs=usercrs,
+    )
+    lat = Lat(LinRange(xmin, xmax - cellx, nrows), latmode, latlon_metadata)
+    lonmode = ProjectedIndex(
+        order=Ordered(),
+        span=Regular(celly), 
+        sampling=Intervals(Start()), 
+        crs=crs, 
+        usercrs=usercrs,
+    ) 
+    lon = Lon(LinRange(ymin, ymax - celly, ncols), lonmode, latlon_metadata)
+    band = Band(1:nbands; mode=Categorical(Ordered()))
     dims = lon, lat, band
     for key in ("creator", "created", "history")
         val = get(data, key, "")
@@ -80,6 +105,7 @@ data(A::GrdArray) =
         _window = maybewindow2indices(mmap, dims(A), window(A))
         readwindowed(mmap, _window)
     end
+
 Base.getindex(A::GrdArray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
     grdapply(A) do mmap
         _window = maybewindow2indices(mmap, dims(A), window(A))
@@ -97,8 +123,15 @@ Base.getindex(A::GrdArray, i1::Integer, I::Vararg{<:Integer}) =
 # Base.setindex!(A::GrdArray, x, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
     # grdapply(mmap -> mmap[applywindow(A, I)...] = x, A, "w+")
 
+"""
+    Base.write(filename::AbstractString, ::Type{GrdArray}, s::AbstractGeoArray)
+
+Write an GrdArray to a .grd file, with a .gri header file.
+
+The extension of `filename` will be ignored.
+"""
 Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray) = begin
-    # grid(dims(A) <: RegularGrid || throw(ArgumentError("Can only save `RegularGrid` arrays to a grd file"))
+    # mode(dims(A) <: RegularIndex || throw(ArgumentError("Can only save `RegularIndex` arrays to a grd file"))
     # Remove extension
     filename = splitext(filename)[1]
     # Standardise dimensions

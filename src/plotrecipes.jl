@@ -1,42 +1,18 @@
+using DimensionalData: refdims_title
 
-reorderdims(dims) =
-    map(dims) do d
-        if isrev(DimensionalData.indexorder(d))
-            rebuild(d, reverse(val(d)))
-        else
-            d
-        end
-    end
-
-preparedata(A) = A |> forwardorder |> maybenanmissing |> data
-
-maybenanmissing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, missing)
-maybenanmissing(A) = A
-
-forwardorder(A) = begin
-    for (i, dim) in enumerate(dims(A))
-        if arrayorder(dim) == Reverse()
-            A = reverse(A; dims=dim)
-        end
-    end
-    A
-end
-
-@recipe function f(A::AbstractGeoArray)
-    GeoArray(A)
-end
-
-@recipe function f(A::GeoArray{T,3,<:Tuple{<:Lat,<:Lon,D}}) where {T,D}
+@recipe function f(A::AbstractGeoArray{T,3,<:Tuple{<:Lat,<:Lon,D}}) where {T,D}
+    A = GeoArray(A)
     nplots = size(A, 3)
     if nplots > 1
-        layout --> nplots
-        xlabel --> permutedims(string.(val(dims(A, D))))
+        :layout --> nplots
+        :xlabel --> permutedims(string.(val(dims(A, D))))
         for i in 1:nplots
             @series begin
                 seriestype := :heatmap
                 aspect_ratio := 1
                 subplot := i
-                (reverse(val.(reorderdims(dims(A, (Lat, Lon)))))..., preparedata(A[:, :, i]))
+                lat, lon = forwardorder(dims(A, (Lat, Lon)))
+                _reproject(lon), _reproject(lat), preparedata(A[:, :, i])
             end
         end
     else
@@ -45,21 +21,31 @@ end
 end
 
 # TODO generalise for any dimension order
-@recipe function f(A::GeoArray{T,3,<:Tuple{Vararg{Union{<:Lon,<:Lat,D}}}}) where {T,D}
+@recipe function f(A::AbstractGeoArray{T,3,<:Tuple{Vararg{Union{<:Lon,<:Lat,D}}}}) where {T,D}
     permutedims(A, (Lat, Lon, D))
 end
 
-@recipe function f(A::GeoArray{T,2,<:Tuple{<:Lat,<:Lon}}) where T
-    seriestype --> :heatmap
-    aspect_ratio --> 1
-    grid --> false
-    #ylabel --> name(dims(A)[1])
-    #xlabel --> name(dims(A)[2])
-    colorbar_title --> name(A)
-    title --> join(map(d -> string(name(d), " ", val(d)), refdims(A)), ", ")
-    (reverse(val.(reorderdims(dims(A))))..., preparedata(A))
+@recipe function f(A::AbstractGeoArray{T,2,<:Tuple{<:Lat,<:Lon}}) where T
+    :seriestype --> :heatmap
+    :aspect_ratio --> 1
+    :grid --> false
+    :colorbar_title --> name(A)
+    :title --> refdims_title(A)
+    lat, lon = forwardorder(dims(A))
+    _reproject(lon), _reproject(lat), preparedata(A)
 end
 
-@recipe function f(A::GeoArray{T,2,<:Tuple{<:Lon,<:Lat}}) where T
+_reproject(dim::Dimension) = _reproject(mode(dim), dim, val(dim))
+_reproject(mode::ProjectedIndex, dim::Lat, vals::AbstractArray) = 
+    [r[1] for r in ArchGDAL.reproject([(0.0, v) for v in vals], crs(mode), usercrs(mode))]
+_reproject(mode::ProjectedIndex, dim::Lon, vals::AbstractArray) =                                           
+    [r[2] for r in ArchGDAL.reproject([(v, 0.0) for v in vals], crs(mode), usercrs(mode))]
+
+@recipe function f(A::AbstractGeoArray{T,2,<:Tuple{<:Lon,<:Lat}}) where T
     permutedims(A)
 end
+
+preparedata(A) = A |> forwardorder |> maybenanmissing |> data
+
+maybenanmissing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, missing)
+maybenanmissing(A) = A

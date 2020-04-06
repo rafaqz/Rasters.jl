@@ -1,23 +1,37 @@
 using .HDF5
 
-export SMAPstack, SMAPseries
+export SMAPstack, SMAPseries, SMAPmetadata, SMAPdimMetadata
 
 const SMAPMISSING = -9999.0
 const SMAPEXTENT = "Metadata/Extent"
 const SMAPGEODATA = "Geophysical_Data"
+const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
-
+"""
+[`ArrayMetadata`](@ref) wrapper for `GDALarray`.
+"""
 struct SMAPmetadata{K,V} <: ArrayMetadata{K,V}
     val::Dict{K,V}
 end
 
+"""
+[`DimMetadata`](@ref) wrapper for `SMAPstack` dimensions.
+"""
 struct SMAPdimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
 
 # Stack ########################################################################
 
+"""
+`AbstractGeoStack` for [SMAP](https://smap.jpl.nasa.gov/) datasets.
 
+The simplicity of the format means dims and refdims are the same for all stack layers,
+so we store them as stack fields.
+
+`SMAPstack` should also serve as an example of defining a custom source
+for HDF5 backed geospatial data.
+"""
 struct SMAPstack{T,D,R,W,M} <: DiskGeoStack{T}
     filename::T
     dims::D
@@ -25,7 +39,6 @@ struct SMAPstack{T,D,R,W,M} <: DiskGeoStack{T}
     window::W
     metadata::M
 end
-
 SMAPstack(filename::String; 
           dims=smapapply(smapdims, filename),
           refdims=(smapapply(smaptime, filename),), 
@@ -41,13 +54,13 @@ missingval(stack::SMAPstack) = SMAPMISSING
 
 @inline safeapply(f, ::SMAPstack, path::AbstractString) = smapapply(f, path)
 
-@inline Base.getindex(s::SMAPstack, key::Key, i1::Integer, I::Integer...) =
+Base.getindex(s::SMAPstack, key::Key, i1::Integer, I::Integer...) =
     smapapply(filename(s)) do file
         dataset = file[smappath(key)]
         _window = maybewindow2indices(dataset, _dims, window(s))
         readwindowed(dataset, _window, I...)
     end
-@inline Base.getindex(s::SMAPstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
+Base.getindex(s::SMAPstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
     smapapply(filename(s)) do file
         dataset = file[smappath(key)]
         _dims = dims(s)
@@ -79,15 +92,19 @@ Base.copy!(dst::AbstractGeoArray, src::SMAPstack, key) =
 # Series #######################################################################
 
 """
-Series loader for SMAP folders (files in the time dimension).
-It outputs a GeoSeries
+    SMAPseries(path; kwargs...)
+
+Series loader for SMAP folders (files in the time dimension). 
+Returns a [`GeoSeries`](@ref).
+
+`path` can be a `String` path to a directory of SMAP files, 
+or a vector of `String` paths for specific files.
+`kwargs` are passed to the constructor for `GeoSeries`.
 """
 SMAPseries(path::AbstractString; kwargs...) =
     SMAPseries(joinpath.(path, filter_ext(path, ".h5")); kwargs...)
-SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths);
-           childtype=SMAPstack,
-           window=(), kwargs...) =
-    GeoSeries(filepaths, dims; childtype=childtype, window=window, kwargs...)
+SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths); kwargs...) =
+    GeoSeries(filepaths, dims; childtype=SMAPstack, kwargs...)
 
 
 # Utils ########################################################################
@@ -95,7 +112,6 @@ SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths);
 smapapply(f, filepath) = h5open(f, filepath)
 
 readwindowed(A::HDF5Dataset, window::Tuple{}) = HDF5.read(A)
-
 
 smappath(key) = joinpath(SMAPGEODATA, string(key))
 
@@ -105,7 +121,7 @@ smaptime(dataset) = begin
     datestart = replace(replace(units, "seconds since " => ""), " " => "T")
     dt = DateTime(datestart) + Dates.Second(read(meta["actual_range"])[1])
     step = Second(Dates.Time(split(read(meta["delta_t"]))[2]) - Dates.Time("00:00:00"))
-    Time(dt:step:dt; grid=RegularGrid(; step=step))
+    Ti(dt:step:dt; mode=RegularIndex(; step=step))
 end
 
 smapseriestime(filepaths) = begin
@@ -122,14 +138,14 @@ smapdims(dataset) = begin
         # There are matrices for lookup but all rows/colums are identical.
         # For performance and simplicity we just take a vector slice for each dim.
         extent = attrs(root(dataset)[SMAPEXTENT])
-        latvec = read(root(dataset)["cell_lat"])[1, :]
-        lonvec = read(root(dataset)["cell_lon"])[:, 1]
         lonbounds = extent["westBoundLongitude"], extent["eastBoundLongitude"]
         latbounds = extent["northBoundLatitude"], extent["southBoundLatitude"]
-        longrid=BoundedGrid(; bounds=lonbounds)
-        latgrid=BoundedGrid(; order=Ordered(Reverse(), Reverse(), Forward()),
+        latvec = read(root(dataset)["cell_lat"])[1, :]
+        lonvec = read(root(dataset)["cell_lon"])[:, 1]
+        lonmode=BoundedIndex(; bounds=lonbounds)
+        latmode=BoundedIndex(; order=Ordered(Reverse(), Reverse(), Forward()),
                             bounds=latbounds)
-        (Lon(lonvec; grid=longrid), Lat(latvec; grid=latgrid))
+        (Lon(lonvec; mode=lonmode), Lat(latvec; mode=latmode))
     else
         error("projection $proj not supported")
     end

@@ -1,6 +1,6 @@
 using NCDatasets, GeoData, Test, Statistics, Dates, CFTime
-using GeoData: Time, window, name
-include("test_utils.jl")
+using GeoData: window, name, mode
+include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = geturl(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
@@ -17,7 +17,7 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
     @testset "dimensions" begin
         @test ndims(ncarray) == 3
         @test length.(val.(dims(ncarray))) == (180, 170, 24)
-        @test dims(ncarray) isa Tuple{<:Lon,<:Lat,<:Time}
+        @test dims(ncarray) isa Tuple{<:Lon,<:Lat,<:Ti}
         @test refdims(ncarray) == ()
         @test bounds(ncarray) == ((1.0, 359.0), (-79.5, 89.5), (DateTime360Day(2001, 1, 16), DateTime360Day(2002, 12, 16)))
     end
@@ -30,29 +30,29 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
     end
 
     @testset "indexing" begin
-        @test ncarray[Time(1)] isa GeoArray{<:Any,2}
-        @test ncarray[Lat(1), Time(1)] isa GeoArray{<:Any,1}
-        @test ncarray[Lon(1), Time(1)] isa GeoArray{<:Any,1}
-        @test ncarray[Lon(1), Lat(1), Time(1)] isa Missing
-        @test ncarray[Lon(30), Lat(30), Time(1)] isa Float32
+        @test ncarray[Ti(1)] isa GeoArray{<:Any,2}
+        @test ncarray[Lat(1), Ti(1)] isa GeoArray{<:Any,1}
+        @test ncarray[Lon(1), Ti(1)] isa GeoArray{<:Any,1}
+        @test ncarray[Lon(1), Lat(1), Ti(1)] isa Missing
+        @test ncarray[Lon(30), Lat(30), Ti(1)] isa Float32
         @test ncarray[30, 30, 2] isa Float32
     end
 
     @testset "selectors" begin
-        a = ncarray[Lon(At(21.0)), Lat(Between(50, 52)), Time(Near(DateTime360Day(2002, 12)))]
+        a = ncarray[Lon(At(21.0)), Lat(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))]
         @test bounds(a) == ((50.5, 51.5),)
-        x = ncarray[Lon(Near(150)), Lat(Near(30)), Time(1)]
+        x = ncarray[Lon(Near(150)), Lat(Near(30)), Ti(1)]
         @test x isa Float32
         # TODO make sure we are getting the right cell.
     end
 
     @testset "conversion to GeoArray" begin
-        geoarray = ncarray[Lon(1:50), Lat(20:20), Time(1)]
+        geoarray = ncarray[Lon(1:50), Lat(20:20), Ti(1)]
         @test size(geoarray) == (50, 1)
         # @test eltype(geoarray) <: Union{Missing,Float32}
         @time geoarray isa GeoArray{Float32,1}
         @test dims(geoarray) isa Tuple{<:Lon,<:Lat}
-        @test refdims(geoarray) isa Tuple{<:Time}
+        @test refdims(geoarray) isa Tuple{<:Ti}
         @test metadata(geoarray) == metadata(ncarray)
         @test ismissing(missingval(geoarray))
         @test name(geoarray) == "tos"
@@ -61,7 +61,7 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
     @testset "window" begin
         ds = Dataset(ncsingle)
         ds["tos"][101:105, 51:55, 1][1:3, 2:2]
-        windowedarray = NCDarray(ncsingle; window=(Lat(51:55), Lon(101:105), Time(1)))
+        windowedarray = NCDarray(ncsingle; window=(Lat(51:55), Lon(101:105), Ti(1)))
         @test size(windowedarray) == (5, 5)
         @test window(windowedarray) == (101:105, 51:55, 1)
         @test ndims(windowedarray) == 2
@@ -71,6 +71,7 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
     end
 
     @testset "save" begin
+        # TODO save and load subset
         geoarray = GeoArray(ncarray)
         metadata(geoarray)
         @test size(geoarray) == size(ncarray)
@@ -82,8 +83,8 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         @test missingval(saved) === missingval(geoarray)
         @test metadata(saved) == metadata(geoarray)
         @test GeoData.name(saved) == GeoData.name(geoarray)
-        @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
-        @test all(DimensionalData.grid.(dims(saved)) .== DimensionalData.grid.(dims(geoarray)))
+        @test_broken all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
+        @test all(mode.(dims(saved)) .== mode.(dims(geoarray)))
         @test dims(saved) isa typeof(dims(geoarray))
         @test val(dims(saved)[3]) == val(dims(geoarray)[3])
         @test all(val.(dims(saved)) .== val.(dims(geoarray)))
@@ -105,17 +106,17 @@ end
         @test ncstack[:albedo] isa GeoArray{<:Any,3}
         @test ncstack[:albedo, 2, 3, 1] isa Float32
         @test ncstack[:albedo, :, 3, 1] isa GeoArray{<:Any,1}
-        @test dims(ncstack, :albedo) isa Tuple{<:Lon,<:Lat,<:Time}
+        @test dims(ncstack, :albedo) isa Tuple{<:Lon,<:Lat,<:Ti}
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test first(keys(ncstack)) == :abso4
         @test metadata(ncstack, :albedo) isa NCDstackMetadata
         @test metadata(ncstack, :albedo)["institution"] == "Max-Planck-Institute for Meteorology"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
-        @test axes(mean(ncstack[:albedo, Lat(1:20)] , dims=GeoData.Time)) ==
+        @test axes(mean(ncstack[:albedo, Lat(1:20)] , dims=Ti)) ==
               (Base.OneTo(192), Base.OneTo(20), Base.OneTo(1))
-        geoarray = ncstack[:albedo][Time(4:6), Lon(1), Lat(2)]
-        @test geoarray == ncstack[:albedo, Time(4:6), Lon(1), Lat(2)]
+        geoarray = ncstack[:albedo][Ti(4:6), Lon(1), Lat(2)]
+        @test geoarray == ncstack[:albedo, Ti(4:6), Lon(1), Lat(2)]
         @test size(geoarray) == (3,)
     end
 
@@ -129,28 +130,28 @@ end
     @testset "indexing" begin
         ncmultistack = NCDstack([geturl(ncsingle)])
         ncmultistack = NCDstack((geturl(ncsingle),))
-        @test dims(ncmultistack) isa Tuple{<:Lon,<:Lat,<:Time}
+        @test dims(ncmultistack) isa Tuple{<:Lon,<:Lat,<:Ti}
         @test ncmultistack[:tos] isa GeoArray{<:Any,3}
-        @test ncmultistack[:tos, Time(1)] isa GeoArray{<:Any,2}
-        @test ncmultistack[:tos, Lat(1), Time(1)] isa GeoArray{<:Any,1}
+        @test ncmultistack[:tos, Ti(1)] isa GeoArray{<:Any,2}
+        @test ncmultistack[:tos, Lat(1), Ti(1)] isa GeoArray{<:Any,1}
         @test ncmultistack[:tos, 8, 30, 10] isa Float32
     end
 
     @testset "window" begin
-        windowedstack = NCDstack(ncmulti; window=(Lat(1:5), Lon(1:5), Time(1)))
-        @test window(windowedstack) == (Lat(1:5), Lon(1:5), Time(1))
+        windowedstack = NCDstack(ncmulti; window=(Lat(1:5), Lon(1:5), Ti(1)))
+        @test window(windowedstack) == (Lat(1:5), Lon(1:5), Ti(1))
         windowedarray = windowedstack[:albedo]
         @test size(windowedarray) == (5, 5)
         @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
         @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
         @test windowedarray[1, 2] == 0.84936917f0
-        windowedstack = NCDstack(ncmulti; window=(Lat(1:5), Lon(1:5), Time(1:1)))
+        windowedstack = NCDstack(ncmulti; window=(Lat(1:5), Lon(1:5), Ti(1:1)))
         windowedarray = windowedstack[:albedo]
         @test windowedarray[1:3, 2:2, 1:1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1, 1)
         @test windowedarray[1:3, 2:2, 1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
         @test windowedarray[1:3, 2, 1] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
         @test windowedarray[1, 2, 1] == 0.84936917f0
-        windowedstack = NCDstack(ncmulti; window=(Time(1),))
+        windowedstack = NCDstack(ncmulti; window=(Ti(1),))
         windowedarray = windowedstack[:albedo]
         @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
         @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
@@ -167,7 +168,7 @@ end
     @testset "save" begin
         geostack = GeoStack(ncstack);
         filename = tempname()
-        GeoData.write(filename, NCDstack, geostack)
+        GeoData.write(filename, NCDstack, geostack);
         saved = GeoStack(NCDstack(filename))
         @test keys(saved) == keys(geostack)
         @test metadata(saved)["advection"] == "Lin & Rood"

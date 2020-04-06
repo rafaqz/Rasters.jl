@@ -1,26 +1,24 @@
-# Documentation: http://docs.travis-ci.com/user/languages/julia/
 language: julia
+
 os:
   - linux
   # - osx
   # - windows waiting for CMake fix on windows/juliia 1.3
+  
 julia:
   - 1.2
-  - 1.3
+  - 1.4
   - nightly
+
 matrix:
   allow_failures:
     - julia: nightly
   fast_finish: true
+
 notifications:
   email: false
-script:
-  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-  - julia -e 'using Pkg; Pkg.add(PackageSpec(url="https://github.com/rafaqz/ArchGDAL.jl", rev="formattypes"))'
-  - julia -e 'using Pkg; Pkg.add(PackageSpec(url="https://github.com/Alexander-Barth/NCDatasets.jl", rev="master"))'
-  - julia -e 'using Pkg; Pkg.build(); Pkg.test(coverage=true)'
-after_success:
-  - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
+
+codecov: true
 
 # jobs:
 #   include:
