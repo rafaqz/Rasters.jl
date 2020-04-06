@@ -12,7 +12,7 @@ using DimensionalData: refdims_title
                 aspect_ratio := 1
                 subplot := i
                 lat, lon = forwardorder(dims(A, (Lat, Lon)))
-                _reproject(lon), _reproject(lat), preparedata(A[:, :, i])
+                maybe_reproject(lon), maybe_reproject(lat), preparedata(A[:, :, i])
             end
         end
     else
@@ -32,13 +32,14 @@ end
     :colorbar_title --> name(A)
     :title --> refdims_title(A)
     lat, lon = forwardorder(dims(A))
-    _reproject(lon), _reproject(lat), preparedata(A)
+    maybe_reproject(lon), maybe_reproject(lat), preparedata(A)
 end
 
-_reproject(dim::Dimension) = _reproject(mode(dim), dim, val(dim))
-_reproject(mode::ProjectedIndex, dim::Lat, vals::AbstractArray) = 
+maybe_reproject(dim::Dimension) = maybe_reproject(mode(dim), dim, val(dim))
+maybe_reproject(mode::IndexMode, dim::Dimension, vals::AbstractArray) = vals
+maybe_reproject(mode::ProjectedIndex, dim::Lat, vals::AbstractArray) =
     [r[1] for r in ArchGDAL.reproject([(0.0, v) for v in vals], crs(mode), usercrs(mode))]
-_reproject(mode::ProjectedIndex, dim::Lon, vals::AbstractArray) =                                           
+maybe_reproject(mode::ProjectedIndex, dim::Lon, vals::AbstractArray) =
     [r[2] for r in ArchGDAL.reproject([(v, 0.0) for v in vals], crs(mode), usercrs(mode))]
 
 @recipe function f(A::AbstractGeoArray{T,2,<:Tuple{<:Lon,<:Lat}}) where T
