@@ -67,7 +67,7 @@ Base.getindex(s::SMAPstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) 
         _window = maybewindow2indices(dataset, _dims, window(s))
         _dims, _refdims = slicedims(slicedims(_dims, refdims(s), _window)..., I)
         A = readwindowed(dataset, _window, I...)
-        GeoArray(A, _dims, _refdims, metadata(s), missingval(s), string(key))
+        GeoArray(A, _dims, _refdims, string(key), metadata(s), missingval(s))
     end
 
 # HDF5 uses `names` instead of `keys` so we have to special-case it
@@ -121,7 +121,7 @@ smaptime(dataset) = begin
     datestart = replace(replace(units, "seconds since " => ""), " " => "T")
     dt = DateTime(datestart) + Dates.Second(read(meta["actual_range"])[1])
     step = Second(Dates.Time(split(read(meta["delta_t"]))[2]) - Dates.Time("00:00:00"))
-    Ti(dt:step:dt; mode=RegularIndex(; step=step))
+    Ti(dt:step:dt; mode=Sampled(Ordered(), Regular(step), Intervals(Start())))
 end
 
 smapseriestime(filepaths) = begin
@@ -142,9 +142,8 @@ smapdims(dataset) = begin
         latbounds = extent["northBoundLatitude"], extent["southBoundLatitude"]
         latvec = read(root(dataset)["cell_lat"])[1, :]
         lonvec = read(root(dataset)["cell_lon"])[:, 1]
-        lonmode=BoundedIndex(; bounds=lonbounds)
-        latmode=BoundedIndex(; order=Ordered(Reverse(), Reverse(), Forward()),
-                            bounds=latbounds)
+        lonmode = Sampled(Ordered(), Irregular(lonbounds), Intervals())
+        latmode = Sampled(Ordered(Reverse(), Reverse(), Forward()), Irregular(latbounds), Intervals())
         (Lon(lonvec; mode=lonmode), Lat(latvec; mode=latmode))
     else
         error("projection $proj not supported")
