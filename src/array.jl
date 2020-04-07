@@ -36,9 +36,9 @@ label(A::AbstractGeoArray) = string(name(A), " ", units(A))
 Get the coordinate reference system of the array.
 """
 crs(A::AbstractGeoArray) =
-    if hasdim(Lat)
+    if hasdim(A, Lat)
         crs(dims(A, Lat))
-    elseif hasdim(Lon)
+    elseif hasdim(A, Lon)
         crs(dims(A, Lon))
     else
         error("No Lat or Lon dimension, crs not available")
@@ -53,9 +53,9 @@ crs(dim::Dimension) = crs(mode(dim), dim)
 Get the coordinate reference system of the array.
 """
 usercrs(A::AbstractGeoArray) =
-    if hasdim(Lat)
+    if hasdim(A, Lat)
         usercrs(dims(A, Lat))
-    elseif hasdim(Lon)
+    elseif hasdim(A, Lon)
         usercrs(dims(A, Lon))
     else
         error("No Lat or Lon dimension, usercrs not available")
