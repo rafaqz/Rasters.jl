@@ -1,16 +1,11 @@
-# First time:
-# ] dev http://github.com/rafaqz/CoordinateReferenceSystemsBase.jl
-# ] dev http://github.com/rafaqz/DimensionalData.jl
-# ] dev http://github.com/rafaqz/GeoData.jl
-# Load data #######################################################################
 
 using GeoData, NCDatasets, Statistics, Plots, ArchGDAL
+
 geturl(url) = begin
     fname = splitdir(url)[2]
     isfile(fname) || download(url, fname)
     fname
 end
-
 
 # Load some layers from NetCDF #############################################
 
@@ -22,14 +17,13 @@ ncfilename = geturl(ncurl)
 stack = NCDstack(ncfilename)
 A = first(stack)
 A[Ti(1)] |> plot
-mode(dims(A, 1))
 
 # Create a GeoSeries from multiple files.
 # This uses the same data three times to avoid downloads, you 
 # would really use a series of datasets matching the time dimension dates.
 dimz = (Ti<|[DateTime360Day(2001, 01, 1), DateTime360Day(2001, 02, 1), DateTime360Day(2001, 03, 1)],)
 filenames = [ncfilename, ncfilename, ncfilename]
-series = GeoSeries(filenames, dimz; childtype=NCstack)
+series = GeoSeries(filenames, dimz; childtype=NCDstack)
 
 # Get a single array from the series
 a = series[Near<|DateTime360Day(2001, 01, 1)]["tos"][Lon<|Between(50, 200)]
@@ -44,18 +38,18 @@ mean(a; dims=Ti) |> plot
 std(a; dims=Ti) |> plot
 
 # Other things work too
-minimum(x->ismissing(x) ? NaN : x, a; dims=Ti) |> plot
-maximum(x->ismissing(x) ? NaN : x, a; dims=Ti) |> plot
+minimum(replace_missing(a, NaN); dims=Ti) |> plot
+maximum(replace_missing(a, NaN); dims=Ti) |> plot
 reduce(+, a; dims=Ti) |> plot
 
 # Plot the mean sea surface temperature for australia in the second half of 2002 
-stack = NCstack(ncfilename)
+stack = NCDstack(ncfilename)
 t = Ti<|Between(DateTime360Day(2002, 07, 1), DateTime360Day(2002, 012, 30)) 
 stack["tos"][t, Lat<|Between(-45, 0.5), Lon<|Between(110, 160)] |> x->mean(x; dims=Ti) |> plot
 
 # Permute the dimensions in the underlying data
 # It stil plots the right way up
-permutedims(a, (Lat, Lon, Ti)) |> plot
+permutedims(a, (Lat, Lon, Ti))[Ti(1:3:12)] |> plot
 
 # Line plots have (kind of) useful labels
 a = series[1]["tos"]
