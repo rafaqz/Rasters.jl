@@ -6,16 +6,16 @@ const IntOrIntTuple = Union{Int,Tuple{Vararg{<:Int}}}
     aggregate(x, method, scale)
 
 Aggregate array, or all arrays in a stack or series, by some scale.
-This uses a `Array` aggregation function like `mean`, or a [`Locus`] type to 
-specify a single position to sample from. Return values are `GeoArray`, 
+This uses a `Array` aggregation function like `mean`, or a [`Locus`] type to
+specify a single position to sample from. Return values are `GeoArray`,
 `GeoStack` or `GeoSeries` depending on the type of `x`.
 
 - `method` is a function such as mean or sum that can combine the
     value of multiple cells to generate the aggregated cell, or a loci
     like `Start` or `Center()` that species where to sample from in the interval.
-- `scale` is the aggregation factor, which can be an integer, a tuple of integers 
-  for each dimension, or any `Dimension`, `Selector` or `Int` combination you can 
-  usually use in `getindex`. Using a `Selector` will determine the scale by the 
+- `scale` is the aggregation factor, which can be an integer, a tuple of integers
+  for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
+  usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index.
 """
 function aggregate end
@@ -23,17 +23,17 @@ function aggregate end
 """
     aggregate(method, series::AbstractGeoSeries, scale)
 
-Aggregate an AbstractGeoSeries 
+Aggregate an AbstractGeoSeries
 """
-aggregate(method, series::AbstractGeoSeries, scale) =
-    map(x -> aggregate(method, x, scale), series)
+aggregate(method, series::AbstractGeoSeries, scale, args...) =
+    rebuild(series, [aggregate(method, series[i], scale, args...) for i in 1:length(series)])
 """
     aggregate(method, stack::AbstractGeoStack, scale)
 
-Aggregate an AbstractGeoStack 
+Aggregate an AbstractGeoStack
 """
-aggregate(method, stack::AbstractGeoStack, scale) = begin
-    data = map(NamedTuple{keys(stack)}(keys(stack))) do key
+aggregate(method, stack::AbstractGeoStack, scale, keys=keys(stack)) = begin
+    data = map(NamedTuple{keys}(keys)) do key
         aggregate(method, stack[key], scale)
     end
     GeoStack(stack; data=data)
@@ -45,21 +45,20 @@ aggregate(method, src::DiskGeoArray, scale) =
 """
     aggregate(method, src::AbstractDimensionalArray, scale)
 
-Aggregate an AbstractDimensionalArray 
+Aggregate an AbstractDimensionalArray
 """
 aggregate(method, src::AbstractDimensionalArray, scale) =
     aggregate!(method, ag_array(method, src, scale), src, scale)
 """
     aggregate(method, dim::Dimension, scale)
 
-Aggregate a Dimension 
+Aggregate a Dimension
 """
 # aggregate(method, dim::Dimension, scale) = begin
 #     intscale = dims2indices(dim, scale)
 #     start = firstindex(dim) + beginoffset(method, dim, scale)
 #     stop = (length(dim) ÷ scale) * scale
 #     d = rebuild(dim, val(dim)[start:intscale:stop])
-#     println(d)
 #     d
 # end
 
@@ -81,14 +80,14 @@ end
     aggregate!(dst::AbstractDimensionalArray, src::AbstractDimensionalArray, method, scale)
 
 Aggregate array `src` to array `dst` by some scale.
-This uses an aggregation function like `mean` or a [`Locus`] type to 
+This uses an aggregation function like `mean` or a [`Locus`] type to
 specify a position to sample from.
 
 - `method` is a function such as mean or sum that can combine the
     value of multiple cells to generate the aggregated cell, or a loci
     like `Start` or `Center()` that species where to sample from in the interval.
 - `scale` is the aggregation factor, which can be an integer, or a tuple of an
-  `Dimension`, `Selector` or `Int` combination you can usually use in `getindex`. 
+  `Dimension`, `Selector` or `Int` combination you can usually use in `getindex`.
   Using a `Selector` will determine the scale by the distance from the start of the index.
 """
 aggregate!(locus::Locus, dst::AbstractDimensionalArray, src, scale) =
