@@ -211,10 +211,10 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
             dvar = dataset[dimname]
             # Find the matching dimension constructor. If its an unknown name use
             # the generic Dim with the dim name as type parameter
-            dimconstructor = get(dimmap, dimname, Dim{Symbol(dimname)})
-            # Get the attrib metadata
+            dimtype = get(dimmap, dimname, Dim{Symbol(dimname)})
+            # Order: data is always forwards, we check the index order
             order = dvar[end] > dvar[1] ? Ordered(Forward(), Forward(), Forward()) :
-                                          Ordered(Reverse(), Reverse(), Forward())
+                                          Ordered(Reverse(), Forward(), Reverse())
 
             # Assume the locus is at the center of the cell if boundaries aren't provided.
             # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
@@ -227,17 +227,18 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
                 else
                     dvar[1] - beginhalfcell, dvar[end] + endhalfcell
                 end
-                mode = Sampled(order, Irregular(bounds), Intervals(Center()))
+                locus = (dimtype <: TimeDim) ? Start() : Center()
+                mode = Sampled(order, Irregular(bounds), Intervals(locus))
             else
                 mode = Sampled(order, Irregular(), Points())
             end
 
             meta = metadata(dvar)
             # Add the dim containing the dimension var array
-            push!(dims, dimconstructor(dvar[:], mode, meta))
+            push!(dims, dimtype(dvar[:], mode, meta))
         else
-            # The var doesn't exist. Maybe its `complex` or some other marker
-            # so just make it a Dim with that name and range matching the indices
+            # The var doesn't exist. Maybe its `complex` or some other marker,
+            # so make it a custom `Dim` with `NoIndex`
             push!(dims, Dim{Symbol(dimname)}(1:size(v, i), NoIndex(), nothing))
         end
     end
