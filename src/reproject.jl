@@ -4,17 +4,14 @@
 
 sel2indices(mode::ProjectedIndex, dim::Dimension, sel::Contains{<:Number}) = begin
     selval = reproject(mode, dim, val(sel))
-    println((name(dim), selval))
     DD.contains(dim, rebuild(sel, selval))
 end
 sel2indices(mode::ProjectedIndex, dim::Dimension, sel::At{<:Number}) = begin
     selval = reproject(mode, dim, val(sel))
-    println((name(dim), selval))
     DD.at(dim, rebuild(sel, selval))
 end
 sel2indices(mode::ProjectedIndex, dim::Dimension, sel::Between) = begin
     selval = map(v -> reproject(mode, dim, v), val(sel))
-    println((name(dim), selval))
     DD.between(dim, rebuild(sel, selval))
 end
 
