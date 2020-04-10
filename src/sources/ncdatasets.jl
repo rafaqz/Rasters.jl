@@ -16,7 +16,18 @@ end
 
 # Array ########################################################################
 """
-A lazy GeoArray that loads a netcdf file using NCDatasets.jl.
+    NCDarray(filename::AbstractString; refdims=(), window=())
+
+Create an array from a path to a netcdf file. The first non-dimension
+layer of the file will be used as the array.
+
+## Arguments
+- `filename`: `String` pointing to a netcdf file.
+
+## Keyword arguments
+- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
+- `window`: `Tuple` of `Dimension`, `Selector` or regular index to be applied when 
+  loading the array. Can save on disk load time for large files.
 """
 struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
@@ -29,27 +40,18 @@ struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
     window::W
     size::S
 end
-"""
-    NCDarray(filepath::AbstractString; refdims=(), window=(), metadata=Nothing)
-
-Create an array from a paths to a netcdf file. The first non-dimension
-layer of the file will be used as the array
-"""
 NCDarray(filename::AbstractString; kwargs...) =
     ncapply(dataset -> NCDarray(dataset, filename; kwargs...), filename)
 NCDarray(dataset::NCDatasets.Dataset, filename;
          dims=dims(dataset),
          refdims=(),
          name=nothing,
-         metadata=nothing,
+         metadata=metadata(var, metadata(dataset)),
          window=()) = begin
     key = first(nondimkeys(dataset))
     var = dataset[key]
     if name isa Nothing
         name = key
-    end
-    if metadata isa Nothing
-        metadata = GeoData.metadata(var, GeoData.metadata(dataset))
     end
     if window == ()
         sze = size(var)
@@ -64,6 +66,7 @@ NCDarray(dataset::NCDatasets.Dataset, filename;
        }(filename, dims, refdims, name, metadata, missingval, window, sze)
 end
 
+# AbstractGeoArray methods
 
 data(A::NCDarray) =
     ncapply(filename(A)) do dataset
@@ -71,10 +74,15 @@ data(A::NCDarray) =
         _window = maybewindow2indices(var, dims(A), window(A))
         ncread(var, _window)
     end
+
 filename(A::NCDarray) = A.filename
+
 crs(A::NCDarray) = ncapply(crs, filename(A))
 
+# Base methods
+
 Base.size(A::NCDarray) = A.size
+
 Base.getindex(A::NCDarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
     ncapply(filename(A)) do dataset
         var = dataset[name(A)]
@@ -101,7 +109,7 @@ Base.write(filename::AbstractString, ::Type{NCDarray}, A::AbstractGeoArray) = be
     stackmd = pop!(deepcopy(val(metadata(A))), "dataset", Dict())
     dataset = NCDatasets.Dataset(filename, "c"; attrib=stackmd)
     try
-        ncaddvar!(dataset, A)
+        ncwritevar!(dataset, A)
     finally
         close(dataset)
     end
@@ -110,7 +118,29 @@ end
 # Stack ########################################################################
 
 """
+    NCDstack(filename; refdims=(), window=(), metadata=nothing)
+
 A lazy GeoStack that loads netcdf files using NCDatasets.jl
+
+Create a stack from the filename of a netcdf file. Passing a 
+vector of `String` will create a stack from multiple files. 
+The first non-dimension layer of each file will be used in the stack.
+
+# Arguments
+-`filename`: `String` or `Vector` of `String` pointing to netcdf file(s).
+
+# Keyword arguments
+- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
+- `window`: can be a tuple of Dimensions, selectors or regular indices.
+- `metadata`: Add additional metadata as a `Dict`.
+
+# Examples
+```julia
+stack = NCDstack(filename; window=(Lat(Between(20, 40),))
+stack[:soil_temperature]
+
+multifile_stack = NCDstack([path1, path2, path3, path4])
+```
 """
 struct NCDstack{T,R,W,M} <: DiskGeoStack{T}
     filename::T
@@ -118,36 +148,22 @@ struct NCDstack{T,R,W,M} <: DiskGeoStack{T}
     window::W
     metadata::M
 end
-
-"""
-    NCDstack(filepaths::Union{Tuple,Vector}; refdims=(), window=(), metadata=Nothing)
-
-Create a stack from an array or tuple of paths to netcdf files. The first non-dimension
-layer of each file will be used in the stack.
-
-This constructor is intended for handling simple single-layer netcdfs.
-"""
-NCDstack(filepaths::Union{Tuple,Vector}; refdims=(), window=(), metadata=nothing,
-         keys=Tuple(Symbol.((ncapply(ds -> first(nondimkeys(ds)), fp) for fp in filepaths)))) =
-    NCDstack(NamedTuple{keys}(filepaths), refdims, window, metadata)
-
-"""
-    NCDstack(filenameAbstractString; window=())
-
-Create a stack from a path to a netcdf file. All non-dimension layers
-will are accessible using Symbol or String keys.
-
-i# Example:
-
-```julia
-stack = NCDstack(filename)
-stack[:soil_temperature]
-```
-"""
+NCDstack(filenames::Union{Tuple,Vector}; refdims=(), window=(), metadata=nothing,
+         keys=Tuple(Symbol.((ncapply(ds -> first(nondimkeys(ds)), fp) for fp in filenames)))) =
+    NCDstack(NamedTuple{keys}(filenames), refdims, window, metadata)
 NCDstack(filename::AbstractString; refdims=(), window=(), metadata=ncapply(metadata, filename)) =
     NCDstack(filename, refdims, window, metadata)
 
+# AbstractGeoStack methods
+
 safeapply(f, ::NCDstack, path) = ncapply(f, path)
+
+dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
+dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
+
+missingval(stack::NCDstack) = missing
+
+# Base methods
 
 Base.getindex(s::NCDstack, key::Key, i1::Integer, I::Integer...) =
     ncapply(filename(s, key)) do dataset
@@ -167,11 +183,6 @@ Base.getindex(s::NCDstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
         GeoArray(A, _dims, _refdims, key, metadata(s), missingval(s))
     end
 
-dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
-dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
-
-missingval(stack::NCDstack) = missing
-
 Base.keys(stack::NCDstack{<:AbstractString}) =
     Tuple(Symbol.(safeapply(nondimkeys, stack, source(stack))))
 
@@ -189,12 +200,15 @@ Base.copy!(dst::AbstractArray, src::NCDstack, key) =
 """
     Base.write(filename::AbstractString, ::Type{NCDstack}, s::AbstractGeoStack)
 
-Write an NCDstack to a netcdf file using NCDatasets.jl
+Write an NCDstack to a single netcdf file, using NCDatasets.jl.
+
+Currently `Dimension` metadata is not handled, and array metadata from other
+array types is ignored.
 """
 Base.write(filename::AbstractString, ::Type{NCDstack}, s::AbstractGeoStack) = begin
     dataset = NCDatasets.Dataset(filename, "c"; attrib=val(metadata(s)))
     try
-        map(key -> ncaddvar!(dataset, s[key]), keys(s))
+        map(key -> ncwritevar!(dataset, s[key]), keys(s))
     finally
         close(dataset)
     end
@@ -298,7 +312,7 @@ nondimkeys(dataset) = begin
 end
 
 # Add a var array to a dataset before writing it.
-ncaddvar!(dataset, A{T}) where T = begin
+ncwritevar!(dataset, A::AbstractGeoArray{T}) where T = begin
     A = reorderindex(A, Forward()) |>
         a -> reorderrelation(a, Forward())
     if ismissing(missingval(A))
@@ -318,7 +332,11 @@ ncaddvar!(dataset, A{T}) where T = begin
         defVar(dataset, key, index, (key,); attrib=attribvec)
     end
     # TODO actually convert the metadata type
-    attrib = deepcopy(val(metadata(A)))
+    attrib = if metadata isa NCDarrayMetadata
+        deepcopy(val(metadata(A)))
+    else
+        Dict()
+    end
     # Remove stack metdata if it is attached
     pop!(attrib, "dataset", nothing)
     # Set missing value
@@ -328,7 +346,7 @@ ncaddvar!(dataset, A{T}) where T = begin
     key = name(A)
     println("writing key: ", key, " of type: ", T)
     dimnames = lowercase.(name.(dims(A)))
-    attribvec=[attrib...]
+    attribvec = [attrib...]
     var = defVar(dataset, key, eltype(A), dimnames; attrib=attribvec)
     var[:] = data(A)
 end

@@ -62,9 +62,6 @@ Aggregate a Dimension
 #     d
 # end
 
-
-aggregate(method, dim::Dimension, scale) =
-    aggregate(method, dim, scale)
 aggregate(method, dim::Dimension, scale) = begin
     start, stop = endpoints(dim, method, scale)
     rebuild(dim, val(dim)[start:scale:stop])

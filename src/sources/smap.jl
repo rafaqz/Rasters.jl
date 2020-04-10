@@ -24,13 +24,16 @@ end
 # Stack ########################################################################
 
 """
+    SMAPstack(filename::String; window=()) 
+
 `AbstractGeoStack` for [SMAP](https://smap.jpl.nasa.gov/) datasets.
 
 The simplicity of the format means dims and refdims are the same for all stack layers,
-so we store them as stack fields.
+so we store them as stack fields. `SMAPstack` should also serve as an example of defining 
+a custom source for HDF5 backed geospatial data.
 
-`SMAPstack` should also serve as an example of defining a custom source
-for HDF5 backed geospatial data.
+# Keyword arguments
+- `window`: can be a tuple of Dimensions, selectors or regular indices.
 """
 struct SMAPstack{T,D,R,W,M} <: DiskGeoStack{T}
     filename::T
@@ -46,6 +49,8 @@ SMAPstack(filename::String;
           metadata=smapapply(smapmetadata, filename)) =
     SMAPstack(filename, dims, refdims, window, metadata)
 
+# AbstractGeoStack methods
+
 # SMAP has fixed dims for all layers, so we store them on the stack.
 dims(stack::SMAPstack, ::Key) = stack.dims
 refdims(stack::SMAPstack) = stack.refdims
@@ -53,6 +58,8 @@ metadata(stack::SMAPstack) = stack.metadata
 missingval(stack::SMAPstack) = SMAPMISSING
 
 @inline safeapply(f, ::SMAPstack, path::AbstractString) = smapapply(f, path)
+
+# Base methods
 
 Base.getindex(s::SMAPstack, key::Key, i1::Integer, I::Integer...) =
     smapapply(filename(s)) do file

@@ -31,11 +31,17 @@ Load a file lazily with gdal. GDALarray will be converted to GeoArray after
 indexing or other manipulations. `GeoArray(GDAlarray(filename))` will do this
 immediately.
 
-`usercrs` can be any CRS `GeoFormat` form GeoFormatTypes.jl, such as `WellKnownText`
 `EPSG` or `ProjString`. If `usercrs` is passed to the constructor, all selectors will
 use its projection, converting automatically to the underlying projection from GDAL.
 
-`window` can be a tuple of Dimensions, selectors or regular indices.
+## Arguments
+- `filename`: `String` pointing to a grd file. Extension is optional.
+
+## Keyword arguments
+- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
+- `usercrs`: can be any CRS `GeoFormat` form GeoFormatTypes.jl, such as `WellKnownText`
+- `window`: `Tuple` of `Dimension`, `Selector` or regular index to be applied when 
+  loading the array. Can save on disk load time for large files.
 """
 struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
                 } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
@@ -66,11 +72,15 @@ GDALarray(dataset::AG.Dataset; usercrs=nothing, dims=dims(dataset, usercrs), ref
        }(filename, dims, refdims, name, metadata, missingval, window, sze)
 end
 
+# AbstractGeoArray methods
+
 data(A::GDALarray) =
     gdalapply(filename(A)) do dataset
         _window = maybewindow2indices(dataset, dims(A), window(A))
         readwindowed(dataset, _window)
     end
+
+# Base methods
 
 Base.getindex(A::GDALarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
     gdalapply(filename(A)) do dataset
@@ -118,7 +128,10 @@ end
 
 Load a stack of files lazily with gdal.
 
+# Arguments
 - `filename`: a NamedTuple of `String` filenames.
+
+# Keyword arguments
 - `window`: can be a tuple of Dimensions, selectors or regular indices.
 - `metadata`: is a GDALmetadata object.
 """
@@ -130,9 +143,13 @@ end
 GDALstack(filename::NamedTuple; refdims=(), window=()) =
     GDALstack(filename, refdims, window)
 
+# AbstractGeoStack methods
+
 safeapply(f, ::GDALstack, path::AbstractString) = gdalapply(f, path)
 
 metadata(stack::GDALstack) = gdalapply(metadata, first(values(filename(stack))))
+
+# Base methods
 
 Base.getindex(s::GDALstack, key::Key) =
     gdalapply(filename(s, key)) do dataset
@@ -255,8 +272,8 @@ crs(dataset::AG.Dataset, args...) =
 
 # Utils ########################################################################
 
-gdalapply(f, filepath::AbstractString) =
-    AG.read(filepath) do dataset
+gdalapply(f, filename::AbstractString) =
+    AG.read(filename) do dataset
         f(dataset)
     end
 

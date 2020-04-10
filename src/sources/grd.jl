@@ -23,7 +23,25 @@ GrdDimMetadata() = GrdDimMetadata(Dict())
 # Array ########################################################################
 
 """
+    GrdArray(filename::String; refdims=(), name=nothing, window=(), usercrs=nothing)
+
 An [`AbstractGeoArray`](@ref) that loads .grd files lazily from disk.
+
+## Arguments
+- `filename`: `String` pointing to a grd file. Extension is optional.
+
+## Keyword arguments
+- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
+- `usercrs`: can be any CRS `GeoFormat` form GeoFormatTypes.jl, such as `WellKnownText`
+- `window`: `Tuple` of `Dimension`, `Selector` or regular index to be applied when 
+  loading the array. Can save on disk load time for large files.
+
+# Example
+```julia
+array = GrdArray("folder/file.grd"; usercrs=EPSG(4326))
+# Select Australia using 4326 coords, whatever the crs is underneath.
+array[Lat(Between(-10, -43), Lon(113, 153))
+```
 """
 struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
@@ -36,20 +54,10 @@ struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
     window::W
     size::S
 end
-"""
-    GrdArray(filepath::String; refdims=(), name=nothing, window=(), 
-             metadata=GrdMetadata(), usercrs=nothing)
-
-Constuct a `GrdArray` from a filename and keyword arguments.
-
-```julia
-GrdArray("folder/file.grd"; usercrs=EPSG(4326)) 
-```
-"""
-GrdArray(filepath::String; refdims=(), name=nothing, 
+GrdArray(filename::String; refdims=(), name=nothing, 
          metadata=GrdMetadata(), window=(), usercrs=nothing) = begin
-    filepath = first(splitext(filepath))
-    lines = readlines(filepath * ".grd")
+    filename = first(splitext(filename))
+    lines = readlines(filename * ".grd")
     entries = filter!(x -> !isempty(x) && !(x[1] == '['), lines)
     data = Dict((c = match(r"([^=]+)=(.*)", st); string(c.captures[1]) => string(strip(c.captures[2]))) for st in entries)
 
@@ -65,7 +73,8 @@ GrdArray(filepath::String; refdims=(), name=nothing,
     crs = ProjString(data["projection"])
     cellx = (xmax - xmin) / nrows
     celly = (ymax - ymin) / ncols
-    latlon_metadata = GrdDimMetadata(Dict(:crs => crs))
+    # Not fully implemented yet
+    latlon_metadata = GrdDimMetadata(Dict())
 
     latmode = ProjectedIndex(
         order=Ordered(Forward(), Reverse(), Forward()), 
@@ -96,15 +105,19 @@ GrdArray(filepath::String; refdims=(), name=nothing,
         name = get(data, "layername", "")
     end
 
-    GrdArray{T,N,typeof.((filepath,dims,refdims,name,metadata,missingval,window,_size))...
-            }(filepath, dims, refdims, name, metadata, missingval, window, _size)
+    GrdArray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,window,_size))...
+            }(filename, dims, refdims, name, metadata, missingval, window, _size)
 end
+
+# AbstractGeoStack methods
 
 data(A::GrdArray) =
     grdapply(A) do mmap
         _window = maybewindow2indices(mmap, dims(A), window(A))
         readwindowed(mmap, _window)
     end
+
+# Base methods
 
 Base.getindex(A::GrdArray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
     grdapply(A) do mmap
@@ -119,16 +132,13 @@ Base.getindex(A::GrdArray, i1::Integer, I::Vararg{<:Integer}) =
         readwindowed(mmap, _window, i1, I...)
     end
 
-
-# Base.setindex!(A::GrdArray, x, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
-    # grdapply(mmap -> mmap[applywindow(A, I)...] = x, A, "w+")
-
 """
     Base.write(filename::AbstractString, ::Type{GrdArray}, s::AbstractGeoArray)
 
-Write an GrdArray to a .grd file, with a .gri header file.
+Write a [`GrdArray`](@ref) to a .grd file, with a .gri header file. The extension of 
+`filename` will be ignored. 
 
-The extension of `filename` will be ignored.
+Currently the `metadata` field is lost on `write`. 
 """
 Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray) = begin
     if hasdim(A, Band)
