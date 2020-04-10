@@ -46,12 +46,15 @@ NCDarray(dataset::NCDatasets.Dataset, filename;
          dims=dims(dataset),
          refdims=(),
          name=nothing,
-         metadata=metadata(var, metadata(dataset)),
+         metadata=nothing,
          window=()) = begin
     key = first(nondimkeys(dataset))
     var = dataset[key]
     if name isa Nothing
         name = key
+    end
+    if metadata isa Nothing
+        metadata = GeoData.metadata(var, GeoData.metadata(dataset))
     end
     if window == ()
         sze = size(var)
