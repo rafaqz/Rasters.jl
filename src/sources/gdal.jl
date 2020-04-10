@@ -25,7 +25,7 @@ end
 # Array ########################################################################
 
 """
-    GDALarray(filename; usercrs=nothing, name="", window=())
+    GDALarray(filename; usercrs=nothing, name="", refdims=(), window=())
 
 Load a file lazily with gdal. GDALarray will be converted to GeoArray after
 indexing or other manipulations. `GeoArray(GDAlarray(filename))` will do this
@@ -38,6 +38,7 @@ use its projection, converting automatically to the underlying projection from G
 - `filename`: `String` pointing to a grd file. Extension is optional.
 
 ## Keyword arguments
+- `name`: Name for the array.
 - `refdims`: Add dimension position array was sliced from. Mostly used programatically.
 - `usercrs`: can be any CRS `GeoFormat` form GeoFormatTypes.jl, such as `WellKnownText`
 - `window`: `Tuple` of `Dimension`, `Selector` or regular index to be applied when 

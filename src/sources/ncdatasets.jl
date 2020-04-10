@@ -16,7 +16,7 @@ end
 
 # Array ########################################################################
 """
-    NCDarray(filename::AbstractString; refdims=(), window=())
+    NCDarray(filename::AbstractString; name="", refdims=(), window=())
 
 Create an array from a path to a netcdf file. The first non-dimension
 layer of the file will be used as the array.
@@ -25,6 +25,7 @@ layer of the file will be used as the array.
 - `filename`: `String` pointing to a netcdf file.
 
 ## Keyword arguments
+- `name`: Name for the array. Will use array key if not supplied.
 - `refdims`: Add dimension position array was sliced from. Mostly used programatically.
 - `window`: `Tuple` of `Dimension`, `Selector` or regular index to be applied when 
   loading the array. Can save on disk load time for large files.

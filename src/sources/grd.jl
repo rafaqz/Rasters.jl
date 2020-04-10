@@ -31,6 +31,7 @@ An [`AbstractGeoArray`](@ref) that loads .grd files lazily from disk.
 - `filename`: `String` pointing to a grd file. Extension is optional.
 
 ## Keyword arguments
+- `name`: Name for the array. Will be loaded from `layername` if not supplied.
 - `refdims`: Add dimension position array was sliced from. Mostly used programatically.
 - `usercrs`: can be any CRS `GeoFormat` form GeoFormatTypes.jl, such as `WellKnownText`
 - `window`: `Tuple` of `Dimension`, `Selector` or regular index to be applied when 
@@ -101,8 +102,8 @@ GrdArray(filename::String; refdims=(), name=nothing,
         end
     end
     missingval = parse(T, data["nodatavalue"])
-    if !(name isa String)
-        name = get(data, "layername", "")
+    if name isa Nothing
+        get(data, "layername", "")
     end
 
     GrdArray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,window,_size))...
