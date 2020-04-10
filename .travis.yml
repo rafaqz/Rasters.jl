@@ -18,7 +18,7 @@ jobs:
   fast_finish: true
   include:
     - stage: "Documentation"
-      julia: 1.0
+      julia: 1.4
       os: linux
       script:
         - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
@@ -29,11 +29,6 @@ jobs:
 
 notifications:
   email: false
-
-script:
-  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-  - julia -e 'using Pkg; Pkg.add(PackageSpec(url="https://github.com/yeesian/ArchGDAL.jl", rev="master"))'
-  - julia -e 'using Pkg; Pkg.build(); Pkg.test(coverage=true)'
 
 codecov: true
 
