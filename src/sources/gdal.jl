@@ -32,14 +32,14 @@ indexing or other manipulations. `GeoArray(GDAlarray(filename))` will do this
 immediately.
 
 `usercrs` can be any CRS `GeoFormat` form GeoFormatTypes.jl, such as `WellKnownText`
-`EPSG` or `ProjString`. If `usercrs` is passed to the constructor, all selectors will 
+`EPSG` or `ProjString`. If `usercrs` is passed to the constructor, all selectors will
 use its projection, converting automatically to the underlying projection from GDAL.
 
 `window` can be a tuple of Dimensions, selectors or regular indices.
 """
 struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
-                } <: DiskGeoArray{T,N,D,LazyArray{T,N}} 
-    filename::F 
+                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
+    filename::F
     dims::D
     refdims::R
     name::Na
@@ -52,7 +52,7 @@ GDALarray(filename::AbstractString; kwargs...) = begin
     isfile(filename) || error("file not found: $filename")
     gdalapply(dataset -> GDALarray(dataset; kwargs...), filename)
 end
-GDALarray(dataset::AG.Dataset; usercrs=nothing, dims=dims(dataset, usercrs), refdims=(), 
+GDALarray(dataset::AG.Dataset; usercrs=nothing, dims=dims(dataset, usercrs), refdims=(),
           name="", metadata=metadata(dataset), missingval=missingval(dataset), window=()) = begin
     filename = first(AG.filelist(dataset))
     sze = gdalsize(dataset)
@@ -98,10 +98,16 @@ Base.write(filename::AbstractString, ::Type{GDALarray},
            A::Union{<:GDALarray{T,3},<:GeoArray{T,3}}; kwargs...) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GeoTiff")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array to GeoTiff")
-    A = permutedims(A, (Lon(), Lat(), Band()))
+    correctedA = permutedims(A, (Lon(), Lat(), Band())) |>
+        a -> reorderindex(a, (Lon(Forward()), Lat(Reverse()), Band(Forward()))) |>
+        a -> reorderrelation(a, Forward())
+    lat_array_ord = arrayorder(correctedA, Lat)
+    if !(lat_array_ord isa Reverse)
+        @warn "Array data order for saving `Lat` is `$lat_array_ord`, usualy `Reverse()`"
+    end
     nbands = size(A, Band())
     indices = Cint[1]
-    gdalwrite(filename, A, nbands, indices)
+    gdalwrite(filename, correctedA, nbands, indices)
 end
 
 
@@ -185,24 +191,24 @@ dims(dataset::AG.Dataset, usercrs=nothing) = begin
         # Spatial data defaults to area/inteval?
         if areaorpoint == "Point"
             sampling = Points()
-        else areaorpoint 
+        else areaorpoint
             # GeoTiff uses the "pixelCorner" convention
             sampling = Intervals(Start())
         end
 
         latmode = ProjectedIndex(
-            # Latitude is in reverse to how plot it.
-            order=Ordered(Reverse(), Reverse(), Forward()), 
+            # Latitude is in reverse to how we plot it.
+            order=Ordered(Reverse(), Reverse(), Forward()),
             sampling=sampling,
             # Use the range step as is will be different to latstep due to float error
-            span=Regular(step(latrange)), 
-            crs=sourcecrs, 
+            span=Regular(step(latrange)),
+            crs=sourcecrs,
             usercrs=usercrs
         )
         lonmode = ProjectedIndex(
-            span=Regular(step(lonrange)), 
+            span=Regular(step(lonrange)),
             sampling=sampling,
-            crs=sourcecrs, 
+            crs=sourcecrs,
             usercrs=usercrs
         )
 
@@ -301,7 +307,7 @@ end
 
 See https://lists.osgeo.org/pipermail/gdal-dev/2011-July/029449.html
 
-"In the particular, but common, case of a “north up” image without any rotation or 
+"In the particular, but common, case of a “north up” image without any rotation or
 shearing, the georeferencing transform takes the following form" :
 adfGeoTransform[0] /* top left x */
 adfGeoTransform[1] /* w-e pixel resolution */
@@ -319,11 +325,11 @@ const GDAL_TOPLEFT_Y = 4
 const GDAL_ROT2 = 5
 const GDAL_NS_RES = 6
 
-isalligned(geotransform) = 
+isalligned(geotransform) =
     geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
 
 geotransform_to_affine(gt) = begin
-    AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]], 
+    AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]],
               [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
 end
 

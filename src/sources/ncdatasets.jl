@@ -298,12 +298,13 @@ nondimkeys(dataset) = begin
 end
 
 # Add a var array to a dataset before writing it.
-ncaddvar!(dataset, A) = begin
-    A = forwardorder(A)
+ncaddvar!(dataset, A{T}) where T = begin
+    A = reorderindex(A, Forward()) |>
+        a -> reorderrelation(a, Forward())
     if ismissing(missingval(A))
         # TODO default _FillValue for Int?
         fillvalue = get(metadata(A), "_FillValue", NaN)
-        A = replace_missing(A, convert(eltype(A), fillvalue))
+        A = replace_missing(A, convert(T, fillvalue))
     end
     # Define required dims
     for dim in dims(A)
@@ -322,10 +323,10 @@ ncaddvar!(dataset, A) = begin
     pop!(attrib, "dataset", nothing)
     # Set missing value
     if !ismissing(missingval(A))
-        attrib["_FillValue"] = convert(eltype(A), missingval(A))
+        attrib["_FillValue"] = convert(T, missingval(A))
     end
     key = name(A)
-    println("writing key: ", key, " of type: ", eltype(A))
+    println("writing key: ", key, " of type: ", T)
     dimnames = lowercase.(name.(dims(A)))
     attribvec=[attrib...]
     var = defVar(dataset, key, eltype(A), dimnames; attrib=attribvec)

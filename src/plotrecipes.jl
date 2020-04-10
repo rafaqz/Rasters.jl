@@ -11,8 +11,9 @@ using DimensionalData: refdims_title
                 seriestype := :heatmap
                 aspect_ratio := 1
                 subplot := i
-                lat, lon = forwardorder(dims(A, (Lat, Lon)))
-                maybe_reproject(lon), maybe_reproject(lat), preparedata(A[:, :, i])
+                slice = prepare(A[:, :, i])
+                lat, lon = map(maybe_reproject, dims(A))
+                lon, lat, data(slice)
             end
         end
     else
@@ -31,8 +32,9 @@ end
     :grid --> false
     :colorbar_title --> name(A)
     :title --> refdims_title(A)
-    lat, lon = forwardorder(dims(A))
-    maybe_reproject(lon), maybe_reproject(lat), preparedata(A)
+    A = prepare(A)
+    lat, lon = map(maybe_reproject, dims(A))
+    lon, lat, data(A)
 end
 
 maybe_reproject(dim::Dimension) = maybe_reproject(mode(dim), dim, val(dim))
@@ -46,7 +48,7 @@ maybe_reproject(mode::ProjectedIndex, dim::Lon, vals::AbstractArray) =
     permutedims(A)
 end
 
-preparedata(A) = A |> forwardorder |> maybenanmissing |> data
+prepare(A) = A |> forwardorder |> maybenanmissing
 
 maybenanmissing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, missing)
 maybenanmissing(A) = A

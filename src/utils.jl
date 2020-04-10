@@ -14,20 +14,5 @@ readwindowed(A, window::Tuple{}, I...) = A[I...]
 readwindowed(A, window, I...) = A[Base.reindex(window, I)...]
 readwindowed(A, window) = A[window...]
 
-
-forwardorder(A::AbstractArray) = begin
-    for (i, dim) in enumerate(dims(A))
-        if arrayorder(dim) == Reverse()
-            A = reverse(A; dims=dim)
-        end
-    end
-    A
-end
-forwardorder(dims::Tuple) =
-    map(dims) do d
-        if isrev(DimensionalData.indexorder(d))
-            rebuild(d, reverse(val(d)))
-        else
-            d
-        end
-    end
+forwardorder(A::AbstractArray) =
+    reorderindex(A, Forward()) |> a -> reorderrelation(a, Forward())

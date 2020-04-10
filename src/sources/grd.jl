@@ -131,24 +131,36 @@ Write an GrdArray to a .grd file, with a .gri header file.
 The extension of `filename` will be ignored.
 """
 Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray) = begin
-    # mode(dims(A) <: RegularIndex || throw(ArgumentError("Can only save `RegularIndex` arrays to a grd file"))
+    if hasdim(A, Band)
+        correctedA = permutedims(A, (Lon, Lat, Band)) |>
+            a -> reorderindex(a, Forward()) |>
+            a -> reorderrelation(a, Forward())
+        nbands = length(val(dims(A, Band)))
+    else
+        correctedA = permutedims(A, (Lon, Lat)) |>
+            a -> reorderindex(a, Forward()) |>
+            a -> reorderrelation(a, Forward())
+        nbands = 1
+    end
     # Remove extension
     filename = splitext(filename)[1]
-    # Standardise dimensions
-    # A = permutedims(A, [Lon, Lat])
     ncols, nrows = size(A)
-    xmin, xmax = bounds(dims(A, Lat()))
-    ymin, ymax = bounds(dims(A, Lon()))
-    proj = convert(String, crs(dims(A, Lat())))
+    xmin, xmax = bounds(dims(A, Lat))
+    ymin, ymax = bounds(dims(A, Lon))
+    proj = convert(String, crs(dims(A, Lat)))
     datatype = rev_datatype_translation[eltype(A)]
     nodatavalue = missingval(A)
     minvalue = minimum(filter(x -> x != missingval(A), data(A)))
     maxvalue = maximum(filter(x -> x != missingval(A), data(A)))
-    nbands = hasdim(A, Band()) ? length(val(dims(A, Band()))) : 1
+
+    lat_array_ord = arrayorder(correctedA, Lat)
+    if !(lat_array_ord isa Reverse)
+        @warn "Array data order for Lat is `$lat_array_ord`, usualy `Reverse()`"
+    end
 
     # Data: gri file
     open(filename  * ".gri", "w") do IO
-        write(IO, data(A))
+        write(IO, data(correctedA))
     end
 
     # Metadata: grd file
