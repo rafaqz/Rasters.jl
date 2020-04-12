@@ -3,12 +3,15 @@ language: julia
 os:
   - linux
   - osx
-  - windows waiting for CMake fix on windows/juliia 1.3
+  - windows
   
 julia:
   - 1.2
   - 1.4
   - nightly
+
+notifications:
+  email: false
 
 jobs:
   allow_failures:
@@ -26,9 +29,6 @@ jobs:
       name: "HTML"
       after_success: skip
   services: docker
-
-notifications:
-  email: false
 
 codecov: true
 
