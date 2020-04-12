@@ -103,7 +103,7 @@ GrdArray(filename::String; refdims=(), name=nothing,
     end
     missingval = parse(T, data["nodatavalue"])
     if name isa Nothing
-        get(data, "layername", "")
+        name = get(data, "layername", "")
     end
 
     GrdArray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,window,_size))...
