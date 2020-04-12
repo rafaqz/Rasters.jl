@@ -97,16 +97,19 @@ Base.getindex(A::GDALarray, i1::Integer, I::Vararg{<:Integer}) =
         readwindowed(dataset, _window, i1, I...)
     end
 
-Base.write(filename::AbstractString, ::Type{GDALarray},
-           A::Union{<:GDALarray{T,2},<:GeoArray{T,2}}; kwargs...) where T = begin
+"""
+    Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray)
+
+Write a [`GDALarray`](@ref) to a .tiff file.
+"""
+Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray{T,2}) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GTiff")
     A = permutedims(A, (Lon(), Lat()))
     nbands = 1
     indices = 1
     gdalwrite(filename, A, nbands, indices)
 end
-Base.write(filename::AbstractString, ::Type{GDALarray},
-           A::Union{<:GDALarray{T,3},<:GeoArray{T,3}}; kwargs...) where T = begin
+Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray{T,3}) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GeoTiff")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array to GeoTiff")
     correctedA = permutedims(A, (Lon(), Lat(), Band())) |>
@@ -134,7 +137,7 @@ Load a stack of files lazily with gdal.
 
 # Keyword arguments
 - `window`: can be a tuple of Dimensions, selectors or regular indices.
-- `metadata`: is a GDALmetadata object.
+- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
 """
 struct GDALstack{T,R,W} <: DiskGeoStack{T}
     filename::T
