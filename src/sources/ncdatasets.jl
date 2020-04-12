@@ -237,15 +237,31 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
             # Assume the locus is at the center of the cell if boundaries aren't provided.
             # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
 
-            if eltype(dvar) isa Number
+            if eltype(dvar) <: Number
                 beginhalfcell = abs((dvar[2] - dvar[1]) * 0.5)
                 endhalfcell = abs((dvar[end] - dvar[end-1]) * 0.5)
-                bounds = if isrev(indexorder(order))
-                    dvar[end] - endhalfcell, dvar[1] + beginhalfcell
+                bounds = if length(dvar) > 1
+                    if isrev(indexorder(order))
+                        dvar[end] - endhalfcell, dvar[1] + beginhalfcell
+                    else
+                        dvar[1] - beginhalfcell, dvar[end] + endhalfcell
+                    end
                 else
-                    dvar[1] - beginhalfcell, dvar[end] + endhalfcell
+                    dvar[1], dvar[1]
                 end
                 locus = (dimtype <: TimeDim) ? Start() : Center()
+                mode = Sampled(order, Irregular(bounds), Intervals(locus))
+            elseif eltype(dvar) <: Dates.AbstractTime
+                locus = Start()
+                bounds = if length(dvar) > 1
+                    if isrev(indexorder(order))
+                        dvar[end], dvar[1] + (dvar[1] - dvar[2])  
+                    else
+                        dvar[1], dvar[end] + (dvar[end] - dvar[end - 1])  
+                    end
+                else
+                    dvar[1], dvar[1]
+                end
                 mode = Sampled(order, Irregular(bounds), Intervals(locus))
             else
                 mode = Sampled(order, Irregular(), Points())
