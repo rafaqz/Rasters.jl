@@ -19,7 +19,7 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         @test length.(val.(dims(ncarray))) == (180, 170, 24)
         @test dims(ncarray) isa Tuple{<:Lon,<:Lat,<:Ti}
         @test refdims(ncarray) == ()
-        @test bounds(ncarray) == ((1.0, 359.0), (-79.5, 89.5), (DateTime360Day(2001, 1, 16), DateTime360Day(2002, 12, 16)))
+        @test bounds(ncarray) == ((0.0, 360.0), (-80.0, 90.0), (DateTime360Day(2001, 1, 16), DateTime360Day(2003, 1, 16)))
     end
 
     @testset "other fields" begin
@@ -39,9 +39,9 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
     end
 
     @testset "selectors" begin
-        a = ncarray[Lon(At(21.0)), Lat(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))]
-        @test bounds(a) == ((50.5, 51.5),)
-        x = ncarray[Lon(Near(150)), Lat(Near(30)), Ti(1)]
+        a = ncarray[Lon(At(21.0)), Lat(Between(50, 52)), Ti(Contains(DateTime360Day(2002, 12)))];
+        @test bounds(a) == ((50.0, 52.0),)
+        x = ncarray[Lon(Contains(150)), Lat(Contains(30)), Ti(1)]
         @test x isa Float32
         # TODO make sure we are getting the right cell.
     end
