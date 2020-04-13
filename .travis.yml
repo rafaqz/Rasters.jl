@@ -29,6 +29,3 @@ jobs:
       name: "HTML"
       after_success: skip
   services: docker
-
-codecov: true
-
