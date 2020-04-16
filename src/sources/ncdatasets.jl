@@ -238,9 +238,9 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
             # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
 
             if eltype(dvar) <: Number
-                beginhalfcell = abs((dvar[2] - dvar[1]) * 0.5)
-                endhalfcell = abs((dvar[end] - dvar[end-1]) * 0.5)
                 bounds = if length(dvar) > 1
+                    beginhalfcell = abs((dvar[2] - dvar[1]) * 0.5)
+                    endhalfcell = abs((dvar[end] - dvar[end-1]) * 0.5)
                     if isrev(indexorder(order))
                         dvar[end] - endhalfcell, dvar[1] + beginhalfcell
                     else
