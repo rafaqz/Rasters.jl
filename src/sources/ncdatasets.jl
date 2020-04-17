@@ -160,7 +160,7 @@ NCDstack(filename::AbstractString; refdims=(), window=(), metadata=ncapply(metad
 
 # AbstractGeoStack methods
 
-safeapply(f, ::NCDstack, path) = ncapply(f, path)
+querychild(f, path::AbstractString, ::NCDstack) = ncapply(f, path)
 
 dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
 dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
@@ -188,11 +188,11 @@ Base.getindex(s::NCDstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
     end
 
 Base.keys(stack::NCDstack{<:AbstractString}) =
-    Tuple(Symbol.(safeapply(nondimkeys, stack, source(stack))))
+    cleankeys(querychild(nondimkeys, childsource(stack), stack))
 
 Base.copy!(dst::AbstractGeoArray, src::NCDstack, key::Key) =
     copy!(data(dst), src, key)
-Base.copy!(dst::AbstractArray, src::NCDstack, key) =
+Base.copy!(dst::AbstractArray, src::NCDstack, key::Key) =
     ncapply(filename(src)) do dataset
         key = string(key)
         var = dataset[key]

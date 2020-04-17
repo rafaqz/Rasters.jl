@@ -1,5 +1,5 @@
 using GeoData, Test, Statistics, Dates
-using GeoData: formatdims, data, dims2indices, rebuild, window, name, source
+using GeoData: formatdims, data, dims2indices, rebuild, window, name, childsource
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
@@ -18,8 +18,8 @@ stack = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
 dims(stack[:ga2], Ti)
 
 @testset "stack layers" begin
-    @test source(stack) isa NamedTuple
-    @test length(source(stack)) == 2
+    @test childsource(stack) isa NamedTuple
+    @test length(childsource(stack)) == 2
     @test stack[:ga1] == ga1
     @test stack[:ga2] == ga2
     @test data(stack[:ga1]) == data1
@@ -33,9 +33,8 @@ end
     @test dims(stack) == formatdims(data1, dims1)
     @test dims(stack, :ga1) == formatdims(data1, dims1)
     @test window(stack) == ()
-    @test refdims(stack) == ()
     @test metadata(stack) == nothing
-    # @test metadata(stack, :ga1) == nothing
+    @test metadata(stack, :ga1) == nothing
 end
 
 @testset "indexing" begin

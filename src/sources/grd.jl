@@ -1,5 +1,4 @@
-export GrdArray, GrdMetadata, GrdDimMetadata
-
+export GrdArray, GrdStack, GrdMetadata, GrdDimMetadata
 
 # Metadata ########################################################################
 
@@ -18,6 +17,88 @@ struct GrdDimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
 GrdDimMetadata() = GrdDimMetadata(Dict())
+
+
+# Grd attributes wrapper
+
+struct GrdAttrib{T,F,A}
+    filename::F
+    attrib::A
+end
+GrdAttrib(filename::AbstractString) = begin
+    filename = first(splitext(filename))
+    lines = readlines(filename * ".grd")
+    entries = filter!(x -> !isempty(x) && !(x[1] == '['), lines)
+    attrib = Dict(Pair(string.(strip.(match(r"([^=]+)=(.*)", st).captures[1:2]))...) for st in entries)
+    T = datatype_translation[attrib["datatype"]]
+
+    GrdAttrib{T,typeof(filename),typeof(attrib)}(filename, attrib)
+end
+
+filename(grd::GrdAttrib) = grd.filename
+
+dims(grd::GrdAttrib, usercrs=nothing) = begin
+    attrib = grd.attrib
+    crs = ProjString(grd.attrib["projection"])
+
+    ncols, nrows, nbands = size(grd)
+
+    xbounds = parse.(Float64, (attrib["xmin"], attrib["xmax"]))
+    ybounds = parse.(Float64, (attrib["ymin"], attrib["ymax"]))
+
+    xspan = (xbounds[2] - xbounds[1]) / ncols
+    yspan = (ybounds[2] - ybounds[1]) / nrows
+
+    # Not fully implemented yet
+    latlon_metadata = GrdDimMetadata(Dict())
+
+    latmode = ProjectedIndex(
+        order=Ordered(Forward(), Reverse(), Reverse()), 
+        span=Regular(xspan), 
+        sampling=Intervals(Start()), 
+        crs=crs, 
+        usercrs=usercrs,
+    )
+    lat = Lat(LinRange(ybounds[1], ybounds[2] - yspan, nrows), latmode, latlon_metadata)
+    lonmode = ProjectedIndex(
+        order=Ordered(),
+        span=Regular(yspan), 
+        sampling=Intervals(Start()), 
+        crs=crs, 
+        usercrs=usercrs,
+    ) 
+    lon = Lon(LinRange(xbounds[1], xbounds[2] - xspan, ncols), lonmode, latlon_metadata)
+    band = Band(1:nbands; mode=Categorical(Ordered()))
+    lon, lat, band
+end
+
+metadata(grd::GrdAttrib) = begin
+    metadata = GrdMetadata() 
+    for key in ("creator", "created", "history")
+        val = get(grd.attrib, key, "")
+        if val != ""
+            metadata[key] = val
+        end
+    end
+    metadata
+end
+
+missingval(grd::GrdAttrib{T}) where T = parse(T, grd.attrib["nodatavalue"])
+
+name(grd::GrdAttrib) = get(grd.attrib, "layername", "")
+
+
+Base.eltype(::GrdAttrib{T}) where T = T
+
+Base.size(grd::GrdAttrib) = begin
+    ncols = parse(Int, grd.attrib["ncols"])
+    nrows = parse(Int, grd.attrib["nrows"])
+    nbands = parse(Int, grd.attrib["nbands"])
+    # The order is backwards to jula array order
+    ncols, nrows, nbands
+end
+
+Base.Array(grd::GrdAttrib) = mmapgrd(Array, grd)
 
 
 # Array ########################################################################
@@ -55,65 +136,29 @@ struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
     window::W
     size::S
 end
-GrdArray(filename::String; refdims=(), name=nothing, 
-         metadata=GrdMetadata(), window=(), usercrs=nothing) = begin
-    filename = first(splitext(filename))
-    lines = readlines(filename * ".grd")
-    entries = filter!(x -> !isempty(x) && !(x[1] == '['), lines)
-    data = Dict((c = match(r"([^=]+)=(.*)", st); string(c.captures[1]) => string(strip(c.captures[2]))) for st in entries)
+GrdArray(filename::String; kwargs...) = GrdArray(GrdAttrib(filename), kwargs...)
+GrdArray(grd::GrdAttrib; refdims=(), name=nothing, window=(), usercrs=nothing) = begin
+    attrib = grd.attrib
 
-    nrows = parse(Int, data["nrows"])
-    ncols = parse(Int, data["ncols"])
-    nbands = parse(Int, data["nbands"])
-    _size = ncols, nrows, nbands
-
-    T = datatype_translation[data["datatype"]]
-    N = length(_size)
-    xmin, xmax = parse.(Float64, (data["xmin"], data["xmax"]))
-    ymin, ymax = parse.(Float64, (data["ymin"], data["ymax"]))
-    crs = ProjString(data["projection"])
-    cellx = (xmax - xmin) / nrows
-    celly = (ymax - ymin) / ncols
-    # Not fully implemented yet
-    latlon_metadata = GrdDimMetadata(Dict())
-
-    latmode = ProjectedIndex(
-        order=Ordered(Forward(), Reverse(), Forward()), 
-        span=Regular(cellx), 
-        sampling=Intervals(Start()), 
-        crs=crs, 
-        usercrs=usercrs,
-    )
-    lat = Lat(LinRange(xmin, xmax - cellx, nrows), latmode, latlon_metadata)
-    lonmode = ProjectedIndex(
-        order=Ordered(),
-        span=Regular(celly), 
-        sampling=Intervals(Start()), 
-        crs=crs, 
-        usercrs=usercrs,
-    ) 
-    lon = Lon(LinRange(ymin, ymax - celly, ncols), lonmode, latlon_metadata)
-    band = Band(1:nbands; mode=Categorical(Ordered()))
-    dims = lon, lat, band
-    for key in ("creator", "created", "history")
-        val = get(data, key, "")
-        if val != ""
-            metadata[key] = val
-        end
-    end
-    missingval = parse(T, data["nodatavalue"])
+    dims_ = dims(grd, usercrs)
+    metadata_ = metadata(grd)
+    missingval_ = missingval(grd)
+    size_ = map(length, dims_)
     if name isa Nothing
-        name = get(data, "layername", "")
+        name = GeoData.name(grd)
     end
 
-    GrdArray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,window,_size))...
-            }(filename, dims, refdims, name, metadata, missingval, window, _size)
+    T = eltype(grd)
+    N = length(size_)
+
+    GrdArray{T,N,typeof.((grd.filename, dims_,refdims,name,metadata_,missingval_,window,size_))...
+            }(grd.filename, dims_, refdims, name, metadata_, missingval_, window, size_)
 end
 
-# AbstractGeoStack methods
+# AbstractGeoArray methods
 
 data(A::GrdArray) =
-    grdapply(A) do mmap
+    mmapgrd(A) do mmap
         _window = maybewindow2indices(mmap, dims(A), window(A))
         readwindowed(mmap, _window)
     end
@@ -121,14 +166,14 @@ data(A::GrdArray) =
 # Base methods
 
 Base.getindex(A::GrdArray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
-    grdapply(A) do mmap
+    mmapgrd(A) do mmap
         _window = maybewindow2indices(mmap, dims(A), window(A))
         _dims, _refdims = slicedims(slicedims(dims(A), refdims(A), _window)..., I)
         data = readwindowed(mmap, _window, I...)
         rebuild(A, data, _dims, _refdims)
     end
 Base.getindex(A::GrdArray, i1::Integer, I::Vararg{<:Integer}) =
-    grdapply(A) do mmap
+    mmapgrd(A) do mmap
         _window = maybewindow2indices(mmap, dims(A), window(A))
         readwindowed(mmap, _window, i1, I...)
     end
@@ -143,21 +188,21 @@ Currently the `metadata` field is lost on `write`.
 """
 Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray) = begin
     if hasdim(A, Band)
-        correctedA = permutedims(A, (Lon, Lat, Band)) |>
-            a -> reorderindex(a, Forward()) |>
-            a -> reorderrelation(a, Forward())
+        correctedA = permutedims(A, (Lon, Lat, Band))# |>
+            #a -> reorderindex(a, Forward()) |>
+            #a -> reorderrelation(a, (Lon(Forward()), Lat(Reverse()), Band(Forward())))
         nbands = length(val(dims(A, Band)))
     else
-        correctedA = permutedims(A, (Lon, Lat)) |>
-            a -> reorderindex(a, Forward()) |>
-            a -> reorderrelation(a, Forward())
+        correctedA = permutedims(A, (Lon, Lat))# |>
+            #a -> reorderindex(a, Forward()) |>
+            #a -> reorderrelation(a, (Lon(Forward()), Lat(Reverse())))
         nbands = 1
     end
     # Remove extension
     filename = splitext(filename)[1]
     ncols, nrows = size(A)
-    xmin, xmax = bounds(dims(A, Lat))
-    ymin, ymax = bounds(dims(A, Lon))
+    xmin, xmax = bounds(dims(A, Lon))
+    ymin, ymax = bounds(dims(A, Lat))
     proj = convert(String, crs(dims(A, Lat)))
     datatype = rev_datatype_translation[eltype(A)]
     nodatavalue = missingval(A)
@@ -170,7 +215,7 @@ Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray) = begin
     end
 
     # Data: gri file
-    open(filename  * ".gri", "w") do IO
+    open(filename * ".gri", "w") do IO
         write(IO, data(correctedA))
     end
 
@@ -205,11 +250,20 @@ Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray) = begin
 end
 
 
-# Utils ########################################################################
+# AbstractGeoStack methods
 
-grdapply(f, A, mode="r") = begin
-    open(filename(A) * ".gri", mode) do io
-        mmap = Mmap.mmap(io, Array{eltype(A),3}, size(A))
+GrdStack(filename; kwargs...) = DiskStack(filename; childtype=GrdArray, kwargs...)
+
+querychild(f, ::Type{<:GrdArray}, filename::AbstractString, stack) = 
+    f(GrdAttrib(filename))
+
+
+# Utils ########################################################################
+mmapgrd(f, A::GrdArray, mode...) = mmapgrd(f, filename(A), eltype(A), size(A), mode...) 
+mmapgrd(f, grd::GrdAttrib, mode...) = mmapgrd(f, filename(grd), eltype(grd), size(grd), mode...) 
+mmapgrd(f, filename::AbstractString, T::Type, size::Tuple, mode::AbstractString="r") = begin
+    open(filename * ".gri", mode) do io
+        mmap = Mmap.mmap(io, Array{T,length(size)}, size)
         output = f(mmap)
         close(io)
         output

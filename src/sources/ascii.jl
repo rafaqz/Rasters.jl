@@ -92,6 +92,18 @@ Base.getindex(A::ASCIIarray, i1::Integer, I::Vararg{<:Integer}) =
         readwindowed(, _window, i1, I...)
     end
 
+
+
+# AbstractGeoStack methods
+
+GrdStack(filename; kwargs...) = DiskStack(filename; childtype=GrdArray, kwargs...)
+
+stackapply(f, ::Type{<:GrdArray}, filename::AbstractString, stack) = 
+    f(Gri(filename))
+
+
+# Utils ########################################################################
+
 # This simply loads the entire file and runs the function on the array
 asciiapply(f, A) = 
     open(filename(A)) do stream
@@ -104,9 +116,9 @@ asciiapply(f, A) =
 
 Base.getindex(stream::ASCIIstream, I...) = 
 
-Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray{Any,2}) = begin
+Base.write(filename::String, ::Type{ASCIIarray}, A::AbstractGeoArray{Any,2}) = begin
     # Standardise dimensions
-    A = PermutedDimsArray(A, (Lon(), Lat()))
+    A = permutedims(A, (Lon(), Lat()))
     ncols, nrows = size(A)
     x = dims(A, Lat())
     y = dims(A, Lon())

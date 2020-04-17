@@ -49,6 +49,7 @@ series = GeoSeries([stack1, stack2], (Ti(dates),));
         A = aggregate(Start(), array1, scale)
         @test length.(dims(A)) == size(A)
     end
+
     @testset "mixed scales" begin
         scale = (3, 2)
         @test aggregate(Start(), array1, scale) == [1 3 5]
@@ -58,6 +59,7 @@ series = GeoSeries([stack1, stack2], (Ti(dates),));
         A = aggregate(Start(), array1, scale)
         @test length.(dims(A)) == size(A)
     end
+
     @testset "mixed locus" begin
         scale = 3
         @test aggregate((End(), Start()), array1, 3) == [13 16]
@@ -65,12 +67,14 @@ series = GeoSeries([stack1, stack2], (Ti(dates),));
         A = aggregate((End(), Start()), array1, scale)
         @test length.(dims(A)) == size(A)
     end
+
     @testset "dim scale" begin
         @test aggregate(Start(), array1, (Lat(3), Lon(1))) == 
             aggregate(Start(), array1, (1, 3))
         @test aggregate(Start(), array1, (Lon(1), Lat(Near(-4)))) == 
             aggregate(Start(), array1, (1, 2))
     end
+
 end
 
 @testset "Aggregate with a function" begin

@@ -13,6 +13,3 @@ readwindowed(A, window::Tuple{}) = Array(A)
 readwindowed(A, window::Tuple{}, I...) = A[I...]
 readwindowed(A, window, I...) = A[Base.reindex(window, I)...]
 readwindowed(A, window) = A[window...]
-
-forwardorder(A::AbstractArray) =
-    reorderindex(A, Forward()) |> a -> reorderrelation(a, Forward())

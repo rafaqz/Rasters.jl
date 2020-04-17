@@ -18,18 +18,10 @@ abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
 # Can be removed when DiskArrays.jl is used everywhere
 struct LazyArray{T,N} <: AbstractArray{T,N} end
 
-
 # Interface methods ###########################################################
 
-data(A::AbstractGeoArray) = A.data
-dims(A::AbstractGeoArray) = A.dims
-refdims(A::AbstractGeoArray) = A.refdims
-name(A::AbstractGeoArray) = A.name
-metadata(A::AbstractGeoArray) = A.metadata
 missingval(A::AbstractGeoArray) = A.missingval
 window(A::AbstractGeoArray) = A.window
-units(A::AbstractGeoArray) = getmeta(A, :units, "")
-label(A::AbstractGeoArray) = string(name(A), " ", units(A))
 
 """
     crs(A::AbstractGeoArray)
@@ -66,12 +58,24 @@ Get the user input coordinate reference system.
 """
 usercrs(dim::Dimension) = usercrs(mode(dim), dim)
 
+# DimensionalData methods
+
+units(A::AbstractGeoArray) = getmeta(A, :units, "")
+label(A::AbstractGeoArray) = string(name(A), " ", units(A))
+
 # Rebuild all types of AbstractGeoArray as GeoArray
 rebuild(A::AbstractGeoArray, data, dims::Tuple, refdims, name, metadata, missingval=missingval(A)) =
     GeoArray(data, dims, refdims, name, metadata, missingval)
 rebuild(A::AbstractGeoArray; data=data(A), dims=dims(A), refdims=refdims(A),
-        name=name(A), metadata=metadata(A), missingval=missingval(A)) =
-    GeoArray(data, dims, refdims, name, metadata, missingval)
+        name=name(A), metadata=metadata(A), missingval=missingval(A), window=window(A)) = begin
+    A = GeoArray(data, dims, refdims, name, metadata, missingval)
+    if window == () || window == nothing
+        A
+    else
+        view(A, window...)
+    end
+end
+
 
 """
 Abstract supertype for all memory-backed GeoArrays where the data is an array.
@@ -87,8 +91,6 @@ abstract type DiskGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
 
 filename(A::DiskGeoArray) = A.filename
 Base.size(A::DiskGeoArray) = A.size
-window(A::DiskGeoArray) = A.window
-
 
 Base.write(A::T) where T <: DiskGeoArray = write(filename(A), A)
 Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
@@ -118,11 +120,9 @@ end
 Construct a [`GeoArray`](@ref) from an `AbstractArray`, a `Tuple` of
 `Dimension` and keyword arguments.
 """
-@inline GeoArray(A::AbstractArray{T,N}, dims::Tuple;
-                 refdims=(), name="", metadata=nothing, missingval=missing,
-                ) where {T,N} =
+@inline GeoArray(A::AbstractArray, dims::Tuple;
+                 refdims=(), name="", metadata=nothing, missingval=missing) =
     GeoArray(A, formatdims(A, dims), refdims, name, metadata, missingval)
-
 """
     GeoArray(A::AbstractGeoArray; [data=data(A), dims=dims(A), refdims=refdims(A),
              name=name(A), metadata=metadata(A), missingval=missingval(A)]) =
@@ -140,7 +140,8 @@ keyword arguments.
     GeoArray(data, _dims, _refdims, name, metadata, missingval)
 end
 
-dims(A::GeoArray) = A.dims
+window(A::GeoArray) = ()
+
 
 Base.@propagate_inbounds Base.setindex!(A::GeoArray, x, I::Vararg{DimensionalData.StandardIndices}) =
     setindex!(data(A), x, I...)

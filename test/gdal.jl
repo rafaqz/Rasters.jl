@@ -135,13 +135,12 @@ end
         @test windowedarray[1, 2] == 0x00
     end
 
-
     # Stack Constructors
     @testset "conversion to GeoStack" begin
         stack = GeoStack(gdalstack)
         @test Symbol.(Tuple(keys(gdalstack))) == keys(stack)
         smallstack = GeoStack(gdalstack; keys=(:a,))
-        keys(smallstack) == (:a,)
+        @test keys(smallstack) == (:a,)
     end
 
     if VERSION > v"1.1-"
@@ -154,4 +153,16 @@ end
         end
     end
 
+    @testset "save" begin
+        geoarray = GeoArray(gdalstack[:a])
+        filename = tempname()
+        write(filename, GDALarray, gdalstack)
+        base, ext = splitext(filename)
+        filename_b = string(base, "_b", ext)
+        saved = GeoArray(GDALarray(filename_b))
+        @test saved == geoarray
+    end
+
 end
+
+nothing

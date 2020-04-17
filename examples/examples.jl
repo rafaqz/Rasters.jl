@@ -1,11 +1,34 @@
 
 using GeoData, NCDatasets, Statistics, Plots, ArchGDAL
 
+using GeoData, NCDatasets, Plots
+pyplot()
+filename = download("https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc", "tos_O1_2001-2002.nc")
+
+stack = NCDstack(filename)
+keys(stack) # (:tos,)
+A = stack[:tos]
+
+A[Ti(1:3:12)] |> plot
+savefig("tos_4.png")
+
+A[Ti(Contains(DateTime360Day(2001, 01, 17))), Lat(Between(0, -50)), Lon(Between(100, 160))] |> plot
+savefig("tos_jan_australia.png")
+
+mean(A; dims=Ti) |> plot
+savefig("mean_tos.png")
+
+A[Lat(Contains(20)), Ti(1)] |> plot
+savefig("tos_20deg_lat.png")
+
+
 geturl(url) = begin
     fname = splitdir(url)[2]
     isfile(fname) || download(url, fname)
     fname
 end
+
+write("mean_tos.ncd", NCDarray, mean(A; dims=Ti))
 
 # Load some layers from NetCDF #############################################
 

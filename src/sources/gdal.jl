@@ -125,57 +125,12 @@ Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray{T,3}
 end
 
 
-# Stack ########################################################################
-
-"""
-    GDALstack(filename::NamedTuple; refdims=(), window=())
-
-Load a stack of files lazily with gdal.
-
-# Arguments
-- `filename`: a NamedTuple of `String` filenames.
-
-# Keyword arguments
-- `window`: can be a tuple of Dimensions, selectors or regular indices.
-- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
-"""
-struct GDALstack{T,R,W} <: DiskGeoStack{T}
-    filename::T
-    refdims::R
-    window::W
-end
-GDALstack(filename::NamedTuple; refdims=(), window=()) =
-    GDALstack(filename, refdims, window)
-
 # AbstractGeoStack methods
 
-safeapply(f, ::GDALstack, path::AbstractString) = gdalapply(f, path)
+GDALstack(filename; kwargs...) = DiskStack(filename; childtype=GDALarray, kwargs...)
 
-metadata(stack::GDALstack) = gdalapply(metadata, first(values(filename(stack))))
-
-# Base methods
-
-Base.getindex(s::GDALstack, key::Key) =
-    gdalapply(filename(s, key)) do dataset
-        GDALarray(dataset; refdims=refdims(s), name=string(key), window=window(s))
-    end
-Base.getindex(s::GDALstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
-    s[key][I...]
-
-
-"""
-    Base.copy!(dst::AbstractArray, src::GDALstack, key::Key)
-
-Copy the stack layer `key` to `dst`, which can be any `AbstractArray`.
-"""
-Base.copy!(dst::AbstractArray, src::GDALstack, key::Key) =
-    gdalapply(filename(src, key)) do dataset
-        key = string(key)
-        _window = maybewindow2indices(dataset, dims(dataset), window(src))
-        copy!(dst, readwindowed(dataset, _window))
-    end
-Base.copy!(dst::AbstractGeoArray, src::GDALstack, key::Key) =
-    copy!(data(dst), src, key)
+querychild(f, ::Type{GDALarray}, filename::AbstractString, stack) =
+    gdalapply(f, filename)
 
 
 # DimensionalData methods for ArchGDAL types ###############################
@@ -279,15 +234,6 @@ crs(dataset::AG.Dataset, args...) =
 gdalapply(f, filename::AbstractString) =
     AG.read(filename) do dataset
         f(dataset)
-    end
-
-gdalread(s::GDALstack, key, I...) =
-    gdalapply(filename(s, key)) do dataset
-        readwindowed(dataset, window(s), I...)
-    end
-gdalread(A::GDALarray, I...) =
-    gdalapply(filename(A)) do dataset
-        readwindowed(dataset, window(A), I...)
     end
 
 gdalsize(dataset) = begin

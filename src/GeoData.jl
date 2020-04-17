@@ -25,7 +25,7 @@ using DimensionalData: Forward, Reverse, formatdims, slicedims,
 
 import DimensionalData: val, data, dims, refdims, metadata, rebuild, rebuildsliced,
                         name, label, units, bounds, sel2indices, mode, 
-                        order, locus, span, sampling
+                        order, locus, span, sampling, forwardorder
 
 export Metadata, ArrayMetadata, DimMetadata
 

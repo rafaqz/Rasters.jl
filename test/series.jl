@@ -45,14 +45,13 @@ end
 end
 
 
-# @testset "lazy view windows" begin
-#     dimz = (Ti<|[DateTime(2017), DateTime(2018)],)
-#     dat = [stack1, stack2]
-#     windowdimz = Lon(1:2), Lat(3:4)
-#     series = GeoSeries(dat, dimz; window=windowdimz)
-#     @test window(series) == windowdimz
-#     stack = series[1]
-#     @test window(stack) == windowdimz
-#     @test stack[:ga1] == [3 4; 7 8]
-#     @test stack[:ga1, 1, 2] == 4
-# end
+@testset "lazy view windows" begin
+    dimz = (Ti<|[DateTime(2017), DateTime(2018)],)
+    dat = [stack1, stack2]
+    window_ = Lon(1:2), Lat(3:4)
+    series = GeoSeries(dat, dimz; window=window_)
+    stack = series[1]
+    @test GeoData.window(stack) == window_
+    @test stack[:ga1] == [3 4; 7 8]
+    @test stack[:ga1, 1, 2] == 4
+end

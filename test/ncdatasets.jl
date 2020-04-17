@@ -124,6 +124,9 @@ end
         @testset "copy" begin
             geoarray = GeoArray(ncstack[:albedo])
             copy!(geoarray, ncstack, :albedo)
+            # First wrap with GeoArray() here or == loads from disk for each cell.
+            # we need a general way of avoiding this in all disk-based sources
+            @test geoarray == GeoArray(ncstack[:albedo])
         end
     end
 
@@ -178,4 +181,4 @@ end
 
 end
 
-
+nothing
