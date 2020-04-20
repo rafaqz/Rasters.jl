@@ -1,10 +1,10 @@
-using HDF5, GeoData, Test, Statistics, Dates
+using HDF5, GeoData, Test, Statistics, Dates, Plots
 using GeoData: Time, window, name
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 # TODO example files without a login requirement
-path1 = "SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5"
-path2 = "SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5"
+path1 = "test/data/SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5"
+path2 = "test/data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5"
 
 if isfile(path1)
     @testset "stack" begin
@@ -15,14 +15,15 @@ if isfile(path1)
             @test smaparray isa GeoArray{Float32,2}
             @test size(smaparray) == (100, 100)
             @test dims(smaparray) isa Tuple{<:Lon{<:Array{Float32,1}}, <:Lat{<:Array{Float32,1}}}
-            @test refdims(smaparray) isa Tuple{<:Time} 
+            @test refdims(smaparray) isa Tuple{<:Ti} 
             @test missingval(smaparray) == -9999.0
             @test smaparray[1] == -9999.0
             @test name(smaparray) == "soil_temp_layer1"
             # Why is tagged time different to the filename time? is that just rounded?
             dt = DateTime(2016, 1, 1, 22, 28, 55, 816)
-            step = Second(10800)
-            @test refdims(stack) == (Ti(dt:step:dt; mode=RegularIndex(;step=step)),)
+            step_ = Second(10800)
+            @test refdims(stack) == 
+                (Ti(dt:step_:dt; mode=Sampled(Ordered(), Regular(step_), Intervals(Start()))),)
             @test_broken metadata(smaparray) = "not implemented yet"
         end
 
@@ -32,7 +33,7 @@ if isfile(path1)
             # geostack = GeoStack(stack) 
             # @test Symbol.(Tuple(keys(stack))) == keys(geostack)
             geostack = GeoStack(stack; keys=(:baseflow_flux, :snow_mass, :soil_temp_layer1))
-            keys(geostack) == (:baseflow_flux, :snow_mass, :soil_temp_layer1)
+            @test keys(geostack) == (:baseflow_flux, :snow_mass, :soil_temp_layer1)
         end
 
         if VERSION > v"1.1-"
@@ -71,8 +72,8 @@ if isfile(path1)
         series = SMAPseries([path1, path2]);
         val.(dims(series))
         @test series[1] isa SMAPstack
-        @test first(bounds(series, Time)) == DateTime(2016, 1, 1, 22, 28, 55, 816)
-        # @test_broken last(bounds(series, Time)) == DateTime(2016, 1, 2, 1, 28, 55, 816)
+        @test first(bounds(series, Ti)) == DateTime(2016, 1, 1, 22, 28, 55, 816)
+        @test last(bounds(series, Ti)) == DateTime(2016, 1, 2, 1, 28, 55, 816)
     end
     
 end

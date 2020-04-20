@@ -17,12 +17,11 @@ struct ASCIIarray{T,N,A,D<:Tuple,R<:Tuple,Me,Mi,Na,W,SS} <: DiskGeoArray{T,N,D,L
     filename::A
     dims::D
     refdims::R
+    name::Na
     metadata::Me
     missingval::Mi
-    name::Na
     window::W
     size::S
-    source_size::SS
 end
 
 ASCIIarray(x::AbstractString; refdims=(), name="Unnamed", window=()) =
@@ -31,7 +30,7 @@ ASCIIarray(x::AbstractString; refdims=(), name="Unnamed", window=()) =
         nrows = parse(Int, match(r"NROWS (.+)", readline(file)).captures[1])
         xllstring = readline(file)
         yllstring = readline(file)
-        step = parse(Float64, match(r"CELLSIZE (.+)", readline(file)).captures[1])
+        span = parse(Float64, match(r"CELLSIZE (.+)", readline(file)).captures[1])
         nodata = parse(Float64, match(r"NODATA_value (.+)", readline(file)).captures[1])
 
         xllmatch = match(r"XLLCORNER (.+)", xllstring).captures[1]
@@ -52,8 +51,8 @@ ASCIIarray(x::AbstractString; refdims=(), name="Unnamed", window=()) =
         end
         yll = parse(Float64, yllmatch.captures[1])
 
-        dims = Lon(xll; mode=RegularIndex(locus=xlocus, step=step)), 
-               Lat(yll; mode=RegularIndex(locus=ylocus, step=step))
+        dims = Lon(xll; mode=Sampled(Ordered(), Regular(span), Intervals(xlocus))), 
+               Lat(yll; mode=Sampled(Ordered(), Regular(span), Intervals(ylocus)))
         size = nrows, ncols
         if window != ()
             window = to_indices(dataset, dims2indices(dims, window))
@@ -72,7 +71,7 @@ crs(A::ASCIIarray) = nothing
 
 Base.size(A::ASCIIarray) = A.size
 
-Base.parent(A::ASCIIarray) =
+data(A::ASCIIarray) =
     asciiapply(A) do data
         _window = maybewindow2indices(file, dims(A), window(A))
         readwindowed(data, _window)

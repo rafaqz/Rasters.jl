@@ -26,21 +26,20 @@ path = joinpath(testpath, "data/rlogo")
     end
 
     @testset "other fields" begin
-        @test GeoData.window(grdarray) == ()
-        @test missingval(grdarray) == -3.4f38 
+        @test missingval(grdarray) == -3.4f38
         @test metadata(grdarray) isa GrdMetadata
         @test name(grdarray) == "red:green:blue"
     end
 
-    @testset "getindex" begin 
-        @test grdarray[Band(1)] isa GeoArray{Float32,2} 
-        @test grdarray[Lat(1), Band(1)] isa GeoArray{Float32,1} 
+    @testset "getindex" begin
+        @test grdarray[Band(1)] isa GeoArray{Float32,2}
+        @test grdarray[Lat(1), Band(1)] isa GeoArray{Float32,1}
         @test grdarray[Lon(1), Band(1)] isa GeoArray{Float32,1}
-        @test grdarray[Lon(1), Lat(1), Band(1)] isa Float32 
-        @test grdarray[1, 1, 1] isa Float32
+        @test grdarray[Lon(50), Lat(30), Band(1)] == 115.0f0
+        @test grdarray[1, 1, 1] == 255.0f0
     end
 
-    # @testset "setindex" begin 
+    # @testset "setindex" begin
     #     A = grdarray[:, :, :]
     #     temp = grdarray[1, 1, 1]
     #     println(temp)
@@ -69,9 +68,9 @@ path = joinpath(testpath, "data/rlogo")
         geoarray = grdarray[Lon(1:50), Lat(1:1), Band(1)]
         @test size(geoarray) == (50, 1)
         @test eltype(geoarray) <: Float32
-        @time geoarray isa GeoArray{Float32,1} 
+        @time geoarray isa GeoArray{Float32,1}
         @test dims(geoarray) isa Tuple{<:Lon,Lat}
-        @test refdims(geoarray) isa Tuple{<:Band} 
+        @test refdims(geoarray) isa Tuple{<:Band}
         @test metadata(geoarray) == metadata(grdarray)
         @test missingval(geoarray) == -3.4f38
         @test name(geoarray) == "red:green:blue"
@@ -119,19 +118,19 @@ end
     grdstack = GrdStack((a=path, b=path))
 
     @testset "indexing" begin
-        @test grdstack[:a][Lat(1), Lon(1), Band(1)] == 255.0f0
-        @test grdstack[:a][Lat([2,3]), Lon(1), Band(1)] == [255.0f0, 255.0f0] 
+        @test grdstack[:a][Lat(20), Lon(20), Band(3)] == 70.0f0
+        @test grdstack[:a][Lat([2,3]), Lon(40), Band(2)] == [240.0f0, 246.0f0]
     end
 
     @testset "child array properties" begin
         @test size(grdstack[:a]) == size(GeoArray(grdstack[:a])) == (101, 77, 3)
-        @test grdstack[:a] isa GrdArray{Float32,3}
+        @test grdstack[:a] isa GeoArray{Float32,3}
     end
 
     @testset "window" begin
         windowedstack = GrdStack((a=path, b=path); window=(Lat(1:5), Lon(1:5), Band(1)))
         @test window(windowedstack) == (Lat(1:5), Lon(1:5), Band(1))
-        windowedarray = GeoArray(windowedstack[:a])
+        windowedarray = windowedstack[:a]
         @test windowedarray isa GeoArray{Float32,2}
         @test length.(dims(windowedarray)) == (5, 5)
         @test size(windowedarray) == (5, 5)
@@ -144,11 +143,12 @@ end
         @test windowedarray[1:3, 2:2, 1] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1)
         @test windowedarray[1:3, 2, 1] == [255.0f0, 255.0f0, 255.0f0]
         @test windowedarray[1, 2, 1] == 255.0f0
-        windowedstack = GrdStack((a=path, b=path); window=Band(1))
-        windowedarray = GeoArray(windowedstack[:b])
+        windowedstack = GrdStack((a=path, b=path); window=(Band(1),));
+        windowedarray = windowedstack[:b]
         @test windowedarray[1:3, 2:2] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1)
         @test windowedarray[1:3, 2] == [255.0f0, 255.0f0, 255.0f0]
-        @test windowedarray[1, 2] == 255.0f0
+        @test windowedarray[30, 30] == 185.0f0
+        windowedarray |> plot
     end
 
     # Stack Constructors

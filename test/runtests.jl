@@ -8,4 +8,7 @@ if !Sys.iswindows()
     include("grd.jl")
 end
 include("ncdatasets.jl")
-include("smap.jl")
+# Only test SMAP locally for now
+if !(get(ENV, "CI", false))
+    include("smap.jl")
+end

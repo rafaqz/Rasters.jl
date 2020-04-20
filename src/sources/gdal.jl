@@ -25,7 +25,7 @@ end
 # Array ########################################################################
 
 """
-    GDALarray(filename; usercrs=nothing, name="", refdims=(), window=())
+    GDALarray(filename; usercrs=nothing, name="", refdims=())
 
 Load a file lazily with gdal. GDALarray will be converted to GeoArray after
 indexing or other manipulations. `GeoArray(GDAlarray(filename))` will do this
@@ -41,10 +41,9 @@ use its projection, converting automatically to the underlying projection from G
 - `name`: Name for the array.
 - `refdims`: Add dimension position array was sliced from. Mostly used programatically.
 - `usercrs`: can be any CRS `GeoFormat` form GeoFormatTypes.jl, such as `WellKnownText`
-- `window`: `Tuple` of `Dimension`, `Selector` or regular index to be applied when 
   loading the array. Can save on disk load time for large files.
 """
-struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
+struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
                 } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
     filename::F
     dims::D
@@ -52,50 +51,22 @@ struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,W,S
     name::Na
     metadata::Me
     missingval::Mi
-    window::W
     size::S
 end
 GDALarray(filename::AbstractString; kwargs...) = begin
     isfile(filename) || error("file not found: $filename")
-    gdalapply(dataset -> GDALarray(dataset; kwargs...), filename)
+    gdalread(dataset -> GDALarray(dataset, filename; kwargs...), filename)
 end
-GDALarray(dataset::AG.Dataset; usercrs=nothing, dims=dims(dataset, usercrs), refdims=(),
-          name="", metadata=metadata(dataset), missingval=missingval(dataset), window=()) = begin
-    filename = first(AG.filelist(dataset))
+GDALarray(dataset::AG.Dataset, filename, key=nothing; usercrs=nothing, dims=dims(dataset, usercrs), refdims=(),
+          name="", metadata=metadata(dataset), missingval=missingval(dataset)) = begin
     sze = gdalsize(dataset)
-    if window != ()
-        window = to_indices(dataset, dims2indices(dims, window))
-        sze = windowsize(window)
-    end
     T = AG.pixeltype(AG.getband(dataset, 1))
     N = length(sze)
-    GDALarray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,window,sze))...
-       }(filename, dims, refdims, name, metadata, missingval, window, sze)
+    GDALarray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,sze))...
+       }(filename, dims, refdims, name, metadata, missingval, sze)
 end
 
 # AbstractGeoArray methods
-
-data(A::GDALarray) =
-    gdalapply(filename(A)) do dataset
-        _window = maybewindow2indices(dataset, dims(A), window(A))
-        readwindowed(dataset, _window)
-    end
-
-# Base methods
-
-Base.getindex(A::GDALarray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
-    gdalapply(filename(A)) do dataset
-        _window = maybewindow2indices(dataset, dims(A), window(A))
-        # Slice for both window and indices
-        _dims, _refdims = slicedims(slicedims(dims(A), refdims(A), _window)..., I)
-        data = readwindowed(dataset, _window, I...)
-        rebuild(A, data, _dims, _refdims)
-    end
-Base.getindex(A::GDALarray, i1::Integer, I::Vararg{<:Integer}) =
-    gdalapply(filename(A)) do dataset
-        _window = maybewindow2indices(dataset, dims(A), window(A))
-        readwindowed(dataset, _window, i1, I...)
-    end
 
 """
     Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray)
@@ -105,6 +76,9 @@ Write a [`GDALarray`](@ref) to a .tiff file.
 Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray{T,2}) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GTiff")
     A = permutedims(A, (Lon(), Lat()))
+    correctedA = permutedims(A, (Lon(), Lat(), Band())) |>
+        a -> reorderindex(a, (Lon(Forward()), Lat(Reverse()), Band(Forward()))) |>
+        a -> reorderrelation(a, Forward())
     nbands = 1
     indices = 1
     gdalwrite(filename, A, nbands, indices)
@@ -115,11 +89,8 @@ Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray{T,3}
     correctedA = permutedims(A, (Lon(), Lat(), Band())) |>
         a -> reorderindex(a, (Lon(Forward()), Lat(Reverse()), Band(Forward()))) |>
         a -> reorderrelation(a, Forward())
-    lat_array_ord = arrayorder(correctedA, Lat)
-    if !(lat_array_ord isa Reverse)
-        @warn "Array data order for saving `Lat` is `$lat_array_ord`, usualy `Reverse()`"
-    end
-    nbands = size(A, Band())
+    checkarrayorder(correctedA, (Forward(), Forward(), Forward()))
+    nbands = size(correctedA, Band())
     indices = Cint[1]
     gdalwrite(filename, correctedA, nbands, indices)
 end
@@ -129,8 +100,8 @@ end
 
 GDALstack(filename; kwargs...) = DiskStack(filename; childtype=GDALarray, kwargs...)
 
-querychild(f, ::Type{GDALarray}, filename::AbstractString, stack) =
-    gdalapply(f, filename)
+withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) =
+    gdalread(f, filename)
 
 
 # DimensionalData methods for ArchGDAL types ###############################
@@ -231,7 +202,7 @@ crs(dataset::AG.Dataset, args...) =
 
 # Utils ########################################################################
 
-gdalapply(f, filename::AbstractString) =
+gdalread(f, filename::AbstractString) =
     AG.read(filename) do dataset
         f(dataset)
     end

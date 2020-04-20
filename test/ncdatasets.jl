@@ -1,4 +1,4 @@
-using NCDatasets, GeoData, Test, Statistics, Dates, CFTime
+using NCDatasets, GeoData, Test, Statistics, Dates, CFTime, Plots
 using GeoData: window, name, mode
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
@@ -23,7 +23,6 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
     end
 
     @testset "other fields" begin
-        @test window(ncarray) == ()
         @test ismissing(missingval(ncarray))
         @test metadata(ncarray) isa NCDarrayMetadata # TODO make this a namedtuple
         @test name(ncarray) == "tos"
@@ -35,7 +34,7 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         @test ncarray[Lon(1), Ti(1)] isa GeoArray{<:Any,1}
         @test ncarray[Lon(1), Lat(1), Ti(1)] isa Missing
         @test ncarray[Lon(30), Lat(30), Ti(1)] isa Float32
-        @test ncarray[30, 30, 2] isa Float32
+        @test ncarray[30, 30, 2] === 278.47168f0
     end
 
     @testset "selectors" begin
@@ -56,18 +55,6 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         @test metadata(geoarray) == metadata(ncarray)
         @test ismissing(missingval(geoarray))
         @test name(geoarray) == "tos"
-    end
-
-    @testset "window" begin
-        ds = Dataset(ncsingle)
-        ds["tos"][101:105, 51:55, 1][1:3, 2:2]
-        windowedarray = NCDarray(ncsingle; window=(Lat(51:55), Lon(101:105), Ti(1)))
-        @test size(windowedarray) == (5, 5)
-        @test window(windowedarray) == (101:105, 51:55, 1)
-        @test ndims(windowedarray) == 2
-        @test windowedarray[1:3, 2:2] == reshape([297.3289f0, 297.44012f0, 297.4756f0], 3, 1)
-        @test windowedarray[1:3, 2] == [297.3289f0, 297.44012f0, 297.4756f0]
-        @test windowedarray[1, 2] == 297.3289f0
     end
 
     @testset "save" begin
@@ -92,6 +79,11 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         @test saved isa typeof(geoarray)
     end
 
+    @testset "plot" begin
+        ncarray |> plot
+        ncarray[Ti(1)] |> plot
+    end
+
 end
 
 @testset "NCDstack" begin
@@ -109,8 +101,10 @@ end
         @test dims(ncstack, :albedo) isa Tuple{<:Lon,<:Lat,<:Ti}
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test first(keys(ncstack)) == :abso4
-        @test metadata(ncstack, :albedo) isa NCDstackMetadata
-        @test metadata(ncstack, :albedo)["institution"] == "Max-Planck-Institute for Meteorology"
+        @test metadata(ncstack) isa NCDstackMetadata
+        @test metadata(ncstack)["institution"] == "Max-Planck-Institute for Meteorology"
+        @test metadata(ncstack, :albedo) isa NCDarrayMetadata
+        @test metadata(ncstack, :albedo)["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
         @test axes(mean(ncstack[:albedo, Lat(1:20)] , dims=Ti)) ==
@@ -122,8 +116,8 @@ end
 
     if VERSION > v"1.1-"
         @testset "copy" begin
-            geoarray = GeoArray(ncstack[:albedo])
-            copy!(geoarray, ncstack, :albedo)
+            geoarray = ncstack[:albedo]
+            copy!(geoarray, ncstack, :albedo);
             # First wrap with GeoArray() here or == loads from disk for each cell.
             # we need a general way of avoiding this in all disk-based sources
             @test geoarray == GeoArray(ncstack[:albedo])
@@ -131,9 +125,8 @@ end
     end
 
     @testset "indexing" begin
-        ncmultistack = NCDstack([geturl(ncsingle)])
-        ncmultistack = NCDstack((geturl(ncsingle),))
-        @test dims(ncmultistack) isa Tuple{<:Lon,<:Lat,<:Ti}
+        ncmultistack = NCDstack(ncsingle)
+        @test dims(ncmultistack, :tos) isa Tuple{<:Lon,<:Lat,<:Ti}
         @test ncmultistack[:tos] isa GeoArray{<:Any,3}
         @test ncmultistack[:tos, Ti(1)] isa GeoArray{<:Any,2}
         @test ncmultistack[:tos, Lat(1), Ti(1)] isa GeoArray{<:Any,1}
@@ -170,6 +163,8 @@ end
 
     @testset "save" begin
         geostack = GeoStack(ncstack);
+        length(dims(geostack[:aclcac]))
+        ndims(geostack[:aclcac])
         filename = tempname()
         write(filename, NCDstack, geostack);
         saved = GeoStack(NCDstack(filename))

@@ -24,12 +24,12 @@ end
 # Stack ########################################################################
 
 """
-    SMAPstack(filename::String; window=()) 
+    SMAPstack(filename::String; window=())
 
 `AbstractGeoStack` for [SMAP](https://smap.jpl.nasa.gov/) datasets.
 
 The simplicity of the format means dims and refdims are the same for all stack layers,
-so we store them as stack fields. `SMAPstack` should also serve as an example of defining 
+so we store them as stack fields. `SMAPstack` should also serve as an example of defining
 a custom source for HDF5 backed geospatial data.
 
 # Keyword arguments
@@ -42,33 +42,46 @@ struct SMAPstack{T,D,R,W,M} <: DiskGeoStack{T}
     window::W
     metadata::M
 end
-SMAPstack(filename::String; 
-          dims=smapapply(smapdims, filename),
-          refdims=(smapapply(smaptime, filename),), 
-          window=(), 
-          metadata=smapapply(smapmetadata, filename)) =
+SMAPstack(filename::String;
+          dims=smapread(smapdims, filename),
+          refdims=(smapread(smaptime, filename),),
+          window=(),
+          metadata=smapread(smapmetadata, filename),
+         ) =
     SMAPstack(filename, dims, refdims, window, metadata)
 
 # AbstractGeoStack methods
 
+struct SMAParray end
+
 # SMAP has fixed dims for all layers, so we store them on the stack.
-dims(stack::SMAPstack, ::Key) = stack.dims
+dims(stack::SMAPstack, key::Key...) = stack.dims
 refdims(stack::SMAPstack) = stack.refdims
 metadata(stack::SMAPstack) = stack.metadata
-missingval(stack::SMAPstack) = SMAPMISSING
+missingval(stack::SMAPstack, key::Key...) = SMAPMISSING
+childtype(stack::SMAPstack) = SMAParray
+kwargs(stack::SMAPstack) = ()
 
-@inline safeapply(f, ::SMAPstack, path::AbstractString) = smapapply(f, path)
+withsource(f, ::Type{SMAParray}, path::AbstractString, key...) =
+    smapread(f, path)
+withsourcedata(f, ::Type{SMAParray}, path::AbstractString, key) =
+    smapread(path) do d
+        f(d[smappath(string(key))])
+    end
+
 
 # Base methods
 
+# Override getindex as we already have `dims` - they are
+# fixed for the whole stack
 Base.getindex(s::SMAPstack, key::Key, i1::Integer, I::Integer...) =
-    smapapply(filename(s)) do file
+    smapread(filename(s)) do file
         dataset = file[smappath(key)]
         _window = maybewindow2indices(dataset, _dims, window(s))
         readwindowed(dataset, _window, I...)
     end
 Base.getindex(s::SMAPstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) =
-    smapapply(filename(s)) do file
+    smapread(filename(s)) do file
         dataset = file[smappath(key)]
         _dims = dims(s)
         _window = maybewindow2indices(dataset, _dims, window(s))
@@ -79,32 +92,20 @@ Base.getindex(s::SMAPstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) 
 
 # HDF5 uses `names` instead of `keys` so we have to special-case it
 Base.keys(stack::SMAPstack) =
-    smapapply(filename(stack)) do dataset 
-        Tuple(Symbol.(names(dataset[SMAPGEODATA]))) 
+    smapread(filename(stack)) do dataset
+        cleankeys(names(dataset[SMAPGEODATA]))
     end
 
-Base.copy!(dst::AbstractArray, src::SMAPstack, key) =
-    smapapply(filename(src)) do file
-        dataset = file[smappath(key)]
-        _window = maybewindow2indices(dataset, _dims, window(dst))
-        copy!(dst, readwindowed(dataset, _window))
-    end
-Base.copy!(dst::AbstractGeoArray, src::SMAPstack, key) =
-    smapapply(filename(src)) do file
-        dataset = file[smappath(key)]
-        _window = maybewindow2indices(dataset, dims(src), window(src))
-        copy!(parent(dst), readwindowed(dataset, _window))
-    end
 
 # Series #######################################################################
 
 """
     SMAPseries(path; kwargs...)
 
-Series loader for SMAP folders (files in the time dimension). 
+Series loader for SMAP folders (files in the time dimension).
 Returns a [`GeoSeries`](@ref).
 
-`path` can be a `String` path to a directory of SMAP files, 
+`path` can be a `String` path to a directory of SMAP files,
 or a vector of `String` paths for specific files.
 `kwargs` are passed to the constructor for `GeoSeries`.
 """
@@ -116,13 +117,13 @@ SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths); 
 
 # Utils ########################################################################
 
-smapapply(f, filepath) = h5open(f, filepath)
+smapread(f, filepath::AbstractString) = h5open(f, filepath)
 
 readwindowed(A::HDF5Dataset, window::Tuple{}) = HDF5.read(A)
 
-smappath(key) = joinpath(SMAPGEODATA, string(key))
+smappath(key::Key) = joinpath(SMAPGEODATA, string(key))
 
-smaptime(dataset) = begin
+smaptime(dataset::HDF5.HDF5File) = begin
     meta = attrs(root(dataset)["time"])
     units = read(meta["units"])
     datestart = replace(replace(units, "seconds since " => ""), " " => "T")
@@ -132,14 +133,14 @@ smaptime(dataset) = begin
 end
 
 smapseriestime(filepaths) = begin
-    timeseries = smapapply.(smaptime, filepaths)
+    timeseries = smapread.(smaptime, filepaths)
     # Use the first files time dim as a template, but join vals into an array of times.
     (rebuild(first(timeseries), first.(timeseries)),)
 end
 
-smapmetadata(dataset) = SMAPmetadata(Dict())
+smapmetadata(dataset::HDF5.HDF5File) = SMAPmetadata(Dict())
 
-smapdims(dataset) = begin
+smapdims(dataset::HDF5.HDF5File) = begin
     proj = read(attrs(root(dataset)["EASE2_global_projection"]), "grid_mapping_name")
     if proj == "lambert_cylindrical_equal_area"
         # There are matrices for lookup but all rows/colums are identical.
@@ -149,8 +150,9 @@ smapdims(dataset) = begin
         latbounds = extent["northBoundLatitude"], extent["southBoundLatitude"]
         latvec = read(root(dataset)["cell_lat"])[1, :]
         lonvec = read(root(dataset)["cell_lon"])[:, 1]
-        lonmode = Sampled(Ordered(), Irregular(lonbounds), Intervals())
-        latmode = Sampled(Ordered(Reverse(), Reverse(), Forward()), Irregular(latbounds), Intervals())
+        lonmode = Sampled(Ordered(), Irregular(lonbounds), Intervals(Center()))
+        latmode = Sampled(Ordered(Reverse(), Reverse(), Forward()),
+                          Irregular(latbounds), Intervals(Center()))
         (Lon(lonvec; mode=lonmode), Lat(latvec; mode=latmode))
     else
         error("projection $proj not supported")

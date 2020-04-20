@@ -44,7 +44,6 @@ end
     @inferred series[1][:ga1][Lon(1:2), Lat(:)]
 end
 
-
 @testset "lazy view windows" begin
     dimz = (Ti<|[DateTime(2017), DateTime(2018)],)
     dat = [stack1, stack2]
