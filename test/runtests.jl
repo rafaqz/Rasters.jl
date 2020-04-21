@@ -9,6 +9,4 @@ if !Sys.iswindows()
 end
 include("ncdatasets.jl")
 # Only test SMAP locally for now
-if !(get(ENV, "CI", false))
-    include("smap.jl")
-end
+# include("smap.jl")
