@@ -8,4 +8,5 @@ if !Sys.iswindows()
     include("grd.jl")
 end
 include("ncdatasets.jl")
-include("smap.jl")
+# Only test SMAP locally for now
+# include("smap.jl")

@@ -21,7 +21,6 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
     end
 
     @testset "other fields" begin
-        @test window(gdalarray) == ()
         @test missingval(gdalarray) == -1.0e10
         @test metadata(gdalarray) isa GDALmetadata
         @test basename(metadata(gdalarray).val["filepath"]) == "cea.tif"
@@ -34,6 +33,10 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test gdalarray[Lon(1), Band(1)] isa GeoArray{UInt8,1}
         @test gdalarray[Lon(1), Lat(1), Band(1)] isa UInt8 
         @test gdalarray[1, 1, 1] isa UInt8
+    end
+
+    @testset "methods" begin 
+        mean(gdalarray; dims=Lat) == mean(data(gdalarray); dims=2)
     end
 
     @testset "selectors" begin
@@ -104,12 +107,14 @@ end
 
     @testset "child array properties" begin
         @test size(gdalstack[:a]) == (514, 515, 1)
-        @test gdalstack[:a] isa GDALarray{UInt8,3}
+        @test gdalstack[:a] isa GeoArray{UInt8,3}
     end
 
     @testset "indexing" begin
         @test gdalstack[:a][Lat(2:3), Lon(1), Band(1)] == [0x00, 0x6b]
         @test gdalstack[:a][Lat(1), Lon(1), Band(1)] == 0x00
+        @test gdalstack[:b, Band(1)] == gdalstack[:b][Band(1)]
+        @test typeof(gdalstack[:b, Band(1)]) == typeof(gdalstack[:b][Band(1)])
     end
 
     @testset "window" begin
@@ -128,20 +133,19 @@ end
         @test windowedarray[1:3, 2:2, 1] == reshape([0x00, 0x00, 0x00], 3, 1)
         @test windowedarray[1:3, 2, 1] == [0x00, 0x00, 0x00]
         @test windowedarray[1, 2, 1] == 0x00
-        windowedstack = GDALstack((a=path, b=path); window=Band(1))
+        windowedstack = GDALstack((a=path, b=path); window=(Band(1),))
         windowedarray = GeoArray(windowedstack[:b])
         @test windowedarray[1:3, 2:2] == reshape([0x00, 0x00, 0x00], 3, 1)
         @test windowedarray[1:3, 2] == [0x00, 0x00, 0x00]
         @test windowedarray[1, 2] == 0x00
     end
 
-
     # Stack Constructors
     @testset "conversion to GeoStack" begin
         stack = GeoStack(gdalstack)
         @test Symbol.(Tuple(keys(gdalstack))) == keys(stack)
         smallstack = GeoStack(gdalstack; keys=(:a,))
-        keys(smallstack) == (:a,)
+        @test keys(smallstack) == (:a,)
     end
 
     if VERSION > v"1.1-"
@@ -154,4 +158,16 @@ end
         end
     end
 
+    @testset "save" begin
+        geoarray = GeoArray(gdalstack[:a])
+        filename = tempname()
+        write(filename, GDALarray, gdalstack)
+        base, ext = splitext(filename)
+        filename_b = string(base, "_b", ext)
+        saved = GeoArray(GDALarray(filename_b))
+        @test saved == geoarray
+    end
+
 end
+
+nothing

@@ -3,23 +3,25 @@
 # and no reprojection can occur.
 
 sel2indices(mode::ProjectedIndex, dim::Dimension, sel::Contains{<:Number}) = begin
-    selval = reproject(mode, dim, val(sel))
+    selval = reproject(usercrs(mode), crs(mode), dim, val(sel))
     DD.contains(dim, rebuild(sel, selval))
 end
 sel2indices(mode::ProjectedIndex, dim::Dimension, sel::At{<:Number}) = begin
-    selval = reproject(mode, dim, val(sel))
+    selval = reproject(usercrs(mode), crs(mode), dim, val(sel))
     DD.at(dim, rebuild(sel, selval))
 end
 sel2indices(mode::ProjectedIndex, dim::Dimension, sel::Between) = begin
-    selval = map(v -> reproject(mode, dim, v), val(sel))
+    selval = map(v -> reproject(usercrs(mode), crs(mode), dim, v), val(sel))
     DD.between(dim, rebuild(sel, selval))
 end
 
-# TODO pass whole vector to ArchGDAL
-reproject(mode::ProjectedIndex, dim::Dimension, val::Number) =
-    reproject(mode, usercrs(mode), crs(mode), dim, val::Number)
-reproject(mode::ProjectedIndex, target::Nothing, source, dim, selval::Number) = selval
-reproject(mode::ProjectedIndex, target::GeoFormat, source::GeoFormat, dim::Lat, selval::Number) =
-    ArchGDAL.reproject([(selval, zero(selval))], target, source)[1][2]
-reproject(mode::ProjectedIndex, target::GeoFormat, source::GeoFormat, dim::Lon, selval::Number) =
-    ArchGDAL.reproject([(zero(selval), selval)], target, source)[1][1]
+reproject(source, target, dim::Dimension, val) = val
+reproject(source::GeoFormat, target::GeoFormat, dim::Lon, val::Number) =
+    ArchGDAL.reproject([(zero(val), val)], source, target)[1][1]
+reproject(source::GeoFormat, target::GeoFormat, dim::Lat, val::Number) =
+    ArchGDAL.reproject([(val, zero(val))], source, target)[1][2]
+
+reproject(source::GeoFormat, target::GeoFormat, dim::Lon, vals::AbstractArray) =
+    first.(ArchGDAL.reproject([(zero(v), v) for v in vals], source, target))
+reproject(source::GeoFormat, target::GeoFormat, dim::Lat, vals::AbstractArray) =
+    last.(ArchGDAL.reproject([(v, zero(v)) for v in vals], source, target))
