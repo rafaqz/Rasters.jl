@@ -47,11 +47,14 @@ struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},C,K} <: AbstractGeoSeries{T,N,D,A
     childtype::C
     kwargs::K
 end
-GeoSeries(data, dims; refdims=(), childtype=GeoStack, kwargs...) =
+GeoSeries(data::Array{T}, dims; refdims=(), childtype=DD.basetypeof(T), kwargs...
+         ) where T<:Union{<:AbstractGeoStack,<:AbstractGeoArray} =
+    GeoSeries(data, formatdims(data, dims), refdims, childtype, kwargs)
+GeoSeries(data, dims; refdims=(), childtype, kwargs...) =
     GeoSeries(data, formatdims(data, dims), refdims, childtype, kwargs)
 
 @inline rebuild(A::GeoSeries, data, dims::Tuple, refdims, args...) =
     GeoSeries(data, dims, refdims, childtype(A), kwargs(A))
 
-Base.@propagate_inbounds Base.setindex!(A::GeoSeries, x, I::Vararg{<:Union{AbstractArray,Colon,Real}}) =
+Base.@propagate_inbounds Base.setindex!(A::GeoSeries, x, I::Union{AbstractArray,Colon,Integer}...) =
     setindex!(data(A), x, I...)

@@ -111,8 +111,35 @@ or a vector of `String` paths for specific files.
 """
 SMAPseries(path::AbstractString; kwargs...) =
     SMAPseries(joinpath.(path, filter_ext(path, ".h5")); kwargs...)
-SMAPseries(filepaths::Vector{<:AbstractString}, dims=smapseriestime(filepaths); kwargs...) =
-    GeoSeries(filepaths, dims; childtype=SMAPstack, kwargs...)
+SMAPseries(filepaths::Vector{<:AbstractString}, dims=nothing; kwargs...) = begin
+    if dims isa Nothing
+        usedpaths = String[]
+        timeseries = []
+        errors = []
+        for path in filepaths
+            println(path)
+            try
+                t = smapread(path) do data
+                    smaptime(data)
+                end
+                push!(timeseries, t)
+                push!(usedpaths, path)
+            catch e
+                push!(errors, e)
+                continue
+            end
+        end
+        # Use the first files time dim as a template, but join vals into an array of times.
+        dims = (rebuild(first(timeseries), first.(timeseries)),)
+    else
+        usedpaths = filepaths
+    end
+    if length(errors) > 0
+        println("Some errors thrown during file load: ")
+        println.(errors)
+    end
+    GeoSeries(usedpaths, dims; childtype=SMAPstack, kwargs...)
+end
 
 
 # Utils ########################################################################
@@ -130,12 +157,6 @@ smaptime(dataset::HDF5.HDF5File) = begin
     dt = DateTime(datestart) + Dates.Second(read(meta["actual_range"])[1])
     step = Second(Dates.Time(split(read(meta["delta_t"]))[2]) - Dates.Time("00:00:00"))
     Ti(dt:step:dt; mode=Sampled(Ordered(), Regular(step), Intervals(Start())))
-end
-
-smapseriestime(filepaths) = begin
-    timeseries = smapread.(smaptime, filepaths)
-    # Use the first files time dim as a template, but join vals into an array of times.
-    (rebuild(first(timeseries), first.(timeseries)),)
 end
 
 smapmetadata(dataset::HDF5.HDF5File) = SMAPmetadata(Dict())

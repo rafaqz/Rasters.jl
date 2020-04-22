@@ -134,8 +134,9 @@ struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
     missingval::Mi
     size::S
 end
-GrdArray(filename::String; kwargs...) = GrdArray(GrdAttrib(filename), kwargs...)
-GrdArray(grd::GrdAttrib, key...; refdims=(), name=nothing, usercrs=nothing) = begin
+GrdArray(filename::String; kwargs...) = GrdArray(GrdAttrib(filename), filename; kwargs...)
+GrdArray(grd::GrdAttrib, filename, key=nothing; 
+         refdims=(), name=nothing, usercrs=nothing) = begin
     attrib = grd.attrib
 
     dims_ = dims(grd, usercrs)
@@ -149,8 +150,8 @@ GrdArray(grd::GrdAttrib, key...; refdims=(), name=nothing, usercrs=nothing) = be
     T = eltype(grd)
     N = length(size_)
 
-    GrdArray{T,N,typeof.((grd.filename, dims_,refdims,name,metadata_,missingval_,size_))...
-            }(grd.filename, dims_, refdims, name, metadata_, missingval_, size_)
+    GrdArray{T,N,typeof.((filename,dims_,refdims,name,metadata_,missingval_,size_))...
+            }(filename, dims_, refdims, name, metadata_, missingval_, size_)
 end
 
 # AbstractGeoArray methods
@@ -165,7 +166,7 @@ Write a [`GrdArray`](@ref) to a .grd file, with a .gri header file. The extensio
 
 Currently the `metadata` field is lost on `write`.
 """
-Base.write(filename::String, ::Type{GrdArray}, A::AbstractGeoArray) = begin
+Base.write(filename::String, ::Type{<:GrdArray}, A::AbstractGeoArray) = begin
     if hasdim(A, Band)
         correctedA = permutedims(A, (Lon, Lat, Band)) |>
             a -> reorderindex(a, Forward()) |>

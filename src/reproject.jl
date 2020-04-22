@@ -16,12 +16,13 @@ sel2indices(mode::ProjectedIndex, dim::Dimension, sel::Between) = begin
 end
 
 reproject(source, target, dim::Dimension, val) = val
+
 reproject(source::GeoFormat, target::GeoFormat, dim::Lon, val::Number) =
     ArchGDAL.reproject([(zero(val), val)], source, target)[1][1]
 reproject(source::GeoFormat, target::GeoFormat, dim::Lat, val::Number) =
     ArchGDAL.reproject([(val, zero(val))], source, target)[1][2]
 
-reproject(source::GeoFormat, target::GeoFormat, dim::Lon, vals::AbstractArray) =
-    first.(ArchGDAL.reproject([(zero(v), v) for v in vals], source, target))
+reproject(source::GeoFormat, target::GeoFormat, ::Lon, vals::AbstractArray) =
+    [r[2] for r in ArchGDAL.reproject([(v, 0.0) for v in vals], source, target)]
 reproject(source::GeoFormat, target::GeoFormat, dim::Lat, vals::AbstractArray) =
-    last.(ArchGDAL.reproject([(v, zero(v)) for v in vals], source, target))
+    [r[1] for r in ArchGDAL.reproject([(0.0, v) for v in vals], source, target)]

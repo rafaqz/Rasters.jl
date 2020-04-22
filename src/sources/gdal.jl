@@ -73,17 +73,17 @@ end
 
 Write a [`GDALarray`](@ref) to a .tiff file.
 """
-Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray{T,2}) where T = begin
+Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,2}) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GTiff")
     A = permutedims(A, (Lon(), Lat()))
-    correctedA = permutedims(A, (Lon(), Lat(), Band())) |>
-        a -> reorderindex(a, (Lon(Forward()), Lat(Reverse()), Band(Forward()))) |>
+    correctedA = permutedims(A, (Lon(), Lat())) |>
+        a -> reorderindex(a, (Lon(Forward()), Lat(Reverse()))) |>
         a -> reorderrelation(a, Forward())
     nbands = 1
     indices = 1
     gdalwrite(filename, A, nbands, indices)
 end
-Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray{T,3}) where T = begin
+Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,3}) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GeoTiff")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array to GeoTiff")
     correctedA = permutedims(A, (Lon(), Lat(), Band())) |>
@@ -138,7 +138,7 @@ dims(dataset::AG.Dataset, usercrs=nothing) = begin
         # Spatial data defaults to area/inteval?
         if areaorpoint == "Point"
             sampling = Points()
-        else areaorpoint
+        else
             # GeoTiff uses the "pixelCorner" convention
             sampling = Intervals(Start())
         end

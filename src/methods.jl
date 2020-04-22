@@ -26,8 +26,7 @@ The array returned from calling `boolmask` on a `AbstractGeoArray` is a
 function boolmask end
 boolmask(A::AbstractGeoArray) =
     rebuild(A; data=boolmask(A, missingval(A)), missingval=false, name="Boolean mask")
-boolmask(A::AbstractArray) = boolmask(A, missing)
-boolmask(A::AbstractArray, missingval::Missing) =
+boolmask(A::AbstractArray, missingval::Missing=missing) =
     (x -> !ismissing(x)).(data(A))
 boolmask(A::AbstractArray, missingval) =
     (x -> !isapprox(x, missingval)).(data(A))
@@ -45,8 +44,7 @@ The array returned from calling `boolmask` on a `AbstractGeoArray` is a
 function missingmask end
 missingmask(A::AbstractGeoArray) =
     rebuild(A; data=missingmask(A, missingval(A)), missingval=missing, name="Missing mask")
-missingmask(A::AbstractArray) = missingmask(A, missing)
-missingmask(A::AbstractArray, missingval::Missing) =
+missingmask(A::AbstractArray, missingval::Missing=missing) =
     (a -> ismissing(a) ? missing : true).(data(A))
 missingmask(A::AbstractArray, missingval) =
     (a -> isapprox(a, missingval) ? missing : true).(data(A))
