@@ -69,23 +69,7 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     attribvec = [attrib...]
     var = defVar(dataset, key, eltype(A), dimnames; attrib=attribvec)
 
-    if N == 0
-        var[] = data(A)
-    elseif N == 1
-        var[:] = data(A)
-    elseif N == 2
-        var[:,:] = data(A)
-    elseif N == 3
-        var[:,:,:] = data(A)
-    elseif N == 4
-        var[:,:,:,:] = data(A)
-    elseif N == 5
-        var[:,:,:,:,:] = data(A)
-    elseif N == 6
-        var[:,:,:,:,:,:] = data(A)
-    elseif N == 7
-        var[:,:,:,:,:,:,:] = data(A)
-    end
+    var[:] = data(A)
 
 end
 
@@ -170,7 +154,7 @@ Base.size(A::NCDarray) = A.size
 
 Write an NCDarray to a netcdf file using NCDatasets.jl
 """
-Base.write(filename::AbstractString, ::Type{NCDarray}, A::AbstractGeoArray) = begin
+Base.write(filename::AbstractString, ::Type{<:NCDarray}, A::AbstractGeoArray) = begin
     # Remove the dataset metadata
     stackmd = pop!(deepcopy(val(metadata(A))), "dataset", Dict())
     dataset = NCDatasets.Dataset(filename, "c"; attrib=stackmd)
@@ -269,7 +253,7 @@ Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 Currently `Dimension` metadata is not handled, and array metadata from other
 array types is ignored.
 """
-Base.write(filename::AbstractString, ::Type{NCDstack}, s::AbstractGeoStack) = begin
+Base.write(filename::AbstractString, ::Type{<:NCDstack}, s::AbstractGeoStack) = begin
     dataset = NCDatasets.Dataset(filename, "c"; attrib=val(metadata(s)))
     try
         map(key -> ncwritevar!(dataset, s[key]), keys(s))
@@ -280,7 +264,6 @@ end
 
 # DimensionalData methods for NCDatasets types ###############################
 
-dims(dataset::NCDatasets.Dataset) = dims(dataset, first(nondimkeys(dataset)))
 dims(dataset::NCDatasets.Dataset, key::Key) = begin
     v = dataset[string(key)]
     dims = []
@@ -348,7 +331,7 @@ metadata(var::NCDatasets.CFVariable, stackmetadata::NCDstackMetadata) = begin
     md
 end
 
-missingval(var::NCDatasets.CFVariable{<:Union{Missing}}) = missing
+missingval(var::NCDatasets.CFVariable) = missing
 
 # crs(dataset::NCDatasets.Dataset)
 # crs(var::NCDatasets.CFVariable)

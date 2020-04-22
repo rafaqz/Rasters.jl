@@ -176,4 +176,12 @@ end
 
 end
 
+@testset "series" begin
+    series = GeoSeries([ncmulti, ncmulti], (Ti,); 
+                       childtype=NCDstack, name="test")
+    geoarray = GeoArray(NCDarray(ncmulti, :albedo; name="test"))
+    @test series[Ti(1)][:albedo] == geoarray
+    @test typeof(series[Ti(1)][:albedo]) == typeof(geoarray)
+end
+
 nothing

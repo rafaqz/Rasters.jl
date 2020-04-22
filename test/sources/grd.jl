@@ -1,5 +1,5 @@
 using GeoData, Test, Statistics, Dates, Plots
-using GeoData: name, mode, window
+using GeoData: name, mode, window, DiskStack
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
 
@@ -10,8 +10,7 @@ path = joinpath(testpath, "data/rlogo")
 @test isfile(path * ".gri")
 
 @testset "array" begin
-    grdarray = GeoData.GrdArray(path);
-    grdarray |> plot
+    grdarray = GrdArray(path);
 
     @testset "array properties" begin
         @test grdarray isa GrdArray{Float32,3}
@@ -29,6 +28,18 @@ path = joinpath(testpath, "data/rlogo")
         @test missingval(grdarray) == -3.4f38
         @test metadata(grdarray) isa GrdMetadata
         @test name(grdarray) == "red:green:blue"
+        @test label(grdarray) == "red:green:blue"
+        @test units(grdarray) == nothing
+        customgrdarray = GrdArray(path; name="test", usercrs=EPSG(4326));
+        @test name(customgrdarray) == "test"
+        @test label(customgrdarray) == "test"
+        @test usercrs(dims(customgrdarray, Lat)) == EPSG(4326)
+        @test usercrs(dims(customgrdarray, Lon)) == EPSG(4326)
+        @test usercrs(customgrdarray) == EPSG(4326)
+        proj = ProjString("+proj=merc +datum=WGS84")
+        @test crs(dims(customgrdarray, Lat)) == proj
+        @test crs(dims(customgrdarray, Lon)) == proj
+        @test crs(customgrdarray) == proj
     end
 
     @testset "getindex" begin
@@ -77,35 +88,38 @@ path = joinpath(testpath, "data/rlogo")
     end
 
     @testset "save" begin
-        # TODO save and load subset
-        geoarray = GeoArray(grdarray)
-        filename = tempname()
-        write(filename, GrdArray, geoarray)
-        saved = GeoArray(GrdArray(filename))
-        @test size(saved) == size(geoarray)
-        @test refdims(saved) == ()
-        @test bounds(saved) == bounds(geoarray)
-        @test size(saved) == size(geoarray)
-        @test missingval(saved) === missingval(geoarray)
-        @test metadata(saved) != metadata(geoarray)
-        @test metadata(saved)["creator"] == "GeoData.jl"
-        @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
-        @test name(saved) == name(geoarray)
-        @test all(mode.(dims(saved)) .== mode.(dims(geoarray)))
-        @test dims(saved) isa typeof(dims(geoarray))
-        @test all(val.(dims(saved)) .== val.(dims(geoarray)))
-        @test all(mode.(dims(saved)) .== mode.(dims(geoarray)))
-        @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
-        @test dims(saved) == dims(geoarray)
-        @test all(data(saved) .=== data(geoarray))
-        @test saved isa typeof(geoarray)
-        @test data(saved) == data(grdarray)
-        # 2d array. 1 bands is added again on save
-        filename2 = tempname()
-        write(filename2, GrdArray, grdarray[Band(1)])
-        saved = GeoArray(GrdArray(filename2))
-        @test size(saved) == size(grdarray[Band(1:1)])
-        @test data(saved) == data(grdarray[Band(1:1)])
+        @testset "2d" begin
+            filename2 = tempname()
+            write(filename2, GrdArray, grdarray[Band(1)])
+            saved = GeoArray(GrdArray(filename2))
+            # 1 band is added again on save
+            @test size(saved) == size(grdarray[Band(1:1)])
+            @test data(saved) == data(grdarray[Band(1:1)])
+        end
+        @testset "3d with subset" begin
+            geoarray = GeoArray(grdarray)[1:100, 1:50, 1:2]
+            filename = tempname()
+            write(filename, GrdArray, geoarray)
+            saved = GeoArray(GrdArray(filename))
+            @test size(saved) == size(geoarray)
+            @test refdims(saved) == ()
+            @test bounds(saved) == bounds(geoarray)
+            @test size(saved) == size(geoarray)
+            @test missingval(saved) === missingval(geoarray)
+            @test metadata(saved) != metadata(geoarray)
+            @test metadata(saved)["creator"] == "GeoData.jl"
+            @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
+            @test name(saved) == name(geoarray)
+            @test all(mode.(dims(saved)) .== mode.(dims(geoarray)))
+            @test dims(saved) isa typeof(dims(geoarray))
+            @test all(val.(dims(saved)) .== val.(dims(geoarray)))
+            @test all(mode.(dims(saved)) .== mode.(dims(geoarray)))
+            @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
+            @test dims(saved) == dims(geoarray)
+            @test all(data(saved) .=== data(geoarray))
+            @test saved isa typeof(geoarray)
+            @test data(saved) == data(geoarray)
+        end
     end
 
     @testset "plot" begin
@@ -176,13 +190,21 @@ end
         base, ext = splitext(filename)
         filename_b = string(base, "_b", ext)
         saved = GeoArray(GrdArray(filename_b))
-        @test sum(saved) == sum(geoarray)
-        saved[3, 1, 1]
-        findmin(geoarray)
-        findmin(saved)
-        data(saved) == data(geoarray)
+        @test typeof(saved) == typeof(geoarray)
+        @test data(saved) == data(geoarray)
     end
 
 end
+
+@testset "series" begin
+    series = GeoSeries([path, path], (Ti,); childtype=GrdArray, usercrs=EPSG(4326), name="test")
+    @test GeoArray(series[Ti(1)]) == 
+        GeoArray(GrdArray(path; usercrs=EPSG(4326), name="test"))
+    stacks = [DiskStack((a=path, b=path); childtype=GrdArray, usercrs=EPSG(4326), name="test")]
+    series = GeoSeries(stacks, (Ti,))
+    @test series[Ti(1)][:a] == 
+        GeoArray(GrdArray(path; usercrs=EPSG(4326), name="test"))
+end
+
 
 nothing

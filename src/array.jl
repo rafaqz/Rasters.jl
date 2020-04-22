@@ -59,8 +59,7 @@ usercrs(dim::Dimension) = usercrs(mode(dim), dim)
 
 # DimensionalData methods
 
-units(A::AbstractGeoArray) = getmeta(A, :units, "")
-label(A::AbstractGeoArray) = string(name(A), " ", units(A))
+units(A::AbstractGeoArray) = getmeta(A, :units, nothing)
 
 # Rebuild all types of AbstractGeoArray as GeoArray
 rebuild(A::AbstractGeoArray, data, dims::Tuple, refdims, name, metadata, missingval=missingval(A)) =
@@ -106,9 +105,7 @@ Base.getindex(A::DiskGeoArray, i1::Integer, I::Vararg{<:Integer}) =
 
 Base.write(A::T) where T <: DiskGeoArray = write(filename(A), A)
 Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
-    write(filename, basetypeof(T), A)
-Base.write(::Type{T}, A::DiskGeoArray) where T <: DiskGeoArray =
-    write(filename(A), T, A)
+    write(filename, T, A)
 
 
 # Concrete implementation ######################################################

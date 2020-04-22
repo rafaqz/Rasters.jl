@@ -1,5 +1,5 @@
 using GeoData, Test, Dates
-using GeoData: formatdims, dims
+using GeoData: formatdims, childtype
 
 # GeoSeries from GeoArray/GeoStack components
 
@@ -24,6 +24,15 @@ series = GeoSeries([stack1, stack2], (Ti(dates),));
     @test series[Ti(1)][:ga2] isa GeoArray{Int,2}
     @test series[Ti(1)][:ga2, 1, 1] isa Int
     @test series[Ti(1)][:ga2][1, 1] isa Int
+end
+
+@testset "properties" begin
+    @test childtype(series) === GeoStack
+    @test refdims(series) === ()
+    # Should these be real fields? what is the use-case?
+    @test metadata(series) === nothing
+    @test name(series) === ""
+    @test label(series) === ""
 end
 
 @testset "getindex returns the currect results" begin
@@ -53,4 +62,11 @@ end
     @test GeoData.window(stack) == window_
     @test stack[:ga1] == [3 4; 7 8]
     @test stack[:ga1, 1, 2] == 4
+end
+
+@testset "setindex!" begin
+    # This should work, but has a strange convert error
+    # series[1] = series[1]
+    # series[Ti(1)] = series[Ti(2)]
+    @test_broken series[Ti(1)] == series[Ti(2)]
 end
