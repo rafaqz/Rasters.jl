@@ -38,7 +38,7 @@ kwargs(s::AbstractGeoStack) = s.kwargs
 
 
 """
-    childsourc(s::AbstractGeoStack, [key])
+    getsource(s::AbstractGeoStack, [key])
 
 Get the lower lovel child object. This can be an `AbstractGeoArray` or
 a lower-level object with GeoData methods defined. Returning

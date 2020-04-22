@@ -7,7 +7,6 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 @testset "array" begin
     gdalarray = GDALarray(path; usercrs=EPSG(4326), name="test")
 
-
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
         @test gdalarray isa GDALarray{UInt8,3}
@@ -65,7 +64,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test refdims(geoarray) isa Tuple{<:Band} 
         @test metadata(geoarray) == metadata(gdalarray)
         @test missingval(geoarray) == -1.0e10
-        @test name(geoarray) == ""
+        @test name(geoarray) == "test"
     end
 
     @testset "save" begin
