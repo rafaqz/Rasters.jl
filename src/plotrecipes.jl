@@ -33,7 +33,8 @@ end
     :grid --> false
     :colorbar_title --> name(A)
     :title --> refdims_title(A)
-    lat, lon = map(maybe_reproject, dims(A))
+    println(val.(dims(A, (Lat, Lon))))
+    lat, lon = map(maybe_reproject, dims(A, (Lat, Lon)))
     lon, lat, data(A)
 end
 

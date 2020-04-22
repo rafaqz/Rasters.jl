@@ -27,12 +27,16 @@ abstract type AbstractGeoStack{T} end
 refdims(s::AbstractGeoStack) = s.refdims
 metadata(s::AbstractGeoStack) = s.metadata
 window(s::AbstractGeoStack) = s.window
+
 """
     kwargs(s::AbstractGeoStack)
 
 Returns the keyword arguments that will be passed to the child array constructor.
 """
 kwargs(s::AbstractGeoStack) = s.kwargs
+
+@inline Base.getindex(s::AbstractGeoStack, I...) =
+    rebuild(s; data=NamedTuple{keys(s)}(a[I...] for a in values(s)))
 
 # Interface methods ############################################################
 
@@ -49,53 +53,7 @@ function getsource end
 
 # Base methods #################################################################
 
-"""
-    Base.write(filename::AbstractString, T::Type{<:AbstractGeoArray}, s::AbstractGeoStack)
-
-Save all layers of an `AbstractGeoStack` to separate files, using the backend determined
-by `T`.
-
-## Example
-
-```julia
-write(filename, GDALArray, stack)
-```
-"""
-Base.write(filename::AbstractString, ::Type{T}, s::AbstractGeoStack) where T <: AbstractGeoArray =
-    for key in keys(s)
-        base, ext = splitext(filename)
-        fn = joinpath(string(base, "_", key, ext))
-        write(fn, T, s[key])
-    end
-
-Base.copy(stack::AbstractGeoStack) = rebuild(stack; data=map(copy, getsource(stack)))
-
-"""
-    Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, [keys=keys(dst)])
-
-Copy all or a subset of layers from one stack to another.
-
-## Example
-```julia
-copy!(dst::AbstractGeoStack, src::AbstractGeoStack, keys=(:sea_surface_temp, :humidity))
-```
-"""
-Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, keys=keys(dst)) = begin
-    for key in keys
-        key in Symbol.(Base.keys(dst)) || throw(ArgumentError("key $key not found in dest keys"))
-        key in Symbol.(Base.keys(src)) || throw(ArgumentError("key $key not found in source keys"))
-    end
-    for key in Symbol.(keys)
-        copy!(dst[key], src, key)
-    end
-end
-Base.copy!(dst::AbstractArray, src::AbstractGeoStack, key) =
-    copy!(dst, src[key])
-
-@inline Base.getindex(s::AbstractGeoStack, I...) =
-    rebuild(s; data=NamedTuple{keys(s)}(a[I...] for a in values(s)))
-
-# Dict/Array hybrid
+# Dict/Array hybrid with dims
 @inline Base.getindex(s::AbstractGeoStack, key::Key, I::Vararg{<:Dimension}) =
     getindex(s, key, dims2indices(dims(s, key), I)...)
 
@@ -106,21 +64,23 @@ Base.keys(s::AbstractGeoStack{<:NamedTuple}) = Symbol.(keys(getsource(s)))
 Base.names(s::AbstractGeoStack) = keys(s)
 
 """
-    Base.cat(stacks::AbstractGeoStack...; [keys=keys(stacks[1])], dims)
+    Base.write(filename::AbstractString, T::Type{<:AbstractGeoArray}, s::AbstractGeoStack)
 
-Concatenate all or a subset of layers for all passed in stacks.
+Save all layers of an `AbstractGeoStack` to separate files, using the backend determined
+by `T`.
 
 ## Example
+
 ```julia
-cat(stacks...; keys=(:sea_surface_temp, :humidity), dims)
+write(filename, GDALarray, A)
 ```
 """
-Base.cat(stacks::AbstractGeoStack...; keys=keys(stacks[1]), dims) = begin
-    vals = Tuple(cat((s[key] for s in stacks)...; dims=dims) for key in keys)
-    GeoStack(stacks[1], data=NamedTuple{keys}(vals))
-end
-Base.first(s::AbstractGeoStack) = s[first(keys(s))]
-Base.last(s::AbstractGeoStack) = s[last(keys(s))]
+Base.write(filename::AbstractString, ::Type{T}, s::AbstractGeoStack) where T <: AbstractGeoArray =
+    for key in keys(s)
+        base, ext = splitext(filename)
+        fn = joinpath(string(base, "_", key, ext))
+        write(fn, T, s[key])
+    end
 
 
 # Memory-based stacks ######################################################
@@ -214,19 +174,6 @@ Base.getindex(s::DiskGeoStack, key::Key, i1::StandardIndices, I::StandardIndices
     end
 end
 
-"""
-    Base.copy!(dst::AbstractArray, src::GDALstack, key::Key)
-
-opy the stack layer `key` to `dst`, which can be any `AbstractArray`.
-"""
-Base.copy!(dst::AbstractArray, src::DiskGeoStack, key::Key) =
-    withsourcedata(childtype(src), filename(src, key), key) do data
-        window_ = maybewindow2indices(data, dims(src, key), window(src))
-        copy!(dst, readwindowed(data, window_))
-    end
-Base.copy!(dst::AbstractGeoArray, src::DiskGeoStack, key::Key) =
-    copy!(data(dst), src, key)
-
 @inline Base.view(s::DiskGeoStack, I...) = rebuild(s; window=I)
 
 
@@ -285,8 +232,8 @@ Construct a `GeoStack` from another `GeoStack` and keyword arguments.
 `data` is a `NamedTuple` of `GeoArray`.
 """
 GeoStack(s::AbstractGeoStack; keys=cleankeys(Base.keys(s)),
-         data=NamedTuple{keys}((GeoArray(s[key]) for key in keys)),
-         refdims=refdims(s), window=window(s), metadata=metadata(s), kwargs...) =
+         data=NamedTuple{keys}(s[key] for key in keys),
+         refdims=refdims(s), window=(), metadata=metadata(s), kwargs...) =
     GeoStack(data, refdims, window, metadata, kwargs)
 
 Base.convert(::Type{GeoStack}, src::AbstractGeoStack) = GeoStack(src)
@@ -318,3 +265,53 @@ struct DiskStack{T,R,W,M,C,K} <: DiskGeoStack{T}
 end
 DiskStack(filename::NamedTuple; refdims=(), window=(), metadata=nothing, childtype, kwargs...) =
     DiskStack(filename, refdims, window, metadata, childtype, kwargs)
+
+
+# Other base methods
+
+Base.copy(stack::AbstractGeoStack) =
+    rebuild(stack; data=map(copy, getsource(stack)))
+
+"""
+    Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, [keys=keys(dst)])
+
+Copy all or a subset of layers from one stack to another.
+
+## Example
+```julia
+copy!(dst::AbstractGeoStack, src::AbstractGeoStack, keys=(:sea_surface_temp, :humidity))
+```
+"""
+Base.copy!(dst::MemGeoStack, src::AbstractGeoStack, keys=keys(dst)) = begin
+    for key in keys
+        key in Symbol.(Base.keys(dst)) || throw(ArgumentError("key $key not found in dest keys"))
+        key in Symbol.(Base.keys(src)) || throw(ArgumentError("key $key not found in source keys"))
+    end
+    for key in Symbol.(keys)
+        copy!(dst[key], src[key])
+    end
+end
+"""
+    Base.copy!(dst::AbstractArray, src::DiskGeoStack, key::Key)
+
+Copy the stack layer `key` to `dst`, which can be any `AbstractArray`.
+"""
+Base.copy!(dst::AbstractArray, src::AbstractGeoStack, key) =
+    copy!(dst, src[key])
+
+"""
+    Base.cat(stacks::AbstractGeoStack...; [keys=keys(stacks[1])], dims)
+
+Concatenate all or a subset of layers for all passed in stacks.
+
+## Example
+```julia
+cat(stacks...; keys=(:sea_surface_temp, :humidity), dims)
+```
+"""
+Base.cat(stacks::AbstractGeoStack...; keys=keys(stacks[1]), dims) = begin
+    vals = Tuple(cat((s[key] for s in stacks)...; dims=dims) for key in keys)
+    GeoStack(stacks[1], data=NamedTuple{keys}(vals))
+end
+Base.first(s::AbstractGeoStack) = s[first(keys(s))]
+Base.last(s::AbstractGeoStack) = s[last(keys(s))]
