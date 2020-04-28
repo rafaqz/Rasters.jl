@@ -143,7 +143,7 @@ dims(dataset::AG.Dataset, usercrs=nothing) = begin
             sampling = Intervals(Start())
         end
 
-        latmode = ProjectedIndex(
+        latmode = Projected(
             # Latitude is in reverse to how we plot it.
             order=Ordered(Reverse(), Reverse(), Forward()),
             sampling=sampling,
@@ -152,7 +152,7 @@ dims(dataset::AG.Dataset, usercrs=nothing) = begin
             crs=sourcecrs,
             usercrs=usercrs
         )
-        lonmode = ProjectedIndex(
+        lonmode = Projected(
             span=Regular(step(lonrange)),
             sampling=sampling,
             crs=sourcecrs,

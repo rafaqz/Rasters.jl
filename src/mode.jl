@@ -18,23 +18,23 @@ The underlying `crs` will be detected by GDAL.
 If `usercrs` is not supplied (ie. `isa Nothing`), the base index will be shown on plots, 
 and selectors will need to use whatever format it is in.
 """
-struct ProjectedIndex{O<:Order,Sp,Sa,C,IC} <: AbstractSampled{O,Sp,Sa}
+struct Projected{O<:Order,Sp,Sa,C,IC} <: AbstractSampled{O,Sp,Sa}
     order::O
     span::Sp
     sampling::Sa
     crs::C
     usercrs::IC
 end
-ProjectedIndex(; order=Ordered(), span=UnknownSpan(), 
+Projected(; order=Ordered(), span=UnknownSpan(), 
               sampling=Points(), crs, usercrs=nothing) =
-    ProjectedIndex(order, span, sampling, crs, usercrs)
+    Projected(order, span, sampling, crs, usercrs)
 
-crs(mode::ProjectedIndex, dim) = crs(mode)
-crs(mode::ProjectedIndex) = mode.crs
+crs(mode::Projected, dim) = crs(mode)
+crs(mode::Projected) = mode.crs
 
-usercrs(mode::ProjectedIndex, dim) = usercrs(mode)
-usercrs(mode::ProjectedIndex) = mode.usercrs
+usercrs(mode::Projected, dim) = usercrs(mode)
+usercrs(mode::Projected) = mode.usercrs
 
-rebuild(g::ProjectedIndex, order=order(g), span=span(g), 
+rebuild(g::Projected, order=order(g), span=span(g), 
         sampling=sampling(g), crs=crs(g), usercrs=usercrs(g)) =
-    ProjectedIndex(order, span, sampling, crs, usercrs)
+    Projected(order, span, sampling, crs, usercrs)

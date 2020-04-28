@@ -35,7 +35,7 @@ export AbstractGeoStack, GeoStack
 
 export AbstractGeoSeries, GeoSeries
 
-export ProjectedIndex
+export Projected
 
 export missingval, boolmask, missingmask, replace_missing, aggregate, aggregate!, crs, usercrs
 

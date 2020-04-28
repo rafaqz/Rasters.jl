@@ -52,7 +52,7 @@ dims(grd::GrdAttrib, usercrs=nothing) = begin
     # Not fully implemented yet
     latlon_metadata = GrdDimMetadata(Dict())
 
-    latmode = ProjectedIndex(
+    latmode = Projected(
         order=Ordered(Forward(), Reverse(), Reverse()),
         span=Regular(xspan),
         sampling=Intervals(Start()),
@@ -60,7 +60,7 @@ dims(grd::GrdAttrib, usercrs=nothing) = begin
         usercrs=usercrs,
     )
     lat = Lat(LinRange(ybounds[1], ybounds[2] - yspan, nrows), latmode, latlon_metadata)
-    lonmode = ProjectedIndex(
+    lonmode = Projected(
         order=Ordered(),
         span=Regular(yspan),
         sampling=Intervals(Start()),

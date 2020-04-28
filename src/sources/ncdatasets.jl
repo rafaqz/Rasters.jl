@@ -96,6 +96,12 @@ const dimmap = Dict("lat" => Lat,
 Create an array from a path to a netcdf file. The first non-dimension
 layer of the file will be used as the array.
 
+This is an incomplete implementation of the NetCDF standard. It will currently
+only handle simple files in lattitude/longitude format. Real projections are
+not yet handled. 
+
+If you need to use crs with NetCDF, make a fewture request in the issue queue.
+
 ## Arguments
 - `filename`: `String` pointing to a netcdf file.
 
@@ -122,11 +128,12 @@ NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
          dims=nothing,
          name=nothing,
          metadata=nothing,
+         usercrs=nothing,
         ) = begin
     keys_ = nondimkeys(dataset)
     key = key isa Nothing || !(string(key) in keys_) ? first(keys_) : string(key)
     var = dataset[key]
-    dims = dims isa Nothing ? GeoData.dims(dataset, key) : dims
+    dims = dims isa Nothing ? GeoData.dims(dataset, key, usercrs) : dims
     name = name isa Nothing ? string(key) : name
     metadata_ = metadata isa Nothing ? GeoData.metadata(var, GeoData.metadata(dataset)) : metadata
     missingval = missing
@@ -172,11 +179,12 @@ end
 
 # Stack ########################################################################
 
-struct NCDstack{T,R,W,M,K} <: DiskGeoStack{T}
+struct NCDstack{T,R,W,M,U,K} <: DiskGeoStack{T}
     filename::T
     refdims::R
     window::W
     metadata::M
+    usercrs::U
     kwargs::K
 end
 
@@ -202,8 +210,11 @@ Create a stack from a list of filenames.
 multifile_stack = NCDstack([path1, path2, path3, path4])
 ```
 """
-NCDstack(filenames::Union{Tuple,Vector}; refdims=(), window=(), metadata=nothing,
-         keys=Tuple(Symbol.((ncread(ds -> first(nondimkeys(ds)), fp) for fp in filenames))),
+NCDstack(filenames::Union{Tuple,Vector}; 
+         refdims=(), 
+         window=(), 
+         metadata=nothing,
+         keys=cleankeys(ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames),
          kwargs...) =
     GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata, childtype=NCDarray, kwargs)
 
@@ -228,11 +239,16 @@ stack = NCDstack(filename; window=(Lat(Between(20, 40),))
 stack[:soil_temperature]
 ```
 """
-NCDstack(filename::AbstractString; refdims=(), window=(),
-         metadata=ncread(metadata, filename), kwargs...) =
-    NCDstack(filename, refdims, window, metadata, kwargs)
+NCDstack(filename::AbstractString; 
+         refdims=(), 
+         window=(), 
+         metadata=ncread(metadata, filename), 
+         usercrs=nothing,
+         kwargs...) =
+    NCDstack(filename, refdims, window, metadata, usercrs, kwargs)
 
 childtype(::NCDstack) = NCDarray
+usercrs(stack::NCDarray) = stack.usercrs
 
 # AbstractGeoStack methods
 
@@ -240,8 +256,9 @@ withsource(f, ::Type{NCDarray}, path::AbstractString, key=nothing) = ncread(f, p
 withsourcedata(f, ::Type{NCDarray}, path::AbstractString, key) =
     ncread(d -> f(d[string(key)]), path)
 
-# Override the default to get the dims of the specific key
-dims(::NCDstack, dataset, key::Key) = dims(dataset, key)
+# Override the default to get the dims of the specific key, 
+# and pass the usercrs from the stack
+dims(stack::NCDstack, dataset, key::Key) = dims(dataset, key, usercrs(stack))
 
 missingval(stack::NCDstack) = missing
 
@@ -269,7 +286,7 @@ end
 
 # DimensionalData methods for NCDatasets types ###############################
 
-dims(dataset::NCDatasets.Dataset, key::Key) = begin
+dims(dataset::NCDatasets.Dataset, key::Key, usercrs=nothing) = begin
     v = dataset[string(key)]
     dims = []
     for (i, dimname) in enumerate(NCDatasets.dimnames(v))
@@ -282,9 +299,11 @@ dims(dataset::NCDatasets.Dataset, key::Key) = begin
             order = dvar[end] > dvar[1] ? Ordered(Forward(), Forward(), Forward()) :
                                           Ordered(Reverse(), Forward(), Reverse())
 
+            # Currently we don't support NetCDF projections, only lon/lat with radians units
+            crs = nothing
             # Assume the locus is at the center of the cell if boundaries aren't provided.
             # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
-
+            # Unless its a time dimension.
             if eltype(dvar) <: Number
                 bounds = if length(dvar) > 1
                     beginhalfcell = abs((dvar[2] - dvar[1]) * 0.5)
@@ -337,6 +356,3 @@ metadata(var::NCDatasets.CFVariable, stackmetadata::NCDstackMetadata) = begin
 end
 
 missingval(var::NCDatasets.CFVariable) = missing
-
-# crs(dataset::NCDatasets.Dataset)
-# crs(var::NCDatasets.CFVariable)
