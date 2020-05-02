@@ -155,9 +155,14 @@ Base.size(A::NCDarray) = A.size
 Write an NCDarray to a netcdf file using NCDatasets.jl
 """
 Base.write(filename::AbstractString, ::Type{<:NCDarray}, A::AbstractGeoArray) = begin
-    # Remove the dataset metadata
-    stackmd = pop!(deepcopy(val(metadata(A))), "dataset", Dict())
-    dataset = NCDatasets.Dataset(filename, "c"; attrib=stackmd)
+    meta = metadata(A)
+    if meta isa Nothing
+        dataset = NCDatasets.Dataset(filename, "c")
+    else
+        # Remove the dataset metadata
+        stackmd = pop!(deepcopy(val(meta)), "dataset", Dict())
+        dataset = NCDatasets.Dataset(filename, "c"; attrib=stackmd)
+    end
     try
         ncwritevar!(dataset, A)
     finally
@@ -223,7 +228,7 @@ stack = NCDstack(filename; window=(Lat(Between(20, 40),))
 stack[:soil_temperature]
 ```
 """
-NCDstack(filename::AbstractString; refdims=(), window=(), 
+NCDstack(filename::AbstractString; refdims=(), window=(),
          metadata=ncread(metadata, filename), kwargs...) =
     NCDstack(filename, refdims, window, metadata, kwargs)
 
