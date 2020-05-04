@@ -1,14 +1,14 @@
 """
 An `AbstractDimensionalArray` that holds or points to a series of stacks.
 
-`AbstractGeoSeries` are a high-level `DimensionalArray`s that hold stacks or 
-arrays or the paths they can be loaded from. `GeoSeries` are indexed with dimensions 
+`AbstractGeoSeries` are a high-level `DimensionalArray`s that hold stacks or
+arrays or the paths they can be loaded from. `GeoSeries` are indexed with dimensions
 as with a `AbstractGeoArray`. This is useful when you have multiple files containing
 rasters or stacks of rasters spread over dimensions like time and elevation.
 As much as possible, implementations should facilitate loading entire
 directories and detecting the dimensions from metadata.
 
-This allows 
+This allows
 ```julia
 series[Time(Near(DateTime(2001, 1))][:temp][Lat(Between(70, 150)), Lon(Between(-20,20))] |> plot`
 ```
@@ -49,8 +49,6 @@ struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},C,K} <: AbstractGeoSeries{T,N,D,A
 end
 GeoSeries(data::Array{T}, dims; refdims=(), childtype=DD.basetypeof(T), kwargs...
          ) where T<:Union{<:AbstractGeoStack,<:AbstractGeoArray} =
-    GeoSeries(data, formatdims(data, dims), refdims, childtype, kwargs)
-GeoSeries(data, dims; refdims=(), childtype, kwargs...) =
     GeoSeries(data, formatdims(data, dims), refdims, childtype, kwargs)
 
 @inline rebuild(A::GeoSeries, data, dims::Tuple, refdims, args...) =
