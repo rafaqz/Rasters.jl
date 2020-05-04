@@ -50,6 +50,8 @@ end
 GeoSeries(data::Array{T}, dims; refdims=(), childtype=DD.basetypeof(T), kwargs...
          ) where T<:Union{<:AbstractGeoStack,<:AbstractGeoArray} =
     GeoSeries(data, formatdims(data, dims), refdims, childtype, kwargs)
+GeoSeries(data, dims; refdims=(), childtype, kwargs...) =
+    GeoSeries(data, formatdims(data, dims), refdims, childtype, kwargs)
 
 @inline rebuild(A::GeoSeries, data, dims::Tuple, refdims, args...) =
     GeoSeries(data, dims, refdims, childtype(A), kwargs(A))
