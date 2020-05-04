@@ -4,7 +4,7 @@ include("series.jl")
 include("aggregate.jl")
 include("methods.jl")
 # Only test SMAP locally for now
-if !haskey(ENV, "CI") || !ENV["CI"] 
+if !haskey(ENV, "CI")
     include("sources/smap.jl")
 end
 if !Sys.iswindows() 
