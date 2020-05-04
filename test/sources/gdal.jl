@@ -1,5 +1,6 @@
 using ArchGDAL, GeoData, Test, Statistics, Dates, Plots
 using GeoData: window, mode
+
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
@@ -30,11 +31,15 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test usercrs(dims(gdalarray, Lat)) == EPSG(4326)
         @test usercrs(dims(gdalarray, Lon)) == EPSG(4326)
         @test usercrs(gdalarray) == EPSG(4326)
+        @test usercrs(gdalarray[Lat(1)]) == EPSG(4326)
+        @test_throws ErrorException usercrs(gdalarray[Lat(1), Lon(1)])
         wkt = WellKnownText(GeoFormatTypes.CRS(), 
           "PROJCS[\"unnamed\",GEOGCS[\"NAD27\",DATUM[\"North_American_Datum_1927\",SPHEROID[\"Clarke 1866\",6378206.4,294.978698213898,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6267\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4267\"]],PROJECTION[\"Cylindrical_Equal_Area\"],PARAMETER[\"standard_parallel_1\",33.75],PARAMETER[\"central_meridian\",-117.333333333333],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]")
         @test crs(dims(gdalarray, Lat)) == wkt
         @test crs(dims(gdalarray, Lon)) == wkt
         @test crs(gdalarray) == wkt
+        @test crs(gdalarray[Lat(1)]) == wkt
+        @test_throws ErrorException crs(gdalarray[Lat(1), Lon(1)])
     end
 
     @testset "indexing" begin 
@@ -71,7 +76,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         gdalarray = GDALarray(path; usercrs=EPSG(4326));
         @testset "2d" begin
             geoarray1 = gdalarray[Band(1)]
-            filename = tempname()
+            filename = tempname() * ".tif"
             write(filename, GDALarray, geoarray1)
             saved1 = GDALarray(filename; usercrs=EPSG(4326))[Band(1)];
             dims(saved1)
@@ -86,7 +91,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @testset "3d, with subsetting" begin
             geoarray2 = gdalarray[Lat(Between(33.7, 33.9)), 
                                   Lon(Between(-117.6, -117.4))]
-            filename = tempname()
+            filename = tempname() * ".img"
             write(filename, GDALarray, geoarray2)
             saved2 = GeoArray(GDALarray(filename; usercrs=EPSG(4326)))
             @test size(saved2) == size(geoarray2) == length.(dims(saved2)) == length.(dims(geoarray2))
@@ -106,7 +111,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
             @test typeof(saved2) == typeof(geoarray2)
         end
         @testset "resave current" begin
-            filename = tempname()
+            filename = tempname() * ".tiff"
             write(filename, gdalarray)
             gdalarray = GDALarray(filename)
             write(gdalarray)
@@ -116,7 +121,8 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
     @testset "plot" begin
         # TODO write some tests for this
-        p = gdalarray |> plot
+        gdalarray |> plot
+        savefig("plot.png")
     end
 
 end

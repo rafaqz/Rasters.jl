@@ -18,8 +18,10 @@ stack = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
 dims(stack[:ga2], Ti)
 
 @testset "stack layers" begin
+    @test length(stack) == 2
+    @test first(stack) === ga1
+    @test last(stack) === ga2
     @test getsource(stack) isa NamedTuple
-    @test length(getsource(stack)) == 2
     @test stack[:ga1] == ga1
     @test stack[:ga2] == ga2
     @test data(stack[:ga1]) == data1
