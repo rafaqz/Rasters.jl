@@ -41,13 +41,13 @@ end
     GeoArray(A)
 end
 
-maybe_reproject(dim::Dimension) = maybe_reproject(mode(dim), dim, val(dim))
-maybe_reproject(mode::IndexMode, dim::Dimension, vals::AbstractArray) = vals
-maybe_reproject(mode::Projected, dim::Dimension, vals::AbstractArray) =
-    maybe_reproject(crs(mode), usercrs(mode), dim, vals)
-maybe_reproject(crs, usercrs, dim::Dimension, vals::AbstractArray) = vals
-maybe_reproject(crs::GeoFormat, usercrs::GeoFormat, dim::Dimension, vals::AbstractArray) =
-    reproject(crs, usercrs, dim, vals)
+maybe_reproject(dim::Dimension) = maybe_reproject(mode(dim), dim)
+maybe_reproject(mode::IndexMode, dim::Dimension) = val(dim)
+maybe_reproject(mode::Projected, dim::Dimension) =
+    maybe_reproject(crs(mode), usercrs(mode), dim)
+maybe_reproject(crs, usercrs, dim::Dimension) = val(dim)
+maybe_reproject(crs::GeoFormat, usercrs::GeoFormat, dim::Dimension) =
+    reproject(crs, usercrs, dim, val(dim))
 
 @recipe function f(A::GeoArray{T,2,<:Tuple{<:Lon,<:Lat}}) where T
     permutedims(A)

@@ -73,8 +73,8 @@ end
 
 Write a [`GDALarray`](@ref) to a .tiff file.
 """
-Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,2}) where T = begin
-    all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GTiff")
+Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,2}; kwargs...) where T = begin
+    all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims")
     A = permutedims(A, (Lon(), Lat()))
     correctedA = permutedims(A, (Lon(), Lat())) |>
         a -> reorderindex(a, (Lon(Forward()), Lat(Reverse()))) |>
@@ -83,25 +83,27 @@ Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,
     indices = 1
     gdalwrite(filename, A, nbands, indices)
 end
-Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,3}) where T = begin
-    all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims to write to GeoTiff")
-    hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array to GeoTiff")
+Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,3}, kwargs...) where T = begin
+    all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims")
+    hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
     correctedA = permutedims(A, (Lon(), Lat(), Band())) |>
         a -> reorderindex(a, (Lon(Forward()), Lat(Reverse()), Band(Forward()))) |>
         a -> reorderrelation(a, Forward())
     checkarrayorder(correctedA, (Forward(), Forward(), Forward()))
     nbands = size(correctedA, Band())
     indices = Cint[1]
-    gdalwrite(filename, correctedA, nbands, indices)
+    gdalwrite(filename, correctedA, nbands, indices; kwargs...)
 end
 
 
 # AbstractGeoStack methods
 
-GDALstack(filename; kwargs...) = DiskStack(filename; childtype=GDALarray, kwargs...)
+GDALstack(filename; kwargs...) = 
+    DiskStack(filename; childtype=GDALarray, kwargs...)
 
 withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) =
     gdalread(f, filename)
+
 
 
 # DimensionalData methods for ArchGDAL types ###############################
@@ -121,8 +123,8 @@ dims(dataset::AG.Dataset, usercrs=nothing) = begin
 
     lonlat_metadata=GDALdimMetadata()
 
-    # Output a BoundedIndex dims when the transformation is lat/lon alligned,
-    # otherwise use TransformedIndex with an affine map.
+    # Output Sampled index dims when the transformation is lat/lon alligned,
+    # otherwise use Transformed index, with an affine map.
     if isalligned(gt)
         lonstep = gt[GDAL_WE_RES]
         lonmin = gt[GDAL_TOPLEFT_X]
@@ -223,15 +225,17 @@ gdalmetadata(dataset, key) = begin
     end
 end
 
-gdalwrite(filename, A, nbands, indices; compress="DEFLATE", tiled="YES") = begin
+gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tiled="YES") = begin
+    options = driver == "GTiff" ? ["COMPRESS=$compress", "TILED=$tiled"] : String[]
+
     AG.create(filename;
-        driver=AG.getdriver("GTiff"),
+        driver=AG.getdriver(driver),
         width=size(A, 1),
         height=size(A, 2),
         nbands=nbands,
         dtype=eltype(A),
-        options=["COMPRESS=$compress", "TILED=$tiled"],
-       ) do dataset
+        options=options,
+    ) do dataset
         lon, lat = dims(A, (Lon(), Lat()))
         proj = convert(String, crs(mode(dims(A, Lat()))))
         AG.setproj!(dataset, proj)
@@ -282,4 +286,3 @@ build_geotransform(lat, lon) = begin
     gt[GDAL_NS_RES] = step(lat)
     return gt
 end
-
