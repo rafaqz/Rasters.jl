@@ -1,6 +1,6 @@
 using GeoData, Test, Dates, Statistics
 using GeoData: Start, Center, End,
-      formatdims, dims, aggregate, upsample, downsample
+      formatdims, dims, aggregate, upsample, downsample, span
 
 @testset "upsample" begin
     @test upsample(1, 2) == 1
@@ -35,6 +35,13 @@ stack1 = GeoStack(array1, array2; keys=(:array1, :array2))
 stack2 = GeoStack(array1a, array2a; keys=(:array1, :array2))
 dates = [DateTime(2017), DateTime(2018)]
 series = GeoSeries([stack1, stack2], (Ti(dates),));
+
+@testset "Aggregate a dimension" begin
+    lat = Lat(LinRange(3, 13, 6); 
+              mode=Sampled(Ordered(), Regular(2.0), Intervals(Start())))
+    rebuiltlat = aggregate(Start(), lat, 3)
+    @test span(mode(rebuiltlat)) == Regular(6.0)
+end
 
 @testset "Aggregate at a locus" begin
     @testset "single scale single locus" begin

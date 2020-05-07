@@ -20,7 +20,7 @@ using Missings,
 const DD = DimensionalData
 
 using Base: tail
-using DimensionalData: Forward, Reverse, formatdims, slicedims,
+using DimensionalData: Forward, Reverse, formatdims, slicedims, basetypeof,
       dims2indices, indexorder, arrayorder, relationorder, StandardIndices, isrev
 
 import DimensionalData: val, data, dims, refdims, metadata, rebuild, rebuildsliced,

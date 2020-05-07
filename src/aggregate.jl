@@ -54,17 +54,9 @@ aggregate(method, src::AbstractDimensionalArray, scale) =
 
 Aggregate a Dimension
 """
-# aggregate(method, dim::Dimension, scale) = begin
-#     intscale = dims2indices(dim, scale)
-#     start = firstindex(dim) + beginoffset(method, dim, scale)
-#     stop = (length(dim) ÷ scale) * scale
-#     d = rebuild(dim, val(dim)[start:intscale:stop])
-#     d
-# end
-
 aggregate(method, dim::Dimension, scale) = begin
     start, stop = endpoints(dim, method, scale)
-    rebuild(dim, val(dim)[start:scale:stop])
+    rebuild(dim, val(dim)[start:scale:stop], aggregate(method, mode(dim), scale))
 end
 
 endpoints(dim, method, scale) = begin
@@ -72,6 +64,23 @@ endpoints(dim, method, scale) = begin
     stop = (length(dim) ÷ scale) * scale
     start, stop
 end
+
+"""
+    aggregate(method, dim::IndexMode, scale)
+
+Aggregate an IndexMode
+"""
+aggregate(method, mode::IndexMode, scale) = mode 
+aggregate(method, mode::AbstractSampled, scale) =
+    rebuild(mode; span=aggregate(method, span(mode), scale)) 
+
+"""
+    aggregate(method, dim::Span, scale)
+
+Aggregate a Span
+"""
+aggregate(method, span::Span, scale) = span
+aggregate(method, span::Regular, scale) = Regular(val(span) * scale) 
 
 """
     aggregate!(dst::AbstractDimensionalArray, src::AbstractDimensionalArray, method, scale)
