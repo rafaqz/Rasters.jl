@@ -40,11 +40,16 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
         fillvalue = get(metadata(A), "_FillValue", NaN)
         A = replace_missing(A, convert(T, fillvalue))
     end
-    # Define required dims
+    # Define required dim vars
     for dim in dims(A)
         key = lowercase(name(dim))
         haskey(dataset.dim, key) && continue
-        index = [val(dim)...]
+        
+        index = ncshiftindex(dim)
+
+        if dim isa Lat || dim isa Lon 
+            dim = convertmode(Converted, dim) 
+        end
         md = metadata(dim)
         attribvec = [] #md isa Nothing ? [] : [val(md)...]
         defDim(dataset, key, length(index))
@@ -73,6 +78,24 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
 
 end
 
+ncshiftindex(dim::Dimension) = ncshiftindex(mode(dim), dim)
+ncshiftindex(mode::Sampled, dim::Dimension) = begin
+    if span(mode) isa Regular
+        if dim isa TimeDim 
+            if eltype(dim) isa Dates.AbstractDateTime
+                val(dim)
+            else
+                shiftindexloci(dim, Start())
+            end
+        else
+            shiftindexloci(dim, Center())
+        end
+    else
+        val(dim)
+    end
+end
+ncshiftindex(mode::IndexMode, dim::Dimension) = val(dim)
+
 # CF standards don't enforce dimension names.
 # But these are common, and should take care of most dims.
 const dimmap = Dict("lat" => Lat,
@@ -98,7 +121,7 @@ layer of the file will be used as the array.
 
 This is an incomplete implementation of the NetCDF standard. It will currently
 only handle simple files in lattitude/longitude format. Real projections are
-not yet handled. 
+not yet handled.
 
 If you need to use crs with NetCDF, make a fewture request in the issue queue.
 
@@ -161,7 +184,7 @@ Base.size(A::NCDarray) = A.size
 
 Write an NCDarray to a netcdf file using NCDatasets.jl
 """
-Base.write(filename::AbstractString, ::Type{<:NCDarray}, A::AbstractGeoArray) = begin
+Base.write(filename::AbstractString, ::Type, A::AbstractGeoArray) = begin
     meta = metadata(A)
     if meta isa Nothing
         dataset = NCDatasets.Dataset(filename, "c")
@@ -210,9 +233,9 @@ Create a stack from a list of filenames.
 multifile_stack = NCDstack([path1, path2, path3, path4])
 ```
 """
-NCDstack(filenames::Union{Tuple,Vector}; 
-         refdims=(), 
-         window=(), 
+NCDstack(filenames::Union{Tuple,Vector};
+         refdims=(),
+         window=(),
          metadata=nothing,
          keys=cleankeys(ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames),
          kwargs...) =
@@ -239,10 +262,10 @@ stack = NCDstack(filename; window=(Lat(Between(20, 40),))
 stack[:soil_temperature]
 ```
 """
-NCDstack(filename::AbstractString; 
-         refdims=(), 
-         window=(), 
-         metadata=ncread(metadata, filename), 
+NCDstack(filename::AbstractString;
+         refdims=(),
+         window=(),
+         metadata=ncread(metadata, filename),
          usercrs=nothing,
          kwargs...) =
     NCDstack(filename, refdims, window, metadata, usercrs, kwargs)
@@ -256,7 +279,7 @@ withsource(f, ::Type{NCDarray}, path::AbstractString, key=nothing) = ncread(f, p
 withsourcedata(f, ::Type{NCDarray}, path::AbstractString, key) =
     ncread(d -> f(d[string(key)]), path)
 
-# Override the default to get the dims of the specific key, 
+# Override the default to get the dims of the specific key,
 # and pass the usercrs from the stack
 dims(stack::NCDstack, dataset, key::Key) = dims(dataset, key, usercrs(stack))
 
@@ -295,48 +318,12 @@ dims(dataset::NCDatasets.Dataset, key::Key, usercrs=nothing) = begin
             # Find the matching dimension constructor. If its an unknown name use
             # the generic Dim with the dim name as type parameter
             dimtype = get(dimmap, dimname, Dim{Symbol(dimname)})
-            # Order: data is always forwards, we check the index order
-            order = dvar[end] > dvar[1] ? Ordered(Forward(), Forward(), Forward()) :
-                                          Ordered(Reverse(), Forward(), Reverse())
-
-            # Currently we don't support NetCDF projections, only lon/lat with radians units
-            crs = nothing
-            # Assume the locus is at the center of the cell if boundaries aren't provided.
-            # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
-            # Unless its a time dimension.
-            if eltype(dvar) <: Number
-                bounds = if length(dvar) > 1
-                    beginhalfcell = abs((dvar[2] - dvar[1]) * 0.5)
-                    endhalfcell = abs((dvar[end] - dvar[end-1]) * 0.5)
-                    if isrev(indexorder(order))
-                        dvar[end] - endhalfcell, dvar[1] + beginhalfcell
-                    else
-                        dvar[1] - beginhalfcell, dvar[end] + endhalfcell
-                    end
-                else
-                    dvar[1], dvar[1]
-                end
-                locus = (dimtype <: TimeDim) ? Start() : Center()
-                mode = Sampled(order, Irregular(bounds), Intervals(locus))
-            elseif eltype(dvar) <: Dates.AbstractTime
-                locus = Start()
-                bounds = if length(dvar) > 1
-                    if isrev(indexorder(order))
-                        dvar[end], dvar[1] + (dvar[1] - dvar[2])
-                    else
-                        dvar[1], dvar[end] + (dvar[end] - dvar[end - 1])
-                    end
-                else
-                    dvar[1], dvar[1]
-                end
-                mode = Sampled(order, Irregular(bounds), Intervals(locus))
-            else
-                mode = Sampled(order, Irregular(), Points())
-            end
-
+            index = dvar[:]
+            mode = _ncdmode(index, dimtype)
             meta = metadata(dvar)
+
             # Add the dim containing the dimension var array
-            push!(dims, dimtype(dvar[:], mode, meta))
+            push!(dims, dimtype(index, mode, meta))
         else
             # The var doesn't exist. Maybe its `complex` or some other marker,
             # so make it a custom `Dim` with `NoIndex`
@@ -345,6 +332,64 @@ dims(dataset::NCDatasets.Dataset, key::Key, usercrs=nothing) = begin
     end
     (dims...,)
 end
+
+_ncdmode(index, dimtype) = begin
+    # Assume the locus is at the center of the cell if boundaries aren't provided.
+    # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
+    # Unless its a time dimension.
+    if eltype(index) <: Number
+        order = _ncdorder(index)
+        span = _ncdspan(index, order)
+        sampling = Intervals((dimtype <: TimeDim) ? Start() : Center())
+        if dimtype in (Lat, Lon)
+            Projected(order, span, sampling, EPSG(4326), nothing)
+        else
+            Sampled(order, span, sampling)
+        end
+    elseif eltype(index) <: Dates.AbstractTime
+        order = _ncdorder(index)
+        span = Irregular(
+            if length(index) > 1
+                if isrev(indexorder(order))
+                    index[end], index[1] + (index[1] - index[2])
+                else
+                    index[1], index[end] + (index[end] - index[end - 1])
+                end
+            else
+                index[1], index[1]
+            end
+        )
+        sampling = Intervals(Start())
+        Sampled(order, span, sampling)
+    else
+        Categorical()
+    end
+end
+
+_ncdorder(index) = index[end] > index[1] ? Ordered(Forward(), Forward(), Forward()) :
+                                           Ordered(Reverse(), Forward(), Reverse())
+
+_ncdspan(index, order) = begin
+    step = index[2] - index[1]
+    for i in 2:length(index) -1
+        if !(index[i+1] - index[i] ≈ step)
+            bounds = if length(index) > 1
+                beginhalfcell = abs((index[2] - index[1]) * 0.5)
+                endhalfcell = abs((index[end] - index[end-1]) * 0.5)
+                if isrev(indexorder(order))
+                    index[end] - endhalfcell, index[1] + beginhalfcell
+                else
+                    index[1] - beginhalfcell, index[end] + endhalfcell
+                end
+            else
+                index[1], index[1]
+            end
+            return Irregular(bounds)
+        end
+    end
+    return Regular(step)
+end
+
 
 metadata(dataset::NCDatasets.Dataset) = NCDstackMetadata(Dict{String,Any}(dataset.attrib))
 metadata(dataset::NCDatasets.Dataset, key::Key) = metadata(dataset[string(key)])

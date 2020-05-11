@@ -26,3 +26,26 @@ checkarrayorder(dim::Dimension, order::Order) = begin
 end
 
 cleankeys(keys) = Tuple(Symbol.(keys))
+
+shiftindexloci(dim::Dimension, locus::Locus) =
+    shiftindexloci(mode(dim), dim, locus)
+
+shiftindexloci(::IndexMode, dim::Dimension, ::Locus) =
+    val(dim)
+shiftindexloci(mode::AbstractSampled, dim::Dimension, locus::Locus) =
+    shiftindexloci(span(mode), sampling(mode), dim, locus)
+shiftindexloci(span::Span, sampling::Sampling, dim::Dimension, ::Locus) = begin
+    println(typeof(span), typeof(sampling))
+    val(dim)
+end
+# We only actually shift Regular Intervals.
+shiftindexloci(span::Regular, sampling::Intervals, dim::Dimension, destlocus::Locus) =
+    val(dim) .+ step(span) * offset(locus(sampling), destlocus)
+
+offset(::Start, ::Center) = 0.5
+offset(::Start, ::End) = 1
+offset(::Center, ::Start) = -0.5
+offset(::Center, ::End) = 0.5
+offset(::End, ::Start) = -1
+offset(::End, ::Center) = -0.5
+offset(::T, ::T) where T<:Locus = 0

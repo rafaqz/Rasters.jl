@@ -1,24 +1,37 @@
 using ArchGDAL, GeoData, Test, Statistics, Dates, Plots
-using GeoData: window, mode
+using GeoData: window, mode, span, sampling
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
 @testset "array" begin
-    gdalarray = GDALarray(path; usercrs=EPSG(4326), name="test")
+    gdalarray = GDALarray(path; usercrs=EPSG(4326), name="test");
 
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
         @test gdalarray isa GDALarray{UInt8,3}
     end
 
+    coord = first.(bounds(dims(gdalarray, (Lon, Lat))))
+    ArchGDAL.reproject([20, 20], EPSG(4326), ProjString("+proj=cea"))
+
     @testset "dimensions" begin
         @test length(val(dims(dims(gdalarray), Lon))) == 514
         @test ndims(gdalarray) == 3
         @test dims(gdalarray) isa Tuple{<:Lon,<:Lat,<:Band}
+        @test mode(dims(gdalarray, Band)) == Categorical(Ordered())
+        @test span.(mode.(dims(gdalarray, (Lat, Lon)))) == 
+            (Regular(-60.02213698319351), Regular(60.02213698319374))
+        @test sampling.(mode.(dims(gdalarray, (Lat, Lon)))) == 
+            (Intervals(Start()), Intervals(Start()))
         @test refdims(gdalarray) == ()
-        @test_broken bounds(gdalarray) 
+        @test bounds(gdalarray) == ((-28493.166784412522, 2358.2116249490587), 
+                                    (4.22503316539283e6, 4.255944565939175e6), 
+                                    (1, 1))
+        crs(gdalarray)
+        val(dims(gdalarray, Lat))
+        val(dims(gdalarray, Lon))
     end
 
     @testset "other fields" begin

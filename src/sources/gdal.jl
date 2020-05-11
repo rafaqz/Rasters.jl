@@ -114,11 +114,12 @@ dims(dataset::AG.Dataset, usercrs=nothing) = begin
     catch
         GDAL_EMPTY_TRANSFORM
     end
+    println(gt)
 
     latsize, lonsize = AG.height(dataset), AG.width(dataset)
 
     nbands = AG.nraster(dataset)
-    band = Band(1:nbands, mode=Categorical())
+    band = Band(1:nbands, mode=Categorical(Ordered()))
     sourcecrs = crs(dataset)
 
     lonlat_metadata=GDALdimMetadata()
@@ -236,8 +237,8 @@ gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tile
         dtype=eltype(A),
         options=options,
     ) do dataset
-        lon, lat = dims(A, (Lon(), Lat()))
-        proj = convert(String, crs(mode(dims(A, Lat()))))
+        lon, lat = map(d -> convertmode(Projected, d), dims(A, (Lon(), Lat())))
+        proj = convert(String, convert(WellKnownText, crs(lon)))
         AG.setproj!(dataset, proj)
         AG.setgeotransform!(dataset, build_geotransform(lat, lon))
         AG.write!(dataset, data(A), indices)
@@ -275,7 +276,6 @@ geotransform_to_affine(gt) = begin
               [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
 end
 
-# TODO handle Forward/Reverse orders
 build_geotransform(lat, lon) = begin
     gt = zeros(6)
     gt[GDAL_TOPLEFT_X] = first(lon)
