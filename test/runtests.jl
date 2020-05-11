@@ -1,6 +1,8 @@
 include("array.jl")
 include("stack.jl")
 include("series.jl")
+include("utils.jl")
+include("reproject.jl")
 include("aggregate.jl")
 include("methods.jl")
 # Only test SMAP locally for now

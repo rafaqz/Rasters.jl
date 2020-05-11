@@ -1,14 +1,21 @@
 using HDF5, GeoData, Test, Statistics, Dates, Plots
 using GeoData: Time, window, name
-include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
+testpath = joinpath(dirname(pathof(GeoData)), "../test/")
+include(joinpath(testpath, "test_utils.jl"))
 
 # TODO example files without a login requirement
-path1 = "test/data/SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5"
-path2 = "test/data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5"
+path1 = joinpath(testpath, "data/SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5")
+path2 = joinpath(testpath, "data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5")
 
 if isfile(path1)
     @testset "stack" begin
         stack = SMAPstack(path1)
+        v = val(dims(stack, Lat))
+        v[2] - v[1]
+        v[3] - v[2]
+        v[4] - v[3]
+        v[501] - v[500]
+
 
         @testset "conversion to GeoArray" begin
             smaparray = stack["soil_temp_layer1"][Lon(1:100), Lat(1:100)]
