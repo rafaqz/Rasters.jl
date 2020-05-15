@@ -44,11 +44,11 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     for dim in dims(A)
         key = lowercase(name(dim))
         haskey(dataset.dim, key) && continue
-        
+
         index = ncshiftindex(dim)
 
-        if dim isa Lat || dim isa Lon 
-            dim = convertmode(Converted, dim) 
+        if dim isa Lat || dim isa Lon
+            dim = convertmode(Converted, dim)
         end
         md = metadata(dim)
         attribvec = [] #md isa Nothing ? [] : [val(md)...]
@@ -81,7 +81,7 @@ end
 ncshiftindex(dim::Dimension) = ncshiftindex(mode(dim), dim)
 ncshiftindex(mode::Sampled, dim::Dimension) = begin
     if span(mode) isa Regular
-        if dim isa TimeDim 
+        if dim isa TimeDim
             if eltype(dim) isa Dates.AbstractDateTime
                 val(dim)
             else
@@ -401,3 +401,109 @@ metadata(var::NCDatasets.CFVariable, stackmetadata::NCDstackMetadata) = begin
 end
 
 missingval(var::NCDatasets.CFVariable) = missing
+
+# https://trac.osgeo.org/gdal/wiki/NetCDF_ProjectionTestingStatus
+
+const cf_proj_params = Dict(
+    "false_easting" => "+x_0",
+    "false_northing" => "+y_0",
+    "scale_factor_at_projection_origin" => "+k_0",
+    "scale_factor_at_central_meridian" => "+k_0",
+    "standard_parallel[1]" => "+lat_1",
+    "standard_parallel[2]" => "+lat_2",
+    "longitude_of_central_meridian" => "+lon_0",
+    "longitude_of_projection_origin" => "+lon_0",
+    "latitude_of_projection_origin" => "+lat_0",
+    "straight_vertical_longitude_from_pole" => "+lon_0",
+)
+
+const cf_proj_projections = Dict(
+    "albers_conical_equal_area" => "+proj=aea",
+    "azimuthal_equidistant" => "+proj=aeqd",
+    "lambert_azimuthal_equal_area" => "+proj=laea",
+    "lambert_conformal_conic" => "+proj=lcc",
+    "lambert_cylindrical_equal_area" => "+proj=cea",
+    "mercator" => "+proj=merc",
+    "orthographic" => "+proj=ortho",
+    "polar_stereographic" => "+proj=stere",
+    "stereographic" => "+proj=stere",
+    "transverse_mercator" => "+proj=tmerc",
+)
+const proj_cf_projections = Dict(Pair.(values(cf_proj_projections), collect(keys(cf_proj_projections))))
+
+
+const projections_params = ( 
+    albers_conical_equal_area = (
+        "standard_parallel[1]",
+        "standard_parallel[2]",
+        "longitude_of_central_meridian",
+        "latitude_of_projection_origin",
+        "false_easting",
+        "false_northing",
+    ),
+    azimuthal_equidistant = (
+        "longitude_of_projection_origin",
+        "latitude_of_projection_origin",
+        "false_easting",
+        "false_northing",
+    ),
+    lambert_azimuthal_equal_area = (
+        "longitude_of_projection_origin",
+        "latitude_of_projection_origin",
+        "false_easting",
+        "false_northing",
+    ),
+    lambert_conformal_conic = (
+        ("standard_parallel", ["standard_parallel[1]", "standard_parallel[2]"])
+        "longitude_of_central_meridian",
+        "latitude_of_projection_origin",
+        "false_easting",
+        "false_northing",
+    ),
+    lambert_conformal_conic = (
+        "longitude_of_central_meridian",
+        "latitude_of_projection_origin",
+        "false_easting",
+        "false_northing",
+    ),
+    lambert_cylindrical_equal_area = (
+        "longitude_of_central_meridian",
+        "standard_parallel[1]",
+        "false_easting",
+        "false_northing",
+    ),
+    mercator = (
+        "longitude_of_projection_origin",
+        ("scale_factor_at_projection_origin", "standard_parallel[1]"),
+        "false_easting",
+        "false_northing",
+    ),
+    orthographic = (
+        "longitude_of_projection_origin",
+        "latitude_of_projection_origin",
+        "false_easting",
+        "false_northing",
+    ),
+    polar_stereographic = (
+        "straight_vertical_longitude_from_pole ",
+        "latitude_of_projection_origin",
+        ("scale_factor_at_projection_origin", "standard_parallel")
+        "false_easting",
+        "false_northing",
+    ),
+    stereographic = (
+        "longitude_of_projection_origin",
+        "latitude_of_projection_origin",
+        "scale_factor_at_projection_origin",
+        "false_easting",
+        "false_northing",
+    ),
+    transverse_mercator = (
+        "scale_factor_at_central_meridian",
+        "longitude_of_central_meridian",
+        "latitude_of_projection_origin",
+        "false_easting",
+        "false_northing",
+    )
+)
+
