@@ -148,7 +148,7 @@ smapread(f, filepath::AbstractString) = h5open(f, filepath)
 
 readwindowed(A::HDF5Dataset, window::Tuple{}) = HDF5.read(A)
 
-smappath(key::Key) = joinpath(SMAPGEODATA, string(key))
+smappath(key::Key) = SMAPGEODATA * "/" * string(key)
 
 smaptime(dataset::HDF5.HDF5File) = begin
     meta = attrs(root(dataset)["time"])
