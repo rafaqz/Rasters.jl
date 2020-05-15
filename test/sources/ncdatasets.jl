@@ -203,7 +203,7 @@ end
 
 end
 
-@testset "series" begin
+@testset "NCD series" begin
     series = GeoSeries([ncmulti, ncmulti], (Ti,);
                        childtype=NCDstack, name="test")
     geoarray = GeoArray(NCDarray(ncmulti, :albedo; name="test"))

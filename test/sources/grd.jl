@@ -9,7 +9,7 @@ path = joinpath(testpath, "data/rlogo")
 @test isfile(path * ".grd")
 @test isfile(path * ".gri")
 
-@testset "array" begin
+@testset "Grd array" begin
     grdarray = GrdArray(path);
 
     @testset "array properties" begin
@@ -120,6 +120,18 @@ path = joinpath(testpath, "data/rlogo")
             @test saved isa typeof(geoarray)
             @test data(saved) == data(geoarray)
         end
+        @test "netcdf" begin
+            filename2 = tempname()
+            write(filename2, NCDarray, grdarray[Band(1)])
+            saved = GeoArray(NCDarray(filename2))
+            @test size(saved) == size(grdarray[Band(1)])
+            @test replace_missing(saved, missingval(grdarray)) ≈ reverse(grdarray[Band(1)]; dims=Lat)
+            @test replace_missing(saved, missingval(grdarray)) ≈ reverse(grdarray[Band(1)]; dims=Lat)
+            @test val(dims(saved, Lon)) == val(dims(grdarray, Lon))
+            @test val(dims(saved, Lat)) == val(dims(grdarray, Lat))
+            @test bounds(saved, Lat) == bounds(grdarray, Lat)
+            @test bounds(saved, Lon) == bounds(grdarray, Lon)
+        end
     end
 
     @testset "plot" begin
@@ -128,7 +140,7 @@ path = joinpath(testpath, "data/rlogo")
 
 end
 
-@testset "stack" begin
+@testset "Grd stack" begin
     grdstack = GrdStack((a=path, b=path))
 
     @testset "indexing" begin
@@ -196,7 +208,7 @@ end
 
 end
 
-@testset "series" begin
+@testset "Grd series" begin
     series = GeoSeries([path, path], (Ti,); childtype=GrdArray, usercrs=EPSG(4326), name="test")
     @test GeoArray(series[Ti(1)]) == 
         GeoArray(GrdArray(path; usercrs=EPSG(4326), name="test"))

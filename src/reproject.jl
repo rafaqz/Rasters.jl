@@ -21,19 +21,19 @@ a single dimension at a time.
 """
 reproject(source, target, dim::Dimension, val) = val
 reproject(source::GeoFormat, target::GeoFormat, dim::Lon, val::Number) =
-    ArchGDAL.reproject((Float64(val), 0.0), source, target)[1]
+    ArchGDAL.reproject((Float64(val), 0.0), source, target; order=:trad)[1]
 reproject(source::GeoFormat, target::GeoFormat, dim::Lat, val::Number) =
-    ArchGDAL.reproject((0.0, Float64(val)), source, target)[2]
+    ArchGDAL.reproject((0.0, Float64(val)), source, target; order=:trad)[2]
 
 reproject(source::GeoFormat, target::GeoFormat, ::Lon, vals::AbstractArray) =
-    [r[1] for r in ArchGDAL.reproject([(Float64(v), 0.0) for v in vals], source, target)]
+    [r[1] for r in ArchGDAL.reproject([(Float64(v), 0.0) for v in vals], source, target; order=:trad)]
 reproject(source::GeoFormat, target::GeoFormat, dim::Lat, vals::AbstractArray) =
-    [r[2] for r in ArchGDAL.reproject([(0.0, Float64(v)) for v in vals], source, target)]
+    [r[2] for r in ArchGDAL.reproject([(0.0, Float64(v)) for v in vals], source, target; order=:trad)]
 
 reproject(source::GeoFormat, target::GeoFormat, ::Lon, vals::Tuple) =
-    Tuple(r[1] for r in ArchGDAL.reproject([(Float64(v), 0.0) for v in vals], source, target))
+    Tuple(r[1] for r in ArchGDAL.reproject([(Float64(v), 0.0) for v in vals], source, target; order=:trad))
 reproject(source::GeoFormat, target::GeoFormat, dim::Lat, vals::Tuple) =
-    Tuple(r[2] for r in ArchGDAL.reproject([(0.0, Float64(v)) for v in vals], source, target))
+    Tuple(r[2] for r in ArchGDAL.reproject([(0.0, Float64(v)) for v in vals], source, target; order=:trad))
 
 
 convertmode(dstmode::Type{<:IndexMode}, dim::Dimension) = 

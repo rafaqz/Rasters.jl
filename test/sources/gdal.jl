@@ -5,7 +5,7 @@ include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
-@testset "array" begin
+@testset "GDALarray" begin
     gdalarray = GDALarray(path; usercrs=EPSG(4326), name="test");
 
     @testset "array properties" begin
@@ -14,7 +14,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
     end
 
     coord = first.(bounds(dims(gdalarray, (Lon, Lat))))
-    ArchGDAL.reproject([20, 20], EPSG(4326), ProjString("+proj=cea"))
+    ArchGDAL.reproject([20, 20], EPSG(4326), ProjString("+proj=cea"); order=:trad)
 
     @testset "dimensions" begin
         @test length(val(dims(dims(gdalarray), Lon))) == 514
@@ -140,7 +140,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
 end
 
-@testset "stack" begin
+@testset "GDAL stack" begin
     gdalstack = GDALstack((a=path, b=path));
 
     @testset "child array properties" begin
@@ -208,7 +208,7 @@ end
 
 end
 
-@testset "series" begin
+@testset "GDAL series" begin
     series = GeoSeries([path, path], (Ti,); childtype=GDALarray, usercrs=EPSG(4326), name="test")
     @test GeoArray(series[Ti(1)]) == GeoArray(GDALarray(path; usercrs=EPSG(4326), name="test"))
 end
