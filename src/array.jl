@@ -65,6 +65,8 @@ units(A::AbstractGeoArray) = getmeta(A, :units, nothing)
 rebuild(A::AbstractGeoArray, data, dims::Tuple, refdims, name, metadata, missingval=missingval(A)) =
     GeoArray(data, dims, refdims, name, metadata, missingval)
 
+Base.parent(A::AbstractGeoArray) = data(A)
+
 """
 Abstract supertype for all memory-backed GeoArrays where the data is an array.
 """

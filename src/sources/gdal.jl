@@ -98,8 +98,11 @@ end
 
 # AbstractGeoStack methods
 
-GDALstack(filename; kwargs...) = 
-    DiskStack(filename; childtype=GDALarray, kwargs...)
+GDALstack(filename; kwargs...) = begin
+    s = DiskStack(filename; childtype=GDALarray, kwargs...)
+    println(s.kwargs)
+    s
+end
 
 withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) =
     gdalread(f, filename)
@@ -114,7 +117,6 @@ dims(dataset::AG.Dataset, usercrs=nothing) = begin
     catch
         GDAL_EMPTY_TRANSFORM
     end
-    println(gt)
 
     latsize, lonsize = AG.height(dataset), AG.width(dataset)
 

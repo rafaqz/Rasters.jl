@@ -1,4 +1,4 @@
-using GeoData, Test, Statistics, Dates, Plots
+using GeoData, Test, Statistics, Dates, Plots, NCDatasets
 using GeoData: name, mode, window, DiskStack
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
@@ -120,15 +120,15 @@ path = joinpath(testpath, "data/rlogo")
             @test saved isa typeof(geoarray)
             @test data(saved) == data(geoarray)
         end
-        @test "netcdf" begin
+        @testset "to netcdf" begin
             filename2 = tempname()
             write(filename2, NCDarray, grdarray[Band(1)])
             saved = GeoArray(NCDarray(filename2))
             @test size(saved) == size(grdarray[Band(1)])
             @test replace_missing(saved, missingval(grdarray)) ≈ reverse(grdarray[Band(1)]; dims=Lat)
             @test replace_missing(saved, missingval(grdarray)) ≈ reverse(grdarray[Band(1)]; dims=Lat)
-            @test val(dims(saved, Lon)) == val(dims(grdarray, Lon))
-            @test val(dims(saved, Lat)) == val(dims(grdarray, Lat))
+            @test val(dims(saved, Lon)) ≈ val(dims(grdarray, Lon)) .+ 0.5
+            @test val(dims(saved, Lat)) ≈ val(dims(grdarray, Lat)) .+ 0.5
             @test bounds(saved, Lat) == bounds(grdarray, Lat)
             @test bounds(saved, Lon) == bounds(grdarray, Lon)
         end

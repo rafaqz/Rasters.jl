@@ -1,4 +1,4 @@
-using NCDatasets, ArchGDAL, GeoData, Test, Statistics, Dates, CFTime, Plots
+using NCDatasets, ArchGDAL, GeoData, Test, Statistics, Dates, CFTime, Plots, GeoFormatTypes
 using GeoData: name, window, mode, span, sampling
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
@@ -6,7 +6,7 @@ ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = geturl(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
 ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
 
-@testset "NCarray" begin
+@testset "NCDarray" begin
     ncarray = NCDarray(ncsingle)
 
     @testset "array properties" begin
@@ -63,7 +63,7 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
     end
 
     @testset "save" begin
-        @testset "netcdf" begin
+        @testset "to netcdf" begin
             # TODO save and load subset
             geoarray = GeoArray(ncarray)
             metadata(geoarray)
@@ -85,16 +85,19 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
             @test saved isa typeof(geoarray)
             # TODO test crs
         end
-        @testset "tiff" begin
+        @testset "to gdal" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
-            write("testgdal.tif", GDALarray, nc2)
+            write("testgdal.tif", GDALarray, nccleaned)
             gdalarray = GDALarray("testgdal.tif")
-            @test crs(gdalarray) == convert(WellKnownText, EPSG(4326))
+            # gdalarray WKT is missing one AUTHORITY
+            @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
+            # But the Proj representation is the same
+            @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test val(dims(gdalarray, Lat)) ≈ val(dims(nccleaned, Lat))
             @test val(dims(gdalarray, Lon)) ≈ val(dims(nccleaned, Lon))
             @test GeoArray(gdalarray) ≈ nccleaned
         end
-        @testset "grd" begin
+        @testset "to grd" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write("testgrd", GrdArray, nccleaned)
             grdarray = GrdArray("testgrd");

@@ -87,6 +87,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
     @testset "save" begin
         gdalarray = GDALarray(path; usercrs=EPSG(4326));
+
         @testset "2d" begin
             geoarray1 = gdalarray[Band(1)]
             filename = tempname() * ".tif"
@@ -101,6 +102,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
             @test missingval(saved1) === missingval(geoarray1)
             @test refdims(saved1) == refdims(geoarray1)
         end
+        
         @testset "3d, with subsetting" begin
             geoarray2 = gdalarray[Lat(Between(33.7, 33.9)), 
                                   Lon(Between(-117.6, -117.4))]
@@ -123,13 +125,37 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
             @test data(saved2) == data(geoarray2)
             @test typeof(saved2) == typeof(geoarray2)
         end
+
         @testset "resave current" begin
             filename = tempname() * ".tiff"
             write(filename, gdalarray)
-            gdalarray = GDALarray(filename)
-            write(gdalarray)
-            @test convert(GeoArray, GDALarray(filename)) == convert(GeoArray, gdalarray)
+            gdalarray2 = GDALarray(filename)
+            write(gdalarray2)
+            @test convert(GeoArray, GDALarray(filename)) == convert(GeoArray, gdalarray2)
         end
+
+        @testset "to grd" begin
+            write("testgrd", GrdArray, gdalarray)
+            grdarray = GrdArray("testgrd")
+            @test crs(grdarray) == convert(ProjString, crs(gdalarray))
+            @test bounds(grdarray) == (bounds(gdalarray))
+            @test val(dims(grdarray, Lat)) == reverse(val(dims(gdalarray, Lat)))
+            @test val(dims(grdarray, Lon)) ≈ val(dims(gdalarray, Lon))
+            @test GeoArray(grdarray) == GeoArray(gdalarray)
+        end
+
+        @testset "to netcdf" begin
+            filename2 = tempname()
+            write(filename2, NCDarray, gdalarray[Band(1)])
+            saved = GeoArray(NCDarray(filename2))
+            @test size(saved) == size(gdalarray[Band(1)])
+            @test saved ≈ reverse(gdalarray[Band(1)]; dims=Lat)
+            @test_broken val(dims(saved, Lon)) ≈ val(dims(gdalarray, Lon)) .- 0.5step(dims(saved, Lon))
+            @test val(dims(saved, Lat)) ≈ reverse(val(dims(gdalarray, Lat))) .- 0.5step(dims(saved, Lat))
+            @test_broken all(map(isapprox, bounds(saved, Lat), bounds(gdalarray, Lat)))
+            @test all(map(isapprox, bounds(saved, Lon), bounds(gdalarray, Lon)))
+        end
+
     end
 
     @testset "plot" begin
@@ -211,6 +237,10 @@ end
 @testset "GDAL series" begin
     series = GeoSeries([path, path], (Ti,); childtype=GDALarray, usercrs=EPSG(4326), name="test")
     @test GeoArray(series[Ti(1)]) == GeoArray(GDALarray(path; usercrs=EPSG(4326), name="test"))
+
+    gdalstack = GDALstack((a=path, b=path); childtype=GDALarray, usercrs=EPSG(4326));
+    series = GeoSeries([gdalstack, gdalstack], (Ti,))
+    @test series[1].kwargs == gdalstack.kwargs
 end
 
 nothing

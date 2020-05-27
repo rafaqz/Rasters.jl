@@ -94,7 +94,7 @@ data(s::MemGeoStack) = s.data
 data(s::MemGeoStack{<:NamedTuple}, key::Key) = data(s)[Symbol(key)]
 
 rebuild(s::T; data=data(s), refdims=refdims(s), window=window(s), 
-        metadata=metadata(s), kwargs...) where T<:MemGeoStack =
+        metadata=metadata(s), kwargs=kwargs(s)) where T<:MemGeoStack =
     basetypeof(T)(data, refdims, window, metadata, kwargs)
 
 getsource(s::MemGeoStack{<:NamedTuple}, args...) = data(s, args...)
@@ -123,7 +123,7 @@ Abstract supertype for all disk backed [`AbstractGeoStack`](@ref)s
 abstract type DiskGeoStack{T} <: AbstractGeoStack{T} end
 
 rebuild(s::T; data=filename(s), refdims=refdims(s), window=window(s), 
-        metadata=metadata(s), childtype=childtype(s), kwargs...) where T<:DiskGeoStack =
+        metadata=metadata(s), childtype=childtype(s), kwargs=kwargs(s)) where T<:DiskGeoStack =
     basetypeof(T)(data, refdims, window, metadata, childtype, kwargs)
 
 getsource(s::DiskGeoStack, args...) = filename(s, args...)

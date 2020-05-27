@@ -15,6 +15,8 @@ struct NCDdimMetadata{K,V} <: DimMetadata{K,V}
 end
 
 
+const UNNAMED_NCD_KEY = "unnamed"
+
 # Utils ########################################################################
 
 ncread(f, path::String) = NCDatasets.Dataset(f, path)
@@ -53,7 +55,7 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
         md = metadata(dim)
         attribvec = [] #md isa Nothing ? [] : [val(md)...]
         defDim(dataset, key, length(index))
-        println("writing key: ", key, " of type: ", eltype(index))
+        println("Writing key: ", key, " of type: ", eltype(index))
         defVar(dataset, key, index, (key,); attrib=attribvec)
     end
     # TODO actually convert the metadata type
@@ -66,20 +68,28 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     pop!(attrib, "dataset", nothing)
     # Set missing value
     if !ismissing(missingval(A))
-        attrib["_FillValue"] = convert(T, missingval(A))
+        try
+            fv = convert(T, missingval(A))
+            attrib["_FillValue"] = fv
+        catch
+            @warn "`missingval` $(missingval(A)) was invalid for data of type $T."
+        end
     end
-    key = name(A)
-    println("writing key: ", key, " of type: ", T)
+    key = if name(A) == ""
+        UNNAMED_NCD_KEY
+    else
+        name(A) 
+    end
+    println("Writing key: ", key, " of type: ", T)
     dimnames = lowercase.(name.(dims(A)))
     attribvec = [attrib...]
     var = defVar(dataset, key, eltype(A), dimnames; attrib=attribvec)
 
     var[:] = data(A)
-
 end
 
 ncshiftindex(dim::Dimension) = ncshiftindex(mode(dim), dim)
-ncshiftindex(mode::Sampled, dim::Dimension) = begin
+ncshiftindex(mode::AbstractSampled, dim::Dimension) = begin
     if span(mode) isa Regular
         if dim isa TimeDim 
             if eltype(dim) isa Dates.AbstractDateTime
