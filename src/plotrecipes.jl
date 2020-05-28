@@ -22,8 +22,12 @@ using DimensionalData: refdims_title
 end
 
 # TODO generalise for any dimension order
-@recipe function f(A::GeoArray{T,3,<:Tuple{Vararg{Union{<:Lon,<:Lat,D}}}}) where {T,D}
-    permutedims(A, (Lat, Lon, D))
+@recipe function f(A::GeoArray{T,3}) where {T,D}
+    if all(hasdim(A, (Lat, Lon)))
+        permutedims(A, (Lat, Lon, Dimension))
+    else
+        error("Cannot plot 3 dimensional GeoArray without both Lat/Lon dims")
+    end
 end
 
 @recipe function f(A::GeoArray{T,2,<:Tuple{<:Lat,<:Lon}}) where T
@@ -37,6 +41,10 @@ end
     lon, lat, data(A)
 end
 
+@recipe function f(A::GeoArray{T,2,<:Tuple{<:Lon,<:Lat}}) where T
+    permutedims(A)
+end
+
 @recipe function f(A::AbstractGeoArray)
     GeoArray(A)
 end
@@ -48,10 +56,6 @@ maybe_reproject(mode::Projected, dim::Dimension) =
 maybe_reproject(crs, usercrs, dim::Dimension) = val(dim)
 maybe_reproject(crs::GeoFormat, usercrs::GeoFormat, dim::Dimension) =
     reproject(crs, usercrs, dim, val(dim))
-
-@recipe function f(A::GeoArray{T,2,<:Tuple{<:Lon,<:Lat}}) where T
-    permutedims(A)
-end
 
 prepare(A) = A |> forwardorder |> maybenanmissing
 
