@@ -54,19 +54,19 @@ dims(grd::GrdAttrib, usercrs=nothing) = begin
 
     latmode = Projected(
         order=Ordered(Forward(), Reverse(), Reverse()),
+        span=Regular(yspan),
+        sampling=Intervals(Start()),
+        crs=crs,
+        usercrs=usercrs,
+    )
+    lonmode = Projected(
+        order=Ordered(),
         span=Regular(xspan),
         sampling=Intervals(Start()),
         crs=crs,
         usercrs=usercrs,
     )
     lat = Lat(LinRange(ybounds[1], ybounds[2] - yspan, nrows), latmode, latlon_metadata)
-    lonmode = Projected(
-        order=Ordered(),
-        span=Regular(yspan),
-        sampling=Intervals(Start()),
-        crs=crs,
-        usercrs=usercrs,
-    )
     lon = Lon(LinRange(xbounds[1], xbounds[2] - xspan, ncols), lonmode, latlon_metadata)
     band = Band(1:nbands; mode=Categorical(Ordered()))
     lon, lat, band
@@ -83,7 +83,14 @@ metadata(grd::GrdAttrib, args...) = begin
     metadata
 end
 
-missingval(grd::GrdAttrib{T}) where T = parse(T, grd.attrib["nodatavalue"])
+missingval(grd::GrdAttrib{T}) where T = begin
+    mv = try 
+        parse(T, grd.attrib["nodatavalue"])
+    catch
+        @warn "No data value from GDAL $(missingval) is not convertible to data type $T. `missingval` set to NaN."
+        missing
+    end
+end
 
 name(grd::GrdAttrib) = get(grd.attrib, "layername", "")
 
@@ -185,7 +192,7 @@ Base.write(filename::String, ::Type{<:GrdArray}, A::AbstractGeoArray) = begin
     ncols, nrows = size(A)
     xmin, xmax = bounds(dims(A, Lon))
     ymin, ymax = bounds(dims(A, Lat))
-    proj = convert(String, crs(dims(A, Lat)))
+    proj = convert(String, convert(ProjString, crs(dims(A, Lat))))
     datatype = rev_datatype_translation[eltype(A)]
     nodatavalue = missingval(A)
     minvalue = minimum(filter(x -> x != missingval(A), data(A)))

@@ -3,7 +3,6 @@ using .HDF5
 export SMAPstack, SMAPseries, SMAPmetadata, SMAPdimMetadata
 
 const SMAPMISSING = -9999.0
-const SMAPEXTENT = "Metadata/Extent"
 const SMAPGEODATA = "Geophysical_Data"
 const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
@@ -56,6 +55,7 @@ struct SMAParray end
 
 # SMAP has fixed dims for all layers, so we store them on the stack.
 dims(stack::SMAPstack, key::Key...) = stack.dims
+dims(stack::SMAPstack, dim) = dims(dims(stack), dim)
 refdims(stack::SMAPstack) = stack.refdims
 metadata(stack::SMAPstack) = stack.metadata
 missingval(stack::SMAPstack, key::Key...) = SMAPMISSING
@@ -166,14 +166,15 @@ smapdims(dataset::HDF5.HDF5File) = begin
     if proj == "lambert_cylindrical_equal_area"
         # There are matrices for lookup but all rows/colums are identical.
         # For performance and simplicity we just take a vector slice for each dim.
-        extent = attrs(root(dataset)[SMAPEXTENT])
+        extent = attrs(root(dataset)["Metadata/Extent"])
         lonbounds = extent["westBoundLongitude"], extent["eastBoundLongitude"]
         latbounds = extent["northBoundLatitude"], extent["southBoundLatitude"]
         latvec = read(root(dataset)["cell_lat"])[1, :]
         lonvec = read(root(dataset)["cell_lon"])[:, 1]
-        lonmode = Sampled(Ordered(), Irregular(lonbounds), Intervals(Center()))
-        latmode = Sampled(Ordered(Reverse(), Reverse(), Forward()),
-                          Irregular(latbounds), Intervals(Center()))
+        lonmode = Converted(Ordered(), Irregular(lonbounds),
+                            Intervals(Center()), SMAPCRS, EPSG(4326))
+        latmode = Converted(Ordered(Reverse(), Reverse(), Forward()), Irregular(latbounds),
+                            Intervals(Center()), SMAPCRS, EPSG(4326))
         (Lon(lonvec; mode=lonmode), Lat(latvec; mode=latmode))
     else
         error("projection $proj not supported")

@@ -1,12 +1,12 @@
-using NCDatasets, GeoData, Test, Statistics, Dates, CFTime, Plots
-using GeoData: window, name, mode
+using NCDatasets, ArchGDAL, GeoData, Test, Statistics, Dates, CFTime, Plots, GeoFormatTypes
+using GeoData: name, window, mode, span, sampling
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = geturl(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
 ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
 
-@testset "NCarray" begin
+@testset "NCDarray" begin
     ncarray = NCDarray(ncsingle)
 
     @testset "array properties" begin
@@ -19,6 +19,11 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         @test length.(val.(dims(ncarray))) == (180, 170, 24)
         @test dims(ncarray) isa Tuple{<:Lon,<:Lat,<:Ti}
         @test refdims(ncarray) == ()
+        # TODO detect the time span, and make it Regular
+        @test mode.(dims(ncarray)) == 
+            (Projected(Ordered(), Regular(2.0), Intervals(Center()), EPSG(4326), nothing),
+             Projected(Ordered(), Regular(1.0), Intervals(Center()), EPSG(4326), nothing),
+             Sampled(Ordered(), Irregular((DateTime360Day(2001, 1, 16), DateTime360Day(2003, 01, 16))), Intervals(Start())))
         @test bounds(ncarray) == ((0.0, 360.0), (-80.0, 90.0), (DateTime360Day(2001, 1, 16), DateTime360Day(2003, 1, 16)))
     end
 
@@ -58,25 +63,50 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
     end
 
     @testset "save" begin
-        # TODO save and load subset
-        geoarray = GeoArray(ncarray)
-        metadata(geoarray)
-        @test size(geoarray) == size(ncarray)
-        filename = tempname()
-        write(filename, NCDarray, geoarray)
-        saved = GeoArray(NCDarray(filename))
-        @test size(saved) == size(geoarray)
-        @test refdims(saved) == refdims(geoarray)
-        @test missingval(saved) === missingval(geoarray)
-        @test_broken metadata(saved) == metadata(geoarray)
-        @test GeoData.name(saved) == GeoData.name(geoarray)
-        @test_broken all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
-        @test all(mode.(dims(saved)) .== mode.(dims(geoarray)))
-        @test dims(saved) isa typeof(dims(geoarray))
-        @test val(dims(saved)[3]) == val(dims(geoarray)[3])
-        @test all(val.(dims(saved)) .== val.(dims(geoarray)))
-        @test all(data(saved) .=== data(geoarray))
-        @test saved isa typeof(geoarray)
+        @testset "to netcdf" begin
+            # TODO save and load subset
+            geoarray = GeoArray(ncarray)
+            metadata(geoarray)
+            @test size(geoarray) == size(ncarray)
+            filename = tempname()
+            write(filename, NCDarray, geoarray)
+            saved = GeoArray(NCDarray(filename))
+            @test size(saved) == size(geoarray)
+            @test refdims(saved) == refdims(geoarray)
+            @test missingval(saved) === missingval(geoarray)
+            @test_broken metadata(saved) == metadata(geoarray)
+            @test GeoData.name(saved) == GeoData.name(geoarray)
+            @test_broken all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
+            @test all(mode.(dims(saved)) .== mode.(dims(geoarray)))
+            @test dims(saved) isa typeof(dims(geoarray))
+            @test val(dims(saved)[3]) == val(dims(geoarray)[3])
+            @test all(val.(dims(saved)) .== val.(dims(geoarray)))
+            @test all(data(saved) .=== data(geoarray))
+            @test saved isa typeof(geoarray)
+            # TODO test crs
+        end
+        @testset "to gdal" begin
+            nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
+            write("testgdal.tif", GDALarray, nccleaned)
+            gdalarray = GDALarray("testgdal.tif")
+            # gdalarray WKT is missing one AUTHORITY
+            @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
+            # But the Proj representation is the same
+            @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
+            @test val(dims(gdalarray, Lat)) ≈ val(dims(nccleaned, Lat))
+            @test val(dims(gdalarray, Lon)) ≈ val(dims(nccleaned, Lon))
+            @test GeoArray(gdalarray) ≈ nccleaned
+        end
+        @testset "to grd" begin
+            nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
+            write("testgrd", GrdArray, nccleaned)
+            grdarray = GrdArray("testgrd");
+            @test crs(grdarray) == convert(ProjString, EPSG(4326))
+            @test bounds(grdarray) == (bounds(nccleaned)..., (1, 1))
+            @test val(dims(grdarray, Lat)) ≈ val(dims(nccleaned, Lat)) .- 0.5
+            @test val(dims(grdarray, Lon)) ≈ val(dims(nccleaned, Lon)) .- 1.0
+            @test GeoArray(grdarray) ≈ reverse(nccleaned; dims=Lat)
+        end
     end
 
     @testset "plot" begin
@@ -176,8 +206,8 @@ end
 
 end
 
-@testset "series" begin
-    series = GeoSeries([ncmulti, ncmulti], (Ti,); 
+@testset "NCD series" begin
+    series = GeoSeries([ncmulti, ncmulti], (Ti,);
                        childtype=NCDstack, name="test")
     geoarray = GeoArray(NCDarray(ncmulti, :albedo; name="test"))
     @test series[Ti(1)][:albedo] == geoarray

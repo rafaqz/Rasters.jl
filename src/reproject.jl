@@ -15,14 +15,41 @@ sel2indices(mode::Projected, dim::Dimension, sel::Between) = begin
     DD.between(dim, rebuild(sel, selval))
 end
 
+"""
+`reproject` uses ArchGDAL.reproject, but implemented for a reprojecting 
+a single dimension at a time.
+"""
 reproject(source, target, dim::Dimension, val) = val
-
 reproject(source::GeoFormat, target::GeoFormat, dim::Lon, val::Number) =
-    ArchGDAL.reproject([(zero(val), val)], source, target)[1][1]
+    ArchGDAL.reproject((Float64(val), 0.0), source, target; order=:trad)[1]
 reproject(source::GeoFormat, target::GeoFormat, dim::Lat, val::Number) =
-    ArchGDAL.reproject([(val, zero(val))], source, target)[1][2]
+    ArchGDAL.reproject((0.0, Float64(val)), source, target; order=:trad)[2]
 
 reproject(source::GeoFormat, target::GeoFormat, ::Lon, vals::AbstractArray) =
-    [r[2] for r in ArchGDAL.reproject([(v, 0.0) for v in vals], source, target)]
+    [r[1] for r in ArchGDAL.reproject([(Float64(v), 0.0) for v in vals], source, target; order=:trad)]
 reproject(source::GeoFormat, target::GeoFormat, dim::Lat, vals::AbstractArray) =
-    [r[1] for r in ArchGDAL.reproject([(0.0, v) for v in vals], source, target)]
+    [r[2] for r in ArchGDAL.reproject([(0.0, Float64(v)) for v in vals], source, target; order=:trad)]
+
+reproject(source::GeoFormat, target::GeoFormat, ::Lon, vals::Tuple) =
+    Tuple(r[1] for r in ArchGDAL.reproject([(Float64(v), 0.0) for v in vals], source, target; order=:trad))
+reproject(source::GeoFormat, target::GeoFormat, dim::Lat, vals::Tuple) =
+    Tuple(r[2] for r in ArchGDAL.reproject([(0.0, Float64(v)) for v in vals], source, target; order=:trad))
+
+
+convertmode(dstmode::Type{<:IndexMode}, dim::Dimension) = 
+    convertmode(dstmode, basetypeof(mode(dim)), dim)
+convertmode(dstmode::Type{M}, srcmode::Type{M}, dim) where M = dim
+convertmode(dstmode::Type{Converted}, srcmode::Type{Projected}, dim) where M = begin
+    m = mode(dim)
+    newval = reproject(crs(m), usercrs(m), dim, val(dim))
+    newbounds = reproject(crs(m), usercrs(m), dim, bounds(dim))
+    newmode = Converted(order(m), Irregular(newbounds), sampling(m), crs(m), usercrs(m))
+    rebuild(dim; val=newval, mode=newmode)
+end
+convertmode(dstmode::Type{Projected}, srcmode::Type{Converted}, dim) where M = begin
+    m = mode(dim)
+    start, stop = reproject(dimcrs(m), crs(m), dim, [first(dim), last(dim)])
+    newval = LinRange(start, stop, length(dim))
+    newmode = Projected(order(m), Regular(step(newval)), sampling(m), crs(m), dimcrs(m))
+    rebuild(dim; val=newval, mode=newmode)
+end

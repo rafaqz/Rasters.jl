@@ -24,7 +24,7 @@ using DimensionalData: Forward, Reverse, formatdims, slicedims, basetypeof,
       dims2indices, indexorder, arrayorder, relationorder, StandardIndices, isrev
 
 import DimensionalData: val, data, dims, refdims, metadata, rebuild, rebuildsliced,
-                        name, label, units, bounds, sel2indices, mode, 
+                        name, label, units, bounds, sel2indices, mode,
                         order, locus, span, sampling, forwardorder
 
 export Metadata, ArrayMetadata, DimMetadata
@@ -35,7 +35,7 @@ export AbstractGeoStack, GeoStack
 
 export AbstractGeoSeries, GeoSeries
 
-export Projected
+export Projected, Converted, LatLon
 
 export missingval, boolmask, missingmask, replace_missing, aggregate, aggregate!, crs, usercrs
 
