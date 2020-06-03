@@ -1,4 +1,4 @@
-using ArchGDAL, GeoData, Test, Statistics, Dates, Plots
+using ArchGDAL, GeoData, Test, Statistics, Dates, Plots, NCDatasets
 using GeoData: window, mode, span, sampling
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
@@ -20,7 +20,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test length(val(dims(dims(gdalarray), Lon))) == 514
         @test ndims(gdalarray) == 3
         @test dims(gdalarray) isa Tuple{<:Lon,<:Lat,<:Band}
-        @test mode(dims(gdalarray, Band)) == Categorical(Ordered())
+        @test mode(dims(gdalarray, Band)) == DimensionalData.Categorical(Ordered())
         @test span.(mode.(dims(gdalarray, (Lat, Lon)))) == 
             (Regular(-60.02213698319351), Regular(60.02213698319374))
         @test sampling.(mode.(dims(gdalarray, (Lat, Lon)))) == 
@@ -161,7 +161,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
     @testset "plot" begin
         # TODO write some tests for this
         gdalarray |> plot
-        savefig("plot.png")
+        #savefig("plot.png")
     end
 
 end

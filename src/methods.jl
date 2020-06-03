@@ -4,7 +4,9 @@
 Replace missing values in the array with a new missing value, also
 updating the `missingval` field.
 """
-function replace_missing(a::AbstractGeoArray, newmissing=missing)
+replace_missing(a::DiskGeoArray, args...) = 
+    replace_missing(GeoArray(a), args...)
+replace_missing(a::MemGeoArray, newmissing=missing) = begin
     newdata = if ismissing(missingval(a))
         collect(Missings.replace(data(a), newmissing))
     else

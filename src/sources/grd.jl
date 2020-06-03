@@ -85,7 +85,7 @@ end
 
 missingval(grd::GrdAttrib{T}) where T = begin
     mv = try 
-        parse(Number, grd.attrib["nodatavalue"])
+        parse(T, grd.attrib["nodatavalue"])
     catch
         @warn "No data value from GDAL $(missingval) is not convertible to data type $T. `missingval` set to NaN."
         missing
@@ -220,7 +220,7 @@ Base.write(filename::String, ::Type{<:GrdArray}, A::AbstractGeoArray) = begin
             projection= $proj
             [data]
             datatype= $datatype
-            nodatavalue= 
+            nodatavalue= $nodatavalue
             byteorder= little
             nbands= $nbands
             minvalue= $minvalue
