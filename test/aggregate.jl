@@ -26,7 +26,8 @@ data1 = [ 1  2  3  4  5  6 -1
 data2 = 2 * data1
 data3 = 3 * data1
 data4 = 4 * data1
-dimz = Lon([30, 40, 50]), Lat(LinRange(-10, 24, 7))
+dimz = Lon([30., 40., 50.]; mode=Sampled(Ordered(), Regular(10.0), Points())), 
+       Lat(LinRange(-10., 20., 7); mode=Sampled(Ordered(), Regular(5.0), Points()))
 array1 = GeoArray(data1, dimz)
 array2 = GeoArray(data2, dimz)
 array1a = GeoArray(data3, dimz)
@@ -39,22 +40,70 @@ series = GeoSeries([stack1, stack2], (Ti(dates),));
 @testset "Aggregate a dimension" begin
     lat = Lat(LinRange(3, 13, 6); 
               mode=Sampled(Ordered(), Regular(2.0), Intervals(Start())))
-    rebuiltlat = aggregate(Start(), lat, 3)
-    @test span(mode(rebuiltlat)) == Regular(6.0)
+    aglat = aggregate(Start(), lat, 3)
+    @test span(mode(aglat)) == Regular(6.0)
+    @test disaggregate(Start(), aglat, 3) == lat
+
+    aglon = aggregate(Start(), dimz[1], 3)
+    @test step(mode(aglon)) === 30.0
+    @test val(aglon) == [30.0]
+    disaglon = disaggregate(Start(), aglon, 3)
+    @test val(disaglon) == val(dimz[1])
+    @test step(disaglon) == step(dimz[1])
+    @test mode(disaglon) == mode(dimz[1])
+
+    aglat = aggregate(Start(), dimz[2], 3)
+    @test step(mode(aglat)) === 15.0
+    @test val(aglat) == LinRange(-10.0, 5.0, 2)
+    disaglat = disaggregate(Start(), aglat, 3)
+    # The last item is lost due to rounding in `aggregate`
+    @test val(disaglat) != val(dimz[2])
+    @test val(disaglat) === LinRange(-10.0, 15.0, 6)
+    @test step(disaglat) == step(dimz[2])
+    @test mode(disaglat) == mode(dimz[2])
 end
 
-@testset "Aggregate at a locus" begin
+@testset "aggregate and disagregate at a locus" begin
     @testset "single scale single locus" begin
         scale = 3
-        @test aggregate(Start(), array1, scale) == [1 4]
-        @test aggregate(Center(), array1, scale) == [8 11]
-        @test aggregate(End(), array1, scale) == [15 18]
-        @test aggregate(Start(), stack1, scale)[:array2] == [2 8]
+        array1_aggstart = aggregate(Start(), array1, scale) 
+        @test array1_aggstart == [1 4]
+        @test length.(dims(array1_aggstart)) == size(array1_aggstart)
+        array1_disagstart = disaggregate(Start(), array1_aggstart, scale) 
+        disaggstart = 
+            [1 1 1 4 4 4 
+             1 1 1 4 4 4
+             1 1 1 4 4 4]
+        @test array1_disagstart == disaggstart
+        array1_aggcenter = aggregate(Center(), array1, scale)
+        @test array1_aggcenter == [8 11]
+        array1_disagcenter = disaggregate(Center(), array1_aggcenter, scale)
+        disaggcenter = 
+            [8 8 8 11 11 11 
+             8 8 8 11 11 11
+             8 8 8 11 11 11]
+        @test array1_disagcenter == disaggcenter
+        array1_aggend = aggregate(End(), array1, scale) 
+        @test array1_aggend == [15 18]
+        array1_disaggend = disaggregate(End(), array1_aggend, scale)
+        @test array1_disaggend == 
+            [15 15 15 18 18 18 
+             15 15 15 18 18 18
+             15 15 15 18 18 18]
+
+        stack1_aggstart = aggregate(Start(), stack1, scale)
+        @test stack1_aggstart[:array2] == [2 8]
+        stack1_disaggstart = disaggregate(Start(), stack1_aggstart, scale)
+        @test stack1_disaggstart[:array1] == disaggstart 
         @test aggregate(Center(), stack1, scale)[:array2] == [16 22]
-        @test aggregate(Start(), series, scale)[2][:array2] == [4 16]
+        series_aggcenter = aggregate(Center(), series, scale)
+        @test series_aggcenter[2][:array2] == [32 44]
+        series_disaggstart = disaggregate(Center(), series_aggstart, scale)
+        @test series_disaggstart[2][:array2] == 
+            [32 32 32 44 44 44
+             32 32 32 44 44 44
+             32 32 32 44 44 44]
         @test typeof(aggregate(Start(), series, scale)) <: GeoSeries
-        A = aggregate(Start(), array1, scale)
-        @test length.(dims(A)) == size(A)
     end
 
     @testset "mixed scales" begin
@@ -76,8 +125,13 @@ end
     end
 
     @testset "dim scale" begin
-        @test aggregate(Start(), array1, (Lat(3), Lon(1))) == 
-            aggregate(Start(), array1, (1, 3))
+        agg = aggregate(Start(), array1, (Lat(3), Lon(1))) 
+        @test agg == aggregate(Start(), array1, (1, 3))
+        disagg = disaggregate(Start(), agg, (Lat(3), Lon(1))) 
+        @test disagg ==
+            [1  1  1  4  4  4
+             7  7  7 10 10 10
+            13 13 13 16 16 16]
         @test aggregate(Start(), array1, (Lon(1), Lat(Near(-4)))) == 
             aggregate(Start(), array1, (1, 2))
     end

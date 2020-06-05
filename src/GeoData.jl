@@ -37,7 +37,8 @@ export AbstractGeoSeries, GeoSeries
 
 export Projected, Converted, LatLon
 
-export missingval, boolmask, missingmask, replace_missing, aggregate, aggregate!, crs, usercrs
+export missingval, boolmask, missingmask, replace_missing, 
+       aggregate, aggregate!, disaggregate, disaggregate!, crs, usercrs
 
 export Lon, Lat, Vert, Band
 
