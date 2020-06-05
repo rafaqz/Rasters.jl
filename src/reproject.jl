@@ -53,3 +53,15 @@ convertmode(dstmode::Type{Projected}, srcmode::Type{Converted}, dim) where M = b
     newmode = Projected(order(m), Regular(step(newval)), sampling(m), crs(m), dimcrs(m))
     rebuild(dim; val=newval, mode=newmode)
 end
+
+userbounds(A) = userbounds(dims(A)) 
+userbounds(dims::Tuple) = map(userbounds, dims) 
+userbounds(dim::Dimension) = bounds(dim)
+userbounds(dim::Union{Lat,Lon}) = 
+    reproject(crs(dim), usercrs(dim), dim, bounds(dim)) 
+
+userval(A) = userbounds(dims(A)) 
+userval(dims::Tuple) = map(userbounds, dims) 
+userval(dim::Dimension) = bounds(dim)
+userval(dim::Union{Lat,Lon}) = 
+    reproject(crs(dim), usercrs(dim), dim, val(dim)) 
