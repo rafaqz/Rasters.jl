@@ -9,9 +9,9 @@ readwindowed(A::AbstractGeoArray, window::Tuple{}) = GeoArray(A)
 readwindowed(A, window::Tuple{}) = Array(A)
 readwindowed(A, window::Tuple{}, I...) = A[I...]
 readwindowed(A, window::Tuple, I...) = A[Base.reindex(window, I)...]
-readwindowed(A, window::Tuple) = A[window...]
+readwindowed(A, window::Tuple) = readwindowed(A, window...)
+readwindowed(A, i, I...) = A[i, I...]
 readwindowed(A) = Array(A)
-readwindowed(A, I...) = A[I...]
 
 getmeta(A::AbstractGeoArray, key, fallback) = getmeta(metadata(A), key, fallback)
 getmeta(m::Nothing, key, fallback) = fallback
@@ -34,10 +34,8 @@ shiftindexloci(::IndexMode, dim::Dimension, ::Locus) =
     val(dim)
 shiftindexloci(mode::AbstractSampled, dim::Dimension, locus::Locus) =
     shiftindexloci(span(mode), sampling(mode), dim, locus)
-shiftindexloci(span::Span, sampling::Sampling, dim::Dimension, ::Locus) = begin
-    println(typeof(span), typeof(sampling))
+shiftindexloci(span::Span, sampling::Sampling, dim::Dimension, ::Locus) =
     val(dim)
-end
 # We only actually shift Regular Intervals.
 shiftindexloci(span::Regular, sampling::Intervals, dim::Dimension, destlocus::Locus) =
     val(dim) .+ step(span) * offset(locus(sampling), destlocus)

@@ -48,7 +48,6 @@ end
     :colorbar_title --> name(A)
     :title --> refdims_title(A)
     lat, lon = map(val, maybe_reproject(dims(A)))
-    println(map(typeof, (lon, lat, parent(A))))
     lon, lat, parent(A)
 end
 
