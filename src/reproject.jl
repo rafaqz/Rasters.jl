@@ -36,17 +36,21 @@ reproject(source::GeoFormat, target::GeoFormat, dim::Lat, vals::Tuple) =
     Tuple(r[2] for r in ArchGDAL.reproject([(0.0, Float64(v)) for v in vals], source, target; order=:trad))
 
 
+convertmode(dstmode::Type{<:IndexMode}, A::AbstractArray) = 
+    rebuild(A, data(A), convertmode(dstmode, dims(A)))
+convertmode(dstmode::Type{<:IndexMode}, dims::Tuple) = 
+    map(d -> convertmode(dstmode, d), dims)
 convertmode(dstmode::Type{<:IndexMode}, dim::Dimension) = 
     convertmode(dstmode, basetypeof(mode(dim)), dim)
-convertmode(dstmode::Type{M}, srcmode::Type{M}, dim) where M = dim
-convertmode(dstmode::Type{Converted}, srcmode::Type{Projected}, dim) where M = begin
+convertmode(dstmode::Type{M}, srcmode::Type{M}, dim::Dimension) where M = dim
+convertmode(dstmode::Type{Converted}, srcmode::Type{Projected}, dim::Dimension) where M = begin
     m = mode(dim)
     newval = reproject(crs(m), usercrs(m), dim, val(dim))
     newbounds = reproject(crs(m), usercrs(m), dim, bounds(dim))
     newmode = Converted(order(m), Irregular(newbounds), sampling(m), crs(m), usercrs(m))
     rebuild(dim; val=newval, mode=newmode)
 end
-convertmode(dstmode::Type{Projected}, srcmode::Type{Converted}, dim) where M = begin
+convertmode(dstmode::Type{Projected}, srcmode::Type{Converted}, dim::Dimension) where M = begin
     m = mode(dim)
     start, stop = reproject(dimcrs(m), crs(m), dim, [first(dim), last(dim)])
     newval = LinRange(start, stop, length(dim))

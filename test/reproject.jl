@@ -51,4 +51,9 @@ end
     projectedlat = convertmode(Projected, convertedlat)
     @test val(projectedlat) ≈ val(lat)
     @test all(bounds(projectedlat) .≈ bounds(lat))
+
+    A = DimArray(zeros(length(lon), length(lat)), (lon, lat))
+    Aconv = convertmode(Converted, A)
+
+    @test dims(Aconv) == (convertedlon, convertedlat)
 end

@@ -96,10 +96,11 @@ end
         stack1_disaggstart = disaggregate(Start(), stack1_aggstart, scale)
         @test stack1_disaggstart[:array1] == disaggstart 
         @test aggregate(Center(), stack1, scale)[:array2] == [16 22]
+
         series_aggcenter = aggregate(Center(), series, scale)
         @test series_aggcenter[2][:array2] == [32 44]
-        series_disaggstart = disaggregate(Center(), series_aggstart, scale)
-        @test series_disaggstart[2][:array2] == 
+        series_disaggcenter = disaggregate(Center(), series_aggcenter, scale)
+        @test series_disaggcenter[2][:array2] == 
             [32 32 32 44 44 44
              32 32 32 44 44 44
              32 32 32 44 44 44]
