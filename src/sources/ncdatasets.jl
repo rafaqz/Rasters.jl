@@ -161,12 +161,13 @@ NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
          dims=nothing,
          name=nothing,
          metadata=nothing,
-         usercrs=nothing,
+         crs=EPSG(4326),
+         dimcrs=nothing,
         ) = begin
     keys_ = nondimkeys(dataset)
     key = key isa Nothing || !(string(key) in keys_) ? first(keys_) : string(key)
     var = dataset[key]
-    dims = dims isa Nothing ? GeoData.dims(dataset, key, usercrs) : dims
+    dims = dims isa Nothing ? GeoData.dims(dataset, key, crs, dimcrs) : dims
     name = name isa Nothing ? string(key) : name
     metadata_ = metadata isa Nothing ? GeoData.metadata(var, GeoData.metadata(dataset)) : metadata
     missingval = missing
@@ -212,12 +213,11 @@ end
 
 # Stack ########################################################################
 
-struct NCDstack{T,R,W,M,U,K} <: DiskGeoStack{T}
+struct NCDstack{T,R,W,M,K} <: DiskGeoStack{T}
     filename::T
     refdims::R
     window::W
     metadata::M
-    usercrs::U
     kwargs::K
 end
 
@@ -276,12 +276,13 @@ NCDstack(filename::AbstractString;
          refdims=(),
          window=(),
          metadata=ncread(metadata, filename),
-         usercrs=nothing,
          kwargs...) =
-    NCDstack(filename, refdims, window, metadata, usercrs, kwargs)
+    NCDstack(filename, refdims, window, metadata, kwargs)
 
 childtype(::NCDstack) = NCDarray
-usercrs(stack::NCDarray) = stack.usercrs
+kwargs(stack::NCDstack) = stack.kwargs
+crs(stack::NCDarray) = get(kwargs(stack), :crs, EPSG(4326))
+dimcrs(stack::NCDarray) = get(kwargs(stack), :dimcrs, nothing)
 
 # AbstractGeoStack methods
 
@@ -290,8 +291,9 @@ withsourcedata(f, ::Type{NCDarray}, path::AbstractString, key) =
     ncread(d -> f(d[string(key)]), path)
 
 # Override the default to get the dims of the specific key,
-# and pass the usercrs from the stack
-dims(stack::NCDstack, dataset, key::Key) = dims(dataset, key, usercrs(stack))
+# and pass the crs and dimscrs from the stack
+dims(stack::NCDstack, dataset, key::Key) = 
+    dims(dataset, key, crs(stack), dimcrs(stack))
 
 missingval(stack::NCDstack) = missing
 
@@ -319,7 +321,7 @@ end
 
 # DimensionalData methods for NCDatasets types ###############################
 
-dims(dataset::NCDatasets.Dataset, key::Key, usercrs=nothing) = begin
+dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
     v = dataset[string(key)]
     dims = []
     for (i, dimname) in enumerate(NCDatasets.dimnames(v))
@@ -329,7 +331,7 @@ dims(dataset::NCDatasets.Dataset, key::Key, usercrs=nothing) = begin
             # the generic Dim with the dim name as type parameter
             dimtype = get(dimmap, dimname, Dim{Symbol(dimname)})
             index = dvar[:]
-            mode = _ncdmode(index, dimtype)
+            mode = _ncdmode(index, dimtype, crs, dimcrs)
             meta = metadata(dvar)
 
             # Add the dim containing the dimension var array
@@ -343,38 +345,36 @@ dims(dataset::NCDatasets.Dataset, key::Key, usercrs=nothing) = begin
     (dims...,)
 end
 
-_ncdmode(index, dimtype) = begin
+_ncdmode(index::AbstractArray{<:Number}, dimtype, crs, dimcrs) = begin
     # Assume the locus is at the center of the cell if boundaries aren't provided.
     # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
     # Unless its a time dimension.
-    if eltype(index) <: Number
-        order = _ncdorder(index)
-        span = _ncdspan(index, order)
-        sampling = Intervals((dimtype <: TimeDim) ? Start() : Center())
-        if dimtype in (Lat, Lon)
-            Projected(order, span, sampling, EPSG(4326), nothing)
-        else
-            Sampled(order, span, sampling)
-        end
-    elseif eltype(index) <: Dates.AbstractTime
-        order = _ncdorder(index)
-        span = Irregular(
-            if length(index) > 1
-                if isrev(indexorder(order))
-                    index[end], index[1] + (index[1] - index[2])
-                else
-                    index[1], index[end] + (index[end] - index[end - 1])
-                end
-            else
-                index[1], index[1]
-            end
-        )
-        sampling = Intervals(Start())
-        Sampled(order, span, sampling)
+    order = _ncdorder(index)
+    span = _ncdspan(index, order)
+    sampling = Intervals((dimtype <: TimeDim) ? Start() : Center())
+    if dimtype in (Lat, Lon)
+        Converted(order, span, sampling, crs, dimcrs)
     else
-        Categorical()
+        Sampled(order, span, sampling)
     end
 end
+_ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, crs, dimcrs) = begin
+    order = _ncdorder(index)
+    span = Irregular(
+        if length(index) > 1
+            if isrev(indexorder(order))
+                index[end], index[1] + (index[1] - index[2])
+            else
+                index[1], index[end] + (index[end] - index[end - 1])
+            end
+        else
+            index[1], index[1]
+        end
+    )
+    sampling = Intervals(Start())
+    Sampled(order, span, sampling)
+end
+_ncdmode(index, dimtype, crs, dimcrs) = Categorical()
 
 _ncdorder(index) = index[end] > index[1] ? Ordered(Forward(), Forward(), Forward()) :
                                            Ordered(Reverse(), Forward(), Reverse())
@@ -400,6 +400,15 @@ _ncdspan(index, order) = begin
     return Regular(step)
 end
 
+# readwindowed(A::NCDatasets.CFVariable) = readwindowed(A, axes(A)...)
+# readwindowed(A::NCDatasets.CFVariable, i, I...) = begin
+#     var = A.var
+#     indices = to_indices(var, (i, I...))
+#     shape = Base.index_shape(indices...)
+#     dest = Array{eltype(var),length(shape)}(undef, map(length, shape)...)
+#     NCDatasets.load!(var, dest, indices...)
+#     dest
+# end
 
 metadata(dataset::NCDatasets.Dataset) = NCDstackMetadata(Dict{String,Any}(dataset.attrib))
 metadata(dataset::NCDatasets.Dataset, key::Key) = metadata(dataset[string(key)])
@@ -411,3 +420,109 @@ metadata(var::NCDatasets.CFVariable, stackmetadata::NCDstackMetadata) = begin
 end
 
 missingval(var::NCDatasets.CFVariable) = missing
+
+# https://trac.osgeo.org/gdal/wiki/NetCDF_ProjectionTestingStatus
+
+# const cf_proj_params = Dict(
+#     "false_easting" => "+x_0",
+#     "false_northing" => "+y_0",
+#     "scale_factor_at_projection_origin" => "+k_0",
+#     "scale_factor_at_central_meridian" => "+k_0",
+#     "standard_parallel[1]" => "+lat_1",
+#     "standard_parallel[2]" => "+lat_2",
+#     "longitude_of_central_meridian" => "+lon_0",
+#     "longitude_of_projection_origin" => "+lon_0",
+#     "latitude_of_projection_origin" => "+lat_0",
+#     "straight_vertical_longitude_from_pole" => "+lon_0",
+# )
+
+# const cf_proj_projections = Dict(
+#     "albers_conical_equal_area" => "+proj=aea",
+#     "azimuthal_equidistant" => "+proj=aeqd",
+#     "lambert_azimuthal_equal_area" => "+proj=laea",
+#     "lambert_conformal_conic" => "+proj=lcc",
+#     "lambert_cylindrical_equal_area" => "+proj=cea",
+#     "mercator" => "+proj=merc",
+#     "orthographic" => "+proj=ortho",
+#     "polar_stereographic" => "+proj=stere",
+#     "stereographic" => "+proj=stere",
+#     "transverse_mercator" => "+proj=tmerc",
+# )
+# const proj_cf_projections = Dict(Pair.(values(cf_proj_projections), collect(keys(cf_proj_projections))))
+
+
+# const projections_params = ( 
+#     albers_conical_equal_area = (
+#         "standard_parallel[1]",
+#         "standard_parallel[2]",
+#         "longitude_of_central_meridian",
+#         "latitude_of_projection_origin",
+#         "false_easting",
+#         "false_northing",
+#     ),
+#     azimuthal_equidistant = (
+#         "longitude_of_projection_origin",
+#         "latitude_of_projection_origin",
+#         "false_easting",
+#         "false_northing",
+#     ),
+#     lambert_azimuthal_equal_area = (
+#         "longitude_of_projection_origin",
+#         "latitude_of_projection_origin",
+#         "false_easting",
+#         "false_northing",
+#     ),
+#     lambert_conformal_conic = (
+#         ("standard_parallel", ["standard_parallel[1]", "standard_parallel[2]"])
+#         "longitude_of_central_meridian",
+#         "latitude_of_projection_origin",
+#         "false_easting",
+#         "false_northing",
+#     ),
+#     lambert_conformal_conic = (
+#         "longitude_of_central_meridian",
+#         "latitude_of_projection_origin",
+#         "false_easting",
+#         "false_northing",
+#     ),
+#     lambert_cylindrical_equal_area = (
+#         "longitude_of_central_meridian",
+#         "standard_parallel[1]",
+#         "false_easting",
+#         "false_northing",
+#     ),
+#     mercator = (
+#         "longitude_of_projection_origin",
+#         ("scale_factor_at_projection_origin", "standard_parallel[1]"),
+#         "false_easting",
+#         "false_northing",
+#     ),
+#     orthographic = (
+#         "longitude_of_projection_origin",
+#         "latitude_of_projection_origin",
+#         "false_easting",
+#         "false_northing",
+#     ),
+#     polar_stereographic = (
+#         "straight_vertical_longitude_from_pole ",
+#         "latitude_of_projection_origin",
+#         ("scale_factor_at_projection_origin", "standard_parallel")
+#         "false_easting",
+#         "false_northing",
+#     ),
+#     stereographic = (
+#         "longitude_of_projection_origin",
+#         "latitude_of_projection_origin",
+#         "scale_factor_at_projection_origin",
+#         "false_easting",
+#         "false_northing",
+#     ),
+#     transverse_mercator = (
+#         "scale_factor_at_central_meridian",
+#         "longitude_of_central_meridian",
+#         "latitude_of_projection_origin",
+#         "false_easting",
+#         "false_northing",
+#     )
+# )
+
