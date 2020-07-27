@@ -39,9 +39,9 @@ end
 
 Aggregate an AbstractGeoStack
 """
-aggregate(method, stack::AbstractGeoStack, scale, args...;
-          keys=keys(stack), progress=true, kwargs...) = begin
-    f = key -> aggregate(method, stack[key], scale, args...; kwargs...)
+aggregate(method, stack::AbstractGeoStack, scale;
+          keys=keys(stack), progress=true) = begin
+    f = key -> aggregate(method, stack[key], scale)
     keys_nt = NamedTuple{keys}(keys)
     data = if progress
         @showprogress "Agregating stack..." map(f, keys_nt)
@@ -170,8 +170,8 @@ function disaggregate end
 
 Disagregate an AbstractGeoSeries
 """
-disaggregate(method, series::AbstractGeoSeries, scale, args...; progress=true, kwargs...) = begin
-    f = i -> disaggregate(method, series[i], scale, args...; progress=false, kwargs...)
+disaggregate(method, series::AbstractGeoSeries, scale; progress=true, kwargs...) = begin
+    f = i -> disaggregate(method, series[i], scale; progress=false, kwargs...)
     data = if progress
         @showprogress "Disgregating series..." map(f, 1:length(series))
     else
@@ -183,8 +183,8 @@ end
 
 Disagregate an AbstractGeoStack
 """
-disaggregate(method, stack::AbstractGeoStack, scale, args...; keys=keys(stack), progress=true, kwargs...) = begin
-    f = key -> disaggregate(method, stack[key], scale, args...; kwargs...)
+disaggregate(method, stack::AbstractGeoStack, scale; keys=keys(stack), progress=true) = begin
+    f = key -> disaggregate(method, stack[key], scale)
     keys_nt = NamedTuple{keys}(keys)
     data = if progress
         @showprogress "Disagregating stack..." map(f, keys_nt)
