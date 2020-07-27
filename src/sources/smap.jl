@@ -116,21 +116,24 @@ SMAPseries(filepaths::Vector{<:AbstractString}, dims=nothing; kwargs...) = begin
         usedpaths = String[]
         timeseries = []
         errors = []
+        dateformat = DateFormat("yyyymmddTHHMMSS")
+        dateregex = r"SMAP_L4_SM_gph_(\d+T\d+)_"
         for path in filepaths
             println(path)
             try
-                t = smapread(path) do data
-                    smaptime(data)
+                datematch = match(dateregex, path)
+                if !(datematch === nothing)
+                    t = DateTime(datematch.captures[1], dateformat)
+                    println(t)
+                    push!(timeseries, t)
+                    push!(usedpaths, path)
                 end
-                push!(timeseries, t)
-                push!(usedpaths, path)
             catch e
                 push!(errors, e)
-                continue
             end
         end
         # Use the first files time dim as a template, but join vals into an array of times.
-        dims = (rebuild(first(timeseries), first.(timeseries)),)
+        timedim = Ti(timeseries, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals()))
     else
         usedpaths = filepaths
     end
@@ -138,9 +141,10 @@ SMAPseries(filepaths::Vector{<:AbstractString}, dims=nothing; kwargs...) = begin
         println("Some errors thrown during file load: ")
         println.(errors)
     end
-    GeoSeries(usedpaths, dims; childtype=SMAPstack, kwargs...)
+    GeoSeries(usedpaths, (timedim,); childtype=SMAPstack, kwargs...)
 end
 
+Base.:*(hrs::Int, ::Type{T}) where T<:Period = T(hrs)
 
 # Utils ########################################################################
 
