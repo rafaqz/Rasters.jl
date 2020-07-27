@@ -91,7 +91,7 @@ Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,
         a -> reorderrelation(a, Forward())
     checkarrayorder(correctedA, (Forward(), Forward(), Forward()))
     nbands = size(correctedA, Band())
-    indices = Cint[1]
+    indices = Cint[1:nbands...]
     gdalwrite(filename, correctedA, nbands, indices; kwargs...)
 end
 

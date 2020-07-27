@@ -93,9 +93,11 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
             # gdalarray WKT is missing one AUTHORITY
             # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
             # But the Proj representation is the same
+            GeoData.step.(mode.(dims(gdalarray, (Lat, Lon))))
             @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
-            @test val(dims(gdalarray, Lat)) ≈ val(dims(nccleaned, Lat))
-            @test val(dims(gdalarray, Lon)) ≈ val(dims(nccleaned, Lon))
+            # Tiff locus = Start, Netcdf locus = Center
+            @test val(dims(gdalarray, Lat)) .+ 0.5 ≈ val(dims(nccleaned, Lat))
+            @test val(dims(gdalarray, Lon)) .+ 1.0  ≈ val(dims(nccleaned, Lon))
             @test GeoArray(gdalarray) ≈ nccleaned
         end
         @testset "to grd" begin

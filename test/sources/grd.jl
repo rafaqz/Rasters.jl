@@ -96,6 +96,7 @@ path = joinpath(testpath, "data/rlogo")
             @test size(saved) == size(grdarray[Band(1:1)])
             @test data(saved) == data(grdarray[Band(1:1)])
         end
+
         @testset "3d with subset" begin
             geoarray = GeoArray(grdarray)[1:100, 1:50, 1:2]
             filename = tempname()
@@ -120,6 +121,7 @@ path = joinpath(testpath, "data/rlogo")
             @test saved isa typeof(geoarray)
             @test data(saved) == data(geoarray)
         end
+
         @testset "to netcdf" begin
             filename2 = tempname()
             write(filename2, NCDarray, grdarray[Band(1)])
@@ -132,7 +134,9 @@ path = joinpath(testpath, "data/rlogo")
             @test bounds(saved, Lat) == bounds(grdarray, Lat)
             @test bounds(saved, Lon) == bounds(grdarray, Lon)
         end
+
         @testset "to gdal" begin
+            # No Band
             gdalfilename = tempname() * ".tif"
             write(gdalfilename, GDALarray, grdarray[Band(1)])
             size(grdarray)
@@ -141,8 +145,14 @@ path = joinpath(testpath, "data/rlogo")
             @test val(dims(gdalarray, Lat)) ≈ val(dims(grdarray, Lat))
             @test val(dims(gdalarray, Lon)) ≈ val(dims(grdarray, Lon))
             @test GeoArray(gdalarray) ≈ permutedims(grdarray[Band(1)], [Lon(), Lat()])
-            write(gdalfilename, GDALarray, grdarray)
+            # 3 Bands
+            gdalfilename2 = tempname() * ".tif"
+            write(gdalfilename2, GDALarray, grdarray)
+            gdalarray2 = GDALarray(gdalfilename2)
+            @test GeoArray(gdalarray2) == GeoArray(grdarray)
+            @test val(dims(gdalarray2, Band)) == 1:3
         end
+
     end
 
     @testset "plot" begin
