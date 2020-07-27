@@ -13,7 +13,8 @@ using Missings,
       Reexport,
       Requires,
       Dates,
-      Mmap
+      Mmap,
+      ProgressMeter
 
 @reexport using DimensionalData, GeoFormatTypes
 
