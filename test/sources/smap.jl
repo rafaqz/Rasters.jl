@@ -20,8 +20,8 @@ path2 = joinpath(testpath, "data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5")
         @test smaparray[1] == -9999.0
         @test name(smaparray) == "soil_temp_layer1"
         # Why is tagged time different to the filename time? is that just rounded?
-        dt = DateTime(2016, 1, 1, 22, 28, 55, 816)
-        step_ = Second(10800)
+        dt = DateTime(2016, 1, 1, 22, 30)
+        step_ = Hour(3)
         @test refdims(stack) == 
             (Ti(dt:step_:dt; mode=Sampled(Ordered(), Regular(step_), Intervals(Start()))),)
         @test_broken metadata(smaparray) = "not implemented yet"
@@ -72,6 +72,6 @@ end
     series = SMAPseries([path1, path2]);
     val.(dims(series))
     @test series[1] isa SMAPstack
-    @test first(bounds(series, Ti)) == DateTime(2016, 1, 1, 22, 28, 55, 816)
-    @test last(bounds(series, Ti)) == DateTime(2016, 1, 2, 1, 28, 55, 816)
+    @test first(bounds(series, Ti)) == DateTime(2016, 1, 1, 22, 30)
+    @test last(bounds(series, Ti)) == DateTime(2016, 1, 3, 1, 30)
 end
