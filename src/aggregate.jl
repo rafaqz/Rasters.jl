@@ -25,16 +25,28 @@ function aggregate end
 
 Aggregate an AbstractGeoSeries
 """
-aggregate(method, series::AbstractGeoSeries, scale, args...) =
-    rebuild(series, [aggregate(method, series[i], scale, args...) for i in 1:length(series)])
+aggregate(method, series::AbstractGeoSeries, scale, args...; progress=true, kwargs...) = begin
+    f = i -> aggregate(method, series[i], scale, args...; progress=false, kwargs...)
+    data = if progress
+        @showprogress "Agregating series..." map(f, 1:length(series))
+    else
+        map(f, 1:length(series))
+    end
+    rebuild(series, data)
+end
 """
     aggregate(method, stack::AbstractGeoStack, scale)
 
 Aggregate an AbstractGeoStack
 """
-aggregate(method, stack::AbstractGeoStack, scale, keys=keys(stack)) = begin
-    data = map(NamedTuple{keys}(keys)) do key
-        aggregate(method, stack[key], scale)
+aggregate(method, stack::AbstractGeoStack, scale;
+          keys=keys(stack), progress=true) = begin
+    f = key -> aggregate(method, stack[key], scale)
+    keys_nt = NamedTuple{keys}(keys)
+    data = if progress
+        @showprogress "Agregating stack..." map(f, keys_nt)
+    else
+        map(f, keys_nt)
     end
     GeoStack(stack; data=data)
 end
@@ -71,9 +83,9 @@ end
 
 Aggregate an IndexMode
 """
-aggregate(method, mode::IndexMode, scale) = mode 
+aggregate(method, mode::IndexMode, scale) = mode
 aggregate(method, mode::AbstractSampled, scale) =
-    rebuild(mode; span=aggregate(method, span(mode), scale)) 
+    rebuild(mode; span=aggregate(method, span(mode), scale))
 
 """
     aggregate(method, dim::Span, scale)
@@ -81,7 +93,7 @@ aggregate(method, mode::AbstractSampled, scale) =
 Aggregate a Span
 """
 aggregate(method, span::Span, scale) = span
-aggregate(method, span::Regular, scale) = Regular(val(span) * scale) 
+aggregate(method, span::Regular, scale) = Regular(val(span) * scale)
 
 """
     aggregate!(dst::AbstractDimensionalArray, src::AbstractDimensionalArray, method, scale)
@@ -158,16 +170,26 @@ function disaggregate end
 
 Disagregate an AbstractGeoSeries
 """
-disaggregate(method, series::AbstractGeoSeries, scale, args...) =
-    rebuild(series, [disaggregate(method, series[i], scale, args...) for i in 1:length(series)])
+disaggregate(method, series::AbstractGeoSeries, scale; progress=true, kwargs...) = begin
+    f = i -> disaggregate(method, series[i], scale; progress=false, kwargs...)
+    data = if progress
+        @showprogress "Disgregating series..." map(f, 1:length(series))
+    else
+        map(f, 1:length(series))
+    end
+end
 """
     disaggregate(method, stack::AbstractGeoStack, scale)
 
 Disagregate an AbstractGeoStack
 """
-disaggregate(method, stack::AbstractGeoStack, scale, keys=keys(stack), args...) = begin
-    data = map(NamedTuple{keys}(keys)) do key
-        disaggregate(method, stack[key], scale)
+disaggregate(method, stack::AbstractGeoStack, scale; keys=keys(stack), progress=true) = begin
+    f = key -> disaggregate(method, stack[key], scale)
+    keys_nt = NamedTuple{keys}(keys)
+    data = if progress
+        @showprogress "Disagregating stack..." map(f, keys_nt)
+    else
+        map(f, keys_nt)
     end
     GeoStack(stack; data=data)
 end
@@ -209,9 +231,9 @@ disag_index(locus::End, dim, scale) =
 
 Disagregate an IndexMode
 """
-disaggregate(method, mode::IndexMode, scale) = mode 
+disaggregate(method, mode::IndexMode, scale) = mode
 disaggregate(method, mode::AbstractSampled, scale) =
-    rebuild(mode; span=disaggregate(method, span(mode), scale)) 
+    rebuild(mode; span=disaggregate(method, span(mode), scale))
 
 """
     disaggregate(method, dim::Span, scale)
@@ -219,7 +241,7 @@ disaggregate(method, mode::AbstractSampled, scale) =
 Disagregate a Span
 """
 disaggregate(method, span::Span, scale) = span
-disaggregate(method, span::Regular, scale) = Regular(val(span) / scale) 
+disaggregate(method, span::Regular, scale) = Regular(val(span) / scale)
 
 """
     disaggregate!(dst::AbstractDimensionalArray, src::AbstractDimensionalArray, method, scale)
