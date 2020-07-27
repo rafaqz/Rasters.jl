@@ -95,10 +95,10 @@ ncshiftindex(mode::AbstractSampled, dim::Dimension) = begin
             if eltype(dim) isa Dates.AbstractDateTime
                 val(dim)
             else
-                shiftindexloci(dim, Start())
+                shiftindexloci(Start(), dim)
             end
         else
-            shiftindexloci(dim, Center())
+            shiftindexloci(Center(), dim)
         end
     else
         val(dim)

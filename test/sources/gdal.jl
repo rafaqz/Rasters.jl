@@ -1,5 +1,5 @@
 using ArchGDAL, GeoData, Test, Statistics, Dates, Plots, NCDatasets
-using GeoData: window, mode, span, sampling
+using GeoData: window, mode, span, sampling, name
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
@@ -106,13 +106,13 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @testset "3d, with subsetting" begin
             geoarray2 = gdalarray[Lat(Between(33.7, 33.9)), 
                                   Lon(Between(-117.6, -117.4))]
-            filename = tempname() * ".img"
-            write(filename, GDALarray, geoarray2)
-            saved2 = GeoArray(GDALarray(filename; usercrs=EPSG(4326)))
+            filename2 = tempname() * ".img"
+            write(filename2, GDALarray, geoarray2)
+            saved2 = GeoArray(GDALarray(filename2; usercrs=EPSG(4326)))
             @test size(saved2) == size(geoarray2) == length.(dims(saved2)) == length.(dims(geoarray2))
             @test refdims(saved2) == refdims(geoarray2)
             #TODO test a file with more metadata
-            @test metadata(saved2)["filepath"] == filename
+            @test metadata(saved2)["filepath"] == filename2
             @test missingval(saved2) === missingval(geoarray2)
             @test GeoData.name(saved2) == GeoData.name(geoarray2)
             @test step(mode(dims(saved2, Lat))) ≈ step(mode(dims(geoarray2, Lat)))
@@ -124,6 +124,12 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
             @test all(metadata.(dims(saved2)) .== metadata.(dims(geoarray2)))
             @test data(saved2) == data(geoarray2)
             @test typeof(saved2) == typeof(geoarray2)
+            filename3 = tempname() * ".img"
+            geoarray3 = cat(gdalarray[Band(1)], gdalarray[Band(1)], gdalarray[Band(1)]; dims=Band(1:3))
+            write(filename3, GDALarray, geoarray3)
+            saved3 = GeoArray(GDALarray(filename3; usercrs=EPSG(4326)))
+            @test saved3 == geoarray3
+            @test val(dims(saved3, Band)) == 1:3
         end
 
         @testset "resave current" begin
@@ -150,10 +156,10 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
             saved = GeoArray(NCDarray(filename2))
             @test size(saved) == size(gdalarray[Band(1)])
             @test saved ≈ reverse(gdalarray[Band(1)]; dims=Lat)
-            @test_broken val(dims(saved, Lon)) ≈ val(dims(gdalarray, Lon)) .- 0.5step(dims(saved, Lon))
-            @test val(dims(saved, Lat)) ≈ reverse(val(dims(gdalarray, Lat))) .- 0.5step(dims(saved, Lat))
-            @test_broken all(map(isapprox, bounds(saved, Lat), bounds(gdalarray, Lat)))
+            @test val(dims(saved, Lon)) ≈ val(dims(gdalarray, Lon)) .+ 0.5step(dims(saved, Lon))
+            @test val(dims(saved, Lat)) ≈ reverse(val(dims(gdalarray, Lat))) .+ 0.5step(dims(saved, Lat))
             @test all(map(isapprox, bounds(saved, Lon), bounds(gdalarray, Lon)))
+            @test all(map(isapprox, bounds(saved, Lat), bounds(gdalarray, Lat)))
         end
 
     end
