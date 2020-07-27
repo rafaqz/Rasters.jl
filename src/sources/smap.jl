@@ -43,7 +43,7 @@ struct SMAPstack{T,D,R,W,M} <: DiskGeoStack{T}
 end
 SMAPstack(filename::String;
           dims=smapread(smapdims, filename),
-          refdims=(smapread(smaptime, filename),),
+          refdims=(smap_timedim(smap_timefrompath(filename)),),
           window=(),
           metadata=smapread(smapmetadata, filename),
          ) =
@@ -116,24 +116,18 @@ SMAPseries(filepaths::Vector{<:AbstractString}, dims=nothing; kwargs...) = begin
         usedpaths = String[]
         timeseries = []
         errors = []
-        dateformat = DateFormat("yyyymmddTHHMMSS")
-        dateregex = r"SMAP_L4_SM_gph_(\d+T\d+)_"
         for path in filepaths
             println(path)
             try
-                datematch = match(dateregex, path)
-                if !(datematch === nothing)
-                    t = DateTime(datematch.captures[1], dateformat)
-                    println(t)
-                    push!(timeseries, t)
-                    push!(usedpaths, path)
-                end
+                t = smap_timefrompath(path)
+                push!(timeseries, t)
+                push!(usedpaths, path)
             catch e
                 push!(errors, e)
             end
         end
         # Use the first files time dim as a template, but join vals into an array of times.
-        timedim = Ti(timeseries, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals()))
+        timedim = smap_timedim(timeseries)
     else
         usedpaths = filepaths
     end
@@ -154,14 +148,20 @@ readwindowed(A::HDF5Dataset, window::Tuple{}) = HDF5.read(A)
 
 smappath(key::Key) = SMAPGEODATA * "/" * string(key)
 
-smaptime(dataset::HDF5.HDF5File) = begin
-    meta = attrs(root(dataset)["time"])
-    units = read(meta["units"])
-    datestart = replace(replace(units, "seconds since " => ""), " " => "T")
-    dt = DateTime(datestart) + Dates.Second(read(meta["actual_range"])[1])
-    step = Second(Dates.Time(split(read(meta["delta_t"]))[2]) - Dates.Time("00:00:00"))
-    Ti(dt:step:dt; mode=Sampled(Ordered(), Regular(step), Intervals(Start())))
+smap_timefrompath(path::String) = begin
+    dateformat = DateFormat("yyyymmddTHHMMSS")
+    dateregex = r"SMAP_L4_SM_gph_(\d+T\d+)_"
+    datematch = match(dateregex, path)
+    if !(datematch === nothing)
+        DateTime(datematch.captures[1], dateformat)
+    else
+        error("Date/time not correctly formatted in path: $path")
+    end
 end
+
+smap_timedim(t::DateTime) = smap_timedim(t:Hour(3):t)
+smap_timedim(times::AbstractVector) = 
+    Ti(times, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals(Start())))
 
 smapmetadata(dataset::HDF5.HDF5File) = SMAPmetadata(Dict())
 
