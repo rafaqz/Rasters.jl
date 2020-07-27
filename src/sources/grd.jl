@@ -190,15 +190,17 @@ Base.write(filename::String, ::Type{<:GrdArray}, A::AbstractGeoArray) = begin
     # Remove extension
     filename = splitext(filename)[1]
 
-    lon, lat = map(d -> convertmode(Projected, d), dims(A, (Lon(), Lat())))
+    lon, lat = map(dims(A, (Lon(), Lat()))) do d
+        convertmode(Projected, d)
+    end
     ncols, nrows = size(A)
     xmin, xmax = bounds(lon)
     ymin, ymax = bounds(lat)
     proj = convert(String, convert(ProjString, crs(lon)))
     datatype = rev_datatype_translation[eltype(A)]
     nodatavalue = missingval(A)
-    minvalue = minimum(filter(x -> x != missingval(A), data(A)))
-    maxvalue = maximum(filter(x -> x != missingval(A), data(A)))
+    minvalue = minimum(filter(x -> x !== missingval(A), data(A)))
+    maxvalue = maximum(filter(x -> x !== missingval(A), data(A)))
 
     # Data: gri file
     open(filename * ".gri", "w") do IO

@@ -53,7 +53,7 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
     @testset "conversion to GeoArray" begin
         geoarray = ncarray[Lon(1:50), Lat(20:20), Ti(1)]
         @test size(geoarray) == (50, 1)
-        # @test eltype(geoarray) <: Union{Missing,Float32}
+        @test eltype(geoarray) <: Union{Missing,Float32}
         @time geoarray isa GeoArray{Float32,1}
         @test dims(geoarray) isa Tuple{<:Lon,<:Lat}
         @test refdims(geoarray) isa Tuple{<:Ti}
@@ -86,11 +86,12 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
             # TODO test crs
         end
         @testset "to gdal" begin
+            gdalfilename = tempname() * ".tif"
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
-            write("testgdal.tif", GDALarray, nccleaned)
-            gdalarray = GDALarray("testgdal.tif")
+            write(gdalfilename, GDALarray, nccleaned)
+            gdalarray = GDALarray(gdalfilename)
             # gdalarray WKT is missing one AUTHORITY
-            @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
+            # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
             # But the Proj representation is the same
             @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test val(dims(gdalarray, Lat)) ≈ val(dims(nccleaned, Lat))

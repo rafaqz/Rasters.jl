@@ -233,16 +233,21 @@ gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tile
 
     AG.create(filename;
         driver=AG.getdriver(driver),
-        width=size(A, 1),
-        height=size(A, 2),
+        width=size(A, Lon()),
+        height=size(A, Lat()),
         nbands=nbands,
         dtype=eltype(A),
         options=options,
     ) do dataset
-        lon, lat = map(d -> convertmode(Projected, d), dims(A, (Lon(), Lat())))
+        lon, lat = map(dims(A, (Lon(), Lat()))) do d
+            convertmode(Projected, d)
+        end
         proj = convert(String, convert(WellKnownText, crs(lon)))
+        lonindex, latindex = map((lon, lat)) do d
+            shiftindexloci(Start(), d) 
+        end
         AG.setproj!(dataset, proj)
-        AG.setgeotransform!(dataset, build_geotransform(lat, lon))
+        AG.setgeotransform!(dataset, build_geotransform(latindex, lonindex))
         AG.write!(dataset, data(A), indices)
     end
     return filename

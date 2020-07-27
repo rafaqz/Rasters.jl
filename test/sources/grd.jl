@@ -1,4 +1,4 @@
-using GeoData, Test, Statistics, Dates, Plots, NCDatasets
+using GeoData, Test, Statistics, Dates, Plots, NCDatasets, ArchGDAL
 using GeoData: name, mode, window, DiskStack
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
@@ -131,6 +131,17 @@ path = joinpath(testpath, "data/rlogo")
             @test val(dims(saved, Lat)) ≈ val(dims(grdarray, Lat)) .+ 0.5
             @test bounds(saved, Lat) == bounds(grdarray, Lat)
             @test bounds(saved, Lon) == bounds(grdarray, Lon)
+        end
+        @testset "to gdal" begin
+            gdalfilename = tempname() * ".tif"
+            write(gdalfilename, GDALarray, grdarray[Band(1)])
+            size(grdarray)
+            gdalarray = GDALarray(gdalfilename)
+            # @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
+            @test val(dims(gdalarray, Lat)) ≈ val(dims(grdarray, Lat))
+            @test val(dims(gdalarray, Lon)) ≈ val(dims(grdarray, Lon))
+            @test GeoArray(gdalarray) ≈ permutedims(grdarray[Band(1)], [Lon(), Lat()])
+            write(gdalfilename, GDALarray, grdarray)
         end
     end
 
