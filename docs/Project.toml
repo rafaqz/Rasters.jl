@@ -1,0 +1,6 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+GeoData = "9b6fcbb8-86d6-11e9-1ce7-23a6bb139a78"
+ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
