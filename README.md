@@ -51,7 +51,6 @@ Now plot every third month in the first year, just using the regular index:
 
 ```julia
 using Plots
-pyplot()
 A[Ti(1:3:12)] |> plot
 ```
 
@@ -65,16 +64,16 @@ A[Ti(Contains(DateTime360Day(2001, 01, 17))), Lat(Between(0, -50)), Lon(Between(
 
 ![Australia regional ocean surface temperature](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/aus.png)
 
-Now get the mean over the timespan, then save it to disk, and plot :
+Now get the mean over the timespan, then save it to disk, and plot it :
 
 ```julia
 using Statistics
 mean_tos = mean(A; dims=Ti)
-write("mean.ncd", NCDarray, mean_tos)
+write("mean.ncd, NCDarray, mean_tos))
 plot(mean_tos; color=:viridis) 
 ```
 
-![Temperatures at lattitude 20-21](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/mean.png)
+![Mean temperatures](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/mean.png)
 
 Or a plot transect of ocean surface temperature along the 20 degree latitude line:
 

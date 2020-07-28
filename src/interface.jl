@@ -9,21 +9,13 @@ function missingval end
 missingval(x) = missing
 
 """
-    safeapply(f::Function, ::AbstractGeoStack, source)
-
-Wrapper method to apply a function to data object provided for by a data source.
-
-This facilitates wrapping the custom file open/close requirements of specific 
-source libraries to safely deal with disk or api sourced datasets.
-"""
-function safeapply end
-
-"""
 Get the crs projection of a dim or for the `Lat`/`Lon` dims of an array.
 """
 function crs end
 
 """
+    usercrs(x)
+
 Get the user facing crs projection of a dim or for the `Lat`/`Lon` dims of an array.
 
 This is used to convert `Selector` values form the user defined projection 
@@ -31,4 +23,11 @@ to the underlying projection, and to show plot axes in the user projection.
 """
 function usercrs end
 
-function childtype end
+"""
+    dimcrs(x)
+
+Get the index crs projection of a dim or for the `Lat`/`Lon` dims of an array.
+
+Where the dimension mode is `Converted`. This is often used in netcdf where
+the underlying projection of the data is not what is contained in the vector index.
+"""
