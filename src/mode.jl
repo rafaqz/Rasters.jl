@@ -1,3 +1,5 @@
+abstract type AbstractProjected{O,Sp,Sa} <: AbstractSampled{O,Sp,Sa} end
+
 """
     Projected(order::Order, span, sampling, crs, usercrs)
     Projected(; order=Ordered(), span=UnknownSpan(), sampling=Points(), crs, usercrs=nothing)
@@ -21,7 +23,7 @@ The underlying `crs` will be detected by GDAL.
 If `usercrs` is not supplied (ie. `isa Nothing`), the base index will be shown on plots, 
 and selectors will need to use whatever format it is in.
 """
-struct Projected{O<:Order,Sp,Sa,C,IC} <: AbstractSampled{O,Sp,Sa}
+struct Projected{O<:Order,Sp,Sa,C,IC} <: AbstractProjected{O,Sp,Sa}
     order::O
     span::Sp
     sampling::Sa
@@ -64,7 +66,7 @@ The underlying `crs` will be detected by GDAL.
 If `usercrs` is not supplied (ie. `isa Nothing`), the base index will be shown on plots, 
 and selectors will need to use whatever format it is in.
 """
-struct Converted{O<:Order,Sp,Sa,C,DC} <: AbstractSampled{O,Sp,Sa}
+struct Converted{O<:Order,Sp,Sa,C,DC} <: AbstractProjected{O,Sp,Sa}
     order::O
     span::Sp
     sampling::Sa
@@ -103,3 +105,25 @@ crs(mode::LatLon, args...) = EPSG(4326)
 
 rebuild(g::LatLon, order=order(g), span=span(g), sampling=sampling(g)) =
     LatLon(order, span, sampling)
+
+"""
+    convertmode(dstmode::Type{<:IndexMode}, x) 
+
+Convert the dimension mode between `Projected` and `Converted`.
+Other dimension modes pass through unchanged.
+
+This is used to e.g. save a netcdf file to GeoTiff.
+"""
+convertmode(dstmode::Type{<:IndexMode}, A::AbstractArray) = 
+    rebuild(A, data(A), convertmode(dstmode, dims(A)))
+convertmode(dstmode::Type{<:IndexMode}, dims::Tuple) = 
+    map(d -> convertmode(dstmode, d), dims)
+convertmode(dstmode::Type{<:IndexMode}, dim::Dimension) = 
+    convertmode(dstmode, basetypeof(mode(dim)), dim)
+# Regular modes pass through
+convertmode(dstmode::Type, srcmode::Type{<:IndexMode}, dim::Dimension) = dim
+# AbstractProjected passes through if it's the same as dstmode
+convertmode(dstmode::Type{M}, srcmode::Type{M}, dim::Dimension) where M<:AbstractProjected = dim
+# Otherwise AbstractProjected needs ArchGDAL
+convertmode(dstmode::Type, srcmode::Type{<:AbstractProjected}, dim::Dimension) = 
+    error("Load ArchGDAL.jl to convert projected dimensions")

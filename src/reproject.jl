@@ -36,13 +36,6 @@ reproject(source::GeoFormat, target::GeoFormat, dim::Lat, vals::Tuple) =
     Tuple(r[2] for r in ArchGDAL.reproject([(0.0, Float64(v)) for v in vals], source, target; order=:trad))
 
 
-convertmode(dstmode::Type{<:IndexMode}, A::AbstractArray) = 
-    rebuild(A, data(A), convertmode(dstmode, dims(A)))
-convertmode(dstmode::Type{<:IndexMode}, dims::Tuple) = 
-    map(d -> convertmode(dstmode, d), dims)
-convertmode(dstmode::Type{<:IndexMode}, dim::Dimension) = 
-    convertmode(dstmode, basetypeof(mode(dim)), dim)
-convertmode(dstmode::Type{M}, srcmode::Type{M}, dim::Dimension) where M = dim
 convertmode(dstmode::Type{Converted}, srcmode::Type{Projected}, dim::Dimension) where M = begin
     m = mode(dim)
     newval = reproject(crs(m), usercrs(m), dim, val(dim))
@@ -58,14 +51,28 @@ convertmode(dstmode::Type{Projected}, srcmode::Type{Converted}, dim::Dimension) 
     rebuild(dim; val=newval, mode=newmode)
 end
 
+"""
+    userbounds(x)
+
+Get the bounds converted to the `usercrs` value.
+"""
+function userbounds end
+
 userbounds(A) = userbounds(dims(A)) 
 userbounds(dims::Tuple) = map(userbounds, dims) 
 userbounds(dim::Dimension) = bounds(dim)
 userbounds(dim::Union{Lat,Lon}) = 
     reproject(crs(dim), usercrs(dim), dim, bounds(dim)) 
 
-userval(A) = userbounds(dims(A)) 
-userval(dims::Tuple) = map(userbounds, dims) 
-userval(dim::Dimension) = bounds(dim)
+"""
+    userval(x)
+
+Get the index value of a dimension converted to the `usercrs` value.
+"""
+function userval end
+
+userval(A) = userval(dims(A)) 
+userval(dims::Tuple) = map(userval, dims) 
+userval(dim::Dimension) = val(dim)
 userval(dim::Union{Lat,Lon}) = 
     reproject(crs(dim), usercrs(dim), dim, val(dim)) 
