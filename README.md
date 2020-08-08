@@ -21,6 +21,21 @@ can be indexed using named dimensions, which can also be used in most methods
 like `mean` and `reduce` where dimensions are required. Most behaviour is
 covered in the [DimensionalData docs](https://rafaqz.github.io/DimensionalData.jl/stable/).
 
+
+**This is a work in progress and the API will break occasionally**
+
+Notably GeoData will shift to relying on
+[DiskArrays.jl](https://github.com/meggart/DiskArrays.jl) for wrapping
+disk-based data sources when it fully supports GDAL and NetCDF. Currently
+this is handled internally. Broadcasting over disk base arrays like `NCDarray`
+will be incredibly slow, as chunk-based loading is not implemented.
+DiskArrays.jl will solve this, and other problems.
+
+There are no also no guarantees on the accuracy of any of the included methods.
+If you are using this in critical applications, please do your own testing,
+or add additional tests to the GeoData.jl test suit to verify correctness.
+
+
 ## Goals
 
 - Standardisation: data from multiple sources has similar or identical syntax
@@ -84,9 +99,8 @@ A[Lat(Contains(20)), Ti(1)] |> plot
 ![Temperatures at lattitude 20-21](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/lat_20.png)
 
 
-
 ## Works in progress
-- Standardised handling of metadata
+- Standardised handling and conversion of spatial metadata
 - Handling complex projections: Affine transformation of dimensions to indices.
   AffineMaps will be stored as a wrapper dimension in `dims`.
 - Integration with Vector/DataFrame spatial types and point/line/polygon data

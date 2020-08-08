@@ -3,24 +3,21 @@ export GrdArray, GrdStack, GrdMetadata, GrdDimMetadata
 # Metadata ########################################################################
 
 """
-[`ArrayMetadata`](@ref) wrapper for `GrdArray`.
-"""
-struct GrdMetadata{K,V} <: ArrayMetadata{K,V}
-    val::Dict{K,V}
-end
-GrdMetadata() = GrdMetadata(Dict())
-
-"""
-[`DimMetadata`](@ref) wrapper for `GrdArray` dimensions.
+[`Metadata`](@ref) wrapper for `GrdArray` dimension metadata.
 """
 struct GrdDimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
-GrdDimMetadata() = GrdDimMetadata(Dict())
+
+"""
+[`Metadata`](@ref) wrapper for `GrdArray` metadata.
+"""
+struct GrdMetadata{K,V} <: ArrayMetadata{K,V}
+    val::Dict{K,V}
+end
 
 
 # Grd attributes wrapper
-
 struct GrdAttrib{T,F,A}
     filename::F
     attrib::A
@@ -161,7 +158,6 @@ GrdArray(grd::GrdAttrib, filename, key=nothing;
             }(filename, dims_, refdims, name, metadata_, missingval_, size_)
 end
 
-# AbstractGeoArray methods
 
 # Base methods
 

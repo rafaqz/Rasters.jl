@@ -2,22 +2,26 @@ using .ArchGDAL
 
 const AG = ArchGDAL
 
-export GDALarray, GDALstack, GDALmetadata, GDALdimMetadata
+export GDALarray, GDALstack, GDALarrayMetadata, GDALdimMetadata
 
 
 # Metadata ########################################################################
 
 """
-[`ArrayMetadata`](@ref) wrapper for `GDALarray`.
+    GDALmetadata(val::Dict)
+
+[`Metadata`](@ref) wrapper for `GDALarray` dimensions.
 """
-struct GDALmetadata{K,V} <: ArrayMetadata{K,V}
+struct GDALdimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
 
 """
-[`DimMetadata`](@ref) wrapper for `GDALarray` dimensions.
+    GDALarrayMetadata(val::Dict)
+
+[`Metadata`](@ref) wrapper for `GDALarray`.
 """
-struct GDALdimMetadata{K,V} <: DimMetadata{K,V}
+struct GDALarrayMetadata{K,V} <: ArrayMetadata{K,V}
     val::Dict{K,V}
 end
 
@@ -31,8 +35,12 @@ Load a file lazily with gdal. GDALarray will be converted to GeoArray after
 indexing or other manipulations. `GeoArray(GDAlarray(filename))` will do this
 immediately.
 
-`EPSG` or `ProjString`. If `usercrs` is passed to the constructor, all selectors will
-use its projection, converting automatically to the underlying projection from GDAL.
+If `usercrs` like `EPSG(4326)` is passed to the constructor, selectors like 
+`Between` will use its projection, converting automatically to the underlying 
+projection from GDAL. Plots will also display the axes using this projection. 
+
+Until DiskArrays.jl is used for this package, avoid broadcasting over `GDALarray`, 
+convert to `GeoArray` first.
 
 ## Arguments
 - `filename`: `String` pointing to a grd file. Extension is optional.
@@ -40,8 +48,8 @@ use its projection, converting automatically to the underlying projection from G
 ## Keyword arguments
 - `name`: Name for the array.
 - `refdims`: Add dimension position array was sliced from. Mostly used programatically.
-- `usercrs`: can be any CRS `GeoFormat` form GeoFormatTypes.jl, such as `WellKnownText`
-  loading the array. Can save on disk load time for large files.
+- `usercrs`: CRS format used in Between, At etc and Plotting. Can be any CRS `GeoFormat` 
+  form GeoFormatTypes.jl, such as `WellKnownText` loading the array.
 """
 struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
                 } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
@@ -69,23 +77,27 @@ end
 # AbstractGeoArray methods
 
 """
-    Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray)
+    Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray;
+               driver="GTiff", compress="DEFLATE", tiled=true)
 
 Write a [`GDALarray`](@ref) to a .tiff file.
+
+GDAL flags `driver`, `compress` and `tiled` can be passed in as keyword arguments.
 """
 Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,2}; kwargs...) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims")
-    A = permutedims(A, (Lon(), Lat()))
+
     correctedA = permutedims(A, (Lon(), Lat())) |>
         a -> reorderindex(a, (Lon(Forward()), Lat(Reverse()))) |>
         a -> reorderrelation(a, Forward())
     nbands = 1
     indices = 1
-    gdalwrite(filename, A, nbands, indices)
+    gdalwrite(filename, A, nbands, indices; kwargs...)
 end
 Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,3}, kwargs...) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
+
     correctedA = permutedims(A, (Lon(), Lat(), Band())) |>
         a -> reorderindex(a, (Lon(Forward()), Lat(Reverse()), Band(Forward()))) |>
         a -> reorderrelation(a, Forward())
@@ -98,11 +110,13 @@ end
 
 # AbstractGeoStack methods
 
-GDALstack(filename; kwargs...) = begin
-    s = DiskStack(filename; childtype=GDALarray, kwargs...)
-    println(s.kwargs)
-    s
-end
+"""
+    GDALstack(filenames; kwargs...)
+
+Create a stack of [`GDALarray`](@ref) from `filenames`.
+"""
+GDALstack(filenames; kwargs...) =
+    DiskStack(filenames; childtype=GDALarray, kwargs...)
 
 withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) =
     gdalread(f, filename)
@@ -169,7 +183,7 @@ dims(dataset::AG.Dataset, usercrs=nothing) = begin
 
         formatdims(map(Base.OneTo, (lonsize, latsize, nbands)), (lon, lat, band))
     else
-        error("Rotated/transformed mode not handled currently")
+        error("Rotated/transformed dimensions are not handled yet. Open a github issue for GeoData.jl if you need this.")
         # affinemap = geotransform_to_affine(geotransform)
         # x = X(affinemap; mode=TransformedIndex(dims=Lon()))
         # y = Y(affinemap; mode=TransformedIndex(dims=Lat()))
@@ -198,7 +212,7 @@ metadata(dataset::AG.Dataset, args...) = begin
     # norvw = AG.noverview(band)
     units = AG.getunittype(band)
     path = first(AG.filelist(dataset))
-    GDALmetadata(Dict("filepath"=>path, "scale"=>scale, "offset"=>offset, "units"=>units))
+    GDALarrayMetadata(Dict("filepath"=>path, "scale"=>scale, "offset"=>offset, "units"=>units))
 end
 
 crs(dataset::AG.Dataset, args...) =
@@ -228,8 +242,9 @@ gdalmetadata(dataset, key) = begin
     end
 end
 
-gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tiled="YES") = begin
-    options = driver == "GTiff" ? ["COMPRESS=$compress", "TILED=$tiled"] : String[]
+gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tiled=true) = begin
+    tiledstring = tiled isa Bool ? (tiled ? "YES" : "NO") : tiled
+    options = driver == "GTiff" ? ["COMPRESS=$compress", "TILED=$tiledstring"] : String[]
 
     AG.create(filename;
         driver=AG.getdriver(driver),
@@ -239,15 +254,24 @@ gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tile
         dtype=eltype(A),
         options=options,
     ) do dataset
+        # Convert the dimensions to `Projected` if they are `Converted`
+        # This allows saving NetCDF to Tiff
         lon, lat = map(dims(A, (Lon(), Lat()))) do d
             convertmode(Projected, d)
         end
-        proj = convert(String, convert(WellKnownText, crs(lon)))
+        # Set the index loci to the start of the cell for the lat and lon dimensions.
+        # NetCDF or other formats use the center of the interval, so they need conversion.
         lonindex, latindex = map((lon, lat)) do d
             shiftindexloci(Start(), d) 
         end
+        # Get the geotransform from the updated lat/lon dims 
+        geotransform = build_geotransform(latindex, lonindex)
+        # Convert projection to a string of well known text 
+        proj = convert(String, convert(WellKnownText, crs(lon)))
+
+        # Write projection, geotransform and data to GDAL
         AG.setproj!(dataset, proj)
-        AG.setgeotransform!(dataset, build_geotransform(latindex, lonindex))
+        AG.setgeotransform!(dataset, geotransform)
         AG.write!(dataset, data(A), indices)
     end
     return filename

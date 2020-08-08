@@ -4,9 +4,9 @@ const Key = Union{Symbol,AbstractString}
 """
 Stack objects hold multiple raster array that share spatial metadata and bounds.
 
-These are NamedTuple-like structures that may either contain `NamedTuple`
+These are `NamedTuple`-like structures that may either contain `NamedTuple`
 of `AbstractGeoArray`, string paths that will load `AbstractGeoArray`, or a single
-path that points to as a multi-layered stack of arrays.
+path that points to as a file structured as a multi-layered stack, like NetCDF.
 
 The primary purpose of  is that use and syntax is identical for all cases,
 abstracting away data source and simplifying access code. `getindex` on any
@@ -15,7 +15,8 @@ base AbstractGeoArray. `geoarray[:somelayer] |> plot` plots the layers array,
 while `geoarray[:somelayer, Lon(1:100), Band(2)] |> plot` will plot the
 subsetted array directly from disk, without loading the whole array.
 
-`getindex` on a GeoStack returns another stack with the method applied to all layers.
+`getindex` or `view` on a GeoStack returns another stack with the method applied 
+to all the arrays in the stack.
 """
 abstract type AbstractGeoStack{T} end
 

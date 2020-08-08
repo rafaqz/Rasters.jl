@@ -36,7 +36,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
     @testset "other fields" begin
         @test missingval(gdalarray) == -1.0e10
-        @test metadata(gdalarray) isa GDALmetadata
+        @test metadata(gdalarray) isa GDALarrayMetadata
         @test basename(metadata(gdalarray).val["filepath"]) == "cea.tif"
         @test name(gdalarray) == "test"
         @test label(gdalarray) == "test"
