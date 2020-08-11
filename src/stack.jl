@@ -15,7 +15,7 @@ base AbstractGeoArray. `geoarray[:somelayer] |> plot` plots the layers array,
 while `geoarray[:somelayer, Lon(1:100), Band(2)] |> plot` will plot the
 subsetted array directly from disk, without loading the whole array.
 
-`getindex` or `view` on a GeoStack returns another stack with the method applied 
+`getindex` or `view` on a GeoStack returns another stack with the method applied
 to all the arrays in the stack.
 """
 abstract type AbstractGeoStack{T} end
@@ -87,14 +87,14 @@ Base.write(filename::AbstractString, ::Type{T}, s::AbstractGeoStack) where T <: 
 # Memory-based stacks ######################################################
 
 """
-[`AbstractGeoStack`](@ref) backed by memory.
+An [`AbstractGeoStack`](@ref) stored in memory.
 """
 abstract type MemGeoStack{T} <: AbstractGeoStack{T} end
 
 data(s::MemGeoStack) = s.data
 data(s::MemGeoStack{<:NamedTuple}, key::Key) = data(s)[Symbol(key)]
 
-rebuild(s::T; data=data(s), refdims=refdims(s), window=window(s), 
+rebuild(s::T; data=data(s), refdims=refdims(s), window=window(s),
         metadata=metadata(s), kwargs=kwargs(s)) where T<:MemGeoStack =
     basetypeof(T)(data, refdims, window, metadata, kwargs)
 
@@ -119,11 +119,11 @@ end
 # Disk-based stacks ######################################################
 
 """
-Abstract supertype for all disk backed [`AbstractGeoStack`](@ref)s
+[`AbstractGeoStack`](@ref)s stored on disk.
 """
 abstract type DiskGeoStack{T} <: AbstractGeoStack{T} end
 
-rebuild(s::T; data=filename(s), refdims=refdims(s), window=window(s), 
+rebuild(s::T; data=filename(s), refdims=refdims(s), window=window(s),
         metadata=metadata(s), childtype=childtype(s), kwargs=kwargs(s)) where T<:DiskGeoStack =
     basetypeof(T)(data, refdims, window, metadata, childtype, kwargs)
 
@@ -221,28 +221,30 @@ struct GeoStack{T,R,W,M,K} <: MemGeoStack{T}
     kwargs::K
 end
 """
-    GeoStack(data::Vararg{<:AbstractGeoArray}; kwargs...)
+    GeoStack(data::Vararg{<:AbstractGeoArray}; keys, kwargs)
 
 Convert `GeoArray`s to a `GeoStack`.
 """
-GeoStack(data::AbstractGeoArray...; keys=name.(data), kwargs...) =
-    GeoStack(NamedTuple{cleankeys(keys)}(data); kwargs...)
+GeoStack(data::AbstractGeoArray...; keys=name.(data), kwargs) =
+    GeoStack(NamedTuple{cleankeys(keys)}(data); kwargs)
 """
-    GeoStack(data::NamedTuple; [window=()], [metadata=nothing], kwargs...) =
+    GeoStack(data::NamedTuple; [window=()], [metadata=nothing], kwargs) =
 
 Construct a `GeoStack` from a NamedTuple of [`GeoArray`](@ref) and keyword arguments.
+
+The `kwargs` keyword is used as keyword arguments for the child contructor.
 """
-GeoStack(data::NamedTuple; refdims=(), window=(), metadata=nothing, kwargs...) =
+GeoStack(data::NamedTuple; refdims=(), window=(), metadata=nothing, kwargs) =
     GeoStack(data, refdims, window, metadata, kwargs)
 """
     GeoStack(s::AbstractGeoStack; [keys, data, refdims, window, metadata])
 
-Construct a `GeoStack` from another `GeoStack` and keyword arguments.
-`data` is a `NamedTuple` of `GeoArray`.
+Construct a `GeoStack` from another `AbstractGeoStack` and keyword arguments.
+`data` must be a `NamedTuple` of `GeoArray`.
 """
 GeoStack(s::AbstractGeoStack; keys=cleankeys(Base.keys(s)),
          data=NamedTuple{keys}(s[key] for key in keys),
-         refdims=refdims(s), window=(), metadata=metadata(s), kwargs...) =
+         refdims=refdims(s), window=(), metadata=metadata(s), kwargs=()) =
     GeoStack(data, refdims, window, metadata, kwargs)
 
 Base.convert(::Type{GeoStack}, src::AbstractGeoStack) = GeoStack(src)
@@ -272,8 +274,10 @@ struct DiskStack{T,R,W,M,C,K} <: DiskGeoStack{T}
     childtype::C
     kwargs::K
 end
-DiskStack(filename::NamedTuple; refdims=(), window=(), metadata=nothing, childtype, kwargs...) =
-    DiskStack(filename, refdims, window, metadata, childtype, kwargs)
+DiskStack(filenames::NamedTuple; refdims=(), window=(), metadata=nothing, childtype, kwargs) =
+    DiskStack(filenames, refdims, window, metadata, childtype, kwargs)
+DiskStack(filenames, keys; kwargs...) =
+    DiskStack(NamedTuple{cleankeys(keys)}((filenames...,)); kwargs...)
 
 
 # Other base methods

@@ -3,8 +3,8 @@ Abstract type for all metadata wrappers.
 
 These allow tracking the contents and origin of metadata. 
 This can facilitate conversion between metadata types (for saving 
-a file to a differenet format) or =simply saving altered data back to the 
-same file type, with identical metadata.
+a file to a differenet format) or simply saving data back to the 
+same file type with identical metadata.
 """
 abstract type Metadata{K,V} <: AbstractDict{K,V} end
 

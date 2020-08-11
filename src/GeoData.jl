@@ -28,28 +28,32 @@ import DimensionalData: val, data, dims, refdims, metadata, rebuild, rebuildslic
                         name, label, units, bounds, sel2indices, mode,
                         order, locus, span, sampling, forwardorder
 
-export Metadata, ArrayMetadata, DimMetadata
+export Metadata, DimMetadata, ArrayMetadata, StackMetadata
 
-export AbstractGeoArray, GeoArray
+export AbstractGeoArray, MemGeoArray, DiskGeoArray, GeoArray
 
-export AbstractGeoStack, GeoStack
+export AbstractGeoStack, MemGeoStack, DiskGeoStack, DiskStack, GeoStack
 
 export AbstractGeoSeries, GeoSeries
 
-export Projected, Converted, LatLon
+export Projected, Converted
 
-export missingval, boolmask, missingmask, replace_missing, 
-       aggregate, aggregate!, disaggregate, disaggregate!, 
-       crs, usercrs, dimcrs, convertmode
+export missingval, boolmask, missingmask, replace_missing,
+       aggregate, aggregate!, disaggregate, disaggregate!,
+       crs, usercrs, dimcrs
 
 export Lon, Lat, Vert, Band
 
-@dim Lon XDim "Longitude" "Lon"
-@dim Lat YDim "Latitude" "Lat"
-@dim Vert ZDim "Vertical" "Vert"
-@dim Band
+# DimensionalData documentation urls
+const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api"
+const DDdimdocs = joinpath(DDdocs, "#DimensionalData.Dimension")
+const DDarraydocs = joinpath(DDdocs, "#DimensionalData.AbstractDimensionalArray")
+const DDabssampleddocs = joinpath(DDdocs, "#DimensionalData.AbstractSampled")
+const DDsampleddocs = joinpath(DDdocs, "#DimensionalData.Sampled")
+const DDlocusdocs = joinpath(DDdocs, "#DimensionalData.Locus")
+const DDselectordocs = joinpath(DDdocs, "#DimensionalData.Selector")
 
-include("interface.jl")
+include("dimensions.jl")
 include("metadata.jl")
 include("array.jl")
 include("stack.jl")

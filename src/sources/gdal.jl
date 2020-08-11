@@ -80,7 +80,7 @@ end
     Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray;
                driver="GTiff", compress="DEFLATE", tiled=true)
 
-Write a [`GDALarray`](@ref) to a .tiff file.
+Write a [`GDALarray`](@ref) to file, `.tiff` by default, but other GDAL drivers also work.
 
 GDAL flags `driver`, `compress` and `tiled` can be passed in as keyword arguments.
 """
@@ -113,10 +113,10 @@ end
 """
     GDALstack(filenames; kwargs...)
 
-Create a stack of [`GDALarray`](@ref) from `filenames`.
+Convenience method to create a DiskStack  of [`GDALarray`](@ref) from `filenames`.
 """
-GDALstack(filenames; kwargs...) =
-    DiskStack(filenames; childtype=GDALarray, kwargs...)
+GDALstack(args...; kwargs...) =
+    DiskStack(args...; childtype=GDALarray, kwargs...)
 
 withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) =
     gdalread(f, filename)

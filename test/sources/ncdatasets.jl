@@ -21,8 +21,8 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         @test refdims(ncarray) == ()
         # TODO detect the time span, and make it Regular
         @test mode.(dims(ncarray)) == 
-            (Converted(Ordered(), Regular(2.0), Intervals(Center()), EPSG(4326), nothing),
-             Converted(Ordered(), Regular(1.0), Intervals(Center()), EPSG(4326), nothing),
+            (Converted(Ordered(), Regular(2.0), Intervals(Center()), EPSG(4326), EPSG(4326)),
+             Converted(Ordered(), Regular(1.0), Intervals(Center()), EPSG(4326), EPSG(4326)),
              Sampled(Ordered(), Irregular((DateTime360Day(2001, 1, 16), DateTime360Day(2003, 01, 16))), Intervals(Start())))
         @test bounds(ncarray) == ((0.0, 360.0), (-80.0, 90.0), (DateTime360Day(2001, 1, 16), DateTime360Day(2003, 1, 16)))
     end

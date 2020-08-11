@@ -234,6 +234,32 @@ end
 
 # Stack ########################################################################
 
+
+"""
+    NCDstack(filenames; refdims=(), window=(), metadata=nothing)
+
+A lazy [`DiskStack`](@ref) that loads multiple single-layer netcdf files or
+a single multi-layer file, using NCDatasets.jl.
+
+# Arguments
+- `filename`: `Tuple` or `Vector` of `String` paths to netcdf files, 
+  or a single `String` path to a netcdf file.
+
+# Keyword arguments
+- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
+- `window`: can be a tuple of Dimensions, selectors or regular indices.
+- `metadata`: Add additional metadata as a `Dict`.
+- `keys`: Keys for the layer in each file when filename is a `Vector`.
+- `kwargs`: A `NamedTuple` of keyword arguments to pass to the child object constructor.
+
+# Examples
+```julia
+stack = NCDstack(filename; window=(Lat(Between(20, 40),))
+stack[:soil_temperature]
+# Or
+multifile_stack = NCDstack([path1, path2, path3, path4])
+```
+"""
 struct NCDstack{T,R,W,M,K} <: DiskGeoStack{T}
     filename::T
     refdims::R
@@ -241,59 +267,18 @@ struct NCDstack{T,R,W,M,K} <: DiskGeoStack{T}
     metadata::M
     kwargs::K
 end
-
-"""
-    NCDstack(filenames; refdims=(), window=(), metadata=nothing)
-
-A lazy [`DiskStack`](@ref) that loads multiple single-layer netcdf files using NCDatasets.jl.
-
-# Arguments
--`filenames`: `Vector` of `String` paths to netcdf files.
-
-# Keyword arguments
-- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
-- `window`: can be a tuple of Dimensions, selectors or regular indices.
-- `metadata`: Add additional metadata as a `Dict`.
-- `keys`: Keys for the layer in each file in filenames. If these do not match a layer
-  the first layer will be used. This is also the default.
-
-# Examples
-```julia
-multifile_stack = NCDstack([path1, path2, path3, path4])
-```
-"""
 NCDstack(filenames::Union{Tuple,Vector};
          refdims=(),
          window=(),
          metadata=nothing,
          keys=cleankeys(ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames),
-         kwargs...) =
+         kwargs) =
     GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata, childtype=NCDarray, kwargs)
-
-"""
-    NCDstack(filename; refdims=(), window=(), metadata=nothing)
-
-A lazy GeoStack that loads a single multi-layered NetCDF file using NCDatasets.jl
-
-# Arguments
--`filename`: `String` path to a netcdf file.
-
-# Keyword arguments
-- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
-- `window`: can be a tuple of Dimensions, selectors or regular indices.
-- `metadata`: Add additional metadata as a `Dict`.
-
-# Examples
-```julia
-stack = NCDstack(filename; window=(Lat(Between(20, 40),))
-stack[:soil_temperature]
-```
-"""
 NCDstack(filename::AbstractString;
          refdims=(),
          window=(),
          metadata=ncread(metadata, filename),
-         kwargs...) =
+         kwargs) =
     NCDstack(filename, refdims, window, metadata, kwargs)
 
 childtype(::NCDstack) = NCDarray

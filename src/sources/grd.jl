@@ -1,4 +1,4 @@
-export GrdArray, GrdStack, GrdMetadata, GrdDimMetadata
+export GrdArray, GrdStack, GrdDimMetadata, GrdArrayMetadata
 
 # Metadata ########################################################################
 
@@ -12,7 +12,7 @@ end
 """
 [`Metadata`](@ref) wrapper for `GrdArray` metadata.
 """
-struct GrdMetadata{K,V} <: ArrayMetadata{K,V}
+struct GrdArrayMetadata{K,V} <: ArrayMetadata{K,V}
     val::Dict{K,V}
 end
 
@@ -70,7 +70,7 @@ dims(grd::GrdAttrib, usercrs=nothing) = begin
 end
 
 metadata(grd::GrdAttrib, args...) = begin
-    metadata = GrdMetadata()
+    metadata = GrdArrayMetadata()
     for key in ("creator", "created", "history")
         val = get(grd.attrib, key, "")
         if val != ""
@@ -236,7 +236,14 @@ end
 
 # AbstractGeoStack methods
 
-GrdStack(filename; kwargs...) = DiskStack(filename; childtype=GrdArray, kwargs...)
+"""
+    GrdStack(filenames; kwargs...)
+
+Convenience method to create a DiskStack of [`GrdArray`](@ref) from `filenames`.
+"""
+GrdStack(args...; kwargs...) = 
+    DiskStack(args...; childtype=GrdArray, kwargs...)
+
 
 withsource(f, ::Type{<:GrdArray}, filename::AbstractString, key...) =
     f(GrdAttrib(filename))

@@ -4,12 +4,12 @@ abstract type AbstractProjected{O,Sp,Sa} <: AbstractSampled{O,Sp,Sa} end
     Projected(order::Order, span, sampling, crs, usercrs)
     Projected(; order=Ordered(), span=UnknownSpan(), sampling=Points(), crs, usercrs=nothing)
 
-An `AbstractSampled` mode with projections attached.
+An [`AbstractSampled`]($DDabssampleddocs) mode with projections attached.
 
-Fields and behaviours are identical to `Sampled` with the addition of
-`crs` and `usercrs` fields.
+Fields and behaviours are identical to [`Sampled`]($DDsampleddocs) 
+with the addition of `crs` and `usercrs` fields.
 
-If both `crs` and `usercrs` fields contain crs data (in a GeoFormat wrapper 
+If both `crs` and `usercrs` fields contain CRS data (in a `GeoFormat` wrapper 
 from GeoFormatTypes.jl) the selector inputs and plot axes will be converted 
 from and to the specified `usercrs` projection automatically. A common use case
 would be to pass `usercrs=EPSG(4326)` to the constructor when loading eg. a GDALarray:
@@ -20,8 +20,8 @@ GDALarray(filename; usercrs=EPSG(4326))
 
 The underlying `crs` will be detected by GDAL.
 
-If `usercrs` is not supplied (ie. `isa Nothing`), the base index will be shown on plots, 
-and selectors will need to use whatever format it is in.
+If `usercrs` is not supplied (ie. `usercrs=nothing`), the base index will be 
+shown on plots, and selectors will need to use whatever format it is in.
 """
 struct Projected{O<:Order,Sp,Sa,C,IC} <: AbstractProjected{O,Sp,Sa}
     order::O
@@ -48,13 +48,13 @@ rebuild(g::Projected, order=order(g), span=span(g),
     Converted(order::Order, span, sampling, crs, dimcrs)
     Converted(; order=Ordered(), span=UnknownSpan(), sampling=Points(), crs, dimcrs)
 
-An `AbstractSampled` mode with projections, where the dimension has already been converted
-to another projection as a vector, usually `EPSG(4326)`.
+An [`AbstractSampled`]($DDabssampleddocs) mode with projections, where the dimension 
+has already been converted to another projection as a vector, usually `EPSG(4326)`.
 
-Fields and behaviours are identical to `Sampled` with the addition of
+Fields and behaviours are identical to [`Sampled`]($DDsampleddocs) with the addition of
 `crs` and `dimcrs` fields.
 
-The dimension will be indexed as for `Sampled`, but to save in another format the
+The dimension will be indexed as for [`Sampled`]($DDsampleddocs), but to save in another format the
 underlying projection will be used.
 
 ```julia
@@ -63,8 +63,8 @@ GDALarray(filename; usercrs=EPSG(4326))
 
 The underlying `crs` will be detected by GDAL.
 
-If `usercrs` is not supplied (ie. `isa Nothing`), the base index will be shown on plots, 
-and selectors will need to use whatever format it is in.
+If `usercrs` is not supplied (ie. `usercrs=nothing`), the base index will be 
+shown on plots, and selectors will need to use whatever format it is in.
 """
 struct Converted{O<:Order,Sp,Sa,C,DC} <: AbstractProjected{O,Sp,Sa}
     order::O
@@ -91,7 +91,7 @@ rebuild(g::Converted, order=order(g), span=span(g),
     LatLon(order, span, sampling)
     LatLon(; order=Ordered(), span=UnknownSpan(), sampling=Points())
 
-An `AbstractSampled` mode for standard latitude/longitude dimensions.
+An [`AbstractSampled`]($DDabssampleddocs) mode for standard latitude/longitude dimensions.
 """
 struct LatLon{O<:Order,Sp,Sa} <: AbstractSampled{O,Sp,Sa}
     order::O

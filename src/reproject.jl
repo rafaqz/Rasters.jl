@@ -1,3 +1,5 @@
+export reproject, convertmode, userval, userbounds
+
 # These methods are only available if ArchGDAL is loaded.
 # Otherwise Projected selector crs field must be `nothing`,
 # and no reprojection can occur.
