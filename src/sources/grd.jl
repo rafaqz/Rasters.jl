@@ -1,5 +1,13 @@
 export GrdArray, GrdStack, GrdDimMetadata, GrdArrayMetadata
 
+const GRD_INDEX_ORDER = Forward()
+const GRD_LON_ARRAY = Forward()
+const GRD_LAT_ARRAY = Reverse()
+const GRD_BAND_ARRAY = Forward()
+const GRD_LON_RELATION = Forward()
+const GRD_LAT_RELATION = Reverse()
+const GRD_BAND_RELATION= Forward()
+
 # Metadata ########################################################################
 
 """
@@ -50,14 +58,14 @@ dims(grd::GrdAttrib, usercrs=nothing) = begin
     latlon_metadata = GrdDimMetadata(Dict())
 
     latmode = Projected(
-        order=Ordered(Forward(), Reverse(), Reverse()),
+        order=Ordered(GRD_INDEX_ORDER, GRD_LAT_ARRAY, GRD_LAT_RELATION),
         span=Regular(yspan),
         sampling=Intervals(Start()),
         crs=crs,
         usercrs=usercrs,
     )
     lonmode = Projected(
-        order=Ordered(),
+        order=Ordered(GRD_INDEX_ORDER, GRD_LON_ARRAY, GRD_LON_RELATION),
         span=Regular(xspan),
         sampling=Intervals(Start()),
         crs=crs,
@@ -172,15 +180,15 @@ Currently the `metadata` field is lost on `write`.
 Base.write(filename::String, ::Type{<:GrdArray}, A::AbstractGeoArray) = begin
     if hasdim(A, Band)
         correctedA = permutedims(A, (Lon, Lat, Band)) |>
-            a -> reorderindex(a, Forward()) |>
-            a -> reorderrelation(a, (Lon(Forward()), Lat(Reverse()), Band(Forward())))
-        checkarrayorder(correctedA, (Forward(), Reverse(), Forward()))
+            a -> reorderindex(a, GRD_INDEX_ORDER) |>
+            a -> reorderrelation(a, (Lon(GRD_LON_RELATION), Lat(GRD_LAT_RELATION), Band(GRD_BAND_RELATION)))
+        checkarrayorder(correctedA, (GRD_LON_RELATION, GRD_LAT_ARRAY, GRD_BAND_RELATION))
         nbands = length(val(dims(correctedA, Band)))
     else
         correctedA = permutedims(A, (Lon, Lat)) |>
-            a -> reorderindex(a, Forward()) |>
-            a -> reorderrelation(a, (Lon(Forward()), Lat(Reverse())))
-            checkarrayorder(correctedA, (Forward(), Reverse()))
+            a -> reorderindex(a, GRD_INDEX_ORDER) |>
+            a -> reorderrelation(a, (Lon(GRD_LON_RELATION), Lat(GRD_LAT_RELATION)))
+            checkarrayorder(correctedA, (GRD_LON_ARRAY, GRD_LAT_ARRAY))
         nbands = 1
     end
     # Remove extension

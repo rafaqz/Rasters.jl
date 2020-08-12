@@ -40,7 +40,7 @@ end
 
 `AbstractGeoStack` for [SMAP](https://smap.jpl.nasa.gov/) datasets.
 
-The simplicity of the format means dims and refdims are the same for all stack layers,
+The simplicity of the format means `dims` and `metadata` are the same for all stack layers,
 so we store them as stack fields. `SMAPstack` should also serve as an example of defining
 a custom source for HDF5 backed geospatial data.
 
@@ -74,7 +74,7 @@ refdims(stack::SMAPstack) = stack.refdims
 metadata(stack::SMAPstack) = stack.metadata
 missingval(stack::SMAPstack, key::Key...) = SMAPMISSING
 childtype(stack::SMAPstack) = SMAParray
-kwargs(stack::SMAPstack) = ()
+childkwargs(stack::SMAPstack) = ()
 
 withsource(f, ::Type{SMAParray}, path::AbstractString, key...) =
     smapread(f, path)
@@ -127,17 +127,17 @@ or a vector of `String` paths for specific files.
 """
 SMAPseries(dir::AbstractString; kwargs...) =
     SMAPseries(joinpath.(dir, filter_ext(dir, ".h5")); kwargs...)
-SMAPseries(filepaths::Vector{<:AbstractString}, dims=nothing; refdims=()) = begin
+SMAPseries(filenames::Vector{<:AbstractString}, dims=nothing; kwargs...) = begin
     if dims isa Nothing
         usedpaths = String[]
         timeseries = []
         errors = []
-        for path in filepaths
-            println(path)
+        for filename in filenames
+            println(filename)
             try
-                t = smap_timefrompath(path)
+                t = smap_timefrompath(filename)
                 push!(timeseries, t)
-                push!(usedpaths, path)
+                push!(usedpaths, filename)
             catch e
                 push!(errors, e)
             end
@@ -145,7 +145,7 @@ SMAPseries(filepaths::Vector{<:AbstractString}, dims=nothing; refdims=()) = begi
         # Use the first files time dim as a template, but join vals into an array of times.
         timedim = smap_timedim(timeseries)
     else
-        usedpaths = filepaths
+        usedpaths = filenames
     end
     # Show errors after all files load, or you can't see them:
     if length(errors) > 0
@@ -153,8 +153,11 @@ SMAPseries(filepaths::Vector{<:AbstractString}, dims=nothing; refdims=()) = begi
         println.(errors)
     end
     # Get the dims once for the whole series
-    kwargs = (dims=smapread(smapdims, first(filenames)),)
-    GeoSeries(usedpaths, (timedim,); childtype=SMAPstack, refdims=refdims, kwargs=kwargs)
+    childkwargs = (
+        dims=smapread(smapdims, first(filenames)),
+        metadata=smapread(smapdims, first(filenames)),
+    )
+    GeoSeries(usedpaths, (timedim,); childtype=SMAPstack, childkwargs=childkwargs, kwargs...)
 end
 
 Base.:*(hrs::Int, ::Type{T}) where T<:Period = T(hrs)

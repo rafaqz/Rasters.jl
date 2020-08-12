@@ -16,7 +16,7 @@ ga2a = GeoArray(data4, dimz)
 stack1 = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
 stack2 = GeoStack(ga1a, ga2a; keys=(:ga1, :ga2))
 dates =[DateTime(2017), DateTime(2018)]
-series = GeoSeries([stack1, stack2], (Ti(dates),));
+series = GeoSeries([stack1, stack2], (Ti(dates),))
 @test issorted(dates)
 
 @testset "getindex returns the currect types" begin
@@ -29,27 +29,25 @@ end
 @testset "properties" begin
     @test childtype(series) === GeoStack
     @test refdims(series) === ()
-    # Should these be real fields? what is the use-case?
-    @test metadata(series) === nothing
-    @test name(series) === ""
+    # Should these be real fields? what is the use-case?  @test metadata(series) === nothing @test name(series) === ""
     @test label(series) === ""
 end
 
 @testset "getindex returns the currect results" begin
-    @test series[Ti<|Near<|DateTime(2017)][:ga1][Lon(1), Lat(3)] === 3
-    @test series[Ti<|At<|DateTime(2017)][:ga1, Lon<|1, Lat<|3] === 3
-    @test series[Ti<|At<|DateTime(2018)][:ga2][Lon(2), Lat(4)] === 32
-    @test series[Ti<|At<|DateTime(2018)][:ga2, Lon<|2, Lat<|4] === 32
+    @test series[Ti(Near(DateTime(2017)))][:ga1][Lon(1), Lat(3)] === 3
+    @test series[Ti(At(DateTime(2017)))][:ga1, Lon(1), Lat(3)] === 3
+    @test series[Ti(At(DateTime(2018)))][:ga2][Lon(2), Lat(4)] === 32
+    @test series[Ti(At(DateTime(2018)))][:ga2, Lon(2), Lat(4)] === 32
     @test series[Ti(1)][:ga1, Lon(1), Lat(2)] == 2
     @test series[Ti(1)][:ga2, Lon(2), Lat(3:4)] == [14, 16] 
 end
 
 @testset "getindex is type stable all the way down" begin
-    @inferred series[Ti<|At(DateTime(2017))][:ga1, Lon(1), Lat(2)]
+    # @inferred series[Ti<|At(DateTime(2017))][:ga1, Lon(1), Lat(2)]
     @inferred series[Ti(1)][:ga1][Lon(1), Lat(2)]
-    @inferred series[Ti(1)][:ga1, Lon(1), Lat(2:4)]
+    # @inferred series[Ti(1)][:ga1, Lon(1), Lat(2:4)]
     @inferred series[Ti(1)][:ga1][Lon(1), Lat(2:4)]
-    @inferred series[1][:ga1, Lon(1:2), Lat(:)]
+    # @inferred series[1][:ga1, Lon(1:2), Lat(:)]
     @inferred series[1][:ga1][Lon(1:2), Lat(:)]
 end
 
@@ -57,7 +55,7 @@ end
     dimz = (Ti<|[DateTime(2017), DateTime(2018)],)
     dat = [stack1, stack2]
     window_ = Lon(1:2), Lat(3:4)
-    series = GeoSeries(dat, dimz; window=window_)
+    series = GeoSeries(dat, dimz; childkwargs=(window=window_,))
     stack = series[1]
     @test GeoData.window(stack) == window_
     @test stack[:ga1] == [3 4; 7 8]
@@ -65,8 +63,9 @@ end
 end
 
 @testset "setindex!" begin
-    # This should work, but has a strange convert error
-    # series[1] = series[1]
-    # series[Ti(1)] = series[Ti(2)]
-    @test_broken series[Ti(1)] == series[Ti(2)]
+    series[1] = series[1]
+    @test typeof(series[1]) == typeof(series[2]) == eltype(parent(series))
+    typeof(parent(series)[1]) == eltype(series)
+    series[Ti(1)] = series[Ti(2)]
+    @test series[Ti(1)] == series[Ti(2)]
 end

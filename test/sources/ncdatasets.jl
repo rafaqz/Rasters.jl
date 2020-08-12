@@ -1,5 +1,5 @@
 using NCDatasets, ArchGDAL, GeoData, Test, Statistics, Dates, CFTime, Plots, GeoFormatTypes
-using GeoData: name, window, mode, span, sampling
+using GeoData: name, window, mode, span, sampling, val
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
@@ -12,6 +12,14 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)
         @test ncarray isa NCDarray
+        @test val(dims(ncarray, Ti())) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
+        @test val(dims(ncarray, Lat())) == -79.5:89.5
+        @test val(dims(ncarray, Lon())) == 1.0:2:359.0
+        @test bounds(ncarray) == (
+            (0.0, 360.0), 
+            (-80.0, 90.0), 
+            (DateTime360Day(2001, 1, 16), DateTime360Day(2003, 1, 16)),
+        )
     end
 
     @testset "dimensions" begin
@@ -48,6 +56,11 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         x = ncarray[Lon(Contains(150)), Lat(Contains(30)), Ti(1)]
         @test x isa Float32
         # TODO make sure we are getting the right cell.
+        @test size(ncarray[Lat(Between(-80, 90)), Lon(Between(0, 360)),
+            Ti(Between(DateTime360Day(2001, 1, 16), DateTime360Day(2003, 01, 16)))
+        ]) == (180, 170, 24)
+        @test size(ncarray[Lat(Between(-80, -25)), Lon(Between(0, 180)), 
+                           Ti(Contains(DateTime360Day(2003, 02, 20)))]) == (90, 55)
     end
 
     @testset "conversion to GeoArray" begin
@@ -93,12 +106,12 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
             # gdalarray WKT is missing one AUTHORITY
             # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
             # But the Proj representation is the same
-            GeoData.step.(mode.(dims(gdalarray, (Lat, Lon))))
             @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
+            @test bounds(gdalarray) == (bounds(nccleaned)..., (1, 1))
             # Tiff locus = Start, Netcdf locus = Center
-            @test val(dims(gdalarray, Lat)) .+ 0.5 ≈ val(dims(nccleaned, Lat))
+            @test reverse(val(dims(gdalarray, Lat))) .+ 0.5 ≈ val(dims(nccleaned, Lat))
             @test val(dims(gdalarray, Lon)) .+ 1.0  ≈ val(dims(nccleaned, Lon))
-            @test GeoArray(gdalarray) ≈ nccleaned
+            @test reverse(GeoArray(gdalarray); dims=Lat()) ≈ nccleaned
         end
         @testset "to grd" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
@@ -211,8 +224,7 @@ end
 end
 
 @testset "NCD series" begin
-    series = GeoSeries([ncmulti, ncmulti], (Ti,);
-                       childtype=NCDstack, name="test")
+    series = GeoSeries([ncmulti, ncmulti], (Ti,); childtype=NCDstack)
     geoarray = GeoArray(NCDarray(ncmulti, :albedo; name="test"))
     @test series[Ti(1)][:albedo] == geoarray
     @test typeof(series[Ti(1)][:albedo]) == typeof(geoarray)

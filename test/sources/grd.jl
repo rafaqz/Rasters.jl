@@ -26,7 +26,7 @@ path = joinpath(testpath, "data/rlogo")
 
     @testset "other fields" begin
         @test missingval(grdarray) == -3.4f38
-        @test metadata(grdarray) isa GrdMetadata
+        @test metadata(grdarray) isa GrdArrayMetadata
         @test name(grdarray) == "red:green:blue"
         @test label(grdarray) == "red:green:blue"
         @test units(grdarray) == nothing
@@ -142,8 +142,8 @@ path = joinpath(testpath, "data/rlogo")
             size(grdarray)
             gdalarray = GDALarray(gdalfilename)
             # @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
-            @test val(dims(gdalarray, Lat)) ≈ val(dims(grdarray, Lat))
             @test val(dims(gdalarray, Lon)) ≈ val(dims(grdarray, Lon))
+            @test reverse(val(dims(gdalarray, Lat))) ≈ val(dims(grdarray, Lat))
             @test GeoArray(gdalarray) ≈ permutedims(grdarray[Band(1)], [Lon(), Lat()])
             # 3 Bands
             gdalfilename2 = tempname() * ".tif"
@@ -230,10 +230,10 @@ end
 end
 
 @testset "Grd series" begin
-    series = GeoSeries([path, path], (Ti,); childtype=GrdArray, usercrs=EPSG(4326), name="test")
+    series = GeoSeries([path, path], (Ti,); childtype=GrdArray, childkwargs=(usercrs=EPSG(4326), name="test"))
     @test GeoArray(series[Ti(1)]) == 
         GeoArray(GrdArray(path; usercrs=EPSG(4326), name="test"))
-    stacks = [DiskStack((a=path, b=path); childtype=GrdArray, usercrs=EPSG(4326), name="test")]
+    stacks = [DiskStack((a=path, b=path); childtype=GrdArray, childkwargs=(usercrs=EPSG(4326), name="test"))]
     series = GeoSeries(stacks, (Ti,))
     @test series[Ti(1)][:a] == 
         GeoArray(GrdArray(path; usercrs=EPSG(4326), name="test"))

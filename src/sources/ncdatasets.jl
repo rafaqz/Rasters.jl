@@ -250,7 +250,7 @@ a single multi-layer file, using NCDatasets.jl.
 - `window`: can be a tuple of Dimensions, selectors or regular indices.
 - `metadata`: Add additional metadata as a `Dict`.
 - `keys`: Keys for the layer in each file when filename is a `Vector`.
-- `kwargs`: A `NamedTuple` of keyword arguments to pass to the child object constructor.
+- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the child object constructor.
 
 # Examples
 ```julia
@@ -265,26 +265,26 @@ struct NCDstack{T,R,W,M,K} <: DiskGeoStack{T}
     refdims::R
     window::W
     metadata::M
-    kwargs::K
+    childkwargs::K
 end
 NCDstack(filenames::Union{Tuple,Vector};
          refdims=(),
          window=(),
          metadata=nothing,
          keys=cleankeys(ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames),
-         kwargs) =
-    GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata, childtype=NCDarray, kwargs)
+         childkwargs=()) =
+    GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata, childtype=NCDarray, childkwargs)
 NCDstack(filename::AbstractString;
          refdims=(),
          window=(),
          metadata=ncread(metadata, filename),
-         kwargs) =
-    NCDstack(filename, refdims, window, metadata, kwargs)
+         childkwargs=()) =
+NCDstack(filename, refdims, window, metadata, childkwargs)
 
 childtype(::NCDstack) = NCDarray
-kwargs(stack::NCDstack) = stack.kwargs
-crs(stack::NCDarray) = get(kwargs(stack), :crs, EPSG(4326))
-dimcrs(stack::NCDarray) = get(kwargs(stack), :dimcrs, nothing)
+childkwargs(stack::NCDstack) = stack.childkwargs
+crs(stack::NCDarray) = get(childkwargs(stack), :crs, EPSG(4326))
+dimcrs(stack::NCDarray) = get(childkwargs(stack), :dimcrs, nothing)
 
 # AbstractGeoStack methods
 

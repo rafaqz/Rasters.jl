@@ -23,7 +23,7 @@ abstract type AbstractGeoSeries{T,N,D,A,C} <: AbstractDimensionalArray{T,N,D,A} 
 # Interface methods ####################################################
 
 childtype(A::AbstractGeoSeries) = A.childtype
-kwargs(A::AbstractGeoSeries) = A.kwargs
+childkwargs(A::AbstractGeoSeries) = A.childkwargs
 metadata(A::AbstractGeoSeries) = nothing
 name(A::AbstractGeoSeries) = ""
 label(A::AbstractGeoSeries) = ""
@@ -32,16 +32,16 @@ label(A::AbstractGeoSeries) = ""
 # Mostly these inherit from AbstractDimensionalArray
 
 Base.getindex(A::AbstractGeoSeries{<:AbstractString}, I::Vararg{<:Integer}) =
-    childtype(A)(data(A)[I...]; refdims=slicedims(A, I)[2], A.kwargs...)
-# TODO how should window be passed on to existing stacks?
+    childtype(A)(data(A)[I...]; refdims=slicedims(A, I)[2], A.childkwargs...)
+# Window is passed on to existing MemStacks, as with DiskStacks
 Base.getindex(A::AbstractGeoSeries{<:AbstractGeoStack}, I::Vararg{<:Integer}) =
-    rebuild(data(A)[I...]; refdims=slicedims(A, I)[2], A.kwargs...)
+    rebuild(data(A)[I...]; A.childkwargs...)
 
 
 """
     GeoSeries(data::Array{T}, dims; refdims=(), childtype=DD.basetypeof(T), 
-              kwargs=()) where T<:Union{<:AbstractGeoStack,<:AbstractGeoArray}
-    GeoSeries(data, dims; refdims=(), childtype, kwargs)
+              childkwargs=()) where T<:Union{<:AbstractGeoStack,<:AbstractGeoArray}
+    GeoSeries(data, dims; refdims=(), childtype, childkwargs)
 
 Concrete implementation of [`AbstractGeoSeries`](@ref).
 Series hold paths to array or stack files, along some dimension(s).
@@ -51,16 +51,16 @@ struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},C,K} <: AbstractGeoSeries{T,N,D,A
     dims::D
     refdims::R
     childtype::C
-    kwargs::K
+    childkwargs::K
 end
-GeoSeries(data::Array{T}, dims; refdims=(), childtype=DD.basetypeof(T), kwargs=()
+GeoSeries(data::Array{T}, dims; refdims=(), childtype=DD.basetypeof(T), childkwargs=()
          ) where T<:Union{<:AbstractGeoStack,<:AbstractGeoArray} =
-    GeoSeries(data, formatdims(data, dims), refdims, childtype, kwargs)
-GeoSeries(data, dims; refdims=(), childtype, kwargs=()) =
-    GeoSeries(data, formatdims(data, dims), refdims, childtype, kwargs)
+    GeoSeries(data, formatdims(data, dims), refdims, childtype, childkwargs)
+GeoSeries(data, dims; refdims=(), childtype, childkwargs=()) =
+    GeoSeries(data, formatdims(data, dims), refdims, childtype, childkwargs)
 
 @inline rebuild(A::GeoSeries, data, dims::Tuple, refdims, args...) =
-    GeoSeries(data, dims, refdims, childtype(A), kwargs(A))
+    GeoSeries(data, dims, refdims, childtype(A), childkwargs(A))
 
 Base.@propagate_inbounds Base.setindex!(A::GeoSeries, x, I::Union{AbstractArray,Colon,Integer}...) =
     setindex!(data(A), x, I...)

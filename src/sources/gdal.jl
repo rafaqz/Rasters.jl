@@ -4,6 +4,11 @@ const AG = ArchGDAL
 
 export GDALarray, GDALstack, GDALarrayMetadata, GDALdimMetadata
 
+const GDAL_LON_ORDER = Forward()
+const GDAL_LAT_ORDER = Reverse()
+const GDAL_BAND_ORDER = Forward()
+const GDAL_RELATION = Forward()
+
 
 # Metadata ########################################################################
 
@@ -35,11 +40,11 @@ Load a file lazily with gdal. GDALarray will be converted to GeoArray after
 indexing or other manipulations. `GeoArray(GDAlarray(filename))` will do this
 immediately.
 
-If `usercrs` like `EPSG(4326)` is passed to the constructor, selectors like 
-`Between` will use its projection, converting automatically to the underlying 
-projection from GDAL. Plots will also display the axes using this projection. 
+If `usercrs` like `EPSG(4326)` is passed to the constructor, selectors like
+`Between` will use its projection, converting automatically to the underlying
+projection from GDAL. Plots will also display the axes using this projection.
 
-Until DiskArrays.jl is used for this package, avoid broadcasting over `GDALarray`, 
+Until DiskArrays.jl is used for this package, avoid broadcasting over `GDALarray`,
 convert to `GeoArray` first.
 
 ## Arguments
@@ -48,7 +53,7 @@ convert to `GeoArray` first.
 ## Keyword arguments
 - `name`: Name for the array.
 - `refdims`: Add dimension position array was sliced from. Mostly used programatically.
-- `usercrs`: CRS format used in Between, At etc and Plotting. Can be any CRS `GeoFormat` 
+- `usercrs`: CRS format used in Between, At etc and Plotting. Can be any CRS `GeoFormat`
   form GeoFormatTypes.jl, such as `WellKnownText` loading the array.
 """
 struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
@@ -88,20 +93,23 @@ Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims")
 
     correctedA = permutedims(A, (Lon(), Lat())) |>
-        a -> reorderindex(a, (Lon(Forward()), Lat(Reverse()))) |>
-        a -> reorderrelation(a, Forward())
+        a -> reorderindex(a, (Lon(GDAL_LON_ORDER), Lat(GDAL_LAT_ORDER))) |>
+        a -> reorderrelation(a, GDAL_RELATION)
+    checkarrayorder(correctedA, (GDAL_LON_ORDER, GDAL_LAT_ORDER))
+
     nbands = 1
     indices = 1
-    gdalwrite(filename, A, nbands, indices; kwargs...)
+    gdalwrite(filename, correctedA, nbands, indices; kwargs...)
 end
 Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,3}, kwargs...) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
 
     correctedA = permutedims(A, (Lon(), Lat(), Band())) |>
-        a -> reorderindex(a, (Lon(Forward()), Lat(Reverse()), Band(Forward()))) |>
-        a -> reorderrelation(a, Forward())
-    checkarrayorder(correctedA, (Forward(), Forward(), Forward()))
+        a -> reorderindex(a, (Lon(GDAL_LON_ORDER), Lat(GDAL_LAT_ORDER), Band(GDAL_BAND_ORDER))) |>
+        a -> reorderrelation(a, GDAL_RELATION)
+    checkarrayorder(correctedA, (GDAL_LON_ORDER, GDAL_LAT_ORDER, GDAL_BAND_ORDER))
+
     nbands = size(correctedA, Band())
     indices = Cint[1:nbands...]
     gdalwrite(filename, correctedA, nbands, indices; kwargs...)
@@ -154,7 +162,7 @@ dims(dataset::AG.Dataset, usercrs=nothing) = begin
         latrange = LinRange(latmax, latmin, latsize)
 
         areaorpoint = gdalmetadata(dataset, "AREA_OR_POINT")
-        # Spatial data defaults to area/inteval?
+        # Spatial data defaults to area/inteval
         if areaorpoint == "Point"
             sampling = Points()
         else
@@ -163,19 +171,19 @@ dims(dataset::AG.Dataset, usercrs=nothing) = begin
         end
 
         latmode = Projected(
-            # Latitude is in reverse to how we plot it.
-            order=Ordered(Reverse(), Reverse(), Forward()),
+            order=Ordered(GDAL_LAT_ORDER, GDAL_LAT_ORDER, GDAL_RELATION),
             sampling=sampling,
             # Use the range step as is will be different to latstep due to float error
             span=Regular(step(latrange)),
             crs=sourcecrs,
-            usercrs=usercrs
+            usercrs=usercrs,
         )
         lonmode = Projected(
+            order=Ordered(GDAL_LON_ORDER, GDAL_LON_ORDER, GDAL_RELATION),
             span=Regular(step(lonrange)),
             sampling=sampling,
             crs=sourcecrs,
-            usercrs=usercrs
+            usercrs=usercrs,
         )
 
         lon = Lon(lonrange; mode=lonmode, metadata=lonlat_metadata)
@@ -256,17 +264,20 @@ gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tile
     ) do dataset
         # Convert the dimensions to `Projected` if they are `Converted`
         # This allows saving NetCDF to Tiff
+        println(val(dims(A, Lat())))
         lon, lat = map(dims(A, (Lon(), Lat()))) do d
             convertmode(Projected, d)
         end
+        @assert indexorder(lat) == GDAL_LAT_ORDER
+        @assert indexorder(lon) == GDAL_LON_ORDER
         # Set the index loci to the start of the cell for the lat and lon dimensions.
         # NetCDF or other formats use the center of the interval, so they need conversion.
         lonindex, latindex = map((lon, lat)) do d
-            shiftindexloci(Start(), d) 
+            shiftindexloci(Start(), d)
         end
-        # Get the geotransform from the updated lat/lon dims 
+        # Get the geotransform from the updated lat/lon dims
         geotransform = build_geotransform(latindex, lonindex)
-        # Convert projection to a string of well known text 
+        # Convert projection to a string of well known text
         proj = convert(String, convert(WellKnownText, crs(lon)))
 
         # Write projection, geotransform and data to GDAL
