@@ -1,10 +1,11 @@
 using NCDatasets, ArchGDAL, GeoData, Test, Statistics, Dates, CFTime, Plots, GeoFormatTypes
-using GeoData: name, window, mode, span, sampling, val
+using GeoData: name, window, mode, span, sampling, val, Ordered, Forward, Reverse
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = geturl(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
 ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
+ncreverselat = geturl("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
 
 @testset "NCDarray" begin
     ncarray = NCDarray(ncsingle)
@@ -47,7 +48,18 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         @test ncarray[Lon(1), Ti(1)] isa GeoArray{<:Any,1}
         @test ncarray[Lon(1), Lat(1), Ti(1)] isa Missing
         @test ncarray[Lon(30), Lat(30), Ti(1)] isa Float32
-        @test ncarray[30, 30, 2] === 278.47168f0
+        # Russia
+        @test ncarray[Lon(50), Lat(100), Ti(1)] isa Missing
+        # Alaska
+        @test ncarray[Lat(Contains(64.2008)), Lon(Contains(149.4937)), Ti(1)] isa Missing
+        @test ncarray[Ti(2), Lon(At(59.0)), Lat(At(-50.5))] == ncarray[30, 30, 2] === 278.47168f0
+    end
+
+    @testset "indexing with reverse lat" begin
+        ncrevlatarray = NCDstack(ncreverselat; childkwargs=(missingval=-9.96921f36,))[:sst]
+        @test order(dims(ncrevlatarray, Lat)) == Ordered(Reverse(), Reverse(), Forward())
+        @test ncrevlatarray[Lat(At(40)), Lon(At(100)), Ti(1)] == missingval(ncrevlatarray)
+        @test ncrevlatarray[Lat(At(-40)), Lon(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0
     end
 
     @testset "selectors" begin

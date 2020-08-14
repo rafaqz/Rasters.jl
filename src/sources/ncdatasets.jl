@@ -182,6 +182,7 @@ NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
          dims=nothing,
          name=nothing,
          metadata=nothing,
+         missingval=missing,
          crs=EPSG(4326),
          dimcrs=EPSG(4326),
         ) = begin
@@ -191,7 +192,6 @@ NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
     dims = dims isa Nothing ? GeoData.dims(dataset, key, crs, dimcrs) : dims
     name = name isa Nothing ? string(key) : name
     metadata_ = metadata isa Nothing ? GeoData.metadata(var, GeoData.metadata(dataset)) : metadata
-    missingval = missing
     size_ = map(length, dims)
     T = eltype(var)
     N = length(dims)
@@ -364,6 +364,8 @@ _ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, crs, dimcrs) = beg
     order = _ncdorder(index)
     span = Irregular(
         if length(index) > 1
+            # Use the second last interval to guess the last interval
+            # This is a bit of a hack: we need to parse units to resolve it.
             if isrev(indexorder(order))
                 index[end], index[1] + (index[1] - index[2])
             else
@@ -379,7 +381,7 @@ end
 _ncdmode(index, dimtype, crs, dimcrs) = Categorical()
 
 _ncdorder(index) = index[end] > index[1] ? Ordered(Forward(), Forward(), Forward()) :
-                                           Ordered(Reverse(), Forward(), Reverse())
+                                           Ordered(Reverse(), Reverse(), Forward())
 
 _ncdspan(index, order) = begin
     step = index[2] - index[1]
@@ -402,6 +404,7 @@ _ncdspan(index, order) = begin
     return Regular(step)
 end
 
+# Direct loading: better memory handling?
 # readwindowed(A::NCDatasets.CFVariable) = readwindowed(A, axes(A)...)
 # readwindowed(A::NCDatasets.CFVariable, i, I...) = begin
 #     var = A.var
