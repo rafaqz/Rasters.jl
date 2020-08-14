@@ -334,7 +334,7 @@ dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
             dimtype = get(dimmap, dimname, Dim{Symbol(dimname)})
             index = dvar[:]
             mode = _ncdmode(index, dimtype, crs, dimcrs)
-            meta = metadata(dvar)
+            meta = NCDdimMetadata(Dict{String,Any}(dvar.attrib))
 
             # Add the dim containing the dimension var array
             push!(dims, dimtype(index, mode, meta))
@@ -404,17 +404,6 @@ _ncdspan(index, order) = begin
     return Regular(step)
 end
 
-# Direct loading: better memory handling?
-# readwindowed(A::NCDatasets.CFVariable) = readwindowed(A, axes(A)...)
-# readwindowed(A::NCDatasets.CFVariable, i, I...) = begin
-#     var = A.var
-#     indices = to_indices(var, (i, I...))
-#     shape = Base.index_shape(indices...)
-#     dest = Array{eltype(var),length(shape)}(undef, map(length, shape)...)
-#     NCDatasets.load!(var, dest, indices...)
-#     dest
-# end
-
 metadata(dataset::NCDatasets.Dataset) = NCDstackMetadata(Dict{String,Any}(dataset.attrib))
 metadata(dataset::NCDatasets.Dataset, key::Key) = metadata(dataset[string(key)])
 metadata(var::NCDatasets.CFVariable) = NCDarrayMetadata(Dict{String,Any}(var.attrib))
@@ -426,108 +415,13 @@ end
 
 missingval(var::NCDatasets.CFVariable) = missing
 
-# https://trac.osgeo.org/gdal/wiki/NetCDF_ProjectionTestingStatus
-
-# const cf_proj_params = Dict(
-#     "false_easting" => "+x_0",
-#     "false_northing" => "+y_0",
-#     "scale_factor_at_projection_origin" => "+k_0",
-#     "scale_factor_at_central_meridian" => "+k_0",
-#     "standard_parallel[1]" => "+lat_1",
-#     "standard_parallel[2]" => "+lat_2",
-#     "longitude_of_central_meridian" => "+lon_0",
-#     "longitude_of_projection_origin" => "+lon_0",
-#     "latitude_of_projection_origin" => "+lat_0",
-#     "straight_vertical_longitude_from_pole" => "+lon_0",
-# )
-
-# const cf_proj_projections = Dict(
-#     "albers_conical_equal_area" => "+proj=aea",
-#     "azimuthal_equidistant" => "+proj=aeqd",
-#     "lambert_azimuthal_equal_area" => "+proj=laea",
-#     "lambert_conformal_conic" => "+proj=lcc",
-#     "lambert_cylindrical_equal_area" => "+proj=cea",
-#     "mercator" => "+proj=merc",
-#     "orthographic" => "+proj=ortho",
-#     "polar_stereographic" => "+proj=stere",
-#     "stereographic" => "+proj=stere",
-#     "transverse_mercator" => "+proj=tmerc",
-# )
-# const proj_cf_projections = Dict(Pair.(values(cf_proj_projections), collect(keys(cf_proj_projections))))
-
-
-# const projections_params = ( 
-#     albers_conical_equal_area = (
-#         "standard_parallel[1]",
-#         "standard_parallel[2]",
-#         "longitude_of_central_meridian",
-#         "latitude_of_projection_origin",
-#         "false_easting",
-#         "false_northing",
-#     ),
-#     azimuthal_equidistant = (
-#         "longitude_of_projection_origin",
-#         "latitude_of_projection_origin",
-#         "false_easting",
-#         "false_northing",
-#     ),
-#     lambert_azimuthal_equal_area = (
-#         "longitude_of_projection_origin",
-#         "latitude_of_projection_origin",
-#         "false_easting",
-#         "false_northing",
-#     ),
-#     lambert_conformal_conic = (
-#         ("standard_parallel", ["standard_parallel[1]", "standard_parallel[2]"])
-#         "longitude_of_central_meridian",
-#         "latitude_of_projection_origin",
-#         "false_easting",
-#         "false_northing",
-#     ),
-#     lambert_conformal_conic = (
-#         "longitude_of_central_meridian",
-#         "latitude_of_projection_origin",
-#         "false_easting",
-#         "false_northing",
-#     ),
-#     lambert_cylindrical_equal_area = (
-#         "longitude_of_central_meridian",
-#         "standard_parallel[1]",
-#         "false_easting",
-#         "false_northing",
-#     ),
-#     mercator = (
-#         "longitude_of_projection_origin",
-#         ("scale_factor_at_projection_origin", "standard_parallel[1]"),
-#         "false_easting",
-#         "false_northing",
-#     ),
-#     orthographic = (
-#         "longitude_of_projection_origin",
-#         "latitude_of_projection_origin",
-#         "false_easting",
-#         "false_northing",
-#     ),
-#     polar_stereographic = (
-#         "straight_vertical_longitude_from_pole ",
-#         "latitude_of_projection_origin",
-#         ("scale_factor_at_projection_origin", "standard_parallel")
-#         "false_easting",
-#         "false_northing",
-#     ),
-#     stereographic = (
-#         "longitude_of_projection_origin",
-#         "latitude_of_projection_origin",
-#         "scale_factor_at_projection_origin",
-#         "false_easting",
-#         "false_northing",
-#     ),
-#     transverse_mercator = (
-#         "scale_factor_at_central_meridian",
-#         "longitude_of_central_meridian",
-#         "latitude_of_projection_origin",
-#         "false_easting",
-#         "false_northing",
-#     )
-# )
-
+# Direct loading: better memory handling?
+# readwindowed(A::NCDatasets.CFVariable) = readwindowed(A, axes(A)...)
+# readwindowed(A::NCDatasets.CFVariable, i, I...) = begin
+#     var = A.var
+#     indices = to_indices(var, (i, I...))
+#     shape = Base.index_shape(indices...)
+#     dest = Array{eltype(var),length(shape)}(undef, map(length, shape)...)
+#     NCDatasets.load!(var, dest, indices...)
+#     dest
+# end
