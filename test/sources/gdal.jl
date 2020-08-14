@@ -1,5 +1,5 @@
 using ArchGDAL, GeoData, Test, Statistics, Dates, Plots, NCDatasets
-using GeoData: window, mode, span, sampling, name
+using GeoData: window, mode, span, sampling, name, dims2indices
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
@@ -29,9 +29,6 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test bounds(gdalarray) == ((-28493.166784412522, 2358.2116249490587), 
                                     (4.22503316539283e6, 4.255944565939175e6), 
                                     (1, 1))
-        crs(gdalarray)
-        val(dims(gdalarray, Lat))
-        val(dims(gdalarray, Lon))
     end
 
     @testset "other fields" begin
@@ -61,6 +58,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test gdalarray[Lon(1), Band(1)] isa GeoArray{UInt8,1}
         @test gdalarray[Lon(1), Lat(1), Band(1)] isa UInt8 
         @test gdalarray[1, 1, 1] isa UInt8
+        @test gdalarray[Lat(Contains(33.92)), Lon(Contains(-117.56)), Band(1)] == parent(gdalarray)[125, 45, 1] == 0xbd
     end
 
     @testset "methods" begin 
@@ -168,7 +166,6 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
     @testset "plot" begin
         # TODO write some tests for this
         gdalarray |> plot
-        #savefig("plot.png")
     end
 
 end

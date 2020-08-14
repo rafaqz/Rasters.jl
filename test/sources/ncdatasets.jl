@@ -57,6 +57,8 @@ ncreverselat = geturl("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm
 
     @testset "indexing with reverse lat" begin
         ncrevlatarray = NCDstack(ncreverselat; childkwargs=(missingval=-9.96921f36,))[:sst]
+
+        metadata(dims(ncrevlatarray, Ti))
         @test order(dims(ncrevlatarray, Lat)) == Ordered(Reverse(), Reverse(), Forward())
         @test ncrevlatarray[Lat(At(40)), Lon(At(100)), Ti(1)] == missingval(ncrevlatarray)
         @test ncrevlatarray[Lat(At(-40)), Lon(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0

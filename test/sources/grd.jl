@@ -48,6 +48,8 @@ path = joinpath(testpath, "data/rlogo")
         @test grdarray[Lon(1), Band(1)] isa GeoArray{Float32,1}
         @test grdarray[Lon(50), Lat(30), Band(1)] == 115.0f0
         @test grdarray[1, 1, 1] == 255.0f0
+        @test grdarray[Lat(At(20)), Lon(At(20)), Band(3)] == 255.0f0
+        @test grdarray[Lat(Contains(60)), Lon(Contains(20)), Band(1)] == 255.0f0
     end
 
     # @testset "setindex" begin
