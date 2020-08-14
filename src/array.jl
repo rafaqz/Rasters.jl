@@ -1,16 +1,18 @@
+
 """
 `AbstractGeoArray` wraps an array (or location of an array) and metadata
-about its contents. It may be memory (`GeoArray`) or disk-backed (`NCarray`,
-`GDAlarray`).
+about its contents. It may be memory ([`GeoArray`](@ref)) or disk-backed
+([`NCDarray`](@ref), [`GDAlarray`](@ref), [`GrdArray`](@ref)).
 
-`AbstractGeoArray`s inherit from `AbstractDimensionalArray` from
-DimensionalData. They can be indexed as regular Julia arrays or with
-DimensionalData.jl dimensions. They will plot as a heatmap in Plots.jl with correct
-coordinates and labels, even after slicing with `getindex` or `view`. `getindex`
-on a `AbstractGeoArray` will always return a standard `GeoArray`.
+`AbstractGeoArray`s inherit from [`AbstractDimensionalArray`]($DDarraydocs) 
+from DimensionalData.jl. They can be indexed as regular Julia arrays or with 
+DimensionalData.jl [`Dimension`]($DDdimdocs)s. They will plot as a heatmap in 
+Plots.jl with correct coordinates and labels, even after slicing with 
+`getindex` or `view`. `getindex` on a `AbstractGeoArray` will always return 
+a memory-backed `GeoArray`.
 
- In addition to DimensionalArray behaviour, these have
-`metadata` and `missingval` fields
+In addition to DimensionalArray behaviour, 
+these have `metadata` and `missingval` fields
 """
 abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
 
@@ -20,12 +22,21 @@ struct LazyArray{T,N} <: AbstractArray{T,N} end
 
 # Interface methods ###########################################################
 
+"""
+    missingval(x)
+
+Returns the value representing missing data in the dataset
+"""
+function missingval end
+missingval(x) = missing
 missingval(A::AbstractGeoArray) = A.missingval
 
 """
-    crs(A::AbstractGeoArray)
-Get the coordinate reference system of the array.
+    crs(x)
+
+Get the crs projection of a dim or for the `Lat`/`Lon` dims of an array.
 """
+function crs end
 crs(A::AbstractGeoArray) =
     if hasdim(A, Lat)
         crs(dims(A, Lat))
@@ -34,15 +45,18 @@ crs(A::AbstractGeoArray) =
     else
         error("No Lat or Lon dimension, crs not available")
     end
-"""
-    crs(A::AbstractGeoArray)
-Get the coordinate reference system of a Dimension.
-"""
 crs(dim::Dimension) = crs(mode(dim), dim)
+
 """
-    usercrs(A::AbstractGeoArray)
-Get the coordinate reference system of the array.
+    usercrs(x)
+
+Get the user facing crs projection of a [`Projected`](@ref) mode 
+dim or for the `Lat`/`Lon` dims of an array.
+
+This is used to convert [`Selector`]($DDselectordocs) values form the user defined 
+projection to the underlying projection, and to show plot axes in the user projection.
 """
+function usercrs end
 usercrs(A::AbstractGeoArray) =
     if hasdim(A, Lat)
         usercrs(dims(A, Lat))
@@ -51,11 +65,27 @@ usercrs(A::AbstractGeoArray) =
     else
         error("No Lat or Lon dimension, usercrs not available")
     end
-"""
-    usercrs(A::AbstractGeoArray)
-Get the user input coordinate reference system.
-"""
 usercrs(dim::Dimension) = usercrs(mode(dim), dim)
+
+"""
+    dimcrs(x)
+
+Get the index crs projection of a [`Converted`](@ref) mode dim or 
+for the `Lat`/`Lon` dims of an array.
+
+This is used for NetCDF where the underlying projection of 
+the data may not be what is contained in the vector index.
+"""
+function dimcrs end
+dimcrs(A::AbstractGeoArray) =
+    if hasdim(A, Lat)
+        dimcrs(dims(A, Lat))
+    elseif hasdim(A, Lon)
+        dimcrs(dims(A, Lon))
+    else
+        error("No Lat or Lon dimension, dimcrs not available")
+    end
+dimcrs(dim::Dimension) = dimcrs(mode(dim), dim)
 
 # DimensionalData methods
 
@@ -66,6 +96,7 @@ rebuild(A::AbstractGeoArray, data, dims::Tuple, refdims, name, metadata, missing
     GeoArray(data, dims, refdims, name, metadata, missingval)
 
 Base.parent(A::AbstractGeoArray) = data(A)
+
 
 """
 Abstract supertype for all memory-backed GeoArrays where the data is an array.
@@ -113,8 +144,13 @@ Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
 # Concrete implementation ######################################################
 
 """
+    GeoArray(A::AbstractArray{T,N}, dims::Tuple;
+             refdims=(), name="", metadata=nothing, missingval=missing)
+    GeoArray(A::AbstractGeoArray; [data=data(A), dims=dims(A), refdims=refdims(A),
+             name=name(A), metadata=metadata(A), missingval=missingval(A)]) =
+
 A generic, memory-backed spatial array type. All [`AbstractGeoArray`](@ref) are
-converted to GeoArray when indexed or otherwise transformed.
+converted to `GeoArray` when indexed or otherwise transformed.
 """
 struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na<:AbstractString,Me,Mi} <: MemGeoArray{T,N,D,A}
     data::A
@@ -124,23 +160,9 @@ struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na<:AbstractString,M
     metadata::Me
     missingval::Mi
 end
-"""
-    GeoArray(A::AbstractArray{T,N}, dims::Tuple;
-             refdims=(), name="", metadata=nothing, missingval=missing)
-
-Construct a [`GeoArray`](@ref) from an `AbstractArray`, a `Tuple` of
-`Dimension` and keyword arguments.
-"""
 @inline GeoArray(A::AbstractArray, dims::Tuple;
                  refdims=(), name="", metadata=nothing, missingval=missing) =
     GeoArray(A, formatdims(A, dims), refdims, name, metadata, missingval)
-"""
-    GeoArray(A::AbstractGeoArray; [data=data(A), dims=dims(A), refdims=refdims(A),
-             name=name(A), metadata=metadata(A), missingval=missingval(A)]) =
-
-Construct a [`GeoArray`](@ref) from another [`AbstractGeoArray`](@ref), and
-keyword arguments.
-"""
 @inline GeoArray(A::AbstractGeoArray; data=data(A), dims=dims(A), refdims=refdims(A),
                  name=name(A), metadata=metadata(A), missingval=missingval(A)) =
     GeoArray(data, dims, refdims, name, metadata, missingval)

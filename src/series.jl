@@ -1,27 +1,29 @@
 """
-An `AbstractDimensionalArray` that holds or points to a series of stacks.
-
-`AbstractGeoSeries` are a high-level `DimensionalArray`s that hold stacks or
-arrays or the paths they can be loaded from. `GeoSeries` are indexed with dimensions
+`AbstractGeoSeries` are a high-level `DimensionalArray` that hold stacks, arrays, 
+or the paths they can be loaded from. `GeoSeries` are indexed with dimensions
 as with a `AbstractGeoArray`. This is useful when you have multiple files containing
 rasters or stacks of rasters spread over dimensions like time and elevation.
 As much as possible, implementations should facilitate loading entire
 directories and detecting the dimensions from metadata.
 
-This allows
+This allows syntax like:
+
 ```julia
 series[Time(Near(DateTime(2001, 1))][:temp][Lat(Between(70, 150)), Lon(Between(-20,20))] |> plot`
 ```
 
-`GeoSeries` is the only concrete implementation, as it includes a field indicating its
-child constructor used if loading stacks or arrays of any type from disk.
+`GeoSeries` is the only concrete implementation. It includes a `chiltype` field 
+indicating the constructor used then loading stacks or arrays of any type from disk,
+and holds a `kwargs` `NamedTuple` that will be splatted into to the keyword arguments
+of the `childtype` constructor. This gives control over the construction of lazy-loaded 
+files.
 """
 abstract type AbstractGeoSeries{T,N,D,A,C} <: AbstractDimensionalArray{T,N,D,A} end
 
 # Interface methods ####################################################
 
 childtype(A::AbstractGeoSeries) = A.childtype
-kwargs(A::AbstractGeoSeries) = A.kwargs
+childkwargs(A::AbstractGeoSeries) = A.childkwargs
 metadata(A::AbstractGeoSeries) = nothing
 name(A::AbstractGeoSeries) = ""
 label(A::AbstractGeoSeries) = ""
@@ -30,13 +32,17 @@ label(A::AbstractGeoSeries) = ""
 # Mostly these inherit from AbstractDimensionalArray
 
 Base.getindex(A::AbstractGeoSeries{<:AbstractString}, I::Vararg{<:Integer}) =
-    childtype(A)(data(A)[I...]; refdims=slicedims(A, I)[2], A.kwargs...)
-# TODO how should window be passed on to existing stacks?
+    childtype(A)(data(A)[I...]; refdims=slicedims(A, I)[2], A.childkwargs...)
+# Window is passed on to existing MemStacks, as with DiskStacks
 Base.getindex(A::AbstractGeoSeries{<:AbstractGeoStack}, I::Vararg{<:Integer}) =
-    rebuild(data(A)[I...]; refdims=slicedims(A, I)[2], A.kwargs...)
+    rebuild(data(A)[I...]; A.childkwargs...)
 
 
 """
+    GeoSeries(data::Array{T}, dims; refdims=(), childtype=DD.basetypeof(T), 
+              childkwargs=()) where T<:Union{<:AbstractGeoStack,<:AbstractGeoArray}
+    GeoSeries(data, dims; refdims=(), childtype, childkwargs)
+
 Concrete implementation of [`AbstractGeoSeries`](@ref).
 Series hold paths to array or stack files, along some dimension(s).
 """
@@ -45,16 +51,16 @@ struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},C,K} <: AbstractGeoSeries{T,N,D,A
     dims::D
     refdims::R
     childtype::C
-    kwargs::K
+    childkwargs::K
 end
-GeoSeries(data::Array{T}, dims; refdims=(), childtype=DD.basetypeof(T), kwargs...
+GeoSeries(data::Array{T}, dims; refdims=(), childtype=DD.basetypeof(T), childkwargs=()
          ) where T<:Union{<:AbstractGeoStack,<:AbstractGeoArray} =
-    GeoSeries(data, formatdims(data, dims), refdims, childtype, kwargs)
-GeoSeries(data, dims; refdims=(), childtype, kwargs...) =
-    GeoSeries(data, formatdims(data, dims), refdims, childtype, kwargs)
+    GeoSeries(data, formatdims(data, dims), refdims, childtype, childkwargs)
+GeoSeries(data, dims; refdims=(), childtype, childkwargs=()) =
+    GeoSeries(data, formatdims(data, dims), refdims, childtype, childkwargs)
 
 @inline rebuild(A::GeoSeries, data, dims::Tuple, refdims, args...) =
-    GeoSeries(data, dims, refdims, childtype(A), kwargs(A))
+    GeoSeries(data, dims, refdims, childtype(A), childkwargs(A))
 
 Base.@propagate_inbounds Base.setindex!(A::GeoSeries, x, I::Union{AbstractArray,Colon,Integer}...) =
     setindex!(data(A), x, I...)

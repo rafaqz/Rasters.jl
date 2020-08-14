@@ -1,22 +1,35 @@
 using .HDF5
 
-export SMAPstack, SMAPseries, SMAPmetadata, SMAPdimMetadata
+export SMAPstack, SMAPseries, SMAPdimMetadata, SMAParrayMetadata, SMAPstackMetadata
 
 const SMAPMISSING = -9999.0
 const SMAPGEODATA = "Geophysical_Data"
 const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 """
-[`ArrayMetadata`](@ref) wrapper for `GDALarray`.
+    SMAPdimMetadata(val)
+
+[`DimMetadata`](@ref) wrapper for `SMAParray` dimensions.
 """
-struct SMAPmetadata{K,V} <: ArrayMetadata{K,V}
+struct SMAPdimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
 
 """
-[`DimMetadata`](@ref) wrapper for `SMAPstack` dimensions.
+    SMAParrayMetadata(val)
+
+[`ArrayMetadata`](@ref) wrapper for `SMAParray`.
 """
-struct SMAPdimMetadata{K,V} <: DimMetadata{K,V}
+struct SMAParrayMetadata{K,V} <: ArrayMetadata{K,V}
+    val::Dict{K,V}
+end
+
+"""
+    SMAPdimMetadata(val)
+
+[`StackMetadata`](@ref) wrapper for `SMAPstack`.
+"""
+struct SMAPstackMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
 
@@ -27,12 +40,13 @@ end
 
 `AbstractGeoStack` for [SMAP](https://smap.jpl.nasa.gov/) datasets.
 
-The simplicity of the format means dims and refdims are the same for all stack layers,
+The simplicity of the format means `dims` and `metadata` are the same for all stack layers,
 so we store them as stack fields. `SMAPstack` should also serve as an example of defining
 a custom source for HDF5 backed geospatial data.
 
 # Keyword arguments
-- `window`: can be a tuple of Dimensions, selectors or regular indices.
+- `window`: Like `view` but lazy, for disk based data. Can be a tuple of Dimensions,
+  selectors or regular indices. These will be applied when the data is loaded or indexed into.
 """
 struct SMAPstack{T,D,R,W,M} <: DiskGeoStack{T}
     filename::T
@@ -49,8 +63,8 @@ SMAPstack(filename::String;
          ) =
     SMAPstack(filename, dims, refdims, window, metadata)
 
-# AbstractGeoStack methods
 
+# Dummy SMAParray type. Actually generates a GeoArray
 struct SMAParray end
 
 # SMAP has fixed dims for all layers, so we store them on the stack.
@@ -60,7 +74,7 @@ refdims(stack::SMAPstack) = stack.refdims
 metadata(stack::SMAPstack) = stack.metadata
 missingval(stack::SMAPstack, key::Key...) = SMAPMISSING
 childtype(stack::SMAPstack) = SMAParray
-kwargs(stack::SMAPstack) = ()
+childkwargs(stack::SMAPstack) = ()
 
 withsource(f, ::Type{SMAParray}, path::AbstractString, key...) =
     smapread(f, path)
@@ -100,7 +114,9 @@ Base.keys(stack::SMAPstack) =
 # Series #######################################################################
 
 """
-    SMAPseries(path; kwargs...)
+    SMAPseries(dir::AbstractString; kwargs...) =
+        SMAPseries(joinpath.(dir, filter_ext(dir, ".h5")); kwargs...)
+    SMAPseries(filepaths::Vector{<:AbstractString}, dims=nothing; kwargs...) = begin
 
 Series loader for SMAP folders (files in the time dimension).
 Returns a [`GeoSeries`](@ref).
@@ -109,19 +125,19 @@ Returns a [`GeoSeries`](@ref).
 or a vector of `String` paths for specific files.
 `kwargs` are passed to the constructor for `GeoSeries`.
 """
-SMAPseries(path::AbstractString; kwargs...) =
-    SMAPseries(joinpath.(path, filter_ext(path, ".h5")); kwargs...)
-SMAPseries(filepaths::Vector{<:AbstractString}, dims=nothing; kwargs...) = begin
+SMAPseries(dir::AbstractString; kwargs...) =
+    SMAPseries(joinpath.(dir, filter_ext(dir, ".h5")); kwargs...)
+SMAPseries(filenames::Vector{<:AbstractString}, dims=nothing; kwargs...) = begin
     if dims isa Nothing
         usedpaths = String[]
         timeseries = []
         errors = []
-        for path in filepaths
-            println(path)
+        for filename in filenames
+            println(filename)
             try
-                t = smap_timefrompath(path)
+                t = smap_timefrompath(filename)
                 push!(timeseries, t)
-                push!(usedpaths, path)
+                push!(usedpaths, filename)
             catch e
                 push!(errors, e)
             end
@@ -129,13 +145,19 @@ SMAPseries(filepaths::Vector{<:AbstractString}, dims=nothing; kwargs...) = begin
         # Use the first files time dim as a template, but join vals into an array of times.
         timedim = smap_timedim(timeseries)
     else
-        usedpaths = filepaths
+        usedpaths = filenames
     end
+    # Show errors after all files load, or you can't see them:
     if length(errors) > 0
         println("Some errors thrown during file load: ")
         println.(errors)
     end
-    GeoSeries(usedpaths, (timedim,); childtype=SMAPstack, kwargs...)
+    # Get the dims once for the whole series
+    childkwargs = (
+        dims=smapread(smapdims, first(filenames)),
+        metadata=smapread(smapdims, first(filenames)),
+    )
+    GeoSeries(usedpaths, (timedim,); childtype=SMAPstack, childkwargs=childkwargs, kwargs...)
 end
 
 Base.:*(hrs::Int, ::Type{T}) where T<:Period = T(hrs)
@@ -160,10 +182,10 @@ smap_timefrompath(path::String) = begin
 end
 
 smap_timedim(t::DateTime) = smap_timedim(t:Hour(3):t)
-smap_timedim(times::AbstractVector) = 
+smap_timedim(times::AbstractVector) =
     Ti(times, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals(Start())))
 
-smapmetadata(dataset::HDF5.HDF5File) = SMAPmetadata(Dict())
+smapmetadata(dataset::HDF5.HDF5File) = SMAPstackMetadata(Dict())
 
 smapdims(dataset::HDF5.HDF5File) = begin
     proj = read(attrs(root(dataset)["EASE2_global_projection"]), "grid_mapping_name")

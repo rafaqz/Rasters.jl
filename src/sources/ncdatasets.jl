@@ -1,21 +1,36 @@
 using .NCDatasets
 
-export NCDarray, NCDstack, NCDstackMetadata, NCDarrayMetadata, NCDdimMetadata
+export NCDarray, NCDstack, NCDdimMetadata, NCDarrayMetadata, NCDstackMetadata
 
-struct NCDstackMetadata{K,V} <: ArrayMetadata{K,V}
-    val::Dict{K,V}
-end
+"""
+    NCDdimMetadata(val::Dict)
 
-struct NCDarrayMetadata{K,V} <: ArrayMetadata{K,V}
-    val::Dict{K,V}
-end
-
+[`Metadata`](@ref) wrapper for [`NCDarray`](@ref) dimensions.
+"""
 struct NCDdimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
 
+"""
+    NCDarrayMetadata(val::Dict)
+
+[`Metadata`](@ref) wrapper for [`NCDarray`](@ref) metadata.
+"""
+struct NCDarrayMetadata{K,V} <: ArrayMetadata{K,V}
+    val::Dict{K,V}
+end
+
+"""
+    NCDstackMetadata(val::Dict)
+
+[`Metadata`](@ref) wrapper for [`NCDarray`](@ref) metadata.
+"""
+struct NCDstackMetadata{K,V} <: StackMetadata{K,V}
+    val::Dict{K,V}
+end
 
 const UNNAMED_NCD_KEY = "unnamed"
+
 
 # Utils ########################################################################
 
@@ -124,16 +139,17 @@ const dimmap = Dict("lat" => Lat,
 
 # Array ########################################################################
 """
-    NCDarray(filename::AbstractString; name="", refdims=())
+    NCDarray(filename::AbstractString; name=nothing, refdims=(),
+             dims=nothing, metadata=nothing, crs=EPSG(4326), dimcrs=EPSG(4326))
 
 Create an array from a path to a netcdf file. The first non-dimension
 layer of the file will be used as the array.
 
 This is an incomplete implementation of the NetCDF standard. It will currently
-only handle simple files in lattitude/longitude format. Real projections are
-not yet handled.
-
-If you need to use crs with NetCDF, make a fewture request in the issue queue.
+only handle simple files in lattitude/longitude format, or projected formats
+if you manually specify `crs` and `dimcrs`. How this is done
+may also change in future, including detecting and converting the native NetCDF 
+projection format.
 
 ## Arguments
 - `filename`: `String` pointing to a netcdf file.
@@ -142,6 +158,11 @@ If you need to use crs with NetCDF, make a fewture request in the issue queue.
 - `name`: Name for the array. Will use array key if not supplied.
 - `refdims`: Add dimension position array was sliced from. Mostly used programatically.
   loading the array. Can save on disk load time for large files.
+- `crs`: defaults to lat/lon `EPSG(4326)`. If the underlying data is in a different 
+  projection it will need to be set to allow `write` to a different file format.
+- `dimcrs`: defaults to `EPSG(4326)`, as it matches `crs`. However, the underlying data may be 
+  projected, with the index still in lat/lon or something else. In this case specify a 
+  projection using any projection type from GeoFormatTypes.jl.
 """
 struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S,K
                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
@@ -161,8 +182,9 @@ NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
          dims=nothing,
          name=nothing,
          metadata=nothing,
+         missingval=missing,
          crs=EPSG(4326),
-         dimcrs=nothing,
+         dimcrs=EPSG(4326),
         ) = begin
     keys_ = nondimkeys(dataset)
     key = key isa Nothing || !(string(key) in keys_) ? first(keys_) : string(key)
@@ -170,7 +192,6 @@ NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
     dims = dims isa Nothing ? GeoData.dims(dataset, key, crs, dimcrs) : dims
     name = name isa Nothing ? string(key) : name
     metadata_ = metadata isa Nothing ? GeoData.metadata(var, GeoData.metadata(dataset)) : metadata
-    missingval = missing
     size_ = map(length, dims)
     T = eltype(var)
     N = length(dims)
@@ -213,76 +234,57 @@ end
 
 # Stack ########################################################################
 
-struct NCDstack{T,R,W,M,K} <: DiskGeoStack{T}
-    filename::T
-    refdims::R
-    window::W
-    metadata::M
-    kwargs::K
-end
 
 """
     NCDstack(filenames; refdims=(), window=(), metadata=nothing)
 
-A lazy GeoStack that loads netcdf files using NCDatasets.jl
-
-Create a stack from a list of filenames.
+A lazy [`DiskStack`](@ref) that loads multiple single-layer netcdf files or
+a single multi-layer file, using NCDatasets.jl.
 
 # Arguments
--`filenames`: `Vector` of `String` paths to netcdf files.
+- `filename`: `Tuple` or `Vector` of `String` paths to netcdf files, 
+  or a single `String` path to a netcdf file.
 
 # Keyword arguments
 - `refdims`: Add dimension position array was sliced from. Mostly used programatically.
 - `window`: can be a tuple of Dimensions, selectors or regular indices.
 - `metadata`: Add additional metadata as a `Dict`.
-- `keys`: Keys for the layer in each file in filenames. If these do not match a layer
-  the first layer will be used. This is also the default.
-
-# Examples
-```julia
-multifile_stack = NCDstack([path1, path2, path3, path4])
-```
-"""
-NCDstack(filenames::Union{Tuple,Vector};
-         refdims=(),
-         window=(),
-         metadata=nothing,
-         keys=cleankeys(ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames),
-         kwargs...) =
-    GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata, childtype=NCDarray, kwargs)
-
-"""
-    NCDstack(filename; refdims=(), window=(), metadata=nothing)
-
-A lazy GeoStack that loads netcdf files using NCDatasets.jl
-
-Create a stack from the filename of a netcdf file.
-
-# Arguments
--`filename`: `String` path to a netcdf file.
-
-# Keyword arguments
-- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
-- `window`: can be a tuple of Dimensions, selectors or regular indices.
-- `metadata`: Add additional metadata as a `Dict`.
+- `keys`: Keys for the layer in each file when filename is a `Vector`.
+- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the child object constructor.
 
 # Examples
 ```julia
 stack = NCDstack(filename; window=(Lat(Between(20, 40),))
 stack[:soil_temperature]
+# Or
+multifile_stack = NCDstack([path1, path2, path3, path4])
 ```
 """
+struct NCDstack{T,R,W,M,K} <: DiskGeoStack{T}
+    filename::T
+    refdims::R
+    window::W
+    metadata::M
+    childkwargs::K
+end
+NCDstack(filenames::Union{Tuple,Vector};
+         refdims=(),
+         window=(),
+         metadata=nothing,
+         keys=cleankeys(ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames),
+         childkwargs=()) =
+    GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata, childtype=NCDarray, childkwargs)
 NCDstack(filename::AbstractString;
          refdims=(),
          window=(),
          metadata=ncread(metadata, filename),
-         kwargs...) =
-    NCDstack(filename, refdims, window, metadata, kwargs)
+         childkwargs=()) =
+NCDstack(filename, refdims, window, metadata, childkwargs)
 
 childtype(::NCDstack) = NCDarray
-kwargs(stack::NCDstack) = stack.kwargs
-crs(stack::NCDarray) = get(kwargs(stack), :crs, EPSG(4326))
-dimcrs(stack::NCDarray) = get(kwargs(stack), :dimcrs, nothing)
+childkwargs(stack::NCDstack) = stack.childkwargs
+crs(stack::NCDarray) = get(childkwargs(stack), :crs, EPSG(4326))
+dimcrs(stack::NCDarray) = get(childkwargs(stack), :dimcrs, nothing)
 
 # AbstractGeoStack methods
 
@@ -362,6 +364,8 @@ _ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, crs, dimcrs) = beg
     order = _ncdorder(index)
     span = Irregular(
         if length(index) > 1
+            # Use the second last interval to guess the last interval
+            # This is a bit of a hack: we need to parse units to resolve it.
             if isrev(indexorder(order))
                 index[end], index[1] + (index[1] - index[2])
             else
@@ -377,7 +381,7 @@ end
 _ncdmode(index, dimtype, crs, dimcrs) = Categorical()
 
 _ncdorder(index) = index[end] > index[1] ? Ordered(Forward(), Forward(), Forward()) :
-                                           Ordered(Reverse(), Forward(), Reverse())
+                                           Ordered(Reverse(), Reverse(), Forward())
 
 _ncdspan(index, order) = begin
     step = index[2] - index[1]
@@ -400,6 +404,7 @@ _ncdspan(index, order) = begin
     return Regular(step)
 end
 
+# Direct loading: better memory handling?
 # readwindowed(A::NCDatasets.CFVariable) = readwindowed(A, axes(A)...)
 # readwindowed(A::NCDatasets.CFVariable, i, I...) = begin
 #     var = A.var

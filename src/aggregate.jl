@@ -3,17 +3,18 @@ const DimOrDimTuple = Union{Dimension,Tuple{Vararg{<:Dimension}}}
 const IntOrIntTuple = Union{Int,Tuple{Vararg{<:Int}}}
 
 """
-    aggregate(x, method, scale)
+    aggregate(method, object, scale)
 
 Aggregate array, or all arrays in a stack or series, by some scale.
-This uses a `Array` aggregation function like `mean`, or a [`Locus`] type to
-specify a single position to sample from. Return values are `GeoArray`,
-`GeoStack` or `GeoSeries` depending on the type of `x`.
 
-- `method` is a function such as mean or sum that can combine the
-    value of multiple cells to generate the aggregated cell, or a loci
-    like `Start` or `Center()` that species where to sample from in the interval.
-- `scale` is the aggregation factor, which can be an integer, a tuple of integers
+# Arguments
+
+- `method`: a function such as `mean` or `sum` that can combine the
+  value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
+  like `Start()` or `Center()` that species where to sample from in the interval.
+- `object`: Object to aggregate, like `AbstractGeoSeries`, `AbstractStack`, 
+  `AbstractGeoArray`, `Dimension`
+- `scale`: the aggregation factor, which can be an integer, a tuple of integers
   for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index.
@@ -23,7 +24,9 @@ function aggregate end
 """
     aggregate(method, series::AbstractGeoSeries, scale)
 
-Aggregate an AbstractGeoSeries
+Aggregate an [`AbstractGeoSeries`](@ref) by `scale` using `method`.
+
+Returns a [`GeoSeries`](ref).
 """
 aggregate(method, series::AbstractGeoSeries, scale, args...; progress=true, kwargs...) = begin
     f = i -> aggregate(method, series[i], scale, args...; progress=false, kwargs...)
@@ -37,7 +40,9 @@ end
 """
     aggregate(method, stack::AbstractGeoStack, scale)
 
-Aggregate an AbstractGeoStack
+Aggregate an [`AbstractGeoStack`](@ref) by `scale` using `method`.
+
+Returns a [`GeoStack`](ref).
 """
 aggregate(method, stack::AbstractGeoStack, scale;
           keys=keys(stack), progress=true) = begin
@@ -50,21 +55,25 @@ aggregate(method, stack::AbstractGeoStack, scale;
     end
     GeoStack(stack; data=data)
 end
-aggregate(method, src::DiskGeoArray, scale) =
-    aggregate(method, GeoArray(src), scale)
 
 # DimensionalData methods
+
 """
     aggregate(method, src::AbstractDimensionalArray, scale)
 
-Aggregate an AbstractDimensionalArray
+Aggregate an `AbstractDimensionalArray` by `scale` using `method`.
+
+[`DiskGeoArray`] will be converted to [`GeoArray`].
 """
 aggregate(method, src::AbstractDimensionalArray, scale) =
     aggregate!(method, alloc_ag(method, src, scale), src, scale)
+aggregate(method, src::DiskGeoArray, scale) =
+    aggregate(method, GeoArray(src), scale)
+
 """
     aggregate(method, dim::Dimension, scale)
 
-Aggregate a Dimension
+Aggregate a `Dimension` by `scale` using `method`.
 """
 aggregate(method, dim::Dimension, scale) = begin
     intscale = scale2int(dim, scale)
@@ -81,7 +90,7 @@ end
 """
     aggregate(method, dim::IndexMode, scale)
 
-Aggregate an IndexMode
+Aggregate an `IndexMode` by `scale` using `method`.
 """
 aggregate(method, mode::IndexMode, scale) = mode
 aggregate(method, mode::AbstractSampled, scale) =
@@ -90,24 +99,25 @@ aggregate(method, mode::AbstractSampled, scale) =
 """
     aggregate(method, dim::Span, scale)
 
-Aggregate a Span
+Aggregate a `Span` by `scale` using `method`.
 """
 aggregate(method, span::Span, scale) = span
 aggregate(method, span::Regular, scale) = Regular(val(span) * scale)
 
 """
-    aggregate!(dst::AbstractDimensionalArray, src::AbstractDimensionalArray, method, scale)
+    aggregate!(method, dst::AbstractDimensionalArray, src::AbstractDimensionalArray, scale)
 
-Aggregate array `src` to array `dst` by some scale.
-This uses an aggregation function like `mean` or a [`Locus`] type to
-specify a position to sample from.
+Aggregate array `src` to array `dst` by `scale`, using `method`.
 
-- `method` is a function such as mean or sum that can combine the
-    value of multiple cells to generate the aggregated cell, or a loci
-    like `Start` or `Center()` that species where to sample from in the interval.
-- `scale` is the aggregation factor, which can be an integer, or a tuple of an
-  `Dimension`, `Selector` or `Int` combination you can usually use in `getindex`.
-  Using a `Selector` will determine the scale by the distance from the start of the index.
+# Arguments
+
+- `method`: a function such as `mean` or `sum` that can combine the
+  value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
+  like `Start()` or `Center()` that species where to sample from in the interval.
+- `scale`: the aggregation factor, which can be an integer, a tuple of integers
+  for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
+  usually use in `getindex`. Using a `Selector` will determine the scale by the
+  distance from the start of the index in the `src` array.
 """
 aggregate!(locus::Locus, dst::AbstractDimensionalArray, src, scale) =
     aggregate!((locus,), dst, src, scale)
@@ -130,7 +140,11 @@ aggregate!(f, dst::AbstractDimensionalArray, src, scale) = begin
     dst
 end
 
-# Allocate an array of the correct size to aggregate `A` by `scale`
+"""
+    alloc_ag(method, A::AbstractDimensionalArray, scale)
+
+Allocate an array of the correct size to aggregate `A` by `scale`
+"""
 alloc_ag(method, A::AbstractDimensionalArray, scale) =
     alloc_ag((method,), A, scale)
 alloc_ag(method::Tuple, A::AbstractDimensionalArray, scale) = begin
@@ -148,17 +162,18 @@ scale2int(dims, scale::Int) = scale
 
 
 """
-    disaggregate(x, method, scale)
+    disaggregate(method, object, scale)
 
 Disagregate array, or all arrays in a stack or series, by some scale.
-This uses a `Array` aggregation function like `mean`, or a [`Locus`] type to
-specify a single position to sample from. Return values are `GeoArray`,
-`GeoStack` or `GeoSeries` depending on the type of `x`.
 
-- `method` is a function such as mean or sum that can combine the
-    value of multiple cells to generate the disaggregated cell, or a loci
-    like `Start` or `Center()` that species where to sample from in the interval.
-- `scale` is the aggregation factor, which can be an integer, a tuple of integers
+# Arguments
+
+- `method`: a function such as `mean` or `sum` that can combine the
+  value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
+  like `Start()` or `Center()` that species where to sample from in the interval.
+- `object`: Object to aggregate, like `AbstractGeoSeries`, `AbstractStack`, 
+  `AbstractGeoArray`, `Dimension`
+- `scale`: the aggregation factor, which can be an integer, a tuple of integers
   for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index.
@@ -168,7 +183,7 @@ function disaggregate end
 """
     disaggregate(method, series::AbstractGeoSeries, scale)
 
-Disagregate an AbstractGeoSeries
+Disagregate an [`AbstractGeoSeries`](@ref) by `scale` using `method`.
 """
 disaggregate(method, series::AbstractGeoSeries, scale; progress=true, kwargs...) = begin
     f = i -> disaggregate(method, series[i], scale; progress=false, kwargs...)
@@ -181,7 +196,7 @@ end
 """
     disaggregate(method, stack::AbstractGeoStack, scale)
 
-Disagregate an AbstractGeoStack
+Disagregate an [`AbstractGeoStack`](@ref) by `scale` using `method`.
 """
 disaggregate(method, stack::AbstractGeoStack, scale; keys=keys(stack), progress=true) = begin
     f = key -> disaggregate(method, stack[key], scale)
@@ -193,22 +208,24 @@ disaggregate(method, stack::AbstractGeoStack, scale; keys=keys(stack), progress=
     end
     GeoStack(stack; data=data)
 end
-disaggregate(method, src::DiskGeoArray, scale) =
-    disaggregate(method, GeoArray(src), scale)
 
 # DimensionalData methods
 """
     disaggregate(method, src::AbstractDimensionalArray, scale)
 
-Disagregate an AbstractDimensionalArray
+Disagregate an `AbstractDimensionalArray` by `scale` using `method`.
+
+[`DiskGeoArray`] will be converted to [`GeoArray`].
 """
 disaggregate(method, src::AbstractDimensionalArray, scale) =
     disaggregate!(method, alloc_disag(method, src, scale), src, scale)
+disaggregate(method, src::DiskGeoArray, scale) =
+    disaggregate(method, GeoArray(src), scale)
 
 """
     disaggregate(method, dim::Dimension, scale)
 
-Disagregate a Dimension
+Disagregate a `Dimension` by `scale` using `method`.
 """
 disaggregate(locus::Locus, dim::Dimension, scale) = begin
     intscale = scale2int(dim, scale)
@@ -225,11 +242,10 @@ disag_index(locus::End, dim, scale) =
     LinRange(dim[1], dim[end] + (scale - agoffset(locus)) * step(dim), length(dim) * scale)
 
 
-
 """
     disaggregate(method, dim::IndexMode, scale)
 
-Disagregate an IndexMode
+Disagregate an `IndexMode` by `scale` using `method`.
 """
 disaggregate(method, mode::IndexMode, scale) = mode
 disaggregate(method, mode::AbstractSampled, scale) =
@@ -238,24 +254,23 @@ disaggregate(method, mode::AbstractSampled, scale) =
 """
     disaggregate(method, dim::Span, scale)
 
-Disagregate a Span
+Disagregate a `Span` by `scale` using `method`.
 """
 disaggregate(method, span::Span, scale) = span
 disaggregate(method, span::Regular, scale) = Regular(val(span) / scale)
 
 """
-    disaggregate!(dst::AbstractDimensionalArray, src::AbstractDimensionalArray, method, scale)
+    disaggregate!(method, dst::AbstractDimensionalArray, src::AbstractDimensionalArray, scale)
 
-Disagregate array `src` to array `dst` by some scale.
-This uses an aggregation function like `mean` or a [`Locus`] type to
-specify a position to sample from.
+Disagregate array `src` to array `dst` by some scale, using `method`.
 
-- `method` is a function such as mean or sum that can combine the
-    value of multiple cells to generate the disaggregated cell, or a loci
-    like `Start` or `Center()` that species where to sample from in the interval.
-- `scale` is the aggregation factor, which can be an integer, or a tuple of an
-  `Dimension`, `Selector` or `Int` combination you can usually use in `getindex`.
-  Using a `Selector` will determine the scale by the distance from the start of the index.
+- `method`: a function such as `mean` or `sum` that can combine the
+  value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
+  like `Start()` or `Center()` that species where to sample from in the interval.
+- `scale`: the aggregation factor, which can be an integer, a tuple of integers
+  for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
+  usually use in `getindex`. Using a `Selector` will determine the scale by the
+  distance from the start of the index in the `src` array.
 """
 disaggregate!(locus::Locus, dst::AbstractDimensionalArray, src, scale) =
     disaggregate!((locus,), dst, src, scale)
@@ -267,7 +282,11 @@ disaggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractDimensionalArray, src, sca
     dst
 end
 
-# Allocate an array of the correct size to aggregate `A` by `scale`
+"""
+    alloc_ag(method, A::AbstractDimensionalArray, scale)
+
+Allocate an array of the correct size to disaggregate `A` by `scale`
+"""
 alloc_disag(method, A::AbstractDimensionalArray, scale) =
     alloc_disag((method,), A, scale)
 alloc_disag(method::Tuple, A::AbstractDimensionalArray, scale) = begin

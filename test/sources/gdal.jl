@@ -36,7 +36,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
     @testset "other fields" begin
         @test missingval(gdalarray) == -1.0e10
-        @test metadata(gdalarray) isa GDALmetadata
+        @test metadata(gdalarray) isa GDALarrayMetadata
         @test basename(metadata(gdalarray).val["filepath"]) == "cea.tif"
         @test name(gdalarray) == "test"
         @test label(gdalarray) == "test"
@@ -148,6 +148,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
             @test val(dims(grdarray, Lat)) == reverse(val(dims(gdalarray, Lat)))
             @test val(dims(grdarray, Lon)) ≈ val(dims(gdalarray, Lon))
             @test GeoArray(grdarray) == GeoArray(gdalarray)
+            @test bounds(grdarray) == bounds(gdalarray)
         end
 
         @testset "to netcdf" begin
@@ -241,12 +242,12 @@ end
 end
 
 @testset "GDAL series" begin
-    series = GeoSeries([path, path], (Ti,); childtype=GDALarray, usercrs=EPSG(4326), name="test")
+    series = GeoSeries([path, path], (Ti,); childtype=GDALarray, childkwargs=(usercrs=EPSG(4326), name="test"))
     @test GeoArray(series[Ti(1)]) == GeoArray(GDALarray(path; usercrs=EPSG(4326), name="test"))
 
-    gdalstack = GDALstack((a=path, b=path); childtype=GDALarray, usercrs=EPSG(4326));
+    gdalstack = GDALstack((a=path, b=path); childtype=GDALarray, childkwargs=(usercrs=EPSG(4326)))
     series = GeoSeries([gdalstack, gdalstack], (Ti,))
-    @test series[1].kwargs == gdalstack.kwargs
+    @test series[1].childkwargs == gdalstack.childkwargs
 end
 
 nothing

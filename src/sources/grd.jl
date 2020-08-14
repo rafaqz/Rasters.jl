@@ -1,26 +1,31 @@
-export GrdArray, GrdStack, GrdMetadata, GrdDimMetadata
+export GrdArray, GrdStack, GrdDimMetadata, GrdArrayMetadata
+
+const GRD_INDEX_ORDER = Forward()
+const GRD_LON_ARRAY = Forward()
+const GRD_LAT_ARRAY = Reverse()
+const GRD_BAND_ARRAY = Forward()
+const GRD_LON_RELATION = Forward()
+const GRD_LAT_RELATION = Reverse()
+const GRD_BAND_RELATION= Forward()
 
 # Metadata ########################################################################
 
 """
-[`ArrayMetadata`](@ref) wrapper for `GrdArray`.
-"""
-struct GrdMetadata{K,V} <: ArrayMetadata{K,V}
-    val::Dict{K,V}
-end
-GrdMetadata() = GrdMetadata(Dict())
-
-"""
-[`DimMetadata`](@ref) wrapper for `GrdArray` dimensions.
+[`Metadata`](@ref) wrapper for `GrdArray` dimension metadata.
 """
 struct GrdDimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
-GrdDimMetadata() = GrdDimMetadata(Dict())
+
+"""
+[`Metadata`](@ref) wrapper for `GrdArray` metadata.
+"""
+struct GrdArrayMetadata{K,V} <: ArrayMetadata{K,V}
+    val::Dict{K,V}
+end
 
 
 # Grd attributes wrapper
-
 struct GrdAttrib{T,F,A}
     filename::F
     attrib::A
@@ -53,14 +58,14 @@ dims(grd::GrdAttrib, usercrs=nothing) = begin
     latlon_metadata = GrdDimMetadata(Dict())
 
     latmode = Projected(
-        order=Ordered(Forward(), Reverse(), Reverse()),
+        order=Ordered(GRD_INDEX_ORDER, GRD_LAT_ARRAY, GRD_LAT_RELATION),
         span=Regular(yspan),
         sampling=Intervals(Start()),
         crs=crs,
         usercrs=usercrs,
     )
     lonmode = Projected(
-        order=Ordered(),
+        order=Ordered(GRD_INDEX_ORDER, GRD_LON_ARRAY, GRD_LON_RELATION),
         span=Regular(xspan),
         sampling=Intervals(Start()),
         crs=crs,
@@ -73,7 +78,7 @@ dims(grd::GrdAttrib, usercrs=nothing) = begin
 end
 
 metadata(grd::GrdAttrib, args...) = begin
-    metadata = GrdMetadata()
+    metadata = GrdArrayMetadata()
     for key in ("creator", "created", "history")
         val = get(grd.attrib, key, "")
         if val != ""
@@ -161,7 +166,6 @@ GrdArray(grd::GrdAttrib, filename, key=nothing;
             }(filename, dims_, refdims, name, metadata_, missingval_, size_)
 end
 
-# AbstractGeoArray methods
 
 # Base methods
 
@@ -176,15 +180,15 @@ Currently the `metadata` field is lost on `write`.
 Base.write(filename::String, ::Type{<:GrdArray}, A::AbstractGeoArray) = begin
     if hasdim(A, Band)
         correctedA = permutedims(A, (Lon, Lat, Band)) |>
-            a -> reorderindex(a, Forward()) |>
-            a -> reorderrelation(a, (Lon(Forward()), Lat(Reverse()), Band(Forward())))
-        checkarrayorder(correctedA, (Forward(), Reverse(), Forward()))
+            a -> reorderindex(a, GRD_INDEX_ORDER) |>
+            a -> reorderrelation(a, (Lon(GRD_LON_RELATION), Lat(GRD_LAT_RELATION), Band(GRD_BAND_RELATION)))
+        checkarrayorder(correctedA, (GRD_LON_RELATION, GRD_LAT_ARRAY, GRD_BAND_RELATION))
         nbands = length(val(dims(correctedA, Band)))
     else
         correctedA = permutedims(A, (Lon, Lat)) |>
-            a -> reorderindex(a, Forward()) |>
-            a -> reorderrelation(a, (Lon(Forward()), Lat(Reverse())))
-            checkarrayorder(correctedA, (Forward(), Reverse()))
+            a -> reorderindex(a, GRD_INDEX_ORDER) |>
+            a -> reorderrelation(a, (Lon(GRD_LON_RELATION), Lat(GRD_LAT_RELATION)))
+            checkarrayorder(correctedA, (GRD_LON_ARRAY, GRD_LAT_ARRAY))
         nbands = 1
     end
     # Remove extension
@@ -240,7 +244,14 @@ end
 
 # AbstractGeoStack methods
 
-GrdStack(filename; kwargs...) = DiskStack(filename; childtype=GrdArray, kwargs...)
+"""
+    GrdStack(filenames; kwargs...)
+
+Convenience method to create a DiskStack of [`GrdArray`](@ref) from `filenames`.
+"""
+GrdStack(args...; kwargs...) = 
+    DiskStack(args...; childtype=GrdArray, kwargs...)
+
 
 withsource(f, ::Type{<:GrdArray}, filename::AbstractString, key...) =
     f(GrdAttrib(filename))
