@@ -188,7 +188,7 @@ Disaggregate an [`AbstractGeoSeries`](@ref) by `scale` using `method`.
 disaggregate(method, series::AbstractGeoSeries, scale; progress=true, kwargs...) = begin
     f = i -> disaggregate(method, series[i], scale; progress=false, kwargs...)
     data = if progress
-        @showprogress "Disgregating series..." map(f, 1:length(series))
+        @showprogress "Disaggregating series..." map(f, 1:length(series))
     else
         map(f, 1:length(series))
     end
