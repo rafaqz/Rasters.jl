@@ -63,7 +63,7 @@ series = GeoSeries([stack1, stack2], (Ti(dates),));
     @test mode(disaglat) == mode(dimz[2])
 end
 
-@testset "aggregate and disagregate at a locus" begin
+@testset "aggregate and disaggregate at a locus" begin
     @testset "single scale single locus" begin
         scale = 3
         array1_aggstart = aggregate(Start(), array1, scale) 

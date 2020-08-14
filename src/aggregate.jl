@@ -31,7 +31,7 @@ Returns a [`GeoSeries`](ref).
 aggregate(method, series::AbstractGeoSeries, scale, args...; progress=true, kwargs...) = begin
     f = i -> aggregate(method, series[i], scale, args...; progress=false, kwargs...)
     data = if progress
-        @showprogress "Agregating series..." map(f, 1:length(series))
+        @showprogress "Aggregating series..." map(f, 1:length(series))
     else
         map(f, 1:length(series))
     end
@@ -49,7 +49,7 @@ aggregate(method, stack::AbstractGeoStack, scale;
     f = key -> aggregate(method, stack[key], scale)
     keys_nt = NamedTuple{keys}(keys)
     data = if progress
-        @showprogress "Agregating stack..." map(f, keys_nt)
+        @showprogress "Aggregating stack..." map(f, keys_nt)
     else
         map(f, keys_nt)
     end
@@ -164,7 +164,7 @@ scale2int(dims, scale::Int) = scale
 """
     disaggregate(method, object, scale)
 
-Disagregate array, or all arrays in a stack or series, by some scale.
+Disaggregate array, or all arrays in a stack or series, by some scale.
 
 # Arguments
 
@@ -183,7 +183,7 @@ function disaggregate end
 """
     disaggregate(method, series::AbstractGeoSeries, scale)
 
-Disagregate an [`AbstractGeoSeries`](@ref) by `scale` using `method`.
+Disaggregate an [`AbstractGeoSeries`](@ref) by `scale` using `method`.
 """
 disaggregate(method, series::AbstractGeoSeries, scale; progress=true, kwargs...) = begin
     f = i -> disaggregate(method, series[i], scale; progress=false, kwargs...)
@@ -196,13 +196,13 @@ end
 """
     disaggregate(method, stack::AbstractGeoStack, scale)
 
-Disagregate an [`AbstractGeoStack`](@ref) by `scale` using `method`.
+Disaggregate an [`AbstractGeoStack`](@ref) by `scale` using `method`.
 """
 disaggregate(method, stack::AbstractGeoStack, scale; keys=keys(stack), progress=true) = begin
     f = key -> disaggregate(method, stack[key], scale)
     keys_nt = NamedTuple{keys}(keys)
     data = if progress
-        @showprogress "Disagregating stack..." map(f, keys_nt)
+        @showprogress "Disaggregating stack..." map(f, keys_nt)
     else
         map(f, keys_nt)
     end
@@ -213,7 +213,7 @@ end
 """
     disaggregate(method, src::AbstractDimensionalArray, scale)
 
-Disagregate an `AbstractDimensionalArray` by `scale` using `method`.
+Disaggregate an `AbstractDimensionalArray` by `scale` using `method`.
 
 [`DiskGeoArray`] will be converted to [`GeoArray`].
 """
@@ -225,7 +225,7 @@ disaggregate(method, src::DiskGeoArray, scale) =
 """
     disaggregate(method, dim::Dimension, scale)
 
-Disagregate a `Dimension` by `scale` using `method`.
+Disaggregate a `Dimension` by `scale` using `method`.
 """
 disaggregate(locus::Locus, dim::Dimension, scale) = begin
     intscale = scale2int(dim, scale)
@@ -245,7 +245,7 @@ disag_index(locus::End, dim, scale) =
 """
     disaggregate(method, dim::IndexMode, scale)
 
-Disagregate an `IndexMode` by `scale` using `method`.
+Disaggregate an `IndexMode` by `scale` using `method`.
 """
 disaggregate(method, mode::IndexMode, scale) = mode
 disaggregate(method, mode::AbstractSampled, scale) =
@@ -254,7 +254,7 @@ disaggregate(method, mode::AbstractSampled, scale) =
 """
     disaggregate(method, dim::Span, scale)
 
-Disagregate a `Span` by `scale` using `method`.
+Disaggregate a `Span` by `scale` using `method`.
 """
 disaggregate(method, span::Span, scale) = span
 disaggregate(method, span::Regular, scale) = Regular(val(span) / scale)
@@ -262,7 +262,7 @@ disaggregate(method, span::Regular, scale) = Regular(val(span) / scale)
 """
     disaggregate!(method, dst::AbstractDimensionalArray, src::AbstractDimensionalArray, scale)
 
-Disagregate array `src` to array `dst` by some scale, using `method`.
+Disaggregate array `src` to array `dst` by some scale, using `method`.
 
 - `method`: a function such as `mean` or `sum` that can combine the
   value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
