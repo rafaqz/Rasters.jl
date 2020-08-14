@@ -55,7 +55,7 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
     end
 
     @testset "indexing with reverse lat" begin
-        if Sys.islinux() # Limit CI downloads
+        if !haskey(ENV, "CI") # CI downloads fail. But run locally
             ncrevlat = geturl("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
             ncrevlatarray = NCDstack(ncrevlat; childkwargs=(missingval=-9.96921f36,))[:sst]
             @test order(dims(ncrevlatarray, Lat)) == Ordered(Reverse(), Reverse(), Forward())
