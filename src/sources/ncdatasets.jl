@@ -174,8 +174,10 @@ struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S,K
     size::S
     key::K
 end
-NCDarray(filename::AbstractString, key...; kwargs...) =
+NCDarray(filename::AbstractString, key...; kwargs...) = begin
+    isfile(filename) || error("File not found: $filename")
     ncread(dataset -> NCDarray(dataset, filename, key...; kwargs...), filename)
+end
 NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
          refdims=(),
          dims=nothing,
@@ -237,8 +239,8 @@ end
 """
     NCDstack(filenames; refdims=(), window=(), metadata=nothing)
 
-A lazy [`DiskStack`](@ref) that loads multiple single-layer netcdf files or
-a single multi-layer file, using NCDatasets.jl.
+A lazy [`DiskGeoStack`](@ref) that loads multiple single-layer netcdf 
+files or a single multi-layer file, using NCDatasets.jl.
 
 # Arguments
 - `filename`: `Tuple` or `Vector` of `String` paths to netcdf files, 
