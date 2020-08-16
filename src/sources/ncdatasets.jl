@@ -104,7 +104,7 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
 end
 
 ncshiftindex(dim::Dimension) = ncshiftindex(mode(dim), dim)
-ncshiftindex(mode::AbstractSampled, dim::Dimension) = begin
+ncshiftindex(mode::AbstractSampled, dim::Dimension) =
     if span(mode) isa Regular
         if dim isa TimeDim 
             if eltype(dim) isa Dates.AbstractDateTime
@@ -116,9 +116,8 @@ ncshiftindex(mode::AbstractSampled, dim::Dimension) = begin
             shiftindexloci(Center(), dim)
         end
     else
-        val(dim)
-    end
-end
+        dim
+    end |> val
 ncshiftindex(mode::IndexMode, dim::Dimension) = val(dim)
 
 # CF standards don't enforce dimension names.

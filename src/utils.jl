@@ -33,15 +33,13 @@ Shift the index from the current loci to the new loci. We only actually
 shift Regular Intervals, and do this my multiplying the offset of 
 -1, -0.5, 0, 0.5 or 1 by the absolute value of the span.
 =#
-shiftindexloci(locus::Locus, dim::Dimension) =
-    shiftindexloci(locus, mode(dim), dim)
-shiftindexloci(::Locus, ::IndexMode, dim::Dimension) = val(dim)
-shiftindexloci(locus::Locus, mode::AbstractSampled, dim::Dimension) =
-    shiftindexloci(locus, span(mode), sampling(mode), dim)
-shiftindexloci(::Locus, span::Span, sampling::Sampling, dim::Dimension) =
-    val(dim)
-shiftindexloci(destlocus::Locus, span::Regular, sampling::Intervals, dim::Dimension) =
-    val(dim) .+ abs(step(span)) * offset(locus(sampling), destlocus)
+shiftindexloci(locus::Locus, dim::Dimension) = shiftindexloci(mode(dim), locus, dim)
+shiftindexloci(::IndexMode, ::Locus, dim::Dimension) = dim
+shiftindexloci(mode::AbstractSampled, locus::Locus, dim::Dimension) =
+    shiftindexloci(span(mode), sampling(mode), locus, dim)
+shiftindexloci(span::Span, sampling::Sampling, ::Locus, dim::Dimension) = dim
+shiftindexloci(span::Regular, sampling::Intervals, destlocus::Locus, dim::Dimension) =
+    rebuild(dim, val(dim) .+ abs(step(span)) * offset(locus(sampling), destlocus))
 
 offset(::Start, ::Center) = 0.5
 offset(::Start, ::End) = 1

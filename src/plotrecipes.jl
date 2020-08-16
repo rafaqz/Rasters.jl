@@ -8,9 +8,11 @@ struct GeoPlot end
 @recipe function f(A::AbstractGeoArray)
     A = GeoArray(A)
     if all(hasdim(A, (Lat(), Lon())))
+        # Heatmap or multiple heatmaps. Use GD recipes.
         GeoPlot(), prepare(A)
     else
-        da = A |> GeoArray |> a -> DimensionalArray(a; dims=maybe_reproject(dims(a)))
+        # This is not a Lat/Lon heatmap. Fall back to DD recipes after reprojecting
+        da = A |> GeoArray |> a -> DimArray(a; dims=maybe_reproject(dims(a)))
         DimensionalData.DimensionalPlot(), da
     end
 end
@@ -27,8 +29,8 @@ end
                 aspect_ratio := 1
                 subplot := i
                 slice = A[:, :, i]
-                lat, lon = map(val, maybe_reproject(dims(A)))
-                lon, lat, parent(slice)
+                lats, lons = map(preparedim, dims(A))
+                lons, lats, parent(slice)
             end
         end
     else
@@ -47,8 +49,8 @@ end
     :aspect_ratio --> 1
     :colorbar_title --> name(A)
     :title --> refdims_title(A)
-    lat, lon = map(val, maybe_reproject(dims(A)))
-    lon, lat, parent(A)
+    lats, lons = map(preparedim, dims(A))
+    lons, lats, parent(A)
 end
 
 # # Permute for correct Lat/Lon order
@@ -65,7 +67,12 @@ maybe_reproject(crs, usercrs, dim::Dimension) = dim
 maybe_reproject(crs::GeoFormat, usercrs::GeoFormat, dim::Dimension) =
     rebuild(dim, reproject(crs, usercrs, dim, val(dim)))
 
-prepare(A) = A |> maybereplace_missing  |> forwardorder
+
+# Plots heatmaps pixels are centered. So center, and use the projected value.
+preparedim(d) = shiftindexloci(Center(), d) |> maybe_reproject |> val
+
+# Convert arrays to a consistent missing value and Forward array order
+prepare(A) = A |> maybereplace_missing |> forwardorder
 
 maybereplace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, NaN)
 maybereplace_missing(A) = A

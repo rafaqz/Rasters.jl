@@ -273,7 +273,7 @@ gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tile
         # Set the index loci to the start of the cell for the lat and lon dimensions.
         # NetCDF or other formats use the center of the interval, so they need conversion.
         lonindex, latindex = map((lon, lat)) do d
-            shiftindexloci(Start(), d)
+            val(shiftindexloci(Start(), d))
         end
         # Get the geotransform from the updated lat/lon dims
         geotransform = build_geotransform(latindex, lonindex)
