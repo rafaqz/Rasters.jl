@@ -68,12 +68,14 @@ struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
 end
 GDALarray(filename::AbstractString; kwargs...) = begin
     isfile(filename) || error("file not found: $filename")
-    gdalread(dataset -> GDALarray(dataset, filename; kwargs...), filename)
+    gdalread(filename) do raster
+        GDALarray(raster, filename; kwargs...) 
+    end
 end
-GDALarray(dataset::AG.Dataset, filename, key=nothing; usercrs=nothing, dims=dims(dataset, usercrs), refdims=(),
-          name="", metadata=metadata(dataset), missingval=missingval(dataset)) = begin
-    sze = gdalsize(dataset)
-    T = AG.pixeltype(AG.getband(dataset, 1))
+GDALarray(raster::AG.RasterDataset, filename, key=nothing; usercrs=nothing, dims=dims(raster, usercrs), refdims=(),
+          name="", metadata=metadata(raster), missingval=missingval(raster)) = begin
+    sze = size(raster)
+    T = eltype(raster)
     N = length(sze)
     GDALarray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,sze))...
        }(filename, dims, refdims, name, metadata, missingval, sze)
@@ -133,18 +135,18 @@ withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) =
 
 # DimensionalData methods for ArchGDAL types ###############################
 
-dims(dataset::AG.Dataset, usercrs=nothing) = begin
+dims(raster::AG.RasterDataset, usercrs=nothing) = begin
     gt = try
-        AG.getgeotransform(dataset)
+        AG.getgeotransform(raster)
     catch
         GDAL_EMPTY_TRANSFORM
     end
 
-    latsize, lonsize = AG.height(dataset), AG.width(dataset)
+    lonsize, latsize = size(raster)
 
-    nbands = AG.nraster(dataset)
+    nbands = AG.nraster(raster)
     band = Band(1:nbands, mode=Categorical(Ordered()))
-    sourcecrs = crs(dataset)
+    sourcecrs = crs(raster)
 
     lonlat_metadata=GDALdimMetadata()
 
@@ -161,13 +163,12 @@ dims(dataset::AG.Dataset, usercrs=nothing) = begin
         latmin = latmax + latstep * (latsize - 1)
         latrange = LinRange(latmax, latmin, latsize)
 
-        areaorpoint = gdalmetadata(dataset, "AREA_OR_POINT")
         # Spatial data defaults to area/inteval
-        if areaorpoint == "Point"
-            sampling = Points()
+        sampling = if gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
+            Points()
         else
             # GeoTiff uses the "pixelCorner" convention
-            sampling = Intervals(Start())
+            Intervals(Start())
         end
 
         latmode = Projected(
@@ -200,8 +201,8 @@ dims(dataset::AG.Dataset, usercrs=nothing) = begin
     end
 end
 
-missingval(dataset::AG.Dataset, args...) = begin
-    band = AG.getband(dataset, 1)
+missingval(raster::AG.RasterDataset, args...) = begin
+    band = AG.getband(raster.ds, 1)
     missingval = AG.getnodatavalue(band)
     T = AG.pixeltype(band)
     try
@@ -212,34 +213,36 @@ missingval(dataset::AG.Dataset, args...) = begin
     missingval
 end
 
-metadata(dataset::AG.Dataset, args...) = begin
-    band = AG.getband(dataset, 1)
+metadata(raster::AG.RasterDataset, args...) = begin
+    band = AG.getband(raster.ds, 1)
     # color = AG.getname(AG.getcolorinterp(band))
     scale = AG.getscale(band)
     offset = AG.getoffset(band)
     # norvw = AG.noverview(band)
     units = AG.getunittype(band)
-    path = first(AG.filelist(dataset))
+    path = first(AG.filelist(raster))
+    meta = AG.metadata(raster.ds)
+    println(meta)
     GDALarrayMetadata(Dict("filepath"=>path, "scale"=>scale, "offset"=>offset, "units"=>units))
 end
 
-crs(dataset::AG.Dataset, args...) =
-    WellKnownText(GeoFormatTypes.CRS(), string(AG.getproj(dataset)))
+# metadata(raster::RasterDataset, key) = begin
+#     regex = Regex("$key=(.*)")
+#     i = findfirst(f -> occursin(regex, f), meta)
+#     if i isa Nothing
+#         nothing
+#     else
+#         match(regex, meta[i])[1]
+#     end
+# end
+
+crs(raster::AG.RasterDataset, args...) =
+    WellKnownText(GeoFormatTypes.CRS(), string(AG.getproj(raster.ds)))
 
 
 # Utils ########################################################################
 
-gdalread(f, filename::AbstractString) =
-    AG.read(filename) do dataset
-        f(dataset)
-    end
-
-gdalsize(dataset) = begin
-    band = AG.getband(dataset, 1)
-    AG.width(band), AG.height(band), AG.nraster(dataset)
-end
-
-gdalmetadata(dataset, key) = begin
+gdalmetadata(dataset::AG.Dataset, key) = begin
     meta = AG.metadata(dataset)
     regex = Regex("$key=(.*)")
     i = findfirst(f -> occursin(regex, f), meta)
@@ -249,6 +252,11 @@ gdalmetadata(dataset, key) = begin
         match(regex, meta[i])[1]
     end
 end
+
+gdalread(f, filename::AbstractString) =
+    AG.readraster(filename) do raster
+        f(raster)
+    end
 
 gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tiled=true) = begin
     tiledstring = tiled isa Bool ? (tiled ? "YES" : "NO") : tiled
@@ -264,7 +272,6 @@ gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tile
     ) do dataset
         # Convert the dimensions to `Projected` if they are `Converted`
         # This allows saving NetCDF to Tiff
-        println(val(dims(A, Lat())))
         lon, lat = map(dims(A, (Lon(), Lat()))) do d
             convertmode(Projected, d)
         end
