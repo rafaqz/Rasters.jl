@@ -139,8 +139,8 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         end
 
         @testset "to grd" begin
-            write("testgrd", GrdArray, gdalarray)
-            grdarray = GrdArray("testgrd")
+            write("testgrd", GRDarray, gdalarray)
+            grdarray = GRDarray("testgrd")
             @test crs(grdarray) == convert(ProjString, crs(gdalarray))
             @test bounds(grdarray) == (bounds(gdalarray))
             @test val(dims(grdarray, Lat)) == reverse(val(dims(gdalarray, Lat)))

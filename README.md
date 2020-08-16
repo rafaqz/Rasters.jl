@@ -5,28 +5,32 @@
 [![Build Status](https://travis-ci.org/rafaqz/GeoData.jl.svg?branch=master)](https://travis-ci.org/rafaqz/GeoData.jl)
 [![Codecov](https://codecov.io/gh/rafaqz/GeoData.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/rafaqz/GeoData.jl)
 
-GeoData.jl defines common types and methods for accessing and
-working with spatial data in Julia, such as 2 or multidimensional raster arrays,
-and multiarray "stacks", and "series" of files for either type.
-
-It provides general types `GeoArray`, `GeoStack`, and `GeoSeries`, and source
-specific types for loading GDAL with `GDALarray`, NetCDF with `NCDarray` and
-`NCDstack` when ArchGDAL.jl and NCDatasets.jl are loaded, respectively. R grd
-files can be loaded natively using `GrdArray`. 
-
-GeoData.jl is useful both as a scripting tool, and as a library of standardised
-data manipulation for use in other geospatial data and modelling packages. It
-extends [DimensionalData.jl](https://github.com/rafaqz/DimensionalData.jl) so
-that data can be indexed using named dimensions, which can also be used in most
-methods like `mean` and `reduce` where dimensions are required. Most behaviour
-is covered in the [DimensionalData
+GeoData.jl extends
+[DimensionalData.jl](https://github.com/rafaqz/DimensionalData.jl) so that
+spatial data can be indexed using named dimensions like `Lat` and `Lon`, which
+can also be used in most methods like `mean` and `reduce` where dimensions are
+required. Much of the behaviour is covered in the [DimensionalData
 docs](https://rafaqz.github.io/DimensionalData.jl/stable/).
 
-When HDF5.jl is loaded, files from the soil moisture active passive
+GeoData.jl also defines common types and methods for accessing and working with
+spatial data, such as 2 or multidimensional raster arrays, multi-array "stacks",
+and "series" of stacks or arrays that behave similarly or identically across
+multiple file-types.
+
+It provides general types `GeoArray`, `GeoStack`, and `GeoSeries`, R `.grd`
+files can be loaded natively using `GRDarray` and `GRDstack`. 
+
+GDAL files can be loaded when
+[ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl) (v0.5 or higher) is
+present, with ` GDALarray` and GDALstack. NetCDF similarly can be loaded when
+[NCDatasets.jl](https://github.com/Alexander-Barth/NCDatasets.jl) is loaded,
+with `NCDarray` and `NCDstack`.
+
+When HDF5.jl is loaded, files from the Soil Moisture Active Passive
 ([SMAP](https://smap.jpl.nasa.gov/)) dataset can be loaded using `SMAPstack`
 or `SMAPseries` to load whole directories. This is both useful for users of
 SMAP, and a demonstration of the potential to build standardised interfaces 
-for other custom spatial dataset formats like those used in SMAP.
+for custom spatial dataset formats like those used in SMAP.
 
 Files can be written to disk in all formats using `write`.
 

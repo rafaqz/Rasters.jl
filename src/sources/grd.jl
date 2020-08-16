@@ -1,4 +1,4 @@
-export GrdArray, GrdStack, GrdDimMetadata, GrdArrayMetadata
+export GRDarray, GRDstack, GRDdimMetadata, GRDarrayMetadata
 
 const GRD_INDEX_ORDER = Forward()
 const GRD_LON_ARRAY = Forward()
@@ -11,38 +11,38 @@ const GRD_BAND_RELATION= Forward()
 # Metadata ########################################################################
 
 """
-[`Metadata`](@ref) wrapper for `GrdArray` dimension metadata.
+[`Metadata`](@ref) wrapper for `GRDarray` dimension metadata.
 """
-struct GrdDimMetadata{K,V} <: DimMetadata{K,V}
+struct GRDdimMetadata{K,V} <: DimMetadata{K,V}
     val::Dict{K,V}
 end
 
 """
-[`Metadata`](@ref) wrapper for `GrdArray` metadata.
+[`Metadata`](@ref) wrapper for `GRDarray` metadata.
 """
-struct GrdArrayMetadata{K,V} <: ArrayMetadata{K,V}
+struct GRDarrayMetadata{K,V} <: ArrayMetadata{K,V}
     val::Dict{K,V}
 end
 
 
 # Grd attributes wrapper
-struct GrdAttrib{T,F,A}
+struct GRDattrib{T,F,A}
     filename::F
     attrib::A
 end
-GrdAttrib(filename::AbstractString) = begin
+GRDattrib(filename::AbstractString) = begin
     filename = first(splitext(filename))
     lines = readlines(filename * ".grd")
     entries = filter!(x -> !isempty(x) && !(x[1] == '['), lines)
     attrib = Dict(Pair(string.(strip.(match(r"([^=]+)=(.*)", st).captures[1:2]))...) for st in entries)
     T = datatype_translation[attrib["datatype"]]
 
-    GrdAttrib{T,typeof(filename),typeof(attrib)}(filename, attrib)
+    GRDattrib{T,typeof(filename),typeof(attrib)}(filename, attrib)
 end
 
-filename(grd::GrdAttrib) = grd.filename
+filename(grd::GRDattrib) = grd.filename
 
-dims(grd::GrdAttrib, usercrs=nothing) = begin
+dims(grd::GRDattrib, usercrs=nothing) = begin
     attrib = grd.attrib
     crs = ProjString(grd.attrib["projection"])
 
@@ -55,7 +55,7 @@ dims(grd::GrdAttrib, usercrs=nothing) = begin
     yspan = (ybounds[2] - ybounds[1]) / nrows
 
     # Not fully implemented yet
-    latlon_metadata = GrdDimMetadata(Dict())
+    latlon_metadata = GRDdimMetadata(Dict())
 
     latmode = Projected(
         order=Ordered(GRD_INDEX_ORDER, GRD_LAT_ARRAY, GRD_LAT_RELATION),
@@ -77,8 +77,8 @@ dims(grd::GrdAttrib, usercrs=nothing) = begin
     lon, lat, band
 end
 
-metadata(grd::GrdAttrib, args...) = begin
-    metadata = GrdArrayMetadata()
+metadata(grd::GRDattrib, args...) = begin
+    metadata = GRDarrayMetadata()
     for key in ("creator", "created", "history")
         val = get(grd.attrib, key, "")
         if val != ""
@@ -88,7 +88,7 @@ metadata(grd::GrdAttrib, args...) = begin
     metadata
 end
 
-missingval(grd::GrdAttrib{T}) where T = begin
+missingval(grd::GRDattrib{T}) where T = begin
     mv = try 
         parse(T, grd.attrib["nodatavalue"])
     catch
@@ -97,12 +97,12 @@ missingval(grd::GrdAttrib{T}) where T = begin
     end
 end
 
-name(grd::GrdAttrib) = get(grd.attrib, "layername", "")
+name(grd::GRDattrib) = get(grd.attrib, "layername", "")
 
 
-Base.eltype(::GrdAttrib{T}) where T = T
+Base.eltype(::GRDattrib{T}) where T = T
 
-Base.size(grd::GrdAttrib) = begin
+Base.size(grd::GRDattrib) = begin
     ncols = parse(Int, grd.attrib["ncols"])
     nrows = parse(Int, grd.attrib["nrows"])
     nbands = parse(Int, grd.attrib["nbands"])
@@ -110,13 +110,13 @@ Base.size(grd::GrdAttrib) = begin
     ncols, nrows, nbands
 end
 
-Base.Array(grd::GrdAttrib) = mmapgrd(Array, grd)
+Base.Array(grd::GRDattrib) = mmapgrd(Array, grd)
 
 
 # Array ########################################################################
 
 """
-    GrdArray(filename::String; refdims=(), name=nothing, usercrs=nothing)
+    GRDarray(filename::String; refdims=(), name=nothing, usercrs=nothing)
 
 An [`AbstractGeoArray`](@ref) that loads .grd files lazily from disk.
 
@@ -131,12 +131,12 @@ An [`AbstractGeoArray`](@ref) that loads .grd files lazily from disk.
 
 # Example
 ```julia
-array = GrdArray("folder/file.grd"; usercrs=EPSG(4326))
+array = GRDarray("folder/file.grd"; usercrs=EPSG(4326))
 # Select Australia using 4326 coords, whatever the crs is underneath.
 array[Lat(Between(-10, -43), Lon(113, 153))
 ```
 """
-struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
+struct GRDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
     filename::A
     dims::D
@@ -146,8 +146,8 @@ struct GrdArray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
     missingval::Mi
     size::S
 end
-GrdArray(filename::String; kwargs...) = GrdArray(GrdAttrib(filename), filename; kwargs...)
-GrdArray(grd::GrdAttrib, filename, key=nothing; 
+GRDarray(filename::String; kwargs...) = GRDarray(GRDattrib(filename), filename; kwargs...)
+GRDarray(grd::GRDattrib, filename, key=nothing; 
          refdims=(), name=nothing, usercrs=nothing) = begin
     attrib = grd.attrib
 
@@ -162,7 +162,7 @@ GrdArray(grd::GrdAttrib, filename, key=nothing;
     T = eltype(grd)
     N = length(size_)
 
-    GrdArray{T,N,typeof.((filename,dims_,refdims,name,metadata_,missingval_,size_))...
+    GRDarray{T,N,typeof.((filename,dims_,refdims,name,metadata_,missingval_,size_))...
             }(filename, dims_, refdims, name, metadata_, missingval_, size_)
 end
 
@@ -170,14 +170,14 @@ end
 # Base methods
 
 """
-    Base.write(filename::AbstractString, ::Type{GrdArray}, s::AbstractGeoArray)
+    Base.write(filename::AbstractString, ::Type{GRDarray}, s::AbstractGeoArray)
 
-Write a [`GrdArray`](@ref) to a .grd file, with a .gri header file. The extension of
+Write a [`GRDarray`](@ref) to a .grd file, with a .gri header file. The extension of
 `filename` will be ignored.
 
 Currently the `metadata` field is lost on `write`.
 """
-Base.write(filename::String, ::Type{<:GrdArray}, A::AbstractGeoArray) = begin
+Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray) = begin
     if hasdim(A, Band)
         correctedA = permutedims(A, (Lon, Lat, Band)) |>
             a -> reorderindex(a, GRD_INDEX_ORDER) |>
@@ -245,23 +245,23 @@ end
 # AbstractGeoStack methods
 
 """
-    GrdStack(filenames; kwargs...)
+    GRDstack(filenames; kwargs...)
 
-Convenience method to create a DiskStack of [`GrdArray`](@ref) from `filenames`.
+Convenience method to create a DiskStack of [`GRDarray`](@ref) from `filenames`.
 """
-GrdStack(args...; kwargs...) = 
-    DiskStack(args...; childtype=GrdArray, kwargs...)
+GRDstack(args...; kwargs...) = 
+    DiskStack(args...; childtype=GRDarray, kwargs...)
 
 
-withsource(f, ::Type{<:GrdArray}, filename::AbstractString, key...) =
-    f(GrdAttrib(filename))
-withsourcedata(f, ::Type{<:GrdArray}, filename::AbstractString, key...) =
-    mmapgrd(f, GrdAttrib(filename))
-withsourcedata(f, A::GrdArray, key...) =
+withsource(f, ::Type{<:GRDarray}, filename::AbstractString, key...) =
+    f(GRDattrib(filename))
+withsourcedata(f, ::Type{<:GRDarray}, filename::AbstractString, key...) =
+    mmapgrd(f, GRDattrib(filename))
+withsourcedata(f, A::GRDarray, key...) =
     mmapgrd(f, A)
 
 # Utils ########################################################################
-mmapgrd(f, grd::Union{GrdArray,GrdAttrib}) =
+mmapgrd(f, grd::Union{GRDarray,GRDattrib}) =
     mmapgrd(f, filename(grd), eltype(grd), size(grd))
 mmapgrd(f, filename::AbstractString, T::Type, size::Tuple) = begin
     open(filename * ".gri", "r") do io

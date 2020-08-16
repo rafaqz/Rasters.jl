@@ -10,10 +10,10 @@ path = joinpath(testpath, "data/rlogo")
 @test isfile(path * ".gri")
 
 @testset "Grd array" begin
-    grdarray = GrdArray(path);
+    grdarray = GRDarray(path);
 
     @testset "array properties" begin
-        @test grdarray isa GrdArray{Float32,3}
+        @test grdarray isa GRDarray{Float32,3}
     end
 
     @testset "dimensions" begin
@@ -26,11 +26,11 @@ path = joinpath(testpath, "data/rlogo")
 
     @testset "other fields" begin
         @test missingval(grdarray) == -3.4f38
-        @test metadata(grdarray) isa GrdArrayMetadata
+        @test metadata(grdarray) isa GRDarrayMetadata
         @test name(grdarray) == "red:green:blue"
         @test label(grdarray) == "red:green:blue"
         @test units(grdarray) == nothing
-        customgrdarray = GrdArray(path; name="test", usercrs=EPSG(4326));
+        customgrdarray = GRDarray(path; name="test", usercrs=EPSG(4326));
         @test name(customgrdarray) == "test"
         @test label(customgrdarray) == "test"
         @test usercrs(dims(customgrdarray, Lat)) == EPSG(4326)
@@ -92,8 +92,8 @@ path = joinpath(testpath, "data/rlogo")
     @testset "save" begin
         @testset "2d" begin
             filename2 = tempname()
-            write(filename2, GrdArray, grdarray[Band(1)])
-            saved = GeoArray(GrdArray(filename2))
+            write(filename2, GRDarray, grdarray[Band(1)])
+            saved = GeoArray(GRDarray(filename2))
             # 1 band is added again on save
             @test size(saved) == size(grdarray[Band(1:1)])
             @test data(saved) == data(grdarray[Band(1:1)])
@@ -102,8 +102,8 @@ path = joinpath(testpath, "data/rlogo")
         @testset "3d with subset" begin
             geoarray = GeoArray(grdarray)[1:100, 1:50, 1:2]
             filename = tempname()
-            write(filename, GrdArray, geoarray)
-            saved = GeoArray(GrdArray(filename))
+            write(filename, GRDarray, geoarray)
+            saved = GeoArray(GRDarray(filename))
             @test size(saved) == size(geoarray)
             @test refdims(saved) == ()
             @test bounds(saved) == bounds(geoarray)
@@ -164,7 +164,7 @@ path = joinpath(testpath, "data/rlogo")
 end
 
 @testset "Grd stack" begin
-    grdstack = GrdStack((a=path, b=path))
+    grdstack = GRDstack((a=path, b=path))
 
     @testset "indexing" begin
         @test grdstack[:a][Lat(20), Lon(20), Band(3)] == 70.0f0
@@ -177,7 +177,7 @@ end
     end
 
     @testset "window" begin
-        windowedstack = GrdStack((a=path, b=path); window=(Lat(1:5), Lon(1:5), Band(1)))
+        windowedstack = GRDstack((a=path, b=path); window=(Lat(1:5), Lon(1:5), Band(1)))
         @test window(windowedstack) == (Lat(1:5), Lon(1:5), Band(1))
         windowedarray = windowedstack[:a]
         @test windowedarray isa GeoArray{Float32,2}
@@ -186,13 +186,13 @@ end
         @test windowedarray[1:3, 2:2] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1)
         @test windowedarray[1:3, 2] == [255.0f0, 255.0f0, 255.0f0]
         @test windowedarray[1, 2] == 255.0f0
-        windowedstack = GrdStack((a=path, b=path); window=(Lat(1:5), Lon(1:5), Band(1:1)))
+        windowedstack = GRDstack((a=path, b=path); window=(Lat(1:5), Lon(1:5), Band(1:1)))
         windowedarray = windowedstack[:b]
         @test windowedarray[1:3, 2:2, 1:1] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1, 1)
         @test windowedarray[1:3, 2:2, 1] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1)
         @test windowedarray[1:3, 2, 1] == [255.0f0, 255.0f0, 255.0f0]
         @test windowedarray[1, 2, 1] == 255.0f0
-        windowedstack = GrdStack((a=path, b=path); window=(Band(1),));
+        windowedstack = GRDstack((a=path, b=path); window=(Band(1),));
         windowedarray = windowedstack[:b]
         @test windowedarray[1:3, 2:2] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1)
         @test windowedarray[1:3, 2] == [255.0f0, 255.0f0, 255.0f0]
@@ -221,10 +221,10 @@ end
     @testset "save" begin
         geoarray = GeoArray(grdstack[:b])
         filename = tempname()
-        write(filename, GrdArray, grdstack)
+        write(filename, GRDarray, grdstack)
         base, ext = splitext(filename)
         filename_b = string(base, "_b", ext)
-        saved = GeoArray(GrdArray(filename_b))
+        saved = GeoArray(GRDarray(filename_b))
         @test typeof(saved) == typeof(geoarray)
         @test data(saved) == data(geoarray)
     end
@@ -232,13 +232,13 @@ end
 end
 
 @testset "Grd series" begin
-    series = GeoSeries([path, path], (Ti,); childtype=GrdArray, childkwargs=(usercrs=EPSG(4326), name="test"))
+    series = GeoSeries([path, path], (Ti,); childtype=GRDarray, childkwargs=(usercrs=EPSG(4326), name="test"))
     @test GeoArray(series[Ti(1)]) == 
-        GeoArray(GrdArray(path; usercrs=EPSG(4326), name="test"))
-    stacks = [DiskStack((a=path, b=path); childtype=GrdArray, childkwargs=(usercrs=EPSG(4326), name="test"))]
+        GeoArray(GRDarray(path; usercrs=EPSG(4326), name="test"))
+    stacks = [DiskStack((a=path, b=path); childtype=GRDarray, childkwargs=(usercrs=EPSG(4326), name="test"))]
     series = GeoSeries(stacks, (Ti,))
     @test series[Ti(1)][:a] == 
-        GeoArray(GrdArray(path; usercrs=EPSG(4326), name="test"))
+        GeoArray(GRDarray(path; usercrs=EPSG(4326), name="test"))
 end
 
 

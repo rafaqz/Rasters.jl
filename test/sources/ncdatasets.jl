@@ -129,8 +129,8 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         end
         @testset "to grd" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
-            write("testgrd", GrdArray, nccleaned)
-            grdarray = GrdArray("testgrd");
+            write("testgrd", GRDarray, nccleaned)
+            grdarray = GRDarray("testgrd");
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == (bounds(nccleaned)..., (1, 1))
             @test val(dims(grdarray, Lat)) ≈ val(dims(nccleaned, Lat)) .- 0.5
