@@ -156,7 +156,7 @@ filename(s::DiskGeoStack, key::Key) = filename(s)
 # array object may save time in some cases, like when
 # the array size has to be determined before loading the data
 # like with mmaped grd files.
-withsourcerata(f, A::DiskGeoArray, key...) =
+withsourcedata(f, A::DiskGeoArray, key...) =
     withsourcedata(f, typeof(A), filename(A), key...)
 # By default assume the source object is a single object with
 # all info and data.

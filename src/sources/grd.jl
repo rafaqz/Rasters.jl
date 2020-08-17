@@ -45,7 +45,7 @@ attrib(grd::GRDattrib) = grd.attrib
 
 dims(grd::GRDattrib, usercrs=nothing) = begin
     attrib = grd.attrib
-    crs = ProjString(attrib(grd)["projection"])
+    crs = ProjString(attrib["projection"])
 
     ncols, nrows, nbands = size(grd)
 
