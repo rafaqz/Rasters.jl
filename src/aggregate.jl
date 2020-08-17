@@ -63,7 +63,7 @@ end
 
 Aggregate an `AbstractDimensionalArray` by `scale` using `method`.
 
-[`DiskGeoArray`] will be converted to [`GeoArray`].
+[`DiskGeoArray`](@ref) will be converted to [`GeoArray`](@ref).
 """
 aggregate(method, src::AbstractDimensionalArray, scale) =
     aggregate!(method, alloc_ag(method, src, scale), src, scale)
@@ -215,7 +215,7 @@ end
 
 Disaggregate an `AbstractDimensionalArray` by `scale` using `method`.
 
-[`DiskGeoArray`] will be converted to [`GeoArray`].
+[`DiskGeoArray`](@ref) will be converted to [`GeoArray`](@ref).
 """
 disaggregate(method, src::AbstractDimensionalArray, scale) =
     disaggregate!(method, alloc_disag(method, src, scale), src, scale)

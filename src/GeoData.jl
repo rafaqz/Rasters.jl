@@ -52,6 +52,7 @@ const DDabssampleddocs = joinpath(DDdocs, "#DimensionalData.AbstractSampled")
 const DDsampleddocs = joinpath(DDdocs, "#DimensionalData.Sampled")
 const DDlocusdocs = joinpath(DDdocs, "#DimensionalData.Locus")
 const DDselectordocs = joinpath(DDdocs, "#DimensionalData.Selector")
+const DDtidocs = joinpath(DDdocs, "#DimensionalData.Ti")
 
 include("dimensions.jl")
 include("metadata.jl")

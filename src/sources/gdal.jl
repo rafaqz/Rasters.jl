@@ -34,27 +34,44 @@ end
 # Array ########################################################################
 
 """
-    GDALarray(filename; usercrs=nothing, name="", refdims=())
+    GDALarray(filename; 
+              usercrs=nothing, 
+              name="", 
+              dims=nothing, 
+              refdims=(), 
+              metadata=nothing, 
+              missingval=nothing)
 
-Load a file lazily with gdal. GDALarray will be converted to GeoArray after
-indexing or other manipulations. `GeoArray(GDAlarray(filename))` will do this
+Load a file lazily using gdal. `GDALarray` will be converted to [`GeoArray`](@ref) 
+after indexing or other manipulations. `GeoArray(GDALarray(filename))` will do this
 immediately.
 
-If `usercrs` like `EPSG(4326)` is passed to the constructor, selectors like
-`Between` will use its projection, converting automatically to the underlying
-projection from GDAL. Plots will also display the axes using this projection.
-
-Until DiskArrays.jl is used for this package, avoid broadcasting over `GDALarray`,
-convert to `GeoArray` first.
+`GDALarray`s are always 3 dimensional, and have [`Lat`](@ref), [`Lon`](@ref) and
+[`Band`](@ref) dimensions.
 
 ## Arguments
+
 - `filename`: `String` pointing to a grd file. Extension is optional.
 
 ## Keyword arguments
-- `name`: Name for the array.
-- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
-- `usercrs`: CRS format used in Between, At etc and Plotting. Can be any CRS `GeoFormat`
-  form GeoFormatTypes.jl, such as `WellKnownText` loading the array.
+
+- `usercrs`: CRS format like `EPSG(4326)` used in `Selectors` like `Between` and `At`, and 
+  for plotting. Can be any CRS `GeoFormat` from GeoFormatTypes.jl, like `WellKnownText`.
+- `name`: `String` name for the array.
+- `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
+- `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
+- `missingval`: Value reprsenting missing values. Detected automatically when possible, but 
+  can be passed it.
+- `metadata`: [`Metadata`](@ref) object for the array. Detected automatically as
+  [`GDALarrayMetadata`](@ref), but can be passed in.
+
+# Example
+
+```julia
+A = GDALarray("folder/file.tif"; usercrs=EPSG(4326))
+# Select Australia using lat/lon coords, whatever the crs is underneath.
+A[Lat(Between(-10, -43), Lon(Between(113, 153)))
+```
 """
 struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
                 } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
@@ -72,8 +89,13 @@ GDALarray(filename::AbstractString; kwargs...) = begin
         GDALarray(raster, filename; kwargs...) 
     end
 end
-GDALarray(raster::AG.RasterDataset, filename, key=nothing; usercrs=nothing, dims=dims(raster, usercrs), refdims=(),
-          name="", metadata=metadata(raster), missingval=missingval(raster)) = begin
+GDALarray(raster::AG.RasterDataset, filename, key=nothing; 
+          usercrs=nothing, 
+          dims=dims(raster, usercrs), 
+          refdims=(),
+          name="", 
+          metadata=metadata(raster), 
+          missingval=missingval(raster)) = begin
     sze = size(raster)
     T = eltype(raster)
     N = length(sze)
@@ -121,9 +143,42 @@ end
 # AbstractGeoStack methods
 
 """
-    GDALstack(filenames; kwargs...)
+    GDALstack(filenames; keys, kwargs...)
+    GDALstack(filenames...; keys, kwargs...)
+    GDALstack(filenames::NamedTuple; 
+              window=(), 
+              metadata=nothing, 
+              childkwargs=(),
+              refdims=())
 
 Convenience method to create a DiskStack  of [`GDALarray`](@ref) from `filenames`.
+
+Load a stack of files lazily from disk.
+
+## Arguments
+
+- `filenames`: A NamedTuple of stack keys and `String` filenames, or a `Tuple`, 
+  `Vector` or splatted arguments of `String` filenames.
+
+## Keyword arguments
+
+- `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
+- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the 
+  contained arrays when they are accessed.
+- `metadata`: Metadata as a [`StackMetadata`](@ref) object.
+- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
+- `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
+
+## Example
+
+Create a `GDALstack` from four files, that sets the child arrays `usercrs` value
+when they are loaded.
+
+```julia
+files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
+stack = GDALstack(files; childkwargs=(usercrs=EPSG(4326),))
+stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
+```
 """
 GDALstack(args...; kwargs...) =
     DiskStack(args...; childtype=GDALarray, kwargs...)

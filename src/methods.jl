@@ -1,19 +1,27 @@
 """
-    replace_missing(a::AbstractGeoArray, newmissing)
+    replace_missing(a::AbstractGeoArray, newmissingval)
 
 Replace missing values in the array with a new missing value, also
 updating the `missingval` field.
 """
 replace_missing(a::DiskGeoArray, args...) = 
     replace_missing(GeoArray(a), args...)
-replace_missing(a::MemGeoArray, newmissing=missing) = begin
+replace_missing(a::MemGeoArray, newmissingval=missing) = begin
     newdata = if ismissing(missingval(a))
-        collect(Missings.replace(data(a), newmissing))
+        collect(Missings.replace(data(a), newmissingval))
     else
-        replace(data(a), missingval(a) => newmissing)
+        replace(data(a), missingval(a) => newmissingval)
     end
-    rebuild(a; data=newdata, missingval=newmissing)
+    rebuild(a; data=newdata, missingval=newmissingval)
 end
+"""
+    replace_missing(a::AbstractGeoStack, newmissingval)
+
+Replace missing values in all arrays in the stack with the `newmissingval`, 
+also updating the `missingval` fields.
+"""
+replace_missing(stack::AbstractGeoStack, newmissingval=missing) = 
+    rebuild(stack, map(a -> replace_missing(a, newmissingval, values(stack))))
 
 """
     boolmask(A::AbstractArray, [missingval])

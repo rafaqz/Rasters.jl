@@ -25,7 +25,7 @@ struct GRDarrayMetadata{K,V} <: ArrayMetadata{K,V}
 end
 
 
-# Grd attributes wrapper
+# GRD attributes wrapper. Only used during file load, for dispatch.
 struct GRDattrib{T,F,A}
     filename::F
     attrib::A
@@ -35,16 +35,17 @@ GRDattrib(filename::AbstractString) = begin
     lines = readlines(filename * ".grd")
     entries = filter!(x -> !isempty(x) && !(x[1] == '['), lines)
     attrib = Dict(Pair(string.(strip.(match(r"([^=]+)=(.*)", st).captures[1:2]))...) for st in entries)
-    T = datatype_translation[attrib["datatype"]]
+    T = grd_datatype_translation[attrib["datatype"]]
 
     GRDattrib{T,typeof(filename),typeof(attrib)}(filename, attrib)
 end
 
 filename(grd::GRDattrib) = grd.filename
+attrib(grd::GRDattrib) = grd.attrib
 
 dims(grd::GRDattrib, usercrs=nothing) = begin
     attrib = grd.attrib
-    crs = ProjString(grd.attrib["projection"])
+    crs = ProjString(attrib(grd)["projection"])
 
     ncols, nrows, nbands = size(grd)
 
@@ -92,7 +93,7 @@ missingval(grd::GRDattrib{T}) where T = begin
     mv = try 
         parse(T, grd.attrib["nodatavalue"])
     catch
-        @warn "No data value from GDAL $(missingval) is not convertible to data type $T. `missingval` set to NaN."
+        @warn "No data $(missingval) is not convertible to data type $T. `missingval` set to NaN."
         missing
     end
 end
@@ -116,24 +117,41 @@ Base.Array(grd::GRDattrib) = mmapgrd(Array, grd)
 # Array ########################################################################
 
 """
-    GRDarray(filename::String; refdims=(), name=nothing, usercrs=nothing)
+    GRDarray(filename::String; 
+        usercrs=nothing,
+        dims=(), 
+        refdims=(), 
+        name=nothing, 
+        missingval=nothing, 
+        metadata=nothing)
 
-An [`AbstractGeoArray`](@ref) that loads .grd files lazily from disk.
+A [`DiskGeoArray`](@ref) that loads .grd files lazily from disk.
+
+`GRDarray`s are always 3 dimensional, and have [`Lat`](@ref), [`Lon`](@ref) and
+[`Band`](@ref) dimensions.
 
 ## Arguments
+
 - `filename`: `String` pointing to a grd file. Extension is optional.
 
-## Keyword arguments
-- `name`: Name for the array. Will be loaded from `layername` if not supplied.
-- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
-- `usercrs`: can be any CRS `GeoFormat` form GeoFormatTypes.jl, such as `WellKnownText`
-  loading the array. Can save on disk load time for large files.
+## Keyword Arguments
 
-# Example
+- `usercrs`: CRS format like `EPSG(4326)` used in `Selectors` like `Between` and `At`, and 
+  for plotting. Can be any CRS `GeoFormat` from GeoFormatTypes.jl, like `WellKnownText`.
+- `name`: `String` name for the array, taken from the files `layername` attribute unless passed in.
+- `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
+- `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
+- `missingval`: Value reprsenting missing values. Detected automatically when possible, but 
+  can be passed it.
+- `metadata`: [`Metadata`](@ref) object for the array. Detected automatically as
+  [`GRDarrayMetadata`](@ref), but can be passed in.
+
+## Example
+
 ```julia
-array = GRDarray("folder/file.grd"; usercrs=EPSG(4326))
-# Select Australia using 4326 coords, whatever the crs is underneath.
-array[Lat(Between(-10, -43), Lon(113, 153))
+A = GRDarray("folder/file.grd"; usercrs=EPSG(4326))
+# Select Australia using lat/lon coords, whatever the crs is underneath.
+A[Lat(Between(-10, -43), Lon(Between(113, 153)))
 ```
 """
 struct GRDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
@@ -147,23 +165,22 @@ struct GRDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
     size::S
 end
 GRDarray(filename::String; kwargs...) = GRDarray(GRDattrib(filename), filename; kwargs...)
-GRDarray(grd::GRDattrib, filename, key=nothing; 
-         refdims=(), name=nothing, usercrs=nothing) = begin
-    attrib = grd.attrib
+GRDarray(grd::GRDattrib, filename, key=nothing;
+         usercrs=nothing,
+         dims=dims(grd, usercrs),
+         refdims=(), 
+         name=name(grd), 
+         missingval=missingval(grd),
+         metadata=metadata(grd),
+        ) = begin
 
-    dims_ = dims(grd, usercrs)
-    metadata_ = metadata(grd)
-    missingval_ = missingval(grd)
     size_ = map(length, dims_)
-    if name isa Nothing
-        name = GeoData.name(grd)
-    end
 
     T = eltype(grd)
     N = length(size_)
 
-    GRDarray{T,N,typeof.((filename,dims_,refdims,name,metadata_,missingval_,size_))...
-            }(filename, dims_, refdims, name, metadata_, missingval_, size_)
+    GRDarray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,size_))...
+            }(filename, dims, refdims, name, metadata, missingval, size_)
 end
 
 
@@ -175,7 +192,7 @@ end
 Write a [`GRDarray`](@ref) to a .grd file, with a .gri header file. The extension of
 `filename` will be ignored.
 
-Currently the `metadata` field is lost on `write`.
+Currently the `metadata` field is lost on `write` for `GRDarray`.
 """
 Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray) = begin
     if hasdim(A, Band)
@@ -201,7 +218,7 @@ Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray) = begin
     xmin, xmax = bounds(lon)
     ymin, ymax = bounds(lat)
     proj = convert(String, convert(ProjString, crs(lon)))
-    datatype = rev_datatype_translation[eltype(A)]
+    datatype = rev_grd_datatype_translation[eltype(A)]
     nodatavalue = missingval(A)
     minvalue = minimum(filter(x -> x !== missingval(A), data(A)))
     maxvalue = maximum(filter(x -> x !== missingval(A), data(A)))
@@ -245,9 +262,40 @@ end
 # AbstractGeoStack methods
 
 """
-    GRDstack(filenames; kwargs...)
+    GRDstack(filenames; keys, kwargs...)
+    GRDstack(filenames...; keys, kwargs...)
+    GRDstack(filenames::NamedTuple;
+             window=(), 
+             metadata=nothing, 
+             childkwargs=(),
+             refdims=())
 
 Convenience method to create a DiskStack of [`GRDarray`](@ref) from `filenames`.
+
+## Arguments
+
+- `filenames`: A NamedTuple of stack keys and `String` filenames, or a `Tuple`, 
+  `Vector` or splatted arguments of `String` filenames.
+
+## Keyword arguments
+
+- `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
+- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the 
+  contained arrays when they are accessed.
+- `metadata`: Metadata as a [`StackMetadata`](@ref) object.
+- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
+- `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
+
+## Example
+
+Create a `GRDstack` from four files, that sets the child arrays 
+`usercrs` value when they are loaded.
+
+```julia
+files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
+stack = GRDstack(files; childkwargs=(usercrs=EPSG(4326),))
+stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
+```
 """
 GRDstack(args...; kwargs...) = 
     DiskStack(args...; childtype=GRDarray, kwargs...)
@@ -272,7 +320,7 @@ mmapgrd(f, filename::AbstractString, T::Type, size::Tuple) = begin
     end
 end
 
-const datatype_translation = Dict{String, DataType}(
+const grd_datatype_translation = Dict{String, DataType}(
     "LOG1S" => Bool,
     "INT1S" => Int8,
     "INT2S" => Int16,
@@ -284,4 +332,5 @@ const datatype_translation = Dict{String, DataType}(
     "FLT8S" => Float64
 )
 
-const rev_datatype_translation = Dict{DataType, String}(v => k for (k,v) in datatype_translation)
+const rev_grd_datatype_translation = 
+    Dict{DataType, String}(v => k for (k,v) in grd_datatype_translation)

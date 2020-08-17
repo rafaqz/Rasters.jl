@@ -36,15 +36,27 @@ end
 # Stack ########################################################################
 
 """
-    SMAPstack(filename::String; window=())
+    SMAPstack(filename::String; 
+              dims=nothing,
+              refdims=nothing,
+              window=())
 
 `AbstractGeoStack` for [SMAP](https://smap.jpl.nasa.gov/) datasets.
 
 The simplicity of the format means `dims` and `metadata` are the same for all stack layers,
-so we store them as stack fields. `SMAPstack` should also serve as an example of defining
-a custom source for HDF5 backed geospatial data.
+so we store them as stack fields.
 
-# Keyword arguments
+## Arguments
+
+- `filename`: `String` path to a SMAP .h5 file.
+
+## Keyword arguments
+
+- `dims`: Dimensions held on the stack as all layers have identical `Dimension`s. 
+  These are loaded from the HDF5 by default, but can be passed in to improve performance,
+  as is done by [`SMAPseries`](@ref), 
+- `refdims`: As for `dims`. Often the position time `Dimension` from the `SMAPseries`.
+- `metadata`: [`SMAPstackMetadata`](@ref) object. As for `dims`.
 - `window`: Like `view` but lazy, for disk based data. Can be a tuple of Dimensions,
   selectors or regular indices. These will be applied when the data is loaded or indexed into.
 """
@@ -114,16 +126,22 @@ Base.keys(stack::SMAPstack) =
 # Series #######################################################################
 
 """
-    SMAPseries(dir::AbstractString; kwargs...) =
-        SMAPseries(joinpath.(dir, filter_ext(dir, ".h5")); kwargs...)
-    SMAPseries(filepaths::Vector{<:AbstractString}, dims=nothing; kwargs...) = begin
+    SMAPseries(filenames::AbstractString; kwargs...)
+    SMAPseries(filenames::Vector{<:AbstractString}, dims=nothing; kwargs...)
 
-Series loader for SMAP folders (files in the time dimension).
-Returns a [`GeoSeries`](@ref).
+[`GeoSeries`](@ref) loader for SMAP files and whole folders of files, 
+organised along the time dimension. Returns a [`GeoSeries`](@ref).
 
-`path` can be a `String` path to a directory of SMAP files,
-or a vector of `String` paths for specific files.
-`kwargs` are passed to the constructor for `GeoSeries`.
+## Arguments
+
+- `filenames`: A `String` path to a directory of SMAP files,
+  or a vector of `String` paths to specific files.
+- `dims`: `Tuple` containing `Ti` dimension for the series. 
+  Automatically generated form `filenames` unless passed in.
+
+## Keyword Arguments
+
+- `kwargs`: Passed to `GeoSeries`.
 """
 SMAPseries(dir::AbstractString; kwargs...) =
     SMAPseries(joinpath.(dir, filter_ext(dir, ".h5")); kwargs...)

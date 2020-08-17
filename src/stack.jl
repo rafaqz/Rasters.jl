@@ -2,21 +2,21 @@
 const Key = Union{Symbol,AbstractString}
 
 """
-Stack objects hold multiple raster array that share spatial metadata and bounds.
+`AbstractGeoStack` objects hold multipl [`AbstractGeoArray`](@ref) 
+that share spatial bounds.
 
-These are `NamedTuple`-like structures that may either contain `NamedTuple`
-of `AbstractGeoArray`, string paths that will load `AbstractGeoArray`, or a single
-path that points to as a file structured as a multi-layered stack, like NetCDF.
+They are `NamedTuple`-like structures that may either contain `NamedTuple`
+of [`AbstractGeoArray`](@ref), string paths that will load [`AbstractGeoArray`](@ref), 
+or a single path that points to as a file itself containing multiple layers, like 
+NetCDF or HDF5. Use and syntax is similar or identical for all cases.
 
-The primary purpose of  is that use and syntax is identical for all cases,
-abstracting away data source and simplifying access code. `getindex` on any
-`AbstractGeoStack` may return a memory backed standard `GeoArray`, or a disk
-base AbstractGeoArray. `geoarray[:somelayer] |> plot` plots the layers array,
+`getindex` on a `AbstractGeoStack` generally returns a memory backed standard 
+[`GeoArray`](@ref). `geoarray[:somelayer] |> plot` plots the layers array,
 while `geoarray[:somelayer, Lon(1:100), Band(2)] |> plot` will plot the
-subsetted array directly from disk, without loading the whole array.
+subset without loading the whole array.
 
-`getindex` or `view` on a GeoStack returns another stack with the method applied
-to all the arrays in the stack.
+`getindex` on a `AbstractGeoStack` with a key returns another stack with 
+getindex applied to all the arrays in the stack.
 """
 abstract type AbstractGeoStack{T} end
 
@@ -45,9 +45,10 @@ childkwargs(s::AbstractGeoStack) = s.childkwargs
 """
     getsource(s::AbstractGeoStack, [key])
 
-Get the lower lovel child object. This can be an `AbstractGeoArray` or
-a lower-level object with GeoData methods defined. Returning
-the low-level object can be better performance as we do not have to
+Get the lower-level child object. This can be an `AbstractGeoArray` or
+another object with GeoData interface methods defined. 
+
+Working with the low-level object can be better performance as we do not have to
 processes everything needed to build a full `AbstractGeoArray`.
 """
 function getsource end
@@ -134,8 +135,8 @@ childtype(stack::DiskGeoStack) = stack.childtype
 """
     filename(s::DiskGeoStack)
 
-Return the filename field of a `DiskGeoStack`. This may be a `Vector` of `String`,
-or a `String`.
+Return the filename field of a `DiskGeoStack`. 
+This may be a `Vector` of `String`, or a `String`.
 """
 filename(s::DiskGeoStack) = s.filename
 """
@@ -155,7 +156,7 @@ filename(s::DiskGeoStack, key::Key) = filename(s)
 # array object may save time in some cases, like when
 # the array size has to be determined before loading the data
 # like with mmaped grd files.
-withsourcedata(f, A::DiskGeoArray, key...) =
+withsourcerata(f, A::DiskGeoArray, key...) =
     withsourcedata(f, typeof(A), filename(A), key...)
 # By default assume the source object is a single object with
 # all info and data.
@@ -205,13 +206,27 @@ end
 # Concrete MemGeoStack implementation ######################################################
 
 """
-Concrete `MemGeoStack` implementation. Holds concrete [`GeoArray`](@ref) layers in memory.
+    GeoStack(data...; keys, kwargs...)
+    GeoStack(data::Union{Vector,Tuple}; keys, kwargs...)
+    GeoStack(data::NamedTuple; window=(), metadata=nothing, refdims=(), childkwargs=()) =
+    GeoStack(s::AbstractGeoStack; [keys, data, refdims, window, metadata])
 
-- `data`: A `NamedTuple` of `GeoArray`.
-- `window`: A `Tuple` of Dimensions/Selectors/Indices that will be applied to the contained
-            arrays when they are accessed.
-- `refdims`: reference dimensions from earlier subsetting.
-- `metadata`: Any metadata object.
+A concrete `MemGeoStack` implementation. Holds layers of [`GeoArray`](@ref).
+
+## Argumenst
+
+- `data`: A `NamedTuple` of [`GeoArray`](@ref), or a `Vector`, `Tuple` or splatted arguments
+  of [`GeoArray`](@ref). The latter options must pass a `keys` keyword argument.
+
+## Keyword Argumenst
+
+- `keys`: Used as stack keys when a `Tuple` or `Vector` or splat of geoarrays are passed in.
+- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the 
+  contained arrays when they are accessed.
+- `refdims`: Reference dimensions from earlier subsetting.
+- `metadata`: Metadata as a [`StackMetadata`](@ref) object.
+- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the constructor.
+- `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
 """
 struct GeoStack{T,R,W,M,K} <: MemGeoStack{T}
     data::T
@@ -220,31 +235,20 @@ struct GeoStack{T,R,W,M,K} <: MemGeoStack{T}
     metadata::M
     childkwargs::K
 end
-"""
-    GeoStack(data::Vararg{<:AbstractGeoArray}; keys, childkwargs)
-
-Convert `GeoArray`s to a `GeoStack`.
-"""
-GeoStack(data::AbstractGeoArray...; keys=name.(data), childkwargs=()) =
-    GeoStack(NamedTuple{cleankeys(keys)}(data); childkwargs=())
-"""
-    GeoStack(data::NamedTuple; [window=()], [metadata=nothing], childkwargs) =
-
-Construct a `GeoStack` from a NamedTuple of [`GeoArray`](@ref) and keyword arguments.
-
-The `childkwargs` keyword is used as keyword arguments for the child contructor.
-"""
-GeoStack(data::NamedTuple; refdims=(), window=(), metadata=nothing, childkwargs=()) =
+GeoStack(data::AbstractGeoArray...; keys=name.(data), kwargs...) =
+    GeoStack(NamedTuple{cleankeys(keys)}(data); kwargs...)
+GeoStack(data::NamedTuple; 
+         refdims=(), 
+         window=(), 
+         metadata=nothing, 
+         childkwargs=()) =
     GeoStack(data, refdims, window, metadata, childkwargs)
-"""
-    GeoStack(s::AbstractGeoStack; [keys, data, refdims, window, metadata])
-
-Construct a `GeoStack` from another `AbstractGeoStack` and keyword arguments.
-`data` must be a `NamedTuple` of `GeoArray`.
-"""
 GeoStack(s::AbstractGeoStack; keys=cleankeys(Base.keys(s)),
          data=NamedTuple{keys}(s[key] for key in keys),
-         refdims=refdims(s), window=(), metadata=metadata(s), childkwargs=()) =
+         refdims=refdims(s), 
+         window=(), 
+         metadata=metadata(s), 
+         childkwargs=()) =
     GeoStack(data, refdims, window, metadata, childkwargs)
 
 Base.convert(::Type{GeoStack}, src::AbstractGeoStack) = GeoStack(src)
@@ -254,17 +258,30 @@ Base.convert(::Type{GeoStack}, src::AbstractGeoStack) = GeoStack(src)
 # Concrete DiskGeoStack implementation ######################################################
 
 """
-    DiskStack(filename::NamedTuple; window=())
+    DiskStack(filenames...; keys, kwargs...)
+    DiskStack(filenames; keys, kwargs...)
+    DiskStack(filenames::NamedTuple; 
+              window=(), 
+              metadata=nothing, 
+              childtype, 
+              childkwargs=()
+              refdims=())
 
-Load a stack of files lazily from disk.
+Concrete [`DiskGeoStack`](@ref) implementation. Loads a stack of files lazily from disk.
 
-# Arguments
-- `filename`: a NamedTuple of `String` filenames.
+## Arguments
 
-# Keyword arguments
-- `window`: can be a tuple of Dimensions, selectors or regular indices.
-- `childtype`: the type of the child data. eg. `GDALarray`.
-- `kwargs`: keyword arguments to pass to the child constructor
+- `filename`: a NamedTuple of stack keys and `String` filenames.
+
+## Keyword arguments
+
+- `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
+- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the 
+  contained arrays when they are accessed.
+- `metadata`: Metadata as a [`StackMetadata`](@ref) object.
+- `childtype`: The type of the child data. eg. `GDALarray`. Required.
+- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
+- `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
 """
 struct DiskStack{T,R,W,M,C,K} <: DiskGeoStack{T}
     filename::T
@@ -276,7 +293,8 @@ struct DiskStack{T,R,W,M,C,K} <: DiskGeoStack{T}
 end
 DiskStack(filenames::NamedTuple; refdims=(), window=(), metadata=nothing, childtype, childkwargs=()) =
     DiskStack(filenames, refdims, window, metadata, childtype, childkwargs)
-DiskStack(filenames, keys; kwargs...) =
+DiskStack(filenames...; kwargs...) = DiskStack(filenames; kwargs...)
+DiskStack(filenames; keys, kwargs...) =
     DiskStack(NamedTuple{cleankeys(keys)}((filenames...,)); kwargs...)
 
 
@@ -291,6 +309,9 @@ Base.copy(stack::AbstractGeoStack) =
 Copy all or a subset of layers from one stack to another.
 
 ## Example
+
+Copy just the `:sea_surface_temp` and `:humidity` layers from `src` to `dst`.
+
 ```julia
 copy!(dst::AbstractGeoStack, src::AbstractGeoStack, keys=(:sea_surface_temp, :humidity))
 ```
@@ -308,6 +329,14 @@ end
     Base.copy!(dst::AbstractArray, src::DiskGeoStack, key::Key)
 
 Copy the stack layer `key` to `dst`, which can be any `AbstractArray`.
+
+## Example
+
+Copy the `:humidity` layer from `stack` to `array`.
+
+```julia
+copy!(array, stack, :humidity)
+```
 """
 Base.copy!(dst::AbstractArray, src::AbstractGeoStack, key) =
     copy!(dst, src[key])
@@ -317,9 +346,17 @@ Base.copy!(dst::AbstractArray, src::AbstractGeoStack, key) =
 
 Concatenate all or a subset of layers for all passed in stacks.
 
+## Keyword Arguments
+
+- `keys`: `Tuple` of `Symbol` for the stack keys to concatenate.
+- `dims`: Dimension of child array to concatenate on.
+
 ## Example
+
+Concatenate the :sea_surface_temp and :humidity layers in the time dimension:
+
 ```julia
-cat(stacks...; keys=(:sea_surface_temp, :humidity), dims)
+cat(stacks...; keys=(:sea_surface_temp, :humidity), dims=Ti)
 ```
 """
 Base.cat(stacks::AbstractGeoStack...; keys=keys(stacks[1]), dims) = begin
