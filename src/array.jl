@@ -2,7 +2,7 @@
 """
 `AbstractGeoArray` wraps an array (or location of an array) and metadata
 about its contents. It may be memory ([`GeoArray`](@ref)) or disk-backed
-([`NCDarray`](@ref), [`GDAlarray`](@ref), [`GrdArray`](@ref)).
+([`NCDarray`](@ref), [`GDALarray`](@ref), [`GRDarray`](@ref)).
 
 `AbstractGeoArray`s inherit from [`AbstractDimensionalArray`]($DDarraydocs) 
 from DimensionalData.jl. They can be indexed as regular Julia arrays or with 
@@ -73,8 +73,8 @@ usercrs(dim::Dimension) = usercrs(mode(dim), dim)
 Get the index crs projection of a [`Converted`](@ref) mode dim or 
 for the `Lat`/`Lon` dims of an array.
 
-This is used for NetCDF where the underlying projection of 
-the data may not be what is contained in the vector index.
+This is used for NetCDF and other formats where the underlying projection 
+of the data may  be different to what is contained in the vector index.
 """
 function dimcrs end
 dimcrs(A::AbstractGeoArray) =
@@ -146,11 +146,31 @@ Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
 """
     GeoArray(A::AbstractArray{T,N}, dims::Tuple;
              refdims=(), name="", metadata=nothing, missingval=missing)
+    GeoArray(A::AbstractArray{T,N}; 
+             dims, refdims=(), name="", metadata=nothing, missingval=missing)
     GeoArray(A::AbstractGeoArray; [data=data(A), dims=dims(A), refdims=refdims(A),
              name=name(A), metadata=metadata(A), missingval=missingval(A)]) =
 
 A generic, memory-backed spatial array type. All [`AbstractGeoArray`](@ref) are
 converted to `GeoArray` when indexed or otherwise transformed.
+
+# Keyword Arguments 
+
+- `name`: `String` name for the array.
+- `dims`: `Tuple` of `Dimension`s for the array.
+- `refdims`: `Tuple of` position `Dimension`s the array was sliced from, 
+  defaulting to `()`.
+- `missingval`: Value reprsenting missing values, defaulting to `missing`.
+  can be passed it.
+- `metadata`: [`Metadata`](@ref) object for the array, or `nothing`. 
+
+## Example
+
+```julia
+A = GRDarray(gdalarray; name="surfacetemp")
+# Select Australia using lat/lon coords, whatever the crs is underneath.
+A[Lat(Between(-10, -43), Lon(Between(113, 153)))
+```
 """
 struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na<:AbstractString,Me,Mi} <: MemGeoArray{T,N,D,A}
     data::A
@@ -162,6 +182,8 @@ struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na<:AbstractString,M
 end
 @inline GeoArray(A::AbstractArray, dims::Tuple;
                  refdims=(), name="", metadata=nothing, missingval=missing) =
+    GeoArray(A, formatdims(A, dims), refdims, name, metadata, missingval)
+@inline GeoArray(A::AbstractArray; dims, refdims=(), name="", metadata=nothing, missingval=missing) =
     GeoArray(A, formatdims(A, dims), refdims, name, metadata, missingval)
 @inline GeoArray(A::AbstractGeoArray; data=data(A), dims=dims(A), refdims=refdims(A),
                  name=name(A), metadata=metadata(A), missingval=missingval(A)) =

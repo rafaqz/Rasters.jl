@@ -141,27 +141,44 @@ const dimmap = Dict("lat" => Lat,
     NCDarray(filename::AbstractString; name=nothing, refdims=(),
              dims=nothing, metadata=nothing, crs=EPSG(4326), dimcrs=EPSG(4326))
 
-Create an array from a path to a netcdf file. The first non-dimension
-layer of the file will be used as the array.
+A [`DiskGeoArray`](@ref) that loads that loads NetCDF files lazily from disk.
+
+The first non-dimension layer of the file will be used as the array. Dims are usually
+detected as [`Lat`](@ref), [`Lon`](@ref), [`Ti`]($DDtidocs), and [`Vert`] or 
+possibly `X`, `Y`, `Z` when detected. Undetected dims will use the generic `Dim{:name}`.
 
 This is an incomplete implementation of the NetCDF standard. It will currently
-only handle simple files in lattitude/longitude format, or projected formats
-if you manually specify `crs` and `dimcrs`. How this is done
-may also change in future, including detecting and converting the native NetCDF 
-projection format.
+handle simple files in lattitude/longitude projections, or projected formats
+if you manually specify `crs` and `dimcrs`. How this is done may also change in 
+future, including detecting and converting the native NetCDF projection format.
 
 ## Arguments
+
 - `filename`: `String` pointing to a netcdf file.
 
 ## Keyword arguments
-- `name`: Name for the array. Will use array key if not supplied.
-- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
-  loading the array. Can save on disk load time for large files.
-- `crs`: defaults to lat/lon `EPSG(4326)`. If the underlying data is in a different 
-  projection it will need to be set to allow `write` to a different file format.
-- `dimcrs`: defaults to `EPSG(4326)`, as it matches `crs`. However, the underlying data may be 
-  projected, with the index still in lat/lon or something else. In this case specify a 
-  projection using any projection type from GeoFormatTypes.jl.
+
+- `crs`: defaults to lat/lon `EPSG(4326)` but may be any `GeoFormat` like `WellKnownText`. 
+  If the underlying data is in a different projection `crs` will need to be set to allow 
+  `write` to a different file format. In future this may be detected automatically.
+- `dimcrs`: The crs projection actually present in the Dimension index `Vector`, which 
+  may be different to the underlying projection. Defaults to lat/lon `EPSG(4326)` but
+  may be any crs `GeoFormat`.
+- `name`: `String` name for the array. Will use array key if not supplied.
+- `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
+- `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
+- `missingval`: Value reprsenting missing values. Detected automatically when possible, but 
+  can be passed it.
+- `metadata`: [`Metadata`](@ref) object for the array. Detected automatically as
+  [`NCDarrayMetadata`](@ref), but can be passed in.
+
+## Example
+
+```julia
+A = NCDarray("folder/file.ncd")
+# Select Australia from the default lat/lon coords:
+A[Lat(Between(-10, -43), Lon(Between(113, 153)))
+```
 """
 struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S,K
                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
@@ -179,13 +196,13 @@ NCDarray(filename::AbstractString, key...; kwargs...) = begin
     ncread(dataset -> NCDarray(dataset, filename, key...; kwargs...), filename)
 end
 NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
-         refdims=(),
-         dims=nothing,
-         name=nothing,
-         metadata=nothing,
-         missingval=missing,
          crs=EPSG(4326),
          dimcrs=EPSG(4326),
+         name=nothing,
+         dims=nothing,
+         refdims=(),
+         metadata=nothing,
+         missingval=missing,
         ) = begin
     keys_ = nondimkeys(dataset)
     key = key isa Nothing || !(string(key) in keys_) ? first(keys_) : string(key)
@@ -215,7 +232,7 @@ Base.size(A::NCDarray) = A.size
 """
     Base.write(filename::AbstractString, ::Type{NCDarray}, s::AbstractGeoArray)
 
-Write an NCDarray to a netcdf file using NCDatasets.jl
+Write an NCDarray to a NetCDF file using NCDatasets.jl
 """
 Base.write(filename::AbstractString, ::Type, A::AbstractGeoArray) = begin
     meta = metadata(A)
@@ -237,28 +254,44 @@ end
 
 
 """
-    NCDstack(filenames; refdims=(), window=(), metadata=nothing)
+    NCDstack(filenames; keys, kwargs...)
+    NCDstack(filenames...; keys, kwargs...)
+    NCDstack(files::NamedTuple; refdims=(), window=(), metadata=nothing, childkwargs=())
+    NCDstack(filename::String; refdims=(), window=(), metadata=nothing, childkwargs=())
 
-A lazy [`DiskGeoStack`](@ref) that loads multiple single-layer netcdf 
-files or a single multi-layer file, using NCDatasets.jl.
+A lazy [`AbstractGeoStack`](@ref) that uses NCDatasets.jl to load NetCDF files. 
+Can load a single multi-layer netcdf file, or multiple single-layer netcdf 
+files. In multi-file mode it returns a regular `GeoStack` with a `childtype` 
+of [`NCDarray`](@ref).
+
+Indexing into `NCDstack` with layer keys (`Symbol`s) returns a [`GeoArray`](@ref). 
+Dimensions are usually detected as [`Lat`](@ref), [`Lon`](@ref), [`Ti`]($DDtidocs), 
+and [`Vert`] or `X`, `Y`, `Z` when detected. Undetected dims use the generic `Dim{:name}`.
 
 # Arguments
-- `filename`: `Tuple` or `Vector` of `String` paths to netcdf files, 
-  or a single `String` path to a netcdf file.
+
+- `filename`: `Tuple` or `Vector` or splatted arguments of `String`,
+  or single `String` path, to NetCDF files. 
 
 # Keyword arguments
+
+- `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
+  These default to the first non-dimension data key in each NetCDF file.
 - `refdims`: Add dimension position array was sliced from. Mostly used programatically.
-- `window`: can be a tuple of Dimensions, selectors or regular indices.
-- `metadata`: Add additional metadata as a `Dict`.
-- `keys`: Keys for the layer in each file when filename is a `Vector`.
-- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the child object constructor.
+- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the 
+  contained arrays when they are accessed.
+- `metadata`: A [`StackMetadata`](@ref) object.
+- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the 
+  [`NCDarray`](@ref) constructor.
 
 # Examples
+
 ```julia
 stack = NCDstack(filename; window=(Lat(Between(20, 40),))
-stack[:soil_temperature]
 # Or
-multifile_stack = NCDstack([path1, path2, path3, path4])
+stack = NCDstack([fn1, fn1, fn3, fn4])
+# And index with a layer key
+stack[:soiltemp]
 ```
 """
 struct NCDstack{T,R,W,M,K} <: DiskGeoStack{T}
@@ -268,19 +301,25 @@ struct NCDstack{T,R,W,M,K} <: DiskGeoStack{T}
     metadata::M
     childkwargs::K
 end
-NCDstack(filenames::Union{Tuple,Vector};
-         refdims=(),
-         window=(),
-         metadata=nothing,
-         keys=cleankeys(ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames),
-         childkwargs=()) =
-    GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata, childtype=NCDarray, childkwargs)
 NCDstack(filename::AbstractString;
          refdims=(),
          window=(),
          metadata=ncread(metadata, filename),
          childkwargs=()) =
-NCDstack(filename, refdims, window, metadata, childkwargs)
+    NCDstack(filename, refdims, window, metadata, childkwargs)
+# These actually return a GeoStack
+NCDstack(filenames...; kwargs...) = NCDstack(filenames; kwargs...)
+NCDstack(filenames::Union{Tuple,Vector}, keys=ncfilenamekeys(filenames); kwargs...) =
+    NCDstack(NamedTuple{keys}(filenames); kwargs...)
+NCDstack(files::NamedTuple;
+         refdims=(),
+         window=(),
+         metadata=nothing,
+         childkwargs=()) =
+    GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata, 
+             childtype=NCDarray, childkwargs)
+
+ncfilenamekeys(filenames) = cleankeys(ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames)
 
 childtype(::NCDstack) = NCDarray
 childkwargs(stack::NCDstack) = stack.childkwargs
@@ -288,7 +327,6 @@ crs(stack::NCDarray) = get(childkwargs(stack), :crs, EPSG(4326))
 dimcrs(stack::NCDarray) = get(childkwargs(stack), :dimcrs, nothing)
 
 # AbstractGeoStack methods
-
 withsource(f, ::Type{NCDarray}, path::AbstractString, key=nothing) = ncread(f, path)
 withsourcedata(f, ::Type{NCDarray}, path::AbstractString, key) =
     ncread(d -> f(d[string(key)]), path)
@@ -310,8 +348,8 @@ Base.keys(stack::NCDstack{<:AbstractString}) =
 
 Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 
-Currently `Dimension` metadata is not handled, and array metadata from other
-array types is ignored.
+Currently [`DimMetadata`](@ref) is not handled, and [`ArrayMetadata`](@ref) 
+from other [`AbstractGeoArray`](@ref) @types is ignored.
 """
 Base.write(filename::AbstractString, ::Type{<:NCDstack}, s::AbstractGeoStack) = begin
     dataset = NCDatasets.Dataset(filename, "c"; attrib=val(metadata(s)))

@@ -5,21 +5,22 @@
 [![Build Status](https://travis-ci.org/rafaqz/GeoData.jl.svg?branch=master)](https://travis-ci.org/rafaqz/GeoData.jl)
 [![Codecov](https://codecov.io/gh/rafaqz/GeoData.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/rafaqz/GeoData.jl)
 
+GeoData.jl defines common types and methods for working with spatial data,
+such as 2 or multidimensional raster arrays, multi-array stacks, and series of
+stacks or arrays spread over multiple files. It provides a standardised
+interface that allows many source data types to be used with identical syntax.
+
 GeoData.jl extends
 [DimensionalData.jl](https://github.com/rafaqz/DimensionalData.jl) so that
-spatial data can be indexed using named dimensions like `Lat` and `Lon`, which
-can also be used in most methods like `mean` and `reduce` where dimensions are
-required. Much of the behaviour is covered in the [DimensionalData
+spatial data can be indexed using named dimensions like `Lat` and `Lon`, `Ti`
+(time), which can also be used in most `Base` and `Statistics` methods like
+`mean` and `reduce` where `dims` arguments are required. Much of the behaviour
+is covered in the [DimensionalData
 docs](https://rafaqz.github.io/DimensionalData.jl/stable/).
 
-GeoData.jl also defines common types and methods for accessing and working with
-spatial data, such as 2 or multidimensional raster arrays, multi-array "stacks",
-and "series" of stacks or arrays that behave similarly or identically across
-multiple file-types.
+It provides general types `GeoArray`, `GeoStack`, and `GeoSeries`. 
 
-It provides general types `GeoArray`, `GeoStack`, and `GeoSeries`, R `.grd`
-files can be loaded natively using `GRDarray` and `GRDstack`. 
-
+R `.grd` files can be loaded natively using `GRDarray` and `GRDstack`. 
 GDAL files can be loaded when
 [ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl) (v0.5 or higher) is
 present, with ` GDALarray` and GDALstack. NetCDF similarly can be loaded when
@@ -48,9 +49,9 @@ These will be expanded to include interpolation and other tools over time.
 
 Notably GeoData will shift to relying on
 [DiskArrays.jl](https://github.com/meggart/DiskArrays.jl) for wrapping
-disk-based data sources when it fully supports GDAL and NetCDF. Currently
-this is handled internally. Broadcasting over disk base arrays like `NCDarray`
-will be incredibly slow, as chunk-based loading is not implemented.
+disk-based data sources when it fully supports GDAL and NetCDF. Currently this
+is handled internally for some formates. Broadcasting over disk base arrays like
+`NCDarray` will be incredibly slow, as chunk-based loading is not implemented.
 DiskArrays.jl will solve this, and other problems.
 
 There are no also no guarantees on the accuracy of any of the included methods.
@@ -59,19 +60,6 @@ or add additional tests to the GeoData.jl test suit to verify correctness.
 
 Also note: writing directly to files with `setindex!` is not yet supported. 
 You must load to a `GeoArray`, make modifications and `write` a new file. 
-
-
-## Goals
-
-- Standardisation: data from multiple sources has similar or identical syntax
-  and behaviour.
-- Easy, no-config plotting
-- Lazy loading: minimisation of memory requirements for large datasets
-- Accuracy: `Selector`s should select exact regions, and handle points both 
-  and intervals. 
-- Multi-layer, multi-file objects. `GeoStack` and `GeoSeries` facilitate
-  simple operations over large datasets, with detail abstracted away from
-  users and other packages.
 
 ## Examples
 
@@ -128,10 +116,11 @@ A[Lat(Contains(20)), Ti(1)] |> plot
 
 
 ## Works in progress
-- Standardised handling and conversion of spatial metadata between data formats
-- Handling complex projections: Affine transformation of dimensions to indices.
-  AffineMaps will be stored as a wrapper dimension in `dims`.
-- Load and write NetCDF projection format
+
 - Integration with Vector/DataFrame spatial types and point/line/polygon data
   types. It should be possible to select polygons of data, and convert between
   linear datasets and array formats.
+- Standardised handling and conversion of spatial metadata between data formats
+- Handling complex projections: Affine transformation of dimensions to indices.
+  AffineMaps will be stored as a wrapper dimension in `dims`.
+- Load and write the NetCDF projection format.
