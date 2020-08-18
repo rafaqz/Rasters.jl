@@ -164,7 +164,8 @@ struct GRDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
     missingval::Mi
     size::S
 end
-GRDarray(filename::String; kwargs...) = GRDarray(GRDattrib(filename), filename; kwargs...)
+GRDarray(filename::String; kwargs...) = 
+    GRDarray(GRDattrib(filename), filename; kwargs...)
 GRDarray(grd::GRDattrib, filename, key=nothing;
          usercrs=nothing,
          dims=dims(grd, usercrs),
@@ -174,7 +175,7 @@ GRDarray(grd::GRDattrib, filename, key=nothing;
          metadata=metadata(grd),
         ) = begin
 
-    size_ = map(length, dims_)
+    size_ = map(length, dims)
 
     T = eltype(grd)
     N = length(size_)
