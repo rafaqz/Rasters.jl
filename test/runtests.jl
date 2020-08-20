@@ -1,3 +1,11 @@
+using GeoData, Test, Aqua
+
+if VERSION >= v"1.5.0"
+    Aqua.test_all(GeoData)
+    Aqua.test_project_extras(GeoData)
+    Aqua.test_stale_deps(GeoData)
+end
+
 include("array.jl")
 include("stack.jl")
 include("series.jl")

@@ -4,6 +4,7 @@
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://rafaqz.github.io/GeoData.jl/dev)
 [![Build Status](https://travis-ci.org/rafaqz/GeoData.jl.svg?branch=master)](https://travis-ci.org/rafaqz/GeoData.jl)
 [![Codecov](https://codecov.io/gh/rafaqz/GeoData.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/rafaqz/GeoData.jl)
+[![Quality Assurance](https://img.shields.io/badge/GeoData.jl-%F0%9F%8C%A2-aqua.svg)](https://github.com/rafaqz/GeoData.jl)
 
 GeoData.jl defines common types and methods for working with spatial data,
 such as 2 or multidimensional raster arrays, multi-array stacks, and series of

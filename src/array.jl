@@ -127,15 +127,27 @@ data(A::DiskGeoArray) = withsourcedata(Array, A)
 
 Base.size(A::DiskGeoArray) = A.size
 
-Base.getindex(A::DiskGeoArray, I::Vararg{<:Union{<:Integer,<:AbstractArray}}) =
+Base.getindex(A::DiskGeoArray, i1::StandardIndices, I::StandardIndices...) =
+    rebuildgetindex(A, i1, I...)
+Base.getindex(A::DiskGeoArray, i1::Integer, I::Vararg{<:Integer}) =
+    rawgetindex(A, i1, I...)
+# Linear indexing returns Array
+Base.@propagate_inbounds Base.getindex(A::DiskGeoArray{<:Any,N} where N, i::Union{Colon,AbstractArray}) =
+    rawgetindex(A, i)
+# Exempt 1D DimArrays
+Base.@propagate_inbounds Base.getindex(A::DiskGeoArray{<:Any,1}, i::Union{Colon,AbstractArray}) =
+    rebuildgetindex(A, i)
+
+rawgetindex(A, I...) =
+    withsourcedata(A) do data
+        readwindowed(data, I...)
+    end
+
+rebuildgetindex(A, I...) =
     withsourcedata(A) do data
         dims_, refdims_ = slicedims(dims(A), refdims(A), I)
         data = readwindowed(data, I...)
         rebuild(A, data, dims_, refdims_)
-    end
-Base.getindex(A::DiskGeoArray, i1::Integer, I::Vararg{<:Integer}) =
-    withsourcedata(A) do data
-        readwindowed(data, i1, I...)
     end
 
 Base.write(A::T) where T <: DiskGeoArray = write(filename(A), A)
