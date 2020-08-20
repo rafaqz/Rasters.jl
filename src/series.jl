@@ -28,9 +28,28 @@ metadata(A::AbstractGeoSeries) = nothing
 name(A::AbstractGeoSeries) = ""
 label(A::AbstractGeoSeries) = ""
 
+Base.values(A::AbstractGeoSeries) = (A[I] for I in CartesianIndices(A))
+
+"""
+    modify(f, series::AbstractGeoSeries) 
+
+Apply function `f` to the data of the child object.
+If the child is an `AbstractGeoStack` the function will 
+be passed on to its child `AbstractGeoArray`s. 
+
+`f` must return an idenically sized array.
+
+This method triggers a complete rebuild of all objects, 
+and disk based objects will be transferred to memory.
+"""
+modify(f, A::AbstractGeoSeries) = 
+    rebuild(A, map(child -> modify(f, child), values(A)))
+
 # Array interface methods ##############################################
 # Mostly these inherit from AbstractDimensionalArray
 
+Base.getindex(A::AbstractGeoSeries{<:AbstractString}, I::CartesianIndex) =
+    childtype(A)(data(A)[I]; refdims=slicedims(A, Tuple(I))[2], A.childkwargs...)
 Base.getindex(A::AbstractGeoSeries{<:AbstractString}, I::Vararg{<:Integer}) =
     childtype(A)(data(A)[I...]; refdims=slicedims(A, I)[2], A.childkwargs...)
 # Window is passed on to existing MemStacks, as with DiskStacks

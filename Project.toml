@@ -27,6 +27,7 @@ Requires = "0.5, 1"
 julia = "1"
 
 [extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
 CFTime = "179af706-886a-5703-950a-314cd64e0468"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
@@ -37,4 +38,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 
 [targets]
-test = ["ArchGDAL", "CFTime", "HDF5", "NCDatasets", "Plots", "Statistics", "Test"]
+test = ["Aqua", "ArchGDAL", "CFTime", "HDF5", "NCDatasets", "Plots", "Statistics", "Test"]

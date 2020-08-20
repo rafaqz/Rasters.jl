@@ -242,9 +242,13 @@ end
     series = GeoSeries([path, path], (Ti,); childtype=GDALarray, childkwargs=(usercrs=EPSG(4326), name="test"))
     @test GeoArray(series[Ti(1)]) == GeoArray(GDALarray(path; usercrs=EPSG(4326), name="test"))
 
-    gdalstack = GDALstack((a=path, b=path); childtype=GDALarray, childkwargs=(usercrs=EPSG(4326)))
+    gdalstack = GDALstack((a=path, b=path); childtype=GDALarray, childkwargs=(usercrs=EPSG(4326),))
     series = GeoSeries([gdalstack, gdalstack], (Ti,))
     @test series[1].childkwargs == gdalstack.childkwargs
+    # Rebuild the series by wrapping the GDALarray data in Array.
+    # `modify` forces `rebuild` on all containers as in-Memory variants
+    modified_series = modify(Array, series)
+    @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{(:a,:b),<:Tuple{<:GeoArray{UInt8,3,<:Tuple,<:Tuple,<:Array{UInt8,3}},Vararg}}}}
 end
 
 nothing

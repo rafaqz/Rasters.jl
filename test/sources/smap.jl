@@ -74,4 +74,7 @@ end
     @test series[1] isa SMAPstack
     @test first(bounds(series, Ti)) == DateTime(2016, 1, 1, 22, 30)
     @test last(bounds(series, Ti)) == DateTime(2016, 1, 3, 1, 30)
+    modified_series = modify(Array, series)
+    stackkeys = keys(modified_series[1])
+    @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{stackkeys,<:Tuple{<:GeoArray{Float32,2,<:Tuple,<:Tuple,<:Array{Float32,2}},Vararg}}}}
 end

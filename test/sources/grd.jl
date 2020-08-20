@@ -239,6 +239,8 @@ end
     series = GeoSeries(stacks, (Ti,))
     @test series[Ti(1)][:a] == 
         GeoArray(GRDarray(path; usercrs=EPSG(4326), name="test"))
+    modified_series = modify(Array, series)
+    @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{(:a,:b),<:Tuple{<:GeoArray{Float32,3,<:Tuple,<:Tuple,<:Array{Float32,3}},Vararg}}}}
 end
 
 
