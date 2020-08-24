@@ -16,6 +16,8 @@ these have `metadata` and `missingval` fields
 """
 abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
 
+const StandardIndices = Union{AbstractArray,Colon,Integer}
+
 # Marker singleton for lazy loaded arrays, only used for broadcasting.
 # Can be removed when DiskArrays.jl is used everywhere
 struct LazyArray{T,N} <: AbstractArray{T,N} end
