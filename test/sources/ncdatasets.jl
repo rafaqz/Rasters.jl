@@ -6,6 +6,24 @@ ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = geturl(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
 ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
 
+stackkeys = (
+    :abso4, :aclcac, :aclcov, :ahfcon, :ahfice, :ahfl, :ahfliac, :ahfllac,
+    :ahflwac, :ahfres, :ahfs, :ahfsiac, :ahfslac, :ahfswac, :albedo, :albedo_nir,
+    :albedo_nir_dif, :albedo_nir_dir, :albedo_vis, :albedo_vis_dif, :albedo_vis_dir,
+    :alsobs, :alsoi, :alsol, :alsom, :alsow, :ameltdepth, :ameltfrac, :amlcorac,
+    :ao3, :apmeb, :apmegl, :aprc, :aprl, :aprs, :aps, :az0i, :az0l, :az0w,
+    :barefrac, :dew2, :drain, :evap, :evapiac, :evaplac, :evapwac, :fage, :friac,
+    :geosp, :glac, :gld, :hyai, :hyam, :hybi, :hybm, :lsp, :q, :qres, :qvi, :relhum,
+    :runoff, :sd, :seaice, :siced, :sicepdi, :sicepdw, :sicepres, :slm, :sn, :snacl,
+    :snc, :sni, :snifrac, :snmel, :sofliac, :sofllac, :soflwac, :srad0, :srad0d,
+    :srad0u, :sradl, :srads, :sradsu, :sraf0, :srafl, :srafs, :st, :svo, :t2max,
+    :t2min, :temp2, :thvsig, :topmax, :tpot, :trad0, :tradl, :trads, :tradsu,
+    :traf0, :trafl, :trafs, :trfliac, :trfllac, :trflwac, :tropo, :tsi, :tsicepdi,
+    :tslm1, :tsurf, :tsw, :u10, :ustr, :ustri, :ustrl, :ustrw, :v10, :vdis, :vdisgw,
+    :vstr, :vstri, :vstrl, :vstrw, :wimax, :wind10, :wl, :ws, :wsmx, :xi, :xivi,
+    :xl, :xlvi
+)
+
 @testset "NCDarray" begin
     ncarray = NCDarray(ncsingle)
 
@@ -163,6 +181,7 @@ end
         @test ncstack[:albedo, :, 3, 1] isa GeoArray{<:Any,1}
         @test dims(ncstack, :albedo) isa Tuple{<:Lon,<:Lat,<:Ti}
         @test keys(ncstack) isa NTuple{131,Symbol}
+        @test keys(ncstack) == stackkeys
         @test first(keys(ncstack)) == :abso4
         @test metadata(ncstack) isa NCDstackMetadata
         @test metadata(ncstack)["institution"] == "Max-Planck-Institute for Meteorology"
@@ -244,6 +263,8 @@ end
     geoarray = GeoArray(NCDarray(ncmulti, :albedo; name="test"))
     @test series[Ti(1)][:albedo] == geoarray
     @test typeof(series[Ti(1)][:albedo]) == typeof(geoarray)
+    modified_series = modify(Array, series)
+    @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{stackkeys,<:Tuple{<:GeoArray{Float32,3,<:Tuple,<:Tuple,<:Array{Float32,3}},Vararg}}}}
 end
 
 nothing

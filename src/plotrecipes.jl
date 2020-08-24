@@ -29,7 +29,7 @@ end
                 aspect_ratio := 1
                 subplot := i
                 slice = A[:, :, i]
-                lats, lons = map(preparedim, dims(A))
+                lats, lons = map(preparedim, dims(slice))
                 lons, lats, parent(slice)
             end
         end

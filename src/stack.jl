@@ -36,11 +36,8 @@ Returns the keyword arguments that will be passed to the child array constructor
 """
 childkwargs(s::AbstractGeoStack) = s.childkwargs
 
-@inline Base.getindex(s::AbstractGeoStack, I...) =
-    rebuild(s; data=NamedTuple{keys(s)}(a[I...] for a in values(s)))
 
 # Interface methods ############################################################
-
 
 """
     getsource(s::AbstractGeoStack, [key])
@@ -53,17 +50,42 @@ processes everything needed to build a full `AbstractGeoArray`.
 """
 function getsource end
 
+
+"""
+    modify(f, series::AbstractGeoStack) 
+
+Apply function `f` to the data of the child `AbstractGeoArray`s. 
+
+`f` must return an idenically sized array.
+
+This method triggers a complete rebuild of all objects, 
+and disk based objects will be transferred to memory.
+
+This is useful for swapping out array backend for an
+entire stack to `CuArray` from CUDA.jl to copy data to a GPU, 
+and potentially other types like `DAarray` from Distributed.jl.
+"""
+modify(f, stack::AbstractGeoStack) = 
+    GeoStack(stack; data=mapdata(A -> modify(f, A), stack))
+
 # Base methods #################################################################
 
+@inline Base.getindex(s::AbstractGeoStack, I...) =
+    rebuild(s; data=NamedTuple{keys(s)}(a[I...] for a in values(s)))
 # Dict/Array hybrid with dims
 @inline Base.getindex(s::AbstractGeoStack, key::Key, I::Vararg{<:Dimension}) =
     getindex(s, key, dims2indices(dims(s, key), I)...)
+
 
 Base.values(s::AbstractGeoStack) = (s[key] for key in keys(s))
 Base.length(s::AbstractGeoStack) = length(keys(s))
 Base.keys(s::AbstractGeoStack{<:AbstractString}) = Symbol.(querychild(keys, getsource(s), s))
 Base.keys(s::AbstractGeoStack{<:NamedTuple}) = Symbol.(keys(getsource(s)))
 Base.names(s::AbstractGeoStack) = keys(s)
+Base.map(f, s::AbstractGeoStack) = rebuild(s; data=mapdata(f, s))
+
+mapdata(f, s::AbstractGeoStack) = 
+    NamedTuple{cleankeys(keys(s))}(map(f, values(s)))
 
 """
     Base.write(filename::AbstractString, T::Type{<:AbstractGeoArray}, s::AbstractGeoStack)
@@ -96,7 +118,7 @@ data(s::MemGeoStack) = s.data
 data(s::MemGeoStack{<:NamedTuple}, key::Key) = data(s)[Symbol(key)]
 
 rebuild(s::T; data=data(s), refdims=refdims(s), window=window(s),
-        metadata=metadata(s), childkwargs=childkwargs(s)) where T<:MemGeoStack =
+        metadata=metadata(s), childkwargs=childkwargs(s), kwargs...) where T<:MemGeoStack =
     basetypeof(T)(data, refdims, window, metadata, childkwargs)
 
 getsource(s::MemGeoStack{<:NamedTuple}, args...) = data(s, args...)
@@ -125,7 +147,7 @@ end
 abstract type DiskGeoStack{T} <: AbstractGeoStack{T} end
 
 rebuild(s::T; data=filename(s), refdims=refdims(s), window=window(s),
-        metadata=metadata(s), childtype=childtype(s), childkwargs=childkwargs(s)) where T<:DiskGeoStack =
+        metadata=metadata(s), childtype=childtype(s), childkwargs=childkwargs(s), kwargs...) where T<:DiskGeoStack =
     basetypeof(T)(data, refdims, window, metadata, childtype, childkwargs)
 
 getsource(s::DiskGeoStack, args...) = filename(s, args...)

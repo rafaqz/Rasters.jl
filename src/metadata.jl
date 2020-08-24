@@ -1,5 +1,5 @@
 """
-Abstract type for all metadata wrappers.
+Supertype for all metadata wrappers.
 
 These allow tracking the contents and origin of metadata. 
 This can facilitate conversion between metadata types (for saving 
