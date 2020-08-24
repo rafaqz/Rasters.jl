@@ -22,10 +22,10 @@ const DD = DimensionalData
 
 using Base: tail
 using DimensionalData: Forward, Reverse, formatdims, slicedims, basetypeof,
-      dims2indices, indexorder, arrayorder, relationorder, StandardIndices, isrev
+      dims2indices, indexorder, arrayorder, relation, isrev
 
 import DimensionalData: val, data, dims, refdims, metadata, rebuild, rebuildsliced,
-                        name, label, units, bounds, sel2indices, mode,
+                        name, label, units, bounds, sel2indices, mode, data,
                         order, locus, span, sampling, forwardorder
 
 export Metadata, DimMetadata, ArrayMetadata, StackMetadata

@@ -85,12 +85,14 @@ A[Ti(1:3:12)] |> plot
 
 ![Global ocean surface temperatures](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/four_pane_map.png)
 
-Now plot Australia in the first month of 2001.
+Now plot Australia in the first month of 2001. Notice we are using tat/ton coordinates 
+and date/time instead of regular indexes:
+:
 
 ```julia
 A[Ti(Contains(DateTime360Day(2001, 01, 17))), 
-  Lat(Between(0, -50)), 
-  Lon(Between(100, 160))] |> plot
+  Lat(Between(0.0, -50.0)), 
+  Lon(Between(100.0, 160.0))] |> plot
 ```
 
 ![Australia regional ocean surface temperature](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/aus.png)
@@ -109,7 +111,7 @@ plot(mean_tos; color=:viridis)
 Or a plot transect of ocean surface temperature along the 20 degree latitude line:
 
 ```julia
-A[Lat(Contains(20)), Ti(1)] |> plot
+A[Lat(Contains(20.0)), Ti(1)] |> plot
 ```
 
 ![Temperatures at lattitude 20-21](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/lat_20.png)

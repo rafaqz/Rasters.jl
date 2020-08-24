@@ -8,9 +8,9 @@ replace_missing(a::DiskGeoArray, args...) =
     replace_missing(GeoArray(a), args...)
 replace_missing(a::MemGeoArray, newmissingval=missing) = begin
     newdata = if ismissing(missingval(a))
-        collect(Missings.replace(data(a), newmissingval))
+        collect(Missings.replace(parent(a), newmissingval))
     else
-        replace(data(a), missingval(a) => newmissingval)
+        replace(parent(a), missingval(a) => newmissingval)
     end
     rebuild(a; data=newdata, missingval=newmissingval)
 end
@@ -37,9 +37,9 @@ function boolmask end
 boolmask(A::AbstractGeoArray) =
     rebuild(A; data=boolmask(A, missingval(A)), missingval=false, name="Boolean mask")
 boolmask(A::AbstractArray, missingval::Missing=missing) =
-    (x -> !ismissing(x)).(data(A))
+    (x -> !ismissing(x)).(parent(A))
 boolmask(A::AbstractArray, missingval) =
-    (x -> !isapprox(x, missingval)).(data(A))
+    (x -> !isapprox(x, missingval)).(parent(A))
 
 """
     missingmask(A::AbstractArray, [missingval])
@@ -55,6 +55,6 @@ function missingmask end
 missingmask(A::AbstractGeoArray) =
     rebuild(A; data=missingmask(A, missingval(A)), missingval=missing, name="Missing mask")
 missingmask(A::AbstractArray, missingval::Missing=missing) =
-    (a -> ismissing(a) ? missing : true).(data(A))
+    (a -> ismissing(a) ? missing : true).(parent(A))
 missingmask(A::AbstractArray, missingval) =
-    (a -> isapprox(a, missingval) ? missing : true).(data(A))
+    (a -> isapprox(a, missingval) ? missing : true).(parent(A))

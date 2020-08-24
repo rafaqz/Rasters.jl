@@ -245,7 +245,7 @@ dims(raster::AG.RasterDataset, usercrs=nothing) = begin
         lon = Lon(lonrange; mode=lonmode, metadata=lonlat_metadata)
         lat = Lat(latrange; mode=latmode, metadata=lonlat_metadata)
 
-        formatdims(map(Base.OneTo, (lonsize, latsize, nbands)), (lon, lat, band))
+        DimensionalData._formatdims(map(Base.OneTo, (lonsize, latsize, nbands)), (lon, lat, band))
     else
         error("Rotated/transformed dimensions are not handled yet. Open a github issue for GeoData.jl if you need this.")
         # affinemap = geotransform_to_affine(geotransform)

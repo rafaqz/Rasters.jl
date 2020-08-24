@@ -73,8 +73,10 @@ ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
         @test size(ncarray[Lat(Between(-80, 90)), Lon(Between(0, 360)),
             Ti(Between(DateTime360Day(2001, 1, 16), DateTime360Day(2003, 01, 16)))
         ]) == (180, 170, 24)
-        @test size(ncarray[Lat(Between(-80, -25)), Lon(Between(0, 180)), 
-                           Ti(Contains(DateTime360Day(2003, 02, 20)))]) == (90, 55)
+        nca = ncarray[Lat(Between(-80, -25)), Lon(Between(0, 180)), 
+                      Ti(Contains(DateTime360Day(2002, 02, 20)))]
+        @test size(nca) == (90, 55)
+        
     end
 
     @testset "conversion to GeoArray" begin
