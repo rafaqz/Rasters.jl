@@ -28,7 +28,7 @@ metadata(A::AbstractGeoSeries) = nothing
 name(A::AbstractGeoSeries) = ""
 label(A::AbstractGeoSeries) = ""
 
-Base.values(A::AbstractGeoSeries) = (A[I] for I in CartesianIndices(A))
+Base.values(A::AbstractGeoSeries) = [A[I] for I in CartesianIndices(A)]
 
 """
     modify(f, series::AbstractGeoSeries) 
