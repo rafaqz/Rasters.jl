@@ -4,15 +4,12 @@
 about its contents. It may be memory ([`GeoArray`](@ref)) or disk-backed
 ([`NCDarray`](@ref), [`GDALarray`](@ref), [`GRDarray`](@ref)).
 
-`AbstractGeoArray`s inherit from [`AbstractDimensionalArray`]($DDarraydocs) 
+`AbstractGeoArray`s inherit from [`AbstractDimArray`]($DDarraydocs) 
 from DimensionalData.jl. They can be indexed as regular Julia arrays or with 
 DimensionalData.jl [`Dimension`]($DDdimdocs)s. They will plot as a heatmap in 
 Plots.jl with correct coordinates and labels, even after slicing with 
 `getindex` or `view`. `getindex` on a `AbstractGeoArray` will always return 
 a memory-backed `GeoArray`.
-
-In addition to DimensionalArray behaviour, 
-these have `metadata` and `missingval` fields
 """
 abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
 

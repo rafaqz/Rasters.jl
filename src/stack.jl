@@ -60,6 +60,10 @@ Apply function `f` to the data of the child `AbstractGeoArray`s.
 
 This method triggers a complete rebuild of all objects, 
 and disk based objects will be transferred to memory.
+
+This is useful for swapping out array backend for an
+entire stack to `CuArray` from CUDA.jl to copy data to a GPU, 
+and potentially other types like `DAarray` from Distributed.jl.
 """
 modify(f, stack::AbstractGeoStack) = 
     GeoStack(stack; data=mapdata(A -> modify(f, A), stack))

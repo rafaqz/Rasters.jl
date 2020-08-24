@@ -41,6 +41,10 @@ be passed on to its child `AbstractGeoArray`s.
 
 This method triggers a complete rebuild of all objects, 
 and disk based objects will be transferred to memory.
+
+This is useful for swapping out array backend for an
+entire series to `CuArray` from CUDA.jl to copy data to a GPU, 
+and potentially other types like `DAarray` from Distributed.jl.
 """
 modify(f, A::AbstractGeoSeries) = 
     rebuild(A, map(child -> modify(f, child), values(A)))
