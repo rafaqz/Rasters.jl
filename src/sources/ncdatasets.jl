@@ -57,7 +57,6 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
         fillvalue = get(metadata(A), "_FillValue", NaN)
         A = replace_missing(A, convert(T, fillvalue))
     end
-    println("    Writing netcdf...")
     # Define required dim vars
     for dim in dims(A)
         key = lowercase(name(dim))
@@ -247,6 +246,7 @@ Base.write(filename::AbstractString, ::Type, A::AbstractGeoArray) = begin
         dataset = NCDatasets.Dataset(filename, "c"; attrib=stackmd)
     end
     try
+        println("    Writing netcdf...")
         ncwritevar!(dataset, A)
     finally
         close(dataset)
