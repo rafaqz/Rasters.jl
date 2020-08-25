@@ -57,6 +57,7 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
         fillvalue = get(metadata(A), "_FillValue", NaN)
         A = replace_missing(A, convert(T, fillvalue))
     end
+    println("    Writing netcdf...")
     # Define required dim vars
     for dim in dims(A)
         key = lowercase(name(dim))
@@ -70,7 +71,7 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
         md = metadata(dim)
         attribvec = [] #md isa Nothing ? [] : [val(md)...]
         defDim(dataset, key, length(index))
-        println("Writing key: ", key, " of type: ", eltype(index))
+        println("        key: \"", key, "\" of type: ", eltype(index))
         defVar(dataset, key, index, (key,); attrib=attribvec)
     end
     # TODO actually convert the metadata type
@@ -95,7 +96,7 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     else
         name(A) 
     end
-    println("Writing key: ", key, " of type: ", T)
+    println("        key: \"", key, "\" of type: ", T)
     dimnames = lowercase.(name.(dims(A)))
     attribvec = [attrib...]
     var = defVar(dataset, key, eltype(A), dimnames; attrib=attribvec)
@@ -233,6 +234,8 @@ Base.size(A::NCDarray) = A.size
     Base.write(filename::AbstractString, ::Type{NCDarray}, s::AbstractGeoArray)
 
 Write an NCDarray to a NetCDF file using NCDatasets.jl
+
+Returns `filename`.
 """
 Base.write(filename::AbstractString, ::Type, A::AbstractGeoArray) = begin
     meta = metadata(A)
@@ -248,6 +251,7 @@ Base.write(filename::AbstractString, ::Type, A::AbstractGeoArray) = begin
     finally
         close(dataset)
     end
+    return filename
 end
 
 # Stack ########################################################################

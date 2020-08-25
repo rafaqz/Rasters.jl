@@ -112,6 +112,8 @@ end
 Write a [`GDALarray`](@ref) to file, `.tiff` by default, but other GDAL drivers also work.
 
 GDAL flags `driver`, `compress` and `tiled` can be passed in as keyword arguments.
+
+Returns `filename`.
 """
 Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,2}; kwargs...) where T = begin
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims")

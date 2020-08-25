@@ -194,6 +194,8 @@ Write a [`GRDarray`](@ref) to a .grd file, with a .gri header file. The extensio
 `filename` will be ignored.
 
 Currently the `metadata` field is lost on `write` for `GRDarray`.
+
+Returns `filename`.
 """
 Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray) = begin
     if hasdim(A, Band)
@@ -256,7 +258,7 @@ Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray) = begin
             """
         )
     end
-    return
+    return filename
 end
 
 
