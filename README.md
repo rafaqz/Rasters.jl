@@ -11,6 +11,23 @@ such as 2 or multidimensional raster arrays, multi-array stacks, and series of
 stacks or arrays spread over multiple files. It provides a standardised
 interface that allows many source data types to be used with identical syntax.
 
+Data loaded with GeoData.jl has some special properties:
+
+- Plots are always oriented the right way. Even if you reverse or permute a `GeoArray` it will still plot the right way!
+- Regions and points selected with `Between` and `Contains` select the right points or whole intervals 
+  no matter the order of the index or it's position in the cell.
+- For `Projected` mode `GRDarray` and `GDALarray` You can index in any projection you want to by setting the 
+  `usercrs` keyword on construction. You don't even need to know the underlying projection, the conversion is 
+  handled automatically. This means Lat/Lon `EPSG(4326)` can be used accross all sources seamlessly if you need that.
+- Packages building on GeoData.jl can treat `AbstractGeoSeries`, `AbstractGeoStack`, and `AbstrackGeoArray`
+  as black boxes:
+  - The data could hold tiff or netcdf files, `Array`s in memory or `CuArray`s on the GPU - they
+    will all behave in the same way.
+  - `AbstractGeoStack` can be a Netcdf or HDF5 file, or a `NamedTuple` of `GDALarray` holding `.tif` files,
+    or all `GeoArray` in memeory, but be treated as if they are all the same thing.
+  - Modelling packages do not have to deal with the specifics of spatial file types directly.
+  
+
 GeoData.jl extends
 [DimensionalData.jl](https://github.com/rafaqz/DimensionalData.jl) so that
 spatial data can be indexed using named dimensions like `Lat` and `Lon`, `Ti`
