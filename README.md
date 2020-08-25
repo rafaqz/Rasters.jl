@@ -138,6 +138,9 @@ could plot a transect of ocean surface temperature at 20 degree latitude :
 A[Lat(Contains(20.0)), Ti(1)] |> plot
 ```
 
+![Temperatures at lattitude 20-21](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/lat_20.png)
+
+
 GeoData.jl provides a range of other methods that are being added to over time.
 One example is `aggregate`, that can aggregate `GeoArray` by axis-specific amounts:
 
@@ -156,9 +159,6 @@ and data: 9×8×2 Array{Union{Missing, Float32},3}
 
 This will also work for entire `GeoStacks` and `GeoSeries` using the same syntax.
 
-
-
-![Temperatures at lattitude 20-21](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/lat_20.png)
 
 
 ## Works in progress
