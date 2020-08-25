@@ -73,7 +73,7 @@ juila> A[Ti(1:3:12)] |> plot
 
 ![Global ocean surface temperatures](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/four_pane_map.png)
 
-Now plot Australia in the first month of 2001. Notice we are using tat/ton coordinates 
+Now plot Australia in the first month of 2001. Notice we are using lat/lon coordinates 
 and date/time instead of regular indexes:
 
 ```julia
