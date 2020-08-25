@@ -36,32 +36,6 @@ for custom spatial dataset formats like those used in SMAP.
 
 Files can be written to disk in all formats using `write`.
 
-Some helper methods for common manipulations are included:
-- `aggregate`
-- `disaggregate`
-- `boolmask`
-- `missingmask`
-- `replace_missing`
-
-These will be expanded to include interpolation and other tools over time.
-
-
-**This is a work in progress and the API will break occasionally**
-
-Notably GeoData will shift to relying on
-[DiskArrays.jl](https://github.com/meggart/DiskArrays.jl) for wrapping
-disk-based data sources when it fully supports GDAL and NetCDF. Currently this
-is handled internally for some formates. Broadcasting over disk base arrays like
-`NCDarray` will be incredibly slow, as chunk-based loading is not implemented.
-DiskArrays.jl will solve this, and other problems.
-
-There are no also no guarantees on the accuracy of any of the included methods.
-If you are using this in critical applications, please do your own testing,
-or add additional tests to the GeoData.jl test suit to verify correctness.
-
-Also note: writing directly to files with `setindex!` is not yet supported. 
-You must load to a `GeoArray`, make modifications and `write` a new file. 
-
 ## Examples
 
 We'll load a file from disk, and do some manipulations and plotting.
@@ -71,29 +45,41 @@ an array. This netcdf file only has one layer, if it has more we
 could use `NCDstack` instead.
 
 ```julia
-using GeoData, NCDatasets
-url = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc"
-filename = download(url, "tos_O1_2001-2002.nc")
-A = NCDarray(filename)
+julia> using GeoData, NCDatasets
+
+julia> url = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc";
+
+julia> filename = download(url, "tos_O1_2001-2002.nc");
+
+julia> A = NCDarray(filename)
+NCDarray (named tos) with dimensions:
+ Longitude (type Lon): Float64[1.0, 3.0, …, 357.0, 359.0] (Converted: Ordered Regular Intervals)
+ Latitude (type Lat): Float64[-79.5, -78.5, …, 88.5, 89.5] (Converted: Ordered Regular Intervals)
+ Time (type Ti): DateTime360Day[DateTime360Day(2001-01-16T00:00:00), DateTime360Day(2001-02-16T00:00:00), …, DateTime360Day(2002-11-16T00:00:00), DateTime360Day(2002-12-16T00:00:00)] (Sampled: Ordered Irregular Intervals)
+and data: 180×170×24 Array{Union{Missing, Float32},3}
+[:, :, 1]
+ missing  missing     missing  …  271.437  271.445  271.459
+ missing  missing     missing     271.438  271.445  271.459
+...
 ```
 
 Now plot every third month in the first year, just using the regular index:
 
 ```julia
-using Plots
-A[Ti(1:3:12)] |> plot
+julia> using Plots
+
+juila> A[Ti(1:3:12)] |> plot
 ```
 
 ![Global ocean surface temperatures](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/four_pane_map.png)
 
 Now plot Australia in the first month of 2001. Notice we are using tat/ton coordinates 
 and date/time instead of regular indexes:
-:
 
 ```julia
-A[Ti(Contains(DateTime360Day(2001, 01, 17))), 
-  Lat(Between(0.0, -50.0)), 
-  Lon(Between(100.0, 160.0))] |> plot
+julia> A[Ti(Contains(DateTime360Day(2001, 01, 17))), 
+         Lat(Between(0.0, -50.0)), 
+         Lon(Between(100.0, 160.0))] |> plot
 ```
 
 ![Australia regional ocean surface temperature](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/aus.png)
@@ -101,19 +87,59 @@ A[Ti(Contains(DateTime360Day(2001, 01, 17))),
 Now get the mean over the timespan, then save it to disk, and plot it :
 
 ```julia
-using Statistics
-mean_tos = mean(A; dims=Ti)
-write("mean.ncd, NCDarray, mean_tos))
-plot(mean_tos; color=:viridis) 
+julia> using Statistics
+
+julia> mean_tos = mean(A; dims=Ti)
+GeoArray (named tos) with dimensions:
+ Longitude (type Lon): Float64[1.0, 3.0, …, 357.0, 359.0] (Converted: Ordered Regular Intervals)
+ Latitude (type Lat): Float64[-79.5, -78.5, …, 88.5, 89.5] (Converted: Ordered Regular Intervals)
+ Time (type Ti): DateTime360Day[2001-01-16T00:00:00] (Sampled: Ordered Irregular Intervals)
+and data: 180×170×1 Array{Union{Missing, Float32},3}
+[:, :, 1]
+ missing  missing     missing     missing  …  271.434  271.443  271.454
+ missing  missing     missing     missing     271.434  271.443  271.454
+...
+
+julia> write("mean.ncd", NCDarray, mean_tos)
+    Writing netcdf...
+        key: "longitude" of type: Float64
+        key: "latitude" of type: Float64
+        key: "time" of type: DateTime360Day
+        key: "tos" of type: Union{Missing, Float32}
+"mean.ncd"
+
+julia> plot(mean_tos; color=:viridis) 
 ```
 
 ![Mean temperatures](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/mean.png)
 
-Or a plot transect of ocean surface temperature along the 20 degree latitude line:
+Plotting recipes in DimensionalData.jl are the fallback for GedData.jl when 
+the object doesn't have both `Lat` and `Lon` dimensions. So (as a random example) we 
+could plot a transect of ocean surface temperature at 20 degree latitude :
 
 ```julia
 A[Lat(Contains(20.0)), Ti(1)] |> plot
 ```
+
+GeoData.jl provides a range of other methods that are being added to over time.
+One example is `aggregate`, that can aggregate `GeoArray` by axis-specific amounts:
+
+```julia
+julia> aggregate(mean, A, (Ti(12), Lat(20), Lon(20))
+
+GeoArray (named tos) with dimensions:
+ Longitude (type Lon): Float64[21.0, 61.0, …, 301.0, 341.0] (Converted: Ordered Regular Intervals)
+ Latitude (type Lat): Float64[-69.5, -49.5, …, 50.5, 70.5] (Converted: Ordered Regular Intervals)
+ Time (type Ti): DateTime360Day[2001-01-16T00:00:00, 2002-01-16T00:00:00] (Sampled: Ordered Irregular Intervals)
+and data: 9×8×2 Array{Union{Missing, Float32},3}
+[:, :, 1]
+ missing  277.139        missing     missing     missing     missing  missing  missing
+ missing  277.126        missing     missing     missing     missing  missing  missing
+```
+
+This will also work for entire `GeoStacks` and `GeoSeries` using the same syntax.
+
+
 
 ![Temperatures at lattitude 20-21](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/lat_20.png)
 
@@ -127,3 +153,4 @@ A[Lat(Contains(20.0)), Ti(1)] |> plot
 - Handling complex projections: Affine transformation of dimensions to indices.
   AffineMaps will be stored as a wrapper dimension in `dims`.
 - Load and write the NetCDF projection format.
+
