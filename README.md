@@ -19,22 +19,22 @@ spatial data can be indexed using named dimensions like `Lat` and `Lon`, `Ti`
 is covered in the [DimensionalData
 docs](https://rafaqz.github.io/DimensionalData.jl/stable/).
 
-It provides general types `GeoArray`, `GeoStack`, and `GeoSeries`. 
-
+GeoData.jl provides general types for holding spatial data: `GeoArray`, `GeoStack`, 
+and `GeoSeries`, and types specific to various backends for loading disk-based data.
 R `.grd` files can be loaded natively using `GRDarray` and `GRDstack`. 
-GDAL files can be loaded when
-[ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl) (v0.5 or higher) is
-present, with ` GDALarray` and GDALstack. NetCDF similarly can be loaded when
-[NCDatasets.jl](https://github.com/Alexander-Barth/NCDatasets.jl) is loaded,
-with `NCDarray` and `NCDstack`.
+GDAL files can be loaded with ` GDALarray` and GDALstack when 
+[ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl) (v0.5 or higher) is present. 
+NetCDF similarly can be loaded with `NCDarray` and `NCDstack` when
+[NCDatasets.jl](https://github.com/Alexander-Barth/NCDatasets.jl) is available.
 
-When HDF5.jl is loaded, files from the Soil Moisture Active Passive
+When HDF5.jl is available, files from the Soil Moisture Active Passive
 ([SMAP](https://smap.jpl.nasa.gov/)) dataset can be loaded using `SMAPstack`
 or `SMAPseries` to load whole directories. This is both useful for users of
 SMAP, and a demonstration of the potential to build standardised interfaces 
 for custom spatial dataset formats like those used in SMAP.
 
-Files can be written to disk in all formats using `write`.
+Files can be written to disk in all formats using `write`, and can (with some caveats)
+be written to to different formats providing file-type conversion for spatial data.
 
 ## Examples
 
