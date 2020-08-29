@@ -36,7 +36,7 @@ stackkeys = (
         @test bounds(ncarray) == (
             (0.0, 360.0), 
             (-80.0, 90.0), 
-            (DateTime360Day(2001, 1, 16), DateTime360Day(2003, 1, 16)),
+            (DateTime360Day(2001, 1, 16), DateTime360Day(2002, 12, 16)),
         )
     end
 
@@ -46,11 +46,11 @@ stackkeys = (
         @test dims(ncarray) isa Tuple{<:Lon,<:Lat,<:Ti}
         @test refdims(ncarray) == ()
         # TODO detect the time span, and make it Regular
-        @test mode.(dims(ncarray)) == 
+        @test mode(dims(ncarray)) == 
             (Converted(Ordered(), Regular(2.0), Intervals(Center()), EPSG(4326), EPSG(4326)),
              Converted(Ordered(), Regular(1.0), Intervals(Center()), EPSG(4326), EPSG(4326)),
-             Sampled(Ordered(), Irregular((DateTime360Day(2001, 1, 16), DateTime360Day(2003, 01, 16))), Intervals(Start())))
-        @test bounds(ncarray) == ((0.0, 360.0), (-80.0, 90.0), (DateTime360Day(2001, 1, 16), DateTime360Day(2003, 1, 16)))
+             Sampled(Ordered(), Irregular(), Points()))
+        @test bounds(ncarray) == ((0.0, 360.0), (-80.0, 90.0), (DateTime360Day(2001, 1, 16), DateTime360Day(2002, 12, 16)))
     end
 
     @testset "other fields" begin
@@ -68,7 +68,7 @@ stackkeys = (
         # Russia
         @test ncarray[Lon(50), Lat(100), Ti(1)] isa Missing
         # Alaska
-        @test ncarray[Lat(Contains(64.2008)), Lon(Contains(149.4937)), Ti(1)] isa Missing
+        @test ncarray[Lat(Near(64.2008)), Lon(Near(149.4937)), Ti(1)] isa Missing
         @test ncarray[Ti(2), Lon(At(59.0)), Lat(At(-50.5))] == ncarray[30, 30, 2] === 278.47168f0
     end
 
@@ -79,20 +79,21 @@ stackkeys = (
             @test order(dims(ncrevlatarray, Lat)) == Ordered(Reverse(), Reverse(), Forward())
             @test ncrevlatarray[Lat(At(40)), Lon(At(100)), Ti(1)] == missingval(ncrevlatarray)
             @test ncrevlatarray[Lat(At(-40)), Lon(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0
+            @test val(span(ncrevlatarray, Ti)) == Month(1)
         end
     end
 
     @testset "selectors" begin
-        a = ncarray[Lon(At(21.0)), Lat(Between(50, 52)), Ti(Contains(DateTime360Day(2002, 12)))];
+        a = ncarray[Lon(At(21.0)), Lat(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))];
         @test bounds(a) == ((50.0, 52.0),)
-        x = ncarray[Lon(Contains(150)), Lat(Contains(30)), Ti(1)]
+        x = ncarray[Lon(Near(150)), Lat(Near(30)), Ti(1)]
         @test x isa Float32
         # TODO make sure we are getting the right cell.
         @test size(ncarray[Lat(Between(-80, 90)), Lon(Between(0, 360)),
             Ti(Between(DateTime360Day(2001, 1, 16), DateTime360Day(2003, 01, 16)))
         ]) == (180, 170, 24)
         nca = ncarray[Lat(Between(-80, -25)), Lon(Between(0, 180)), 
-                      Ti(Contains(DateTime360Day(2002, 02, 20)))]
+                      Ti(Near(DateTime360Day(2002, 02, 20)))]
         @test size(nca) == (90, 55)
         
     end
@@ -168,7 +169,6 @@ end
 
 @testset "NCDstack" begin
     ncstack = NCDstack(ncmulti)
-    metadata(ncstack)
 
     @testset "load ncstack" begin
         @test ncstack isa NCDstack{String}

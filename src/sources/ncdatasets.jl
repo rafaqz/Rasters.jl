@@ -379,8 +379,8 @@ dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
             # the generic Dim with the dim name as type parameter
             dimtype = get(dimmap, dimname, Dim{Symbol(dimname)})
             index = dvar[:]
-            mode = _ncdmode(index, dimtype, crs, dimcrs)
             meta = NCDdimMetadata(Dict{String,Any}(dvar.attrib))
+            mode = _ncdmode(index, dimtype, crs, dimcrs, meta)
 
             # Add the dim containing the dimension var array
             push!(dims, dimtype(index, mode, meta))
@@ -393,38 +393,25 @@ dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
     (dims...,)
 end
 
-_ncdmode(index::AbstractArray{<:Number}, dimtype, crs, dimcrs) = begin
+_ncdmode(index::AbstractArray{<:Number}, dimtype, crs, dimcrs, metadata) = begin
     # Assume the locus is at the center of the cell if boundaries aren't provided.
     # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
     # Unless its a time dimension.
     order = _ncdorder(index)
     span = _ncdspan(index, order)
-    sampling = Intervals((dimtype <: TimeDim) ? Start() : Center())
+    sampling = Intervals(Center())
     if dimtype in (Lat, Lon)
         Converted(order, span, sampling, crs, dimcrs)
     else
         Sampled(order, span, sampling)
     end
 end
-_ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, crs, dimcrs) = begin
+_ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, crs, dimcrs, metadata) = begin
     order = _ncdorder(index)
-    span = Irregular(
-        if length(index) > 1
-            # Use the second last interval to guess the last interval
-            # This is a bit of a hack: we need to parse units to resolve it.
-            if isrev(indexorder(order))
-                index[end], index[1] + (index[1] - index[2])
-            else
-                index[1], index[end] + (index[end] - index[end - 1])
-            end
-        else
-            index[1], index[1]
-        end
-    )
-    sampling = Intervals(Start())
+    span, sampling  = _get_period(index, metadata)
     Sampled(order, span, sampling)
 end
-_ncdmode(index, dimtype, crs, dimcrs) = Categorical()
+_ncdmode(index, dimtype, crs, dimcrs, mode) = Categorical()
 
 _ncdorder(index) = index[end] > index[1] ? Ordered(Forward(), Forward(), Forward()) :
                                            Ordered(Reverse(), Reverse(), Forward())
@@ -432,6 +419,7 @@ _ncdorder(index) = index[end] > index[1] ? Ordered(Forward(), Forward(), Forward
 _ncdspan(index, order) = begin
     step = index[2] - index[1]
     for i in 2:length(index) -1
+        # If any step sizes don't match, its Irregular
         if !(index[i+1] - index[i] ≈ step)
             bounds = if length(index) > 1
                 beginhalfcell = abs((index[2] - index[1]) * 0.5)
@@ -447,7 +435,33 @@ _ncdspan(index, order) = begin
             return Irregular(bounds)
         end
     end
+    # Otherwise regular
     return Regular(step)
+end
+
+function _get_period(index, mode)
+    if haskey(mode, "delta_t")
+        period = _parse_period(mode["delta_t"])
+        period isa Nothing || return Regular(period), Points()
+    elseif haskey(mode, "avg_period")
+        period = _nc_parse_period(mode["avg_period"])
+        period isa Nothing || return Regular(period), Intervals(Center())
+    end
+    return sampling = Irregular(), Points()
+end
+
+function _parse_period(period_str::String)
+    regex = r"(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)"
+    mtch = match(regex, period_str)
+    if mtch isa Nothing
+        nothing
+    else
+        vals = Tuple(parse.(Int, mtch.captures))
+        periods = (Year, Month, Day, Hour, Minute, Second)
+        if length(vals) == length(periods)
+            sum(map((p, v) -> p(v), periods, vals))
+        end
+    end
 end
 
 metadata(dataset::NCDatasets.Dataset) = NCDstackMetadata(Dict{String,Any}(dataset.attrib))
