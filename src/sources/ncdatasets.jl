@@ -61,17 +61,16 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     for dim in dims(A)
         key = lowercase(name(dim))
         haskey(dataset.dim, key) && continue
-        
-        index = ncshiftindex(dim)
 
-        if dim isa Lat || dim isa Lon 
-            dim = convertmode(Converted, dim) 
+        if dim isa Lat || dim isa Lon
+            dim = convertmode(Converted, dim)
         end
+        index = ncshiftindex(dim)
         md = metadata(dim)
         attribvec = [] #md isa Nothing ? [] : [val(md)...]
         defDim(dataset, key, length(index))
         println("        key: \"", key, "\" of type: ", eltype(index))
-        defVar(dataset, key, index, (key,); attrib=attribvec)
+        defVar(dataset, key, Vector(index), (key,); attrib=attribvec)
     end
     # TODO actually convert the metadata type
     attrib = if metadata isa NCDarrayMetadata
@@ -93,7 +92,7 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     key = if name(A) == ""
         UNNAMED_NCD_KEY
     else
-        name(A) 
+        name(A)
     end
     println("        key: \"", key, "\" of type: ", T)
     dimnames = lowercase.(name.(dims(A)))
@@ -104,20 +103,24 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
 end
 
 ncshiftindex(dim::Dimension) = ncshiftindex(mode(dim), dim)
-ncshiftindex(mode::AbstractSampled, dim::Dimension) =
-    if span(mode) isa Regular
-        if dim isa TimeDim 
-            if eltype(dim) isa Dates.AbstractDateTime
-                val(dim)
-            else
-                shiftindexloci(Start(), dim)
-            end
-        else
-            shiftindexloci(Center(), dim)
-        end
-    else
-        dim
-    end |> val
+ncshiftindex(mode::AbstractSampled, dim::Dimension) = val(dim)
+# As with plotting, we really should shift the index
+# to `Center`, but reprojection introduces errors
+    # if span(mode) isa Regular
+    #     # that are tricky to handle currently.
+    #     if dim isa TimeDim
+    #         if eltype(dim) isa Dates.AbstractDateTime
+    #             val(dim)
+    #         else
+    #             shiftindexloci(Center(), dim)
+    #         end
+    #     else
+    #         shiftindexloci(Center(), dim)
+    #     end
+    # else
+    #     dim
+    # end |> val
+
 ncshiftindex(mode::IndexMode, dim::Dimension) = val(dim)
 
 # CF standards don't enforce dimension names.
@@ -144,12 +147,12 @@ const dimmap = Dict("lat" => Lat,
 A [`DiskGeoArray`](@ref) that loads that loads NetCDF files lazily from disk.
 
 The first non-dimension layer of the file will be used as the array. Dims are usually
-detected as [`Lat`](@ref), [`Lon`](@ref), [`Ti`]($DDtidocs), and [`Vert`] or 
+detected as [`Lat`](@ref), [`Lon`](@ref), [`Ti`]($DDtidocs), and [`Vert`] or
 possibly `X`, `Y`, `Z` when detected. Undetected dims will use the generic `Dim{:name}`.
 
 This is an incomplete implementation of the NetCDF standard. It will currently
 handle simple files in lattitude/longitude projections, or projected formats
-if you manually specify `crs` and `dimcrs`. How this is done may also change in 
+if you manually specify `crs` and `dimcrs`. How this is done may also change in
 future, including detecting and converting the native NetCDF projection format.
 
 ## Arguments
@@ -158,16 +161,16 @@ future, including detecting and converting the native NetCDF projection format.
 
 ## Keyword arguments
 
-- `crs`: defaults to lat/lon `EPSG(4326)` but may be any `GeoFormat` like `WellKnownText`. 
-  If the underlying data is in a different projection `crs` will need to be set to allow 
+- `crs`: defaults to lat/lon `EPSG(4326)` but may be any `GeoFormat` like `WellKnownText`.
+  If the underlying data is in a different projection `crs` will need to be set to allow
   `write` to a different file format. In future this may be detected automatically.
-- `dimcrs`: The crs projection actually present in the Dimension index `Vector`, which 
+- `dimcrs`: The crs projection actually present in the Dimension index `Vector`, which
   may be different to the underlying projection. Defaults to lat/lon `EPSG(4326)` but
   may be any crs `GeoFormat`.
 - `name`: `String` name for the array. Will use array key if not supplied.
 - `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
-- `missingval`: Value reprsenting missing values. Detected automatically when possible, but 
+- `missingval`: Value reprsenting missing values. Detected automatically when possible, but
   can be passed it.
 - `metadata`: [`Metadata`](@ref) object for the array. Detected automatically as
   [`NCDarrayMetadata`](@ref), but can be passed in.
@@ -238,13 +241,13 @@ Returns `filename`.
 """
 Base.write(filename::AbstractString, ::Type, A::AbstractGeoArray) = begin
     meta = metadata(A)
-    if meta isa Nothing
-        dataset = NCDatasets.Dataset(filename, "c")
-    else
+    # if meta isa Nothing
+    # else
         # Remove the dataset metadata
-        stackmd = pop!(deepcopy(val(meta)), "dataset", Dict())
-        dataset = NCDatasets.Dataset(filename, "c"; attrib=stackmd)
-    end
+        # stackmd = pop!(deepcopy(val(meta)), "dataset", Dict())
+    #    dataset = NCDatasets.Dataset(filename, "c"; attrib=stackmd)
+    # end
+    dataset = NCDatasets.Dataset(filename, "c")
     try
         println("    Writing netcdf...")
         ncwritevar!(dataset, A)
@@ -263,29 +266,29 @@ end
     NCDstack(files::NamedTuple; refdims=(), window=(), metadata=nothing, childkwargs=())
     NCDstack(filename::String; refdims=(), window=(), metadata=nothing, childkwargs=())
 
-A lazy [`AbstractGeoStack`](@ref) that uses NCDatasets.jl to load NetCDF files. 
-Can load a single multi-layer netcdf file, or multiple single-layer netcdf 
-files. In multi-file mode it returns a regular `GeoStack` with a `childtype` 
+A lazy [`AbstractGeoStack`](@ref) that uses NCDatasets.jl to load NetCDF files.
+Can load a single multi-layer netcdf file, or multiple single-layer netcdf
+files. In multi-file mode it returns a regular `GeoStack` with a `childtype`
 of [`NCDarray`](@ref).
 
-Indexing into `NCDstack` with layer keys (`Symbol`s) returns a [`GeoArray`](@ref). 
-Dimensions are usually detected as [`Lat`](@ref), [`Lon`](@ref), [`Ti`]($DDtidocs), 
+Indexing into `NCDstack` with layer keys (`Symbol`s) returns a [`GeoArray`](@ref).
+Dimensions are usually detected as [`Lat`](@ref), [`Lon`](@ref), [`Ti`]($DDtidocs),
 and [`Vert`] or `X`, `Y`, `Z` when detected. Undetected dims use the generic `Dim{:name}`.
 
 # Arguments
 
 - `filename`: `Tuple` or `Vector` or splatted arguments of `String`,
-  or single `String` path, to NetCDF files. 
+  or single `String` path, to NetCDF files.
 
 # Keyword arguments
 
 - `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
   These default to the first non-dimension data key in each NetCDF file.
 - `refdims`: Add dimension position array was sliced from. Mostly used programatically.
-- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the 
+- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
   contained arrays when they are accessed.
 - `metadata`: A [`StackMetadata`](@ref) object.
-- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the 
+- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the
   [`NCDarray`](@ref) constructor.
 
 # Examples
@@ -320,7 +323,7 @@ NCDstack(files::NamedTuple;
          window=(),
          metadata=nothing,
          childkwargs=()) =
-    GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata, 
+    GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata,
              childtype=NCDarray, childkwargs)
 
 ncfilenamekeys(filenames) = cleankeys(ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames)
@@ -337,7 +340,7 @@ withsourcedata(f, ::Type{NCDarray}, path::AbstractString, key) =
 
 # Override the default to get the dims of the specific key,
 # and pass the crs and dimscrs from the stack
-dims(stack::NCDstack, dataset, key::Key) = 
+dims(stack::NCDstack, dataset, key::Key) =
     dims(dataset, key, crs(stack), dimcrs(stack))
 
 missingval(stack::NCDstack) = missing
@@ -352,7 +355,7 @@ Base.keys(stack::NCDstack{<:AbstractString}) =
 
 Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 
-Currently [`DimMetadata`](@ref) is not handled, and [`ArrayMetadata`](@ref) 
+Currently [`DimMetadata`](@ref) is not handled, and [`ArrayMetadata`](@ref)
 from other [`AbstractGeoArray`](@ref) @types is ignored.
 """
 Base.write(filename::AbstractString, ::Type{<:NCDstack}, s::AbstractGeoStack) = begin
@@ -376,8 +379,8 @@ dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
             # the generic Dim with the dim name as type parameter
             dimtype = get(dimmap, dimname, Dim{Symbol(dimname)})
             index = dvar[:]
-            mode = _ncdmode(index, dimtype, crs, dimcrs)
             meta = NCDdimMetadata(Dict{String,Any}(dvar.attrib))
+            mode = _ncdmode(index, dimtype, crs, dimcrs, meta)
 
             # Add the dim containing the dimension var array
             push!(dims, dimtype(index, mode, meta))
@@ -390,38 +393,25 @@ dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
     (dims...,)
 end
 
-_ncdmode(index::AbstractArray{<:Number}, dimtype, crs, dimcrs) = begin
+_ncdmode(index::AbstractArray{<:Number}, dimtype, crs, dimcrs, metadata) = begin
     # Assume the locus is at the center of the cell if boundaries aren't provided.
     # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
     # Unless its a time dimension.
     order = _ncdorder(index)
     span = _ncdspan(index, order)
-    sampling = Intervals((dimtype <: TimeDim) ? Start() : Center())
+    sampling = Intervals(Center())
     if dimtype in (Lat, Lon)
         Converted(order, span, sampling, crs, dimcrs)
     else
         Sampled(order, span, sampling)
     end
 end
-_ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, crs, dimcrs) = begin
+_ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, crs, dimcrs, metadata) = begin
     order = _ncdorder(index)
-    span = Irregular(
-        if length(index) > 1
-            # Use the second last interval to guess the last interval
-            # This is a bit of a hack: we need to parse units to resolve it.
-            if isrev(indexorder(order))
-                index[end], index[1] + (index[1] - index[2])
-            else
-                index[1], index[end] + (index[end] - index[end - 1])
-            end
-        else
-            index[1], index[1]
-        end
-    )
-    sampling = Intervals(Start())
+    span, sampling  = _get_period(index, metadata)
     Sampled(order, span, sampling)
 end
-_ncdmode(index, dimtype, crs, dimcrs) = Categorical()
+_ncdmode(index, dimtype, crs, dimcrs, mode) = Categorical()
 
 _ncdorder(index) = index[end] > index[1] ? Ordered(Forward(), Forward(), Forward()) :
                                            Ordered(Reverse(), Reverse(), Forward())
@@ -429,6 +419,7 @@ _ncdorder(index) = index[end] > index[1] ? Ordered(Forward(), Forward(), Forward
 _ncdspan(index, order) = begin
     step = index[2] - index[1]
     for i in 2:length(index) -1
+        # If any step sizes don't match, its Irregular
         if !(index[i+1] - index[i] ≈ step)
             bounds = if length(index) > 1
                 beginhalfcell = abs((index[2] - index[1]) * 0.5)
@@ -444,7 +435,33 @@ _ncdspan(index, order) = begin
             return Irregular(bounds)
         end
     end
+    # Otherwise regular
     return Regular(step)
+end
+
+function _get_period(index, mode)
+    if haskey(mode, "delta_t")
+        period = _parse_period(mode["delta_t"])
+        period isa Nothing || return Regular(period), Points()
+    elseif haskey(mode, "avg_period")
+        period = _nc_parse_period(mode["avg_period"])
+        period isa Nothing || return Regular(period), Intervals(Center())
+    end
+    return sampling = Irregular(), Points()
+end
+
+function _parse_period(period_str::String)
+    regex = r"(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)"
+    mtch = match(regex, period_str)
+    if mtch isa Nothing
+        nothing
+    else
+        vals = Tuple(parse.(Int, mtch.captures))
+        periods = (Year, Month, Day, Hour, Minute, Second)
+        if length(vals) == length(periods)
+            sum(map((p, v) -> p(v), periods, vals))
+        end
+    end
 end
 
 metadata(dataset::NCDatasets.Dataset) = NCDstackMetadata(Dict{String,Any}(dataset.attrib))

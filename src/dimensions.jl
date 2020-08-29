@@ -65,3 +65,32 @@ mean(A; dims=Band)
 ```
 """
 @dim Band
+
+
+
+"""
+    userbounds(x)
+
+Get the bounds converted to the `usercrs` value.
+
+Whithout ArchGDAL loaded, this is just the regular bounds.
+"""
+function userbounds end
+
+userbounds(A) = userbounds(dims(A)) 
+userbounds(dims::Tuple) = map(userbounds, dims) 
+userbounds(dim::Dimension) = bounds(dim)
+
+
+"""
+    userval(x)
+
+Get the index value of a dimension converted to the `usercrs` value.
+
+Whithout ArchGDAL loaded, this is just the regular dim value.
+"""
+function userval end
+
+userval(A) = userval(dims(A)) 
+userval(dims::Tuple) = map(userval, dims) 
+userval(dim::Dimension) = val(dim)

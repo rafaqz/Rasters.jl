@@ -53,28 +53,14 @@ convertmode(dstmode::Type{Projected}, srcmode::Type{Converted}, dim::Dimension) 
     rebuild(dim; val=newval, mode=newmode)
 end
 
-"""
-    userbounds(x)
 
-Get the bounds converted to the `usercrs` value.
-"""
-function userbounds end
-
-userbounds(A) = userbounds(dims(A)) 
-userbounds(dims::Tuple) = map(userbounds, dims) 
-userbounds(dim::Dimension) = bounds(dim)
-userbounds(dim::Union{Lat,Lon}) = 
+# Add Lat/Lon methods to reproject bounds and val
+userbounds(dim::Union{Lat,Lon}) = userbounds(mode(dim), dim) 
+userbounds(::Projected, dim::Union{Lat,Lon}) = 
     reproject(crs(dim), usercrs(dim), dim, bounds(dim)) 
+userbounds(::IndexMode, dim::Union{Lat,Lon}) = bounds(dim)
 
-"""
-    userval(x)
-
-Get the index value of a dimension converted to the `usercrs` value.
-"""
-function userval end
-
-userval(A) = userval(dims(A)) 
-userval(dims::Tuple) = map(userval, dims) 
-userval(dim::Dimension) = val(dim)
-userval(dim::Union{Lat,Lon}) = 
+userval(dim::Union{Lat,Lon}) = userval(mode(dim), dim)
+userval(::Projected, dim::Union{Lat,Lon}) = 
     reproject(crs(dim), usercrs(dim), dim, val(dim)) 
+userval(::IndexMode, dim::Union{Lat,Lon}) = val(dim)
