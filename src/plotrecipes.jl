@@ -2,7 +2,6 @@ using DimensionalData: refdims_title
 
 struct GeoPlot end
 
-
 # We only look at arrays with Lat/Lon here.
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(A::AbstractGeoArray)
@@ -58,18 +57,12 @@ end
     GeoPlot(), permutedims(A)
 end
 
-maybe_reproject(dims::Tuple) = map(maybe_reproject, dims)
-maybe_reproject(dim::Dimension) = maybe_reproject(mode(dim), dim)
-maybe_reproject(mode::IndexMode, dim::Dimension) = dim
-maybe_reproject(mode::Projected, dim::Dimension) =
-    maybe_reproject(crs(mode), usercrs(mode), dim)
-maybe_reproject(crs, usercrs, dim::Dimension) = dim
-maybe_reproject(crs::GeoFormat, usercrs::GeoFormat, dim::Dimension) =
-    rebuild(dim, reproject(crs, usercrs, dim, val(dim)))
-
-
-# Plots heatmaps pixels are centered. So center, and use the projected value.
-preparedim(d) = shiftindexloci(Center(), d) |> maybe_reproject |> val
+# Plots heatmaps pixels are centered. 
+# So we should center, and use the projected value.
+# Except GDAL will wrap values that are shifted around 180, and break
+# plotting. Not sure of a robust way to fix this - so just ploting
+# as is for now. The error is only visible on very small arrays.
+preparedim(d) = userval(d) # shiftindexloci(Center(), d) |> userval
 
 # Convert arrays to a consistent missing value and Forward array order
 prepare(A) = A |> maybereplace_missing |> forwardorder
