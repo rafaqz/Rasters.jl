@@ -151,7 +151,7 @@ SMAPseries(filenames::Vector{<:AbstractString}, dims=nothing; kwargs...) = begin
         timeseries = []
         errors = []
         for filename in filenames
-            println(filename)
+            println("Loading SMAP file: $filename")
             try
                 t = smap_timefrompath(filename)
                 push!(timeseries, t)
@@ -211,8 +211,8 @@ smapdims(dataset::HDF5.HDF5File) = begin
         # There are matrices for lookup but all rows/colums are identical.
         # For performance and simplicity we just take a vector slice for each dim.
         extent = attrs(root(dataset)["Metadata/Extent"])
-        lonbounds = extent["westBoundLongitude"], extent["eastBoundLongitude"]
-        latbounds = extent["northBoundLatitude"], extent["southBoundLatitude"]
+        lonbounds = read(extent["westBoundLongitude"]), read(extent["eastBoundLongitude"])
+        latbounds = read(extent["northBoundLatitude"]), read(extent["southBoundLatitude"])
         latvec = read(root(dataset)["cell_lat"])[1, :]
         lonvec = read(root(dataset)["cell_lon"])[:, 1]
         lonmode = Converted(Ordered(), Irregular(lonbounds),

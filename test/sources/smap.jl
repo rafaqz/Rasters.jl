@@ -11,15 +11,16 @@ path2 = joinpath(testpath, "data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5")
     stack = SMAPstack(path1)
 
     @testset "conversion to GeoArray" begin
-        smaparray = stack["soil_temp_layer1"][Lon(1:100), Lat(1:100)]
+        smaparray = stack["soil_temp_layer1"][Lat(), Lon()]
         @test smaparray isa GeoArray{Float32,2}
-        @test size(smaparray) == (100, 100)
         @test dims(smaparray) isa Tuple{<:Lon{<:Array{Float32,1}}, <:Lat{<:Array{Float32,1}}}
+        @test span(smaparray) isa Tuple{Irregular{Tuple{Float32,Float32}},Irregular{Tuple{Float32,Float32}}}
+        @test span(smaparray) == (Irregular((-180.0f0, 180.0f0)), Irregular((85.04456f0, -85.04456f0)))
+        @test index(smaparray) isa Tuple{Vector{Float32},Vector{Float32}}
         @test refdims(smaparray) isa Tuple{<:Ti}
         @test missingval(smaparray) == -9999.0
         @test smaparray[1] == -9999.0
         @test name(smaparray) == "soil_temp_layer1"
-        # Why is tagged time different to the filename time? is that just rounded?
         dt = DateTime(2016, 1, 1, 22, 30)
         step_ = Hour(3)
         @test refdims(stack) ==
@@ -65,6 +66,8 @@ path2 = joinpath(testpath, "data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5")
         @test windowedarray[1:3, 2] == [-9999.0, -9999.0, -9999.0]
         @test windowedarray[1, 2] == -9999.0
     end
+
+    
 
 end
 
