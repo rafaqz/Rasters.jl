@@ -212,7 +212,7 @@ smapdims(dataset::HDF5.HDF5File) = begin
         # For performance and simplicity we just take a vector slice for each dim.
         extent = attrs(root(dataset)["Metadata/Extent"])
         lonbounds = read(extent["westBoundLongitude"]), read(extent["eastBoundLongitude"])
-        latbounds = read(extent["northBoundLatitude"]), read(extent["southBoundLatitude"])
+        latbounds = read(extent["southBoundLatitude"]), read(extent["northBoundLatitude"])
         latvec = read(root(dataset)["cell_lat"])[1, :]
         lonvec = read(root(dataset)["cell_lon"])[:, 1]
         lonmode = Converted(Ordered(), Irregular(lonbounds),

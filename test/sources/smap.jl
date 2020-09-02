@@ -15,7 +15,8 @@ path2 = joinpath(testpath, "data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5")
         @test smaparray isa GeoArray{Float32,2}
         @test dims(smaparray) isa Tuple{<:Lon{<:Array{Float32,1}}, <:Lat{<:Array{Float32,1}}}
         @test span(smaparray) isa Tuple{Irregular{Tuple{Float32,Float32}},Irregular{Tuple{Float32,Float32}}}
-        @test span(smaparray) == (Irregular((-180.0f0, 180.0f0)), Irregular((85.04456f0, -85.04456f0)))
+        @test span(smaparray) == (Irregular((-180.0f0, 180.0f0)), Irregular((-85.04456f0, 85.04456f0)))
+        @test bounds(smaparray) == ((-180.0f0, 180.0f0), (-85.04456f0, 85.04456f0))
         @test index(smaparray) isa Tuple{Vector{Float32},Vector{Float32}}
         @test refdims(smaparray) isa Tuple{<:Ti}
         @test missingval(smaparray) == -9999.0
