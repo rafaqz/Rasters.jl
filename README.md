@@ -53,6 +53,16 @@ for custom spatial dataset formats like those used in SMAP.
 Files can be written to disk in all formats using `write`, and can (with some caveats)
 be written to to different formats providing file-type conversion for spatial data.
 
+
+# Warning: this is an MVP. 
+
+It works quite well but spatial data is very complicated. Some things may break.
+Currently saving a Netcdf to a GDAL tif, or the reverse, projections are not totally accurate.
+
+Eventually they will be, but converting projections and index conventions between formats
+is difficult. with many edge case problems. Until now, assume the index is not exactly correct.
+`Between`, `Contains` and `bounds` are close approximatios, but may contain errors.
+
 ## Examples
 
 We'll load a file from disk, and do some manipulations and plotting.
