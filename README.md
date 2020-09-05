@@ -60,7 +60,7 @@ It works quite well but spatial data is very complicated. Some things may break.
 Currently saving a Netcdf to a GDAL tif, or the reverse, projections are not totally accurate.
 
 Eventually they will be, but converting projections and index conventions between formats
-is difficult. with many edge case problems. Until now, assume the index is not exactly correct.
+is difficult. with many edge case problems. For now, assume the index is not exactly correct.
 `Between`, `Contains` and `bounds` are close approximatios, but may contain errors.
 
 ## Examples
