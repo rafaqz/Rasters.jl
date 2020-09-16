@@ -4,6 +4,7 @@ authors = ["Rafael Schouten <rafaelschouten@gmail.com>"]
 version = "0.2.0"
 
 [deps]
+ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 DimensionalData = "0703355e-b756-11e9-17c0-8b28908087d0"
 GeoFormatTypes = "68eda718-8dee-11e9-39e7-89f7f65f511f"
