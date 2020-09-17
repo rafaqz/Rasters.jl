@@ -13,7 +13,7 @@ val = A[Lon(1)]
 mean(A; dims=Lon)
 ```
 """
-@dim Lon XDim "Longitude" "Lon"
+@dim Lon XDim "Longitude"
 
 """
     Lat <: YDim <: Dimension
@@ -30,7 +30,7 @@ val = A[Lat(1)]
 mean(A; dims=Lat)
 ```
 """
-@dim Lat YDim "Latitude" "Lat"
+@dim Lat YDim "Latitude"
 
 """
     Vert <: ZDim <: Dimension
@@ -47,7 +47,7 @@ val = A[Vert(1)]
 mean(A; dims=Vert)
 ```
 """
-@dim Vert ZDim "Vertical" "Vert"
+@dim Vert ZDim "Vertical"
 
 """
     Band <: Dimension
