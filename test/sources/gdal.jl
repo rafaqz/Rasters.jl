@@ -6,7 +6,12 @@ include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
 @testset "GDALarray" begin
-    gdalarray = GDALarray(path; usercrs=EPSG(4326), name="test");
+    gdalarray = GDALarray(path; usercrs=EPSG(4326), name=:test)
+    cat(gdalarray, gdalarray; dims=Band)
+    replace(GeoArray(gdalarray), -9999 => 0)
+
+
+
 
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)

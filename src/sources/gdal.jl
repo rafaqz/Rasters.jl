@@ -4,10 +4,13 @@ const AG = ArchGDAL
 
 export GDALarray, GDALstack, GDALarrayMetadata, GDALdimMetadata
 
-const GDAL_LON_ORDER = Forward()
-const GDAL_LAT_ORDER = Reverse()
-const GDAL_BAND_ORDER = Forward()
-const GDAL_RELATION = Forward()
+const GDAL_LON_INDEX = ForwardIndex()
+const GDAL_LAT_INDEX = ReverseIndex()
+const GDAL_BAND_INDEX = ForwardIndex()
+const GDAL_LON_ARRAY = ForwardArray()
+const GDAL_LAT_ARRAY = ReverseArray()
+const GDAL_BAND_ARRAY = ForwardIndex()
+const GDAL_RELATION = ForwardRelation()
 
 
 # Metadata ########################################################################
@@ -57,7 +60,7 @@ immediately.
 
 - `usercrs`: CRS format like `EPSG(4326)` used in `Selectors` like `Between` and `At`, and 
   for plotting. Can be any CRS `GeoFormat` from GeoFormatTypes.jl, like `WellKnownText`.
-- `name`: `String` name for the array.
+- `name`: `Symbol` name for the array.
 - `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
 - `missingval`: Value reprsenting missing values. Detected automatically when possible, but 
@@ -73,7 +76,7 @@ A = GDALarray("folder/file.tif"; usercrs=EPSG(4326))
 A[Lat(Between(-10, -43), Lon(Between(113, 153)))
 ```
 """
-struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S
+struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:Symbol,Me,Mi,S
                 } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
     filename::F
     dims::D
@@ -93,7 +96,7 @@ GDALarray(raster::AG.RasterDataset, filename, key=nothing;
           usercrs=nothing, 
           dims=dims(raster, usercrs), 
           refdims=(),
-          name="", 
+          name=Symbol(""), 
           metadata=metadata(raster), 
           missingval=missingval(raster)) = begin
     sze = size(raster)
@@ -119,9 +122,9 @@ Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims")
 
     correctedA = permutedims(A, (Lon(), Lat())) |>
-        a -> reorderindex(a, (Lon(GDAL_LON_ORDER), Lat(GDAL_LAT_ORDER))) |>
-        a -> reorderrelation(a, GDAL_RELATION)
-    checkarrayorder(correctedA, (GDAL_LON_ORDER, GDAL_LAT_ORDER))
+        a -> reorder(a, (Lon(GDAL_LON_INDEX), Lat(GDAL_LAT_INDEX))) |>
+        a -> reorder(a, GDAL_RELATION)
+    checkarrayorder(correctedA, (GDAL_LON_ARRAY, GDAL_LAT_ARRAY))
 
     nbands = 1
     indices = 1
@@ -132,9 +135,9 @@ Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
 
     correctedA = permutedims(A, (Lon(), Lat(), Band())) |>
-        a -> reorderindex(a, (Lon(GDAL_LON_ORDER), Lat(GDAL_LAT_ORDER), Band(GDAL_BAND_ORDER))) |>
-        a -> reorderrelation(a, GDAL_RELATION)
-    checkarrayorder(correctedA, (GDAL_LON_ORDER, GDAL_LAT_ORDER, GDAL_BAND_ORDER))
+        a -> reorder(a, (Lon(GDAL_LON_INDEX), Lat(GDAL_LAT_INDEX), Band(GDAL_BAND_INDEX))) |>
+        a -> reorder(a, GDAL_RELATION)
+    checkarrayorder(correctedA, (GDAL_LON_ARRAY, GDAL_LAT_ARRAY, GDAL_BAND_ARRAY))
 
     nbands = size(correctedA, Band())
     indices = Cint[1:nbands...]
@@ -229,7 +232,7 @@ dims(raster::AG.RasterDataset, usercrs=nothing) = begin
         end
 
         latmode = Projected(
-            order=Ordered(GDAL_LAT_ORDER, GDAL_LAT_ORDER, GDAL_RELATION),
+            order=Ordered(GDAL_LAT_INDEX, GDAL_LAT_ARRAY, GDAL_RELATION),
             sampling=sampling,
             # Use the range step as is will be different to latstep due to float error
             span=Regular(step(latrange)),
@@ -237,7 +240,7 @@ dims(raster::AG.RasterDataset, usercrs=nothing) = begin
             usercrs=usercrs,
         )
         lonmode = Projected(
-            order=Ordered(GDAL_LON_ORDER, GDAL_LON_ORDER, GDAL_RELATION),
+            order=Ordered(GDAL_LON_INDEX, GDAL_LON_ARRAY, GDAL_RELATION),
             span=Regular(step(lonrange)),
             sampling=sampling,
             crs=sourcecrs,
@@ -331,8 +334,8 @@ gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tile
         lon, lat = map(dims(A, (Lon(), Lat()))) do d
             convertmode(Projected, d)
         end
-        @assert indexorder(lat) == GDAL_LAT_ORDER
-        @assert indexorder(lon) == GDAL_LON_ORDER
+        @assert indexorder(lat) == GDAL_LAT_INDEX
+        @assert indexorder(lon) == GDAL_LON_INDEX
         # Set the index loci to the start of the cell for the lat and lon dimensions.
         # NetCDF or other formats use the center of the interval, so they need conversion.
         lonindex, latindex = map((lon, lat)) do d

@@ -1,5 +1,5 @@
 using NCDatasets, ArchGDAL, GeoData, Test, Statistics, Dates, CFTime, Plots, GeoFormatTypes
-using GeoData: name, window, mode, span, sampling, val, Ordered, Forward, Reverse
+using GeoData: name, window, mode, span, sampling, val, Ordered
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
@@ -25,7 +25,24 @@ stackkeys = (
 )
 
 @testset "NCDarray" begin
-    ncarray = NCDarray(ncsingle)
+    ncarray = NCDarray(ncsingle; name=:data)
+
+    a = ncarray[Lat(71:170), Lon(71:170), Ti(1)] .* 1.0
+
+    newdims = Lon(LinRange(lowr[1], uppr[1], round(Int, lengths[1] * 2.3)), Sampled()), 
+              Lat(LinRange(lowr[2], uppr[2], round(Int, lengths[2] * 2.3)), Sampled())
+ 
+    key = :data
+    a = rebuild(a; name=key)
+    grid = RegularGrid((10, 10), (0.0, 0.0), (10.0, 10.0))
+    data = SpatialData(RegularGrid((100, 100)), DimTable(a)) 
+    problem = EstimationProblem(data, grid, key, mapper=CopyMapper())
+    kr = Kriging(key => (degree=2, variogram=SphericalVariogram(range=2.0)))
+    sol = solve(problem, kr)
+    newA = reshape(sol[key][:mean], (10, 10))
+    heatmap(newA)
+    plot(a)
+    int = interpolate(a, kr; dims=newdims) 
 
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)

@@ -1,12 +1,12 @@
 export GRDarray, GRDstack, GRDdimMetadata, GRDarrayMetadata
 
-const GRD_INDEX_ORDER = Forward()
-const GRD_LON_ARRAY = Forward()
-const GRD_LAT_ARRAY = Reverse()
-const GRD_BAND_ARRAY = Forward()
-const GRD_LON_RELATION = Forward()
-const GRD_LAT_RELATION = Reverse()
-const GRD_BAND_RELATION= Forward()
+const GRD_INDEX_ORDER = ForwardIndex()
+const GRD_LON_ARRAY = ForwardArray()
+const GRD_LAT_ARRAY = ReverseArray()
+const GRD_BAND_ARRAY = ForwardArray()
+const GRD_LON_RELATION = ForwardRelation()
+const GRD_LAT_RELATION = ReverseRelation()
+const GRD_BAND_RELATION= ForwardRelation()
 
 # Metadata ########################################################################
 
@@ -200,14 +200,14 @@ Returns `filename`.
 Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray) = begin
     if hasdim(A, Band)
         correctedA = permutedims(A, (Lon, Lat, Band)) |>
-            a -> reorderindex(a, GRD_INDEX_ORDER) |>
-            a -> reorderrelation(a, (Lon(GRD_LON_RELATION), Lat(GRD_LAT_RELATION), Band(GRD_BAND_RELATION)))
+            a -> reorder(a, GRD_INDEX_ORDER) |>
+            a -> reorder(a, (Lon(GRD_LON_RELATION), Lat(GRD_LAT_RELATION), Band(GRD_BAND_RELATION)))
         checkarrayorder(correctedA, (GRD_LON_RELATION, GRD_LAT_ARRAY, GRD_BAND_RELATION))
         nbands = length(val(dims(correctedA, Band)))
     else
         correctedA = permutedims(A, (Lon, Lat)) |>
-            a -> reorderindex(a, GRD_INDEX_ORDER) |>
-            a -> reorderrelation(a, (Lon(GRD_LON_RELATION), Lat(GRD_LAT_RELATION)))
+            a -> reorder(a, GRD_INDEX_ORDER) |>
+            a -> reorder(a, (Lon(GRD_LON_RELATION), Lat(GRD_LAT_RELATION)))
             checkarrayorder(correctedA, (GRD_LON_ARRAY, GRD_LAT_ARRAY))
         nbands = 1
     end

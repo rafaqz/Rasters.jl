@@ -2,7 +2,7 @@
 const Key = Union{Symbol,AbstractString}
 
 """
-`AbstractGeoStack` objects hold multipl [`AbstractGeoArray`](@ref) 
+`AbstractGeoStack` objects hold multiple [`AbstractGeoArray`](@ref) 
 that share spatial bounds.
 
 They are `NamedTuple`-like structures that may either contain `NamedTuple`
@@ -192,7 +192,7 @@ withsource(f, childtype::Type, path, key...) = f(path)
 Base.getindex(s::DiskGeoStack, key::Key) = begin
     filename_ = filename(s, key)
     withsource(childtype(s), filename_, key) do dataset
-        A = childtype(s)(dataset, filename_, key; name=string(key), childkwargs(s)...)
+        A = childtype(s)(dataset, filename_, key; name=Symbol(key), childkwargs(s)...)
         window_ = maybewindow2indices(A, window(s))
         readwindowed(A, window_)
     end
@@ -200,7 +200,7 @@ end
 Base.getindex(s::DiskGeoStack, key::Key, i1::StandardIndices, I::StandardIndices...) = begin
     filename_ = filename(s, key)
     withsource(childtype(s), filename_, key) do dataset
-        A = childtype(s)(dataset, filename_, key; name=string(key), childkwargs(s)...)
+        A = childtype(s)(dataset, filename_, key; name=Symbol(key), childkwargs(s)...)
         window_ = maybewindow2indices(dims(A), window(s))
         readwindowed(A, window_, i1, I...)
     end
@@ -212,7 +212,7 @@ end
 # Default dims, metadata and missingval methods
 #
 # For DiskStack we query the underlying object - avoiding building
-# an AbstractGeoArray unless we have to. Examples are be an NCDatasets,
+# an AbstractGeoArray unless we have to. Examples may be an NCDatasets,
 # ArchGDAL, or HDF5 `Dataset` object. These sources will add a
 # For MemGeoStack the childobj is just a GeoArray as it is allready loaded in memory.
 for func in (:dims, :metadata, :missingval)
@@ -339,11 +339,13 @@ copy!(dst::AbstractGeoStack, src::AbstractGeoStack, keys=(:sea_surface_temp, :hu
 ```
 """
 Base.copy!(dst::MemGeoStack, src::AbstractGeoStack, keys=keys(dst)) = begin
-    for key in keys
+    symkeys = Symbol.(keys)
+    # Check all keys first so we don't copy anything if there is any error
+    for key in symkeys
         key in Symbol.(Base.keys(dst)) || throw(ArgumentError("key $key not found in dest keys"))
         key in Symbol.(Base.keys(src)) || throw(ArgumentError("key $key not found in source keys"))
     end
-    for key in Symbol.(keys)
+    for key in symkeys
         copy!(dst[key], src[key])
     end
 end

@@ -50,8 +50,7 @@ end
 
 # Add a var array to a dataset before writing it.
 ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
-    A = reorderindex(A, Forward()) |>
-        a -> reorderrelation(a, Forward())
+    A = reorder(A, ForwardIndex()) |> a -> reorder(a, ForwardRelation())
     if ismissing(missingval(A))
         # TODO default _FillValue for Int?
         fillvalue = get(metadata(A), "_FillValue", NaN)
@@ -167,7 +166,7 @@ future, including detecting and converting the native NetCDF projection format.
 - `dimcrs`: The crs projection actually present in the Dimension index `Vector`, which
   may be different to the underlying projection. Defaults to lat/lon `EPSG(4326)` but
   may be any crs `GeoFormat`.
-- `name`: `String` name for the array. Will use array key if not supplied.
+- `name`: `Symbol` name for the array. Will use array key if not supplied.
 - `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
 - `missingval`: Value reprsenting missing values. Detected automatically when possible, but
@@ -183,7 +182,7 @@ A = NCDarray("folder/file.ncd")
 A[Lat(Between(-10, -43), Lon(Between(113, 153)))
 ```
 """
-struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S,K
+struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:Symbol,Me,Mi,S,K
                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
     filename::A
     dims::D
@@ -208,10 +207,10 @@ NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
          missingval=missing,
         ) = begin
     keys_ = nondimkeys(dataset)
-    key = key isa Nothing || !(string(key) in keys_) ? first(keys_) : string(key)
-    var = dataset[key]
+    key = (key isa Nothing || !(string(key) in keys_)) ? first(keys_) : string(key) |> Symbol
+    var = dataset[string(key)]
     dims = dims isa Nothing ? GeoData.dims(dataset, key, crs, dimcrs) : dims
-    name = name isa Nothing ? string(key) : name
+    name = name isa Nothing ? key : name |> Symbol
     metadata_ = metadata isa Nothing ? GeoData.metadata(var, GeoData.metadata(dataset)) : metadata
     size_ = map(length, dims)
     T = eltype(var)
@@ -413,8 +412,8 @@ _ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, crs, dimcrs, metad
 end
 _ncdmode(index, dimtype, crs, dimcrs, mode) = Categorical()
 
-_ncdorder(index) = index[end] > index[1] ? Ordered(Forward(), Forward(), Forward()) :
-                                           Ordered(Reverse(), Reverse(), Forward())
+_ncdorder(index) = index[end] > index[1] ? Ordered(ForwardIndex(), ForwardArray(), ForwardRelation()) :
+                                           Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
 
 _ncdspan(index, order) = begin
     step = index[2] - index[1]
