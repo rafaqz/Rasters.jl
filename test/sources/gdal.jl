@@ -11,8 +11,6 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
     replace(GeoArray(gdalarray), -9999 => 0)
 
 
-
-
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
         @test gdalarray isa GDALarray{UInt8,3}
@@ -40,7 +38,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test missingval(gdalarray) == -1.0e10
         @test metadata(gdalarray) isa GDALarrayMetadata
         @test basename(metadata(gdalarray).val["filepath"]) == "cea.tif"
-        @test name(gdalarray) == "test"
+        @test name(gdalarray) == :test
         @test label(gdalarray) == "test"
         @test units(gdalarray) == nothing
         @test usercrs(dims(gdalarray, Lat)) == EPSG(4326)
@@ -85,7 +83,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test refdims(geoarray) isa Tuple{<:Band} 
         @test metadata(geoarray) == metadata(gdalarray)
         @test missingval(geoarray) == -1.0e10
-        @test name(geoarray) == "test"
+        @test name(geoarray) == :test
     end
 
     @testset "save" begin
@@ -131,7 +129,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
             geoarray3 = cat(gdalarray[Band(1)], gdalarray[Band(1)], gdalarray[Band(1)]; dims=Band(1:3))
             write(filename3, GDALarray, geoarray3)
             saved3 = GeoArray(GDALarray(filename3; usercrs=EPSG(4326)))
-            @test saved3 == geoarray3
+            @test all(saved3 .== geoarray3)
             @test val(dims(saved3, Band)) == 1:3
         end
 
@@ -150,7 +148,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
             @test bounds(grdarray) == (bounds(gdalarray))
             @test val(dims(grdarray, Lat)) == reverse(val(dims(gdalarray, Lat)))
             @test val(dims(grdarray, Lon)) ≈ val(dims(gdalarray, Lon))
-            @test GeoArray(grdarray) == GeoArray(gdalarray)
+            @test all(GeoArray(grdarray) .== GeoArray(gdalarray))
             @test bounds(grdarray) == bounds(gdalarray)
         end
 
@@ -244,8 +242,8 @@ end
 end
 
 @testset "GDAL series" begin
-    series = GeoSeries([path, path], (Ti,); childtype=GDALarray, childkwargs=(usercrs=EPSG(4326), name="test"))
-    @test GeoArray(series[Ti(1)]) == GeoArray(GDALarray(path; usercrs=EPSG(4326), name="test"))
+    series = GeoSeries([path, path], (Ti,); childtype=GDALarray, childkwargs=(usercrs=EPSG(4326), name=:test))
+    @test GeoArray(series[Ti(1)]) == GeoArray(GDALarray(path; usercrs=EPSG(4326), name=:test))
 
     gdalstack = GDALstack((a=path, b=path); childtype=GDALarray, childkwargs=(usercrs=EPSG(4326),))
     series = GeoSeries([gdalstack, gdalstack], (Ti,))

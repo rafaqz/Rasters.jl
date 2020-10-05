@@ -22,9 +22,7 @@ struct LazyArray{T,N} <: AbstractArray{T,N} end
 """
     missingval(x)
 
-Returns the value representing missing data in the dataset
-"""
-function missingval end
+Returns the value representing missing data in the dataset """ function missingval end
 missingval(x) = missing
 missingval(A::AbstractGeoArray) = A.missingval
 
@@ -90,6 +88,8 @@ units(A::AbstractGeoArray) = getmeta(A, :units, nothing)
 
 # Rebuild all types of AbstractGeoArray as GeoArray
 rebuild(A::AbstractGeoArray, data, dims::Tuple, refdims, name, metadata, missingval=missingval(A)) =
+    GeoArray(data, dims, refdims, name, metadata, missingval)
+rebuild(A::AbstractGeoArray; data=data(A), dims=dims(A), refdims=refdims(A), name=name(A), metadata=metadata(A), missingval=missingval(A)) =
     GeoArray(data, dims, refdims, name, metadata, missingval)
 
 Base.parent(A::AbstractGeoArray) = data(A)

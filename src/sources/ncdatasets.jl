@@ -58,7 +58,7 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     end
     # Define required dim vars
     for dim in dims(A)
-        key = lowercase(name(dim))
+        key = lowercase(string(name(dim)))
         haskey(dataset.dim, key) && continue
 
         if dim isa Lat || dim isa Lon
@@ -88,13 +88,13 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
             @warn "`missingval` $(missingval(A)) was invalid for data of type $T."
         end
     end
-    key = if name(A) == ""
+    key = if string(name(A)) == ""
         UNNAMED_NCD_KEY
     else
-        name(A)
+        string(name(A))
     end
     println("        key: \"", key, "\" of type: ", T)
-    dimnames = lowercase.(name.(dims(A)))
+    dimnames = lowercase.(string.(name.(dims(A))))
     attribvec = [attrib...]
     var = defVar(dataset, key, eltype(A), dimnames; attrib=attribvec)
 
@@ -131,6 +131,7 @@ const dimmap = Dict("lat" => Lat,
                     "longitude" => Lon,
                     "time" => Ti,
                     "lev" => Vert,
+                    "mlev" => Vert,
                     "level" => Vert,
                     "vertical" => Vert,
                     "x" => X,
@@ -210,7 +211,7 @@ NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
     key = (key isa Nothing || !(string(key) in keys_)) ? first(keys_) : string(key) |> Symbol
     var = dataset[string(key)]
     dims = dims isa Nothing ? GeoData.dims(dataset, key, crs, dimcrs) : dims
-    name = name isa Nothing ? key : name |> Symbol
+    name = Symbol(name isa Nothing ? key : name)
     metadata_ = metadata isa Nothing ? GeoData.metadata(var, GeoData.metadata(dataset)) : metadata
     size_ = map(length, dims)
     T = eltype(var)
@@ -315,7 +316,8 @@ NCDstack(filename::AbstractString;
     NCDstack(filename, refdims, window, metadata, childkwargs)
 # These actually return a GeoStack
 NCDstack(filenames...; kwargs...) = NCDstack(filenames; kwargs...)
-NCDstack(filenames::Union{Tuple,Vector}, keys=ncfilenamekeys(filenames); kwargs...) =
+NCDstack(filenames::Union{Tuple{AbstractString,Vararg},Vector{AbstractString}}, 
+         keys=ncfilenamekeys(filenames); kwargs...) =
     NCDstack(NamedTuple{keys}(filenames); kwargs...)
 NCDstack(files::NamedTuple;
          refdims=(),
@@ -325,7 +327,8 @@ NCDstack(files::NamedTuple;
     GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata,
              childtype=NCDarray, childkwargs)
 
-ncfilenamekeys(filenames) = cleankeys(ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames)
+ncfilenamekeys(filenames) = 
+    (ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames) |> cleankeys
 
 childtype(::NCDstack) = NCDarray
 childkwargs(stack::NCDstack) = stack.childkwargs

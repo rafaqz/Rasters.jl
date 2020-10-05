@@ -102,8 +102,9 @@ GDALarray(raster::AG.RasterDataset, filename, key=nothing;
     sze = size(raster)
     T = eltype(raster)
     N = length(sze)
+    name = Symbol(name)
     GDALarray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,sze))...
-       }(filename, dims, refdims, name, metadata, missingval, sze)
+             }(filename, dims, refdims, name, metadata, missingval, sze)
 end
 
 # AbstractGeoArray methods

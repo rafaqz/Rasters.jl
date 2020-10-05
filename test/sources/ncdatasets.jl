@@ -25,24 +25,7 @@ stackkeys = (
 )
 
 @testset "NCDarray" begin
-    ncarray = NCDarray(ncsingle; name=:data)
-
-    a = ncarray[Lat(71:170), Lon(71:170), Ti(1)] .* 1.0
-
-    newdims = Lon(LinRange(lowr[1], uppr[1], round(Int, lengths[1] * 2.3)), Sampled()), 
-              Lat(LinRange(lowr[2], uppr[2], round(Int, lengths[2] * 2.3)), Sampled())
- 
-    key = :data
-    a = rebuild(a; name=key)
-    grid = RegularGrid((10, 10), (0.0, 0.0), (10.0, 10.0))
-    data = SpatialData(RegularGrid((100, 100)), DimTable(a)) 
-    problem = EstimationProblem(data, grid, key, mapper=CopyMapper())
-    kr = Kriging(key => (degree=2, variogram=SphericalVariogram(range=2.0)))
-    sol = solve(problem, kr)
-    newA = reshape(sol[key][:mean], (10, 10))
-    heatmap(newA)
-    plot(a)
-    int = interpolate(a, kr; dims=newdims) 
+    ncarray = NCDarray(ncsingle)
 
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)
@@ -73,7 +56,7 @@ stackkeys = (
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
         @test metadata(ncarray) isa NCDarrayMetadata # TODO make this a namedtuple
-        @test name(ncarray) == "tos"
+        @test name(ncarray) == :tos
     end
 
     @testset "indexing" begin
@@ -93,7 +76,7 @@ stackkeys = (
         if !haskey(ENV, "CI") # CI downloads fail. But run locally
             ncrevlat = geturl("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
             ncrevlatarray = NCDstack(ncrevlat; childkwargs=(missingval=-9.96921f36,))[:sst]
-            @test order(dims(ncrevlatarray, Lat)) == Ordered(Reverse(), Reverse(), Forward())
+            @test order(dims(ncrevlatarray, Lat)) == Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
             @test ncrevlatarray[Lat(At(40)), Lon(At(100)), Ti(1)] == missingval(ncrevlatarray)
             @test ncrevlatarray[Lat(At(-40)), Lon(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0
             @test val(span(ncrevlatarray, Ti)) == Month(1)
@@ -112,7 +95,6 @@ stackkeys = (
         nca = ncarray[Lat(Between(-80, -25)), Lon(Between(0, 180)), 
                       Ti(Near(DateTime360Day(2002, 02, 20)))]
         @test size(nca) == (90, 55)
-        
     end
 
     @testset "conversion to GeoArray" begin
@@ -124,7 +106,7 @@ stackkeys = (
         @test refdims(geoarray) isa Tuple{<:Ti}
         @test metadata(geoarray) == metadata(ncarray)
         @test ismissing(missingval(geoarray))
-        @test name(geoarray) == "tos"
+        @test name(geoarray) == :tos
     end
 
     @testset "save" begin
@@ -270,14 +252,14 @@ end
         @test keys(saved) == keys(geostack)
         @test metadata(saved)["advection"] == "Lin & Rood"
         @test metadata(saved) == metadata(geostack)
-        @test first(values(saved)) == first(values(geostack))
+        @test all(first(values(saved)) .== first(values(geostack)))
     end
 
 end
 
 @testset "NCD series" begin
     series = GeoSeries([ncmulti, ncmulti], (Ti,); childtype=NCDstack)
-    geoarray = GeoArray(NCDarray(ncmulti, :albedo; name="test"))
+    geoarray = GeoArray(NCDarray(ncmulti, :albedo; name=:test))
     @test series[Ti(1)][:albedo] == geoarray
     @test typeof(series[Ti(1)][:albedo]) == typeof(geoarray)
     modified_series = modify(Array, series)
