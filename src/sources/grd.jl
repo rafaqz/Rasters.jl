@@ -43,9 +43,9 @@ end
 filename(grd::GRDattrib) = grd.filename
 attrib(grd::GRDattrib) = grd.attrib
 
-dims(grd::GRDattrib, usercrs=nothing) = begin
+dims(grd::GRDattrib, mappedcrs=nothing) = begin
     attrib = grd.attrib
-    crs = ProjString(attrib["projection"])
+    projectedcrs = ProjString(attrib["projection"])
 
     ncols, nrows, nbands = size(grd)
 
@@ -62,15 +62,15 @@ dims(grd::GRDattrib, usercrs=nothing) = begin
         order=Ordered(GRD_INDEX_ORDER, GRD_LAT_ARRAY, GRD_LAT_RELATION),
         span=Regular(yspan),
         sampling=Intervals(Start()),
-        crs=crs,
-        usercrs=usercrs,
+        projectedcrs=projectedcrs,
+        mappedcrs=mappedcrs,
     )
     lonmode = Projected(
         order=Ordered(GRD_INDEX_ORDER, GRD_LON_ARRAY, GRD_LON_RELATION),
         span=Regular(xspan),
         sampling=Intervals(Start()),
-        crs=crs,
-        usercrs=usercrs,
+        projectedcrs=projectedcrs,
+        mappedcrs=mappedcrs,
     )
     lat = Lat(LinRange(ybounds[1], ybounds[2] - yspan, nrows), latmode, latlon_metadata)
     lon = Lon(LinRange(xbounds[1], xbounds[2] - xspan, ncols), lonmode, latlon_metadata)
@@ -118,7 +118,7 @@ Base.Array(grd::GRDattrib) = mmapgrd(Array, grd)
 
 """
     GRDarray(filename::String;
-        usercrs=nothing,
+        mappedcrs=nothing,
         dims=(),
         refdims=(),
         name=nothing,
@@ -136,7 +136,7 @@ A [`DiskGeoArray`](@ref) that loads .grd files lazily from disk.
 
 ## Keyword Arguments
 
-- `usercrs`: CRS format like `EPSG(4326)` used in `Selectors` like `Between` and `At`, and
+- `mappedcrs`: CRS format like `EPSG(4326)` used in `Selectors` like `Between` and `At`, and
   for plotting. Can be any CRS `GeoFormat` from GeoFormatTypes.jl, like `WellKnownText`.
 - `name`: `String` name for the array, taken from the files `layername` attribute unless passed in.
 - `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
@@ -149,7 +149,7 @@ A [`DiskGeoArray`](@ref) that loads .grd files lazily from disk.
 ## Example
 
 ```julia
-A = GRDarray("folder/file.grd"; usercrs=EPSG(4326))
+A = GRDarray("folder/file.grd"; mappedcrs=EPSG(4326))
 # Select Australia using lat/lon coords, whatever the crs is underneath.
 A[Lat(Between(-10, -43), Lon(Between(113, 153)))
 ```
@@ -167,8 +167,8 @@ end
 GRDarray(filename::String; kwargs...) =
     GRDarray(GRDattrib(filename), filename; kwargs...)
 GRDarray(grd::GRDattrib, filename, key=nothing;
-         usercrs=nothing,
-         dims=dims(grd, usercrs),
+         mappedcrs=nothing,
+         dims=dims(grd, mappedcrs),
          refdims=(),
          name=name(grd),
          missingval=missingval(grd),
@@ -292,11 +292,11 @@ Convenience method to create a DiskStack of [`GRDarray`](@ref) from `filenames`.
 ## Example
 
 Create a `GRDstack` from four files, that sets the child arrays
-`usercrs` value when they are loaded.
+`mappedcrs` value when they are loaded.
 
 ```julia
 files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
-stack = GRDstack(files; childkwargs=(usercrs=EPSG(4326),))
+stack = GRDstack(files; childkwargs=(mappedcrs=EPSG(4326),))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
 """

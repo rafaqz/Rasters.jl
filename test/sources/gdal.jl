@@ -6,7 +6,7 @@ include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
 @testset "GDALarray" begin
-    gdalarray = GDALarray(path; usercrs=EPSG(4326), name=:test)
+    gdalarray = GDALarray(path; mappedcrs=EPSG(4326), name=:test)
 
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
@@ -35,11 +35,11 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @test name(gdalarray) == :test
         @test label(gdalarray) == "test"
         @test units(gdalarray) == nothing
-        @test usercrs(dims(gdalarray, Lat)) == EPSG(4326)
-        @test usercrs(dims(gdalarray, Lon)) == EPSG(4326)
-        @test usercrs(gdalarray) == EPSG(4326)
-        @test usercrs(gdalarray[Lat(1)]) == EPSG(4326)
-        @test_throws ErrorException usercrs(gdalarray[Lat(1), Lon(1)])
+        @test mappedcrs(dims(gdalarray, Lat)) == EPSG(4326)
+        @test mappedcrs(dims(gdalarray, Lon)) == EPSG(4326)
+        @test mappedcrs(gdalarray) == EPSG(4326)
+        @test mappedcrs(gdalarray[Lat(1)]) == EPSG(4326)
+        @test_throws ErrorException mappedcrs(gdalarray[Lat(1), Lon(1)])
         wkt = WellKnownText(GeoFormatTypes.CRS(), 
           "PROJCS[\"unnamed\",GEOGCS[\"NAD27\",DATUM[\"North_American_Datum_1927\",SPHEROID[\"Clarke 1866\",6378206.4,294.978698213898,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6267\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4267\"]],PROJECTION[\"Cylindrical_Equal_Area\"],PARAMETER[\"standard_parallel_1\",33.75],PARAMETER[\"central_meridian\",-117.333333333333],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]")
         @test crs(dims(gdalarray, Lat)) == wkt
@@ -82,13 +82,14 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     end
 
     @testset "save" begin
-        gdalarray = GDALarray(path; usercrs=EPSG(4326), name=:test);
+        gdalarray = GDALarray(path; usercrs=EPSG(4326));
+        gdalarray = GDALarray(path; mappedcrs=EPSG(4326), name=:test);
 
         @testset "2d" begin
             geoarray1 = gdalarray[Band(1)]
             filename = tempname() * ".tif"
             write(filename, GDALarray, geoarray1)
-            saved1 = GDALarray(filename; usercrs=EPSG(4326))[Band(1)];
+            saved1 = GDALarray(filename; mappedcrs=EPSG(4326))[Band(1)];
             @test all(saved1 .== geoarray1)
             @test typeof(saved1) == typeof(geoarray1)
             @test val(dims(saved1, Lon)) == val(dims(geoarray1, Lon))
@@ -122,7 +123,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             filename3 = tempname() * ".img"
             geoarray3 = cat(gdalarray[Band(1)], gdalarray[Band(1)], gdalarray[Band(1)]; dims=Band(1:3))
             write(filename3, GDALarray, geoarray3)
-            saved3 = GeoArray(GDALarray(filename3; usercrs=EPSG(4326)))
+            saved3 = GeoArray(GDALarray(filename3; mappedcrs=EPSG(4326)))
             @test all(saved3 .== geoarray3)
             @test val(dims(saved3, Band)) == 1:3
         end
@@ -246,10 +247,10 @@ end
 end
 
 @testset "GDAL series" begin
-    series = GeoSeries([path, path], (Ti,); childtype=GDALarray, childkwargs=(usercrs=EPSG(4326), name=:test))
-    @test GeoArray(series[Ti(1)]) == GeoArray(GDALarray(path; usercrs=EPSG(4326), name=:test))
+    series = GeoSeries([path, path], (Ti,); childtype=GDALarray, childkwargs=(mappedcrs=EPSG(4326), name=:test))
+    @test GeoArray(series[Ti(1)]) == GeoArray(GDALarray(path; mappedcrs=EPSG(4326), name=:test))
 
-    gdalstack = GDALstack((a=path, b=path); childtype=GDALarray, childkwargs=(usercrs=EPSG(4326),))
+    gdalstack = GDALstack((a=path, b=path); childtype=GDALarray, childkwargs=(mappedcrs=EPSG(4326),))
     series = GeoSeries([gdalstack, gdalstack], (Ti,))
     @test series[1].childkwargs == gdalstack.childkwargs
     # Rebuild the series by wrapping the GDALarray data in Array.

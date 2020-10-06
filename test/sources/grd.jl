@@ -33,13 +33,13 @@ path = joinpath(testpath, "data/rlogo")
         customgrdarray = GRDarray(path; name=:test, usercrs=EPSG(4326));
         @test name(customgrdarray) == :test
         @test label(customgrdarray) == "test"
-        @test usercrs(dims(customgrdarray, Lat)) == EPSG(4326)
-        @test usercrs(dims(customgrdarray, Lon)) == EPSG(4326)
-        @test usercrs(customgrdarray) == EPSG(4326)
+        @test mappedcrs(dims(customgrdarray, Lat)) == EPSG(4326)
+        @test mappedcrs(dims(customgrdarray, Lon)) == EPSG(4326)
+        @test mappedcrs(customgrdarray) == EPSG(4326)
         proj = ProjString("+proj=merc +datum=WGS84")
-        @test crs(dims(customgrdarray, Lat)) == proj
-        @test crs(dims(customgrdarray, Lon)) == proj
-        @test crs(customgrdarray) == proj
+        @test projectedcrs(dims(customgrdarray, Lat)) == proj
+        @test projectedcrs(dims(customgrdarray, Lon)) == proj
+        @test projectedcrs(customgrdarray) == proj
     end
 
     @testset "getindex" begin

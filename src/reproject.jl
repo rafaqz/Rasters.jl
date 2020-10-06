@@ -18,7 +18,7 @@ sel2indices(mode::Projected, dim::Dimension, sel::Between) = begin
 end
 
 """
-`reproject` uses ArchGDAL.reproject, but implemented for a reprojecting 
+`reproject` uses ArchGDAL.reproject, but implemented for a reprojecting
 a single dimension at a time.
 """
 reproject(source, target, dim::Dimension, val) = val
@@ -38,29 +38,40 @@ reproject(source::GeoFormat, target::GeoFormat, dim::Lat, vals::Tuple) =
     Tuple(r[2] for r in ArchGDAL.reproject([(0.0, Float64(v)) for v in vals], source, target; order=:trad))
 
 
-convertmode(dstmode::Type{Converted}, srcmode::Type{Projected}, dim::Dimension) where M = begin
+convertmode(dstmode::Type{Mapped}, srcmode::Type{Projected}, dim::Dimension) where M = begin
     m = mode(dim)
     newval = reproject(crs(m), usercrs(m), dim, val(dim))
     newbounds = reproject(crs(m), usercrs(m), dim, bounds(dim))
-    newmode = Converted(order(m), Irregular(newbounds), sampling(m), crs(m), usercrs(m))
+    newmode = Mapped(
+        order=order(m),
+        span=Irregular(newbounds),
+        sampling=sampling(m),
+        projectedcrs=crs(m),
+        mappedcrs=usercrs(m),
+    )
     rebuild(dim; val=newval, mode=newmode)
 end
-convertmode(dstmode::Type{Projected}, srcmode::Type{Converted}, dim::Dimension) where M = begin
+convertmode(dstmode::Type{Projected}, srcmode::Type{Mapped}, dim::Dimension) where M = begin
     m = mode(dim)
-    start, stop = reproject(dimcrs(m), crs(m), dim, [first(dim), last(dim)])
-    newval = LinRange(start, stop, length(dim))
-    newmode = Projected(order(m), Regular(step(newval)), sampling(m), crs(m), dimcrs(m))
+    start, stop = reproject(mappedcrs(m), projectedcrs(m), dim, [first(dim), last(dim)]) newval = LinRange(start, stop, length(dim))
+    newmode = Projected(
+        order=order(m),
+        span=Regular(step(newval)),
+        sampling=sampling(m),
+        crs=projectedcrs(m),
+        usercrs=mappedcrs(m),
+    )
     rebuild(dim; val=newval, mode=newmode)
 end
 
 
 # Add Lat/Lon methods to reproject bounds and val
-userbounds(dim::Union{Lat,Lon}) = userbounds(mode(dim), dim) 
-userbounds(::Projected, dim::Union{Lat,Lon}) = 
-    reproject(crs(dim), usercrs(dim), dim, bounds(dim)) 
+userbounds(dim::Union{Lat,Lon}) = userbounds(mode(dim), dim)
+userbounds(::Projected, dim::Union{Lat,Lon}) =
+    reproject(crs(dim), usercrs(dim), dim, bounds(dim))
 userbounds(::IndexMode, dim::Union{Lat,Lon}) = bounds(dim)
 
 userval(dim::Union{Lat,Lon}) = userval(mode(dim), dim)
-userval(::Projected, dim::Union{Lat,Lon}) = 
-    reproject(crs(dim), usercrs(dim), dim, val(dim)) 
+userval(::Projected, dim::Union{Lat,Lon}) =
+    reproject(crs(dim), usercrs(dim), dim, val(dim))
 userval(::IndexMode, dim::Union{Lat,Lon}) = val(dim)

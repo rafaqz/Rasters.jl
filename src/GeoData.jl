@@ -34,11 +34,11 @@ export AbstractGeoStack, MemGeoStack, DiskGeoStack, DiskStack, GeoStack
 
 export AbstractGeoSeries, GeoSeries
 
-export Projected, Converted
+export Projected, Mapped
 
 export missingval, boolmask, missingmask, replace_missing,
        aggregate, aggregate!, disaggregate, disaggregate!,
-       crs, usercrs, dimcrs
+       projectedcrs, mappedcrs
 
 export Lon, Lat, Vert, Band
 

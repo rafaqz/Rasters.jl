@@ -65,7 +65,7 @@ usercrs(dim::Dimension) = usercrs(mode(dim), dim)
 """
     dimcrs(x)
 
-Get the index crs projection of a [`Converted`](@ref) mode dim or 
+Get the index crs projection of a [`Mapped`](@ref) mode dim or 
 for the `Lat`/`Lon` dims of an array.
 
 This is used for NetCDF and other formats where the underlying projection 

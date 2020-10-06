@@ -233,16 +233,16 @@ dims(raster::AG.RasterDataset, usercrs=nothing) = begin
             order=Ordered(GDAL_LON_INDEX, GDAL_LON_ARRAY, GDAL_RELATION),
             span=Regular(step(lonindex)),
             sampling=lonsampling,
-            crs=sourcecrs,
-            usercrs=usercrs,
+            projectedcrs=projectedcrs,
+            mappedcrs=mappedcrs,
         )
         latmode = Projected(
             order=Ordered(GDAL_LAT_INDEX, GDAL_LAT_ARRAY, GDAL_RELATION),
             sampling=latsampling,
             # Use the range step as is will be different to latstep due to float error
             span=Regular(step(latindex)),
-            crs=sourcecrs,
-            usercrs=usercrs,
+            projectedcrs=projectedcrs,
+            mappedcrs=mappedcrs,
         )
 
         lon = Lon(lonindex; mode=lonmode, metadata=lonlat_metadata)
@@ -348,7 +348,7 @@ function gdalsetproperties!(dataset, A)
     # Get the geotransform from the updated lat/lon dims
     geotransform = dims2geotransform(lat, lon)
     # Convert projection to a string of well known text
-    proj = convert(String, convert(WellKnownText, crs(lon)))
+    proj = convert(String, convert(WellKnownText, projectedcrs(lon)))
 
     # Write projection, geotransform and data to GDAL
     AG.setproj!(dataset, proj)

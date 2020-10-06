@@ -58,7 +58,7 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
         haskey(dataset.dim, key) && continue
 
         if dim isa Lat || dim isa Lon
-            dim = convertmode(Converted, dim)
+            dim = convertmode(Mapped, dim)
         end
         index = ncshiftindex(dim)
         md = metadata(dim)
@@ -138,7 +138,7 @@ const DIMMAP = Dict("lat" => Lat,
 # Array ########################################################################
 """
     NCDarray(filename::AbstractString; name=nothing, refdims=(),
-             dims=nothing, metadata=nothing, crs=EPSG(4326), dimcrs=EPSG(4326))
+             dims=nothing, metadata=nothing, projectedcrs=EPSG(4326), mappedcrs=EPSG(4326))
 
 A [`DiskGeoArray`](@ref) that loads that loads NetCDF files lazily from disk.
 
@@ -148,7 +148,7 @@ possibly `X`, `Y`, `Z` when detected. Undetected dims will use the generic `Dim{
 
 This is an incomplete implementation of the NetCDF standard. It will currently
 handle simple files in lattitude/longitude projections, or projected formats
-if you manually specify `crs` and `dimcrs`. How this is done may also change in
+if you manually specify `projectedcrs` and `mappedcrs`. How this is done may also change in
 future, including detecting and converting the native NetCDF projection format.
 
 ## Arguments
@@ -157,8 +157,8 @@ future, including detecting and converting the native NetCDF projection format.
 
 ## Keyword arguments
 
-- `crs`: defaults to lat/lon `EPSG(4326)` but may be any `GeoFormat` like `WellKnownText`.
-  If the underlying data is in a different projection `crs` will need to be set to allow
+- `projectedcrs`: defaults to lat/lon `EPSG(4326)` but may be any `GeoFormat` like `WellKnownText`.
+  If the underlying data is in a different projection `projectedcrs` will need to be set to allow
   `write` to a different file format. In future this may be detected automatically.
 - `dimcrs`: The crs projection actually present in the Dimension index `Vector`, which
   may be different to the underlying projection. Defaults to lat/lon `EPSG(4326)` but
@@ -194,9 +194,11 @@ NCDarray(filename::AbstractString, key...; kwargs...) = begin
     isfile(filename) || error("File not found: $filename")
     ncread(dataset -> NCDarray(dataset, filename, key...; kwargs...), filename)
 end
+# Safe file-loading wrapper method. We always open the datset and close
+# it again when we are done.
 NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
-         crs=EPSG(4326),
-         dimcrs=EPSG(4326),
+         projectedcrs=EPSG(4326),
+         mappedcrs=EPSG(4326),
          name=nothing,
          dims=nothing,
          refdims=(),
@@ -206,7 +208,7 @@ NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
     keys_ = nondimkeys(dataset)
     key = (key isa Nothing || !(string(key) in keys_)) ? first(keys_) : string(key) |> Symbol
     var = dataset[string(key)]
-    dims = dims isa Nothing ? GeoData.dims(dataset, key, crs, dimcrs) : dims
+    dims = dims isa Nothing ? GeoData.dims(dataset, key, projectedcrs, mappedcrs) : dims
     name = Symbol(name isa Nothing ? key : name)
     metadata_ = metadata isa Nothing ? GeoData.metadata(var, GeoData.metadata(dataset)) : metadata
     size_ = map(length, dims)
@@ -328,8 +330,8 @@ ncfilenamekeys(filenames) =
 
 childtype(::NCDstack) = NCDarray
 childkwargs(stack::NCDstack) = stack.childkwargs
-crs(stack::NCDarray) = get(childkwargs(stack), :crs, EPSG(4326))
-dimcrs(stack::NCDarray) = get(childkwargs(stack), :dimcrs, nothing)
+projectedcrs(stack::NCDarray) = get(childkwargs(stack), :projectedcrs, EPSG(4326))
+mapped(stack::NCDarray) = get(childkwargs(stack), :mappedcrs, nothing)
 
 # AbstractGeoStack methods
 withsource(f, ::Type{NCDarray}, path::AbstractString, key=nothing) = ncread(f, path)
@@ -339,7 +341,7 @@ withsourcedata(f, ::Type{NCDarray}, path::AbstractString, key) =
 # Override the default to get the dims of the specific key,
 # and pass the crs and dimscrs from the stack
 dims(stack::NCDstack, dataset, key::Key) =
-    dims(dataset, key, crs(stack), dimcrs(stack))
+    dims(dataset, key, projectedcrs(stack), mappedcrs(stack))
 
 missingval(stack::NCDstack) = missing
 
@@ -367,7 +369,7 @@ end
 
 # DimensionalData methods for NCDatasets types ###############################
 
-dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
+dims(dataset::NCDatasets.Dataset, key::Key, projectedcrs=nothing, mappedcrs=nothing) = begin
     v = dataset[string(key)]
     dims = []
     for (i, dimname) in enumerate(NCDatasets.dimnames(v))
@@ -378,7 +380,7 @@ dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
             dimtype = haskey(DIMMAP, dimname) ? DIMMAP[dimname] : basetypeof(DD.key2dim(Symbol(dimname)))
             index = dvar[:]
             meta = NCDdimMetadata(Dict{String,Any}(dvar.attrib))
-            mode = _ncdmode(index, dimtype, crs, dimcrs, meta)
+            mode = _ncdmode(index, dimtype, projectedcrs, mappedcrs, meta)
 
             # Add the dim containing the dimension var array
             push!(dims, dimtype(index, mode, meta))
@@ -391,7 +393,7 @@ dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
     (dims...,)
 end
 
-_ncdmode(index::AbstractArray{<:Number}, dimtype, crs, dimcrs, metadata) = begin
+_ncdmode(index::AbstractArray{<:Number}, dimtype, projectedcrs, mappedcrs, metadata) = begin
     # Assume the locus is at the center of the cell if boundaries aren't provided.
     # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
     # Unless its a time dimension.
@@ -399,17 +401,17 @@ _ncdmode(index::AbstractArray{<:Number}, dimtype, crs, dimcrs, metadata) = begin
     span = _ncdspan(index, order)
     sampling = Intervals(Center())
     if dimtype in (Lat, Lon)
-        Converted(order, span, sampling, crs, dimcrs)
+        Mapped(order, span, sampling, projectedcrs, mappedcrs)
     else
         Sampled(order, span, sampling)
     end
 end
-_ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, crs, dimcrs, metadata) = begin
+_ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, projectedcrs, mappedcrs, metadata) = begin
     order = _ncdorder(index)
     span, sampling  = _get_period(index, metadata)
     Sampled(order, span, sampling)
 end
-_ncdmode(index, dimtype, crs, dimcrs, mode) = Categorical()
+_ncdmode(index, dimtype, projectedcrs, mappedcrs, mode) = Categorical()
 
 _ncdorder(index) = index[end] > index[1] ? Ordered(ForwardIndex(), ForwardArray(), ForwardRelation()) :
                                            Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())

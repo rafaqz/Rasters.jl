@@ -28,7 +28,7 @@ end
     cealonrange = LinRange(cealonstart, cealonend, 180)
     lon = Lon(cealonrange; mode=Projected(Ordered(), Regular(step(cealonrange)), 
               Intervals(Center()), projcea, proj4326))
-    convertedlon = convertmode(Converted, lon)
+    convertedlon = convertmode(Mapped, lon)
     @test all(isapprox.(bounds(convertedlon), (0.0, 180.0); atol=1e-10))
     @test val(convertedlon) ≈ 0.5:179.5
 
@@ -43,7 +43,7 @@ end
     cealatrange = LinRange(ceabounds..., 181)[1:180]
     lat = Lat(cealatrange; mode=Projected(Ordered(), Regular(step(cealatrange)), 
               Intervals(Start()), projcea, proj4326))
-    convertedlat = convertmode(Converted, lat)
+    convertedlat = convertmode(Mapped, lat)
     @test first(convertedlat) ≈ -90.0 atol=1e-5
     @test all(isapprox.(bounds(convertedlat), (-90.0, 90.0); atol=1e-5))
     @test val(lat) ≈ reproject(proj4326, projcea, Lat(), val(convertedlat))
@@ -53,7 +53,7 @@ end
     @test all(bounds(projectedlat) .≈ bounds(lat))
 
     A = DimArray(zeros(length(lon), length(lat)), (lon, lat))
-    Aconv = convertmode(Converted, A)
+    Aconv = convertmode(Mapped, A)
 
     @test dims(Aconv) == (convertedlon, convertedlat)
 end
