@@ -20,7 +20,7 @@ Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 
 [compat]
 ArchGDAL = "0.5"
-DimensionalData = "0.12"
+DimensionalData = "0.12, 0.13"
 GeoFormatTypes = "^0.2.1, 0.3"
 HDF5 = "0.13"
 Missings = "0.4"
@@ -41,7 +41,6 @@ NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
 
 [targets]
 test = ["Aqua", "ArchGDAL", "CFTime", "HDF5", "NCDatasets", "Plots", "Statistics", "Test"]
