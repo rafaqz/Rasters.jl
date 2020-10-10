@@ -24,8 +24,8 @@ using Base: tail
 using DimensionalData: Forward, Reverse, formatdims, slicedims, basetypeof,
       dims2indices, indexorder, arrayorder, relation, isrev
 
-import DimensionalData: val, data, dims, refdims, metadata, name, label, units, 
-       bounds, sel2indices, mode, order, locus, span, sampling, forwardorder, 
+import DimensionalData: val, data, dims, refdims, metadata, name, label, units,
+       bounds, sel2indices, mode, order, locus, span, sampling, forwardorder,
        rebuild, rebuildsliced, modify
 
 export Metadata, DimMetadata, ArrayMetadata, StackMetadata
@@ -65,7 +65,7 @@ include("methods.jl")
 include("mode.jl")
 include("sources/grd.jl")
 include("plotrecipes.jl")
-
+include("resample.jl")
 
 function __init__()
     @require HDF5="f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f" begin
