@@ -82,7 +82,7 @@ julia> A = NCDarray(filename)
 NCDarray (named tos) with dimensions:
  Longitude (type Lon): Float64[1.0, 3.0, …, 357.0, 359.0] (Converted: Ordered Regular Intervals)
  Latitude (type Lat): Float64[-79.5, -78.5, …, 88.5, 89.5] (Converted: Ordered Regular Intervals)
- Time (type Ti): DateTime360Day[DateTime360Day(2001-01-16T00:00:00), DateTime360Day(2001-02-16T00:00:00), …, DateTime360Day(2002-11-16T00:00:00), DateTime360Day(2002-12-16T00:00:00)] (Sampled: Ordered Irregular Intervals)
+ Time (type Ti): DateTime360Day[DateTime360Day(2001-01-16T00:00:00), DateTime360Day(2001-02-16T00:00:00), …, DateTime360Day(2002-11-16T00:00:00), DateTime360Day(2002-12-16T00:00:00)] (Sampled: Ordered Irregular Points)
 and data: 180×170×24 Array{Union{Missing, Float32},3}
 [:, :, 1]
  missing  missing     missing  …  271.437  271.445  271.459
@@ -104,7 +104,7 @@ Now plot Australia in the first month of 2001. Notice we are using lat/lon coord
 and date/time instead of regular indexes:
 
 ```julia
-julia> A[Ti(Contains(DateTime360Day(2001, 01, 17))), 
+julia> A[Ti(Near(DateTime360Day(2001, 01, 17))), 
          Lat(Between(0.0, -50.0)), 
          Lon(Between(100.0, 160.0))] |> plot
 ```
@@ -120,7 +120,7 @@ julia> mean_tos = mean(A; dims=Ti)
 GeoArray (named tos) with dimensions:
  Longitude (type Lon): Float64[1.0, 3.0, …, 357.0, 359.0] (Converted: Ordered Regular Intervals)
  Latitude (type Lat): Float64[-79.5, -78.5, …, 88.5, 89.5] (Converted: Ordered Regular Intervals)
- Time (type Ti): DateTime360Day[2001-01-16T00:00:00] (Sampled: Ordered Irregular Intervals)
+ Time (type Ti): DateTime360Day[2001-01-16T00:00:00] (Sampled: Ordered Irregular Points)
 and data: 180×170×1 Array{Union{Missing, Float32},3}
 [:, :, 1]
  missing  missing     missing     missing  …  271.434  271.443  271.454
@@ -145,7 +145,7 @@ the object doesn't have both `Lat` and `Lon` dimensions. So (as a random example
 could plot a transect of ocean surface temperature at 20 degree latitude :
 
 ```julia
-A[Lat(Contains(20.0)), Ti(1)] |> plot
+A[Lat(Near(20.0)), Ti(1)] |> plot
 ```
 
 ![Temperatures at lattitude 20-21](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/lat_20.png)
@@ -160,7 +160,7 @@ julia> aggregate(mean, A, (Ti(12), Lat(20), Lon(20))
 GeoArray (named tos) with dimensions:
  Longitude (type Lon): Float64[21.0, 61.0, …, 301.0, 341.0] (Converted: Ordered Regular Intervals)
  Latitude (type Lat): Float64[-69.5, -49.5, …, 50.5, 70.5] (Converted: Ordered Regular Intervals)
- Time (type Ti): DateTime360Day[2001-01-16T00:00:00, 2002-01-16T00:00:00] (Sampled: Ordered Irregular Intervals)
+ Time (type Ti): DateTime360Day[2001-01-16T00:00:00, 2002-01-16T00:00:00] (Sampled: Ordered Irregular Points)
 and data: 9×8×2 Array{Union{Missing, Float32},3}
 [:, :, 1]
  missing  277.139        missing     missing     missing     missing  missing  missing
