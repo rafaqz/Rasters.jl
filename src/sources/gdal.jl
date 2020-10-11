@@ -9,7 +9,7 @@ const GDAL_LAT_INDEX = ReverseIndex()
 const GDAL_BAND_INDEX = ForwardIndex()
 const GDAL_LON_ARRAY = ForwardArray()
 const GDAL_LAT_ARRAY = ReverseArray()
-const GDAL_BAND_ARRAY = ForwardIndex()
+const GDAL_BAND_ARRAY = ForwardArray()
 const GDAL_RELATION = ForwardRelation()
 
 

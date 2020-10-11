@@ -154,9 +154,9 @@ Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
 
 """
     GeoArray(A::AbstractArray{T,N}, dims::Tuple;
-             refdims=(), name="", metadata=nothing, missingval=missing)
+             refdims=(), name=Symbol(""), metadata=nothing, missingval=missing)
     GeoArray(A::AbstractArray{T,N}; 
-             dims, refdims=(), name="", metadata=nothing, missingval=missing)
+             dims, refdims=(), name=Symbol(""), metadata=nothing, missingval=missing)
     GeoArray(A::AbstractGeoArray; [data=data(A), dims=dims(A), refdims=refdims(A),
              name=name(A), metadata=metadata(A), missingval=missingval(A)]) =
 

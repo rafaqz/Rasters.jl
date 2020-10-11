@@ -30,7 +30,7 @@ The array returned from calling `boolmask` on a `AbstractGeoArray` is a
 """
 function boolmask end
 boolmask(A::AbstractGeoArray) =
-    rebuild(A; data=boolmask(A, missingval(A)), missingval=false, name="Boolean mask")
+    rebuild(A; data=boolmask(A, missingval(A)), missingval=false, name=:Bool_mask)
 boolmask(A::AbstractArray, missingval::Missing=missing) =
     (x -> !ismissing(x)).(parent(A))
 boolmask(A::AbstractArray, missingval) =
@@ -48,7 +48,7 @@ The array returned from calling `boolmask` on a `AbstractGeoArray` is a
 """
 function missingmask end
 missingmask(A::AbstractGeoArray) =
-    rebuild(A; data=missingmask(A, missingval(A)), missingval=missing, name="Missing mask")
+    rebuild(A; data=missingmask(A, missingval(A)), missingval=missing, name=:Missing_mask)
 missingmask(A::AbstractArray, missingval::Missing=missing) =
     (a -> ismissing(a) ? missing : true).(parent(A))
 missingmask(A::AbstractArray, missingval) =

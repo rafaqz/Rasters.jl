@@ -202,7 +202,7 @@ Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray) = begin
         correctedA = permutedims(A, (Lon, Lat, Band)) |>
             a -> reorder(a, GRD_INDEX_ORDER) |>
             a -> reorder(a, (Lon(GRD_LON_RELATION), Lat(GRD_LAT_RELATION), Band(GRD_BAND_RELATION)))
-        checkarrayorder(correctedA, (GRD_LON_RELATION, GRD_LAT_ARRAY, GRD_BAND_RELATION))
+        checkarrayorder(correctedA, (GRD_LON_ARRAY, GRD_LAT_ARRAY, GRD_BAND_ARRAY))
         nbands = length(val(dims(correctedA, Band)))
     else
         correctedA = permutedims(A, (Lon, Lat)) |>
