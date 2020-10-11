@@ -392,17 +392,17 @@ build_geotransform(lat, lon) = begin
     return gt
 end
 
-function GeoArray(dataset::AG.Dataset, key = nothing;
-                  usercrs = nothing,
-                  dims = dims(AG.RasterDataset(dataset), usercrs),
-                  refdims = (),
-                  name = "",
-                  metadata = metadata(AG.RasterDataset(dataset)),
-                  missingval = missingval(AG.RasterDataset(dataset)))
+function GeoArray(dataset::AG.Dataset, key=nothing;
+                  usercrs=nothing,
+                  dims=dims(AG.RasterDataset(dataset), usercrs),
+                  refdims=(),
+                  name="",
+                  metadata=metadata(AG.RasterDataset(dataset)),
+                  missingval=missingval(AG.RasterDataset(dataset)))
     GeoArray(AG.read(dataset), dims, refdims, name, metadata, missingval)
 end
 
-function unsafe_ArchGDALdataset(A::GeoArray)
+function unsafe_ArchGDALdataset(A::AbstractGeoArray)
     width = size(A, Lon)
     height = size(A, Lat)
     nbands = size(A, Band)
@@ -446,7 +446,7 @@ function unsafe_ArchGDALdataset(A::GeoArray)
     dataset
 end
 
-function AG.Dataset(f::Function, A::GeoArray)
+function AG.Dataset(f::Function, A::AbstractGeoArray)
     dataset = unsafe_ArchGDALdataset(A)
     try
         f(dataset)
