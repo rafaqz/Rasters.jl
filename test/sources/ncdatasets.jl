@@ -47,8 +47,8 @@ stackkeys = (
         @test refdims(ncarray) == ()
         # TODO detect the time span, and make it Regular
         @test mode(dims(ncarray)) == 
-            (Mapped(Ordered(), Regular(2.0), Intervals(Center()), EPSG(4326), EPSG(4326)),
-             Mapped(Ordered(), Regular(1.0), Intervals(Center()), EPSG(4326), EPSG(4326)),
+            (Mapped(Ordered(), Regular(2.0), Intervals(Center()), nothing, EPSG(4326)),
+             Mapped(Ordered(), Regular(1.0), Intervals(Center()), nothing, EPSG(4326)),
              Sampled(Ordered(), Irregular(), Points()))
         @test bounds(ncarray) == ((0.0, 360.0), (-80.0, 90.0), (DateTime360Day(2001, 1, 16), DateTime360Day(2002, 12, 16)))
     end
@@ -151,7 +151,7 @@ stackkeys = (
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write("testgrd", GRDarray, nccleaned)
             grdarray = GRDarray("testgrd");
-            @test crs(grdarray) == convert(ProjString, EPSG(4326))
+            @test projectedcrs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == (bounds(nccleaned)..., (1, 1))
             @test val(dims(grdarray, Lat)) ≈ val(dims(nccleaned, Lat)) .- 0.5
             @test val(dims(grdarray, Lon)) ≈ val(dims(nccleaned, Lon)) .- 1.0
