@@ -396,7 +396,7 @@ build_geotransform(lat, lon) = begin
     return gt
 end
 
-function GeoArray(dataset::AG.Dataset, key=nothing;
+function GeoArray(dataset::AG.Dataset;
                   usercrs=nothing,
                   dims=dims(AG.RasterDataset(dataset), usercrs),
                   refdims=(),
