@@ -138,7 +138,7 @@ const DIMMAP = Dict("lat" => Lat,
 # Array ########################################################################
 """
     NCDarray(filename::AbstractString; name=nothing, refdims=(),
-             dims=nothing, metadata=nothing, projectedcrs=EPSG(4326), mappedcrs=EPSG(4326))
+             dims=nothing, metadata=nothing, projectedcrs=nothing, mappedcrs=EPSG(4326))
 
 A [`DiskGeoArray`](@ref) that loads that loads NetCDF files lazily from disk.
 
@@ -196,8 +196,7 @@ NCDarray(filename::AbstractString, key...; kwargs...) = begin
 end
 # Safe file-loading wrapper method. We always open the datset and close
 # it again when we are done.
-NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
-         projectedcrs=EPSG(4326),
+NCDarraydataset::NCDatasets.Dataset, filename, key=nothing; projectedcrs=nothing,
          mappedcrs=EPSG(4326),
          name=nothing,
          dims=nothing,
