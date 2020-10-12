@@ -13,8 +13,6 @@ a memory-backed `GeoArray`.
 """
 abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
 
-const StandardIndices = Union{AbstractArray,Colon,Integer}
-
 # Marker singleton for lazy loaded arrays, only used for broadcasting.
 # Can be removed when DiskArrays.jl is used everywhere
 struct LazyArray{T,N} <: AbstractArray{T,N} end
@@ -24,9 +22,7 @@ struct LazyArray{T,N} <: AbstractArray{T,N} end
 """
     missingval(x)
 
-Returns the value representing missing data in the dataset
-"""
-function missingval end
+Returns the value representing missing data in the dataset """ function missingval end
 missingval(x) = missing
 missingval(A::AbstractGeoArray) = A.missingval
 
@@ -93,6 +89,8 @@ units(A::AbstractGeoArray) = getmeta(A, :units, nothing)
 # Rebuild all types of AbstractGeoArray as GeoArray
 rebuild(A::AbstractGeoArray, data, dims::Tuple, refdims, name, metadata, missingval=missingval(A)) =
     GeoArray(data, dims, refdims, name, metadata, missingval)
+rebuild(A::AbstractGeoArray; data=data(A), dims=dims(A), refdims=refdims(A), name=name(A), metadata=metadata(A), missingval=missingval(A)) =
+    GeoArray(data, dims, refdims, name, metadata, missingval)
 
 Base.parent(A::AbstractGeoArray) = data(A)
 
@@ -124,15 +122,15 @@ data(A::DiskGeoArray) = withsourcedata(Array, A)
 
 Base.size(A::DiskGeoArray) = A.size
 
-Base.getindex(A::DiskGeoArray, i1::StandardIndices, I::StandardIndices...) =
-    rebuildgetindex(A, i1, I...)
-Base.getindex(A::DiskGeoArray, i1::Integer, I::Vararg{<:Integer}) =
-    rawgetindex(A, i1, I...)
+Base.getindex(A::DiskGeoArray, i1::StandardIndices, i2::StandardIndices, I::StandardIndices...) =
+    rebuildgetindex(A, i1, i2, I...)
+Base.getindex(A::DiskGeoArray, i1::Integer, i2::Integer, I::Vararg{<:Integer}) =
+    rawgetindex(A, i1, i2, I...)
 # Linear indexing returns Array
-Base.@propagate_inbounds Base.getindex(A::DiskGeoArray{<:Any,N} where N, i::Union{Colon,AbstractArray}) =
+Base.@propagate_inbounds Base.getindex(A::DiskGeoArray, i::Union{Colon,AbstractVector{<:Integer}}) =
     rawgetindex(A, i)
 # Exempt 1D DimArrays
-Base.@propagate_inbounds Base.getindex(A::DiskGeoArray{<:Any,1}, i::Union{Colon,AbstractArray}) =
+Base.@propagate_inbounds Base.getindex(A::DiskGeoArray{<:Any,1}, i::Union{Colon,AbstractVector{<:Integer}}) =
     rebuildgetindex(A, i)
 
 rawgetindex(A, I...) =
@@ -156,9 +154,9 @@ Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
 
 """
     GeoArray(A::AbstractArray{T,N}, dims::Tuple;
-             refdims=(), name="", metadata=nothing, missingval=missing)
+             refdims=(), name=Symbol(""), metadata=nothing, missingval=missing)
     GeoArray(A::AbstractArray{T,N}; 
-             dims, refdims=(), name="", metadata=nothing, missingval=missing)
+             dims, refdims=(), name=Symbol(""), metadata=nothing, missingval=missing)
     GeoArray(A::AbstractGeoArray; [data=data(A), dims=dims(A), refdims=refdims(A),
              name=name(A), metadata=metadata(A), missingval=missingval(A)]) =
 
@@ -167,7 +165,7 @@ converted to `GeoArray` when indexed or otherwise transformed.
 
 # Keyword Arguments 
 
-- `name`: `String` name for the array.
+- `name`: `Symbol` name for the array.
 - `dims`: `Tuple` of `Dimension`s for the array.
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from, 
   defaulting to `()`.
@@ -183,7 +181,7 @@ A = GRDarray(gdalarray; name="surfacetemp")
 A[Lat(Between(-10, -43), Lon(Between(113, 153)))
 ```
 """
-struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na<:AbstractString,Me,Mi} <: MemGeoArray{T,N,D,A}
+struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na<:Symbol,Me,Mi} <: MemGeoArray{T,N,D,A}
     data::A
     dims::D
     refdims::R
@@ -191,10 +189,14 @@ struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na<:AbstractString,M
     metadata::Me
     missingval::Mi
 end
+GeoArray(A::AbstractArray, dims, refdims, name::String, metadata, missingval=missing) = begin
+    @warn "The GeoArray `name` field is now a Symbol"
+    GeoArray(A, dims, refdims, Symbol(name), metadata, missingval)
+end
 @inline GeoArray(A::AbstractArray, dims::Tuple;
-                 refdims=(), name="", metadata=nothing, missingval=missing) =
+                 refdims=(), name=Symbol(""), metadata=nothing, missingval=missing) =
     GeoArray(A, formatdims(A, dims), refdims, name, metadata, missingval)
-@inline GeoArray(A::AbstractArray; dims, refdims=(), name="", metadata=nothing, missingval=missing) =
+@inline GeoArray(A::AbstractArray; dims, refdims=(), name=Symbol(""), metadata=nothing, missingval=missing) =
     GeoArray(A, formatdims(A, dims), refdims, name, metadata, missingval)
 @inline GeoArray(A::AbstractGeoArray; data=data(A), dims=dims(A), refdims=refdims(A),
                  name=name(A), metadata=metadata(A), missingval=missingval(A)) =

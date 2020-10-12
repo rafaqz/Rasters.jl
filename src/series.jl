@@ -85,5 +85,5 @@ GeoSeries(data, dims; refdims=(), childtype, childkwargs=()) =
 @inline rebuild(A::GeoSeries, data, dims::Tuple, refdims, args...) =
     GeoSeries(data, dims, refdims, childtype(A), childkwargs(A))
 
-Base.@propagate_inbounds Base.setindex!(A::GeoSeries, x, I::Union{AbstractArray,Colon,Integer}...) =
+Base.@propagate_inbounds Base.setindex!(A::GeoSeries, x, I::StandardIndices...) =
     setindex!(data(A), x, I...)

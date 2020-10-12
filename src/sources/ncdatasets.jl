@@ -50,8 +50,7 @@ end
 
 # Add a var array to a dataset before writing it.
 ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
-    A = reorderindex(A, Forward()) |>
-        a -> reorderrelation(a, Forward())
+    A = reorder(A, ForwardIndex()) |> a -> reorder(a, ForwardRelation())
     if ismissing(missingval(A))
         # TODO default _FillValue for Int?
         fillvalue = get(metadata(A), "_FillValue", NaN)
@@ -59,7 +58,7 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     end
     # Define required dim vars
     for dim in dims(A)
-        key = lowercase(name(dim))
+        key = lowercase(string(name(dim)))
         haskey(dataset.dim, key) && continue
 
         if dim isa Lat || dim isa Lon
@@ -89,13 +88,13 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
             @warn "`missingval` $(missingval(A)) was invalid for data of type $T."
         end
     end
-    key = if name(A) == ""
+    key = if string(name(A)) == ""
         UNNAMED_NCD_KEY
     else
-        name(A)
+        string(name(A))
     end
     println("        key: \"", key, "\" of type: ", T)
-    dimnames = lowercase.(name.(dims(A)))
+    dimnames = lowercase.(string.(name.(dims(A))))
     attribvec = [attrib...]
     var = defVar(dataset, key, eltype(A), dimnames; attrib=attribvec)
 
@@ -132,6 +131,7 @@ const dimmap = Dict("lat" => Lat,
                     "longitude" => Lon,
                     "time" => Ti,
                     "lev" => Vert,
+                    "mlev" => Vert,
                     "level" => Vert,
                     "vertical" => Vert,
                     "x" => X,
@@ -167,7 +167,7 @@ future, including detecting and converting the native NetCDF projection format.
 - `dimcrs`: The crs projection actually present in the Dimension index `Vector`, which
   may be different to the underlying projection. Defaults to lat/lon `EPSG(4326)` but
   may be any crs `GeoFormat`.
-- `name`: `String` name for the array. Will use array key if not supplied.
+- `name`: `Symbol` name for the array. Will use array key if not supplied.
 - `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
 - `missingval`: Value reprsenting missing values. Detected automatically when possible, but
@@ -183,7 +183,7 @@ A = NCDarray("folder/file.ncd")
 A[Lat(Between(-10, -43), Lon(Between(113, 153)))
 ```
 """
-struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:AbstractString,Me,Mi,S,K
+struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:Symbol,Me,Mi,S,K
                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
     filename::A
     dims::D
@@ -208,10 +208,10 @@ NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
          missingval=missing,
         ) = begin
     keys_ = nondimkeys(dataset)
-    key = key isa Nothing || !(string(key) in keys_) ? first(keys_) : string(key)
-    var = dataset[key]
+    key = (key isa Nothing || !(string(key) in keys_)) ? first(keys_) : string(key) |> Symbol
+    var = dataset[string(key)]
     dims = dims isa Nothing ? GeoData.dims(dataset, key, crs, dimcrs) : dims
-    name = name isa Nothing ? string(key) : name
+    name = Symbol(name isa Nothing ? key : name)
     metadata_ = metadata isa Nothing ? GeoData.metadata(var, GeoData.metadata(dataset)) : metadata
     size_ = map(length, dims)
     T = eltype(var)
@@ -316,7 +316,8 @@ NCDstack(filename::AbstractString;
     NCDstack(filename, refdims, window, metadata, childkwargs)
 # These actually return a GeoStack
 NCDstack(filenames...; kwargs...) = NCDstack(filenames; kwargs...)
-NCDstack(filenames::Union{Tuple,Vector}, keys=ncfilenamekeys(filenames); kwargs...) =
+NCDstack(filenames::Union{Tuple{AbstractString,Vararg},Vector{AbstractString}}, 
+         keys=ncfilenamekeys(filenames); kwargs...) =
     NCDstack(NamedTuple{keys}(filenames); kwargs...)
 NCDstack(files::NamedTuple;
          refdims=(),
@@ -326,7 +327,8 @@ NCDstack(files::NamedTuple;
     GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata,
              childtype=NCDarray, childkwargs)
 
-ncfilenamekeys(filenames) = cleankeys(ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames)
+ncfilenamekeys(filenames) = 
+    (ncread(ds -> first(nondimkeys(ds)), fn) for fn in filenames) |> cleankeys
 
 childtype(::NCDstack) = NCDarray
 childkwargs(stack::NCDstack) = stack.childkwargs
@@ -413,8 +415,8 @@ _ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, crs, dimcrs, metad
 end
 _ncdmode(index, dimtype, crs, dimcrs, mode) = Categorical()
 
-_ncdorder(index) = index[end] > index[1] ? Ordered(Forward(), Forward(), Forward()) :
-                                           Ordered(Reverse(), Reverse(), Forward())
+_ncdorder(index) = index[end] > index[1] ? Ordered(ForwardIndex(), ForwardArray(), ForwardRelation()) :
+                                           Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
 
 _ncdspan(index, order) = begin
     step = index[2] - index[1]

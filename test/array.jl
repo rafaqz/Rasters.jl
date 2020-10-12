@@ -8,7 +8,7 @@ dims2 = (dims1..., Ti([DateTime(2019)]))
 refdimz = ()
 mval = -9999.0
 meta = nothing
-nme = "test"
+nme = :test
 
 # Formatting only occurs in shorthand constructors
 ga2 = GeoArray(data2, dims2)

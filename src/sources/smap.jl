@@ -113,7 +113,7 @@ Base.getindex(s::SMAPstack, key::Key, I::Union{Colon,Integer,AbstractArray}...) 
         _window = maybewindow2indices(dataset, _dims, window(s))
         _dims, _refdims = slicedims(slicedims(_dims, refdims(s), _window)..., I)
         A = readwindowed(dataset, _window, I...)
-        GeoArray(A, _dims, _refdims, string(key), metadata(s), missingval(s))
+        GeoArray(A, _dims, _refdims, Symbol(key), metadata(s), missingval(s))
     end
 
 # HDF5 uses `names` instead of `keys` so we have to special-case it
@@ -217,7 +217,7 @@ smapdims(dataset::HDF5.HDF5File) = begin
         lonvec = read(root(dataset)["cell_lon"])[:, 1]
         lonmode = Converted(Ordered(), Irregular(lonbounds),
                             Intervals(Center()), SMAPCRS, EPSG(4326))
-        latmode = Converted(Ordered(Reverse(), Reverse(), Forward()), Irregular(latbounds),
+        latmode = Converted(Ordered(ReverseIndex(), ReverseArray(), ForwardRelation()), Irregular(latbounds),
                             Intervals(Center()), SMAPCRS, EPSG(4326))
         (Lon(lonvec; mode=lonmode), Lat(latvec; mode=latmode))
     else
