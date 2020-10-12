@@ -408,11 +408,11 @@ function unsafe_ArchGDALdataset(A::AbstractGeoArray)
     nbands = size(A, Band)
 
     dataset = AG.unsafe_create("tmp",
-                               driver = AG.getdriver("MEM"),
-                               width = width,
-                               height = height,
-                               nbands = nbands,
-                               dtype = eltype(A))
+                               driver=AG.getdriver("MEM"),
+                               width=width,
+                               height=height,
+                               nbands=nbands,
+                               dtype=eltype(A))
     # write bands to dataset
     AG.write!(dataset,
               data(permutedims(A, (Lon, Lat, Band))),
