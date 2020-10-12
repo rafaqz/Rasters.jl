@@ -6,7 +6,7 @@ data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
 dims1 = Lon<|(10, 100), Lat<|(-50, 50) 
 dims2 = (dims1..., Ti([DateTime(2019)]))
 refdimz = ()
-nme = "test"
+nme = :test
 mval = -9999.0
 meta = nothing
 

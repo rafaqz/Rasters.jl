@@ -21,7 +21,7 @@ path2 = joinpath(testpath, "data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5")
         @test refdims(smaparray) isa Tuple{<:Ti}
         @test missingval(smaparray) == -9999.0
         @test smaparray[1] == -9999.0
-        @test name(smaparray) == "soil_temp_layer1"
+        @test name(smaparray) == :soil_temp_layer1
         dt = DateTime(2016, 1, 1, 22, 30)
         step_ = Hour(3)
         @test refdims(stack) ==

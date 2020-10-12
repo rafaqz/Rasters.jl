@@ -21,8 +21,8 @@ using Missings,
 const DD = DimensionalData
 
 using Base: tail
-using DimensionalData: Forward, Reverse, formatdims, slicedims, basetypeof,
-      dims2indices, indexorder, arrayorder, relation, isrev
+using DimensionalData: formatdims, slicedims, basetypeof,
+      dims2indices, indexorder, arrayorder, relation, isrev, StandardIndices
 
 import DimensionalData: val, data, dims, refdims, metadata, name, label, units,
        bounds, sel2indices, mode, order, locus, span, sampling, forwardorder,
@@ -31,7 +31,6 @@ import DimensionalData: val, data, dims, refdims, metadata, name, label, units,
 export Metadata, DimMetadata, ArrayMetadata, StackMetadata
 
 export AbstractGeoArray, MemGeoArray, DiskGeoArray, GeoArray
-
 export AbstractGeoStack, MemGeoStack, DiskGeoStack, DiskStack, GeoStack
 
 export AbstractGeoSeries, GeoSeries

@@ -2,7 +2,7 @@ abstract type AbstractProjected{O,Sp,Sa} <: AbstractSampled{O,Sp,Sa} end
 
 """
     Projected(order::Order, span, sampling, crs, usercrs)
-    Projected(; order=Ordered(), span=UnknownSpan(), sampling=Points(), crs, usercrs=nothing)
+    Projected(; order=Ordered(), span=AutoSpan(), sampling=Points(), crs, usercrs=nothing)
 
 An [`AbstractSampled`]($DDabssampleddocs) `IndexMode` with projections attached.
 
@@ -23,14 +23,14 @@ The underlying `crs` will be detected by GDAL.
 If `usercrs` is not supplied (ie. `usercrs=nothing`), the base index will be
 shown on plots, and selectors will need to use whatever format it is in.
 """
-struct Projected{O<:Order,Sp,Sa,C,IC} <: AbstractProjected{O,Sp,Sa}
+struct Projected{O<:Order,Sp<:Regular,Sa,C,IC} <: AbstractProjected{O,Sp,Sa}
     order::O
     span::Sp
     sampling::Sa
     crs::C
     usercrs::IC
 end
-Projected(; order=Ordered(), span=UnknownSpan(),
+Projected(; order=Ordered(), span=Regular(),
           sampling=Points(), crs, usercrs=nothing) =
     Projected(order, span, sampling, crs, usercrs)
 
@@ -46,7 +46,7 @@ rebuild(g::Projected, order=order(g), span=span(g),
 
 """
     Converted(order::Order, span, sampling, crs, dimcrs)
-    Converted(; order=Ordered(), span=UnknownSpan(), sampling=Points(), crs, dimcrs)
+    Converted(; order=Ordered(), span=AutoSpan(), sampling=Points(), crs, dimcrs)
 
 An [`AbstractSampled`]($DDabssampleddocs) `IndexMode` with projections, where the
 dimension index has already been converted to another projection as a vector,
@@ -56,10 +56,7 @@ Fields and behaviours are identical to [`Sampled`]($DDsampleddocs) with the addi
 `crs` and `dimcrs` fields.
 
 The dimension will be indexed as for [`Sampled`]($DDsampleddocs), but to save in another
-format the underlying projection will be used.
-
-```julia
-GDALarray(filename; usercrs=EPSG(4326))
+format the underlying projection will be used.  ```julia GDALarray(filename; usercrs=EPSG(4326))
 ```
 
 The underlying `crs` will be detected by GDAL.
@@ -74,7 +71,7 @@ struct Converted{O<:Order,Sp,Sa,C,DC} <: AbstractProjected{O,Sp,Sa}
     crs::C
     dimcrs::DC
 end
-Converted(; order=Ordered(), span=UnknownSpan(),
+Converted(; order=Ordered(), span=AutoSpan(),
           sampling=Points(), crs, dimcrs) =
     Converted(order, span, sampling, crs, dimcrs)
 
@@ -90,7 +87,7 @@ rebuild(g::Converted, order=order(g), span=span(g),
 
 """
     LatLon(order, span, sampling)
-    LatLon(; order=Ordered(), span=UnknownSpan(), sampling=Points())
+    LatLon(; order=Ordered(), span=AutoSpan(), sampling=Points())
 
 An [`AbstractSampled`]($DDabssampleddocs) mode for standard latitude/longitude dimensions.
 """
@@ -99,7 +96,7 @@ struct LatLon{O<:Order,Sp,Sa} <: AbstractSampled{O,Sp,Sa}
     span::Sp
     sampling::Sa
 end
-LatLon(; order=Ordered(), span=UnknownSpan(), sampling=Points()) =
+LatLon(; order=Ordered(), span=AutoSpan(), sampling=Points()) =
     LatLon(order, span, sampling)
 
 crs(mode::LatLon, args...) = EPSG(4326)

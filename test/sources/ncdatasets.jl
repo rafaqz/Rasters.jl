@@ -1,5 +1,5 @@
 using NCDatasets, ArchGDAL, GeoData, Test, Statistics, Dates, CFTime, Plots, GeoFormatTypes
-using GeoData: name, window, mode, span, sampling, val, Ordered, Forward, Reverse
+using GeoData: name, window, mode, span, sampling, val, Ordered
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
@@ -56,7 +56,7 @@ stackkeys = (
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
         @test metadata(ncarray) isa NCDarrayMetadata # TODO make this a namedtuple
-        @test name(ncarray) == "tos"
+        @test name(ncarray) == :tos
     end
 
     @testset "indexing" begin
@@ -76,7 +76,7 @@ stackkeys = (
         if !haskey(ENV, "CI") # CI downloads fail. But run locally
             ncrevlat = geturl("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
             ncrevlatarray = NCDstack(ncrevlat; childkwargs=(missingval=-9.96921f36,))[:sst]
-            @test order(dims(ncrevlatarray, Lat)) == Ordered(Reverse(), Reverse(), Forward())
+            @test order(dims(ncrevlatarray, Lat)) == Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
             @test ncrevlatarray[Lat(At(40)), Lon(At(100)), Ti(1)] == missingval(ncrevlatarray)
             @test ncrevlatarray[Lat(At(-40)), Lon(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0
             @test val(span(ncrevlatarray, Ti)) == Month(1)
@@ -95,7 +95,6 @@ stackkeys = (
         nca = ncarray[Lat(Between(-80, -25)), Lon(Between(0, 180)), 
                       Ti(Near(DateTime360Day(2002, 02, 20)))]
         @test size(nca) == (90, 55)
-        
     end
 
     @testset "conversion to GeoArray" begin
@@ -107,7 +106,7 @@ stackkeys = (
         @test refdims(geoarray) isa Tuple{<:Ti}
         @test metadata(geoarray) == metadata(ncarray)
         @test ismissing(missingval(geoarray))
-        @test name(geoarray) == "tos"
+        @test name(geoarray) == :tos
     end
 
     @testset "save" begin
@@ -253,14 +252,14 @@ end
         @test keys(saved) == keys(geostack)
         @test metadata(saved)["advection"] == "Lin & Rood"
         @test metadata(saved) == metadata(geostack)
-        @test first(values(saved)) == first(values(geostack))
+        @test all(first(values(saved)) .== first(values(geostack)))
     end
 
 end
 
 @testset "NCD series" begin
     series = GeoSeries([ncmulti, ncmulti], (Ti,); childtype=NCDstack)
-    geoarray = GeoArray(NCDarray(ncmulti, :albedo; name="test"))
+    geoarray = GeoArray(NCDarray(ncmulti, :albedo; name=:test))
     @test series[Ti(1)][:albedo] == geoarray
     @test typeof(series[Ti(1)][:albedo]) == typeof(geoarray)
     modified_series = modify(Array, series)
