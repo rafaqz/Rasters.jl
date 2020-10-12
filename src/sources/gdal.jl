@@ -277,9 +277,9 @@ metadata(raster::AG.RasterDataset, args...) = begin
     offset = AG.getoffset(band)
     # norvw = AG.noverview(band)
     units = AG.getunittype(band)
-    # path = first(AG.filelist(raster))
+    path = first(AG.filelist(raster))
     meta = AG.metadata(raster.ds)
-    GDALarrayMetadata(Dict("scale"=>scale, "offset"=>offset, "units"=>units))
+    GDALarrayMetadata(Dict("filepath"=>path, "scale"=>scale, "offset"=>offset, "units"=>units))
 end
 
 # metadata(raster::RasterDataset, key) = begin

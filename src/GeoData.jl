@@ -65,7 +65,6 @@ include("methods.jl")
 include("mode.jl")
 include("sources/grd.jl")
 include("plotrecipes.jl")
-include("resample.jl")
 
 function __init__()
     @require HDF5="f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f" begin
@@ -76,6 +75,7 @@ function __init__()
         include("sources/ncdatasets.jl")
     end
     @require ArchGDAL="c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3" begin
+        include("resample.jl")
         include("reproject.jl")
         include("sources/gdal.jl")
     end
