@@ -2,7 +2,7 @@ abstract type AbstractProjected{O,Sp,Sa} <: AbstractSampled{O,Sp,Sa} end
 
 """
     Projected(order::Order, span, sampling, projectedcrs, mappedcrs)
-    Projected(; order=Ordered(), span=UnknownSpan(), sampling=Points(), projectedcrs, mappedcrs=nothing)
+    Projected(; order=Ordered(), span=AutoSpan(), sampling=Points(), projectedcrs, mappedcrs=nothing)
 
 An [`AbstractSampled`]($DDabssampleddocs) `IndexMode` with projections attached.
 
@@ -23,14 +23,14 @@ The underlying `projectedcrs` will be detected by GDAL.
 If `mappedcrs` is not supplied (ie. `mappedcrs=nothing`), the base index will be
 shown on plots, and selectors will need to use whatever format it is in.
 """
-struct Projected{O<:Order,Sp<:Regular,Sa,C,IC} <: AbstractProjected{O,Sp,Sa}
+struct Projected{O<:Order,Sp<:Regular,Sa<:Sampling,PC,MC} <: AbstractProjected{O,Sp,Sa}
     order::O
     span::Sp
     sampling::Sa
     projectedcrs::PC
     mappedcrs::MC
 end
-Projected(; order=Ordered(), span=UnknownSpan(),
+Projected(; order=Ordered(), span=Regular(),
           sampling=Points(), projectedcrs, mappedcrs=nothing) =
     Projected(order, span, sampling, projectedcrs, mappedcrs)
 
@@ -46,7 +46,7 @@ rebuild(g::Projected, order=order(g), span=span(g),
 
 """
     Mapped(order::Order, span, sampling, projectedcrs, mappedcrs)
-    Mapped(; order=Ordered(), span=UnknownSpan(), sampling=Points(), projectedcrs=nothing, mappedcrs)
+    Mapped(; order=Ordered(), span=AutoSpan(), sampling=Points(), projectedcrs=nothing, mappedcrs)
 
 An [`AbstractSampled`]($DDabssampleddocs) `IndexMode`, where the dimension index has  
 been mapped to another projection, usually lat/lon or `EPSG(4326)`.
@@ -57,14 +57,14 @@ Fields and behaviours are identical to [`Sampled`]($DDsampleddocs) with the addi
 The mapped dimension index will be used as for [`Sampled`]($DDsampleddocs), 
 but to save in another format the underlying `projectioncrs` may be used.
 """
-struct Mapped{O<:Order,Sp,Sa,PC,MC} <: AbstractProjected{O,Sp,Sa}
+struct Mapped{O<:Order,Sp<:Span,Sa<:Sampling,PC,MC} <: AbstractProjected{O,Sp,Sa}
     order::O
     span::Sp
     sampling::Sa
     projectedcrs::PC
     mappedcrs::MC
 end
-Mapped(; order=Ordered(), span=UnknownSpan(), sampling=Points(), 
+Mapped(; order=Ordered(), span=AutoSpan(), sampling=Points(), 
        projectedcrs=nothing, mappedcrs) =
     Mapped(order, span, sampling, projectedcrs, mappedcrs)
 
