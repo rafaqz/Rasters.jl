@@ -4,11 +4,11 @@
 about its contents. It may be memory ([`GeoArray`](@ref)) or disk-backed
 ([`NCDarray`](@ref), [`GDALarray`](@ref), [`GRDarray`](@ref)).
 
-`AbstractGeoArray`s inherit from [`AbstractDimArray`]($DDarraydocs) 
-from DimensionalData.jl. They can be indexed as regular Julia arrays or with 
-DimensionalData.jl [`Dimension`]($DDdimdocs)s. They will plot as a heatmap in 
-Plots.jl with correct coordinates and labels, even after slicing with 
-`getindex` or `view`. `getindex` on a `AbstractGeoArray` will always return 
+`AbstractGeoArray`s inherit from [`AbstractDimArray`]($DDarraydocs)
+from DimensionalData.jl. They can be indexed as regular Julia arrays or with
+DimensionalData.jl [`Dimension`]($DDdimdocs)s. They will plot as a heatmap in
+Plots.jl with correct coordinates and labels, even after slicing with
+`getindex` or `view`. `getindex` on a `AbstractGeoArray` will always return
 a memory-backed `GeoArray`.
 """
 abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
@@ -22,65 +22,53 @@ struct LazyArray{T,N} <: AbstractArray{T,N} end
 """
     missingval(x)
 
-Returns the value representing missing data in the dataset """ function missingval end
+Returns the value representing missing data in the dataset
+"""
+function missingval end
 missingval(x) = missing
 missingval(A::AbstractGeoArray) = A.missingval
 
 """
-    crs(x)
+    projectedcrs(x)
 
-Get the crs projection of a dim or for the `Lat`/`Lon` dims of an array.
+Get the projected coordinate reference system of a `Lat` or `Lon` `Dimension`, 
+or of the `Lat`/`Lon` dims of an `AbstractGeoArray`.
+
+For [`Mapped`](@ref) mode this may be `nothing` as there may be not projected 
+coordinate reference system at all.
 """
-function crs end
-crs(A::AbstractGeoArray) =
+function projectedcrs end
+projectedcrs(A::AbstractGeoArray) =
     if hasdim(A, Lat)
-        crs(dims(A, Lat))
+        projectedcrs(dims(A, Lat))
     elseif hasdim(A, Lon)
-        crs(dims(A, Lon))
+        projectedcrs(dims(A, Lon))
     else
         error("No Lat or Lon dimension, crs not available")
     end
-crs(dim::Dimension) = crs(mode(dim), dim)
+projectedcrs(dim::Dimension) = projectedcrs(mode(dim), dim)
 
 """
-    usercrs(x)
+    mappedcrs(x)
 
-Get the user facing crs projection of a [`Projected`](@ref) mode 
-dim or for the `Lat`/`Lon` dims of an array.
+Get the mapped coordinate reference system for the `Lat`/`Lon` dims of an array.
 
-This is used to convert [`Selector`]($DDselectordocs) values form the user defined 
-projection to the underlying projection, and to show plot axes in the user projection.
+In [`Projected`](@ref) mode this is used to convert [`Selector`]($DDselectordocs)
+values form the mappedcrs defined projection to the underlying projection, and to
+show plot axes in the mapped projection.
+
+In `Mapped` mode this is the coordinate reference system of the index values.
 """
-function usercrs end
-usercrs(A::AbstractGeoArray) =
+function mappedcrs end
+mappedcrs(A::AbstractGeoArray) =
     if hasdim(A, Lat)
-        usercrs(dims(A, Lat))
+        mappedcrs(dims(A, Lat))
     elseif hasdim(A, Lon)
-        usercrs(dims(A, Lon))
+        mappedcrs(dims(A, Lon))
     else
-        error("No Lat or Lon dimension, usercrs not available")
+        error("No Lat or Lon dimension, mappedcrs not available")
     end
-usercrs(dim::Dimension) = usercrs(mode(dim), dim)
-
-"""
-    dimcrs(x)
-
-Get the index crs projection of a [`Mapped`](@ref) mode dim or 
-for the `Lat`/`Lon` dims of an array.
-
-This is used for NetCDF and other formats where the underlying projection 
-of the data may  be different to what is contained in the vector index.
-"""
-function dimcrs end
-dimcrs(A::AbstractGeoArray) =
-    if hasdim(A, Lat)
-        dimcrs(dims(A, Lat))
-    elseif hasdim(A, Lon)
-        dimcrs(dims(A, Lon))
-    else
-        error("No Lat or Lon dimension, dimcrs not available")
-    end
-dimcrs(dim::Dimension) = dimcrs(mode(dim), dim)
+mappedcrs(dim::Dimension) = mappedcrs(mode(dim), dim)
 
 # DimensionalData methods
 
@@ -112,7 +100,7 @@ filename(A::DiskGeoArray) = A.filename
 """
     data(f, A::DiskGeoArray)
 
-Run method `f` on the data source object for A, as passed by the
+Run method `f` on the data source object for `A`, as passed by the
 `withdata` method for the array. The only requirement of the
 object is that it has an `Array` method that returns the data as an array.
 """
@@ -155,7 +143,7 @@ Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
 """
     GeoArray(A::AbstractArray{T,N}, dims::Tuple;
              refdims=(), name=Symbol(""), metadata=nothing, missingval=missing)
-    GeoArray(A::AbstractArray{T,N}; 
+    GeoArray(A::AbstractArray{T,N};
              dims, refdims=(), name=Symbol(""), metadata=nothing, missingval=missing)
     GeoArray(A::AbstractGeoArray; [data=data(A), dims=dims(A), refdims=refdims(A),
              name=name(A), metadata=metadata(A), missingval=missingval(A)]) =
@@ -163,15 +151,15 @@ Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
 A generic, memory-backed spatial array type. All [`AbstractGeoArray`](@ref) are
 converted to `GeoArray` when indexed or otherwise transformed.
 
-# Keyword Arguments 
+# Keyword Arguments
 
 - `name`: `Symbol` name for the array.
 - `dims`: `Tuple` of `Dimension`s for the array.
-- `refdims`: `Tuple of` position `Dimension`s the array was sliced from, 
+- `refdims`: `Tuple of` position `Dimension`s the array was sliced from,
   defaulting to `()`.
 - `missingval`: Value reprsenting missing values, defaulting to `missing`.
   can be passed it.
-- `metadata`: [`Metadata`](@ref) object for the array, or `nothing`. 
+- `metadata`: [`Metadata`](@ref) object for the array, or `nothing`.
 
 ## Example
 
