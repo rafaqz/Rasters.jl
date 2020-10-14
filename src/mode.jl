@@ -92,10 +92,11 @@ convertmode(dstmode::Type{<:IndexMode}, dims::Tuple) =
     map(d -> convertmode(dstmode, d), dims)
 convertmode(dstmode::Type{<:IndexMode}, dim::Dimension) =
     convertmode(dstmode, basetypeof(mode(dim)), dim)
-# Regular modes pass through
+# Non-projected IndexMode modess pass through
 convertmode(dstmode::Type, srcmode::Type{<:IndexMode}, dim::Dimension) = dim
 # AbstractProjected passes through if it's the same as dstmode
 convertmode(dstmode::Type{M}, srcmode::Type{M}, dim::Dimension) where M<:AbstractProjected = dim
 # Otherwise AbstractProjected needs ArchGDAL
 convertmode(dstmode::Type, srcmode::Type{<:AbstractProjected}, dim::Dimension) =
     error("Load ArchGDAL.jl to convert projected dimensions")
+# The rest of these methods are in reprojected.jl as they need ArchGDAL
