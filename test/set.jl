@@ -5,16 +5,16 @@ using GeoData, Test
     ga = GeoArray(A, (Lat(-20:40:20), Lon(50:10:60)); missingval=missing)
 
     # Use the Projected mode, with crs
-    mode = Projected(crs=EPSG(2024))
+    mode = Projected(projectedcrs=EPSG(2024))
     ga = set(ga, Lat=mode, Lon=mode)
-    @test crs(ga) == EPSG(2024)
-    @test usercrs(ga) == nothing
+    @test projectedcrs(ga) == EPSG(2024)
+    @test mappedcrs(ga) == nothing
 
     # Set it with usercrs as well
-    mode = Projected(crs=EPSG(2024), usercrs=EPSG(4326))
+    mode = Projected(projectedcrs=EPSG(2024), mappedcrs=EPSG(4326))
     ga = set(ga, Lat=mode, Lon=mode)
-    @test crs(ga) == EPSG(2024)
-    @test usercrs(ga) == EPSG(4326)
+    @test projectedcrs(ga) == EPSG(2024)
+    @test mappedcrs(ga) == EPSG(4326)
 
     # Make them intervals
     ga = set(ga, Lat=Intervals(Start()), Lon=Intervals(Start()))
