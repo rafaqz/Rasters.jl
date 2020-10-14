@@ -3,6 +3,7 @@ using GeoFormatTypes
 using GeoData: resample
 
 @testset "resample" begin
+    mkpath("data")
     download("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif", "data/cea.tif")
 
     raster_path = "data/cea.tif"
