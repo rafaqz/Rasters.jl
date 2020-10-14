@@ -64,16 +64,16 @@ convertmode(dstmode::Type{Projected}, srcmode::Type{Mapped}, dim::Dimension) whe
     rebuild(dim; val=newval, mode=newmode)
 end
 
-_projectedrange(::Projected, dim) = LinRange(start, stop, length(dim))
+_projectedrange(::Projected, dim) = LinRange(first(dim), last(dim), length(dim))
 _projectedrange(m::Mapped, dim) = 
-    _projectedrange(sampling(m), projectedcrs(m), m, dim) 
-_projectedrange(::Regular, projectedcrs::Nothing, mode::Mapped, dim) =
-    LinRange(first(dim), laste(dim), length(dim))
-_projectedrange(::Regular, projectedcrs::GeoFormat, mode::Mapped, dim) = begin
-    start, stop = reproject(mappedcrs(m), projectedcrs(m), dim, [first(dim), last(dim)]) 
+    _projectedrange(span(m), projectedcrs(m), m, dim) 
+_projectedrange(span, projectedcrs, m::Mapped, dim) = begin
+    start, stop = reproject(mappedcrs(m), projectedcrs, dim, [first(dim), last(dim)]) 
     LinRange(start, stop, length(dim))
 end
-_projectedrange(::Irregular, projectedcrs::Nothing, mode::Mapped, dim) = 
+_projectedrange(::Regular, projectedcrs::Nothing, ::Mapped, dim) =
+    LinRange(first(dim), last(dim), length(dim))
+_projectedrange(::Irregular, projectedcrs::Nothing, ::Mapped, dim) = 
     error("Cannot convert an Mapped Irregular index to Projected when projectioncrs is nothing")
 
 # Add Lat/Lon methods to reproject bounds and val
