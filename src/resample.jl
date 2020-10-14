@@ -19,7 +19,7 @@ export resample
 function resample(A::AbstractGeoArray, resolution::Number;
 				  crs::GeoFormat=crs(A),
                   method::String="near")
-    wkt = convert(String, convert(WellKnownText, proj))
+    wkt = convert(String, convert(WellKnownText, crs))
 
     AG.Dataset(A) do dataset
         AG.gdalwarp([dataset], ["-t_srs", "$(wkt)",

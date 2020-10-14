@@ -96,7 +96,7 @@ GDALarray(raster::AG.RasterDataset, filename, key=nothing;
           usercrs=nothing,
           dims=dims(raster, usercrs),
           refdims=(),
-          name=Symbol(""), 
+          name=Symbol(""),
           metadata=metadata(raster),
           missingval=missingval(raster)) = begin
     sze = size(raster)
@@ -432,8 +432,8 @@ function unsafe_ArchGDALdataset(A::AbstractGeoArray)
     lon, lat = map(dims(A, (Lon(), Lat()))) do d
         convertmode(Projected, d)
     end
-    @assert indexorder(lat) == GDAL_LAT_ORDER
-    @assert indexorder(lon) == GDAL_LON_ORDER
+    @assert indexorder(lat) == GDAL_LAT_INDEX
+    @assert indexorder(lon) == GDAL_LON_INDEX
     lonindex, latindex = map((lon, lat)) do d
         val(shiftindexloci(Start(), d))
     end
