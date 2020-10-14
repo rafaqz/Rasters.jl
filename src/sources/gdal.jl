@@ -37,15 +37,15 @@ end
 # Array ########################################################################
 
 """
-    GDALarray(filename; 
-              usercrs=nothing, 
-              name="", 
-              dims=nothing, 
-              refdims=(), 
-              metadata=nothing, 
+    GDALarray(filename;
+              usercrs=nothing,
+              name="",
+              dims=nothing,
+              refdims=(),
+              metadata=nothing,
               missingval=nothing)
 
-Load a file lazily using gdal. `GDALarray` will be converted to [`GeoArray`](@ref) 
+Load a file lazily using gdal. `GDALarray` will be converted to [`GeoArray`](@ref)
 after indexing or other manipulations. `GeoArray(GDALarray(filename))` will do this
 immediately.
 
@@ -58,12 +58,12 @@ immediately.
 
 ## Keyword arguments
 
-- `usercrs`: CRS format like `EPSG(4326)` used in `Selectors` like `Between` and `At`, and 
+- `usercrs`: CRS format like `EPSG(4326)` used in `Selectors` like `Between` and `At`, and
   for plotting. Can be any CRS `GeoFormat` from GeoFormatTypes.jl, like `WellKnownText`.
 - `name`: `Symbol` name for the array.
 - `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
-- `missingval`: Value reprsenting missing values. Detected automatically when possible, but 
+- `missingval`: Value reprsenting missing values. Detected automatically when possible, but
   can be passed it.
 - `metadata`: [`Metadata`](@ref) object for the array. Detected automatically as
   [`GDALarrayMetadata`](@ref), but can be passed in.
@@ -89,15 +89,15 @@ end
 GDALarray(filename::AbstractString; kwargs...) = begin
     isfile(filename) || error("file not found: $filename")
     gdalread(filename) do raster
-        GDALarray(raster, filename; kwargs...) 
+        GDALarray(raster, filename; kwargs...)
     end
 end
-GDALarray(raster::AG.RasterDataset, filename, key=nothing; 
-          usercrs=nothing, 
-          dims=dims(raster, usercrs), 
+GDALarray(raster::AG.RasterDataset, filename, key=nothing;
+          usercrs=nothing,
+          dims=dims(raster, usercrs),
           refdims=(),
-          name=Symbol(""), 
-          metadata=metadata(raster), 
+          name=Symbol(""),
+          metadata=metadata(raster),
           missingval=missingval(raster)) = begin
     sze = size(raster)
     T = eltype(raster)
@@ -151,9 +151,9 @@ end
 """
     GDALstack(filenames; keys, kwargs...)
     GDALstack(filenames...; keys, kwargs...)
-    GDALstack(filenames::NamedTuple; 
-              window=(), 
-              metadata=nothing, 
+    GDALstack(filenames::NamedTuple;
+              window=(),
+              metadata=nothing,
               childkwargs=(),
               refdims=())
 
@@ -163,13 +163,13 @@ Load a stack of files lazily from disk.
 
 ## Arguments
 
-- `filenames`: A NamedTuple of stack keys and `String` filenames, or a `Tuple`, 
+- `filenames`: A NamedTuple of stack keys and `String` filenames, or a `Tuple`,
   `Vector` or splatted arguments of `String` filenames.
 
 ## Keyword arguments
 
 - `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
-- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the 
+- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
   contained arrays when they are accessed.
 - `metadata`: Metadata as a [`StackMetadata`](@ref) object.
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
@@ -394,4 +394,67 @@ build_geotransform(lat, lon) = begin
     gt[GDAL_ROT2] = 0.0
     gt[GDAL_NS_RES] = step(lat)
     return gt
+end
+
+function GeoArray(dataset::AG.Dataset;
+                  usercrs=nothing,
+                  dims=dims(AG.RasterDataset(dataset), usercrs),
+                  refdims=(),
+                  name=Symbol(""),
+                  metadata=metadata(AG.RasterDataset(dataset)),
+                  missingval=missingval(AG.RasterDataset(dataset)))
+    GeoArray(AG.read(dataset), dims, refdims, name, metadata, missingval)
+end
+
+function unsafe_ArchGDALdataset(A::AbstractGeoArray)
+    width = size(A, Lon)
+    height = size(A, Lat)
+    nbands = size(A, Band)
+
+    dataset = AG.unsafe_create("tmp",
+                               driver=AG.getdriver("MEM"),
+                               width=width,
+                               height=height,
+                               nbands=nbands,
+                               dtype=eltype(A))
+    # write bands to dataset
+    AG.write!(dataset,
+              data(permutedims(A, (Lon, Lat, Band))),
+              Cint[1:nbands...])
+
+    # set crs
+    wkt = convert(String, convert(WellKnownText, crs(A)))
+    AG.setproj!(dataset, wkt)
+
+    # set geotransform
+    # Set the index loci to the start of the cell for the lat and lon dimensions.
+    # NetCDF or other formats use the center of the interval, so they need conversion.
+    lon, lat = map(dims(A, (Lon(), Lat()))) do d
+        convertmode(Projected, d)
+    end
+    @assert indexorder(lat) == GDAL_LAT_INDEX
+    @assert indexorder(lon) == GDAL_LON_INDEX
+    lonindex, latindex = map((lon, lat)) do d
+        val(shiftindexloci(Start(), d))
+    end
+    # Get the geotransform from the updated lat/lon dims
+    geotransform = build_geotransform(latindex, lonindex)
+    AG.setgeotransform!(dataset, geotransform)
+
+    # Set the nodata value
+    miss_val = missingval(A)
+    for i in dims(A, Band).val
+        AG.setnodatavalue!(AG.getband(dataset, i), miss_val)
+    end
+
+    dataset
+end
+
+function AG.Dataset(f::Function, A::AbstractGeoArray)
+    dataset = unsafe_ArchGDALdataset(A)
+    try
+        f(dataset)
+    finally
+        AG.destroy(dataset)
+    end
 end
