@@ -2,8 +2,6 @@ using .ArchGDAL
 
 const AG = ArchGDAL
 
-export GDALarray, GDALstack, GDALarrayMetadata, GDALdimMetadata
-
 const GDAL_LON_INDEX = ForwardIndex()
 const GDAL_LAT_INDEX = ReverseIndex()
 const GDAL_BAND_INDEX = ForwardIndex()
@@ -11,7 +9,10 @@ const GDAL_LON_ARRAY = ForwardArray()
 const GDAL_LAT_ARRAY = ReverseArray()
 const GDAL_BAND_ARRAY = ForwardArray()
 const GDAL_RELATION = ForwardRelation()
+const GDAL_LON_LOCUS = Start()
+const GDAL_LAT_LOCUS = Start()
 
+export GDALarray, GDALstack, GDALarrayMetadata, GDALdimMetadata
 
 # Metadata ########################################################################
 
@@ -198,11 +199,7 @@ withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) =
 
 dims(raster::AG.RasterDataset, usercrs=nothing) = begin
     gt = try
-        AG.getgeotransform(raster)
-    catch
-        GDAL_EMPTY_TRANSFORM
-    end
-
+        AG.getgeotransform(raster) catch GDAL_EMPTY_TRANSFORM end
     lonsize, latsize = size(raster)
 
     nbands = AG.nraster(raster)
@@ -216,45 +213,45 @@ dims(raster::AG.RasterDataset, usercrs=nothing) = begin
     if isalligned(gt)
         lonstep = gt[GDAL_WE_RES]
         lonmin = gt[GDAL_TOPLEFT_X]
-        lonmax = lonmin + lonstep * (lonsize - 1)
-        lonrange = LinRange(lonmin, lonmax, lonsize)
+        lonmax = gt[GDAL_TOPLEFT_X] + lonstep * (lonsize - 1)
+        lonindex = LinRange(lonmin, lonmax, lonsize)
 
-        latstep = gt[GDAL_NS_RES]
-        latmax = gt[GDAL_TOPLEFT_Y]
-        latmin = latmax + latstep * (latsize - 1)
-        latrange = LinRange(latmax, latmin, latsize)
+        latstep = gt[GDAL_NS_RES] # A negative number
+        latmax = gt[GDAL_TOPLEFT_Y] + latstep
+        latmin = gt[GDAL_TOPLEFT_Y] + latstep * latsize
+        latindex = LinRange(latmax, latmin, latsize)
 
         # Spatial data defaults to area/inteval
-        sampling = if gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
-            Points()
+        lonsampling, latsampling = if gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
+            Points(), Points
         else
             # GeoTiff uses the "pixelCorner" convention
-            Intervals(Start())
+            Intervals(GDAL_LON_LOCUS), Intervals(GDAL_LAT_LOCUS)
         end
 
-        latmode = Projected(
-            order=Ordered(GDAL_LAT_INDEX, GDAL_LAT_ARRAY, GDAL_RELATION),
-            sampling=sampling,
-            # Use the range step as is will be different to latstep due to float error
-            span=Regular(step(latrange)),
+        lonmode = Projected(
+            order=Ordered(GDAL_LON_INDEX, GDAL_LON_ARRAY, GDAL_RELATION),
+            span=Regular(step(lonindex)),
+            sampling=lonsampling,
             crs=sourcecrs,
             usercrs=usercrs,
         )
-        lonmode = Projected(
-            order=Ordered(GDAL_LON_INDEX, GDAL_LON_ARRAY, GDAL_RELATION),
-            span=Regular(step(lonrange)),
-            sampling=sampling,
+        latmode = Projected(
+            order=Ordered(GDAL_LAT_INDEX, GDAL_LAT_ARRAY, GDAL_RELATION),
+            sampling=latsampling,
+            # Use the range step as is will be different to latstep due to float error
+            span=Regular(step(latindex)),
             crs=sourcecrs,
             usercrs=usercrs,
         )
 
-        lon = Lon(lonrange; mode=lonmode, metadata=lonlat_metadata)
-        lat = Lat(latrange; mode=latmode, metadata=lonlat_metadata)
+        lon = Lon(lonindex; mode=lonmode, metadata=lonlat_metadata)
+        lat = Lat(latindex; mode=latmode, metadata=lonlat_metadata)
 
         DimensionalData._formatdims(map(Base.OneTo, (lonsize, latsize, nbands)), (lon, lat, band))
     else
         error("Rotated/transformed dimensions are not handled yet. Open a github issue for GeoData.jl if you need this.")
-        # affinemap = geotransform_to_affine(geotransform)
+        # affinemap = geotransform2affine(geotransform)
         # x = X(affinemap; mode=TransformedIndex(dims=Lon()))
         # y = Y(affinemap; mode=TransformedIndex(dims=Lat()))
 
@@ -330,30 +327,87 @@ gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tile
         dtype=eltype(A),
         options=options,
     ) do dataset
-        # Convert the dimensions to `Projected` if they are `Converted`
-        # This allows saving NetCDF to Tiff
-        lon, lat = map(dims(A, (Lon(), Lat()))) do d
-            convertmode(Projected, d)
-        end
-        @assert indexorder(lat) == GDAL_LAT_INDEX
-        @assert indexorder(lon) == GDAL_LON_INDEX
-        # Set the index loci to the start of the cell for the lat and lon dimensions.
-        # NetCDF or other formats use the center of the interval, so they need conversion.
-        lonindex, latindex = map((lon, lat)) do d
-            val(shiftindexloci(Start(), d))
-        end
-        # Get the geotransform from the updated lat/lon dims
-        geotransform = build_geotransform(latindex, lonindex)
-        # Convert projection to a string of well known text
-        proj = convert(String, convert(WellKnownText, crs(lon)))
-
-        # Write projection, geotransform and data to GDAL
-        AG.setproj!(dataset, proj)
-        AG.setgeotransform!(dataset, geotransform)
+        gdalsetproperties!(dataset, A)
         AG.write!(dataset, data(A), indices)
     end
     return filename
 end
+
+function gdalsetproperties!(dataset, A)
+    # Convert the dimensions to `Projected` if they are `Converted`
+    # This allows saving NetCDF to Tiff
+    lon, lat = map(dims(A, (Lon(), Lat()))) do d
+        convertmode(Projected, d)
+    end
+    @assert indexorder(lat) == GDAL_LAT_INDEX
+    @assert indexorder(lon) == GDAL_LON_INDEX
+    # Set the index loci to the start of the cell for the lat and lon dimensions.
+    # NetCDF or other formats use the center of the interval, so they need conversion.
+    lon = shiftindexloci(GDAL_LON_LOCUS, lon)
+    lat = shiftindexloci(GDAL_LAT_LOCUS, lat)
+    # Get the geotransform from the updated lat/lon dims
+    geotransform = dims2geotransform(lat, lon)
+    # Convert projection to a string of well known text
+    proj = convert(String, convert(WellKnownText, crs(lon)))
+
+    # Write projection, geotransform and data to GDAL
+    AG.setproj!(dataset, proj)
+    AG.setgeotransform!(dataset, geotransform)
+
+    # Set the nodata value
+    bands = if hasdim(A, Band)
+        index(A, Band)
+    else
+        1
+    end
+    for i in bands
+        AG.setnodatavalue!(AG.getband(dataset, i), missingval(A))
+    end
+
+    dataset
+end
+
+
+# Create a GeoArray from a memory-backed dataset
+function GeoArray(dataset::AG.Dataset;
+                  usercrs=nothing,
+                  dims=dims(AG.RasterDataset(dataset), usercrs),
+                  refdims=(),
+                  name=Symbol(""),
+                  metadata=metadata(AG.RasterDataset(dataset)),
+                  missingval=missingval(AG.RasterDataset(dataset)))
+    GeoArray(AG.read(dataset), dims, refdims, name, metadata, missingval)
+end
+
+# Create a memory-backed GDAL dataset from any AbstractGeoArray
+function unsafe_ArchGDALdataset(A::AbstractGeoArray)
+    width = size(A, Lon)
+    height = size(A, Lat)
+    nbands = size(A, Band)
+
+    dataset = AG.unsafe_create("tmp",
+                               driver=AG.getdriver("MEM"),
+                               width=width,
+                               height=height,
+                               nbands=nbands,
+                               dtype=eltype(A))
+    # write bands to dataset
+    AG.write!(dataset,
+              data(permutedims(A, (Lon, Lat, Band))),
+              Cint[1:nbands...])
+    gdalsetproperties!(dataset, A)
+    dataset
+end
+
+function AG.Dataset(f::Function, A::AbstractGeoArray)
+    dataset = unsafe_ArchGDALdataset(A)
+    try
+        f(dataset)
+    finally
+        AG.destroy(dataset)
+    end
+end
+
 
 #= Geotranforms ########################################################################
 
@@ -380,81 +434,17 @@ const GDAL_NS_RES = 6
 isalligned(geotransform) =
     geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
 
-geotransform_to_affine(gt) = begin
+geotransform2affine(gt) =
     AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]],
               [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
-end
 
-build_geotransform(lat, lon) = begin
+function dims2geotransform(lat::Lat, lon::Lon)
     gt = zeros(6)
     gt[GDAL_TOPLEFT_X] = first(lon)
     gt[GDAL_WE_RES] = step(lon)
     gt[GDAL_ROT1] = 0.0
-    gt[GDAL_TOPLEFT_Y] = first(lat)
+    gt[GDAL_TOPLEFT_Y] = first(lat) - step(lat)
     gt[GDAL_ROT2] = 0.0
     gt[GDAL_NS_RES] = step(lat)
     return gt
-end
-
-function GeoArray(dataset::AG.Dataset;
-                  usercrs=nothing,
-                  dims=dims(AG.RasterDataset(dataset), usercrs),
-                  refdims=(),
-                  name=Symbol(""),
-                  metadata=metadata(AG.RasterDataset(dataset)),
-                  missingval=missingval(AG.RasterDataset(dataset)))
-    GeoArray(AG.read(dataset), dims, refdims, name, metadata, missingval)
-end
-
-function unsafe_ArchGDALdataset(A::AbstractGeoArray)
-    width = size(A, Lon)
-    height = size(A, Lat)
-    nbands = size(A, Band)
-
-    dataset = AG.unsafe_create("tmp",
-                               driver=AG.getdriver("MEM"),
-                               width=width,
-                               height=height,
-                               nbands=nbands,
-                               dtype=eltype(A))
-    # write bands to dataset
-    AG.write!(dataset,
-              data(permutedims(A, (Lon, Lat, Band))),
-              Cint[1:nbands...])
-
-    # set crs
-    wkt = convert(String, convert(WellKnownText, crs(A)))
-    AG.setproj!(dataset, wkt)
-
-    # set geotransform
-    # Set the index loci to the start of the cell for the lat and lon dimensions.
-    # NetCDF or other formats use the center of the interval, so they need conversion.
-    lon, lat = map(dims(A, (Lon(), Lat()))) do d
-        convertmode(Projected, d)
-    end
-    @assert indexorder(lat) == GDAL_LAT_INDEX
-    @assert indexorder(lon) == GDAL_LON_INDEX
-    lonindex, latindex = map((lon, lat)) do d
-        val(shiftindexloci(Start(), d))
-    end
-    # Get the geotransform from the updated lat/lon dims
-    geotransform = build_geotransform(latindex, lonindex)
-    AG.setgeotransform!(dataset, geotransform)
-
-    # Set the nodata value
-    miss_val = missingval(A)
-    for i in dims(A, Band).val
-        AG.setnodatavalue!(AG.getband(dataset, i), miss_val)
-    end
-
-    dataset
-end
-
-function AG.Dataset(f::Function, A::AbstractGeoArray)
-    dataset = unsafe_ArchGDALdataset(A)
-    try
-        f(dataset)
-    finally
-        AG.destroy(dataset)
-    end
 end
