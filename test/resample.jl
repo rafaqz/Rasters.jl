@@ -1,12 +1,11 @@
-using GeoData, Test, ArchGDAL
-using GeoFormatTypes
+using GeoData, Test, ArchGDAL, GeoFormatTypes
 using GeoData: resample
 
-@testset "resample" begin
-    mkpath("data")
-    download("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif", "data/cea.tif")
+include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
-    raster_path = "data/cea.tif"
+@testset "resample" begin
+    raster_path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
+
     output_res = 0.0027
     output_crs = EPSG(4326)
     resample_method = "near"
@@ -27,5 +26,13 @@ using GeoData: resample
 
     ## Compare the two
     @test AG_output == GD_output.data[:, :, 1]
-    @test abs(step(dims(GD_output)[1])) ≈ abs(step(dims(GD_output)[2])) ≈ output_res
+    @test abs(step(dims(GD_output, Lat))) ≈ abs(step(dims(GD_output, Lon))) ≈ output_res
+
+    @testset "snapped size and dim index match" begin
+        snaptarget = GD_output
+        snapped = resample(cea, snaptarget)
+        @test size(snapped) == size(snaptarget)
+        @test isapprox(index(snaptarget, Lat), index(snapped, Lat))
+        @test isapprox(index(snaptarget, Lon), index(snapped, Lon))
+    end
 end

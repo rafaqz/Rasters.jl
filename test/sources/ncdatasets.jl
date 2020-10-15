@@ -3,8 +3,8 @@ using GeoData: name, window, mode, span, sampling, val, Ordered
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
-ncsingle = geturl(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
-ncmulti = geturl(joinpath(ncexamples, "test_echam_spectral.nc"))
+ncsingle = maybedownload(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
+ncmulti = maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
 
 stackkeys = (
     :abso4, :aclcac, :aclcov, :ahfcon, :ahfice, :ahfl, :ahfliac, :ahfllac,
@@ -74,7 +74,7 @@ stackkeys = (
 
     @testset "indexing with reverse lat" begin
         if !haskey(ENV, "CI") # CI downloads fail. But run locally
-            ncrevlat = geturl("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
+            ncrevlat = maybedownload("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
             ncrevlatarray = NCDstack(ncrevlat; childkwargs=(missingval=-9.96921f36,))[:sst]
             @test order(dims(ncrevlatarray, Lat)) == Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
             @test ncrevlatarray[Lat(At(40)), Lon(At(100)), Ti(1)] == missingval(ncrevlatarray)

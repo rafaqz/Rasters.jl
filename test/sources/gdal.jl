@@ -3,21 +3,17 @@ using GeoData: window, mode, span, sampling, name, dims2indices
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
-path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
+path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
 @testset "GDALarray" begin
     gdalarray = GDALarray(path; usercrs=EPSG(4326), name=:test)
     cat(gdalarray, gdalarray; dims=Band)
     replace(GeoArray(gdalarray), -9999 => 0)
 
-
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
         @test gdalarray isa GDALarray{UInt8,3}
     end
-
-    coord = first.(bounds(dims(gdalarray, (Lon, Lat))))
-    ArchGDAL.reproject([20, 20], EPSG(4326), ProjString("+proj=cea"); order=:trad)
 
     @testset "dimensions" begin
         @test length(val(dims(dims(gdalarray), Lon))) == 514
@@ -29,9 +25,9 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test sampling.(mode.(dims(gdalarray, (Lat, Lon)))) == 
             (Intervals(Start()), Intervals(Start()))
         @test refdims(gdalarray) == ()
-        @test bounds(gdalarray) == ((-28493.166784412522, 2358.2116249490587), 
-                                    (4.22503316539283e6, 4.255944565939175e6), 
-                                    (1, 1))
+        # Bounds calculated in python using rasterio
+        @test all(bounds(gdalarray, Lat) .≈ (4224973.143255847, 4255884.5438021915))
+        @test all(bounds(gdalarray, Lon) .≈ (-28493.166784412522, 2358.211624949061))
     end
 
     @testset "other fields" begin
@@ -61,7 +57,8 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
         @test gdalarray[Lon(1), Band(1)] isa GeoArray{UInt8,1}
         @test gdalarray[Lon(1), Lat(1), Band(1)] isa UInt8 
         @test gdalarray[1, 1, 1] isa UInt8
-        @test gdalarray[Lat(Contains(33.92)), Lon(Contains(-117.56)), Band(1)] == parent(gdalarray)[125, 45, 1] == 0xbd
+        # Value indexed in python with rasterio
+        @test gdalarray[Lat(21), Lon(21), Band(1)] == 82 
     end
 
     @testset "methods" begin 
@@ -87,15 +84,14 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
     end
 
     @testset "save" begin
-        gdalarray = GDALarray(path; usercrs=EPSG(4326));
+        gdalarray = GDALarray(path; usercrs=EPSG(4326), name=:test);
 
         @testset "2d" begin
             geoarray1 = gdalarray[Band(1)]
             filename = tempname() * ".tif"
             write(filename, GDALarray, geoarray1)
             saved1 = GDALarray(filename; usercrs=EPSG(4326))[Band(1)];
-            dims(saved1)
-            @test saved1 == geoarray1
+            @test all(saved1 .== geoarray1)
             @test typeof(saved1) == typeof(geoarray1)
             @test val(dims(saved1, Lon)) == val(dims(geoarray1, Lon))
             @test val(dims(saved1, Lat)) == val(dims(geoarray1, Lat))
@@ -109,7 +105,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
                                   Lon(Between(-117.6, -117.4))]
             filename2 = tempname() * ".img"
             write(filename2, GDALarray, geoarray2)
-            saved2 = GeoArray(GDALarray(filename2; usercrs=EPSG(4326)))
+            saved2 = GeoArray(GDALarray(filename2; name=:test, usercrs=EPSG(4326)))
             @test size(saved2) == size(geoarray2) == length.(dims(saved2)) == length.(dims(geoarray2))
             @test refdims(saved2) == refdims(geoarray2)
             #TODO test a file with more metadata
@@ -158,7 +154,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
             saved = GeoArray(NCDarray(filename2))
             @test size(saved) == size(gdalarray[Band(1)])
             @test saved ≈ reverse(gdalarray[Band(1)]; dims=Lat)
-            @test_broken val(dims(saved, Lon)) ≈ val(dims(gdalarray, Lon)) .+ 0.5step(dims(saved, Lon))
+            @test_broken index(saved, Lon) ≈ userval(dims(gdalarray, Lon)) .+ 0.5step(dims(saved, Lon))
             @test_broken val(dims(saved, Lat)) ≈ reverse(val(dims(gdalarray, Lat))) .+ 0.5step(dims(saved, Lat))
             @test_broken all(map(isapprox, bounds(saved, Lon), bounds(gdalarray, Lon)))
             @test_broken all(map(isapprox, bounds(saved, Lat), bounds(gdalarray, Lat)))
@@ -166,8 +162,7 @@ path = geturl("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
     end
 
-    @testset "plot" begin
-        # TODO write some tests for this
+    @testset "plot" begin # TODO write some tests for this
         gdalarray |> plot
     end
 
@@ -225,7 +220,7 @@ end
             copy!(geoarray, gdalstack, :a)
             # First wrap with GeoArray() here or == loads from disk for each cell.
             # we need a general way of avoiding this in all disk-based sources
-            @test geoarray == GeoArray(gdalstack[:a])
+            @test all(geoarray .== GeoArray(gdalstack[:a]))
         end
     end
 
@@ -236,7 +231,7 @@ end
         base, ext = splitext(filename)
         filename_b = string(base, "_b", ext)
         saved = GeoArray(GDALarray(filename_b))
-        @test saved == geoarray
+        @test all(saved .== geoarray)
     end
 
 end

@@ -3,8 +3,8 @@ using GeoData: name, mode, window, DiskStack
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
 
-geturl("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd", "rlogo.grd")
-geturl("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri", "rlogo.gri")
+maybedownload("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd", "rlogo.grd")
+maybedownload("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri", "rlogo.gri")
 path = joinpath(testpath, "data/rlogo")
 @test isfile(path * ".grd")
 @test isfile(path * ".gri")

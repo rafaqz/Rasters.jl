@@ -1,5 +1,5 @@
 # Loader for external sources
-geturl(url, filename=splitdir(url)[2]) = begin
+maybedownload(url, filename=splitdir(url)[2]) = begin
     dirpath = joinpath(dirname(pathof(GeoData)), "../test/data")
     mkpath(dirpath)
     filepath = joinpath(dirpath, filename) 
