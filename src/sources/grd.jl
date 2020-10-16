@@ -43,9 +43,9 @@ end
 filename(grd::GRDattrib) = grd.filename
 attrib(grd::GRDattrib) = grd.attrib
 
-dims(grd::GRDattrib, projectedcrs=nothing, mappedcrs=nothing) = begin
+dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing) = begin
     attrib = grd.attrib
-    projectedcrs = projectedcrs isa Nothing ? ProjString(attrib["projection"]) : projectedcrs
+    crs = crs isa Nothing ? ProjString(attrib["projection"]) : crs
 
     ncols, nrows, nbands = size(grd)
 
@@ -62,14 +62,14 @@ dims(grd::GRDattrib, projectedcrs=nothing, mappedcrs=nothing) = begin
         order=Ordered(GRD_INDEX_ORDER, GRD_LAT_ARRAY, GRD_LAT_RELATION),
         span=Regular(yspan),
         sampling=Intervals(Start()),
-        projectedcrs=projectedcrs,
+        crs=crs,
         mappedcrs=mappedcrs,
     )
     lonmode = Projected(
         order=Ordered(GRD_INDEX_ORDER, GRD_LON_ARRAY, GRD_LON_RELATION),
         span=Regular(xspan),
         sampling=Intervals(Start()),
-        projectedcrs=projectedcrs,
+        crs=crs,
         mappedcrs=mappedcrs,
     )
     lat = Lat(LinRange(ybounds[1], ybounds[2] - yspan, nrows), latmode, latlon_metadata)
@@ -167,9 +167,9 @@ end
 GRDarray(filename::String; kwargs...) =
     GRDarray(GRDattrib(filename), filename; kwargs...)
 GRDarray(grd::GRDattrib, filename, key=nothing;
-         projectedcrs=nothing,
+         crs=nothing,
          mappedcrs=nothing,
-         dims=dims(grd, projectedcrs, mappedcrs),
+         dims=dims(grd, crs, mappedcrs),
          refdims=(),
          name=name(grd),
          missingval=missingval(grd),
@@ -221,7 +221,7 @@ Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray) = begin
     ncols, nrows = size(A)
     xmin, xmax = bounds(lon)
     ymin, ymax = bounds(lat)
-    proj = convert(String, convert(ProjString, projectedcrs(lon)))
+    proj = convert(String, convert(ProjString, crs(lon)))
     datatype = rev_grd_datatype_translation[eltype(A)]
     nodatavalue = missingval(A)
     minvalue = minimum(filter(x -> x !== missingval(A), data(A)))

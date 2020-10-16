@@ -42,11 +42,11 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @test_throws ErrorException mappedcrs(gdalarray[Lat(1), Lon(1)])
         wkt = WellKnownText(GeoFormatTypes.CRS(), 
           "PROJCS[\"unnamed\",GEOGCS[\"NAD27\",DATUM[\"North_American_Datum_1927\",SPHEROID[\"Clarke 1866\",6378206.4,294.978698213898,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6267\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4267\"]],PROJECTION[\"Cylindrical_Equal_Area\"],PARAMETER[\"standard_parallel_1\",33.75],PARAMETER[\"central_meridian\",-117.333333333333],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]")
-        @test projectedcrs(dims(gdalarray, Lat)) == wkt
-        @test projectedcrs(dims(gdalarray, Lon)) == wkt
-        @test projectedcrs(gdalarray) == wkt
-        @test projectedcrs(gdalarray[Lat(1)]) == wkt
-        @test_throws ErrorException projectedcrs(gdalarray[Lat(1), Lon(1)])
+        @test crs(dims(gdalarray, Lat)) == wkt
+        @test crs(dims(gdalarray, Lon)) == wkt
+        @test crs(gdalarray) == wkt
+        @test crs(gdalarray[Lat(1)]) == wkt
+        @test_throws ErrorException crs(gdalarray[Lat(1), Lon(1)])
     end
 
     @testset "indexing" begin 
@@ -137,7 +137,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @testset "to grd" begin
             write("testgrd", GRDarray, gdalarray)
             grdarray = GRDarray("testgrd")
-            @test projectedcrs(grdarray) == convert(ProjString, projectedcrs(gdalarray))
+            @test crs(grdarray) == convert(ProjString, crs(gdalarray))
             @test bounds(grdarray) == (bounds(gdalarray))
             @test val(dims(grdarray, Lat)) == reverse(val(dims(gdalarray, Lat)))
             @test val(dims(grdarray, Lon)) ≈ val(dims(gdalarray, Lon))

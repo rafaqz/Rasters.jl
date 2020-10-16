@@ -6,15 +6,15 @@ export reproject, convertmode
 # and no reprojection can occur.
 
 sel2indices(mode::Projected, dim::Dimension, sel::Contains{<:Number}) = begin
-    selval = reproject(mappedcrs(mode), projectedcrs(mode), dim, val(sel))
+    selval = reproject(mappedcrs(mode), crs(mode), dim, val(sel))
     DD.contains(dim, rebuild(sel, selval))
 end
 sel2indices(mode::Projected, dim::Dimension, sel::At{<:Number}) = begin
-    selval = reproject(mappedcrs(mode), projectedcrs(mode), dim, val(sel))
+    selval = reproject(mappedcrs(mode), crs(mode), dim, val(sel))
     DD.at(dim, rebuild(sel, selval))
 end
 sel2indices(mode::Projected, dim::Dimension, sel::Between) = begin
-    selval = map(v -> reproject(mappedcrs(mode), projectedcrs(mode), dim, v), val(sel))
+    selval = map(v -> reproject(mappedcrs(mode), crs(mode), dim, v), val(sel))
     DD.between(dim, rebuild(sel, selval))
 end
 
@@ -41,13 +41,13 @@ reproject(source::GeoFormat, target::GeoFormat, dim::Lat, vals::Tuple) =
 
 convertmode(dstmode::Type{Mapped}, srcmode::Type{Projected}, dim::Dimension) where M = begin
     m = mode(dim)
-    newindex = reproject(projectedcrs(m), mappedcrs(m), dim, val(dim))
-    newbounds = reproject(projectedcrs(m), mappedcrs(m), dim, bounds(dim))
+    newindex = reproject(crs(m), mappedcrs(m), dim, val(dim))
+    newbounds = reproject(crs(m), mappedcrs(m), dim, bounds(dim))
     newmode = Mapped(
         order=order(m),
         span=Irregular(newbounds),
         sampling=sampling(m),
-        projectedcrs=projectedcrs(m),
+        crs=crs(m),
         mappedcrs=mappedcrs(m),
     )
     rebuild(dim; val=newindex, mode=newmode)
@@ -58,7 +58,7 @@ convertmode(dstmode::Type{Projected}, srcmode::Type{Mapped}, dim::Dimension) whe
     newmode = Projected(
         order=order(m),
         span=Regular(step(newindex)), sampling=sampling(m),
-        projectedcrs=projectedcrs(m),
+        crs=crs(m),
         mappedcrs=mappedcrs(m),
     )
     rebuild(dim; val=newindex, mode=newmode)
@@ -66,35 +66,35 @@ end
 
 _projectedrange(::Projected, dim) = LinRange(first(dim), last(dim), length(dim))
 _projectedrange(m::Mapped, dim) = 
-    _projectedrange(span(m), projectedcrs(m), m, dim) 
-_projectedrange(span, projectedcrs, m::Mapped, dim) = begin
-    start, stop = reproject(mappedcrs(m), projectedcrs, dim, [first(dim), last(dim)]) 
+    _projectedrange(span(m), crs(m), m, dim) 
+_projectedrange(span, crs, m::Mapped, dim) = begin
+    start, stop = reproject(mappedcrs(m), crs, dim, [first(dim), last(dim)]) 
     LinRange(start, stop, length(dim))
 end
-_projectedrange(::Regular, projectedcrs::Nothing, ::Mapped, dim) =
+_projectedrange(::Regular, crs::Nothing, ::Mapped, dim) =
     LinRange(first(dim), last(dim), length(dim))
-_projectedrange(::Irregular, projectedcrs::Nothing, ::Mapped, dim) = 
+_projectedrange(::Irregular, crs::Nothing, ::Mapped, dim) = 
     error("Cannot convert an Mapped Irregular index to Projected when projectioncrs is nothing")
 
 # Add Lat/Lon methods to reproject bounds and val
 projectedbounds(dim::Union{Lat,Lon}) = projectedbounds(mode(dim), dim)
 projectedbounds(::Projected, dim::Union{Lat,Lon}) =
-    reproject(icrs(dim), projectedcrs(dim), dim, bounds(dim))
+    reproject(icrs(dim), crs(dim), dim, bounds(dim))
 projectedbounds(::IndexMode, dim::Union{Lat,Lon}) = bounds(dim)
 
 projectedval(dim::Union{Lat,Lon}) = projectedval(mode(dim), dim)
 projectedval(::Projected, dim::Union{Lat,Lon}) =
-    reproject(crs(dim), projectedcrs(dim), dim, val(dim))
+    reproject(crs(dim), crs(dim), dim, val(dim))
 projectedval(::IndexMode, dim::Union{Lat,Lon}) = val(dim)
 
 
 # Add Lat/Lon methods to reproject bounds and val
 mappedbounds(dim::Union{Lat,Lon}) = mappedbounds(mode(dim), dim)
 mappedbounds(::Projected, dim::Union{Lat,Lon}) =
-    reproject(projectedcrs(dim), mappedcrs(dim), dim, bounds(dim))
+    reproject(crs(dim), mappedcrs(dim), dim, bounds(dim))
 mappedbounds(::IndexMode, dim::Union{Lat,Lon}) = bounds(dim)
 
 mappedval(dim::Union{Lat,Lon}) = mappedval(mode(dim), dim)
 mappedval(::Projected, dim::Union{Lat,Lon}) =
-    reproject(projectedcrs(dim), mappedcrs(dim), dim, val(dim))
+    reproject(crs(dim), mappedcrs(dim), dim, val(dim))
 mappedval(::IndexMode, dim::Union{Lat,Lon}) = val(dim)

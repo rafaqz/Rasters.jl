@@ -39,7 +39,7 @@ end
 
 """
     GDALarray(filename;
-              projectedcrs=nothing,
+              crs=nothing,
               mappedcrs=nothing,
               name="",
               dims=nothing,
@@ -95,9 +95,9 @@ GDALarray(filename::AbstractString; kwargs...) = begin
     end
 end
 GDALarray(raster::AG.RasterDataset, filename, key=nothing;
-          projectedcrs=nothing,
+          crs=nothing,
           mappedcrs=nothing,
-          dims=dims(raster, projectedcrs, mappedcrs),
+          dims=dims(raster, crs, mappedcrs),
           refdims=(),
           name=Symbol(""),
           metadata=metadata(raster),
@@ -199,14 +199,14 @@ withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) =
 
 # DimensionalData methods for ArchGDAL types ###############################
 
-dims(raster::AG.RasterDataset, projectedcrs=nothing, mappedcrs=nothing) = begin
+dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing) = begin
     gt = try
         AG.getgeotransform(raster) catch GDAL_EMPTY_TRANSFORM end
     lonsize, latsize = size(raster)
 
     nbands = AG.nraster(raster)
     band = Band(1:nbands, mode=Categorical(Ordered()))
-    projectedcrs = projectedcrs isa Nothing ? GeoData.projectedcrs(raster) : projectedcrs
+    crs = crs isa Nothing ? GeoData.crs(raster) : crs
 
     lonlat_metadata=GDALdimMetadata()
 
@@ -235,7 +235,7 @@ dims(raster::AG.RasterDataset, projectedcrs=nothing, mappedcrs=nothing) = begin
             order=Ordered(GDAL_LON_INDEX, GDAL_LON_ARRAY, GDAL_RELATION),
             span=Regular(step(lonindex)),
             sampling=lonsampling,
-            projectedcrs=projectedcrs,
+            crs=crs,
             mappedcrs=mappedcrs,
         )
         latmode = Projected(
@@ -243,7 +243,7 @@ dims(raster::AG.RasterDataset, projectedcrs=nothing, mappedcrs=nothing) = begin
             sampling=latsampling,
             # Use the range step as is will be different to latstep due to float error
             span=Regular(step(latindex)),
-            projectedcrs=projectedcrs,
+            crs=crs,
             mappedcrs=mappedcrs,
         )
 
@@ -295,7 +295,7 @@ end
 #     end
 # end
 
-projectedcrs(raster::AG.RasterDataset, args...) =
+crs(raster::AG.RasterDataset, args...) =
     WellKnownText(GeoFormatTypes.CRS(), string(AG.getproj(raster.ds)))
 
 
@@ -350,7 +350,7 @@ function gdalsetproperties!(dataset, A)
     # Get the geotransform from the updated lat/lon dims
     geotransform = dims2geotransform(lat, lon)
     # Convert projection to a string of well known text
-    proj = convert(String, convert(WellKnownText, projectedcrs(lon)))
+    proj = convert(String, convert(WellKnownText, crs(lon)))
 
     # Write projection, geotransform and data to GDAL
     AG.setproj!(dataset, proj)
@@ -372,9 +372,9 @@ end
 
 # Create a GeoArray from a memory-backed dataset
 function GeoArray(dataset::AG.Dataset;
-                  projectedcrs=nothing,
+                  crs=nothing,
                   mappedcrs=nothing,
-                  dims=dims(AG.RasterDataset(dataset), projectedcrs, mappedcrs),
+                  dims=dims(AG.RasterDataset(dataset), crs, mappedcrs),
                   refdims=(),
                   name=Symbol(""),
                   metadata=metadata(AG.RasterDataset(dataset)),

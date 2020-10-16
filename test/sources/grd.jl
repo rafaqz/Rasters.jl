@@ -37,9 +37,9 @@ path = joinpath(testpath, "data/rlogo")
         @test mappedcrs(dims(customgrdarray, Lon)) == EPSG(4326)
         @test mappedcrs(customgrdarray) == EPSG(4326)
         proj = ProjString("+proj=merc +datum=WGS84")
-        @test projectedcrs(dims(customgrdarray, Lat)) == proj
-        @test projectedcrs(dims(customgrdarray, Lon)) == proj
-        @test projectedcrs(customgrdarray) == proj
+        @test crs(dims(customgrdarray, Lat)) == proj
+        @test crs(dims(customgrdarray, Lon)) == proj
+        @test crs(customgrdarray) == proj
     end
 
     @testset "getindex" begin

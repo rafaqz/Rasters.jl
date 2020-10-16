@@ -29,7 +29,7 @@ missingval(x) = missing
 missingval(A::AbstractGeoArray) = A.missingval
 
 """
-    projectedcrs(x)
+    crs(x)
 
 Get the projected coordinate reference system of a `Lat` or `Lon` `Dimension`, 
 or of the `Lat`/`Lon` dims of an `AbstractGeoArray`.
@@ -37,16 +37,16 @@ or of the `Lat`/`Lon` dims of an `AbstractGeoArray`.
 For [`Mapped`](@ref) mode this may be `nothing` as there may be not projected 
 coordinate reference system at all.
 """
-function projectedcrs end
-projectedcrs(A::AbstractGeoArray) =
+function crs end
+crs(A::AbstractGeoArray) =
     if hasdim(A, Lat)
-        projectedcrs(dims(A, Lat))
+        crs(dims(A, Lat))
     elseif hasdim(A, Lon)
-        projectedcrs(dims(A, Lon))
+        crs(dims(A, Lon))
     else
         error("No Lat or Lon dimension, crs not available")
     end
-projectedcrs(dim::Dimension) = projectedcrs(mode(dim), dim)
+crs(dim::Dimension) = crs(mode(dim), dim)
 
 """
     mappedcrs(x)

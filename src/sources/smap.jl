@@ -220,14 +220,14 @@ smapdims(dataset::HDF5.HDF5File) = begin
            order=Ordered(), 
            span=Irregular(lonbounds),
            sampling=Intervals(Center()), 
-           projectedcrs=SMAPCRS, 
+           crs=SMAPCRS, 
            mappedcrs=EPSG(4326)
         )
         latmode = Mapped(
             order=Ordered(ReverseIndex(), ReverseArray(), ForwardRelation()), 
             span=Irregular(latbounds), 
             sampling=Intervals(Center()), 
-            projectedcrs=SMAPCRS, 
+            crs=SMAPCRS, 
             mappedcrs=EPSG(4326),
         )
         (Lon(lonvec; mode=lonmode), Lat(latvec; mode=latmode))

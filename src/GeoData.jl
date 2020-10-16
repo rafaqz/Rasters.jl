@@ -38,7 +38,7 @@ export Projected, Mapped
 
 export missingval, boolmask, missingmask, replace_missing,
        aggregate, aggregate!, disaggregate, disaggregate!,
-       projectedcrs, mappedcrs
+       crs, mappedcrs
 
 export Lon, Lat, Vert, Band
 

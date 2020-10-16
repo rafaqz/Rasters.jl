@@ -140,7 +140,7 @@ stackkeys = (
             # gdalarray WKT is missing one AUTHORITY
             # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
             # But the Proj representation is the same
-            @test convert(ProjString, projectedcrs(gdalarray)) == convert(ProjString, EPSG(4326))
+            @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test bounds(gdalarray) == (bounds(nccleaned)..., (1, 1))
             # Tiff locus = Start, Netcdf locus = Center
             @test reverse(val(dims(gdalarray, Lat))) .+ 0.5 ≈ val(dims(nccleaned, Lat))
@@ -151,7 +151,7 @@ stackkeys = (
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write("testgrd", GRDarray, nccleaned)
             grdarray = GRDarray("testgrd");
-            @test projectedcrs(grdarray) == convert(ProjString, EPSG(4326))
+            @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == (bounds(nccleaned)..., (1, 1))
             @test val(dims(grdarray, Lat)) ≈ val(dims(nccleaned, Lat)) .- 0.5
             @test val(dims(grdarray, Lon)) ≈ val(dims(nccleaned, Lon)) .- 1.0
