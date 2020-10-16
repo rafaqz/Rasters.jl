@@ -2,7 +2,7 @@ export resample
 
 """
 	resample(A::AbstractGeoArray, resolution::Number;
-			 crs::GeoFormat=crs(A), method::String="near")
+			 crs::GeoFormat=projectedcrs(A), method::String="near")
 	resample(A::AbstractGeoArray, snap::AbstractGeoArray; method::String="near")
 
 `resample` uses `ArchGDAL.gdalwarp` to resample an `AbstractGeoArray`.
@@ -25,7 +25,7 @@ export resample
 resample
 
 function resample(A::AbstractGeoArray, resolution::Number;
-				  crs::GeoFormat=crs(A),
+				  crs::GeoFormat=projectedcrs(A),
                   method::String="near")
     wkt = convert(String, convert(WellKnownText, crs))
     flags = ["-t_srs", "$(wkt)",
@@ -39,7 +39,7 @@ function resample(A::AbstractGeoArray, resolution::Number;
 end
 
 function resample(A::AbstractGeoArray, snap::AbstractGeoArray; method::String="near")
-    wkt = convert(String, convert(WellKnownText, crs(snap)))
+    wkt = convert(String, convert(WellKnownText, projectedcrs(snap)))
     latres, lonres = map(abs ∘ step, span(snap, (Lat(), Lon())))
     (latmin, latmax), (lonmin, lonmax) = bounds(snap, (Lat(), Lon()))
     flags = ["-t_srs", "$(wkt)",

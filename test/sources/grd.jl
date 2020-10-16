@@ -30,7 +30,7 @@ path = joinpath(testpath, "data/rlogo")
         @test name(grdarray) == Symbol("red:green:blue")
         @test label(grdarray) == "red:green:blue"
         @test units(grdarray) == nothing
-        customgrdarray = GRDarray(path; name=:test, usercrs=EPSG(4326));
+        customgrdarray = GRDarray(path; name=:test, mappedcrs=EPSG(4326));
         @test name(customgrdarray) == :test
         @test label(customgrdarray) == "test"
         @test mappedcrs(dims(customgrdarray, Lat)) == EPSG(4326)
@@ -241,13 +241,13 @@ end
 end
 
 @testset "Grd series" begin
-    series = GeoSeries([path, path], (Ti,); childtype=GRDarray, childkwargs=(usercrs=EPSG(4326), name=:test))
+    series = GeoSeries([path, path], (Ti,); childtype=GRDarray, childkwargs=(mappedcrs=EPSG(4326), name=:test))
     @test GeoArray(series[Ti(1)]) == 
-        GeoArray(GRDarray(path; usercrs=EPSG(4326), name=:test))
-    stacks = [DiskStack((a=path, b=path); childtype=GRDarray, childkwargs=(usercrs=EPSG(4326), name=:test))]
+        GeoArray(GRDarray(path; mappedcrs=EPSG(4326), name=:test))
+    stacks = [DiskStack((a=path, b=path); childtype=GRDarray, childkwargs=(mappedcrs=EPSG(4326), name=:test))]
     series = GeoSeries(stacks, (Ti,))
     @test series[Ti(1)][:a] == 
-        GeoArray(GRDarray(path; usercrs=EPSG(4326), name=:test))
+        GeoArray(GRDarray(path; mappedcrs=EPSG(4326), name=:test))
     modified_series = modify(Array, series)
     @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{(:a,:b),<:Tuple{<:GeoArray{Float32,3,<:Tuple,<:Tuple,<:Array{Float32,3}},Vararg}}}}
 end

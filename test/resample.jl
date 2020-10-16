@@ -22,7 +22,8 @@ include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
     ## Resample cea.tif using resample
     cea = GeoArray(GDALarray(raster_path))
-    GD_output = resample(cea, output_res, crs = output_crs, method = resample_method)
+    projectedcrs(cea)
+    GD_output = resample(cea, output_res, crs=output_crs, method=resample_method)
 
     ## Compare the two
     @test AG_output == GD_output.data[:, :, 1]

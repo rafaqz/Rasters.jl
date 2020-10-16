@@ -39,7 +39,8 @@ end
 
 """
     GDALarray(filename;
-              usercrs=nothing,
+              projectedcrs=nothing,
+              mappedcrs=nothing,
               name="",
               dims=nothing,
               refdims=(),
@@ -94,8 +95,9 @@ GDALarray(filename::AbstractString; kwargs...) = begin
     end
 end
 GDALarray(raster::AG.RasterDataset, filename, key=nothing;
-          usercrs=nothing,
-          dims=dims(raster, usercrs),
+          projectedcrs=nothing,
+          mappedcrs=nothing,
+          dims=dims(raster, projectedcrs, mappedcrs),
           refdims=(),
           name=Symbol(""),
           metadata=metadata(raster),
@@ -197,14 +199,14 @@ withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) =
 
 # DimensionalData methods for ArchGDAL types ###############################
 
-dims(raster::AG.RasterDataset, usercrs=nothing) = begin
+dims(raster::AG.RasterDataset, projectedcrs=nothing, mappedcrs=nothing) = begin
     gt = try
         AG.getgeotransform(raster) catch GDAL_EMPTY_TRANSFORM end
     lonsize, latsize = size(raster)
 
     nbands = AG.nraster(raster)
     band = Band(1:nbands, mode=Categorical(Ordered()))
-    sourcecrs = crs(raster)
+    projectedcrs = projectedcrs isa Nothing ? GeoData.projectedcrs(raster) : projectedcrs
 
     lonlat_metadata=GDALdimMetadata()
 
@@ -293,7 +295,7 @@ end
 #     end
 # end
 
-crs(raster::AG.RasterDataset, args...) =
+projectedcrs(raster::AG.RasterDataset, args...) =
     WellKnownText(GeoFormatTypes.CRS(), string(AG.getproj(raster.ds)))
 
 
@@ -370,8 +372,9 @@ end
 
 # Create a GeoArray from a memory-backed dataset
 function GeoArray(dataset::AG.Dataset;
-                  usercrs=nothing,
-                  dims=dims(AG.RasterDataset(dataset), usercrs),
+                  projectedcrs=nothing,
+                  mappedcrs=nothing,
+                  dims=dims(AG.RasterDataset(dataset), projectedcrs, mappedcrs),
                   refdims=(),
                   name=Symbol(""),
                   metadata=metadata(AG.RasterDataset(dataset)),

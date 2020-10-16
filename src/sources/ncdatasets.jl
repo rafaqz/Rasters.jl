@@ -196,7 +196,8 @@ NCDarray(filename::AbstractString, key...; kwargs...) = begin
 end
 # Safe file-loading wrapper method. We always open the datset and close
 # it again when we are done.
-NCDarraydataset::NCDatasets.Dataset, filename, key=nothing; projectedcrs=nothing,
+NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing; 
+         projectedcrs=nothing,
          mappedcrs=EPSG(4326),
          name=nothing,
          dims=nothing,
@@ -400,6 +401,13 @@ _ncdmode(index::AbstractArray{<:Number}, dimtype, projectedcrs, mappedcrs, metad
     span = _ncdspan(index, order)
     sampling = Intervals(Center())
     if dimtype in (Lat, Lon)
+        # If the index is regularly spaced and there is no projectedcrs
+        # then there is probably just one crs - the mappedcrs
+        projectedcrs = if projectedcrs isa Nothing && span isa Regular 
+            mappedcrs
+        else
+            projectedcrs
+        end
         Mapped(order, span, sampling, projectedcrs, mappedcrs)
     else
         Sampled(order, span, sampling)
