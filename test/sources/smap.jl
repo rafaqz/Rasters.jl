@@ -26,7 +26,8 @@ path2 = joinpath(testpath, "data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5")
         step_ = Hour(3)
         @test refdims(stack) ==
             (Ti(dt:step_:dt; mode=Sampled(Ordered(), Regular(step_), Intervals(Start()))),)
-        @test_broken metadata(smaparray) = "not implemented yet"
+        # Currently empty
+        @test metadata(smaparray) == SMAPstackMetadata(Dict())
     end
 
     @testset "conversion to GeoStack" begin
@@ -68,7 +69,20 @@ path2 = joinpath(testpath, "data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5")
         @test windowedarray[1, 2] == -9999.0
     end
 
-    
+    @testset "show" begin
+        sh1 = sprint(show, stack[:soil_temp_layer1])
+        # Test but don't lock this down too much
+        @test contains(sh1, "GeoArray")
+        @test contains(sh1, "Latitude")
+        @test contains(sh1, "Longitude")
+        @test contains(sh1, "Time")
+        sh2 = sprint(show, stack[:soil_temp_layer1][Lat(Between(0, 100)), Lon(Between(1, 100))])
+        # Test but don't lock this down too much
+        @test contains(sh2, "GeoArray")
+        @test contains(sh2, "Latitude")
+        @test contains(sh2, "Longitude")
+        @test contains(sh2, "Time")
+    end
 
 end
 

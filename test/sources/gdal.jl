@@ -162,6 +162,15 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
 
     end
 
+    @testset "show" begin
+        sh = sprint(show, gdalarray)
+        # Test but don't lock this down too much
+        @test contains(sh, "GDALarray")
+        @test contains(sh, "Latitude")
+        @test contains(sh, "Longitude")
+        @test contains(sh, "Band")
+    end
+
     @testset "plot" begin # TODO write some tests for this
         gdalarray |> plot
     end

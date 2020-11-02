@@ -1,5 +1,5 @@
 using GeoData, Test, Dates
-using GeoData: formatdims, dims
+using GeoData: formatdims, dims, name
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
@@ -14,9 +14,22 @@ nme = :test
 ga2 = GeoArray(data2, dims2)
 ga1 = GeoArray(data1, formatdims(data1, dims1), refdimz, nme, meta, mval)
 
+@test ga1 == data1
+@test ga2 == data2
+
 @testset "arary dims have been formatted" begin
     @test val.(dims(ga2)) == val.((Lon<|LinRange(10.0, 100.0, 10), 
                                    Lat<|LinRange(-50.0, 50.0, 11),
                                    Ti<|[DateTime(2019)]))
     @test dims(ga1)[1:2] == dims(ga2)[1:2]
+    @test name(ga1) == :test
+    @test missingval(ga1) == -9999.0
+end
+
+@testset "show" begin
+    sh = sprint(show, ga1)
+    # Test but don't lock this down too much
+    @test contains(sh, "GeoArray")
+    @test contains(sh, "Latitude")
+    @test contains(sh, "Longitude")
 end

@@ -157,6 +157,15 @@ path = joinpath(testpath, "data/rlogo")
 
     end
 
+    @testset "show" begin
+        sh = sprint(show, grdarray)
+        # Test but don't lock this down too much
+        @test contains(sh, "GrdArray")
+        @test contains(sh, "Latitude")
+        @test contains(sh, "Longitude")
+        @test contains(sh, "Band")
+    end
+
     @testset "plot" begin
         p = grdarray |> plot
     end
