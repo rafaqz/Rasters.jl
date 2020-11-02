@@ -29,6 +29,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     end
 
     @testset "other fields" begin
+        # This file has an inorrect missing value
         @test missingval(gdalarray) == -1.0e10
         @test metadata(gdalarray) isa GDALarrayMetadata
         @test basename(metadata(gdalarray).val["filepath"]) == "cea.tif"
@@ -148,13 +149,16 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @testset "to netcdf" begin
             filename2 = tempname()
             write(filename2, NCDarray, gdalarray[Band(1)])
-            saved = GeoArray(NCDarray(filename2))
+            saved = GeoArray(NCDarray(filename2; crs=crs(gdalarray)))
             @test size(saved) == size(gdalarray[Band(1)])
             @test saved ≈ reverse(gdalarray[Band(1)]; dims=Lat)
-            @test_broken index(saved, Lon) ≈ userval(dims(gdalarray, Lon)) .+ 0.5step(dims(saved, Lon))
-            @test_broken val(dims(saved, Lat)) ≈ reverse(val(dims(gdalarray, Lat))) .+ 0.5step(dims(saved, Lat))
-            @test_broken all(map(isapprox, bounds(saved, Lon), bounds(gdalarray, Lon)))
-            @test_broken all(map(isapprox, bounds(saved, Lat), bounds(gdalarray, Lat)))
+            @test index(saved, Lon) ≈ mappedindex(dims(gdalarray, Lon)) .+ 0.5step(dims(saved, Lon))
+            @test mappedindex(GeoData.shiftindexloci(Center(), dims(gdalarray, Lat))) ≈ reverse(index(saved, Lat))
+            @test all(mappedbounds(saved, Lon) .≈ mappedbounds(gdalarray, Lon))
+            @test all(mappedbounds(saved, Lat) .≈ mappedbounds(gdalarray, Lat))
+            @test all(projectedbounds(saved, Lon) .≈ projectedbounds(gdalarray, Lon))
+            # For some reason this crs conversion is less accrurate than the others
+            @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Lat),  projectedbounds(gdalarray, Lat)))
         end
 
     end

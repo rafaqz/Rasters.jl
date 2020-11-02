@@ -262,6 +262,8 @@ dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing) = begin
 end
 
 missingval(raster::AG.RasterDataset, args...) = begin
+    # We can only handle data where all bands have
+    # the same missingval
     band = AG.getband(raster.ds, 1)
     missingval = AG.getnodatavalue(band)
     T = AG.pixeltype(band)
@@ -338,15 +340,14 @@ end
 function gdalsetproperties!(dataset, A)
     # Convert the dimensions to `Projected` if they are `Converted`
     # This allows saving NetCDF to Tiff
-    lon, lat = map(dims(A, (Lon(), Lat()))) do d
-        convertmode(Projected, d)
-    end
-    @assert indexorder(lat) == GDAL_LAT_INDEX
-    @assert indexorder(lon) == GDAL_LON_INDEX
     # Set the index loci to the start of the cell for the lat and lon dimensions.
     # NetCDF or other formats use the center of the interval, so they need conversion.
-    lon = shiftindexloci(GDAL_LON_LOCUS, lon)
-    lat = shiftindexloci(GDAL_LAT_LOCUS, lat)
+    lon = shiftindexloci(GDAL_LON_LOCUS, dims(A, Lon))
+    lat = shiftindexloci(GDAL_LAT_LOCUS, dims(A, Lat))
+    lon = convertmode(Projected, lon)
+    lat = convertmode(Projected, lat)
+    @assert indexorder(lat) == GDAL_LAT_INDEX
+    @assert indexorder(lon) == GDAL_LON_INDEX
     # Get the geotransform from the updated lat/lon dims
     geotransform = dims2geotransform(lat, lon)
     # Convert projection to a string of well known text
@@ -356,14 +357,18 @@ function gdalsetproperties!(dataset, A)
     AG.setproj!(dataset, proj)
     AG.setgeotransform!(dataset, geotransform)
 
-    # Set the nodata value
-    bands = if hasdim(A, Band)
-        index(A, Band)
-    else
-        1
-    end
-    for i in bands
-        AG.setnodatavalue!(AG.getband(dataset, i), missingval(A))
+    # Set the nodata value. GDAL can't handle missing
+    # We could choose a default, but we would need to do this for all
+    # possible types.
+    if missingval(A) !== missing
+        bands = if hasdim(A, Band)
+            index(A, Band)
+        else
+            1
+        end
+        for i in bands
+            AG.setnodatavalue!(AG.getband(dataset, i), missingval(A))
+        end
     end
 
     dataset

@@ -127,14 +127,14 @@ path = joinpath(testpath, "data/rlogo")
         @testset "to netcdf" begin
             filename2 = tempname()
             write(filename2, NCDarray, grdarray[Band(1)])
-            saved = GeoArray(NCDarray(filename2))
+            saved = GeoArray(NCDarray(filename2; crs=crs(grdarray)))
             @test size(saved) == size(grdarray[Band(1)])
             @test replace_missing(saved, missingval(grdarray)) ≈ reverse(grdarray[Band(1)]; dims=Lat)
             @test replace_missing(saved, missingval(grdarray)) ≈ reverse(grdarray[Band(1)]; dims=Lat)
-            @test_broken val(dims(saved, Lon)) ≈ val(dims(grdarray, Lon)) .+ 0.5
-            @test_broken val(dims(saved, Lat)) ≈ val(dims(grdarray, Lat)) .+ 0.5
-            @test_broken bounds(saved, Lat) == bounds(grdarray, Lat)
-            @test_broken bounds(saved, Lon) == bounds(grdarray, Lon)
+            @test index(saved, Lon) ≈ index(grdarray, Lon) .+ 0.5
+            @test index(saved, Lat) ≈ index(grdarray, Lat) .+ 0.5
+            @test bounds(saved, Lat) == bounds(grdarray, Lat)
+            @test bounds(saved, Lon) == bounds(grdarray, Lon)
         end
 
         @testset "to gdal" begin

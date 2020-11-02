@@ -1,4 +1,4 @@
-export reproject, convertmode
+export reproject, convertmode, mappedindex, mappedbounds
 
 
 # These methods are only available if ArchGDAL is loaded.
@@ -76,25 +76,27 @@ _projectedrange(::Regular, crs::Nothing, ::Mapped, dim) =
 _projectedrange(::Irregular, crs::Nothing, ::Mapped, dim) = 
     error("Cannot convert an Mapped Irregular index to Projected when projectioncrs is nothing")
 
-# Add Lat/Lon methods to reproject bounds and val
-projectedbounds(dim::Union{Lat,Lon}) = projectedbounds(mode(dim), dim)
-projectedbounds(::Projected, dim::Union{Lat,Lon}) =
-    reproject(icrs(dim), crs(dim), dim, bounds(dim))
-projectedbounds(::IndexMode, dim::Union{Lat,Lon}) = bounds(dim)
 
-projectedval(dim::Union{Lat,Lon}) = projectedval(mode(dim), dim)
-projectedval(::Projected, dim::Union{Lat,Lon}) =
-    reproject(crs(dim), crs(dim), dim, val(dim))
-projectedval(::IndexMode, dim::Union{Lat,Lon}) = val(dim)
+projectedbounds(mode::Mapped, dim) = projectedbounds(crs(mode), mode, dim)
+projectedbounds(crs::Nothing, mode::Mapped, dim) = 
+    error("No projection crs attached to $(name(dim)) dimension")
+projectedbounds(crs::GeoFormat, mode::Mapped, dim) =
+    reproject(mappedcrs(mode), crs, dim, bounds(dim))
 
+projectedindex(mode::Mapped, dim) = projectedindex(crs(mode), mode, dim)
+projectedindex(crs::Nothing, mode::Mapped, dim) = 
+    error("No projection crs attached to $(name(dim)) dimension")
+projectedindex(crs::GeoFormat, mode::Mapped, dim) =
+    reproject(mappedcrs(dim), crs, dim, index(dim))
 
-# Add Lat/Lon methods to reproject bounds and val
-mappedbounds(dim::Union{Lat,Lon}) = mappedbounds(mode(dim), dim)
-mappedbounds(::Projected, dim::Union{Lat,Lon}) =
-    reproject(crs(dim), mappedcrs(dim), dim, bounds(dim))
-mappedbounds(::IndexMode, dim::Union{Lat,Lon}) = bounds(dim)
+mappedbounds(mode::Projected, dim) = mappedbounds(mappedcrs(mode), mode, dim)
+mappedbounds(mappedcrs::Nothing, mode::Projected, dim) = 
+    error("No mappedcrs attached to $(name(dim)) dimension")
+mappedbounds(mappedcrs::GeoFormat, mode::Projected, dim) =
+    reproject(crs(mode), mappedcrs, dim, bounds(dim))
 
-mappedval(dim::Union{Lat,Lon}) = mappedval(mode(dim), dim)
-mappedval(::Projected, dim::Union{Lat,Lon}) =
-    reproject(crs(dim), mappedcrs(dim), dim, val(dim))
-mappedval(::IndexMode, dim::Union{Lat,Lon}) = val(dim)
+mappedindex(mode::Projected, dim) = mappedindex(mappedcrs(mode), mode, dim)
+mappedindex(mappedcrs::Nothing, mode::Projected, dim) = 
+    error("No mappedcrs attached to $(name(dim)) dimension")
+mappedindex(mappedcrs::GeoFormat, mode::Projected, dim) =
+    reproject(crs(dim), mappedcrs, dim, index(dim))

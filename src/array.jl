@@ -74,11 +74,17 @@ mappedcrs(dim::Dimension) = mappedcrs(mode(dim), dim)
 
 units(A::AbstractGeoArray) = getmeta(A, :units, nothing)
 
+for f in (:mappedbounds, :projectedbounds, :mappedindex, :projectedindex)
+    @eval ($f)(A::AbstractGeoArray, dims_) = ($f)(dims(A, dims_)) 
+    @eval ($f)(A::AbstractGeoArray) = ($f)(dims(A)) 
+end
+
 # Rebuild all types of AbstractGeoArray as GeoArray
 rebuild(A::AbstractGeoArray, data, dims::Tuple, refdims, name, metadata, missingval=missingval(A)) =
     GeoArray(data, dims, refdims, name, metadata, missingval)
 rebuild(A::AbstractGeoArray; data=data(A), dims=dims(A), refdims=refdims(A), name=name(A), metadata=metadata(A), missingval=missingval(A)) =
     GeoArray(data, dims, refdims, name, metadata, missingval)
+
 
 Base.parent(A::AbstractGeoArray) = data(A)
 

@@ -27,6 +27,8 @@ end
 
 const UNNAMED_NCD_KEY = "unnamed"
 
+const NCD_FILL_TYPES = (Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String)
+
 
 # Utils ########################################################################
 
@@ -47,43 +49,44 @@ end
 # Add a var array to a dataset before writing it.
 ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     A = reorder(A, ForwardIndex()) |> a -> reorder(a, ForwardRelation())
-    if ismissing(missingval(A))
-        # TODO default _FillValue for Int?
-        fillvalue = get(metadata(A), "_FillValue", NaN)
-        A = replace_missing(A, convert(T, fillvalue))
-    end
     # Define required dim vars
     for dim in dims(A)
         key = lowercase(string(name(dim)))
         haskey(dataset.dim, key) && continue
 
+        # Shift index before conversion to Mapped
+        dim = ncshiftindex(dim)
         if dim isa Lat || dim isa Lon
             dim = convertmode(Mapped, dim)
         end
-        index = ncshiftindex(dim)
+
         md = metadata(dim)
+        # TODO handle dim attribs
         attribvec = [] #md isa Nothing ? [] : [val(md)...]
-        defDim(dataset, key, length(index))
-        println("        key: \"", key, "\" of type: ", eltype(index))
-        defVar(dataset, key, Vector(index), (key,); attrib=attribvec)
+        defDim(dataset, key, length(dim))
+        println("        key: \"", key, "\" of type: ", eltype(dim))
+        defVar(dataset, key, Vector(index(dim)), (key,); attrib=attribvec)
     end
-    # TODO actually convert the metadata type
+    # TODO actually convert the metadata types
     attrib = if metadata isa NCDarrayMetadata
         deepcopy(val(metadata(A)))
     else
         Dict()
     end
     # Remove stack metdata if it is attached
-    pop!(attrib, "dataset", nothing)
-    # Set missing value
-    if !ismissing(missingval(A))
-        try
-            fv = convert(T, missingval(A))
-            attrib["_FillValue"] = fv
-        catch
-            @warn "`missingval` $(missingval(A)) was invalid for data of type $T."
-        end
+    pop!(attrib, "_stack", nothing)
+    # Set _FillValue
+    if ismissing(missingval(A))
+        eltyp = _notmissingtype(Base.uniontypes(T)...)
+        fillval = NCDatasets.fillvalue(eltyp)
+        A = replace_missing(A, fillval)
+        attrib["_FillValue"] = fillval
+    elseif missingval(A) isa T
+        attrib["_FillValue"] = missingval(A)
+    else
+        @warn "`missingval` $(missingval(A)) is not the same type as your data $T." 
     end
+
     key = if string(name(A)) == ""
         UNNAMED_NCD_KEY
     else
@@ -97,26 +100,26 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     var[:] = data(A)
 end
 
-ncshiftindex(dim::Dimension) = ncshiftindex(mode(dim), dim)
-ncshiftindex(mode::AbstractSampled, dim::Dimension) = val(dim)
-# As with plotting, we really should shift the index
-# to `Center`, but reprojection introduces errors
-    # if span(mode) isa Regular
-    #     # that are tricky to handle currently.
-    #     if dim isa TimeDim
-    #         if eltype(dim) isa Dates.AbstractDateTime
-    #             val(dim)
-    #         else
-    #             shiftindexloci(Center(), dim)
-    #         end
-    #     else
-    #         shiftindexloci(Center(), dim)
-    #     end
-    # else
-    #     dim
-    # end |> val
+_notmissingtype(::Type{Missing}, next...) = _notmissing(next...)
+_notmissingtype(x::Type, next...) = x in NCD_FILL_TYPES ? x : _notmissingtype(next...)
+_notmissingtype() = error("Your data is not a type that netcdf can store")
 
-ncshiftindex(mode::IndexMode, dim::Dimension) = val(dim)
+ncshiftindex(dim::Dimension) = ncshiftindex(mode(dim), dim)
+ncshiftindex(mode::AbstractSampled, dim::Dimension) =
+    if span(mode) isa Regular && sampling(mode) isa Intervals
+        # We cant easily shift a DateTime value
+        if eltype(dim) isa Dates.AbstractDateTime
+            if !(loci(dim) isa Center) 
+                @warn "To save to netcdf, DateTime values should be the interval Center, rather than the $(nameof(typeof(loci(dim))))"
+            end
+            dim
+        else
+            shiftindexloci(Center(), dim)
+        end
+    else
+        dim
+    end 
+ncshiftindex(::IndexMode, dim::Dimension) = dim
 
 # CF standards don't enforce dimension names.
 # But these are common, and should take care of most dims.
@@ -238,13 +241,6 @@ Write an NCDarray to a NetCDF file using NCDatasets.jl
 Returns `filename`.
 """
 Base.write(filename::AbstractString, ::Type, A::AbstractGeoArray) = begin
-    meta = metadata(A)
-    # if meta isa Nothing
-    # else
-        # Remove the dataset metadata
-        # stackmd = pop!(deepcopy(val(meta)), "dataset", Dict())
-    #    dataset = NCDatasets.Dataset(filename, "c"; attrib=stackmd)
-    # end
     dataset = NCDatasets.Dataset(filename, "c")
     try
         println("    Writing netcdf...")
@@ -479,7 +475,7 @@ metadata(dataset::NCDatasets.Dataset, key::Key) = metadata(dataset[string(key)])
 metadata(var::NCDatasets.CFVariable) = NCDarrayMetadata(Dict{String,Any}(var.attrib))
 metadata(var::NCDatasets.CFVariable, stackmetadata::NCDstackMetadata) = begin
     md = metadata(var)
-    md["dataset"] = stackmetadata
+    md["_stack"] = stackmetadata
     md
 end
 
