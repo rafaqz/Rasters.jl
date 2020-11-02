@@ -5,6 +5,8 @@ maybewindow2indices(A, window::Tuple) =
 maybewindow2indices(A, dims::Tuple, window::Tuple) =
     window == () ? () : to_indices(A, dims2indices(dims, window))
 
+# Read from the paraent dataset, using the window indices if they exist
+# We try to load as little data from disk as possible.
 readwindowed(A::AbstractGeoArray, window::Tuple{}) = GeoArray(A)
 readwindowed(A, window::Tuple{}) = Array(A)
 readwindowed(A, window::Tuple{}, I...) = A[I...]
@@ -13,11 +15,12 @@ readwindowed(A, window::Tuple) = readwindowed(A, window...)
 readwindowed(A, i, I...) = A[i, I...]
 readwindowed(A) = Array(A)
 
+# Get a metadata field
 getmeta(A::AbstractGeoArray, key, fallback) = getmeta(metadata(A), key, fallback)
+getmeta(m::Metadata, key, fallback) = get(val(m), key, fallback)
 getmeta(m::Nothing, key, fallback) = fallback
-getmeta(m::Union{NamedTuple,Dict}, key, fallback) = key in keys(m) ?  m[key] : fallback
-getmeta(m::Metadata, key, fallback) = getmeta(val(m), key, fallback)
 
+# Check that arrayu order amtches expectation
 checkarrayorder(A, order::Order) = map(d -> checkarrayorder(d, order), dims(A))
 checkarrayorder(A, order::Tuple) = map(checkarrayorder, dims(A), order)
 checkarrayorder(dim::Dimension, order::Order) = begin

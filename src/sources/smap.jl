@@ -173,7 +173,7 @@ SMAPseries(filenames::Vector{<:AbstractString}, dims=nothing; kwargs...) = begin
     # Get the dims once for the whole series
     childkwargs = (
         dims=smapread(smapdims, first(filenames)),
-        metadata=smapread(smapdims, first(filenames)),
+        metadata=smapread(smapmetadata, first(filenames)),
     )
     GeoSeries(usedpaths, (timedim,); childtype=SMAPstack, childkwargs=childkwargs, kwargs...)
 end
@@ -203,6 +203,7 @@ smap_timedim(t::DateTime) = smap_timedim(t:Hour(3):t)
 smap_timedim(times::AbstractVector) =
     Ti(times, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals(Start())))
 
+# TODO actually add metadata to the dict
 smapmetadata(dataset::HDF5.HDF5File) = SMAPstackMetadata(Dict())
 
 smapdims(dataset::HDF5.HDF5File) = begin
