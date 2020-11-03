@@ -419,6 +419,9 @@ _ncdorder(index) = index[end] > index[1] ? Ordered(ForwardIndex(), ForwardArray(
                                            Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
 
 _ncdspan(index, order) = begin
+    # Handle a length 1 index
+    length(index) == 1 && return Regular(zero(eltype(index)))
+
     step = index[2] - index[1]
     for i in 2:length(index) -1
         # If any step sizes don't match, its Irregular
