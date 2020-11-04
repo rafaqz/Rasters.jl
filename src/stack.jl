@@ -389,3 +389,29 @@ Base.cat(stacks::AbstractGeoStack...; keys=keys(stacks[1]), dims) = begin
 end
 Base.first(s::AbstractGeoStack) = s[first(keys(s))]
 Base.last(s::AbstractGeoStack) = s[last(keys(s))]
+
+function Base.show(io::IO, stack::AbstractGeoStack)
+    printstyled(io, "$(Base.typename(typeof(stack)))", color=:blue)
+    print(io, " with $(length(keys(stack))) fields: $(stack.filename)\n")
+
+    for var in keys(stack)
+        printstyled(io, " $var", color=:green)
+
+        if length(dims(stack[var])) > 0
+            print(io, " with dimensions ")
+            field_dims = dims(stack[var])
+            for (d, dim) in enumerate(field_dims)
+                printstyled(io, "$(GeoData.name(dim))($(length(dim)))", color=:red)
+                d != length(field_dims) && printstyled(io, ", ", color=:red)
+            end
+        end
+        print(io, '\n')
+    end
+
+    n_metadata = length(stack.metadata)
+    if n_metadata > 0
+        print(io, "and $n_metadata metadata entries:\n")
+        show(io, stack.metadata)
+    end
+end
+
