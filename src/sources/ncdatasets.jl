@@ -40,7 +40,7 @@ nondimkeys(dataset) = begin
     dimkeys = keys(dataset.dim)
     removekeys = if "bnds" in dimkeys
         dimkeys = setdiff(dimkeys, ("bnds",))
-        boundskeys = map(k -> dataset[k].attrib["bounds"], dimkeys)
+        boundskeys = [dataset[k].attrib["bounds"] for k in dimkeys if haskey(dataset[k].attrib, "bounds")]
         union(dimkeys, boundskeys)
     else
         dimkeys
