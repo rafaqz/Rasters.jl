@@ -69,3 +69,12 @@ prepare(A) = A |> maybereplace_missing |> forwardorder
 
 maybereplace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, NaN)
 maybereplace_missing(A) = A
+
+maybe_reproject(dims::Tuple) = map(maybe_reproject, dims)
+maybe_reproject(dim::Dimension) = maybe_reproject(mode(dim), dim)
+maybe_reproject(mode::IndexMode, dim::Dimension) = dim
+maybe_reproject(mode::Projected, dim::Dimension) =
+    maybe_reproject(crs(mode), usercrs(mode), dim)
+maybe_reproject(crs, usercrs, dim::Dimension) = dim
+maybe_reproject(crs::GeoFormat, usercrs::GeoFormat, dim::Dimension) =
+    rebuild(dim, reproject(crs, usercrs, dim, val(dim)))
