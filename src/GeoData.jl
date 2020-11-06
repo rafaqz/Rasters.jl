@@ -63,6 +63,7 @@ include("aggregate.jl")
 include("methods.jl")
 include("mode.jl")
 include("sources/grd.jl")
+include("show.jl")
 include("plotrecipes.jl")
 
 function __init__()

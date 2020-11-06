@@ -7,8 +7,6 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
 
 @testset "GDALarray" begin
     gdalarray = GDALarray(path; usercrs=EPSG(4326), name=:test)
-    cat(gdalarray, gdalarray; dims=Band)
-    replace(GeoArray(gdalarray), -9999 => 0)
 
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
@@ -171,8 +169,9 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @test contains(sh, "Band")
     end
 
-    @testset "plot" begin # TODO write some tests for this
+    @testset "plot and show" begin # TODO write some tests for this
         gdalarray |> plot
+        gdalarray |> show
     end
 
 end
