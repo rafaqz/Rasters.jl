@@ -27,6 +27,10 @@ stackkeys = (
 @testset "NCDarray" begin
     ncarray = NCDarray(ncsingle)
 
+    @testset "open" begin
+        @test all(ncarray(A -> A[Lat=1]) .=== ncarray[:, 1, :])
+    end
+
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)
         @test ncarray isa NCDarray

@@ -8,6 +8,10 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
 @testset "GDALarray" begin
     gdalarray = GDALarray(path; mappedcrs=EPSG(4326), name=:test)
 
+    @testset "open" begin
+        @test Open(A -> A[Lat=1], gdalarray) == gdalarray[:, 1, :]
+    end
+
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
         @test gdalarray isa GDALarray{UInt8,3}
