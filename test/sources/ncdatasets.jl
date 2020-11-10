@@ -171,6 +171,7 @@ stackkeys = (
     @testset "plot" begin
         ncarray |> plot
         ncarray[Ti(1)] |> plot
+        ncarray[Lat(100), Ti(1)] |> plot
     end
 
 end

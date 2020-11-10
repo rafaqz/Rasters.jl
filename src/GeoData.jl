@@ -7,14 +7,13 @@ module GeoData
     read(path, String)
 end GeoData
 
-using Missings,
-      Mixers,
+using Dates,
+      Missings,
+      Mmap,
+      ProgressMeter,
       RecipesBase,
       Reexport,
-      Requires,
-      Dates,
-      Mmap,
-      ProgressMeter
+      Requires
 
 @reexport using DimensionalData, GeoFormatTypes
 

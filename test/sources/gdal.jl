@@ -170,8 +170,9 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     end
 
     @testset "plot and show" begin # TODO write some tests for this
-        gdalarray |> plot
         gdalarray |> show
+        gdalarray |> plot
+        gdalarray[Lat(1)] |> plot
     end
 
 end
