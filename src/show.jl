@@ -24,20 +24,30 @@ end
 
 function Base.show(io::IO, stack::AbstractGeoStack)
     printstyled(io, "$(Base.typename(typeof(stack)))", color=:blue)
-    print(io, " with $(length(keys(stack))) fields: $(stack.filename)\n")
+    print(io, " with $(length(keys(stack))) field(s): $(stack.filename)\n")
 
     for var in keys(stack)
         printstyled(io, " $var", color=:green)
 
         field_dims = dims(stack, var)
         if length(field_dims) > 0
-            print(io, " with dimensions ")
+            print(io, " with dimension(s) ")
             for (d, dim) in enumerate(field_dims)
                 printstyled(io, "$(GeoData.name(dim))($(length(dim)))", color=:red)
-                d != length(field_dims) && printstyled(io, ", ", color=:red)
+                d != length(field_dims) && print(io, ", ")
             end
         end
         print(io, '\n')
+    end
+
+    n_windows = length(stack.window)
+    if n_windows > 0
+        print(io, "and with $n_windows window(s):\n")
+        for window in stack.window
+            print(io, ' ')
+            show(window)
+            print(io, '\n')
+        end
     end
 
     n_metadata = length(stack.metadata)
