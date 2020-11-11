@@ -53,6 +53,6 @@ function Base.show(io::IO, stack::AbstractGeoStack)
     n_metadata = length(stack.metadata)
     if n_metadata > 0
         print(io, "and $n_metadata metadata entries:\n")
-        show(io, stack.metadata)
+        display(stack.metadata)
     end
 end
