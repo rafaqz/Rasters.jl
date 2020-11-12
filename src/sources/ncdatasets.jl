@@ -13,11 +13,7 @@ end
 
 """
     NCDarrayMetadata(val::Dict)
-
-[`Metadata`](@ref) wrapper for [`NCDarray`](@ref) metadata.
-"""
-struct NCDarrayMetadata{K,V} <: ArrayMetadata{K,V}
-    val::Dict{K,V}
+[`Metadata`](@ref) wrapper for [`NCDarray`](@ref) metadata.  """ struct NCDarrayMetadata{K,V} <: ArrayMetadata{K,V} val::Dict{K,V}
 end
 
 """
@@ -124,7 +120,7 @@ ncshiftindex(mode::IndexMode, dim::Dimension) = val(dim)
 
 # CF standards don't enforce dimension names.
 # But these are common, and should take care of most dims.
-const dimmap = Dict("lat" => Lat,
+const DIMMAP = Dict("lat" => Lat,
                     "latitude" => Lat,
                     "lon" => Lon,
                     "long" => Lon,
@@ -379,7 +375,7 @@ dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
             dvar = dataset[dimname]
             # Find the matching dimension constructor. If its an unknown name use
             # the generic Dim with the dim name as type parameter
-            dimtype = get(dimmap, dimname, Dim{Symbol(dimname)})
+            dimtype = haskey(DIMMAP, dimname) ? DIMMAP[dimname] : basetypeof(DD.key2dim(Symbol(dimname)))
             index = dvar[:]
             meta = NCDdimMetadata(Dict{String,Any}(dvar.attrib))
             mode = _ncdmode(index, dimtype, crs, dimcrs, meta)
