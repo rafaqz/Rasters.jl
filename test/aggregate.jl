@@ -133,8 +133,11 @@ end
             [1  1  1  4  4  4
              7  7  7 10 10 10
             13 13 13 16 16 16]
-        @test aggregate(Start(), array1, (Lon(1), Lat(Near(-4)))) == 
-            aggregate(Start(), array1, (1, 2))
+        agg = aggregate(Start(), array1, (Lon(1), Lat(Near(-4)))) 
+        @test agg == aggregate(Start(), array1, (1, 2))
+        @testset "scale 1 dims are unchanged" begin
+            @test dims(agg, Lon) === dims(array1, Lon)
+        end
     end
 
 end
