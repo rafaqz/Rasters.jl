@@ -1,7 +1,4 @@
-
-# Don't show the data in DiskGeoArray. It 
-# defeats the purpose of loading them lazily.
-Base.show(io::IO, A::DiskGeoArray) = begin
+Base.show(io::IO, A::AbstractGeoArray) = begin
     l = nameof(typeof(A))
     printstyled(io, nameof(typeof(A)); color=:blue)
     if label(A) != ""
@@ -19,5 +16,5 @@ Base.show(io::IO, A::DiskGeoArray) = begin
             print(io, " ", d, "\n")
         end
     end
-    print(io, "\n  From file: $(filename(A))")
+    applicable(filename, A) && print(io, "\n  From file: $(filename(A))")
 end
