@@ -24,7 +24,9 @@ end
 
 function Base.show(io::IO, stack::AbstractGeoStack)
     printstyled(io, "$(Base.typename(typeof(stack)))", color=:blue)
-    print(io, " with $(length(keys(stack))) field(s): $(stack.filename)\n")
+    print(io, " with $(length(keys(stack))) field(s)")
+    applicable(filename, stack) && print(io, ": $(filename(stack))")
+    print(io, '\n')
 
     for var in keys(stack)
         printstyled(io, " $var", color=:green)
@@ -50,9 +52,11 @@ function Base.show(io::IO, stack::AbstractGeoStack)
         end
     end
 
-    n_metadata = length(stack.metadata)
-    if n_metadata > 0
-        print(io, "and $n_metadata metadata entries:\n")
-        display(stack.metadata)
+    if !isnothing(stack.metadata)
+        n_metadata = length(stack.metadata)
+        if n_metadata > 0
+            print(io, "and $n_metadata metadata entries:\n")
+            display(stack.metadata)
+        end
     end
 end
