@@ -16,5 +16,5 @@ Base.show(io::IO, A::AbstractGeoArray) = begin
             print(io, " ", d, "\n")
         end
     end
-    applicable(filename, A) && print(io, "\n  From file: $(filename(A))")
+    A isa DiskGeoArray && print(io, "\n  From file: $(filename(A))")
 end
