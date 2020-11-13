@@ -36,13 +36,18 @@ function Base.show(io::IO, stack::AbstractGeoStack)
         field_dims = dims(stack, var)
         n_dims = length(field_dims)
         dims_str = n_dims == 1 ? "dimension" : "dimensions"
+        print(io, " with $n_dims $dims_str: ")
         if n_dims > 0
-            print(io, " with $n_dims $dims_str: ")
             for (d, dim) in enumerate(field_dims)
                 printstyled(io, "$(name(dim))", color=:red)
-                print(io, " [length: $(length(dim))]")
                 d != length(field_dims) && print(io, ", ")
             end
+            print(io, " (size ")
+            for (d, dim) in enumerate(field_dims)
+                print(io, "$(length(dim))")
+                d != length(field_dims) && print(io, '×')
+            end
+            print(io, ')')
         end
         print(io, '\n')
     end
