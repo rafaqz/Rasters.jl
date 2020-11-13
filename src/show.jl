@@ -23,8 +23,10 @@ Base.show(io::IO, A::DiskGeoArray) = begin
 end
 
 function Base.show(io::IO, stack::AbstractGeoStack)
+    n_fields = length(keys(stack))
+    fields_str = n_fields == 1 ? "field" : "fields"
     printstyled(io, "$(Base.typename(typeof(stack)))", color=:blue)
-    print(io, " with $(length(keys(stack))) field(s)")
+    print(io, " with $n_fields $fields_str")
     stack isa DiskGeoStack && print(io, ": $(filename(stack))")
     print(io, '\n')
 
@@ -32,8 +34,10 @@ function Base.show(io::IO, stack::AbstractGeoStack)
         printstyled(io, " $var", color=:green)
 
         field_dims = dims(stack, var)
-        if length(field_dims) > 0
-            print(io, " with dimension(s) ")
+        n_dims = length(field_dims)
+        dims_str = n_dims == 1 ? "dimension" : "dimensions"
+        if n_dims > 0
+            print(io, " with $n_dims $dims_str: ")
             for (d, dim) in enumerate(field_dims)
                 printstyled(io, "$(name(dim))", color=:red)
                 print(io, " [length: $(length(dim))]")
@@ -55,8 +59,9 @@ function Base.show(io::IO, stack::AbstractGeoStack)
 
     if !isnothing(stack.metadata)
         n_metadata = length(stack.metadata)
+        entries_str = n_metadata == 1 ? "entry" : "entries"
         if n_metadata > 0
-            print(io, "and $n_metadata metadata entries:\n")
+            print(io, "and $n_metadata metadata $entries_str:\n")
             display(stack.metadata)
         end
     end
