@@ -4,12 +4,19 @@
 
 Replace missing values in the array or stack with a new missing value, 
 also updating the `missingval` field/s.
+
+A `GeoArray` containing a newly allocated `Array` is always returned,
+even when the missing value matches the current value.
 """
 replace_missing(a::DiskGeoArray, args...) = 
     replace_missing(GeoArray(a), args...)
 replace_missing(a::MemGeoArray, newmissingval=missing) = begin
     newdata = if ismissing(missingval(a))
-        collect(Missings.replace(parent(a), newmissingval))
+        if newmissingval === missing
+            copy(parent(a))
+        else
+            collect(Missings.replace(parent(a), newmissingval))
+        end
     else
         replace(parent(a), missingval(a) => newmissingval)
     end
