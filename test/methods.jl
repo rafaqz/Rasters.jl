@@ -6,6 +6,8 @@ ga99 = replace_missing(ga, -9999)
 @test all(ga99 .=== [-9999.0f0 7.0f0; 2.0f0 -9999.0f0])
 gaNaN = replace_missing(ga, NaN32)
 @test all(gaNaN .=== [NaN32 7.0f0; 2.0f0 NaN32])
+gaMi = replace_missing(ga, missing)
+@test all(gaMi .=== ga)
 
 @testset "boolmask" begin
     @test boolmask(A) == [false true; true false]
