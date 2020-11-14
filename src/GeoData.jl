@@ -29,7 +29,8 @@ import DimensionalData: val, data, dims, refdims, metadata, name, label, units,
 
 export Metadata, DimMetadata, ArrayMetadata, StackMetadata
 
-export AbstractGeoArray, MemGeoArray, DiskGeoArray, GeoArray
+export AbstractGeoArray, MemGeoArray, DiskGeoArray, GeoArray, Open
+
 export AbstractGeoStack, MemGeoStack, DiskGeoStack, DiskStack, GeoStack
 
 export AbstractGeoSeries, GeoSeries
@@ -62,6 +63,7 @@ include("series.jl")
 include("utils.jl")
 include("aggregate.jl")
 include("methods.jl")
+include("open.jl")
 include("sources/grd.jl")
 include("show.jl")
 include("plotrecipes.jl")

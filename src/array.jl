@@ -98,6 +98,9 @@ abstract type MemGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
 """
 Abstract supertype for all disk-backed GeoArrays.
 For these the data is lazyily loaded from disk.
+
+To load a `DiskGeoArray` and operate on the data multiple times, use
+[`Open`](@ref) and a `do` block.
 """
 abstract type DiskGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
 
@@ -143,30 +146,6 @@ Base.write(A::T) where T <: DiskGeoArray = write(filename(A), A)
 Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
     write(filename, T, A)
 
-
-# Used internally to expose open disk files inside a `do` block
-struct OpenGeoArray{T,N,D<:Tuple,R<:Tuple,A,Na<:Symbol,Me,Mi} <: AbstractGeoArray{T,N,D,A}
-    data::A
-    dims::D
-    refdims::R
-    name::Na
-    metadata::Me
-    missingval::Mi
-end
-function OpenGeoArray(A, dims, refdims, name, metadata, missingval)
-    OpenGeoArray{eltype(A),ndims(A),map(typeof,(dims,refdims,A,name,metadata,missingval))...}(
-        A, dims, refdims, name, metadata, missingval
-    )
-end
-function OpenGeoArray(f, A::X) where {X<:DiskGeoArray{T,N}} where {T,N}
-    withsourcedata(A) do source
-        OA = OpenGeoArray(source, dims(A), refdims(A), name(A), metadata(A), missingval(A))
-        f(OA)
-    end
-end
-
-# operate on an AbstractGeoArray in a method or `do` block
-(A::AbstractGeoArray)(f) = OpenGeoArray(f, A)
 
 # Concrete implementation ######################################################
 

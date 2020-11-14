@@ -22,6 +22,7 @@ AbstractGeoArray
 MemGeoArray
 DiskGeoArray
 GeoArray
+Open
 ```
 
 ## Stack

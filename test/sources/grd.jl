@@ -13,7 +13,7 @@ path = joinpath(testpath, "data/rlogo")
     grdarray = GRDarray(path);
 
     @testset "open" begin
-        @test all(grdarray(A -> A[Lat=1]) .=== grdarray[:, 1, :])
+        @test all(Open(A -> A[Lat=1], grdarray) .=== grdarray[:, 1, :])
     end
 
     @testset "array properties" begin
