@@ -117,3 +117,12 @@ end
     catstack = cat(stack_a, stack_b; dims=(Lon(), Lat()))
     @test size(first(catstack)) == (20, 22)
 end
+
+@testset "show" begin
+    sh = sprint(show, stack)
+    # Test but don't lock this down too much
+    @test contains(sh, "GeoStack")
+    @test contains(sh, "Latitude")
+    @test contains(sh, "Longitude")
+end
+
