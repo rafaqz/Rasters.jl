@@ -185,6 +185,7 @@ end
         @test metadata(ncstack) isa NCDstackMetadata
         @test refdims(ncstack) == ()
         # Loads child as a regular GeoArray
+        @test_throws NCDatasets.NetCDFError ncstack[:not_a_key]
         @test ncstack[:albedo] isa GeoArray{<:Any,3}
         @test ncstack[:albedo, 2, 3, 1] isa Float32
         @test ncstack[:albedo, :, 3, 1] isa GeoArray{<:Any,1}
