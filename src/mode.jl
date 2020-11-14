@@ -34,11 +34,11 @@ Projected(; order=Ordered(), span=Regular(),
           sampling=Points(), crs, mappedcrs=nothing) =
     Projected(order, span, sampling, crs, mappedcrs)
 
-crs(mode::Projected, dim) = crs(mode)
 crs(mode::Projected) = mode.crs
+crs(mode::IndexMode) = nothing
 
-mappedcrs(mode::Projected, dim) = mappedcrs(mode)
 mappedcrs(mode::Projected) = mode.mappedcrs
+mappedcrs(mode::IndexMode) = nothing
 
 rebuild(g::Projected, order=order(g), span=span(g),
         sampling=sampling(g), crs=crs(g), mappedcrs=mappedcrs(g)) =

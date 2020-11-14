@@ -100,7 +100,7 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     var[:] = data(A)
 end
 
-_notmissingtype(::Type{Missing}, next...) = _notmissing(next...)
+_notmissingtype(::Type{Missing}, next...) = _notmissingtype(next...)
 _notmissingtype(x::Type, next...) = x in NCD_FILL_TYPES ? x : _notmissingtype(next...)
 _notmissingtype() = error("Your data is not a type that netcdf can store")
 

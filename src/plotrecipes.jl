@@ -11,7 +11,7 @@ struct GeoPlot end
         GeoPlot(), prepare(A)
     else
         # This is not a Lat/Lon heatmap. Fall back to DD recipes after reprojecting
-        da = A |> GeoArray |> a -> DimArray(a; dims=_maybemappedindex(dims(a)))
+        da = A |> GeoArray |> a -> DimArray(a; dims=_maybe_mapped(dims(a)))
         DimensionalData.DimensionalPlot(), da
     end
 end
@@ -59,14 +59,17 @@ end
 
 # Plots heatmaps pixels are centered. 
 # So we should center, and use the projected value.
-prepare(d::Dimension) = shiftindexloci(Center(), d) |> _maybemappedindex
+prepare(d::Dimension) = shiftindexloci(Center(), d) |> _maybe_mapped |> index 
 
 # Convert arrays to a consistent missing value and Forward array order
-prepare(A::AbstractGeoArray) = A |> _maybereplace_missing |> forwardorder
+prepare(A::AbstractGeoArray) = A |> _maybe_replace_missing |> forwardorder
 
-_maybereplace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, NaN)
-_maybereplace_missing(A) = A
+_maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, NaN)
+_maybe_replace_missing(A) = A
 
-_maybemappedindex(dim::Dimension) = _maybemappedindex(mappedcrs(dim), dim)
-_maybemappedindex(::Nothing, dim::Dimension) = index(dim)
-_maybemappedindex(::GeoFormat, dim::Dimension) = mappedindex(dim)
+_maybe_mapped(dims::Tuple) = map(_maybe_mapped, dims)
+_maybe_mapped(dim::Dimension) = _maybe_mapped(mode(dim), dim)
+_maybe_mapped(mode::IndexMode, dim::Dimension) = dim
+_maybe_mapped(mode::Projected, dim::Dimension) = _maybe_mapped(mappedcrs(mode), dim)
+_maybe_mapped(::Nothing, dim::Dimension) = dim
+_maybe_mapped(::GeoFormat, dim::Dimension) = convertmode(Mapped, dim)

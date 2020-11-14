@@ -46,7 +46,7 @@ crs(A::AbstractGeoArray) =
     else
         error("No Lat or Lon dimension, crs not available")
     end
-crs(dim::Dimension) = crs(mode(dim), dim)
+crs(dim::Dimension) = crs(mode(dim))
 
 """
     mappedcrs(x)
@@ -68,7 +68,7 @@ mappedcrs(A::AbstractGeoArray) =
     else
         error("No Lat or Lon dimension, mappedcrs not available")
     end
-mappedcrs(dim::Dimension) = mappedcrs(mode(dim), dim)
+mappedcrs(dim::Dimension) = mappedcrs(mode(dim))
 
 # DimensionalData methods
 
