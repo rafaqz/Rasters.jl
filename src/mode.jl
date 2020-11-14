@@ -1,113 +1,87 @@
 abstract type AbstractProjected{O,Sp,Sa} <: AbstractSampled{O,Sp,Sa} end
 
 """
-    Projected(order::Order, span, sampling, crs, usercrs)
-    Projected(; order=Ordered(), span=AutoSpan(), sampling=Points(), crs, usercrs=nothing)
+    Projected(order::Order, span, sampling, crs, mappedcrs)
+    Projected(; order=Ordered(), span=AutoSpan(), sampling=Points(), crs, mappedcrs=nothing)
 
 An [`AbstractSampled`]($DDabssampleddocs) `IndexMode` with projections attached.
 
 Fields and behaviours are identical to [`Sampled`]($DDsampleddocs)
-with the addition of `crs` and `usercrs` fields.
+with the addition of `crs` and `mappedcrs` fields.
 
-If both `crs` and `usercrs` fields contain CRS data (in a `GeoFormat` wrapper
+If both `crs` and `mappedcrs` fields contain CRS data (in a `GeoFormat` wrapper
 from GeoFormatTypes.jl) the selector inputs and plot axes will be converted
-from and to the specified `usercrs` projection automatically. A common use case
-would be to pass `usercrs=EPSG(4326)` to the constructor when loading eg. a GDALarray:
+from and to the specified `mappedcrs` projection automatically. A common use case
+would be to pass `mappedcrs=EPSG(4326)` to the constructor when loading eg. a GDALarray:
 
 ```julia
-GDALarray(filename; usercrs=EPSG(4326))
+GDALarray(filename; mappedcrs=EPSG(4326))
 ```
 
 The underlying `crs` will be detected by GDAL.
 
-If `usercrs` is not supplied (ie. `usercrs=nothing`), the base index will be
+If `mappedcrs` is not supplied (ie. `mappedcrs=nothing`), the base index will be
 shown on plots, and selectors will need to use whatever format it is in.
 """
-struct Projected{O<:Order,Sp<:Regular,Sa,C,IC} <: AbstractProjected{O,Sp,Sa}
+struct Projected{O<:Order,Sp<:Regular,Sa<:Sampling,PC,MC} <: AbstractProjected{O,Sp,Sa}
     order::O
     span::Sp
     sampling::Sa
-    crs::C
-    usercrs::IC
+    crs::PC
+    mappedcrs::MC
 end
 Projected(; order=Ordered(), span=Regular(),
-          sampling=Points(), crs, usercrs=nothing) =
-    Projected(order, span, sampling, crs, usercrs)
+          sampling=Points(), crs, mappedcrs=nothing) =
+    Projected(order, span, sampling, crs, mappedcrs)
 
-crs(mode::Projected, dim) = crs(mode)
 crs(mode::Projected) = mode.crs
+crs(mode::IndexMode) = nothing
 
-usercrs(mode::Projected, dim) = usercrs(mode)
-usercrs(mode::Projected) = mode.usercrs
+mappedcrs(mode::Projected) = mode.mappedcrs
+mappedcrs(mode::IndexMode) = nothing
 
 rebuild(g::Projected, order=order(g), span=span(g),
-        sampling=sampling(g), crs=crs(g), usercrs=usercrs(g)) =
-    Projected(order, span, sampling, crs, usercrs)
+        sampling=sampling(g), crs=crs(g), mappedcrs=mappedcrs(g)) =
+    Projected(order, span, sampling, crs, mappedcrs)
 
 """
-    Converted(order::Order, span, sampling, crs, dimcrs)
-    Converted(; order=Ordered(), span=AutoSpan(), sampling=Points(), crs, dimcrs)
+    Mapped(order::Order, span, sampling, crs, mappedcrs)
+    Mapped(; order=Ordered(), span=AutoSpan(), sampling=Points(), crs=nothing, mappedcrs)
 
-An [`AbstractSampled`]($DDabssampleddocs) `IndexMode` with projections, where the
-dimension index has already been converted to another projection as a vector,
-usually `EPSG(4326)`.
+An [`AbstractSampled`]($DDabssampleddocs) `IndexMode`, where the dimension index has  
+been mapped to another projection, usually lat/lon or `EPSG(4326)`.
 
 Fields and behaviours are identical to [`Sampled`]($DDsampleddocs) with the addition of
-`crs` and `dimcrs` fields.
+`crs` and `mappedcrs` fields.
 
-The dimension will be indexed as for [`Sampled`]($DDsampleddocs), but to save in another
-format the underlying projection will be used.  ```julia GDALarray(filename; usercrs=EPSG(4326))
-```
-
-The underlying `crs` will be detected by GDAL.
-
-If `usercrs` is not supplied (ie. `usercrs=nothing`), the base index will be
-shown on plots, and selectors will need to use whatever format it is in.
+The mapped dimension index will be used as for [`Sampled`]($DDsampleddocs), 
+but to save in another format the underlying `projectioncrs` may be used.
 """
-struct Converted{O<:Order,Sp,Sa,C,DC} <: AbstractProjected{O,Sp,Sa}
+struct Mapped{O<:Order,Sp<:Span,Sa<:Sampling,PC,MC} <: AbstractProjected{O,Sp,Sa}
     order::O
     span::Sp
     sampling::Sa
-    crs::C
-    dimcrs::DC
+    crs::PC
+    mappedcrs::MC
 end
-Converted(; order=Ordered(), span=AutoSpan(),
-          sampling=Points(), crs, dimcrs) =
-    Converted(order, span, sampling, crs, dimcrs)
+Mapped(; order=Ordered(), span=AutoSpan(), sampling=Points(), 
+       crs=nothing, mappedcrs) =
+    Mapped(order, span, sampling, crs, mappedcrs)
 
-crs(mode::Converted, dim) = crs(mode)
-crs(mode::Converted) = mode.crs
+crs(mode::Mapped, dim) = crs(mode)
+crs(mode::Mapped) = mode.crs
 
-dimcrs(mode::Converted, dim) = dimcrs(mode)
-dimcrs(mode::Converted) = mode.dimcrs
+mappedcrs(mode::Mapped, dim) = mappedcrs(mode)
+mappedcrs(mode::Mapped) = mode.mappedcrs
 
-rebuild(g::Converted, order=order(g), span=span(g),
-        sampling=sampling(g), crs=crs(g), dimcrs=dimcrs(g)) =
-    Converted(order, span, sampling, crs, dimcrs)
-
-"""
-    LatLon(order, span, sampling)
-    LatLon(; order=Ordered(), span=AutoSpan(), sampling=Points())
-
-An [`AbstractSampled`]($DDabssampleddocs) mode for standard latitude/longitude dimensions.
-"""
-struct LatLon{O<:Order,Sp,Sa} <: AbstractSampled{O,Sp,Sa}
-    order::O
-    span::Sp
-    sampling::Sa
-end
-LatLon(; order=Ordered(), span=AutoSpan(), sampling=Points()) =
-    LatLon(order, span, sampling)
-
-crs(mode::LatLon, args...) = EPSG(4326)
-
-rebuild(g::LatLon, order=order(g), span=span(g), sampling=sampling(g)) =
-    LatLon(order, span, sampling)
+rebuild(g::Mapped, order=order(g), span=span(g),
+        sampling=sampling(g), crs=crs(g), mappedcrs=mappedcrs(g)) =
+    Mapped(order, span, sampling, crs, mappedcrs)
 
 """
     convertmode(dstmode::Type{<:IndexMode}, x)
 
-Convert the dimension mode between `Projected` and `Converted`.
+Convert the dimension mode between `Projected` and `Mapped`.
 Other dimension modes pass through unchanged.
 
 This is used to e.g. save a netcdf file to GeoTiff.
@@ -118,10 +92,11 @@ convertmode(dstmode::Type{<:IndexMode}, dims::Tuple) =
     map(d -> convertmode(dstmode, d), dims)
 convertmode(dstmode::Type{<:IndexMode}, dim::Dimension) =
     convertmode(dstmode, basetypeof(mode(dim)), dim)
-# Regular modes pass through
+# Non-projected IndexMode modess pass through
 convertmode(dstmode::Type, srcmode::Type{<:IndexMode}, dim::Dimension) = dim
 # AbstractProjected passes through if it's the same as dstmode
 convertmode(dstmode::Type{M}, srcmode::Type{M}, dim::Dimension) where M<:AbstractProjected = dim
 # Otherwise AbstractProjected needs ArchGDAL
 convertmode(dstmode::Type, srcmode::Type{<:AbstractProjected}, dim::Dimension) =
     error("Load ArchGDAL.jl to convert projected dimensions")
+# The rest of these methods are in reprojected.jl as they need ArchGDAL

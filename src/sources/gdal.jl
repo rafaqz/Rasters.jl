@@ -39,7 +39,8 @@ end
 
 """
     GDALarray(filename;
-              usercrs=nothing,
+              crs=nothing,
+              mappedcrs=nothing,
               name="",
               dims=nothing,
               refdims=(),
@@ -94,8 +95,9 @@ GDALarray(filename::AbstractString; kwargs...) = begin
     end
 end
 GDALarray(raster::AG.RasterDataset, filename, key=nothing;
-          usercrs=nothing,
-          dims=dims(raster, usercrs),
+          crs=nothing,
+          mappedcrs=nothing,
+          dims=dims(raster, crs, mappedcrs),
           refdims=(),
           name=Symbol(""),
           metadata=metadata(raster),
@@ -197,14 +199,14 @@ withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) =
 
 # DimensionalData methods for ArchGDAL types ###############################
 
-dims(raster::AG.RasterDataset, usercrs=nothing) = begin
+dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing) = begin
     gt = try
         AG.getgeotransform(raster) catch GDAL_EMPTY_TRANSFORM end
     lonsize, latsize = size(raster)
 
     nbands = AG.nraster(raster)
     band = Band(1:nbands, mode=Categorical(Ordered()))
-    sourcecrs = crs(raster)
+    crs = crs isa Nothing ? GeoData.crs(raster) : crs
 
     lonlat_metadata=GDALdimMetadata()
 
@@ -233,16 +235,16 @@ dims(raster::AG.RasterDataset, usercrs=nothing) = begin
             order=Ordered(GDAL_LON_INDEX, GDAL_LON_ARRAY, GDAL_RELATION),
             span=Regular(step(lonindex)),
             sampling=lonsampling,
-            crs=sourcecrs,
-            usercrs=usercrs,
+            crs=crs,
+            mappedcrs=mappedcrs,
         )
         latmode = Projected(
             order=Ordered(GDAL_LAT_INDEX, GDAL_LAT_ARRAY, GDAL_RELATION),
             sampling=latsampling,
             # Use the range step as is will be different to latstep due to float error
             span=Regular(step(latindex)),
-            crs=sourcecrs,
-            usercrs=usercrs,
+            crs=crs,
+            mappedcrs=mappedcrs,
         )
 
         lon = Lon(lonindex; mode=lonmode, metadata=lonlat_metadata)
@@ -260,6 +262,8 @@ dims(raster::AG.RasterDataset, usercrs=nothing) = begin
 end
 
 missingval(raster::AG.RasterDataset, args...) = begin
+    # We can only handle data where all bands have
+    # the same missingval
     band = AG.getband(raster.ds, 1)
     missingval = AG.getnodatavalue(band)
     T = AG.pixeltype(band)
@@ -336,15 +340,14 @@ end
 function gdalsetproperties!(dataset, A)
     # Convert the dimensions to `Projected` if they are `Converted`
     # This allows saving NetCDF to Tiff
-    lon, lat = map(dims(A, (Lon(), Lat()))) do d
-        convertmode(Projected, d)
-    end
-    @assert indexorder(lat) == GDAL_LAT_INDEX
-    @assert indexorder(lon) == GDAL_LON_INDEX
     # Set the index loci to the start of the cell for the lat and lon dimensions.
     # NetCDF or other formats use the center of the interval, so they need conversion.
-    lon = shiftindexloci(GDAL_LON_LOCUS, lon)
-    lat = shiftindexloci(GDAL_LAT_LOCUS, lat)
+    lon = shiftindexloci(GDAL_LON_LOCUS, dims(A, Lon))
+    lat = shiftindexloci(GDAL_LAT_LOCUS, dims(A, Lat))
+    lon = convertmode(Projected, lon)
+    lat = convertmode(Projected, lat)
+    @assert indexorder(lat) == GDAL_LAT_INDEX
+    @assert indexorder(lon) == GDAL_LON_INDEX
     # Get the geotransform from the updated lat/lon dims
     geotransform = dims2geotransform(lat, lon)
     # Convert projection to a string of well known text
@@ -354,14 +357,18 @@ function gdalsetproperties!(dataset, A)
     AG.setproj!(dataset, proj)
     AG.setgeotransform!(dataset, geotransform)
 
-    # Set the nodata value
-    bands = if hasdim(A, Band)
-        index(A, Band)
-    else
-        1
-    end
-    for i in bands
-        AG.setnodatavalue!(AG.getband(dataset, i), missingval(A))
+    # Set the nodata value. GDAL can't handle missing
+    # We could choose a default, but we would need to do this for all
+    # possible types.
+    if missingval(A) !== missing
+        bands = if hasdim(A, Band)
+            index(A, Band)
+        else
+            1
+        end
+        for i in bands
+            AG.setnodatavalue!(AG.getband(dataset, i), missingval(A))
+        end
     end
 
     dataset
@@ -370,8 +377,9 @@ end
 
 # Create a GeoArray from a memory-backed dataset
 function GeoArray(dataset::AG.Dataset;
-                  usercrs=nothing,
-                  dims=dims(AG.RasterDataset(dataset), usercrs),
+                  crs=nothing,
+                  mappedcrs=nothing,
+                  dims=dims(AG.RasterDataset(dataset), crs, mappedcrs),
                   refdims=(),
                   name=Symbol(""),
                   metadata=metadata(AG.RasterDataset(dataset)),

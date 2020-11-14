@@ -216,10 +216,20 @@ smapdims(dataset::HDF5.HDF5File) = begin
         latbounds = read(extent["southBoundLatitude"]), read(extent["northBoundLatitude"])
         latvec = read(root(dataset)["cell_lat"])[1, :]
         lonvec = read(root(dataset)["cell_lon"])[:, 1]
-        lonmode = Converted(Ordered(), Irregular(lonbounds),
-                            Intervals(Center()), SMAPCRS, EPSG(4326))
-        latmode = Converted(Ordered(ReverseIndex(), ReverseArray(), ForwardRelation()), Irregular(latbounds),
-                            Intervals(Center()), SMAPCRS, EPSG(4326))
+        lonmode = Mapped(
+           order=Ordered(), 
+           span=Irregular(lonbounds),
+           sampling=Intervals(Center()), 
+           crs=SMAPCRS, 
+           mappedcrs=EPSG(4326)
+        )
+        latmode = Mapped(
+            order=Ordered(ReverseIndex(), ReverseArray(), ForwardRelation()), 
+            span=Irregular(latbounds), 
+            sampling=Intervals(Center()), 
+            crs=SMAPCRS, 
+            mappedcrs=EPSG(4326),
+        )
         (Lon(lonvec; mode=lonmode), Lat(latvec; mode=latmode))
     else
         error("projection $proj not supported")

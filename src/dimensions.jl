@@ -69,28 +69,66 @@ mean(A; dims=Band)
 
 
 """
-    userbounds(x)
+    mappedbounds(x)
 
 Get the bounds converted to the `usercrs` value.
 
 Whithout ArchGDAL loaded, this is just the regular bounds.
 """
-function userbounds end
+function mappedbounds end
 
-userbounds(A) = userbounds(dims(A)) 
-userbounds(dims::Tuple) = map(userbounds, dims) 
-userbounds(dim::Dimension) = bounds(dim)
+mappedbounds(dims::Tuple) = map(mappedbounds, dims) 
+mappedbounds(dim::Dimension) = bounds(dim)
+mappedbounds(dim::Union{Lat,Lon}) = mappedbounds(mode(dim), dim)
+mappedbounds(::Mapped, dim) = bounds(dim)
+@noinline mappedbounds(mode::IndexMode, dim) = 
+    if mode isa Projected
+        error("Load ArchGDAL to convert Projected mode bounds to mapped")
+    else
+        error("cannot get mapped bounds of a $(nameof(typeof(mode))) mode dim")
+    end
+
+
+projectedbounds(dims::Tuple) = map(projectedbounds, dims) 
+projectedbounds(dim::Dimension) = bounds(dim)
+projectedbounds(dim::Union{Lat,Lon}) = projectedbounds(mode(dim), dim)
+projectedbounds(::Projected, dim) = bounds(dim)
+@noinline projectedbounds(mode::IndexMode, dim) = 
+    if mode isa Mapped
+        error("Load ArchGDAL to convert Mapped mode dim to projected")
+    else
+        error("cannot get projected bounds of a $(nameof(typeof(mode))) mode dim")
+    end
 
 
 """
-    userval(x)
+    mappedindex(x)
 
 Get the index value of a dimension converted to the `usercrs` value.
 
 Whithout ArchGDAL loaded, this is just the regular dim value.
 """
-function userval end
+function mappedindex end
 
-userval(A) = userval(dims(A)) 
-userval(dims::Tuple) = map(userval, dims) 
-userval(dim::Dimension) = val(dim)
+mappedindex(dims::Tuple) = map(mappedindex, dims) 
+mappedindex(dim::Dimension) = index(dim)
+mappedindex(dim::Union{Lat,Lon}) = mappedindex(mode(dim), dim)
+mappedindex(::Mapped, dim) = index(dim)
+@noinline mappedindex(mode::IndexMode, dim) = 
+    if mode isa Projected
+        error("Load ArchGDAL to convert Projected mode index to mapped")
+    else
+        error("cannot get mapped index of a $(nameof(typeof(mode))) mode dim")
+    end
+
+projectedindex(dims::Tuple) = map(projectedindex, dims) 
+projectedindex(dim::Dimension) = index(dim)
+projectedindex(dim::Union{Lat,Lon}) = projectedindex(mode(dim), dim)
+projectedindex(::Projected, dim) = index(dim)
+@noinline projectedindex(mode::IndexMode, dim) = 
+    if mode isa Mapped
+        error("Load ArchGDAL to convert Mapped mode index to projected")
+    else
+        error("cannot get projected index of a $(nameof(typeof(mode))) mode dim")
+    end
+

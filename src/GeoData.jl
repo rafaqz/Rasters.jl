@@ -34,11 +34,12 @@ export AbstractGeoStack, MemGeoStack, DiskGeoStack, DiskStack, GeoStack
 
 export AbstractGeoSeries, GeoSeries
 
-export Projected, Converted
+export Projected, Mapped
 
 export missingval, boolmask, missingmask, replace_missing,
-       aggregate, aggregate!, disaggregate, disaggregate!,
-       crs, usercrs, dimcrs
+       aggregate, aggregate!, disaggregate, disaggregate!
+
+export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 
 export Lon, Lat, Vert, Band
 
@@ -52,6 +53,7 @@ const DDlocusdocs = joinpath(DDdocs, "#DimensionalData.Locus")
 const DDselectordocs = joinpath(DDdocs, "#DimensionalData.Selector")
 const DDtidocs = joinpath(DDdocs, "#DimensionalData.Ti")
 
+include("mode.jl")
 include("dimensions.jl")
 include("metadata.jl")
 include("array.jl")
@@ -60,7 +62,6 @@ include("series.jl")
 include("utils.jl")
 include("aggregate.jl")
 include("methods.jl")
-include("mode.jl")
 include("sources/grd.jl")
 include("show.jl")
 include("plotrecipes.jl")

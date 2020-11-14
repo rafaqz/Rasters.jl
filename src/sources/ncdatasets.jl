@@ -27,6 +27,8 @@ end
 
 const UNNAMED_NCD_KEY = "unnamed"
 
+const NCD_FILL_TYPES = (Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String)
+
 
 # Utils ########################################################################
 
@@ -47,43 +49,44 @@ end
 # Add a var array to a dataset before writing it.
 ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     A = reorder(A, ForwardIndex()) |> a -> reorder(a, ForwardRelation())
-    if ismissing(missingval(A))
-        # TODO default _FillValue for Int?
-        fillvalue = get(metadata(A), "_FillValue", NaN)
-        A = replace_missing(A, convert(T, fillvalue))
-    end
     # Define required dim vars
     for dim in dims(A)
         key = lowercase(string(name(dim)))
         haskey(dataset.dim, key) && continue
 
+        # Shift index before conversion to Mapped
+        dim = ncshiftindex(dim)
         if dim isa Lat || dim isa Lon
-            dim = convertmode(Converted, dim)
+            dim = convertmode(Mapped, dim)
         end
-        index = ncshiftindex(dim)
+
         md = metadata(dim)
+        # TODO handle dim attribs
         attribvec = [] #md isa Nothing ? [] : [val(md)...]
-        defDim(dataset, key, length(index))
-        println("        key: \"", key, "\" of type: ", eltype(index))
-        defVar(dataset, key, Vector(index), (key,); attrib=attribvec)
+        defDim(dataset, key, length(dim))
+        println("        key: \"", key, "\" of type: ", eltype(dim))
+        defVar(dataset, key, Vector(index(dim)), (key,); attrib=attribvec)
     end
-    # TODO actually convert the metadata type
+    # TODO actually convert the metadata types
     attrib = if metadata isa NCDarrayMetadata
         deepcopy(val(metadata(A)))
     else
         Dict()
     end
     # Remove stack metdata if it is attached
-    pop!(attrib, "dataset", nothing)
-    # Set missing value
-    if !ismissing(missingval(A))
-        try
-            fv = convert(T, missingval(A))
-            attrib["_FillValue"] = fv
-        catch
-            @warn "`missingval` $(missingval(A)) was invalid for data of type $T."
-        end
+    pop!(attrib, "_stack", nothing)
+    # Set _FillValue
+    if ismissing(missingval(A))
+        eltyp = _notmissingtype(Base.uniontypes(T)...)
+        fillval = NCDatasets.fillvalue(eltyp)
+        A = replace_missing(A, fillval)
+        attrib["_FillValue"] = fillval
+    elseif missingval(A) isa T
+        attrib["_FillValue"] = missingval(A)
+    else
+        @warn "`missingval` $(missingval(A)) is not the same type as your data $T." 
     end
+
     key = if string(name(A)) == ""
         UNNAMED_NCD_KEY
     else
@@ -97,26 +100,26 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     var[:] = data(A)
 end
 
-ncshiftindex(dim::Dimension) = ncshiftindex(mode(dim), dim)
-ncshiftindex(mode::AbstractSampled, dim::Dimension) = val(dim)
-# As with plotting, we really should shift the index
-# to `Center`, but reprojection introduces errors
-    # if span(mode) isa Regular
-    #     # that are tricky to handle currently.
-    #     if dim isa TimeDim
-    #         if eltype(dim) isa Dates.AbstractDateTime
-    #             val(dim)
-    #         else
-    #             shiftindexloci(Center(), dim)
-    #         end
-    #     else
-    #         shiftindexloci(Center(), dim)
-    #     end
-    # else
-    #     dim
-    # end |> val
+_notmissingtype(::Type{Missing}, next...) = _notmissingtype(next...)
+_notmissingtype(x::Type, next...) = x in NCD_FILL_TYPES ? x : _notmissingtype(next...)
+_notmissingtype() = error("Your data is not a type that netcdf can store")
 
-ncshiftindex(mode::IndexMode, dim::Dimension) = val(dim)
+ncshiftindex(dim::Dimension) = ncshiftindex(mode(dim), dim)
+ncshiftindex(mode::AbstractSampled, dim::Dimension) =
+    if span(mode) isa Regular && sampling(mode) isa Intervals
+        # We cant easily shift a DateTime value
+        if eltype(dim) isa Dates.AbstractDateTime
+            if !(loci(dim) isa Center) 
+                @warn "To save to netcdf, DateTime values should be the interval Center, rather than the $(nameof(typeof(loci(dim))))"
+            end
+            dim
+        else
+            shiftindexloci(Center(), dim)
+        end
+    else
+        dim
+    end 
+ncshiftindex(::IndexMode, dim::Dimension) = dim
 
 # CF standards don't enforce dimension names.
 # But these are common, and should take care of most dims.
@@ -138,7 +141,7 @@ const DIMMAP = Dict("lat" => Lat,
 # Array ########################################################################
 """
     NCDarray(filename::AbstractString; name=nothing, refdims=(),
-             dims=nothing, metadata=nothing, crs=EPSG(4326), dimcrs=EPSG(4326))
+             dims=nothing, metadata=nothing, crs=nothing, mappedcrs=EPSG(4326))
 
 A [`DiskGeoArray`](@ref) that loads that loads NetCDF files lazily from disk.
 
@@ -148,7 +151,7 @@ possibly `X`, `Y`, `Z` when detected. Undetected dims will use the generic `Dim{
 
 This is an incomplete implementation of the NetCDF standard. It will currently
 handle simple files in lattitude/longitude projections, or projected formats
-if you manually specify `crs` and `dimcrs`. How this is done may also change in
+if you manually specify `crs` and `mappedcrs`. How this is done may also change in
 future, including detecting and converting the native NetCDF projection format.
 
 ## Arguments
@@ -194,9 +197,11 @@ NCDarray(filename::AbstractString, key...; kwargs...) = begin
     isfile(filename) || error("File not found: $filename")
     ncread(dataset -> NCDarray(dataset, filename, key...; kwargs...), filename)
 end
-NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
-         crs=EPSG(4326),
-         dimcrs=EPSG(4326),
+# Safe file-loading wrapper method. We always open the datset and close
+# it again when we are done.
+NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing; 
+         crs=nothing,
+         mappedcrs=EPSG(4326),
          name=nothing,
          dims=nothing,
          refdims=(),
@@ -206,7 +211,7 @@ NCDarray(dataset::NCDatasets.Dataset, filename, key=nothing;
     keys_ = nondimkeys(dataset)
     key = (key isa Nothing || !(string(key) in keys_)) ? first(keys_) : string(key) |> Symbol
     var = dataset[string(key)]
-    dims = dims isa Nothing ? GeoData.dims(dataset, key, crs, dimcrs) : dims
+    dims = dims isa Nothing ? GeoData.dims(dataset, key, crs, mappedcrs) : dims
     name = Symbol(name isa Nothing ? key : name)
     metadata_ = metadata isa Nothing ? GeoData.metadata(var, GeoData.metadata(dataset)) : metadata
     size_ = map(length, dims)
@@ -236,13 +241,6 @@ Write an NCDarray to a NetCDF file using NCDatasets.jl
 Returns `filename`.
 """
 Base.write(filename::AbstractString, ::Type, A::AbstractGeoArray) = begin
-    meta = metadata(A)
-    # if meta isa Nothing
-    # else
-        # Remove the dataset metadata
-        # stackmd = pop!(deepcopy(val(meta)), "dataset", Dict())
-    #    dataset = NCDatasets.Dataset(filename, "c"; attrib=stackmd)
-    # end
     dataset = NCDatasets.Dataset(filename, "c")
     try
         println("    Writing netcdf...")
@@ -329,7 +327,7 @@ ncfilenamekeys(filenames) =
 childtype(::NCDstack) = NCDarray
 childkwargs(stack::NCDstack) = stack.childkwargs
 crs(stack::NCDarray) = get(childkwargs(stack), :crs, EPSG(4326))
-dimcrs(stack::NCDarray) = get(childkwargs(stack), :dimcrs, nothing)
+mapped(stack::NCDarray) = get(childkwargs(stack), :mappedcrs, nothing)
 
 # AbstractGeoStack methods
 withsource(f, ::Type{NCDarray}, path::AbstractString, key=nothing) = ncread(f, path)
@@ -339,7 +337,7 @@ withsourcedata(f, ::Type{NCDarray}, path::AbstractString, key) =
 # Override the default to get the dims of the specific key,
 # and pass the crs and dimscrs from the stack
 dims(stack::NCDstack, dataset, key::Key) =
-    dims(dataset, key, crs(stack), dimcrs(stack))
+    dims(dataset, key, crs(stack), mappedcrs(stack))
 
 missingval(stack::NCDstack) = missing
 
@@ -367,7 +365,7 @@ end
 
 # DimensionalData methods for NCDatasets types ###############################
 
-dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
+dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, mappedcrs=nothing) = begin
     v = dataset[string(key)]
     dims = []
     for (i, dimname) in enumerate(NCDatasets.dimnames(v))
@@ -378,7 +376,7 @@ dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
             dimtype = haskey(DIMMAP, dimname) ? DIMMAP[dimname] : basetypeof(DD.key2dim(Symbol(dimname)))
             index = dvar[:]
             meta = NCDdimMetadata(Dict{String,Any}(dvar.attrib))
-            mode = _ncdmode(index, dimtype, crs, dimcrs, meta)
+            mode = _ncdmode(index, dimtype, crs, mappedcrs, meta)
 
             # Add the dim containing the dimension var array
             push!(dims, dimtype(index, mode, meta))
@@ -391,7 +389,7 @@ dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, dimcrs=nothing) = begin
     (dims...,)
 end
 
-_ncdmode(index::AbstractArray{<:Number}, dimtype, crs, dimcrs, metadata) = begin
+_ncdmode(index::AbstractArray{<:Number}, dimtype, crs, mappedcrs, metadata) = begin
     # Assume the locus is at the center of the cell if boundaries aren't provided.
     # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
     # Unless its a time dimension.
@@ -399,17 +397,24 @@ _ncdmode(index::AbstractArray{<:Number}, dimtype, crs, dimcrs, metadata) = begin
     span = _ncdspan(index, order)
     sampling = Intervals(Center())
     if dimtype in (Lat, Lon)
-        Converted(order, span, sampling, crs, dimcrs)
+        # If the index is regularly spaced and there is no crs
+        # then there is probably just one crs - the mappedcrs
+        crs = if crs isa Nothing && span isa Regular 
+            mappedcrs
+        else
+            crs
+        end
+        Mapped(order, span, sampling, crs, mappedcrs)
     else
         Sampled(order, span, sampling)
     end
 end
-_ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, crs, dimcrs, metadata) = begin
+_ncdmode(index::AbstractArray{<:Dates.AbstractTime}, dimtype, crs, mappedcrs, metadata) = begin
     order = _ncdorder(index)
     span, sampling  = _get_period(index, metadata)
     Sampled(order, span, sampling)
 end
-_ncdmode(index, dimtype, crs, dimcrs, mode) = Categorical()
+_ncdmode(index, dimtype, crs, mappedcrs, mode) = Categorical()
 
 _ncdorder(index) = index[end] > index[1] ? Ordered(ForwardIndex(), ForwardArray(), ForwardRelation()) :
                                            Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
@@ -470,7 +475,7 @@ metadata(dataset::NCDatasets.Dataset, key::Key) = metadata(dataset[string(key)])
 metadata(var::NCDatasets.CFVariable) = NCDarrayMetadata(Dict{String,Any}(var.attrib))
 metadata(var::NCDatasets.CFVariable, stackmetadata::NCDstackMetadata) = begin
     md = metadata(var)
-    md["dataset"] = stackmetadata
+    md["_stack"] = stackmetadata
     md
 end
 

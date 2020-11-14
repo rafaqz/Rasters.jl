@@ -156,8 +156,8 @@ missingval
 crs
 usercrs
 dimcrs
-userbounds
-userval
+mappedbounds
+mappedval
 GeoData.filename
 ```
 
