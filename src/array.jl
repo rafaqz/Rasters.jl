@@ -98,6 +98,9 @@ abstract type MemGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
 """
 Abstract supertype for all disk-backed GeoArrays.
 For these the data is lazyily loaded from disk.
+
+To load a `DiskGeoArray` and operate on the data multiple times, use
+[`Open`](@ref) and a `do` block.
 """
 abstract type DiskGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
 
