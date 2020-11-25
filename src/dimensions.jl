@@ -1,3 +1,7 @@
+abstract type GeoXDim{T,Mo,Me} <: XDim{T,Mo,Me} end
+abstract type GeoYDim{T,Mo,Me} <: YDim{T,Mo,Me} end
+abstract type GeoZDim{T,Mo,Me} <: ZDim{T,Mo,Me} end
+
 """
     Lon <: XDim <: Dimension
     Lon(val=:)
@@ -13,7 +17,7 @@ val = A[Lon(1)]
 mean(A; dims=Lon)
 ```
 """
-@dim Lon XDim "Longitude"
+@dim Lon GeoXDim "Longitude"
 
 """
     Lat <: YDim <: Dimension
@@ -30,7 +34,7 @@ val = A[Lat(1)]
 mean(A; dims=Lat)
 ```
 """
-@dim Lat YDim "Latitude"
+@dim Lat GeoYDim "Latitude"
 
 """
     Vert <: ZDim <: Dimension
@@ -47,7 +51,7 @@ val = A[Vert(1)]
 mean(A; dims=Vert)
 ```
 """
-@dim Vert ZDim "Vertical"
+@dim Vert GeoZDim "Vertical"
 
 """
     Band <: Dimension
