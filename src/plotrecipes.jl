@@ -1,10 +1,14 @@
+using DimensionalData: refdims_title
+
+const GeoDim = Union{GeoXDim,GeoYDim,GeoZDim}
+
 struct GeoPlot end
 
 # We only look at arrays with <:GeoXDim/<:GeoYDim here.
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(A::AbstractGeoArray)
     A = GeoArray(A)
-    if all(hasdim(A, (GeoXDim, GeoYDim)))
+    if all(hasdim(A, (GeoXDim, GeoYDim))) || all(hasdim(A, (GeoXDim, GeoZDim))) || all(hasdim(A, (GeoYDim, GeoZDim))) || hasdim(A, GeoZDim)
         # Heatmap or multiple heatmaps. Use GD recipes.
         GeoPlot(), prepare(A)
     else
@@ -15,19 +19,19 @@ struct GeoPlot end
 end
 
 # Plot 3d arrays as multiple tiled plots
-@recipe function f(::GeoPlot, A::GeoArray{T,3,<:Tuple{<:GeoXDim,<:GeoYDim,D}}) where {T,D}
+@recipe function f(::GeoPlot, A::GeoArray{T,3,<:Tuple{<:GeoDim,<:GeoDim,D}}) where {T,D}
     nplots = size(A, 3)
     if nplots > 1
         :layout --> nplots
-        :xguide --> permutedims(string.(val(dims(A, D))))
+        :title --> permutedims(string.(val(dims(A, D))))
         for i in 1:nplots
             @series begin
                 seriestype := :heatmap
                 aspect_ratio := 1
                 subplot := i
                 slice = A[:, :, i]
-                lats, lons = map(prepare, dims(slice))
-                lons, lats, parent(slice)
+                xs, ys = map(prepare, dims(slice))
+                xs, ys, permutedims(slice) |> parent
             end
         end
     else
@@ -35,34 +39,36 @@ end
     end
 end
 
-# # Permute for correct order
-@recipe function f(::GeoPlot, A::GeoArray{T,3}) where T
-    GeoPlot(), permutedims(A, (GeoXDim, GeoYDim, Dimension))
-end
-
 # # Plot a sinlge 2d map
-@recipe function f(::GeoPlot, A::GeoArray{T,2,<:Tuple{<:GeoXDim,<:GeoYDim}}) where T
+@recipe function f(::GeoPlot, A::GeoArray{T,2,<:Tuple{<:GeoDim,<:GeoDim}}) where T
     :seriestype --> :heatmap
     :aspect_ratio --> 1
     :colorbar_title --> name(A)
     :title --> DD._refdims_title(A)
-    lats, lons = map(prepare, dims(A))
-    lons, lats, parent(A)
+    :xguide --> name(dims(A, 1))
+    :yguide --> name(dims(A, 2))
+    x1, x2 = map(prepare, dims(A))
+    x1, x2, permutedims(A) |> parent
 end
 
-# # Permute for correct order
-@recipe function f(::GeoPlot, A::GeoArray{T,2,<:Tuple{<:GeoXDim,<:GeoYDim}}) where T
-    GeoPlot(), permutedims(A)
+# # Plot a vertical 1d line
+@recipe function f(::GeoPlot, A::GeoArray{T,1,<:Tuple{<:GeoZDim}}) where T
+    :title --> refdims_title(A)
+    :xguide --> name(A)
+    :yguide --> name(dims(A, 1))
+    :label --> ""
+    z = map(prepare, dims(A))
+    parent(A), z
 end
 
-# Plots heatmaps pixels are centered. 
+# Plots heatmaps pixels are centered.
 # So we should center, and use the projected value.
-prepare(d::Dimension) = shiftindexloci(Center(), d) |> _maybe_mapped |> index 
+prepare(d::Dimension) = shiftindexloci(Center(), d) |> _maybe_mapped |> index
 
 # Convert arrays to a consistent missing value and Forward array order
-prepare(A::AbstractGeoArray) = 
-    _maybe_replace_missing(A) |> 
-    A -> reorder(A, ForwardIndex) |> 
+prepare(A::AbstractGeoArray) =
+    _maybe_replace_missing(A) |>
+    A -> reorder(A, ForwardIndex) |>
     A -> reorder(A, ForwardRelation)
 
 _maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, eltype(A)(NaN))
