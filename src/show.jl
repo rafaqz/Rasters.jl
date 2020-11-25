@@ -8,7 +8,7 @@ Base.show(io::IO, A::AbstractGeoArray) = begin
     end
     print(io, " with dimensions:\n")
     for d in dims(A)
-        print(io, " ", d, "\n")
+        print(io, " ", d, " (length ", length(d), ") \n")
     end
     if !isempty(refdims(A))
         print(io, "and referenced dimensions:\n")
