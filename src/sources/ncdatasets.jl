@@ -3,26 +3,36 @@ using .NCDatasets
 export NCDarray, NCDstack, NCDdimMetadata, NCDarrayMetadata, NCDstackMetadata
 
 """
-    NCDdimMetadata(val::Dict)
+    NCDdimMetadata(val::Union{Dict,NamedTuple})
+    NCDdimMetadata(pairs::Pair...) => NCDdimMetadata{Dict}
+    NCDdimMetadata(; kw...) => NCDdimMetadata{NamedTuple}
 
-[`Metadata`](@ref) wrapper for [`NCDarray`](@ref) dimensions.
+`Metadata` wrapper for [`NCDarray`](@ref) dimensions.
 """
-struct NCDdimMetadata{K,V} <: DimMetadata{K,V}
-    val::Dict{K,V}
+struct NCDdimMetadata{T} <: AbstractDimMetadata{T}
+    val::T
 end
 
 """
-    NCDarrayMetadata(val::Dict)
-[`Metadata`](@ref) wrapper for [`NCDarray`](@ref) metadata.  """ struct NCDarrayMetadata{K,V} <: ArrayMetadata{K,V} val::Dict{K,V}
+    NCDarrayMetadata(val::Union{Dict,NamedTuple})
+    NCDarrayMetadata(pairs::Pair...) => NCDarrayMetadata{Dict}
+    NCDarrayMetadata(; kw...) => NCDarrayMetadata{NamedTuple}
+
+`Metadata` wrapper for [`NCDarray`](@ref) metadata.  
+""" 
+struct NCDarrayMetadata{T} <: AbstractArrayMetadata{T} 
+    val::T
 end
 
 """
-    NCDstackMetadata(val::Dict)
+    NCDstackMetadata(val::Union{Dict,NamedTuple})
+    NCDstackMetadata(pairs::Pair...) => NCDstackMetadata{Dict}
+    NCDstackMetadata(; kw...) => NCDstackMetadata{NamedTuple}
 
-[`Metadata`](@ref) wrapper for [`NCDarray`](@ref) metadata.
+`Metadata` wrapper for [`NCDarray`](@ref) metadata.
 """
-struct NCDstackMetadata{K,V} <: StackMetadata{K,V}
-    val::Dict{K,V}
+struct NCDstackMetadata{T} <: AbstractStackMetadata{T}
+    val::T
 end
 
 const UNNAMED_NCD_KEY = "unnamed"
@@ -69,12 +79,12 @@ ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N} = begin
     end
     # TODO actually convert the metadata types
     attrib = if metadata isa NCDarrayMetadata
-        deepcopy(val(metadata(A)))
+        _stringdict(metadata(A))
     else
         Dict()
     end
     # Remove stack metdata if it is attached
-    pop!(attrib, "_stack", nothing)
+    pop!(attrib, :_stack, nothing)
     # Set _FillValue
     if ismissing(missingval(A))
         eltyp = _notmissingtype(Base.uniontypes(T)...)
@@ -355,7 +365,7 @@ Currently [`DimMetadata`](@ref) is not handled, and [`ArrayMetadata`](@ref)
 from other [`AbstractGeoArray`](@ref) @types is ignored.
 """
 Base.write(filename::AbstractString, ::Type{<:NCDstack}, s::AbstractGeoStack) = begin
-    dataset = NCDatasets.Dataset(filename, "c"; attrib=val(metadata(s)))
+    dataset = NCDatasets.Dataset(filename, "c"; attrib=_stringdict(metadata(s)))
     try
         map(key -> ncwritevar!(dataset, s[key]), keys(s))
     finally
@@ -375,7 +385,7 @@ dims(dataset::NCDatasets.Dataset, key::Key, crs=nothing, mappedcrs=nothing) = be
             # the generic Dim with the dim name as type parameter
             dimtype = haskey(DIMMAP, dimname) ? DIMMAP[dimname] : basetypeof(DD.key2dim(Symbol(dimname)))
             index = dvar[:]
-            meta = NCDdimMetadata(Dict{String,Any}(dvar.attrib))
+            meta = NCDdimMetadata(DD.metadatadict(dvar.attrib))
             mode = _ncdmode(index, dimtype, crs, mappedcrs, meta)
 
             # Add the dim containing the dimension var array
@@ -445,12 +455,12 @@ _ncdspan(index, order) = begin
     return Regular(step)
 end
 
-function _get_period(index, mode)
-    if haskey(mode, "delta_t")
-        period = _parse_period(mode["delta_t"])
+function _get_period(index, metadata::NCDdimMetadata)
+    if haskey(metadata, :delta_t)
+        period = _parse_period(metadata[:delta_t])
         period isa Nothing || return Regular(period), Points()
-    elseif haskey(mode, "avg_period")
-        period = _nc_parse_period(mode["avg_period"])
+    elseif haskey(metadata, :avg_period)
+        period = _nc_parse_period(metadata[:avg_period])
         period isa Nothing || return Regular(period), Intervals(Center())
     end
     return sampling = Irregular(), Points()
@@ -470,16 +480,19 @@ function _parse_period(period_str::String)
     end
 end
 
-metadata(dataset::NCDatasets.Dataset) = NCDstackMetadata(Dict{String,Any}(dataset.attrib))
+
+metadata(dataset::NCDatasets.Dataset) = NCDstackMetadata(DD.metadatadict(dataset.attrib))
 metadata(dataset::NCDatasets.Dataset, key::Key) = metadata(dataset[string(key)])
-metadata(var::NCDatasets.CFVariable) = NCDarrayMetadata(Dict{String,Any}(var.attrib))
+metadata(var::NCDatasets.CFVariable) = NCDarrayMetadata(DD.metadatadict(var.attrib))
 metadata(var::NCDatasets.CFVariable, stackmetadata::NCDstackMetadata) = begin
-    md = metadata(var)
-    md["_stack"] = stackmetadata
+    md = NCDarrayMetadata(DD.metadatadict(var.attrib))
+    md[:_stack] = stackmetadata
     md
 end
 
 missingval(var::NCDatasets.CFVariable) = missing
+
+_stringdict(metadata) = attrib = Dict(string(k) => v for (k, v) in metadata)
 
 # Direct loading: better memory handling?
 # readwindowed(A::NCDatasets.CFVariable) = readwindowed(A, axes(A)...)

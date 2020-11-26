@@ -27,7 +27,7 @@ path2 = joinpath(testpath, "data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5")
         @test refdims(stack) ==
             (Ti(dt:step_:dt; mode=Sampled(Ordered(), Regular(step_), Intervals(Start()))),)
         # Currently empty
-        @test metadata(smaparray) == SMAPstackMetadata(Dict())
+        @test metadata(smaparray) isa SMAPstackMetadata
     end
 
     @testset "conversion to GeoStack" begin

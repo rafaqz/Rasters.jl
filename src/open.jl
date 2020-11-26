@@ -21,7 +21,7 @@ function OpenGeoArray(f, A::AbstractGeoArray{T,N}) where {T,N}
 end
 
 """
-    open(f, A::AbstractGeoArray)
+    Open(f, A::AbstractGeoArray)
 
 `Open` is used to open any `AbstractGeoArray` and do multiple operations
 on it in a safe way. It's a shorthand for the unexported `OpenGeoArray`

@@ -151,9 +151,9 @@ Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
 
 """
     GeoArray(A::AbstractArray{T,N}, dims::Tuple;
-             refdims=(), name=Symbol(""), metadata=nothing, missingval=missing)
+             refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing)
     GeoArray(A::AbstractArray{T,N};
-             dims, refdims=(), name=Symbol(""), metadata=nothing, missingval=missing)
+             dims, refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing)
     GeoArray(A::AbstractGeoArray; [data=data(A), dims=dims(A), refdims=refdims(A),
              name=name(A), metadata=metadata(A), missingval=missingval(A)]) =
 
@@ -168,7 +168,7 @@ converted to `GeoArray` when indexed or otherwise transformed.
   defaulting to `()`.
 - `missingval`: Value reprsenting missing values, defaulting to `missing`.
   can be passed it.
-- `metadata`: [`Metadata`](@ref) object for the array, or `nothing`.
+- `metadata`: [`Metadata`](@ref) object for the array, or `NoMetadata()`.
 
 ## Example
 
@@ -178,7 +178,7 @@ A = GRDarray(gdalarray; name="surfacetemp")
 A[Lat(Between(-10, -43), Lon(Between(113, 153)))
 ```
 """
-struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na<:Symbol,Me,Mi} <: MemGeoArray{T,N,D,A}
+struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: MemGeoArray{T,N,D,A}
     data::A
     dims::D
     refdims::R
@@ -186,14 +186,10 @@ struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na<:Symbol,Me,Mi} <:
     metadata::Me
     missingval::Mi
 end
-GeoArray(A::AbstractArray, dims, refdims, name::String, metadata, missingval=missing) = begin
-    @warn "The GeoArray `name` field is now a Symbol"
-    GeoArray(A, dims, refdims, Symbol(name), metadata, missingval)
-end
 @inline GeoArray(A::AbstractArray, dims::Tuple;
-                 refdims=(), name=Symbol(""), metadata=nothing, missingval=missing) =
+                 refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing) =
     GeoArray(A, formatdims(A, dims), refdims, name, metadata, missingval)
-@inline GeoArray(A::AbstractArray; dims, refdims=(), name=Symbol(""), metadata=nothing, missingval=missing) =
+@inline GeoArray(A::AbstractArray; dims, refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing) =
     GeoArray(A, formatdims(A, dims), refdims, name, metadata, missingval)
 @inline GeoArray(A::AbstractGeoArray; data=data(A), dims=dims(A), refdims=refdims(A),
                  name=name(A), metadata=metadata(A), missingval=missingval(A)) =

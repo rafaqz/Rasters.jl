@@ -7,7 +7,7 @@ dims1 = Lon<|(10, 100), Lat<|(-50, 50)
 dims2 = (dims1..., Ti([DateTime(2019)]))
 refdimz = ()
 mval = -9999.0
-meta = nothing
+meta = NoMetadata()
 nme = :test
 
 # Formatting only occurs in shorthand constructors

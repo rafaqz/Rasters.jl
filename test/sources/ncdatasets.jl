@@ -46,11 +46,11 @@ stackkeys = (
 
     @testset "dimensions" begin
         @test ndims(ncarray) == 3
-        @test length.(val.(dims(ncarray))) == (180, 170, 24)
+        @test length.(dims(ncarray)) == (180, 170, 24)
         @test dims(ncarray) isa Tuple{<:Lon,<:Lat,<:Ti}
         @test refdims(ncarray) == ()
         # TODO detect the time span, and make it Regular
-        @test mode(dims(ncarray)) == 
+        @test mode(ncarray) == 
             (Mapped(Ordered(), Regular(2.0), Intervals(Center()), EPSG(4326), EPSG(4326)),
              Mapped(Ordered(), Regular(1.0), Intervals(Center()), EPSG(4326), EPSG(4326)),
              Sampled(Ordered(), Irregular(), Points()))
@@ -59,7 +59,7 @@ stackkeys = (
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
-        @test metadata(ncarray) isa NCDarrayMetadata # TODO make this a namedtuple
+        @test metadata(ncarray) isa NCDarrayMetadata
         @test name(ncarray) == :tos
     end
 
@@ -129,7 +129,7 @@ stackkeys = (
             @test_broken all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
             @test GeoData.name(saved) == GeoData.name(geoarray)
             @test all(mode.(dims(saved)) .== mode.(dims(geoarray)))
-            @test dims(saved) isa typeof(dims(geoarray))
+            @test typeof(dims(saved)) <: typeof(dims(geoarray))
             @test val(dims(saved)[3]) == val(dims(geoarray)[3])
             @test all(val.(dims(saved)) .== val.(dims(geoarray)))
             @test all(data(saved) .=== data(geoarray))
@@ -258,7 +258,9 @@ end
     end
 
     @testset "save" begin
+        metadata(ncstack)
         geostack = GeoStack(ncstack);
+        metadata(geostack)
         length(dims(geostack[:aclcac]))
         ndims(geostack[:aclcac])
         filename = tempname()
@@ -266,7 +268,7 @@ end
         saved = GeoStack(NCDstack(filename))
         @test keys(saved) == keys(geostack)
         @test metadata(saved)["advection"] == "Lin & Rood"
-        @test metadata(saved) == metadata(geostack)
+        @test metadata(saved) == metadata(geostack) == metadata(ncstack)
         @test all(first(values(saved)) .== first(values(geostack)))
     end
 

@@ -18,7 +18,6 @@ readwindowed(A) = Array(A)
 # Get a metadata field
 getmeta(A::AbstractGeoArray, key, fallback) = getmeta(metadata(A), key, fallback)
 getmeta(m::Metadata, key, fallback) = get(val(m), key, fallback)
-getmeta(m::Nothing, key, fallback) = fallback
 
 # Check that arrayu order amtches expectation
 checkarrayorder(A, order::Order) = map(d -> checkarrayorder(d, order), dims(A))

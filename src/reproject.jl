@@ -5,15 +5,15 @@ export reproject, convertmode, mappedindex, mappedbounds
 # Otherwise Projected selector crs field must be `nothing`,
 # and no reprojection can occur.
 
-sel2indices(mode::Projected, dim::Dimension, sel::Contains{<:Number}) = begin
+DD._sel2indices(mode::Projected, dim::Dimension, sel::Contains) = begin
     selval = reproject(mappedcrs(mode), crs(mode), dim, val(sel))
     DD.contains(dim, rebuild(sel, selval))
 end
-sel2indices(mode::Projected, dim::Dimension, sel::At{<:Number}) = begin
+DD._sel2indices(mode::Projected, dim::Dimension, sel::At) = begin
     selval = reproject(mappedcrs(mode), crs(mode), dim, val(sel))
     DD.at(dim, rebuild(sel, selval))
 end
-sel2indices(mode::Projected, dim::Dimension, sel::Between) = begin
+DD._sel2indices(mode::Projected, dim::Dimension, sel::Between) = begin
     selval = map(v -> reproject(mappedcrs(mode), crs(mode), dim, v), val(sel))
     DD.between(dim, rebuild(sel, selval))
 end

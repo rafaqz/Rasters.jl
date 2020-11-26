@@ -56,7 +56,6 @@ const DDtidocs = joinpath(DDdocs, "#DimensionalData.Ti")
 
 include("mode.jl")
 include("dimensions.jl")
-include("metadata.jl")
 include("array.jl")
 include("stack.jl")
 include("series.jl")

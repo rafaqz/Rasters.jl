@@ -11,17 +11,25 @@ const GRD_BAND_RELATION= ForwardRelation()
 # Metadata ########################################################################
 
 """
-[`Metadata`](@ref) wrapper for `GRDarray` dimension metadata.
+    GRDdimMetadata(val::Union{Dict,NamedTuple})
+    GRDdimMetadata(pairs::Pair...) => GRDdimMetadata{Dict}
+    GRDdimMetadata(; kw...) => GRDdimMetadata{NamedTuple}
+
+`Metadata` wrapper for `GRDarray` dimension metadata.
 """
-struct GRDdimMetadata{K,V} <: DimMetadata{K,V}
-    val::Dict{K,V}
+struct GRDdimMetadata{T} <: AbstractDimMetadata{T}
+    val::T
 end
 
 """
-[`Metadata`](@ref) wrapper for `GRDarray` metadata.
+    GRDarrayMetadata(val::Union{Dict,NamedTuple})
+    GRDarrayMetadata(pairs::Pair...) => GRDarrayMetadata{Dict}
+    GRDarrayMetadata(; kw...) => GRDarrayMetadata{NamedTuple}
+
+`Metadata` wrapper for `GRDarray` metadata.
 """
-struct GRDarrayMetadata{K,V} <: ArrayMetadata{K,V}
-    val::Dict{K,V}
+struct GRDarrayMetadata{T} <: AbstractArrayMetadata{T}
+    val::T
 end
 
 

@@ -17,21 +17,25 @@ export GDALarray, GDALstack, GDALarrayMetadata, GDALdimMetadata
 # Metadata ########################################################################
 
 """
-    GDALmetadata(val::Dict)
+    GDALdimMetadata(val::Union{Dict,NamedTuple})
+    GDALdimMetadata(pairs::Pair...) => GDALdimMetadata{Dict}
+    GDALdimMetadata(; kw...) => GDALdimMetadata{NamedTuple}
 
-[`Metadata`](@ref) wrapper for `GDALarray` dimensions.
+`Metadata` wrapper for `GDALarray` dimensions.
 """
-struct GDALdimMetadata{K,V} <: DimMetadata{K,V}
-    val::Dict{K,V}
+struct GDALdimMetadata{T} <: AbstractDimMetadata{T}
+    val::T
 end
 
 """
-    GDALarrayMetadata(val::Dict)
+    GDALarrayMetadata(val::Union{Dict,NamedTuple})
+    GDALarrayMetadata(pairs::Pair...) => GDALarrayMetadata{Dict}
+    GDALarrayMetadata(; kw...) => GDALarrayMetadata{NamedTuple}
 
-[`Metadata`](@ref) wrapper for `GDALarray`.
+`Metadata` wrapper for `GDALarray`.
 """
-struct GDALarrayMetadata{K,V} <: ArrayMetadata{K,V}
-    val::Dict{K,V}
+struct GDALarrayMetadata{T} <: AbstractArrayMetadata{T}
+    val::T
 end
 
 
@@ -44,7 +48,7 @@ end
               name="",
               dims=nothing,
               refdims=(),
-              metadata=nothing,
+              metadata=GDALdimMetadata(),
               missingval=nothing)
 
 Load a file lazily using gdal. `GDALarray` will be converted to [`GeoArray`](@ref)
@@ -156,7 +160,7 @@ end
     GDALstack(filenames...; keys, kwargs...)
     GDALstack(filenames::NamedTuple;
               window=(),
-              metadata=nothing,
+              metadata=NoMetadata(),
               childkwargs=(),
               refdims=())
 
@@ -174,7 +178,7 @@ Load a stack of files lazily from disk.
 - `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
   contained arrays when they are accessed.
-- `metadata`: Metadata as a [`StackMetadata`](@ref) object.
+- `metadata`: a [`GDALstackMetadata`](@ref) object.
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
 
@@ -208,7 +212,7 @@ dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing) = begin
     band = Band(1:nbands, mode=Categorical(Ordered()))
     crs = crs isa Nothing ? GeoData.crs(raster) : crs
 
-    lonlat_metadata=GDALdimMetadata()
+    lonlat_metadata = GDALdimMetadata()
 
     # Output Sampled index dims when the transformation is lat/lon alligned,
     # otherwise use Transformed index, with an affine map.
@@ -281,10 +285,10 @@ metadata(raster::AG.RasterDataset, args...) = begin
     scale = AG.getscale(band)
     offset = AG.getoffset(band)
     # norvw = AG.noverview(band)
-    units = AG.getunittype(band)
     path = first(AG.filelist(raster))
-    meta = AG.metadata(raster.ds)
-    GDALarrayMetadata(Dict("filepath"=>path, "scale"=>scale, "offset"=>offset, "units"=>units))
+    units = AG.getunittype(band)
+    upair = units == "" ? () : (:units=>units,)
+    GDALarrayMetadata(Dict(:filepath=>path, :scale=>scale, :offset=>offset, upair...))
 end
 
 # metadata(raster::RasterDataset, key) = begin

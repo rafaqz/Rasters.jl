@@ -7,30 +7,36 @@ const SMAPGEODATA = "Geophysical_Data"
 const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 """
-    SMAPdimMetadata(val)
+    SMAPdimMetadata(val::Union{Dict,NamedTuple})
+    SMAPdimMetadata(pairs::Pair...) => SMAPdimMetadata{Dict}
+    SMAPdimMetadata(; kw...) => SMAPdimMetadata{NamedTuple}
 
-[`DimMetadata`](@ref) wrapper for `SMAParray` dimensions.
+`DimMetadata` wrapper for `SMAParray` dimensions.
 """
-struct SMAPdimMetadata{K,V} <: DimMetadata{K,V}
-    val::Dict{K,V}
+struct SMAPdimMetadata{T} <: AbstractDimMetadata{T}
+    val::T
 end
 
 """
-    SMAParrayMetadata(val)
+    SMAParrayMetadata(val::Union{Dict,NamedTuple})
+    SMAParrayMetadata(pairs::Pair...) => SMAParrayMetadata{Dict}
+    SMAParrayMetadata(; kw...) => SMAParrayMetadata{NamedTuple}
 
-[`ArrayMetadata`](@ref) wrapper for `SMAParray`.
+`ArrayMetadata` wrapper for `SMAParray`.
 """
-struct SMAParrayMetadata{K,V} <: ArrayMetadata{K,V}
-    val::Dict{K,V}
+struct SMAParrayMetadata{T} <: AbstractArrayMetadata{T}
+    val::T
 end
 
 """
-    SMAPdimMetadata(val)
+    SMAPstackMetadata(val::Union{Dict,NamedTuple})
+    SMAPstackMetadata(pairs::Pair...) => SMAPstackMetadata{Dict}
+    SMAPstackMetadata(; kw...) => SMAPstackMetadata{NamedTuple}
 
-[`StackMetadata`](@ref) wrapper for `SMAPstack`.
+`StackMetadata` wrapper for `SMAPstack`.
 """
-struct SMAPstackMetadata{K,V} <: DimMetadata{K,V}
-    val::Dict{K,V}
+struct SMAPstackMetadata{T} <: AbstractStackMetadata{T}
+    val::T
 end
 
 # Stack ########################################################################
@@ -94,6 +100,7 @@ withsourcedata(f, ::Type{SMAParray}, path::AbstractString, key) =
     smapread(path) do d
         f(d[smappath(string(key))])
     end
+
 
 
 # Base methods

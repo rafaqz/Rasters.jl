@@ -1,12 +1,15 @@
 using GeoData, Test, Aqua
 
 if VERSION >= v"1.5.0"
-    Aqua.test_ambiguities([GeoData, Base, Core])
-    Aqua.test_unbound_args(GeoData)
-    Aqua.test_undefined_exports(GeoData)
-    Aqua.test_project_extras(GeoData)
-    Aqua.test_deps_compat(GeoData)
-    Aqua.test_project_toml_formatting(GeoData)
+    #Aqua.test_ambiguities([GeoData, Base, Core])
+    Aqua.test_unbound_args(DimensionalData)
+    Aqua.test_undefined_exports(DimensionalData)
+    Aqua.test_project_extras(DimensionalData)
+    Aqua.test_stale_deps(DimensionalData)
+    Aqua.test_deps_compat(DimensionalData)
+    Aqua.test_project_toml_formatting(DimensionalData)
+    Aqua.test_project_extras(DimensionalData)
+    Aqua.test_stale_deps(DimensionalData)
 end
 
 include("array.jl")
