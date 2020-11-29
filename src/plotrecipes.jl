@@ -1,5 +1,3 @@
-using DimensionalData: refdims_title
-
 struct GeoPlot end
 
 # We only look at arrays with Lat/Lon here.
@@ -47,7 +45,7 @@ end
     :seriestype --> :heatmap
     :aspect_ratio --> 1
     :colorbar_title --> name(A)
-    :title --> refdims_title(A)
+    :title --> DD._refdims_title(A)
     lats, lons = map(prepare, dims(A))
     lons, lats, parent(A)
 end
@@ -62,9 +60,12 @@ end
 prepare(d::Dimension) = shiftindexloci(Center(), d) |> _maybe_mapped |> index 
 
 # Convert arrays to a consistent missing value and Forward array order
-prepare(A::AbstractGeoArray) = A |> _maybe_replace_missing |> forwardorder
+prepare(A::AbstractGeoArray) = 
+    _maybe_replace_missing(A) |> 
+    A -> reorder(A, ForwardIndex) |> 
+    A -> reorder(A, ForwardRelation)
 
-_maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, NaN)
+_maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, eltype(A)(NaN))
 _maybe_replace_missing(A) = A
 
 _maybe_mapped(dims::Tuple) = map(_maybe_mapped, dims)

@@ -7,7 +7,8 @@ module GeoData
     read(path, String)
 end GeoData
 
-using Dates,
+using Adapt,
+      Dates,
       Missings,
       Mmap,
       ProgressMeter,
@@ -24,7 +25,7 @@ using DimensionalData: formatdims, slicedims, basetypeof,
       dims2indices, indexorder, arrayorder, relation, isrev, StandardIndices
 
 import DimensionalData: val, data, dims, refdims, metadata, name, label, units,
-       bounds, sel2indices, mode, order, locus, span, sampling, forwardorder,
+       bounds, sel2indices, mode, order, locus, span, sampling,
        rebuild, rebuildsliced, modify
 
 export Metadata, DimMetadata, ArrayMetadata, StackMetadata
