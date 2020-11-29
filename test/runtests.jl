@@ -1,4 +1,4 @@
-using GeoData, Test, Aqua
+using GeoData, Test, Aqua, SafeTestsets
 
 if VERSION >= v"1.5.0"
     #Aqua.test_ambiguities([GeoData, Base, Core])
@@ -12,22 +12,22 @@ if VERSION >= v"1.5.0"
     Aqua.test_stale_deps(DimensionalData)
 end
 
-include("array.jl")
-include("stack.jl")
-include("series.jl")
-include("utils.jl")
-include("set.jl")
-include("reproject.jl")
-include("aggregate.jl")
-include("methods.jl")
-include("resample.jl")
+@time @safetestset "array" begin include("array.jl") end
+@time @safetestset "stack" begin include("stack.jl") end
+@time @safetestset "series" begin include("series.jl") end
+@time @safetestset "utils" begin include("utils.jl") end
+@time @safetestset "set" begin include("set.jl") end
+@time @safetestset "reproject" begin include("reproject.jl") end
+@time @safetestset "aggregat" begin include("aggregate.jl") end
+@time @safetestset "methods" begin include("methods.jl") end
+@time @safetestset "resample" begin include("resample.jl") end
 # Only test SMAP locally for now
 if !haskey(ENV, "CI")
-    include("sources/smap.jl")
+    @time @safetestset "smap" begin include("sources/smap.jl") end
 end
 if !Sys.iswindows()
     # GDAL Environment vars need to be set manually for windows, so skip for now
-    include("sources/gdal.jl")
-    include("sources/grd.jl")
+    @time @safetestset "gdal" begin include("sources/gdal.jl") end
+    @time @safetestset "grd" begin include("sources/grd.jl") end
 end
-include("sources/ncdatasets.jl")
+@time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end

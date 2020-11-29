@@ -121,8 +121,8 @@ end
 @testset "show" begin
     sh = sprint(show, stack)
     # Test but don't lock this down too much
-    @test contains(sh, "GeoStack")
-    @test contains(sh, "Latitude")
-    @test contains(sh, "Longitude")
+    @test occursin("GeoStack", sh)
+    @test occursin("Latitude", sh)
+    @test occursin("Longitude", sh)
 end
 
