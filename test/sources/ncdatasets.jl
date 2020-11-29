@@ -166,10 +166,10 @@ stackkeys = (
     @testset "show" begin
         sh = sprint(show, ncarray)
         # Test but don't lock this down too much
-        @test contains(sh, "NCDarray")
-        @test contains(sh, "Latitude")
-        @test contains(sh, "Longitude")
-        @test contains(sh, "Time")
+        @test occursin("NCDarray", sh)
+        @test occursin("Latitude", sh)
+        @test occursin("Longitude", sh)
+        @test occursin("Time", sh)
     end
 
     @testset "plot" begin

@@ -164,10 +164,10 @@ path = joinpath(testpath, "data/rlogo")
     @testset "show" begin
         sh = sprint(show, grdarray)
         # Test but don't lock this down too much
-        @test contains(sh, "GRDarray")
-        @test contains(sh, "Latitude")
-        @test contains(sh, "Longitude")
-        @test contains(sh, "Band")
+        @test occursin("GRDarray", sh)
+        @test occursin("Latitude", sh)
+        @test occursin("Longitude", sh)
+        @test occursin("Band", sh)
     end
 
     @testset "plot" begin

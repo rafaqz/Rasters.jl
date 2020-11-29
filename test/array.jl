@@ -29,7 +29,7 @@ end
 @testset "show" begin
     sh = sprint(show, ga1)
     # Test but don't lock this down too much
-    @test contains(sh, "GeoArray")
-    @test contains(sh, "Latitude")
-    @test contains(sh, "Longitude")
+    @test occursin("GeoArray", sh)
+    @test occursin("Latitude", sh)
+    @test occursin("Longitude", sh)
 end

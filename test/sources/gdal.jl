@@ -172,10 +172,10 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     @testset "show" begin
         sh = sprint(show, gdalarray)
         # Test but don't lock this down too much
-        @test contains(sh, "GDALarray")
-        @test contains(sh, "Latitude")
-        @test contains(sh, "Longitude")
-        @test contains(sh, "Band")
+        @test occursin("GDALarray", sh)
+        @test occursin("Latitude", sh)
+        @test occursin("Longitude", sh)
+        @test occursin("Band", sh)
     end
 
     @testset "plot and show" begin # TODO write some tests for this

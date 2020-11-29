@@ -72,16 +72,16 @@ path2 = joinpath(testpath, "data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5")
     @testset "show" begin
         sh1 = sprint(show, stack[:soil_temp_layer1])
         # Test but don't lock this down too much
-        @test contains(sh1, "GeoArray")
-        @test contains(sh1, "Latitude")
-        @test contains(sh1, "Longitude")
-        @test contains(sh1, "Time")
+        @test occursin("GeoArray", sh1)
+        @test occursin("Latitude", sh1)
+        @test occursin("Longitude", sh1)
+        @test occursin("Time", sh1)
         sh2 = sprint(show, stack[:soil_temp_layer1][Lat(Between(0, 100)), Lon(Between(1, 100))])
         # Test but don't lock this down too much
-        @test contains(sh2, "GeoArray")
-        @test contains(sh2, "Latitude")
-        @test contains(sh2, "Longitude")
-        @test contains(sh2, "Time")
+        @test occursin("GeoArray", sh2)
+        @test occursin("Latitude", sh2)
+        @test occursin("Longitude", sh2)
+        @test occursin("Time", sh2)
     end
 
 end
