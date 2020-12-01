@@ -1,4 +1,7 @@
 abstract type AbstractProjected{O,Sp,Sa} <: AbstractSampled{O,Sp,Sa} end
+ 
+# For now we just remove CRS on GPU - it often contains strings
+Adapt.adapt_structure(to, m::AbstractProjected) = Sampled(order(m), span(m), sampling(m))
 
 """
     Projected(order::Order, span, sampling, crs, mappedcrs)

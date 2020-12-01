@@ -6,7 +6,8 @@ include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
 @testset "GDALarray" begin
-    gdalarray = GDALarray(path; mappedcrs=EPSG(4326), name=:test)
+    gdalarray = GDALarray(path; mappedcrs=EPSG(4326), name=:test);
+    metadata(dims(gdalarray))
 
     @testset "open" begin
         @test Open(A -> A[Lat=1], gdalarray) == gdalarray[:, 1, :]
@@ -18,13 +19,13 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     end
 
     @testset "dimensions" begin
-        @test length(val(dims(dims(gdalarray), Lon))) == 514
+        @test length(dims(gdalarray, Lon)) == 514
         @test ndims(gdalarray) == 3
         @test dims(gdalarray) isa Tuple{<:Lon,<:Lat,<:Band}
-        @test mode(dims(gdalarray, Band)) == DimensionalData.Categorical(Ordered())
-        @test span.(mode.(dims(gdalarray, (Lat, Lon)))) == 
+        @test mode(gdalarray, Band) == DimensionalData.Categorical(Ordered())
+        @test span(gdalarray, (Lat, Lon)) == 
             (Regular(-60.02213698319351), Regular(60.02213698319374))
-        @test sampling.(mode.(dims(gdalarray, (Lat, Lon)))) == 
+        @test sampling(gdalarray, (Lat, Lon)) == 
             (Intervals(Start()), Intervals(Start()))
         @test refdims(gdalarray) == ()
         # Bounds calculated in python using rasterio
@@ -36,7 +37,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         # This file has an inorrect missing value
         @test missingval(gdalarray) == -1.0e10
         @test metadata(gdalarray) isa GDALarrayMetadata
-        @test basename(metadata(gdalarray).val["filepath"]) == "cea.tif"
+        @test basename(metadata(gdalarray).val[:filepath]) == "cea.tif"
         @test name(gdalarray) == :test
         @test label(gdalarray) == "test"
         @test units(gdalarray) == nothing
@@ -99,6 +100,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             @test val(dims(saved1, Lon)) == val(dims(geoarray1, Lon))
             @test val(dims(saved1, Lat)) == val(dims(geoarray1, Lat))
             @test all(metadata.(dims(saved1)) .== metadata.(dims(geoarray1)))
+            @test metadata(dims(saved1)[1]) == metadata(dims(geoarray1)[1])
             @test missingval(saved1) === missingval(geoarray1) 
             @test refdims(saved1) == refdims(geoarray1) end
         
@@ -111,7 +113,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             @test size(saved2) == size(geoarray2) == length.(dims(saved2)) == length.(dims(geoarray2))
             @test refdims(saved2) == refdims(geoarray2)
             #TODO test a file with more metadata
-            @test metadata(saved2)["filepath"] == filename2
+            @test val(metadata(saved2))[:filepath] == filename2
             @test missingval(saved2) === missingval(geoarray2)
             @test GeoData.name(saved2) == GeoData.name(geoarray2)
             @test step(mode(dims(saved2, Lat))) ≈ step(mode(dims(geoarray2, Lat)))
@@ -170,10 +172,10 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     @testset "show" begin
         sh = sprint(show, gdalarray)
         # Test but don't lock this down too much
-        @test contains(sh, "GDALarray")
-        @test contains(sh, "Latitude")
-        @test contains(sh, "Longitude")
-        @test contains(sh, "Band")
+        @test occursin("GDALarray", sh)
+        @test occursin("Latitude", sh)
+        @test occursin("Longitude", sh)
+        @test occursin("Band", sh)
     end
 
     @testset "plot and show" begin # TODO write some tests for this
