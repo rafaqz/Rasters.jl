@@ -47,11 +47,31 @@ end
         :seriescolor --> :balance
         :clims --> (-A_limit, A_limit)
     end
+
+    dim1 = dims(A, 1)
+    dim2 = dims(A, 2)
+
+    xguide = name(dim1) |> string
+    yguide = name(dim2) |> string
+    colorbar_title = name(A) |> string
+
+    if haskey(dim1.metadata, :units)
+        xguide *= " ($(dim1.metadata[:units]))"
+    end
+
+    if haskey(dim2.metadata, :units)
+        yguide *= " ($(dim2.metadata[:units]))"
+    end
+
+    if haskey(A.metadata, :units)
+        colorbar_title *= " ($(A.metadata[:units]))"
+    end
+
     :seriestype --> :heatmap
-    :colorbar_title --> name(A)
     :title --> DD._refdims_title(A)
-    :xguide --> name(dims(A, 1))
-    :yguide --> name(dims(A, 2))
+    :xguide --> xguide
+    :yguide --> yguide
+    :colorbar_title --> colorbar_title
     x1, x2 = map(prepare, dims(A))
     x1, x2, permutedims(A) |> parent
 end
