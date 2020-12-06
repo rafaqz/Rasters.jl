@@ -62,6 +62,8 @@ end
         clims = (A_min, A_max)
     end
 
+    clims = get(plotattributes, :clims, clims)
+
     if get(plotattributes, :seriestype, :none) == :contourf
         :linewidth --> 0
         :levels --> range(clims[1], clims[2], length=20)
@@ -94,7 +96,12 @@ end
     :colorbar_title --> array_name
 
     x1, x2 = map(prepare, dims(A))
-    x1, x2, parent(A)
+
+    if get(plotattributes, :seriestype, :none) == :contourf
+        x1, x2, clamp.(A, clims[1], clims[2])
+    else
+        x1, x2, parent(A)
+    end
 end
 
 # # Plot a vertical 1d line
