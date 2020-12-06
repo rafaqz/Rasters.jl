@@ -1,8 +1,6 @@
-using DimensionalData: refdims_title
+struct GeoPlot end
 
 const GeoDim = Union{GeoXDim,GeoYDim,GeoZDim}
-
-struct GeoPlot end
 
 # We only look at arrays with <:GeoXDim/<:GeoYDim here.
 # Otherwise they fall back to DimensionalData.jl recipes
@@ -27,7 +25,6 @@ end
         for i in 1:nplots
             @series begin
                 seriestype := :heatmap
-                aspect_ratio := 1
                 subplot := i
                 slice = A[:, :, i]
                 xs, ys = map(prepare, dims(slice))
@@ -41,8 +38,16 @@ end
 
 # # Plot a sinlge 2d map
 @recipe function f(::GeoPlot, A::GeoArray{T,2,<:Tuple{<:GeoDim,<:GeoDim}}) where T
+    # If colorbar is close to symmetric (< 25% difference)
+    # then use a symmetric colormap and set symmetric limits
+    # so zero shows up as a neutral color.
+    A_min, A_max = extrema(A)
+    if (A_min + A_max) / abs(A_max - A_min) < 0.25
+        A_limit = max(abs(A_min), abs(A_max))
+        :seriescolor --> :balance
+        :clims --> (-A_limit, A_limit)
+    end
     :seriestype --> :heatmap
-    :aspect_ratio --> 1
     :colorbar_title --> name(A)
     :title --> DD._refdims_title(A)
     :xguide --> name(dims(A, 1))
@@ -53,7 +58,7 @@ end
 
 # # Plot a vertical 1d line
 @recipe function f(::GeoPlot, A::GeoArray{T,1,<:Tuple{<:GeoZDim}}) where T
-    :title --> refdims_title(A)
+    :title --> DD._refdims_title(A)
     :xguide --> name(A)
     :yguide --> name(dims(A, 1))
     :label --> ""
