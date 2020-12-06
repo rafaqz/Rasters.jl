@@ -2,6 +2,18 @@ struct GeoPlot end
 
 const GeoDim = Union{GeoXDim,GeoYDim,GeoZDim}
 
+function dim_aware_permutedims(A)
+    if all(hasdim(A, (GeoXDim, GeoYDim)))
+       return permutedims(A, (GeoXDim, GeoYDim))
+    elseif all(hasdim(A, (GeoXDim, GeoZDim)))
+        return permutedims(A, (GeoXDim, GeoZDim))
+    elseif all(hasdim(A, (GeoYDim, GeoZDim)))
+        return permutedims(A, (GeoYDim, GeoZDim))
+    else
+        return permutedims(A, (GeoXDim, GeoYDim))
+    end
+end
+
 # We only look at arrays with <:GeoXDim/<:GeoYDim here.
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(A::AbstractGeoArray)
@@ -27,8 +39,8 @@ end
                 seriestype := :heatmap
                 subplot := i
                 slice = A[:, :, i]
-                xs, ys = map(prepare, dims(slice))
-                xs, ys, permutedims(slice) |> parent
+                x1, x2 = map(prepare, dims(slice))
+                x1, x2, parent(A)
             end
         end
     else
@@ -44,8 +56,15 @@ end
     A_min, A_max = extrema(A)
     if (A_min + A_max) / abs(A_max - A_min) < 0.25
         A_limit = max(abs(A_min), abs(A_max))
+        clims = (-A_limit, A_limit)
         :seriescolor --> :balance
-        :clims --> (-A_limit, A_limit)
+    else
+        clims = (A_min, A_max)
+    end
+
+    if get(plotattributes, :seriestype, :none) == :contourf
+        :linewidth --> 0
+        :levels --> range(clims[1], clims[2], length=20)
     end
 
     dim1 = dims(A, 1)
@@ -53,7 +72,7 @@ end
 
     xguide = name(dim1) |> string
     yguide = name(dim2) |> string
-    colorbar_title = name(A) |> string
+    array_name = name(A) |> string
 
     if haskey(dim1.metadata, :units)
         xguide *= " ($(dim1.metadata[:units]))"
@@ -68,19 +87,32 @@ end
     end
 
     :seriestype --> :heatmap
-    :title --> DD._refdims_title(A)
+    :title --> "$array_name: $(DD._refdims_title(A))"
     :xguide --> xguide
     :yguide --> yguide
-    :colorbar_title --> colorbar_title
+    :clims --> clims
+    :colorbar_title --> array_name
+
     x1, x2 = map(prepare, dims(A))
-    x1, x2, permutedims(A) |> parent
+    x1, x2, parent(A)
 end
 
 # # Plot a vertical 1d line
 @recipe function f(::GeoPlot, A::GeoArray{T,1,<:Tuple{<:GeoZDim}}) where T
-    :title --> DD._refdims_title(A)
-    :xguide --> name(A)
-    :yguide --> name(dims(A, 1))
+    z_dim = dims(A, 1)
+    yguide = name(z_dim) |> string
+    if haskey(z_dim.metadata, :units)
+        yguide *= " ($(dim1.metadata[:units]))"
+    end
+
+    xguide = name(A) |> string
+    if haskey(A.metadata, :units)
+        xguide *= " ($(A.metadata[:units]))"
+    end
+
+    :title --> "$(name(A)): $(DD._refdims_title(A))"
+    :xguide --> xguide
+    :yguide --> yguide
     :label --> ""
     z = map(prepare, dims(A))
     parent(A), z
@@ -94,7 +126,8 @@ prepare(d::Dimension) = shiftindexloci(Center(), d) |> _maybe_mapped |> index
 prepare(A::AbstractGeoArray) =
     _maybe_replace_missing(A) |>
     A -> reorder(A, ForwardIndex) |>
-    A -> reorder(A, ForwardRelation)
+    A -> reorder(A, ForwardRelation) |>
+    A -> permutedims(A, DimensionalData.commondims((GeoXDim, GeoYDim, GeoZDim, TimeDim), dims(A)))
 
 _maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, eltype(A)(NaN))
 _maybe_replace_missing(A) = A
