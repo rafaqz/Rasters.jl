@@ -85,7 +85,7 @@ end
     end
 
     if haskey(A.metadata, :units)
-        colorbar_title *= " ($(A.metadata[:units]))"
+        colorbar_title = array_name * " ($(A.metadata[:units]))"
     end
 
     :seriestype --> :heatmap
@@ -109,7 +109,7 @@ end
     z_dim = dims(A, 1)
     yguide = name(z_dim) |> string
     if haskey(z_dim.metadata, :units)
-        yguide *= " ($(dim1.metadata[:units]))"
+        yguide *= " ($(z_dim.metadata[:units]))"
     end
 
     xguide = name(A) |> string
