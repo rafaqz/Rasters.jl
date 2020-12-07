@@ -229,7 +229,7 @@ dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing) = begin
 
         # Spatial data defaults to area/inteval
         lonsampling, latsampling = if gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
-            Points(), Points
+            Points(), Points()
         else
             # GeoTiff uses the "pixelCorner" convention
             Intervals(GDAL_LON_LOCUS), Intervals(GDAL_LAT_LOCUS)
