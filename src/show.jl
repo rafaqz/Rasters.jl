@@ -49,18 +49,18 @@ function Base.show(io::IO, stack::AbstractGeoStack)
         print(io, '\n')
     end
 
-    n_windows = length(stack.window)
+    n_windows = length(window(stack))
     if n_windows > 0
         print(io, "and with window:\n")
-        for window in stack.window
+        for window in window(stack)
             print(io, ' ')
             show(window)
             print(io, '\n')
         end
     end
 
-    if !isnothing(stack.metadata)
-        n_metadata = length(stack.metadata)
+    if !isnothing(metadata(stack))
+        n_metadata = length(metadata(stack))
         entries_str = n_metadata == 1 ? "entry" : "entries"
         if n_metadata > 0
             print(io, "and $n_metadata metadata $entries_str:\n")
