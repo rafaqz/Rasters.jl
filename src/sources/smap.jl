@@ -191,7 +191,7 @@ Base.:*(hrs::Int, ::Type{T}) where T<:Period = T(hrs)
 
 smapread(f, filepath::AbstractString) = h5open(f, filepath)
 
-readwindowed(A::HDF5Dataset, window::Tuple{}) = HDF5.read(A)
+readwindowed(A::HDF5.Dataset, window::Tuple{}) = HDF5.read(A)
 
 smappath(key::Key) = SMAPGEODATA * "/" * string(key)
 
@@ -211,18 +211,18 @@ smap_timedim(times::AbstractVector) =
     Ti(times, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals(Start())))
 
 # TODO actually add metadata to the dict
-smapmetadata(dataset::HDF5.HDF5File) = SMAPstackMetadata(Dict())
+smapmetadata(dataset::HDF5.File) = SMAPstackMetadata(Dict())
 
-smapdims(dataset::HDF5.HDF5File) = begin
-    proj = read(attrs(root(dataset)["EASE2_global_projection"]), "grid_mapping_name")
+smapdims(dataset::HDF5.File) = begin
+    proj = read(HDF5.attributes(HDF5.root(dataset)["EASE2_global_projection"]), "grid_mapping_name")
     if proj == "lambert_cylindrical_equal_area"
         # There are matrices for lookup but all rows/colums are identical.
         # For performance and simplicity we just take a vector slice for each dim.
-        extent = attrs(root(dataset)["Metadata/Extent"])
+        extent = HDF5.attributes(HDF5.root(dataset)["Metadata/Extent"])
         lonbounds = read(extent["westBoundLongitude"]), read(extent["eastBoundLongitude"])
         latbounds = read(extent["southBoundLatitude"]), read(extent["northBoundLatitude"])
-        latvec = read(root(dataset)["cell_lat"])[1, :]
-        lonvec = read(root(dataset)["cell_lon"])[:, 1]
+        latvec = read(HDF5.root(dataset)["cell_lat"])[1, :]
+        lonvec = read(HDF5.root(dataset)["cell_lon"])[:, 1]
         lonmode = Mapped(
            order=Ordered(), 
            span=Irregular(lonbounds),
