@@ -17,7 +17,7 @@ Data loaded with GeoData.jl has some special properties:
 - Regions and points selected with `Between` and `Contains` select the right points or whole intervals 
   no matter the order of the index or it's position in the cell.
 - For `Projected` mode `GRDarray` and `GDALarray` You can index in any projection you want to by setting the 
-  `usercrs` keyword on construction. You don't even need to know the underlying projection, the conversion is 
+  `mappedcrs` keyword on construction. You don't even need to know the underlying projection, the conversion is 
   handled automatically. This means Lat/Lon `EPSG(4326)` can be used accross all sources seamlessly if you need that.
 - Packages building on GeoData.jl can treat `AbstractGeoSeries`, `AbstractGeoStack`, and `AbstrackGeoArray`
   as black boxes:
