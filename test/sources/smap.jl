@@ -1,4 +1,4 @@
-using HDF5, GeoData, Test, Statistics, Dates, Plots
+using HDF5, GeoData, Test, Statistics, Dates
 using GeoData: Time, window, name
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
