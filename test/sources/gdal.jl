@@ -10,7 +10,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     metadata(dims(gdalarray))
 
     @testset "open" begin
-        @test Open(A -> A[Lat=1], gdalarray) == gdalarray[:, 1, :]
+        @test open(A -> A[Lat=1], gdalarray) == gdalarray[:, 1, :]
     end
 
     @testset "array properties" begin
