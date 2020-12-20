@@ -26,7 +26,7 @@ using DimensionalData: StandardIndices
 
 export Metadata, DimMetadata, ArrayMetadata, StackMetadata
 
-export AbstractGeoArray, MemGeoArray, DiskGeoArray, GeoArray, Open
+export AbstractGeoArray, MemGeoArray, DiskGeoArray, GeoArray
 
 export AbstractGeoStack, MemGeoStack, DiskGeoStack, DiskStack, GeoStack
 

@@ -13,7 +13,7 @@ function OpenGeoArray(A, dims, refdims, name, metadata, missingval)
         A, dims, refdims, name, metadata, missingval
     )
 end
-function OpenGeoArray(f, A::AbstractGeoArray{T,N}) where {T,N}
+function OpenGeoArray(f::Function, A::AbstractGeoArray{T,N}) where {T,N}
     withsourcedata(A) do source
         OA = OpenGeoArray(source, dims(A), refdims(A), name(A), metadata(A), missingval(A))
         f(OA)
@@ -21,9 +21,9 @@ function OpenGeoArray(f, A::AbstractGeoArray{T,N}) where {T,N}
 end
 
 """
-    Open(f, A::AbstractGeoArray)
+    open(f, A::AbstractGeoArray)
 
-`Open` is used to open any `AbstractGeoArray` and do multiple operations
+`open` is used to open any `AbstractGeoArray` and do multiple operations
 on it in a safe way. It's a shorthand for the unexported `OpenGeoArray`
 constructor.
 
@@ -33,7 +33,7 @@ Often it will be a `do` block:
 
 ```julia
 ga = GDALarray(filepath)
-Open(ga) do A
+open(ga) do A
     A[I...] # A is an `OpenGeoArray` wrapping the disk-based object.
     # ...  multiple things you need to do with the open file
 end
@@ -42,4 +42,6 @@ end
 By using a do block to open file we ensure they are always closed again
 after we finish working with them.
 """
-Open(f, A::AbstractGeoArray) = OpenGeoArray(f, A)
+Base.open(f::Function, A::AbstractGeoArray) = OpenGeoArray(f, A)
+
+@deprecate Open(f, A::AbstractGeoArray) Base.open(f, A)
