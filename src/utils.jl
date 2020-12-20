@@ -28,27 +28,18 @@ checkarrayorder(A, order::Tuple) = map(checkarrayorder, dims(A), order)
 checkarrayorder(dim::Dimension, order::Order) =
     arrayorder(dim) == order || @warn "Array order for `$(DD.basetypeof(order))` is `$(arrayorder(dim))`, usualy `$order`"
 
+checkindexorder(A, order::Order) = map(d -> checkindexorder(d, order), dims(A))
+checkindexorder(A, order::Tuple) = map(checkindexorder, dims(A), order)
+checkindexorder(dim::Dimension, order::Order) =
+    indexorder(dim) == order || @warn "Array order for `$(DD.basetypeof(order))` is `$(indexorder(dim))`, usualy `$order`"
+
 cleankeys(keys) = Tuple(Symbol.(keys))
 
-#=
-Shift the index from the current loci to the new loci. We only actually
-shift Regular Intervals, and do this my multiplying the offset of
--1, -0.5, 0, 0.5 or 1 by the absolute value of the span.
-
-TODO: move this to DimensionalData.jl
-=#
-shiftindexloci(locus::Locus, dim::Dimension) = shiftindexloci(mode(dim), locus, dim)
-shiftindexloci(::IndexMode, ::Locus, dim::Dimension) = dim
-shiftindexloci(mode::AbstractSampled, locus::Locus, dim::Dimension) =
-    shiftindexloci(span(mode), sampling(mode), locus, dim)
-shiftindexloci(span::Span, sampling::Sampling, ::Locus, dim::Dimension) = dim
-shiftindexloci(span::Regular, sampling::Intervals, destlocus::Locus, dim::Dimension) =
-    rebuild(dim, val(dim) .+ (abs(step(span)) * _offset(locus(sampling), destlocus)))
-
-_offset(::Start, ::Center) = 0.5
-_offset(::Start, ::End) = 1
-_offset(::Center, ::Start) = -0.5
-_offset(::Center, ::End) = 0.5
-_offset(::End, ::Start) = -1
-_offset(::End, ::Center) = -0.5
-_offset(::T, ::T) where T<:Locus = 0
+function _to_sampled(A) 
+    if any(m -> !(m isa AbstractSampled), mode(A))
+        rebuild(A; data=data(A), dims=map(_to_sampled, dims(A)))
+    end
+end
+_to_sampled(mode, dim) = dim
+_to_sampled(mode::AbstractSampled, dim::SpatialDim) = dim
+_to_sampled(mode, dim::SpatialDim) = rebuild(dim; mode=Sampled(mode(dim)))

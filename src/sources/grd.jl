@@ -81,26 +81,26 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     yspan = (ybounds[2] - ybounds[1]) / nrows
 
     # Not fully implemented yet
-    latlon_metadata = GRDdimMetadata(Dict())
+    xy_metadata = GRDdimMetadata(Dict())
 
-    latmode = Projected(
-        order=Ordered(GRD_INDEX_ORDER, GRD_Y_ARRAY, GRD_Y_RELATION),
-        span=Regular(yspan),
-        sampling=Intervals(Start()),
-        crs=crs,
-        mappedcrs=mappedcrs,
-    )
-    lonmode = Projected(
+    xmode = Projected(
         order=Ordered(GRD_INDEX_ORDER, GRD_X_ARRAY, GRD_X_RELATION),
         span=Regular(xspan),
         sampling=Intervals(Start()),
         crs=crs,
         mappedcrs=mappedcrs,
     )
-    lat = Y(LinRange(ybounds[1], ybounds[2] - yspan, nrows), latmode, latlon_metadata)
-    lon = X(LinRange(xbounds[1], xbounds[2] - xspan, ncols), lonmode, latlon_metadata)
+    ymode = Projected(
+        order=Ordered(GRD_INDEX_ORDER, GRD_Y_ARRAY, GRD_Y_RELATION),
+        span=Regular(yspan),
+        sampling=Intervals(Start()),
+        crs=crs,
+        mappedcrs=mappedcrs,
+    )
+    x = X(LinRange(xbounds[1], xbounds[2] - xspan, ncols), xmode, xy_metadata)
+    y = Y(LinRange(ybounds[1], ybounds[2] - yspan, nrows), ymode, xy_metadata)
     band = Band(1:nbands; mode=Categorical(Ordered()))
-    lon, lat, band
+    x, y, band
 end
 
 function DD.metadata(grd::GRDattrib, args...)

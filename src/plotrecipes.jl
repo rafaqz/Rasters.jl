@@ -1,8 +1,6 @@
 struct GeoPlot end
 struct GeoZPlot end
 
-const SpatialDim = Union{XDim,YDim,ZDim}
-
 # We only look at arrays with X, Y, Z dims here.
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(A::AbstractGeoArray)
@@ -91,7 +89,7 @@ end
 
 # Plots heatmaps pixels are centered.
 # So we should center, and use the projected value.
-_prepare(d::Dimension) = shiftindexloci(Center(), d) |> _maybe_mapped |> index
+_prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped |> index
 # Convert arrays to a consistent missing value and Forward array order
 _prepare(A::AbstractGeoArray) =
     _maybe_replace_missing(A) |>
@@ -106,6 +104,10 @@ _maybename(n::NoName) = ""
 
 _maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, eltype(A)(NaN))
 _maybe_replace_missing(A) = A
+
+_maybe_shift(d) = _maybe_shift(sampling(d), d)
+_maybe_shift(::Intervals, d) = DD.maybeshiftlocus(Center(), d)
+_maybe_shift(sampling, d) = d
 
 _maybe_mapped(dims::Tuple) = map(_maybe_mapped, dims)
 _maybe_mapped(dim::Dimension) = _maybe_mapped(mode(dim), dim)

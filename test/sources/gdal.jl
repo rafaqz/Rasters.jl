@@ -1,6 +1,6 @@
-using GeoData, Test, Statistics, Dates, Plots
+using GeoData, Test, Statistics, Dates, Plots, DimensionalData
 import ArchGDAL, NCDatasets
-using GeoData: window, mode, span, sampling, name
+using GeoData: window, mode, span, sampling, name, bounds
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
@@ -94,7 +94,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             filename = tempname() * ".asc"
             write(filename, geoA)
             saved1 = GDALarray(filename; mappedcrs=EPSG(4326))[Band(1)];
-            @test saved1 ≈ geoA
+            @test all(saved1 .== saved1 ≈ geoA)
             @test typeof(saved1) !== typeof(geoA)
             @test val(dims(saved1, X)) ≈ val(dims(geoA, X))
             @test val(dims(saved1, Y)) ≈ val(dims(geoA, Y))
@@ -149,34 +149,53 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             @test val(dims(grdarray, Y)) == reverse(val(dims(gdalarray, Y)))
             @test val(dims(grdarray, X)) ≈ val(dims(gdalarray, X))
             @test all(GeoArray(grdarray) .== GeoArray(gdalarray))
-            @test bounds(grdarray) == bounds(gdalarray)
-        end
-
-        @testset "to netcdf" begin
-            filename2 = tempname() * ".nc"
-            write(filename2, gdalarray[Band(1)])
-            saved = GeoArray(NCDarray(filename2; crs=crs(gdalarray)))
-            @test size(saved) == size(gdalarray[Band(1)])
-            @test saved ≈ reverse(gdalarray[Band(1)]; dims=Y)
-            @test index(saved, X) ≈ mappedindex(dims(gdalarray, X)) .+ 0.5step(dims(saved, X))
-            @test mappedindex(GeoData.shiftindexloci(Center(), dims(gdalarray, Y))) ≈ reverse(index(saved, Y))
-            @test all(mappedbounds(saved, X) .≈ mappedbounds(gdalarray, X))
-            @test all(mappedbounds(saved, Y) .≈ mappedbounds(gdalarray, Y))
-            @test all(projectedbounds(saved, X) .≈ projectedbounds(gdalarray, X))
-            # For some reason this crs conversion is less accrurate than the others
-            @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Y),  projectedbounds(gdalarray, Y)))
         end
 
         @testset "from GeoArray" begin
             filename = tempname() * ".tiff"
             ga = GeoArray(rand(100, 200), (X, Y))
+            reorder(ga, (X(ForwardIndex()), Y(ReverseIndex())))
             write(filename, ga)
-            @test parent(GDALarray(filename)[Band(1)]) == parent(ga)
+            saved = GDALarray(filename)
+            @test parent(saved[Band(1)]) == parent(ga)
+            @test saved[1, 1, 1] == saved[At(1), At(1), At(1)] 
+            @test saved[100, 200, 1] == saved[At(100), At(200), At(1)] 
             filename2 = tempname() * ".tif"
             ga2 = GeoArray(rand(100, 200), (X(101:200; mode=Sampled()), Y(1:200; mode=Sampled())))
             write(filename2, ga2)
             @test parent(reorder(GDALarray(filename2)[Band(1)], ForwardArray)) == ga2
-       end
+        end
+       
+        # This needs netcdf bounds variables to work
+        @testset "to netcdf" begin
+            filename2 = tempname()
+            write(filename2, NCDarray, gdalarray[Band(1)])
+            saved = GeoArray(NCDarray(filename2; crs=crs(gdalarray)))
+            @test size(saved) == size(gdalarray[Band(1)])
+            @test saved ≈ reverse(gdalarray[Band(1)]; dims=Lat)
+            clat, clon = DimensionalData.shiftlocus.(Ref(Center()), dims(gdalarray, (Lat, Lon)))
+            @test mappedindex(clat) ≈ reverse(mappedindex(saved, Lat))
+            @test mappedindex(clon) ≈ mappedindex(saved, Lon)
+            @test all(mappedbounds(saved, Lon) .≈ mappedbounds(clon))
+            @test all(mappedbounds(saved, Lat) .≈ mappedbounds(clat))
+            # @test all(
+            #           projectedbounds(saved, Lon)
+            #           locus(saved, Lon)
+            #           first(val(span(saved, Lon)))
+            #           first(index(saved, Lon))
+            #           first(projectedindex(saved, Lon))
+            #           last(projectedindex(saved, Lon))
+            #           .≈ 
+            #           projectedbounds(gdalarray, Lon)
+            #           locus(gdalarray, Lon)
+            #           first(projectedindex(gdalarray, Lon))
+            #           last(projectedindex(gdalarray, Lon))
+            #          )
+            # @test projectedindex(gdalarray, Lat) .- reverse(projectedindex(DimensionalData.shiftloci(Start(), dims(saved, Lat))))
+            @test projectedindex(clon) ≈ projectedindex(saved, Lon)
+            # For some reason this crs conversion is less accrurate than the others
+            @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Lat),  projectedbounds(gdalarray, Lat)))
+        end
 
     end
 

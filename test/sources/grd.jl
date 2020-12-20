@@ -1,8 +1,9 @@
 using GeoData, Test, Statistics, Dates, Plots
 import NCDatasets, ArchGDAL
-using GeoData: name, mode, window, DiskStack
+using GeoData: name, mode, window, DiskStack, bounds
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
+const DD = DimensionalData
 
 maybedownload("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd", "rlogo.grd")
 maybedownload("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri", "rlogo.gri")
@@ -132,6 +133,7 @@ path = stem * ".gri"
 
         @testset "to netcdf" begin
             filename2 = tempname()
+            span(grdarray[Band(1)])
             write(filename2, NCDarray, grdarray[Band(1)])
             saved = GeoArray(NCDarray(filename2; crs=crs(grdarray)))
             @test size(saved) == size(grdarray[Band(1)])

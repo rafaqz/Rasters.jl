@@ -1,16 +1,15 @@
-using GeoData, ArchGDAL, NCDatasets, Plots, Statistics
+using GeoData, Plots, Statistics, ArchGDAL, NCDatasets
 
 geturl(url, filename=splitdir(url)[2]) = begin
     isfile(filename) || download(url, filename)
     filename
 end
 
-
 # Load some layers from NetCDF #############################################
 
 ncurl = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc"
 ncfilename = geturl(ncurl, "tos_O1_2001-2002.nc")
-stack = NCDstack(ncfilename)
+stack = stack(ncfilename)
 
 # Load the sea surface temperature layer
 A = stack[:tos]
@@ -20,7 +19,7 @@ A[Ti(1:3:12)] |> plot
 savefig("tos_4.png")
 
 # Plot the Australia region
-A[Ti(Contains(DateTime360Day(2001, 01, 17))), Lat(Between(0, -50)), Lon(Between(100, 160))] |> plot
+A[Ti(Contains(DateTime360Day(2001, 01, 17))), Lat(Between(-50, 0)), Lon(Between(100, 160))] |> plot
 savefig("tos_jan_australia.png")
 
 # Plot the mean
@@ -28,10 +27,10 @@ mean(A; dims=Ti) |> plot
 savefig("mean_tos.png")
 
 # Save the mean
-write("mean_tos.ncd", NCDarray, mean(A; dims=Ti))
+write("mean_tos.nc", mean(A; dims=Ti))
 
 # Plo a transect
-A[Lat(Contains(20)), Ti(1)] |> plot
+A[X(Contains(20)), Ti(1)] |> plot
 savefig("tos_20deg_lat.png")
 
 # Create a GeoSeries from multiple files.
@@ -42,7 +41,7 @@ filenames = [ncfilename, ncfilename, ncfilename]
 series = GeoSeries(filenames, (timedim,); childtype=NCDstack)
 
 # Get a single array from the series
-A = series[Near<|DateTime360Day(2001, 01, 1)]["tos"][Lon<|Between(50, 200)]
+A = series[Near(DateTime360Day(2001, 01, 1))]["tos"][Lon(Between(50, 200))]
 
 # Plot single slices
 view(A, Ti(4)) |> plot
@@ -58,8 +57,8 @@ reduce(+, A; dims=Ti) |> plot
 
 # Plot the mean sea surface temperature for australia in the second half of 2002 
 stack = NCDstack(ncfilename)
-t = Ti<|Between(DateTime360Day(2002, 07, 1), DateTime360Day(2002, 012, 30)) 
-stack["tos"][t, Lat<|Between(-45, 0.5), Lon<|Between(110, 160)] |> x->mean(x; dims=Ti) |> plot
+t = Ti(Between(DateTime360Day(2002, 07, 1), DateTime360Day(2002, 012, 30)))
+stack["tos"][t, Lat(Between(-45, 0.5), Lon(Between(110, 160))] |> x->mean(x; dims=Ti) |> plot
 
 # Permute the dimensions in the underlying data
 # It stil plots the right way up
@@ -76,7 +75,7 @@ A[Lat(1:80), Lon(170), Ti(10)] |> plot
 gdal_url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 tif_filename = geturl(gdal_url)
 
-array = GDALarray(tif_filename)
+array = geoarray(tif_filename)
 array[Band(1)] |> plot
 
 # Make a stack (just using the same file three times for demonstration)

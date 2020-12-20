@@ -55,5 +55,6 @@ end
     A = DimArray(zeros(length(lon), length(lat)), (lon, lat))
     Aconv = convertmode(Mapped, A)
 
-    @test dims(Aconv) == (convertedlon, convertedlat)
+    @test index(Aconv) == (index(convertedlon), index(convertedlat))
+    @test val.(span(Aconv)) == val.(span.((convertedlon, convertedlat)))
 end
