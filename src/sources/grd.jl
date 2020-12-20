@@ -8,6 +8,20 @@ const GRD_LON_RELATION = ForwardRelation()
 const GRD_LAT_RELATION = ReverseRelation()
 const GRD_BAND_RELATION= ForwardRelation()
 
+const GRD_DATATYPE_TRANSLATION = Dict{String, DataType}(
+    "LOG1S" => Bool,
+    "INT1S" => Int8,
+    "INT2S" => Int16,
+    "INT4S" => Int32,
+    "INT8S" => Int64,
+    "INT1U" => UInt8,
+    "INT2U" => UInt16,
+    "FLT4S" => Float32,
+    "FLT8S" => Float64
+)
+const REV_GRD_DATATYPE_TRANSLATION =
+    Dict{DataType, String}(v => k for (k,v) in GRD_DATATYPE_TRANSLATION)
+
 # Metadata ########################################################################
 
 """
@@ -38,20 +52,19 @@ struct GRDattrib{T,F,A}
     filename::F
     attrib::A
 end
-GRDattrib(filename::AbstractString) = begin
+function GRDattrib(filename::AbstractString)
     filename = first(splitext(filename))
     lines = readlines(filename * ".grd")
     entries = filter!(x -> !isempty(x) && !(x[1] == '['), lines)
     attrib = Dict(Pair(string.(strip.(match(r"([^=]+)=(.*)", st).captures[1:2]))...) for st in entries)
-    T = grd_datatype_translation[attrib["datatype"]]
-
+    T = GRD_DATATYPE_TRANSLATION[attrib["datatype"]]
     GRDattrib{T,typeof(filename),typeof(attrib)}(filename, attrib)
 end
 
 filename(grd::GRDattrib) = grd.filename
 attrib(grd::GRDattrib) = grd.attrib
 
-dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing) = begin
+function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     attrib = grd.attrib
     crs = crs isa Nothing ? ProjString(attrib["projection"]) : crs
 
@@ -86,7 +99,7 @@ dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing) = begin
     lon, lat, band
 end
 
-metadata(grd::GRDattrib, args...) = begin
+function DD.metadata(grd::GRDattrib, args...)
     metadata = GRDarrayMetadata()
     for key in ("creator", "created", "history")
         val = get(grd.attrib, key, "")
@@ -97,7 +110,7 @@ metadata(grd::GRDattrib, args...) = begin
     metadata
 end
 
-missingval(grd::GRDattrib{T}) where T = begin
+function missingval(grd::GRDattrib{T}) where T
     mv = try
         parse(T, grd.attrib["nodatavalue"])
     catch
@@ -106,12 +119,12 @@ missingval(grd::GRDattrib{T}) where T = begin
     end
 end
 
-name(grd::GRDattrib) = Symbol(get(grd.attrib, "layername", ""))
+DD.name(grd::GRDattrib) = Symbol(get(grd.attrib, "layername", ""))
 
 
 Base.eltype(::GRDattrib{T}) where T = T
 
-Base.size(grd::GRDattrib) = begin
+function Base.size(grd::GRDattrib)
     ncols = parse(Int, grd.attrib["ncols"])
     nrows = parse(Int, grd.attrib["nrows"])
     nbands = parse(Int, grd.attrib["nbands"])
@@ -119,7 +132,7 @@ Base.size(grd::GRDattrib) = begin
     ncols, nrows, nbands
 end
 
-Base.Array(grd::GRDattrib) = mmapgrd(Array, grd)
+Base.Array(grd::GRDattrib) = _mmapgrd(Array, grd)
 
 
 # Array ########################################################################
@@ -172,20 +185,17 @@ struct GRDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:Symbol,Me,Mi,S
     missingval::Mi
     size::S
 end
-GRDarray(filename::String; kwargs...) =
-    GRDarray(GRDattrib(filename), filename; kwargs...)
-GRDarray(grd::GRDattrib, filename, key=nothing;
-         crs=nothing,
-         mappedcrs=nothing,
-         dims=dims(grd, crs, mappedcrs),
-         refdims=(),
-         name=name(grd),
-         missingval=missingval(grd),
-         metadata=metadata(grd),
-        ) = begin
-
+GRDarray(filename::String; kw...) = GRDarray(GRDattrib(filename), filename; kw...)
+function GRDarray(grd::GRDattrib, filename, key=nothing;
+    crs=nothing,
+    mappedcrs=nothing,
+    dims=dims(grd, crs, mappedcrs),
+    refdims=(),
+    name=name(grd),
+    missingval=missingval(grd),
+    metadata=metadata(grd),
+)
     size_ = map(length, dims)
-
     T = eltype(grd)
     N = length(size_)
     name = Symbol(name)
@@ -206,7 +216,7 @@ Currently the `metadata` field is lost on `write` for `GRDarray`.
 
 Returns `filename`.
 """
-Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray) = begin
+function Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray)
     if hasdim(A, Band)
         correctedA = permutedims(A, (Lon, Lat, Band)) |>
             a -> reorder(a, GRD_INDEX_ORDER) |>
@@ -230,7 +240,7 @@ Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray) = begin
     xmin, xmax = bounds(lon)
     ymin, ymax = bounds(lat)
     proj = convert(String, convert(ProjString, crs(lon)))
-    datatype = rev_grd_datatype_translation[eltype(A)]
+    datatype = REV_GRD_DATATYPE_TRANSLATION[eltype(A)]
     nodatavalue = missingval(A)
     minvalue = minimum(filter(x -> x !== missingval(A), data(A)))
     maxvalue = maximum(filter(x -> x !== missingval(A), data(A)))
@@ -274,8 +284,8 @@ end
 # AbstractGeoStack methods
 
 """
-    GRDstack(filenames; keys, kwargs...)
-    GRDstack(filenames...; keys, kwargs...)
+    GRDstack(filenames; keys, kw...)
+    GRDstack(filenames...; keys, kw...)
     GRDstack(filenames::NamedTuple;
              window=(),
              metadata=nothing,
@@ -309,21 +319,19 @@ stack = GRDstack(files; childkwargs=(mappedcrs=EPSG(4326),))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
 """
-GRDstack(args...; kwargs...) =
-    DiskStack(args...; childtype=GRDarray, kwargs...)
+GRDstack(args...; kw...) = DiskStack(args...; childtype=GRDarray, kw...)
 
-
-withsource(f, ::Type{<:GRDarray}, filename::AbstractString, key...) =
-    f(GRDattrib(filename))
+withsource(f, ::Type{<:GRDarray}, filename::AbstractString, key...) = f(GRDattrib(filename))
 withsourcedata(f, ::Type{<:GRDarray}, filename::AbstractString, key...) =
-    mmapgrd(f, GRDattrib(filename))
-withsourcedata(f, A::GRDarray, key...) =
-    mmapgrd(f, A)
+    _mmapgrd(f, GRDattrib(filename))
+withsourcedata(f, A::GRDarray, key...) = _mmapgrd(f, A)
 
 # Utils ########################################################################
-mmapgrd(f, grd::Union{GRDarray,GRDattrib}) =
-    mmapgrd(f, filename(grd), eltype(grd), size(grd))
-mmapgrd(f, filename::AbstractString, T::Type, size::Tuple) = begin
+#
+function _mmapgrd(f, grd::Union{GRDarray,GRDattrib})
+    _mmapgrd(f, filename(grd), eltype(grd), size(grd))
+end
+function _mmapgrd(f, filename::AbstractString, T::Type, size::Tuple)
     open(filename * ".gri", "r") do io
         mmap = Mmap.mmap(io, Array{T,length(size)}, size)
         output = f(mmap)
@@ -331,18 +339,3 @@ mmapgrd(f, filename::AbstractString, T::Type, size::Tuple) = begin
         output
     end
 end
-
-const grd_datatype_translation = Dict{String, DataType}(
-    "LOG1S" => Bool,
-    "INT1S" => Int8,
-    "INT2S" => Int16,
-    "INT4S" => Int32,
-    "INT8S" => Int64,
-    "INT1U" => UInt8,
-    "INT2U" => UInt16,
-    "FLT4S" => Float32,
-    "FLT8S" => Float64
-)
-
-const rev_grd_datatype_translation =
-    Dict{DataType, String}(v => k for (k,v) in grd_datatype_translation)

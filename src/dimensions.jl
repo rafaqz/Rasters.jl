@@ -77,11 +77,11 @@ Whithout ArchGDAL loaded, this is just the regular bounds.
 """
 function mappedbounds end
 
-mappedbounds(dims::Tuple) = map(mappedbounds, dims) 
+mappedbounds(dims::Tuple) = map(mappedbounds, dims)
 mappedbounds(dim::Dimension) = bounds(dim)
 mappedbounds(dim::Union{Lat,Lon}) = mappedbounds(mode(dim), dim)
 mappedbounds(::Mapped, dim) = bounds(dim)
-@noinline mappedbounds(mode::IndexMode, dim) = 
+@noinline mappedbounds(mode::IndexMode, dim) =
     if mode isa Projected
         error("Load ArchGDAL to convert Projected mode bounds to mapped")
     else
@@ -89,11 +89,11 @@ mappedbounds(::Mapped, dim) = bounds(dim)
     end
 
 
-projectedbounds(dims::Tuple) = map(projectedbounds, dims) 
+projectedbounds(dims::Tuple) = map(projectedbounds, dims)
 projectedbounds(dim::Dimension) = bounds(dim)
 projectedbounds(dim::Union{Lat,Lon}) = projectedbounds(mode(dim), dim)
 projectedbounds(::Projected, dim) = bounds(dim)
-@noinline projectedbounds(mode::IndexMode, dim) = 
+@noinline projectedbounds(mode::IndexMode, dim) =
     if mode isa Mapped
         error("Load ArchGDAL to convert Mapped mode dim to projected")
     else
@@ -110,22 +110,22 @@ Whithout ArchGDAL loaded, this is just the regular dim value.
 """
 function mappedindex end
 
-mappedindex(dims::Tuple) = map(mappedindex, dims) 
+mappedindex(dims::Tuple) = map(mappedindex, dims)
 mappedindex(dim::Dimension) = index(dim)
 mappedindex(dim::Union{Lat,Lon}) = mappedindex(mode(dim), dim)
 mappedindex(::Mapped, dim) = index(dim)
-@noinline mappedindex(mode::IndexMode, dim) = 
+@noinline mappedindex(mode::IndexMode, dim) =
     if mode isa Projected
         error("Load ArchGDAL to convert Projected mode index to mapped")
     else
         error("cannot get mapped index of a $(nameof(typeof(mode))) mode dim")
     end
 
-projectedindex(dims::Tuple) = map(projectedindex, dims) 
+projectedindex(dims::Tuple) = map(projectedindex, dims)
 projectedindex(dim::Dimension) = index(dim)
 projectedindex(dim::Union{Lat,Lon}) = projectedindex(mode(dim), dim)
 projectedindex(::Projected, dim) = index(dim)
-@noinline projectedindex(mode::IndexMode, dim) = 
+@noinline projectedindex(mode::IndexMode, dim) =
     if mode isa Mapped
         error("Load ArchGDAL to convert Mapped mode index to projected")
     else

@@ -1,6 +1,5 @@
 using GeoData, Test, Dates, Statistics
-using GeoData: Start, Center, End,
-      formatdims, dims, aggregate, upsample, downsample, span
+using GeoData: upsample, downsample
 
 @testset "upsample" begin
     @test upsample(1, 2) == 1

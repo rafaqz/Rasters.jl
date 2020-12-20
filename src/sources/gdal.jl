@@ -1,7 +1,5 @@
 using .ArchGDAL
 
-const AG = ArchGDAL
-
 const GDAL_LON_INDEX = ForwardIndex()
 const GDAL_LAT_INDEX = ReverseIndex()
 const GDAL_BAND_INDEX = ForwardIndex()
@@ -92,20 +90,21 @@ struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:Symbol,Me,Mi,S
     missingval::Mi
     size::S
 end
-GDALarray(filename::AbstractString; kwargs...) = begin
+function GDALarray(filename::AbstractString; kw...)
     isfile(filename) || error("file not found: $filename")
-    gdalread(filename) do raster
-        GDALarray(raster, filename; kwargs...)
+    _gdalread(filename) do raster
+        GDALarray(raster, filename; kw...)
     end
 end
-GDALarray(raster::AG.RasterDataset, filename, key=nothing;
-          crs=nothing,
-          mappedcrs=nothing,
-          dims=dims(raster, crs, mappedcrs),
-          refdims=(),
-          name=Symbol(""),
-          metadata=metadata(raster),
-          missingval=missingval(raster)) = begin
+function GDALarray(raster::AG.RasterDataset, filename, key=nothing;
+    crs=nothing,
+    mappedcrs=nothing,
+    dims=dims(raster, crs, mappedcrs),
+    refdims=(),
+    name=Symbol(""),
+    metadata=metadata(raster),
+    missingval=missingval(raster)
+)
     sze = size(raster)
     T = eltype(raster)
     N = length(sze)
@@ -126,7 +125,9 @@ GDAL flags `driver`, `compress` and `tiled` can be passed in as keyword argument
 
 Returns `filename`.
 """
-Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,2}; kwargs...) where T = begin
+function Base.write(
+    filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,2}; kw...
+) where T
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims")
 
     correctedA = permutedims(A, (Lon(), Lat())) |>
@@ -136,9 +137,11 @@ Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,
 
     nbands = 1
     indices = 1
-    gdalwrite(filename, correctedA, nbands, indices; kwargs...)
+    _gdalwrite(filename, correctedA, nbands, indices; kw...)
 end
-Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,3}, kwargs...) where T = begin
+function Base.write(
+    filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,3}, kw...
+) where T
     all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
 
@@ -149,15 +152,15 @@ Base.write(filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,
 
     nbands = size(correctedA, Band())
     indices = Cint[1:nbands...]
-    gdalwrite(filename, correctedA, nbands, indices; kwargs...)
+    _gdalwrite(filename, correctedA, nbands, indices; kw...)
 end
 
 
 # AbstractGeoStack methods
 
 """
-    GDALstack(filenames; keys, kwargs...)
-    GDALstack(filenames...; keys, kwargs...)
+    GDALstack(filenames; keys, kw...)
+    GDALstack(filenames...; keys, kw...)
     GDALstack(filenames::NamedTuple;
               window=(),
               metadata=NoMetadata(),
@@ -193,17 +196,14 @@ stack = GDALstack(files; childkwargs=(usercrs=EPSG(4326),))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
 """
-GDALstack(args...; kwargs...) =
-    DiskStack(args...; childtype=GDALarray, kwargs...)
+GDALstack(args...; kw...) = DiskStack(args...; childtype=GDALarray, kw...)
 
-withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) =
-    gdalread(f, filename)
-
+withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) = _gdalread(f, filename)
 
 
 # DimensionalData methods for ArchGDAL types ###############################
 
-dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing) = begin
+function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     gt = try
         AG.getgeotransform(raster) catch GDAL_EMPTY_TRANSFORM end
     lonsize, latsize = size(raster)
@@ -216,7 +216,7 @@ dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing) = begin
 
     # Output Sampled index dims when the transformation is lat/lon alligned,
     # otherwise use Transformed index, with an affine map.
-    if isalligned(gt)
+    if _isalligned(gt)
         lonstep = gt[GDAL_WE_RES]
         lonmin = gt[GDAL_TOPLEFT_X]
         lonmax = gt[GDAL_TOPLEFT_X] + lonstep * (lonsize - 1)
@@ -228,7 +228,7 @@ dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing) = begin
         latindex = LinRange(latmax, latmin, latsize)
 
         # Spatial data defaults to area/inteval
-        lonsampling, latsampling = if gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
+        lonsampling, latsampling = if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
             Points(), Points()
         else
             # GeoTiff uses the "pixelCorner" convention
@@ -250,7 +250,6 @@ dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing) = begin
             crs=crs,
             mappedcrs=mappedcrs,
         )
-
         lon = Lon(lonindex; mode=lonmode, metadata=lonlat_metadata)
         lat = Lat(latindex; mode=latmode, metadata=lonlat_metadata)
 
@@ -265,7 +264,19 @@ dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing) = begin
     end
 end
 
-missingval(raster::AG.RasterDataset, args...) = begin
+function DD.metadata(raster::AG.RasterDataset, args...)
+    band = AG.getband(raster.ds, 1)
+    # color = AG.getname(AG.getcolorinterp(band))
+    scale = AG.getscale(band)
+    offset = AG.getoffset(band)
+    # norvw = AG.noverview(band)
+    path = first(AG.filelist(raster))
+    units = AG.getunittype(band)
+    upair = units == "" ? () : (:units=>units,)
+    GDALarrayMetadata(Dict(:filepath=>path, :scale=>scale, :offset=>offset, upair...))
+end
+
+function missingval(raster::AG.RasterDataset, args...)
     # We can only handle data where all bands have
     # the same missingval
     band = AG.getband(raster.ds, 1)
@@ -277,18 +288,6 @@ missingval(raster::AG.RasterDataset, args...) = begin
         @warn "No data value from GDAL $(missingval) is not convertible to data type $T. `missingval` is probably incorrect."
     end
     missingval
-end
-
-metadata(raster::AG.RasterDataset, args...) = begin
-    band = AG.getband(raster.ds, 1)
-    # color = AG.getname(AG.getcolorinterp(band))
-    scale = AG.getscale(band)
-    offset = AG.getoffset(band)
-    # norvw = AG.noverview(band)
-    path = first(AG.filelist(raster))
-    units = AG.getunittype(band)
-    upair = units == "" ? () : (:units=>units,)
-    GDALarrayMetadata(Dict(:filepath=>path, :scale=>scale, :offset=>offset, upair...))
 end
 
 # metadata(raster::RasterDataset, key) = begin
@@ -307,7 +306,7 @@ crs(raster::AG.RasterDataset, args...) =
 
 # Utils ########################################################################
 
-gdalmetadata(dataset::AG.Dataset, key) = begin
+function _gdalmetadata(dataset::AG.Dataset, key)
     meta = AG.metadata(dataset)
     regex = Regex("$key=(.*)")
     i = findfirst(f -> occursin(regex, f), meta)
@@ -318,12 +317,13 @@ gdalmetadata(dataset::AG.Dataset, key) = begin
     end
 end
 
-gdalread(f, filename::AbstractString) =
+function _gdalread(f, filename::AbstractString)
     AG.readraster(filename) do raster
         f(raster)
     end
+end
 
-gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tiled=true) = begin
+function _gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tiled=true)
     tiledstring = tiled isa Bool ? (tiled ? "YES" : "NO") : tiled
     options = driver == "GTiff" ? ["COMPRESS=$compress", "TILED=$tiledstring"] : String[]
 
@@ -335,13 +335,13 @@ gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tile
         dtype=eltype(A),
         options=options,
     ) do dataset
-        gdalsetproperties!(dataset, A)
+        _gdalsetproperties!(dataset, A)
         AG.write!(dataset, data(A), indices)
     end
     return filename
 end
 
-function gdalsetproperties!(dataset, A)
+function _gdalsetproperties!(dataset, A)
     # Convert the dimensions to `Projected` if they are `Converted`
     # This allows saving NetCDF to Tiff
     # Set the index loci to the start of the cell for the lat and lon dimensions.
@@ -353,7 +353,7 @@ function gdalsetproperties!(dataset, A)
     @assert indexorder(lat) == GDAL_LAT_INDEX
     @assert indexorder(lon) == GDAL_LON_INDEX
     # Get the geotransform from the updated lat/lon dims
-    geotransform = dims2geotransform(lat, lon)
+    geotransform = _dims2geotransform(lat, lon)
     # Convert projection to a string of well known text
     proj = convert(String, convert(WellKnownText, crs(lon)))
 
@@ -381,13 +381,14 @@ end
 
 # Create a GeoArray from a memory-backed dataset
 function GeoArray(dataset::AG.Dataset;
-                  crs=nothing,
-                  mappedcrs=nothing,
-                  dims=dims(AG.RasterDataset(dataset), crs, mappedcrs),
-                  refdims=(),
-                  name=Symbol(""),
-                  metadata=metadata(AG.RasterDataset(dataset)),
-                  missingval=missingval(AG.RasterDataset(dataset)))
+    crs=nothing,
+    mappedcrs=nothing,
+    dims=dims(AG.RasterDataset(dataset), crs, mappedcrs),
+    refdims=(),
+    name=Symbol(""),
+    metadata=metadata(AG.RasterDataset(dataset)),
+    missingval=missingval(AG.RasterDataset(dataset))
+)
     GeoArray(AG.read(dataset), dims, refdims, name, metadata, missingval)
 end
 
@@ -397,17 +398,16 @@ function unsafe_ArchGDALdataset(A::AbstractGeoArray)
     height = size(A, Lat)
     nbands = size(A, Band)
 
-    dataset = AG.unsafe_create("tmp",
-                               driver=AG.getdriver("MEM"),
-                               width=width,
-                               height=height,
-                               nbands=nbands,
-                               dtype=eltype(A))
+    dataset = AG.unsafe_create("tmp";
+        driver=AG.getdriver("MEM"),
+        width=width,
+        height=height,
+        nbands=nbands,
+        dtype=eltype(A)
+    )
     # write bands to dataset
-    AG.write!(dataset,
-              data(permutedims(A, (Lon, Lat, Band))),
-              Cint[1:nbands...])
-    gdalsetproperties!(dataset, A)
+    AG.write!(dataset, data(permutedims(A, (Lon, Lat, Band))), Cint[1:nbands...])
+    _gdalsetproperties!(dataset, A)
     dataset
 end
 
@@ -443,14 +443,13 @@ const GDAL_TOPLEFT_Y = 4
 const GDAL_ROT2 = 5
 const GDAL_NS_RES = 6
 
-isalligned(geotransform) =
-    geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
+_isalligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
 
-geotransform2affine(gt) =
+_geotransform2affine(gt) =
     AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]],
               [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
 
-function dims2geotransform(lat::Lat, lon::Lon)
+function _dims2geotransform(lat::Lat, lon::Lon)
     gt = zeros(6)
     gt[GDAL_TOPLEFT_X] = first(lon)
     gt[GDAL_WE_RES] = step(lon)

@@ -2,15 +2,14 @@
     replace_missing(a::AbstractGeoArray, newmissingval)
     replace_missing(a::AbstractGeoStack, newmissingval)
 
-Replace missing values in the array or stack with a new missing value, 
+Replace missing values in the array or stack with a new missing value,
 also updating the `missingval` field/s.
 
 A `GeoArray` containing a newly allocated `Array` is always returned,
 even when the missing value matches the current value.
 """
-replace_missing(a::DiskGeoArray, args...) = 
-    replace_missing(GeoArray(a), args...)
-replace_missing(a::MemGeoArray, newmissingval=missing) = begin
+replace_missing(a::DiskGeoArray, args...) = replace_missing(GeoArray(a), args...)
+function replace_missing(a::MemGeoArray, newmissingval=missing)
     newdata = if ismissing(missingval(a))
         if newmissingval === missing
             copy(parent(a))
@@ -22,17 +21,18 @@ replace_missing(a::MemGeoArray, newmissingval=missing) = begin
     end
     rebuild(a; data=newdata, missingval=newmissingval)
 end
-replace_missing(stack::AbstractGeoStack, newmissingval=missing) = 
+function replace_missing(stack::AbstractGeoStack, newmissingval=missing)
     rebuild(stack, map(a -> replace_missing(a, newmissingval, values(stack))))
+end
 
 """
     boolmask(A::AbstractArray, [missingval])
 
-Create a mask array of `Bool` values, from any AbstractArray. For `AbstractGeoArray` 
-the default `missingval` is `missingval(A)`, for all other `AbstractArray`s 
+Create a mask array of `Bool` values, from any AbstractArray. For `AbstractGeoArray`
+the default `missingval` is `missingval(A)`, for all other `AbstractArray`s
 it is `missing`.
 
-The array returned from calling `boolmask` on a `AbstractGeoArray` is a 
+The array returned from calling `boolmask` on a `AbstractGeoArray` is a
 [`GeoArray`](@ref) with the same size and fields as the oridingl array
 """
 function boolmask end
@@ -49,11 +49,11 @@ boolmask(A::AbstractArray, missingval) =
 """
     missingmask(A::AbstractArray, [missingval])
 
-Create a mask array of `missing` or `true` values, from any AbstractArray. 
-For `AbstractGeoArray` the default `missingval` is `missingval(A)`, 
+Create a mask array of `missing` or `true` values, from any AbstractArray.
+For `AbstractGeoArray` the default `missingval` is `missingval(A)`,
 for all other `AbstractArray`s it is `missing`.
 
-The array returned from calling `boolmask` on a `AbstractGeoArray` is a 
+The array returned from calling `boolmask` on a `AbstractGeoArray` is a
 [`GeoArray`](@ref) with the same size and fields as the oridingl array
 """
 function missingmask end

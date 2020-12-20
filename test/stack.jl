@@ -1,5 +1,5 @@
-using GeoData, Test, Statistics, Dates
-using GeoData: formatdims, data, dims2indices, rebuild, window, name, getsource
+using GeoData, DimensionalData, Test, Statistics, Dates
+using GeoData: data, getsource, window
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
@@ -32,7 +32,7 @@ dims(stack[:ga2], Ti)
 end
 
 @testset "stack fields " begin
-    @test dims(stack, :ga1) == formatdims(data1, dims1)
+    @test dims(stack, :ga1) == DimensionalData.formatdims(data1, dims1)
     @test window(stack) == ()
     @test metadata(stack) == nothing
     @test metadata(stack, :ga1) == nothing

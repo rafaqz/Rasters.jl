@@ -20,13 +20,9 @@ using Adapt,
 
 const DD = DimensionalData
 
-using Base: tail
-using DimensionalData: formatdims, slicedims, basetypeof,
-      dims2indices, indexorder, arrayorder, relation, isrev, StandardIndices
+using Base: tail, @propagate_inbounds
 
-import DimensionalData: val, data, dims, refdims, metadata, name, label, units,
-       bounds, sel2indices, mode, order, locus, span, sampling,
-       rebuild, rebuildsliced, modify
+using DimensionalData: StandardIndices
 
 export Metadata, DimMetadata, ArrayMetadata, StackMetadata
 

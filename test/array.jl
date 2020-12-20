@@ -1,5 +1,4 @@
 using GeoData, Test, Dates
-using GeoData: formatdims, dims, name
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
@@ -10,9 +9,8 @@ mval = -9999.0
 meta = NoMetadata()
 nme = :test
 
-# Formatting only occurs in shorthand constructors
 ga2 = GeoArray(data2, dims2)
-ga1 = GeoArray(data1, formatdims(data1, dims1), refdimz, nme, meta, mval)
+ga1 = GeoArray(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=mval)
 
 @test ga1 == data1
 @test ga2 == data2

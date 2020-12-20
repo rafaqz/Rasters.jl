@@ -1,5 +1,5 @@
 abstract type AbstractProjected{O,Sp,Sa} <: AbstractSampled{O,Sp,Sa} end
- 
+
 # For now we just remove CRS on GPU - it often contains strings
 Adapt.adapt_structure(to, m::AbstractProjected) = Sampled(order(m), span(m), sampling(m))
 
@@ -33,9 +33,11 @@ struct Projected{O<:Order,Sp<:Regular,Sa<:Sampling,PC,MC} <: AbstractProjected{O
     crs::PC
     mappedcrs::MC
 end
-Projected(; order=Ordered(), span=Regular(),
-          sampling=Points(), crs, mappedcrs=nothing) =
+function Projected(;
+    order=Ordered(), span=Regular(), sampling=Points(), crs, mappedcrs=nothing
+)
     Projected(order, span, sampling, crs, mappedcrs)
+end
 
 crs(mode::Projected) = mode.crs
 crs(mode::IndexMode) = nothing
@@ -43,21 +45,24 @@ crs(mode::IndexMode) = nothing
 mappedcrs(mode::Projected) = mode.mappedcrs
 mappedcrs(mode::IndexMode) = nothing
 
-rebuild(g::Projected, order=order(g), span=span(g),
-        sampling=sampling(g), crs=crs(g), mappedcrs=mappedcrs(g)) =
+function DD.rebuild(
+    g::Projected, order=order(g), span=span(g), sampling=sampling(g),
+    crs=crs(g), mappedcrs=mappedcrs(g)
+)
     Projected(order, span, sampling, crs, mappedcrs)
+end
 
 """
     Mapped(order::Order, span, sampling, crs, mappedcrs)
     Mapped(; order=Ordered(), span=AutoSpan(), sampling=Points(), crs=nothing, mappedcrs)
 
-An [`AbstractSampled`]($DDabssampleddocs) `IndexMode`, where the dimension index has  
+An [`AbstractSampled`]($DDabssampleddocs) `IndexMode`, where the dimension index has
 been mapped to another projection, usually lat/lon or `EPSG(4326)`.
 
 Fields and behaviours are identical to [`Sampled`]($DDsampleddocs) with the addition of
 `crs` and `mappedcrs` fields.
 
-The mapped dimension index will be used as for [`Sampled`]($DDsampleddocs), 
+The mapped dimension index will be used as for [`Sampled`]($DDsampleddocs),
 but to save in another format the underlying `projectioncrs` may be used.
 """
 struct Mapped{O<:Order,Sp<:Span,Sa<:Sampling,PC,MC} <: AbstractProjected{O,Sp,Sa}
@@ -67,9 +72,11 @@ struct Mapped{O<:Order,Sp<:Span,Sa<:Sampling,PC,MC} <: AbstractProjected{O,Sp,Sa
     crs::PC
     mappedcrs::MC
 end
-Mapped(; order=Ordered(), span=AutoSpan(), sampling=Points(), 
-       crs=nothing, mappedcrs) =
+function Mapped(;
+    order=Ordered(), span=AutoSpan(), sampling=Points(), crs=nothing, mappedcrs
+)
     Mapped(order, span, sampling, crs, mappedcrs)
+end
 
 crs(mode::Mapped, dim) = crs(mode)
 crs(mode::Mapped) = mode.crs
@@ -77,9 +84,12 @@ crs(mode::Mapped) = mode.crs
 mappedcrs(mode::Mapped, dim) = mappedcrs(mode)
 mappedcrs(mode::Mapped) = mode.mappedcrs
 
-rebuild(g::Mapped, order=order(g), span=span(g),
-        sampling=sampling(g), crs=crs(g), mappedcrs=mappedcrs(g)) =
+function DD.rebuild(
+    g::Mapped, order=order(g), span=span(g),
+    sampling=sampling(g), crs=crs(g), mappedcrs=mappedcrs(g)
+)
     Mapped(order, span, sampling, crs, mappedcrs)
+end
 
 """
     convertmode(dstmode::Type{<:IndexMode}, x)
@@ -94,7 +104,7 @@ convertmode(dstmode::Type{<:IndexMode}, A::AbstractArray) =
 convertmode(dstmode::Type{<:IndexMode}, dims::Tuple) =
     map(d -> convertmode(dstmode, d), dims)
 convertmode(dstmode::Type{<:IndexMode}, dim::Dimension) =
-    convertmode(dstmode, basetypeof(mode(dim)), dim)
+    convertmode(dstmode, DD.basetypeof(mode(dim)), dim)
 # Non-projected IndexMode modess pass through
 convertmode(dstmode::Type, srcmode::Type{<:IndexMode}, dim::Dimension) = dim
 # AbstractProjected passes through if it's the same as dstmode
