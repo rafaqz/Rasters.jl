@@ -341,7 +341,7 @@ function _ncdmode(index::AbstractArray{<:Number}, dimtype, crs, mappedcrs, metad
     # Unless its a time dimension.
     order = _ncdorder(index)
     span = _ncdspan(index, order)
-    sampling = Intervals(Center())
+    sampling = Points()
     if dimtype in (Y, X)
         # If the index is regularly spaced and there is no crs
         # then there is probably just one crs - the mappedcrs
@@ -397,7 +397,7 @@ function _get_period(index, metadata::NCDdimMetadata)
         period = _parse_period(metadata[:delta_t])
         period isa Nothing || return Regular(period), Points()
     elseif haskey(metadata, :avg_period)
-        period = _nc_parse_period(metadata[:avg_period])
+        period = _parse_period(metadata[:avg_period])
         period isa Nothing || return Regular(period), Intervals(Center())
     end
     return sampling = Irregular(), Points()
@@ -440,13 +440,11 @@ function _ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N}
     for dim in dims(A)
         key = lowercase(string(name(dim)))
         haskey(dataset.dim, key) && continue
-
         # Shift index before conversion to Mapped
         dim = _ncshiftindex(dim)
         if dim isa Y || dim isa X
             dim = convertmode(Mapped, dim)
         end
-
         md = metadata(dim)
         # TODO handle dim attribs
         attribvec = [] #md isa Nothing ? [] : [val(md)...]
