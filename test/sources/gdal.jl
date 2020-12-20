@@ -1,5 +1,5 @@
 using ArchGDAL, GeoData, Test, Statistics, Dates, Plots, NCDatasets
-using GeoData: window, mode, span, sampling, name, dims2indices
+using GeoData: window, mode, span, sampling, name
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 

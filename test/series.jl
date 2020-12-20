@@ -1,5 +1,5 @@
 using GeoData, Test, Dates
-using GeoData: formatdims, childtype
+using GeoData: childtype
 
 # GeoSeries from GeoArray/GeoStack components
 

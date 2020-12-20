@@ -1,4 +1,4 @@
-Base.show(io::IO, A::AbstractGeoArray) = begin
+function Base.show(io::IO, A::AbstractGeoArray)
     l = nameof(typeof(A))
     printstyled(io, nameof(typeof(A)); color=:blue)
     if label(A) != ""

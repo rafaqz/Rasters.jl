@@ -28,13 +28,13 @@ on it in a safe way. It's a shorthand for the unexported `OpenGeoArray`
 constructor.
 
 `f` is a method that accepts a single argument - an `OpenGeoArray` object
-which is just an `AbstractGeoArray` that holds an open disk - based object. 
-Often it will be a `do` block: 
+which is just an `AbstractGeoArray` that holds an open disk - based object.
+Often it will be a `do` block:
 
 ```julia
 ga = GDALarray(filepath)
 Open(ga) do A
-    A[I...] # A is an `OpenGeoArray` wrapping the disk-based object. 
+    A[I...] # A is an `OpenGeoArray` wrapping the disk-based object.
     # ...  multiple things you need to do with the open file
 end
 ```

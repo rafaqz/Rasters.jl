@@ -31,14 +31,14 @@ missingval(A::AbstractGeoArray) = A.missingval
 """
     crs(x)
 
-Get the projected coordinate reference system of a `Lat` or `Lon` `Dimension`, 
+Get the projected coordinate reference system of a `Lat` or `Lon` `Dimension`,
 or of the `Lat`/`Lon` dims of an `AbstractGeoArray`.
 
-For [`Mapped`](@ref) mode this may be `nothing` as there may be not projected 
+For [`Mapped`](@ref) mode this may be `nothing` as there may be not projected
 coordinate reference system at all.
 """
 function crs end
-crs(A::AbstractGeoArray) =
+function crs(A::AbstractGeoArray)
     if hasdim(A, Lat)
         crs(dims(A, Lat))
     elseif hasdim(A, Lon)
@@ -46,6 +46,7 @@ crs(A::AbstractGeoArray) =
     else
         error("No Lat or Lon dimension, crs not available")
     end
+end
 crs(dim::Dimension) = crs(mode(dim))
 
 """
@@ -60,7 +61,7 @@ show plot axes in the mapped projection.
 In `Mapped` mode this is the coordinate reference system of the index values.
 """
 function mappedcrs end
-mappedcrs(A::AbstractGeoArray) =
+function mappedcrs(A::AbstractGeoArray)
     if hasdim(A, Lat)
         mappedcrs(dims(A, Lat))
     elseif hasdim(A, Lon)
@@ -68,23 +69,31 @@ mappedcrs(A::AbstractGeoArray) =
     else
         error("No Lat or Lon dimension, mappedcrs not available")
     end
+end
 mappedcrs(dim::Dimension) = mappedcrs(mode(dim))
 
 # DimensionalData methods
 
-units(A::AbstractGeoArray) = getmeta(A, :units, nothing)
+DD.units(A::AbstractGeoArray) = getmeta(A, :units, nothing)
 
 for f in (:mappedbounds, :projectedbounds, :mappedindex, :projectedindex)
-    @eval ($f)(A::AbstractGeoArray, dims_) = ($f)(dims(A, dims_)) 
-    @eval ($f)(A::AbstractGeoArray) = ($f)(dims(A)) 
+    @eval ($f)(A::AbstractGeoArray, dims_) = ($f)(dims(A, dims_))
+    @eval ($f)(A::AbstractGeoArray) = ($f)(dims(A))
 end
 
 # Rebuild all types of AbstractGeoArray as GeoArray
-rebuild(A::AbstractGeoArray, data, dims::Tuple, refdims, name, metadata, missingval=missingval(A)) =
+function DD.rebuild(
+    A::AbstractGeoArray, data, dims::Tuple, refdims, name,
+    metadata, missingval=missingval(A)
+)
     GeoArray(data, dims, refdims, name, metadata, missingval)
-rebuild(A::AbstractGeoArray; data=data(A), dims=dims(A), refdims=refdims(A), name=name(A), metadata=metadata(A), missingval=missingval(A)) =
+end
+function DD.rebuild(A::AbstractGeoArray;
+    data=data(A), dims=dims(A), refdims=refdims(A), name=name(A),
+    metadata=metadata(A), missingval=missingval(A)
+)
     GeoArray(data, dims, refdims, name, metadata, missingval)
-
+end
 
 Base.parent(A::AbstractGeoArray) = data(A)
 
@@ -93,7 +102,6 @@ Base.parent(A::AbstractGeoArray) = data(A)
 Abstract supertype for all memory-backed GeoArrays where the data is an array.
 """
 abstract type MemGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
-
 
 """
 Abstract supertype for all disk-backed GeoArrays.
@@ -113,38 +121,49 @@ Run method `f` on the data source object for `A`, as passed by the
 `withdata` method for the array. The only requirement of the
 object is that it has an `Array` method that returns the data as an array.
 """
-data(A::DiskGeoArray) = withsourcedata(Array, A)
+DD.data(A::DiskGeoArray) = withsourcedata(Array, A)
 
 # Base methods
 
 Base.size(A::DiskGeoArray) = A.size
 
-Base.getindex(A::DiskGeoArray, i1::StandardIndices, i2::StandardIndices, I::StandardIndices...) =
-    rebuildgetindex(A, i1, i2, I...)
-Base.getindex(A::DiskGeoArray, i1::Integer, i2::Integer, I::Vararg{<:Integer}) =
-    rawgetindex(A, i1, i2, I...)
+@propagate_inbounds function Base.getindex(
+    A::DiskGeoArray, i1::DD.StandardIndices, i2::DD.StandardIndices, I::DD.StandardIndices...
+)
+    _rebuildgetindex(A, i1, i2, I...)
+end
+@propagate_inbounds function Base.getindex(A::DiskGeoArray, i1::Integer, i2::Integer, I::Vararg{<:Integer})
+    _rawgetindex(A, i1, i2, I...)
+end
 # Linear indexing returns Array
-Base.@propagate_inbounds Base.getindex(A::DiskGeoArray, i::Union{Colon,AbstractVector{<:Integer}}) =
-    rawgetindex(A, i)
-# Exempt 1D DimArrays
-Base.@propagate_inbounds Base.getindex(A::DiskGeoArray{<:Any,1}, i::Union{Colon,AbstractVector{<:Integer}}) =
-    rebuildgetindex(A, i)
+@propagate_inbounds function Base.getindex(
+    A::DiskGeoArray, i::Union{Colon,AbstractVector{<:Integer}}
+)
+    _rawgetindex(A, i)
+end
+# Except 1D DimArrays
+@propagate_inbounds function Base.getindex(
+    A::DiskGeoArray{<:Any,1}, i::Union{Colon,AbstractVector{<:Integer}}
+)
+    _rebuildgetindex(A, i)
+end
 
-rawgetindex(A, I...) =
+@propagate_inbounds function _rawgetindex(A, I...)
     withsourcedata(A) do data
         readwindowed(data, I...)
     end
+end
 
-rebuildgetindex(A, I...) =
+@propagate_inbounds function _rebuildgetindex(A, I...)
     withsourcedata(A) do data
-        dims_, refdims_ = slicedims(dims(A), refdims(A), I)
+        dims_, refdims_ = DD.slicedims(dims(A), refdims(A), I)
         data = readwindowed(data, I...)
         rebuild(A, data, dims_, refdims_)
     end
+end
 
 Base.write(A::T) where T <: DiskGeoArray = write(filename(A), A)
-Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray =
-    write(filename, T, A)
+Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray = write(filename, T, A)
 
 
 # Concrete implementation ######################################################
@@ -186,16 +205,25 @@ struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: MemGeoA
     metadata::Me
     missingval::Mi
 end
-@inline GeoArray(A::AbstractArray, dims::Tuple;
-                 refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing) =
-    GeoArray(A, formatdims(A, dims), refdims, name, metadata, missingval)
-@inline GeoArray(A::AbstractArray; dims, refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing) =
-    GeoArray(A, formatdims(A, dims), refdims, name, metadata, missingval)
-@inline GeoArray(A::AbstractGeoArray; data=data(A), dims=dims(A), refdims=refdims(A),
-                 name=name(A), metadata=metadata(A), missingval=missingval(A)) =
+function GeoArray(A::AbstractArray, dims::Tuple;
+    refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing
+)
+    GeoArray(A, DD.formatdims(A, dims), refdims, name, metadata, missingval)
+end
+function GeoArray(A::AbstractArray;
+    dims, refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing
+)
+    GeoArray(A, DD.formatdims(A, dims), refdims, name, metadata, missingval)
+end
+function GeoArray(A::AbstractGeoArray;
+    data=data(A), dims=dims(A), refdims=refdims(A),
+    name=name(A), metadata=metadata(A), missingval=missingval(A)
+)
     GeoArray(data, dims, refdims, name, metadata, missingval)
+end
 
-Base.@propagate_inbounds Base.setindex!(A::GeoArray, x, I::Vararg{DimensionalData.StandardIndices}) =
+@propagate_inbounds function Base.setindex!(A::GeoArray, x, I::DD.StandardIndices...)
     setindex!(data(A), x, I...)
+end
 
 Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
