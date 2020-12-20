@@ -128,12 +128,13 @@ Returns `filename`.
 function Base.write(
     filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,2}; kw...
 ) where T
-    all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
+    all(hasdim(A, (XDim, Y))) || error("Array must have Y and X dims")
 
     correctedA = permutedims(A, (X(), Y())) |>
         a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
     checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY))
+    checkindexorder(correctedA, (GDAL_X_INDEX, GDAL_Y_INDEX))
 
     nbands = 1
     indices = 1
@@ -149,6 +150,7 @@ function Base.write(
         a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX), Band(GDAL_BAND_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
     checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY, GDAL_BAND_ARRAY))
+    checkindexorder(correctedA, (GDAL_X_INDEX, GDAL_Y_INDEX, GDAL_BAND_INDEX))
 
     nbands = size(correctedA, Band())
     indices = Cint[1:nbands...]
@@ -202,61 +204,61 @@ withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) = _gdalread
 function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     gt = try
         AG.getgeotransform(raster) catch GDAL_EMPTY_TRANSFORM end
-    lonsize, latsize = size(raster)
+    xsize, ysize = size(raster)
 
     nbands = AG.nraster(raster)
     band = Band(1:nbands, mode=Categorical(Ordered()))
     crs = crs isa Nothing ? GeoData.crs(raster) : crs
 
-    lonlat_metadata = GDALdimMetadata()
+    xy_metadata = GDALdimMetadata()
 
     # Output Sampled index dims when the transformation is lat/lon alligned,
     # otherwise use Transformed index, with an affine map.
     if _isalligned(gt)
-        lonstep = gt[GDAL_WE_RES]
-        lonmin = gt[GDAL_TOPLEFT_X]
-        lonmax = gt[GDAL_TOPLEFT_X] + lonstep * (lonsize - 1)
-        lonindex = LinRange(lonmin, lonmax, lonsize)
+        xstep = gt[GDAL_WE_RES]
+        xmin = gt[GDAL_TOPLEFT_X]
+        xmax = gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
+        xindex = LinRange(xmin, xmax, xsize)
 
-        latstep = gt[GDAL_NS_RES] # A negative number
-        latmax = gt[GDAL_TOPLEFT_Y] + latstep
-        latmin = gt[GDAL_TOPLEFT_Y] + latstep * latsize
-        latindex = LinRange(latmax, latmin, latsize)
+        ystep = gt[GDAL_NS_RES] # A negative number
+        ymax = gt[GDAL_TOPLEFT_Y] + ystep
+        ymin = gt[GDAL_TOPLEFT_Y] + ystep * ysize
+        yindex = LinRange(ymax, ymin, ysize)
 
         # Spatial data defaults to area/inteval
-        lonsampling, latsampling = if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
+        xsampling, ysampling = if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
             Points(), Points()
         else
             # GeoTiff uses the "pixelCorner" convention
             Intervals(GDAL_X_LOCUS), Intervals(GDAL_Y_LOCUS)
         end
 
-        lonmode = Projected(
+        xmode = Projected(
             order=Ordered(GDAL_X_INDEX, GDAL_X_ARRAY, GDAL_RELATION),
-            span=Regular(step(lonindex)),
-            sampling=lonsampling,
+            span=Regular(step(xindex)),
+            sampling=xsampling,
             crs=crs,
             mappedcrs=mappedcrs,
         )
-        latmode = Projected(
+        ymode = Projected(
             order=Ordered(GDAL_Y_INDEX, GDAL_Y_ARRAY, GDAL_RELATION),
-            sampling=latsampling,
-            # Use the range step as is will be different to latstep due to float error
-            span=Regular(step(latindex)),
+            sampling=ysampling,
+            # Use the range step as is will be different to ystep due to float error
+            span=Regular(step(yindex)),
             crs=crs,
             mappedcrs=mappedcrs,
         )
-        lon = X(lonindex; mode=lonmode, metadata=lonlat_metadata)
-        lat = Y(latindex; mode=latmode, metadata=lonlat_metadata)
+        x = X(xindex; mode=xmode, metadata=xy_metadata)
+        y = Y(yindex; mode=ymode, metadata=xy_metadata)
 
-        DimensionalData._formatdims(map(Base.OneTo, (lonsize, latsize, nbands)), (lon, lat, band))
+        DimensionalData._formatdims(map(Base.OneTo, (xsize, ysize, nbands)), (x, y, band))
     else
         error("Rotated/transformed dimensions are not handled yet. Open a github issue for GeoData.jl if you need this.")
         # affinemap = geotransform2affine(geotransform)
         # x = X(affinemap; mode=TransformedIndex(dims=X()))
         # y = Y(affinemap; mode=TransformedIndex(dims=Y()))
 
-        # formatdims((lonsize, latsize, nbands), (x, y, band))
+        # formatdims((xsize, ysize, nbands), (x, y, band))
     end
 end
 
@@ -340,19 +342,14 @@ function _gdalsetproperties!(dataset, A)
     # This allows saving NetCDF to Tiff
     # Set the index loci to the start of the cell for the lat and lon dimensions.
     # NetCDF or other formats use the center of the interval, so they need conversion.
-    lon = shiftindexloci(GDAL_X_LOCUS, dims(A, X))
-    lat = shiftindexloci(GDAL_Y_LOCUS, dims(A, Y))
-    lon = convertmode(Projected, lon)
-    lat = convertmode(Projected, lat)
-    # Get the geotransform from the updated lat/lon dims
-    geotransform = _dims2geotransform(lat, lon)
-    # Convert projection to a string of well known text
-    if !(crs(lon) isa Nothing)
-        proj = convert(String, convert(WellKnownText, crs(lon)))
-        # Write projection, geotransform and data to GDAL
-        AG.setproj!(dataset, proj)
+    x = convertmode(Projected, DD.maybeshiftlocus(GDAL_X_LOCUS, dims(A, X)))
+    y = convertmode(Projected, DD.maybeshiftlocus(GDAL_Y_LOCUS, dims(A, Y)))
+    # Convert crs to WKT if it exists
+    if !(crs(x) isa Nothing)
+        AG.setproj!(dataset, convert(String, convert(WellKnownText, crs(x))))
     end
-    AG.setgeotransform!(dataset, geotransform)
+    # Get the geotransform from the updated lat/lon dims and write
+    AG.setgeotransform!(dataset, _dims2geotransform(x, y))
 
     # Set the nodata value. GDAL can't handle missing. We could choose a default, 
     # but we would need to do this for all possible types. `nothing` means
@@ -439,13 +436,13 @@ _geotransform2affine(gt) =
     AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]],
               [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
 
-function _dims2geotransform(lat::Y, lon::X)
+function _dims2geotransform(x::X, y::Y)
     gt = zeros(6)
-    gt[GDAL_TOPLEFT_X] = first(lon)
-    gt[GDAL_WE_RES] = step(lon)
+    gt[GDAL_TOPLEFT_X] = first(x)
+    gt[GDAL_WE_RES] = step(x)
     gt[GDAL_ROT1] = 0.0
-    gt[GDAL_TOPLEFT_Y] = first(lat) - step(lat)
+    gt[GDAL_TOPLEFT_Y] = first(y) - step(y)
     gt[GDAL_ROT2] = 0.0
-    gt[GDAL_NS_RES] = step(lat)
+    gt[GDAL_NS_RES] = step(y)
     return gt
 end

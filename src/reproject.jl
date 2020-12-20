@@ -32,12 +32,12 @@ function reproject(source::GeoFormat, target::GeoFormat, dim::Y, val::Number)
     AG.reproject((0.0, Float64(val)), source, target; order=:trad)[2]
 end
 function reproject(source::GeoFormat, target::GeoFormat, ::X, vals::AbstractArray)
-    rep = AG.reproject([(Float64(v), 0.0) for v in vals], source, target; order=:trad)
-    [r[1] for r in rep]
+    rep = AG.reproject(map(v -> (Float64(v), 0.0), vals), source, target; order=:trad)
+    map(r -> r[1], rep)
 end
 function reproject(source::GeoFormat, target::GeoFormat, dim::Y, vals::AbstractArray)
-    rep = AG.reproject([(0.0, Float64(v)) for v in vals], source, target; order=:trad)
-    [r[2] for r in rep]
+    rep = AG.reproject(map(v -> (0.0, Float64(v)), vals), source, target; order=:trad)
+    map(r -> r[2], rep)
 end
 function reproject(source::GeoFormat, target::GeoFormat, ::X, vals::Tuple)
     reps = AG.reproject([(Float64(v), 0.0) for v in vals], source, target; order=:trad)
@@ -50,11 +50,11 @@ end
 
 function convertmode(dstmode::Type{Mapped}, srcmode::Type{Projected}, dim::Dimension)
     m = mode(dim)
-    newindex = reproject(crs(m), mappedcrs(m), dim, val(dim))
-    newbounds = reproject(crs(m), mappedcrs(m), dim, bounds(dim))
+    newindex = reproject(crs(m), mappedcrs(m), dim, index(dim))
+    newbounds = reproject(crs(m), mappedcrs(m), dim, DD.dim2boundsmatrix(dim))
     newmode = Mapped(
         order=order(m),
-        span=Irregular(newbounds),
+        span=Explicit(newbounds),
         sampling=sampling(m),
         crs=crs(m),
         mappedcrs=mappedcrs(m),
@@ -81,8 +81,8 @@ _projectedrange(span, crs, m::Mapped, dim) = begin
 end
 _projectedrange(::Regular, crs::Nothing, ::Mapped, dim) =
     LinRange(first(dim), last(dim), length(dim))
-_projectedrange(::Irregular, crs::Nothing, ::Mapped, dim) =
-    error("Cannot convert an Mapped Irregular index to Projected when projectioncrs is nothing")
+_projectedrange(::T, crs::Nothing, ::Mapped, dim) where T<:Union{Irregular,Explicit} =
+    error("Cannot convert a Mapped $T index to Projected when crs is nothing")
 
 
 projectedbounds(mode::Mapped, dim) = projectedbounds(crs(mode), mode, dim)

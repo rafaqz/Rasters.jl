@@ -108,7 +108,7 @@ Other dimension modes pass through unchanged.
 
 This is used to e.g. save a netcdf file to GeoTiff.
 """
-convertmode(dstmode::Type{<:IndexMode}, A::AbstractArray) =
+convertmode(dstmode::Type{<:IndexMode}, A::AbstractDimArray) =
     rebuild(A, data(A), convertmode(dstmode, dims(A)))
 convertmode(dstmode::Type{<:IndexMode}, dims::Tuple) =
     map(d -> convertmode(dstmode, d), dims)

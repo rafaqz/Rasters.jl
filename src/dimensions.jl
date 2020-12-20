@@ -1,3 +1,6 @@
+
+const SpatialDim = Union{XDim,YDim,ZDim}
+
 """
     Band <: Dimension
 
