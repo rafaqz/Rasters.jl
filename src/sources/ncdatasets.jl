@@ -173,10 +173,10 @@ end
 
 
 """
+    NCDstack(filename::String; refdims=(), window=(), metadata=nothing, childkwargs=())
     NCDstack(filenames; keys, kw...)
     NCDstack(filenames...; keys, kw...)
-    NCDstack(files::NamedTuple; refdims=(), window=(), metadata=nothing, childkwargs=())
-    NCDstack(filename::String; refdims=(), window=(), metadata=nothing, childkwargs=())
+    NCDstack(filenames::NamedTuple; refdims=(), window=(), metadata=nothing, childkwargs=())
 
 A lazy [`AbstractGeoStack`](@ref) that uses NCDatasets.jl to load NetCDF files.
 Can load a single multi-layer netcdf file, or multiple single-layer netcdf
@@ -228,21 +228,12 @@ function NCDstack(filename::AbstractString;
 )
     NCDstack(filename, refdims, window, metadata, childkwargs)
 end
-# These actually return a GeoStack
-NCDstack(filenames...; kw...) = NCDstack(filenames; kw...)
-function NCDstack(filenames::Union{Tuple{AbstractString,Vararg},Vector{AbstractString}},
-    keys=_ncfilenamekeys(filenames); kw...)
-    NCDstack(NamedTuple{keys}(filenames); kw...)
+# These actually return a DiskStack
+NCDstack(filenames::AbstractString...; kw...) = NCDstack(filenames; kw...)
+function NCDstack(filenames; keys=_ncfilenamekeys(filenames), kw...)
+    DiskStack(filenames; keys=keys, childtype=NCDarray, kw...)
 end
-function NCDstack(files::NamedTuple;
-    refdims=(),
-    window=(),
-    metadata=nothing,
-    childkwargs=()
-)
-    GeoStack(NamedTuple{keys}(filenames), refdims, window, metadata,
-             childtype=NCDarray, childkwargs)
-end
+NCDstack(filenames::NamedTuple; kw...) = DiskStack(filenames; childtype=NCDarray, kw...)
 
 childtype(::NCDstack) = NCDarray
 childkwargs(stack::NCDstack) = stack.childkwargs
