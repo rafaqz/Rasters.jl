@@ -33,8 +33,9 @@ array1a = GeoArray(data3, dimz)
 array2a = GeoArray(data4, dimz)
 stack1 = GeoStack(array1, array2; keys=(:array1, :array2))
 stack2 = GeoStack(array1a, array2a; keys=(:array1, :array2))
-dates = [DateTime(2017), DateTime(2018)]
+dates = DateTime(2017):Year(1):DateTime(2018)
 series = GeoSeries([stack1, stack2], (Ti(dates),));
+
 
 @testset "Aggregate a dimension" begin
     lat = Lat(LinRange(3, 13, 6); 
@@ -60,6 +61,11 @@ series = GeoSeries([stack1, stack2], (Ti(dates),));
     @test val(disaglat) === LinRange(-10.0, 15.0, 6)
     @test step(disaglat) == step(dimz[2])
     @test mode(disaglat) == mode(dimz[2])
+end
+
+@testset "aggregate a single dim" begin
+    aggregate(Start(), series, (Lon(3), ))
+    aggregate(Start(), series, (Lat(5), ))
 end
 
 @testset "aggregate and disaggregate at a locus" begin
