@@ -284,6 +284,7 @@ end
 Convert indicies from the aggregated array to the larger original array.
 """
 upsample(index::Int, scale::Int) = (index - 1) * scale + 1
+upsample(index::Int, scale::Colon) = index
 
 """
     downsample(index::Int, scale::Int)
@@ -291,10 +292,12 @@ upsample(index::Int, scale::Int) = (index - 1) * scale + 1
 Convert indicies from the original array to the aggregated array.
 """
 downsample(index::Int, scale::Int) = (index - 1) ÷ scale + 1
+downsample(index::Int, scale::Colon) = index
 
 # Convert scale or tuple of scale to integer using dims2indices
 _scale2int(dims, scale::Tuple) = DD.dims2indices(dims, scale)
 _scale2int(dims, scale::Int) = scale
+_scale2int(dims, scale::Colon) = 1
 
 _agoffset(locus::Locus, dim::Dimension, scale) = _agoffset(locus, scale)
 _agoffset(method, dim::Dimension, scale) = _agoffset(locus(dim), scale)
