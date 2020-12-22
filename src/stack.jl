@@ -20,10 +20,6 @@ getindex applied to all the arrays in the stack.
 """
 abstract type AbstractGeoStack{T} end
 
-function (::Type{T})(data, keys; kwargs...) where T<:AbstractGeoStack
-    T(NamedTuple{Tuple(Symbol.(keys))}(Tuple(data)); kwargs...)
-end
-
 # Standard fields
 
 DD.refdims(s::AbstractGeoStack) = s.refdims
@@ -353,7 +349,6 @@ Base.convert(::Type{GeoStack}, src::AbstractGeoStack) = GeoStack(src)
 
 
 # Concrete DiskGeoStack implementation ######################################################
-
 """
     DiskStack(filenames...; keys, kw...)
     DiskStack(filenames; keys, kw...)
@@ -396,7 +391,7 @@ end
 function DiskStack(filenames; keys, kw...)
     DiskStack(NamedTuple{cleankeys(keys)}((filenames...,)); kw...)
 end
-DiskStack(filenames...; kw...) = DiskStack(filenames; kw...)
+DiskStack(filenames::AbstractString...; kw...) = DiskStack(filenames; kw...)
 
 # Other base methods
 
