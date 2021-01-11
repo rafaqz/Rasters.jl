@@ -3,7 +3,7 @@ using GeoData: data, getsource, window
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
-dims1 = Lon<|(10, 100), Lat<|(-50, 50) 
+dims1 = Lon<|(10, 100), Lat<|(-50, 50)
 dims2 = (dims1..., Ti([DateTime(2019)]))
 refdimz = ()
 nme = :test
@@ -27,6 +27,7 @@ dims(stack[:ga2], Ti)
     @test data(stack[:ga1]) == data1
     @test data(stack[:ga1]) isa Array{Float64,2}
     @test keys(stack) == (:ga1, :ga2)
+    @test haskey(stack, :ga1)
     @test names(stack) == (:ga1, :ga2)
     @test collect(values(stack)) == [ga1, ga2]
 end
@@ -43,10 +44,10 @@ end
     a = stack[:ga1][Lon<|2:4, Lat<|5:6]
     @test a == stack[:ga1, Lon<|2:4, Lat<|5:6]
 
-    @inferred stack[:ga1][Lon<|2:4, Lat<|5:6] 
-    # FIXME: This isn't inferred, the constants don't propagate like they 
-    # do in the above call. Probably due to the anonymous wrapper function. 
-    @test_broken @inferred stack[:ga1, Lon<|2:4, Lat<|5:6] 
+    @inferred stack[:ga1][Lon<|2:4, Lat<|5:6]
+    # FIXME: This isn't inferred, the constants don't propagate like they
+    # do in the above call. Probably due to the anonymous wrapper function.
+    @test_broken @inferred stack[:ga1, Lon<|2:4, Lat<|5:6]
 
     # Getindex for a whole stack of new GeoArrays
     a = stack[Lon<|2:4, Lat<|5:6]
@@ -64,7 +65,7 @@ end
         @test data(s[:ga1]) isa Array
         @test s[:ga1] == data1[:, 5:7]
         @test s[:ga2] == data2[:, 5:7, 1]
-        @test dims(s[:ga2]) == (Lon(LinRange(10.0, 100.0, 10); mode=Sampled(Ordered(), Regular(10.0), Points())), 
+        @test dims(s[:ga2]) == (Lon(LinRange(10.0, 100.0, 10); mode=Sampled(Ordered(), Regular(10.0), Points())),
                                 Lat(LinRange(-10.0, 10.0, 3); mode=Sampled(Ordered(), Regular(10.0), Points())))
         @test dims(s, :ga2) == dims(s[:ga2])
         @test refdims(s[:ga2]) == (Ti(DateTime(2019); mode=Sampled(Ordered(), Irregular(), Points())),)
@@ -78,7 +79,7 @@ end
         @test data(sv[:ga1]) isa SubArray
         @test sv[:ga1] == data1[:, 6:8]
         @test sv[:ga2] == data2[:, 6:8, 1]
-        @test dims(sv[:ga2]) == (Lon(LinRange(10.0, 100.0, 10); mode=Sampled(Ordered(), Regular(10.0), Points())), 
+        @test dims(sv[:ga2]) == (Lon(LinRange(10.0, 100.0, 10); mode=Sampled(Ordered(), Regular(10.0), Points())),
                                  Lat(LinRange(0.0, 20.0, 3); mode=Sampled(Ordered(), Regular(10.0), Points())))
         @test refdims(sv[:ga2])[1] == (Ti(DateTime(2019); mode=Sampled(Ordered(), Irregular(), Points())),)[1]
         # Stack of view-based GeoArrays
@@ -125,4 +126,3 @@ end
     @test occursin("Latitude", sh)
     @test occursin("Longitude", sh)
 end
-

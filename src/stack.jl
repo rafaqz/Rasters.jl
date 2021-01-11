@@ -78,6 +78,7 @@ Base.values(s::AbstractGeoStack) = (s[key] for key in keys(s))
 Base.length(s::AbstractGeoStack) = length(keys(s))
 Base.keys(s::AbstractGeoStack{<:AbstractString}) = Symbol.(querychild(keys, getsource(s), s))
 Base.keys(s::AbstractGeoStack{<:NamedTuple}) = Symbol.(keys(getsource(s)))
+Base.haskey(s::AbstractGeoStack, k) = k in keys(s)
 Base.names(s::AbstractGeoStack) = keys(s)
 Base.map(f, s::AbstractGeoStack) = rebuild(s; data=_mapdata(f, s))
 Base.first(s::AbstractGeoStack) = s[first(keys(s))]
