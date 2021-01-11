@@ -19,7 +19,7 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 
 [compat]
-Adapt = "2"
+Adapt = "2, 3.0"
 ArchGDAL = "0.5"
 DimensionalData = "^0.15.2"
 GeoFormatTypes = "^0.2.1, 0.3"
