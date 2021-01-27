@@ -127,7 +127,7 @@ end
 # HDF5 uses `names` instead of `keys` so we have to special-case it
 function Base.keys(stack::SMAPstack)
     _smapread(filename(stack)) do dataset
-        cleankeys(names(dataset[SMAPGEODATA]))
+        cleankeys(keys(dataset[SMAPGEODATA]))
     end
 end
 
