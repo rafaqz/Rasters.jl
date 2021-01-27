@@ -1,4 +1,5 @@
-using ArchGDAL, GeoData, Test, Statistics, Dates, Plots, NCDatasets
+using GeoData, Test, Statistics, Dates, Plots
+import ArchGDAL, NCDatasets
 using GeoData: window, mode, span, sampling, name
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
@@ -7,7 +8,6 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
 
 @testset "GDALarray" begin
     gdalarray = GDALarray(path; mappedcrs=EPSG(4326), name=:test);
-    metadata(dims(gdalarray))
 
     @testset "open" begin
         @test open(A -> A[Lat=1], gdalarray) == gdalarray[:, 1, :]

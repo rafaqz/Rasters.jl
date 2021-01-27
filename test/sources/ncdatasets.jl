@@ -1,4 +1,5 @@
-using NCDatasets, ArchGDAL, GeoData, Test, Statistics, Dates, CFTime, Plots, GeoFormatTypes
+using GeoData, Test, Statistics, Dates, CFTime, Plots, GeoFormatTypes
+import ArchGDAL, NCDatasets
 using GeoData: name, window, mode, span, sampling, val, Ordered
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
@@ -173,7 +174,7 @@ stackkeys = (
     end
 
     @testset "plot" begin
-        ncarray |> plot
+        ncarray[Ti(1:3:12)] |> plot
         ncarray[Ti(1)] |> plot
         ncarray[Lat(100), Ti(1)] |> plot
     end
