@@ -1,4 +1,5 @@
-using GeoData, Test, Statistics, Dates, Plots, NCDatasets, ArchGDAL
+using GeoData, Test, Statistics, Dates, Plots
+import NCDatasets, ArchGDAL
 using GeoData: name, mode, window, DiskStack
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
@@ -171,7 +172,8 @@ path = joinpath(testpath, "data/rlogo")
     end
 
     @testset "plot" begin
-        p = grdarray |> plot
+        grdarray |> plot
+        grdarray[Band(1)] |> plot
     end
 
 end
@@ -246,11 +248,11 @@ end
 
 @testset "Grd series" begin
     series = GeoSeries([path, path], (Ti,); childtype=GRDarray, childkwargs=(mappedcrs=EPSG(4326), name=:test))
-    @test GeoArray(series[Ti(1)]) == 
+    @test GeoArray(series[Ti(1)]) ==
         GeoArray(GRDarray(path; mappedcrs=EPSG(4326), name=:test))
     stacks = [DiskStack((a=path, b=path); childtype=GRDarray, childkwargs=(mappedcrs=EPSG(4326), name=:test))]
     series = GeoSeries(stacks, (Ti,))
-    @test series[Ti(1)][:a] == 
+    @test series[Ti(1)][:a] ==
         GeoArray(GRDarray(path; mappedcrs=EPSG(4326), name=:test))
     modified_series = modify(Array, series)
     @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{(:a,:b),<:Tuple{<:GeoArray{Float32,3,<:Tuple,<:Tuple,<:Array{Float32,3}},Vararg}}}}

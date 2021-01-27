@@ -1,4 +1,5 @@
-using HDF5, GeoData, Test, Statistics, Dates
+using GeoData, Test, Statistics, Dates
+import ArchGDAL, NCDatasets, HDF5
 using GeoData: Time, window, name
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
