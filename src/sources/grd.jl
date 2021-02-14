@@ -25,6 +25,8 @@ const REV_GRD_DATATYPE_TRANSLATION =
 # Metadata ########################################################################
 
 """
+    GRDdimMetadata <: AbstractDimMetadata
+
     GRDdimMetadata(val::Union{Dict,NamedTuple})
     GRDdimMetadata(pairs::Pair...) => GRDdimMetadata{Dict}
     GRDdimMetadata(; kw...) => GRDdimMetadata{NamedTuple}
@@ -36,6 +38,8 @@ struct GRDdimMetadata{T} <: AbstractDimMetadata{T}
 end
 
 """
+    GRDarrayMetadata <: AbstractArrayMetadata
+
     GRDarrayMetadata(val::Union{Dict,NamedTuple})
     GRDarrayMetadata(pairs::Pair...) => GRDarrayMetadata{Dict}
     GRDarrayMetadata(; kw...) => GRDarrayMetadata{NamedTuple}
@@ -138,13 +142,9 @@ Base.Array(grd::GRDattrib) = _mmapgrd(Array, grd)
 # Array ########################################################################
 
 """
-    GRDarray(filename::String;
-        mappedcrs=nothing,
-        dims=(),
-        refdims=(),
-        name=nothing,
-        missingval=nothing,
-        metadata=nothing)
+    GRDarray <: DiskGeoArray
+
+    GRDarray(filename::String; kw...)
 
 A [`DiskGeoArray`](@ref) that loads .grd files lazily from disk.
 
@@ -155,17 +155,17 @@ A [`DiskGeoArray`](@ref) that loads .grd files lazily from disk.
 
 - `filename`: `String` pointing to a grd file. Extension is optional.
 
-## Keyword Arguments
+## Keywords
 
 - `mappedcrs`: CRS format like `EPSG(4326)` used in `Selectors` like `Between` and `At`, and
-  for plotting. Can be any CRS `GeoFormat` from GeoFormatTypes.jl, like `WellKnownText`.
+    for plotting. Can be any CRS `GeoFormat` from GeoFormatTypes.jl, like `WellKnownText`.
 - `name`: `String` name for the array, taken from the files `layername` attribute unless passed in.
 - `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
 - `missingval`: Value reprsenting missing values. Detected automatically when possible, but
-  can be passed it.
-- `metadata`: [`Metadata`](@ref) object for the array. Detected automatically as
-  [`GRDarrayMetadata`](@ref), but can be passed in.
+    can be passed it.
+- `metadata`: `Metadata` object for the array. Detected automatically as
+    [`GRDarrayMetadata`](@ref), but can be passed in.
 
 ## Example
 
@@ -284,13 +284,9 @@ end
 # AbstractGeoStack methods
 
 """
-    GRDstack(filenames; keys, kw...)
-    GRDstack(filenames...; keys, kw...)
-    GRDstack(filenames::NamedTuple;
-             window=(),
-             metadata=nothing,
-             childkwargs=(),
-             refdims=())
+    GRDstack(filenames; keys, kw...) => DiskStack
+    GRDstack(filenames...; keys, kw...) => DiskStack
+    GRDstack(filenames::NamedTuple; kw...) => DiskStack
 
 Convenience method to create a DiskStack of [`GRDarray`](@ref) from `filenames`.
 
@@ -299,12 +295,12 @@ Convenience method to create a DiskStack of [`GRDarray`](@ref) from `filenames`.
 - `filenames`: A NamedTuple of stack keys and `String` filenames, or a `Tuple`,
   `Vector` or splatted arguments of `String` filenames.
 
-## Keyword arguments
+## Keywords
 
 - `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
-  contained arrays when they are accessed.
-- `metadata`: Metadata as a [`StackMetadata`](@ref) object.
+    contained arrays when they are accessed.
+- `metadata`: Metadata as a `StackMetadata` object.
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
 

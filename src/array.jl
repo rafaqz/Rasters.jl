@@ -1,8 +1,10 @@
 
 """
-`AbstractGeoArray` wraps an array (or location of an array) and metadata
-about its contents. It may be memory ([`GeoArray`](@ref)) or disk-backed
-([`NCDarray`](@ref), [`GDALarray`](@ref), [`GRDarray`](@ref)).
+    AbstractGeoArray <: DimensionalData.AbstractDimArray
+
+Abstract supertype for objects that wrap an array (or location of an array) 
+and metadata about its contents. It may be memory ([`GeoArray`](@ref)) or
+disk-backed ([`NCDarray`](@ref), [`GDALarray`](@ref), [`GRDarray`](@ref)).
 
 `AbstractGeoArray`s inherit from [`AbstractDimArray`]($DDarraydocs)
 from DimensionalData.jl. They can be indexed as regular Julia arrays or with
@@ -104,11 +106,13 @@ Abstract supertype for all memory-backed GeoArrays where the data is an array.
 abstract type MemGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
 
 """
+    DiskGeoArray <: AbstractGeoArray
+
 Abstract supertype for all disk-backed GeoArrays.
 For these the data is lazyily loaded from disk.
 
 To load a `DiskGeoArray` and operate on the data multiple times, use
-[`Open`](@ref) and a `do` block.
+[`open`](@ref) and a `do` block.
 """
 abstract type DiskGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
 
@@ -169,33 +173,25 @@ Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray = write(filen
 # Concrete implementation ######################################################
 
 """
-    GeoArray(A::AbstractArray{T,N}, dims::Tuple;
-             refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing)
-    GeoArray(A::AbstractArray{T,N};
-             dims, refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing)
-    GeoArray(A::AbstractGeoArray; [data=data(A), dims=dims(A), refdims=refdims(A),
-             name=name(A), metadata=metadata(A), missingval=missingval(A)]) =
+    GeoArray <: MemGeoArray
+
+    GeoArray(A::AbstractArray{T,N}, dims::Tuple; kw...)
+    GeoArray(A::AbstractArray{T,N}; dims, kw...)
+    GeoArray(A::AbstractGeoArray; kw...) =
 
 A generic, memory-backed spatial array type. All [`AbstractGeoArray`](@ref) are
 converted to `GeoArray` when indexed or otherwise transformed.
 
-# Keyword Arguments
+# Keywords
 
-- `name`: `Symbol` name for the array.
+- `data`: can replace the data in an `AbstractGeoArray`
 - `dims`: `Tuple` of `Dimension`s for the array.
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from,
-  defaulting to `()`.
+    defaulting to `()`.
+- `name`: `Symbol` name for the array.
 - `missingval`: Value reprsenting missing values, defaulting to `missing`.
-  can be passed it.
-- `metadata`: [`Metadata`](@ref) object for the array, or `NoMetadata()`.
-
-## Example
-
-```julia
-A = GRDarray(gdalarray; name="surfacetemp")
-# Select Australia using lat/lon coords, whatever the crs is underneath.
-A[Lat(Between(-10, -43), Lon(Between(113, 153)))
-```
+    can be passed it.
+- `metadata`: `ArrayMetadata` object for the array, or `NoMetadata()`.
 """
 struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: MemGeoArray{T,N,D,A}
     data::A

@@ -15,6 +15,8 @@ export GDALarray, GDALstack, GDALarrayMetadata, GDALdimMetadata
 # Metadata ########################################################################
 
 """
+    GDALdimMetadata <: AbstractDimMetadata
+
     GDALdimMetadata(val::Union{Dict,NamedTuple})
     GDALdimMetadata(pairs::Pair...) => GDALdimMetadata{Dict}
     GDALdimMetadata(; kw...) => GDALdimMetadata{NamedTuple}
@@ -26,6 +28,8 @@ struct GDALdimMetadata{T} <: AbstractDimMetadata{T}
 end
 
 """
+    GDALarrayMetadata <: AbstractArrayMetadata
+
     GDALarrayMetadata(val::Union{Dict,NamedTuple})
     GDALarrayMetadata(pairs::Pair...) => GDALarrayMetadata{Dict}
     GDALarrayMetadata(; kw...) => GDALarrayMetadata{NamedTuple}
@@ -40,14 +44,7 @@ end
 # Array ########################################################################
 
 """
-    GDALarray(filename;
-              crs=nothing,
-              mappedcrs=nothing,
-              name="",
-              dims=nothing,
-              refdims=(),
-              metadata=GDALdimMetadata(),
-              missingval=nothing)
+    GDALarray(filename; kw...)
 
 Load a file lazily using gdal. `GDALarray` will be converted to [`GeoArray`](@ref)
 after indexing or other manipulations. `GeoArray(GDALarray(filename))` will do this
@@ -56,26 +53,27 @@ immediately.
 `GDALarray`s are always 3 dimensional, and have [`Lat`](@ref), [`Lon`](@ref) and
 [`Band`](@ref) dimensions.
 
-## Arguments
+# Arguments
 
-- `filename`: `String` pointing to a grd file. Extension is optional.
+- `filename`: `String` pointing to a tif or other file that GDAL can load.
 
-## Keyword arguments
+# Keywords
 
-- `usercrs`: CRS format like `EPSG(4326)` used in `Selectors` like `Between` and `At`, and
-  for plotting. Can be any CRS `GeoFormat` from GeoFormatTypes.jl, like `WellKnownText`.
+- `crs`: crs to use instead of the detected crs
+- `mappedcrs`: CRS format like `EPSG(4326)` used in `Selectors` like `Between` and `At`, and
+    for plotting. Can be any CRS `GeoFormat` from GeoFormatTypes.jl, like `WellKnownText`.
 - `name`: `Symbol` name for the array.
 - `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
 - `missingval`: Value reprsenting missing values. Detected automatically when possible, but
-  can be passed it.
-- `metadata`: [`Metadata`](@ref) object for the array. Detected automatically as
-  [`GDALarrayMetadata`](@ref), but can be passed in.
+    can be passed it.
+- `metadata`: `Metadata` object for the array. Detected automatically as
+    [`GDALarrayMetadata`](@ref), but can be passed in.
 
 # Example
 
 ```julia
-A = GDALarray("folder/file.tif"; usercrs=EPSG(4326))
+A = GDALarray("folder/file.tif"; mappedcrs=EPSG(4326))
 # Select Australia using lat/lon coords, whatever the crs is underneath.
 A[Lat(Between(-10, -43), Lon(Between(113, 153)))
 ```
@@ -117,7 +115,8 @@ end
 
 """
     Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray;
-               driver="GTiff", compress="DEFLATE", tiled=true)
+        driver="GTiff", compress="DEFLATE", tiled=true
+    )
 
 Write a [`GDALarray`](@ref) to file, `.tiff` by default, but other GDAL drivers also work.
 
@@ -161,38 +160,34 @@ end
 """
     GDALstack(filenames; keys, kw...)
     GDALstack(filenames...; keys, kw...)
-    GDALstack(filenames::NamedTuple;
-              window=(),
-              metadata=NoMetadata(),
-              childkwargs=(),
-              refdims=())
+    GDALstack(filenames::NamedTuple; kw...)
 
 Convenience method to create a DiskStack  of [`GDALarray`](@ref) from `filenames`.
 
 Load a stack of files lazily from disk.
 
-## Arguments
+# Arguments
 
 - `filenames`: A NamedTuple of stack keys and `String` filenames, or a `Tuple`,
-  `Vector` or splatted arguments of `String` filenames.
+    `Vector` or splatted arguments of `String` filenames.
 
-## Keyword arguments
+# Keyword arguments
 
 - `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
-  contained arrays when they are accessed.
-- `metadata`: a [`GDALstackMetadata`](@ref) object.
+    contained arrays when they are accessed.
+- `metadata`: a `DimensionalData.StackMetadata` object.
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
 
-## Example
+# Example
 
-Create a `GDALstack` from four files, that sets the child arrays `usercrs` value
+Create a `GDALstack` from four files, that sets the child arrays `mappedcrs` value
 when they are loaded.
 
 ```julia
 files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
-stack = GDALstack(files; childkwargs=(usercrs=EPSG(4326),))
+stack = GDALstack(files; childkwargs=(mappedcrs=EPSG(4326),))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
 """
