@@ -1,5 +1,9 @@
 
-# Used internally to expose open disk files inside a `do` block
+"""
+    OpenGeoArray <: AbstractGeoArray
+
+Used internally to expose open disk files inside a `do` block
+"""
 struct OpenGeoArray{T,N,D<:Tuple,R<:Tuple,A,Na<:Symbol,Me,Mi} <: AbstractGeoArray{T,N,D,A}
     data::A
     dims::D

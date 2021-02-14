@@ -3,6 +3,7 @@ using Documenter, GeoData, HDF5, ArchGDAL, NCDatasets
 makedocs(
     modules = [GeoData],
     sitename = "GeoData.jl",
+    strict = true,
 )
 
 deploydocs(

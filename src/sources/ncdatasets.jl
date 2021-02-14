@@ -4,6 +4,8 @@ const NCD = NCDatasets
 export NCDarray, NCDstack, NCDdimMetadata, NCDarrayMetadata, NCDstackMetadata
 
 """
+    NCDdimMetadata <: AbstractDimMetadata
+
     NCDdimMetadata(val::Union{Dict,NamedTuple})
     NCDdimMetadata(pairs::Pair...) => NCDdimMetadata{Dict}
     NCDdimMetadata(; kw...) => NCDdimMetadata{NamedTuple}
@@ -15,6 +17,8 @@ struct NCDdimMetadata{T} <: AbstractDimMetadata{T}
 end
 
 """
+    NCDarrayMetadata <: AbstractArrayMetadata
+
     NCDarrayMetadata(val::Union{Dict,NamedTuple})
     NCDarrayMetadata(pairs::Pair...) => NCDarrayMetadata{Dict}
     NCDarrayMetadata(; kw...) => NCDarrayMetadata{NamedTuple}
@@ -26,6 +30,8 @@ struct NCDarrayMetadata{T} <: AbstractArrayMetadata{T}
 end
 
 """
+    NCDstackMetadata <: AbstractStackMetadata
+
     NCDstackMetadata(val::Union{Dict,NamedTuple})
     NCDstackMetadata(pairs::Pair...) => NCDstackMetadata{Dict}
     NCDstackMetadata(; kw...) => NCDstackMetadata{NamedTuple}
@@ -59,6 +65,8 @@ const DIMMAP = Dict("lat" => Lat,
 
 # Array ########################################################################
 """
+    NCDarray <: DiskGeoArray
+
     NCDarray(filename::AbstractString; name=nothing, refdims=(),
              dims=nothing, metadata=nothing, crs=nothing, mappedcrs=EPSG(4326))
 
@@ -90,7 +98,7 @@ future, including detecting and converting the native NetCDF projection format.
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
 - `missingval`: Value reprsenting missing values. Detected automatically when possible, but
   can be passed it.
-- `metadata`: [`Metadata`](@ref) object for the array. Detected automatically as
+- `metadata`: `Metadata` object for the array. Detected automatically as
   [`NCDarrayMetadata`](@ref), but can be passed in.
 
 ## Example
@@ -173,6 +181,8 @@ end
 
 
 """
+    NCDstack <: DiskGeoStack
+
     NCDstack(filename::String; refdims=(), window=(), metadata=nothing, childkwargs=())
     NCDstack(filenames; keys, kw...)
     NCDstack(filenames...; keys, kw...)
@@ -199,7 +209,7 @@ and [`Vert`] or `X`, `Y`, `Z` when detected. Undetected dims use the generic `Di
 - `refdims`: Add dimension position array was sliced from. Mostly used programatically.
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
   contained arrays when they are accessed.
-- `metadata`: A [`StackMetadata`](@ref) object.
+- `metadata`: A [`NCDstackMetadata`](@ref) object.
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the
   [`NCDarray`](@ref) constructor.
 
@@ -259,7 +269,7 @@ Base.keys(s::NCDstack{<:AbstractString}) = cleankeys(_ncread(_nondimkeys, getsou
 
 Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 
-Currently [`DimMetadata`](@ref) is not handled, and [`ArrayMetadata`](@ref)
+Currently `DimMetadata` is not handled, and `ArrayMetadata`
 from other [`AbstractGeoArray`](@ref) @types is ignored.
 """
 function Base.write(filename::AbstractString, ::Type{<:NCDstack}, s::AbstractGeoStack)

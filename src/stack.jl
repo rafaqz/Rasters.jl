@@ -2,7 +2,9 @@
 const Key = Union{Symbol,AbstractString}
 
 """
-`AbstractGeoStack` objects hold multiple [`AbstractGeoArray`](@ref)
+    AbstractGeoStack
+
+Abstract supertype for objects that hold multiple [`AbstractGeoArray`](@ref)
 that share spatial bounds.
 
 They are `NamedTuple`-like structures that may either contain `NamedTuple`
@@ -35,18 +37,6 @@ childkwargs(s::AbstractGeoStack) = s.childkwargs
 
 
 # Interface methods ############################################################
-
-"""
-    getsource(s::AbstractGeoStack, [key])
-
-Get the lower-level child object. This can be an `AbstractGeoArray` or
-another object with GeoData interface methods defined.
-
-Working with the low-level object can be better performance as we do not have to
-processes everything needed to build a full `AbstractGeoArray`.
-"""
-function getsource end
-
 
 """
     modify(f, series::AbstractGeoStack)
@@ -104,12 +94,12 @@ Base.copy!(dst::AbstractArray, src::AbstractGeoStack, key) = copy!(dst, src[key]
 
 Concatenate all or a subset of layers for all passed in stacks.
 
-## Keyword Arguments
+# Keywords
 
 - `keys`: `Tuple` of `Symbol` for the stack keys to concatenate.
 - `dims`: Dimension of child array to concatenate on.
 
-## Example
+# Example
 
 Concatenate the :sea_surface_temp and :humidity layers in the time dimension:
 
@@ -148,7 +138,9 @@ end
 # Memory-based stacks ######################################################
 
 """
-An [`AbstractGeoStack`](@ref) stored in memory.
+    MemGeoStack <: AbstractGeoStack
+
+Abstract supertype for [`AbstractGeoStack`](@ref) stored in memory.
 """
 abstract type MemGeoStack{T} <: AbstractGeoStack{T} end
 
@@ -211,7 +203,9 @@ end
 # Disk-based stacks ######################################################
 
 """
-[`AbstractGeoStack`](@ref)s stored on disk.
+    DiskGeoStack <: AbstractGeoStack
+
+Abstract supertype of [`AbstractGeoStack`](@ref)s stored on disk.
 """
 abstract type DiskGeoStack{T} <: AbstractGeoStack{T} end
 
@@ -298,6 +292,8 @@ end
 # Concrete MemGeoStack implementation ######################################################
 
 """
+    GeoStack <: MemGeoStack
+
     GeoStack(data...; keys, kwargs...)
     GeoStack(data::Union{Vector,Tuple}; keys, kwargs...)
     GeoStack(data::NamedTuple; window=(), metadata=nothing, refdims=(), childkwargs=()) =
@@ -305,18 +301,18 @@ end
 
 A concrete `MemGeoStack` implementation. Holds layers of [`GeoArray`](@ref).
 
-## Argumenst
+# Arguments
 
 - `data`: A `NamedTuple` of [`GeoArray`](@ref), or a `Vector`, `Tuple` or splatted arguments
-  of [`GeoArray`](@ref). The latter options must pass a `keys` keyword argument.
+    of [`GeoArray`](@ref). The latter options must pass a `keys` keyword argument.
 
-## Keyword Argumenst
+# Keywords
 
 - `keys`: Used as stack keys when a `Tuple` or `Vector` or splat of geoarrays are passed in.
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
-  contained arrays when they are accessed.
+    contained arrays when they are accessed.
 - `refdims`: Reference dimensions from earlier subsetting.
-- `metadata`: Metadata as a [`StackMetadata`](@ref) object.
+- `metadata`: Metadata as a `DimensionalData.AbstractStackMetadata` object.
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the constructor.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
 """
@@ -353,25 +349,20 @@ Base.convert(::Type{GeoStack}, src::AbstractGeoStack) = GeoStack(src)
 """
     DiskStack(filenames...; keys, kw...)
     DiskStack(filenames; keys, kw...)
-    DiskStack(filenames::NamedTuple;
-              window=(),
-              metadata=nothing,
-              childtype,
-              childkwargs=()
-              refdims=())
+    DiskStack(filenames::NamedTuple; kw...)
 
 Concrete [`DiskGeoStack`](@ref) implementation. Loads a stack of files lazily from disk.
 
-## Arguments
+# Arguments
 
 - `filename`: a NamedTuple of stack keys and `String` filenames.
 
-## Keyword arguments
+# Keywords
 
 - `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
-  contained arrays when they are accessed.
-- `metadata`: Metadata as a [`StackMetadata`](@ref) object.
+    contained arrays when they are accessed.
+- `metadata`: Metadata as a `DimensionalData.StackMetadata` object.
 - `childtype`: The type of the child data. eg. `GDALarray`. Required.
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.

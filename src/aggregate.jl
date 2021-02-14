@@ -248,11 +248,7 @@ function disaggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractDimArray, src, sc
     return dst
 end
 
-"""
-    alloc_ag(method, A::AbstractDimArray, scale)
-
-Allocate an array of the correct size to aggregate `A` by `scale`
-"""
+# Allocate an array of the correct size to aggregate `A` by `scale`
 alloc_ag(method, A::AbstractDimArray, scale) = alloc_ag((method,), A, scale)
 function alloc_ag(method::Tuple, A::AbstractDimArray, scale)
     intscale = _scale2int(dims(A), scale)
@@ -263,11 +259,7 @@ function alloc_ag(method::Tuple, A::AbstractDimArray, scale)
     return rebuild(A; data=data_, dims=dims_)
 end
 
-"""
-    alloc_disag(method, A::AbstractDimArray, scale)
-
-Allocate an array of the correct size to disaggregate `A` by `scale`
-"""
+# Allocate an array of the correct size to disaggregate `A` by `scale`
 alloc_disag(method, A::AbstractDimArray, scale) = alloc_disag((method,), A, scale)
 function alloc_disag(method::Tuple, A::AbstractDimArray, scale)
     intscale = _scale2int(dims(A), scale)
@@ -278,19 +270,11 @@ function alloc_disag(method::Tuple, A::AbstractDimArray, scale)
 end
 
 
-"""
-    upsample(index::Int, scale::Int)
-
-Convert indicies from the aggregated array to the larger original array.
-"""
+# Convert indicies from the aggregated array to the larger original array.
 upsample(index::Int, scale::Int) = (index - 1) * scale + 1
 upsample(index::Int, scale::Colon) = index
 
-"""
-    downsample(index::Int, scale::Int)
-
-Convert indicies from the original array to the aggregated array.
-"""
+# Convert indicies from the original array to the aggregated array.
 downsample(index::Int, scale::Int) = (index - 1) ÷ scale + 1
 downsample(index::Int, scale::Colon) = index
 

@@ -1,9 +1,16 @@
+"""
+    AbstractProjected <: AbstractSampled
+
+Abstract supertype for projected index modes.
+"""
 abstract type AbstractProjected{O,Sp,Sa} <: AbstractSampled{O,Sp,Sa} end
 
 # For now we just remove CRS on GPU - it often contains strings
 Adapt.adapt_structure(to, m::AbstractProjected) = Sampled(order(m), span(m), sampling(m))
 
 """
+    Projected <: AbstractProjected
+
     Projected(order::Order, span, sampling, crs, mappedcrs)
     Projected(; order=Ordered(), span=AutoSpan(), sampling=Points(), crs, mappedcrs=nothing)
 
@@ -53,6 +60,8 @@ function DD.rebuild(
 end
 
 """
+    Mapped <: AbstractProjected
+
     Mapped(order::Order, span, sampling, crs, mappedcrs)
     Mapped(; order=Ordered(), span=AutoSpan(), sampling=Points(), crs=nothing, mappedcrs)
 

@@ -7,12 +7,21 @@ GeoData
 ## Dimensions
 
 ```@docs
+GeoData.GeoXDim
+GeoData.GeoYDim
+GeoData.GeoZDim
 Lat
 Lon
 Vert
 Band
+```
+
+## Index modes
+
+```@docs
+GeoData.AbstractProjected
 Projected
-Converted
+Mapped
 ```
 
 ## Array
@@ -22,7 +31,7 @@ AbstractGeoArray
 MemGeoArray
 DiskGeoArray
 GeoArray
-Open
+GeoData.OpenGeoArray
 ```
 
 ## Stack
@@ -44,15 +53,6 @@ GeoSeries
 SMAPseries
 ```
 
-## Metadata
-
-```@docs
-Metadata
-DimMetadata
-ArrayMetadata
-StackMetadata
-```
-
 # Sources
 
 ## GRD
@@ -60,7 +60,7 @@ StackMetadata
 R GRD files can be loaded natively. The are always 3 dimensional, and have
 [`Lat`](@ref), [`Lon`](@ref) and [`Band`](@ref) dimensions.
 
-If ArchGDAL.jl is loaded, they can have [`usercrs`](@ref) and be 
+If ArchGDAL.jl is loaded (to enable reprojection), they can have [`mappedcrs`](@ref).
 
 ```@docs
 GRDarray
@@ -74,7 +74,7 @@ GRDarrayMetadata
 NetCDF files required NCDatasets.jl:
 
 ```julia
-using NCDatasets
+import NCDatasets
 ```
 
 Single files can be treated as a array or a stack of arrays. 
@@ -93,7 +93,7 @@ GDAL requires [ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl/issues) to be
 available: 
 
 ```julia
-using ArchGDAL
+import ArchGDAL
 ```
 
 ```@docs
@@ -111,7 +111,7 @@ global layers of soil moisture, temperature and other related data.
 It uses a custom format of HDF5 files, so required HDF5.jl to be available:
 
 ```julia
-using HDF5
+import HDF5
 ```
 
 Files must be downloaded manually due to authentication restrictions. As the
@@ -134,20 +134,16 @@ GeoData.jl is a direct extension of DimensionalData.jl.
 These methods are specific to GeoData.jl:
 
 ```@docs
-write
-cat
-copy!
 replace_missing
+resample
 boolmask
 missingmask
-convertmode
-reproject
 aggregate
 aggregate!
 disaggregate
 disaggregate!
-GeoData.alloc_ag
-GeoData.alloc_disag
+convertmode
+reproject
 ```
 
 Field access:
@@ -155,11 +151,24 @@ Field access:
 ```@docs
 missingval
 crs
-usercrs
-dimcrs
+mappedcrs
 mappedbounds
-mappedval
-GeoData.filename
+mappedindex
+data
 ```
 
+Not exported:
+```@docs
+GeoData.filename
+GeoData.childkwargs
+```
 
+These Base and DimensionalData methods have specific GeoData.jl version:
+
+```@docs
+open
+write
+cat
+copy!
+modify
+```

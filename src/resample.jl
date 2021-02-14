@@ -7,19 +7,21 @@ export resample
 
 `resample` uses `ArchGDAL.gdalwarp` to resample an `AbstractGeoArray`.
 
-## Arguments
+# Arguments
+
 - `A`: The `AbstractGeoArray` to resample.
 - `resolution`: A `Number` specifying the resolution for the output.
-  If the keyword argument `crs` (described below) is specified, `resolution` must be in units of the `crs`.
+    If the keyword argument `crs` (described below) is specified, `resolution` must be in units of the `crs`.
 - `snap`: an `AbstractGeoArray` whos resolution, crs and bounds will be snapped to.
-  For best results it should roughly cover the same extent, or a subset of `A`.
+    For best results it should roughly cover the same extent, or a subset of `A`.
 
-## Keyword Arguments
+# Keywords
+
 - `crs`: A `GeoFormatTypes.GeoFormat` specifying an output crs
-  (`A` with be reprojected to `crs` in addition to being resampled). Defaults to `crs(A)`
+    (`A` with be reprojected to `crs` in addition to being resampled). Defaults to `crs(A)`
 - `method`: A `String` specifying the method to use for resampling. Defaults to `"near"`
-  (nearest neighbor resampling). See [resampling method](https://gdal.org/programs/gdalwarp.html#cmdoption-gdalwarp-r)
-  in the gdalwarp docs for a complete list of possible values.
+    (nearest neighbor resampling). See [resampling method](https://gdal.org/programs/gdalwarp.html#cmdoption-gdalwarp-r)
+    in the gdalwarp docs for a complete list of possible values.
 
 """
 function resample end

@@ -1,5 +1,7 @@
 """
-`AbstractGeoSeries` are a high-level `DimensionalArray` that hold stacks, arrays,
+    AbstractGeoSeries <: DimensionalData.AbstractDimensionalArray
+
+Abstract supertype for high-level `DimensionalArray` that hold stacks, arrays,
 or the paths they can be loaded from. `GeoSeries` are indexed with dimensions
 as with a `AbstractGeoArray`. This is useful when you have multiple files containing
 rasters or stacks of rasters spread over dimensions like time and elevation.
@@ -71,12 +73,20 @@ end
 
 
 """
-    GeoSeries(data::Array{T}, dims; refdims=(), childtype=DD.basetypeof(T),
-              childkwargs=()) where T<:Union{<:AbstractGeoStack,<:AbstractGeoArray}
-    GeoSeries(data, dims; refdims=(), childtype, childkwargs)
+    GeoSeries <: AbstractGeoSeries
+
+    GeoSeries(A::AbstractArray{<:AbstractGeoArray}, dims; kw...)
+    GeoSeries(A::AbstractArray{<:AbstractGeoStack}, dims; kw...)
+    GeoSeries(filenames::AbstractArray{<:AbstractString}, dims; kw...)
 
 Concrete implementation of [`AbstractGeoSeries`](@ref).
 Series hold paths to array or stack files, along some dimension(s).
+
+# Keywords
+
+- `refdims`: existing reference 
+- `childtype`: type of child objects - an `AbstractGeoSeries` or `AbstractGeoStack`
+- `childkwargs`: keyword arguments passed to the child object on construction.
 """
 struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},C,K} <: AbstractGeoSeries{T,N,D,A,C}
     data::A

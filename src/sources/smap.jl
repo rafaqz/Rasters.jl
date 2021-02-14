@@ -7,6 +7,8 @@ const SMAPGEODATA = "Geophysical_Data"
 const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 """
+    SMAPdimMetadata <: AbstractDimMetadata
+
     SMAPdimMetadata(val::Union{Dict,NamedTuple})
     SMAPdimMetadata(pairs::Pair...) => SMAPdimMetadata{Dict}
     SMAPdimMetadata(; kw...) => SMAPdimMetadata{NamedTuple}
@@ -18,6 +20,8 @@ struct SMAPdimMetadata{T} <: AbstractDimMetadata{T}
 end
 
 """
+    SMAParrayMetadata <: AbstractArrayMetadata
+
     SMAParrayMetadata(val::Union{Dict,NamedTuple})
     SMAParrayMetadata(pairs::Pair...) => SMAParrayMetadata{Dict}
     SMAParrayMetadata(; kw...) => SMAParrayMetadata{NamedTuple}
@@ -29,6 +33,8 @@ struct SMAParrayMetadata{T} <: AbstractArrayMetadata{T}
 end
 
 """
+    SMAPstackMetadata <: AbstractStackMetadata
+
     SMAPstackMetadata(val::Union{Dict,NamedTuple})
     SMAPstackMetadata(pairs::Pair...) => SMAPstackMetadata{Dict}
     SMAPstackMetadata(; kw...) => SMAPstackMetadata{NamedTuple}
@@ -42,29 +48,28 @@ end
 # Stack ########################################################################
 
 """
-    SMAPstack(filename::String;
-              dims=nothing,
-              refdims=nothing,
-              window=())
+    SMAPstacka <: DiskGeoStack
+
+    SMAPstack(filename::String; dims=nothing, refdims=nothing, window=())
 
 `AbstractGeoStack` for [SMAP](https://smap.jpl.nasa.gov/) datasets.
 
 The simplicity of the format means `dims` and `metadata` are the same for all stack layers,
 so we store them as stack fields.
 
-## Arguments
+# Arguments
 
 - `filename`: `String` path to a SMAP .h5 file.
 
-## Keyword arguments
+# Keywords
 
 - `dims`: Dimensions held on the stack as all layers have identical `Dimension`s.
-  These are loaded from the HDF5 by default, but can be passed in to improve performance,
-  as is done by [`SMAPseries`](@ref),
+    These are loaded from the HDF5 by default, but can be passed in to improve performance,
+    as is done by [`SMAPseries`](@ref),
 - `refdims`: As for `dims`. Often the position time `Dimension` from the `SMAPseries`.
 - `metadata`: [`SMAPstackMetadata`](@ref) object. As for `dims`.
 - `window`: Like `view` but lazy, for disk based data. Can be a tuple of Dimensions,
-  selectors or regular indices. These will be applied when the data is loaded or indexed into.
+    selectors or regular indices. These will be applied when the data is loaded or indexed.
 """
 struct SMAPstack{T,D,R,W,M} <: DiskGeoStack{T}
     filename::T
@@ -141,14 +146,14 @@ end
 [`GeoSeries`](@ref) loader for SMAP files and whole folders of files,
 organised along the time dimension. Returns a [`GeoSeries`](@ref).
 
-## Arguments
+# Arguments
 
 - `filenames`: A `String` path to a directory of SMAP files,
-  or a vector of `String` paths to specific files.
+    or a vector of `String` paths to specific files.
 - `dims`: `Tuple` containing `Ti` dimension for the series.
-  Automatically generated form `filenames` unless passed in.
+    Automatically generated form `filenames` unless passed in.
 
-## Keyword Arguments
+# Keywords
 
 - `kw`: Passed to `GeoSeries`.
 """

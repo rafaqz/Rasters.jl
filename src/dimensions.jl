@@ -1,14 +1,33 @@
+"""
+    GeoXDim <: Dimension.XDim
+
+Abstract supertype for GeoSpatial X dimensions. 
+"""
 abstract type GeoXDim{T,Mo,Me} <: XDim{T,Mo,Me} end
+
+"""
+    GeoXDim <: Dimension.XDim
+
+Abstract supertype for GeoSpatial Y dimensions. 
+"""
 abstract type GeoYDim{T,Mo,Me} <: YDim{T,Mo,Me} end
+
+"""
+    GeoZDim <: Dimension.ZDim
+
+Abstract supertype for GeoSpatial Z dimensions. 
+"""
 abstract type GeoZDim{T,Mo,Me} <: ZDim{T,Mo,Me} end
 
 """
-    Lon <: XDim <: Dimension
+    Lon <: GeoXDim
+
     Lon(val=:)
 
 Longitude [`Dimension`]($DDdimdocs).
 
 ## Example:
+
 ```julia
 longdim = Lon(10:10:100)
 # Or
@@ -20,12 +39,14 @@ mean(A; dims=Lon)
 @dim Lon GeoXDim "Longitude"
 
 """
-    Lat <: YDim <: Dimension
+    Lat <: GeoYDim
+
     Lat(val=:)
 
 Latitude [`Dimension`]($DDdimdocs).
 
 ## Example:
+
 ```julia
 vertdim = Lat(10:10:100)
 # Or
@@ -37,12 +58,14 @@ mean(A; dims=Lat)
 @dim Lat GeoYDim "Latitude"
 
 """
-    Vert <: ZDim <: Dimension
+    Vert <: GeoZDim
+
     Vert(val=:)
 
 Vertical [`Dimension`]($DDdimdocs).
 
 ## Example:
+
 ```julia
 vertdim = Vert(10:10:100)
 # Or
@@ -55,6 +78,7 @@ mean(A; dims=Vert)
 
 """
     Band <: Dimension
+
     Band(val=:)
 
 Band [`Dimension`]($DDdimdocs) for multi-band rasters.
@@ -75,7 +99,7 @@ mean(A; dims=Band)
 """
     mappedbounds(x)
 
-Get the bounds converted to the `usercrs` value.
+Get the bounds converted to the [`mappedcrs`](@ref) value.
 
 Whithout ArchGDAL loaded, this is just the regular bounds.
 """
@@ -108,7 +132,7 @@ projectedbounds(::Projected, dim) = bounds(dim)
 """
     mappedindex(x)
 
-Get the index value of a dimension converted to the `usercrs` value.
+Get the index value of a dimension converted to the `mappedcrs` value.
 
 Whithout ArchGDAL loaded, this is just the regular dim value.
 """
@@ -135,4 +159,5 @@ projectedindex(::Projected, dim) = index(dim)
     else
         error("cannot get projected index of a $(nameof(typeof(mode))) mode dim")
     end
+
 
