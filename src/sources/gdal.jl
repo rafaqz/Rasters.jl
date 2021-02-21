@@ -118,7 +118,7 @@ end
         driver="GTiff", compress="DEFLATE", tiled=true
     )
 
-Write a [`GDALarray`](@ref) to file, `.tiff` by default, but other GDAL drivers also work.
+Write a [`GDALarray`](@ref) to file, `.tif` by default, but other GDAL drivers also work.
 
 GDAL flags `driver`, `compress` and `tiled` can be passed in as keyword arguments.
 
@@ -345,15 +345,14 @@ function _gdalsetproperties!(dataset, A)
     lat = shiftindexloci(GDAL_LAT_LOCUS, dims(A, Lat))
     lon = convertmode(Projected, lon)
     lat = convertmode(Projected, lat)
-    @assert indexorder(lat) == GDAL_LAT_INDEX
-    @assert indexorder(lon) == GDAL_LON_INDEX
     # Get the geotransform from the updated lat/lon dims
     geotransform = _dims2geotransform(lat, lon)
     # Convert projection to a string of well known text
-    proj = convert(String, convert(WellKnownText, crs(lon)))
-
-    # Write projection, geotransform and data to GDAL
-    AG.setproj!(dataset, proj)
+    if !(crs(lon) isa Nothing)
+        proj = convert(String, convert(WellKnownText, crs(lon)))
+        # Write projection, geotransform and data to GDAL
+        AG.setproj!(dataset, proj)
+    end
     AG.setgeotransform!(dataset, geotransform)
 
     # Set the nodata value. GDAL can't handle missing
