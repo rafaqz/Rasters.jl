@@ -21,11 +21,11 @@ getmeta(A::AbstractGeoArray, key, fallback) = getmeta(metadata(A), key, fallback
 getmeta(m::Metadata, key, fallback) = get(val(m), key, fallback)
 getmeta(m::NoMetadata, key, fallback) = fallback
 
-# Check that arrayu order amtches expectation
+# Check that array order matches expectation
 checkarrayorder(A, order::Order) = map(d -> checkarrayorder(d, order), dims(A))
 checkarrayorder(A, order::Tuple) = map(checkarrayorder, dims(A), order)
 checkarrayorder(dim::Dimension, order::Order) =
-    arrayorder(dim) == order || @warn "Array order for `$(DD.basetypeof(order))` is `$arrayorder(dim)`, usualy `$order`"
+    arrayorder(dim) == order || @warn "Array order for `$(DD.basetypeof(order))` is `$(arrayorder(dim))`, usualy `$order`"
 
 cleankeys(keys) = Tuple(Symbol.(keys))
 

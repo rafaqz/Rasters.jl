@@ -167,6 +167,17 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Lat),  projectedbounds(gdalarray, Lat)))
         end
 
+        @testset "from GeoArray" begin
+            filename = tempname() * ".tiff"
+            ga = GeoArray(rand(100, 200), (Lon, Lat))
+            write(filename, GDALarray, ga)
+            @test parent(GDALarray(filename)[Band(1)]) == parent(ga)
+            filename2 = tempname() * ".tiff"
+            ga2 = GeoArray(rand(100, 200), (Lon(101:200; mode=Sampled()), Lat(1:200; mode=Sampled())))
+            write(filename2, GDALarray, ga2)
+            @test parent(reorder(GDALarray(filename2)[Band(1)], ForwardArray)) == ga2
+       end
+
     end
 
     @testset "show" begin
