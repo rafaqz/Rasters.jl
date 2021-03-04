@@ -271,6 +271,8 @@ end
 
 @inline Base.view(s::DiskGeoStack, I...) = rebuild(s; window=I)
 
+Base.map(f, s::DiskGeoStack) = GeoStack(s; data=_mapdata(f, s))
+
 
 # Default dims, metadata and missingval methods
 #
