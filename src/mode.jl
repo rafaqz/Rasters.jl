@@ -11,8 +11,8 @@ Adapt.adapt_structure(to, m::AbstractProjected) = Sampled(order(m), span(m), sam
 """
     Projected <: AbstractProjected
 
-    Projected(order::Order, span, sampling, crs, mappedcrs)
-    Projected(; order=Ordered(), span=AutoSpan(), sampling=Points(), crs, mappedcrs=nothing)
+    Projected(order, span, sampling, crs, mappedcrs)
+    Projected(; order=AutoOrder(), span=AutoSpan(), sampling=AutoSampling(), crs, mappedcrs=nothing)
 
 An [`AbstractSampled`]($DDabssampleddocs) `IndexMode` with projections attached.
 
@@ -33,7 +33,7 @@ The underlying `crs` will be detected by GDAL.
 If `mappedcrs` is not supplied (ie. `mappedcrs=nothing`), the base index will be
 shown on plots, and selectors will need to use whatever format it is in.
 """
-struct Projected{O<:Order,Sp<:Regular,Sa<:Sampling,PC,MC} <: AbstractProjected{O,Sp,Sa}
+struct Projected{O<:Order,Sp<:Span,Sa<:Sampling,PC,MC} <: AbstractProjected{O,Sp,Sa}
     order::O
     span::Sp
     sampling::Sa
@@ -41,7 +41,7 @@ struct Projected{O<:Order,Sp<:Regular,Sa<:Sampling,PC,MC} <: AbstractProjected{O
     mappedcrs::MC
 end
 function Projected(;
-    order=Ordered(), span=Regular(), sampling=Points(), crs, mappedcrs=nothing
+    order=AutoOrder(), span=AutoSpan(), sampling=DD.AutoSampling(), crs, mappedcrs=nothing
 )
     Projected(order, span, sampling, crs, mappedcrs)
 end
@@ -62,8 +62,8 @@ end
 """
     Mapped <: AbstractProjected
 
-    Mapped(order::Order, span, sampling, crs, mappedcrs)
-    Mapped(; order=Ordered(), span=AutoSpan(), sampling=Points(), crs=nothing, mappedcrs)
+    Mapped(order, span, sampling, crs, mappedcrs)
+    Mapped(; order=AutoOrder(), span=AutoSpan(), sampling=AutoSampling(), crs=nothing, mappedcrs)
 
 An [`AbstractSampled`]($DDabssampleddocs) `IndexMode`, where the dimension index has
 been mapped to another projection, usually lat/lon or `EPSG(4326)`.
@@ -82,7 +82,7 @@ struct Mapped{O<:Order,Sp<:Span,Sa<:Sampling,PC,MC} <: AbstractProjected{O,Sp,Sa
     mappedcrs::MC
 end
 function Mapped(;
-    order=Ordered(), span=AutoSpan(), sampling=Points(), crs=nothing, mappedcrs
+    order=AutoOrder(), span=AutoSpan(), sampling=DD.AutoSampling(), crs=nothing, mappedcrs
 )
     Mapped(order, span, sampling, crs, mappedcrs)
 end

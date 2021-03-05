@@ -68,3 +68,12 @@ function Base.show(io::IO, stack::AbstractGeoStack)
         end
     end
 end
+
+function Base.show(io::IO, mode::AbstractProjected)
+    DD._printmode(io, mode)
+    DD._printorder(io, mode)
+    print(io, " ", nameof(typeof(span(mode))))
+    print(io, " ", nameof(typeof(sampling(mode))))
+    print(io, " crs: ", nameof(typeof(crs(mode))))
+    print(io, " mappedcrs: ", nameof(typeof(mappedcrs(mode))))
+end
