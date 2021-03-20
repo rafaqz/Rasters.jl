@@ -195,6 +195,7 @@ function GRDarray(grd::GRDattrib, filename, key=nothing;
     missingval=missingval(grd),
     metadata=metadata(grd),
 )
+    filename = first(splitext(filename))
     size_ = map(length, dims)
     T = eltype(grd)
     N = length(size_)

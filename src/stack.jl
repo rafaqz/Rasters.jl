@@ -114,26 +114,6 @@ end
 
 _mapdata(f, s::AbstractGeoStack) = NamedTuple{cleankeys(keys(s))}(map(f, values(s)))
 
-"""
-    Base.write(filename::AbstractString, T::Type{<:AbstractGeoArray}, s::AbstractGeoStack)
-
-Save all layers of an `AbstractGeoStack` to separate files, using the backend determined
-by `T`.
-
-## Example
-
-```julia
-write(filename, GDALarray, A)
-```
-"""
-function Base.write(filename::AbstractString, ::Type{T}, s::AbstractGeoStack) where T <: AbstractGeoArray
-    for key in keys(s)
-        base, ext = splitext(filename)
-        fn = joinpath(string(base, "_", key, ext))
-        write(fn, T, s[key])
-    end
-end
-
 
 # Memory-based stacks ######################################################
 

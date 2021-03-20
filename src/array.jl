@@ -167,8 +167,6 @@ end
 end
 
 Base.write(A::T) where T <: DiskGeoArray = write(filename(A), A)
-Base.write(filename::AbstractString, A::T) where T <: DiskGeoArray = write(filename, T, A)
-
 
 # Concrete implementation ######################################################
 
