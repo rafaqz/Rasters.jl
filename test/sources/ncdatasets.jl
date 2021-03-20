@@ -164,6 +164,7 @@ stackkeys = (
             @test all(val.(dims(saved)) .== val.(dims(geoA)))
             @test all(data(saved) .=== data(geoA))
             @test saved isa typeof(geoA)
+            # TODO test crs
         end
         @testset "to gdal" begin
             gdalfilename = tempname() * ".tif"

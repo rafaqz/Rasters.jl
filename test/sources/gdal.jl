@@ -84,6 +84,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @test refdims(geoA) isa Tuple{<:Band} 
         @test metadata(geoA) == metadata(gdalarray)
         @test missingval(geoA) == nothing
+        @test name(geoA) == :test
     end
 
     @testset "save" begin
@@ -168,8 +169,8 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
        
         # This needs netcdf bounds variables to work
         @testset "to netcdf" begin
-            filename2 = tempname()
-            write(filename2, NCDarray, gdalarray[Band(1)])
+            filename2 = tempname() * ".nc"
+            write(filename2, gdalarray[Band(1)])
             saved = GeoArray(NCDarray(filename2; crs=crs(gdalarray)))
             @test size(saved) == size(gdalarray[Band(1)])
             @test saved ≈ reverse(gdalarray[Band(1)]; dims=Lat)
