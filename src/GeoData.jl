@@ -34,7 +34,11 @@ export AbstractGeoSeries, GeoSeries
 
 export Projected, Mapped
 
+<<<<<<< HEAD
 export Band, Lat, Lon, Vert, GeoXDim, GeoYDim, GeoZDim
+=======
+export Lon, Lat, Vert, Band
+>>>>>>> bf3edfc (add convenience methods and test)
 
 export missingval, boolmask, missingmask, replace_missing,
        aggregate, aggregate!, disaggregate, disaggregate!
@@ -42,6 +46,7 @@ export missingval, boolmask, missingmask, replace_missing,
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 
 export geoarray, stack, series
+<<<<<<< HEAD
 
 
 const Lon = X
@@ -50,6 +55,8 @@ const Vert = Z
 const GeoXDim = XDim 
 const GeoYDim = YDim 
 const GeoZDim = ZDim 
+=======
+>>>>>>> bf3edfc (add convenience methods and test)
 
 # DimensionalData documentation urls
 const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api"
