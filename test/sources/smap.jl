@@ -10,10 +10,10 @@ path2 = joinpath(testpath, "data/SMAP_L4_SM_gph_20160102T223000_Vv4011_001.h5")
 
 if isfile(path1) && isfile(path2)
     @testset "stack" begin
-        stack = SMAPstack(path1)
+        smapstack = stack(path1)
 
         @testset "conversion to GeoArray" begin
-            smaparray = stack["soil_temp_layer1"][Lat(), Lon()]
+            smaparray = smapstack["soil_temp_layer1"][Lat(), Lon()]
             @test smaparray isa GeoArray{Float32,2}
             @test dims(smaparray) isa Tuple{<:Lon{<:Array{Float32,1}}, <:Lat{<:Array{Float32,1}}}
             @test span(smaparray) isa Tuple{Irregular{Tuple{Float32,Float32}},Irregular{Tuple{Float32,Float32}}}
@@ -26,7 +26,7 @@ if isfile(path1) && isfile(path2)
             @test name(smaparray) == :soil_temp_layer1
             dt = DateTime(2016, 1, 1, 22, 30)
             step_ = Hour(3)
-            @test refdims(stack) ==
+            @test refdims(smapstack) ==
                 (Ti(dt:step_:dt; mode=Sampled(Ordered(), Regular(step_), Intervals(Start()))),)
             # Currently empty
             @test metadata(smaparray) isa SMAPstackMetadata
@@ -37,17 +37,17 @@ if isfile(path1) && isfile(path2)
             # This uses too much ram! There is a lingering memory leak in HDF5.
             # geostack = GeoStack(stack)
             # @test Symbol.(Tuple(keys(stack))) == keys(geostack)
-            geostack = GeoStack(stack; keys=(:baseflow_flux, :snow_mass, :soil_temp_layer1))
+            geostack = GeoStack(smapstack; keys=(:baseflow_flux, :snow_mass, :soil_temp_layer1))
             @test keys(geostack) == (:baseflow_flux, :snow_mass, :soil_temp_layer1)
         end
 
         if VERSION > v"1.1-"
             @testset "copy" begin
-                geoarray = zero(stack[:soil_temp_layer1])
-                @test geoarray isa GeoArray
-                @test geoarray != stack[:soil_temp_layer1]
-                copy!(geoarray, stack, :soil_temp_layer1)
-                @test geoarray == stack[:soil_temp_layer1]
+                geoA = zero(smapstack[:soil_temp_layer1])
+                @test geoA isa GeoArray
+                @test geoA != smapstack[:soil_temp_layer1]
+                copy!(geoA, smapstack, :soil_temp_layer1)
+                @test geoA == smapstack[:soil_temp_layer1]
             end
         end
 
@@ -72,13 +72,13 @@ if isfile(path1) && isfile(path2)
         end
 
         @testset "show" begin
-            sh1 = sprint(show, stack[:soil_temp_layer1])
+            sh1 = sprint(show, smapstack[:soil_temp_layer1])
             # Test but don't lock this down too much
             @test occursin("GeoArray", sh1)
             @test occursin("Latitude", sh1)
             @test occursin("Longitude", sh1)
             @test occursin("Time", sh1)
-            sh2 = sprint(show, stack[:soil_temp_layer1][Lat(Between(0, 100)), Lon(Between(1, 100))])
+            sh2 = sprint(show, smapstack[:soil_temp_layer1][Lat(Between(0, 100)), Lon(Between(1, 100))])
             # Test but don't lock this down too much
             @test occursin("GeoArray", sh2)
             @test occursin("Latitude", sh2)

@@ -6,12 +6,13 @@ include(joinpath(testpath, "test_utils.jl"))
 
 maybedownload("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd", "rlogo.grd")
 maybedownload("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri", "rlogo.gri")
-path = joinpath(testpath, "data/rlogo")
-@test isfile(path * ".grd")
-@test isfile(path * ".gri")
+stem = joinpath(testpath, "data/rlogo")
+@test isfile(stem * ".grd")
+@test isfile(stem * ".gri")
+path = stem * ".gri"
 
 @testset "Grd array" begin
-    grdarray = GRDarray(path);
+    grdarray = geoarray(path)
 
     @testset "open" begin
         @test all(open(A -> A[Lat=1], grdarray) .=== grdarray[:, 1, :])
@@ -77,27 +78,27 @@ path = joinpath(testpath, "data/rlogo")
     # end
 
     @testset "selectors" begin
-        geoarray = grdarray[Lat(Contains(3)), Lon(:), Band(1)]
-        @test geoarray isa GeoArray{Float32,1}
+        geoA = grdarray[Lat(Contains(3)), Lon(:), Band(1)]
+        @test geoA isa GeoArray{Float32,1}
         @test grdarray[Lon(Contains(20)), Lat(Contains(10)), Band(1)] isa Float32
     end
 
     @testset "conversion to GeoArray" begin
-        geoarray = grdarray[Lon(1:50), Lat(1:1), Band(1)]
-        @test size(geoarray) == (50, 1)
-        @test eltype(geoarray) <: Float32
-        @time geoarray isa GeoArray{Float32,1}
-        @test dims(geoarray) isa Tuple{<:Lon,Lat}
-        @test refdims(geoarray) isa Tuple{<:Band}
-        @test metadata(geoarray) == metadata(grdarray)
-        @test missingval(geoarray) == -3.4f38
-        @test name(geoarray) == Symbol("red:green:blue")
+        geoA = grdarray[Lon(1:50), Lat(1:1), Band(1)]
+        @test size(geoA) == (50, 1)
+        @test eltype(geoA) <: Float32
+        @time geoA isa GeoArray{Float32,1}
+        @test dims(geoA) isa Tuple{<:Lon,Lat}
+        @test refdims(geoA) isa Tuple{<:Band}
+        @test metadata(geoA) == metadata(grdarray)
+        @test missingval(geoA) == -3.4f38
+        @test name(geoA) == Symbol("red:green:blue")
     end
 
     @testset "save" begin
         @testset "2d" begin
-            filename2 = tempname()
-            write(filename2, GRDarray, grdarray[Band(1)])
+            filename2 = tempname() * ".gri"
+            write(filename2, grdarray[Band(1)])
             saved = GeoArray(GRDarray(filename2))
             # 1 band is added again on save
             @test size(saved) == size(grdarray[Band(1:1)])
@@ -105,28 +106,28 @@ path = joinpath(testpath, "data/rlogo")
         end
 
         @testset "3d with subset" begin
-            geoarray = GeoArray(grdarray)[1:100, 1:50, 1:2]
+            geoA = GeoArray(grdarray)[1:100, 1:50, 1:2]
             filename = tempname()
-            write(filename, GRDarray, geoarray)
+            write(filename, GRDarray, geoA)
             saved = GeoArray(GRDarray(filename))
-            @test size(saved) == size(geoarray)
+            @test size(saved) == size(geoA)
             @test refdims(saved) == ()
-            @test bounds(saved) == bounds(geoarray)
-            @test size(saved) == size(geoarray)
-            @test missingval(saved) === missingval(geoarray)
-            @test metadata(saved) != metadata(geoarray)
+            @test bounds(saved) == bounds(geoA)
+            @test size(saved) == size(geoA)
+            @test missingval(saved) === missingval(geoA)
+            @test metadata(saved) != metadata(geoA)
             @test metadata(saved)["creator"] == "GeoData.jl"
-            @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
-            @test name(saved) == name(geoarray)
-            @test all(mode.(dims(saved)) .== mode.(dims(geoarray)))
-            @test dims(saved) isa typeof(dims(geoarray))
-            @test all(val.(dims(saved)) .== val.(dims(geoarray)))
-            @test all(mode.(dims(saved)) .== mode.(dims(geoarray)))
-            @test all(metadata.(dims(saved)) .== metadata.(dims(geoarray)))
-            @test dims(saved) == dims(geoarray)
-            @test all(data(saved) .=== data(geoarray))
-            @test saved isa typeof(geoarray)
-            @test data(saved) == data(geoarray)
+            @test all(metadata.(dims(saved)) .== metadata.(dims(geoA)))
+            @test name(saved) == name(geoA)
+            @test all(mode.(dims(saved)) .== mode.(dims(geoA)))
+            @test dims(saved) isa typeof(dims(geoA))
+            @test all(val.(dims(saved)) .== val.(dims(geoA)))
+            @test all(mode.(dims(saved)) .== mode.(dims(geoA)))
+            @test all(metadata.(dims(saved)) .== metadata.(dims(geoA)))
+            @test dims(saved) == dims(geoA)
+            @test all(data(saved) .=== data(geoA))
+            @test saved isa typeof(geoA)
+            @test data(saved) == data(geoA)
         end
 
         @testset "to netcdf" begin
@@ -179,7 +180,7 @@ path = joinpath(testpath, "data/rlogo")
 end
 
 @testset "Grd stack" begin
-    grdstack = GRDstack((a=path, b=path))
+    grdstack = stack((a=path, b=path))
 
     @testset "indexing" begin
         @test grdstack[:a][Lat(20), Lon(20), Band(3)] == 70.0f0
@@ -225,37 +226,37 @@ end
 
     if VERSION > v"1.1-"
         @testset "copy" begin
-            geoarray = zero(GeoArray(grdstack[:a]))
-            copy!(geoarray, grdstack, :a)
+            geoA = zero(GeoArray(grdstack[:a]))
+            copy!(geoA, grdstack, :a)
             # First wrap with GeoArray() here or == loads from disk for each cell.
             # we need a general way of avoiding this in all disk-based sources
-            @test geoarray == GeoArray(grdstack[:a])
+            @test geoA == GeoArray(grdstack[:a])
         end
     end
 
     @testset "save" begin
-        geoarray = GeoArray(grdstack[:b])
-        filename = tempname()
-        write(filename, GRDarray, grdstack)
+        geoA = GeoArray(grdstack[:b])
+        filename = tempname() * ".grd"
+        write(filename, grdstack)
         base, ext = splitext(filename)
         filename_b = string(base, "_b", ext)
         saved = GeoArray(GRDarray(filename_b))
-        @test typeof(saved) == typeof(geoarray)
-        @test data(saved) == data(geoarray)
+        @test typeof(saved) == typeof(geoA)
+        @test data(saved) == data(geoA)
     end
 
 end
 
 @testset "Grd series" begin
-    series = GeoSeries([path, path], (Ti,); childtype=GRDarray, childkwargs=(mappedcrs=EPSG(4326), name=:test))
-    @test GeoArray(series[Ti(1)]) ==
+    ser = series([path, path], (Ti,); childtype=GRDarray, childkwargs=(mappedcrs=EPSG(4326), name=:test))
+    @test GeoArray(ser[Ti(1)]) ==
         GeoArray(GRDarray(path; mappedcrs=EPSG(4326), name=:test))
     stacks = [DiskStack((a=path, b=path); childtype=GRDarray, childkwargs=(mappedcrs=EPSG(4326), name=:test))]
-    series = GeoSeries(stacks, (Ti,))
-    @test series[Ti(1)][:a] ==
+    ser = GeoSeries(stacks, (Ti,))
+    @test ser[Ti(1)][:a] ==
         GeoArray(GRDarray(path; mappedcrs=EPSG(4326), name=:test))
-    modified_series = modify(Array, series)
-    @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{(:a,:b),<:Tuple{<:GeoArray{Float32,3,<:Tuple,<:Tuple,<:Array{Float32,3}},Vararg}}}}
+    modified_ser = modify(Array, ser)
+    @test typeof(modified_ser) <: GeoSeries{<:GeoStack{<:NamedTuple{(:a,:b),<:Tuple{<:GeoArray{Float32,3,<:Tuple,<:Tuple,<:Array{Float32,3}},Vararg}}}}
 end
 
 

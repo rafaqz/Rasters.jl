@@ -1,6 +1,7 @@
 filter_ext(path, ext::AbstractString) = filter(fn -> splitext(fn)[2] == ext, readdir(path))
 filter_ext(path, exts::Union{Tuple,AbstractArray}) = 
     filter(fn -> splitext(fn)[2] in exts, readdir(path))
+filter_ext(path, ext::Nothing) = readdir(path)
 
 maybewindow2indices(A, window::Tuple) = maybewindow2indices(A, dims(A), window::Tuple)
 maybewindow2indices(A, dims::Tuple, window::Tuple) =

@@ -34,12 +34,14 @@ export AbstractGeoSeries, GeoSeries
 
 export Projected, Mapped
 
+export Lon, Lat, Vert, Band
+
 export missingval, boolmask, missingmask, replace_missing,
        aggregate, aggregate!, disaggregate, disaggregate!
 
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 
-export Lon, Lat, Vert, Band
+export geoarray, stack, series
 
 # DimensionalData documentation urls
 const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api"
@@ -63,6 +65,7 @@ include("open.jl")
 include("sources/grd.jl")
 include("show.jl")
 include("plotrecipes.jl")
+include("convenience.jl")
 
 function __init__()
     @require HDF5="f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f" begin

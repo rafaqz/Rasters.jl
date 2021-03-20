@@ -7,7 +7,7 @@ include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
 @testset "GDALarray" begin
-    gdalarray = GDALarray(path; mappedcrs=EPSG(4326), name=:test);
+    gdalarray = geoarray(path; mappedcrs=EPSG(4326), name=:test);
 
     @testset "open" begin
         @test open(A -> A[Lat=1], gdalarray) == gdalarray[:, 1, :]
@@ -76,60 +76,59 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     end
 
     @testset "conversion to GeoArray" begin
-        geoarray = gdalarray[Lon(1:50), Lat(1:1), Band(1)]
-        @test size(geoarray) == (50, 1)
-        @test eltype(geoarray) <: UInt8
-        @time geoarray isa GeoArray{UInt8,1} 
-        @test dims(geoarray) isa Tuple{<:Lon,Lat}
-        @test refdims(geoarray) isa Tuple{<:Band} 
-        @test metadata(geoarray) == metadata(gdalarray)
-        @test missingval(geoarray) == nothing
-        @test name(geoarray) == :test
+        geoA = gdalarray[Lon(1:50), Lat(1:1), Band(1)]
+        @test size(geoA) == (50, 1)
+        @test eltype(geoA) <: UInt8
+        @time geoA isa GeoArray{UInt8,1} 
+        @test dims(geoA) isa Tuple{<:Lon,Lat}
+        @test refdims(geoA) isa Tuple{<:Band} 
+        @test metadata(geoA) == metadata(gdalarray)
+        @test missingval(geoA) == nothing
     end
 
     @testset "save" begin
         gdalarray = GDALarray(path; mappedcrs=EPSG(4326), name=:test);
 
         @testset "2d" begin
-            geoarray1 = gdalarray[Band(1)]
+            geoA = gdalarray[Band(1)]
             filename = tempname() * ".tif"
-            write(filename, GDALarray, geoarray1)
+            write(filename, geoA)
             saved1 = GDALarray(filename; mappedcrs=EPSG(4326))[Band(1)];
-            @test all(saved1 .== geoarray1)
-            @test typeof(saved1) == typeof(geoarray1)
-            @test val(dims(saved1, Lon)) == val(dims(geoarray1, Lon))
-            @test val(dims(saved1, Lat)) == val(dims(geoarray1, Lat))
-            @test all(metadata.(dims(saved1)) .== metadata.(dims(geoarray1)))
-            @test metadata(dims(saved1)[1]) == metadata(dims(geoarray1)[1])
-            @test missingval(saved1) === missingval(geoarray1) 
-            @test refdims(saved1) == refdims(geoarray1) end
+            @test all(saved1 .== geoA)
+            @test typeof(saved1) == typeof(geoA)
+            @test val(dims(saved1, Lon)) == val(dims(geoA, Lon))
+            @test val(dims(saved1, Lat)) == val(dims(geoA, Lat))
+            @test all(metadata.(dims(saved1)) .== metadata.(dims(geoA)))
+            @test metadata(dims(saved1)[1]) == metadata(dims(geoA)[1])
+            @test missingval(saved1) === missingval(geoA) 
+            @test refdims(saved1) == refdims(geoA) end
         
         @testset "3d, with subsetting" begin
-            geoarray2 = gdalarray[Lat(Between(33.7, 33.9)), 
+            geoA2 = gdalarray[Lat(Between(33.7, 33.9)), 
                                   Lon(Between(-117.6, -117.4))]
-            filename2 = tempname() * ".img"
-            write(filename2, GDALarray, geoarray2)
+            filename2 = tempname() * ".asc"
+            write(filename2, geoA2)
             saved2 = GeoArray(GDALarray(filename2; name=:test, mappedcrs=EPSG(4326)))
-            @test size(saved2) == size(geoarray2) == length.(dims(saved2)) == length.(dims(geoarray2))
-            @test refdims(saved2) == refdims(geoarray2)
+            @test size(saved2) == size(geoA2) == length.(dims(saved2)) == length.(dims(geoA2))
+            @test refdims(saved2) == refdims(geoA2)
             #TODO test a file with more metadata
             @test val(metadata(saved2))[:filepath] == filename2
-            @test missingval(saved2) === missingval(geoarray2)
-            @test GeoData.name(saved2) == GeoData.name(geoarray2)
-            @test step(mode(dims(saved2, Lat))) ≈ step(mode(dims(geoarray2, Lat)))
-            @test step(mode(dims(saved2, Lon))) ≈ step(mode(dims(geoarray2, Lon)))
-            @test typeof(dims(saved2)) == typeof(dims(geoarray2))
-            @test all(val(dims(saved2, Band)) .≈ val(dims(geoarray2, Band)))
-            @test all(val(dims(saved2, Lon)) .≈ val(dims(geoarray2, Lon)))
-            @test all(val(dims(saved2, Lat)) .≈ val(dims(geoarray2, Lat)))
-            @test all(metadata.(dims(saved2)) .== metadata.(dims(geoarray2)))
-            @test data(saved2) == data(geoarray2)
-            @test typeof(saved2) == typeof(geoarray2)
+            @test missingval(saved2) === missingval(geoA2)
+            @test GeoData.name(saved2) == GeoData.name(geoA2)
+            @test step(mode(dims(saved2, Lat))) ≈ step(mode(dims(geoA2, Lat)))
+            @test step(mode(dims(saved2, Lon))) ≈ step(mode(dims(geoA2, Lon)))
+            @test typeof(dims(saved2)) == typeof(dims(geoA2))
+            @test all(val(dims(saved2, Band)) .≈ val(dims(geoA2, Band)))
+            @test all(val(dims(saved2, Lon)) .≈ val(dims(geoA2, Lon)))
+            @test all(val(dims(saved2, Lat)) .≈ val(dims(geoA2, Lat)))
+            @test all(metadata.(dims(saved2)) .== metadata.(dims(geoA2)))
+            @test data(saved2) == data(geoA2)
+            @test typeof(saved2) == typeof(geoA2)
             filename3 = tempname() * ".img"
-            geoarray3 = cat(gdalarray[Band(1)], gdalarray[Band(1)], gdalarray[Band(1)]; dims=Band(1:3))
-            write(filename3, GDALarray, geoarray3)
+            geoA3 = cat(gdalarray[Band(1)], gdalarray[Band(1)], gdalarray[Band(1)]; dims=Band(1:3))
+            write(filename3, geoA3)
             saved3 = GeoArray(GDALarray(filename3; mappedcrs=EPSG(4326)))
-            @test all(saved3 .== geoarray3)
+            @test all(saved3 .== geoA3)
             @test val(dims(saved3, Band)) == 1:3
         end
 
@@ -142,8 +141,8 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         end
 
         @testset "to grd" begin
-            write("testgrd", GRDarray, gdalarray)
-            grdarray = GRDarray("testgrd")
+            write("testgrd.gri", gdalarray)
+            grdarray = GRDarray("testgrd.gri")
             @test crs(grdarray) == convert(ProjString, crs(gdalarray))
             @test bounds(grdarray) == (bounds(gdalarray))
             @test val(dims(grdarray, Lat)) == reverse(val(dims(gdalarray, Lat)))
@@ -153,8 +152,8 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         end
 
         @testset "to netcdf" begin
-            filename2 = tempname()
-            write(filename2, NCDarray, gdalarray[Band(1)])
+            filename2 = tempname() * ".nc"
+            write(filename2, gdalarray[Band(1)])
             saved = GeoArray(NCDarray(filename2; crs=crs(gdalarray)))
             @test size(saved) == size(gdalarray[Band(1)])
             @test saved ≈ reverse(gdalarray[Band(1)]; dims=Lat)
@@ -170,11 +169,11 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @testset "from GeoArray" begin
             filename = tempname() * ".tiff"
             ga = GeoArray(rand(100, 200), (Lon, Lat))
-            write(filename, GDALarray, ga)
+            write(filename, ga)
             @test parent(GDALarray(filename)[Band(1)]) == parent(ga)
-            filename2 = tempname() * ".tiff"
+            filename2 = tempname() * ".tif"
             ga2 = GeoArray(rand(100, 200), (Lon(101:200; mode=Sampled()), Lat(1:200; mode=Sampled())))
-            write(filename2, GDALarray, ga2)
+            write(filename2, ga2)
             @test parent(reorder(GDALarray(filename2)[Band(1)], ForwardArray)) == ga2
        end
 
@@ -198,7 +197,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
 end
 
 @testset "GDAL stack" begin
-    gdalstack = GDALstack((a=path, b=path));
+    gdalstack = stack((a=path, b=path));
 
     @testset "child array properties" begin
         @test size(gdalstack[:a]) == (514, 515, 1)
@@ -245,37 +244,37 @@ end
 
     if VERSION > v"1.1-"
         @testset "copy" begin
-            geoarray = zero(GeoArray(gdalstack[:a]))
-            copy!(geoarray, gdalstack, :a)
+            geoA = zero(GeoArray(gdalstack[:a]))
+            copy!(geoA, gdalstack, :a)
             # First wrap with GeoArray() here or == loads from disk for each cell.
             # we need a general way of avoiding this in all disk-based sources
-            @test all(geoarray .== GeoArray(gdalstack[:a]))
+            @test all(geoA .== GeoArray(gdalstack[:a]))
         end
     end
 
     @testset "save" begin
-        geoarray = GeoArray(gdalstack[:a])
+        geoA = GeoArray(gdalstack[:a])
         filename = tempname()
-        write(filename, GDALarray, gdalstack)
+        write(filename, gdalstack)
         base, ext = splitext(filename)
         filename_b = string(base, "_b", ext)
         saved = GeoArray(GDALarray(filename_b))
-        @test all(saved .== geoarray)
+        @test all(saved .== geoA)
     end
 
 end
 
 @testset "GDAL series" begin
-    series = GeoSeries([path, path], (Ti,); childtype=GDALarray, childkwargs=(mappedcrs=EPSG(4326), name=:test))
-    @test GeoArray(series[Ti(1)]) == GeoArray(GDALarray(path; mappedcrs=EPSG(4326), name=:test))
+    ser = series([path, path], (Ti(),); childkwargs=(mappedcrs=EPSG(4326), name=:test))
+    @test GeoArray(ser[Ti(1)]) == GeoArray(GDALarray(path; mappedcrs=EPSG(4326), name=:test))
 
     gdalstack = GDALstack((a=path, b=path); childtype=GDALarray, childkwargs=(mappedcrs=EPSG(4326),))
-    series = GeoSeries([gdalstack, gdalstack], (Ti,))
-    @test series[1].childkwargs == gdalstack.childkwargs
-    # Rebuild the series by wrapping the GDALarray data in Array.
+    ser = GeoSeries([gdalstack, gdalstack], (Ti,))
+    @test ser[1].childkwargs == gdalstack.childkwargs
+    # Rebuild the ser by wrapping the GDALarray data in Array.
     # `modify` forces `rebuild` on all containers as in-Memory variants
-    modified_series = modify(Array, series)
-    @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{(:a,:b),<:Tuple{<:GeoArray{UInt8,3,<:Tuple,<:Tuple,<:Array{UInt8,3}},Vararg}}}}
+    modified_ser = modify(Array, ser)
+    @test typeof(modified_ser) <: GeoSeries{<:GeoStack{<:NamedTuple{(:a,:b),<:Tuple{<:GeoArray{UInt8,3,<:Tuple,<:Tuple,<:Array{UInt8,3}},Vararg}}}}
 end
 
 nothing
