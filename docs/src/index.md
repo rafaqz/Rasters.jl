@@ -27,6 +27,7 @@ Mapped
 ## Array
 
 ```@docs
+geoarray
 AbstractGeoArray
 MemGeoArray
 DiskGeoArray
@@ -37,6 +38,7 @@ GeoData.OpenGeoArray
 ## Stack
 
 ```@docs
+stack
 AbstractGeoStack
 MemGeoStack
 GeoStack
@@ -48,6 +50,7 @@ SMAPstack
 ## Series
 
 ```@docs
+series
 AbstractGeoSeries
 GeoSeries
 SMAPseries

@@ -50,7 +50,7 @@ Passed to the constructor for the file type, and commmonly include:
 
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
     contained arrays when they are accessed.
-- `metadata`: Metadata as a [`StackMetadata`](@ref) object.
+- `metadata`: Metadata as a `StackMetadata` object.
 - `child_kwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
 
