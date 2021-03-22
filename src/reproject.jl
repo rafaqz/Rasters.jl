@@ -25,25 +25,25 @@ end
 a single dimension at a time.
 """
 reproject(source, target, dim::Dimension, val) = val
-function reproject(source::GeoFormat, target::GeoFormat, dim::Lon, val::Number)
+function reproject(source::GeoFormat, target::GeoFormat, dim::X, val::Number)
     AG.reproject((Float64(val), 0.0), source, target; order=:trad)[1]
 end
-function reproject(source::GeoFormat, target::GeoFormat, dim::Lat, val::Number)
+function reproject(source::GeoFormat, target::GeoFormat, dim::Y, val::Number)
     AG.reproject((0.0, Float64(val)), source, target; order=:trad)[2]
 end
-function reproject(source::GeoFormat, target::GeoFormat, ::Lon, vals::AbstractArray)
+function reproject(source::GeoFormat, target::GeoFormat, ::X, vals::AbstractArray)
     rep = AG.reproject([(Float64(v), 0.0) for v in vals], source, target; order=:trad)
     [r[1] for r in rep]
 end
-function reproject(source::GeoFormat, target::GeoFormat, dim::Lat, vals::AbstractArray)
+function reproject(source::GeoFormat, target::GeoFormat, dim::Y, vals::AbstractArray)
     rep = AG.reproject([(0.0, Float64(v)) for v in vals], source, target; order=:trad)
     [r[2] for r in rep]
 end
-function reproject(source::GeoFormat, target::GeoFormat, ::Lon, vals::Tuple)
+function reproject(source::GeoFormat, target::GeoFormat, ::X, vals::Tuple)
     reps = AG.reproject([(Float64(v), 0.0) for v in vals], source, target; order=:trad)
     Tuple(r[1] for r in reps)
 end
-function reproject(source::GeoFormat, target::GeoFormat, dim::Lat, vals::Tuple)
+function reproject(source::GeoFormat, target::GeoFormat, dim::Y, vals::Tuple)
     reps = AG.reproject([(0.0, Float64(v)) for v in vals], source, target; order=:trad)
     Tuple(r[2] for r in reps)
 end

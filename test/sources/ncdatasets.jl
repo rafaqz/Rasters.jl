@@ -29,15 +29,15 @@ stackkeys = (
     ncarray = NCDarray(ncsingle)
 
     @testset "open" begin
-        @test all(open(A -> A[Lat=1], ncarray) .=== ncarray[:, 1, :])
+        @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
     end
 
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)
         @test ncarray isa NCDarray
         @test val(dims(ncarray, Ti())) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
-        @test val(dims(ncarray, Lat())) == -79.5:89.5
-        @test val(dims(ncarray, Lon())) == 1.0:2:359.0
+        @test val(dims(ncarray, Y())) == -79.5:89.5
+        @test val(dims(ncarray, X())) == 1.0:2:359.0
         @test bounds(ncarray) == (
             (0.0, 360.0), 
             (-80.0, 90.0), 
@@ -48,7 +48,7 @@ stackkeys = (
     @testset "dimensions" begin
         @test ndims(ncarray) == 3
         @test length.(dims(ncarray)) == (180, 170, 24)
-        @test dims(ncarray) isa Tuple{<:Lon,<:Lat,<:Ti}
+        @test dims(ncarray) isa Tuple{<:X,<:Y,<:Ti}
         @test refdims(ncarray) == ()
         # TODO detect the time span, and make it Regular
         @test mode(ncarray) == 
@@ -66,48 +66,48 @@ stackkeys = (
 
     @testset "indexing" begin
         @test ncarray[Ti(1)] isa GeoArray{<:Any,2}
-        @test ncarray[Lat(1), Ti(1)] isa GeoArray{<:Any,1}
-        @test ncarray[Lon(1), Ti(1)] isa GeoArray{<:Any,1}
-        @test ncarray[Lon(1), Lat(1), Ti(1)] isa Missing
-        @test ncarray[Lon(30), Lat(30), Ti(1)] isa Float32
+        @test ncarray[Y(1), Ti(1)] isa GeoArray{<:Any,1}
+        @test ncarray[X(1), Ti(1)] isa GeoArray{<:Any,1}
+        @test ncarray[X(1), Y(1), Ti(1)] isa Missing
+        @test ncarray[X(30), Y(30), Ti(1)] isa Float32
         # Russia
-        @test ncarray[Lon(50), Lat(100), Ti(1)] isa Missing
+        @test ncarray[X(50), Y(100), Ti(1)] isa Missing
         # Alaska
-        @test ncarray[Lat(Near(64.2008)), Lon(Near(149.4937)), Ti(1)] isa Missing
-        @test ncarray[Ti(2), Lon(At(59.0)), Lat(At(-50.5))] == ncarray[30, 30, 2] === 278.47168f0
+        @test ncarray[Y(Near(64.2008)), X(Near(149.4937)), Ti(1)] isa Missing
+        @test ncarray[Ti(2), X(At(59.0)), Y(At(-50.5))] == ncarray[30, 30, 2] === 278.47168f0
     end
 
     @testset "indexing with reverse lat" begin
         if !haskey(ENV, "CI") # CI downloads fail. But run locally
             ncrevlat = maybedownload("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
             ncrevlatarray = NCDstack(ncrevlat; childkwargs=(missingval=-9.96921f36,))[:sst]
-            @test order(dims(ncrevlatarray, Lat)) == Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
-            @test ncrevlatarray[Lat(At(40)), Lon(At(100)), Ti(1)] == missingval(ncrevlatarray)
-            @test ncrevlatarray[Lat(At(-40)), Lon(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0
+            @test order(dims(ncrevlatarray, Y)) == Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
+            @test ncrevlatarray[Y(At(40)), X(At(100)), Ti(1)] == missingval(ncrevlatarray)
+            @test ncrevlatarray[Y(At(-40)), X(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0
             @test val(span(ncrevlatarray, Ti)) == Month(1)
         end
     end
 
     @testset "selectors" begin
-        a = ncarray[Lon(At(21.0)), Lat(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))];
+        a = ncarray[X(At(21.0)), Y(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))];
         @test bounds(a) == ((50.0, 52.0),)
-        x = ncarray[Lon(Near(150)), Lat(Near(30)), Ti(1)]
+        x = ncarray[X(Near(150)), Y(Near(30)), Ti(1)]
         @test x isa Float32
         # TODO make sure we are getting the right cell.
-        @test size(ncarray[Lat(Between(-80, 90)), Lon(Between(0, 360)),
+        @test size(ncarray[Y(Between(-80, 90)), X(Between(0, 360)),
             Ti(Between(DateTime360Day(2001, 1, 16), DateTime360Day(2003, 01, 16)))
         ]) == (180, 170, 24)
-        nca = ncarray[Lat(Between(-80, -25)), Lon(Between(0, 180)), 
+        nca = ncarray[Y(Between(-80, -25)), X(Between(0, 180)), 
                       Ti(Near(DateTime360Day(2002, 02, 20)))]
         @test size(nca) == (90, 55)
     end
 
     @testset "conversion to GeoArray" begin
-        geoarray = ncarray[Lon(1:50), Lat(20:20), Ti(1)]
+        geoarray = ncarray[X(1:50), Y(20:20), Ti(1)]
         @test size(geoarray) == (50, 1)
         @test eltype(geoarray) <: Union{Missing,Float32}
         @time geoarray isa GeoArray{Float32,1}
-        @test dims(geoarray) isa Tuple{<:Lon,<:Lat}
+        @test dims(geoarray) isa Tuple{<:X,<:Y}
         @test refdims(geoarray) isa Tuple{<:Ti}
         @test metadata(geoarray) == metadata(ncarray)
         @test ismissing(missingval(geoarray))
@@ -148,9 +148,9 @@ stackkeys = (
             @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test bounds(gdalarray) == (bounds(nccleaned)..., (1, 1))
             # Tiff locus = Start, Netcdf locus = Center
-            @test reverse(val(dims(gdalarray, Lat))) .+ 0.5 ≈ val(dims(nccleaned, Lat))
-            @test val(dims(gdalarray, Lon)) .+ 1.0  ≈ val(dims(nccleaned, Lon))
-            @test reverse(GeoArray(gdalarray); dims=Lat()) ≈ nccleaned
+            @test reverse(val(dims(gdalarray, Y))) .+ 0.5 ≈ val(dims(nccleaned, Y))
+            @test val(dims(gdalarray, X)) .+ 1.0  ≈ val(dims(nccleaned, X))
+            @test reverse(GeoArray(gdalarray); dims=Y()) ≈ nccleaned
         end
         @testset "to grd" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
@@ -158,9 +158,9 @@ stackkeys = (
             grdarray = GRDarray("testgrd");
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == (bounds(nccleaned)..., (1, 1))
-            @test val(dims(grdarray, Lat)) ≈ val(dims(nccleaned, Lat)) .- 0.5
-            @test val(dims(grdarray, Lon)) ≈ val(dims(nccleaned, Lon)) .- 1.0
-            @test GeoArray(grdarray) ≈ reverse(nccleaned; dims=Lat)
+            @test val(dims(grdarray, Y)) ≈ val(dims(nccleaned, Y)) .- 0.5
+            @test val(dims(grdarray, X)) ≈ val(dims(nccleaned, X)) .- 1.0
+            @test GeoArray(grdarray) ≈ reverse(nccleaned; dims=Y)
         end
     end
 
@@ -168,15 +168,15 @@ stackkeys = (
         sh = sprint(show, ncarray)
         # Test but don't lock this down too much
         @test occursin("NCDarray", sh)
-        @test occursin("Latitude", sh)
-        @test occursin("Longitude", sh)
+        @test occursin("Y", sh)
+        @test occursin("X", sh)
         @test occursin("Time", sh)
     end
 
     @testset "plot" begin
         ncarray[Ti(1:3:12)] |> plot
         ncarray[Ti(1)] |> plot
-        ncarray[Lat(100), Ti(1)] |> plot
+        ncarray[Y(100), Ti(1)] |> plot
     end
 
 end
@@ -194,7 +194,7 @@ end
         @test ncstack[:albedo] isa GeoArray{<:Any,3}
         @test ncstack[:albedo, 2, 3, 1] isa Float32
         @test ncstack[:albedo, :, 3, 1] isa GeoArray{<:Any,1}
-        @test dims(ncstack, :albedo) isa Tuple{<:Lon,<:Lat,<:Ti}
+        @test dims(ncstack, :albedo) isa Tuple{<:X,<:Y,<:Ti}
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test keys(ncstack) == stackkeys
         @test first(keys(ncstack)) == :abso4
@@ -204,10 +204,10 @@ end
         @test metadata(ncstack, :albedo)["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
-        @test axes(mean(ncstack[:albedo, Lat(1:20)] , dims=Ti)) ==
+        @test axes(mean(ncstack[:albedo, Y(1:20)] , dims=Ti)) ==
               (Base.OneTo(192), Base.OneTo(20), Base.OneTo(1))
-        geoarray = ncstack[:albedo][Ti(4:6), Lon(1), Lat(2)]
-        @test geoarray == ncstack[:albedo, Ti(4:6), Lon(1), Lat(2)]
+        geoarray = ncstack[:albedo][Ti(4:6), X(1), Y(2)]
+        @test geoarray == ncstack[:albedo, Ti(4:6), X(1), Y(2)]
         @test size(geoarray) == (3,)
     end
 
@@ -223,22 +223,22 @@ end
 
     @testset "indexing" begin
         ncmultistack = NCDstack(ncsingle)
-        @test dims(ncmultistack, :tos) isa Tuple{<:Lon,<:Lat,<:Ti}
+        @test dims(ncmultistack, :tos) isa Tuple{<:X,<:Y,<:Ti}
         @test ncmultistack[:tos] isa GeoArray{<:Any,3}
         @test ncmultistack[:tos, Ti(1)] isa GeoArray{<:Any,2}
-        @test ncmultistack[:tos, Lat(1), Ti(1)] isa GeoArray{<:Any,1}
+        @test ncmultistack[:tos, Y(1), Ti(1)] isa GeoArray{<:Any,1}
         @test ncmultistack[:tos, 8, 30, 10] isa Float32
     end
 
     @testset "window" begin
-        windowedstack = NCDstack(ncmulti; window=(Lat(1:5), Lon(1:5), Ti(1)))
-        @test window(windowedstack) == (Lat(1:5), Lon(1:5), Ti(1))
+        windowedstack = NCDstack(ncmulti; window=(Y(1:5), X(1:5), Ti(1)))
+        @test window(windowedstack) == (Y(1:5), X(1:5), Ti(1))
         windowedarray = windowedstack[:albedo]
         @test size(windowedarray) == (5, 5)
         @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
         @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
         @test windowedarray[1, 2] == 0.84936917f0
-        windowedstack = NCDstack(ncmulti; window=(Lat(1:5), Lon(1:5), Ti(1:1)))
+        windowedstack = NCDstack(ncmulti; window=(Y(1:5), X(1:5), Ti(1:1)))
         windowedarray = windowedstack[:albedo]
         @test windowedarray[1:3, 2:2, 1:1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1, 1)
         @test windowedarray[1:3, 2:2, 1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)

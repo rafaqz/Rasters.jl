@@ -1,14 +1,14 @@
 using .ArchGDAL
 
-const GDAL_LON_INDEX = ForwardIndex()
-const GDAL_LAT_INDEX = ReverseIndex()
+const GDAL_X_INDEX = ForwardIndex()
+const GDAL_Y_INDEX = ReverseIndex()
 const GDAL_BAND_INDEX = ForwardIndex()
-const GDAL_LON_ARRAY = ForwardArray()
-const GDAL_LAT_ARRAY = ReverseArray()
+const GDAL_X_ARRAY = ForwardArray()
+const GDAL_Y_ARRAY = ReverseArray()
 const GDAL_BAND_ARRAY = ForwardArray()
 const GDAL_RELATION = ForwardRelation()
-const GDAL_LON_LOCUS = Start()
-const GDAL_LAT_LOCUS = Start()
+const GDAL_X_LOCUS = Start()
+const GDAL_Y_LOCUS = Start()
 
 export GDALarray, GDALstack, GDALarrayMetadata, GDALdimMetadata
 
@@ -50,7 +50,7 @@ Load a file lazily using gdal. `GDALarray` will be converted to [`GeoArray`](@re
 after indexing or other manipulations. `GeoArray(GDALarray(filename))` will do this
 immediately.
 
-`GDALarray`s are always 3 dimensional, and have [`Lat`](@ref), [`Lon`](@ref) and
+`GDALarray`s are always 3 dimensional, and have [`Y`](@ref), [`X`](@ref) and
 [`Band`](@ref) dimensions.
 
 # Arguments
@@ -75,7 +75,7 @@ immediately.
 ```julia
 A = GDALarray("folder/file.tif"; mappedcrs=EPSG(4326))
 # Select Australia using lat/lon coords, whatever the crs is underneath.
-A[Lat(Between(-10, -43), Lon(Between(113, 153)))
+A[Y(Between(-10, -43), X(Between(113, 153)))
 ```
 """
 struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:Symbol,Me,Mi,S
@@ -127,12 +127,12 @@ Returns `filename`.
 function Base.write(
     filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,2}; kw...
 ) where T
-    all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims")
+    all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
 
-    correctedA = permutedims(A, (Lon(), Lat())) |>
-        a -> reorder(a, (Lon(GDAL_LON_INDEX), Lat(GDAL_LAT_INDEX))) |>
+    correctedA = permutedims(A, (X(), Y())) |>
+        a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
-    checkarrayorder(correctedA, (GDAL_LON_ARRAY, GDAL_LAT_ARRAY))
+    checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY))
 
     nbands = 1
     indices = 1
@@ -141,13 +141,13 @@ end
 function Base.write(
     filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,3}, kw...
 ) where T
-    all(hasdim(A, (Lon, Lat))) || error("Array must have Lat and Lon dims")
+    all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
 
-    correctedA = permutedims(A, (Lon(), Lat(), Band())) |>
-        a -> reorder(a, (Lon(GDAL_LON_INDEX), Lat(GDAL_LAT_INDEX), Band(GDAL_BAND_INDEX))) |>
+    correctedA = permutedims(A, (X(), Y(), Band())) |>
+        a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX), Band(GDAL_BAND_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
-    checkarrayorder(correctedA, (GDAL_LON_ARRAY, GDAL_LAT_ARRAY, GDAL_BAND_ARRAY))
+    checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY, GDAL_BAND_ARRAY))
 
     nbands = size(correctedA, Band())
     indices = Cint[1:nbands...]
@@ -188,7 +188,7 @@ when they are loaded.
 ```julia
 files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
 stack = GDALstack(files; childkwargs=(mappedcrs=EPSG(4326),))
-stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
+stack[:relhum][Y(Contains(-37), X(Contains(144))
 ```
 """
 GDALstack(args...; kw...) = DiskStack(args...; childtype=GDALarray, kw...)
@@ -227,33 +227,33 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
             Points(), Points()
         else
             # GeoTiff uses the "pixelCorner" convention
-            Intervals(GDAL_LON_LOCUS), Intervals(GDAL_LAT_LOCUS)
+            Intervals(GDAL_X_LOCUS), Intervals(GDAL_Y_LOCUS)
         end
 
         lonmode = Projected(
-            order=Ordered(GDAL_LON_INDEX, GDAL_LON_ARRAY, GDAL_RELATION),
+            order=Ordered(GDAL_X_INDEX, GDAL_X_ARRAY, GDAL_RELATION),
             span=Regular(step(lonindex)),
             sampling=lonsampling,
             crs=crs,
             mappedcrs=mappedcrs,
         )
         latmode = Projected(
-            order=Ordered(GDAL_LAT_INDEX, GDAL_LAT_ARRAY, GDAL_RELATION),
+            order=Ordered(GDAL_Y_INDEX, GDAL_Y_ARRAY, GDAL_RELATION),
             sampling=latsampling,
             # Use the range step as is will be different to latstep due to float error
             span=Regular(step(latindex)),
             crs=crs,
             mappedcrs=mappedcrs,
         )
-        lon = Lon(lonindex; mode=lonmode, metadata=lonlat_metadata)
-        lat = Lat(latindex; mode=latmode, metadata=lonlat_metadata)
+        lon = X(lonindex; mode=lonmode, metadata=lonlat_metadata)
+        lat = Y(latindex; mode=latmode, metadata=lonlat_metadata)
 
         DimensionalData._formatdims(map(Base.OneTo, (lonsize, latsize, nbands)), (lon, lat, band))
     else
         error("Rotated/transformed dimensions are not handled yet. Open a github issue for GeoData.jl if you need this.")
         # affinemap = geotransform2affine(geotransform)
-        # x = X(affinemap; mode=TransformedIndex(dims=Lon()))
-        # y = Y(affinemap; mode=TransformedIndex(dims=Lat()))
+        # x = X(affinemap; mode=TransformedIndex(dims=X()))
+        # y = Y(affinemap; mode=TransformedIndex(dims=Y()))
 
         # formatdims((lonsize, latsize, nbands), (x, y, band))
     end
@@ -324,8 +324,8 @@ function _gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFL
 
     AG.create(filename;
         driver=AG.getdriver(driver),
-        width=size(A, Lon()),
-        height=size(A, Lat()),
+        width=size(A, X()),
+        height=size(A, Y()),
         nbands=nbands,
         dtype=eltype(A),
         options=options,
@@ -341,8 +341,8 @@ function _gdalsetproperties!(dataset, A)
     # This allows saving NetCDF to Tiff
     # Set the index loci to the start of the cell for the lat and lon dimensions.
     # NetCDF or other formats use the center of the interval, so they need conversion.
-    lon = shiftindexloci(GDAL_LON_LOCUS, dims(A, Lon))
-    lat = shiftindexloci(GDAL_LAT_LOCUS, dims(A, Lat))
+    lon = shiftindexloci(GDAL_X_LOCUS, dims(A, X))
+    lat = shiftindexloci(GDAL_Y_LOCUS, dims(A, Y))
     lon = convertmode(Projected, lon)
     lat = convertmode(Projected, lat)
     # Get the geotransform from the updated lat/lon dims
@@ -388,8 +388,8 @@ end
 
 # Create a memory-backed GDAL dataset from any AbstractGeoArray
 function unsafe_ArchGDALdataset(A::AbstractGeoArray)
-    width = size(A, Lon)
-    height = size(A, Lat)
+    width = size(A, X)
+    height = size(A, Y)
     nbands = size(A, Band)
 
     dataset = AG.unsafe_create("tmp";
@@ -400,7 +400,7 @@ function unsafe_ArchGDALdataset(A::AbstractGeoArray)
         dtype=eltype(A)
     )
     # write bands to dataset
-    AG.write!(dataset, data(permutedims(A, (Lon, Lat, Band))), Cint[1:nbands...])
+    AG.write!(dataset, data(permutedims(A, (X, Y, Band))), Cint[1:nbands...])
     _gdalsetproperties!(dataset, A)
     dataset
 end
@@ -443,7 +443,7 @@ _geotransform2affine(gt) =
     AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]],
               [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
 
-function _dims2geotransform(lat::Lat, lon::Lon)
+function _dims2geotransform(lat::Y, lon::X)
     gt = zeros(6)
     gt[GDAL_TOPLEFT_X] = first(lon)
     gt[GDAL_WE_RES] = step(lon)

@@ -14,7 +14,7 @@ NetCDF or HDF5. Use and syntax is similar or identical for all cases.
 
 `getindex` on a `AbstractGeoStack` generally returns a memory backed standard
 [`GeoArray`](@ref). `geoarray[:somelayer] |> plot` plots the layers array,
-while `geoarray[:somelayer, Lon(1:100), Band(2)] |> plot` will plot the
+while `geoarray[:somelayer, X(1:100), Band(2)] |> plot` will plot the
 subset without loading the whole array.
 
 `getindex` on a `AbstractGeoStack` with a key returns another stack with

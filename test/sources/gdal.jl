@@ -10,7 +10,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     gdalarray = GDALarray(path; mappedcrs=EPSG(4326), name=:test);
 
     @testset "open" begin
-        @test open(A -> A[Lat=1], gdalarray) == gdalarray[:, 1, :]
+        @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1, :]
     end
 
     @testset "array properties" begin
@@ -19,18 +19,18 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     end
 
     @testset "dimensions" begin
-        @test length(dims(gdalarray, Lon)) == 514
+        @test length(dims(gdalarray, X)) == 514
         @test ndims(gdalarray) == 3
-        @test dims(gdalarray) isa Tuple{<:Lon,<:Lat,<:Band}
+        @test dims(gdalarray) isa Tuple{<:X,<:Y,<:Band}
         @test mode(gdalarray, Band) == DimensionalData.Categorical(Ordered())
-        @test span(gdalarray, (Lat, Lon)) == 
+        @test span(gdalarray, (Y, X)) == 
             (Regular(-60.02213698319351), Regular(60.02213698319374))
-        @test sampling(gdalarray, (Lat, Lon)) == 
+        @test sampling(gdalarray, (Y, X)) == 
             (Intervals(Start()), Intervals(Start()))
         @test refdims(gdalarray) == ()
         # Bounds calculated in python using rasterio
-        @test all(bounds(gdalarray, Lat) .≈ (4224973.143255847, 4255884.5438021915))
-        @test all(bounds(gdalarray, Lon) .≈ (-28493.166784412522, 2358.211624949061))
+        @test all(bounds(gdalarray, Y) .≈ (4224973.143255847, 4255884.5438021915))
+        @test all(bounds(gdalarray, X) .≈ (-28493.166784412522, 2358.211624949061))
     end
 
     @testset "other fields" begin
@@ -41,46 +41,46 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @test name(gdalarray) == :test
         @test label(gdalarray) == "test"
         @test units(gdalarray) == nothing
-        @test mappedcrs(dims(gdalarray, Lat)) == EPSG(4326)
-        @test mappedcrs(dims(gdalarray, Lon)) == EPSG(4326)
+        @test mappedcrs(dims(gdalarray, Y)) == EPSG(4326)
+        @test mappedcrs(dims(gdalarray, X)) == EPSG(4326)
         @test mappedcrs(gdalarray) == EPSG(4326)
-        @test mappedcrs(gdalarray[Lat(1)]) == EPSG(4326)
-        @test_throws ErrorException mappedcrs(gdalarray[Lat(1), Lon(1)])
+        @test mappedcrs(gdalarray[Y(1)]) == EPSG(4326)
+        @test_throws ErrorException mappedcrs(gdalarray[Y(1), X(1)])
         wkt = WellKnownText(GeoFormatTypes.CRS(), 
           "PROJCS[\"unnamed\",GEOGCS[\"NAD27\",DATUM[\"North_American_Datum_1927\",SPHEROID[\"Clarke 1866\",6378206.4,294.978698213898,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6267\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4267\"]],PROJECTION[\"Cylindrical_Equal_Area\"],PARAMETER[\"standard_parallel_1\",33.75],PARAMETER[\"central_meridian\",-117.333333333333],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]")
-        @test crs(dims(gdalarray, Lat)) == wkt
-        @test crs(dims(gdalarray, Lon)) == wkt
+        @test crs(dims(gdalarray, Y)) == wkt
+        @test crs(dims(gdalarray, X)) == wkt
         @test crs(gdalarray) == wkt
-        @test crs(gdalarray[Lat(1)]) == wkt
-        @test_throws ErrorException crs(gdalarray[Lat(1), Lon(1)])
+        @test crs(gdalarray[Y(1)]) == wkt
+        @test_throws ErrorException crs(gdalarray[Y(1), X(1)])
     end
 
     @testset "indexing" begin 
         @test gdalarray[Band(1)] isa GeoArray{UInt8,2} 
-        @test gdalarray[Lat(1), Band(1)] isa GeoArray{UInt8,1} 
-        @test gdalarray[Lon(1), Band(1)] isa GeoArray{UInt8,1}
-        @test gdalarray[Lon(1), Lat(1), Band(1)] isa UInt8 
+        @test gdalarray[Y(1), Band(1)] isa GeoArray{UInt8,1} 
+        @test gdalarray[X(1), Band(1)] isa GeoArray{UInt8,1}
+        @test gdalarray[X(1), Y(1), Band(1)] isa UInt8 
         @test gdalarray[1, 1, 1] isa UInt8
         # Value indexed in python with rasterio
-        @test gdalarray[Lat(21), Lon(21), Band(1)] == 82 
+        @test gdalarray[Y(21), X(21), Band(1)] == 82 
     end
 
     @testset "methods" begin 
-        mean(gdalarray; dims=Lat) == mean(data(gdalarray); dims=2)
+        mean(gdalarray; dims=Y) == mean(data(gdalarray); dims=2)
     end
 
     @testset "selectors" begin
         # TODO verify the value with R/gdal etc
-        @test gdalarray[Lat(Contains(33.8)), Lon(Contains(-117.5)), Band(1)] isa UInt8
-        @test gdalarray[Lat(Between(33.7, 33.9)), Band(1)] isa GeoArray
+        @test gdalarray[Y(Contains(33.8)), X(Contains(-117.5)), Band(1)] isa UInt8
+        @test gdalarray[Y(Between(33.7, 33.9)), Band(1)] isa GeoArray
     end
 
     @testset "conversion to GeoArray" begin
-        geoarray = gdalarray[Lon(1:50), Lat(1:1), Band(1)]
+        geoarray = gdalarray[X(1:50), Y(1:1), Band(1)]
         @test size(geoarray) == (50, 1)
         @test eltype(geoarray) <: UInt8
         @time geoarray isa GeoArray{UInt8,1} 
-        @test dims(geoarray) isa Tuple{<:Lon,Lat}
+        @test dims(geoarray) isa Tuple{<:X,Y}
         @test refdims(geoarray) isa Tuple{<:Band} 
         @test metadata(geoarray) == metadata(gdalarray)
         @test missingval(geoarray) == -1.0e10
@@ -97,16 +97,16 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             saved1 = GDALarray(filename; mappedcrs=EPSG(4326))[Band(1)];
             @test all(saved1 .== geoarray1)
             @test typeof(saved1) == typeof(geoarray1)
-            @test val(dims(saved1, Lon)) == val(dims(geoarray1, Lon))
-            @test val(dims(saved1, Lat)) == val(dims(geoarray1, Lat))
+            @test val(dims(saved1, X)) == val(dims(geoarray1, X))
+            @test val(dims(saved1, Y)) == val(dims(geoarray1, Y))
             @test all(metadata.(dims(saved1)) .== metadata.(dims(geoarray1)))
             @test metadata(dims(saved1)[1]) == metadata(dims(geoarray1)[1])
             @test missingval(saved1) === missingval(geoarray1) 
             @test refdims(saved1) == refdims(geoarray1) end
         
         @testset "3d, with subsetting" begin
-            geoarray2 = gdalarray[Lat(Between(33.7, 33.9)), 
-                                  Lon(Between(-117.6, -117.4))]
+            geoarray2 = gdalarray[Y(Between(33.7, 33.9)), 
+                                  X(Between(-117.6, -117.4))]
             filename2 = tempname() * ".img"
             write(filename2, GDALarray, geoarray2)
             saved2 = GeoArray(GDALarray(filename2; name=:test, mappedcrs=EPSG(4326)))
@@ -116,12 +116,12 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             @test val(metadata(saved2))[:filepath] == filename2
             @test missingval(saved2) === missingval(geoarray2)
             @test GeoData.name(saved2) == GeoData.name(geoarray2)
-            @test step(mode(dims(saved2, Lat))) ≈ step(mode(dims(geoarray2, Lat)))
-            @test step(mode(dims(saved2, Lon))) ≈ step(mode(dims(geoarray2, Lon)))
+            @test step(mode(dims(saved2, Y))) ≈ step(mode(dims(geoarray2, Y)))
+            @test step(mode(dims(saved2, X))) ≈ step(mode(dims(geoarray2, X)))
             @test typeof(dims(saved2)) == typeof(dims(geoarray2))
             @test all(val(dims(saved2, Band)) .≈ val(dims(geoarray2, Band)))
-            @test all(val(dims(saved2, Lon)) .≈ val(dims(geoarray2, Lon)))
-            @test all(val(dims(saved2, Lat)) .≈ val(dims(geoarray2, Lat)))
+            @test all(val(dims(saved2, X)) .≈ val(dims(geoarray2, X)))
+            @test all(val(dims(saved2, Y)) .≈ val(dims(geoarray2, Y)))
             @test all(metadata.(dims(saved2)) .== metadata.(dims(geoarray2)))
             @test data(saved2) == data(geoarray2)
             @test typeof(saved2) == typeof(geoarray2)
@@ -146,8 +146,8 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             grdarray = GRDarray("testgrd")
             @test crs(grdarray) == convert(ProjString, crs(gdalarray))
             @test bounds(grdarray) == (bounds(gdalarray))
-            @test val(dims(grdarray, Lat)) == reverse(val(dims(gdalarray, Lat)))
-            @test val(dims(grdarray, Lon)) ≈ val(dims(gdalarray, Lon))
+            @test val(dims(grdarray, Y)) == reverse(val(dims(gdalarray, Y)))
+            @test val(dims(grdarray, X)) ≈ val(dims(gdalarray, X))
             @test all(GeoArray(grdarray) .== GeoArray(gdalarray))
             @test bounds(grdarray) == bounds(gdalarray)
         end
@@ -157,23 +157,23 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             write(filename2, NCDarray, gdalarray[Band(1)])
             saved = GeoArray(NCDarray(filename2; crs=crs(gdalarray)))
             @test size(saved) == size(gdalarray[Band(1)])
-            @test saved ≈ reverse(gdalarray[Band(1)]; dims=Lat)
-            @test index(saved, Lon) ≈ mappedindex(dims(gdalarray, Lon)) .+ 0.5step(dims(saved, Lon))
-            @test mappedindex(GeoData.shiftindexloci(Center(), dims(gdalarray, Lat))) ≈ reverse(index(saved, Lat))
-            @test all(mappedbounds(saved, Lon) .≈ mappedbounds(gdalarray, Lon))
-            @test all(mappedbounds(saved, Lat) .≈ mappedbounds(gdalarray, Lat))
-            @test all(projectedbounds(saved, Lon) .≈ projectedbounds(gdalarray, Lon))
+            @test saved ≈ reverse(gdalarray[Band(1)]; dims=Y)
+            @test index(saved, X) ≈ mappedindex(dims(gdalarray, X)) .+ 0.5step(dims(saved, X))
+            @test mappedindex(GeoData.shiftindexloci(Center(), dims(gdalarray, Y))) ≈ reverse(index(saved, Y))
+            @test all(mappedbounds(saved, X) .≈ mappedbounds(gdalarray, X))
+            @test all(mappedbounds(saved, Y) .≈ mappedbounds(gdalarray, Y))
+            @test all(projectedbounds(saved, X) .≈ projectedbounds(gdalarray, X))
             # For some reason this crs conversion is less accrurate than the others
-            @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Lat),  projectedbounds(gdalarray, Lat)))
+            @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Y),  projectedbounds(gdalarray, Y)))
         end
 
         @testset "from GeoArray" begin
             filename = tempname() * ".tiff"
-            ga = GeoArray(rand(100, 200), (Lon, Lat))
+            ga = GeoArray(rand(100, 200), (X, Y))
             write(filename, GDALarray, ga)
             @test parent(GDALarray(filename)[Band(1)]) == parent(ga)
             filename2 = tempname() * ".tiff"
-            ga2 = GeoArray(rand(100, 200), (Lon(101:200; mode=Sampled()), Lat(1:200; mode=Sampled())))
+            ga2 = GeoArray(rand(100, 200), (X(101:200; mode=Sampled()), Y(1:200; mode=Sampled())))
             write(filename2, GDALarray, ga2)
             @test parent(reorder(GDALarray(filename2)[Band(1)], ForwardArray)) == ga2
        end
@@ -184,15 +184,15 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         sh = sprint(show, gdalarray)
         # Test but don't lock this down too much
         @test occursin("GDALarray", sh)
-        @test occursin("Latitude", sh)
-        @test occursin("Longitude", sh)
+        @test occursin("Y", sh)
+        @test occursin("X", sh)
         @test occursin("Band", sh)
     end
 
     @testset "plot and show" begin # TODO write some tests for this
         gdalarray |> show
         gdalarray |> plot
-        gdalarray[Lat(1)] |> plot
+        gdalarray[Y(1)] |> plot
     end
 
 end
@@ -206,15 +206,15 @@ end
     end
 
     @testset "indexing" begin
-        @test gdalstack[:a][Lat(2:3), Lon(1), Band(1)] == [0x00, 0x6b]
-        @test gdalstack[:a][Lat(1), Lon(1), Band(1)] == 0x00
+        @test gdalstack[:a][Y(2:3), X(1), Band(1)] == [0x00, 0x6b]
+        @test gdalstack[:a][Y(1), X(1), Band(1)] == 0x00
         @test gdalstack[:b, Band(1)] == gdalstack[:b][Band(1)]
         @test typeof(gdalstack[:b, Band(1)]) == typeof(gdalstack[:b][Band(1)])
     end
 
     @testset "window" begin
-        windowedstack = GDALstack((a=path, b=path); window=(Lat(1:5), Lon(1:5), Band(1)))
-        @test window(windowedstack) == (Lat(1:5), Lon(1:5), Band(1))
+        windowedstack = GDALstack((a=path, b=path); window=(Y(1:5), X(1:5), Band(1)))
+        @test window(windowedstack) == (Y(1:5), X(1:5), Band(1))
         windowedarray = GeoArray(windowedstack[:a])
         @test windowedarray isa GeoArray{UInt8,2}
         @test length.(dims(windowedarray)) == (5, 5)
@@ -222,7 +222,7 @@ end
         @test windowedarray[1:3, 2:2] == reshape([0x00, 0x00, 0x00], 3, 1)
         @test windowedarray[1:3, 2] == [0x00, 0x00, 0x00]
         @test windowedarray[1, 2] == 0x00
-        windowedstack = GDALstack((a=path, b=path); window=(Lat(1:5), Lon(1:5), Band(1:1)))
+        windowedstack = GDALstack((a=path, b=path); window=(Y(1:5), X(1:5), Band(1:1)))
         windowedarray = windowedstack[:b]
         @test windowedarray[1:3, 2:2, 1:1] == reshape([0x00, 0x00, 0x00], 3, 1, 1)
         @test windowedarray[1:3, 2:2, 1] == reshape([0x00, 0x00, 0x00], 3, 1)

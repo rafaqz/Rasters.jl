@@ -2,7 +2,7 @@ using GeoData, Test, Dates
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
-dims1 = Lon<|(10, 100), Lat<|(-50, 50) 
+dims1 = X<|(10, 100), Y<|(-50, 50) 
 dims2 = (dims1..., Ti([DateTime(2019)]))
 refdimz = ()
 mval = -9999.0
@@ -16,8 +16,8 @@ ga1 = GeoArray(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingva
 @test ga2 == data2
 
 @testset "arary dims have been formatted" begin
-    @test val.(dims(ga2)) == val.((Lon<|LinRange(10.0, 100.0, 10), 
-                                   Lat<|LinRange(-50.0, 50.0, 11),
+    @test val.(dims(ga2)) == val.((X<|LinRange(10.0, 100.0, 10), 
+                                   Y<|LinRange(-50.0, 50.0, 11),
                                    Ti<|[DateTime(2019)]))
     @test dims(ga1)[1:2] == dims(ga2)[1:2]
     @test name(ga1) == :test
@@ -28,6 +28,6 @@ end
     sh = sprint(show, ga1)
     # Test but don't lock this down too much
     @test occursin("GeoArray", sh)
-    @test occursin("Latitude", sh)
-    @test occursin("Longitude", sh)
+    @test occursin("Y", sh)
+    @test occursin("X", sh)
 end

@@ -246,7 +246,7 @@ function _smapdims(dataset::HDF5.File)
             crs=SMAPCRS,
             mappedcrs=EPSG(4326),
         )
-        (Lon(lonvec; mode=lonmode), Lat(latvec; mode=latmode))
+        (X(lonvec; mode=lonmode), Y(latvec; mode=latmode))
     else
         error("projection $proj not supported")
     end

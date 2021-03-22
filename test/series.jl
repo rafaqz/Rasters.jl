@@ -8,7 +8,7 @@ data1 = [1 2 3 4
 data2 = 2 * data1
 data3 = 3 * data1
 data4 = 4 * data1
-dimz = Lon([30, 40]), Lat((-10, 20))
+dimz = X([30, 40]), Y((-10, 20))
 ga1 = GeoArray(data1, dimz)
 ga2 = GeoArray(data2, dimz)
 ga1a = GeoArray(data3, dimz)
@@ -34,27 +34,27 @@ end
 end
 
 @testset "getindex returns the currect results" begin
-    @test series[Ti(Near(DateTime(2017)))][:ga1][Lon(1), Lat(3)] === 3
-    @test series[Ti(At(DateTime(2017)))][:ga1, Lon(1), Lat(3)] === 3
-    @test series[Ti(At(DateTime(2018)))][:ga2][Lon(2), Lat(4)] === 32
-    @test series[Ti(At(DateTime(2018)))][:ga2, Lon(2), Lat(4)] === 32
-    @test series[Ti(1)][:ga1, Lon(1), Lat(2)] == 2
-    @test series[Ti(1)][:ga2, Lon(2), Lat(3:4)] == [14, 16] 
+    @test series[Ti(Near(DateTime(2017)))][:ga1][X(1), Y(3)] === 3
+    @test series[Ti(At(DateTime(2017)))][:ga1, X(1), Y(3)] === 3
+    @test series[Ti(At(DateTime(2018)))][:ga2][X(2), Y(4)] === 32
+    @test series[Ti(At(DateTime(2018)))][:ga2, X(2), Y(4)] === 32
+    @test series[Ti(1)][:ga1, X(1), Y(2)] == 2
+    @test series[Ti(1)][:ga2, X(2), Y(3:4)] == [14, 16] 
 end
 
 @testset "getindex is type stable all the way down" begin
-    # @inferred series[Ti<|At(DateTime(2017))][:ga1, Lon(1), Lat(2)]
-    @inferred series[Ti(1)][:ga1][Lon(1), Lat(2)]
-    # @inferred series[Ti(1)][:ga1, Lon(1), Lat(2:4)]
-    @inferred series[Ti(1)][:ga1][Lon(1), Lat(2:4)]
-    # @inferred series[1][:ga1, Lon(1:2), Lat(:)]
-    @inferred series[1][:ga1][Lon(1:2), Lat(:)]
+    # @inferred series[Ti<|At(DateTime(2017))][:ga1, X(1), Y(2)]
+    @inferred series[Ti(1)][:ga1][X(1), Y(2)]
+    # @inferred series[Ti(1)][:ga1, X(1), Y(2:4)]
+    @inferred series[Ti(1)][:ga1][X(1), Y(2:4)]
+    # @inferred series[1][:ga1, X(1:2), Y(:)]
+    @inferred series[1][:ga1][X(1:2), Y(:)]
 end
 
 @testset "lazy view windows" begin
     dimz = (Ti<|[DateTime(2017), DateTime(2018)],)
     dat = [stack1, stack2]
-    window_ = Lon(1:2), Lat(3:4)
+    window_ = X(1:2), Y(3:4)
     series = GeoSeries(dat, dimz; childkwargs=(window=window_,))
     stack = series[1]
     @test GeoData.window(stack) == window_
