@@ -48,20 +48,21 @@ const NCD_FILL_TYPES = (Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float3
 
 # CF standards don't enforce dimension names.
 # But these are common, and should take care of most dims.
-const DIMMAP = Dict("lat" => Lat,
-                    "latitude" => Lat,
-                    "lon" => Lon,
-                    "long" => Lon,
-                    "longitude" => Lon,
-                    "time" => Ti,
-                    "lev" => Vert,
-                    "mlev" => Vert,
-                    "level" => Vert,
-                    "vertical" => Vert,
-                    "x" => X,
-                    "y" => Y,
-                    "z" => Z,
-                   )
+const DIMMAP = Dict(
+    "lat" => Y,
+    "latitude" => Y,
+    "lon" => X,
+    "long" => X,
+    "longitude" => X,
+    "time" => Ti,
+    "lev" => Z,
+    "mlev" => Z,
+    "level" => Z,
+    "vertical" => Z,
+    "x" => X,
+    "y" => Y,
+    "z" => Z,
+)
 
 # Array ########################################################################
 """
@@ -73,7 +74,7 @@ const DIMMAP = Dict("lat" => Lat,
 A [`DiskGeoArray`](@ref) that loads that loads NetCDF files lazily from disk.
 
 The first non-dimension layer of the file will be used as the array. Dims are usually
-detected as [`Lat`](@ref), [`Lon`](@ref), [`Ti`]($DDtidocs), and [`Vert`] or
+detected as `Y`, `X`, [`Ti`]($DDtidocs), and [`Z`] or
 possibly `X`, `Y`, `Z` when detected. Undetected dims will use the generic `Dim{:name}`.
 
 This is an incomplete implementation of the NetCDF standard. It will currently
@@ -106,7 +107,7 @@ future, including detecting and converting the native NetCDF projection format.
 ```julia
 A = NCDarray("folder/file.ncd")
 # Select Australia from the default lat/lon coords:
-A[Lat(Between(-10, -43), Lon(Between(113, 153)))
+A[Y(Between(-10, -43), X(Between(113, 153)))
 ```
 """
 struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:Symbol,Me,Mi,S,K
@@ -194,8 +195,7 @@ files. In multi-file mode it returns a regular `GeoStack` with a `childtype`
 of [`NCDarray`](@ref).
 
 Indexing into `NCDstack` with layer keys (`Symbol`s) returns a [`GeoArray`](@ref).
-Dimensions are usually detected as [`Lat`](@ref), [`Lon`](@ref), [`Ti`]($DDtidocs),
-and [`Vert`] or `X`, `Y`, `Z` when detected. Undetected dims use the generic `Dim{:name}`.
+Dimensions are usually detected as `X`, `Y`, `Ti`. Undetected dims use the generic `Dim{:name}`.
 
 # Arguments
 
@@ -216,7 +216,7 @@ and [`Vert`] or `X`, `Y`, `Z` when detected. Undetected dims use the generic `Di
 # Examples
 
 ```julia
-stack = NCDstack(filename; window=(Lat(Between(20, 40),))
+stack = NCDstack(filename; window=(Y(Between(20, 40),))
 # Or
 stack = NCDstack([fn1, fn1, fn3, fn4])
 # And index with a layer key
@@ -342,7 +342,7 @@ function _ncdmode(index::AbstractArray{<:Number}, dimtype, crs, mappedcrs, metad
     order = _ncdorder(index)
     span = _ncdspan(index, order)
     sampling = Intervals(Center())
-    if dimtype in (Lat, Lon)
+    if dimtype in (Y, X)
         # If the index is regularly spaced and there is no crs
         # then there is probably just one crs - the mappedcrs
         crs = if crs isa Nothing && span isa Regular
@@ -443,7 +443,7 @@ function _ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N}
 
         # Shift index before conversion to Mapped
         dim = _ncshiftindex(dim)
-        if dim isa Lat || dim isa Lon
+        if dim isa Y || dim isa X
             dim = convertmode(Mapped, dim)
         end
 

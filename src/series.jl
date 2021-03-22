@@ -11,7 +11,7 @@ directories and detecting the dimensions from metadata.
 This allows syntax like:
 
 ```julia
-series[Time(Near(DateTime(2001, 1))][:temp][Lat(Between(70, 150)), Lon(Between(-20,20))] |> plot`
+series[Time(Near(DateTime(2001, 1))][:temp][Y(Between(70, 150)), X(Between(-20,20))] |> plot`
 ```
 
 `GeoSeries` is the only concrete implementation. It includes a `chiltype` field

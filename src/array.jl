@@ -33,20 +33,20 @@ missingval(A::AbstractGeoArray) = A.missingval
 """
     crs(x)
 
-Get the projected coordinate reference system of a `Lat` or `Lon` `Dimension`,
-or of the `Lat`/`Lon` dims of an `AbstractGeoArray`.
+Get the projected coordinate reference system of a `Y` or `X` `Dimension`,
+or of the `Y`/`X` dims of an `AbstractGeoArray`.
 
 For [`Mapped`](@ref) mode this may be `nothing` as there may be not projected
 coordinate reference system at all.
 """
 function crs end
 function crs(A::AbstractGeoArray)
-    if hasdim(A, Lat)
-        crs(dims(A, Lat))
-    elseif hasdim(A, Lon)
-        crs(dims(A, Lon))
+    if hasdim(A, Y)
+        crs(dims(A, Y))
+    elseif hasdim(A, X)
+        crs(dims(A, X))
     else
-        error("No Lat or Lon dimension, crs not available")
+        error("No Y or X dimension, crs not available")
     end
 end
 crs(dim::Dimension) = crs(mode(dim))
@@ -54,7 +54,7 @@ crs(dim::Dimension) = crs(mode(dim))
 """
     mappedcrs(x)
 
-Get the mapped coordinate reference system for the `Lat`/`Lon` dims of an array.
+Get the mapped coordinate reference system for the `Y`/`X` dims of an array.
 
 In [`Projected`](@ref) mode this is used to convert [`Selector`]($DDselectordocs)
 values form the mappedcrs defined projection to the underlying projection, and to
@@ -64,12 +64,12 @@ In `Mapped` mode this is the coordinate reference system of the index values.
 """
 function mappedcrs end
 function mappedcrs(A::AbstractGeoArray)
-    if hasdim(A, Lat)
-        mappedcrs(dims(A, Lat))
-    elseif hasdim(A, Lon)
-        mappedcrs(dims(A, Lon))
+    if hasdim(A, Y)
+        mappedcrs(dims(A, Y))
+    elseif hasdim(A, X)
+        mappedcrs(dims(A, X))
     else
-        error("No Lat or Lon dimension, mappedcrs not available")
+        error("No Y or X dimension, mappedcrs not available")
     end
 end
 mappedcrs(dim::Dimension) = mappedcrs(mode(dim))

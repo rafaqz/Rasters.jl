@@ -27,13 +27,13 @@ include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
     ## Compare the two
     @test AG_output == GD_output.data[:, :, 1]
-    @test abs(step(dims(GD_output, Lat))) ≈ abs(step(dims(GD_output, Lon))) ≈ output_res
+    @test abs(step(dims(GD_output, Y))) ≈ abs(step(dims(GD_output, X))) ≈ output_res
 
     @testset "snapped size and dim index match" begin
         snaptarget = GD_output
         snapped = resample(cea, snaptarget)
         @test size(snapped) == size(snaptarget)
-        @test isapprox(index(snaptarget, Lat), index(snapped, Lat))
-        @test isapprox(index(snaptarget, Lon), index(snapped, Lon))
+        @test isapprox(index(snaptarget, Y), index(snapped, Y))
+        @test isapprox(index(snaptarget, X), index(snapped, X))
     end
 end

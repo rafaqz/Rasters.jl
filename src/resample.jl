@@ -40,8 +40,8 @@ function resample(A::AbstractGeoArray, resolution::Number;
 end
 function resample(A::AbstractGeoArray, snap::AbstractGeoArray; method::String="near")
     wkt = convert(String, convert(WellKnownText, crs(snap)))
-    latres, lonres = map(abs ∘ step, span(snap, (Lat(), Lon())))
-    (latmin, latmax), (lonmin, lonmax) = bounds(snap, (Lat(), Lon()))
+    latres, lonres = map(abs ∘ step, span(snap, (Y(), X())))
+    (latmin, latmax), (lonmin, lonmax) = bounds(snap, (Y(), X()))
     flags = ["-t_srs", "$(wkt)",
              "-tr", "$(latres)", "$(lonres)",
              "-te", "$(lonmin)", "$(latmin)", "$(lonmax)", "$(latmax)",

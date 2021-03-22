@@ -7,12 +7,6 @@ GeoData
 ## Dimensions
 
 ```@docs
-GeoData.GeoXDim
-GeoData.GeoYDim
-GeoData.GeoZDim
-Lat
-Lon
-Vert
 Band
 ```
 
@@ -61,7 +55,7 @@ SMAPseries
 ## GRD
 
 R GRD files can be loaded natively. The are always 3 dimensional, and have
-[`Lat`](@ref), [`Lon`](@ref) and [`Band`](@ref) dimensions.
+`Y`, `X` and [`Band`](@ref) dimensions.
 
 If ArchGDAL.jl is loaded (to enable reprojection), they can have [`mappedcrs`](@ref).
 
