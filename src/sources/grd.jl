@@ -1,11 +1,11 @@
 export GRDarray, GRDstack, GRDdimMetadata, GRDarrayMetadata
 
 const GRD_INDEX_ORDER = ForwardIndex()
-const GRD_LON_ARRAY = ForwardArray()
-const GRD_LAT_ARRAY = ReverseArray()
+const GRD_X_ARRAY = ForwardArray()
+const GRD_Y_ARRAY = ReverseArray()
 const GRD_BAND_ARRAY = ForwardArray()
-const GRD_LON_RELATION = ForwardRelation()
-const GRD_LAT_RELATION = ReverseRelation()
+const GRD_X_RELATION = ForwardRelation()
+const GRD_Y_RELATION = ReverseRelation()
 const GRD_BAND_RELATION= ForwardRelation()
 
 const GRD_DATATYPE_TRANSLATION = Dict{String, DataType}(
@@ -84,21 +84,21 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     latlon_metadata = GRDdimMetadata(Dict())
 
     latmode = Projected(
-        order=Ordered(GRD_INDEX_ORDER, GRD_LAT_ARRAY, GRD_LAT_RELATION),
+        order=Ordered(GRD_INDEX_ORDER, GRD_Y_ARRAY, GRD_Y_RELATION),
         span=Regular(yspan),
         sampling=Intervals(Start()),
         crs=crs,
         mappedcrs=mappedcrs,
     )
     lonmode = Projected(
-        order=Ordered(GRD_INDEX_ORDER, GRD_LON_ARRAY, GRD_LON_RELATION),
+        order=Ordered(GRD_INDEX_ORDER, GRD_X_ARRAY, GRD_X_RELATION),
         span=Regular(xspan),
         sampling=Intervals(Start()),
         crs=crs,
         mappedcrs=mappedcrs,
     )
-    lat = Lat(LinRange(ybounds[1], ybounds[2] - yspan, nrows), latmode, latlon_metadata)
-    lon = Lon(LinRange(xbounds[1], xbounds[2] - xspan, ncols), lonmode, latlon_metadata)
+    lat = Y(LinRange(ybounds[1], ybounds[2] - yspan, nrows), latmode, latlon_metadata)
+    lon = X(LinRange(xbounds[1], xbounds[2] - xspan, ncols), lonmode, latlon_metadata)
     band = Band(1:nbands; mode=Categorical(Ordered()))
     lon, lat, band
 end
@@ -148,8 +148,7 @@ Base.Array(grd::GRDattrib) = _mmapgrd(Array, grd)
 
 A [`DiskGeoArray`](@ref) that loads .grd files lazily from disk.
 
-`GRDarray`s are always 3 dimensional, and have [`Lat`](@ref), [`Lon`](@ref) and
-[`Band`](@ref) dimensions.
+`GRDarray`s are always 3 dimensional, and have `Y`, `X` and [`Band`](@ref) dimensions.
 
 ## Arguments
 
@@ -172,7 +171,7 @@ A [`DiskGeoArray`](@ref) that loads .grd files lazily from disk.
 ```julia
 A = GRDarray("folder/file.grd"; mappedcrs=EPSG(4326))
 # Select Australia using lat/lon coords, whatever the crs is underneath.
-A[Lat(Between(-10, -43), Lon(Between(113, 153)))
+A[Y(Between(-10, -43), X(Between(113, 153)))
 ```
 """
 struct GRDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:Symbol,Me,Mi,S
@@ -219,22 +218,22 @@ Returns `filename`.
 """
 function Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray)
     if hasdim(A, Band)
-        correctedA = permutedims(A, (Lon, Lat, Band)) |>
+        correctedA = permutedims(A, (X, Y, Band)) |>
             a -> reorder(a, GRD_INDEX_ORDER) |>
-            a -> reorder(a, (Lon(GRD_LON_RELATION), Lat(GRD_LAT_RELATION), Band(GRD_BAND_RELATION)))
-        checkarrayorder(correctedA, (GRD_LON_ARRAY, GRD_LAT_ARRAY, GRD_BAND_ARRAY))
+            a -> reorder(a, (X(GRD_X_RELATION), Y(GRD_Y_RELATION), Band(GRD_BAND_RELATION)))
+        checkarrayorder(correctedA, (GRD_X_ARRAY, GRD_Y_ARRAY, GRD_BAND_ARRAY))
         nbands = length(val(dims(correctedA, Band)))
     else
-        correctedA = permutedims(A, (Lon, Lat)) |>
+        correctedA = permutedims(A, (X, Y)) |>
             a -> reorder(a, GRD_INDEX_ORDER) |>
-            a -> reorder(a, (Lon(GRD_LON_RELATION), Lat(GRD_LAT_RELATION)))
-            checkarrayorder(correctedA, (GRD_LON_ARRAY, GRD_LAT_ARRAY))
+            a -> reorder(a, (X(GRD_X_RELATION), Y(GRD_Y_RELATION)))
+            checkarrayorder(correctedA, (GRD_X_ARRAY, GRD_Y_ARRAY))
         nbands = 1
     end
     # Remove extension
     filename = splitext(filename)[1]
 
-    lon, lat = map(dims(A, (Lon(), Lat()))) do d
+    lon, lat = map(dims(A, (X(), Y()))) do d
         convertmode(Projected, d)
     end
     ncols, nrows = size(A)
@@ -313,7 +312,7 @@ Create a `GRDstack` from four files, that sets the child arrays
 ```julia
 files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
 stack = GRDstack(files; childkwargs=(mappedcrs=EPSG(4326),))
-stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
+stack[:relhum][Y(Contains(-37), X(Contains(144))
 ```
 """
 GRDstack(args...; kw...) = DiskStack(args...; childtype=GRDarray, kw...)

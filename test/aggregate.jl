@@ -25,8 +25,8 @@ data1 = [ 1  2  3  4  5  6 -1
 data2 = 2 * data1
 data3 = 3 * data1
 data4 = 4 * data1
-dimz = Lon([30., 40., 50.]; mode=Sampled(Ordered(), Regular(10.0), Points())), 
-       Lat(LinRange(-10., 20., 7); mode=Sampled(Ordered(), Regular(5.0), Points()))
+dimz = X([30., 40., 50.]; mode=Sampled(Ordered(), Regular(10.0), Points())), 
+       Y(LinRange(-10., 20., 7); mode=Sampled(Ordered(), Regular(5.0), Points()))
 array1 = GeoArray(data1, dimz)
 array2 = GeoArray(data2, dimz)
 array1a = GeoArray(data3, dimz)
@@ -38,7 +38,7 @@ series = GeoSeries([stack1, stack2], (Ti(dates),));
 
 
 @testset "Aggregate a dimension" begin
-    lat = Lat(LinRange(3, 13, 6); 
+    lat = Y(LinRange(3, 13, 6); 
               mode=Sampled(Ordered(), Regular(2.0), Intervals(Start())))
     aglat = aggregate(Start(), lat, 3)
     @test span(mode(aglat)) == Regular(6.0)
@@ -64,8 +64,8 @@ series = GeoSeries([stack1, stack2], (Ti(dates),));
 end
 
 @testset "aggregate a single dim" begin
-    aggregate(Start(), series, (Lon(3), ))
-    aggregate(Start(), series, (Lat(5), ))
+    aggregate(Start(), series, (X(3), ))
+    aggregate(Start(), series, (Y(5), ))
 end
 
 @testset "aggregate and disaggregate at a locus" begin
@@ -115,7 +115,7 @@ end
     @testset "mixed scales" begin
         scale = (3, 2)
         @test aggregate(Start(), array1, scale) == [1 3 5]
-        scale = (Lat(2), Lon(3))
+        scale = (Y(2), X(3))
         @test aggregate(Center(), array1, scale) == [8 10 12]
         @test aggregate(End(), array1, scale) == [14 16 18]
         A = aggregate(Start(), array1, scale)
@@ -131,17 +131,17 @@ end
     end
 
     @testset "dim scale" begin
-        agg = aggregate(Start(), array1, (Lat(3), Lon(1))) 
+        agg = aggregate(Start(), array1, (Y(3), X(1))) 
         @test agg == aggregate(Start(), array1, (1, 3))
-        disagg = disaggregate(Start(), agg, (Lat(3), Lon(1))) 
+        disagg = disaggregate(Start(), agg, (Y(3), X(1))) 
         @test disagg ==
             [1  1  1  4  4  4
              7  7  7 10 10 10
             13 13 13 16 16 16]
-        agg = aggregate(Start(), array1, (Lon(1), Lat(Near(-4)))) 
+        agg = aggregate(Start(), array1, (X(1), Y(Near(-4)))) 
         @test agg == aggregate(Start(), array1, (1, 2))
         @testset "scale 1 dims are unchanged" begin
-            @test dims(agg, Lon) === dims(array1, Lon)
+            @test dims(agg, X) === dims(array1, X)
         end
     end
 

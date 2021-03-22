@@ -1,9 +1,9 @@
 struct GeoPlot end
 struct GeoZPlot end
 
-const GeoDim = Union{GeoXDim,GeoYDim,GeoZDim}
+const SpatialDim = Union{X,Y,Z}
 
-# We only look at arrays with GeoDims here.
+# We only look at arrays with X, Y, Z dims here.
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(A::AbstractGeoArray)
     ddplot(A) = DimArray(A; dims=_maybe_mapped(dims(A)))
@@ -11,10 +11,10 @@ const GeoDim = Union{GeoXDim,GeoYDim,GeoZDim}
     A = GeoArray(A)
     if !(get(plotattributes, :seriestype, :none) in (:none, :heatmap))
         DD.DimensionalPlot(), ddplot(A)
-    elseif all(hasdim(A, (GeoDim, GeoDim)))
+    elseif all(hasdim(A, (SpatialDim, SpatialDim)))
         # Heatmap or multiple heatmaps. Use GD recipes.
         GeoPlot(), _prepare(A)
-    elseif hasdim(A, GeoZDim) && ndims(A) == 1
+    elseif hasdim(A, ZDim) && ndims(A) == 1
         # Z dim plot, but for spatial data we want Z on the Y axis
         GeoZPlot(), _prepare(A)
     else
@@ -23,7 +23,7 @@ const GeoDim = Union{GeoXDim,GeoYDim,GeoZDim}
 end
 
 # Plot 3d arrays as multiple tiled plots
-@recipe function f(::GeoPlot, A::GeoArray{T,3,<:Tuple{<:GeoDim,<:GeoDim,D}}) where {T,D}
+@recipe function f(::GeoPlot, A::GeoArray{T,3,<:Tuple{<:SpatialDim,<:SpatialDim,D}}) where {T,D}
     nplots = size(A, 3)
     if nplots > 1
         :layout --> nplots
@@ -44,7 +44,7 @@ end
     end
 end
 # Plot a sinlge 2d map
-@recipe function f(::GeoPlot, A::GeoArray{T,2,<:Tuple{<:GeoDim,<:GeoDim}}) where T
+@recipe function f(::GeoPlot, A::GeoArray{T,2,<:Tuple{<:SpatialDim,<:SpatialDim}}) where T
     # If colorbar is close to symmetric (< 25% difference) use a symmetric 
     # colormap and set symmetric limits so zero shows up as a neutral color.
     A_min, A_max = extrema(skipmissing(A))
@@ -97,7 +97,7 @@ _prepare(A::AbstractGeoArray) =
     _maybe_replace_missing(A) |>
     A -> reorder(A, ForwardIndex) |>
     A -> reorder(A, ForwardRelation) |>
-    A -> permutedims(A, DD.commondims(>:, (GeoZDim, GeoYDim, GeoXDim, TimeDim, Dimension), dims(A)))
+    A -> permutedims(A, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A)))
 
 _maybename(A) = _maybename(name(A))
 _maybename(n::Symbol) = n == Symbol("") ? "" : string(n, ": ")

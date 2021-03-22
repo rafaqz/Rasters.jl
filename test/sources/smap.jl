@@ -13,9 +13,9 @@ if isfile(path1) && isfile(path2)
         smapstack = stack(path1)
 
         @testset "conversion to GeoArray" begin
-            smaparray = smapstack["soil_temp_layer1"][Lat(), Lon()]
+            smaparray = smapstack["soil_temp_layer1"][Y(), X()]
             @test smaparray isa GeoArray{Float32,2}
-            @test dims(smaparray) isa Tuple{<:Lon{<:Array{Float32,1}}, <:Lat{<:Array{Float32,1}}}
+            @test dims(smaparray) isa Tuple{<:X{<:Array{Float32,1}}, <:Y{<:Array{Float32,1}}}
             @test span(smaparray) isa Tuple{Irregular{Tuple{Float32,Float32}},Irregular{Tuple{Float32,Float32}}}
             @test span(smaparray) == (Irregular((-180.0f0, 180.0f0)), Irregular((-85.04456f0, 85.04456f0)))
             @test bounds(smaparray) == ((-180.0f0, 180.0f0), (-85.04456f0, 85.04456f0))
@@ -52,14 +52,14 @@ if isfile(path1) && isfile(path2)
         end
 
         @testset "window" begin
-            windowedstack = SMAPstack(path1; window=(Lat(1:5), Lon(1:5), Ti(1)))
-            @test window(windowedstack) == (Lat(1:5), Lon(1:5), Ti(1))
+            windowedstack = SMAPstack(path1; window=(Y(1:5), X(1:5), Ti(1)))
+            @test window(windowedstack) == (Y(1:5), X(1:5), Ti(1))
             windowedarray = windowedstack[:soil_temp_layer1]
             @test size(windowedarray) == (5, 5)
             @test windowedarray[1:3, 2:2] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
             @test windowedarray[1:3, 2] == [-9999.0, -9999.0, -9999.0]
             @test windowedarray[1, 2] == -9999.0
-            windowedstack = SMAPstack(path1; window=(Lat(1:5), Lon(1:5), Ti(1:1)))
+            windowedstack = SMAPstack(path1; window=(Y(1:5), X(1:5), Ti(1:1)))
             windowedarray = windowedstack[:soil_temp_layer1]
             @test windowedarray[1:3, 2:2, 1] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
             @test windowedarray[1:3, 2, 1] == [-9999.0, -9999.0, -9999.0]
@@ -75,14 +75,14 @@ if isfile(path1) && isfile(path2)
             sh1 = sprint(show, smapstack[:soil_temp_layer1])
             # Test but don't lock this down too much
             @test occursin("GeoArray", sh1)
-            @test occursin("Latitude", sh1)
-            @test occursin("Longitude", sh1)
+            @test occursin("Y", sh1)
+            @test occursin("X", sh1)
             @test occursin("Time", sh1)
-            sh2 = sprint(show, smapstack[:soil_temp_layer1][Lat(Between(0, 100)), Lon(Between(1, 100))])
+            sh2 = sprint(show, smapstack[:soil_temp_layer1][Y(Between(0, 100)), X(Between(1, 100))])
             # Test but don't lock this down too much
             @test occursin("GeoArray", sh2)
-            @test occursin("Latitude", sh2)
-            @test occursin("Longitude", sh2)
+            @test occursin("Y", sh2)
+            @test occursin("X", sh2)
             @test occursin("Time", sh2)
         end
 

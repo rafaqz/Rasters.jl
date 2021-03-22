@@ -3,7 +3,7 @@ using GeoData: data, getsource, window
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
-dims1 = Lon<|(10, 100), Lat<|(-50, 50)
+dims1 = X<|(10, 100), Y<|(-50, 50)
 dims2 = (dims1..., Ti([DateTime(2019)]))
 refdimz = ()
 nme = :test
@@ -41,16 +41,16 @@ end
 
 @testset "indexing" begin
     # Indexing the stack is the same as indexing its child array
-    a = stack[:ga1][Lon<|2:4, Lat<|5:6]
-    @test a == stack[:ga1, Lon<|2:4, Lat<|5:6]
+    a = stack[:ga1][X<|2:4, Y<|5:6]
+    @test a == stack[:ga1, X<|2:4, Y<|5:6]
 
-    @inferred stack[:ga1][Lon<|2:4, Lat<|5:6]
+    @inferred stack[:ga1][X<|2:4, Y<|5:6]
     # FIXME: This isn't inferred, the constants don't propagate like they
     # do in the above call. Probably due to the anonymous wrapper function.
-    @test_broken @inferred stack[:ga1, Lon<|2:4, Lat<|5:6]
+    @test_broken @inferred stack[:ga1, X<|2:4, Y<|5:6]
 
     # Getindex for a whole stack of new GeoArrays
-    a = stack[Lon<|2:4, Lat<|5:6]
+    a = stack[X<|2:4, Y<|5:6]
     @test a isa GeoStack
     @test a[:ga1] isa GeoArray
     @test data(a[:ga1]) isa Array
@@ -58,33 +58,33 @@ end
     @test a[:ga2] == data2[2:4, 5:6, 1:1]
 
     @testset "select new arrays for the whole stack" begin
-        s = stack[Lat<|Between(-10, 10.0), Ti<|At(DateTime(2019))]
-        stack[Lat<|Between(-10, 10.0), Ti<|At<|DateTime(2019)]
+        s = stack[Y<|Between(-10, 10.0), Ti<|At(DateTime(2019))]
+        stack[Y<|Between(-10, 10.0), Ti<|At<|DateTime(2019)]
         @test s isa GeoStack
         @test s[:ga1] isa GeoArray
         @test data(s[:ga1]) isa Array
         @test s[:ga1] == data1[:, 5:7]
         @test s[:ga2] == data2[:, 5:7, 1]
-        @test dims(s[:ga2]) == (Lon(LinRange(10.0, 100.0, 10); mode=Sampled(Ordered(), Regular(10.0), Points())),
-                                Lat(LinRange(-10.0, 10.0, 3); mode=Sampled(Ordered(), Regular(10.0), Points())))
+        @test dims(s[:ga2]) == (X(LinRange(10.0, 100.0, 10); mode=Sampled(Ordered(), Regular(10.0), Points())),
+                                Y(LinRange(-10.0, 10.0, 3); mode=Sampled(Ordered(), Regular(10.0), Points())))
         @test dims(s, :ga2) == dims(s[:ga2])
         @test refdims(s[:ga2]) == (Ti(DateTime(2019); mode=Sampled(Ordered(), Irregular(), Points())),)
         @test ismissing(missingval(s, :ga2)) && ismissing(missingval(s[:ga2]))
     end
 
     @testset "select views of arrays for the whole stack" begin
-        sv = view(stack, Lat<|Between(-4.0, 27.0), Ti(At(DateTime(2019))))
+        sv = view(stack, Y<|Between(-4.0, 27.0), Ti(At(DateTime(2019))))
         @test sv isa GeoStack
         @test sv[:ga1] isa GeoArray
         @test data(sv[:ga1]) isa SubArray
         @test sv[:ga1] == data1[:, 6:8]
         @test sv[:ga2] == data2[:, 6:8, 1]
-        @test dims(sv[:ga2]) == (Lon(LinRange(10.0, 100.0, 10); mode=Sampled(Ordered(), Regular(10.0), Points())),
-                                 Lat(LinRange(0.0, 20.0, 3); mode=Sampled(Ordered(), Regular(10.0), Points())))
+        @test dims(sv[:ga2]) == (X(LinRange(10.0, 100.0, 10); mode=Sampled(Ordered(), Regular(10.0), Points())),
+                                 Y(LinRange(0.0, 20.0, 3); mode=Sampled(Ordered(), Regular(10.0), Points())))
         @test refdims(sv[:ga2])[1] == (Ti(DateTime(2019); mode=Sampled(Ordered(), Irregular(), Points())),)[1]
         # Stack of view-based GeoArrays
-        v = view(stack, Lon(2:4), Lat(5:6))
-        @test_broken @inferred view(stack, Lon(2:4), Lat(5:6))
+        v = view(stack, X(2:4), Y(5:6))
+        @test_broken @inferred view(stack, X(2:4), Y(5:6))
         @test v isa GeoStack
         @test v[:ga1] isa GeoArray
         @test data(v[:ga1]) isa SubArray
@@ -104,18 +104,18 @@ end
 end
 
 @testset "concatenate stacks" begin
-    dims1b = Lon((110, 200)), Lat((-50, 50))
+    dims1b = X((110, 200)), Y((-50, 50))
     dims2b = (dims1b..., Ti([DateTime(2019)]))
     stack_a = GeoStack((ga1=ga1, ga2=ga2))
     stack_b = GeoStack((ga1=GeoArray(data1 .+ 10, dims1b), ga2=GeoArray(data2 .+ 20, dims2b)))
-    catstack = cat(stack_a, stack_b; dims=Lon())
+    catstack = cat(stack_a, stack_b; dims=X())
     @test size(first(catstack)) == (20, 11)
-    @test val(dims(first(catstack), Lon)) ≈ 10.0:10.0:200.0
-    #@test step(dims(first(catstack), Lon())) == 10.0
-    @test DimensionalData.bounds(dims(first(catstack), Lon)) == (10.0, 200.0)
-    @test catstack[:ga1][Lat(1)] == 1.0:20.0
-    @test catstack[:ga2][Lat(1), Ti(1)] == 2.0:2.0:40.0
-    catstack = cat(stack_a, stack_b; dims=(Lon(), Lat()))
+    @test val(dims(first(catstack), X)) ≈ 10.0:10.0:200.0
+    #@test step(dims(first(catstack), X())) == 10.0
+    @test DimensionalData.bounds(dims(first(catstack), X)) == (10.0, 200.0)
+    @test catstack[:ga1][Y(1)] == 1.0:20.0
+    @test catstack[:ga2][Y(1), Ti(1)] == 2.0:2.0:40.0
+    catstack = cat(stack_a, stack_b; dims=(X(), Y()))
     @test size(first(catstack)) == (20, 22)
 end
 
@@ -123,6 +123,6 @@ end
     sh = sprint(show, stack)
     # Test but don't lock this down too much
     @test occursin("GeoStack", sh)
-    @test occursin("Latitude", sh)
-    @test occursin("Longitude", sh)
+    @test occursin("Y", sh)
+    @test occursin("X", sh)
 end
