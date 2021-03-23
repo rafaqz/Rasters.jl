@@ -50,11 +50,7 @@ Passed to the constructor for the file type, and commmonly include:
 
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
     contained arrays when they are accessed.
-<<<<<<< HEAD
-- `metadata`: Metadata as a `StackMetadata` object.
-=======
-- `metadata`: Metadata as a [`StackMetadata`](@ref) object.
->>>>>>> bf3edfc (add convenience methods and test)
+- `metadata`: `Metadata` as object.
 - `child_kwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
 
@@ -90,11 +86,7 @@ Write any [`AbstractGeoStack`](@ref) to file, guessing the backend from the file
 
 Keyword arguments are passed to the `write` method for the backend.
 
-<<<<<<< HEAD
 If the source can't be saved as a stack-like object, individual array layers will be saved.
-=======
-If the source can't be save as a stack-like object, individual array layers will be saved.
->>>>>>> bf3edfc (add convenience methods and test)
 """
 function Base.write(filename::AbstractString, s::AbstractGeoStack; kw...)
     base, ext = splitext(filename)
@@ -112,7 +104,6 @@ function Base.write(filename::AbstractString, s::AbstractGeoStack; kw...)
 end
 
 """
-<<<<<<< HEAD
     series(dirpath::AbstractString, dims; ext, child=geoarray, kw...) => AbstractGeoSeries
     series(filenames::AbstractVector{String}, dims; child=geoarray, kw...) => AbstractGeoSeries
 
@@ -140,38 +131,10 @@ end
 function series(filepaths::AbstractVector{<:AbstractString}, dims=(Dim{:series}(),); child=geoarray, kw...)
     childtype = _constructor(child, first(filepaths))
     GeoSeries(filepaths, dims; childtype=childtype, kw...)
-=======
-    series(dirpath::AbstractString, dims; kw...) => AbstractGeoSeries
-
-Load a vector of filepaths as a `AbstractGeoSeries`. `kw` are passed to the constructor.
-
-`dims` Dimensions can hold an index matching the files in the directory,
-or a function to convert the filename strings to index values.
-"""
-function series end
-
-function series(dirnames; 
-    child=geoarray, child_kwargs=nothing, window=(), kw...
-)
-    filepaths = readdir(path)
-    if all(x -> splitext(x)[2], filenames) == splitext(first(filenames))[2]
-        # All the same kind of file. We don't need to load them up front.
-        DiskStack(filenames; childtype=_get_constructor(geoarray, first(filenames)), kw...)
-    else
-        # These files are different extensions, just load them all
-        # as separate `AbstarctGeoArray` (which has some up front cost from
-        # reading the dimensions). They are probably still disk-backed for the actual array.
-        arrays = map(filenames) do dn
-            _constructor(geoarray, fn)(fn; window=window, child_kwargs...)
-        end
-        GeoStack(arrays; kw...)
-    end
->>>>>>> bf3edfc (add convenience methods and test)
 end
 
 # Support methods
 
-<<<<<<< HEAD
 const EXT = (GRD=(".grd", ".gri"), NCD=".nc", SMAP=".h5")
 
 # The the constructor for a geoarray or stack, based on the
@@ -205,39 +168,6 @@ function _constructor(method::typeof(stack), filename; throw=true)
         SMAPstack
     else
         throw ? _no_stack_error(extension) : nothing
-=======
-function _constructor(method::Function, filename; throw=true)
-    _, extension = splitext(filename)
-    return if extension in (".grd", ".gri")
-        if method === geoarray
-            GRDarray
-        elseif method === stack
-            throw ? _no_stack_error(extension) : nothing
-        end
-    elseif extension == ".nc"
-        _check_imported(:NCDatasets, :NCDarray, extension)
-        if method === geoarray
-            NCDarray
-        else
-            NCDstack
-        end
-    elseif extension == ".h5"
-        # In future we may need to examine the file and check if
-        # it's a SMAP file or something else that uses .h5
-        _check_imported(:HDF5, :SMAPstack, extension)
-        if method === geoarray
-            throw ? _no_gearray_error(extension) : nothing
-        elseif method === stack
-            SMAPstack
-        end
-    else # GDAL handles too many extensions to list, so just try it and see if it works
-        _check_imported(:ArchGDAL, :GDALarray, extension)
-        if method === geoarray
-            GDALarray
-        elseif method === stack
-            throw ? _no_stack_error(extension) : nothing
-        end
->>>>>>> bf3edfc (add convenience methods and test)
     end
 end
 
@@ -247,7 +177,6 @@ _no_stack_error(ext) =
 _no_gearray_error(ext) =
     error("$ext files not have a single-layer implementation. Use `stack(filename)` to load")
 
-<<<<<<< HEAD
 function _check_imported(modulename, type, extension; throw=true)
     if type in names(GeoData)
         true
@@ -258,16 +187,4 @@ function _check_imported(modulename, type, extension; throw=true)
             false
         end
     end
-=======
-_check_imported(modulename, type, extension)  =
-    type in names(GeoData) || error("Run `import $modulename` to enable loading $extension files.")
-
-function series(dirpath::AbstractString, dims=Dim{:series}(); ext=nothing, child=geoarray, kw...)
-    filepaths = filter_ext(dirpath, ext)
-    series(filepaths, dims; child=child, kw...)
-end
-function series(filepaths::AbstractVector{<:AbstractString}, dims=Dim{:series}(); child=geoarray, kw...)
-    childtype = _constructor(child, first(filepaths))
-    GeoSeries(filepaths, dims; childtype=childtype, kw...)
->>>>>>> bf3edfc (add convenience methods and test)
 end

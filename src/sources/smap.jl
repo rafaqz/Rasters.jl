@@ -1,54 +1,15 @@
 using .HDF5
 
-export SMAPstack, SMAPseries, SMAPdimMetadata, SMAParrayMetadata, SMAPstackMetadata
+export SMAP, SMAPstack, SMAPseries
 
 const SMAPMISSING = -9999.0
 const SMAPGEODATA = "Geophysical_Data"
 const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
-"""
-    SMAPdimMetadata <: AbstractDimMetadata
-
-    SMAPdimMetadata(val::Union{Dict,NamedTuple})
-    SMAPdimMetadata(pairs::Pair...) => SMAPdimMetadata{Dict}
-    SMAPdimMetadata(; kw...) => SMAPdimMetadata{NamedTuple}
-
-`DimMetadata` wrapper for `SMAParray` dimensions.
-"""
-struct SMAPdimMetadata{T} <: AbstractDimMetadata{T}
-    val::T
-end
-
-"""
-    SMAParrayMetadata <: AbstractArrayMetadata
-
-    SMAParrayMetadata(val::Union{Dict,NamedTuple})
-    SMAParrayMetadata(pairs::Pair...) => SMAParrayMetadata{Dict}
-    SMAParrayMetadata(; kw...) => SMAParrayMetadata{NamedTuple}
-
-`ArrayMetadata` wrapper for `SMAParray`.
-"""
-struct SMAParrayMetadata{T} <: AbstractArrayMetadata{T}
-    val::T
-end
-
-"""
-    SMAPstackMetadata <: AbstractStackMetadata
-
-    SMAPstackMetadata(val::Union{Dict,NamedTuple})
-    SMAPstackMetadata(pairs::Pair...) => SMAPstackMetadata{Dict}
-    SMAPstackMetadata(; kw...) => SMAPstackMetadata{NamedTuple}
-
-`StackMetadata` wrapper for `SMAPstack`.
-"""
-struct SMAPstackMetadata{T} <: AbstractStackMetadata{T}
-    val::T
-end
-
 # Stack ########################################################################
 
 """
-    SMAPstacka <: DiskGeoStack
+    SMAPstack <: DiskGeoStack
 
     SMAPstack(filename::String; dims=nothing, refdims=nothing, window=())
 
@@ -67,7 +28,7 @@ so we store them as stack fields.
     These are loaded from the HDF5 by default, but can be passed in to improve performance,
     as is done by [`SMAPseries`](@ref),
 - `refdims`: As for `dims`. Often the position time `Dimension` from the `SMAPseries`.
-- `metadata`: [`SMAPstackMetadata`](@ref) object. As for `dims`.
+- `metadata`: [`Metadata`](@ref) object. As for `dims`.
 - `window`: Like `view` but lazy, for disk based data. Can be a tuple of Dimensions,
     selectors or regular indices. These will be applied when the data is loaded or indexed.
 """
@@ -220,7 +181,7 @@ _smap_timedim(times::AbstractVector) =
     Ti(times, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals(Start())))
 
 # TODO actually add metadata to the dict
-_smapmetadata(dataset::HDF5.File) = SMAPstackMetadata(Dict())
+_smapmetadata(dataset::HDF5.File) = Metadata{:SMAP}(Dict())
 
 function _smapdims(dataset::HDF5.File)
     proj = read(HDF5.attributes(HDF5.root(dataset)["EASE2_global_projection"]), "grid_mapping_name")

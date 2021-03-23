@@ -36,7 +36,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     @testset "other fields" begin
         # This file has an inorrect missing value
         @test missingval(gdalarray) == nothing
-        @test metadata(gdalarray) isa GDALarrayMetadata
+        @test metadata(gdalarray) isa Metadata{:GDAL}
         @test basename(metadata(gdalarray).val[:filepath]) == "cea.tif"
         @test name(gdalarray) == :test
         @test label(gdalarray) == "test"
