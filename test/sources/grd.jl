@@ -1,6 +1,7 @@
 using GeoData, Test, Statistics, Dates, Plots
 import NCDatasets, ArchGDAL
 using GeoData: name, mode, window, DiskStack, bounds
+
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
 const DD = DimensionalData
@@ -39,7 +40,7 @@ path = stem * ".gri"
 
     @testset "other fields" begin
         @test missingval(grdarray) == -3.4f38
-        @test metadata(grdarray) isa GRDarrayMetadata
+        @test metadata(grdarray) isa Metadata{:GRD}
         @test name(grdarray) == Symbol("red:green:blue")
         @test label(grdarray) == "red:green:blue"
         @test units(grdarray) == nothing
@@ -85,7 +86,6 @@ path = stem * ".gri"
     # end
 
     @testset "selectors" begin
-<<<<<<< HEAD
         geoA = grdarray[Y(Contains(3)), X(:), Band(1)]
         @test geoA isa GeoArray{Float32,1}
         @test grdarray[X(Contains(20)), Y(Contains(10)), Band(1)] isa Float32
@@ -97,19 +97,6 @@ path = stem * ".gri"
         @test eltype(geoA) <: Float32
         @time geoA isa GeoArray{Float32,1}
         @test dims(geoA) isa Tuple{<:X,Y}
-=======
-        geoA = grdarray[Lat(Contains(3)), Lon(:), Band(1)]
-        @test geoA isa GeoArray{Float32,1}
-        @test grdarray[Lon(Contains(20)), Lat(Contains(10)), Band(1)] isa Float32
-    end
-
-    @testset "conversion to GeoArray" begin
-        geoA = grdarray[Lon(1:50), Lat(1:1), Band(1)]
-        @test size(geoA) == (50, 1)
-        @test eltype(geoA) <: Float32
-        @time geoA isa GeoArray{Float32,1}
-        @test dims(geoA) isa Tuple{<:Lon,Lat}
->>>>>>> bf3edfc (add convenience methods and test)
         @test refdims(geoA) isa Tuple{<:Band}
         @test metadata(geoA) == metadata(grdarray)
         @test missingval(geoA) == -3.4f38

@@ -74,7 +74,7 @@ stackkeys = (
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
-        @test metadata(ncarray) isa NCDarrayMetadata
+        @test metadata(ncarray) isa Metadata{:NCD}
         @test name(ncarray) == :tos
     end
 
@@ -230,7 +230,7 @@ end
     @testset "load ncstack" begin
         @test ncstack isa NCDstack{String}
         @test ismissing(missingval(ncstack))
-        @test metadata(ncstack) isa NCDstackMetadata
+        @test metadata(ncstack) isa Metadata{:NCD}
         @test refdims(ncstack) == ()
         # Loads child as a regular GeoArray
         @test_throws NCDatasets.NetCDFError ncstack[:not_a_key]
@@ -241,9 +241,9 @@ end
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test keys(ncstack) == stackkeys
         @test first(keys(ncstack)) == :abso4
-        @test metadata(ncstack) isa NCDstackMetadata
+        @test metadata(ncstack) isa Metadata{:NCD}
         @test metadata(ncstack)["institution"] == "Max-Planck-Institute for Meteorology"
-        @test metadata(ncstack, :albedo) isa NCDarrayMetadata
+        @test metadata(ncstack, :albedo) isa Metadata{:NCD}
         @test metadata(ncstack, :albedo)["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean

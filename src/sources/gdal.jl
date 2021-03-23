@@ -10,36 +10,7 @@ const GDAL_RELATION = ForwardRelation()
 const GDAL_X_LOCUS = Start()
 const GDAL_Y_LOCUS = Start()
 
-export GDALarray, GDALstack, GDALarrayMetadata, GDALdimMetadata
-
-# Metadata ########################################################################
-
-"""
-    GDALdimMetadata <: AbstractDimMetadata
-
-    GDALdimMetadata(val::Union{Dict,NamedTuple})
-    GDALdimMetadata(pairs::Pair...) => GDALdimMetadata{Dict}
-    GDALdimMetadata(; kw...) => GDALdimMetadata{NamedTuple}
-
-`Metadata` wrapper for `GDALarray` dimensions.
-"""
-struct GDALdimMetadata{T} <: AbstractDimMetadata{T}
-    val::T
-end
-
-"""
-    GDALarrayMetadata <: AbstractArrayMetadata
-
-    GDALarrayMetadata(val::Union{Dict,NamedTuple})
-    GDALarrayMetadata(pairs::Pair...) => GDALarrayMetadata{Dict}
-    GDALarrayMetadata(; kw...) => GDALarrayMetadata{NamedTuple}
-
-`Metadata` wrapper for `GDALarray`.
-"""
-struct GDALarrayMetadata{T} <: AbstractArrayMetadata{T}
-    val::T
-end
-
+export GDALarray, GDALstack
 
 # Array ########################################################################
 
@@ -67,7 +38,7 @@ immediately.
 - `missingval`: Value reprsenting missing values. Detected automatically when possible, but
     can be passed it.
 - `metadata`: `Metadata` object for the array. Detected automatically as
-    [`GDALarrayMetadata`](@ref), but can be passed in.
+    `Metadata{:GDAL}`, but can be passed in.
 
 # Example
 
@@ -179,7 +150,7 @@ Load a stack of files lazily from disk.
 - `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
     contained arrays when they are accessed.
-- `metadata`: a `DimensionalData.StackMetadata` object.
+- `metadata`: a `DimensionalData.Metadata` object.
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
 
@@ -209,8 +180,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     nbands = AG.nraster(raster)
     band = Band(1:nbands, mode=Categorical(Ordered()))
     crs = crs isa Nothing ? GeoData.crs(raster) : crs
-
-    xy_metadata = GDALdimMetadata()
+    xy_metadata = Metadata{:GDAL}()
 
     # Output Sampled index dims when the transformation is lat/lon alligned,
     # otherwise use Transformed index, with an affine map.
@@ -271,7 +241,7 @@ function DD.metadata(raster::AG.RasterDataset, args...)
     path = first(AG.filelist(raster))
     units = AG.getunittype(band)
     upair = units == "" ? () : (:units=>units,)
-    GDALarrayMetadata(Dict(:filepath=>path, :scale=>scale, :offset=>offset, upair...))
+    Metadata{:GDAL}(Dict(:filepath=>path, :scale=>scale, :offset=>offset, upair...))
 end
 
 function missingval(raster::AG.RasterDataset, args...)

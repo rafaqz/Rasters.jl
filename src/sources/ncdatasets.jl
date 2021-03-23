@@ -2,46 +2,7 @@ import .NCDatasets
 const NCD = NCDatasets
 const NCD_STACK_METADATA_KEY = :_ncd_stack_metadata_
 
-export NCDarray, NCDstack, NCDdimMetadata, NCDarrayMetadata, NCDstackMetadata
-
-"""
-    NCDdimMetadata <: AbstractDimMetadata
-
-    NCDdimMetadata(val::Union{Dict,NamedTuple})
-    NCDdimMetadata(pairs::Pair...) => NCDdimMetadata{Dict}
-    NCDdimMetadata(; kw...) => NCDdimMetadata{NamedTuple}
-
-`Metadata` wrapper for [`NCDarray`](@ref) dimensions.
-"""
-struct NCDdimMetadata{T} <: AbstractDimMetadata{T}
-    val::T
-end
-
-"""
-    NCDarrayMetadata <: AbstractArrayMetadata
-
-    NCDarrayMetadata(val::Union{Dict,NamedTuple})
-    NCDarrayMetadata(pairs::Pair...) => NCDarrayMetadata{Dict}
-    NCDarrayMetadata(; kw...) => NCDarrayMetadata{NamedTuple}
-
-`Metadata` wrapper for [`NCDarray`](@ref) metadata.
-"""
-struct NCDarrayMetadata{T} <: AbstractArrayMetadata{T}
-    val::T
-end
-
-"""
-    NCDstackMetadata <: AbstractStackMetadata
-
-    NCDstackMetadata(val::Union{Dict,NamedTuple})
-    NCDstackMetadata(pairs::Pair...) => NCDstackMetadata{Dict}
-    NCDstackMetadata(; kw...) => NCDstackMetadata{NamedTuple}
-
-`Metadata` wrapper for [`NCDarray`](@ref) metadata.
-"""
-struct NCDstackMetadata{T} <: AbstractStackMetadata{T}
-    val::T
-end
+export NCDarray, NCDstack
 
 const UNNAMED_NCD_KEY = "unnamed"
 
@@ -101,7 +62,7 @@ future, including detecting and converting the native NetCDF projection format.
 - `missingval`: Value reprsenting missing values. Detected automatically when possible, but
   can be passed it.
 - `metadata`: `Metadata` object for the array. Detected automatically as
-  [`NCDarrayMetadata`](@ref), but can be passed in.
+  [`Metadata{:NCD}`](@ref), but can be passed in.
 
 ## Example
 
@@ -170,7 +131,7 @@ Returns `filename`.
 """
 function Base.write(filename::AbstractString, ::Type{NCDarray}, A::AbstractGeoArray)
     md = metadata(A); key = NCD_STACK_METADATA_KEY
-    attribvec = if haskey(md, key) && md[key] isa NCDstackMetadata 
+    attribvec = if haskey(md, key) && md[key] isa Metadata{:NCD} 
         [_stringdict(md[key])...]
     else
         []
@@ -216,7 +177,7 @@ Dimensions are usually detected as `X`, `Y`, `Ti`. Undetected dims use the gener
 - `refdims`: Add dimension position array was sliced from. Mostly used programatically.
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
   contained arrays when they are accessed.
-- `metadata`: A [`NCDstackMetadata`](@ref) object.
+- `metadata`: A `Metadata` object.
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the
   [`NCDarray`](@ref) constructor.
 
@@ -276,7 +237,7 @@ Base.keys(s::NCDstack{<:AbstractString}) = cleankeys(_ncread(_nondimkeys, getsou
 
 Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 
-Currently `DimMetadata` is not handled, and `ArrayMetadata`
+Currently `Metadata` is not handled for dimensions, and `Metadata`
 from other [`AbstractGeoArray`](@ref) @types is ignored.
 """
 function Base.write(filename::AbstractString, ::Type{<:NCDstack}, s::AbstractGeoStack)
@@ -298,24 +259,25 @@ function DD.dims(dataset::NCD.Dataset, key::Key, crs=nothing, mappedcrs=nothing)
             dvar = dataset[dimname]
             dimtype = _ncddimtype(dimname)
             index = dvar[:]
-            meta = NCDdimMetadata(DD.metadatadict(dvar.attrib))
+            meta = Metadata{:NCD}(DD.metadatadict(dvar.attrib))
             mode = _ncdmode(dataset, dimname, index, dimtype, crs, mappedcrs, meta)
             dim = dimtype(index, mode, meta)
             push!(dims, dim)
         else
             # The var doesn't exist. Maybe its `complex` or some other marker,
             # so make it a custom `Dim` with `NoIndex`
-            push!(dims, Dim{Symbol(dimname)}(Base.OneTo(size(v, i)), NoIndex(), nothing))
+            push!(dims, Dim{Symbol(dimname)}(Base.OneTo(size(v, i)), NoIndex(), NoMetadata()))
         end
     end
     (dims...,)
 end
 
-DD.metadata(dataset::NCD.Dataset) = NCDstackMetadata(DD.metadatadict(dataset.attrib))
+
+DD.metadata(dataset::NCD.Dataset) = Metadata{:NCD}(DD.metadatadict(dataset.attrib))
 DD.metadata(dataset::NCD.Dataset, key::Key) = metadata(dataset[string(key)])
-DD.metadata(var::NCD.CFVariable) = NCDarrayMetadata(DD.metadatadict(var.attrib))
-DD.metadata(var::NCD.CFVariable, stackmetadata::NCDstackMetadata) = begin
-    md = NCDarrayMetadata(DD.metadatadict(var.attrib))
+DD.metadata(var::NCD.CFVariable) = Metadata{:NCD}(DD.metadatadict(var.attrib))
+DD.metadata(var::NCD.CFVariable, stackmetadata::AbstractMetadata) = begin
+    md = Metadata{:NCD}(DD.metadatadict(var.attrib))
     md[NCD_STACK_METADATA_KEY] = stackmetadata
     md
 end
@@ -406,7 +368,7 @@ function _ncdspan(index, order)
 end
 
 # delta_t and ave_period are not CF standards, but CDC
-function _ncdperiod(index, metadata::NCDdimMetadata)
+function _ncdperiod(index, metadata::Metadata{:NCD})
     if haskey(metadata, :delta_t)
         period = _parse_period(metadata[:delta_t])
         period isa Nothing || return Regular(period), Points()
@@ -463,7 +425,7 @@ function _ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N}
             dim = convertmode(Mapped, dim)
         end
         md = metadata(dim)
-        attribvec = md isa NCDdimMetadata ? [_stringdict(md)...] : []
+        attribvec = md isa Metadata{:NCD} ? [_stringdict(md)...] : []
         if span(dim) isa Explicit
             bounds = val(span(dim))
             boundskey = string(dimkey, "_bnds")
@@ -474,7 +436,7 @@ function _ncwritevar!(dataset, A::AbstractGeoArray{T,N}) where {T,N}
         NCD.defVar(dataset, dimkey, Vector(index(dim)), (dimkey,); attrib=attribvec)
     end
     # TODO actually convert the metadata types
-    attrib = if metadata(A) isa NCDarrayMetadata
+    attrib = if metadata isa Metadata{:NCD}
         _stringdict(metadata(A))
     else
         Dict()

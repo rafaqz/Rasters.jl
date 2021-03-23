@@ -1,6 +1,7 @@
 using GeoData, Test, Statistics, Dates
 import ArchGDAL, NCDatasets, HDF5
 using GeoData: Time, window, name
+
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
 
@@ -37,7 +38,7 @@ if isfile(path1) && isfile(path2)
             @test refdims(smapstack) ==
                 (Ti(dt:step_:dt; mode=Sampled(Ordered(), Regular(step_), Intervals(Start()))),)
             # Currently empty
-            @test metadata(smaparray) isa SMAPstackMetadata
+            @test metadata(smaparray) isa Metadata{:SMAP}
         end
 
         @testset "conversion to GeoStack" begin

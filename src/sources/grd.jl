@@ -1,4 +1,4 @@
-export GRDarray, GRDstack, GRDdimMetadata, GRDarrayMetadata
+export GRDarray, GRDstack
 
 const GRD_INDEX_ORDER = ForwardIndex()
 const GRD_X_ARRAY = ForwardArray()
@@ -21,35 +21,6 @@ const GRD_DATATYPE_TRANSLATION = Dict{String, DataType}(
 )
 const REV_GRD_DATATYPE_TRANSLATION =
     Dict{DataType, String}(v => k for (k,v) in GRD_DATATYPE_TRANSLATION)
-
-# Metadata ########################################################################
-
-"""
-    GRDdimMetadata <: AbstractDimMetadata
-
-    GRDdimMetadata(val::Union{Dict,NamedTuple})
-    GRDdimMetadata(pairs::Pair...) => GRDdimMetadata{Dict}
-    GRDdimMetadata(; kw...) => GRDdimMetadata{NamedTuple}
-
-`Metadata` wrapper for `GRDarray` dimension metadata.
-"""
-struct GRDdimMetadata{T} <: AbstractDimMetadata{T}
-    val::T
-end
-
-"""
-    GRDarrayMetadata <: AbstractArrayMetadata
-
-    GRDarrayMetadata(val::Union{Dict,NamedTuple})
-    GRDarrayMetadata(pairs::Pair...) => GRDarrayMetadata{Dict}
-    GRDarrayMetadata(; kw...) => GRDarrayMetadata{NamedTuple}
-
-`Metadata` wrapper for `GRDarray` metadata.
-"""
-struct GRDarrayMetadata{T} <: AbstractArrayMetadata{T}
-    val::T
-end
-
 
 # GRD attributes wrapper. Only used during file load, for dispatch.
 struct GRDattrib{T,F,A}
@@ -81,7 +52,7 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     yspan = (ybounds[2] - ybounds[1]) / nrows
 
     # Not fully implemented yet
-    xy_metadata = GRDdimMetadata(Dict())
+    xy_metadata = Metadata{:GRD}(Dict())
 
     xmode = Projected(
         order=Ordered(GRD_INDEX_ORDER, GRD_X_ARRAY, GRD_X_RELATION),
@@ -104,7 +75,7 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
 end
 
 function DD.metadata(grd::GRDattrib, args...)
-    metadata = GRDarrayMetadata()
+    metadata = Metadata{:GRD}()
     for key in ("creator", "created", "history")
         val = get(grd.attrib, key, "")
         if val != ""
@@ -164,7 +135,7 @@ A [`DiskGeoArray`](@ref) that loads .grd files lazily from disk.
 - `missingval`: Value reprsenting missing values. Detected automatically when possible, but
     can be passed it.
 - `metadata`: `Metadata` object for the array. Detected automatically as
-    [`GRDarrayMetadata`](@ref), but can be passed in.
+    `Metadata{:GRD}`, but can be passed in.
 
 ## Example
 
@@ -300,7 +271,7 @@ Convenience method to create a DiskStack of [`GRDarray`](@ref) from `filenames`.
 - `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
     contained arrays when they are accessed.
-- `metadata`: Metadata as a `StackMetadata` object.
+- `metadata`: A `Metadata` object.
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
 

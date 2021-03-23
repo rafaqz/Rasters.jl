@@ -294,7 +294,7 @@ A concrete `MemGeoStack` implementation. Holds layers of [`GeoArray`](@ref).
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
     contained arrays when they are accessed.
 - `refdims`: Reference dimensions from earlier subsetting.
-- `metadata`: Metadata as a `DimensionalData.AbstractStackMetadata` object.
+- `metadata`: A `DimensionalData.Metadata` object.
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the constructor.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
 """
@@ -344,7 +344,7 @@ Concrete [`DiskGeoStack`](@ref) implementation. Loads a stack of files lazily fr
 - `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
 - `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
     contained arrays when they are accessed.
-- `metadata`: Metadata as a `DimensionalData.StackMetadata` object.
+- `metadata`: A `DimensionalData.Metadata` object.
 - `childtype`: The type of the child data. eg. `GDALarray`. Required.
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
