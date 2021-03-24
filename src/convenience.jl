@@ -113,22 +113,13 @@ or a function to convert the filename strings to index values.
 """
 function series end
 
-function series(dirnames; 
-    child=geoarray, child_kwargs=nothing, window=(), kw...
-)
-    filepaths = readdir(path)
-    if all(x -> splitext(x)[2], filenames) == splitext(first(filenames))[2]
-        # All the same kind of file. We don't need to load them up front.
-        DiskStack(filenames; childtype=_get_constructor(geoarray, first(filenames)), kw...)
-    else
-        # These files are different extensions, just load them all
-        # as separate `AbstarctGeoArray` (which has some up front cost from
-        # reading the dimensions). They are probably still disk-backed for the actual array.
-        arrays = map(filenames) do dn
-            _constructor(geoarray, fn)(fn; window=window, child_kwargs...)
-        end
-        GeoStack(arrays; kw...)
-    end
+function series(dirpath::AbstractString, dims=Dim{:series}(); ext=nothing, child=geoarray, kw...)
+    filepaths = filter_ext(dirpath, ext)
+    series(filepaths, dims; child=child, kw...)
+end
+function series(filepaths::AbstractVector{<:AbstractString}, dims=Dim{:series}(); child=geoarray, kw...)
+    childtype = _constructor(child, first(filepaths))
+    GeoSeries(filepaths, dims; childtype=childtype, kw...)
 end
 
 # Support methods
@@ -175,12 +166,3 @@ _no_gearray_error(ext) =
 
 _check_imported(modulename, type, extension)  =
     type in names(GeoData) || error("Run `import $modulename` to enable loading $extension files.")
-
-function series(dirpath::AbstractString, dims=Dim{:series}(); ext=nothing, child=geoarray, kw...)
-    filepaths = filter_ext(dirpath, ext)
-    series(filepaths, dims; child=child, kw...)
-end
-function series(filepaths::AbstractVector{<:AbstractString}, dims=Dim{:series}(); child=geoarray, kw...)
-    childtype = _constructor(child, first(filepaths))
-    GeoSeries(filepaths, dims; childtype=childtype, kw...)
-end
