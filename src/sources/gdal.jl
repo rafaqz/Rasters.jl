@@ -272,17 +272,9 @@ function DD.metadata(raster::AG.RasterDataset, args...)
 end
 
 function missingval(raster::AG.RasterDataset, args...)
-    # We can only handle data where all bands have
-    # the same missingval
+    # We can only handle data where all bands have the same missingval
     band = AG.getband(raster.ds, 1)
-    missingval = AG.getnodatavalue(band)
-    T = AG.pixeltype(band)
-    try
-        missingval = convert(T, missingval)
-    catch
-        @warn "No data value from GDAL $(missingval) is not convertible to data type $T. `missingval` is probably incorrect."
-    end
-    missingval
+    AG.getnodatavalue(band)
 end
 
 # metadata(raster::RasterDataset, key) = begin
@@ -355,15 +347,12 @@ function _gdalsetproperties!(dataset, A)
     end
     AG.setgeotransform!(dataset, geotransform)
 
-    # Set the nodata value. GDAL can't handle missing
-    # We could choose a default, but we would need to do this for all
-    # possible types.
-    if missingval(A) !== missing
-        bands = if hasdim(A, Band)
-            index(A, Band)
-        else
-            1
-        end
+    # Set the nodata value. GDAL can't handle missing. We could choose a default, 
+    # but we would need to do this for all possible types. `nothing` means
+    # there is not missing value.
+    # TODO define default nodata values for missing
+    if (missingval(A) !== missing) && (missingval(A) !== nothing)
+        bands = hasdim(A, Band) ? index(A, Band) : 1
         for i in bands
             AG.setnodatavalue!(AG.getband(dataset, i), missingval(A))
         end
