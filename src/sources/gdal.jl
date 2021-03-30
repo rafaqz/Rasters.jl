@@ -114,13 +114,15 @@ end
 # AbstractGeoArray methods
 
 """
-    Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray;
-        driver="GTiff", compress="DEFLATE", tiled=true
-    )
+    Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray; kw...)
 
 Write a [`GDALarray`](@ref) to file, `.tif` by default, but other GDAL drivers also work.
 
-GDAL flags `driver`, `compress` and `tiled` can be passed in as keyword arguments.
+# Keywords
+
+- `driver::String`: a GDAL driver name. Guessed from the filename extension by default.
+- `compress::String`: GeoTIFF compression flag. "DEFLATE" by default.
+- `tiled::Bool`: GeoTiff tiling. Defaults to `true`.
 
 Returns `filename`.
 """
