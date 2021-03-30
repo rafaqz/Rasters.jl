@@ -2,7 +2,9 @@ using GeoData, Test, Dates
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
-dims1 = X<|(10, 100), Y<|(-50, 50) 
+dims1 = X((10, 100)), Y((-50, 50)) 
+dims_compat = Lon((10, 100)), Lat((-50, 50)) 
+@test dims1 == dims_compat
 dims2 = (dims1..., Ti([DateTime(2019)]))
 refdimz = ()
 mval = -9999.0

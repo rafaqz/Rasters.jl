@@ -39,7 +39,14 @@ export missingval, boolmask, missingmask, replace_missing,
 
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 
-export Band
+export Band, Lat, Lon, Vert, GeoXDim, GeoYDim, GeoZDim
+
+const Lon = X
+const Lat = Y 
+const Vert = Z 
+const GeoXDim = XDim 
+const GeoYDim = YDim 
+const GeoZDim = ZDim 
 
 # DimensionalData documentation urls
 const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api"
