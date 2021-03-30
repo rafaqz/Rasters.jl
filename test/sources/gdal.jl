@@ -91,22 +91,23 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
 
         @testset "2d" begin
             geoA = gdalarray[Band(1)]
-            filename = tempname() * ".tif"
+            filename = tempname() * ".asc"
             write(filename, geoA)
             saved1 = GDALarray(filename; mappedcrs=EPSG(4326))[Band(1)];
-            @test all(saved1 .== geoA)
-            @test typeof(saved1) == typeof(geoA)
-            @test val(dims(saved1, Lon)) == val(dims(geoA, Lon))
-            @test val(dims(saved1, Lat)) == val(dims(geoA, Lat))
+            @test saved1 ≈ geoA
+            @test typeof(saved1) !== typeof(geoA)
+            @test val(dims(saved1, Lon)) ≈ val(dims(geoA, Lon))
+            @test val(dims(saved1, Lat)) ≈ val(dims(geoA, Lat))
             @test all(metadata.(dims(saved1)) .== metadata.(dims(geoA)))
             @test metadata(dims(saved1)[1]) == metadata(dims(geoA)[1])
             @test missingval(saved1) === missingval(geoA) 
-            @test refdims(saved1) == refdims(geoA) end
+            @test refdims(saved1) == refdims(geoA) 
+        end
         
         @testset "3d, with subsetting" begin
             geoA2 = gdalarray[Lat(Between(33.7, 33.9)), 
                                   Lon(Between(-117.6, -117.4))]
-            filename2 = tempname() * ".asc"
+            filename2 = tempname() * ".tif"
             write(filename2, geoA2)
             saved2 = GeoArray(GDALarray(filename2; name=:test, mappedcrs=EPSG(4326)))
             @test size(saved2) == size(geoA2) == length.(dims(saved2)) == length.(dims(geoA2))
@@ -124,7 +125,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             @test all(metadata.(dims(saved2)) .== metadata.(dims(geoA2)))
             @test data(saved2) == data(geoA2)
             @test typeof(saved2) == typeof(geoA2)
-            filename3 = tempname() * ".img"
+            filename3 = tempname() * ".tif"
             geoA3 = cat(gdalarray[Band(1)], gdalarray[Band(1)], gdalarray[Band(1)]; dims=Band(1:3))
             write(filename3, geoA3)
             saved3 = GeoArray(GDALarray(filename3; mappedcrs=EPSG(4326)))
@@ -133,7 +134,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         end
 
         @testset "resave current" begin
-            filename = tempname() * ".tiff"
+            filename = tempname() * ".rst"
             write(filename, gdalarray)
             gdalarray2 = GDALarray(filename)
             write(gdalarray2)
@@ -254,7 +255,7 @@ end
 
     @testset "save" begin
         geoA = GeoArray(gdalstack[:a])
-        filename = tempname()
+        filename = tempname() * ".tif"
         write(filename, gdalstack)
         base, ext = splitext(filename)
         filename_b = string(base, "_b", ext)
