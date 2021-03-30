@@ -74,7 +74,7 @@ const DIMMAP = Dict(
 A [`DiskGeoArray`](@ref) that loads that loads NetCDF files lazily from disk.
 
 The first non-dimension layer of the file will be used as the array. Dims are usually
-detected as [`Y`](@ref), [`X`](@ref), [`Ti`]($DDtidocs), and [`Vert`] or
+detected as `Y`, `X`, [`Ti`]($DDtidocs), and [`Z`] or
 possibly `X`, `Y`, `Z` when detected. Undetected dims will use the generic `Dim{:name}`.
 
 This is an incomplete implementation of the NetCDF standard. It will currently
@@ -195,8 +195,7 @@ files. In multi-file mode it returns a regular `GeoStack` with a `childtype`
 of [`NCDarray`](@ref).
 
 Indexing into `NCDstack` with layer keys (`Symbol`s) returns a [`GeoArray`](@ref).
-Dimensions are usually detected as [`Y`](@ref), [`X`](@ref), [`Ti`]($DDtidocs),
-and [`Vert`] or `X`, `Y`, `Z` when detected. Undetected dims use the generic `Dim{:name}`.
+Dimensions are usually detected as `X`, `Y`, `Ti`. Undetected dims use the generic `Dim{:name}`.
 
 # Arguments
 

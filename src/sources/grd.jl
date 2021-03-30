@@ -148,8 +148,7 @@ Base.Array(grd::GRDattrib) = _mmapgrd(Array, grd)
 
 A [`DiskGeoArray`](@ref) that loads .grd files lazily from disk.
 
-`GRDarray`s are always 3 dimensional, and have [`Y`](@ref), [`X`](@ref) and
-[`Band`](@ref) dimensions.
+`GRDarray`s are always 3 dimensional, and have `Y`, `X` and [`Band`](@ref) dimensions.
 
 ## Arguments
 

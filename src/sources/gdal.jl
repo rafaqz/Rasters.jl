@@ -50,8 +50,7 @@ Load a file lazily using gdal. `GDALarray` will be converted to [`GeoArray`](@re
 after indexing or other manipulations. `GeoArray(GDALarray(filename))` will do this
 immediately.
 
-`GDALarray`s are always 3 dimensional, and have [`Y`](@ref), [`X`](@ref) and
-[`Band`](@ref) dimensions.
+`GDALarray`s are always 3 dimensional, and have `X`, `Y` and [`Band`](@ref) dimensions.
 
 # Arguments
 
