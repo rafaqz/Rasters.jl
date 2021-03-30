@@ -123,38 +123,40 @@ function series(filepaths::AbstractVector{<:AbstractString}, dims=Dim{:series}()
 end
 
 # Support methods
+#
+const EXT = (GRD=(".grd", ".gri"), NCD=".nc", SMAP=".h5")
 
-function _constructor(method::Function, filename; throw=true)
+# The the constructor for a geoarray or stack, based on the
+# filename extension. GDAL is the fallback for geoarray as it 
+# handles so many file types.
+function _constructor(method::typeof(geoarray), filename; throw=true)
     _, extension = splitext(filename)
-    return if extension in (".grd", ".gri")
-        if method === geoarray
-            GRDarray
-        elseif method === stack
-            throw ? _no_stack_error(extension) : nothing
-        end
-    elseif extension == ".nc"
-        _check_imported(:NCDatasets, :NCDarray, extension)
-        if method === geoarray
-            NCDarray
-        else
-            NCDstack
-        end
-    elseif extension == ".h5"
+    return if extension in EXT[:GRD]
+        GRDarray
+    elseif extension == EXT[:NCD]
+        _check_imported(:NCDatasets, :NCDarray, extension; throw=throw)
+        NCDarray
+    elseif extension == EXT[:SMAP]
         # In future we may need to examine the file and check if
         # it's a SMAP file or something else that uses .h5
-        _check_imported(:HDF5, :SMAPstack, extension)
-        if method === geoarray
-            throw ? _no_gearray_error(extension) : nothing
-        elseif method === stack
-            SMAPstack
-        end
+        throw ? _no_gearray_error(extension) : nothing
     else # GDAL handles too many extensions to list, so just try it and see if it works
-        _check_imported(:ArchGDAL, :GDALarray, extension)
-        if method === geoarray
-            GDALarray
-        elseif method === stack
-            throw ? _no_stack_error(extension) : nothing
-        end
+        _check_imported(:ArchGDAL, :GDALarray, extension; throw=throw)
+        GDALarray
+    end
+end
+function _constructor(method::typeof(stack), filename; throw=true)
+    _, extension = splitext(filename)
+    return if extension in EXT[:GRD]
+        throw ? _no_stack_error(extension) : nothing
+    elseif extension == EXT[:NCD]
+        _check_imported(:NCDatasets, :NCDarray, extension; throw=throw)
+        NCDstack
+    elseif extension == EXT[:SMAP]
+        _check_imported(:HDF5, :SMAPstack, extension; throw=throw)
+        SMAPstack
+    else
+        throw ? _no_stack_error(extension) : nothing
     end
 end
 
@@ -164,5 +166,14 @@ _no_stack_error(ext) =
 _no_gearray_error(ext) =
     error("$ext files not have a single-layer implementation. Use `stack(filename)` to load")
 
-_check_imported(modulename, type, extension)  =
-    type in names(GeoData) || error("Run `import $modulename` to enable loading $extension files.")
+function _check_imported(modulename, type, extension; throw=true)
+    if type in names(GeoData)
+        true
+    else
+        if throw
+            error("Run `import $modulename` to enable loading $extension files.")
+        else
+            false
+        end
+    end
+end
