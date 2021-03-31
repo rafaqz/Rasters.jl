@@ -36,7 +36,7 @@ missingval(A::AbstractGeoArray) = A.missingval
 Get the projected coordinate reference system of a `Y` or `X` `Dimension`,
 or of the `Y`/`X` dims of an `AbstractGeoArray`.
 
-For [`Mapped`](@ref) mode this may be `nothing` as there may be not projected
+For [`Mapped`](@ref) mode this may be `nothing` as there may be no projected
 coordinate reference system at all.
 """
 function crs end
