@@ -118,7 +118,7 @@ function missingval(grd::GRDattrib{T}) where T
     mv = try
         parse(T, grd.attrib["nodatavalue"])
     catch
-        @warn "No data $(missingval) is not convertible to data type $T. `missingval` set to NaN."
+        @warn "nodatavalue $(grd.attrib["nodatavalue"]) is not convertible to data type $T. `missingval` set to `missing`."
         missing
     end
 end
