@@ -18,13 +18,13 @@ Data loaded with GeoData.jl has some special properties:
   no matter the order of the index or it's position in the cell.
 - For `Projected` mode `GRDarray` and `GDALarray` You can index in any projection you want to by setting the 
   `mappedcrs` keyword on construction. You don't even need to know the underlying projection, the conversion is 
-  handled automatically. This means Lat/Lon `EPSG(4326)` can be used accross all sources seamlessly if you need that.
+  handled automatically. This means lat/lon `EPSG(4326)` can be used across all sources seamlessly if you need that.
 - Packages building on GeoData.jl can treat `AbstractGeoSeries`, `AbstractGeoStack`, and `AbstrackGeoArray`
   as black boxes:
   - The data could hold tiff or netcdf files, `Array`s in memory or `CuArray`s on the GPU - they
     will all behave in the same way.
   - `AbstractGeoStack` can be a Netcdf or HDF5 file, or a `NamedTuple` of `GDALarray` holding `.tif` files,
-    or all `GeoArray` in memeory, but be treated as if they are all the same thing.
+    or all `GeoArray` in memory, but be treated as if they are all the same thing.
   - Modelling packages do not have to deal with the specifics of spatial file types directly.
   
 
@@ -36,19 +36,19 @@ spatial data can be indexed using named dimensions like `Lat` and `Lon`, `Ti`
 is covered in the [DimensionalData
 docs](https://rafaqz.github.io/DimensionalData.jl/stable/).
 
-GeoData.jl provides general types for holding spatial data: `GeoArray`, `GeoStack`, 
-and `GeoSeries`, and types specific to various backends for loading disk-based data.
-R `.grd` files can be loaded natively using `GRDarray` and `GRDstack`. 
-GDAL files can be loaded with ` GDALarray` and GDALstack when 
-[ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl) (v0.5 or higher) is present. 
-NetCDF similarly can be loaded with `NCDarray` and `NCDstack` when
-[NCDatasets.jl](https://github.com/Alexander-Barth/NCDatasets.jl) is available.
+GeoData.jl provides general types for holding spatial data: `GeoArray`,
+`GeoStack`, and `GeoSeries`, and types specific to various backends for loading
+disk-based data. All can be loaded using the functions `geoarray`, `stack` and
+`series`, that will guess the backend from the file type. R `.grd` files can be
+loaded natively, GDAL when [ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl)
+(v0.5 or higher) is imported, and NetCDF can be loaded when
+[NCDatasets.jl](https://github.com/Alexander-Barth/NCDatasets.jl) is imported.
 
-When HDF5.jl is available, files from the Soil Moisture Active Passive
-([SMAP](https://smap.jpl.nasa.gov/)) dataset can be loaded using `SMAPstack`
-or `SMAPseries` to load whole directories. This is both useful for users of
-SMAP, and a demonstration of the potential to build standardised interfaces 
-for custom spatial dataset formats like those used in SMAP.
+When HDF5.jl is imported, files from the Soil Moisture Active Passive
+([SMAP](https://smap.jpl.nasa.gov/)) dataset can be loaded with `stack` or
+`series`. This is both useful for users of SMAP, and a demonstration of the
+potential to build standardised interfaces for custom spatial dataset formats
+like those used in SMAP.
 
 Files can be written to disk in all formats using `write`, and can (with some caveats)
 be written to to different formats providing file-type conversion for spatial data.
@@ -78,7 +78,7 @@ julia> url = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-
 
 julia> filename = download(url, "tos_O1_2001-2002.nc");
 
-julia> A = NCDarray(filename)
+julia> A = geoarray(filename)
 NCDarray (named tos) with dimensions:
  Longitude (type Lon): Float64[1.0, 3.0, …, 357.0, 359.0] (Converted: Ordered Regular Intervals)
  Latitude (type Lat): Float64[-79.5, -78.5, …, 88.5, 89.5] (Converted: Ordered Regular Intervals)
@@ -115,7 +115,6 @@ Now get the mean over the timespan, then save it to disk, and plot it :
 
 ```julia
 julia> using Statistics
-
 julia> mean_tos = mean(A; dims=Ti)
 GeoArray (named tos) with dimensions:
  Longitude (type Lon): Float64[1.0, 3.0, …, 357.0, 359.0] (Converted: Ordered Regular Intervals)
