@@ -312,20 +312,26 @@ function _gdalread(f, filename::AbstractString)
     end
 end
 
-function _gdalwrite(filename, A, nbands, indices; driver="GTiff", compress="DEFLATE", tiled=true)
+function _gdalwrite(filename, A, nbands, indices; 
+    driver=AG.extensiondriver(filename), compress="DEFLATE", tiled=true
+)
     tiledstring = tiled isa Bool ? (tiled ? "YES" : "NO") : tiled
-    options = driver == "GTiff" ? ["COMPRESS=$compress", "TILED=$tiledstring"] : String[]
-
-    AG.create(filename;
-        driver=AG.getdriver(driver),
-        width=size(A, Lon()),
-        height=size(A, Lat()),
-        nbands=nbands,
-        dtype=eltype(A),
-        options=options,
-    ) do dataset
-        _gdalsetproperties!(dataset, A)
-        AG.write!(dataset, data(A), indices)
+    kw = (width=size(A, Lon()), height=size(A, Lat()), nbands=nbands, dtype=eltype(A))
+    gdaldriver = AG.getdriver(driver)
+    if driver == "GTiff" 
+        options = ["COMPRESS=$compress", "TILED=$tiledstring"]
+        AG.create(filename; driver=gdaldriver, options=options, kw...) do dataset
+            _gdalsetproperties!(dataset, A)
+            AG.write!(dataset, data(A), indices)
+        end
+    else
+        # Create a  memory object and copy it to disk, as ArchGDAL.create
+        # does not support direct creation of ASCII etc. rasters
+        ArchGDAL.create("", driver=AG.getdriver("MEM"), kw...) do dataset
+            _gdalsetproperties!(dataset, A)
+            AG.write!(dataset, data(A), indices)
+            AG.copy(dataset; filename=filename, driver=gdaldriver) |> AG.destroy
+        end
     end
     return filename
 end
