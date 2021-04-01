@@ -315,7 +315,6 @@ function _gdalwrite(filename, A, nbands, indices;
     driver=AG.extensiondriver(filename), compress="DEFLATE", tiled=true
 )
     tiledstring = tiled isa Bool ? (tiled ? "YES" : "NO") : tiled
-<<<<<<< HEAD
     kw = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
     gdaldriver = AG.getdriver(driver)
     if driver == "GTiff" 
