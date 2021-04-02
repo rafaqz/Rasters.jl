@@ -327,7 +327,7 @@ function _gdalwrite(filename, A, nbands, indices;
     else
         # Create a  memory object and copy it to disk, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
-        ArchGDAL.create("", driver=AG.getdriver("MEM"), kw...) do dataset
+        ArchGDAL.create(""; driver=AG.getdriver("MEM"), kw...) do dataset
             _gdalsetproperties!(dataset, A)
             AG.write!(dataset, data(A), indices)
             AG.copy(dataset; filename=filename, driver=gdaldriver) |> AG.destroy
