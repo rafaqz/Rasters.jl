@@ -86,7 +86,7 @@ Write any [`AbstractGeoStack`](@ref) to file, guessing the backend from the file
 
 Keyword arguments are passed to the `write` method for the backend.
 
-If the source can't be save as a stack-like object, individual array layers will be saved.
+If the source can't be saved as a stack-like object, individual array layers will be saved.
 """
 function Base.write(filename::AbstractString, s::AbstractGeoStack; kw...)
     base, ext = splitext(filename)
