@@ -1,7 +1,7 @@
 struct GeoPlot end
 struct GeoZPlot end
 
-const SpatialDim = Union{X,Y,Z}
+const SpatialDim = Union{XDim,YDim,ZDim}
 
 # We only look at arrays with X, Y, Z dims here.
 # Otherwise they fall back to DimensionalData.jl recipes
