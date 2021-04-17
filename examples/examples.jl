@@ -9,10 +9,10 @@ end
 
 ncurl = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc"
 ncfilename = geturl(ncurl, "tos_O1_2001-2002.nc")
-stack = stack(ncfilename)
+ncstack = stack(ncfilename)
 
 # Load the sea surface temperature layer
-A = stack[:tos]
+A = ncstack[:tos]
 
 # Plot the 1st, 4th, 7th and 10th months 
 A[Ti(1:3:12)] |> plot
@@ -38,10 +38,10 @@ savefig("tos_20deg_lat.png")
 # would really use a series of datasets matching the time dimension dates.
 timedim = Ti([DateTime360Day(2001, 01, 1), DateTime360Day(2001, 02, 1), DateTime360Day(2001, 03, 1)])
 filenames = [ncfilename, ncfilename, ncfilename]
-series = GeoSeries(filenames, (timedim,); childtype=NCDstack)
+ncseries = series(filenames, (timedim,); child=stack)
 
 # Get a single array from the series
-A = series[Near(DateTime360Day(2001, 01, 1))]["tos"][Lon(Between(50, 200))]
+A = ncseries[Near(DateTime360Day(2001, 01, 1))]["tos"][Lon(Between(50, 200))]
 
 # Plot single slices
 view(A, Ti(4)) |> plot
@@ -56,16 +56,16 @@ maximum(replace_missing(A, NaN); dims=Ti) |> plot
 reduce(+, A; dims=Ti) |> plot
 
 # Plot the mean sea surface temperature for australia in the second half of 2002 
-stack = NCDstack(ncfilename)
+ncstack = NCDstack(ncfilename)
 t = Ti(Between(DateTime360Day(2002, 07, 1), DateTime360Day(2002, 012, 30)))
-stack["tos"][t, Lat(Between(-45, 0.5), Lon(Between(110, 160))] |> x->mean(x; dims=Ti) |> plot
+ncstack["tos"][t, Lat(Between(-45, 0.5)), Lon(Between(110, 160))] |> x->mean(x; dims=Ti) |> plot
 
 # Permute the dimensions in the underlying data
 # It stil plots the right way up
 permutedims(A, (Lat, Lon, Ti))[Ti(1:3:12)] |> plot
 
 # Line plots have (kind of) useful labels
-A = series[1]["tos"]
+A = ncseries[1]["tos"]
 replace(A[Lat(80)], missing=>NaN) |> plot
 A[Lon(170), Ti(10)] |> plot
 A[Lat(1:80), Lon(170), Ti(10)] |> plot
@@ -79,9 +79,8 @@ array = geoarray(tif_filename)
 array[Band(1)] |> plot
 
 # Make a stack (just using the same file three times for demonstration)
-filepaths = [tif_filename, tif_filename, tif_filename]
-diskstack = GDALstack(filepaths, (:one, :two, :three))
-memstack = GeoStack(diskstack)
+filepaths = (one=tif_filename, two=tif_filename, three=tif_filename)
+diskstack = stack(filepaths)
 # Plot a section of the tif file
 diskstack[:two][Band(1), Lat(1:100), Lon(1:150)] |> plot
 
