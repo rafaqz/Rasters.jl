@@ -104,26 +104,37 @@ function Base.write(filename::AbstractString, s::AbstractGeoStack; kw...)
 end
 
 """
-    series(dirpath::AbstractString, dims; kw...) => AbstractGeoSeries
+    series(dirpath::AbstractString, dims; ext, child=geoarray, kw...) => AbstractGeoSeries
+    series(filenames::AbstractVector{String}, dims; child=geoarray, kw...) => AbstractGeoSeries
 
-Load a vector of filepaths as a `AbstractGeoSeries`. `kw` are passed to the constructor.
+Load a whole folder vector of filepaths as a `AbstractGeoSeries`. 
+`kw` are passed to the constructor.
 
-`dims` Dimensions can hold an index matching the files in the directory,
-or a function to convert the filename strings to index values.
+# Arguments
+
+- `dims`: A tuple of dimensions, possibly holding an index matching the files in the directory. 
+    By default it will be a numbered `Dim{:series}`.
+
+# Keywords
+
+- `child`: function to load the child object - may be `geoarray` or `stack`, 
+    `geoarray` by default.
+- `ext`: an extension for the files in a directory. If empty, all files are loaded, 
+    and should be the same type.
 """
 function series end
 
-function series(dirpath::AbstractString, dims=Dim{:series}(); ext=nothing, child=geoarray, kw...)
+function series(dirpath::AbstractString, dims=(Dim{:series}(),); ext=nothing, child=geoarray, kw...)
     filepaths = filter_ext(dirpath, ext)
     series(filepaths, dims; child=child, kw...)
 end
-function series(filepaths::AbstractVector{<:AbstractString}, dims=Dim{:series}(); child=geoarray, kw...)
+function series(filepaths::AbstractVector{<:AbstractString}, dims=(Dim{:series}(),); child=geoarray, kw...)
     childtype = _constructor(child, first(filepaths))
     GeoSeries(filepaths, dims; childtype=childtype, kw...)
 end
 
 # Support methods
-#
+
 const EXT = (GRD=(".grd", ".gri"), NCD=".nc", SMAP=".h5")
 
 # The the constructor for a geoarray or stack, based on the

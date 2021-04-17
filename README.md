@@ -6,27 +6,33 @@
 [![Codecov](https://codecov.io/gh/rafaqz/GeoData.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/rafaqz/GeoData.jl)
 [![Aqua.jl Quality Assurance](https://img.shields.io/badge/Aquajl-%F0%9F%8C%A2-aqua.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-GeoData.jl defines common types and methods for working with spatial data,
-such as 2 or multidimensional raster arrays, multi-array stacks, and series of
-stacks or arrays spread over multiple files. It provides a standardised
-interface that allows many source data types to be used with identical syntax.
+GeoData.jl defines common types and methods for reading, writing and
+manipulating spatial data, currently raster arrays like GeoTIFF and NetCDF,
+multi-array stacks, and series of stacks or geoarrays spread over multiple files.
+It provides a standardised interface that allows many source data types to be
+used with identical syntax.
 
 Data loaded with GeoData.jl has some special properties:
 
-- Plots are always oriented the right way. Even if you reverse or permute a `GeoArray` it will still plot the right way!
-- Regions and points selected with `Between` and `Contains` select the right points or whole intervals 
-  no matter the order of the index or it's position in the cell.
-- For `Projected` mode `GRDarray` and `GDALarray` You can index in any projection you want to by setting the 
-  `mappedcrs` keyword on construction. You don't even need to know the underlying projection, the conversion is 
-  handled automatically. This means lat/lon `EPSG(4326)` can be used across all sources seamlessly if you need that.
-- Packages building on GeoData.jl can treat `AbstractGeoSeries`, `AbstractGeoStack`, and `AbstrackGeoArray`
-  as black boxes:
-  - The data could hold tiff or netcdf files, `Array`s in memory or `CuArray`s on the GPU - they
-    will all behave in the same way.
-  - `AbstractGeoStack` can be a Netcdf or HDF5 file, or a `NamedTuple` of `GDALarray` holding `.tif` files,
-    or all `GeoArray` in memory, but be treated as if they are all the same thing.
-  - Modelling packages do not have to deal with the specifics of spatial file types directly.
-  
+- Plots are always oriented the right way. Even if you reverse or permute a
+  `GeoArray` it will still plot the right way!
+- Regions and points selected with `Between` and `Contains` select the right
+  points or whole intervals no matter the order of the index or it's position in
+  the cell.
+- For `Projected` mode `GRDarray` and `GDALarray` You can index in any
+  projection you want to by setting the `mappedcrs` keyword on construction. You
+  don't even need to know the underlying projection, the conversion is handled
+  automatically. This means lat/lon `EPSG(4326)` can be used across all sources
+  seamlessly if you need that.
+- Packages building on GeoData.jl can treat `AbstractGeoSeries`,
+  `AbstractGeoStack`, and `AbstrackGeoArray` as black boxes:
+  - The data could hold tiff or netcdf files, `Array`s in memory or `CuArray`s
+    on the GPU - they will all behave in the same way.
+  - `AbstractGeoStack` can be a Netcdf or HDF5 file, or a `NamedTuple` of
+    `GDALarray` holding `.tif` files, or all `GeoArray` in memory, but be
+    treated as if they are all the same thing.
+  - Modelling packages do not have to deal with the specifics of spatial file
+    types directly.
 
 GeoData.jl extends
 [DimensionalData.jl](https://github.com/rafaqz/DimensionalData.jl) so that
@@ -35,6 +41,9 @@ spatial data can be indexed using named dimensions like `Lat` and `Lon`, `Ti`
 `mean` and `reduce` where `dims` arguments are required. Much of the behaviour
 is covered in the [DimensionalData
 docs](https://rafaqz.github.io/DimensionalData.jl/stable/).
+
+  
+
 
 GeoData.jl provides general types for holding spatial data: `GeoArray`,
 `GeoStack`, and `GeoSeries`, and types specific to various backends for loading
@@ -61,7 +70,7 @@ Currently saving a Netcdf to a GDAL tif, or the reverse, projections are not tot
 
 Eventually they will be, but converting projections and index conventions between formats
 is difficult. with many edge case problems. For now, assume the index is not exactly correct.
-`Between`, `Contains` and `bounds` are close approximatios, but may contain errors.
+`Between`, `Contains` and `bounds` are close approximations, but may contain errors.
 
 ## Examples
 
@@ -151,7 +160,13 @@ A[Lat(Near(20.0)), Ti(1)] |> plot
 
 
 GeoData.jl provides a range of other methods that are being added to over time.
-One example is `aggregate`, that can aggregate `GeoArray` by axis-specific amounts:
+
+- `agregate`: aggregate data by the same or different amounts for each axis.
+- `disaggregate`: disaggregate data by the same or different amounts for each axis
+- `resample` can resample data to a different size and projection, and snap to
+  an existing `AbstractGeoArray`. 
+
+For example, `aggregate`:
 
 ```julia
 julia> aggregate(mean, A, (Ti(12), Lat(20), Lon(20))
@@ -166,7 +181,7 @@ and data: 9×8×2 Array{Union{Missing, Float32},3}
  missing  277.126        missing     missing     missing     missing  missing  missing
 ```
 
-This will also work for entire `GeoStacks` and `GeoSeries` using the same syntax.
+These methods will also work for entire `GeoStacks` and `GeoSeries` using the same syntax.
 
 
 

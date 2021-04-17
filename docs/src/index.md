@@ -4,7 +4,54 @@
 GeoData
 ```
 
+## Array
+
+Spatial raster data is essentially an array. These wrappers allow treating them
+as an array, but maintaining the spacial index, crs and metadata through all
+transformations.
+
+```@docs
+geoarray
+AbstractGeoArray
+MemGeoArray
+DiskGeoArray
+GeoArray
+GeoData.OpenGeoArray
+```
+
+## Stack
+
+Spatial data often comes as a bundle of multiple named arrays, as in netcdf.
+Stacks can represent this, or multiple files organised in a similar way.
+
+```@docs
+stack
+AbstractGeoStack
+MemGeoStack
+GeoStack
+DiskGeoStack
+DiskStack
+```
+
+## Series
+
+A series is an meta-array that holds other files/data that is distributed over
+some dimension, often time. These files/data can be `geoarray`s or `stack`s.
+
+```@docs
+series
+AbstractGeoSeries
+GeoSeries
+```
+
 ## Dimensions
+
+GeoData uses `X`, `Y`, and `Z` dimensions from DimensionalData.jl to represent
+spatial directions like longitude, latitude and the vertical dimension, and
+index into them. See
+[DimensionalData.jl](https://github.com/rafaqz/DimensionalData.jl/) for more
+details on how they work. GeoData.jl defines a `Band` dimension to represent
+bands.
 
 ```@docs
 Band
@@ -18,39 +65,12 @@ Projected
 Mapped
 ```
 
-## Array
-
-```@docs
-geoarray
-AbstractGeoArray
-MemGeoArray
-DiskGeoArray
-GeoArray
-GeoData.OpenGeoArray
-```
-
-## Stack
-
-```@docs
-stack
-AbstractGeoStack
-MemGeoStack
-GeoStack
-DiskGeoStack
-DiskStack
-SMAPstack
-```
-
-## Series
-
-```@docs
-series
-AbstractGeoSeries
-GeoSeries
-SMAPseries
-```
-
 # Sources
+
+GeoData.jl defines a number of wrappers for various file sources. These may
+require importing a package before they are available. Increasingly, these
+details are not important to the user: `geoarray`, `stack` and `series` will
+detect which backend to use for you, automatically.
 
 ## GRD
 
@@ -68,7 +88,7 @@ GRDarrayMetadata
 
 ## NetCDF
 
-NetCDF files required NCDatasets.jl:
+NetCDF files requires NCDatasets.jl to be imported:
 
 ```julia
 import NCDatasets
@@ -87,7 +107,7 @@ NCDstackMetadata
 ## GDAL
 
 GDAL requires [ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl/issues) to be
-available: 
+imported: 
 
 ```julia
 import ArchGDAL
@@ -105,7 +125,7 @@ GDALarrayMetadata
 The [Soil Moisture Active-Passive](https://smap.jpl.nasa.gov/) dataset provides
 global layers of soil moisture, temperature and other related data.
 
-It uses a custom format of HDF5 files, so required HDF5.jl to be available:
+It uses a custom format of HDF5 files, so requires HDF5.jl to be imported:
 
 ```julia
 import HDF5
@@ -120,6 +140,8 @@ folders of stacks of data with a single command.
 SMAPdimMetadata
 SMAParrayMetadata
 SMAPstackMetadata
+SMAPstack
+SMAPseries
 ```
 
 ## Helper methods
