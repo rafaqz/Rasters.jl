@@ -62,7 +62,7 @@ future, including detecting and converting the native NetCDF projection format.
 - `missingval`: Value reprsenting missing values. Detected automatically when possible, but
   can be passed it.
 - `metadata`: `Metadata` object for the array. Detected automatically as
-  [`Metadata{:NCD}`](@ref), but can be passed in.
+  `Metadata{:NCD}`, but can be passed in.
 
 ## Example
 

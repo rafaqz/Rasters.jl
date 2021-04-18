@@ -82,8 +82,6 @@ If ArchGDAL.jl is loaded (to enable reprojection), they can have [`mappedcrs`](@
 ```@docs
 GRDarray
 GRDstack
-GRDdimMetadata
-GRDarrayMetadata
 ```
 
 ## NetCDF
@@ -99,9 +97,6 @@ Single files can be treated as a array or a stack of arrays.
 ```@docs
 NCDarray
 NCDstack
-NCDdimMetadata
-NCDarrayMetadata
-NCDstackMetadata
 ```
 
 ## GDAL
@@ -116,8 +111,6 @@ import ArchGDAL
 ```@docs
 GDALarray
 GDALstack
-GDALdimMetadata
-GDALarrayMetadata
 ```
 
 ## SMAP
@@ -137,9 +130,6 @@ using [`SMAPseries`](@ref). Methods like `aggregate` can be done over whole
 folders of stacks of data with a single command.
 
 ```@docs
-SMAPdimMetadata
-SMAParrayMetadata
-SMAPstackMetadata
 SMAPstack
 SMAPseries
 ```
