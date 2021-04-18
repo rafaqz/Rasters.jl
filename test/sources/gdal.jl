@@ -13,6 +13,12 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1, :]
     end
 
+    @testset "read" begin
+        A = read(gdalarray)
+        @test A isa GeoArray
+        @test parent(A) isa Array
+    end
+
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
         @test gdalarray isa GDALarray{UInt8,3}
@@ -219,6 +225,14 @@ end
 @testset "GDAL stack" begin
     gdalstack = stack((a=path, b=path));
 
+    @testset "read" begin
+        st = read(gdalstack)
+        @test st isa GeoStack
+        @test st.data isa NamedTuple
+        @test first(st.data) isa GeoArray
+        @test parent(first(st.data)) isa Array
+    end
+
     @testset "child array properties" begin
         @test size(gdalstack[:a]) == (514, 515, 1)
         @test gdalstack[:a] isa GeoArray{UInt8,3}
@@ -256,8 +270,8 @@ end
 
     # Stack Constructors
     @testset "conversion to GeoStack" begin
-        stack = GeoStack(gdalstack)
-        @test Symbol.(Tuple(keys(gdalstack))) == keys(stack)
+        geostack = GeoStack(gdalstack)
+        @test Symbol.(Tuple(keys(gdalstack))) == keys(geostack)
         smallstack = GeoStack(gdalstack; keys=(:a,))
         @test keys(smallstack) == (:a,)
     end
@@ -285,16 +299,23 @@ end
 end
 
 @testset "GDAL series" begin
-    ser = series([path, path], (Ti(),); childkwargs=(mappedcrs=EPSG(4326), name=:test))
-    @test GeoArray(ser[Ti(1)]) == GeoArray(GDALarray(path; mappedcrs=EPSG(4326), name=:test))
+    gdalser = series([path, path], (Ti(),); childkwargs=(mappedcrs=EPSG(4326), name=:test))
+    @test GeoArray(gdalser[Ti(1)]) == GeoArray(GDALarray(path; mappedcrs=EPSG(4326), name=:test))
 
     gdalstack = GDALstack((a=path, b=path); childtype=GDALarray, childkwargs=(mappedcrs=EPSG(4326),))
-    ser = GeoSeries([gdalstack, gdalstack], (Ti,))
-    @test ser[1].childkwargs == gdalstack.childkwargs
+    gdalser = GeoSeries([gdalstack, gdalstack], (Ti,))
+    @test gdalser[1].childkwargs == gdalstack.childkwargs
     # Rebuild the ser by wrapping the GDALarray data in Array.
     # `modify` forces `rebuild` on all containers as in-Memory variants
-    modified_ser = modify(Array, ser)
+    modified_ser = modify(Array, gdalser)
     @test typeof(modified_ser) <: GeoSeries{<:GeoStack{<:NamedTuple{(:a,:b),<:Tuple{<:GeoArray{UInt8,3,<:Tuple,<:Tuple,<:Array{UInt8,3}},Vararg}}}}
+
+    @testset "read" begin
+        geoseries = read(gdalser)
+        @test geoseries isa GeoSeries{<:GeoStack}
+        @test geoseries.data isa Vector{<:GeoStack}
+        @test first(geoseries.data[1].data) isa GeoArray 
+    end
 end
 
 nothing

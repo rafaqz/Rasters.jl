@@ -12,6 +12,14 @@ if isfile(path1) && isfile(path2)
     @testset "stack" begin
         smapstack = stack(path1)
 
+        @testset "read" begin
+            st = read(smapstack)
+            @test st isa GeoStack
+            @test st.data isa NamedTuple
+            @test first(st.data) isa GeoArray
+            @test parent(first(st.data)) isa Array
+        end
+
         @testset "conversion to GeoArray" begin
             smaparray = smapstack["soil_temp_layer1"][Y(), X()]
             @test smaparray isa GeoArray{Float32,2}
@@ -89,13 +97,20 @@ if isfile(path1) && isfile(path2)
     end
 
     @testset "series" begin
-        series = SMAPseries([path1, path2]);
-        val.(dims(series))
-        @test series[1] isa SMAPstack
-        @test first(bounds(series, Ti)) == DateTime(2016, 1, 1, 22, 30)
-        @test last(bounds(series, Ti)) == DateTime(2016, 1, 3, 1, 30)
-        modified_series = modify(Array, series)
+        smapseries = SMAPseries([path1, path2]);
+        val.(dims(smapseries))
+        @test smapseries[1] isa SMAPstack
+        @test first(bounds(smapseries, Ti)) == DateTime(2016, 1, 1, 22, 30)
+        @test last(bounds(smapseries, Ti)) == DateTime(2016, 1, 3, 1, 30)
+        modified_series = modify(Array, smapseries)
         stackkeys = keys(modified_series[1])
         @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{stackkeys,<:Tuple{<:GeoArray{Float32,2,<:Tuple,<:Tuple,<:Array{Float32,2}},Vararg}}}}
+
+        @testset "read" begin
+            geoseries = read(smapseries)
+            @test geoseries isa GeoSeries{<:GeoStack}
+            @test geoseries.data isa Vector{<:GeoStack}
+            @test first(geoseries.data[1].data) isa GeoArray 
+        end
     end
 end
