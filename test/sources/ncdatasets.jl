@@ -33,6 +33,12 @@ stackkeys = (
         @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
     end
 
+    @testset "read" begin
+        A = read(ncarray)
+        @test A isa GeoArray
+        @test parent(A) isa Array
+    end
+
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)
         @test ncarray isa NCDarray
@@ -212,6 +218,14 @@ end
 @testset "NCDstack" begin
     ncstack = stack(ncmulti)
 
+    @testset "read" begin
+        st = read(ncstack)
+        @test st isa GeoStack
+        @test st.data isa NamedTuple
+        @test first(st.data) isa GeoArray
+        @test parent(first(st.data)) isa Array
+    end
+
     @testset "load ncstack" begin
         @test ncstack isa NCDstack{String}
         @test ismissing(missingval(ncstack))
@@ -303,12 +317,18 @@ end
 end
 
 @testset "NCD series" begin
-    ser = series([ncmulti, ncmulti], (Ti,); child=stack)
+    ncseries = series([ncmulti, ncmulti], (Ti,); child=stack)
     geoA = GeoArray(NCDarray(ncmulti, :albedo; name=:test))
-    @test ser[Ti(1)][:albedo] == geoA
-    @test typeof(ser[Ti(1)][:albedo]) == typeof(geoA)
-    modified_series = modify(Array, ser)
+    @test ncseries[Ti(1)][:albedo] == geoA
+    @test typeof(ncseries[Ti(1)][:albedo]) == typeof(geoA)
+    modified_series = modify(Array, ncseries)
     @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{stackkeys,<:Tuple{<:GeoArray{Float32,3,<:Tuple,<:Tuple,<:Array{Float32,3}},Vararg}}}}
+
+    @testset "read" begin
+        geoseries = read(ncseries)
+        @test geoseries isa GeoSeries{<:GeoStack}
+        @test geoseries.data isa Vector{<:GeoStack}
+    end
 end
 
 nothing

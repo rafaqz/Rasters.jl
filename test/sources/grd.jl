@@ -19,6 +19,12 @@ path = stem * ".gri"
         @test all(open(A -> A[Y=1], grdarray) .=== grdarray[:, 1, :])
     end
 
+    @testset "read" begin
+        A = read(grdarray)
+        @test A isa GeoArray
+        @test parent(A) isa Array
+    end
+
     @testset "array properties" begin
         @test grdarray isa GRDarray{Float32,3}
     end
@@ -184,6 +190,14 @@ end
 @testset "Grd stack" begin
     grdstack = stack((a=path, b=path))
 
+    @testset "read" begin
+        st = read(grdstack)
+        @test st isa GeoStack
+        @test st.data isa NamedTuple
+        @test first(st.data) isa GeoArray
+        @test parent(first(st.data)) isa Array
+    end
+
     @testset "indexing" begin
         @test grdstack[:a][Y(20), X(20), Band(3)] == 70.0f0
         @test grdstack[:a][Y([2,3]), X(40), Band(2)] == [240.0f0, 246.0f0]
@@ -250,15 +264,24 @@ end
 end
 
 @testset "Grd series" begin
-    ser = series([path, path], (Ti,); childtype=GRDarray, childkwargs=(mappedcrs=EPSG(4326), name=:test))
-    @test GeoArray(ser[Ti(1)]) ==
+    grdseries = series([path, path], (Ti,); childtype=GRDarray, childkwargs=(mappedcrs=EPSG(4326), name=:test))
+    @test GeoArray(grdseries[Ti(1)]) ==
         GeoArray(GRDarray(path; mappedcrs=EPSG(4326), name=:test))
     stacks = [DiskStack((a=path, b=path); childtype=GRDarray, childkwargs=(mappedcrs=EPSG(4326), name=:test))]
-    ser = GeoSeries(stacks, (Ti,))
-    @test ser[Ti(1)][:a] ==
+
+    grdseries = GeoSeries(stacks, (Ti,))
+    @test grdseries[Ti(1)][:a] ==
         GeoArray(GRDarray(path; mappedcrs=EPSG(4326), name=:test))
-    modified_ser = modify(Array, ser)
+    modified_ser = modify(Array, grdseries)
     @test typeof(modified_ser) <: GeoSeries{<:GeoStack{<:NamedTuple{(:a,:b),<:Tuple{<:GeoArray{Float32,3,<:Tuple,<:Tuple,<:Array{Float32,3}},Vararg}}}}
+
+    @testset "read" begin
+        geoseries = read(grdseries)
+        @test geoseries isa GeoSeries{<:GeoStack}
+        @test geoseries.data isa Vector{<:GeoStack}
+        @test geoseries.data isa Vector{<:GeoStack}
+        @test first(geoseries.data[1].data) isa GeoArray 
+    end
 end
 
 
