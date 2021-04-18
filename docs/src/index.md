@@ -185,6 +185,7 @@ GeoData.childkwargs
 These Base and DimensionalData methods have specific GeoData.jl version:
 
 ```@docs
+read
 open
 write
 cat
