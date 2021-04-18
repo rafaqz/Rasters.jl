@@ -28,7 +28,7 @@ so we store them as stack fields.
     These are loaded from the HDF5 by default, but can be passed in to improve performance,
     as is done by [`SMAPseries`](@ref),
 - `refdims`: As for `dims`. Often the position time `Dimension` from the `SMAPseries`.
-- `metadata`: [`Metadata`](@ref) object. As for `dims`.
+- `metadata`: `Metadata` object. As for `dims`.
 - `window`: Like `view` but lazy, for disk based data. Can be a tuple of Dimensions,
     selectors or regular indices. These will be applied when the data is loaded or indexed.
 """
