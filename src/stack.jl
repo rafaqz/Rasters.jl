@@ -278,7 +278,7 @@ end
 
     GeoStack(data...; keys, kwargs...)
     GeoStack(data::Union{Vector,Tuple}; keys, kwargs...)
-    GeoStack(data::NamedTuple; window=(), metadata=nothing, refdims=(), childkwargs=()) =
+    GeoStack(data::NamedTuple; window=(), metadata=NoMetadata(), refdims=(), childkwargs=()) =
     GeoStack(s::AbstractGeoStack; [keys, data, refdims, window, metadata])
 
 A concrete `MemGeoStack` implementation. Holds layers of [`GeoArray`](@ref).
@@ -311,7 +311,7 @@ end
 function GeoStack(data::NamedTuple;
          refdims=(),
          window=(),
-         metadata=nothing,
+         metadata=NoMetadata(),
          childkwargs=())
     GeoStack(data, refdims, window, metadata, childkwargs)
 end
@@ -358,7 +358,7 @@ struct DiskStack{T,R,W,M,C,K} <: DiskGeoStack{T}
     childkwargs::K
 end
 function DiskStack(filenames::NamedTuple;
-    refdims=(), window=(), metadata=nothing, childtype, childkwargs=()
+    refdims=(), window=(), metadata=NoMetadata(), childtype, childkwargs=()
 )
     DiskStack(filenames, refdims, window, metadata, childtype, childkwargs)
 end

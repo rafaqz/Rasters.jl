@@ -8,7 +8,7 @@ dims2 = (dims1..., Ti([DateTime(2019)]))
 refdimz = ()
 nme = :test
 mval = -9999.0
-meta = nothing
+meta = NoMetadata()
 
 # Formatting only occurs in shorthand constructors
 ga1 = GeoArray(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=mval)
@@ -35,8 +35,8 @@ end
 @testset "stack fields " begin
     @test dims(stack, :ga1) == DimensionalData.formatdims(data1, dims1)
     @test window(stack) == ()
-    @test metadata(stack) == nothing
-    @test metadata(stack, :ga1) == nothing
+    @test metadata(stack) == NoMetadata()
+    @test metadata(stack, :ga1) == NoMetadata()
 end
 
 @testset "indexing" begin
