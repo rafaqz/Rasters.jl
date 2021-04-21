@@ -1,34 +1,38 @@
-function Base.show(io::IO, A::AbstractGeoArray)
-    l = nameof(typeof(A))
-    printstyled(io, nameof(typeof(A)); color=:blue)
-    if label(A) != ""
-        print(io, " (named ")
-        printstyled(io, label(A); color=:blue)
-        print(io, ")")
+
+# Add method to avoid printing from disk
+function Base.show(io::IO, mime::MIME"text/plain", A::DiskGeoArray{T,N}) where {T,N}
+    printstyled(io, string(nameof(typeof(A)), "{$T,$N}"); color=:blue)
+    DD._printname(io, name(A))
+    DD._printdims(io, mime, dims(A))
+    DD._printrefdims(io, mime, refdims(A))
+    print(io, "\nFrom file: $(filename(A))")
+    println(io)
+    if !(metadata(A) isa NoMetadata) 
+        print(io, "\nwith ")
+        show(io, mime, metadata(A))
     end
-    print(io, " with dimensions:\n")
-    for d in dims(A)
-        print(io, " ", d, " (length ", length(d), ") \n")
-    end
-    if !isempty(refdims(A))
-        print(io, "and referenced dimensions:\n")
-        for d in refdims(A)
-            print(io, " ", d, "\n")
-        end
-    end
-    A isa DiskGeoArray && print(io, "\n  From file: $(filename(A))")
 end
 
-function Base.show(io::IO, stack::AbstractGeoStack)
-    n_fields = length(keys(stack))
-    fields_str = n_fields == 1 ? "field" : "fields"
-    printstyled(io, "$(Base.typename(typeof(stack)))", color=:blue)
-    print(io, " with $n_fields $fields_str")
-    stack isa DiskGeoStack && print(io, ": $(filename(stack))")
+function Base.show(io::IO, mime::MIME"text/plain", stack::AbstractGeoStack)
+    nlayers = length(keys(stack))
+    layers_str = nlayers == 1 ? "layer" : "layers"
+    printstyled(io, nameof(typeof(stack)), color=:blue)
+    if stack isa DiskGeoStack 
+        print(io, " with $nlayers $(childtype(stack)) $layers_str:")
+        if !(filename(stack) isa String)
+            for (key, fn) in pairs(filename(stack))
+                print(io, "\n ")
+                printstyled(io, " $key", color=:green)
+                print(io, " = ", fn)
+            end
+        end
+    else
+        print(io, " with $nlayers $layers_str")
+    end
     print(io, '\n')
 
     for var in keys(stack)
-        printstyled(io, " $var", color=:green)
+        printstyled(io, "  $var", color=:green)
 
         field_dims = dims(stack, var)
         n_dims = length(field_dims)
@@ -39,7 +43,7 @@ function Base.show(io::IO, stack::AbstractGeoStack)
                 printstyled(io, "$(name(dim))", color=:red)
                 d != length(field_dims) && print(io, ", ")
             end
-            print(io, " (size ")
+            print(io, " (")
             for (d, dim) in enumerate(field_dims)
                 print(io, "$(length(dim))")
                 d != length(field_dims) && print(io, '×')
@@ -51,29 +55,32 @@ function Base.show(io::IO, stack::AbstractGeoStack)
 
     n_windows = length(window(stack))
     if n_windows > 0
-        print(io, "and with window:\n")
-        for window in window(stack)
+        print(io, "with window:\n")
+        for dim in window(stack)
             print(io, ' ')
-            show(window)
+            show(IOContext(io; :compact=>true), mime, dim)
             print(io, '\n')
         end
     end
 
-    if !isnothing(metadata(stack))
-        n_metadata = length(metadata(stack))
-        entries_str = n_metadata == 1 ? "entry" : "entries"
+    md = metadata(stack)
+    if !(md isa NoMetadata)
+        n_metadata = length(md)
         if n_metadata > 0
-            print(io, "and $n_metadata metadata $entries_str:\n")
-            display(stack.metadata)
+            print(io, "\nwith ")
+            show(io, mime, md)
         end
     end
 end
 
-function Base.show(io::IO, mode::AbstractProjected)
+function Base.show(io::IO, mime::MIME"text/plain", mode::AbstractProjected)
     DD._printmode(io, mode)
+    print(io, " - ")
     DD._printorder(io, mode)
-    print(io, " ", nameof(typeof(span(mode))))
-    print(io, " ", nameof(typeof(sampling(mode))))
+    print(io, " ")
+    DD._printspan(io, mode)
+    print(io, " ")
+    DD._printsampling(io, mode)
     print(io, " crs: ", nameof(typeof(crs(mode))))
     print(io, " mappedcrs: ", nameof(typeof(mappedcrs(mode))))
 end
