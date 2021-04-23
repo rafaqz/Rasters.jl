@@ -99,6 +99,7 @@ stackkeys = (
             @test ncrevlatarray[Y(At(40)), X(At(100)), Ti(1)] == missingval(ncrevlatarray)
             @test ncrevlatarray[Y(At(-40)), X(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0
             @test val(span(ncrevlatarray, Ti)) == Month(1)
+            @test val(span(ncrevlatarray, Ti)) isa Month # Not CompoundPeriod
         end
     end
 

@@ -388,7 +388,14 @@ function _parse_period(period_str::String)
         vals = Tuple(parse.(Int, mtch.captures))
         periods = (Year, Month, Day, Hour, Minute, Second)
         if length(vals) == length(periods)
-            sum(map((p, v) -> p(v), periods, vals))
+            compound = sum(map((p, v) -> p(v), periods, vals))
+            if length(compound.periods) == 1
+                return compound.periods[1]
+            else
+                return compound
+            end
+        else
+            return nothing 
         end
     end
 end
