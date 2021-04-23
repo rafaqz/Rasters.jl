@@ -173,7 +173,7 @@ path = stem * ".gri"
     end
 
     @testset "show" begin
-        sh = sprint(show, grdarray)
+        sh = sprint(show, MIME("text/plain"), grdarray)
         # Test but don't lock this down too much
         @test occursin("GRDarray", sh)
         @test occursin("Y", sh)
@@ -235,8 +235,8 @@ end
 
     # Stack Constructors
     @testset "conversion to GeoStack" begin
-        stack = GeoStack(grdstack)
-        @test Symbol.(Tuple(keys(grdstack))) == keys(stack)
+        geostack = GeoStack(grdstack)
+        @test Symbol.(Tuple(keys(grdstack))) == keys(geostack)
         smallstack = GeoStack(grdstack; keys=(:a,))
         @test keys(smallstack) == (:a,)
     end
@@ -244,6 +244,7 @@ end
     if VERSION > v"1.1-"
         @testset "copy" begin
             geoA = zero(GeoArray(grdstack[:a]))
+            geoA
             copy!(geoA, grdstack, :a)
             # First wrap with GeoArray() here or == loads from disk for each cell.
             # we need a general way of avoiding this in all disk-based sources
@@ -260,6 +261,19 @@ end
         saved = GeoArray(GRDarray(filename_b))
         @test typeof(saved) == typeof(geoA)
         @test data(saved) == data(geoA)
+    end
+
+    @testset "show" begin
+        sh = sprint(show, MIME("text/plain"), grdstack)
+        # Test but don't lock this down too much
+        @test occursin("DiskStack", sh)
+        @test occursin("GRDarray", sh)
+        @test occursin("Y", sh)
+        @test occursin("X", sh)
+        @test occursin("Band", sh)
+        @test occursin(":a", sh)
+        @test occursin(":b", sh)
+        @test occursin("logo.gri", sh)
     end
 
 end

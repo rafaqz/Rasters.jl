@@ -16,7 +16,7 @@ end
 @time @safetestset "utils" begin include("utils.jl") end
 @time @safetestset "set" begin include("set.jl") end
 @time @safetestset "reproject" begin include("reproject.jl") end
-@time @safetestset "aggregat" begin include("aggregate.jl") end
+@time @safetestset "aggregate" begin include("aggregate.jl") end
 @time @safetestset "methods" begin include("methods.jl") end
 @time @safetestset "resample" begin include("resample.jl") end
 # Only test SMAP locally for now

@@ -124,6 +124,7 @@ Abstract supertype for [`AbstractGeoStack`](@ref) stored in memory.
 """
 abstract type MemGeoStack{T} <: AbstractGeoStack{T} end
 
+childtype(s::MemGeoStack) = GeoArray
 DD.data(s::MemGeoStack) = s.data
 DD.data(s::MemGeoStack{<:NamedTuple}, key::Key) = data(s)[Symbol(key)]
 

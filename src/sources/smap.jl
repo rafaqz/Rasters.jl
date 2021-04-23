@@ -127,7 +127,6 @@ function SMAPseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
         timeseries = []
         errors = []
         for filename in filenames
-            println("Loading SMAP file: $filename")
             try
                 t = _smap_timefrompath(filename)
                 push!(timeseries, t)
