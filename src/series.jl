@@ -104,8 +104,26 @@ function GeoSeries(data, dims; refdims=(), childtype, childkwargs=())
     GeoSeries(data, DD.formatdims(data, dims), refdims, childtype, childkwargs)
 end
 
-@inline function DD.rebuild(A::GeoSeries, data, dims::Tuple, refdims, args...)
-    GeoSeries(data, dims, refdims, childtype(A), childkwargs(A))
+@inline function DD.rebuild(
+    A::GeoSeries, data, dims::Tuple, refdims, childtype=childtype(A), childkwargs=childkwargs(A)
+)
+    ct = _choosechildtype(data, childtype)
+    GeoSeries(data, dims, refdims, ct, childkwargs)
+end
+@inline function DD.rebuild(
+    A::GeoSeries; 
+    data=data(A), dims=dims(A), refdims=refdims(A), childtype=childtype(A), childkwargs=childkwargs(A)
+)
+    ct = _choosechildtype(data, childtype)
+    GeoSeries(data, dims, refdims, ct, childkwargs)
+end
+
+function _choosechildtype(data, childtype)
+    ct = if data isa String || first(data) isa String 
+        childtype(A)
+    else
+        DD.basetypeof(first(data))
+    end
 end
 
 @propagate_inbounds function Base.setindex!(A::GeoSeries, x, I::StandardIndices...)

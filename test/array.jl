@@ -27,7 +27,7 @@ ga1 = GeoArray(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingva
 end
 
 @testset "show" begin
-    sh = sprint(show, ga1)
+    sh = sprint(show, MIME("text/plain"), ga1)
     # Test but don't lock this down too much
     @test occursin("GeoArray", sh)
     @test occursin("Y", sh)

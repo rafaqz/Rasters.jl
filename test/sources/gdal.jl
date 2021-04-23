@@ -7,7 +7,7 @@ include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 
 @testset "GDALarray" begin
-    gdalarray = geoarray(path; mappedcrs=EPSG(4326), name=:test);
+    gdalarray = geoarray(path; mappedcrs=EPSG(4326), name=:test)
 
     @testset "open" begin
         @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1, :]
@@ -185,29 +185,20 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             @test mappedindex(clon) ≈ mappedindex(saved, Lon)
             @test all(mappedbounds(saved, Lon) .≈ mappedbounds(clon))
             @test all(mappedbounds(saved, Lat) .≈ mappedbounds(clat))
-            # @test all(
-            #           projectedbounds(saved, Lon)
-            #           locus(saved, Lon)
-            #           first(val(span(saved, Lon)))
-            #           first(index(saved, Lon))
-            #           first(projectedindex(saved, Lon))
-            #           last(projectedindex(saved, Lon))
-            #           .≈ 
-            #           projectedbounds(gdalarray, Lon)
-            #           locus(gdalarray, Lon)
-            #           first(projectedindex(gdalarray, Lon))
-            #           last(projectedindex(gdalarray, Lon))
-            #          )
-            # @test projectedindex(gdalarray, Lat) .- reverse(projectedindex(DimensionalData.shiftloci(Start(), dims(saved, Lat))))
             @test projectedindex(clon) ≈ projectedindex(saved, Lon)
-            # For some reason this crs conversion is less accrurate than the others
+            @test all(projectedbounds(clon) .≈ projectedbounds(saved, Lon))
+            # reason lat crs conversion is less accrurate than lon TODO investigate further
+            @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), 
+                projectedindex(gdalarray, Lat), 
+                reverse(projectedindex(DimensionalData.shiftlocus(Start(), dims(saved, Lat))))
+            ))
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Lat),  projectedbounds(gdalarray, Lat)))
         end
 
     end
 
     @testset "show" begin
-        sh = sprint(show, gdalarray)
+        sh = sprint(show, MIME("text/plain"), gdalarray)
         # Test but don't lock this down too much
         @test occursin("GDALarray", sh)
         @test occursin("Y", sh)
@@ -215,8 +206,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @test occursin("Band", sh)
     end
 
-    @testset "plot and show" begin # TODO write some tests for this
-        gdalarray |> show
+    @testset "plot" begin # TODO write some tests for this
         gdalarray |> plot
         gdalarray[Y(1)] |> plot
     end
@@ -224,10 +214,11 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
 end
 
 @testset "GDAL stack" begin
-    gdalstack = stack((a=path, b=path));
+    gdalstack = stack((a=path, b=path))
 
     @testset "read" begin
         st = read(gdalstack)
+        display(st)
         @test st isa GeoStack
         @test st.data isa NamedTuple
         @test first(st.data) isa GeoArray
@@ -295,6 +286,19 @@ end
         filename_b = string(base, "_b", ext)
         saved = GeoArray(GDALarray(filename_b))
         @test all(saved .== geoA)
+    end
+
+    @testset "show" begin
+        sh = sprint(show, MIME("text/plain"), gdalstack)
+        # Test but don't lock this down too much
+        @test occursin("DiskStack", sh)
+        @test occursin("GDALarray", sh)
+        @test occursin("Y", sh)
+        @test occursin("X", sh)
+        @test occursin("Band", sh)
+        @test occursin(":a", sh)
+        @test occursin(":b", sh)
+        @test occursin("cea.tif", sh)
     end
 
 end

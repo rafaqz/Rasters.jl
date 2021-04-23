@@ -81,24 +81,24 @@ if isfile(path1) && isfile(path2)
         end
 
         @testset "show" begin
-            sh1 = sprint(show, smapstack[:soil_temp_layer1])
+            sh1 = sprint(show, MIME("text/plain"), smapstack[:soil_temp_layer1])
             # Test but don't lock this down too much
             @test occursin("GeoArray", sh1)
             @test occursin("Y", sh1)
             @test occursin("X", sh1)
-            @test occursin("Time", sh1)
-            sh2 = sprint(show, smapstack[:soil_temp_layer1][Y(Between(0, 100)), X(Between(1, 100))])
+            @test occursin("Ti", sh1)
+            sh2 = sprint(show, MIME("text/plain"), smapstack[:soil_temp_layer1][Y(Between(0, 100)), X(Between(1, 100))])
             # Test but don't lock this down too much
             @test occursin("GeoArray", sh2)
             @test occursin("Y", sh2)
             @test occursin("X", sh2)
-            @test occursin("Time", sh2)
+            @test occursin("Ti", sh2)
         end
 
     end
 
     @testset "series" begin
-        smapseries = SMAPseries([path1, path2]);
+        smapseries = SMAPseries([path1, path2])
         val.(dims(smapseries))
         @test smapseries[1] isa SMAPstack
         @test first(bounds(smapseries, Ti)) == DateTime(2016, 1, 1, 22, 30)
@@ -112,6 +112,14 @@ if isfile(path1) && isfile(path2)
             @test geoseries isa GeoSeries{<:GeoStack}
             @test geoseries.data isa Vector{<:GeoStack}
             @test first(geoseries.data[1].data) isa GeoArray 
+        end
+
+        @testset "show" begin
+            sh = sprint(show, MIME("text/plain"), smapseries)
+            # Test but don't lock this down too much
+            @test occursin("GeoSeries", sh)
+            @test occursin("SMAPstack", sh)
+            @test occursin("Ti", sh)
         end
     end
 end

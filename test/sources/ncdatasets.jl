@@ -94,7 +94,7 @@ stackkeys = (
     @testset "indexing with reverse lat" begin
         if !haskey(ENV, "CI") # CI downloads fail. But run locally
             ncrevlat = maybedownload("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
-            ncrevlatarray = NCDstack(ncrevlat; childkwargs=(missingval=-9.96921f36,))[:sst]
+            ncrevlatarray = NCDarray(ncrevlat, :sst; missingval=-9.96921f36, )
             @test order(dims(ncrevlatarray, Y)) == Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
             @test ncrevlatarray[Y(At(40)), X(At(100)), Ti(1)] == missingval(ncrevlatarray)
             @test ncrevlatarray[Y(At(-40)), X(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0
@@ -104,7 +104,7 @@ stackkeys = (
     end
 
     @testset "selectors" begin
-        a = ncarray[X(At(21.0)), Y(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))];
+        a = ncarray[X(At(21.0)), Y(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))]
         @test bounds(a) == ((50.0, 52.0),)
         x = ncarray[X(Near(150)), Y(Near(30)), Ti(1)]
         @test x isa Float32
@@ -117,7 +117,7 @@ stackkeys = (
         @test size(nca) == (90, 55)
     end
     @testset "selectors" begin
-        a = ncarray[Lon(At(21.0)), Lat(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))];
+        a = ncarray[Lon(At(21.0)), Lat(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))]
         @test bounds(a) == ((50.0, 52.0),)
         x = ncarray[Lon(Near(150)), Lat(Near(30)), Ti(1)]
         @test x isa Float32
@@ -201,7 +201,7 @@ stackkeys = (
     end
 
     @testset "show" begin
-        sh = sprint(show, ncarray)
+        sh = sprint(show, MIME("text/plain"), ncarray)
         # Test but don't lock this down too much
         @test occursin("NCDarray", sh)
         @test occursin("Y", sh)
