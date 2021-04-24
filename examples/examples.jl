@@ -66,7 +66,6 @@ permutedims(A, (Lat, Lon, Ti))[Ti(1:3:12)] |> plot
 
 # Line plots have (kind of) useful labels
 A = ncseries[1]["tos"]
-replace(A[Lat(80)], missing=>NaN) |> plot
 A[Lon(170), Ti(10)] |> plot
 A[Lat(1:80), Lon(170), Ti(10)] |> plot
 
