@@ -87,6 +87,9 @@ function __init__()
         include("reproject.jl")
         include("sources/gdal.jl")
     end
+    @require RasterDataSources="3cb90ccd-e1b6-4867-9617-4276c8b2ca36" begin
+        include("sources/rasterdatasources.jl")
+    end
 end
 
 end

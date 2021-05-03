@@ -19,6 +19,7 @@ Passed to the constructor for the file type, and commmonly include:
 """
 function geoarray end
 
+
 geoarray(filename::AbstractString; kw...) = _constructor(geoarray, filename)(filename; kw...)
 
 """
@@ -63,6 +64,8 @@ stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 function stack end
 
 stack(filename::AbstractString; kw...) = _constructor(stack, filename)(filename; kw...)
+stack(filenames::Union{Tuple,AbstractArray}; keys, kw...) = 
+    stack(NamedTuple{map(Symbol, keys)}(filenames); kw...) 
 function stack(filenames::NamedTuple; child_kwargs=(), kw...)
     if all(x -> splitext(x)[2] == splitext(first(filenames))[2], filenames)
         # All the same kind of file. We don't need to load them up front.
