@@ -1,4 +1,4 @@
-using GeoData, Test, Statistics, Dates, Plots, DimensionalData
+using GeoData, Test, Statistics, Dates, Plots, DimensionalData, RasterDataSources
 import ArchGDAL, NCDatasets
 using GeoData: window, mode, span, sampling, name, bounds
 
@@ -209,6 +209,12 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     @testset "plot" begin # TODO write some tests for this
         gdalarray |> plot
         gdalarray[Y(1)] |> plot
+    end
+
+    @testset "nodatavalue type matches the array type" begin
+        A = geoarray(WorldClim{Climate}, :tavg; res="10m", month=1)
+        @test typeof(missingval(A)) === eltype(A)
+        @test missingval(A) === -3.4f38
     end
 
 end
