@@ -12,6 +12,7 @@ transformations.
 
 ```@docs
 geoarray
+geoarray(T::Type{<:RasterDataSources.RasterDataSource})
 AbstractGeoArray
 MemGeoArray
 DiskGeoArray
@@ -26,6 +27,7 @@ Stacks can represent this, or multiple files organised in a similar way.
 
 ```@docs
 stack
+stack(T::Type{<:RasterDataSources.RasterDataSource})
 AbstractGeoStack
 MemGeoStack
 GeoStack
@@ -40,6 +42,7 @@ some dimension, often time. These files/data can be `geoarray`s or `stack`s.
 
 ```@docs
 series
+series(T::Type{<:RasterDataSources.RasterDataSource})
 AbstractGeoSeries
 GeoSeries
 ```

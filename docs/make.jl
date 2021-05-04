@@ -1,4 +1,4 @@
-using Documenter, GeoData, HDF5, ArchGDAL, NCDatasets
+using Documenter, GeoData, HDF5, ArchGDAL, NCDatasets, RasterDataSources
 
 makedocs(
     modules = [GeoData],

@@ -11,7 +11,7 @@ const LayerItr = Union{AbstractArray,Tuple}
 
 Load a `RasterDataSource` as an `AbstractGeoArray`. `T`, `args` are
 are passed to `getraster`, while `kw` args are for both `getraster` and
-`AbstractGeoStack`.
+`AbstractGeoArray`.
 
 # Keywords
 
@@ -19,7 +19,7 @@ are passed to `getraster`, while `kw` args are for both `getraster` and
 - `date`: For `Weather` datasets
 - `res`: For datasets with multiple resolutions
 
-Normal `geoarray` keywords are passed to the array constructor.
+Normal `geoarray` keywords are passed to the constructor.
 """
 geoarray(T::Type{<:RasterDataSource}; kw...) = geoarray(T, first(RDS.layers(T)); kw...) 
 function geoarray(T::Type{<:RasterDataSource}, layer; kw...)
@@ -41,10 +41,10 @@ are passed to `getraster`, while `kw` args are for both `getraster` and
 - `date`: For `Weather` datasets
 - `res`: For datasets with multiple resolutions
 
-Normal `stack` keywords are passed to the array constructor.
+Normal `stack` keywords are passed to the constructor.
 """
-stack(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = stack(T, (layer,); kw...) 
 stack(T::Type{<:RasterDataSource}; kw...) = stack(T, RDS.layers(T); kw...) 
+stack(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = stack(T, (layer,); kw...) 
 function stack(T::Type{<:RasterDataSource}, layers::LayerItr; childkwargs=(), kw...)
     rds_kw, gd_kw = _filterkw(kw)
     filenames = map(l -> getraster(T, l; rds_kw...), layers)
@@ -58,17 +58,16 @@ Load a `RasterDataSource` as an `AbstractGeoSeries`. `T`, `args` are
 are passed to `getraster`, while `kw` args are for both `getraster` and
 `AbstractGeoSeries`.
 
-
 # Keywords
 
 - `month`: For `Climate` datasets
 - `date`: For `Weather` datasets
 - `res`: For datasets with multiple resolutions
 
-Normal `stack` keywords are passed to the array constructor.
+Normal `stack` keywords are passed to the constructor.
 """
-series(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = series(T, (layer,); kw...) 
 series(T::Type{<:RasterDataSource}; kw...) = series(T, RDS.layers(T); kw...) 
+series(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = series(T, (layer,); kw...) 
 # Int month time-series
 function series(T::Type{WorldClim{Climate}}, layers::LayerItr;
     res=RDS.defres(T), month=1:12, window=(), kw...
@@ -100,7 +99,7 @@ _seriesstep(T::Type{<:AWAP}) = Day(1)
 function _filterkw(kw)
     rds = []; gd = []
     for p in kw
-        dest = first(p) in (:date, :month, :res, :discover) ? rds : gd
+        dest = first(p) in (:date, :month, :res) ? rds : gd
         push!(dest, p)
     end
     rds, gd
