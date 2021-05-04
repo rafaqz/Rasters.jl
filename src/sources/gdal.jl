@@ -248,11 +248,16 @@ function missingval(raster::AG.RasterDataset, args...)
     # We can only handle data where all bands have the same missingval
     band = AG.getband(raster.ds, 1)
     nodata = AG.getnodatavalue(band)
-    if nodata isa Nothing
-        return nothing
+    return if nodata isa Nothing
+        nothing
     else
-        # Convert in case getnodatavalue is the wrong type
-        return convert(eltype(band), AG.getnodatavalue(band))
+        # Convert in case getnodatavalue is the wrong type.
+        # This conversion should always be safe.
+        if eltype(band) <: AbstractFloat && nodata isa Real
+            convert(eltype(band), nodata)
+        else
+            nodata
+        end
     end
 end
 
