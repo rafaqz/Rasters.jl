@@ -247,7 +247,13 @@ end
 function missingval(raster::AG.RasterDataset, args...)
     # We can only handle data where all bands have the same missingval
     band = AG.getband(raster.ds, 1)
-    AG.getnodatavalue(band)
+    nodata = AG.getnodatavalue(band)
+    if nodata isa Nothing
+        return nothing
+    else
+        # Convert in case getnodatavalue is the wrong type
+        return convert(eltype(band), AG.getnodatavalue(band))
+    end
 end
 
 # metadata(raster::RasterDataset, key) = begin
