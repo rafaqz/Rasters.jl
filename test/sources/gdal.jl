@@ -224,7 +224,6 @@ end
 
     @testset "read" begin
         st = read(gdalstack)
-        display(st)
         @test st isa GeoStack
         @test st.data isa NamedTuple
         @test first(st.data) isa GeoArray

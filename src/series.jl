@@ -105,24 +105,28 @@ function GeoSeries(data, dims; refdims=(), childtype, childkwargs=())
 end
 
 @inline function DD.rebuild(
-    A::GeoSeries, data, dims::Tuple, refdims, childtype=childtype(A), childkwargs=childkwargs(A)
+    A::GeoSeries, data, dims::Tuple, refdims, name=name(A), childtype=childtype(A), childkwargs=childkwargs(A)
 )
     ct = _choosechildtype(data, childtype)
     GeoSeries(data, dims, refdims, ct, childkwargs)
 end
 @inline function DD.rebuild(
     A::GeoSeries; 
-    data=data(A), dims=dims(A), refdims=refdims(A), childtype=childtype(A), childkwargs=childkwargs(A)
+    data=data(A), dims=dims(A), refdims=refdims(A), name=nothing, childtype=childtype(A), childkwargs=childkwargs(A)
 )
     ct = _choosechildtype(data, childtype)
     GeoSeries(data, dims, refdims, ct, childkwargs)
 end
 
 function _choosechildtype(data, childtype)
-    ct = if data isa String || first(data) isa String 
+    ct = if data isa AbstractString 
         childtype(A)
-    else
+    elseif data isa AbstractVector{<:AbstractString}
+        childtype(A)
+    elseif length(data) > 0
         DD.basetypeof(first(data))
+    else
+        Nothing
     end
 end
 
