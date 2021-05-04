@@ -56,13 +56,13 @@ end
 end
 
 @testset "load ALWB" begin
-    A = geoarray(ALWB{Values,Day}; date=DateTime(2019, 10, 19))
-    A = geoarray(ALWB{Values,Day}, :ss_pct; date=DateTime(2019, 10, 19))
+    A = geoarray(ALWB{:Values,Day}; date=DateTime(2019, 10, 19))
+    A = geoarray(ALWB{:Values,Day}, :ss_pct; date=DateTime(2019, 10, 19))
     @test crs(A) == EPSG(4326)
-    st = stack(ALWB{Values,Day}, (:s0_pct, :ss_pct); date=DateTime(2019, 10, 19))
+    st = stack(ALWB{:Values,Day}, (:s0_pct, :ss_pct); date=DateTime(2019, 10, 19))
     @test crs(st[:s0_pct]) == EPSG(4326)
     dates = DateTime(2019, 10, 19):Day(1):DateTime(2019, 11, 20)
-    s = series(ALWB{Values,Day}, (:s0_pct, :ss_pct); date=dates)
+    s = series(ALWB{:Values,Day}, (:s0_pct, :ss_pct); date=dates)
     @test A isa NCDarray
     @test st isa DiskStack
     @test s isa GeoSeries
