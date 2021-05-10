@@ -220,4 +220,21 @@ end
     setindex!(data(A), x, I...)
 end
 
-Base.convert(::Type{GeoArray}, array::AbstractGeoArray) = GeoArray(array)
+struct FileArray{X,T,N,F,S<:Tuple,Na<:Union{Symbol,Nothing}} <: AbstractArray{T,N}
+    filename::F
+    size::S
+    name::Na
+end
+FileArray{X,T,N}(filename::F, size::S, key::Na=nothing) where {X,T,N,F,S,Na} = 
+    FileArray{X,T,N,F,S,Na}(filename, size, key)
+
+filename(A::FileArray) = A.filename
+DD.name(A::FileArray) = A.name
+
+Base.size(A::FileArray) = A.size
+Base.parent(A::FileArray) = withsourcedata(Array, A)
+function Base.getindex(A::FileArray, I...) 
+    withsourcedata(A) do data
+        data = readwindowed(data, I...)
+    end
+end

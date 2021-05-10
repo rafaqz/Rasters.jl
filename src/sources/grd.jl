@@ -145,18 +145,9 @@ A = GRDarray("folder/file.grd"; mappedcrs=EPSG(4326))
 A[Y(Between(-10, -43), X(Between(113, 153)))
 ```
 """
-struct GRDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:Symbol,Me,Mi,S
-               } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
-    filename::A
-    dims::D
-    refdims::R
-    name::Na
-    metadata::Me
-    missingval::Mi
-    size::S
-end
+struct GRDarray end
 GRDarray(filename::String; kw...) = GRDarray(GRDattrib(filename), filename; kw...)
-function GRDarray(grd::GRDattrib, filename, key=nothing;
+function GRDarray(grd::GRDattrib, key=nothing;
     crs=nothing,
     mappedcrs=nothing,
     dims=dims(grd, crs, mappedcrs),
@@ -165,13 +156,13 @@ function GRDarray(grd::GRDattrib, filename, key=nothing;
     missingval=missingval(grd),
     metadata=metadata(grd),
 )
-    filename = first(splitext(filename))
+    filename_ = filename(grd)
     size_ = map(length, dims)
     T = eltype(grd)
     N = length(size_)
     name = Symbol(name)
-    GRDarray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,size_))...
-            }(filename, dims, refdims, name, metadata, missingval, size_)
+    data = FileArray{:GRD,T,N}(filename_, size_)
+    GeoArray(data, dims, refdims, name, metadata, missingval)
 end
 
 
@@ -288,14 +279,14 @@ stack[:relhum][Y(Contains(-37), X(Contains(144))
 """
 GRDstack(args...; kw...) = DiskStack(args...; childtype=GRDarray, kw...)
 
-withsource(f, ::Type{<:GRDarray}, filename::AbstractString, key...) = f(GRDattrib(filename))
-withsourcedata(f, ::Type{<:GRDarray}, filename::AbstractString, key...) =
+withsource(f, ::Type{<:FileArray{:GRD}}, filename::AbstractString, key...) = f(GRDattrib(filename))
+withsourcedata(f, ::Type{<:FileArray{:GRD}}, filename::AbstractString, key...) =
     _mmapgrd(f, GRDattrib(filename))
-withsourcedata(f, A::GRDarray, key...) = _mmapgrd(f, A)
+withsourcedata(f, A::FileArray{:GRD}, key...) = _mmapgrd(f, A)
 
 # Utils ########################################################################
 #
-function _mmapgrd(f, grd::Union{GRDarray,GRDattrib})
+function _mmapgrd(f, grd::Union{FileArray,GRDattrib})
     _mmapgrd(f, filename(grd), eltype(grd), size(grd))
 end
 function _mmapgrd(f, filename::AbstractString, T::Type, size::Tuple)

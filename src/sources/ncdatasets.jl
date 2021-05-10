@@ -72,17 +72,7 @@ A = NCDarray("folder/file.ncd")
 A[Y(Between(-10, -43), X(Between(113, 153)))
 ```
 """
-struct NCDarray{T,N,A,D<:Tuple,R<:Tuple,Na<:Symbol,Me,Mi,S,K
-               } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
-    filename::A
-    dims::D
-    refdims::R
-    name::Na
-    metadata::Me
-    missingval::Mi
-    size::S
-    key::K
-end
+struct NCDarray end
 function NCDarray(filename::AbstractString, key...; kw...)
     isfile(filename) || error("File not found: $filename")
     _ncread(dataset -> NCDarray(dataset, filename, key...; kw...), filename)
@@ -107,9 +97,11 @@ function NCDarray(dataset::NCD.Dataset, filename, key=nothing;
     size_ = map(length, dims)
     T = eltype(var)
     N = length(dims)
+    data = FileArray{:NCD,T,N,filename,typeof(size_),typeof(key)}(filename, size, key)
 
-    NCDarray{T,N,typeof.((filename,dims,refdims,name,metadata_,missingval,size_,key))...
-       }(filename, dims, refdims, name, metadata_, missingval, size_, key)
+    DiskGeoArray{T,N,typeof.((data,dims,refdims,name,metadata_,missingval))...}(
+        data, dims, refdims, name, metadata_, missingval
+    )
 end
 
 key(A::NCDarray) = A.key
@@ -220,8 +212,8 @@ mappedcrs(stack::NCDstack) = get(childkwargs(stack), :mappedcrs, nothing)
 missingval(::NCDstack) = missing
 
 # AbstractGeoStack methods
-withsource(f, ::Type{NCDarray}, path::AbstractString, key=nothing) = _ncread(f, path)
-withsourcedata(f, ::Type{NCDarray}, path::AbstractString, key) =
+withsource(f, ::Type{FileArray{:NCD}}, path::AbstractString, key=nothing) = _ncread(f, path)
+withsourcedata(f, ::Type{FileArray{:NCD}}, path::AbstractString, key) =
     _ncread(d -> f(d[string(key)]), path)
 
 # Override the default to get the dims of the specific key,

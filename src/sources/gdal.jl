@@ -48,16 +48,8 @@ A = GDALarray("folder/file.tif"; mappedcrs=EPSG(4326))
 A[Y(Between(-10, -43), X(Between(113, 153)))
 ```
 """
-struct GDALarray{T,N,F,D<:Tuple,R<:Tuple,Na<:Symbol,Me,Mi,S
-                } <: DiskGeoArray{T,N,D,LazyArray{T,N}}
-    filename::F
-    dims::D
-    refdims::R
-    name::Na
-    metadata::Me
-    missingval::Mi
-    size::S
-end
+struct GDALarray end
+
 function GDALarray(filename::AbstractString; kw...)
     isfile(filename) || error("file not found: $filename")
     _gdalread(filename) do raster
@@ -71,14 +63,14 @@ function GDALarray(raster::AG.RasterDataset, filename, key=nothing;
     refdims=(),
     name=Symbol(""),
     metadata=metadata(raster),
-    missingval=missingval(raster)
+    missingval=missingval(raster),
 )
     sze = size(raster)
     T = eltype(raster)
     N = length(sze)
     name = Symbol(name)
-    GDALarray{T,N,typeof.((filename,dims,refdims,name,metadata,missingval,sze))...
-             }(filename, dims, refdims, name, metadata, missingval, sze)
+    data = FileArray{:GDAL,T,N}(filename, size)
+    GeoArray(data, dims, refdims, name, metadata, missingval)
 end
 
 # AbstractGeoArray methods
@@ -112,7 +104,7 @@ function Base.write(
     _gdalwrite(filename, correctedA, nbands, indices; kw...)
 end
 function Base.write(
-    filename::AbstractString, ::Type{<:GDALarray}, A::AbstractGeoArray{T,3}, kw...
+    filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray{T,3}, kw...
 ) where T
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
@@ -165,9 +157,9 @@ stack = GDALstack(files; childkwargs=(mappedcrs=EPSG(4326),))
 stack[:relhum][Y(Contains(-37), X(Contains(144))
 ```
 """
-GDALstack(args...; kw...) = DiskStack(args...; childtype=GDALarray, kw...)
+GDALstack(filenames, args...; kw...) = GeoStack(filenames, args...; kw...)
 
-withsource(f, ::Type{<:GDALarray}, filename::AbstractString, key...) = _gdalread(f, filename)
+withsource(f, ::Type{<:FileArray{:GDAL}}, filename::AbstractString, key...) = _gdalread(f, filename)
 
 
 # DimensionalData methods for ArchGDAL types ###############################
@@ -253,11 +245,11 @@ function missingval(raster::AG.RasterDataset, args...)
     else
         # Convert in case getnodatavalue is the wrong type.
         # This conversion should always be safe.
-        if eltype(band) <: AbstractFloat && nodata isa Real
-            convert(eltype(band), nodata)
-        else
+        # if eltype(band) <: AbstractFloat && nodata isa Real
+            # convert(eltype(band), nodata)
+        # else
             nodata
-        end
+        # end
     end
 end
 
