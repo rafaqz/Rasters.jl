@@ -1,8 +1,5 @@
-import .NCDatasets
 const NCD = NCDatasets
 const NCD_STACK_METADATA_KEY = :_ncd_stack_metadata_
-
-export NCDarray, NCDstack
 
 const UNNAMED_NCD_KEY = "unnamed"
 
@@ -26,80 +23,20 @@ const NCD_DIMMAP = Dict(
     "z" => Z,
 )
 
+hasstackfile(::Type{_NCD}) = true
+
+defaultcrs(::Type{_NCD}) = EPSG(4326) 
+defaultmappedcrs(::Type{_NCD}) = EPSG(4326) 
+
 # Array ########################################################################
 
-"""
-    NCDarray <: DiskGeoArray
-
-    NCDarray(filename::AbstractString; name=nothing, refdims=(),
-             dims=nothing, metadata=nothing, crs=EPSG(4326), mappedcrs=EPSG(4326))
-
-A [`DiskGeoArray`](@ref) that loads that loads NetCDF files lazily from disk.
-
-The first non-dimension layer of the file will be used as the array. Dims are usually
-detected as `Y`, `X`, [`Ti`]($DDtidocs), and [`Z`] or
-possibly `X`, `Y`, `Z` when detected. Undetected dims will use the generic `Dim{:name}`.
-
-This is an incomplete implementation of the NetCDF standard. It will currently
-handle simple files in latitude/longitude projections, or projected formats
-if you manually specify `crs` and `mappedcrs`. How this is done may also change in
-future, including detecting and converting the native NetCDF projection format.
-
-## Arguments
-
-- `filename`: `String` pointing to a netcdf file.
-
-## Keyword arguments
-
-- `crs`: defaults to lat/lon `EPSG(4326)` but may be any `GeoFormat` like `WellKnownText`.
-  If the underlying data is in a different projection `crs` will need to be set to allow
-  `write` to a different file format. In future this may be detected automatically.
-- `dimcrs`: The crs projection actually present in the Dimension index `Vector`, which
-  may be different to the underlying projection. Defaults to lat/lon `EPSG(4326)` but
-  may be any crs `GeoFormat`.
-- `name`: `Symbol` name for the array. Will use array key if not supplied.
-- `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
-- `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
-- `missingval`: Value reprsenting missing values. Detected automatically when possible, but
-  can be passed it.
-- `metadata`: `Metadata` object for the array. Detected automatically as
-  `Metadata{_NCD}`, but can be passed in.
-
-## Example
-
-```julia
-A = NCDarray("folder/file.ncd")
-# Select Australia from the default lat/lon coords:
-A[Y(Between(-10, -43), X(Between(113, 153)))
-```
-"""
-struct NCDarray end
-function NCDarray(filename::AbstractString, key...; kw...)
-    isfile(filename) || error("File not found: $filename")
-    _ncread(ds -> NCDarray(ds, filename, key...; kw...), filename)
-end
-# Safe file-loading wrapper method. We always open the datset and close
-# it again when we are done.
-function NCDarray(ds::NCD.Dataset, filename, key=nothing;
-    crs=nothing,
-    mappedcrs=EPSG(4326),
-    name=nothing,
-    dims=nothing,
-    refdims=(),
-    metadata=nothing,
-    missingval=missing,
-)
-    key = _firstkey(ds)
-    var = ds[string(key)]
-    data = FileArray(var, key, filename)
-    dims = dims isa Nothing ? GeoData.dims(ds, key, crs, mappedcrs) : dims
-    name = Symbol(name isa Nothing ? key : name)
-    metadata_ = metadata isa Nothing ? GeoData.metadata(var, GeoData.metadata(ds)) : metadata
-    GeoArray(data, dims, refdims, name, metadata_, missingval)
+function GeoArray(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw...)
+    key = _firstkey(ds, key)
+    GeoArray(ds[key], filename, key; kw...)
 end
 
-function _firstkey(ds::NCD.Dataset, key=nothing)
-    key = (key isa Nothing) ? first(_nondimkeys(ds)) : key |> Symbol
+function _firstkey(ds::NCD.NCDataset, key=nothing)
+    key = (key isa Nothing) ? first(layerkeys(ds)) : key |> Symbol
 end
 
 function FileArray(var::NCD.CFVariable, filename::AbstractString, key)
@@ -111,7 +48,7 @@ end
 
 # AbstractGeoArray methods
 
-Base.open(f::Function, A::FileArray{_NCD}) = _ncread(ds -> f(ds[string(key(A))]), filename(A))
+Base.open(f::Function, A::FileArray{_NCD}) = _ncread(ds -> f(ds), filename(A), key(A))
 
 """
     Base.write(filename::AbstractString, ::Type{NCDarray}, s::AbstractGeoArray)
@@ -142,59 +79,12 @@ end
 
 # Stack ########################################################################
 
-
-"""
-    NCDstack <: DiskGeoStack
-
-    NCDstack(filename::String; refdims=(), window=(), metadata=nothing, childkwargs=())
-    NCDstack(filenames; keys, kw...)
-    NCDstack(filenames...; keys, kw...)
-    NCDstack(filenames::NamedTuple; refdims=(), window=(), metadata=nothing, childkwargs=())
-
-A lazy [`AbstractGeoStack`](@ref) that uses NCDatasets.jl to load NetCDF files.
-Can load a single multi-layer netcdf file, or multiple single-layer netcdf
-files. In multi-file mode it returns a regular `GeoStack` with a `childtype`
-of [`NCDarray`](@ref).
-
-Indexing into `NCDstack` with layer keys (`Symbol`s) returns a [`GeoArray`](@ref).
-Dimensions are usually detected as `X`, `Y`, `Ti`. Undetected dims use the generic `Dim{:name}`.
-
-# Arguments
-
-- `filename`: `Tuple` or `Vector` or splatted arguments of `String`,
-  or single `String` path, to NetCDF files.
-
-# Keyword arguments
-
-- `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
-  These default to the first non-dimension data key in each NetCDF file.
-- `refdims`: Add dimension position array was sliced from. Mostly used programatically.
-- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
-  contained arrays when they are accessed.
-- `metadata`: A `Metadata` object.
-- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the
-  [`NCDarray`](@ref) constructor.
-
-# Examples
-
-```julia
-stack = NCDstack(filename; window=(Y(Between(20, 40),))
-# Or
-stack = NCDstack([fn1, fn1, fn3, fn4])
-# And index with a layer key
-stack[:soiltemp]
-```
-"""
-struct NCDstack end
-
 function Base.getindex(fs::FileStack{_NCD}, key)
-   _ncread(filename(fs)) do ds
-        var = ds[string(key)]
-        FileArray(var, key, filename(fs))
+   _read(_NCD, filename(fs)) do ds
+       var = ds[string(key)]
+       FileArray(var, filename(fs), key)
    end
 end
-
-_ncdfilekey(filename) = _ncread(_firstkey, filenames)
 
 """
     Base.write(filename::AbstractString, ::Type{NCDstack}, s::AbstractGeoStack)
@@ -207,22 +97,24 @@ from other [`AbstractGeoArray`](@ref) @types is ignored.
 function Base.write(filename::AbstractString, ::Type{_NCD}, s::AbstractGeoStack)
     ds = NCD.Dataset(filename, "c"; attrib=_stringdict(metadata(s)))
     try
-        map(key -> _ncdritevar!(ds, s[key]), keys(s))
+        map(key -> _ncdwritevar!(ds, s[key]), keys(s))
     finally
         close(ds)
     end
 end # DimensionalData methods for NCDatasets types ###############################
 
-function DD.dims(ds::NCD.Dataset, key::Key, crs=nothing, mappedcrs=nothing)
-    var = ds[string(key)]
-    names = NCD.dimnames(var)
-    map(names, (x for x in 1:length(names))) do name, i
-        _ncddim(ds, name, size(var, i), crs, mappedcrs)
-    end |> Tuple
-end
 function DD.dims(ds::NCD.Dataset, crs=nothing, mappedcrs=nothing)
     map(_dimkeys(ds)) do key
         _ncddim(ds, key, 1, crs, mappedcrs)
+    end |> Tuple
+end
+function DD.dims(ds::NCD.Dataset, key::Key, crs=nothing, mappedcrs=nothing)
+    DD.dims(ds[key], crs, mappedcrs)
+end
+function DD.dims(var::NCD.CFVariable, crs=nothing, mappedcrs=nothing)
+    names = NCD.dimnames(var)
+    map(names, (x for x in 1:length(names))) do name, i
+        _ncddim(var.var.ds, name, size(var, i), crs, mappedcrs)
     end |> Tuple
 end
 
@@ -236,7 +128,24 @@ DD.metadata(var::NCD.CFVariable, stackmetadata::AbstractMetadata) = begin
     md
 end
 
+@inline function DD.layerdims(var::NCD.CFVariable)
+    map(NCD.dimnames(var)) do dimname
+        _ncddimtype(dimname)()
+    end
+end
+@inline function DD.layerdims(ds::NCD.Dataset)
+    keys = Tuple(layerkeys(ds))
+    NamedTuple{map(Symbol, keys)}(map(k -> DD.layerdims(ds[string(k)]), keys))
+end
+
+@inline function DD.layermetadata(ds::NCD.Dataset)
+    keys = Tuple(layerkeys(ds))
+    NamedTuple{map(Symbol, keys)}(map(k -> DD.metadata(ds[string(k)]), keys))
+end
+
 missingval(var::NCD.CFVariable) = missing
+
+layermissingval(ds::NCD.Dataset) = missing
 
 # Direct loading: better memory handling?
 # readwindowed(A::NCD.CFVariable) = readwindowed(A, axes(A)...)
@@ -272,17 +181,7 @@ end
 # use the generic Dim with the dim name as type parameter
 _ncddimtype(dimname) = haskey(NCD_DIMMAP, dimname) ? NCD_DIMMAP[dimname] : DD.basetypeof(DD.key2dim(Symbol(dimname)))
 
-function _ncdbasedims(var::NCD.CFVariable)
-    map(NCD.dimnames(var)) do dimname
-        _ncddimtype(dimname)()
-    end
-end
-function _ncdbasedims(ds::NCD.Dataset)
-    keys = Tuple(_nondimkeys(ds))
-    NamedTuple{map(Symbol, keys)}(map(k -> _ncdbasedims(ds[string(k)]), keys))
-end
-
-_ncfilenamekey(filenames) = cleankeys(_nondimkeys(fn) for fn in filenames)
+_ncfilenamekey(filenames) = cleankeys(layerkeys(fn) for fn in filenames)
 
 function _ncdmode(
     ds, dimname, index::AbstractArray{<:Union{Number,Dates.AbstractTime}}, 
@@ -320,7 +219,6 @@ function _ncdorder(index)
     index[end] > index[1] ? Ordered(ForwardIndex(), ForwardArray(), ForwardRelation()) :
                             Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
 end
-
 
 function _ncdspan(index, order)
     # Handle a length 1 index
@@ -382,10 +280,15 @@ end
 
 _stringdict(metadata) = attrib = Dict(string(k) => v for (k, v) in metadata)
 
-_ncread(f, path::String) = NCD.Dataset(f, path)
+_ncread(f, args...) = _read(f, _NCD, args...)
+
+_read(f, ::Type{_NCD}, filename::AbstractString) = NCD.Dataset(f, filename)
+function _read(f, ::Type{_NCD}, filename::AbstractString, key)
+    NCD.Dataset(ds -> f(ds[_firstkey(ds, key)]), filename)
+end
 
 _dimkeys(ds::NCD.Dataset) = keys(ds.dim)
-function _nondimkeys(ds::NCD.Dataset)
+function layerkeys(ds::NCD.Dataset)
     dimkeys = _dimkeys(ds)
     toremove = if "bnds" in dimkeys
         dimkeys = setdiff(dimkeys, ("bnds",))
@@ -424,8 +327,7 @@ function _ncdwritevar!(ds, A::AbstractGeoArray{T,N}) where {T,N}
         NCD.defVar(ds, dimkey, Vector(index(dim)), (dimkey,); attrib=attribvec)
     end
     # TODO actually convert the metadata types
-    attrib = if metadata isa Metadata{:NCD}
-        _stringdict(metadata(A))
+    attrib = if metadata isa Metadata{:NCD} _stringdict(metadata(A))
     else
         Dict()
     end

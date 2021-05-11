@@ -1,10 +1,17 @@
-using .HDF5
+using HDF5
 
 export SMAP, SMAPstack, SMAPseries
 
 const SMAPMISSING = -9999.0
 const SMAPGEODATA = "Geophysical_Data"
 const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
+
+hasstackfile(::Type{_SMAP}) = true
+
+struct SMAPhdf5{T}
+    ds::T
+end
+Base.parent(wrapper::SMAPhdf5) = wrapper.ds
 
 # Stack ########################################################################
 
@@ -32,22 +39,16 @@ so we store them as stack fields.
 - `window`: Like `view` but lazy, for disk based data. Can be a tuple of Dimensions,
     selectors or regular indices. These will be applied when the data is loaded or indexed.
 """
-struct SMAPstack{T,D,R,W,M} <: DiskGeoStack{T}
-    filename::T
-    dims::D
-    refdims::R
-    window::W
-    metadata::M
-end
-function SMAPstack(filename::String;
-    dims=_smapread(_smapdims, filename),
-    refdims=(_smap_timedim(_smap_timefrompath(filename)),),
-    window=(),
-    metadata=_smapread(_smapmetadata, filename),
-)
-    SMAPstack(filename, dims, refdims, window, metadata)
-end
+struct SMAPstack end
 
+
+
+function Base.getindex(fs::FileStack{_SMAP}, key)
+   _read(_SMAP, filename(fs)) do ds
+       var = ds[string(key)]
+       FileArray(var, key, filename(fs))
+   end
+end
 
 
 # SMAP has fixed dims for all layers, so we store them on the stack.
@@ -73,20 +74,22 @@ withsourcedata(f, ::Type{SMAParray}, path::AbstractString, key) =
 
 # Override getindex as we already have `dims` - they are
 # fixed for the whole stack
-function Base.getindex(s::SMAPstack, key::Key, i1::Integer, I::Integer...)
-    _smapread(filename(s)) do file
-        dataset = file[_smappath(key)]
-        _window = maybewindow2indices(dataset, _dims, window(s))
-        readwindowed(dataset, _window, I...)
+function Base.getindex(s::FileStack{_SMAP}, key::Key, i1::Integer, I::Integer...)
+    _smapread(filename(s)) do wrapper
+        dataset = parent(wrapper)
+        smapdata = file[_smappath(key)]
+        _window = maybewindow2indices(smapdata, _dims, window(s))
+        readwindowed(smapdata, _window, I...)
     end
 end
-function Base.getindex(s::SMAPstack, key::Key, I::Union{Colon,Integer,AbstractArray}...)
-    _smapread(filename(s)) do file
-        dataset = file[_smappath(key)]
+function Base.getindex(s::SMAPstack, key::Key)
+    _smapread(filename(s)) do wrapper
+        dataset = parent(wrapper)
+        smapdata = dataset[_smappath(key)]
         dims_ = dims(s)
-        window_ = maybewindow2indices(dataset, dims_, window(s))
+        window_ = maybewindow2indices(smapdata, dims_, window(s))
         dims_, refdims_ = DD.slicedims(DD.slicedims(dims_, refdims(s), window_)..., I)
-        A = readwindowed(dataset, window_, I...)
+        A = FileArray(smapdata, )
         GeoArray(A, dims_, refdims_, Symbol(key), metadata(s), missingval(s))
     end
 end
@@ -97,6 +100,8 @@ function Base.keys(stack::SMAPstack)
         cleankeys(keys(dataset[SMAPGEODATA]))
     end
 end
+
+layerkeys(stack::SMAPstack) = keys(stack)
 
 
 # Series #######################################################################
@@ -161,7 +166,9 @@ readwindowed(A::HDF5.Dataset, window::Tuple{}) = HDF5.read(A)
 
 # Utils ########################################################################
 
-_smapread(f, filepath::AbstractString) = h5open(f, filepath)
+_smapread(f, filepath::AbstractString) = _read(f, _SMAP, filepath)
+
+_read(f, ::Type{_SMAP}, filepath::AbstractString) = h5open(ds -> f(SMAPhdf5(ds)), filepath)
 
 _smappath(key::Key) = SMAPGEODATA * "/" * string(key)
 
@@ -181,9 +188,10 @@ _smap_timedim(times::AbstractVector) =
     Ti(times, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals(Start())))
 
 # TODO actually add metadata to the dict
-_smapmetadata(dataset::HDF5.File) = Metadata{:SMAP}(Dict())
+DD.metadata(wrapper::HDF5.File) = Metadata{:SMAP}(Dict())
 
-function _smapdims(dataset::HDF5.File)
+function DD.dims(wrapper::SMAPhdf5)
+    dataset = parent(wrapper)
     proj = read(HDF5.attributes(HDF5.root(dataset)["EASE2_global_projection"]), "grid_mapping_name")
     if proj == "lambert_cylindrical_equal_area"
         # There are matrices for lookup but all rows/colums are identical.

@@ -17,14 +17,14 @@ series[Time(Near(DateTime(2001, 1))][:temp][Y(Between(70, 150)), X(Between(-20,2
 `GeoSeries` is the only concrete implementation. It includes a `chiltype` field
 indicating the constructor used then loading stacks or arrays of any type from disk,
 and holds a `kwargs` `NamedTuple` that will be splatted into to the keyword arguments
-of the `childtype` constructor. This gives control over the construction of lazy-loaded
+of the `child` constructor. This gives control over the construction of lazy-loaded
 files.
 """
 abstract type AbstractGeoSeries{T,N,D,A,C} <: AbstractDimensionalArray{T,N,D,A} end
 
 # Interface methods ####################################################
 
-childtype(A::AbstractGeoSeries) = A.childtype
+child(A::AbstractGeoSeries) = A.child
 childkwargs(A::AbstractGeoSeries) = A.childkwargs
 
 DD.metadata(A::AbstractGeoSeries) = nothing
@@ -57,12 +57,12 @@ Base.values(A::AbstractGeoSeries) = [A[I] for I in CartesianIndices(A)]
 @propagate_inbounds function Base.getindex(
     A::AbstractGeoSeries{<:AbstractString}, I::CartesianIndex
 )
-    childtype(A)(data(A)[I]; refdims=DD.slicedims(A, Tuple(I))[2], A.childkwargs...)
+    child(A)(data(A)[I]; refdims=DD.slicedims(A, Tuple(I))[2], A.childkwargs...)
 end
 @propagate_inbounds function Base.getindex(
     A::AbstractGeoSeries{<:AbstractString}, I::Integer...
 )
-    childtype(A)(data(A)[I...]; refdims=DD.slicedims(A, I)[2], A.childkwargs...)
+    child(A)(data(A)[I...]; refdims=DD.slicedims(A, I)[2], A.childkwargs...)
 end
 # Window is passed on to existing MemStacks, as with DiskStacks
 @propagate_inbounds function Base.getindex(
@@ -85,49 +85,35 @@ Series hold paths to array or stack files, along some dimension(s).
 # Keywords
 
 - `refdims`: existing reference 
-- `childtype`: type of child objects - an `AbstractGeoSeries` or `AbstractGeoStack`
+- `child`: constructor of child objects - an `AbstractGeoSeries` or `AbstractGeoStack`
 - `childkwargs`: keyword arguments passed to the child object on construction.
 """
 struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},C,K} <: AbstractGeoSeries{T,N,D,A,C}
     data::A
     dims::D
     refdims::R
-    childtype::C
+    child::C
     childkwargs::K
 end
 function GeoSeries(
-    data::Array{T}, dims; refdims=(), childtype=DD.basetypeof(T), childkwargs=()
+    data::Array{T}, dims; refdims=(), child=nothing, childkwargs=()
 ) where T<:Union{<:AbstractGeoStack,<:AbstractGeoArray}
-    GeoSeries(data, DD.formatdims(data, dims), refdims, childtype, childkwargs)
+    GeoSeries(data, DD.formatdims(data, dims), refdims, child, childkwargs)
 end
-function GeoSeries(data, dims; refdims=(), childtype, childkwargs=())
-    GeoSeries(data, DD.formatdims(data, dims), refdims, childtype, childkwargs)
+function GeoSeries(data, dims; refdims=(), child, childkwargs=())
+    GeoSeries(data, DD.formatdims(data, dims), refdims, child, childkwargs)
 end
 
 @inline function DD.rebuild(
-    A::GeoSeries, data, dims::Tuple, refdims, name=name(A), childtype=childtype(A), childkwargs=childkwargs(A)
+    A::GeoSeries, data, dims::Tuple, refdims, name=name(A), child=child(A), childkwargs=childkwargs(A)
 )
-    ct = _choosechildtype(data, childtype)
-    GeoSeries(data, dims, refdims, ct, childkwargs)
+    GeoSeries(data, dims, refdims, child, childkwargs)
 end
 @inline function DD.rebuild(
     A::GeoSeries; 
-    data=data(A), dims=dims(A), refdims=refdims(A), name=nothing, childtype=childtype(A), childkwargs=childkwargs(A)
+    data=data(A), dims=dims(A), refdims=refdims(A), name=nothing, child=child(A), childkwargs=childkwargs(A)
 )
-    ct = _choosechildtype(data, childtype)
-    GeoSeries(data, dims, refdims, ct, childkwargs)
-end
-
-function _choosechildtype(data, childtype)
-    ct = if data isa AbstractString 
-        childtype(A)
-    elseif data isa AbstractVector{<:AbstractString}
-        childtype(A)
-    elseif length(data) > 0
-        DD.basetypeof(first(data))
-    else
-        Nothing
-    end
+    GeoSeries(data, dims, refdims, child, childkwargs)
 end
 
 @propagate_inbounds function Base.setindex!(A::GeoSeries, x, I::StandardIndices...)

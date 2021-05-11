@@ -16,7 +16,6 @@ a memory-backed `GeoArray`.
 abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
 
 # Interface methods ###########################################################
-
 """
     missingval(x)
 
@@ -145,6 +144,25 @@ function GeoArray(A::AbstractGeoArray;
     data=readwindowed(data(A)), dims=dims(A), refdims=refdims(A),
     name=name(A), metadata=metadata(A), missingval=missingval(A)
 )
+    GeoArray(data, dims, refdims, name, metadata, missingval)
+end
+function GeoArray(filename::AbstractString; key=nothing, kw...)
+    isfile(filename) || error("File not found: $filename")
+    _read(filename) do ds
+        GeoArray(ds, filename, key; kw...)
+    end
+end
+function GeoArray(ds, filename::AbstractString, key=nothing;
+    crs=nothing, mappedcrs=nothing,
+    dims=dims(ds, crs, mappedcrs), refdims=(),
+    name=Symbol(key isa Nothing ? "" : string(key)),
+    metadata=metadata(ds),
+    missingval=missingval(ds),
+)
+    source = _sourcetype(filename)
+    crs = defaultcrs(source, crs)
+    mappedcrs = defaultmappedcrs(source, mappedcrs)
+    data = FileArray(ds, filename, key)
     GeoArray(data, dims, refdims, name, metadata, missingval)
 end
 

@@ -1,5 +1,3 @@
-export GRDarray, GRDstack
-
 const GRD_INDEX_ORDER = ForwardIndex()
 const GRD_X_ARRAY = ForwardArray()
 const GRD_Y_ARRAY = ReverseArray()
@@ -112,59 +110,18 @@ Base.Array(grd::GRDattrib) = _mmapgrd(Array, grd)
 
 # Array ########################################################################
 
-"""
-    GRDarray
-
-    GRDarray(filename::String; kw...)
-
-A [`GeoArray`](@ref) that loads .grd files lazily from disk.
-
-`GRDarray`s are always 3 dimensional, and have `Y`, `X` and [`Band`](@ref) dimensions.
-
-## Arguments
-
-- `filename`: `String` pointing to a grd file. Extension is optional.
-
-## Keywords
-
-- `mappedcrs`: CRS format like `EPSG(4326)` used in `Selectors` like `Between` and `At`, and
-    for plotting. Can be any CRS `GeoFormat` from GeoFormatTypes.jl, like `WellKnownText`.
-- `name`: `String` name for the array, taken from the files `layername` attribute unless passed in.
-- `dims`: `Tuple` of `Dimension`s for the array. Detected automatically, but can be passed in.
-- `refdims`: `Tuple of` position `Dimension`s the array was sliced from.
-- `missingval`: Value reprsenting missing values. Detected automatically when possible, but
-    can be passed it.
-- `metadata`: `Metadata` object for the array. Detected automatically as
-    `Metadata{:GRD}`, but can be passed in.
-
-## Example
-
-```julia
-A = GRDarray("folder/file.grd"; mappedcrs=EPSG(4326))
-# Select Australia using lat/lon coords, whatever the crs is underneath.
-A[Y(Between(-10, -43), X(Between(113, 153)))
-```
-"""
-struct GRDarray end
-GRDarray(filename::String; kw...) = GRDarray(GRDattrib(filename); kw...)
-function GRDarray(grd::GRDattrib, key=nothing;
-    crs=nothing,
-    mappedcrs=nothing,
-    dims=dims(grd, crs, mappedcrs),
-    refdims=(),
-    name=name(grd),
-    missingval=missingval(grd),
-    metadata=metadata(grd),
-)
-    data = FileArray(grd)
-    GeoArray(data, dims, refdims, Symbol(name), metadata, missingval)
-end
+# function grdarray(filename::String; name=nothing, kw...) 
+    # grd = GRDattrib(filename)
+    # name = name isa Nothing ? DD.name(grd) : name
+    # GeoArray(grd; name, kw...)
+# end
 
 function FileArray(grd::GRDattrib, filename=filename(grd), key=nothing)
+    filename = first(splitext(filename))
     size_ = size(grd)
     T = eltype(grd)
     N = length(size_)
-    FileArray{:GRD,T,N}(filename(grd), size_)
+    FileArray{:GRD,T,N}(filename, size_)
 end
 
 # Base methods
@@ -179,7 +136,7 @@ Currently the `metadata` field is lost on `write` for `GRDarray`.
 
 Returns `filename`.
 """
-function Base.write(filename::String, ::Type{<:GRDarray}, A::AbstractGeoArray)
+function Base.write(filename::String, ::Type{_GRD}, A::AbstractGeoArray)
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
             a -> reorder(a, GRD_INDEX_ORDER) |>
@@ -246,61 +203,9 @@ end
 
 # AbstractGeoStack methods
 
-"""
-    GRDstack(filenames; keys, kw...) => GeoStack
-    GRDstack(filenames...; keys, kw...) => GeoStack
-    GRDstack(filenames::NamedTuple; kw...) => GeoStack
-
-Convenience method to create a DiskStack of [`GRDarray`](@ref) from `filenames`.
-
-## Arguments
-
-- `filenames`: A NamedTuple of stack keys and `String` filenames, or a `Tuple`,
-  `Vector` or splatted arguments of `String` filenames.
-
-## Keywords
-
-- `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
-- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
-    contained arrays when they are accessed.
-- `metadata`: A `Metadata` object.
-- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
-- `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
-
-## Example
-
-Create a `GRDstack` from four files, that sets the child arrays
-`mappedcrs` value when they are loaded.
-
-```julia
-files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
-stack = GRDstack(files; childkwargs=(mappedcrs=EPSG(4326),))
-stack[:relhum][Y(Contains(-37), X(Contains(144))
-```
-"""
-GRDstack(filenames...; kw...) = GRDstack(filenames; kw...) 
-function GRDstack(filenames; keys, kw...)
-    GRDstack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
-end
-function GRDstack(filenames::NamedTuple; crs=nothing, mappedcrs=nothing, kw...)
-    layerfields = map(filenames) do filename
-        _grdread(filename) do ds
-            data = FileArray(ds, filename)
-            md = metadata(ds)
-            dims = DD.dims(ds, crs, mappedcrs)
-            (; data, dims, keys, md)
-        end
-    end
-    data = map(f-> f.data, layerfields)
-    dims = DD.commondims(map(f-> f.dims, layerfields)...)
-    layerdims = map(f-> DD.basedims(f.dims), layerfields)
-    layermetadata = map(f-> f.md, layerfields)
-    GeoStack(data; dims, layerdims, layermetadata, kw...)
-end
-
 Base.open(f::Function, A::FileArray{:GRD}, key...) = _mmapgrd(f, A)
 
-_grdread(f, filename) = f(GRDattrib(filename))
+_read(f, ::Type{_GRD}, filename, key...) = f(GRDattrib(filename))
 
 # Utils ########################################################################
 

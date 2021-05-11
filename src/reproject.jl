@@ -1,5 +1,4 @@
 export reproject, convertmode, mappedindex, mappedbounds
-const AG = ArchGDAL
 
 # These methods are only available if ArchGDAL is loaded.
 # Otherwise Projected selector crs field must be `nothing`,

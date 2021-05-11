@@ -17,6 +17,10 @@ using Adapt,
       Reexport,
       Requires
 
+using HDF5
+import NCDatasets
+import ArchGDAL
+
 @reexport using DimensionalData, GeoFormatTypes
 
 const DD = DimensionalData
@@ -50,6 +54,11 @@ const GeoXDim = XDim
 const GeoYDim = YDim 
 const GeoZDim = ZDim 
 
+struct _NCD end
+struct _GRD end
+struct _GDAL end
+struct _SMAP end
+
 # DimensionalData documentation urls
 const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api"
 const DDdimdocs = joinpath(DDdocs, "#DimensionalData.Dimension")
@@ -77,19 +86,20 @@ include("show.jl")
 include("plotrecipes.jl")
 include("convenience.jl")
 
-function __init__()
-    @require HDF5="f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f" begin
-        # This section is for sources that rely on HDF5, not simply any HDF5.
         include("sources/smap.jl")
-    end
-    @require NCDatasets="85f8d34a-cbdd-5861-8df4-14fed0d494ab" begin
         include("sources/ncdatasets.jl")
-    end
-    @require ArchGDAL="c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3" begin
+        include("sources/gdal.jl")
         include("resample.jl")
         include("reproject.jl")
-        include("sources/gdal.jl")
-    end
+
+function __init__()
+    # @require HDF5="f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f" begin
+        # This section is for sources that rely on HDF5, not simply any HDF5.
+    # end
+    # @require NCDatasets="85f8d34a-cbdd-5861-8df4-14fed0d494ab" begin
+    # end
+    # @require ArchGDAL="c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3" begin
+    # end
     @require RasterDataSources="3cb90ccd-e1b6-4867-9617-4276c8b2ca36" begin
         include("sources/rasterdatasources.jl")
     end
