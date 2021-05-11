@@ -16,6 +16,7 @@ readwindowed(A, window::Tuple, I...) = A[Base.reindex(window, I)...]
 readwindowed(A, window::Tuple) = readwindowed(A, window...)
 readwindowed(A, i, I...) = A[i, I...]
 readwindowed(A) = Array(A)
+readwindowed(A::Array) = A
 
 # Get a metadata field
 getmeta(A::AbstractGeoArray, key, fallback) = getmeta(metadata(A), key, fallback)

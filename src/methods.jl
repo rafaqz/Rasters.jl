@@ -8,8 +8,7 @@ also updating the `missingval` field/s.
 A `GeoArray` containing a newly allocated `Array` is always returned,
 even when the missing value matches the current value.
 """
-replace_missing(a::DiskGeoArray, args...) = replace_missing(GeoArray(a), args...)
-function replace_missing(a::MemGeoArray, newmissingval=missing)
+function replace_missing(a::AbstractGeoArray, newmissingval=missing)
     newdata = if ismissing(missingval(a))
         if newmissingval === missing
             copy(parent(a))

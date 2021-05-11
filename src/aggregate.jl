@@ -62,13 +62,10 @@ end
     aggregate(method, src::AbstractDimArray, scale)
 
 Aggregate an `AbstractDimArray` by `scale` using `method`.
-
-[`DiskGeoArray`](@ref) will be converted to [`GeoArray`](@ref).
 """
 function aggregate(method, src::AbstractDimArray, scale)
     aggregate!(method, alloc_ag(method, src, scale), src, scale)
 end
-aggregate(method, src::DiskGeoArray, scale) = aggregate(method, GeoArray(src), scale)
 """
     aggregate(method, dim::Dimension, scale)
 
@@ -187,13 +184,10 @@ end
     disaggregate(method, src::AbstractDimArray, scale)
 
 Disaggregate an `AbstractDimArray` by `scale` using `method`.
-
-[`DiskGeoArray`](@ref) will be converted to [`GeoArray`](@ref).
 """
 function disaggregate(method, src::AbstractDimArray, scale)
     disaggregate!(method, alloc_disag(method, src, scale), src, scale)
 end
-disaggregate(method, src::DiskGeoArray, scale) = disaggregate(method, GeoArray(src), scale)
 """
     disaggregate(method, dim::Dimension, scale)
 

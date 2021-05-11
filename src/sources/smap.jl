@@ -49,8 +49,6 @@ function SMAPstack(filename::String;
 end
 
 
-# Dummy SMAParray type. Actually generates a GeoArray
-struct SMAParray end
 
 # SMAP has fixed dims for all layers, so we store them on the stack.
 DD.dims(stack::SMAPstack, dim) = dims(dims(stack), dim)
@@ -60,6 +58,9 @@ DD.metadata(stack::SMAPstack) = stack.metadata
 missingval(stack::SMAPstack, key::Key...) = SMAPMISSING
 childtype(stack::SMAPstack) = SMAParray
 childkwargs(stack::SMAPstack) = ()
+
+# Dummy SMAParray type. Actually generates a GeoArray
+struct SMAParray end
 
 withsource(f, ::Type{SMAParray}, path::AbstractString, key...) = _smapread(f, path)
 withsourcedata(f, ::Type{SMAParray}, path::AbstractString, key) =

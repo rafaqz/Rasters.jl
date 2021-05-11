@@ -1,4 +1,4 @@
-using GeoData, Test, Statistics, Dates, Plots, DimensionalData, RasterDataSources
+using GeoData, Test, Statistics, Dates, Plots, DimensionalData, RasterDataSources, DiskArrays
 import ArchGDAL, NCDatasets
 using GeoData: window, mode, span, sampling, name, bounds
 
@@ -19,9 +19,16 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @test parent(A) isa Array
     end
 
+    @testset "view" begin
+        A = view(gdalarray, 1:10, 1:10, 1)
+        @test A isa GeoArray
+        @test parent(A) isa DiskArrays.SubDiskArray
+        @test parent(parent(A)) isa GeoData.FileArray
+    end
+
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
-        @test gdalarray isa GDALarray{UInt8,3}
+        @test gdalarray isa GeoArray{UInt8,3}
     end
 
     @testset "dimensions" begin
@@ -72,7 +79,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     end
 
     @testset "methods" begin 
-        mean(gdalarray; dims=Y) == mean(data(gdalarray); dims=2)
+        @test mean(gdalarray; dims=Y) == mean(data(gdalarray); dims=2)
     end
 
     @testset "selectors" begin
@@ -93,7 +100,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @test name(geoA) == :test
     end
 
-    @testset "save" begin
+    @testset "write" begin
         gdalarray = GDALarray(path; mappedcrs=EPSG(4326), name=:test);
 
         @testset "2d" begin
@@ -131,7 +138,8 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             @test all(val(dims(saved2, Y)) .≈ val(dims(geoA2, Y)))
             @test all(metadata.(dims(saved2)) .== metadata.(dims(geoA2)))
             @test data(saved2) == data(geoA2)
-            @test typeof(saved2) == typeof(geoA2)
+            @test typeof(saved2) == 
+            typeof(geoA2)
             filename3 = tempname() * ".tif"
             geoA3 = cat(gdalarray[Band(1)], gdalarray[Band(1)], gdalarray[Band(1)]; dims=Band(1:3))
             write(filename3, geoA3)
@@ -200,7 +208,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     @testset "show" begin
         sh = sprint(show, MIME("text/plain"), gdalarray)
         # Test but don't lock this down too much
-        @test occursin("GDALarray", sh)
+        @test occursin("GeoArray", sh)
         @test occursin("Y", sh)
         @test occursin("X", sh)
         @test occursin("Band", sh)

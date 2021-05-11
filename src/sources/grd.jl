@@ -52,7 +52,7 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     yspan = (ybounds[2] - ybounds[1]) / nrows
 
     # Not fully implemented yet
-    xy_metadata = Metadata{:GRD}(Dict())
+    xy_metadata = Metadata{_GRD}(Dict())
 
     xmode = Projected(
         order=Ordered(GRD_INDEX_ORDER, GRD_X_ARRAY, GRD_X_RELATION),
@@ -75,7 +75,7 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
 end
 
 function DD.metadata(grd::GRDattrib, args...)
-    metadata = Metadata{:GRD}()
+    metadata = Metadata{_GRD}()
     for key in ("creator", "created", "history")
         val = get(grd.attrib, key, "")
         if val != ""
@@ -113,11 +113,11 @@ Base.Array(grd::GRDattrib) = _mmapgrd(Array, grd)
 # Array ########################################################################
 
 """
-    GRDarray <: DiskGeoArray
+    GRDarray
 
     GRDarray(filename::String; kw...)
 
-A [`DiskGeoArray`](@ref) that loads .grd files lazily from disk.
+A [`GeoArray`](@ref) that loads .grd files lazily from disk.
 
 `GRDarray`s are always 3 dimensional, and have `Y`, `X` and [`Band`](@ref) dimensions.
 
@@ -146,7 +146,7 @@ A[Y(Between(-10, -43), X(Between(113, 153)))
 ```
 """
 struct GRDarray end
-GRDarray(filename::String; kw...) = GRDarray(GRDattrib(filename), filename; kw...)
+GRDarray(filename::String; kw...) = GRDarray(GRDattrib(filename); kw...)
 function GRDarray(grd::GRDattrib, key=nothing;
     crs=nothing,
     mappedcrs=nothing,
@@ -156,15 +156,16 @@ function GRDarray(grd::GRDattrib, key=nothing;
     missingval=missingval(grd),
     metadata=metadata(grd),
 )
-    filename_ = filename(grd)
-    size_ = map(length, dims)
-    T = eltype(grd)
-    N = length(size_)
-    name = Symbol(name)
-    data = FileArray{:GRD,T,N}(filename_, size_)
-    GeoArray(data, dims, refdims, name, metadata, missingval)
+    data = FileArray(grd)
+    GeoArray(data, dims, refdims, Symbol(name), metadata, missingval)
 end
 
+function FileArray(grd::GRDattrib, filename=filename(grd), key=nothing)
+    size_ = size(grd)
+    T = eltype(grd)
+    N = length(size_)
+    FileArray{:GRD,T,N}(filename(grd), size_)
+end
 
 # Base methods
 
@@ -246,9 +247,9 @@ end
 # AbstractGeoStack methods
 
 """
-    GRDstack(filenames; keys, kw...) => DiskStack
-    GRDstack(filenames...; keys, kw...) => DiskStack
-    GRDstack(filenames::NamedTuple; kw...) => DiskStack
+    GRDstack(filenames; keys, kw...) => GeoStack
+    GRDstack(filenames...; keys, kw...) => GeoStack
+    GRDstack(filenames::NamedTuple; kw...) => GeoStack
 
 Convenience method to create a DiskStack of [`GRDarray`](@ref) from `filenames`.
 
@@ -277,17 +278,34 @@ stack = GRDstack(files; childkwargs=(mappedcrs=EPSG(4326),))
 stack[:relhum][Y(Contains(-37), X(Contains(144))
 ```
 """
-GRDstack(args...; kw...) = DiskStack(args...; childtype=GRDarray, kw...)
+GRDstack(filenames...; kw...) = GRDstack(filenames; kw...) 
+function GRDstack(filenames; keys, kw...)
+    GRDstack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
+end
+function GRDstack(filenames::NamedTuple; crs=nothing, mappedcrs=nothing, kw...)
+    layerfields = map(filenames) do filename
+        _grdread(filename) do ds
+            data = FileArray(ds, filename)
+            md = metadata(ds)
+            dims = DD.dims(ds, crs, mappedcrs)
+            (; data, dims, keys, md)
+        end
+    end
+    data = map(f-> f.data, layerfields)
+    dims = DD.commondims(map(f-> f.dims, layerfields)...)
+    layerdims = map(f-> DD.basedims(f.dims), layerfields)
+    layermetadata = map(f-> f.md, layerfields)
+    GeoStack(data; dims, layerdims, layermetadata, kw...)
+end
 
-withsource(f, ::Type{<:FileArray{:GRD}}, filename::AbstractString, key...) = f(GRDattrib(filename))
-withsourcedata(f, ::Type{<:FileArray{:GRD}}, filename::AbstractString, key...) =
-    _mmapgrd(f, GRDattrib(filename))
-withsourcedata(f, A::FileArray{:GRD}, key...) = _mmapgrd(f, A)
+Base.open(f::Function, A::FileArray{:GRD}, key...) = _mmapgrd(f, A)
+
+_grdread(f, filename) = f(GRDattrib(filename))
 
 # Utils ########################################################################
-#
-function _mmapgrd(f, grd::Union{FileArray,GRDattrib})
-    _mmapgrd(f, filename(grd), eltype(grd), size(grd))
+
+function _mmapgrd(f, x::Union{FileArray,GRDattrib})
+    _mmapgrd(f, filename(x), eltype(x), size(x))
 end
 function _mmapgrd(f, filename::AbstractString, T::Type, size::Tuple)
     open(filename * ".gri", "r") do io

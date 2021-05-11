@@ -19,6 +19,10 @@ Passed to the constructor for the file type, and commmonly include:
 """
 function geoarray end
 
+struct _NCD end
+struct _GRD end
+struct _GDAL end
+struct _SMAP end
 
 geoarray(filename::AbstractString; kw...) = _constructor(geoarray, filename)(filename; kw...)
 
@@ -63,22 +67,14 @@ stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 """
 function stack end
 
-stack(filename::AbstractString; kw...) = _constructor(stack, filename)(filename; kw...)
-stack(filenames::Union{Tuple,AbstractArray}; keys, kw...) = 
-    stack(NamedTuple{map(Symbol, keys)}(filenames); kw...) 
-function stack(filenames::NamedTuple; child_kwargs=(), kw...)
-    if all(x -> splitext(x)[2] == splitext(first(filenames))[2], filenames)
-        # All the same kind of file. We don't need to load them up front.
-        DiskStack(filenames; childtype=_constructor(geoarray, first(filenames)), kw...)
+stack(args..; kw...) = GeoStack(args...; kw...)
+
+function filekey(filename)
+    ext = splitext(filename)[2]
+    if ext in extensions.NCD
+        _ncdfilekey(filename)
     else
-        # These files are different extensions, just load them all
-        # as separate `AbstarctGeoArray` (which has some up front cost from
-        # reading the dimensions). They are probably still disk-backed for the
-        # actual array.
-        arrays = map(filenames) do fn
-            _constructor(geoarray, fn)(fn; child_kwargs...)
-        end
-        GeoStack(arrays; kw...)
+        throw(ArgumentError("Cannot retreve layer key for $ext files, provide a `keys` argument or filenames as a NamedTuple"))
     end
 end
 
@@ -138,36 +134,37 @@ end
 
 # Support methods
 
-const EXT = (GRD=(".grd", ".gri"), NCD=".nc", SMAP=".h5")
+const EXT = Dict(_GRD=>(".grd", ".gri"), _NCD=>(".nc",), _SMAP=>(".h5",))
+const REV_EXT = Dict(".grd"=>_GRD, ".gri"=>_GRD, ".nc"=>_NCD, ".h5"=>_SMAP)
 
 # The the constructor for a geoarray or stack, based on the
 # filename extension. GDAL is the fallback for geoarray as it 
 # handles so many file types.
 function _constructor(method::typeof(geoarray), filename; throw=true)
     _, extension = splitext(filename)
-    return if extension in EXT[:GRD]
+    return if extension in EXT[_GRD]
         GRDarray
-    elseif extension == EXT[:NCD]
-        _check_imported(:NCDatasets, :NCDarray, extension; throw=throw)
+    elseif extension in EXT[_NCD]
+        _check_imported(:NCDatasets, _NCD, extension; throw=throw)
         NCDarray
-    elseif extension == EXT[:SMAP]
+    elseif extension in EXT[_SMAP]
         # In future we may need to examine the file and check if
         # it's a SMAP file or something else that uses .h5
         throw ? _no_gearray_error(extension) : nothing
     else # GDAL handles too many extensions to list, so just try it and see if it works
-        _check_imported(:ArchGDAL, :GDALarray, extension; throw=throw)
+        _check_imported(:ArchGDAL, _GDAL, extension; throw=throw)
         GDALarray
     end
 end
 function _constructor(method::typeof(stack), filename; throw=true)
     _, extension = splitext(filename)
-    return if extension in EXT[:GRD]
+    return if extension in EXT[_GRD]
         throw ? _no_stack_error(extension) : nothing
-    elseif extension == EXT[:NCD]
-        _check_imported(:NCDatasets, :NCDarray, extension; throw=throw)
+    elseif extension == EXT[_NCD]
+        _check_imported(:NCDatasets, _NCD, extension; throw=throw)
         NCDstack
-    elseif extension == EXT[:SMAP]
-        _check_imported(:HDF5, :SMAPstack, extension; throw=throw)
+    elseif extension == EXT[_SMAP]
+        _check_imported(:HDF5, _SMAP, extension; throw=throw)
         SMAPstack
     else
         throw ? _no_stack_error(extension) : nothing

@@ -1,6 +1,7 @@
 using GeoData, Test, Statistics, Dates, CFTime, Plots, GeoFormatTypes
 import ArchGDAL, NCDatasets
-using GeoData: name, window, mode, span, sampling, val, Ordered, metadata, bounds
+using GeoData: name, window, mode, span, sampling, val, Ordered, metadata, bounds,
+               FileArray, FileStack
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
@@ -30,7 +31,7 @@ stackkeys = (
     ncarray = geoarray(ncsingle)
 
     @testset "open" begin
-        @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
+        # @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
     end
 
     @testset "read" begin
@@ -41,7 +42,7 @@ stackkeys = (
 
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)
-        @test ncarray isa NCDarray
+        @test ncarray isa GeoArray
         @test val(dims(ncarray, Ti())) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
         @test val(dims(ncarray, Y())) == -79.5:89.5
         @test val(dims(ncarray, X())) == 1.0:2:359.0
@@ -103,19 +104,6 @@ stackkeys = (
         end
     end
 
-    @testset "selectors" begin
-        a = ncarray[X(At(21.0)), Y(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))]
-        @test bounds(a) == ((50.0, 52.0),)
-        x = ncarray[X(Near(150)), Y(Near(30)), Ti(1)]
-        @test x isa Float32
-        # TODO make sure we are getting the right cell.
-        @test size(ncarray[Y(Between(-80, 90)), X(Between(0, 360)),
-            Ti(Between(DateTime360Day(2001, 1, 1), DateTime360Day(2003, 1, 1)))
-        ]) == (180, 170, 24)
-        nca = ncarray[Y(Between(-80, -25)), X(Between(0, 180)), 
-                      Ti(Near(DateTime360Day(2002, 02, 20)))]
-        @test size(nca) == (90, 55)
-    end
     @testset "selectors" begin
         a = ncarray[Lon(At(21.0)), Lat(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))]
         @test bounds(a) == ((50.0, 52.0),)
@@ -218,20 +206,20 @@ stackkeys = (
 end
 
 @testset "NCDstack" begin
+    ds = NCDatasets.Dataset(ncmulti)
+    ds[string(:abso4)]
     ncstack = stack(ncmulti)
-
-    @testset "read" begin
-        st = read(ncstack)
-        @test st isa GeoStack
-        @test st.data isa NamedTuple
-        @test first(st.data) isa GeoArray
-        @test parent(first(st.data)) isa Array
-    end
+    ncstack.layermetadata
+    dims(ncstack, :abso4)
+    DimensionalData.layerdims(ncstack)
+    keys(ncstack)
+    DimensionalData.layermetadata(ncstack)
 
     @testset "load ncstack" begin
-        @test ncstack isa NCDstack{String}
+        @test ncstack isa GeoStack
         @test ismissing(missingval(ncstack))
         @test metadata(ncstack) isa Metadata{:NCD}
+        @test dims(ncstack, :abso4) == dims(ncstack, (X, Y, Ti)) 
         @test refdims(ncstack) == ()
         # Loads child as a regular GeoArray
         @test_throws NCDatasets.NetCDFError ncstack[:not_a_key]
@@ -255,13 +243,21 @@ end
         @test size(geoA) == (3,)
     end
 
+    @testset "read" begin
+        st = read(ncstack)
+        @test st isa GeoStack
+        @test st.data isa NamedTuple
+        @test first(st.data) isa GeoArray
+        @test parent(first(st.data)) isa FileArray
+    end
+
     if VERSION > v"1.1-"
         @testset "copy" begin
-            geoA = ncstack[:albedo]
+            geoA = read(ncstack[:albedo]) .* 2
             copy!(geoA, ncstack, :albedo);
             # First wrap with GeoArray() here or == loads from disk for each cell.
             # we need a general way of avoiding this in all disk-based sources
-            @test geoA == GeoArray(ncstack[:albedo])
+            @test geoA == read(ncstack[:albedo])
         end
     end
 

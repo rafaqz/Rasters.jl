@@ -9,6 +9,7 @@ end GeoData
 
 using Adapt,
       Dates,
+      DiskArrays,
       Missings,
       Mmap,
       ProgressMeter,
@@ -61,7 +62,9 @@ const DDtidocs = joinpath(DDdocs, "#DimensionalData.Ti")
 
 include("mode.jl")
 include("dimensions.jl")
+include("filearray.jl")
 include("array.jl")
+include("filestack.jl")
 include("stack.jl")
 include("series.jl")
 include("utils.jl")

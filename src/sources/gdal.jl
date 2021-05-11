@@ -65,13 +65,16 @@ function GDALarray(raster::AG.RasterDataset, filename, key=nothing;
     metadata=metadata(raster),
     missingval=missingval(raster),
 )
-    sze = size(raster)
-    T = eltype(raster)
-    N = length(sze)
-    name = Symbol(name)
-    data = FileArray{:GDAL,T,N}(filename, size)
-    GeoArray(data, dims, refdims, name, metadata, missingval)
+    data = FileArray(raster, filename)
+    GeoArray(data, dims, refdims, Symbol(name), metadata, missingval)
 end
+
+FileArray{_GRD}(filename) = _gdalread(ds -> FileArray(ds, filename), filename)
+function FileArray(raster::AG.RasterDataset, filename, key=nothing)
+    FileArray{:GDAL,eltype(raster),ndims(raster)}(filename, size(raster))
+end
+
+Base.open(f::Function, A::FileArray{:GDAL}, key...) = _gdalread(f, filename(A))
 
 # AbstractGeoArray methods
 
@@ -157,9 +160,28 @@ stack = GDALstack(files; childkwargs=(mappedcrs=EPSG(4326),))
 stack[:relhum][Y(Contains(-37), X(Contains(144))
 ```
 """
-GDALstack(filenames, args...; kw...) = GeoStack(filenames, args...; kw...)
-
-withsource(f, ::Type{<:FileArray{:GDAL}}, filename::AbstractString, key...) = _gdalread(f, filename)
+GDALstack(filenames...; kw...) = GDALstack(filenames; kw...) 
+function GDALstack(filenames; keys, kw...)
+    GRDstack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
+end
+function GDALstack(filenames::NamedTuple; kw...)
+    GeoStack(data; kw...)
+end
+function GDALstack(filenames::NamedTuple; crs=nothing, mappedcrs=nothing, kw...)
+    layerfields = map(filenames) do filename
+        _gdalread(filename) do ds
+            data = FileArray(ds, filename)
+            md = metadata(ds)
+            dims = DD.dims(ds, crs, mappedcrs)
+            (; data, dims, keys, md)
+        end
+    end
+    data = map(f-> f.data, layerfields)
+    dims = DD.commondims(map(f-> f.dims, layerfields)...)
+    layerdims = map(f-> DD.basedims(f.dims), layerfields)
+    layermetadata = map(f-> f.md, layerfields)
+    GeoStack(data; dims, layerdims, layermetadata, kw...)
+end
 
 
 # DimensionalData methods for ArchGDAL types ###############################
@@ -245,11 +267,11 @@ function missingval(raster::AG.RasterDataset, args...)
     else
         # Convert in case getnodatavalue is the wrong type.
         # This conversion should always be safe.
-        # if eltype(band) <: AbstractFloat && nodata isa Real
-            # convert(eltype(band), nodata)
-        # else
+        if eltype(band) <: AbstractFloat && nodata isa Real
+            convert(eltype(band), nodata)
+        else
             nodata
-        # end
+        end
     end
 end
 
@@ -296,14 +318,14 @@ function _gdalwrite(filename, A, nbands, indices;
         options = ["COMPRESS=$compress", "TILED=$tiledstring"]
         AG.create(filename; driver=gdaldriver, options=options, kw...) do dataset
             _gdalsetproperties!(dataset, A)
-            AG.write!(dataset, data(A), indices)
+            AG.write!(dataset, readwindowed(A), indices)
         end
     else
         # Create a  memory object and copy it to disk, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
         ArchGDAL.create(""; driver=AG.getdriver("MEM"), kw...) do dataset
             _gdalsetproperties!(dataset, A)
-            AG.write!(dataset, data(A), indices)
+            AG.write!(dataset, readwindowed(A), indices)
             AG.copy(dataset; filename=filename, driver=gdaldriver) |> AG.destroy
         end
     end

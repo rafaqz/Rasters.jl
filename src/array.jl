@@ -15,10 +15,6 @@ a memory-backed `GeoArray`.
 """
 abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
 
-# Marker singleton for lazy loaded arrays, only used for broadcasting.
-# Can be removed when DiskArrays.jl is used everywhere
-struct LazyArray{T,N} <: AbstractArray{T,N} end
-
 # Interface methods ###########################################################
 
 """
@@ -94,84 +90,20 @@ function DD.rebuild(A::AbstractGeoArray;
     data=data(A), dims=dims(A), refdims=refdims(A), name=name(A),
     metadata=metadata(A), missingval=missingval(A)
 )
-    GeoArray(data, dims, refdims, name, metadata, missingval)
+    rebuild(A, data, dims, refdims, name, metadata, missingval)
 end
+
 
 Base.parent(A::AbstractGeoArray) = data(A)
 
+filename(A::AbstractGeoArray) = filename(data(A))
 
-"""
-Abstract supertype for all memory-backed GeoArrays where the data is an array.
-"""
-abstract type MemGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
-
-"""
-    DiskGeoArray <: AbstractGeoArray
-
-Abstract supertype for all disk-backed GeoArrays.
-For these the data is lazyily loaded from disk.
-
-To load a `DiskGeoArray` and operate on the data multiple times, use
-[`open`](@ref) and a `do` block.
-"""
-abstract type DiskGeoArray{T,N,D,A} <: AbstractGeoArray{T,N,D,A} end
-
-filename(A::DiskGeoArray) = A.filename
-
-"""
-    data(f, A::DiskGeoArray)
-
-Run method `f` on the data source object for `A`, as passed by the
-`withdata` method for the array. The only requirement of the
-object is that it has an `Array` method that returns the data as an array.
-"""
-DD.data(A::DiskGeoArray) = withsourcedata(Array, A)
-
-# Base methods
-
-Base.size(A::DiskGeoArray) = A.size
-
-@propagate_inbounds function Base.getindex(
-    A::DiskGeoArray, i1::DD.StandardIndices, i2::DD.StandardIndices, I::DD.StandardIndices...
-)
-    _rebuildgetindex(A, i1, i2, I...)
-end
-@propagate_inbounds function Base.getindex(A::DiskGeoArray, i1::Integer, i2::Integer, I::Vararg{<:Integer})
-    _rawgetindex(A, i1, i2, I...)
-end
-# Linear indexing returns Array
-@propagate_inbounds function Base.getindex(
-    A::DiskGeoArray, i::Union{Colon,AbstractVector{<:Integer}}
-)
-    _rawgetindex(A, i)
-end
-# Except 1D DimArrays
-@propagate_inbounds function Base.getindex(
-    A::DiskGeoArray{<:Any,1}, i::Union{Colon,AbstractVector{<:Integer}}
-)
-    _rebuildgetindex(A, i)
-end
-
-@propagate_inbounds function _rawgetindex(A, I...)
-    withsourcedata(A) do data
-        readwindowed(data, I...)
-    end
-end
-
-@propagate_inbounds function _rebuildgetindex(A, I...)
-    withsourcedata(A) do data
-        dims_, refdims_ = DD.slicedims(dims(A), refdims(A), I)
-        data = readwindowed(data, I...)
-        rebuild(A, data, dims_, refdims_)
-    end
-end
-
-Base.write(A::T) where T <: DiskGeoArray = write(filename(A), A)
+Base.write(A::T) where T <: AbstractGeoArray = write(filename(A), A)
 
 # Concrete implementation ######################################################
 
 """
-    GeoArray <: MemGeoArray
+    GeoArray <: AbsractGeoArray
 
     GeoArray(A::AbstractArray{T,N}, dims::Tuple; kw...)
     GeoArray(A::AbstractArray{T,N}; dims, kw...)
@@ -191,7 +123,7 @@ converted to `GeoArray` when indexed or otherwise transformed.
     can be passed it.
 - `metadata`: `ArrayMetadata` object for the array, or `NoMetadata()`.
 """
-struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: MemGeoArray{T,N,D,A}
+struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: AbstractGeoArray{T,N,D,A}
     data::A
     dims::D
     refdims::R
@@ -210,7 +142,7 @@ function GeoArray(A::AbstractArray;
     GeoArray(A, DD.formatdims(A, dims), refdims, name, metadata, missingval)
 end
 function GeoArray(A::AbstractGeoArray;
-    data=data(A), dims=dims(A), refdims=refdims(A),
+    data=readwindowed(data(A)), dims=dims(A), refdims=refdims(A),
     name=name(A), metadata=metadata(A), missingval=missingval(A)
 )
     GeoArray(data, dims, refdims, name, metadata, missingval)
@@ -220,21 +152,4 @@ end
     setindex!(data(A), x, I...)
 end
 
-struct FileArray{X,T,N,F,S<:Tuple,Na<:Union{Symbol,Nothing}} <: AbstractArray{T,N}
-    filename::F
-    size::S
-    name::Na
-end
-FileArray{X,T,N}(filename::F, size::S, key::Na=nothing) where {X,T,N,F,S,Na} = 
-    FileArray{X,T,N,F,S,Na}(filename, size, key)
-
-filename(A::FileArray) = A.filename
-DD.name(A::FileArray) = A.name
-
-Base.size(A::FileArray) = A.size
-Base.parent(A::FileArray) = withsourcedata(Array, A)
-function Base.getindex(A::FileArray, I...) 
-    withsourcedata(A) do data
-        data = readwindowed(data, I...)
-    end
-end
+filename(A::GeoArray) = filename(data(A))

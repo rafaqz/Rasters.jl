@@ -1,14 +1,14 @@
 
 # Add method to avoid printing from disk
-function Base.show(io::IO, mime::MIME"text/plain", A::DiskGeoArray{T,N}) where {T,N}
-    lines = _print_array_info(io, mime, A)
-    if !(metadata(A) isa NoMetadata) 
-        print(io, "\nwith ")
-        show(io, mime, metadata(A))
-    end
-    println(io)
-    print(io, "\n$(filename(A))")
-end
+# function Base.show(io::IO, mime::MIME"text/plain", A::DiskGeoArray{T,N}) where {T,N}
+#     lines = _print_array_info(io, mime, A)
+#     if !(metadata(A) isa NoMetadata) 
+#         print(io, "\nwith ")
+#         show(io, mime, metadata(A))
+#     end
+#     println(io)
+#     print(io, "\n$(filename(A))")
+# end
 
 function _show_dimname(io, dim::Dim)
     color = DD._dimcolor(io)
@@ -24,7 +24,7 @@ function Base.show(io::IO, mime::MIME"text/plain", stack::AbstractGeoStack)
     nlayers = length(keys(stack))
     layers_str = nlayers == 1 ? "layer" : "layers"
     printstyled(io, nameof(typeof(stack)), color=:blue)
-    print(io, " with $nlayers $(childtype(stack)) $layers_str:\n")
+    # print(io, " with $nlayers $(childtype(stack)) $layers_str:\n")
     for var in keys(stack)
         printstyled(io, "  :$var", color=:yellow)
 
@@ -47,7 +47,7 @@ function Base.show(io::IO, mime::MIME"text/plain", stack::AbstractGeoStack)
         print(io, '\n')
     end
 
-    if stack isa DiskGeoStack 
+    if data(stack) isa FileStack 
         if filename(stack) isa AbstractString
             println(io, "\n" * filename(stack))
         else
@@ -64,7 +64,7 @@ function Base.show(io::IO, mime::MIME"text/plain", stack::AbstractGeoStack)
         print(io, "with window:\n")
         for dim in window(stack)
             print(io, ' ')
-            show(IOContext(io; :compact=>true), mime, dim)
+            show(IOContext(io, :compact=>true), mime, dim)
             print(io, '\n')
         end
     end
@@ -89,9 +89,9 @@ function Base.summary(io::IO, A::AbstractGeoSeries{T,N}) where {T,N}
         print(io, join(size(A), "×"), " ")
     end
     printstyled(io, string(nameof(typeof(A)), "{$(nameof(T)),$N}"); color=:blue)
-    if !(eltype(parent(A)) <: childtype(A))
-        print(io, string(" of ", childtype(A)))
-    end
+    # if !(eltype(parent(A)) <: childtype(A))
+        # print(io, string(" of ", childtype(A)))
+    # end
 end
 
 function Base.show(io::IO, mime::MIME"text/plain", A::AbstractGeoSeries{T,N}) where {T,N}

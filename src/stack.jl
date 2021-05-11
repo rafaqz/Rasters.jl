@@ -20,13 +20,7 @@ subset without loading the whole array.
 `getindex` on a `AbstractGeoStack` with a key returns another stack with
 getindex applied to all the arrays in the stack.
 """
-abstract type AbstractGeoStack{T} end
-
-# Standard fields
-
-DD.refdims(s::AbstractGeoStack) = s.refdims
-DD.metadata(s::AbstractGeoStack) = s.metadata
-window(s::AbstractGeoStack) = s.window
+abstract type AbstractGeoStack{L} <: AbstractDimStack{L} end
 
 """
     childkwargs(s::AbstractGeoStack)
@@ -34,6 +28,8 @@ window(s::AbstractGeoStack) = s.window
 Returns the keyword arguments that will be passed to the child array constructor.
 """
 childkwargs(s::AbstractGeoStack) = s.childkwargs
+
+window(stack::AbstractGeoStack) = stack.window
 
 
 # Interface methods ############################################################
@@ -56,38 +52,16 @@ DD.modify(f, s::AbstractGeoStack) = GeoStack(s; data=_mapdata(A -> modify(f, A),
 
 # Base methods #################################################################
 
-@propagate_inbounds function Base.getindex(s::AbstractGeoStack, I...)
-    rebuild(s; data=NamedTuple{keys(s)}(a[I...] for a in values(s)))
-end
+# @propagate_inbounds function Base.getindex(s::AbstractGeoStack, I...)
+    # rebuild(s; data=NamedTuple{keys(s)}(a[I...] for a in values(s)))
+# end
 # Dict/Array hybrid with dims
-@propagate_inbounds function Base.getindex(s::AbstractGeoStack, key::Key, I::Vararg{<:Dimension})
-    getindex(s, key, DD.dims2indices(dims(s, key), I)...)
-end
+# @propagate_inbounds function Base.getindex(s::AbstractGeoStack, key::Key, I::Vararg{<:Dimension})
+    # getindex(s, key, DD.dims2indices(dims(s, key), I)...)
+# end
 
-Base.values(s::AbstractGeoStack) = (s[key] for key in keys(s))
-Base.length(s::AbstractGeoStack) = length(keys(s))
-Base.keys(s::AbstractGeoStack{<:AbstractString}) = Symbol.(querychild(keys, getsource(s), s))
-Base.keys(s::AbstractGeoStack{<:NamedTuple}) = Symbol.(keys(getsource(s)))
-Base.haskey(s::AbstractGeoStack, k) = k in keys(s)
 Base.names(s::AbstractGeoStack) = keys(s)
-Base.map(f, s::AbstractGeoStack) = rebuild(s; data=_mapdata(f, s))
-Base.first(s::AbstractGeoStack) = s[first(keys(s))]
-Base.last(s::AbstractGeoStack) = s[last(keys(s))]
-
-"""
-    Base.copy!(dst::AbstractArray, src::DiskGeoStack, key::Key)
-
-Copy the stack layer `key` to `dst`, which can be any `AbstractArray`.
-
-## Example
-
-Copy the `:humidity` layer from `stack` to `array`.
-
-```julia
-copy!(array, stack, :humidity)
-```
-"""
-Base.copy!(dst::AbstractArray, src::AbstractGeoStack, key) = copy!(dst, src[key])
+Base.copy(stack::AbstractGeoStack) = rebuild(stack; data=map(copy, getsource(stack)))
 
 """
     Base.cat(stacks::AbstractGeoStack...; [keys=keys(stacks[1])], dims)
@@ -115,174 +89,63 @@ end
 _mapdata(f, s::AbstractGeoStack) = NamedTuple{cleankeys(keys(s))}(map(f, values(s)))
 
 
-# Memory-based stacks ######################################################
-
-"""
-    MemGeoStack <: AbstractGeoStack
-
-Abstract supertype for [`AbstractGeoStack`](@ref) stored in memory.
-"""
-abstract type MemGeoStack{T} <: AbstractGeoStack{T} end
-
-childtype(s::MemGeoStack) = GeoArray
-DD.data(s::MemGeoStack) = s.data
-DD.data(s::MemGeoStack{<:NamedTuple}, key::Key) = data(s)[Symbol(key)]
-
 function DD.rebuild(s::T;
-    data=data(s), refdims=refdims(s), window=window(s),
-    metadata=metadata(s), childkwargs=childkwargs(s), kwargs...
-) where T<:MemGeoStack
-    DD.basetypeof(T)(data, refdims, window, metadata, childkwargs)
+    data=data(s), dims=dims(s), refdims=refdims(s), layerdims=DD.layerdims(s),
+    metadata=metadata(s), layermetadata=DD.layermetadata(s), 
+    window=window(s), childkwargs=childkwargs(s)
+) where T<:AbstractGeoStack
+    DD.basetypeof(T)(data, dims, refdims, layerdims, metadata, layermetadata, window, childkwargs)
 end
 
-getsource(s::MemGeoStack{<:NamedTuple}, args...) = data(s, args...)
+# getsource(s::MemGeoStack{<:NamedTuple}, args...) = data(s, args...)
 
 childdata(f, childobj, ::AbstractGeoStack) = f(childobj)
 
-@propagate_inbounds function Base.view(s::MemGeoStack, I...)
-    rebuild(s; data=NamedTuple{keys(s)}(view(a, I...) for a in values(s)))
+
+#### Stack getindex ####
+# Symbol key
+@propagate_inbounds function Base.getindex(s::AbstractGeoStack, key::Symbol) 
+    GeoArray(
+        data(s)[key], dims(s, DD.layerdims(s, key)), refdims(s), key, DD.layermetadata(s, key), missing
+    )
+end
+@propagate_inbounds function Base.getindex(s::AbstractGeoStack, key::Symbol, i1, I...) 
+    readwindowed(s[key], window(s), i1, I...)
+end
+@propagate_inbounds function Base.getindex(s::AbstractDimStack, i1::Int, I::Int...)
+    map(A -> Base.getindex(A, i1, I...), data(s))
 end
 
-@propagate_inbounds function Base.getindex(s::MemGeoStack, key::Key)
-    A = rebuild(data(s)[key]; childkwargs(s)...)
-    window_ = maybewindow2indices(dims(A), window(s))
-    readwindowed(A, window_)
-end
-@propagate_inbounds function Base.getindex(
-    s::MemGeoStack, key::Key, i1::StandardIndices, I::StandardIndices...
-)
-    A = rebuild(data(s)[key]; childkwargs(s)...)
-    window_ = maybewindow2indices(dims(A), window(s))
-    readwindowed(A, window_, i1, I...)
-end
+# @propagate_inbounds function Base.view(s::AbstractGeoStack, I...)
+#     rebuild(s; data=NamedTuple{keys(s)}(view(a, I...) for a in values(s)))
+# end
+
+# @propagate_inbounds function Base.getindex(s::AbstractGeoStack, key::Symbol)
+#     A = data(s)[key]
+#     window_ = maybewindow2indices(dims(s, key), window(s))
+#     readwindowed(A, window_)
+#     GeoArray(File
+# end
+# @propagate_inbounds function Base.getindex(
+#     s::AbstractGeoStack, key::Symbol, i1::StandardIndices, I::StandardIndices...
+# )
+#     A = rebuild(data(s)[key]; childkwargs(s)...)
+#     window_ = maybewindow2indices(dims(A, key), window(s))
+#     readwindowed(A, window_, i1, I...)
+# end
+
+
+# Concrete AbstrackGeoStack implementation ######################################################
 
 """
-    Base.copy!(dst::AbstractGeoStack, src::AbstractGeoStack, [keys=keys(dst)])
-
-Copy all or a subset of layers from one stack to another.
-
-## Example
-
-Copy just the `:sea_surface_temp` and `:humidity` layers from `src` to `dst`.
-
-```julia
-copy!(dst::AbstractGeoStack, src::AbstractGeoStack, keys=(:sea_surface_temp, :humidity))
-```
-"""
-function Base.copy!(dst::MemGeoStack, src::AbstractGeoStack, keys=keys(dst))
-    symkeys = Symbol.(keys)
-    # Check all keys first so we don't copy anything if there is any error
-    for key in symkeys
-        key in Symbol.(Base.keys(dst)) || throw(ArgumentError("key $key not found in dest keys"))
-        key in Symbol.(Base.keys(src)) || throw(ArgumentError("key $key not found in source keys"))
-    end
-    for key in symkeys
-        copy!(dst[key], src[key])
-    end
-end
-
-# Disk-based stacks ######################################################
-
-"""
-    DiskGeoStack <: AbstractGeoStack
-
-Abstract supertype of [`AbstractGeoStack`](@ref)s stored on disk.
-"""
-abstract type DiskGeoStack{T} <: AbstractGeoStack{T} end
-
-function DD.rebuild(s::T;
-    data=filename(s), refdims=refdims(s), window=window(s), metadata=metadata(s),
-    childtype=childtype(s), childkwargs=childkwargs(s), kwargs...
-) where T<:DiskGeoStack
-    DD.basetypeof(T)(data, refdims, window, metadata, childtype, childkwargs)
-end
-
-getsource(s::DiskGeoStack, args...) = filename(s, args...)
-
-childtype(stack::DiskGeoStack) = stack.childtype
-
-"""
-    filename(s::DiskGeoStack)
-
-Return the filename field of a `DiskGeoStack`.
-This may be a `Vector` of `String`, or a `String`.
-"""
-filename(s::DiskGeoStack) = s.filename
-"""
-    filename(s::DiskGeoStack, key)
-
-Return the filename field of a `DiskGeoStack` for a given key.
-
-This will always be a single string. However, in some cases
-all keys may have the same filename.
-"""
-filename(s::DiskGeoStack{<:NamedTuple}, key::Key) = filename(s)[Symbol(key)]
-filename(s::DiskGeoStack, key::Key) = filename(s)
-
-# Default to using the same method as GeoStack.
-# But a method for withsourcedata dispatching on the
-# array object may save time in some cases, like when
-# the array size has to be determined before loading the data
-# like with mmaped grd files.
-withsourcedata(f, A::DiskGeoArray, key...) =
-    withsourcedata(f, typeof(A), filename(A), key...)
-# By default assume the source object is a single object with all info and data.
-withsourcedata(f, childtype::Type, path, key...) = withsource(f, childtype, path, key...)
-
-withsource(f, childtype::Type, path, key...) = f(path)
-
-# Base methods
-
-function Base.getindex(s::DiskGeoStack, key::Key)
-    filename_ = filename(s, key)
-    withsource(childtype(s), filename_, key) do dataset
-        A = childtype(s)(dataset, filename_, key; name=Symbol(key), childkwargs(s)...)
-        window_ = maybewindow2indices(A, window(s))
-        readwindowed(A, window_)
-    end
-end
-function Base.getindex(s::DiskGeoStack, key::Key, i1::StandardIndices, I::StandardIndices...)
-    filename_ = filename(s, key)
-    withsource(childtype(s), filename_, key) do dataset
-        A = childtype(s)(dataset, filename_, key; name=Symbol(key), childkwargs(s)...)
-        window_ = maybewindow2indices(dims(A), window(s))
-        readwindowed(A, window_, i1, I...)
-    end
-end
-
-@inline Base.view(s::DiskGeoStack, I...) = rebuild(s; window=I)
-
-Base.map(f, s::DiskGeoStack) = GeoStack(s; data=_mapdata(f, s))
-
-
-# Default dims, metadata and missingval methods
-#
-# For DiskStack we query the underlying object - avoiding building
-# an AbstractGeoArray unless we have to. Examples may be an NCDatasets,
-# ArchGDAL, or HDF5 `Dataset` object. These sources will add a
-# For MemGeoStack the childobj is just a GeoArray as it is allready loaded in memory.
-for func in (:(DD.dims), :(DD.metadata), :missingval)
-    @eval begin
-        $func(s::AbstractGeoStack, key::Key) = $func(s[key])
-        function $func(s::DiskGeoStack, key::Key)
-            withsource(childtype(s), getsource(s, key), key) do sourceobj
-                $func(sourceobj, key)
-            end
-        end
-    end
-end
-
-# Concrete MemGeoStack implementation ######################################################
-
-"""
-    GeoStack <: MemGeoStack
+    GeoStack <: AbstrackGeoStack
 
     GeoStack(data...; keys, kwargs...)
     GeoStack(data::Union{Vector,Tuple}; keys, kwargs...)
     GeoStack(data::NamedTuple; window=(), metadata=NoMetadata(), refdims=(), childkwargs=()) =
     GeoStack(s::AbstractGeoStack; [keys, data, refdims, window, metadata])
 
-A concrete `MemGeoStack` implementation. Holds layers of [`GeoArray`](@ref).
+A concrete `AbstractGeoStack` implementation. Holds layers of [`GeoArray`](@ref).
 
 # Arguments
 
@@ -299,75 +162,73 @@ A concrete `MemGeoStack` implementation. Holds layers of [`GeoArray`](@ref).
 - `childkwargs`: A `NamedTuple` of keyword arguments to pass to the constructor.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
 """
-struct GeoStack{T,R,W,M,K} <: MemGeoStack{T}
-    data::T
+struct GeoStack{L,D,R,LD,M,LM,W,K} <: AbstractGeoStack{L}
+    data::L
+    dims::D
     refdims::R
-    window::W
+    layerdims::LD
     metadata::M
+    layermetadata::LM
+    window::W
     childkwargs::K
 end
-function GeoStack(data::AbstractGeoArray...; keys=name.(data), kw...)
+GeoStack(das::AbstractDimArray...; kw...) = GeoStack(das; kw...)
+function GeoStack(filenames::Uniont{AbstractArray,Tuple}; keys=map(filekey, filenames), kw...)
+    stack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
+end
+function GeoStack(data::Tuple{Vararg{<:AbstractGeoArray}}; keys=map(name, data), kw...)
     GeoStack(NamedTuple{cleankeys(keys)}(data); kw...)
 end
-function GeoStack(data::NamedTuple;
-         refdims=(),
-         window=(),
-         metadata=NoMetadata(),
-         childkwargs=())
-    GeoStack(data, refdims, window, metadata, childkwargs)
-end
-function GeoStack(s::AbstractGeoStack; keys=cleankeys(Base.keys(s)),
-         data=NamedTuple{keys}(s[key] for key in keys),
-         refdims=refdims(s),
-         window=(),
-         metadata=metadata(s),
-         childkwargs=())
-    GeoStack(data, refdims, window, metadata, childkwargs)
-end
-
-Base.convert(::Type{GeoStack}, src::AbstractGeoStack) = GeoStack(src)
-
-
-# Concrete DiskGeoStack implementation ######################################################
-"""
-    DiskStack(filenames...; keys, kw...)
-    DiskStack(filenames; keys, kw...)
-    DiskStack(filenames::NamedTuple; kw...)
-
-Concrete [`DiskGeoStack`](@ref) implementation. Loads a stack of files lazily from disk.
-
-# Arguments
-
-- `filename`: a NamedTuple of stack keys and `String` filenames.
-
-# Keywords
-
-- `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of filenames are passed in.
-- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
-    contained arrays when they are accessed.
-- `metadata`: A `DimensionalData.Metadata` object.
-- `childtype`: The type of the child data. eg. `GDALarray`. Required.
-- `childkwargs`: A `NamedTuple` of keyword arguments to pass to the `childtype` constructor.
-- `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
-"""
-struct DiskStack{T,R,W,M,C,K} <: DiskGeoStack{T}
-    filename::T
-    refdims::R
-    window::W
-    metadata::M
-    childtype::C
-    childkwargs::K
-end
-function DiskStack(filenames::NamedTuple;
-    refdims=(), window=(), metadata=NoMetadata(), childtype, childkwargs=()
+function GeoStack(das::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractGeoArray}}}; 
+    data=map(parent, das), dims=DD.combinedims(das...), refdims=(), 
+    layerdims=map(basedims, das), metadata=NoMetadata(), 
+    layermetadata=map(DD.metadata, das), window=(), childkwargs=(),
 )
-    DiskStack(filenames, refdims, window, metadata, childtype, childkwargs)
+    GeoStack(data, dims, refdims, layerdims, metadata, layermetadata, window, childkwargs)
 end
-function DiskStack(filenames; keys, kw...)
-    DiskStack(NamedTuple{cleankeys(keys)}((filenames...,)); kw...)
+function GeoStack(data::FileStack; 
+    dims, refdims=(), layerdims, metadata=NoMetadata(), layermetadata=(), window=(), childkwargs=(),
+)
+    GeoStack(data, dims, refdims, layerdims, metadata, layermetadata, window, childkwargs)
 end
-DiskStack(filenames::AbstractString...; kw...) = DiskStack(filenames; kw...)
+function GeoStack(s::AbstractDimStack; keys=cleankeys(Base.keys(s)),
+    data=NamedTuple{keys}(s[key] for key in keys),
+    dims=dims(s), refdims=refdims(s), layerdims=DD.layerdims(s), 
+    window=(), metadata=metadata(s), layermetadata=DD.layermetadata(s), childkwargs=()
+)
+    GeoStack(data, dims, refdims, layerdims, metadata, layermetadata, window, childkwargs)
+end
+function GeoStack(filenames::NamedTuple; crs=nothing, mappedcrs=nothing, kw...)
+    layerfields = map(keys(filenames), values(filenames)) do k, fn
+        readdata(fn) do ds
+            data = FileArray(ds, fn, k)
+            md = metadata(ds)
+            dims = DD.dims(ds, crs, mappedcrs)
+            (; data, dims, keys, md)
+        end
+    end
+    data = map(f-> f.data, layerfields)
+    dims = DD.commondims(map(f-> f.dims, layerfields)...)
+    layerdims = map(f-> DD.basedims(f.dims), layerfields)
+    layermetadata = map(f-> f.md, layerfields)
+    GeoStack(data; dims, layerdims, layermetadata, kw...)
+end
+function GeoStack(filename::AbstractString; 
+    metadata=nothing, window=(), crs=nothing, mappedcrs=nothing
+)
+    dims, layerdims, keys, metadata, sizes = _ncread(filename) do ds
+        keys = Tuple(map(Symbol, _nondimkeys(ds)))
+        md = metadata isa Nothing ? DD.metadata(ds) : metadata
+        dims = DD.dims(ds, crs, mappedcrs)
+        ldims = _ncdbasedims(ds)
+        sizes = _ncdsizes(ds, keys)
+        dims, ldims, keys, md, sizes
+    end
+    data = FileStack{_NCD,keys}(filename, sizes) 
+    GeoStack(data; 
+        dims=dims, layerdims=layerdims, metadata=metadata, 
+        layermetadata=map(_->NoMetadata(), layerdims), childkwargs=(),
+    )
+end
 
-# Other base methods
-
-Base.copy(stack::AbstractGeoStack) = rebuild(stack; data=map(copy, getsource(stack)))
+Base.convert(::Type{GeoStack}, src::AbstractDimStack) = GeoStack(src)

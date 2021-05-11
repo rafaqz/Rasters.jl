@@ -4,7 +4,7 @@
 
 Used internally to expose open disk files inside a `do` block
 """
-struct OpenGeoArray{T,N,D<:Tuple,R<:Tuple,A,Na<:Symbol,Me,Mi} <: AbstractGeoArray{T,N,D,A}
+struct OpenGeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray,Na<:Symbol,Me,Mi} <: AbstractGeoArray{T,N,D,A}
     data::A
     dims::D
     refdims::R
@@ -18,11 +18,16 @@ function OpenGeoArray(A, dims, refdims, name, metadata, missingval)
     )
 end
 function OpenGeoArray(f::Function, A::AbstractGeoArray{T,N}) where {T,N}
-    withsourcedata(A) do source
+    _maybeopen(data(A)) do source
         OA = OpenGeoArray(source, dims(A), refdims(A), name(A), metadata(A), missingval(A))
         f(OA)
     end
 end
+
+_maybeopen(f, A::AbstractDiskArray) = open(f, A)
+_maybeopen(f, A) = f(A)
+
+
 
 """
     open(f, A::AbstractGeoArray)
