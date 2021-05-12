@@ -149,19 +149,19 @@ end
 function GeoArray(filename::AbstractString; key=nothing, kw...)
     isfile(filename) || error("File not found: $filename")
     _read(filename) do ds
+        key = filekey(ds, key)
         GeoArray(ds, filename, key; kw...)
     end
 end
 function GeoArray(ds, filename::AbstractString, key=nothing;
-    crs=nothing, mappedcrs=nothing,
-    dims=dims(ds, crs, mappedcrs), refdims=(),
+    crs=nothing, mappedcrs=nothing, dims=nothing, refdims=(),
     name=Symbol(key isa Nothing ? "" : string(key)),
-    metadata=metadata(ds),
-    missingval=missingval(ds),
+    metadata=metadata(ds), missingval=missingval(ds),
 )
     source = _sourcetype(filename)
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
+    dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
     data = FileArray(ds, filename, key)
     GeoArray(data, dims, refdims, name, metadata, missingval)
 end
@@ -170,4 +170,5 @@ end
     setindex!(data(A), x, I...)
 end
 
+filekey(ds, key) = key
 filename(A::GeoArray) = filename(data(A))

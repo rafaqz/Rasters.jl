@@ -23,12 +23,11 @@ const NCD_DIMMAP = Dict(
     "z" => Z,
 )
 
-hasstackfile(::Type{_NCD}) = true
-
+cansavestack(::Type{_NCD}) = true
 defaultcrs(::Type{_NCD}) = EPSG(4326) 
 defaultmappedcrs(::Type{_NCD}) = EPSG(4326) 
 
-# Array ########################################################################
+# GeoArray ########################################################################
 
 function GeoArray(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw...)
     key = _firstkey(ds, key)
@@ -45,8 +44,6 @@ function FileArray(var::NCD.CFVariable, filename::AbstractString, key)
     N = length(size_)
     FileArray{_NCD,T,N}(filename, size_, key)
 end
-
-# AbstractGeoArray methods
 
 Base.open(f::Function, A::FileArray{_NCD}) = _ncread(ds -> f(ds), filename(A), key(A))
 
@@ -101,11 +98,13 @@ function Base.write(filename::AbstractString, ::Type{_NCD}, s::AbstractGeoStack)
     finally
         close(ds)
     end
-end # DimensionalData methods for NCDatasets types ###############################
+end 
+
+# DimensionalData methods for NCDatasets types ###############################
 
 function DD.dims(ds::NCD.Dataset, crs=nothing, mappedcrs=nothing)
     map(_dimkeys(ds)) do key
-        _ncddim(ds, key, 1, crs, mappedcrs)
+        _ncddim(ds, key, crs, mappedcrs)
     end |> Tuple
 end
 function DD.dims(ds::NCD.Dataset, key::Key, crs=nothing, mappedcrs=nothing)
@@ -113,11 +112,10 @@ function DD.dims(ds::NCD.Dataset, key::Key, crs=nothing, mappedcrs=nothing)
 end
 function DD.dims(var::NCD.CFVariable, crs=nothing, mappedcrs=nothing)
     names = NCD.dimnames(var)
-    map(names, (x for x in 1:length(names))) do name, i
-        _ncddim(var.var.ds, name, size(var, i), crs, mappedcrs)
+    map(names) do name
+        _ncddim(var.var.ds, name, crs, mappedcrs)
     end |> Tuple
 end
-
 
 DD.metadata(ds::NCD.Dataset) = Metadata{_NCD}(DD.metadatadict(ds.attrib))
 DD.metadata(ds::NCD.Dataset, key::Key) = metadata(ds[string(key)])
@@ -147,22 +145,23 @@ missingval(var::NCD.CFVariable) = missing
 
 layermissingval(ds::NCD.Dataset) = missing
 
-# Direct loading: better memory handling?
-# readwindowed(A::NCD.CFVariable) = readwindowed(A, axes(A)...)
-# readwindowed(A::NCD.CFVariable, i, I...) = begin
-#     var = A.var
-#     indices = to_indices(var, (i, I...))
-#     shape = Base.index_shape(indices...)
-#     dest = Array{eltype(var),length(shape)}(undef, map(length, shape)...)
-#     NCD.load!(var, dest, indices...)
-#     dest
-# end
+function layerkeys(ds::NCD.Dataset)
+    dimkeys = _dimkeys(ds)
+    toremove = if "bnds" in dimkeys
+        dimkeys = setdiff(dimkeys, ("bnds",))
+        boundskeys = [ds[k].attrib["bounds"] for k in dimkeys if haskey(ds[k].attrib, "bounds")]
+        union(dimkeys, boundskeys)
+    else
+        dimkeys
+    end
+    setdiff(keys(ds), toremove)
+end
+
+layersizes(ds::NCD.NCDataset, keys) = map(k -> size(ds[k]), keys)
 
 # Utils ########################################################################
-        
-_ncdsizes(ds, keys) = map(k -> size(ds[k]), keys)
 
-function _ncddim(ds, dimname::Key, len, crs=nothing, mappedcrs=nothign)
+function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothign)
     if haskey(ds, dimname)
         dvar = ds[dimname]
         dimtype = _ncddimtype(dimname)
@@ -173,8 +172,21 @@ function _ncddim(ds, dimname::Key, len, crs=nothing, mappedcrs=nothign)
     else
         # The var doesn't exist. Maybe its `complex` or some other marker,
         # so make it a custom `Dim` with `NoIndex`
+        len = _ncfinddimlen(ds, dimname)
+        len === nothing && _unuseddimerror()
         Dim{Symbol(dimname)}(Base.OneTo(len), NoIndex(), NoMetadata())
     end
+end
+
+function _ncfinddimlen(ds, dimname) 
+    for key in keys(ds)
+        var = ds[key]
+        dimnames = NCD.dimnames(var)
+        if dimname in dimnames 
+            return size(var)[findfirst(==(dimname), dimnames)]
+        end
+    end
+    return nothing
 end
 
 # Find the matching dimension constructor. If its an unknown name 
@@ -288,17 +300,6 @@ function _read(f, ::Type{_NCD}, filename::AbstractString, key)
 end
 
 _dimkeys(ds::NCD.Dataset) = keys(ds.dim)
-function layerkeys(ds::NCD.Dataset)
-    dimkeys = _dimkeys(ds)
-    toremove = if "bnds" in dimkeys
-        dimkeys = setdiff(dimkeys, ("bnds",))
-        boundskeys = [ds[k].attrib["bounds"] for k in dimkeys if haskey(ds[k].attrib, "bounds")]
-        union(dimkeys, boundskeys)
-    else
-        dimkeys
-    end
-    setdiff(keys(ds), toremove)
-end
 
 # Add a var array to a dataset before writing it.
 function _ncdwritevar!(ds, A::AbstractGeoArray{T,N}) where {T,N}
@@ -379,3 +380,5 @@ function _ncdshiftlocus(mode::AbstractSampled, dim::Dimension)
         dim
     end
 end
+
+_unuseddimerror(dimname) = error("Netcdf contains unused dimension $dimname")

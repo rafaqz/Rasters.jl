@@ -34,6 +34,7 @@ function GRDattrib(filename::AbstractString)
     GRDattrib{T,typeof(filename),typeof(attrib)}(filename, attrib)
 end
 
+filekey(grd::GRDattrib, key::Nothing) = get(grd.attrib, "layername", Symbol(""))
 filename(grd::GRDattrib) = grd.filename
 attrib(grd::GRDattrib) = grd.attrib
 

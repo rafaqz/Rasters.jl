@@ -24,7 +24,10 @@ abstract type AbstractGeoStack{L} <: AbstractDimStack{L} end
 
 window(stack::AbstractGeoStack) = stack.window
 layermissingval(stack::AbstractGeoStack) = stack.layermissingval
-missingval(s::AbstractGeoStack, key::Symbol) = layermissingval(s)[key]
+missingval(s::AbstractGeoStack, key::Symbol) = _singlemissingval(layermissingval(s), key)
+
+_singlemissingval(mvs::NamedTuple, key) = mvs[key]
+_singlemissingval(mv, key) = mv
 
 # Base methods #################################################################
 
@@ -76,17 +79,16 @@ end
 #### Stack getindex ####
 # Symbol key
 @propagate_inbounds function Base.getindex(s::AbstractGeoStack, key::Symbol) 
-    dims_ = dims(s, DD.layerdims(s, key))
-    window_ = maybewindow2indices(dimz_, window(s))
     data_ = data(s)[key]
-    data_ = window_ == () ? data_ : view(data_, window...)
-    GeoArray(data_, dims_, refdims(s), key, DD.layermetadata(s, key), missing)
+    dims_ = dims(s, DD.layerdims(s, key))
+    A = GeoArray(data_, dims_, refdims(s), key, DD.layermetadata(s, key), missingval(s, key))
+    window(s) == () ? A : view(A, window(s)...)
 end
 @propagate_inbounds function Base.getindex(s::AbstractGeoStack, key::Symbol, i1, I...) 
-    readwindowed(s[key], window(s), i1, I...)
+    s[key][i1, I...]
 end
-@propagate_inbounds function Base.getindex(s::AbstractDimStack, i1::Int, I::Int...)
-    map(A -> Base.getindex(A, i1, I...), data(s))
+@propagate_inbounds function Base.getindex(s::AbstractGeoStack, i1::Int, I::Int...)
+    window(s) == () ? A[i1, I...] : map(A -> view(A, window(s)...)[i1, I...], data(s))
 end
 
 # @propagate_inbounds function Base.view(s::AbstractGeoStack, I...)
@@ -220,7 +222,7 @@ function GeoStack(filename::AbstractString;
 )
     source = _sourcetype(filename)
     crs = defaultcrs(source, crs)
-    mappecrs = defaultmappedcrs(source, mappedcrs)
+    mappedcrs = defaultmappedcrs(source, mappedcrs)
     data, dims, layerdims, metadata, layermetadata, layermissingval = _read(filename) do ds
         keys = Tuple(map(Symbol, layerkeys(ds)))
         dims = DD.dims(ds, crs, mappedcrs)
@@ -228,7 +230,7 @@ function GeoStack(filename::AbstractString;
         md = metadata isa Nothing ? DD.metadata(ds) : metadata
         lmd = DD.layermetadata(ds)
         lmv = GeoData.layermissingval(ds)
-        sizes = _ncdsizes(ds, keys)
+        sizes = layersizes(ds, keys)
         data = FileStack{source,keys}(filename, sizes) 
         data, dims, ldims, md, lmd, lmv
     end

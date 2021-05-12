@@ -28,7 +28,7 @@ function Base.show(io::IO, mime::MIME"text/plain", stack::AbstractGeoStack)
     for var in keys(stack)
         printstyled(io, "  :$var", color=:yellow)
 
-        field_dims = dims(stack, var)
+        field_dims = DD.layerdims(stack, var)
         n_dims = length(field_dims)
         dims_str = n_dims == 1 ? "dim" : "dims"
         print(io, " with $dims_str: ")

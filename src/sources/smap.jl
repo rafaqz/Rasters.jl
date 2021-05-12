@@ -5,6 +5,7 @@ export SMAP, SMAPstack, SMAPseries
 const SMAPMISSING = -9999.0
 const SMAPGEODATA = "Geophysical_Data"
 const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
+const SMAPSIZE
 
 hasstackfile(::Type{_SMAP}) = true
 
@@ -12,36 +13,15 @@ struct SMAPhdf5{T}
     ds::T
 end
 Base.parent(wrapper::SMAPhdf5) = wrapper.ds
+Base.getindex(wrapper::SMAPhdf5, I...) = getindex(parent(wrapper), I...)
+
+struct SMAPlayer{T}
+    ds::T
+end
+Base.parent(wrapper::SMAPlayer) = wrapper.ds
+Base.getindex(wrapper::SMAPlayer, I...) = getindex(parent(wrapper), I...)
 
 # Stack ########################################################################
-
-"""
-    SMAPstack <: DiskGeoStack
-
-    SMAPstack(filename::String; dims=nothing, refdims=nothing, window=())
-
-`AbstractGeoStack` for [SMAP](https://smap.jpl.nasa.gov/) datasets.
-
-The simplicity of the format means `dims` and `metadata` are the same for all stack layers,
-so we store them as stack fields.
-
-# Arguments
-
-- `filename`: `String` path to a SMAP .h5 file.
-
-# Keywords
-
-- `dims`: Dimensions held on the stack as all layers have identical `Dimension`s.
-    These are loaded from the HDF5 by default, but can be passed in to improve performance,
-    as is done by [`SMAPseries`](@ref),
-- `refdims`: As for `dims`. Often the position time `Dimension` from the `SMAPseries`.
-- `metadata`: `Metadata` object. As for `dims`.
-- `window`: Like `view` but lazy, for disk based data. Can be a tuple of Dimensions,
-    selectors or regular indices. These will be applied when the data is loaded or indexed.
-"""
-struct SMAPstack end
-
-
 
 function Base.getindex(fs::FileStack{_SMAP}, key)
    _read(_SMAP, filename(fs)) do ds
@@ -50,59 +30,61 @@ function Base.getindex(fs::FileStack{_SMAP}, key)
    end
 end
 
-
 # SMAP has fixed dims for all layers, so we store them on the stack.
-DD.dims(stack::SMAPstack, dim) = dims(dims(stack), dim)
-DD.dims(stack::SMAPstack, key::Key...) = stack.dims
-DD.refdims(stack::SMAPstack) = stack.refdims
-DD.metadata(stack::SMAPstack) = stack.metadata
-missingval(stack::SMAPstack, key::Key...) = SMAPMISSING
-childtype(stack::SMAPstack) = SMAParray
-childkwargs(stack::SMAPstack) = ()
-
-# Dummy SMAParray type. Actually generates a GeoArray
-struct SMAParray end
-
-withsource(f, ::Type{SMAParray}, path::AbstractString, key...) = _smapread(f, path)
-withsourcedata(f, ::Type{SMAParray}, path::AbstractString, key) =
-    _smapread(path) do d
-        f(d[_smappath(string(key))])
-    end
-
+# DD.dims(stack::SMAPstack, dim) = dims(dims(stack), dim)
+# DD.dims(stack::SMAPstack, key::Key...) = stack.dims
+# DD.refdims(stack::SMAPstack) = stack.refdims
+# DD.metadata(stack::SMAPstack) = stack.metadata
+# missingval(stack::SMAPhdf5, key::Key...) = SMAPMISSING
 
 # Base methods
 
 # Override getindex as we already have `dims` - they are
 # fixed for the whole stack
-function Base.getindex(s::FileStack{_SMAP}, key::Key, i1::Integer, I::Integer...)
-    _smapread(filename(s)) do wrapper
-        dataset = parent(wrapper)
-        smapdata = file[_smappath(key)]
-        _window = maybewindow2indices(smapdata, _dims, window(s))
-        readwindowed(smapdata, _window, I...)
-    end
-end
-function Base.getindex(s::SMAPstack, key::Key)
-    _smapread(filename(s)) do wrapper
-        dataset = parent(wrapper)
-        smapdata = dataset[_smappath(key)]
-        dims_ = dims(s)
-        window_ = maybewindow2indices(smapdata, dims_, window(s))
-        dims_, refdims_ = DD.slicedims(DD.slicedims(dims_, refdims(s), window_)..., I)
-        A = FileArray(smapdata, )
-        GeoArray(A, dims_, refdims_, Symbol(key), metadata(s), missingval(s))
-    end
-end
+# function Base.getindex(s::FileStack{_SMAP}, key::Key, i1::Integer, I::Integer...)
+#     _smapread(filename(s)) do wrapper
+#         dataset = parent(wrapper)
+#         smapdata = file[_smappath(key)]
+#         _window = maybewindow2indices(smapdata, _dims, window(s))
+#         readwindowed(smapdata, _window, I...)
+#     end
+# end
+# function Base.getindex(s::SMAPstack, key::Key)
+#     _smapread(filename(s)) do wrapper
+#         dataset = parent(wrapper)
+#         smapdata = dataset[_smappath(key)]
+#         dims_ = dims(s)
+#         window_ = maybewindow2indices(smapdata, dims_, window(s))
+#         dims_, refdims_ = DD.slicedims(DD.slicedims(dims_, refdims(s), window_)..., I)
+#         A = FileArray(smapdata, )
+#         GeoArray(A, dims_, refdims_, Symbol(key), metadata(s), missingval(s))
+#     end
+# end
 
 # HDF5 uses `names` instead of `keys` so we have to special-case it
-function Base.keys(stack::SMAPstack)
-    _smapread(filename(stack)) do dataset
-        cleankeys(keys(dataset[SMAPGEODATA]))
-    end
+function Base.keys(ds::SMAPhdf5)
+    cleankeys(keys(parent(ds)[SMAPGEODATA]))
 end
 
-layerkeys(stack::SMAPstack) = keys(stack)
+@inline function DD.layerdims(ds::SMAPhdf5)
+    keys = Tuple(layerkeys(ds))
+    basedims = DD.basedims(DD.dims(ds))
+    # All dims are the same
+    NamedTuple{map(Symbol, keys)}(map(k -> basedims, keys))
+end
 
+@inline function DD.layermetadata(ds::SMAPhdf5)
+    keys = Tuple(layerkeys(ds))
+    NamedTuple{map(Symbol, keys)}(map(k -> DD.metadata(ds[k]), keys))
+end
+
+missingval(ds::SMAPhdf5) = SMAPMISSING
+
+layermissingval(ds::SMAPhdf5) = SMAPMISSING
+
+layerkeys(ds::SMAPhdf5) = keys(parent(ds))
+
+layersizes(ds::SMAPhdf5, keys) = map(k -> size(ds[k]), keys)
 
 # Series #######################################################################
 
@@ -156,36 +138,12 @@ function SMAPseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
         dims=_smapread(_smapdims, first(filenames)),
         metadata=_smapread(_smapmetadata, first(filenames)),
     )
-    GeoSeries(usedpaths, (timedim,); childtype=SMAPstack, childkwargs=childkwargs, kw...)
+    GeoSeries(usedpaths, (timedim,); childkwargs=childkwargs, kw...)
 end
 
 Base.:*(hrs::Int, ::Type{T}) where T<:Period = T(hrs)
 
 readwindowed(A::HDF5.Dataset, window::Tuple{}) = HDF5.read(A)
-
-
-# Utils ########################################################################
-
-_smapread(f, filepath::AbstractString) = _read(f, _SMAP, filepath)
-
-_read(f, ::Type{_SMAP}, filepath::AbstractString) = h5open(ds -> f(SMAPhdf5(ds)), filepath)
-
-_smappath(key::Key) = SMAPGEODATA * "/" * string(key)
-
-function _smap_timefrompath(path::String)
-    dateformat = DateFormat("yyyymmddTHHMMSS")
-    dateregex = r"SMAP_L4_SM_gph_(\d+T\d+)_"
-    datematch = match(dateregex, path)
-    if !(datematch === nothing)
-        DateTime(datematch.captures[1], dateformat)
-    else
-        error("Date/time not correctly formatted in path: $path")
-    end
-end
-
-_smap_timedim(t::DateTime) = _smap_timedim(t:Hour(3):t)
-_smap_timedim(times::AbstractVector) =
-    Ti(times, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals(Start())))
 
 # TODO actually add metadata to the dict
 DD.metadata(wrapper::HDF5.File) = Metadata{:SMAP}(Dict())
@@ -220,3 +178,39 @@ function DD.dims(wrapper::SMAPhdf5)
         error("projection $proj not supported")
     end
 end
+
+function _smapdimtype(dimname)
+    haskey(NCD_DIMMAP, dimname) ? NCD_DIMMAP[dimname] : DD.basetypeof(DD.key2dim(Symbol(dimname)))
+end
+
+# Utils ########################################################################
+
+_smapread(f, filepath::AbstractString) = _read(f, _SMAP, filepath)
+
+_read(f, ::Type{_SMAP}, filepath::AbstractString) = h5open(ds -> f(SMAPhdf5(ds)), filepath)
+_read(f, ::Type{_SMAP}, filepath::AbstractString, key) = 
+    h5open(ds -> f(SMAPhdf5(ds)[_smappath(string(key))]), filepath)
+
+
+# withsource(f, ::Type{SMAParray}, path::AbstractString, key...) = _smapread(f, path)
+# withsourcedata(f, ::Type{SMAParray}, path::AbstractString, key) =
+#     _smapread(path) do d
+#         f(d[_smappath(string(key))])
+#     end
+
+_smappath(key::Key) = SMAPGEODATA * "/" * string(key)
+
+function _smap_timefrompath(path::String)
+    dateformat = DateFormat("yyyymmddTHHMMSS")
+    dateregex = r"SMAP_L4_SM_gph_(\d+T\d+)_"
+    datematch = match(dateregex, path)
+    if !(datematch === nothing)
+        DateTime(datematch.captures[1], dateformat)
+    else
+        error("Date/time not correctly formatted in path: $path")
+    end
+end
+
+_smap_timedim(t::DateTime) = _smap_timedim(t:Hour(3):t)
+_smap_timedim(times::AbstractVector) =
+    Ti(times, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals(Start())))

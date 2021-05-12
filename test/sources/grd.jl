@@ -114,8 +114,8 @@ path = stem * ".gri"
         end
 
         @testset "3d with subset" begin
-            geoA = GeoArray(grdarray)[1:100, 1:50, 1:2]
-            filename = tempname()
+            geoA = grdarray[1:100, 1:50, 1:2]
+            filename = tempname() * ".grd"
             write(filename, _GRD, geoA)
             saved = read(geoarray(filename))
             @test size(saved) == size(geoA)
@@ -211,12 +211,12 @@ end
         windowedstack = stack((a=path, b=path); window=(Y(1:5), X(1:5), Band(1)))
         @test window(windowedstack) == (Y(1:5), X(1:5), Band(1))
         windowedarray = windowedstack[:a]
-        @test_broken windowedarray isa GeoArray{Float32,2}
-        @test_broken length.(dims(windowedarray)) == (5, 5)
-        @test_broken size(windowedarray) == (5, 5)
-        @test_broken windowedarray[1:3, 2:2] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1)
-        @test_broken windowedarray[1:3, 2] == [255.0f0, 255.0f0, 255.0f0]
-        @test_broken windowedarray[1, 2] == 255.0f0
+        @test windowedarray isa GeoArray{Float32,2}
+        @test length.(dims(windowedarray)) == (5, 5)
+        @test size(windowedarray) == (5, 5)
+        @test windowedarray[1:3, 2:2] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1)
+        @test windowedarray[1:3, 2] == [255.0f0, 255.0f0, 255.0f0]
+        @test windowedarray[1, 2] == 255.0f0
         windowedstack = stack((a=path, b=path); window=(Y(1:5), X(1:5), Band(1:1)))
         windowedarray = windowedstack[:b]
         @test windowedarray[1:3, 2:2, 1:1] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1, 1)
@@ -225,9 +225,9 @@ end
         @test windowedarray[1, 2, 1] == 255.0f0
         windowedstack = stack((a=path, b=path); window=(Band(1),));
         windowedarray = windowedstack[:b]
-        @test_broken windowedarray[1:3, 2:2] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1)
-        @test_broken windowedarray[1:3, 2] == [255.0f0, 255.0f0, 255.0f0]
-        @test_broken windowedarray[30, 30] == 185.0f0
+        @test windowedarray[1:3, 2:2] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1)
+        @test windowedarray[1:3, 2] == [255.0f0, 255.0f0, 255.0f0]
+        @test windowedarray[30, 30] == 185.0f0
         windowedarray |> plot
     end
 
