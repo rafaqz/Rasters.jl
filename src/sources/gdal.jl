@@ -14,7 +14,9 @@ const GDAL_Y_LOCUS = Start()
 
 FileArray{_GRD}(filename) = _read(ds -> FileArray(ds, filename), _GDAL, filename)
 function FileArray(raster::AG.RasterDataset, filename, key=nothing)
-    FileArray{_GDAL,eltype(raster),ndims(raster)}(filename, size(raster))
+    FileArray{_GDAL,eltype(raster),ndims(raster)}(filename, size(raster); 
+        chunks=DiskArrays.eachchunk(raster).chunksize
+    )
 end
 
 Base.open(f::Function, A::FileArray{_GDAL}, key...) = _read(f, _GDAL, filename(A))
@@ -191,14 +193,14 @@ function _gdalwrite(filename, A, nbands, indices;
         options = ["COMPRESS=$compress", "TILED=$tiledstring"]
         AG.create(filename; driver=gdaldriver, options=options, kw...) do dataset
             _gdalsetproperties!(dataset, A)
-            AG.write!(dataset, readwindowed(A), indices)
+            AG.write!(dataset, Array(A), indices)
         end
     else
         # Create a  memory object and copy it to disk, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
         ArchGDAL.create(""; driver=AG.getdriver("MEM"), kw...) do dataset
             _gdalsetproperties!(dataset, A)
-            AG.write!(dataset, readwindowed(A), indices)
+            AG.write!(dataset, Array(A), indices)
             AG.copy(dataset; filename=filename, driver=gdaldriver) |> AG.destroy
         end
     end

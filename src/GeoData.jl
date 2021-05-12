@@ -29,9 +29,9 @@ using Base: tail, @propagate_inbounds
 
 using DimensionalData: StandardIndices
 
-export AbstractGeoArray, MemGeoArray, DiskGeoArray, GeoArray
+export AbstractGeoArray, GeoArray
 
-export AbstractGeoStack, MemGeoStack, DiskGeoStack, DiskStack, GeoStack
+export AbstractGeoStack, GeoStack
 
 export AbstractGeoSeries, GeoSeries
 

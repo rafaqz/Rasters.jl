@@ -1,90 +1,72 @@
 using HDF5
 
-export SMAP, SMAPstack, SMAPseries
+export SMAPseries
+export smapseries
 
 const SMAPMISSING = -9999.0
 const SMAPGEODATA = "Geophysical_Data"
 const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
-const SMAPSIZE
+const SMAPSIZE = (3856, 1624)
+const SMAPDIMTYPES = (X, Y) 
 
-hasstackfile(::Type{_SMAP}) = true
+# Dataset wrapper ###############################################################
+# Becauase SMAP is just one of manyu HDF5 formats,
+# we wrap it in SMAPhdr5 and SMAPvar wrappers
 
 struct SMAPhdf5{T}
     ds::T
 end
 Base.parent(wrapper::SMAPhdf5) = wrapper.ds
-Base.getindex(wrapper::SMAPhdf5, I...) = getindex(parent(wrapper), I...)
+Base.getindex(wrapper::SMAPhdf5, path) = wrapper.ds[path]
 
-struct SMAPlayer{T}
+_smappath(key::Key) = SMAPGEODATA * "/" * string(key)
+
+struct SMAPvar{T}
     ds::T
 end
-Base.parent(wrapper::SMAPlayer) = wrapper.ds
-Base.getindex(wrapper::SMAPlayer, I...) = getindex(parent(wrapper), I...)
+Base.parent(wrapper::SMAPvar) = wrapper.ds
+
+# GeoArray ######################################################################
+
+function FileArray(var::SMAPvar, filename::AbstractString, key)
+    T = eltype(parent(var))
+    N = length(SMAPSIZE)
+    FileArray{_SMAP,T,N}(filename, SMAPSIZE, key)
+end
+
+Base.open(f::Function, A::FileArray{_SMAP}) = _smapread(ds -> f(ds), filename(A), key(A))
 
 # Stack ########################################################################
 
+hasstackfile(::Type{_SMAP}) = true
+
 function Base.getindex(fs::FileStack{_SMAP}, key)
    _read(_SMAP, filename(fs)) do ds
-       var = ds[string(key)]
-       FileArray(var, key, filename(fs))
+       var = ds[_smappath(key)]
+       FileArray(SMAPvar(var), filename(fs), key)
    end
 end
 
-# SMAP has fixed dims for all layers, so we store them on the stack.
-# DD.dims(stack::SMAPstack, dim) = dims(dims(stack), dim)
-# DD.dims(stack::SMAPstack, key::Key...) = stack.dims
-# DD.refdims(stack::SMAPstack) = stack.refdims
-# DD.metadata(stack::SMAPstack) = stack.metadata
-# missingval(stack::SMAPhdf5, key::Key...) = SMAPMISSING
-
-# Base methods
-
-# Override getindex as we already have `dims` - they are
-# fixed for the whole stack
-# function Base.getindex(s::FileStack{_SMAP}, key::Key, i1::Integer, I::Integer...)
-#     _smapread(filename(s)) do wrapper
-#         dataset = parent(wrapper)
-#         smapdata = file[_smappath(key)]
-#         _window = maybewindow2indices(smapdata, _dims, window(s))
-#         readwindowed(smapdata, _window, I...)
-#     end
-# end
-# function Base.getindex(s::SMAPstack, key::Key)
-#     _smapread(filename(s)) do wrapper
-#         dataset = parent(wrapper)
-#         smapdata = dataset[_smappath(key)]
-#         dims_ = dims(s)
-#         window_ = maybewindow2indices(smapdata, dims_, window(s))
-#         dims_, refdims_ = DD.slicedims(DD.slicedims(dims_, refdims(s), window_)..., I)
-#         A = FileArray(smapdata, )
-#         GeoArray(A, dims_, refdims_, Symbol(key), metadata(s), missingval(s))
-#     end
-# end
-
-# HDF5 uses `names` instead of `keys` so we have to special-case it
-function Base.keys(ds::SMAPhdf5)
-    cleankeys(keys(parent(ds)[SMAPGEODATA]))
-end
+Base.keys(ds::SMAPhdf5) = cleankeys(keys(parent(ds)[SMAPGEODATA]))
 
 @inline function DD.layerdims(ds::SMAPhdf5)
-    keys = Tuple(layerkeys(ds))
-    basedims = DD.basedims(DD.dims(ds))
+    keys = cleankeys(layerkeys(ds))
     # All dims are the same
-    NamedTuple{map(Symbol, keys)}(map(k -> basedims, keys))
+    NamedTuple{keys}(map(_ -> SMAPDIMTYPES, keys))
 end
 
 @inline function DD.layermetadata(ds::SMAPhdf5)
-    keys = Tuple(layerkeys(ds))
-    NamedTuple{map(Symbol, keys)}(map(k -> DD.metadata(ds[k]), keys))
+    keys = cleankeys(layerkeys(ds))
+    NamedTuple{keys}(map(_ -> DD.metadata(ds), keys))
 end
 
+# TODO actually add metadata to the dict
+DD.metadata(wrapper::SMAPhdf5) = Metadata{_SMAP}(Dict())
+
 missingval(ds::SMAPhdf5) = SMAPMISSING
-
 layermissingval(ds::SMAPhdf5) = SMAPMISSING
-
-layerkeys(ds::SMAPhdf5) = keys(parent(ds))
-
-layersizes(ds::SMAPhdf5, keys) = map(k -> size(ds[k]), keys)
+layerkeys(ds::SMAPhdf5) = keys(ds)
+layersizes(ds::SMAPhdf5, keys) = map(_ -> SMAPSIZE, keys)
 
 # Series #######################################################################
 
@@ -106,10 +88,10 @@ organised along the time dimension. Returns a [`GeoSeries`](@ref).
 
 - `kw`: Passed to `GeoSeries`.
 """
-function SMAPseries(dir::AbstractString; kw...)
+function smapseries(dir::AbstractString; kw...)
     SMAPseries(joinpath.(dir, filter_ext(dir, ".h5")); kw...)
 end
-function SMAPseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
+function smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
     if dims isa Nothing
         usedpaths = String[]
         timeseries = []
@@ -134,19 +116,14 @@ function SMAPseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
         println.(errors)
     end
     # Get the dims once for the whole series
-    childkwargs = (
-        dims=_smapread(_smapdims, first(filenames)),
-        metadata=_smapread(_smapmetadata, first(filenames)),
-    )
-    GeoSeries(usedpaths, (timedim,); childkwargs=childkwargs, kw...)
+    dims, metadata =_smapread(first(filenames)) do ds
+        DD.dims(ds), DD.metadata(ds)
+    end
+    childkwargs = (; dims, metadata)
+    GeoSeries(usedpaths, (timedim,); child=stack, childkwargs=childkwargs, kw...)
 end
 
-Base.:*(hrs::Int, ::Type{T}) where T<:Period = T(hrs)
-
-readwindowed(A::HDF5.Dataset, window::Tuple{}) = HDF5.read(A)
-
-# TODO actually add metadata to the dict
-DD.metadata(wrapper::HDF5.File) = Metadata{:SMAP}(Dict())
+@deprecate SMAPseries(args...; kw...) smapseries(args...; kw...)
 
 function DD.dims(wrapper::SMAPhdf5)
     dataset = parent(wrapper)
@@ -179,26 +156,13 @@ function DD.dims(wrapper::SMAPhdf5)
     end
 end
 
-function _smapdimtype(dimname)
-    haskey(NCD_DIMMAP, dimname) ? NCD_DIMMAP[dimname] : DD.basetypeof(DD.key2dim(Symbol(dimname)))
-end
-
 # Utils ########################################################################
 
-_smapread(f, filepath::AbstractString) = _read(f, _SMAP, filepath)
+_smapread(f, args...) = _read(f, _SMAP, args...)
 
 _read(f, ::Type{_SMAP}, filepath::AbstractString) = h5open(ds -> f(SMAPhdf5(ds)), filepath)
 _read(f, ::Type{_SMAP}, filepath::AbstractString, key) = 
-    h5open(ds -> f(SMAPhdf5(ds)[_smappath(string(key))]), filepath)
-
-
-# withsource(f, ::Type{SMAParray}, path::AbstractString, key...) = _smapread(f, path)
-# withsourcedata(f, ::Type{SMAParray}, path::AbstractString, key) =
-#     _smapread(path) do d
-#         f(d[_smappath(string(key))])
-#     end
-
-_smappath(key::Key) = SMAPGEODATA * "/" * string(key)
+    h5open(ds -> f(SMAPhdf5(ds)[_smappath(key)]), filepath)
 
 function _smap_timefrompath(path::String)
     dateformat = DateFormat("yyyymmddTHHMMSS")

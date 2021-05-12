@@ -27,7 +27,6 @@ stackkeys = (
 )
 
 @testset "geoarray" begin
-    ds = NCDatasets.Dataset(ncmulti)
     ncarray = geoarray(ncsingle)
 
     @testset "open" begin

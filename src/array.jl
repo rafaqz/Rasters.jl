@@ -71,7 +71,7 @@ mappedcrs(dim::Dimension) = mappedcrs(mode(dim))
 
 # DimensionalData methods
 
-DD.units(A::AbstractGeoArray) = getmeta(A, :units, nothing)
+DD.units(A::AbstractGeoArray) = get(metadata(A), :units, nothing)
 
 for f in (:mappedbounds, :projectedbounds, :mappedindex, :projectedindex)
     @eval ($f)(A::AbstractGeoArray, dims_) = ($f)(dims(A, dims_))
@@ -141,7 +141,7 @@ function GeoArray(A::AbstractArray;
     GeoArray(A, DD.formatdims(A, dims), refdims, name, metadata, missingval)
 end
 function GeoArray(A::AbstractGeoArray;
-    data=readwindowed(data(A)), dims=dims(A), refdims=refdims(A),
+    data=Array(data(A)), dims=dims(A), refdims=refdims(A),
     name=name(A), metadata=metadata(A), missingval=missingval(A)
 )
     GeoArray(data, dims, refdims, name, metadata, missingval)
@@ -172,3 +172,7 @@ end
 
 filekey(ds, key) = key
 filename(A::GeoArray) = filename(data(A))
+
+DiskArrays.eachchunk(A::AbstractGeoArray) = DiskArrays.eachchunk(data(A))
+
+chunks(A) = size(A)
