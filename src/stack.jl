@@ -149,30 +149,28 @@ function GeoStack(
     filenames::Union{AbstractArray{<:AbstractString},Tuple{<:AbstractString,Vararg}}; 
     keys=map(filekey, filenames), kw...
 )
-    @show keys filenames kw
     GeoStack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
 end
 # Multi-file stack from strings
 function GeoStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}}; 
-    crs=nothing, mappedcrs=nothing, kw...
+    crs=nothing, mappedcrs=nothing, write=false, kw...
 ) where K
-    layerfields = map(keys(filenames), values(filenames)) do k, fn
+    layerfields = map(keys(filenames), values(filenames)) do key, fn
         source = _sourcetype(fn)
         crs = defaultcrs(source, crs)
         mappecrs = defaultmappedcrs(source, mappedcrs)
-        _read(fn, k) do ds
-            data = FileArray(ds, fn, k)
+        _read(fn; key) do ds
+            data = FileArray(ds, fn; key, write)
             md = metadata(ds)
             dims = DD.dims(ds, crs, mappedcrs)
             mv = missingval(ds)
-            (; data, dims, keys, md, mv)
+            (; data, dims, md, mv)
         end
     end
     layerfields = NamedTuple{K}(layerfields)
     data = map(f-> f.data, layerfields)
-    @show map(f-> f.dims, layerfields)
     # TODO this should be uniondims(
-    dims = DD.commondims(map(f-> f.dims, layerfields)...)
+    dims = DD.combinedims(map(f-> f.dims, layerfields)...)
     layerdims = map(f-> DD.basedims(f.dims), layerfields)
     layermetadata = map(f-> f.md, layerfields)
     layermissingval = map(f-> f.mv, layerfields)
@@ -180,7 +178,7 @@ function GeoStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
 end
 # Single-file stack from a string
 function GeoStack(filename::AbstractString; 
-    refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing, kw...
+    refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing, write=false, kw...
 )
     source = _sourcetype(filename)
     crs = defaultcrs(source, crs)
@@ -194,7 +192,7 @@ function GeoStack(filename::AbstractString;
         layermetadata = DD.layermetadata(ds)
         layermissingval = GeoData.layermissingval(ds)
         sizes = layersizes(ds, keys)
-        data = FileStack{source,keys}(filename, sizes) 
+        data = FileStack{source,keys}(filename, sizes; write) 
         data, (; dims, refdims, layerdims, metadata, layermetadata, layermissingval)
     end
     GeoStack(data; field_kw..., kw...)

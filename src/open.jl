@@ -17,15 +17,16 @@ function OpenGeoArray(A, dims, refdims, name, metadata, missingval)
         A, dims, refdims, name, metadata, missingval
     )
 end
-function OpenGeoArray(f::Function, A::AbstractGeoArray{T,N}) where {T,N}
-    _maybeopen(data(A)) do source
+function OpenGeoArray(f::Function, A::AbstractGeoArray{T,N}; kw...) where {T,N}
+    @show kw
+    _maybeopen(data(A); kw...) do source
         OA = OpenGeoArray(source, dims(A), refdims(A), name(A), metadata(A), missingval(A))
         f(OA)
     end
 end
 
-_maybeopen(f, A::AbstractDiskArray) = open(f, A; write=true)
-_maybeopen(f, A) = f(A)
+_maybeopen(f, A::AbstractDiskArray; kw...) = open(f, A; kw...)
+_maybeopen(f, A; kw...) = f(A)
 
 
 
@@ -51,6 +52,6 @@ end
 By using a do block to open file we ensure they are always closed again
 after we finish working with them.
 """
-Base.open(f::Function, A::AbstractGeoArray) = OpenGeoArray(f, A)
+Base.open(f::Function, A::AbstractGeoArray; write=false) = OpenGeoArray(f, A; write)
 
 @deprecate Open(f, A::AbstractGeoArray) Base.open(f, A)

@@ -4,17 +4,20 @@ using GeoData: window, mode, span, sampling, name, bounds, FileArray, _GDAL
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
-import ArchGDAL as AG
 path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
-AG.readraster(path; flags=AG.OF_Update) do raster
-    raster .*= UInt8(2)
-end
-
 @testset "array" begin
     gdalarray = geoarray(path; mappedcrs=EPSG(4326), name=:test)
 
     @testset "open" begin
         @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1, :]
+        tempfile = tempname() * ".tif"
+        cp(path, tempfile)
+        gdalwritearray = geoarray(tempfile)
+        open(gdalwritearray; write=true) do A
+            copy!(A, A .* UInt8(2)) # Broadcast setindex! is broken in ArchGDAL
+            nothing
+        end
+        @test all(read(geoarray(tempfile)) .== read(gdalarray) .* UInt8(2))
     end
 
     @testset "read" begin
@@ -233,6 +236,9 @@ end
 @testset "stack" begin
     @time gdalstack = stack((a=path, b=path))
 
+    @test length(gdalstack) == 2
+    @test dims(gdalstack) isa Tuple{<:X,<:Y,<:Band}
+
     @testset "read" begin
         st = read(gdalstack)
         @test st isa GeoStack
@@ -301,6 +307,9 @@ end
         filename_b = string(base, "_b", ext)
         saved = read(geoarray(filename_b))
         @test all(saved .== geoA)
+        filename = tempname() * ".nc"
+        write(filename, gdalstack)
+        saved = stack(filename)
     end
 
     @testset "show" begin

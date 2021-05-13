@@ -29,22 +29,23 @@ Base.parent(wrapper::SMAPvar) = wrapper.ds
 
 # GeoArray ######################################################################
 
-function FileArray(var::SMAPvar, filename::AbstractString, key)
+function FileArray(var::SMAPvar, filename::AbstractString; kw...)
     T = eltype(parent(var))
     N = length(SMAPSIZE)
-    FileArray{_SMAP,T,N}(filename, SMAPSIZE, key)
+    FileArray{_SMAP,T,N}(filename, SMAPSIZE; kw...)
 end
 
-Base.open(f::Function, A::FileArray{_SMAP}) = _smapread(ds -> f(ds), filename(A), key(A))
+function Base.open(f::Function, A::FileArray{_SMAP})
+    _read(ds -> f(ds), _SMAP, filename(A); key=key(A))
+end
 
 # Stack ########################################################################
 
 hasstackfile(::Type{_SMAP}) = true
 
 function Base.getindex(fs::FileStack{_SMAP}, key)
-   _read(_SMAP, filename(fs)) do ds
-       var = ds[_smappath(key)]
-       FileArray(SMAPvar(var), filename(fs), key)
+   _read(_SMAP, filename(fs); key) do var
+       FileArray(SMAPvar(var), filename(fs); key)
    end
 end
 
@@ -117,7 +118,7 @@ function smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
         println.(errors)
     end
     # Get the dims once for the whole series
-    dims, metadata =_smapread(first(filenames)) do ds
+    dims, metadata =_read(_SMAP, first(filenames)) do ds
         DD.dims(ds), DD.metadata(ds)
     end
     childkwargs = (; dims, metadata)
@@ -161,12 +162,13 @@ DD.refdims(wrapper::SMAPhdf5, filename) = (_smap_timedim(_smap_timefromfilename(
 
 # Utils ########################################################################
 
-_smapread(f, args...) = _read(f, _SMAP, args...)
-
-_read(f, ::Type{_SMAP}, filepath::AbstractString) = 
-    h5open(ds -> f(SMAPhdf5(ds)), filepath)
-_read(f, ::Type{_SMAP}, filepath::AbstractString, key) = 
-    h5open(ds -> f(SMAPhdf5(ds)[_smappath(key)]), filepath)
+function _read(f, ::Type{_SMAP}, filepath::AbstractString; key=nothing, kw...)
+    if key isa Nothing
+        h5open(ds -> f(SMAPhdf5(ds)), filepath; kw...)
+    else
+        h5open(ds -> f(SMAPhdf5(ds)[_smappath(key)]), filepath)
+    end
+end
 
 function _smap_timefromfilename(filename::String)
     dateformat = DateFormat("yyyymmddTHHMMSS")

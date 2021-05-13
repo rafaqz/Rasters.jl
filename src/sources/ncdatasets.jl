@@ -21,6 +21,7 @@ const NCD_DIMMAP = Dict(
     "x" => X,
     "y" => Y,
     "z" => Z,
+    "band" => Band,
 )
 
 cansavestack(::Type{_NCD}) = true
@@ -38,14 +39,16 @@ function _firstkey(ds::NCD.NCDataset, key=nothing)
     key = (key isa Nothing) ? first(layerkeys(ds)) : key |> Symbol
 end
 
-function FileArray(var::NCD.CFVariable, filename::AbstractString, key)
+function FileArray(var::NCD.CFVariable, filename::AbstractString; kw...)
     size_ = size(var)
     T = eltype(var)
     N = length(size_)
-    FileArray{_NCD,T,N}(filename, size_, key)
+    FileArray{_NCD,T,N}(filename, size_; kw...)
 end
 
-Base.open(f::Function, A::FileArray{_NCD}) = _ncread(ds -> f(ds), filename(A), key(A))
+function Base.open(f::Function, A::FileArray{_NCD}; kw...)
+    _read(ds -> f(ds), _NCD, filename(A); key=key(A), kw...)
+end
 
 """
     Base.write(filename::AbstractString, ::Type{NCDarray}, s::AbstractGeoArray)
@@ -77,9 +80,8 @@ end
 # Stack ########################################################################
 
 function Base.getindex(fs::FileStack{_NCD}, key)
-   _read(_NCD, filename(fs)) do ds
-       var = ds[string(key)]
-       FileArray(var, filename(fs), key)
+   _read(_NCD, filename(fs); key) do var
+       FileArray(var, filename(fs); key)
    end
 end
 
@@ -93,8 +95,7 @@ from other [`AbstractGeoArray`](@ref) @types is ignored.
 """
 function Base.write(filename::AbstractString, ::Type{_NCD}, s::AbstractGeoStack)
     ds = NCD.Dataset(filename, "c"; attrib=_stringdict(metadata(s)))
-    try
-        map(key -> _ncdwritevar!(ds, s[key]), keys(s))
+    try map(key -> _ncdwritevar!(ds, s[key]), keys(s))
     finally
         close(ds)
     end
@@ -162,6 +163,14 @@ end
 layersizes(ds::NCD.NCDataset, keys) = map(k -> size(ds[k]), keys)
 
 # Utils ########################################################################
+
+function _read(f, ::Type{_NCD}, filename::AbstractString; key=nothing, write=false)
+    if key isa Nothing
+        NCD.Dataset(f, filename)
+    else
+        NCD.Dataset(ds -> f(ds[_firstkey(ds, key)]), filename)
+    end
+end
 
 function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothign)
     if haskey(ds, dimname)
@@ -293,13 +302,6 @@ function _parse_period(period_str::String)
 end
 
 _stringdict(metadata) = attrib = Dict(string(k) => v for (k, v) in metadata)
-
-_ncread(f, args...) = _read(f, _NCD, args...)
-
-_read(f, ::Type{_NCD}, filename::AbstractString) = NCD.Dataset(f, filename)
-function _read(f, ::Type{_NCD}, filename::AbstractString, key)
-    NCD.Dataset(ds -> f(ds[_firstkey(ds, key)]), filename)
-end
 
 _dimkeys(ds::NCD.Dataset) = keys(ds.dim)
 

@@ -12,15 +12,17 @@ const GDAL_Y_LOCUS = Start()
 
 # Array ########################################################################
 
-FileArray{_GRD}(filename) = _read(ds -> FileArray(ds, filename), _GDAL, filename)
-function FileArray(raster::AG.RasterDataset, filename, key=nothing)
+function FileArray{_GRD}(filename; kw...)
+    _read(ds -> FileArray(ds, filename; kw...), _GDAL, filename; kw...)
+end
+function FileArray(raster::AG.RasterDataset, filename; kw...)
     FileArray{_GDAL,eltype(raster),ndims(raster)}(filename, size(raster); 
         chunks=DiskArrays.eachchunk(raster).chunksize
     )
 end
 
-function Base.open(f::Function, A::FileArray{_GDAL}, key...; write=false)
-    _read(f, _GDAL, filename(A); write)
+function Base.open(f::Function, A::FileArray{_GDAL}; kw...)
+    _read(f, _GDAL, filename(A); kw...)
 end
 
 # AbstractGeoArray methods
@@ -168,20 +170,9 @@ crs(raster::AG.RasterDataset, args...) =
 
 # Utils ########################################################################
 
-function _gdalmetadata(dataset::AG.Dataset, key)
-    meta = AG.metadata(dataset)
-    regex = Regex("$key=(.*)")
-    i = findfirst(f -> occursin(regex, f), meta)
-    if i isa Nothing
-        nothing
-    else
-        match(regex, meta[i])[1]
-    end
-end
-
-function _read(f, ::Type{_GDAL}, filename::AbstractString, key...; write=false)
-    # kw = write ? (; flag=OF_Update) : () 
-    AG.readraster(filename; flags=AG.OF_Update) do raster
+function _read(f, ::Type{_GDAL}, filename::AbstractString; write=false, kw...)
+    flags = write ? (; flags=AG.OF_Update) : () 
+    AG.readraster(filename; flags...) do raster
         f(raster)
     end
 end
@@ -208,6 +199,17 @@ function _gdalwrite(filename, A, nbands, indices;
         end
     end
     return filename
+end
+
+function _gdalmetadata(dataset::AG.Dataset, key)
+    meta = AG.metadata(dataset)
+    regex = Regex("$key=(.*)")
+    i = findfirst(f -> occursin(regex, f), meta)
+    if i isa Nothing
+        nothing
+    else
+        match(regex, meta[i])[1]
+    end
 end
 
 function _gdalsetproperties!(dataset, A)

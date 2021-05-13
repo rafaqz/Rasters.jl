@@ -204,7 +204,7 @@ stackkeys = (
 
 end
 
-@testset "stack" begin
+@testset "Single file stack" begin
     ncstack = stack(ncmulti)
 
     @testset "load ncstack" begin
@@ -299,6 +299,94 @@ end
         @test metadata(saved)["advection"] == "Lin & Rood"
         @test metadata(saved) == metadata(geostack) == metadata(ncstack)
         @test all(first(DimensionalData.layers(saved)) .== first(DimensionalData.layers(geostack)))
+    end
+end
+
+@testset "Multi file stack" begin
+    ncstack = stack((tropo=ncmulti, tsurf=ncmulti, aclcac=ncmulti))
+    @test length(ncstack) == 3
+    @test dims(ncstack) isa Tuple{<:X,<:Y,<:Ti,<:Z}
+
+    @testset "read" begin
+        st = read(ncstack)
+        @test st isa GeoStack
+        @test st.data isa NamedTuple
+        @test st.data[1] isa Array
+        @test st.data[2] isa Array
+    end
+
+    @testset "child array properties" begin
+        @test size(ncstack[:tropo]) == (192, 96, 8)
+        @test ncstack[:tropo] isa GeoArray{Float32,3}
+    end
+
+    @testset "indexing" begin
+        @test ncstack[:aclcac, Ti(1)] == ncstack[:aclcac][Ti(1)]
+        @test typeof(ncstack[:aclcac, Ti(1)]) == typeof(ncstack[:aclcac][Ti(1)])
+    end
+
+    @testset "window" begin
+        windowedstack = stack((tropo=ncmulti, tsurf=ncmulti, aclcac=ncmulti); 
+            window=(Y(1:5), X(1:5), Ti(1))
+        )
+        @test window(windowedstack) == (Y(1:5), X(1:5), Ti(1))
+        windowedarray = windowedstack[:tropo]
+        @test windowedarray isa GeoArray{Float32,2}
+        @test length.(dims(windowedarray)) == (5, 5)
+        @test size(windowedarray) == (5, 5)
+        # TODO these tests are lame, they should be in the area with data
+        @test windowedarray[1:3, 2:2] == reshape([255.0, 255.0, 255.0], 3, 1)
+        @test windowedarray[1:3, 2] == [255.0, 255.0, 255.0]
+        @test windowedarray[1, 2] == 255.0
+        windowedstack = stack((a=path, b=path); window=(Y(1:5), X(1:5), Band(1:1)))
+        windowedarray = windowedstack[:b]
+        @test windowedarray[1:3, 2:2, 1:1] == reshape([255.0, 255.0, 255.0], 3, 1, 1)
+        @test windowedarray[1:3, 2:2, 1] == reshape([255.0, 255.0, 255.0], 3, 1)
+        @test windowedarray[1:3, 2, 1] == [255.0, 255.0, 255.0]
+        @test windowedarray[1, 2, 1] == 255.0
+        windowedstack = stack((a=path, b=path); window=(Band(1),))
+        windowedarray = GeoArray(windowedstack[:b])
+        @test windowedarray[1:3, 2:2] == reshape([255.0, 255.0, 255.0], 3, 1)
+        @test windowedarray[1:3, 2] == [255.0, 255.0, 255.0]
+        @test windowedarray[1, 2] == 255.0
+    end
+
+    # Stack Constructors
+    @testset "conversion to GeoStack" begin
+        geostack = GeoStack(ncstack)
+        @test Symbol.(Tuple(keys(ncstack))) == keys(geostack)
+        smallstack = GeoStack(ncstack; keys=(:tsurf,))
+        @test keys(smallstack) == (:tsurf,)
+    end
+
+    if VERSION > v"1.1-"
+        @testset "copy" begin
+            geoA = zero(GeoArray(ncstack[:tropo]))
+            copy!(geoA, ncstack, :tropo)
+            # First wrap with GeoArray() here or == loads from disk for each cell.
+            # we need a general way of avoiding this in all disk-based sources
+            @test all(geoA .== GeoArray(ncstack[:tropo]))
+        end
+    end
+
+    @testset "save" begin
+        geoA = GeoArray(ncstack[:tsurf])
+        filename = tempname() * ".nc"
+        write(filename, ncstack)
+        saved = read(geoarray(filename))
+        @test_broken all(saved .== geoA)
+    end
+
+    @testset "show" begin
+        sh = sprint(show, MIME("text/plain"), ncstack)
+        # Test but don't lock this down too much
+        @test occursin("GeoStack", sh)
+        @test occursin("Y", sh)
+        @test occursin("X", sh)
+        @test occursin("Ti", sh)
+        @test occursin(":tropo", sh)
+        @test occursin(":tsurf", sh)
+        @test occursin(":aclcac", sh)
     end
 
 end

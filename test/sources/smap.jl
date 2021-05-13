@@ -33,9 +33,7 @@ if isfile(path1) && isfile(path2)
     end
 
     @testset "stack" begin
-
         smapstack = stack(path1)
-        smapstack
         DimensionalData.layers(smapstack);
 
         @testset "read" begin

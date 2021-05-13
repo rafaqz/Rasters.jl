@@ -18,6 +18,14 @@ path = stem * ".gri"
 
     @testset "open" begin
         @test all(open(A -> A[Y=1], grdarray) .=== grdarray[:, 1, :])
+        tempfile = tempname()
+        cp(stem * ".grd", tempfile * ".grd")
+        cp(stem * ".gri", tempfile * ".gri")
+        grdwritearray = geoarray(tempfile * ".gri")
+        open(grdwritearray; write=true) do A
+            A .*= 2
+        end
+        @test geoarray(tempfile * ".gri") == grdarray .* 2
     end
 
     @testset "read" begin
@@ -189,6 +197,9 @@ end
 
 @testset "Grd stack" begin
     grdstack = stack((a=path, b=path))
+
+    @test length(grdstack) == 2
+    @test dims(grdstack) isa Tuple{<:X,<:Y,<:Band}
 
     @testset "read" begin
         st = read(grdstack)

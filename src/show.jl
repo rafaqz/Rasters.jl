@@ -89,9 +89,6 @@ function Base.summary(io::IO, A::AbstractGeoSeries{T,N}) where {T,N}
         print(io, join(size(A), "×"), " ")
     end
     printstyled(io, string(nameof(typeof(A)), "{$(nameof(T)),$N}"); color=:blue)
-    # if !(eltype(parent(A)) <: childtype(A))
-        # print(io, string(" of ", childtype(A)))
-    # end
 end
 
 function Base.show(io::IO, mime::MIME"text/plain", A::AbstractGeoSeries{T,N}) where {T,N}

@@ -92,6 +92,7 @@ function DD.rebuild(A::AbstractGeoArray;
     rebuild(A, data, dims, refdims, name, metadata, missingval)
 end
 
+DD.canshowarray(A::AbstractGeoArray) = DD.canshowarray(parent(A))
 
 Base.parent(A::AbstractGeoArray) = data(A)
 
@@ -156,13 +157,13 @@ end
 function GeoArray(ds, filename::AbstractString, key=nothing;
     crs=nothing, mappedcrs=nothing, dims=nothing, refdims=(),
     name=Symbol(key isa Nothing ? "" : string(key)),
-    metadata=metadata(ds), missingval=missingval(ds),
+    metadata=metadata(ds), missingval=missingval(ds), write=false,
 )
     source = _sourcetype(filename)
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
-    data = FileArray(ds, filename, key)
+    data = FileArray(ds, filename; key, write)
     GeoArray(data, dims, refdims, name, metadata, missingval)
 end
 

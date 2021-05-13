@@ -154,12 +154,12 @@ function _constructor(method::typeof(geoarray), filename; throw=true)
 end
 _constructor(method::typeof(stack), filename; throw=true) = GeoStack
 
-function _read(f, filename::AbstractString, args...)
+function _read(f, filename::AbstractString; kw...)
     ext = splitext(filename)[2]
     source = get(REV_EXT, ext, _GDAL)
-    _read(f, source, filename, args...)
+    _read(f, source, filename; kw...)
 end
-_read(f, A::FileArray{X}, args...) where X = _read(f, X, filename(A), args...)
+_read(f, A::FileArray{X}; kw...) where X = _read(f, X, filename(A); kw...)
 
 _no_stack_error(ext) =
     error("$ext files do not have named layers. Use `geoarray(filename)` to load, or `stack((key1=fn1, key2=fn2, ...)`")
