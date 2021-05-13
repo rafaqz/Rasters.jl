@@ -4,7 +4,11 @@ using GeoData: window, mode, span, sampling, name, bounds, FileArray, _GDAL
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
+import ArchGDAL as AG
 path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
+AG.readraster(path; flags=AG.OF_Update) do raster
+    raster .*= UInt8(2)
+end
 
 @testset "array" begin
     gdalarray = geoarray(path; mappedcrs=EPSG(4326), name=:test)

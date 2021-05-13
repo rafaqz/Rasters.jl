@@ -263,12 +263,12 @@ end
 
     @testset "window" begin
         windowedstack = stack(ncmulti; window=(Y(1:5), X(1:5), Ti(1)))
-        @test_broken window(windowedstack) == (Y(1:5), X(1:5), Ti(1))
+        @test window(windowedstack) == (Y(1:5), X(1:5), Ti(1))
         windowedarray = windowedstack[:albedo]
-        @test_broken size(windowedarray) == (5, 5)
-        @test_broken windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
-        @test_broken windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
-        @test_broken windowedarray[1, 2] == 0.84936917f0
+        @test size(windowedarray) == (5, 5)
+        @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
+        @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
+        @test windowedarray[1, 2] == 0.84936917f0
         windowedstack = stack(ncmulti; window=(Y(1:5), X(1:5), Ti(1:1)))
         windowedarray = windowedstack[:albedo]
         @test windowedarray[1:3, 2:2, 1:1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1, 1)
@@ -277,9 +277,9 @@ end
         @test windowedarray[1, 2, 1] == 0.84936917f0
         windowedstack = stack(ncmulti; window=(Ti(1),))
         windowedarray = windowedstack[:albedo]
-        @test_broken windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
-        @test_broken windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
-        @test_broken windowedarray[1, 2] ==  0.84936917f0
+        @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
+        @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
+        @test windowedarray[1, 2] ==  0.84936917f0
     end
 
     @testset "conversion to GeoStack" begin

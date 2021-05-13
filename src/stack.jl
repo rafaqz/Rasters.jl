@@ -39,29 +39,6 @@ function DD.layers(s::AbstractGeoStack{<:FileStack{<:Any,Keys}}) where Keys
     NamedTuple{Keys}(map(K -> s[K], Keys))
 end
 
-"""
-    Base.cat(stacks::AbstractGeoStack...; [keys=keys(stacks[1])], dims)
-
-Concatenate all or a subset of layers for all passed in stacks.
-
-# Keywords
-
-- `keys`: `Tuple` of `Symbol` for the stack keys to concatenate.
-- `dims`: Dimension of child array to concatenate on.
-
-# Example
-
-Concatenate the :sea_surface_temp and :humidity layers in the time dimension:
-
-```julia
-cat(stacks...; keys=(:sea_surface_temp, :humidity), dims=Ti)
-```
-"""
-function Base.cat(stacks::AbstractGeoStack...; keys=keys(stacks[1]), dims)
-    vals = Tuple(cat((s[key] for s in stacks)...; dims=dims) for key in keys)
-    GeoStack(stacks[1], data=NamedTuple{keys}(vals))
-end
-
 function DD.rebuild(s::T;
     data=data(s), dims=dims(s), refdims=refdims(s), layerdims=DD.layerdims(s),
     metadata=metadata(s), layermetadata=DD.layermetadata(s), 
@@ -71,7 +48,6 @@ function DD.rebuild(s::T;
         data, dims, refdims, layerdims, metadata, layermetadata, layermissingval, window
     )
 end
-
 
 #### Stack getindex ####
 # Symbol key
@@ -91,7 +67,6 @@ end
 # @propagate_inbounds function Base.view(s::AbstractGeoStack, I...)
 #     rebuild(s; data=NamedTuple{keys(s)}(view(a, I...) for a in values(s)))
 # end
-
 
 # Concrete AbstrackGeoStack implementation ######################################################
 
@@ -174,6 +149,7 @@ function GeoStack(
     filenames::Union{AbstractArray{<:AbstractString},Tuple{<:AbstractString,Vararg}}; 
     keys=map(filekey, filenames), kw...
 )
+    @show keys filenames kw
     GeoStack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
 end
 # Multi-file stack from strings
@@ -194,6 +170,8 @@ function GeoStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     end
     layerfields = NamedTuple{K}(layerfields)
     data = map(f-> f.data, layerfields)
+    @show map(f-> f.dims, layerfields)
+    # TODO this should be uniondims(
     dims = DD.commondims(map(f-> f.dims, layerfields)...)
     layerdims = map(f-> DD.basedims(f.dims), layerfields)
     layermetadata = map(f-> f.md, layerfields)
@@ -202,23 +180,24 @@ function GeoStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
 end
 # Single-file stack from a string
 function GeoStack(filename::AbstractString; 
-    metadata=nothing, window=(), crs=nothing, mappedcrs=nothing, kw...
+    refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing, kw...
 )
     source = _sourcetype(filename)
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
-    data, dims, layerdims, metadata, layermetadata, layermissingval = _read(filename) do ds
+    data, field_kw = _read(filename) do ds
         keys = Tuple(map(Symbol, layerkeys(ds)))
         dims = DD.dims(ds, crs, mappedcrs)
-        ldims = DD.layerdims(ds)
-        md = metadata isa Nothing ? DD.metadata(ds) : metadata
-        lmd = DD.layermetadata(ds)
-        lmv = GeoData.layermissingval(ds)
+        refdims = refdims == () ? DD.refdims(ds, filename) : refdims
+        layerdims = DD.layerdims(ds)
+        metadata = metadata isa Nothing ? DD.metadata(ds) : metadata
+        layermetadata = DD.layermetadata(ds)
+        layermissingval = GeoData.layermissingval(ds)
         sizes = layersizes(ds, keys)
         data = FileStack{source,keys}(filename, sizes) 
-        data, dims, ldims, md, lmd, lmv
+        data, (; dims, refdims, layerdims, metadata, layermetadata, layermissingval)
     end
-    GeoStack(data; dims, layerdims, metadata, layermetadata, layermissingval, kw...)
+    GeoStack(data; field_kw..., kw...)
 end
 
 defaultcrs(T::Type, crs) = crs

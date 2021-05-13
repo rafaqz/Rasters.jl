@@ -24,7 +24,7 @@ function OpenGeoArray(f::Function, A::AbstractGeoArray{T,N}) where {T,N}
     end
 end
 
-_maybeopen(f, A::AbstractDiskArray) = open(f, A)
+_maybeopen(f, A::AbstractDiskArray) = open(f, A; write=true)
 _maybeopen(f, A) = f(A)
 
 

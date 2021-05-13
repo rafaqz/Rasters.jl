@@ -35,6 +35,7 @@ if isfile(path1) && isfile(path2)
     @testset "stack" begin
 
         smapstack = stack(path1)
+        smapstack
         DimensionalData.layers(smapstack);
 
         @testset "read" begin
@@ -52,13 +53,13 @@ if isfile(path1) && isfile(path2)
             @test span(smaparray) == (Irregular((-180.0f0, 180.0f0)), Irregular((-85.04456f0, 85.04456f0)))
             @test bounds(smaparray) == ((-180.0f0, 180.0f0), (-85.04456f0, 85.04456f0))
             @test index(smaparray) isa Tuple{Vector{Float32},Vector{Float32}}
-            @test_broken refdims(smaparray) isa Tuple{<:Ti}
+            @test refdims(smaparray) isa Tuple{<:Ti}
             @test missingval(smaparray) == -9999.0
             @test smaparray[1, 1] == -9999.0
             @test name(smaparray) == :soil_temp_layer1
             dt = DateTime(2016, 1, 1, 22, 30)
             step_ = Hour(3)
-            @test_broken refdims(smapstack) ==
+            @test refdims(smapstack) ==
                 (Ti(dt:step_:dt; mode=Sampled(Ordered(), Regular(step_), Intervals(Start()))),)
             # Currently empty
             @test metadata(smaparray) isa Metadata{_SMAP}
@@ -85,15 +86,15 @@ if isfile(path1) && isfile(path2)
 
         @testset "window" begin
             windowedstack = stack(path1; window=(Y(1:5), X(1:5)))
-            @test_broken window(windowedstack) == (Y(1:5), X(1:5))
+            @test window(windowedstack) == (Y(1:5), X(1:5))
             windowedarray = windowedstack[:soil_temp_layer1];
-            @test_broken size(windowedarray) == (5, 5)
+            @test size(windowedarray) == (5, 5)
             @test windowedarray[1:3, 2:2] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
             @test windowedarray[1:3, 2] == [-9999.0, -9999.0, -9999.0]
             @test windowedarray[1, 2] == -9999.0
             windowedstack = stack(path1; window=(Y(1:5), X(1:5), Ti(1:1)))
             windowedarray = windowedstack[:soil_temp_layer1];
-            @test_broken size(windowedarray) == (5, 5)
+            @test size(windowedarray) == (5, 5)
             @test windowedarray[1:3, 2:2, 1] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
             @test windowedarray[1:3, 2, 1] == [-9999.0, -9999.0, -9999.0]
             @test windowedarray[1, 2, 1] == -9999.0
@@ -133,11 +134,9 @@ if isfile(path1) && isfile(path2)
 
         @testset "read" begin
             @time geoseries = read(ser)
-            using ProfileView
-            @profview geoseries = read(ser)
             @test geoseries isa GeoSeries{<:GeoStack}
             @test geoseries.data isa Vector{<:GeoStack}
-            @test first(geoseries.data[1].data) isa GeoArray 
+            @test first(geoseries.data[1].data) isa Array 
         end
 
         @testset "show" begin

@@ -16,6 +16,7 @@ const SMAPDIMTYPES = (X, Y)
 struct SMAPhdf5{T}
     ds::T
 end
+filename(wrapper::SMAPhdf5) = wrapper.filename
 Base.parent(wrapper::SMAPhdf5) = wrapper.ds
 Base.getindex(wrapper::SMAPhdf5, path) = wrapper.ds[path]
 
@@ -98,7 +99,7 @@ function smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
         errors = []
         for filename in filenames
             try
-                t = _smap_timefrompath(filename)
+                t = _smap_timefromfilename(filename)
                 push!(timeseries, t)
                 push!(usedpaths, filename)
             catch e
@@ -156,22 +157,25 @@ function DD.dims(wrapper::SMAPhdf5)
     end
 end
 
+DD.refdims(wrapper::SMAPhdf5, filename) = (_smap_timedim(_smap_timefromfilename(filename)),)
+
 # Utils ########################################################################
 
 _smapread(f, args...) = _read(f, _SMAP, args...)
 
-_read(f, ::Type{_SMAP}, filepath::AbstractString) = h5open(ds -> f(SMAPhdf5(ds)), filepath)
+_read(f, ::Type{_SMAP}, filepath::AbstractString) = 
+    h5open(ds -> f(SMAPhdf5(ds)), filepath)
 _read(f, ::Type{_SMAP}, filepath::AbstractString, key) = 
     h5open(ds -> f(SMAPhdf5(ds)[_smappath(key)]), filepath)
 
-function _smap_timefrompath(path::String)
+function _smap_timefromfilename(filename::String)
     dateformat = DateFormat("yyyymmddTHHMMSS")
     dateregex = r"SMAP_L4_SM_gph_(\d+T\d+)_"
-    datematch = match(dateregex, path)
+    datematch = match(dateregex, filename)
     if !(datematch === nothing)
         DateTime(datematch.captures[1], dateformat)
     else
-        error("Date/time not correctly formatted in path: $path")
+        error("Date/time not correctly formatted in path: $filenampathe")
     end
 end
 

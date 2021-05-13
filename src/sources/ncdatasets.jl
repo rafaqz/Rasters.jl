@@ -117,6 +117,8 @@ function DD.dims(var::NCD.CFVariable, crs=nothing, mappedcrs=nothing)
     end |> Tuple
 end
 
+DD.refdims(ds::NCD.Dataset, filename) = ()
+
 DD.metadata(ds::NCD.Dataset) = Metadata{_NCD}(DD.metadatadict(ds.attrib))
 DD.metadata(ds::NCD.Dataset, key::Key) = metadata(ds[string(key)])
 DD.metadata(var::NCD.CFVariable) = Metadata{_NCD}(DD.metadatadict(var.attrib))

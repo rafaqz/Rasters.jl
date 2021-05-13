@@ -19,7 +19,9 @@ function FileArray(raster::AG.RasterDataset, filename, key=nothing)
     )
 end
 
-Base.open(f::Function, A::FileArray{_GDAL}, key...) = _read(f, _GDAL, filename(A))
+function Base.open(f::Function, A::FileArray{_GDAL}, key...; write=false)
+    _read(f, _GDAL, filename(A); write)
+end
 
 # AbstractGeoArray methods
 
@@ -177,8 +179,9 @@ function _gdalmetadata(dataset::AG.Dataset, key)
     end
 end
 
-function _read(f, ::Type{_GDAL}, filename::AbstractString, key...)
-    AG.readraster(filename) do raster
+function _read(f, ::Type{_GDAL}, filename::AbstractString, key...; write=false)
+    # kw = write ? (; flag=OF_Update) : () 
+    AG.readraster(filename; flags=AG.OF_Update) do raster
         f(raster)
     end
 end

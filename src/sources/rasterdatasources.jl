@@ -45,10 +45,10 @@ Normal `stack` keywords are passed to the constructor.
 """
 stack(T::Type{<:RasterDataSource}; kw...) = stack(T, RDS.layers(T); kw...) 
 stack(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = stack(T, (layer,); kw...) 
-function stack(T::Type{<:RasterDataSource}, layers::LayerItr; childkwargs=(), kw...)
+function stack(T::Type{<:RasterDataSource}, layers::LayerItr; kw...)
     rds_kw, gd_kw = _filterkw(kw)
     filenames = map(l -> getraster(T, l; rds_kw...), layers)
-    stack(filenames; keys=_layerkey(T, layers), childkwargs=(; _sourcekw(T)..., childkwargs...), gd_kw...)
+    stack(filenames; keys=_layerkey(T, layers), gd_kw...)
 end
 
 """
@@ -77,7 +77,9 @@ function series(T::Type{WorldClim{Climate}}, layers::LayerItr;
     GeoSeries(stacks, timedim; kw...)
 end
 # DateTime time-series
-function series(T::Type{<:Union{WorldClim{Weather},ALWB,AWAP}}, layers::LayerItr; date, window=(), kw...)
+function series(T::Type{<:Union{WorldClim{Weather},ALWB,AWAP}}, layers::LayerItr; 
+    date, window=(), kw...
+)
     step = _seriesstep(T)
     dates = RDS._date_sequence(date, step)
     timedim = Ti(dates; mode=Sampled(Ordered(), Regular(step), Intervals(Start())))
@@ -89,7 +91,7 @@ _sourcekw(T) = ()
 _sourcekw(T::Type{AWAP}) = (crs=EPSG(4326),)
 
 _layerkey(T::Type{<:RasterDataSource}, keys::LayerItr) = map(k -> _layerkey(T, k), keys) 
-_layerkey(T::Type{<:Union{CHELSA{BioClim},WorldClim{BioClim}}}, key::Int) = string("BIO", key)
+_layerkey(T::Type{<:Union{CHELSA{BioClim},WorldClim{BioClim}}}, key::Int) = Symbol(string("BIO", key))
 _layerkey(T::Type{<:RasterDataSource}, key) = Symbol(key)
 
 _seriesstep(T::Type{<:ALWB{M,P}}) where {M,P} = P(1)

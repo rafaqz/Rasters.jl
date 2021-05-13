@@ -108,7 +108,7 @@ end
     stack_b = GeoStack((ga1=GeoArray(data1 .+ 10, dims1b), ga2=GeoArray(data2 .+ 20, dims2b)))
     catstack = cat(stack_a, stack_b; dims=X())
     @test size(first(catstack)) == (20, 11)
-    @test val(dims(first(catstack), X)) ≈ 10.0:10.0:200.0
+    @test val(dims(catstack, X)) ≈ 10.0:10.0:200.0
     #@test step(dims(first(catstack), X())) == 10.0
     @test DimensionalData.bounds(dims(first(catstack), X)) == (10.0, 200.0)
     @test catstack[:ga1][Y(1)] == 1.0:20.0
