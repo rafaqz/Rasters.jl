@@ -303,8 +303,8 @@ end
 end
 
 @testset "Multi file stack" begin
-    ncstack = stack((tropo=ncmulti, tsurf=ncmulti, aclcac=ncmulti))
-    @test length(ncstack) == 3
+    ncstack = stack((tropo=ncmulti, tsurf=ncmulti, aclcac=ncmulti, albedo=ncmulti))
+    @test length(ncstack) == 4
     @test dims(ncstack) isa Tuple{<:X,<:Y,<:Ti,<:Z}
 
     @testset "read" begin
@@ -326,29 +326,24 @@ end
     end
 
     @testset "window" begin
-        windowedstack = stack((tropo=ncmulti, tsurf=ncmulti, aclcac=ncmulti); 
-            window=(Y(1:5), X(1:5), Ti(1))
-        )
+        windowedstack = stack(ncmulti; window=(Y(1:5), X(1:5), Ti(1)))
         @test window(windowedstack) == (Y(1:5), X(1:5), Ti(1))
-        windowedarray = windowedstack[:tropo]
-        @test windowedarray isa GeoArray{Float32,2}
-        @test length.(dims(windowedarray)) == (5, 5)
+        windowedarray = windowedstack[:albedo]
         @test size(windowedarray) == (5, 5)
-        # TODO these tests are lame, they should be in the area with data
-        @test windowedarray[1:3, 2:2] == reshape([255.0, 255.0, 255.0], 3, 1)
-        @test windowedarray[1:3, 2] == [255.0, 255.0, 255.0]
-        @test windowedarray[1, 2] == 255.0
-        windowedstack = stack((a=path, b=path); window=(Y(1:5), X(1:5), Band(1:1)))
-        windowedarray = windowedstack[:b]
-        @test windowedarray[1:3, 2:2, 1:1] == reshape([255.0, 255.0, 255.0], 3, 1, 1)
-        @test windowedarray[1:3, 2:2, 1] == reshape([255.0, 255.0, 255.0], 3, 1)
-        @test windowedarray[1:3, 2, 1] == [255.0, 255.0, 255.0]
-        @test windowedarray[1, 2, 1] == 255.0
-        windowedstack = stack((a=path, b=path); window=(Band(1),))
-        windowedarray = GeoArray(windowedstack[:b])
-        @test windowedarray[1:3, 2:2] == reshape([255.0, 255.0, 255.0], 3, 1)
-        @test windowedarray[1:3, 2] == [255.0, 255.0, 255.0]
-        @test windowedarray[1, 2] == 255.0
+        @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
+        @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
+        @test windowedarray[1, 2] == 0.84936917f0
+        windowedstack = stack(ncmulti; window=(Y(1:5), X(1:5), Ti(1:1)))
+        windowedarray = windowedstack[:albedo]
+        @test windowedarray[1:3, 2:2, 1:1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1, 1)
+        @test windowedarray[1:3, 2:2, 1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
+        @test windowedarray[1:3, 2, 1] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
+        @test windowedarray[1, 2, 1] == 0.84936917f0
+        windowedstack = stack(ncmulti; window=(Ti(1),))
+        windowedarray = windowedstack[:albedo]
+        @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
+        @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
+        @test windowedarray[1, 2] ==  0.84936917f0
     end
 
     # Stack Constructors

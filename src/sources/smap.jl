@@ -29,14 +29,17 @@ Base.parent(wrapper::SMAPvar) = wrapper.ds
 
 # GeoArray ######################################################################
 
-function FileArray(var::SMAPvar, filename::AbstractString; kw...)
+function FileArray(ds::SMAPhdf5, filename::AbstractString; key, kw...)
+    FileArray(SMAPvar(HDF5DiskArray(ds[_smappath(key)])), filename; key, kw...)
+end
+function FileArray(var::SMAPvar, filename::AbstractString; key, kw...)
     T = eltype(parent(var))
     N = length(SMAPSIZE)
-    FileArray{_SMAP,T,N}(filename, SMAPSIZE; kw...)
+    FileArray{_SMAP,T,N}(filename, SMAPSIZE; key, kw...)
 end
 
-function Base.open(f::Function, A::FileArray{_SMAP})
-    _read(ds -> f(ds), _SMAP, filename(A); key=key(A))
+function Base.open(f::Function, A::FileArray{_SMAP}; kw...)
+    _read(var -> f(HDF5DiskArray(var)), _SMAP, filename(A); key=key(A), kw...)
 end
 
 # Stack ########################################################################
@@ -45,7 +48,7 @@ hasstackfile(::Type{_SMAP}) = true
 
 function Base.getindex(fs::FileStack{_SMAP}, key)
    _read(_SMAP, filename(fs); key) do var
-       FileArray(SMAPvar(var), filename(fs); key)
+       FileArray(SMAPvar(HDF5DiskArray(var)), filename(fs); key)
    end
 end
 
@@ -69,6 +72,8 @@ missingval(ds::SMAPhdf5) = SMAPMISSING
 layermissingval(ds::SMAPhdf5) = SMAPMISSING
 layerkeys(ds::SMAPhdf5) = keys(ds)
 layersizes(ds::SMAPhdf5, keys) = map(_ -> SMAPSIZE, keys)
+
+filekey(ds::SMAPhdf5, key::Nothing) = first(keys(ds))
 
 # Series #######################################################################
 
@@ -184,3 +189,87 @@ end
 _smap_timedim(t::DateTime) = _smap_timedim(t:Hour(3):t)
 _smap_timedim(times::AbstractVector) =
     Ti(times, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals(Start())))
+
+
+
+# HDF5 DiskArrays ########################################################################################
+# Copied from HDF5Utils as it is not up to date with HDF5 0.14/0.15
+mutable struct HDF5DiskArray{T,N,C,D,R} <: AbstractDiskArray{T, N}
+    ds::HDF5.Dataset
+    cs::C
+    lo::NTuple{N,Int}
+    hi::NTuple{N,Int}
+    cache::Array{T,D}
+end
+
+Base.size(x::HDF5DiskArray{T, N}) where {T, N} = size(x.ds)::NTuple{N, Int}
+
+DiskArrays.haschunks(x::HDF5DiskArray{<:Any, <:Any, Nothing}) = Chunked()
+DiskArrays.haschunks(x::HDF5DiskArray) = Unchunked()
+
+DiskArrays.eachchunk(x::HDF5DiskArray{<:Any, <:Any, <:DiskArrays.GridChunks}) = x.cs
+
+DiskArrays.readblock!(x::HDF5DiskArray, aout, r::AbstractUnitRange...) = aout .= x.ds[r...]
+DiskArrays.writeblock!(x::HDF5DiskArray, v, r::AbstractUnitRange...) = x.ds[r...] = v
+
+const _cache_size = Ref(10 * 1024^2)
+
+function set_cache_size(cache_size)
+    _cache_size[] = cache_size
+end
+
+get_cache_size() = _cache_size[]
+
+get_cache_size(ds::HDF5.Dataset) = _cache_size[] ÷ sizeof(eltype(ds))
+
+function HDF5DiskArray(ds::HDF5.Dataset)
+    cs = try
+        disable_dag()
+        DiskArrays.GridChunks(ds, get_chunk(ds))
+        enable_dag()
+    catch
+        nothing
+    end
+    T, N, C = eltype(ds), ndims(ds), typeof(cs)
+    strides = cumprod(collect(size(ds)))
+    D = findlast(strides .< get_cache_size(ds))
+    D = min(something(D, 1) + 1, N)
+    if D == 1
+        R = min(get_cache_size(ds), size(ds, 1))
+    else
+        R = min(ceil(Int, get_cache_size(ds) / strides[D - 1]), size(ds, D))
+    end
+    lo, hi = ntuple(zero, N), ntuple(zero, N)
+    cache = zeros(T, size(ds)[1:(D - 1)]..., 0)
+    HDF5DiskArray{T,N,C,D,R}(ds, cs, lo, hi, cache)
+end
+
+@generated function _getindex(x::HDF5DiskArray{T, N, C, D, R}, r::Integer...) where {T, N, C, D, R}
+    colons = fill(:(:), D - 1)
+    rl = [:(r[$d]) for d in 1:(D - 1)]
+    rr = [:(r[$d]) for d in (D + 1):N]
+    cond = :(r[$D] < x.lo[$D] || r[$D] > x.hi[$D])
+    for d in (D + 1):N
+        cond = :($cond || r[$d] != x.lo[$d])
+    end
+    ex = quote
+        @inbounds if $cond
+            x.lo, x.hi = r, min.(r .+ $R, size(x))
+            x.cache = x[$(colons...), x.lo[$D]:x.hi[$D], $(rr...)]
+        end
+        @inbounds v = x.cache[$(rl...), r[$D] - x.lo[$D] + 1]
+        return v
+    end
+    return ex
+end
+
+Base.getindex(x::HDF5DiskArray, r::CartesianIndex) = _getindex(x, Tuple(r)...)
+Base.getindex(x::HDF5DiskArray, r::Integer...) = _getindex(x, r...)
+Base.getindex(x::HDF5DiskArray, i::Integer) =  getindex(x, CartesianIndices(x)[i])
+Base.getindex(x::HDF5DiskArray{T, 1}, i::Integer) where T = _getindex(x, i)
+
+Base._reshape(x::HDF5DiskArray, dims::NTuple{N, Int}) where N = Base.__reshape((x, IndexStyle(x)), dims)
+
+Base.Array(x::HDF5DiskArray) = read(x.ds)
+
+Base.getindex(x::HDF5DiskArray{T, N}, is::Vararg{Union{AbstractVector, Colon}, N}) where {T, N} = getindex(x.ds, is...)

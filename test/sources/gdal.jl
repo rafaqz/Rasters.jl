@@ -6,6 +6,7 @@ include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 @testset "array" begin
+
     gdalarray = geoarray(path; mappedcrs=EPSG(4326), name=:test)
 
     @testset "open" begin

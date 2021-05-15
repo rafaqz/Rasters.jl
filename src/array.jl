@@ -92,8 +92,6 @@ function DD.rebuild(A::AbstractGeoArray;
     rebuild(A, data, dims, refdims, name, metadata, missingval)
 end
 
-DD.canshowarray(A::AbstractGeoArray) = DD.canshowarray(parent(A))
-
 Base.parent(A::AbstractGeoArray) = data(A)
 
 filename(A::AbstractGeoArray) = filename(data(A))

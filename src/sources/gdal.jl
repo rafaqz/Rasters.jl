@@ -171,7 +171,7 @@ crs(raster::AG.RasterDataset, args...) =
 # Utils ########################################################################
 
 function _read(f, ::Type{_GDAL}, filename::AbstractString; write=false, kw...)
-    flags = write ? (; flags=AG.OF_Update) : () 
+    flags = write ? (; flags=AG.OF_UPDATE) : () 
     AG.readraster(filename; flags...) do raster
         f(raster)
     end

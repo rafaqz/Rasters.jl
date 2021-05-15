@@ -1,55 +1,12 @@
 
-# Add method to avoid printing from disk
-# function Base.show(io::IO, mime::MIME"text/plain", A::DiskGeoArray{T,N}) where {T,N}
-#     lines = _print_array_info(io, mime, A)
-#     if !(metadata(A) isa NoMetadata) 
-#         print(io, "\nwith ")
-#         show(io, mime, metadata(A))
-#     end
-#     println(io)
-#     print(io, "\n$(filename(A))")
-# end
-
-function _show_dimname(io, dim::Dim)
-    color = DD._dimcolor(io)
-    printstyled(io, "Dim{"; color=color)
-    printstyled(io, string(":", name(dim)); color=:yellow)
-    printstyled(io, "}"; color=color)
-end
-function _show_dimname(io, dim::Dimension)
-    printstyled(io, DD.dim2key(dim); color = DD._dimcolor(io))
+function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractGeoArray)
+    print(io, "\nFrom file:\n$(filename(A))")
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", stack::AbstractGeoStack)
-    nlayers = length(keys(stack))
-    layers_str = nlayers == 1 ? "layer" : "layers"
-    printstyled(io, nameof(typeof(stack)), color=:blue)
-    # print(io, " with $nlayers $(childtype(stack)) $layers_str:\n")
-    for var in keys(stack)
-        printstyled(io, "  :$var", color=:yellow)
-
-        field_dims = DD.layerdims(stack, var)
-        n_dims = length(field_dims)
-        dims_str = n_dims == 1 ? "dim" : "dims"
-        print(io, " with $dims_str: ")
-        if n_dims > 0
-            for (d, dim) in enumerate(field_dims)
-                _show_dimname(io, dim)
-                d != length(field_dims) && print(io, ", ")
-            end
-            print(io, " (")
-            for (d, dim) in enumerate(field_dims)
-                print(io, "$(length(dim))")
-                d != length(field_dims) && print(io, '×')
-            end
-            print(io, ')')
-        end
-        print(io, '\n')
-    end
-
+function DD.show_after(io, mime, stack::AbstractGeoStack) 
     if data(stack) isa FileStack 
         if filename(stack) isa AbstractString
-            println(io, "\n" * filename(stack))
+            println(io, "\nFrom file:\n" * filename(stack))
         else
             for (key, fn) in pairs(filename(stack))
                 print(io, "\n ")
@@ -66,15 +23,6 @@ function Base.show(io::IO, mime::MIME"text/plain", stack::AbstractGeoStack)
             print(io, ' ')
             show(IOContext(io, :compact=>true), mime, dim)
             print(io, '\n')
-        end
-    end
-
-    md = metadata(stack)
-    if !(md isa NoMetadata)
-        n_metadata = length(md)
-        if n_metadata > 0
-            print(io, "\nwith ")
-            show(io, mime, md)
         end
     end
 end
