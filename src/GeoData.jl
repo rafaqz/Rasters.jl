@@ -46,7 +46,6 @@ export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbound
 
 export geoarray, stack, series
 
-
 const Lon = X
 const Lat = Y 
 const Vert = Z 
@@ -54,10 +53,10 @@ const GeoXDim = XDim
 const GeoYDim = YDim 
 const GeoZDim = ZDim 
 
-struct _NCD end
-struct _GRD end
-struct _GDAL end
-struct _SMAP end
+struct NCDfile end
+struct GRDfile end
+struct GDALfile end
+struct SMAPfile end
 
 # DimensionalData documentation urls
 const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api"

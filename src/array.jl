@@ -15,6 +15,10 @@ a memory-backed `GeoArray`.
 """
 abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
 
+function DD.DimTable(As::Tuple{<:AbstractGeoArray,Vararg{<:AbstractGeoArray}}...)
+    DimTable(DimStack(map(read, As...)))
+end
+
 # Interface methods ###########################################################
 """
     missingval(x)
@@ -156,8 +160,8 @@ function GeoArray(ds, filename::AbstractString, key=nothing;
     crs=nothing, mappedcrs=nothing, dims=nothing, refdims=(),
     name=Symbol(key isa Nothing ? "" : string(key)),
     metadata=metadata(ds), missingval=missingval(ds), write=false,
+    source=_sourcetype(filename)
 )
-    source = _sourcetype(filename)
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims

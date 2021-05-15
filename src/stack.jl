@@ -30,6 +30,9 @@ filename(stack::AbstractGeoStack) = filename(data(stack))
 _singlemissingval(mvs::NamedTuple, key) = mvs[key]
 _singlemissingval(mv, key) = mv
 
+# Always read a stack before loading it as a table.
+DD.DimTable(stack::AbstractGeoStack) = invoke(DD.DimTable, Tuple{AbstractDimStack}, read(stack))
+
 # Base methods #################################################################
 
 Base.names(s::AbstractGeoStack) = keys(s)
@@ -153,10 +156,10 @@ function GeoStack(
 end
 # Multi-file stack from strings
 function GeoStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}}; 
-    crs=nothing, mappedcrs=nothing, write=false, kw...
+    crs=nothing, mappedcrs=nothing, write=false, source=nothing, kw...  
 ) where K
     layerfields = map(keys(filenames), values(filenames)) do key, fn
-        source = _sourcetype(fn)
+        source = source isa Nothing ? _sourcetype(fn) : source
         crs = defaultcrs(source, crs)
         mappecrs = defaultmappedcrs(source, mappedcrs)
         _read(fn; key) do ds
@@ -178,9 +181,9 @@ function GeoStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
 end
 # Single-file stack from a string
 function GeoStack(filename::AbstractString; 
-    refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing, write=false, kw...
+    refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing, write=false,
+    source=_sourcetype(filename), kw...
 )
-    source = _sourcetype(filename)
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     data, field_kw = _read(filename) do ds

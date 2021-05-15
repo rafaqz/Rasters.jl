@@ -1,3 +1,5 @@
+export GDALstack, GDALarray
+
 const AG = ArchGDAL
 
 const GDAL_X_INDEX = ForwardIndex()
@@ -12,17 +14,19 @@ const GDAL_Y_LOCUS = Start()
 
 # Array ########################################################################
 
-function FileArray{_GRD}(filename; kw...)
-    _read(ds -> FileArray(ds, filename; kw...), _GDAL, filename; kw...)
+@deprecate GDALarray(args...; kw...) GeoArray(args...; source=GDALfile, kw...)
+
+function FileArray{GRDfile}(filename; kw...)
+    _read(ds -> FileArray(ds, filename; kw...), GDALfile, filename; kw...)
 end
 function FileArray(raster::AG.RasterDataset, filename; kw...)
-    FileArray{_GDAL,eltype(raster),ndims(raster)}(filename, size(raster); 
+    FileArray{GDALfile,eltype(raster),ndims(raster)}(filename, size(raster); 
         chunks=DiskArrays.eachchunk(raster).chunksize
     )
 end
 
-function Base.open(f::Function, A::FileArray{_GDAL}; kw...)
-    _read(f, _GDAL, filename(A); kw...)
+function Base.open(f::Function, A::FileArray{GDALfile}; kw...)
+    _read(f, GDALfile, filename(A); kw...)
 end
 
 # AbstractGeoArray methods
@@ -41,7 +45,7 @@ Write a [`GDALarray`](@ref) to file, `.tif` by default, but other GDAL drivers a
 Returns `filename`.
 """
 function Base.write(
-    filename::AbstractString, ::Type{_GDAL}, A::AbstractGeoArray{T,2}; kw...
+    filename::AbstractString, ::Type{GDALfile}, A::AbstractGeoArray{T,2}; kw...
 ) where T
     all(hasdim(A, (XDim, Y))) || error("Array must have Y and X dims")
 
@@ -56,7 +60,7 @@ function Base.write(
     _gdalwrite(filename, correctedA, nbands, indices; kw...)
 end
 function Base.write(
-    filename::AbstractString, ::Type{_GDAL}, A::AbstractGeoArray{T,3}, kw...
+    filename::AbstractString, ::Type{GDALfile}, A::AbstractGeoArray{T,3}, kw...
 ) where T
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
@@ -75,6 +79,8 @@ end
 
 # DimensionalData methods for ArchGDAL types ###############################
 
+@deprecate GDALstack(args...; kw...) GeoStack(args...; source=GDALfile, kw...)
+
 function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     gt = try
         AG.getgeotransform(raster) catch GDAL_EMPTY_TRANSFORM end
@@ -83,7 +89,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     nbands = AG.nraster(raster)
     band = Band(1:nbands, mode=Categorical(Ordered()))
     crs = crs isa Nothing ? GeoData.crs(raster) : crs
-    xy_metadata = Metadata{_GDAL}()
+    xy_metadata = Metadata{GDALfile}()
 
     # Output Sampled index dims when the transformation is lat/lon alligned,
     # otherwise use Transformed index, with an affine map.
@@ -144,7 +150,7 @@ function DD.metadata(raster::AG.RasterDataset, args...)
     path = first(AG.filelist(raster))
     units = AG.getunittype(band)
     upair = units == "" ? () : (:units=>units,)
-    Metadata{_GDAL}(Dict(:filepath=>path, :scale=>scale, :offset=>offset, upair...))
+    Metadata{GDALfile}(Dict(:filepath=>path, :scale=>scale, :offset=>offset, upair...))
 end
 
 function missingval(raster::AG.RasterDataset, args...)
@@ -170,7 +176,7 @@ crs(raster::AG.RasterDataset, args...) =
 
 # Utils ########################################################################
 
-function _read(f, ::Type{_GDAL}, filename::AbstractString; write=false, kw...)
+function _read(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...)
     flags = write ? (; flags=AG.OF_UPDATE) : () 
     AG.readraster(filename; flags...) do raster
         f(raster)

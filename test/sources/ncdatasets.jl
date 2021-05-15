@@ -1,7 +1,7 @@
 using GeoData, Test, Statistics, Dates, CFTime, Plots, GeoFormatTypes
 import ArchGDAL, NCDatasets
 using GeoData: name, window, mode, span, sampling, val, Ordered, metadata, bounds,
-               FileArray, FileStack, _NCD
+               FileArray, FileStack, NCDfile
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
@@ -74,7 +74,7 @@ stackkeys = (
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
-        @test metadata(ncarray) isa Metadata{_NCD}
+        @test metadata(ncarray) isa Metadata{NCDfile}
         @test name(ncarray) == :tos
     end
 
@@ -210,7 +210,7 @@ end
     @testset "load ncstack" begin
         @test ncstack isa GeoStack
         @test ismissing(missingval(ncstack))
-        @test metadata(ncstack) isa Metadata{_NCD}
+        @test metadata(ncstack) isa Metadata{NCDfile}
         @test dims(ncstack[:abso4]) == dims(ncstack, (X, Y, Ti)) 
         @test refdims(ncstack) == ()
         # Loads child as a regular GeoArray
@@ -222,9 +222,9 @@ end
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test keys(ncstack) == stackkeys
         @test first(keys(ncstack)) == :abso4
-        @test metadata(ncstack) isa Metadata{_NCD}
+        @test metadata(ncstack) isa Metadata{NCDfile}
         @test metadata(ncstack)["institution"] == "Max-Planck-Institute for Meteorology"
-        @test metadata(ncstack, :albedo) isa Metadata{_NCD}
+        @test metadata(ncstack, :albedo) isa Metadata{NCDfile}
         @test metadata(ncstack, :albedo)["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
@@ -300,6 +300,24 @@ end
         @test metadata(saved) == metadata(geostack) == metadata(ncstack)
         @test all(first(DimensionalData.layers(saved)) .== first(DimensionalData.layers(geostack)))
     end
+
+    @testset "show" begin
+        ncstack = stack(ncmulti; window=(X(7:99), Y(3:97)))
+        sh = sprint(show, MIME("text/plain"), ncstack)
+        # Test but don't lock this down too much
+        @test occursin("GeoStack", sh)
+        @test occursin("Y", sh)
+        @test occursin("X", sh)
+        @test occursin("Ti", sh)
+        @test occursin(":tropo", sh)
+        @test occursin(":tsurf", sh)
+        @test occursin(":aclcac", sh)
+        @test occursin("test_echam_spectral.nc", sh)
+        @test occursin("window", sh)
+        @test occursin("7:99", sh)
+        @test occursin("3:97", sh)
+    end
+
 end
 
 @testset "Multi file stack" begin

@@ -1,7 +1,6 @@
 using HDF5
 
-export SMAPseries
-export smapseries
+export SMAPseries, SMAPstack, SMAParray, smapseries
 
 const SMAPMISSING = -9999.0
 const SMAPGEODATA = "Geophysical_Data"
@@ -29,25 +28,29 @@ Base.parent(wrapper::SMAPvar) = wrapper.ds
 
 # GeoArray ######################################################################
 
+@deprecate SMAParray(args...; kw...) GeoArray(args...; source=SMAPfile, kw...)
+
 function FileArray(ds::SMAPhdf5, filename::AbstractString; key, kw...)
     FileArray(SMAPvar(HDF5DiskArray(ds[_smappath(key)])), filename; key, kw...)
 end
 function FileArray(var::SMAPvar, filename::AbstractString; key, kw...)
     T = eltype(parent(var))
     N = length(SMAPSIZE)
-    FileArray{_SMAP,T,N}(filename, SMAPSIZE; key, kw...)
+    FileArray{SMAPfile,T,N}(filename, SMAPSIZE; key, kw...)
 end
 
-function Base.open(f::Function, A::FileArray{_SMAP}; kw...)
-    _read(var -> f(HDF5DiskArray(var)), _SMAP, filename(A); key=key(A), kw...)
+function Base.open(f::Function, A::FileArray{SMAPfile}; kw...)
+    _read(var -> f(HDF5DiskArray(var)), SMAPfile, filename(A); key=key(A), kw...)
 end
 
 # Stack ########################################################################
 
-hasstackfile(::Type{_SMAP}) = true
+@deprecate SMAPstack(args...; kw...) GeoStack(args...; source=SMAPfile, kw...)
 
-function Base.getindex(fs::FileStack{_SMAP}, key)
-   _read(_SMAP, filename(fs); key) do var
+hasstackfile(::Type{SMAPfile}) = true
+
+function Base.getindex(fs::FileStack{SMAPfile}, key)
+   _read(SMAPfile, filename(fs); key) do var
        FileArray(SMAPvar(HDF5DiskArray(var)), filename(fs); key)
    end
 end
@@ -66,7 +69,7 @@ end
 end
 
 # TODO actually add metadata to the dict
-DD.metadata(wrapper::SMAPhdf5) = Metadata{_SMAP}(Dict())
+DD.metadata(wrapper::SMAPhdf5) = Metadata{SMAPfile}(Dict())
 
 missingval(ds::SMAPhdf5) = SMAPMISSING
 layermissingval(ds::SMAPhdf5) = SMAPMISSING
@@ -123,7 +126,7 @@ function smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
         println.(errors)
     end
     # Get the dims once for the whole series
-    dims, metadata =_read(_SMAP, first(filenames)) do ds
+    dims, metadata =_read(SMAPfile, first(filenames)) do ds
         DD.dims(ds), DD.metadata(ds)
     end
     childkwargs = (; dims, metadata)
@@ -167,7 +170,7 @@ DD.refdims(wrapper::SMAPhdf5, filename) = (_smap_timedim(_smap_timefromfilename(
 
 # Utils ########################################################################
 
-function _read(f, ::Type{_SMAP}, filepath::AbstractString; key=nothing, kw...)
+function _read(f, ::Type{SMAPfile}, filepath::AbstractString; key=nothing, kw...)
     if key isa Nothing
         h5open(ds -> f(SMAPhdf5(ds)), filepath; kw...)
     else

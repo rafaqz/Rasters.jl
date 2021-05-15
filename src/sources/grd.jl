@@ -1,3 +1,5 @@
+export GRDstack, GRDarray
+
 const GRD_INDEX_ORDER = ForwardIndex()
 const GRD_X_ARRAY = ForwardArray()
 const GRD_Y_ARRAY = ReverseArray()
@@ -17,7 +19,7 @@ const GRD_DATATYPE_TRANSLATION = Dict{String, DataType}(
     "FLT4S" => Float32,
     "FLT8S" => Float64
 )
-const REV_GRD_DATATYPE_TRANSLATION =
+const REVGRDfile_DATATYPE_TRANSLATION =
     Dict{DataType, String}(v => k for (k,v) in GRD_DATATYPE_TRANSLATION)
 
 # GRD attributes wrapper. Only used during file load, for dispatch.
@@ -52,7 +54,7 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     yspan = (ybounds[2] - ybounds[1]) / nrows
 
     # Not fully implemented yet
-    xy_metadata = Metadata{_GRD}(Dict())
+    xy_metadata = Metadata{GRDfile}(Dict())
 
     xmode = Projected(
         order=Ordered(GRD_INDEX_ORDER, GRD_X_ARRAY, GRD_X_RELATION),
@@ -77,7 +79,7 @@ end
 DD.name(grd::GRDattrib) = Symbol(get(grd.attrib, "layername", ""))
 
 function DD.metadata(grd::GRDattrib, args...)
-    metadata = Metadata{_GRD}()
+    metadata = Metadata{GRDfile}()
     for key in ("creator", "created", "history")
         val = get(grd.attrib, key, "")
         if val != ""
@@ -112,6 +114,8 @@ Base.Array(grd::GRDattrib) = _mmapgrd(Array, grd)
 
 # Array ########################################################################
 
+@deprecate GRDarray(args...; kw...) GeoArray(args...; source=GRDfile, kw...)
+
 function FileArray(grd::GRDattrib, filename=filename(grd); kw...)
     filename = first(splitext(filename))
     size_ = size(grd)
@@ -132,7 +136,7 @@ Currently the `metadata` field is lost on `write` for `GRDarray`.
 
 Returns `filename`.
 """
-function Base.write(filename::String, ::Type{_GRD}, A::AbstractGeoArray)
+function Base.write(filename::String, ::Type{GRDfile}, A::AbstractGeoArray)
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
             a -> reorder(a, GRD_INDEX_ORDER) |>
@@ -156,7 +160,7 @@ function Base.write(filename::String, ::Type{_GRD}, A::AbstractGeoArray)
     xmin, xmax = bounds(lon)
     ymin, ymax = bounds(lat)
     proj = convert(String, convert(ProjString, crs(lon)))
-    datatype = REV_GRD_DATATYPE_TRANSLATION[eltype(A)]
+    datatype = REVGRDfile_DATATYPE_TRANSLATION[eltype(A)]
     nodatavalue = missingval(A)
     minvalue = minimum(filter(x -> x !== missingval(A), data(A)))
     maxvalue = maximum(filter(x -> x !== missingval(A), data(A)))
@@ -199,9 +203,11 @@ end
 
 # AbstractGeoStack methods
 
+@deprecate GRDstack(args...; kw...) GeoStack(args...; source=GRDfile, kw...)
+
 Base.open(f::Function, A::FileArray{:GRD}, key...; write=false) = _mmapgrd(f, A; write)
 
-_read(f, ::Type{_GRD}, filename; key=nothing, write=false) = f(GRDattrib(filename; write))
+_read(f, ::Type{GRDfile}, filename; key=nothing, write=false) = f(GRDattrib(filename; write))
 
 # Utils ########################################################################
 

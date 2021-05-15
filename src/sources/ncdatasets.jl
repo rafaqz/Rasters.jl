@@ -1,7 +1,10 @@
+
+export NCDstack, NCDarray
+
 const NCD = NCDatasets
 const NCD_STACK_METADATA_KEY = :_ncd_stack_metadata_
 
-const UNNAMED_NCD_KEY = "unnamed"
+const UNNAMEDNCDfile_KEY = "unnamed"
 
 const NCD_FILL_TYPES = (Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String)
 
@@ -24,11 +27,13 @@ const NCD_DIMMAP = Dict(
     "band" => Band,
 )
 
-cansavestack(::Type{_NCD}) = true
-defaultcrs(::Type{_NCD}) = EPSG(4326) 
-defaultmappedcrs(::Type{_NCD}) = EPSG(4326) 
+cansavestack(::Type{NCDfile}) = true
+defaultcrs(::Type{NCDfile}) = EPSG(4326) 
+defaultmappedcrs(::Type{NCDfile}) = EPSG(4326) 
 
 # GeoArray ########################################################################
+
+@deprecate NCDarray(args...; kw...) GeoArray(args...; source=NCDfile, kw...)
 
 function GeoArray(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw...)
     key = _firstkey(ds, key)
@@ -43,11 +48,11 @@ function FileArray(var::NCD.CFVariable, filename::AbstractString; kw...)
     size_ = size(var)
     T = eltype(var)
     N = length(size_)
-    FileArray{_NCD,T,N}(filename, size_; kw...)
+    FileArray{NCDfile,T,N}(filename, size_; kw...)
 end
 
-function Base.open(f::Function, A::FileArray{_NCD}; kw...)
-    _read(ds -> f(ds), _NCD, filename(A); key=key(A), kw...)
+function Base.open(f::Function, A::FileArray{NCDfile}; kw...)
+    _read(ds -> f(ds), NCDfile, filename(A); key=key(A), kw...)
 end
 
 """
@@ -57,11 +62,11 @@ Write an NCDarray to a NetCDF file using NCDatasets.jl
 
 Returns `filename`.
 """
-function Base.write(filename::AbstractString, ::Type{_NCD}, A::AbstractGeoArray)
+function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractGeoArray)
     open(A) do o
         md = metadata(o)
         key = NCD_STACK_METADATA_KEY
-        attribvec = if haskey(md, key) && md[key] isa Metadata{_NCD} 
+        attribvec = if haskey(md, key) && md[key] isa Metadata{NCDfile} 
             [_stringdict(md[key])...]
         else
             []
@@ -79,8 +84,10 @@ end
 
 # Stack ########################################################################
 
-function Base.getindex(fs::FileStack{_NCD}, key)
-   _read(_NCD, filename(fs); key) do var
+@deprecate NCDstack(args...; kw...) GeoStack(args...; source=NCDfile, kw...)
+
+function Base.getindex(fs::FileStack{NCDfile}, key)
+   _read(NCDfile, filename(fs); key) do var
        FileArray(var, filename(fs); key)
    end
 end
@@ -93,7 +100,7 @@ Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 Currently `Metadata` is not handled for dimensions, and `Metadata`
 from other [`AbstractGeoArray`](@ref) @types is ignored.
 """
-function Base.write(filename::AbstractString, ::Type{_NCD}, s::AbstractGeoStack)
+function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractGeoStack)
     ds = NCD.Dataset(filename, "c"; attrib=_stringdict(metadata(s)))
     try map(key -> _ncdwritevar!(ds, s[key]), keys(s))
     finally
@@ -120,11 +127,11 @@ end
 
 DD.refdims(ds::NCD.Dataset, filename) = ()
 
-DD.metadata(ds::NCD.Dataset) = Metadata{_NCD}(DD.metadatadict(ds.attrib))
+DD.metadata(ds::NCD.Dataset) = Metadata{NCDfile}(DD.metadatadict(ds.attrib))
 DD.metadata(ds::NCD.Dataset, key::Key) = metadata(ds[string(key)])
-DD.metadata(var::NCD.CFVariable) = Metadata{_NCD}(DD.metadatadict(var.attrib))
+DD.metadata(var::NCD.CFVariable) = Metadata{NCDfile}(DD.metadatadict(var.attrib))
 DD.metadata(var::NCD.CFVariable, stackmetadata::AbstractMetadata) = begin
-    md = Metadata{_NCD}(DD.metadatadict(var.attrib))
+    md = Metadata{NCDfile}(DD.metadatadict(var.attrib))
     md[NCD_STACK_METADATA_KEY] = stackmetadata
     md
 end
@@ -164,7 +171,7 @@ layersizes(ds::NCD.NCDataset, keys) = map(k -> size(ds[k]), keys)
 
 # Utils ########################################################################
 
-function _read(f, ::Type{_NCD}, filename::AbstractString; key=nothing, write=false)
+function _read(f, ::Type{NCDfile}, filename::AbstractString; key=nothing, write=false)
     if key isa Nothing
         NCD.Dataset(f, filename)
     else
@@ -177,7 +184,7 @@ function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothign)
         dvar = ds[dimname]
         dimtype = _ncddimtype(dimname)
         index = dvar[:]
-        meta = Metadata{_NCD}(DD.metadatadict(dvar.attrib))
+        meta = Metadata{NCDfile}(DD.metadatadict(dvar.attrib))
         mode = _ncdmode(ds, dimname, index, dimtype, crs, mappedcrs, meta)
         dimtype(index, mode, meta)
     else
@@ -269,7 +276,7 @@ function _ncdspan(index, order)
 end
 
 # delta_t and ave_period are not CF standards, but CDC
-function _ncdperiod(index, metadata::Metadata{_NCD})
+function _ncdperiod(index, metadata::Metadata{NCDfile})
     if haskey(metadata, :delta_t)
         period = _parse_period(metadata[:delta_t])
         period isa Nothing || return Regular(period), Points()
@@ -351,7 +358,7 @@ function _ncdwritevar!(ds, A::AbstractGeoArray{T,N}) where {T,N}
     end
 
     key = if string(name(A)) == ""
-        UNNAMED_NCD_KEY
+        UNNAMEDNCDfile_KEY
     else
         string(name(A))
     end

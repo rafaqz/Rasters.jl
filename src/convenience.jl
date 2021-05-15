@@ -128,44 +128,17 @@ end
 
 # Support methods
 
-const EXT = Dict(_GRD=>(".grd", ".gri"), _NCD=>(".nc",), _SMAP=>(".h5",))
-const REV_EXT = Dict(".grd"=>_GRD, ".gri"=>_GRD, ".nc"=>_NCD, ".h5"=>_SMAP)
+const EXT = Dict(GRDfile=>(".grd", ".gri"), NCDfile=>(".nc",), SMAPfile=>(".h5",))
+const REV_EXT = Dict(".grd"=>GRDfile, ".gri"=>GRDfile, ".nc"=>NCDfile, ".h5"=>SMAPfile)
 
-_sourcetype(filename::AbstractString) = get(REV_EXT, splitext(filename)[2], _GDAL)
-
-# The the constructor for a geoarray or stack, based on the
-# filename extension. GDAL is the fallback for geoarray as it
-# handles so many file types.
-function _constructor(method::typeof(geoarray), filename; throw=true)
-    _, extension = splitext(filename)
-    return if extension in EXT[_GRD]
-        grdarray
-    elseif extension in EXT[_NCD]
-        # _check_imported(:NCDatasets, _NCD, extension; throw=throw)
-        ncdarray
-    elseif extension in EXT[_SMAP]
-        # In future we may need to examine the file and check if
-        # it's a SMAP file or something else that uses .h5
-        throw ? _no_gearray_error(extension) : nothing
-    else # GDAL handles too many extensions to list, so just try it and see if it works
-        # _check_imported(:ArchGDAL, _GDAL, extension; throw=throw)
-        gdalarray
-    end
-end
-_constructor(method::typeof(stack), filename; throw=true) = GeoStack
+_sourcetype(filename::AbstractString) = get(REV_EXT, splitext(filename)[2], GDALfile)
 
 function _read(f, filename::AbstractString; kw...)
     ext = splitext(filename)[2]
-    source = get(REV_EXT, ext, _GDAL)
+    source = get(REV_EXT, ext, GDALfile)
     _read(f, source, filename; kw...)
 end
 _read(f, A::FileArray{X}; kw...) where X = _read(f, X, filename(A); kw...)
-
-_no_stack_error(ext) =
-    error("$ext files do not have named layers. Use `geoarray(filename)` to load, or `stack((key1=fn1, key2=fn2, ...)`")
-
-_no_gearray_error(ext) =
-    error("$ext files not have a single-layer implementation. Use `stack(filename)` to load")
 
 function _check_imported(modulename, type, extension; throw=true)
     if type in names(GeoData)

@@ -1,4 +1,5 @@
-using GeoData, Plots, Statistics, ArchGDAL, NCDatasets, Dates
+using GeoData, Plots, Statistics, ArchGDAL, NCDatasets, Dates, DataFrames
+using GeoData: stack, Between
 
 geturl(url, filename=splitdir(url)[2]) = begin
     isfile(filename) || download(url, filename)
@@ -30,8 +31,13 @@ savefig("mean_tos.png")
 write("mean_tos.nc", mean(A; dims=Ti))
 
 # Plo a transect
+s = read(ncstack)
 A[X(Contains(20)), Ti(1)] |> plot
 savefig("tos_20deg_lat.png")
+
+# Convert the stack to a dataframe
+# TODO broken: 
+df = DataFrame(read(ncstack))
 
 # Create a GeoSeries from multiple files.
 # This uses the same data three times to avoid downloads, you 
@@ -40,8 +46,9 @@ timedim = Ti([DateTime360Day(2001, 01, 1), DateTime360Day(2001, 02, 1), DateTime
 filenames = [ncfilename, ncfilename, ncfilename]
 ncseries = series(filenames, (timedim,); child=stack)
 
+
 # Get a single array from the series
-A = ncseries[Near(DateTime360Day(2001, 01, 1))]["tos"][Lon(Between(50, 200))]
+A = ncseries[Near(DateTime360Day(2001, 01, 1))][:tos][Lon(Between(50, 200))]
 
 # Plot single slices
 view(A, Ti(4)) |> plot
@@ -56,16 +63,16 @@ maximum(replace_missing(A, NaN); dims=Ti) |> plot
 reduce(+, A; dims=Ti) |> plot
 
 # Plot the mean sea surface temperature for australia in the second half of 2002 
-ncstack = NCDstack(ncfilename)
+ncstack = NCDstack(ncfilename);
 t = Ti(Between(DateTime360Day(2002, 07, 1), DateTime360Day(2002, 012, 30)))
-ncstack["tos"][t, Lat(Between(-45, 0.5)), Lon(Between(110, 160))] |> x->mean(x; dims=Ti) |> plot
+ncstack[:tos][t, Lat(Between(-45, 0.5)), Lon(Between(110, 160))] |> x->mean(x; dims=Ti) |> plot
 
 # Permute the dimensions in the underlying data
 # It stil plots the right way up
 permutedims(A, (Lat, Lon, Ti))[Ti(1:3:12)] |> plot
 
 # Line plots have (kind of) useful labels
-A = ncseries[1]["tos"]
+A = ncseries[1][:tos]
 A[Lon(170), Ti(10)] |> plot
 A[Lat(1:80), Lon(170), Ti(10)] |> plot
 
@@ -74,7 +81,7 @@ A[Lat(1:80), Lon(170), Ti(10)] |> plot
 gdal_url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 tif_filename = geturl(gdal_url)
 
-array = geoarray(tif_filename)
+array = geoarray(tif_filename; name=:cea)
 array[Band(1)] |> plot
 
 # Make a stack (just using the same file three times for demonstration)
@@ -82,5 +89,8 @@ filepaths = (one=tif_filename, two=tif_filename, three=tif_filename)
 diskstack = stack(filepaths)
 # Plot a section of the tif file
 diskstack[:two][Band(1), Lat(1:100), Lon(1:150)] |> plot
+
+# Convert the data and dims to a DataFrame
+@time df = DataFrame(array)
 
 # See the test suit for more examples...

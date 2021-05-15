@@ -15,12 +15,3 @@ checkindexorder(dim::Dimension, order::Order) =
     indexorder(dim) == order || @warn "Array order for `$(DD.basetypeof(order))` is `$(indexorder(dim))`, usualy `$order`"
 
 cleankeys(keys) = Tuple(map(Symbol, keys))
-
-function _to_sampled(A) 
-    if any(m -> !(m isa AbstractSampled), mode(A))
-        rebuild(A; data=data(A), dims=map(_to_sampled, dims(A)))
-    end
-end
-_to_sampled(mode, dim) = dim
-_to_sampled(mode::AbstractSampled, dim::SpatialDim) = dim
-_to_sampled(mode, dim::SpatialDim) = rebuild(dim; mode=Sampled(mode(dim)))
