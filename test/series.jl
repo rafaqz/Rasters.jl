@@ -55,9 +55,8 @@ end
     dimz = (Ti<|[DateTime(2017), DateTime(2018)],)
     dat = [stack1, stack2]
     window_ = X(1:2), Y(3:4)
-    ser = GeoSeries(dat, dimz; childkwargs=(window=window_,))
+    ser = GeoSeries(dat, dimz; window=window_)
     st = ser[1]
-    @test GeoData.window(st) == window_
     @test st[:ga1] == [3 4; 7 8]
     @test st[:ga1, 1, 2] == 4
 end

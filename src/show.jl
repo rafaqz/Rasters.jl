@@ -1,6 +1,12 @@
 
 function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractGeoArray)
-    print(io, "\nFrom file:\n$(filename(A))")
+    if parent(A) isa AbstractDiskArray 
+        if parent(A) isa FileArray 
+            print(io, "\nLazy loading from file:\n$(filename(parent(A)))")
+        end
+    else
+        DD.show_array(io, mime, parent(A))
+    end
 end
 
 function DD.show_after(io, mime, stack::AbstractGeoStack) 
@@ -16,8 +22,7 @@ function DD.show_after(io, mime, stack::AbstractGeoStack)
         end
     end
 
-    n_windows = length(window(stack))
-    if n_windows > 0
+    if !(window(stack) isa Nothing)
         print(io, "with window:\n")
         for dim in window(stack)
             print(io, ' ')
@@ -44,7 +49,7 @@ function Base.show(io::IO, mime::MIME"text/plain", A::AbstractGeoSeries{T,N}) wh
     ds = displaysize(io)
     ioctx = IOContext(io, :displaysize => (ds[1] - lines, ds[2]))
     if T <: AbstractString
-        DD._show_array(ioctx, mime, parent(A))
+        DD.show_array(ioctx, mime, parent(A))
     end
 end
 

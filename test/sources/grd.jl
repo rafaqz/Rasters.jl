@@ -287,7 +287,7 @@ end
 end
 
 @testset "Grd series" begin
-    grdseries = series([path, path], (Ti,); childkwargs=(mappedcrs=EPSG(4326),))
+    grdseries = series([path, path], (Ti,); mappedcrs=EPSG(4326))
     @test grdseries[Ti(1)] == geoarray(path; mappedcrs=EPSG(4326))
     stacks = [stack((a=path, b=path); mappedcrs=EPSG(4326))]
 

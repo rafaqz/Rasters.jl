@@ -25,6 +25,8 @@ function FileArray(raster::AG.RasterDataset, filename; kw...)
     )
 end
 
+cleanreturn(A::AG.RasterDataset) = Array(A)
+
 function Base.open(f::Function, A::FileArray{GDALfile}; kw...)
     _read(f, GDALfile, filename(A); kw...)
 end
@@ -83,7 +85,10 @@ end
 
 function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     gt = try
-        AG.getgeotransform(raster) catch GDAL_EMPTY_TRANSFORM end
+        AG.getgeotransform(raster) 
+    catch 
+        GDAL_EMPTY_TRANSFORM 
+    end
     xsize, ysize = size(raster)
 
     nbands = AG.nraster(raster)
@@ -178,9 +183,7 @@ crs(raster::AG.RasterDataset, args...) =
 
 function _read(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...)
     flags = write ? (; flags=AG.OF_UPDATE) : () 
-    AG.readraster(filename; flags...) do raster
-        f(raster)
-    end
+    AG.readraster(cleanreturn ∘ f, filename; flags...)
 end
 
 function _gdalwrite(filename, A, nbands, indices; 
@@ -318,9 +321,9 @@ function _dims2geotransform(x::X, y::Y)
     gt = zeros(6)
     gt[GDAL_TOPLEFT_X] = first(x)
     gt[GDAL_WE_RES] = step(x)
-    gt[GDAL_ROT1] = 0.0
+    gt[GDAL_ROT1] = zero(eltype(gt))
     gt[GDAL_TOPLEFT_Y] = first(y) - step(y)
-    gt[GDAL_ROT2] = 0.0
+    gt[GDAL_ROT2] = zero(eltype(gt))
     gt[GDAL_NS_RES] = step(y)
     return gt
 end

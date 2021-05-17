@@ -8,17 +8,18 @@ also updating the `missingval` field/s.
 A `GeoArray` containing a newly allocated `Array` is always returned,
 even when the missing value matches the current value.
 """
-function replace_missing(a::AbstractGeoArray, newmissingval=missing)
-    newdata = if ismissing(missingval(a))
-        if newmissingval === missing
-            copy(parent(a))
+function replace_missing(A::AbstractGeoArray, newmissingval=missing)
+    A = read(A)
+    newdata = if ismissing(missingval(A))
+        if ismissing(newmissingval)
+            copy(parent(read(A)))
         else
-            collect(Missings.replace(parent(a), newmissingval))
+            collect(Missings.replace(parent(A), newmissingval))
         end
     else
-        replace(parent(a), missingval(a) => newmissingval)
+        replace(parent(A), missingval(A) => newmissingval)
     end
-    rebuild(a; data=newdata, missingval=newmissingval)
+    rebuild(A; data=newdata, missingval=newmissingval)
 end
 function replace_missing(stack::AbstractGeoStack, newmissingval=missing)
     rebuild(stack, map(a -> replace_missing(a, newmissingval, values(stack))))
@@ -66,3 +67,78 @@ missingmask(A::AbstractArray, missingval) =
     else
         (a -> isapprox(a, missingval) ? missing : true).(parent(A))
     end
+
+"""
+    crop(A::AbstractGeoArray...)
+
+Crop multiple [`AbstractGeoArray`](@ref) to match the size 
+of the smallest one for any dimensions that are shared.
+"""
+crop(layers::NamedTuple{K}) where K = NamedTuple{K}(crop(layers...))
+function crop(layers::AbstractGeoArray...)
+    dims = DD.combinedims(layers...; check=false)
+    alldims = map(DD.dims, layers)
+    smallestdims = map(dims) do d
+        matchingdims = map(ds -> DD.dims(ds, (d,)), alldims)
+        reduce(matchingdims) do a, b 
+            _choose(_shortest, a, b)
+        end |> first
+    end
+    selectors = map(smallestdims) do sm
+        DD.basetypeof(sm)(Between(DD.bounds(sm)))
+    end
+    map(l -> view(l, selectors...), layers)
+end
+
+_choose(f, ::Tuple{}, ::Tuple{}) = ()
+_choose(f, ::Tuple{}, (b,)::Tuple) = (b,)
+_choose(f, (a,)::Tuple, ::Tuple{}) = (a,) 
+_choose(f, (a,)::Tuple, (b,)::Tuple) = (f(a, b) ? a : b,)
+
+_shortest(a, b) = length(a) <= length(b)
+_longest(a, b) = length(a) >= length(b)
+
+"""
+    extend(A::AbstractGeoArray...)
+    extend(A::AbstractGeoArray, dims::Tuple)
+
+Extend multiple [`AbstractGeoArray`](@ref) to match
+the size of the largest one. A single `AbstractGeoArray` 
+can be extended bu passing the new `dims` tuple as the second
+argumen.
+"""
+extend(layers::NamedTuple{K}) where K = NamedTuple{K}(extend(layers...))
+function extend(layers::AbstractGeoArray...)
+    dims = DD.combinedims(layers...; check=false) 
+    alldims = map(DD.dims, layers)
+    largestdims = map(dims) do d
+        matchingdims = map(ds -> DD.dims(ds, (d,)), alldims)
+        reduce(matchingdims) do a, b 
+            _choose(_longest, a, b)
+        end |> first
+    end
+    map(l -> extend(l, largestdims), layers)
+end
+function extend(A::AbstractGeoArray, newdims::Tuple)
+    size = map(length, newdims)
+    elt = eltype(A)
+    newdata = similar(parent(A), elt, size)
+    newdata .= missingval(A)
+    newA = rebuild(A; data=newdata, dims=newdims)
+    ranges = map(dims(A), newdims) do d, nd
+        (DD.sel2indices(nd, Near(first(d)))):(DD.sel2indices(nd, Near(last(d))))
+    end
+    copyto!(parent(newA), CartesianIndices((ranges...,)), 
+            parent(read(A)), CartesianIndices(A)) 
+    newA
+end
+
+
+# Get the bounds wrapped in Dim(Between)
+dimbounds(A::AbstractDimArray) = dimbounds(bounds, A)
+function dimbounds(f::Function, A::AbstractDimArray)
+    map(dims(A), f(A)) do dim, bounds
+        # TODO is Between the right selector? do we need inclusive?
+        basetypeof(dim)(Between(bounds))
+    end
+end

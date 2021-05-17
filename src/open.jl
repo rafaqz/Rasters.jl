@@ -18,8 +18,7 @@ function OpenGeoArray(A, dims, refdims, name, metadata, missingval)
     )
 end
 function OpenGeoArray(f::Function, A::AbstractGeoArray{T,N}; kw...) where {T,N}
-    @show kw
-    _maybeopen(data(A); kw...) do source
+    x = _maybeopen(data(A); kw...) do source
         OA = OpenGeoArray(source, dims(A), refdims(A), name(A), metadata(A), missingval(A))
         f(OA)
     end

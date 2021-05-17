@@ -2,7 +2,7 @@ using HDF5
 
 export SMAPseries, SMAPstack, SMAParray, smapseries
 
-const SMAPMISSING = -9999.0
+const SMAPMISSING = -9999.0f0
 const SMAPGEODATA = "Geophysical_Data"
 const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
 const SMAPSIZE = (3856, 1624)
@@ -47,13 +47,18 @@ end
 
 @deprecate SMAPstack(args...; kw...) GeoStack(args...; source=SMAPfile, kw...)
 
-hasstackfile(::Type{SMAPfile}) = true
-
-function Base.getindex(fs::FileStack{SMAPfile}, key)
-   _read(SMAPfile, filename(fs); key) do var
-       FileArray(SMAPvar(HDF5DiskArray(var)), filename(fs); key)
-   end
+function FileStack{SMAPfile}(ds::SMAPhdf5, filename::AbstractString; write=false, keys)
+    keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
+    type_size = map(keys) do key
+        var = ds[_smappath(key)]
+        eltype(var), size(var)
+    end
+    layertypes = NamedTuple{keys}(map(first, type_size))
+    layersizes = NamedTuple{keys}(map(last, type_size))
+    FileStack{SMAPfile,keys}(filename, layertypes, layersizes, write)
 end
+
+hasstackfile(::Type{SMAPfile}) = true
 
 Base.keys(ds::SMAPhdf5) = cleankeys(keys(parent(ds)[SMAPGEODATA]))
 
@@ -75,6 +80,17 @@ missingval(ds::SMAPhdf5) = SMAPMISSING
 layermissingval(ds::SMAPhdf5) = SMAPMISSING
 layerkeys(ds::SMAPhdf5) = keys(ds)
 layersizes(ds::SMAPhdf5, keys) = map(_ -> SMAPSIZE, keys)
+
+function FileStack{SMAPfile}(ds, filename; write=false, keys)
+    keys = keys isa Nothing ? Tuple(map(layerkeys(ds))) : keys
+    type_size = map(string(keys)) do key
+        var = ds[_smappath(key)]
+        eltype(var), size(var)
+    end
+    layertypes = map(first, type_size)
+    layersizes = map(last, type_size)
+    FileStack{SMAPfile}(filename, layertypes, layersizes, keys, write)
+end
 
 filekey(ds::SMAPhdf5, key::Nothing) = first(keys(ds))
 
@@ -129,8 +145,7 @@ function smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
     dims, metadata =_read(SMAPfile, first(filenames)) do ds
         DD.dims(ds), DD.metadata(ds)
     end
-    childkwargs = (; dims, metadata)
-    GeoSeries(usedpaths, (timedim,); child=stack, childkwargs=childkwargs, kw...)
+    GeoSeries(usedpaths, (timedim,); child=stack, dims, metadata, kw...)
 end
 
 @deprecate SMAPseries(args...; kw...) smapseries(args...; kw...)
@@ -172,9 +187,9 @@ DD.refdims(wrapper::SMAPhdf5, filename) = (_smap_timedim(_smap_timefromfilename(
 
 function _read(f, ::Type{SMAPfile}, filepath::AbstractString; key=nothing, kw...)
     if key isa Nothing
-        h5open(ds -> f(SMAPhdf5(ds)), filepath; kw...)
+        h5open(ds -> cleanreturn(f(SMAPhdf5(ds))), filepath; kw...)
     else
-        h5open(ds -> f(SMAPhdf5(ds)[_smappath(key)]), filepath)
+        h5open(ds -> cleanreturn(f(SMAPhdf5(ds)[_smappath(key)])), filepath)
     end
 end
 
@@ -276,3 +291,5 @@ Base._reshape(x::HDF5DiskArray, dims::NTuple{N, Int}) where N = Base.__reshape((
 Base.Array(x::HDF5DiskArray) = read(x.ds)
 
 Base.getindex(x::HDF5DiskArray{T, N}, is::Vararg{Union{AbstractVector, Colon}, N}) where {T, N} = getindex(x.ds, is...)
+
+cleanreturn(A::HDF5DiskArray) = Array(A)

@@ -98,6 +98,9 @@ end
 
 Base.parent(A::AbstractGeoArray) = data(A)
 
+cleanreturn(A::AbstractGeoArray) = modify(cleanreturn, A)
+cleanreturn(x) = x
+
 filename(A::AbstractGeoArray) = filename(data(A))
 
 Base.write(A::T) where T <: AbstractGeoArray = write(filename(A), A)

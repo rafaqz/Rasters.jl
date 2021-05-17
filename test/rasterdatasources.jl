@@ -14,7 +14,7 @@ end
 
 @testset "load WorldClim Climate" begin
     # Weather time-series
-    ser = series(WorldClim{Climate}, (:prec,); res="10m", month=Jan:March)
+    ser = series(WorldClim{Climate}, (:prec,); res="10m", month=Jan:March);
     ser[Jan][:prec] 
     # Select Australia, using regular lat/lon selectors
     A = geoarray(WorldClim{Climate}, :prec; month=1, mappedcrs=EPSG(4326))
@@ -73,9 +73,9 @@ end
 if Sys.islinux()
     @testset "load AWAP" begin
         A = geoarray(AWAP, :rainfall; date=DateTime(2019, 10, 19))
-        st = stack(AWAP; date=DateTime(2019, 10, 19))
+        st = stack(AWAP; date=DateTime(2019, 10, 19), resize=crop)
         dates = DateTime(2019, 09, 19), DateTime(2019, 11, 19)
-        s = series(AWAP; date=dates)
+        s = series(AWAP; date=dates, resize=crop);
         s[DateTime(2019, 10, 1)][:solar]
         @test A isa GeoArray
         @test st isa GeoStack

@@ -52,7 +52,7 @@ function FileArray(var::NCD.CFVariable, filename::AbstractString; kw...)
 end
 
 function Base.open(f::Function, A::FileArray{NCDfile}; kw...)
-    _read(ds -> f(ds), NCDfile, filename(A); key=key(A), kw...)
+    x = _read(ds -> f(ds), NCDfile, filename(A); key=key(A), kw...)
 end
 
 """
@@ -85,12 +85,6 @@ end
 # Stack ########################################################################
 
 @deprecate NCDstack(args...; kw...) GeoStack(args...; source=NCDfile, kw...)
-
-function Base.getindex(fs::FileStack{NCDfile}, key)
-   _read(NCDfile, filename(fs); key) do var
-       FileArray(var, filename(fs); key)
-   end
-end
 
 """
     Base.write(filename::AbstractString, ::Type{NCDstack}, s::AbstractGeoStack)
@@ -167,17 +161,34 @@ function layerkeys(ds::NCD.Dataset)
     setdiff(keys(ds), toremove)
 end
 
+layertypes(ds::NCD.NCDataset, keys) = map(k -> eltype(ds[k]), keys)
 layersizes(ds::NCD.NCDataset, keys) = map(k -> size(ds[k]), keys)
+
+function FileStack{NCDfile}(ds::NCD.Dataset, filename::AbstractString; write=false, keys)
+    keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
+    type_size = map(keys) do key
+        var = ds[string(key)]
+        eltype(var), size(var)
+    end
+    layertypes = NamedTuple{keys}(map(first, type_size))
+    layersizes = NamedTuple{keys}(map(last, type_size))
+    FileStack{NCDfile,keys}(filename, layertypes, layersizes, write)
+end
 
 # Utils ########################################################################
 
 function _read(f, ::Type{NCDfile}, filename::AbstractString; key=nothing, write=false)
+    mode = write ? "a" : "r"
     if key isa Nothing
-        NCD.Dataset(f, filename)
+        NCD.Dataset(cleanreturn ∘ f, filename, mode)
     else
-        NCD.Dataset(ds -> f(ds[_firstkey(ds, key)]), filename)
+        NCD.Dataset(filename, mode) do ds
+            cleanreturn(f(ds[_firstkey(ds, key)]))
+        end
     end
 end
+
+cleanreturn(A::NCD.CFVariable) = Array(A)
 
 function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothign)
     if haskey(ds, dimname)

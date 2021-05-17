@@ -70,20 +70,21 @@ series(T::Type{<:RasterDataSource}; kw...) = series(T, RDS.layers(T); kw...)
 series(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = series(T, (layer,); kw...) 
 # Int month time-series
 function series(T::Type{WorldClim{Climate}}, layers::LayerItr;
-    res=RDS.defres(T), month=1:12, window=(), kw...
+    res=RDS.defres(T), month=1:12, 
+    window=nothing, resize=nothing, crs=nothing, mappedcrs=nothing, kw...
 )
     timedim = Ti(month; mode=Sampled(span=Regular(1), sampling=Intervals(Start())))
-    stacks = [stack(T, layers; res=res, month=m, window=window) for m in month]
+    stacks = [stack(T, layers; res=res, month=m, window, crs, mappedcrs, resize) for m in month]
     GeoSeries(stacks, timedim; kw...)
 end
 # DateTime time-series
 function series(T::Type{<:Union{WorldClim{Weather},ALWB,AWAP}}, layers::LayerItr; 
-    date, window=(), kw...
+    date, window=nothing, resize=nothing, crs=nothing, mappedcrs=nothing, kw...
 )
     step = _seriesstep(T)
     dates = RDS._date_sequence(date, step)
     timedim = Ti(dates; mode=Sampled(Ordered(), Regular(step), Intervals(Start())))
-    stacks = [stack(T, layers; date=d, window=window) for d in dates]
+    stacks = [stack(T, layers; date=d, window, crs, mappedcrs, resize) for d in dates]
     GeoSeries(stacks, timedim; kw...)
 end
 

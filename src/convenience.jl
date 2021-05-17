@@ -55,7 +55,7 @@ Passed to the constructor for the file type, and commmonly include:
 
 ```julia
 files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
-stack = stack(files; child_kwargs=(mappedcrs=EPSG(4326),))
+stack = stack(files; mappedcrs=EPSG(4326))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
 """

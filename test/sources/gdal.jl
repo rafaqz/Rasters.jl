@@ -327,7 +327,7 @@ end
 end
 
 @testset "series" begin
-    gdalser = series([path, path], (Ti(),); childkwargs=(mappedcrs=EPSG(4326), name=:test))
+    gdalser = series([path, path], (Ti(),); mappedcrs=EPSG(4326), name=:test)
     @test read(gdalser[Ti(1)]) == read(geoarray(path; mappedcrs=EPSG(4326), name=:test))
 
     gdalstack = stack((a=path, b=path); mappedcrs=EPSG(4326))

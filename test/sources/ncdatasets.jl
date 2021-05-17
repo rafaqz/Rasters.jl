@@ -214,7 +214,7 @@ end
         @test dims(ncstack[:abso4]) == dims(ncstack, (X, Y, Ti)) 
         @test refdims(ncstack) == ()
         # Loads child as a regular GeoArray
-        @test_throws NCDatasets.NetCDFError ncstack[:not_a_key]
+        @test_throws ErrorException ncstack[:not_a_key]
         @test ncstack[:albedo] isa GeoArray{<:Any,3}
         @test ncstack[:albedo, 2, 3, 1] isa Float32
         @test ncstack[:albedo, :, 3, 1] isa GeoArray{<:Any,1}
@@ -240,6 +240,7 @@ end
         @test st isa GeoStack
         @test st.data isa NamedTuple
         @test first(st.data) isa Array
+        GeoStack(st...)
     end
 
     if VERSION > v"1.1-"

@@ -66,7 +66,8 @@ if isfile(path1) && isfile(path2)
             @test typeof(mode(smaparray)) == typeof(modes)
             @test bounds(smaparray) == ((-180.0f0, 180.0f0), (-85.04456f0, 85.04456f0))
         end
-@testset "other fields" begin @test missingval(smaparray) == -9999.0
+
+        @testset "other fields" begin @test missingval(smaparray) == -9999.0
             @test metadata(smaparray) isa Metadata{SMAPfile}
             @test name(smaparray) == :baseflow_flux
         end
@@ -84,8 +85,10 @@ if isfile(path1) && isfile(path2)
         end
 
         @testset "selectors" begin
-            a = smaparray[Lon(Near(21.0)), Lat(Between(50, 52))]
-            @test_broken bounds(a) == ((50.0, 52.0),)
+            a = smaparray[X(Near(21.0)), Y(Between(50, 52))]
+            index(smaparray, Y)
+            indexorder(smaparray, Y)
+            @test_broken bounds(a) == ((50.08451f0, -51.977905f0),)
             x = smaparray[Lon(Near(150)), Lat(Near(30))]
             @test x isa Float32
             dimz = Lon(Between(-180.0, 180)), Lat(Between(-90, 90)) 
@@ -105,62 +108,55 @@ if isfile(path1) && isfile(path2)
             @test name(geoA) == :baseflow_flux
         end
 
-        # @testset "save" begin
-        #     @testset "to grd" begin
-        #         # TODO save and load subset
-        #         geoA = read(smaparray)
-        #         metadata(geoA)
-        #         @test size(geoA) == size(smaparray)
-        #         filename = tempname() * ".grd"
-        #         write(filename, geoA)
-        #         saved = read(geoarray(filename))
-        #         @test size(saved) == size(geoA)
-        #         @test refdims(saved) == refdims(geoA)
-        #         @test missingval(saved) === missingval(geoA)
-        #         @test map(metadata.(dims(saved)), metadata.(dims(geoarray))) do s, g
-        #             all(s .== g)
-        #         end |> all
-        #         @test_broken metadata(saved) == metadata(geoA)
-        #         @test_broken all(metadata.(dims(saved)) .== metadata.(dims(geoA)))
-        #         @test GeoData.name(saved) == GeoData.name(geoA)
-        #         @test all(mode.(dims(saved)) .!= mode.(dims(geoA)))
-        #         @test all(order.(dims(saved)) .== order.(dims(geoA)))
-        #         @test all(typeof.(span.(dims(saved))) .== typeof.(span.(dims(geoA))))
-        #         @test all(val.(span.(dims(saved))) .== val.(span.(dims(geoA))))
-        #         @test all(sampling.(dims(saved)) .== sampling.(dims(geoA)))
-        #         @test typeof(dims(saved)) <: typeof(dims(geoA))
-        #         @test val(dims(saved)[3]) == val(dims(geoA)[3])
-        #         @test all(val.(dims(saved)) .== val.(dims(geoA)))
-        #         @test all(data(saved) .=== data(geoA))
-        #         @test saved isa typeof(geoA)
-        #         # TODO test crs
-        #     endgrd
-        #     @testset "to gdal" begin
-        #         gdalfilename = tempname() * ".tif"
-        #         nccleaned = replace_missing(smaparray[Ti(1)], -9999.0)
-        #         write(gdalfilename, nccleaned)
-        #         gdalarray = geoarray(gdalfilename)
-        #         # gdalarray WKT is missing one AUTHORITY
-        #         # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
-        #         # But the Proj representation is the same
-        #         @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
-        #         @test bounds(gdalarray) == (bounds(nccleaned)..., (1, 1))
-        #         # Tiff locus = Start, Netcdf locus = Center
-        #         @test reverse(val(dims(gdalarray, Y))) .+ 0.5 ≈ val(dims(nccleaned, Y))
-        #         @test val(dims(gdalarray, X)) .+ 1.0  ≈ val(dims(nccleaned, X))
-        #         @test reverse(GeoArray(gdalarray); dims=Y()) ≈ nccleaned
-        #     end
-        #     @testset "to netcdf" begin
-        #         nccleaned = replace_missing(smaparray[Ti(1)], -9999.0)
-        #         write("testgrd.gri", nccleaned)
-        #         smaparray = geoarray("testgrd.gri");
-        #         @test crs(smaparray) == convert(ProjString, EPSG(4326))
-        #         @test bounds(smaparray) == (bounds(nccleaned)..., (1, 1))
-        #         @test val(dims(smaparray, Y)) ≈ val(dims(nccleaned, Y)) .- 0.5
-        #         @test val(dims(smaparray, X)) ≈ val(dims(nccleaned, X)) .- 1.0
-        #         @test GeoArray(smaparray) ≈ reverse(nccleaned; dims=Y)
-        #     end
-        # end
+        @testset "save" begin
+            @testset "to grd" begin
+                # TODO save and load subset
+                geoA = read(smaparray)
+                @test size(geoA) == size(smaparray)
+                filename = tempname() * ".grd"
+                write(filename, geoA)
+                saved = read(geoarray(filename)[Band(1)])
+                @test size(saved) == size(geoA)
+                @test missingval(saved) === missingval(geoA)
+                @test map(metadata.(dims(saved)), metadata.(dims(geoarray))) do s, g
+                    all(s .== g)
+                end |> all
+                @test_broken metadata(saved) == metadata(geoA)
+                @test_broken all(metadata.(dims(saved)) .== metadata.(dims(geoA)))
+                @test GeoData.name(saved) == GeoData.name(geoA)
+                @test all(mode.(dims(saved)) .!= mode.(dims(geoA)))
+                # @test all(order.(dims(saved)) .== order.(dims(geoA)))
+                # @test all(typeof.(span.(dims(saved))) .== typeof.(span.(dims(geoA))))
+                # @test all(val.(span.(dims(saved))) .== val.(span.(dims(geoA))))
+                # @test all(sampling.(dims(saved)) .== sampling.(dims(geoA)))
+                # @test typeof(dims(saved)) <: typeof(dims(geoA))
+                # @test val(dims(saved)[2]) == val(dims(geoA)[2])
+                # @test all(val.(dims(saved)) .== val.(dims(geoA)))
+                # @test all(data(saved) .=== data(geoA))
+                # @test saved isa typeof(geoA)
+                # TODO test crs
+            end
+            @testset "to gdal" begin
+                gdalfilename = tempname() * ".tif"
+                write(gdalfilename, smaparray)
+                gdalarray = geoarray(gdalfilename; mappedcrs=EPSG(4326))
+                # These come out with slightly different format
+                # @test rs(gdalarray) == crs(smaparray)
+                @test_broken mappedbounds(gdalarray) == (bounds(smaparray)..., (1, 1))
+                # Tiff locus = Start, Netcdf locus = Center
+                @test Float32.(mappedindex(gdalarray, Y)) ≈ index(smaparray, Y)
+                @test mappedindex(gdalarray, X) ≈ mappedindex(smaparray, X)
+                @test all(gdalarray .== smaparray)
+            end
+            @testset "to netcdf" begin
+                ncdfilename = tempname() * ".nc"
+                write(ncdfilename, smaparray)
+                saved = geoarray(ncdfilename)
+                @test_broken bounds(saved) == bounds(smaparray)
+                @test index(saved, Y) == reverse(index(smaparray, Y))
+                @test index(saved, X) == index(smaparray, X)
+            end
+        end
 
         @testset "show" begin
             sh = sprint(show, MIME("text/plain"), smaparray)

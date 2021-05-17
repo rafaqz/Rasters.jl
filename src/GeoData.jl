@@ -40,7 +40,8 @@ export Projected, Mapped
 export Band, Lat, Lon, Vert, GeoXDim, GeoYDim, GeoZDim
 
 export missingval, boolmask, missingmask, replace_missing,
-       aggregate, aggregate!, disaggregate, disaggregate!
+       aggregate, aggregate!, disaggregate, disaggregate!,
+       crop, extend
 
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 

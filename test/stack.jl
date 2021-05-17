@@ -29,11 +29,13 @@ st = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
     @test haskey(st, :ga1)
     @test names(st) == (:ga1, :ga2)
     @test collect(values(st)) == [ga1, ga2]
+    # We can iterate/splat stacks as GeArrays
+    @test st === GeoStack(st...)
 end
 
 @testset "st fields " begin
     @test DimensionalData.layerdims(st, :ga1) == DimensionalData.formatdims(data1, dims1)
-    @test window(st) == ()
+    @test window(st) == nothing
     @test metadata(st) == NoMetadata()
     @test metadata(st, :ga1) == NoMetadata()
 end
