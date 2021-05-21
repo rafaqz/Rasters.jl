@@ -25,12 +25,12 @@ Base.size(A::FileArray) = A.size
 DiskArrays.haschunks(A::FileArray) = _haschunks(chunks(A))
 
 _haschunks(::Nothing) = DiskArrays.Unchunked()
-_haschunks(x) = DiskArrays.Unchunked()
+_haschunks(x) = DiskArrays.Chunked()
 
 DiskArrays.readblock!(A::FileArray, dst, r::AbstractUnitRange...) = 
     open(o -> dst .= o[r...], A)
 DiskArrays.writeblock!(A::FileArray, src, r::AbstractUnitRange...) = 
-    open(o -> o[r...] = src, A)
+    open(o -> o[r...] .= src, A)
 
 Base.open(f::Function, A::FileArray; kw...) = open(f, A; key=key(A), kw...)
 

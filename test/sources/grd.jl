@@ -275,13 +275,11 @@ end
         sh = sprint(show, MIME("text/plain"), grdstack)
         # Test but don't lock this down too much
         @test occursin("GeoStack", sh)
-        @test_broken occursin("FileArray", sh)
         @test occursin("Y", sh)
         @test occursin("X", sh)
         @test occursin("Band", sh)
         @test occursin(":a", sh)
         @test occursin(":b", sh)
-        @test_broken occursin("logo.gri", sh)
     end
 
 end

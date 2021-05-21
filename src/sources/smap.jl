@@ -222,8 +222,8 @@ end
 
 Base.size(x::HDF5DiskArray{T, N}) where {T, N} = size(x.ds)::NTuple{N, Int}
 
-DiskArrays.haschunks(x::HDF5DiskArray{<:Any, <:Any, Nothing}) = Chunked()
-DiskArrays.haschunks(x::HDF5DiskArray) = Unchunked()
+DiskArrays.haschunks(x::HDF5DiskArray{<:Any,<:Any,Nothing}) = Unhunked()
+DiskArrays.haschunks(x::HDF5DiskArray) = Chunked()
 
 DiskArrays.eachchunk(x::HDF5DiskArray{<:Any, <:Any, <:DiskArrays.GridChunks}) = x.cs
 

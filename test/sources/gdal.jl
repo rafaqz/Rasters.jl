@@ -15,7 +15,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         cp(path, tempfile)
         gdalwritearray = geoarray(tempfile)
         open(gdalwritearray; write=true) do A
-            copy!(A, A .* UInt8(2)) # Broadcast setindex! is broken in ArchGDAL
+            A .*= UInt8(2)
             nothing
         end
         @test all(read(geoarray(tempfile)) .== read(gdalarray) .* UInt8(2))

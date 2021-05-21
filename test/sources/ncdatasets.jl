@@ -303,7 +303,7 @@ end
     end
 
     @testset "show" begin
-        ncstack = stack(ncmulti; window=(X(7:99), Y(3:97)))
+        ncstack = stack(ncmulti; window=(X(7:99), Y(3:90)));
         sh = sprint(show, MIME("text/plain"), ncstack)
         # Test but don't lock this down too much
         @test occursin("GeoStack", sh)
@@ -316,7 +316,7 @@ end
         @test occursin("test_echam_spectral.nc", sh)
         @test occursin("window", sh)
         @test occursin("7:99", sh)
-        @test occursin("3:97", sh)
+        @test occursin("3:90", sh)
     end
 
 end

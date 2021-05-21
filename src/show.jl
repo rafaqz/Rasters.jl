@@ -2,7 +2,9 @@
 function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractGeoArray)
     if parent(A) isa AbstractDiskArray 
         if parent(A) isa FileArray 
-            print(io, "\nLazy loading from file:\n$(filename(parent(A)))")
+            printstyled(io, "\nLazy loading from file:\n$(filename(parent(A)))"; 
+                color=:light_black
+            )
         end
     else
         DD.show_array(io, mime, parent(A))
@@ -12,7 +14,8 @@ end
 function DD.show_after(io, mime, stack::AbstractGeoStack) 
     if data(stack) isa FileStack 
         if filename(stack) isa AbstractString
-            println(io, "\nFrom file:\n" * filename(stack))
+            printstyled(io, "\nFrom file:\n"; color=:light_black)
+            println(io, filename(stack))
         else
             for (key, fn) in pairs(filename(stack))
                 print(io, "\n ")
@@ -23,11 +26,11 @@ function DD.show_after(io, mime, stack::AbstractGeoStack)
     end
 
     if !(window(stack) isa Nothing)
-        print(io, "with window:\n")
-        for dim in window(stack)
+        printstyled(io, "with window:\n"; color=:light_black)
+        for (i, dim) in enumerate(window(stack))
             print(io, ' ')
             show(IOContext(io, :compact=>true), mime, dim)
-            print(io, '\n')
+            i != length(window(stack)) && print(io, ',')
         end
     end
 end

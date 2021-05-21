@@ -180,5 +180,3 @@ filekey(ds, key) = key
 filename(A::GeoArray) = filename(data(A))
 
 DiskArrays.eachchunk(A::AbstractGeoArray) = DiskArrays.eachchunk(data(A))
-
-chunks(A) = size(A)
