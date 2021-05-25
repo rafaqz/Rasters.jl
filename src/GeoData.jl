@@ -8,6 +8,7 @@ module GeoData
 end GeoData
 
 using Adapt,
+      ConstructionBase,
       Dates,
       DiskArrays,
       Missings,
@@ -16,6 +17,9 @@ using Adapt,
       RecipesBase,
       Reexport,
       Requires
+
+import Flatten, Setfield
+
 
 using HDF5
 import NCDatasets
@@ -29,6 +33,9 @@ using Base: tail, @propagate_inbounds
 
 using DimensionalData: StandardIndices
 
+using Setfield: @set, @set!
+
+
 export AbstractGeoArray, GeoArray
 
 export AbstractGeoStack, GeoStack
@@ -41,7 +48,7 @@ export Band, Lat, Lon, Vert, GeoXDim, GeoYDim, GeoZDim
 
 export missingval, boolmask, missingmask, replace_missing,
        aggregate, aggregate!, disaggregate, disaggregate!,
-       crop, extend
+       crop, extend, slice
 
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 

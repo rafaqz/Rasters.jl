@@ -2,9 +2,8 @@
 function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractGeoArray)
     if parent(A) isa AbstractDiskArray 
         if parent(A) isa FileArray 
-            printstyled(io, "\nLazy loading from file:\n$(filename(parent(A)))"; 
-                color=:light_black
-            )
+            printstyled(io, "\nfrom file:\n"; color=:light_black)
+            print(io, filename(parent(A)))
         end
     else
         DD.show_array(io, mime, parent(A))
@@ -12,48 +11,36 @@ function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractGeoArray)
 end
 
 function DD.show_after(io, mime, stack::AbstractGeoStack) 
-    if data(stack) isa FileStack 
-        if filename(stack) isa AbstractString
-            printstyled(io, "\nFrom file:\n"; color=:light_black)
-            println(io, filename(stack))
-        else
-            for (key, fn) in pairs(filename(stack))
-                print(io, "\n ")
-                printstyled(io, " :$key", color=:yellow)
-                print(io, " = ", fn)
-            end
-        end
-    end
-
     if !(window(stack) isa Nothing)
-        printstyled(io, "with window:\n"; color=:light_black)
+        printstyled(io, "\nwith window:\n"; color=:light_black)
         for (i, dim) in enumerate(window(stack))
             print(io, ' ')
             show(IOContext(io, :compact=>true), mime, dim)
             i != length(window(stack)) && print(io, ',')
         end
     end
+    if data(stack) isa FileStack 
+        printstyled(io, "\nfrom file:\n"; color=:light_black)
+        println(io, filename(stack))
+    end
 end
 
 # Stack types can be enourmous. Just use nameof(T)
-function Base.summary(io::IO, A::AbstractGeoSeries{T,N}) where {T,N}
+function Base.summary(io::IO, ser::AbstractGeoSeries{T,N}) where {T,N}
     if N == 0  
         print(io, "0-dimensional ")
     elseif N == 1
-        print(io, size(A, 1), "-element ")
+        print(io, size(ser, 1), "-element ")
     else
-        print(io, join(size(A), "×"), " ")
+        print(io, join(size(ser), "×"), " ")
     end
-    printstyled(io, string(nameof(typeof(A)), "{$(nameof(T)),$N}"); color=:blue)
+    printstyled(io, string(nameof(typeof(ser)), "{$(nameof(T)),$N}"); color=:blue)
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", A::AbstractGeoSeries{T,N}) where {T,N}
-    lines = _print_array_info(io, mime, A)
+function Base.show(io::IO, mime::MIME"text/plain", ser::AbstractGeoSeries{T,N}) where {T,N}
+    lines = _print_array_info(io, mime, ser)
     ds = displaysize(io)
     ioctx = IOContext(io, :displaysize => (ds[1] - lines, ds[2]))
-    if T <: AbstractString
-        DD.show_array(ioctx, mime, parent(A))
-    end
 end
 
 function Base.show(io::IO, mime::MIME"text/plain", mode::AbstractProjected)
@@ -64,8 +51,12 @@ function Base.show(io::IO, mime::MIME"text/plain", mode::AbstractProjected)
     DD._printspan(io, mode)
     print(io, " ")
     DD._printsampling(io, mode)
-    print(io, " crs: ", nameof(typeof(crs(mode))))
-    print(io, " mappedcrs: ", nameof(typeof(mappedcrs(mode))))
+    if !(crs(mode) isa Nothing)
+        print(io, " crs: ", nameof(typeof(crs(mode))))
+    end
+    if !(mappedcrs(mode) isa Nothing)
+        print(io, " mappedcrs: ", nameof(typeof(mappedcrs(mode))))
+    end
 end
 
 function _print_array_info(io, mime, A)

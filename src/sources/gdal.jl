@@ -27,10 +27,6 @@ end
 
 cleanreturn(A::AG.RasterDataset) = Array(A)
 
-function Base.open(f::Function, A::FileArray{GDALfile}; kw...)
-    _read(f, GDALfile, filename(A); kw...)
-end
-
 # AbstractGeoArray methods
 
 """

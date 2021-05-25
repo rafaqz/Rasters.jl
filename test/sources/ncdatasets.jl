@@ -207,6 +207,17 @@ end
 @testset "Single file stack" begin
     ncstack = stack(ncmulti)
 
+    # cp(ncmulti, "multi2.nc")
+    # ncstack2 = stack("multi2.nc")
+    # ncstack[:albedo] |> read
+    # ncstack2[:albedo] |> read
+    # slices = slice(ncstack, Ti)
+    # map(slices) do slice
+        # open(slice[:albedo]; write=true) do o
+            # o .*= 2
+        # end
+    # end
+
     @testset "load ncstack" begin
         @test ncstack isa GeoStack
         @test ismissing(missingval(ncstack))

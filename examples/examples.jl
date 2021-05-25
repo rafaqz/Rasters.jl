@@ -7,8 +7,7 @@ geturl(url, filename=splitdir(url)[2]) = begin
 end
 
 # Load some layers from NetCDF #############################################
-
-ncurl = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc"
+ncurl = "https://www.unidata.ucar.edu/sojjjtware/netcdf/examples/tos_O1_2001-2002.nc"
 ncfilename = geturl(ncurl, "tos_O1_2001-2002.nc")
 ncstack = stack(ncfilename)
 
@@ -17,6 +16,7 @@ A = ncstack[:tos]
 
 # Plot the 1st, 4th, 7th and 10th months 
 A[Ti(1:3:12)] |> plot
+dims(A, Ti)
 savefig("tos_4.png")
 
 # Plot the Australia region

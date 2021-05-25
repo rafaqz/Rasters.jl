@@ -1,5 +1,4 @@
 using GeoData, Test, Dates
-using GeoData: child
 
 # GeoSeries from GeoArray/GeoStack components
 
@@ -27,7 +26,6 @@ series = GeoSeries([stack1, stack2], (Ti(dates),))
 end
 
 @testset "properties" begin
-    @test child(series) === nothing
     @test refdims(series) === ()
     # Should these be real fields? what is the use-case?  @test metadata(series) === nothing @test name(series) === ""
     @test label(series) === ""

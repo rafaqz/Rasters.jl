@@ -154,6 +154,8 @@ aggregate
 aggregate!
 disaggregate
 disaggregate!
+crop
+extend
 convertmode
 reproject
 ```

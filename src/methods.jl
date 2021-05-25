@@ -133,6 +133,31 @@ function extend(A::AbstractGeoArray, newdims::Tuple)
     newA
 end
 
+"""
+    slice(A::Union{AbstractGeoArray,AbstractGeoStack,AbstracGeoSeries}, dims)
+
+Slice an object allong some dimension(s), lazily using `view`. For a single `GeoArray` 
+or `GeoStack` this will return a `GeoSeries` of `GeoArray` or `GeoStack` that are slices 
+along the specified dimensions. For a `GeoSeries`, the output is another series where
+the child objects are sliced and the series dimensions index is now of the child 
+dimensions combined. `slice` on a `GeoSeries` with no dimensions will slice along
+the dimensions shared by both the series and child object.
+"""
+slice(x::Union{AbstractGeoArray,AbstractGeoStack}, dims) = slice(x, (dims,))
+function slice(x::Union{AbstractGeoArray,AbstractGeoStack}, dims::Tuple)
+    all(hasdim(x, dims)) || _errordimsnotfound(otherdims(dims, DD.dims(x)))
+    seriesdims = DD.dims(x, dims)
+    seriesdata = map(DD.dimwise_generators(seriesdims)) do ds
+        view(x, ds...)
+    end
+    GeoSeries(seriesdata, seriesdims)
+end
+slice(ser::AbstractGeoSeries, dims) = cat(map(x -> slice(x, dims), ser)...; dims=dims)
+
+@noinline _errordimsnotfound(dims) = 
+    throw(ArgumentError("$(map(DD.dim2key, dims)) were dims not found in $(nameof(typeof(x)))"))
+@noinline _errordimsnotfound(dims::Tuple{<:Any}) = 
+    throw(ArgumentError("$(DD.dim2key(dims[1])) was dim not found in $(nameof(typeof(x)))"))
 
 # Get the bounds wrapped in Dim(Between)
 dimbounds(A::AbstractDimArray) = dimbounds(bounds, A)

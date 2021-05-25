@@ -1,6 +1,7 @@
 using GeoData, Test, Statistics, Dates, Plots, DimensionalData, RasterDataSources, DiskArrays
 import ArchGDAL, NCDatasets
 using GeoData: window, mode, span, sampling, name, bounds, FileArray, GDALfile
+using DimensionalData: modify
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
@@ -256,6 +257,7 @@ end
         @test gdalstack[:a][Y(1), X(1), Band(1)] == 0x00
         @test gdalstack[:b, Band(1)] == gdalstack[:b][Band(1)]
         @test typeof(gdalstack[:b, Band(1)]) == typeof(gdalstack[:b][Band(1)])
+        @test view(gdalstack, Y(2:3), X(1), Band(1))[:a] == [0x00, 0x6b]
     end
 
     @testset "window" begin

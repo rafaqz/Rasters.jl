@@ -4,7 +4,7 @@
 
 Used internally to expose open disk files inside a `do` block
 """
-struct OpenGeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray,Na<:Symbol,Me,Mi} <: AbstractGeoArray{T,N,D,A}
+struct OpenGeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na<:Symbol,Me,Mi} <: AbstractGeoArray{T,N,D,A}
     data::A
     dims::D
     refdims::R
@@ -12,22 +12,19 @@ struct OpenGeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray,Na<:Symbol,Me,Mi} <: 
     metadata::Me
     missingval::Mi
 end
-function OpenGeoArray(A, dims, refdims, name, metadata, missingval)
-    OpenGeoArray{eltype(A),ndims(A),map(typeof,(dims,refdims,A,name,metadata,missingval))...}(
-        A, dims, refdims, name, metadata, missingval
-    )
-end
 function OpenGeoArray(f::Function, A::AbstractGeoArray{T,N}; kw...) where {T,N}
-    x = _maybeopen(data(A); kw...) do source
-        OA = OpenGeoArray(source, dims(A), refdims(A), name(A), metadata(A), missingval(A))
-        f(OA)
+    # Open FileArray to expose the actual dataset object, even inside nested wrappers
+    fa = Flatten.flatten(data(A), FileArray)
+    if fa == ()
+        f(OpenGeoArray(data(A), dims(A), refdims(A), name(A), metadata(A), missingval(A)))
+    else
+        open(fa[1]; kw...) do x
+            # Rewrap the opened object where the FileArray was
+            d = Flatten.reconstruct(data(A), (x,), FileArray) 
+            f(OpenGeoArray(d, dims(A), refdims(A), name(A), metadata(A), missingval(A)))
+        end
     end
 end
-
-_maybeopen(f, A::AbstractDiskArray; kw...) = open(f, A; kw...)
-_maybeopen(f, A; kw...) = f(A)
-
-
 
 """
     open(f, A::AbstractGeoArray)

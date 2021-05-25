@@ -74,25 +74,6 @@ path = stem * ".gri"
         @test grdarray[Y(Contains(60)), X(Contains(20)), Band(1)] == 255.0f0
     end
 
-    # @testset "setindex" begin
-    #     A = grdarray[:, :, :]
-    #     temp = grdarray[1, 1, 1]
-    #     println(temp)
-    #     @test temp != 100.0f0
-    #     grdarray[1, 1, 1] = 100.0f0
-    #     grdarray[:, :, :] = 100.0f0
-    #     @test grdarray[1, 1, 1] == 100.0f0
-    #     grdarray[1, 1, 1] = temp
-    #     @test grdarray[1, 1, 1] == temp
-    #     println("sum: ", sum(A .- grdarray[:, :, :]))
-    #     temp = grdarray[X(20), Y(10), Band(3)]
-    #     println(temp)
-    #     @test temp != 200.0f0
-    #     grdarray[X(20), Y(10), Band(3)] = 200.0f0
-    #     @test grdarray[20, 10, 3] == 200.0f0
-    #     grdarray[X(20), Y(10), Band(3)] = temp
-    # end
-
     @testset "selectors" begin
         geoA = grdarray[Y(Contains(3)), X(:), Band(1)]
         @test geoA isa GeoArray{Float32,1}

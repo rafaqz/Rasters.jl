@@ -121,7 +121,7 @@ function FileArray(grd::GRDattrib, filename=filename(grd); kw...)
     size_ = size(grd)
     T = eltype(grd)
     N = length(size_)
-    FileArray{:GRD,T,N}(filename, size_; kw...)
+    FileArray{GRDfile,T,N}(filename, size_; kw...)
 end
 
 # Base methods
@@ -205,7 +205,7 @@ end
 
 @deprecate GRDstack(args...; kw...) GeoStack(args...; source=GRDfile, kw...)
 
-Base.open(f::Function, A::FileArray{:GRD}, key...; write=false) = _mmapgrd(f, A; write)
+Base.open(f::Function, A::FileArray{GRDfile}, key...; write=A.write) = _mmapgrd(f, A; write)
 
 _read(f, ::Type{GRDfile}, filename; key=nothing, write=false) = f(GRDattrib(filename; write))
 

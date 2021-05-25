@@ -31,7 +31,7 @@ _singlemissingval(mvs::NamedTuple, key) = mvs[key]
 _singlemissingval(mv, key) = mv
 
 # Always read a stack before loading it as a table.
-DD.DimTable(stack::AbstractGeoStack) = invoke(DD.DimTable, Tuple{DimStack}, read(stack))
+DD.DimTable(stack::AbstractGeoStack) = invoke(DD.DimTable, Tuple{AbstractDimStack}, read(stack))
 
 # Base methods #################################################################
 
@@ -71,9 +71,9 @@ end
     s[key][i1, I...]
 end
 
-# @propagate_inbounds function Base.view(s::AbstractGeoStack, I...)
-#     rebuild(s; data=NamedTuple{keys(s)}(view(a, I...) for a in values(s)))
-# end
+@propagate_inbounds function Base.view(s::AbstractGeoStack, I...)
+    rebuild(s; window=window(s) isa Nothing ? I : Base.reindex(window(s), I))
+end
 
 # Concrete AbstrackGeoStack implementation #################################################
 
@@ -158,6 +158,7 @@ end
 # Single-file stack from a string
 function GeoStack(filename::AbstractString;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing, 
+    layerdims=nothing, layermetadata=nothing, layermissingval=nothing,
     source=_sourcetype(filename), keys=nothing, window=nothing
 )
     crs = defaultcrs(source, crs)
@@ -165,10 +166,10 @@ function GeoStack(filename::AbstractString;
     data, field_kw = _read(filename) do ds
         dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
         refdims = refdims == () || refdims isa Nothing ? DD.refdims(ds, filename) : refdims
-        layerdims = DD.layerdims(ds)
+        layerdims = layerdims isa Nothing ? DD.layerdims(ds) : layerdims
         metadata = metadata isa Nothing ? DD.metadata(ds) : metadata
-        layermetadata = DD.layermetadata(ds)
-        layermissingval = GeoData.layermissingval(ds)
+        layermetadata = layermetadata isa Nothing ? DD.layermetadata(ds) : layermetadata
+        layermissingval = layermissingval isa Nothing ? GeoData.layermissingval(ds) : layermissingval
         data = FileStack{source}(ds, filename; keys)
         data, (; dims, refdims, layerdims, metadata, layermetadata, layermissingval)
     end

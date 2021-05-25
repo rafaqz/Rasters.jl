@@ -46,13 +46,15 @@ end
 
 function FileArray(var::NCD.CFVariable, filename::AbstractString; kw...)
     size_ = size(var)
+    chunkmode, chunkvec = NCDatasets.chunking(var)
+    chunks = if chunkmode == :chunked
+        Tuple(chunkvec)
+    else
+        nothing
+    end
     T = eltype(var)
     N = length(size_)
-    FileArray{NCDfile,T,N}(filename, size_; kw...)
-end
-
-function Base.open(f::Function, A::FileArray{NCDfile}; kw...)
-    x = _read(ds -> f(ds), NCDfile, filename(A); key=key(A), kw...)
+    FileArray{NCDfile,T,N}(filename, size_; chunks, kw...)
 end
 
 """
@@ -350,7 +352,8 @@ function _ncdwritevar!(ds, A::AbstractGeoArray{T,N}) where {T,N}
         NCD.defVar(ds, dimkey, Vector(index(dim)), (dimkey,); attrib=attribvec)
     end
     # TODO actually convert the metadata types
-    attrib = if metadata isa Metadata{:NCD} _stringdict(metadata(A))
+    attrib = if metadata isa Metadata{:NCD} 
+        _stringdict(metadata(A))
     else
         Dict()
     end
@@ -365,7 +368,7 @@ function _ncdwritevar!(ds, A::AbstractGeoArray{T,N}) where {T,N}
     elseif missingval(A) isa T
         attrib["_FillValue"] = missingval(A)
     else
-        @warn "`missingval` $(missingval(A)) is not the same type as your data $T."
+        missingval isa Nothing || @warn "`missingval` $(missingval(A)) is not the same type as your data $T."
     end
 
     key = if string(name(A)) == ""
@@ -404,3 +407,25 @@ function _ncdshiftlocus(mode::AbstractSampled, dim::Dimension)
 end
 
 _unuseddimerror(dimname) = error("Netcdf contains unused dimension $dimname")
+
+
+# NCDatasets doesn't have a DiskArrays interface yet
+struct NCDiskArray{T,N,V<:AbstractArray{T,N},C} <: AbstractDiskArray{T,N}
+    var::V
+    cs::C
+end
+
+Base.parent(A::NCDiskArray) = A.var
+Base.size(A::NCDiskArray{T,N}) where {T,N} = size(parent(A))::NTuple{N,Int}
+
+function Base.open(f::Function, A::FileArray{NCDfile}; write=A.write, kw...)
+    _read(NCDfile, filename(A); key=key(A), write, kw...) do var
+        f(NCDiskArray(var, chunks(A)))
+    end
+end
+
+DiskArrays.haschunks(A::NCDiskArray{<:Any,<:Any,<:Any,Nothing}) = Unhunked()
+DiskArrays.haschunks(A::NCDiskArray) = Chunked()
+DiskArrays.eachchunk(A::NCDiskArray) = DiskArrays.GridChunks(A, chunks(A))
+DiskArrays.readblock!(A::NCDiskArray, aout, r::AbstractUnitRange...) = aout .= parent(A)[r...]
+DiskArrays.writeblock!(A::NCDiskArray, v, r::AbstractUnitRange...) = parent(A)[r...] .= v

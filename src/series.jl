@@ -20,13 +20,9 @@ and holds a `kwargs` `NamedTuple` that will be splatted into to the keyword argu
 of the `child` constructor. This gives control over the construction of lazy-loaded
 files.
 """
-abstract type AbstractGeoSeries{T,N,D,A,C} <: AbstractDimensionalArray{T,N,D,A} end
+abstract type AbstractGeoSeries{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
 
 # Interface methods ####################################################
-
-window(A::AbstractGeoSeries) = A.window
-child(A::AbstractGeoSeries) = A.child
-childkw(A::AbstractGeoSeries) = A.childkw
 
 DD.metadata(A::AbstractGeoSeries) = nothing
 DD.name(A::AbstractGeoSeries) = NoName()
@@ -48,34 +44,7 @@ This is useful for swapping out array backend for an
 entire series to `CuArray` from CUDA.jl to copy data to a GPU,
 and potentially other types like `DAarray` from Distributed.jl.
 """
-DD.modify(f, A::AbstractGeoSeries) = rebuild(A, map(child -> modify(f, child), values(A)))
-
-Base.values(A::AbstractGeoSeries) = [A[I] for I in CartesianIndices(A)]
-
-# Array interface methods ##############################################
-# Mostly these inherit from AbstractDimensionalArray
-
-@propagate_inbounds function Base.getindex(
-    A::AbstractGeoSeries{<:AbstractString}, I::CartesianIndex
-)
-    x = child(A)(data(A)[I]; refdims=DD.slicedims(A, Tuple(I))[2], A.childkw...)
-    _maybeview(x, window(A))
-end
-@propagate_inbounds function Base.getindex(
-    A::AbstractGeoSeries{<:AbstractString}, I::Integer...
-)
-    x = child(A)(data(A)[I...]; refdims=DD.slicedims(A, I)[2], A.childkw...)
-    _maybeview(x, window(A))
-end
-@propagate_inbounds function Base.getindex(
-    A::AbstractGeoSeries{<:Union{<:AbstractGeoArray,<:AbstractGeoStack}}, I::Integer...
-)
-    _maybeview(data(A)[I...], window(A))
-end
-
-_maybeview(A, window::Nothing) = A
-_maybeview(A, window) = view(A, window...)
-
+DD.modify(f, A::AbstractGeoSeries) = map(child -> modify(f, child), values(A))
 
 """
     GeoSeries <: AbstractGeoSeries
@@ -89,43 +58,67 @@ Series hold paths to array or stack files, along some dimension(s).
 
 # Keywords
 
+- `dims` known dimensions. These are usually read from the first file in the series
+    and are assumed to be _the same for all stacks/arrays in the series_.
 - `refdims`: existing reference dimension/s 
 - `child`: constructor of child objects - `geoarray` or `stack`
 """
-struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N},W,C,K} <: AbstractGeoSeries{T,N,D,A,C}
+struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N}} <: AbstractGeoSeries{T,N,D,A}
     data::A
     dims::D
     refdims::R
-    window::W
-    child::C
-    childkw::K
 end
 function GeoSeries(
-    data::Array{T}, dims; refdims=(), window=nothing, child=nothing, kw...
+    data::Array{T}, dims; refdims=(), child=nothing, window=nothing
 ) where T<:Union{<:AbstractGeoStack,<:AbstractGeoArray}
-    childkw = (; kw...)
-    GeoSeries(data, DD.formatdims(data, dims), refdims, window, child, childkw)
+    ser=  GeoSeries(data, DD.formatdims(data, dims), refdims)
+    if window isa Nothing
+        ser
+    else
+        map(x -> view(x, window...), ser)
+    end
 end
-function GeoSeries(data, dims; refdims=(), window=nothing, child, kw...)
-    childkw = (; kw...)
-    GeoSeries(data, DD.formatdims(data, dims), refdims, window, child, childkw)
+function GeoSeries(
+    data::Array{T}, dims; refdims=(), child=geoarray, kw...
+) where T<:Union{<:AbstractString}
+    source = _sourcetype(first(data))
+    # Load the firs child
+    child1 = child(first(data); source, refdims, kw...)
+    if child == geoarray
+        # We assume all dims, metadata and missingvals are the same
+        childdims = DD.dims(child1)
+        metadata = DD.metadata(child1)
+        missingval = GeoData.missingval(child1)
+        data = map(data) do x
+            child(x; 
+                dims=childdims, source, metadata, missingval, name=name(child1), kw...
+            )
+        end
+    else
+        # We assume all dims, metadata and missingvals are the same
+        childdims = DD.dims(child1)
+        metadata = DD.metadata(child1)
+        layerdims = DD.layerdims(child1)
+        layermetadata = DD.layermetadata(child1)
+        layermissingval = GeoData.layermissingval(child1)
+        data = map(data) do x
+            child(x; 
+                dims=childdims, source, metadata, layerdims, layermetadata, 
+                layermissingval, keys=keys(child1), kw...
+            )
+        end
+    end
+    GeoSeries(data, DD.formatdims(data, dims), refdims)
 end
-
 
 @inline function DD.rebuild(
-    A::GeoSeries, data, dims::Tuple, refdims=(), name=nothing, 
-    window=window(A), child=child(A), childkw=childkw(A)
+    A::GeoSeries, data, dims::Tuple, refdims=(), name=nothing, metadata=nothing,
 )
-    GeoSeries(data, dims, refdims, window, child, childkw)
+    GeoSeries(data, dims, refdims)
 end
 @inline function DD.rebuild(
     A::GeoSeries; 
-    data=data(A), dims=dims(A), refdims=refdims(A), name=nothing, 
-    window=window(A), child=child(A), childkw=childkw(A)
+    data=data(A), dims=dims(A), refdims=refdims(A), name=nothing, metadata=nothing,
 )
-    GeoSeries(data, dims, refdims, window, child, childkw)
-end
-
-@propagate_inbounds function Base.setindex!(A::GeoSeries, x, I::StandardIndices...)
-    setindex!(data(A), x, I...)
+    GeoSeries(data, dims, refdims)
 end
