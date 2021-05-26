@@ -41,7 +41,7 @@ end
 end
 
 @testset "getindex is type stable all the way down" begin
-    # @inferred series[Ti<|At(DateTime(2017))][:ga1, X(1), Y(2)]
+    # @inferred series[Ti(At(DateTime(2017)))][:ga1, X(1), Y(2)]
     @inferred series[Ti(1)][:ga1][X(1), Y(2)]
     # @inferred series[Ti(1)][:ga1, X(1), Y(2:4)]
     @inferred series[Ti(1)][:ga1][X(1), Y(2:4)]
@@ -50,7 +50,7 @@ end
 end
 
 @testset "lazy view windows" begin
-    dimz = (Ti<|[DateTime(2017), DateTime(2018)],)
+    dimz = (Ti([DateTime(2017), DateTime(2018)]),)
     dat = [stack1, stack2]
     window_ = X(1:2), Y(3:4)
     ser = GeoSeries(dat, dimz; window=window_)

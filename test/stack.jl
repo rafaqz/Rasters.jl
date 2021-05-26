@@ -3,7 +3,7 @@ using GeoData: data, window
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
-dims1 = X<|(10, 100), Y<|(-50, 50)
+dims1 = X((10, 100)), Y((-50, 50))
 dims2 = (dims1..., Ti([DateTime(2019)]))
 refdimz = ()
 nme = :test
@@ -42,16 +42,16 @@ end
 
 @testset "indexing" begin
     # Indexing the st is the same as indexing its child array
-    a = st[:ga1][X<|2:4, Y<|5:6]
-    @test a == st[:ga1, X<|2:4, Y<|5:6]
+    a = st[:ga1][X(2:4), Y(5:6)]
+    @test a == st[:ga1, X(2:4), Y(5:6)]
 
-    @inferred st[:ga1][X<|2:4, Y<|5:6]
+    @inferred st[:ga1][X=2:4, Y=5:6]
     # FIXME: This isn't inferred, the constants don't propagate like they
     # do in the above call. Probably due to the anonymous wrapper function.
-    @test_broken @inferred st[:ga1, X<|2:4, Y<|5:6]
+    @test_broken @inferred st[:ga1, X(2:4), Y(5:6)]
 
     # Getindex for a whole st of new GeoArrays
-    a = st[X<|2:4, Y<|5:6]
+    a = st[X=2:4, Y=5:6]
     @test a isa GeoStack
     @test a[:ga1] isa GeoArray
     @test data(a[:ga1]) isa Array
@@ -59,8 +59,7 @@ end
     @test a[:ga2] == data2[2:4, 5:6, 1:1]
 
     @testset "select new arrays for the whole st" begin
-        s = st[Y<|Between(-10, 10.0), Ti<|At(DateTime(2019))]
-        st[Y<|Between(-10, 10.0), Ti<|At<|DateTime(2019)]
+        s = st[Y=Between(-10, 10.0), Ti=At(DateTime(2019))]
         @test s isa GeoStack
         @test s[:ga1] isa GeoArray
         @test data(s[:ga1]) isa Array
@@ -73,7 +72,7 @@ end
     end
 
     @testset "select views of arrays for the whole st" begin
-        sv = view(st, Y<|Between(-4.0, 27.0), Ti(At(DateTime(2019))))
+        sv = view(st, Y=Between(-4.0, 27.0), Ti=At(DateTime(2019)))
         @test sv isa GeoStack
         @test sv[:ga1] isa GeoArray
         @test data(sv[:ga1]) isa SubArray
