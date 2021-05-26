@@ -323,7 +323,6 @@ end
         @test occursin("Band", sh)
         @test occursin(":a", sh)
         @test occursin(":b", sh)
-        @test_broken occursin("cea.tif", sh)
     end
 
 end
