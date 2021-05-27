@@ -30,9 +30,9 @@ cleanreturn(A::AG.RasterDataset) = Array(A)
 # AbstractGeoArray methods
 
 """
-    Base.write(filename::AbstractString, ::Type{GDALarray}, A::AbstractGeoArray; kw...)
+    Base.write(filename::AbstractString, ::Type{GDALfile}, A::AbstractGeoArray; kw...)
 
-Write a [`GDALarray`](@ref) to file, `.tif` by default, but other GDAL drivers also work.
+Write a `GeoArray` to file using GDAL.
 
 # Keywords
 

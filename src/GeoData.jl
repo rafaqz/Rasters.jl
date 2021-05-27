@@ -15,17 +15,15 @@ using Adapt,
       Mmap,
       ProgressMeter,
       RecipesBase,
-      Reexport,
-      Requires
+      Reexport
 
-import Flatten, Setfield
+import Flatten,
+       Setfield,
+       HDF5,
+       NCDatasets,
+       ArchGDAL
 
-
-using HDF5
-import NCDatasets
-import ArchGDAL
-
-@reexport using DimensionalData, GeoFormatTypes
+@reexport using DimensionalData, GeoFormatTypes, RasterDataSources
 
 const DD = DimensionalData
 
@@ -55,11 +53,11 @@ export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbound
 export geoarray, stack, series
 
 const Lon = X
-const Lat = Y 
-const Vert = Z 
-const GeoXDim = XDim 
-const GeoYDim = YDim 
-const GeoZDim = ZDim 
+const Lat = Y
+const Vert = Z
+const GeoXDim = XDim
+const GeoYDim = YDim
+const GeoZDim = ZDim
 
 struct NCDfile end
 struct GRDfile end
@@ -93,23 +91,11 @@ include("show.jl")
 include("plotrecipes.jl")
 include("convenience.jl")
 
-        include("sources/smap.jl")
-        include("sources/ncdatasets.jl")
-        include("sources/gdal.jl")
-        include("resample.jl")
-        include("reproject.jl")
-
-function __init__()
-    # @require HDF5="f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f" begin
-        # This section is for sources that rely on HDF5, not simply any HDF5.
-    # end
-    # @require NCDatasets="85f8d34a-cbdd-5861-8df4-14fed0d494ab" begin
-    # end
-    # @require ArchGDAL="c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3" begin
-    # end
-    @require RasterDataSources="3cb90ccd-e1b6-4867-9617-4276c8b2ca36" begin
-        include("sources/rasterdatasources.jl")
-    end
-end
+include("sources/smap.jl")
+include("sources/ncdatasets.jl")
+include("sources/gdal.jl")
+include("resample.jl")
+include("reproject.jl")
+include("sources/rasterdatasources.jl")
 
 end

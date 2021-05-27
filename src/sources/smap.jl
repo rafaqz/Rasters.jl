@@ -1,6 +1,6 @@
 using HDF5
 
-export SMAPseries, SMAPstack, SMAParray, smapseries
+export SMAPseries, SMAPstack, smapseries
 
 const SMAPMISSING = -9999.0f0
 const SMAPGEODATA = "Geophysical_Data"
@@ -9,13 +9,67 @@ const SMAPSIZE = (3856, 1624)
 const SMAPDIMTYPES = (X, Y) 
 
 # Dataset wrapper ###############################################################
-# Becauase SMAP is just one of manyu HDF5 formats,
-# we wrap it in SMAPhdr5 and SMAPvar wrappers
+# Becauase SMAP is just one of many HDF5 formats,
+# we wrap it in SMAPhdf5 and SMAPvar wrappers
 
 struct SMAPhdf5{T}
     ds::T
 end
-filename(wrapper::SMAPhdf5) = wrapper.filename
+
+missingval(ds::SMAPhdf5) = SMAPMISSING
+layermissingval(ds::SMAPhdf5) = SMAPMISSING
+layerkeys(ds::SMAPhdf5) = keys(ds)
+layersizes(ds::SMAPhdf5, keys) = map(_ -> SMAPSIZE, keys)
+filekey(ds::SMAPhdf5, key::Nothing) = first(keys(ds))
+
+function DD.dims(wrapper::SMAPhdf5)
+    dataset = parent(wrapper)
+    proj = read(HDF5.attributes(HDF5.root(dataset)["EASE2_global_projection"]), "grid_mapping_name")
+    if proj == "lambert_cylindrical_equal_area"
+        # There are matrices for lookup but all rows/colums are identical.
+        # For performance and simplicity we just take a vector slice for each dim.
+        extent = HDF5.attributes(HDF5.root(dataset)["Metadata/Extent"])
+        lonbounds = read(extent["westBoundLongitude"]), read(extent["eastBoundLongitude"])
+        latbounds = read(extent["southBoundLatitude"]), read(extent["northBoundLatitude"])
+        latvec = read(HDF5.root(dataset)["cell_lat"])[1, :]
+        lonvec = read(HDF5.root(dataset)["cell_lon"])[:, 1]
+        lonmode = Mapped(
+           order=Ordered(),
+           span=Irregular(lonbounds),
+           sampling=Intervals(Center()),
+           crs=SMAPCRS,
+           mappedcrs=EPSG(4326)
+        )
+        latmode = Mapped(
+            order=Ordered(ReverseIndex(), ReverseArray(), ForwardRelation()),
+            span=Irregular(latbounds),
+            sampling=Intervals(Center()),
+            crs=SMAPCRS,
+            mappedcrs=EPSG(4326),
+        )
+        (X(lonvec; mode=lonmode), Y(latvec; mode=latmode))
+    else
+        error("projection $proj not supported")
+    end
+end
+
+DD.refdims(wrapper::SMAPhdf5, filename) = (_smap_timedim(_smap_timefromfilename(filename)),)
+
+# TODO actually add metadata to the dict
+DD.metadata(wrapper::SMAPhdf5) = Metadata{SMAPfile}(Dict())
+
+function DD.layerdims(ds::SMAPhdf5)
+    keys = cleankeys(layerkeys(ds))
+    # All dims are the same
+    NamedTuple{keys}(map(_ -> SMAPDIMTYPES, keys))
+end
+
+function DD.layermetadata(ds::SMAPhdf5)
+    keys = cleankeys(layerkeys(ds))
+    NamedTuple{keys}(map(_ -> DD.metadata(ds), keys))
+end
+
+Base.keys(ds::SMAPhdf5) = cleankeys(keys(parent(ds)[SMAPGEODATA]))
 Base.parent(wrapper::SMAPhdf5) = wrapper.ds
 Base.getindex(wrapper::SMAPhdf5, path) = wrapper.ds[path]
 
@@ -26,9 +80,8 @@ struct SMAPvar{T}
 end
 Base.parent(wrapper::SMAPvar) = wrapper.ds
 
-# GeoArray ######################################################################
 
-@deprecate SMAParray(args...; kw...) GeoArray(args...; source=SMAPfile, kw...)
+# GeoArray ######################################################################
 
 function FileArray(ds::SMAPhdf5, filename::AbstractString; key, kw...)
     FileArray(SMAPvar(HDF5DiskArray(ds[_smappath(key)])), filename; key, kw...)
@@ -42,6 +95,7 @@ end
 function Base.open(f::Function, A::FileArray{SMAPfile}; kw...)
     _read(var -> f(HDF5DiskArray(var)), SMAPfile, filename(A); key=key(A), kw...)
 end
+    
 
 # Stack ########################################################################
 
@@ -57,42 +111,6 @@ function FileStack{SMAPfile}(ds::SMAPhdf5, filename::AbstractString; write=false
     layersizes = NamedTuple{keys}(map(last, type_size))
     FileStack{SMAPfile,keys}(filename, layertypes, layersizes, write)
 end
-
-hasstackfile(::Type{SMAPfile}) = true
-
-Base.keys(ds::SMAPhdf5) = cleankeys(keys(parent(ds)[SMAPGEODATA]))
-
-@inline function DD.layerdims(ds::SMAPhdf5)
-    keys = cleankeys(layerkeys(ds))
-    # All dims are the same
-    NamedTuple{keys}(map(_ -> SMAPDIMTYPES, keys))
-end
-
-@inline function DD.layermetadata(ds::SMAPhdf5)
-    keys = cleankeys(layerkeys(ds))
-    NamedTuple{keys}(map(_ -> DD.metadata(ds), keys))
-end
-
-# TODO actually add metadata to the dict
-DD.metadata(wrapper::SMAPhdf5) = Metadata{SMAPfile}(Dict())
-
-missingval(ds::SMAPhdf5) = SMAPMISSING
-layermissingval(ds::SMAPhdf5) = SMAPMISSING
-layerkeys(ds::SMAPhdf5) = keys(ds)
-layersizes(ds::SMAPhdf5, keys) = map(_ -> SMAPSIZE, keys)
-
-function FileStack{SMAPfile}(ds, filename; write=false, keys)
-    keys = keys isa Nothing ? Tuple(map(layerkeys(ds))) : keys
-    type_size = map(string(keys)) do key
-        var = ds[_smappath(key)]
-        eltype(var), size(var)
-    end
-    layertypes = map(first, type_size)
-    layersizes = map(last, type_size)
-    FileStack{SMAPfile}(filename, layertypes, layersizes, keys, write)
-end
-
-filekey(ds::SMAPhdf5, key::Nothing) = first(keys(ds))
 
 # Series #######################################################################
 
@@ -115,7 +133,7 @@ organised along the time dimension. Returns a [`GeoSeries`](@ref).
 - `kw`: Passed to `GeoSeries`.
 """
 function smapseries(dir::AbstractString; kw...)
-    SMAPseries(joinpath.(dir, filter_ext(dir, ".h5")); kw...)
+    smapseries(joinpath.(dir, filter_ext(dir, ".h5")); kw...)
 end
 function smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
     if dims isa Nothing
@@ -150,38 +168,6 @@ end
 
 @deprecate SMAPseries(args...; kw...) smapseries(args...; kw...)
 
-function DD.dims(wrapper::SMAPhdf5)
-    dataset = parent(wrapper)
-    proj = read(HDF5.attributes(HDF5.root(dataset)["EASE2_global_projection"]), "grid_mapping_name")
-    if proj == "lambert_cylindrical_equal_area"
-        # There are matrices for lookup but all rows/colums are identical.
-        # For performance and simplicity we just take a vector slice for each dim.
-        extent = HDF5.attributes(HDF5.root(dataset)["Metadata/Extent"])
-        lonbounds = read(extent["westBoundLongitude"]), read(extent["eastBoundLongitude"])
-        latbounds = read(extent["southBoundLatitude"]), read(extent["northBoundLatitude"])
-        latvec = read(HDF5.root(dataset)["cell_lat"])[1, :]
-        lonvec = read(HDF5.root(dataset)["cell_lon"])[:, 1]
-        lonmode = Mapped(
-           order=Ordered(),
-           span=Irregular(lonbounds),
-           sampling=Intervals(Center()),
-           crs=SMAPCRS,
-           mappedcrs=EPSG(4326)
-        )
-        latmode = Mapped(
-            order=Ordered(ReverseIndex(), ReverseArray(), ForwardRelation()),
-            span=Irregular(latbounds),
-            sampling=Intervals(Center()),
-            crs=SMAPCRS,
-            mappedcrs=EPSG(4326),
-        )
-        (X(lonvec; mode=lonmode), Y(latvec; mode=latmode))
-    else
-        error("projection $proj not supported")
-    end
-end
-
-DD.refdims(wrapper::SMAPhdf5, filename) = (_smap_timedim(_smap_timefromfilename(filename)),)
 
 # Utils ########################################################################
 

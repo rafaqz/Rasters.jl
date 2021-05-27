@@ -3,8 +3,8 @@
     AbstractGeoArray <: DimensionalData.AbstractDimArray
 
 Abstract supertype for objects that wrap an array (or location of an array) 
-and metadata about its contents. It may be memory ([`GeoArray`](@ref)) or
-disk-backed ([`NCDarray`](@ref), [`GDALarray`](@ref), [`GRDarray`](@ref)).
+and metadata about its contents. It may be memory or hold a `FileArray`, which
+holds the filename, and is only opened when required.
 
 `AbstractGeoArray`s inherit from [`AbstractDimArray`]($DDarraydocs)
 from DimensionalData.jl. They can be indexed as regular Julia arrays or with
@@ -15,10 +15,6 @@ a memory-backed `GeoArray`.
 """
 abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
 
-function DD.DimTable(As::Tuple{<:AbstractGeoArray,Vararg{<:AbstractGeoArray}}...)
-    DimTable(DimStack(map(read, As...)))
-end
-
 # Interface methods ###########################################################
 """
     missingval(x)
@@ -28,6 +24,11 @@ Returns the value representing missing data in the dataset
 function missingval end
 missingval(x) = missing
 missingval(A::AbstractGeoArray) = A.missingval
+
+filename(A::AbstractGeoArray) = filename(data(A))
+
+cleanreturn(A::AbstractGeoArray) = modify(cleanreturn, A)
+cleanreturn(x) = x
 
 """
     crs(x)
@@ -73,15 +74,14 @@ function mappedcrs(A::AbstractGeoArray)
 end
 mappedcrs(dim::Dimension) = mappedcrs(mode(dim))
 
-# DimensionalData methods
-
-DD.units(A::AbstractGeoArray) = get(metadata(A), :units, nothing)
-
 for f in (:mappedbounds, :projectedbounds, :mappedindex, :projectedindex)
     @eval ($f)(A::AbstractGeoArray, dims_) = ($f)(dims(A, dims_))
     @eval ($f)(A::AbstractGeoArray) = ($f)(dims(A))
 end
 
+# DimensionalData methods
+
+DD.units(A::AbstractGeoArray) = get(metadata(A), :units, nothing)
 # Rebuild all types of AbstractGeoArray as GeoArray
 function DD.rebuild(
     A::AbstractGeoArray, data, dims::Tuple, refdims, name,
@@ -96,13 +96,55 @@ function DD.rebuild(A::AbstractGeoArray;
     rebuild(A, data, dims, refdims, name, metadata, missingval)
 end
 
+function DD.DimTable(As::Tuple{<:AbstractGeoArray,Vararg{<:AbstractGeoArray}}...)
+    DimTable(DimStack(map(read, As...)))
+end
+
+# DiskArrays methods
+
+DiskArrays.eachchunk(A::AbstractGeoArray) = DiskArrays.eachchunk(data(A))
+DiskArrays.haschunks(A::AbstractGeoArray) = DiskArrays.haschunks(data(A))
+
+# Base methods
+
 Base.parent(A::AbstractGeoArray) = data(A)
 
-cleanreturn(A::AbstractGeoArray) = modify(cleanreturn, A)
-cleanreturn(x) = x
+"""
+    open(f, A::AbstractGeoArray; write=false)
 
-filename(A::AbstractGeoArray) = filename(data(A))
+`open` is used to open any `AbstractGeoArray` and do multiple operations
+on it in a safe way. It's a shorthand for the unexported `OpenGeoArray`
+constructor. The `write` keyword opens the file in write mode so that it
+can be altered on disk using e.g. a broadcast.
 
+`f` is a method that accepts a single argument - an `OpenGeoArray` object
+which is just an `AbstractGeoArray` that holds an open disk - based object.
+Often it will be a `do` block:
+
+```julia
+ga = geoarray(filepath)
+open(ga; write=true) do A
+    A[I...] .*= 2 # A is an `OpenGeoArray` wrapping the opened disk-based object.
+    # ...  other things you need to do with the open file
+end
+```
+
+By using a do block to open file we ensure they are always closed again
+after we finish working with them.
+"""
+function Base.open(f::Function, A::AbstractGeoArray; kw...)
+    # Open FileArray to expose the actual dataset object, even inside nested wrappers
+    fa = Flatten.flatten(data(A), FileArray)
+    if fa == ()
+        f(GeoArray(data(A), dims(A), refdims(A), name(A), metadata(A), missingval(A)))
+    else
+        open(fa[1]; kw...) do x
+            # Rewrap the opened object where the FileArray was
+            d = Flatten.reconstruct(data(A), (x,), FileArray) 
+            f(GeoArray(d, dims(A), refdims(A), name(A), metadata(A), missingval(A)))
+        end
+    end
+end
 Base.write(A::T) where T <: AbstractGeoArray = write(filename(A), A)
 
 # Concrete implementation ######################################################
@@ -177,6 +219,3 @@ end
 end
 
 filekey(ds, key) = key
-filename(A::GeoArray) = filename(data(A))
-
-DiskArrays.eachchunk(A::AbstractGeoArray) = DiskArrays.eachchunk(data(A))

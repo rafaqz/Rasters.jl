@@ -24,19 +24,16 @@ abstract type AbstractGeoStack{L} <: AbstractDimStack{L} end
 
 window(stack::AbstractGeoStack) = stack.window
 layermissingval(stack::AbstractGeoStack) = stack.layermissingval
-missingval(s::AbstractGeoStack, key::Symbol) = _singlemissingval(layermissingval(s), key)
 filename(stack::AbstractGeoStack) = filename(data(stack))
+missingval(s::AbstractGeoStack, key::Symbol) = _singlemissingval(layermissingval(s), key)
 
 _singlemissingval(mvs::NamedTuple, key) = mvs[key]
 _singlemissingval(mv, key) = mv
 
+# DimensionalData methods ######################################################
+
 # Always read a stack before loading it as a table.
 DD.DimTable(stack::AbstractGeoStack) = invoke(DD.DimTable, Tuple{AbstractDimStack}, read(stack))
-
-# Base methods #################################################################
-
-Base.names(s::AbstractGeoStack) = keys(s)
-Base.copy(stack::AbstractGeoStack) = rebuild(stack; data=map(copy, stack))
 
 function DD.layers(s::AbstractGeoStack{<:FileStack{<:Any,Keys}}) where Keys
     NamedTuple{Keys}(map(K -> s[K], Keys))
@@ -51,6 +48,11 @@ function DD.rebuild(s::T;
         data, dims, refdims, layerdims, metadata, layermetadata, layermissingval, window
     )
 end
+
+# Base methods #################################################################
+
+Base.names(s::AbstractGeoStack) = keys(s)
+Base.copy(stack::AbstractGeoStack) = rebuild(stack; data=map(copy, stack))
 
 #### Stack getindex ####
 # Different to DimensionalData as we may have a lazy `window` to apply.
@@ -177,10 +179,7 @@ function GeoStack(filename::AbstractString;
 end
 function GeoStack(
     data::Union{FileStack,NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}};
-    dims, refdims=(), layerdims, metadata=NoMetadata(), layermetadata,
-    layermissingval, window=nothing,
-)
-    GeoStack(
+    dims, refdims=(), layerdims, metadata=NoMetadata(), layermetadata, layermissingval, window=nothing,) GeoStack(
         data, dims, refdims, layerdims, metadata, layermetadata,
         layermissingval, window,
     )
@@ -196,13 +195,13 @@ function GeoStack(s::AbstractDimStack; keys=cleankeys(Base.keys(s)),
     )
 end
 
-defaultcrs(T::Type, crs) = crs
-defaultmappedcrs(T::Type, crs) = crs
-defaultcrs(T::Type, ::Nothing) = defaultcrs(T)
-defaultmappedcrs(T::Type, ::Nothing) = defaultmappedcrs(T)
-defaultcrs(T::Type) = nothing
-defaultmappedcrs(T::Type) = nothing
+DD.maybestack(As::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractGeoArray}}}) = GeoStack(As)
 
 Base.convert(::Type{GeoStack}, src::AbstractDimStack) = GeoStack(src)
 
-DD.maybestack(As::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractGeoArray}}}) = GeoStack(As)
+defaultcrs(T::Type, crs) = crs
+defaultcrs(T::Type, ::Nothing) = defaultcrs(T)
+defaultcrs(T::Type) = nothing
+defaultmappedcrs(T::Type, crs) = crs
+defaultmappedcrs(T::Type, ::Nothing) = defaultmappedcrs(T)
+defaultmappedcrs(T::Type) = nothing

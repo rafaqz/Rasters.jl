@@ -127,12 +127,12 @@ end
 # Base methods
 
 """
-    Base.write(filename::AbstractString, ::Type{GRDarray}, s::AbstractGeoArray)
+    Base.write(filename::AbstractString, ::Type{GRDfile}, s::AbstractGeoArray)
 
-Write a [`GRDarray`](@ref) to a .grd file, with a .gri header file. The extension of
-`filename` will be ignored.
+Write a `GeoArray` to a .grd file with a .gri header file. 
+The extension of `filename` will be ignored.
 
-Currently the `metadata` field is lost on `write` for `GRDarray`.
+Currently the `metadata` field is lost on `write`.
 
 Returns `filename`.
 """

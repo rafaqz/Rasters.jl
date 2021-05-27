@@ -63,15 +63,6 @@ function stack end
 
 stack(args...; kw...) = GeoStack(args...; kw...)
 
-function filekey(filename::AbstractString)
-    ext = splitext(filename)[2]
-    if ext in extensions.NCD
-        _ncdfilekey(filename)
-    else
-        throw(ArgumentError("Cannot retreve layer key for $ext files, provide a `keys` argument or filenames as a NamedTuple"))
-    end
-end
-
 """
     Base.write(filename::AbstractString, T::Type{<:AbstractGeoArray}, s::AbstractGeoStack)
 
@@ -137,17 +128,4 @@ function _read(f, filename::AbstractString; kw...)
     ext = splitext(filename)[2]
     source = get(REV_EXT, ext, GDALfile)
     _read(f, source, filename; kw...)
-end
-_read(f, A::FileArray{X}; kw...) where X = _read(f, X, filename(A); kw...)
-
-function _check_imported(modulename, type, extension; throw=true)
-    if type in names(GeoData)
-        true
-    else
-        if throw
-            error("Run `import $modulename` to enable loading $extension files.")
-        else
-            false
-        end
-    end
 end
