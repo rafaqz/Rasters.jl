@@ -4,11 +4,11 @@ using GeoData, RasterDataSources, Test, Dates, NCDatasets, ArchGDAL
 if !haskey(ENV, "CI")
     @testset "load WorldClim Weather" begin
         # Weather time-series
-        # dates = (Date(2001), Date(2002))
-        # ser = series(WorldClim{Weather}, (:prec,); date=dates, window=(Lat(600:1900), Lon(600:1900)))
-        # ser[Date(2001, 1)][:prec]
+        dates = (Date(2001), Date(2002))
+        ser = series(WorldClim{Weather}, (:prec,); date=dates, window=(Lat(600:1900), Lon(600:1900)))
+        ser[Date(2001, 1)][:prec]
         # Select Australia, using regular lat/lon selectors
-        # A = geoarray(WorldClim{Weather}, :prec; date=DateTime(2001, 05), mappedcrs=EPSG(4326))
+        A = geoarray(WorldClim{Weather}, :prec; date=DateTime(2001, 05), mappedcrs=EPSG(4326))
     end
 end
 
