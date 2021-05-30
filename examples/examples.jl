@@ -7,7 +7,7 @@ geturl(url, filename=splitdir(url)[2]) = begin
 end
 
 # Load some layers from NetCDF #############################################
-ncurl = "https://www.unidata.ucar.edu/sojjjtware/netcdf/examples/tos_O1_2001-2002.nc"
+ncurl = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc"
 ncfilename = geturl(ncurl, "tos_O1_2001-2002.nc")
 ncstack = stack(ncfilename)
 
