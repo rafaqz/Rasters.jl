@@ -48,7 +48,7 @@ end
     @inferred st[:ga1][X=2:4, Y=5:6]
     # FIXME: This isn't inferred, the constants don't propagate like they
     # do in the above call. Probably due to the anonymous wrapper function.
-    @test_broken @inferred st[:ga1, X(2:4), Y(5:6)]
+    @test_broken @inferred st[:ga1, X(2:4), Y(5:6)] isa GeoArray
 
     # Getindex for a whole st of new GeoArrays
     a = st[X=2:4, Y=5:6]
@@ -83,7 +83,7 @@ end
         @test refdims(sv[:ga2])[1] == (Ti(DateTime(2019); mode=Sampled(Ordered(), Irregular(), Points())),)[1]
         # Stack of view-based GeoArrays
         v = view(st, X(2:4), Y(5:6))
-        @test_broken @inferred view(st, X(2:4), Y(5:6))
+        @inferred view(st, X(2:4), Y(5:6))
         @test v isa GeoStack
         @test v[:ga1] isa GeoArray
         @test data(v[:ga1]) isa SubArray

@@ -69,12 +69,17 @@ end
     window(s) isa Nothing ? A[i1, I...] : map(A -> view(A, window(s)...)[i1, I...], data(s))
 end
 # Key + Index
-@propagate_inbounds function Base.getindex(s::AbstractGeoStack, key::Symbol, i1, I...)
+@propagate_inbounds @inline function Base.getindex(s::AbstractGeoStack, key::Symbol, i1, I...)
     s[key][i1, I...]
 end
 
 @propagate_inbounds function Base.view(s::AbstractGeoStack, I...)
-    rebuild(s; window=window(s) isa Nothing ? I : Base.reindex(window(s), I))
+    win = if window isa Nothing
+        Base.reindex(DD.dims2indices(s, window(s)), DD.dims2indices(s, I))
+    else
+        I
+    end
+    rebuild(s; window=win)
 end
 
 # Concrete AbstrackGeoStack implementation #################################################

@@ -142,6 +142,8 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     end
 end
 
+DD.refdims(raster::AG.RasterDataset, args...) = ()
+
 function DD.metadata(raster::AG.RasterDataset, args...)
     band = AG.getband(raster.ds, 1)
     # color = AG.getname(AG.getcolorinterp(band))

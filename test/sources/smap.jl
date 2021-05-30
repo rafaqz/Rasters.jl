@@ -88,7 +88,7 @@ if isfile(path1) && isfile(path2)
             a = smaparray[X(Near(21.0)), Y(Between(50, 52))]
             index(smaparray, Y)
             indexorder(smaparray, Y)
-            @test_broken bounds(a) == ((50.08451f0, -51.977905f0),)
+            @test bounds(a) == ((50.08451f0, 51.977905f0),)
             x = smaparray[Lon(Near(150)), Lat(Near(30))]
             @test x isa Float32
             dimz = Lon(Between(-180.0, 180)), Lat(Between(-90, 90)) 
@@ -121,8 +121,6 @@ if isfile(path1) && isfile(path2)
                 @test map(metadata.(dims(saved)), metadata.(dims(geoarray))) do s, g
                     all(s .== g)
                 end |> all
-                @test_broken metadata(saved) == metadata(geoA)
-                @test_broken all(metadata.(dims(saved)) .== metadata.(dims(geoA)))
                 @test GeoData.name(saved) == GeoData.name(geoA)
                 @test all(mode.(dims(saved)) .!= mode.(dims(geoA)))
                 # @test all(order.(dims(saved)) .== order.(dims(geoA)))

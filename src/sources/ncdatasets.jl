@@ -75,7 +75,6 @@ function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractGeoArr
         end
         ds = NCD.Dataset(filename, "c"; attrib=attribvec)
         try
-            println("    Writing netcdf...")
             _ncdwritevar!(ds, o)
         finally
             close(ds)
@@ -348,7 +347,6 @@ function _ncdwritevar!(ds, A::AbstractGeoArray{T,N}) where {T,N}
             push!(attribvec, "bounds" => boundskey)
             NCD.defVar(ds, boundskey, bounds, ("bnds", dimkey))
         end
-        println("        key: \"", dimkey, "\" of type: ", eltype(dim))
         NCD.defVar(ds, dimkey, Vector(index(dim)), (dimkey,); attrib=attribvec)
     end
     # TODO actually convert the metadata types
@@ -376,7 +374,6 @@ function _ncdwritevar!(ds, A::AbstractGeoArray{T,N}) where {T,N}
     else
         string(name(A))
     end
-    println("        key: \"", key, "\" of type: ", T)
 
     dimnames = lowercase.(string.(map(name, dims(A))))
     attribvec = [attrib...] 
