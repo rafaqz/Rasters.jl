@@ -167,3 +167,24 @@ function dimbounds(f::Function, A::AbstractDimArray)
         basetypeof(dim)(Between(bounds))
     end
 end
+
+"""
+    chunk(A::AbstractGeoArray)
+
+Creat a GeoSeries of arrays matching the chunks of a chunked array. 
+
+This may be useful for parallel or larger than memory applications.
+"""
+function chunk(A::AbstractGeoArray)
+    gc = DiskArrays.eachchunk(A)
+    ci = CartesianIndices(gc.chunkgridsize)
+    data = collect(view(A, _chunk_inds(gc, I)...) for I in ci)
+    GeoSeries(data, DD.basedims(dims(A)))
+end
+
+# See iterate(::GridChunks) in Diskarrays.jl
+function _chunk_inds(g, ichunk) 
+    outinds = map(ichunk.I, g.chunksize, g.parentsize, g.offset) do ic, cs, ps, of
+        max((ic - 1) * cs + 1 -of, 1):min(ic * cs - of, ps)
+    end
+end

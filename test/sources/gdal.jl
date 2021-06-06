@@ -8,7 +8,7 @@ include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 @testset "array" begin
 
-    gdalarray = geoarray(path; mappedcrs=EPSG(4326), name=:test)
+    @time gdalarray = geoarray(path; mappedcrs=EPSG(4326), name=:test)
 
     @testset "open" begin
         @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1, :]
@@ -33,6 +33,11 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @test A isa GeoArray
         @test parent(A) isa DiskArrays.SubDiskArray
         @test parent(parent(A)) isa GeoData.FileArray
+    end
+
+    @testset "chunk" begin
+        @test GeoData.chunk(gdalarray) isa GeoSeries
+        @test size(GeoData.chunk(gdalarray)) == (1, 35, 1)
     end
 
     @testset "array properties" begin
@@ -88,7 +93,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     end
 
     @testset "methods" begin 
-        @test mean(gdalarray; dims=Y) == mean(data(gdalarray); dims=2)
+        @test mean(gdalarray; dims=Y) == mean(parent(gdalarray); dims=2)
     end
 
     @testset "selectors" begin
@@ -113,24 +118,23 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         gdalarray = geoarray(path; mappedcrs=EPSG(4326), name=:test);
 
         @testset "2d" begin
-            geoA = gdalarray[Band(1)]
-            filename = tempname() * ".asc"
-            write(filename, geoA)
+            geoA = view(gdalarray, Band(1))
+            filename = tempname() * ".tif"
+            @time write(filename, geoA)
             saved1 = geoarray(filename; mappedcrs=EPSG(4326))[Band(1)];
-            @test all(saved1 .== saved1 ≈ geoA)
-            @test typeof(saved1) !== typeof(geoA)
+            @test all(saved1 .== geoA)
+            # @test typeof(saved1) == typeof(geoA)
             @test val(dims(saved1, X)) ≈ val(dims(geoA, X))
             @test val(dims(saved1, Y)) ≈ val(dims(geoA, Y))
-            @test all(metadata.(dims(saved1)) .== metadata.(dims(geoA)))
+            @test all(metadata.(dims(saved1)) .== metadata.(dims(geoA))) 
             @test metadata(dims(saved1)[1]) == metadata(dims(geoA)[1])
             @test missingval(saved1) === missingval(geoA) 
             @test refdims(saved1) == refdims(geoA) 
         end
         
         @testset "3d, with subsetting" begin
-            geoA2 = gdalarray[Y(Between(33.7, 33.9)), 
-                                  X(Between(-117.6, -117.4))]
-            filename2 = tempname() * ".tif"
+            geoA2 = gdalarray[Y(Between(33.7, 33.9)), X(Between(-117.6, -117.4))]
+            filename2 = tempname() * ".asc"
             write(filename2, geoA2)
             saved2 = read(geoarray(filename2; name=:test, mappedcrs=EPSG(4326)))
             @test size(saved2) == size(geoA2) == length.(dims(saved2)) == length.(dims(geoA2))
@@ -146,8 +150,8 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             @test all(val(dims(saved2, X)) .≈ val(dims(geoA2, X)))
             @test all(val(dims(saved2, Y)) .≈ val(dims(geoA2, Y)))
             @test all(metadata.(dims(saved2)) .== metadata.(dims(geoA2)))
-            @test data(saved2) == data(geoA2)
-            @test typeof(saved2) == typeof(geoA2)
+            @test parent(saved2) == parent(geoA2)
+            @test_broken typeof(saved2) == typeof(geoA2)
             filename3 = tempname() * ".tif"
             geoA3 = cat(gdalarray[Band(1)], gdalarray[Band(1)], gdalarray[Band(1)]; dims=Band(1:3))
             write(filename3, geoA3)

@@ -89,7 +89,9 @@ end
 function FileArray(var::SMAPvar, filename::AbstractString; key, kw...)
     T = eltype(parent(var))
     N = length(SMAPSIZE)
-    FileArray{SMAPfile,T,N}(filename, SMAPSIZE; key, kw...)
+    eachchunk = DA.eachchunk(parent(var))
+    haschunks = DA.haschunks(parent(var))
+    FileArray{SMAPfile,T,N}(filename, SMAPSIZE; key, eachchunk, haschunks, kw...)
 end
 
 function Base.open(f::Function, A::FileArray{SMAPfile}; kw...)
@@ -103,13 +105,15 @@ end
 
 function FileStack{SMAPfile}(ds::SMAPhdf5, filename::AbstractString; write=false, keys)
     keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
-    type_size = map(keys) do key
-        var = ds[_smappath(key)]
-        eltype(var), size(var)
+    type_size_ec_hc = map(keys) do key
+        var = HDF5DiskArray(ds[_smappath(key)])
+        eltype(var), size(var), DA.eachchunk(var), DA.haschunks(var)
     end
-    layertypes = NamedTuple{keys}(map(first, type_size))
-    layersizes = NamedTuple{keys}(map(last, type_size))
-    FileStack{SMAPfile,keys}(filename, layertypes, layersizes, write)
+    layertypes = NamedTuple{keys}(map(x->x[1], type_size_ec_hc))
+    layersizes = NamedTuple{keys}(map(x->x[2], type_size_ec_hc))
+    eachchunk = NamedTuple{keys}(map(x->x[3], type_size_ec_hc))
+    haschunks = NamedTuple{keys}(map(x->x[4], type_size_ec_hc))
+    FileStack{SMAPfile,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
 end
 
 # Series #######################################################################
@@ -208,13 +212,13 @@ end
 
 Base.size(x::HDF5DiskArray{T, N}) where {T, N} = size(x.ds)::NTuple{N, Int}
 
-DiskArrays.haschunks(x::HDF5DiskArray{<:Any,<:Any,Nothing}) = Unhunked()
-DiskArrays.haschunks(x::HDF5DiskArray) = Chunked()
+DA.haschunks(x::HDF5DiskArray{<:Any,<:Any,Nothing}) = DA.Unchunked()
+DA.haschunks(x::HDF5DiskArray) = DA.Chunked()
 
-DiskArrays.eachchunk(x::HDF5DiskArray{<:Any, <:Any, <:DiskArrays.GridChunks}) = x.cs
+DA.eachchunk(x::HDF5DiskArray{<:Any, <:Any, <:DA.GridChunks}) = x.cs
 
-DiskArrays.readblock!(x::HDF5DiskArray, aout, r::AbstractUnitRange...) = aout .= x.ds[r...]
-DiskArrays.writeblock!(x::HDF5DiskArray, v, r::AbstractUnitRange...) = x.ds[r...] = v
+DA.readblock!(x::HDF5DiskArray, aout, r::AbstractUnitRange...) = aout .= x.ds[r...]
+DA.writeblock!(x::HDF5DiskArray, v, r::AbstractUnitRange...) = x.ds[r...] = v
 
 const _cache_size = Ref(10 * 1024^2)
 
@@ -229,7 +233,7 @@ get_cache_size(ds::HDF5.Dataset) = _cache_size[] ÷ sizeof(eltype(ds))
 function HDF5DiskArray(ds::HDF5.Dataset)
     cs = try
         disable_dag()
-        DiskArrays.GridChunks(ds, get_chunk(ds))
+        DA.GridChunks(ds, get_chunk(ds))
         enable_dag()
     catch
         nothing

@@ -16,13 +16,10 @@ const GDAL_Y_LOCUS = Start()
 
 @deprecate GDALarray(args...; kw...) GeoArray(args...; source=GDALfile, kw...)
 
-function FileArray{GRDfile}(filename; kw...)
-    _read(ds -> FileArray(ds, filename; kw...), GDALfile, filename; kw...)
-end
-function FileArray(raster::AG.RasterDataset, filename; kw...)
-    FileArray{GDALfile,eltype(raster),ndims(raster)}(filename, size(raster); 
-        chunks=DiskArrays.eachchunk(raster).chunksize
-    )
+function FileArray(raster::AG.RasterDataset{T}, filename; kw...) where {T}
+    eachchunk = DA.eachchunk(raster)
+    haschunks = DA.haschunks(raster)
+    FileArray{GDALfile,T,3}(filename, size(raster); eachchunk, haschunks, kw...)
 end
 
 cleanreturn(A::AG.RasterDataset) = Array(A)
@@ -45,17 +42,16 @@ Returns `filename`.
 function Base.write(
     filename::AbstractString, ::Type{GDALfile}, A::AbstractGeoArray{T,2}; kw...
 ) where T
-    all(hasdim(A, (XDim, Y))) || error("Array must have Y and X dims")
-
+    all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
+    correctedA = A
     correctedA = permutedims(A, (X(), Y())) |>
         a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
     checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY))
     checkindexorder(correctedA, (GDAL_X_INDEX, GDAL_Y_INDEX))
 
-    nbands = 1
-    indices = 1
-    _gdalwrite(filename, correctedA, nbands, indices; kw...)
+    nbands = 1 
+    _gdalwrite(filename, correctedA, nbands; kw...)
 end
 function Base.write(
     filename::AbstractString, ::Type{GDALfile}, A::AbstractGeoArray{T,3}, kw...
@@ -63,6 +59,7 @@ function Base.write(
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
 
+    correctedA = A
     correctedA = permutedims(A, (X(), Y(), Band())) |>
         a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX), Band(GDAL_BAND_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
@@ -70,8 +67,13 @@ function Base.write(
     checkindexorder(correctedA, (GDAL_X_INDEX, GDAL_Y_INDEX, GDAL_BAND_INDEX))
 
     nbands = size(correctedA, Band())
-    indices = Cint[1:nbands...]
-    _gdalwrite(filename, correctedA, nbands, indices; kw...)
+    _gdalwrite(filename, correctedA, nbands; kw...)
+end
+
+function _add_band_dim(A)
+    data = reshape(A, (size(A)..., 1))
+    dims = (DD.dims(A)..., Band(1:1; mode=Categorical(Ordered())))
+    rebuild(A, data, dims) 
 end
 
 
@@ -184,25 +186,36 @@ function _read(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...
     AG.readraster(cleanreturn ∘ f, filename; flags...)
 end
 
-function _gdalwrite(filename, A, nbands, indices; 
-    driver=AG.extensiondriver(filename), compress="DEFLATE", tiled=true
+function _gdalwrite(filename, A::AbstractGeoArray, nbands; 
+    driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing
 )
-    tiledstring = tiled isa Bool ? (tiled ? "YES" : "NO") : tiled
     kw = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
     gdaldriver = AG.getdriver(driver)
     if driver == "GTiff" 
-        options = ["COMPRESS=$compress", "TILED=$tiledstring"]
-        AG.create(filename; driver=gdaldriver, options=options, kw...) do dataset
-            _gdalsetproperties!(dataset, A)
-            AG.write!(dataset, Array(A), indices)
+        block_x, block_y = DA.eachchunk(A).chunksize
+        tileoptions = if chunk === nothing
+            ["TILED=NO"]
+        else
+            ["TILED=YES", "BLOCKXSIZE=$block_x", "BLOCKYSIZE=$block_y"]
+        end
+        options = ["COMPRESS=$compress", tileoptions...]
+        AG.create(filename; driver=gdaldriver, options=options, kw...) do ds
+            _gdalsetproperties!(ds, A)
+            rds = AG.RasterDataset(ds)
+            open(A; write=true) do O
+                rds .= parent(O)
+            end
         end
     else
         # Create a  memory object and copy it to disk, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
-        ArchGDAL.create(""; driver=AG.getdriver("MEM"), kw...) do dataset
-            _gdalsetproperties!(dataset, A)
-            AG.write!(dataset, Array(A), indices)
-            AG.copy(dataset; filename=filename, driver=gdaldriver) |> AG.destroy
+        ArchGDAL.create(""; driver=AG.getdriver("MEM"), kw...) do ds
+            _gdalsetproperties!(ds, A)
+            rds = AG.RasterDataset(ds)
+            open(A; write=true) do O
+                rds .= parent(O)
+            end
+            AG.copy(ds; filename=filename, driver=gdaldriver) |> AG.destroy
         end
     end
     return filename
@@ -248,14 +261,22 @@ function _gdalsetproperties!(dataset, A)
 end
 
 # Create a GeoArray from a memory-backed dataset
-function GeoArray(dataset::AG.Dataset;
-    crs=nothing, mappedcrs=nothing,
-    dims=dims(AG.RasterDataset(dataset), crs, mappedcrs),
+GeoArray(ds::AG.Dataset; kw...) = GeoArray(AG.RasterDataset(ds); kw...) 
+function GeoArray(ds::AG.RasterDataset;
+    crs=crs(ds), mappedcrs=nothing,
+    dims=dims(ds, crs, mappedcrs),
     refdims=(), name=Symbol(""),
-    metadata=metadata(AG.RasterDataset(dataset)),
-    missingval=missingval(AG.RasterDataset(dataset))
+    metadata=metadata(ds),
+    missingval=missingval(ds)
 )
-    GeoArray(AG.read(dataset), dims, refdims, name, metadata, missingval)
+    args = dims, refdims, name, metadata, missingval
+    filelist = AG.filelist(ds)
+    if length(filelist) > 0
+        filename = first(filelist)
+        return GeoArray(FileArray(ds, filename), args...)
+    else
+        return GeoArray(Array(ds), args...)
+    end
 end
 
 # Create a memory-backed GDAL dataset from any AbstractGeoArray

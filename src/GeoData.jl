@@ -26,6 +26,7 @@ import Flatten,
 @reexport using DimensionalData, GeoFormatTypes, RasterDataSources
 
 const DD = DimensionalData
+const DA = DiskArrays
 
 using Base: tail, @propagate_inbounds
 

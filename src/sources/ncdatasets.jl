@@ -45,16 +45,19 @@ function _firstkey(ds::NCD.NCDataset, key=nothing)
 end
 
 function FileArray(var::NCD.CFVariable, filename::AbstractString; kw...)
-    size_ = size(var)
-    chunkmode, chunkvec = NCDatasets.chunking(var)
-    chunks = if chunkmode == :chunked
-        Tuple(chunkvec)
-    else
-        nothing
-    end
+    da = GeoDiskArray(var)
+    size_ = size(da)
+    eachchunk = DA.eachchunk(da) 
+    haschunks = DA.haschunks(da)
     T = eltype(var)
     N = length(size_)
-    FileArray{NCDfile,T,N}(filename, size_; chunks, kw...)
+    FileArray{NCDfile,T,N}(filename, size_; eachchunk, haschunks, kw...)
+end
+
+function Base.open(f::Function, A::FileArray{NCDfile}; write=A.write, kw...)
+    _read(NCDfile, filename(A); key=key(A), write, kw...) do var
+        f(GeoDiskArray(var, DA.eachchunk(A), DA.haschunks(A)))
+    end
 end
 
 """
@@ -167,13 +170,15 @@ layersizes(ds::NCD.NCDataset, keys) = map(k -> size(ds[k]), keys)
 
 function FileStack{NCDfile}(ds::NCD.Dataset, filename::AbstractString; write=false, keys)
     keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
-    type_size = map(keys) do key
-        var = ds[string(key)]
-        eltype(var), size(var)
+    type_size_ec_hc = map(keys) do key
+        var = GeoDiskArray(ds[string(key)])
+        eltype(var), size(var), DA.eachchunk(var), DA.haschunks(var)
     end
-    layertypes = NamedTuple{keys}(map(first, type_size))
-    layersizes = NamedTuple{keys}(map(last, type_size))
-    FileStack{NCDfile,keys}(filename, layertypes, layersizes, write)
+    layertypes = NamedTuple{keys}(map(x->x[1], type_size_ec_hc))
+    layersizes = NamedTuple{keys}(map(x->x[2], type_size_ec_hc))
+    eachchunk = NamedTuple{keys}(map(x->x[3], type_size_ec_hc))
+    haschunks = NamedTuple{keys}(map(x->x[4], type_size_ec_hc))
+    FileStack{NCDfile,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
 end
 
 # Utils ########################################################################
@@ -405,24 +410,13 @@ end
 
 _unuseddimerror(dimname) = error("Netcdf contains unused dimension $dimname")
 
-
-# NCDatasets doesn't have a DiskArrays interface yet
-struct NCDiskArray{T,N,V<:AbstractArray{T,N},C} <: AbstractDiskArray{T,N}
-    var::V
-    cs::C
+@inline function _eachchunk(var::NCD.CFVariable) 
+    chunkmode, chunkvec = NCDatasets.chunking(var)
+    chunksize = chunkmode == :chunked ? Tuple(chunkvec) : size(var)
+    DA.GridChunks(var, chunksize)
 end
 
-Base.parent(A::NCDiskArray) = A.var
-Base.size(A::NCDiskArray{T,N}) where {T,N} = size(parent(A))::NTuple{N,Int}
-
-function Base.open(f::Function, A::FileArray{NCDfile}; write=A.write, kw...)
-    _read(NCDfile, filename(A); key=key(A), write, kw...) do var
-        f(NCDiskArray(var, chunks(A)))
-    end
+@inline function _haschunks(var::NCD.CFVariable) 
+    chunkmode, _ = NCDatasets.chunking(var)
+    chunkmode == :chunked ? DA.Chunked() : DA.Unchunked()
 end
-
-DiskArrays.haschunks(A::NCDiskArray{<:Any,<:Any,<:Any,Nothing}) = Unhunked()
-DiskArrays.haschunks(A::NCDiskArray) = Chunked()
-DiskArrays.eachchunk(A::NCDiskArray) = DiskArrays.GridChunks(A, chunks(A))
-DiskArrays.readblock!(A::NCDiskArray, aout, r::AbstractUnitRange...) = aout .= parent(A)[r...]
-DiskArrays.writeblock!(A::NCDiskArray, v, r::AbstractUnitRange...) = parent(A)[r...] .= v
