@@ -1,6 +1,6 @@
 using GeoData, Test, Statistics, Dates, Plots
 import ArchGDAL, NCDatasets, HDF5, CFTime
-using GeoData: Time, window, name, layerkeys, SMAPfile
+using GeoData: Time, name, layerkeys, SMAPfile
 
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
@@ -222,7 +222,6 @@ if isfile(path1) && isfile(path2)
 
         @testset "window" begin
             windowedstack = stack(path1; window=(Y(1:5), X(1:5)))
-            @test window(windowedstack) == (Y(1:5), X(1:5))
             windowedarray = windowedstack[:soil_temp_layer1];
             @test size(windowedarray) == (5, 5)
             @test windowedarray[1:3, 2:2] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)

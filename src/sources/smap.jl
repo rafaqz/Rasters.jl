@@ -103,7 +103,7 @@ end
 
 @deprecate SMAPstack(args...; kw...) GeoStack(args...; source=SMAPfile, kw...)
 
-function FileStack{SMAPfile}(ds::SMAPhdf5, filename::AbstractString; write=false, keys)
+function FileStack{SMAPfile}(ds::SMAPhdf5, filename::AbstractString; window=nothing, write=false, keys)
     keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key
         var = HDF5DiskArray(ds[_smappath(key)])
@@ -113,7 +113,7 @@ function FileStack{SMAPfile}(ds::SMAPhdf5, filename::AbstractString; write=false
     layersizes = NamedTuple{keys}(map(x->x[2], type_size_ec_hc))
     eachchunk = NamedTuple{keys}(map(x->x[3], type_size_ec_hc))
     haschunks = NamedTuple{keys}(map(x->x[4], type_size_ec_hc))
-    FileStack{SMAPfile,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+    FileStack{SMAPfile,keys}(filename, layertypes, layersizes, window, eachchunk, haschunks, write)
 end
 
 # Series #######################################################################

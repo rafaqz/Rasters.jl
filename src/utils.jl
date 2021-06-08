@@ -15,3 +15,14 @@ checkindexorder(dim::Dimension, order::Order) =
     indexorder(dim) == order || @warn "Array order for `$(DD.basetypeof(order))` is `$(indexorder(dim))`, usually `$order`"
 
 cleankeys(keys) = Tuple(map(Symbol, keys))
+
+reindex_window(x, ::Nothing, I) = I
+reindex_window(x, ::Tuple{}, I) = I
+function reindex_window(x, window::Tuple, I)
+    win = DD.dims2indices(x, window)
+    if win == ()
+        DD.dims2indices(x, I)
+    else
+        Base.reindex(win, DD.dims2indices(x, I))
+    end
+end

@@ -1,5 +1,5 @@
 using GeoData, DimensionalData, Test, Statistics, Dates
-using GeoData: data, window
+using GeoData: data
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
@@ -35,7 +35,6 @@ end
 
 @testset "st fields " begin
     @test DimensionalData.layerdims(st, :ga1) == DimensionalData.formatdims(data1, dims1)
-    @test window(st) == nothing
     @test metadata(st) == NoMetadata()
     @test metadata(st, :ga1) == NoMetadata()
 end
@@ -83,7 +82,7 @@ end
         @test refdims(sv[:ga2])[1] == (Ti(DateTime(2019); mode=Sampled(Ordered(), Irregular(), Points())),)[1]
         # Stack of view-based GeoArrays
         v = view(st, X(2:4), Y(5:6))
-        @inferred view(st, X(2:4), Y(5:6))
+        # @inferred view(st, X(2:4), Y(5:6))
         @test v isa GeoStack
         @test v[:ga1] isa GeoArray
         @test data(v[:ga1]) isa SubArray
