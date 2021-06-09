@@ -1,7 +1,8 @@
 abstract type AbstractFileStack end
 
-struct FileStack{X,K,F<:AbstractString,T<:NamedTuple,S<:NamedTuple,W,EC,HC} <: AbstractFileStack
+struct FileStack{X,K,F<:AbstractString,D<:Tuple,T<:NamedTuple,S<:NamedTuple,W,EC,HC} <: AbstractFileStack
     filename::F
+    dims::D
     types::T
     sizes::S
     window::W
@@ -10,15 +11,17 @@ struct FileStack{X,K,F<:AbstractString,T<:NamedTuple,S<:NamedTuple,W,EC,HC} <: A
     write::Bool
 end
 function FileStack{X,K}(
-    filename::F, types::T, sizes::S, window::W, eachchunk::EC, haschunks::HC, write::Bool
-) where {X,K,F,T,S,W,EC,HC}
-    FileStack{X,K,F,T,S,W,EC,HC}(filename, types, sizes, window, eachchunk, haschunks, write)
+    filename::F, dims::D, types::T, sizes::S, window::W, eachchunk::EC, haschunks::HC, write::Bool
+) where {X,K,F,D,T,S,W,EC,HC}
+    FileStack{X,K,F,D,T,S,W,EC,HC}(filename, dims, types, sizes, window, eachchunk, haschunks, write)
 end
 
-ConstructionBase.constructorof(::Type{FileStack{X,K}}) where {X,K} = FileStack{X,K} 
+ConstructionBase.constructorof(::Type{<:FileStack{X,K}}) where {X,K} = FileStack{X,K} 
 
 filename(fs::FileStack) = fs.filename
 window(fs::FileStack) = fs.window
+dims(fs::FileStack) = fs.dims
+window(fs::NamedTuple) = nothing
 Base.keys(fs::FileStack{<:Any,K}) where K = K
 Base.values(fs::FileStack{<:Any}) = (fs[k] for k in keys(fs))
 function Base.getindex(fs::FileStack{X}, key::Symbol) where X
@@ -28,9 +31,14 @@ function Base.getindex(fs::FileStack{X}, key::Symbol) where X
     T = fs.types[key]
     N = length(size)
     A = FileArray{X,T,N}(filename(fs), size, key, eachchunk, haschunks, fs.write)
-    window(fs) isa Nothing ? A : view(A, window(fs)...)
 end
 
 function Base.view(st::FileStack, I...)
-    @set st.window = reindex_window(st, st.window, I)
+end
+
+@propagate_inbounds function Base.view(fs::FileStack, I...)
+    I = dims2indices(fs, I...)
+    window, refwindow = slicedims(view, window(fs), I)
+    @set filestack.window = window
+    rebuild(s, filestack)
 end

@@ -60,16 +60,26 @@ Base.copy(stack::AbstractGeoStack) = rebuild(stack; data=map(copy, stack))
     data_ = data(s)[key]
     dims_ = dims(s, DD.layerdims(s, key))
     metadata = DD.layermetadata(s, key)
-    GeoArray(data_, dims_, refdims(s), key, metadata, missingval(s, key))
+    A = GeoArray(data_, dims_, refdims(s), key, metadata, missingval(s, key))
+    win = window(data(s))
+    win isa Nothing ? A : view(A, win...)
+end
+@propagate_inbounds function Base.getindex(s::AbstractGeoStack, i1::Int, I::Int...)
+    win = window(data(s))
+    win isa Nothing ? map(A -> A[i1, I...], s) : map(A -> view(A, win...)[i1, I...], s)
 end
 # Key + Index
 @propagate_inbounds @inline function Base.getindex(s::AbstractGeoStack, key::Symbol, i1, I...)
-    s[key][i1, I...]
+    A = s[key][i1, I...]
 end
 
 # Special-case view over FileStack, this just sets the window field
 @propagate_inbounds function Base.view(s::AbstractGeoStack{<:FileStack}, I...)
-    view(data(s), I...)
+    I = dims2indices(s, I...)
+    filestack = data(s)
+    window, refwindow = slicedims(view, window(filestack), I)
+    @set filestack.window = window
+    rebuild(s, filestack)
 end
 
 # Concrete AbstrackGeoStack implementation #################################################
