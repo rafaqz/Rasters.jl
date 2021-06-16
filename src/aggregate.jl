@@ -108,10 +108,10 @@ Aggregate array `src` to array `dst` by `scale`, using `method`.
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index in the `src` array.
 """
-function aggregate!(locus::Locus, dst::AbstractDimArray, src, scale)
+function aggregate!(locus::Locus, dst::AbstractGeoArray, src, scale)
     aggregate!((locus,), dst, src, scale)
 end
-function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractDimArray, src, scale)
+function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale)
     intscale = _scale2int(dims(src), scale)
     offsets = _agoffset.(loci, intscale)
     for I in CartesianIndices(dst)
@@ -249,7 +249,9 @@ function alloc_ag(method::Tuple, A::AbstractDimArray, scale)
     # Aggregate the dimensions
     dims_ = aggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size
-    data_ = similar(data(A), map(length, dims_)...)
+    sze = map(length, dims_)
+    T = ag_eltype(method, A)
+    data_ = similar(parent(A), T, sze...)
     return rebuild(A; data=data_, dims=dims_)
 end
 
@@ -259,9 +261,14 @@ function alloc_disag(method::Tuple, A::AbstractDimArray, scale)
     intscale = _scale2int(dims(A), scale)
     dims_ = disaggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size
-    data_ = similar(data(A), map(length, dims_)...)
+    sze = map(length, dims_)
+    T = ag_eltype(method, A)
+    data_ = similar(parent(A), T, sze...)
     return rebuild(A; data=data_, dims=dims_)
 end
+
+ag_eltype(method::Tuple{<:Locus,Vararg}, A) = eltype(A)
+ag_eltype(method::Tuple{<:Any}, A) = eltype(method[1](view(A, 1)))
 
 
 # Convert indicies from the aggregated array to the larger original array.
@@ -273,7 +280,7 @@ downsample(index::Int, scale::Int) = (index - 1) ÷ scale + 1
 downsample(index::Int, scale::Colon) = index
 
 # Convert scale or tuple of scale to integer using dims2indices
-_scale2int(dims, scale::Tuple) = DD.dims2indices(dims, scale)
+_scale2int(dims, scale::Tuple) = map((d, s) -> _scale2int(d, s), dims, DD.dims2indices(dims, scale))
 _scale2int(dims, scale::Int) = scale
 _scale2int(dims, scale::Colon) = 1
 

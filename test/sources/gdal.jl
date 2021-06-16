@@ -1,6 +1,6 @@
 using GeoData, Test, Statistics, Dates, Plots, DimensionalData, RasterDataSources, DiskArrays
 import ArchGDAL, NCDatasets
-using GeoData: window, mode, span, sampling, name, bounds, FileArray, GDALfile
+using GeoData: mode, span, sampling, name, bounds, FileArray, GDALfile
 using DimensionalData: modify
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
@@ -266,7 +266,6 @@ end
 
     @testset "window" begin
         windowedstack = GeoStack((a=path, b=path); window=(Y(1:5), X(1:5), Band(1)))
-        @test window(windowedstack) == (Y(1:5), X(1:5), Band(1))
         windowedarray = GeoArray(windowedstack[:a])
         @test windowedarray isa GeoArray{UInt8,2}
         @test length.(dims(windowedarray)) == (5, 5)

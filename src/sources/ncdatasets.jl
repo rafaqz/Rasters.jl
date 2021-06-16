@@ -126,27 +126,28 @@ end
 DD.refdims(ds::NCD.Dataset, filename) = ()
 
 DD.metadata(ds::NCD.Dataset) = Metadata{NCDfile}(DD.metadatadict(ds.attrib))
-DD.metadata(ds::NCD.Dataset, key::Key) = metadata(ds[string(key)])
+DD.metadata(ds::NCD.Dataset, key::Key) = metadata(NCD.variable(ds, string(key)))
 DD.metadata(var::NCD.CFVariable) = Metadata{NCDfile}(DD.metadatadict(var.attrib))
+DD.metadata(var::NCD.Variable) = Metadata{NCDfile}(DD.metadatadict(var.attrib))
 DD.metadata(var::NCD.CFVariable, stackmetadata::AbstractMetadata) = begin
     md = Metadata{NCDfile}(DD.metadatadict(var.attrib))
     md[NCD_STACK_METADATA_KEY] = stackmetadata
     md
 end
 
-@inline function DD.layerdims(var::NCD.CFVariable)
+@inline function DD.layerdims(var::NCD.Variable)
     map(NCD.dimnames(var)) do dimname
         _ncddimtype(dimname)()
     end
 end
 @inline function DD.layerdims(ds::NCD.Dataset)
     keys = Tuple(layerkeys(ds))
-    NamedTuple{map(Symbol, keys)}(map(k -> DD.layerdims(ds[string(k)]), keys))
+    NamedTuple{map(Symbol, keys)}(map(k -> DD.layerdims(NCD.variable(ds, string(k))), keys))
 end
 
 @inline function DD.layermetadata(ds::NCD.Dataset)
     keys = Tuple(layerkeys(ds))
-    NamedTuple{map(Symbol, keys)}(map(k -> DD.metadata(ds[string(k)]), keys))
+    NamedTuple{map(Symbol, keys)}(map(k -> DD.metadata(NCD.variable(ds, string(k))), keys))
 end
 
 missingval(var::NCD.CFVariable) = missing
@@ -157,7 +158,7 @@ function layerkeys(ds::NCD.Dataset)
     dimkeys = _dimkeys(ds)
     toremove = if "bnds" in dimkeys
         dimkeys = setdiff(dimkeys, ("bnds",))
-        boundskeys = [ds[k].attrib["bounds"] for k in dimkeys if haskey(ds[k].attrib, "bounds")]
+        boundskeys = [v.attrib["bounds"] for v in map(k -> NCD.variable(ds, k), dimkeys) if haskey(v.attrib, "bounds")]
         union(dimkeys, boundskeys)
     else
         dimkeys
@@ -171,8 +172,8 @@ layersizes(ds::NCD.NCDataset, keys) = map(k -> size(ds[k]), keys)
 function FileStack{NCDfile}(ds::NCD.Dataset, filename::AbstractString; write=false, keys)
     keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key
-        var = GeoDiskArray(ds[string(key)])
-        eltype(var), size(var), DA.eachchunk(var), DA.haschunks(var)
+        var = NCD.variable(ds, string(key))
+        eltype(var), size(var), _ncd_eachchunk(var), _ncd_haschunks(var)
     end
     layertypes = NamedTuple{keys}(map(x->x[1], type_size_ec_hc))
     layersizes = NamedTuple{keys}(map(x->x[2], type_size_ec_hc))
@@ -410,13 +411,13 @@ end
 
 _unuseddimerror(dimname) = error("Netcdf contains unused dimension $dimname")
 
-@inline function _eachchunk(var::NCD.CFVariable) 
+@inline function _ncd_eachchunk(var) 
     chunkmode, chunkvec = NCDatasets.chunking(var)
     chunksize = chunkmode == :chunked ? Tuple(chunkvec) : size(var)
     DA.GridChunks(var, chunksize)
 end
 
-@inline function _haschunks(var::NCD.CFVariable) 
+@inline function _ncd_haschunks(var) 
     chunkmode, _ = NCDatasets.chunking(var)
     chunkmode == :chunked ? DA.Chunked() : DA.Unchunked()
 end

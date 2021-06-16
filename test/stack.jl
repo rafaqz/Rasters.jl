@@ -14,7 +14,7 @@ meta = NoMetadata()
 ga1 = GeoArray(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=mval)
 ga2 = GeoArray(data2, dims2)
 
-st = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
+st = stack((ga1, ga2); keys=(:ga1, :ga2))
 
 @testset "stack layers" begin
     @test length(st) == 2
@@ -30,7 +30,7 @@ st = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
     @test names(st) == (:ga1, :ga2)
     @test collect(values(st)) == [ga1, ga2]
     # We can iterate/splat stacks as GeArrays
-    @test st === GeoStack(st...)
+    @test st == GeoStack(st...)
 end
 
 @testset "st fields " begin

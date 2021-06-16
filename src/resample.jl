@@ -26,8 +26,9 @@ export resample
 """
 function resample end
 function resample(A::AbstractGeoArray, resolution::Number;
-				  crs::GeoFormat=crs(A),
-                  method::String="near")
+    crs::GeoFormat=crs(A),
+    method::String="near"
+)
     wkt = convert(String, convert(WellKnownText, crs))
     flags = ["-t_srs", "$(wkt)",
              "-tr", "$(resolution)", "$(resolution)",
@@ -48,7 +49,7 @@ function resample(A::AbstractGeoArray, snap::AbstractGeoArray; method::String="n
              "-r", "$(method)"]
     AG.Dataset(A) do dataset
         AG.gdalwarp([dataset], flags) do warped
-            GeoArray(warped)
+            read(GeoArray(warped))
         end
     end
 end

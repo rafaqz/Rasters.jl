@@ -1,6 +1,6 @@
 using GeoData, Test, Statistics, Dates, CFTime, Plots
 import ArchGDAL, NCDatasets
-using GeoData: name, window, mode, span, sampling, val, Ordered, metadata, bounds,
+using GeoData: name, mode, span, sampling, val, Ordered, metadata, bounds,
                FileArray, FileStack, NCDfile
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
@@ -264,7 +264,6 @@ end
 
     @testset "window" begin
         windowedstack = stack(ncmulti; window=(Y(1:5), X(1:5), Ti(1)))
-        @test window(windowedstack) == (Y(1:5), X(1:5), Ti(1))
         windowedarray = windowedstack[:albedo]
         @test size(windowedarray) == (5, 5)
         @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
@@ -346,7 +345,6 @@ end
 
     @testset "window" begin
         windowedstack = stack(ncmulti; window=(Y(1:5), X(1:5), Ti(1)))
-        @test window(windowedstack) == (Y(1:5), X(1:5), Ti(1))
         windowedarray = windowedstack[:albedo]
         @test size(windowedarray) == (5, 5)
         @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)

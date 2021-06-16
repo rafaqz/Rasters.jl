@@ -54,33 +54,18 @@ Base.names(s::AbstractGeoStack) = keys(s)
 Base.copy(stack::AbstractGeoStack) = rebuild(stack; data=map(copy, stack))
 
 #### Stack getindex ####
-# Different to DimensionalData as we may have a lazy `window` to apply.
-# Symbol key
+# Different to DimensionalData as we construct a GeoArray
 @propagate_inbounds function Base.getindex(s::AbstractGeoStack, key::Symbol)
     data_ = data(s)[key]
     dims_ = dims(s, DD.layerdims(s, key))
     metadata = DD.layermetadata(s, key)
-    A = GeoArray(data_, dims_, refdims(s), key, metadata, missingval(s, key))
-    win = window(data(s))
-    win isa Nothing ? A : view(A, win...)
-end
-@propagate_inbounds function Base.getindex(s::AbstractGeoStack, i1::Int, I::Int...)
-    win = window(data(s))
-    win isa Nothing ? map(A -> A[i1, I...], s) : map(A -> view(A, win...)[i1, I...], s)
+    GeoArray(data_, dims_, refdims(s), key, metadata, missingval(s, key))
 end
 # Key + Index
 @propagate_inbounds @inline function Base.getindex(s::AbstractGeoStack, key::Symbol, i1, I...)
     A = s[key][i1, I...]
 end
 
-# Special-case view over FileStack, this just sets the window field
-@propagate_inbounds function Base.view(s::AbstractGeoStack{<:FileStack}, I...)
-    I = dims2indices(s, I...)
-    filestack = data(s)
-    window, refwindow = slicedims(view, window(filestack), I)
-    @set filestack.window = window
-    rebuild(s, filestack)
-end
 
 # Concrete AbstrackGeoStack implementation #################################################
 
@@ -144,8 +129,8 @@ end
 # Multi GeoArray stack from splat with `keys` keyword
 GeoStack(layers::AbstractDimArray...; kw...) = GeoStack(layers; kw...)
 # Multi GeoArray stack from tuple with `keys` keyword
-function GeoStack(data::Tuple{Vararg{<:AbstractGeoArray}}; keys=map(name, data), kw...)
-    GeoStack(NamedTuple{cleankeys(keys)}(data); kw...)
+function GeoStack(layers::Tuple{Vararg{<:AbstractGeoArray}}; keys=map(name, layers), kw...)
+    GeoStack(NamedTuple{cleankeys(keys)}(layers); kw...)
 end
 # Multi GeoArray stack from NamedTuple
 function GeoStack(layers::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractGeoArray}}};
@@ -184,8 +169,11 @@ function GeoStack(filename::AbstractString;
         data = FileStack{source}(ds, filename; keys)
         data, (; dims, refdims, layerdims, metadata, layermetadata, layermissingval)
     end
-    st = GeoStack(data; field_kw..., window)
+    GeoStack(data; field_kw..., window)
 end
+
+
+
 # Rebuild from internals
 function GeoStack(
     data::Union{FileStack,NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}};

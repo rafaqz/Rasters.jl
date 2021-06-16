@@ -12,7 +12,7 @@ const GDAL_RELATION = ForwardRelation()
 const GDAL_X_LOCUS = Start()
 const GDAL_Y_LOCUS = Start()
 
-# Array ########################################################################
+# Array ######################################################################## @deprecate GDALarray(args...; kw...) GeoArray(args...; source=GDALfile, kw...)
 
 @deprecate GDALarray(args...; kw...) GeoArray(args...; source=GDALfile, kw...)
 
@@ -257,7 +257,7 @@ function _gdalsetproperties!(dataset, A)
         end
     end
 
-    dataset
+    return dataset
 end
 
 # Create a GeoArray from a memory-backed dataset
@@ -280,26 +280,39 @@ function GeoArray(ds::AG.RasterDataset;
 end
 
 # Create a memory-backed GDAL dataset from any AbstractGeoArray
-function unsafe_ArchGDALdataset(A::AbstractGeoArray)
+unsafe_gdal_mem(A::AbstractGeoArray) = unsafe_gdal_mem(dims(A, (X(), Y(), Band())), A)
+function unsafe_gdal_mem(::Tuple{<:X,<:Y,<:Band}, A::AbstractGeoArray)
+    nbands = size(A, Band)
+    _unsafe_gdal_mem(permutedims(A, (X, Y, Band)), nbands)
+end
+function unsafe_gdal_mem(::Tuple{<:X,<:Y}, A::AbstractGeoArray)
+    nbands = 1
+    _unsafe_gdal_mem(permutedims(A, (X, Y)), nbands)
+end
+function unsafe_gdal_mem(::Tuple, A::AbstractGeoArray)
+    throw(ArgumentError("A GeoArray must have at least X an Y dims to use gdal tools"))
+end
+
+function _unsafe_gdal_mem(A::AbstractGeoArray, nbands)
     width = size(A, X)
     height = size(A, Y)
-    nbands = size(A, Band)
-
-    dataset = AG.unsafe_create("tmp";
+    ds = AG.unsafe_create("tmp";
         driver=AG.getdriver("MEM"),
         width=width,
         height=height,
         nbands=nbands,
         dtype=eltype(A)
     )
+    _gdalsetproperties!(ds, A)
     # write bands to dataset
-    AG.write!(dataset, data(permutedims(A, (X, Y, Band))), Cint[1:nbands...])
-    _gdalsetproperties!(dataset, A)
-    dataset
+    open(A) do A
+        AG.RasterDataset(ds) .= parent(A)
+    end
+    return ds
 end
 
 function AG.Dataset(f::Function, A::AbstractGeoArray)
-    dataset = unsafe_ArchGDALdataset(A)
+    dataset = unsafe_gdal_mem(A)
     try
         f(dataset)
     finally

@@ -11,14 +11,6 @@ function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractGeoArray)
 end
 
 function DD.show_after(io, mime, stack::AbstractGeoStack) 
-    if !(window(stack) isa Nothing)
-        printstyled(io, "\nwith window:\n"; color=:light_black)
-        for (i, dim) in enumerate(window(stack))
-            print(io, ' ')
-            show(IOContext(io, :compact=>true), mime, dim)
-            i != length(window(stack)) && print(io, ',')
-        end
-    end
     if data(stack) isa FileStack 
         printstyled(io, "\nfrom file:\n"; color=:light_black)
         println(io, filename(stack))
