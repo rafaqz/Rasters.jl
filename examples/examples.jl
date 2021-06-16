@@ -55,7 +55,7 @@ view(A, Ti(4)) |> plot
 
 # Or reduce over some dimension
 mean(A; dims=Ti) |> plot
-std(A; dims=Ti) |> plot
+std(read(A); dims=Ti) |> plot
 
 # Replace missing values and to reduce over a dimension
 minimum(replace_missing(A, NaN); dims=Ti) |> plot
