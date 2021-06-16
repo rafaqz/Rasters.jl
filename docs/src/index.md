@@ -116,6 +116,25 @@ folders of stacks of data with a single command.
 smapseries
 ```
 
+## Plotting
+
+Plots.jl is fully supported. `plot` will plot a heatmap with axes matching
+dimension values. If `mappedcrs` is used converted values will be shown on 
+axes instead of the underlying `crs` values.
+
+Pixel resolution is limited to allow loading very large files. `max_res` 
+specifies the maximum pixel resolution to show on the longest axis of the array.
+It can be set manually to change the resolution (e.g. for large or high-quality plots):
+
+```julia
+plot(A; max_res=3000)
+```
+
+Dimensions other than `X` an `Y` will produce multi-pane plots.
+
+![Global ocean surface temperatures](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/four_pane_map.png)
+
+
 ## Helper methods
 
 See [DimensionalData.jl docs](https://rafaqz.github.io/DimensionalData.jl/stable/)

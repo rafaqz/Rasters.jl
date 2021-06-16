@@ -42,7 +42,7 @@ struct GeoDiskArray{T,N,V<:AbstractArray{T,N},EC,HC} <: AbstractDiskArray{T,N}
     eachchunk::EC
     haschunks::HC
 end
-GeoDiskArray(var) = GeoDiskArray(var, _eachchunk(var), _haschunks(var))
+GeoDiskArray(var) = GeoDiskArray(var, DA.eachchunk(var), DA.haschunks(var))
 
 Base.parent(A::GeoDiskArray) = A.var
 Base.size(A::GeoDiskArray{T,N}) where {T,N} = size(parent(A))::NTuple{N,Int}

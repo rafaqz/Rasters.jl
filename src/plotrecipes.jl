@@ -26,6 +26,9 @@ end
     if nplots > 1
         :layout --> nplots
         :title --> permutedims(string.(val(dims(A, D))))
+        :titlefontsize --> 10
+        :guidefontsize --> 9
+        :colorbar_titlefontsize --> 9
         for i in 1:nplots
             @series begin
                 seriestype := :heatmap
@@ -61,7 +64,10 @@ end
     :xguide --> xguide
     :yguide --> yguide
     :clims --> clims
+    :guidefontsize --> 9
+    :titlefontsize --> 10
     :colorbar_title --> name(A)
+    :colorbar_titlefontsize --> 9
 
     ys, xs = map(_prepare, dims(A))
 

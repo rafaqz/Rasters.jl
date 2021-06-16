@@ -69,7 +69,7 @@ ncstack[:tos][t, Lat(Between(-45, 0.5)), Lon(Between(110, 160))] |> x->mean(x; d
 
 # Permute the dimensions in the underlying data
 # It stil plots the right way up
-permutedims(A, (Lat, Lon, Ti))[Ti(1:3:12)] |> plot
+permutedims(A, (X, Y, Ti))[Ti(1:3:12)] |> plot
 
 # Line plots have (kind of) useful labels
 A = ncseries[1][:tos]

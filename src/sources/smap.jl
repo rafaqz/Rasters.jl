@@ -31,8 +31,8 @@ function DD.dims(wrapper::SMAPhdf5)
         extent = HDF5.attributes(HDF5.root(dataset)["Metadata/Extent"])
         lonbounds = read(extent["westBoundLongitude"]), read(extent["eastBoundLongitude"])
         latbounds = read(extent["southBoundLatitude"]), read(extent["northBoundLatitude"])
-        latvec = read(HDF5.root(dataset)["cell_lat"])[1, :]
-        lonvec = read(HDF5.root(dataset)["cell_lon"])[:, 1]
+        latvec = HDF5.root(dataset)["cell_lat"][1, :]
+        lonvec = HDF5.root(dataset)["cell_lon"][:, 1]
         lonmode = Mapped(
            order=Ordered(),
            span=Irregular(lonbounds),

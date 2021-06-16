@@ -27,7 +27,7 @@ stackkeys = (
 )
 
 @testset "geoarray" begin
-    ncarray = geoarray(ncsingle)
+    @time ncarray = geoarray(ncsingle)
 
     @testset "open" begin
         @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
@@ -205,7 +205,7 @@ stackkeys = (
 end
 
 @testset "Single file stack" begin
-    ncstack = stack(ncmulti)
+    @time ncstack = stack(ncmulti)
 
     @testset "load ncstack" begin
         @test ncstack isa GeoStack
@@ -257,7 +257,7 @@ end
         ncmultistack = stack(ncsingle)
         @test dims(ncmultistack[:tos]) isa Tuple{<:X,<:Y,<:Ti}
         @test ncmultistack[:tos] isa GeoArray{<:Any,3}
-        @test ncmultistack[:tos, Ti(1)] isa GeoArray{<:Any,2}
+        @test ncmultistack[:tos][Ti(1)] isa GeoArray{<:Any,2}
         @test ncmultistack[:tos, Y(1), Ti(1)] isa GeoArray{<:Any,1}
         @test ncmultistack[:tos, 8, 30, 10] isa Float32
     end
@@ -270,8 +270,8 @@ end
         @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
         @test windowedarray[1, 2] == 0.84936917f0
         windowedstack = stack(ncmulti; window=(Y(1:5), X(1:5), Ti(1:1)))
-        windowedarray = windowedstack[:albedo]
-        @test windowedarray[1:3, 2:2, 1:1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1, 1)
+        windowedarray = windowedstack[:albedo] 
+        @test windowedarray[1:3, 2:2, 1:1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1, 1) 
         @test windowedarray[1:3, 2:2, 1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
         @test windowedarray[1:3, 2, 1] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
         @test windowedarray[1, 2, 1] == 0.84936917f0
@@ -282,9 +282,7 @@ end
         @test windowedarray[1, 2] ==  0.84936917f0
     end
 
-    @testset "conversion to GeoStack" begin
-        geostack = GeoStack(ncstack)
-        @test Symbol.(Tuple(keys(geostack))) == keys(ncstack)
+    @testset "Subsetting keys" begin
         smallstack = GeoStack(ncstack; keys=(:albedo, :evap, :runoff))
         @test keys(smallstack) == (:albedo, :evap, :runoff)
     end
@@ -313,9 +311,6 @@ end
         @test occursin(":tsurf", sh)
         @test occursin(":aclcac", sh)
         @test occursin("test_echam_spectral.nc", sh)
-        @test occursin("window", sh)
-        @test occursin("7:99", sh)
-        @test occursin("3:90", sh)
     end
 
 end
@@ -417,7 +412,7 @@ end
     @testset "modify" begin
         modified_series = modify(Array, ncseries)
         @test keys(modified_series) == keys(ncseries)
-        @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{stackkeys,<:Tuple{<:Array{Float32,3},Vararg}}}}
+        @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{stackkeys,<:Tuple{<:Array{Union{Missing,Float32},3},Vararg}}}}
     end
 end
 

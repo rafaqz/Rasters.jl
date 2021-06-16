@@ -166,14 +166,14 @@ function layerkeys(ds::NCD.Dataset)
     setdiff(keys(ds), toremove)
 end
 
-layertypes(ds::NCD.NCDataset, keys) = map(k -> eltype(ds[k]), keys)
-layersizes(ds::NCD.NCDataset, keys) = map(k -> size(ds[k]), keys)
+layertypes(ds::NCD.NCDataset, keys) = map(k -> Union{Missing,eltype(NCD.variable(ds, k))}, keys)
+layersizes(ds::NCD.NCDataset, keys) = map(k -> size(NCD.variable(ds, k)), keys)
 
 function FileStack{NCDfile}(ds::NCD.Dataset, filename::AbstractString; write=false, keys)
     keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key
         var = NCD.variable(ds, string(key))
-        eltype(var), size(var), _ncd_eachchunk(var), _ncd_haschunks(var)
+        Union{Missing,eltype(var)}, size(var), _ncd_eachchunk(var), _ncd_haschunks(var)
     end
     layertypes = NamedTuple{keys}(map(x->x[1], type_size_ec_hc))
     layersizes = NamedTuple{keys}(map(x->x[2], type_size_ec_hc))
@@ -216,7 +216,7 @@ end
 
 function _ncfinddimlen(ds, dimname) 
     for key in keys(ds)
-        var = ds[key]
+        var = NCD.variable(ds, key)
         dimnames = NCD.dimnames(var)
         if dimname in dimnames 
             return size(var)[findfirst(==(dimname), dimnames)]
@@ -239,8 +239,9 @@ function _ncdmode(
         # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
     # Unless its a time dimension.
     order = _ncdorder(index)
-    span, sampling = if haskey(ds[dimname].attrib, "bounds")
-        boundskey = ds[dimname].attrib["bounds"]
+    var = NCD.variable(ds, dimname)
+    span, sampling = if haskey(var.attrib, "bounds")
+        boundskey = var.attrib["bounds"]
         boundsmatrix = Array(ds[boundskey])
         Explicit(boundsmatrix), Intervals(Center())
     elseif eltype(index) <: Dates.AbstractTime
