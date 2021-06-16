@@ -1,19 +1,20 @@
 struct GeoPlot end
 struct GeoZPlot end
 
+
 # We only look at arrays with X, Y, Z dims here.
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(A::AbstractGeoArray)
     ddplot(A) = DimArray(A; dims=_maybe_mapped(dims(A)))
-    A = GeoArray(A)
+    max_res = get(plotattributes, :max_res, 1000)
     if !(get(plotattributes, :seriestype, :none) in (:none, :heatmap))
         DD.DimensionalPlot(), ddplot(A)
     elseif all(hasdim(A, (SpatialDim, SpatialDim)))
         # Heatmap or multiple heatmaps. Use GD recipes.
-        GeoPlot(), _prepare(A)
+        GeoPlot(), _prepare(A, max_res)
     elseif hasdim(A, ZDim) && ndims(A) == 1
         # Z dim plot, but for spatial data we want Z on the Y axis
-        GeoZPlot(), _prepare(A)
+        GeoZPlot(), _prepare(A, max_res)
     else
         DD.DimensionalPlot(), ddplot(A)
     end
@@ -90,11 +91,21 @@ end
 # So we should center, and use the projected value.
 _prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped |> index
 # Convert arrays to a consistent missing value and Forward array order
-_prepare(A::AbstractGeoArray) =
-    replace_missing(A, missing) |>
-    A -> reorder(A, ForwardIndex) |>
-    A -> reorder(A, ForwardRelation) |>
-    A -> permutedims(A, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A)))
+function _prepare(A::AbstractGeoArray, max_res)
+    open(A) do O
+        _subsample(O, max_res) |>
+        a -> reorder(a, ForwardIndex) |>
+        a -> reorder(a, ForwardRelation) |>
+        a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A))) |>
+        a -> replace_missing(a, missing)
+    end
+end
+
+function _subsample(A, max_res)
+    # Aggregate based on the number of pixels
+    ag = floor(Int, max(size(A, X()), size(A, Y())) / max_res) + 1
+    A[X(1:ag:end), Y(1:ag:end)]
+end
 
 _maybename(A) = _maybename(name(A))
 _maybename(n::Symbol) = n == Symbol("") ? "" : string(n, ": ")
