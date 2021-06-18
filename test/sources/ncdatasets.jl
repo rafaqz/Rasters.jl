@@ -104,17 +104,17 @@ stackkeys = (
     end
 
     @testset "selectors" begin
-        a = ncarray[Lon(At(21.0)), Lat(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))]
+        a = ncarray[X(At(21.0)), Y(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))]
         @test bounds(a) == ((50.0, 52.0),)
-        x = ncarray[Lon(Near(150)), Lat(Near(30)), Ti(1)]
+        x = ncarray[X(Near(150)), Y(Near(30)), Ti(1)]
         @test x isa Float32
-        dimz = Lon(Between(0.0, 360)), Lat(Between(-80, 90)), 
+        dimz = X(Between(0.0, 360)), Y(Between(-80, 90)), 
                Ti(Between(DateTime360Day(2001, 1, 1), DateTime360Day(2003, 01, 02)))
         @test size(ncarray[dimz...]) == (180, 170, 24)
         @test index(ncarray[dimz...]) == index(ncarray)
-        nca = ncarray[Lat(Between(-80, -25)), Lon(Between(0, 180)), Ti(Contains(DateTime360Day(2002, 02, 20)))]
+        nca = ncarray[Y(Between(-80, -25)), X(Between(0, 180)), Ti(Contains(DateTime360Day(2002, 02, 20)))]
         @test size(nca) == (90, 55)
-        @test index(nca, Lat) == index(ncarray[1:90, 1:55, 2], Lat)
+        @test index(nca, Y) == index(ncarray[1:90, 1:55, 2], Y)
         @test all(nca .=== ncarray[1:90, 1:55, 14])
     end
 

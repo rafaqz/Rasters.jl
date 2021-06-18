@@ -25,45 +25,23 @@ import Flatten,
 
 @reexport using DimensionalData, GeoFormatTypes, RasterDataSources
 
-const DD = DimensionalData
-const DA = DiskArrays
-
 using Base: tail, @propagate_inbounds
-
 using DimensionalData: StandardIndices
-
 using Setfield: @set, @set!
 
-
 export AbstractGeoArray, GeoArray
-
 export AbstractGeoStack, GeoStack
-
 export AbstractGeoSeries, GeoSeries
-
 export Projected, Mapped
-
-export Band, Lat, Lon, Vert, GeoXDim, GeoYDim, GeoZDim
-
+export Band
 export missingval, boolmask, missingmask, replace_missing,
        aggregate, aggregate!, disaggregate, disaggregate!,
-       crop, extend, slice
-
+       crop, extend, slice, trim
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
-
 export geoarray, stack, series
 
-const Lon = X
-const Lat = Y
-const Vert = Z
-const GeoXDim = XDim
-const GeoYDim = YDim
-const GeoZDim = ZDim
-
-struct NCDfile end
-struct GRDfile end
-struct GDALfile end
-struct SMAPfile end
+const DD = DimensionalData
+const DA = DiskArrays
 
 # DimensionalData documentation urls
 const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api"
@@ -74,6 +52,12 @@ const DDsampleddocs = joinpath(DDdocs, "#DimensionalData.Sampled")
 const DDlocusdocs = joinpath(DDdocs, "#DimensionalData.Locus")
 const DDselectordocs = joinpath(DDdocs, "#DimensionalData.Selector")
 const DDtidocs = joinpath(DDdocs, "#DimensionalData.Ti")
+
+# Source dispatch singletons
+struct NCDfile end
+struct GRDfile end
+struct GDALfile end
+struct SMAPfile end
 
 include("mode.jl")
 include("dimensions.jl")

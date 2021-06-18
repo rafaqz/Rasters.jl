@@ -89,12 +89,12 @@ if isfile(path1) && isfile(path2)
             index(smaparray, Y)
             indexorder(smaparray, Y)
             @test bounds(a) == ((50.08451f0, 51.977905f0),)
-            x = smaparray[Lon(Near(150)), Lat(Near(30))]
+            x = smaparray[X(Near(150)), Y(Near(30))]
             @test x isa Float32
-            dimz = Lon(Between(-180.0, 180)), Lat(Between(-90, 90)) 
+            dimz = X(Between(-180.0, 180)), Y(Between(-90, 90)) 
             @test size(smaparray[dimz...]) == (3856, 1624)
             @test index(smaparray[dimz...]) == index(smaparray)
-            nca = smaparray[Lat(Between(-80, -25)), Lon(Between(0, 180))]
+            nca = smaparray[Y(Between(-80, -25)), X(Between(0, 180))]
         end
 
         @testset "conversion to memory back GeoArray" begin

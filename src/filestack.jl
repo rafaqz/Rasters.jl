@@ -1,6 +1,15 @@
-abstract type AbstractFileStack end
+"""
+    FileStack{X,K}
 
-struct FileStack{X,K,F<:AbstractString,T<:NamedTuple,S<:NamedTuple,EC,HC} <: AbstractFileStack
+    FileStack{X,K}(filename, types, sizes, eachchunk, haschunks, write)
+
+Wrapper object that holds file poiinter and size/chunking
+metadata for a multi-layered stack stored in a single file.
+
+`X` is a backend singleton like `GDALfile`, and `K` is a tuple
+of `Symbol` keys.
+"""
+struct FileStack{X,K,F<:AbstractString,T<:NamedTuple,S<:NamedTuple,EC,HC}
     filename::F
     types::T
     sizes::S

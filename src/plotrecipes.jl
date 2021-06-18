@@ -1,6 +1,6 @@
+# Method specialisation singletons. 
 struct GeoPlot end
 struct GeoZPlot end
-
 
 # We only look at arrays with X, Y, Z dims here.
 # Otherwise they fall back to DimensionalData.jl recipes
@@ -29,6 +29,7 @@ end
         :titlefontsize --> 10
         :guidefontsize --> 9
         :colorbar_titlefontsize --> 9
+        :axes --> :none
         for i in 1:nplots
             @series begin
                 seriestype := :heatmap
@@ -64,6 +65,7 @@ end
     :xguide --> xguide
     :yguide --> yguide
     :clims --> clims
+    :axes --> :none
     :guidefontsize --> 9
     :titlefontsize --> 10
     :colorbar_title --> name(A)
@@ -93,15 +95,14 @@ end
     parent(A), z
 end
 
-# Plots heatmaps pixels are centered.
-# So we should center, and use the projected value.
+# Plots.jl heatmaps pixels are centered.
+# So we should center the index, and use the projected value.
 _prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped |> index
 # Convert arrays to a consistent missing value and Forward array order
 function _prepare(A::AbstractGeoArray, max_res)
     open(A) do O
         _subsample(O, max_res) |>
-        a -> reorder(a, ForwardIndex) |>
-        a -> reorder(a, ForwardRelation) |>
+        a -> reorder(a, ForwardIndex) |> a -> reorder(a, ForwardRelation) |>
         a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A))) |>
         a -> replace_missing(a, missing)
     end

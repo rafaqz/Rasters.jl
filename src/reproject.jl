@@ -1,9 +1,5 @@
 export reproject, convertmode, mappedindex, mappedbounds
 
-# These methods are only available if ArchGDAL is loaded.
-# Otherwise Projected selector crs field must be `nothing`,
-# and no reprojection can occur.
-
 function DD._sel2indices(mode::Projected, dim::Dimension, sel::Contains)
     selval = reproject(mappedcrs(mode), crs(mode), dim, val(sel))
     DD.contains(dim, rebuild(sel, selval))

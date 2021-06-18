@@ -198,20 +198,20 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             write(filename2, gdalarray[Band(1)])
             saved = GeoArray(geoarray(filename2; crs=crs(gdalarray)))
             @test size(saved) == size(gdalarray[Band(1)])
-            @test saved ≈ reverse(gdalarray[Band(1)]; dims=Lat)
-            clat, clon = DimensionalData.shiftlocus.(Ref(Center()), dims(gdalarray, (Lat, Lon)))
-            @test mappedindex(clat) ≈ reverse(mappedindex(saved, Lat))
-            @test mappedindex(clon) ≈ mappedindex(saved, Lon)
-            @test all(mappedbounds(saved, Lon) .≈ mappedbounds(clon))
-            @test all(mappedbounds(saved, Lat) .≈ mappedbounds(clat))
-            @test projectedindex(clon) ≈ projectedindex(saved, Lon)
-            @test all(projectedbounds(clon) .≈ projectedbounds(saved, Lon))
+            @test saved ≈ reverse(gdalarray[Band(1)]; dims=Y)
+            clat, clon = DimensionalData.shiftlocus.(Ref(Center()), dims(gdalarray, (Y, X)))
+            @test mappedindex(clat) ≈ reverse(mappedindex(saved, Y))
+            @test mappedindex(clon) ≈ mappedindex(saved, X)
+            @test all(mappedbounds(saved, X) .≈ mappedbounds(clon))
+            @test all(mappedbounds(saved, Y) .≈ mappedbounds(clat))
+            @test projectedindex(clon) ≈ projectedindex(saved, X)
+            @test all(projectedbounds(clon) .≈ projectedbounds(saved, X))
             # reason lat crs conversion is less accrurate than lon TODO investigate further
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), 
-                projectedindex(gdalarray, Lat), 
-                reverse(projectedindex(DimensionalData.shiftlocus(Start(), dims(saved, Lat))))
+                projectedindex(gdalarray, Y), 
+                reverse(projectedindex(DimensionalData.shiftlocus(Start(), dims(saved, Y))))
             ))
-            @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Lat),  projectedbounds(gdalarray, Lat)))
+            @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Y),  projectedbounds(gdalarray, Y)))
         end
 
     end

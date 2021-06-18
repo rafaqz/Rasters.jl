@@ -5,7 +5,7 @@ const IntOrIntTuple = Union{Int,Tuple{Vararg{<:Int}}}
 """
     aggregate(method, object, scale)
 
-Aggregate array, or all arrays in a stack or series, by some scale.
+Aggregate an array or all arrays in a stack or series by some scale.
 
 # Arguments
 
@@ -28,9 +28,9 @@ Aggregate an [`AbstractGeoSeries`](@ref) by `scale` using `method`.
 Returns a [`GeoSeries`](ref).
 """
 function aggregate(
-    method, series::AbstractGeoSeries, scale, args...; progress=true, kwargs...
+    method, series::AbstractGeoSeries, scale, args...; progress=true, kw...
 )
-    f = i -> aggregate(method, series[i], scale, args...; progress=false, kwargs...)
+    f = i -> aggregate(method, series[i], scale, args...; progress=false, kw...)
     data = if progress
         @showprogress "Aggregating series..." map(f, 1:length(series))
     else
@@ -154,8 +154,8 @@ function disaggregate end
 
 Disaggregate an [`AbstractGeoSeries`](@ref) by `scale` using `method`.
 """
-function disaggregate(method, series::AbstractGeoSeries, scale; progress=true, kwargs...)
-    f = i -> disaggregate(method, series[i], scale; progress=false, kwargs...)
+function disaggregate(method, series::AbstractGeoSeries, scale; progress=true, kw...)
+    f = i -> disaggregate(method, series[i], scale; progress=false, kw...)
     return if progress
         @showprogress "Disaggregating series..." map(f, 1:length(series))
     else

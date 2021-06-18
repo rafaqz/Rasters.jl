@@ -20,7 +20,7 @@ dims(A, Ti)
 savefig("tos_4.png")
 
 # Plot the Australia region
-A[Ti(Contains(DateTime360Day(2001, 01, 17))), Lat(Between(-50, 0)), Lon(Between(100, 160))] |> plot
+A[Ti(Contains(DateTime360Day(2001, 01, 17))), Y(Between(-50, 0)), X(Between(100, 160))] |> plot
 savefig("tos_jan_australia.png")
 
 # Plot the mean
@@ -48,7 +48,7 @@ ncseries = series(filenames, (timedim,); child=stack)
 
 
 # Get a single array from the series
-A = ncseries[Near(DateTime360Day(2001, 01, 1))][:tos][Lon(Between(50, 200))]
+A = ncseries[Near(DateTime360Day(2001, 01, 1))][:tos][X(Between(50, 200))]
 
 # Plot single slices
 view(A, Ti(4)) |> plot
@@ -65,7 +65,7 @@ reduce(+, A; dims=Ti) |> plot
 # Plot the mean sea surface temperature for australia in the second half of 2002 
 ncstack = NCDstack(ncfilename);
 t = Ti(Between(DateTime360Day(2002, 07, 1), DateTime360Day(2002, 012, 30)))
-ncstack[:tos][t, Lat(Between(-45, 0.5)), Lon(Between(110, 160))] |> x->mean(x; dims=Ti) |> plot
+ncstack[:tos][t, Y(Between(-45, 0.5)), X(Between(110, 160))] |> x->mean(x; dims=Ti) |> plot
 
 # Permute the dimensions in the underlying data
 # It stil plots the right way up
@@ -73,8 +73,8 @@ permutedims(A, (X, Y, Ti))[Ti(1:3:12)] |> plot
 
 # Line plots have (kind of) useful labels
 A = ncseries[1][:tos]
-A[Lon(170), Ti(10)] |> plot
-A[Lat(1:80), Lon(170), Ti(10)] |> plot
+A[X(170), Ti(10)] |> plot
+A[Y(1:80), X(170), Ti(10)] |> plot
 
 
 # Load a tif with GDAL ######################################################
@@ -88,7 +88,7 @@ array[Band(1)] |> plot
 filepaths = (one=tif_filename, two=tif_filename, three=tif_filename)
 diskstack = stack(filepaths)
 # Plot a section of the tif file
-diskstack[:two][Band(1), Lat(1:100), Lon(1:150)] |> plot
+diskstack[:two][Band(1), Y(1:100), X(1:150)] |> plot
 
 # Convert the data and dims to a DataFrame
 @time df = DataFrame(array)

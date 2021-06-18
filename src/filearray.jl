@@ -1,4 +1,13 @@
 
+"""
+    FileArray{X} <: AbstractDiskArray
+
+Filearray is a DiskArrays.jl `AbstractDiskArray`. Instead of holding
+an open object, it just holds a filename string that is opened lazily 
+when it needs to be read.
+
+
+"""
 struct FileArray{X,T,N,F<:AbstractString,S<:Tuple,K,EC,HC} <: AbstractDiskArray{T,N}
     filename::F
     size::S
@@ -37,6 +46,12 @@ DA.writeblock!(A::FileArray, src, r::AbstractUnitRange...) =
     open(o -> o[r...] .= src, A; write=A.write)
 
 
+"""
+    GeoDiskArray <: AbstractDiskArray
+
+GeoDiskArray is a basic DiskArrays.jl wrapper for objects that don't have
+one defined yet.
+"""
 struct GeoDiskArray{T,N,V<:AbstractArray{T,N},EC,HC} <: AbstractDiskArray{T,N}
     var::V
     eachchunk::EC

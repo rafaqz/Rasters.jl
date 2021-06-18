@@ -1,7 +1,7 @@
 """
     geoarray(filename; kw...) => AbstractGeoArray
 
-Load a file path as `AbstractGeoArray`.
+Load a file path as an `AbstractGeoArray`.
 
 # Keywords
 
@@ -24,7 +24,7 @@ geoarray(filename::AbstractString; kw...) = GeoArray(filename; kw...)
 """
     Base.write(filename::AbstractString, A::AbstractGeoArray; kw...)
 
-Write any [`AbstractGeoArray`](@ref) to file, guessing the backend from the file extension.
+Write an [`AbstractGeoArray`](@ref) to file, guessing the backend from the file extension.
 
 Keyword arguments are passed to the `write` method for the backend.
 """
@@ -119,11 +119,23 @@ end
 
 # Support methods
 
-const EXT = Dict(GRDfile=>(".grd", ".gri"), NCDfile=>(".nc",), SMAPfile=>(".h5",))
-const REV_EXT = Dict(".grd"=>GRDfile, ".gri"=>GRDfile, ".nc"=>NCDfile, ".h5"=>SMAPfile)
+# File extensions. GDAL is the catch-all for everything else
+const EXT = Dict(
+    GRDfile => (".grd", ".gri"), 
+    NCDfile => (".nc",), 
+    SMAPfile => (".h5",)
+)
+const REV_EXT = Dict(
+    ".grd" => GRDfile, 
+    ".gri" => GRDfile, 
+    ".nc" => NCDfile, 
+    ".h5" => SMAPfile
+)
 
+# Get the source backend for a file extension, falling back to GDALfile
 _sourcetype(filename::AbstractString) = get(REV_EXT, splitext(filename)[2], GDALfile)
 
+# Internal read method
 function _read(f, filename::AbstractString; kw...)
     ext = splitext(filename)[2]
     source = get(REV_EXT, ext, GDALfile)
