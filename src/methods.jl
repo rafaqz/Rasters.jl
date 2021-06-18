@@ -75,6 +75,7 @@ Crop multiple [`AbstractGeoArray`](@ref) to match the size
 of the smallest one for any dimensions that are shared.
 """
 crop(layers::NamedTuple{K}) where K = NamedTuple{K}(crop(layers...))
+crop(layers::Tuple) = crop(layers...)
 function crop(layers::AbstractGeoArray...)
     dims = DD.combinedims(layers...; check=false)
     alldims = map(DD.dims, layers)
@@ -133,6 +134,29 @@ function extend(A::AbstractGeoArray, newdims::Tuple)
     newA
 end
 
+function trim(A::GeoArray, dims::Tuple=(X(), Y()))
+    A[_trimranges(A, DD.dims(A, dims))...]
+end
+
+function _trimranges(A, dims)
+    trackers = map(s -> zeros(Bool, s), map(d -> size(A, d), dims))
+    for ds in (DD.dimwise_generators(dims))
+        for ods in DD.dimwise_generators(otherdims(A, dims))
+            if A[ds..., ods...] !== missingval(A)
+                inds = map(val, ds)
+                for (i, n) in enumerate(inds)
+                    trackers[i][n] = true
+                end
+            end
+        end
+    end
+    cropranges = map(trackers) do t
+        findfirst(t):findlast(t)
+    end
+
+    return cropranges
+end
+
 """
     slice(A::Union{AbstractGeoArray,AbstractGeoStack,AbstracGeoSeries}, dims)
 
@@ -168,6 +192,7 @@ function dimbounds(f::Function, A::AbstractDimArray)
     end
 end
 
+
 """
     chunk(A::AbstractGeoArray)
 
@@ -188,3 +213,5 @@ function _chunk_inds(g, ichunk)
         max((ic - 1) * cs + 1 -of, 1):min(ic * cs - of, ps)
     end
 end
+
+
