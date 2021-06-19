@@ -177,9 +177,13 @@ end
 
 function _read(f, ::Type{SMAPfile}, filepath::AbstractString; key=nothing, kw...)
     if key isa Nothing
-        h5open(ds -> cleanreturn(f(SMAPhdf5(ds))), filepath; kw...)
+        h5open(filepath; kw...) do ds
+            cleanreturn(f(SMAPhdf5(ds))) 
+        end
     else
-        h5open(ds -> cleanreturn(f(SMAPhdf5(ds)[_smappath(key)])), filepath)
+        h5open(filepath) do ds
+            cleanreturn(f(SMAPhdf5(ds)[_smappath(key)]))
+        end
     end
 end
 

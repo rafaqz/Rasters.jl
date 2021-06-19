@@ -34,9 +34,14 @@ stackkeys = (
     end
 
     @testset "read" begin
-        A = read(ncarray)
+        @btime A = read(ncarray);
         @test A isa GeoArray
         @test parent(A) isa Array
+        A2 = zero(A)
+        @btime read!(ncarray, A2);
+        A3 = zero(A)
+        @btime read!(ncsingle, A3)
+        @test A == A2 == A3
     end
 
     @testset "array properties" begin
@@ -236,11 +241,15 @@ end
     end
 
     @testset "read" begin
-        st = read(ncstack)
+        @time read(ncstack);
         @test st isa GeoStack
         @test st.data isa NamedTuple
         @test first(st.data) isa Array
-        GeoStack(st...)
+        st2 = map(a -> a .* 0, st)
+        @time read!(ncstack, st2);
+        st3 = map(a -> a .* 0, st)
+        @time st = read!(ncmulti, st3);
+        @test all(map((a, b, c) -> all(a .== b .== c), st, st2, st3))
     end
 
     if VERSION > v"1.1-"

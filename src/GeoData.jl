@@ -17,7 +17,8 @@ using Adapt,
       RecipesBase,
       Reexport
 
-import Flatten,
+import ColorTypes,
+       Flatten,
        Setfield,
        HDF5,
        NCDatasets,

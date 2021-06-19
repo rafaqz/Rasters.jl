@@ -41,9 +41,14 @@ if isfile(path1) && isfile(path2)
         end
 
         @testset "read" begin
-            A = read(smaparray)
+            @time A = read(smaparray);
             @test A isa GeoArray
             @test parent(A) isa Array
+            A2 = zero(A)
+            read!(smaparray, A2)
+            A3 = zero(A)
+            @time read!(path1, A3);
+            @test A == A2 == A3
         end
 
         @testset "array properties" begin
@@ -175,10 +180,15 @@ if isfile(path1) && isfile(path2)
         smapstack = stack(path1)
 
         @testset "read" begin
-            st = read(smapstack)
+            @time st = read(smapstack);
             @test st isa GeoStack
             @test st.data isa NamedTuple
             @test first(st.data) isa Array
+            st2 = map(a -> a .* 0, st)
+            @time read!(smapstack, st2);
+            st3 = map(a -> a .* 0, st)
+            @time st = read!(path1, st3);
+            @test all(map((a, b, c) -> all(a .== b .== c), st, st2, st3))
         end
 
         @testset "conversion to GeoArray" begin

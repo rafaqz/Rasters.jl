@@ -23,9 +23,14 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     end
 
     @testset "read" begin
-        A = read(gdalarray)
+        @time A = read(gdalarray);
         @test A isa GeoArray
         @test parent(A) isa Array
+        A2 = zero(A)
+        @time read!(gdalarray, A2);
+        A3 = zero(A)
+        @time read!(path, A3);
+        @test A == A2 == A3
     end
 
     @testset "view" begin
@@ -349,4 +354,26 @@ end
     end
 end
 
+GeoData.points(gdalarray) |> collect
+
+using Shapefile, Plots
+filepath = "/home/raf/.julia/dev/SpatialMechanisticModellingInJuliaOld/data/ausborder_polyline.shp"
+
+h = Shapefile.Handle(filepath)
+for i in 1:97
+    p = h.shapes[i] |> plot
+    display(p)
+    sleep(0.5)
+end
+
+using PointInPolygon
+
 nothing
+
+fg() = abc + 2
+
+g() = (abc=1; fg())
+abc = 2
+g()
+
+Base.uncompressed_ast(methods(f).ms[1]).code

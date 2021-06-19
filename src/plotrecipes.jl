@@ -24,21 +24,32 @@ end
 @recipe function f(::GeoPlot, A::GeoArray{T,3,<:Tuple{<:SpatialDim,<:SpatialDim,D}}) where {T,D}
     nplots = size(A, 3)
     if nplots > 1
-        :layout --> nplots
+        ncols = (nplots - 1) ÷ ceil(Int, sqrt(nplots)) + 1
+        nrows = (nplots - 1) ÷ ncols + 1
+        :layout --> (ncols, nrows)
         :title --> permutedims(string.(val(dims(A, D))))
-        :titlefontsize --> 10
-        :guidefontsize --> 9
-        :colorbar_titlefontsize --> 9
-        :axes --> :none
-        for i in 1:nplots
+        :link --> :both
+        # clims = extrema(A)
+        colorbar := false
+        for r in 1:nrows, c in 1:ncols
+            i = (r + (c - 1) * nrows)
             @series begin
-                seriestype := :heatmap
-                aspect_ratio := 1
+                titlefontsize := 7
+                tickfontsize := 6 
                 subplot := i
-                GeoPlot(), A[:, :, i]
-                slice = A[:, :, i]
-                ys, xs = map(_prepare, dims(A))
-                xs, ys, parent(slice)
+                if c != ncols || r != 1
+                    xformatter := _ -> ""
+                    yformatter := _ -> ""
+                    xguide := ""
+                    yguide := ""
+                end
+                if i <= nplots
+                    GeoPlot(), A[:, :, i]
+                else
+                    framestyle := :none
+                    legend := :none
+                    []
+                end
             end
         end
     else
@@ -53,7 +64,7 @@ end
     if (A_min + A_max) / abs(A_max - A_min) < 0.25
         A_limit = max(abs(A_min), abs(A_max))
         clims = (-A_limit, A_limit)
-        :seriescolor --> :balance
+        :seriescolor --> :curl
     else
         clims = A_min, A_max
     end
@@ -61,15 +72,23 @@ end
     yguide, xguide = label(dims(A))
 
     :seriestype --> :heatmap
-    :title --> "$(_maybename(A)) $(DD._refdims_title(A))"
+    :title --> "$(_maybename(A)) $(DD.refdims_title(A; issingle=true))"
     :xguide --> xguide
     :yguide --> yguide
     :clims --> clims
     :axes --> :none
-    :guidefontsize --> 9
+    :guidefontsize --> 8
     :titlefontsize --> 10
     :colorbar_title --> name(A)
     :colorbar_titlefontsize --> 9
+    :framestyle --> :grid
+    :widen --> true
+    :tickfontsize --> 6 
+    :tickfontcolor --> RGB(0.3)
+    :colorbar_tickfontcolor --> RGB(0.3)
+    :foreground_color_axis --> RGB(0.5)
+    :aspect_ratio --> 1
+    :seriescolor --> :magma
 
     ys, xs = map(_prepare, dims(A))
 
@@ -87,7 +106,7 @@ end
     z_dim = dims(A, ZDim)
     yguide = label(z_dim)
     xguide = label(A)
-    :title --> "$(_maybename(A))$(DD._refdims_title(A))"
+    :title --> "$(_maybename(A))$(DD.refdims_title(A; issingle=true))"
     :xguide --> xguide
     :yguide --> yguide
     :label --> ""
@@ -115,7 +134,7 @@ function _subsample(A, max_res)
 end
 
 _maybename(A) = _maybename(name(A))
-_maybename(n::Symbol) = n == Symbol("") ? "" : string(n, ": ")
+_maybename(n::Symbol) = n == Symbol("") ? "" : string(n, " - ")
 _maybename(n::Name{N}) where N = _maybename(N) 
 _maybename(n::NoName) = ""
 
@@ -132,3 +151,13 @@ _maybe_mapped(mode::IndexMode, dim::Dimension) = dim
 _maybe_mapped(mode::Projected, dim::Dimension) = _maybe_mapped(mappedcrs(mode), dim)
 _maybe_mapped(::Nothing, dim::Dimension) = dim
 _maybe_mapped(::GeoFormat, dim::Dimension) = convertmode(Mapped, dim)
+
+# We don't show the Band label for a single-band raster,
+# it's just not interesting information.
+function DD.refdims_title(refdim::Band; issingle=false)
+    if issingle
+        ""
+    else
+        string(name(refdim), ": ", refdims_title(mode(refdim), refdim))
+    end
+end
