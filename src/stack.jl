@@ -51,7 +51,7 @@ end
 # Base methods #################################################################
 
 Base.names(s::AbstractGeoStack) = keys(s)
-Base.copy(stack::AbstractGeoStack) = rebuild(stack; data=map(copy, stack))
+Base.copy(stack::AbstractGeoStack) = map(copy, stack)
 
 #### Stack getindex ####
 # Different to DimensionalData as we construct a GeoArray
