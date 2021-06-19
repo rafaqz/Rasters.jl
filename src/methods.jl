@@ -69,91 +69,150 @@ missingmask(A::AbstractArray, missingval) =
     end
 
 """
-    crop(A::AbstractGeoArray...)
+    crop(layers::AbstractGeoArray...)
+    crop(layers::Union{NamedTuple,Tuple})
+    crop(A::AbstractGeoArray; to::Tuple)
 
 Crop multiple [`AbstractGeoArray`](@ref) to match the size 
 of the smallest one for any dimensions that are shared.
 """
-crop(layers::NamedTuple{K}) where K = NamedTuple{K}(crop(layers...))
-crop(layers::Tuple) = crop(layers...)
-function crop(layers::AbstractGeoArray...)
+function crop end
+crop(layers::AbstractGeoArray...; kw...) = crop(layers)
+function crop(layers::Union{Tuple,NamedTuple}; to=_smallestdims(layers))
+    map(l -> crop(l; to), layers)
+end
+crop(A::AbstractGeoArray; to) = _cropto(A, to)
+
+# crop `A` to values of dims of `to`
+_cropto(A::AbstractGeoArray, to) = _cropto(A, dims(to)) 
+function _cropto(A::AbstractGeoArray, to::Tuple)
+    # Create selectors for each dimension
+    # `Between` the bounds of the dimension
+    selectors = map(to) do d
+        DD.basetypeof(d)(Between(DD.bounds(d)))
+    end
+    # Take a view of the `Between` selectors
+    return view(A, selectors...)
+end
+
+# Get the smallest dimensions in a tuple of AbstractGeoArray
+function _smallestdims(layers)
+    # Combine the dimensions of all layers
     dims = DD.combinedims(layers...; check=false)
+    # Search through all the dimensions choosing the shortest
     alldims = map(DD.dims, layers)
-    smallestdims = map(dims) do d
+    return map(dims) do d
         matchingdims = map(ds -> DD.dims(ds, (d,)), alldims)
         reduce(matchingdims) do a, b 
             _choose(_shortest, a, b)
         end |> first
     end
-    selectors = map(smallestdims) do sm
-        DD.basetypeof(sm)(Between(DD.bounds(sm)))
-    end
-    map(l -> view(l, selectors...), layers)
 end
 
-_choose(f, ::Tuple{}, ::Tuple{}) = ()
-_choose(f, ::Tuple{}, (b,)::Tuple) = (b,)
-_choose(f, (a,)::Tuple, ::Tuple{}) = (a,) 
-_choose(f, (a,)::Tuple, (b,)::Tuple) = (f(a, b) ? a : b,)
-
-_shortest(a, b) = length(a) <= length(b)
-_longest(a, b) = length(a) >= length(b)
-
 """
-    extend(A::AbstractGeoArray...)
-    extend(A::AbstractGeoArray, dims::Tuple)
+    extend(layers::AbstractGeoArray...)
+    extend(layers::Union{NamedTuple,Tuple})
+    extend(A::AbstractGeoArray; to::Tuple)
 
 Extend multiple [`AbstractGeoArray`](@ref) to match
 the size of the largest one. A single `AbstractGeoArray` 
 can be extended bu passing the new `dims` tuple as the second
 argumen.
 """
-extend(layers::NamedTuple{K}) where K = NamedTuple{K}(extend(layers...))
-function extend(layers::AbstractGeoArray...)
+function extend end
+extend(layers::AbstractGeoArray...) = extend(layers)
+function extend(layers::Union{NamedTuple,Tuple}; to=_largestdims(layers))
+    # Extend all layers to `to`, by default the _largestdims
+    map(l -> extend(l; to), layers)
+end
+function extend(A::AbstractGeoArray; to::Tuple)
+    size = map(length, to)
+    T = eltype(A)
+    # Creat a new extended array
+    newdata = similar(parent(A), T, size)
+    # Fill it with missing/nodata values
+    newdata .= missingval(A)
+    # Rebuild the original object with larger data and dims.
+    newA = rebuild(A; data=newdata, dims=to)
+    # Calculate the range of the old array in the extended array
+    ranges = map(dims(A), to) do d, nd
+        (DD.sel2indices(nd, Near(first(d)))):(DD.sel2indices(nd, Near(last(d))))
+    end
+    # Copy the original data to the new array
+    copyto!(
+        parent(newA), CartesianIndices((ranges...,)), 
+        parent(read(A)), CartesianIndices(A)
+    ) 
+    return newA
+end
+
+# Get the largest dimensions in a tuple of AbstractGeoArray
+function _largestdims(layers)
     dims = DD.combinedims(layers...; check=false) 
     alldims = map(DD.dims, layers)
-    largestdims = map(dims) do d
+    return map(dims) do d
         matchingdims = map(ds -> DD.dims(ds, (d,)), alldims)
         reduce(matchingdims) do a, b 
             _choose(_longest, a, b)
         end |> first
     end
-    map(l -> extend(l, largestdims), layers)
 end
-function extend(A::AbstractGeoArray, newdims::Tuple)
-    size = map(length, newdims)
-    elt = eltype(A)
-    newdata = similar(parent(A), elt, size)
-    newdata .= missingval(A)
-    newA = rebuild(A; data=newdata, dims=newdims)
-    ranges = map(dims(A), newdims) do d, nd
-        (DD.sel2indices(nd, Near(first(d)))):(DD.sel2indices(nd, Near(last(d))))
+
+# Choose a dimension from either missing dimension
+# (empty Tuple) or a comparison between two 1-Tuples
+_choose(f, ::Tuple{}, ::Tuple{}) = ()
+_choose(f, ::Tuple{}, (b,)::Tuple) = (b,)
+_choose(f, (a,)::Tuple, ::Tuple{}) = (a,) 
+_choose(f, (a,)::Tuple, (b,)::Tuple) = (f(a, b) ? a : b,)
+
+# Choose the shortest or longest dimension
+_shortest(a, b) = length(a) <= length(b)
+_longest(a, b) = length(a) >= length(b)
+
+"""
+    trim(A::AbstractGeoArray; dims::Tuple, pad::Int)
+        
+Trim `missingval` from `A` for axes in dims.
+
+The trimmed size will be padded by `pad` on all sides.
+"""
+function trim(A::GeoArray; dims::Tuple=(X(), Y()), pad::Int=0)
+    # Get the actual dimensions in their order in the array
+    dims = commondims(A, dims)
+    # Get the range of non-missing values for each dimension
+    ranges = _trimranges(A, dims)
+    # Add paddding
+    padded = map(ranges, map(d -> size(A, d), dims)) do r, l
+        max(first(r)-pad, 1):min(last(r)+pad, l)
     end
-    copyto!(parent(newA), CartesianIndices((ranges...,)), 
-            parent(read(A)), CartesianIndices(A)) 
-    newA
+    dims = map(rebuild, dims, padded)
+    return view(A, dims...)
 end
 
-function trim(A::GeoArray, dims::Tuple=(X(), Y()))
-    A[_trimranges(A, DD.dims(A, dims))...]
-end
-
-function _trimranges(A, dims)
-    trackers = map(s -> zeros(Bool, s), map(d -> size(A, d), dims))
-    for ds in (DD.dimwise_generators(dims))
-        for ods in DD.dimwise_generators(otherdims(A, dims))
-            if A[ds..., ods...] !== missingval(A)
-                inds = map(val, ds)
-                for (i, n) in enumerate(inds)
-                    trackers[i][n] = true
-                end
+# Get the ranges to trim to for dimensions in `dims`
+function _trimranges(A, targetdims)
+    # Bool vectors to track wich rows/cols have non-missing values
+    # for the dimensions we are interested in
+    trackers = map(s -> zeros(Bool, s), map(d -> size(A, d), targetdims))
+    # Broadcast over the array and index generators
+    index_generators = DD.dimwise_generators(dims(A))
+    updates = broadcast(A, index_generators) do a, I
+        # Check if the value is non-missing
+        if a !== missingval(A)
+            # Set the tracker for this index to true. We are only tracking
+            # the target dims, so `dims` extracts them from the tuple I.
+            inds = map(val, dims(I, targetdims))
+            for (i, n) in enumerate(inds)
+                trackers[i][n] = true
             end
         end
+        nothing
     end
+    collect(updates)
+    # Get the ranges that contain all non-missing values
     cropranges = map(trackers) do t
         findfirst(t):findlast(t)
     end
-
     return cropranges
 end
 
@@ -169,12 +228,15 @@ the dimensions shared by both the series and child object.
 """
 slice(x::Union{AbstractGeoArray,AbstractGeoStack}, dims) = slice(x, (dims,))
 function slice(x::Union{AbstractGeoArray,AbstractGeoStack}, dims::Tuple)
+    # Make sure all dimensions in `dims` are in `x`
     all(hasdim(x, dims)) || _errordimsnotfound(otherdims(dims, DD.dims(x)))
+    # Define dimensions and data for the sliced GeoSeries
     seriesdims = DD.dims(x, dims)
+    # series data is a generator of view slices
     seriesdata = map(DD.dimwise_generators(seriesdims)) do ds
         view(x, ds...)
     end
-    GeoSeries(seriesdata, seriesdims)
+    return GeoSeries(seriesdata, seriesdims)
 end
 slice(ser::AbstractGeoSeries, dims) = cat(map(x -> slice(x, dims), ser)...; dims=dims)
 
@@ -201,10 +263,12 @@ Creat a GeoSeries of arrays matching the chunks of a chunked array.
 This may be useful for parallel or larger than memory applications.
 """
 function chunk(A::AbstractGeoArray)
+    # Get the index of each chunk of A
     gc = DiskArrays.eachchunk(A)
     ci = CartesianIndices(gc.chunkgridsize)
+    # Create a series over the chunks
     data = collect(view(A, _chunk_inds(gc, I)...) for I in ci)
-    GeoSeries(data, DD.basedims(dims(A)))
+    return GeoSeries(data, DD.basedims(dims(A)))
 end
 
 # See iterate(::GridChunks) in Diskarrays.jl
@@ -214,4 +278,23 @@ function _chunk_inds(g, ichunk)
     end
 end
 
+"""
+    points(A::AbstractGeoArray; dims=(Y, X))
+    
+Returns a generator of the points in `A` for dimensions in `dims`,
+where points are a tuple of the values in each specified dimension 
+index.
+
+The order of `dims` determines the order of the points.
+"""
+function points(A::AbstractGeoArray; dims=(Y, X))
+    # Get the actual dims
+    dims = DD.dims(A, dims)
+    # Get the axes of each dimension
+    dim_axes = map(d -> axes(d, 1), dims)
+    # Construct a CartesianIndices generator
+    indices = CartesianIndices(dim_axes)
+    # Lazily index into the dimensions with the generator
+    return (map(getindex, dims, Tuple(I)) for I in indices)
+end
 
