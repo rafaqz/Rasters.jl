@@ -353,27 +353,3 @@ end
         @test first(geoseries.data[1].data) isa Array 
     end
 end
-
-GeoData.points(gdalarray) |> collect
-
-using Shapefile, Plots
-filepath = "/home/raf/.julia/dev/SpatialMechanisticModellingInJuliaOld/data/ausborder_polyline.shp"
-
-h = Shapefile.Handle(filepath)
-for i in 1:97
-    p = h.shapes[i] |> plot
-    display(p)
-    sleep(0.5)
-end
-
-using PointInPolygon
-
-nothing
-
-fg() = abc + 2
-
-g() = (abc=1; fg())
-abc = 2
-g()
-
-Base.uncompressed_ast(methods(f).ms[1]).code

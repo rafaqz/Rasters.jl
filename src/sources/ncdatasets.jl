@@ -55,7 +55,7 @@ function FileArray(var::NCD.CFVariable, filename::AbstractString; kw...)
 end
 
 function Base.open(f::Function, A::FileArray{NCDfile}; write=A.write, kw...)
-    _read(NCDfile, filename(A); key=key(A), write, kw...) do var
+    _open(NCDfile, filename(A); key=key(A), write, kw...) do var
         f(GeoDiskArray(var, DA.eachchunk(A), DA.haschunks(A)))
     end
 end
@@ -184,7 +184,7 @@ end
 
 # Utils ########################################################################
 
-function _read(f, ::Type{NCDfile}, filename::AbstractString; key=nothing, write=false)
+function _open(f, ::Type{NCDfile}, filename::AbstractString; key=nothing, write=false)
     mode = write ? "a" : "r"
     if key isa Nothing
         NCD.Dataset(cleanreturn ∘ f, filename, mode)

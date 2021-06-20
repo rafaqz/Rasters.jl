@@ -23,7 +23,7 @@ include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
     ## Resample cea.tif using resample
     cea = read(geoarray(raster_path))
     crs(cea)
-    GD_output = resample(cea, output_res, crs=output_crs, method=resample_method)
+    GD_output = resample(cea, output_res; crs=output_crs, method=resample_method)
 
     ## Compare the two
     @test AG_output == GD_output.data[:, :, 1]
@@ -31,7 +31,7 @@ include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
     @testset "snapped size and dim index match" begin
         snaptarget = GD_output
-        snapped = resample(cea, snaptarget)
+        snapped = resample(cea; to=snaptarget)
         @test size(snapped) == size(snaptarget)
         @test isapprox(index(snaptarget, Y), index(snapped, Y))
         @test isapprox(index(snaptarget, X), index(snapped, X))

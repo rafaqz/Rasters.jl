@@ -208,12 +208,12 @@ end
 @deprecate GRDstack(args...; kw...) GeoStack(args...; source=GRDfile, kw...)
 
 # Custom `open` because the data and metadata objects are separate
-# Here we _mmapgrd instead of `_read`
+# Here we _mmapgrd instead of `_open`
 function Base.open(f::Function, A::FileArray{GRDfile}, key...; write=A.write)
     _mmapgrd(mm -> f(GeoDiskArray(mm, A.eachchunk, A.haschunks)), A; write)
 end
 
-_read(f, ::Type{GRDfile}, filename; key=nothing, write=false) = f(GRDattrib(filename; write))
+_open(f, ::Type{GRDfile}, filename; key=nothing, write=false) = f(GRDattrib(filename; write))
 
 # Utils ########################################################################
 

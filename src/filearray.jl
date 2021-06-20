@@ -28,6 +28,7 @@ function FileArray{X,T,N}(filename::AbstractString, size::Tuple;
     FileArray{X,T,N}(filename, size, key, eachchunk, haschunks, write)
 end
 
+# FileArray has X, T and N parameters not recoverable from fields
 ConstructionBase.constructorof(::Type{<:FileArray{X,T,N}}) where {X,T,N} = FileArray{X,T,N}
 
 filename(A::FileArray) = A.filename
@@ -36,10 +37,10 @@ Base.size(A::FileArray) = A.size
 DA.eachchunk(A::FileArray) = A.eachchunk
 DA.haschunks(A::FileArray) = A.haschunks
 
+# Run function `f` on the result of _open for the file type
 function Base.open(f::Function, A::FileArray{X}; write=A.write, kw...) where X
-    _read(f, X, filename(A); key=key(A), write, kw...)
+    _open(f, X, filename(A); key=key(A), write, kw...)
 end
-
 
 DA.readblock!(A::FileArray, dst, r::AbstractUnitRange...) = open(o -> dst .= o[r...], A)
 DA.writeblock!(A::FileArray, src, r::AbstractUnitRange...) = 
@@ -50,7 +51,7 @@ DA.writeblock!(A::FileArray, src, r::AbstractUnitRange...) =
     GeoDiskArray <: AbstractDiskArray
 
 GeoDiskArray is a basic DiskArrays.jl wrapper for objects that don't have
-one defined yet.
+one defined yet. Whe we `open` a `FileArray` it is replaced with a GeoDiskArray.
 """
 struct GeoDiskArray{T,N,V<:AbstractArray{T,N},EC,HC} <: AbstractDiskArray{T,N}
     var::V

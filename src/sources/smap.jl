@@ -95,7 +95,7 @@ function FileArray(var::SMAPvar, filename::AbstractString; key, kw...)
 end
 
 function Base.open(f::Function, A::FileArray{SMAPfile}; kw...)
-    _read(var -> f(HDF5DiskArray(var)), SMAPfile, filename(A); key=key(A), kw...)
+    _open(var -> f(HDF5DiskArray(var)), SMAPfile, filename(A); key=key(A), kw...)
 end
     
 
@@ -164,7 +164,7 @@ function smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
         println.(errors)
     end
     # Get the dims once for the whole series
-    dims, metadata =_read(SMAPfile, first(filenames)) do ds
+    dims, metadata =_open(SMAPfile, first(filenames)) do ds
         DD.dims(ds), DD.metadata(ds)
     end
     GeoSeries(usedpaths, (timedim,); child=stack, dims, metadata, kw...)
@@ -175,7 +175,7 @@ end
 
 # Utils ########################################################################
 
-function _read(f, ::Type{SMAPfile}, filepath::AbstractString; key=nothing, kw...)
+function _open(f, ::Type{SMAPfile}, filepath::AbstractString; key=nothing, kw...)
     if key isa Nothing
         h5open(filepath; kw...) do ds
             cleanreturn(f(SMAPhdf5(ds))) 

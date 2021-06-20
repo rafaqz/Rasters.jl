@@ -116,7 +116,7 @@ function GeoStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
         source = source isa Nothing ? _sourcetype(fn) : source
         crs = defaultcrs(source, crs)
         mappecrs = defaultmappedcrs(source, mappedcrs)
-        _read(fn; key) do ds
+        _open(fn; key) do ds
             data = FileArray(ds, fn; key)
             dims = DD.dims(ds, crs, mappedcrs)
             md = metadata(ds)
@@ -159,7 +159,7 @@ function GeoStack(filename::AbstractString;
 )
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
-    data, field_kw = _read(filename) do ds
+    data, field_kw = _open(filename) do ds
         dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
         refdims = refdims == () || refdims isa Nothing ? DD.refdims(ds, filename) : refdims
         layerdims = layerdims isa Nothing ? DD.layerdims(ds) : layerdims

@@ -198,7 +198,7 @@ function GeoArray(A::AbstractGeoArray;
 end
 function GeoArray(filename::AbstractString; key=nothing, kw...)
     isfile(filename) || error("File not found: $filename")
-    _read(filename) do ds
+    _open(filename) do ds
         key = filekey(ds, key)
         GeoArray(ds, filename, key; kw...)
     end

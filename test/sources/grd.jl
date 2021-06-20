@@ -32,6 +32,11 @@ path = stem * ".gri"
         A = read(grdarray)
         @test A isa GeoArray
         @test parent(A) isa Array
+        A2 = zero(A)
+        @time read!(grdarray, A2);
+        A3 = zero(A)
+        @time read!(path, A3);
+        @test A == A2 == A3
     end
 
     @testset "array properties" begin

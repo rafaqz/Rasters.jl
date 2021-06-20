@@ -136,8 +136,8 @@ const REV_EXT = Dict(
 _sourcetype(filename::AbstractString) = get(REV_EXT, splitext(filename)[2], GDALfile)
 
 # Internal read method
-function _read(f, filename::AbstractString; kw...)
+function _open(f, filename::AbstractString; kw...)
     ext = splitext(filename)[2]
     source = get(REV_EXT, ext, GDALfile)
-    _read(f, source, filename; kw...)
+    _open(f, source, filename; kw...)
 end

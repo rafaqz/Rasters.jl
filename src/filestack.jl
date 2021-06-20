@@ -3,8 +3,9 @@
 
     FileStack{X,K}(filename, types, sizes, eachchunk, haschunks, write)
 
-Wrapper object that holds file poiinter and size/chunking
-metadata for a multi-layered stack stored in a single file.
+A wrapper object that holds file pointer and size/chunking
+metadata for a multi-layered stack stored in a single file, 
+typically netcdf or hdf5.
 
 `X` is a backend singleton like `GDALfile`, and `K` is a tuple
 of `Symbol` keys.
@@ -23,11 +24,14 @@ function FileStack{X,K}(
     FileStack{X,K,F,T,S,EC,HC}(filename, types, sizes, eachchunk, haschunks, write)
 end
 
+# FileStack has `X` and `K` parameters that are not recoverable from fields.
 ConstructionBase.constructorof(::Type{<:FileStack{X,K}}) where {X,K} = FileStack{X,K} 
 
 filename(fs::FileStack) = fs.filename
 Base.keys(fs::FileStack{<:Any,K}) where K = K
 Base.values(fs::FileStack{<:Any}) = (fs[k] for k in keys(fs))
+# Indexing FileStack returns a FileArray, 
+# referencing a specific key in the same file.
 function Base.getindex(fs::FileStack{X}, key::Symbol) where X
     size = fs.sizes[key]
     eachchunk = fs.eachchunk[key]
