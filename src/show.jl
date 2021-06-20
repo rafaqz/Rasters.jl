@@ -37,7 +37,7 @@ end
 
 function Base.show(io::IO, mime::MIME"text/plain", mode::AbstractProjected)
     DD._printmode(io, mode)
-    print(io, " - ")
+    print(io, ": ")
     DD._printorder(io, mode)
     print(io, " ")
     DD._printspan(io, mode)
