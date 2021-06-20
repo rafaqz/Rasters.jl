@@ -1,7 +1,6 @@
 # Method specialisation singletons. 
 struct GeoPlot end
 struct GeoZPlot end
-
 # We only look at arrays with X, Y, Z dims here.
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(A::AbstractGeoArray)
@@ -27,14 +26,15 @@ end
         ncols = (nplots - 1) ÷ ceil(Int, sqrt(nplots)) + 1
         nrows = (nplots - 1) ÷ ncols + 1
         :layout --> (ncols, nrows)
-        :title --> permutedims(string.(val(dims(A, D))))
-        :link --> :both
+        # link --> :both
         # clims = extrema(A)
         colorbar := false
+        titles = string.(index(A, D))
         for r in 1:nrows, c in 1:ncols
             i = (r + (c - 1) * nrows)
             @series begin
                 titlefontsize := 7
+                tickfontsize := 6 
                 tickfontsize := 6 
                 subplot := i
                 if c != ncols || r != 1
@@ -44,6 +44,7 @@ end
                     yguide := ""
                 end
                 if i <= nplots
+                    title := titles[i]
                     GeoPlot(), A[:, :, i]
                 else
                     framestyle := :none
@@ -78,17 +79,26 @@ end
     :clims --> clims
     :axes --> :none
     :guidefontsize --> 8
+    :tickfontsize --> 6 
     :titlefontsize --> 10
     :colorbar_title --> name(A)
     :colorbar_titlefontsize --> 9
+    :colorbar_tickfontcolor --> RGB(0.3)
+    :tickfontcolor --> RGB(0.3)
     :framestyle --> :grid
     :widen --> true
-    :tickfontsize --> 6 
-    :tickfontcolor --> RGB(0.3)
-    :colorbar_tickfontcolor --> RGB(0.3)
     :foreground_color_axis --> RGB(0.5)
-    :aspect_ratio --> 1
     :seriescolor --> :magma
+    :gridalpha --> 0.2
+    if mappedcrs(A) === nothing
+        :aspect_ratio --> :equal
+    else
+        bnds = bounds(A, (X, Y))
+        s1, s2 = map(((l, u),) -> (u - l), bnds) ./ size(A)
+        ratio = s1 / s2
+        @show s1, s2, ratio
+        :aspect_ratio --> ratio
+    end
 
     ys, xs = map(_prepare, dims(A))
 
