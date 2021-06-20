@@ -29,6 +29,7 @@ import ColorTypes,
 using Base: tail, @propagate_inbounds
 using DimensionalData: StandardIndices
 using Setfield: @set, @set!
+using ColorTypes: RGB
 
 export AbstractGeoArray, GeoArray
 export AbstractGeoStack, GeoStack
