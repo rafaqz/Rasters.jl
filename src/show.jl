@@ -1,23 +1,11 @@
-
-# Add method to avoid printing from disk
-function Base.show(io::IO, mime::MIME"text/plain", A::DiskGeoArray{T,N}) where {T,N}
-    lines = _print_array_info(io, mime, A)
-    if !(metadata(A) isa NoMetadata) 
-        print(io, "\nwith ")
-        show(io, mime, metadata(A))
-    end
-    println(io)
-    print(io, "\n$(filename(A))")
-end
-
 function _show_dimname(io, dim::Dim)
-    color = DD._dimcolor(io)
+    color = _dimcolor(io)
     printstyled(io, "Dim{"; color=color)
     printstyled(io, string(":", name(dim)); color=:yellow)
     printstyled(io, "}"; color=color)
 end
 function _show_dimname(io, dim::Dimension)
-    printstyled(io, DD.dim2key(dim); color = DD._dimcolor(io))
+    printstyled(io, DD.dim2key(dim); color = _dimcolor(io))
 end
 
 function Base.show(io::IO, mime::MIME"text/plain", stack::AbstractGeoStack)
@@ -80,48 +68,84 @@ function Base.show(io::IO, mime::MIME"text/plain", stack::AbstractGeoStack)
 end
 
 # Stack types can be enourmous. Just use nameof(T)
-function Base.summary(io::IO, A::AbstractGeoSeries{T,N}) where {T,N}
+function Base.summary(io::IO, ser::AbstractGeoSeries{T,N}) where {T,N}
     if N == 0  
         print(io, "0-dimensional ")
     elseif N == 1
-        print(io, size(A, 1), "-element ")
+        print(io, size(ser, 1), "-element ")
     else
-        print(io, join(size(A), "×"), " ")
+        print(io, join(size(ser), "×"), " ")
     end
-    printstyled(io, string(nameof(typeof(A)), "{$(nameof(T)),$N}"); color=:blue)
-    if !(eltype(parent(A)) <: childtype(A))
-        print(io, string(" of ", childtype(A)))
-    end
+    printstyled(io, string(nameof(typeof(ser)), "{$(nameof(T)),$N}"); color=:blue)
+    return nothing
 end
 
 function Base.show(io::IO, mime::MIME"text/plain", A::AbstractGeoSeries{T,N}) where {T,N}
-    lines = _print_array_info(io, mime, A)
-    ds = displaysize(io)
-    ioctx = IOContext(io, :displaysize => (ds[1] - lines, ds[2]))
-    if T <: AbstractString
-        DD._show_array(ioctx, mime, parent(A))
+    summary(io, A)
+    # TODO: these need a proper interface in DD
+    _printname(io, name(A))
+    _printdims(io, mime, dims(A))
+    !(isempty(dims(A)) || isempty(refdims(A))) && println(io)
+    _printrefdims(io, mime, refdims(A))
+    return nothing
+end
+
+# Move to proper interface in DD
+function _printname(io::IO, name)
+    if !(name == Symbol("") || name isa NoName)
+        printstyled(io, string(" :", name); color=:yellow)
+    end
+end
+function _printdims(io::IO, mime, dims::Tuple)
+    if isempty(dims) 
+        print(io, ": ")
+        return 0
+    end
+    printstyled(io, " with dimensions: "; color=:light_black)
+    return _layout_dims(io, mime, dims)
+end
+function _printrefdims(io::IO, mime, refdims::Tuple)
+    if isempty(refdims) 
+        return 0
+    end
+    printstyled(io, "and reference dimensions: "; color=:light_black)
+    ctx = IOContext(io, :is_ref_dim=>true, :show_dim_val=>true)
+    lines = _layout_dims(ctx, mime, refdims)
+    return lines
+end
+function _layout_dims(io, mime, dims::Tuple)
+    length(dims) > 0 || return 0
+    ctx = IOContext(io, :compact=>true)
+    if all(m -> m isa NoIndex, mode(dims))
+        for d in dims[1:end-1]
+            show(ctx, mime, d)
+            print(io, ", ")
+        end
+        show(ctx, mime, dims[end])
+        return 0
+    else # Dims get a line each
+        lines = 3
+        print(io, "\n  ")
+        for d in dims[1:end-1]
+            show(ctx, mime, d)
+            print(io, ",")
+            lines += 2 # Often they wrap
+            print(io, "\n  ")
+        end
+        show(ctx, mime, dims[end])
+        return lines
     end
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", mode::AbstractProjected)
-    DD._printmode(io, mode)
-    print(io, " - ")
-    DD._printorder(io, mode)
-    print(io, " ")
-    DD._printspan(io, mode)
-    print(io, " ")
-    DD._printsampling(io, mode)
-    print(io, " crs: ", nameof(typeof(crs(mode))))
-    print(io, " mappedcrs: ", nameof(typeof(mappedcrs(mode))))
-end
+_dimcolor(io) = get(io, :is_ref_dim, false) ? :magenta : :red
 
-function _print_array_info(io, mime, A)
-    lines = 0
-    summary(io, A)
-    DD._printname(io, name(A))
-    lines += DD._printdims(io, mime, dims(A))
-    !(isempty(dims(A)) || isempty(refdims(A))) && println(io)
-    lines += DD._printrefdims(io, mime, refdims(A))
-    println(io)
-    return lines
+function Base.show(io::IO, mime::MIME"text/plain", mode::AbstractProjected)
+    DD.show(io, mime, Sampled(mode.order, mode.span, mode.sampling))
+    if !(crs(mode) isa Nothing)
+        print(io, " crs: ", nameof(typeof(crs(mode))))
+    end
+    if !(mappedcrs(mode) isa Nothing)
+        print(io, " mappedcrs: ", nameof(typeof(mappedcrs(mode))))
+    end
+    return nothing
 end

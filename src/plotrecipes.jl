@@ -57,7 +57,7 @@ end
     yguide, xguide = label(dims(A))
 
     :seriestype --> :heatmap
-    :title --> "$(_maybename(A)) $(DD._refdims_title(A))"
+    :title --> "$(_maybename(A)) $(DD.refdims_title(A))"
     :xguide --> xguide
     :yguide --> yguide
     :clims --> clims
@@ -79,7 +79,7 @@ end
     z_dim = dims(A, ZDim)
     yguide = label(z_dim)
     xguide = label(A)
-    :title --> "$(_maybename(A))$(DD._refdims_title(A))"
+    :title --> "$(_maybename(A))$(DD.refdims_title(A))"
     :xguide --> xguide
     :yguide --> yguide
     :label --> ""
