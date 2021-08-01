@@ -90,13 +90,13 @@ end
     :foreground_color_axis --> RGB(0.5)
     :seriescolor --> :magma
     :gridalpha --> 0.2
+
     if mappedcrs(A) === nothing
         :aspect_ratio --> :equal
     else
         bnds = bounds(A, (X, Y))
         s1, s2 = map(((l, u),) -> (u - l), bnds) ./ size(A)
         ratio = s1 / s2
-        @show s1, s2, ratio
         :aspect_ratio --> ratio
     end
 

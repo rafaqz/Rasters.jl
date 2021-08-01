@@ -21,7 +21,7 @@ end
 @time @safetestset "resample" begin include("resample.jl") end
 # Only test SMAP locally for now
 if !haskey(ENV, "CI")
-    @time @safetestset "smap" begin include("sources/smap.jl") end
+    # @time @safetestset "smap" begin include("sources/smap.jl") end
 end
 if !Sys.iswindows()
     # GDAL Environment vars need to be set manually for windows, so skip for now

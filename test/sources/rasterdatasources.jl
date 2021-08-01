@@ -1,16 +1,16 @@
 using GeoData, RasterDataSources, Test, Dates, NCDatasets, ArchGDAL
 
 # Too big to test on CI
-if !haskey(ENV, "CI")
-    @testset "load WorldClim Weather" begin
-        # Weather time-series
-        dates = (Date(2001), Date(2002))
-        ser = series(WorldClim{Weather}, (:prec,); date=dates, window=(Y(600:1900), X(600:1900)))
-        ser[Date(2001, 1)][:prec]
-        # Select Australia, using regular lat/lon selectors
-        A = geoarray(WorldClim{Weather}, :prec; date=DateTime(2001, 05), mappedcrs=EPSG(4326))
-    end
-end
+# if !haskey(ENV, "CI")
+#     @testset "load WorldClim Weather" begin
+#         # Weather time-series
+#         dates = (Date(2001), Date(2002))
+#         ser = series(WorldClim{Weather}, (:prec,); date=dates, window=(Y(600:1900), X(600:1900)))
+#         ser[Date(2001, 1)][:prec]
+#         # Select Australia, using regular lat/lon selectors
+#         A = geoarray(WorldClim{Weather}, :prec; date=DateTime(2001, 05), mappedcrs=EPSG(4326))
+#     end
+# end
 
 @testset "load WorldClim Climate" begin
     # Weather time-series

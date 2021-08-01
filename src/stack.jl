@@ -48,6 +48,19 @@ function DD.rebuild(s::T;
     )
 end
 
+function DD.rebuild_from_arrays(
+    s::AbstractGeoStack, das::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractDimArray}}}; 
+    refdims=DD.refdims(s), 
+    metadata=DD.metadata(s), 
+    data=map(parent, das), 
+    dims=DD.combinedims(das...), 
+    layerdims=map(DD.basedims, das),
+    layermetadata=map(DD.metadata, das),
+    layermissingval=map(missingval, das),
+)
+    rebuild(s; data, dims, refdims, layerdims, metadata, layermetadata, layermissingval)
+end
+
 # Base methods #################################################################
 
 Base.names(s::AbstractGeoStack) = keys(s)
@@ -195,8 +208,6 @@ function GeoStack(s::AbstractDimStack; keys=cleankeys(Base.keys(s)),
     )
     window === nothing ? st : view(st, window...)
 end
-
-DD.maybestack(As::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractGeoArray}}}) = GeoStack(As)
 
 Base.convert(::Type{GeoStack}, src::AbstractDimStack) = GeoStack(src)
 

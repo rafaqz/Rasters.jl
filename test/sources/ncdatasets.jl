@@ -34,14 +34,15 @@ stackkeys = (
     end
 
     @testset "read" begin
-        @btime A = read(ncarray);
+        @time A = read(ncarray);
         @test A isa GeoArray
         @test parent(A) isa Array
         A2 = zero(A)
-        @btime read!(ncarray, A2);
+        @time read!(ncarray, A2);
         A3 = zero(A)
-        @btime read!(ncsingle, A3)
-        @test A == A2 == A3
+        @time read!(ncsingle, A3)
+        @test all(A .=== A2) 
+        @test all(A .=== A3)
     end
 
     @testset "array properties" begin
@@ -211,6 +212,7 @@ end
 
 @testset "Single file stack" begin
     @time ncstack = stack(ncmulti)
+    metadata(ncstack)
 
     @testset "load ncstack" begin
         @test ncstack isa GeoStack
@@ -241,7 +243,7 @@ end
     end
 
     @testset "read" begin
-        @time read(ncstack);
+        @time st = read(ncstack);
         @test st isa GeoStack
         @test st.data isa NamedTuple
         @test first(st.data) isa Array
@@ -297,7 +299,7 @@ end
     end
 
     @testset "save" begin
-        geostack = stack(ncstack);
+        geostack = read(ncstack)
         length(dims(geostack[:aclcac]))
         filename = tempname() * ".nc"
         write(filename, geostack);
@@ -386,11 +388,11 @@ end
     end
 
     @testset "save" begin
-        geoA = GeoArray(ncstack[:tsurf])
+        geoA = read(ncstack[:tsurf])
         filename = tempname() * ".nc"
         write(filename, ncstack)
         saved = read(geoarray(filename))
-        @test_broken all(saved .== geoA)
+        @test_broken all( saved .== geoA)
     end
 
     @testset "show" begin

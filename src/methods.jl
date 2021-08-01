@@ -114,10 +114,9 @@ end
     extend(layers::Union{NamedTuple,Tuple})
     extend(A::AbstractGeoArray; to::Tuple)
 
-Extend multiple [`AbstractGeoArray`](@ref) to match
-the size of the largest one. A single `AbstractGeoArray` 
-can be extended bu passing the new `dims` tuple as the second
-argumen.
+Extend multiple [`AbstractGeoArray`](@ref) to match the area covered by all.
+A single `AbstractGeoArray` can be extended by passing the new `dims` tuple 
+as the second argument.
 """
 function extend end
 extend(layers::AbstractGeoArray...) = extend(layers)
@@ -219,7 +218,7 @@ end
 """
     slice(A::Union{AbstractGeoArray,AbstractGeoStack,AbstracGeoSeries}, dims)
 
-Slice an object allong some dimension(s), lazily using `view`. For a single `GeoArray` 
+Slice an object along some dimension/s, lazily using `view`. For a single `GeoArray` 
 or `GeoStack` this will return a `GeoSeries` of `GeoArray` or `GeoStack` that are slices 
 along the specified dimensions. For a `GeoSeries`, the output is another series where
 the child objects are sliced and the series dimensions index is now of the child 
