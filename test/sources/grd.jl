@@ -79,6 +79,26 @@ path = stem * ".gri"
         @test grdarray[Y(Contains(60)), X(Contains(20)), Band(1)] == 255.0f0
     end
 
+    @testset "methods" begin 
+        @test mean(grdarray; dims=Y) == mean(parent(grdarray); dims=2)
+        @testset "trim, crop, extend" begin
+            a = read(grdarray)
+            a[X(1:20)] .= missingval(a)
+            trimmed = trim(a)
+            @test size(trimmed) == (81, 77, 3)
+            cropped = crop(a; to=trimmed)
+            @test size(cropped) == (81, 77, 3)
+            @test all(collect(cropped .== trimmed))
+            extended = extend(cropped; to=a);
+            @test all(collect(extended .== a))
+        end
+        @testset "chunk" begin
+            @test GeoData.chunk(grdarray) isa GeoSeries
+            @test size(GeoData.chunk(grdarray)) == (1, 1, 1)
+        end
+    end
+
+
     @testset "selectors" begin
         geoA = grdarray[Y(Contains(3)), X(:), Band(1)]
         @test geoA isa GeoArray{Float32,1}

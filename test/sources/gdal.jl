@@ -40,11 +40,6 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @test parent(parent(A)) isa GeoData.FileArray
     end
 
-    @testset "chunk" begin
-        @test GeoData.chunk(gdalarray) isa GeoSeries
-        @test size(GeoData.chunk(gdalarray)) == (1, 35, 1)
-    end
-
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
         @test gdalarray isa GeoArray{UInt8,3}
@@ -99,6 +94,21 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
 
     @testset "methods" begin 
         @test mean(gdalarray; dims=Y) == mean(parent(gdalarray); dims=2)
+        @testset "trim, crop, extend" begin
+            a = replace_missing(gdalarray, zero(eltype(gdalarray)))
+            a[X(1:100)] .= missingval(a)
+            trimmed = trim(a)
+            @test size(trimmed) == (414, 514, 1)
+            cropped = crop(a; to=trimmed)
+            @test size(cropped) == (414, 514, 1)
+            @test all(collect(cropped .=== trimmed))
+            extended = extend(cropped; to=a)
+            @test all(collect(extended .== a))
+        end
+        @testset "chunk" begin
+            @test GeoData.chunk(gdalarray) isa GeoSeries
+            @test size(GeoData.chunk(gdalarray)) == (1, 35, 1)
+        end
     end
 
     @testset "selectors" begin

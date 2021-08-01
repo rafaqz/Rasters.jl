@@ -97,6 +97,25 @@ stackkeys = (
         @test ncarray[Ti(2), X(At(59.0)), Y(At(-50.5))] == ncarray[30, 30, 2] === 278.47168f0
     end
 
+    @testset "methods" begin 
+        @test all(mean(ncarray; dims=Y) .=== mean(parent(ncarray); dims=2))
+        @testset "trim, crop, extend" begin
+            a = read(ncarray)
+            a[X(1:20)] .= missingval(a)
+            trimmed = trim(a)
+            @test size(trimmed) == (160, 169, 24)
+            cropped = crop(a; to=trimmed)
+            @test size(cropped) == (160, 169, 24)
+            @test all(collect(cropped .=== trimmed))
+            extended = extend(cropped; to=a)
+            @test all(collect(extended .=== a))
+        end
+        @testset "chunk" begin
+            @test GeoData.chunk(ncarray) isa GeoSeries
+            @test size(GeoData.chunk(ncarray)) == (1, 1, 1)
+        end
+    end
+
     @testset "indexing with reverse lat" begin
         if !haskey(ENV, "CI") # CI downloads fail. But run locally
             ncrevlat = maybedownload("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")

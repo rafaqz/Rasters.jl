@@ -26,6 +26,7 @@ import ColorTypes,
 
 @reexport using DimensionalData, GeoFormatTypes, RasterDataSources
 
+
 using Base: tail, @propagate_inbounds
 using DimensionalData: StandardIndices
 using Setfield: @set, @set!
@@ -54,6 +55,11 @@ const DDsampleddocs = joinpath(DDdocs, "#DimensionalData.Sampled")
 const DDlocusdocs = joinpath(DDdocs, "#DimensionalData.Locus")
 const DDselectordocs = joinpath(DDdocs, "#DimensionalData.Selector")
 const DDtidocs = joinpath(DDdocs, "#DimensionalData.Ti")
+
+const EXPERIMENTAL = """
+    WARNING: This feature is experimental. It may change in future versions, and may
+    not be 100% reliable in all cases. Please file github issues if problems occur.
+    """
 
 # Source dispatch singletons
 struct NCDfile end

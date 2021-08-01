@@ -74,25 +74,49 @@ missingmask(A::AbstractArray, missingval) =
     crop(A::AbstractGeoArray; to::Tuple)
 
 Crop multiple [`AbstractGeoArray`](@ref) to match the size 
-of the smallest one for any dimensions that are shared.
+of the smallest one for any dimensions that are shared. 
+
+Otherwise crop to the size of the keyword argument `to`. This can be a 
+`Tuple` of `Dimension` or any object that will return one from `dims(to)`.
+
+$EXPERIMENTAL
 """
 function crop end
-crop(layers::AbstractGeoArray...; kw...) = crop(layers)
+crop(l1, l2, ls::AbstractGeoArray...; kw...) = crop((l1, l2, ls); kw...)
 function crop(layers::Union{Tuple,NamedTuple}; to=_smallestdims(layers))
     map(l -> crop(l; to), layers)
 end
-crop(A::AbstractGeoArray; to) = _cropto(A, to)
+crop(A::AbstractGeoArray; to) = _crop_to(A, to)
 
 # crop `A` to values of dims of `to`
-_cropto(A::AbstractGeoArray, to) = _cropto(A, dims(to)) 
-function _cropto(A::AbstractGeoArray, to::Tuple)
+_crop_to(A::AbstractGeoArray, to) = _crop_to(A, dims(to)) 
+function _crop_to(A::AbstractGeoArray, to::Tuple)
     # Create selectors for each dimension
     # `Between` the bounds of the dimension
     selectors = map(to) do d
         DD.basetypeof(d)(Between(DD.bounds(d)))
     end
     # Take a view of the `Between` selectors
-    return view(A, selectors...)
+    return _without_mapped_crs(A) do a
+        view(a, selectors...)
+    end
+end
+
+_without_mapped_crs(f, A) = _without_mapped_crs(f, A, mappedcrs(A))
+_without_mapped_crs(f, A, ::Nothing) = f(A)
+function _without_mapped_crs(f, A, mappedcrs)
+    # Drop mappedcrs
+    A = set(A; 
+        X=rebuild(mode(A, X); mappedcrs=nothing),
+        Y=rebuild(mode(A, Y); mappedcrs=nothing),
+    )
+    A = f(A)
+    # Re-apply mappedcrs 
+    A = set(A; 
+        X=rebuild(mode(A, X); mappedcrs=mappedcrs),
+        Y=rebuild(mode(A, Y); mappedcrs=mappedcrs),
+    )
+    return A
 end
 
 # Get the smallest dimensions in a tuple of AbstractGeoArray
@@ -112,30 +136,39 @@ end
 """
     extend(layers::AbstractGeoArray...)
     extend(layers::Union{NamedTuple,Tuple})
-    extend(A::AbstractGeoArray; to::Tuple)
+    extend(A::AbstractGeoArray; to)
 
 Extend multiple [`AbstractGeoArray`](@ref) to match the area covered by all.
 A single `AbstractGeoArray` can be extended by passing the new `dims` tuple 
 as the second argument.
+
+$EXPERIMENTAL
 """
 function extend end
-extend(layers::AbstractGeoArray...) = extend(layers)
+function extend(l1::AbstractGeoArray, l2::AbstractGeoArray, ls::AbstractGeoArray...; kw...)
+    extend((l1, l2, ls...); kw...)
+end
 function extend(layers::Union{NamedTuple,Tuple}; to=_largestdims(layers))
     # Extend all layers to `to`, by default the _largestdims
     map(l -> extend(l; to), layers)
 end
-function extend(A::AbstractGeoArray; to::Tuple)
-    size = map(length, to)
+extend(A::AbstractGeoArray; to=dims(A)) = _extend_to(A, to)
+
+_extend_to(A::AbstractGeoArray, to) = _extend_to(A, dims(to))
+function _extend_to(A::AbstractGeoArray, to::Tuple)
+    sze = map(length, to)
     T = eltype(A)
-    # Creat a new extended array
-    newdata = similar(parent(A), T, size)
+    # Create a new extended array
+    newdata = similar(parent(A), T, sze)
     # Fill it with missing/nodata values
     newdata .= missingval(A)
     # Rebuild the original object with larger data and dims.
     newA = rebuild(A; data=newdata, dims=to)
     # Calculate the range of the old array in the extended array
     ranges = map(dims(A), to) do d, nd
-        (DD.sel2indices(nd, Near(first(d)))):(DD.sel2indices(nd, Near(last(d))))
+        start = DD.sel2indices(nd, Near(first(d)))
+        stop = DD.sel2indices(nd, Near(last(d)))
+        start <= stop ? (start:stop) : (stop:start)
     end
     # Copy the original data to the new array
     copyto!(
@@ -144,6 +177,11 @@ function extend(A::AbstractGeoArray; to::Tuple)
     ) 
     return newA
 end
+
+@inline _maybeflipindex(::ForwardRelation, d, i) = i
+@inline _maybeflipindex(::ReverseRelation, d, i::Integer) = lastindex(d) - i + 1
+@inline _maybeflipindex(::ReverseRelation, d, i::AbstractArray) =
+    reverse(lastindex(d) .- i .+ 1)
 
 # Get the largest dimensions in a tuple of AbstractGeoArray
 function _largestdims(layers)
@@ -173,7 +211,13 @@ _longest(a, b) = length(a) >= length(b)
         
 Trim `missingval` from `A` for axes in dims.
 
-The trimmed size will be padded by `pad` on all sides.
+By default `dims=(X, Y)`, so trimming keeps the area of `X` and `Y` 
+that contains non-missing values along all other dimensions.
+
+The trimmed size will be padded by `pad` on all sides, although 
+padding will not be added beyond the original extent of the array.
+
+$EXPERIMENTAL
 """
 function trim(A::GeoArray; dims::Tuple=(X(), Y()), pad::Int=0)
     # Get the actual dimensions in their order in the array
@@ -188,29 +232,52 @@ function trim(A::GeoArray; dims::Tuple=(X(), Y()), pad::Int=0)
     return view(A, dims...)
 end
 
+# Tracks the status of an index for some subset of dimensions of an Array
+# This lets us track e.g. the X/Y indices that have only missing values
+# accross all other dimensions.
+# This is a hack to work with DiskArrays broadcast chunking without allocations.
+struct AxisTrackers{N,Tr,D,TD} <: AbstractArray{Bool,N}
+    tracking::Tr
+    dims::D
+    trackeddims::TD
+end
+function AxisTrackers(tracking::T, dims::D, trackeddims::TD) where {T,D,TD}
+    AxisTrackers{length(dims),T,D,TD}(tracking, dims, trackeddims)
+end
+function AxisTrackers(dims::Tuple, trackeddims::Tuple)
+    tracking = map(trackeddims) do td
+        (_ -> false).(td)
+    end
+    return AxisTrackers(tracking, dims, trackeddims)
+end
+
+Base.axes(A::AxisTrackers) = map(d -> axes(d, 1), A.dims)
+Base.size(A::AxisTrackers) = map(length, A.dims)
+Base.getindex(A::AxisTrackers, I...) = map(getindex, A.tracking, _trackedinds(I)) |> any
+function Base.setindex!(A::AxisTrackers, x, I::Int...)
+    map(A.tracking, _trackedinds(A, I)) do axis, i
+        axis[i] |= x 
+    end
+end
+
+function _trackedinds(A, I)
+    # Wrap indices in diensions so we can sort and filter them
+    Id = map((d, i) -> DD.basetypeof(d)(i), A.dims, I)
+    # Get just the tracked dimensions
+    Itracked = dims(Id, A.trackeddims)
+    # Get the indices for the tracked dimensions
+    return map(val, Itracked)
+end
+
 # Get the ranges to trim to for dimensions in `dims`
 function _trimranges(A, targetdims)
-    # Bool vectors to track wich rows/cols have non-missing values
-    # for the dimensions we are interested in
-    trackers = map(s -> zeros(Bool, s), map(d -> size(A, d), targetdims))
-    # Broadcast over the array and index generators
-    index_generators = DD.dimwise_generators(dims(A))
-    updates = broadcast(A, index_generators) do a, I
-        # Check if the value is non-missing
-        if a !== missingval(A)
-            # Set the tracker for this index to true. We are only tracking
-            # the target dims, so `dims` extracts them from the tuple I.
-            inds = map(val, dims(I, targetdims))
-            for (i, n) in enumerate(inds)
-                trackers[i][n] = true
-            end
-        end
-        nothing
-    end
-    collect(updates)
+    # Broadcast over the array and tracker to mark axis indices
+    # as being missing or not
+    trackers = AxisTrackers(dims(A), targetdims)
+    trackers .= A .!== missingval(A)
     # Get the ranges that contain all non-missing values
-    cropranges = map(trackers) do t
-        findfirst(t):findlast(t)
+    cropranges = map(trackers.tracking) do a
+        findfirst(a):findlast(a)
     end
     return cropranges
 end
@@ -218,12 +285,16 @@ end
 """
     slice(A::Union{AbstractGeoArray,AbstractGeoStack,AbstracGeoSeries}, dims)
 
-Slice an object along some dimension/s, lazily using `view`. For a single `GeoArray` 
-or `GeoStack` this will return a `GeoSeries` of `GeoArray` or `GeoStack` that are slices 
-along the specified dimensions. For a `GeoSeries`, the output is another series where
-the child objects are sliced and the series dimensions index is now of the child 
-dimensions combined. `slice` on a `GeoSeries` with no dimensions will slice along
-the dimensions shared by both the series and child object.
+Slice an object along some dimension/s, lazily using `view`. 
+
+For a single `GeoArray` or `GeoStack` this will return a `GeoSeries` of 
+`GeoArray` or `GeoStack` that are slices along the specified dimensions. 
+
+For a `GeoSeries`, the output is another series where the child objects are sliced and the 
+series dimensions index is now of the child dimensions combined. `slice` on a `GeoSeries` 
+with no dimensions will slice along the dimensions shared by both the series and child object.
+
+$EXPERIMENTAL
 """
 slice(x::Union{AbstractGeoArray,AbstractGeoStack}, dims) = slice(x, (dims,))
 function slice(x::Union{AbstractGeoArray,AbstractGeoStack}, dims::Tuple)
@@ -253,13 +324,14 @@ function dimbounds(f::Function, A::AbstractDimArray)
     end
 end
 
-
 """
     chunk(A::AbstractGeoArray)
 
 Creat a GeoSeries of arrays matching the chunks of a chunked array. 
 
 This may be useful for parallel or larger than memory applications.
+
+$EXPERIMENTAL
 """
 function chunk(A::AbstractGeoArray)
     # Get the index of each chunk of A
@@ -285,6 +357,8 @@ where points are a tuple of the values in each specified dimension
 index.
 
 The order of `dims` determines the order of the points.
+
+$EXPERIMENTAL
 """
 function points(A::AbstractGeoArray; dims=(Y, X))
     # Get the actual dims

@@ -26,3 +26,8 @@ function reindex_window(x, window::Tuple, I)
         Base.reindex(win, DD.dims2indices(x, I))
     end
 end
+
+ends(dim::Dimension) = ends(indexorder(dim), dim)
+ends(order, dim) = first(dim), last(dim)
+ends(::ForwardIndex, dim) = first(dim), lasgt(dim)
+ends(::ReverseIndex, dim) = first(dim), last(dim)

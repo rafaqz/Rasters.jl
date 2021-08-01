@@ -24,3 +24,24 @@ end
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
     @test dims(missingmask(ga)) == (X(Base.OneTo(2), mode=NoIndex()), Y(Base.OneTo(2), mode=NoIndex()))
 end
+
+@testset "trim, crop, extend" begin
+    A = [missing missing missing
+         missing 2.0     0.5
+         missing 1.0     missing]
+    ga = GeoArray(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing)
+    # Test with missing on all sides
+    ga_r = rot180(ga)
+    trimmed = trim(ga)
+    trimmed_r = trim(ga_r)
+    @test all(trimmed .=== [2.0 0.5; 1.0 missing])
+    @test all(trimmed_r .=== [missing 1.0; 0.5 2.0])
+    cropped = crop(ga; to=trimmed)
+    cropped_r = crop(ga_r; to=trimmed_r)
+    @test all(cropped .=== trimmed)
+    @test all(cropped_r .=== trimmed_r)
+    extended = extend(cropped; to=ga)
+    extended_r = extend(cropped_r; to=ga_r)
+    @test all(extended .=== ga)
+    @test all(extended_r .=== ga_r)
+end
