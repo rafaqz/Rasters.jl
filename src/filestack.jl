@@ -10,7 +10,7 @@ typically netcdf or hdf5.
 `X` is a backend singleton like `GDALfile`, and `K` is a tuple
 of `Symbol` keys.
 """
-struct FileStack{X,K,F<:AbstractString,T<:NamedTuple,S<:NamedTuple,EC,HC}
+struct FileStack{X,K,F<:AbstractString,T<:NamedTuple{K},S<:NamedTuple{K},EC,HC}
     filename::F
     types::T
     sizes::S
@@ -18,14 +18,14 @@ struct FileStack{X,K,F<:AbstractString,T<:NamedTuple,S<:NamedTuple,EC,HC}
     haschunks::HC
     write::Bool
 end
-function FileStack{X,K}(
+function FileStack{X}(
     filename::F, types::T, sizes::S, eachchunk::EC, haschunks::HC, write::Bool
-) where {X,K,F,T,S,EC,HC}
+   ) where {X,K,F,T<:NamedTuple{K},S<:NamedTuple{K},EC,HC}
     FileStack{X,K,F,T,S,EC,HC}(filename, types, sizes, eachchunk, haschunks, write)
 end
 
-# FileStack has `X` and `K` parameters that are not recoverable from fields.
-ConstructionBase.constructorof(::Type{<:FileStack{X,K}}) where {X,K} = FileStack{X,K} 
+# FileStack has `X` parameter that is not recoverable from fields.
+ConstructionBase.constructorof(::Type{<:FileStack{X}}) where {X} = FileStack{X} 
 
 filename(fs::FileStack) = fs.filename
 Base.keys(fs::FileStack{<:Any,K}) where K = K

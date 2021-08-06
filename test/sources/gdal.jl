@@ -1,7 +1,6 @@
-using GeoData, Test, Statistics, Dates, Plots, DimensionalData, RasterDataSources, DiskArrays
+using GeoData, Test, Statistics, Dates#, Plots, DiskArrays
 import ArchGDAL, NCDatasets
 using GeoData: mode, span, sampling, name, bounds, FileArray, GDALfile
-using DimensionalData: modify
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 

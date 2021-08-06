@@ -52,7 +52,7 @@ if isfile(path1) && isfile(path2)
         end
 
         @testset "array properties" begin
-            @test smaparray  isa GeoArray
+            @test smaparray isa GeoArray
         end
 
         @testset "dimensions" begin
@@ -153,7 +153,8 @@ if isfile(path1) && isfile(path2)
             end
             @testset "to netcdf" begin
                 ncdfilename = tempname() * ".nc"
-                write(ncdfilename, smaparray)
+                @time write(ncdfilename, smaparray)
+                reorder(smaparray, ForwardIndex()) |> a -> reorder(a, ForwardRelation())
                 saved = geoarray(ncdfilename)
                 @test_broken bounds(saved) == bounds(smaparray)
                 @test index(saved, Y) == reverse(index(smaparray, Y))

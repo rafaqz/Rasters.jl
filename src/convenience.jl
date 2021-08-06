@@ -75,7 +75,7 @@ If the source can't be saved as a stack-like object, individual array layers wil
 function Base.write(filename::AbstractString, s::AbstractGeoStack; kw...)
     base, ext = splitext(filename)
     T = _sourcetype(filename)
-    if cansavestack(T)
+    if can_write_stack(T)
         write(filename, _sourcetype(filename), s; kw...)
     else
         # Otherwise write separate arrays
@@ -86,7 +86,7 @@ function Base.write(filename::AbstractString, s::AbstractGeoStack; kw...)
     end
 end
 
-cansavestack(T) = false
+can_write_stack(T) = false
 
 """
     series(dirpath::AbstractString, dims; ext, child=geoarray, kw...) => AbstractGeoSeries

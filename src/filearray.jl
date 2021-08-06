@@ -8,21 +8,21 @@ when it needs to be read.
 
 
 """
-struct FileArray{X,T,N,F<:AbstractString,S<:Tuple,K,EC,HC} <: AbstractDiskArray{T,N}
-    filename::F
-    size::S
+struct FileArray{X,T,N,K,EC,HC} <: AbstractDiskArray{T,N}
+    filename::String
+    size::NTuple{N,Int}
     key::K
     eachchunk::EC
     haschunks::HC
     write::Bool
 end
 function FileArray{X,T,N}(
-    filename::F, size::S, key::K, eachchunk::EC=nothing, 
+    filename, size, key::K, eachchunk::EC=size, 
     haschunks::HC=DA.Unchunked(), write=false
-) where {X,T,N,F,S<:Tuple,K,EC,HC}
-    FileArray{X,T,N,F,S,K,EC,HC}(filename, size, key, eachchunk, haschunks, write)
+) where {X,T,N,K,EC,HC}
+    FileArray{X,T,N,K,EC,HC}(filename, size, key, eachchunk, haschunks, write)
 end
-function FileArray{X,T,N}(filename::AbstractString, size::Tuple; 
+function FileArray{X,T,N}(filename::String, size::Tuple; 
     key=nothing, eachchunk=size, haschunks=DA.Unchunked(), write=false
 ) where {X,T,N}
     FileArray{X,T,N}(filename, size, key, eachchunk, haschunks, write)
@@ -51,7 +51,7 @@ DA.writeblock!(A::FileArray, src, r::AbstractUnitRange...) =
     GeoDiskArray <: AbstractDiskArray
 
 GeoDiskArray is a basic DiskArrays.jl wrapper for objects that don't have
-one defined yet. Whe we `open` a `FileArray` it is replaced with a GeoDiskArray.
+one defined yet. When we `open` a `FileArray` it is replaced with a GeoDiskArray.
 """
 struct GeoDiskArray{T,N,V<:AbstractArray{T,N},EC,HC} <: AbstractDiskArray{T,N}
     var::V

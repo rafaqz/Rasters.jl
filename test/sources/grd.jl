@@ -14,7 +14,7 @@ stem = joinpath(testpath, "data/rlogo")
 path = stem * ".gri"
 
 @testset "Grd array" begin
-    grdarray = geoarray(path)
+    @time grdarray = geoarray(path)
 
     @testset "open" begin
         @test all(open(A -> A[Y=1], grdarray) .=== grdarray[:, 1, :])
