@@ -27,42 +27,6 @@ stackkeys = (
 )
 
 @testset "geoarray" begin
-    using ProfileView
-    using NCDatasets#, GeoData
-    filename = "/home/raf/.julia/dev/GeoData/test/data/tos_O1_2001-2002.nc"
-    @time ds = NCDatasets.NCDataset(filename);
-    @time NCDatasets.variable(ds, "tos")
-    @time ds["tos"]
-    @code_warntype ds["tos"]
-    @time ncarray = geoarray(filename)
-    # @profview ncarray = geoarray(filename)
-    # ProfileView.view()
-    @time ncarray = geoarray(filename)
-
-    @time GeoData.layerkeys(ds)
-    @code_warntype GeoData.layerkeys(ds)
-    @time ncarray = geoarray(filename)
-    @code_warntype geoarray(filename)
-
-    # @time precompile(GeoData.FileArray, (typeof(var), String))
-    # @time precompile(getindex, (NCDatasets.NCDataset{Nothing}, String))
-    # @time precompile(NCDatasets.NCDataset{Nothing}, (String,))
-    keys(ds)
-    typeof(var)
-    k = map(Symbol, keys(ds.dim)) |> Tuple
-
-
-    @time GeoData.FileArray(var, filename)
-    @time GeoData.FileArray(var, filename; key=:tos)
-    typeof(var)
-
-    @time dims(ds)
-    @time metadata(ds)
-    @time DimensionalData.layerdims(ds)
-    @time DimensionalData.layermetadata(ds)
-    @time GeoData.layermissingval(ds)
-    
-
     @time ncarray = geoarray(ncsingle)
 
     @testset "open" begin
@@ -183,7 +147,7 @@ stackkeys = (
         geoA = ncarray[X(1:50), Y(20:20), Ti(1)]
         @test size(geoA) == (50, 1)
         @test eltype(geoA) <: Union{Missing,Float32}
-        @test geoA isa GeoArray{Union{Missing,Float32},1}
+        @test geoA isa GeoArray{Union{Missing,Float32},2}
         @test dims(geoA) isa Tuple{<:X,<:Y}
         @test refdims(geoA) isa Tuple{<:Ti}
         @test metadata(geoA) == metadata(ncarray)
@@ -267,7 +231,6 @@ end
 
 @testset "Single file stack" begin
     @time ncstack = stack(ncmulti)
-    metadata(ncstack)
 
     @testset "load ncstack" begin
         @test ncstack isa GeoStack
@@ -475,11 +438,6 @@ end
     @test all(read(ncseries[Ti(1)][:albedo]) .== read(geoA))
     @test read(ncseries[Ti(1)][:albedo]) == read(geoA)
     @test all(read(ncseries[Ti(1)][:albedo]) .== read(geoA))
-    @testset "modify" begin
-        modified_series = modify(Array, ncseries)
-        @test keys(modified_series) == keys(ncseries)
-        @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{stackkeys,<:Tuple{<:Array{Union{Missing,Float32},3},Vararg}}}}
-    end
 end
 
 nothing

@@ -120,7 +120,7 @@ if isfile(path1) && isfile(path2)
                 @test size(geoA) == size(smaparray)
                 filename = tempname() * ".grd"
                 write(filename, geoA)
-                saved = read(geoarray(filename)[Band(1)])
+                saved = read(geoarray(filename; mappedcrs=EPSG(4326))[Band(1)])
                 @test size(saved) == size(geoA)
                 @test missingval(saved) === missingval(geoA)
                 @test map(metadata.(dims(saved)), metadata.(dims(geoarray))) do s, g
@@ -128,28 +128,24 @@ if isfile(path1) && isfile(path2)
                 end |> all
                 @test GeoData.name(saved) == GeoData.name(geoA)
                 @test all(mode.(dims(saved)) .!= mode.(dims(geoA)))
-                # @test all(order.(dims(saved)) .== order.(dims(geoA)))
-                # @test all(typeof.(span.(dims(saved))) .== typeof.(span.(dims(geoA))))
-                # @test all(val.(span.(dims(saved))) .== val.(span.(dims(geoA))))
-                # @test all(sampling.(dims(saved)) .== sampling.(dims(geoA)))
-                # @test typeof(dims(saved)) <: typeof(dims(geoA))
-                # @test val(dims(saved)[2]) == val(dims(geoA)[2])
-                # @test all(val.(dims(saved)) .== val.(dims(geoA)))
-                # @test all(data(saved) .=== data(geoA))
-                # @test saved isa typeof(geoA)
-                # TODO test crs
+                @test all(mappedbounds(saved)[1] .≈ bounds(geoA)[1])
+                @test all(mappedbounds(saved)[2] .≈ mappedbounds(geoA)[2])
+                @test all(data(saved) .=== data(geoA))
             end
             @testset "to gdal" begin
-                # gdalfilename = tempname() * ".tif"
-                # @time write(gdalfilename, smaparray)
-                # gdalarray = geoarray(gdalfilename; mappedcrs=EPSG(4326))
+                gdalfilename = tempname() * ".tif"
+                @time write(gdalfilename, read(smaparray))
+                gdalarray = geoarray(gdalfilename; mappedcrs=EPSG(4326))
                 # These come out with slightly different format
-                # @test rs(gdalarray) == crs(smaparray)
-                # @test_broken mappedbounds(gdalarray) == (bounds(smaparray)..., (1, 1))
-                # Tiff locus = Start, Netcdf locus = Center
-                # @test Float32.(mappedindex(gdalarray, Y)) ≈ index(smaparray, Y)
-                # @test mappedindex(gdalarray, X) ≈ mappedindex(smaparray, X)
-                # @test all(gdalarray .== smaparray)
+                @test convert(ProjString, crs(gdalarray)) == crs(smaparray)
+                @test_broken mappedbounds(gdalarray), sampling(gdalarray)
+                == (
+                    bounds(smaparray)
+                    ..., (1, 1))
+                # Tiff locus = Start, SMAP locus = Center
+                @test mappedindex(gdalarray, Y) ≈ index(smaparray, Y)
+                @test mappedindex(gdalarray, X) ≈ mappedindex(smaparray, X)
+                @test all(gdalarray .== read(smaparray))
             end
             @testset "to netcdf" begin
                 ncdfilename = tempname() * ".nc"

@@ -1,4 +1,4 @@
-using GeoData, Test, Statistics, Dates#, Plots, DiskArrays
+using GeoData, Test, Statistics, Dates, Plots, DiskArrays
 import ArchGDAL, NCDatasets
 using GeoData: mode, span, sampling, name, bounds, FileArray, GDALfile
 
@@ -133,7 +133,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
 
         @testset "2d" begin
             geoA = view(gdalarray, Band(1))
-            filename = tempname() * ".tif"
+            filename = tempname() * ".asc"
             @time write(filename, geoA)
             saved1 = geoarray(filename; mappedcrs=EPSG(4326))[Band(1)];
             @test all(saved1 .== geoA)
@@ -148,7 +148,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         
         @testset "3d, with subsetting" begin
             geoA2 = gdalarray[Y(Between(33.7, 33.9)), X(Between(-117.6, -117.4))]
-            filename2 = tempname() * ".asc"
+            filename2 = tempname() * ".tif"
             write(filename2, geoA2)
             saved2 = read(geoarray(filename2; name=:test, mappedcrs=EPSG(4326)))
             @test size(saved2) == size(geoA2) == length.(dims(saved2)) == length.(dims(geoA2))
@@ -165,7 +165,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             @test all(val(dims(saved2, Y)) .≈ val(dims(geoA2, Y)))
             @test all(metadata.(dims(saved2)) .== metadata.(dims(geoA2)))
             @test parent(saved2) == parent(geoA2)
-            @test_broken typeof(saved2) == typeof(geoA2)
+            @test typeof(saved2) == typeof(geoA2)
             filename3 = tempname() * ".tif"
             geoA3 = cat(gdalarray[Band(1)], gdalarray[Band(1)], gdalarray[Band(1)]; dims=Band(1:3))
             write(filename3, geoA3)
