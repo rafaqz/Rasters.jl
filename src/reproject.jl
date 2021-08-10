@@ -78,28 +78,3 @@ _projectedrange(::Regular, crs::Nothing, ::Mapped, dim) =
     LinRange(first(dim), last(dim), length(dim))
 _projectedrange(::T, crs::Nothing, ::Mapped, dim) where T<:Union{Irregular,Explicit} =
     error("Cannot convert a Mapped $T index to Projected when crs is nothing")
-
-
-projectedbounds(mode::Mapped, dim) = projectedbounds(crs(mode), mode, dim)
-projectedbounds(crs::Nothing, mode::Mapped, dim) =
-    error("No projection crs attached to $(name(dim)) dimension")
-projectedbounds(crs::GeoFormat, mode::Mapped, dim) =
-    reproject(mappedcrs(mode), crs, dim, bounds(dim))
-
-projectedindex(mode::Mapped, dim) = projectedindex(crs(mode), mode, dim)
-projectedindex(crs::Nothing, mode::Mapped, dim) =
-    error("No projection crs attached to $(name(dim)) dimension")
-projectedindex(crs::GeoFormat, mode::Mapped, dim) =
-    reproject(mappedcrs(dim), crs, dim, index(dim))
-
-mappedbounds(mode::Projected, dim) = mappedbounds(mappedcrs(mode), mode, dim)
-mappedbounds(mappedcrs::Nothing, mode::Projected, dim) =
-    error("No mappedcrs attached to $(name(dim)) dimension")
-mappedbounds(mappedcrs::GeoFormat, mode::Projected, dim) =
-    reproject(crs(mode), mappedcrs, dim, bounds(dim))
-
-mappedindex(mode::Projected, dim) = mappedindex(mappedcrs(mode), mode, dim)
-mappedindex(mappedcrs::Nothing, mode::Projected, dim) =
-    error("No mappedcrs attached to $(name(dim)) dimension")
-mappedindex(mappedcrs::GeoFormat, mode::Projected, dim) =
-    reproject(crs(dim), mappedcrs, dim, index(dim))

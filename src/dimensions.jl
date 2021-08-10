@@ -32,25 +32,23 @@ mappedbounds(dims::Tuple) = map(mappedbounds, dims)
 mappedbounds(dim::Dimension) = bounds(dim)
 mappedbounds(dim::Union{Y,X}) = mappedbounds(mode(dim), dim)
 mappedbounds(::Mapped, dim) = bounds(dim)
-@noinline mappedbounds(mode::IndexMode, dim) =
-    if mode isa Projected
-        error("Load ArchGDAL to convert Projected mode bounds to mapped")
-    else
-        error("cannot get mapped bounds of a $(nameof(typeof(mode))) mode dim")
-    end
-
+mappedbounds(mode::Projected, dim) = mappedbounds(mappedcrs(mode), mode, dim)
+mappedbounds(mappedcrs::Nothing, mode::Projected, dim) =
+    error("No mappedcrs attached to $(name(dim)) dimension")
+mappedbounds(mappedcrs::GeoFormat, mode::Projected, dim) =
+    _sort(reproject(crs(mode), mappedcrs, dim, bounds(dim)))
 
 projectedbounds(dims::Tuple) = map(projectedbounds, dims)
 projectedbounds(dim::Dimension) = bounds(dim)
 projectedbounds(dim::Union{Y,X}) = projectedbounds(mode(dim), dim)
 projectedbounds(::Projected, dim) = bounds(dim)
-@noinline projectedbounds(mode::IndexMode, dim) =
-    if mode isa Mapped
-        error("Load ArchGDAL to convert Mapped mode dim to projected")
-    else
-        error("cannot get projected bounds of a $(nameof(typeof(mode))) mode dim")
-    end
+projectedbounds(mode::Mapped, dim) = projectedbounds(crs(mode), mode, dim)
+projectedbounds(crs::Nothing, mode::Mapped, dim) =
+    error("No projection crs attached to $(name(dim)) dimension")
+projectedbounds(crs::GeoFormat, mode::Mapped, dim) =
+    _sort(reproject(mappedcrs(mode), crs, dim, bounds(dim)))
 
+_sort((a, b)) = a <= b ? (a, b) : (b, a)
 
 """
     mappedindex(x)
@@ -65,20 +63,18 @@ mappedindex(dims::Tuple) = map(mappedindex, dims)
 mappedindex(dim::Dimension) = index(dim)
 mappedindex(dim::Union{Y,X}) = mappedindex(mode(dim), dim)
 mappedindex(::Mapped, dim) = index(dim)
-@noinline mappedindex(mode::IndexMode, dim) =
-    if mode isa Projected
-        error("Load ArchGDAL to convert Projected mode index to mapped")
-    else
-        error("cannot get mapped index of a $(nameof(typeof(mode))) mode dim")
-    end
+mappedindex(mode::Projected, dim) = mappedindex(mappedcrs(mode), mode, dim)
+mappedindex(mappedcrs::Nothing, mode::Projected, dim) =
+    error("No mappedcrs attached to $(name(dim)) dimension")
+mappedindex(mappedcrs::GeoFormat, mode::Projected, dim) =
+    reproject(crs(dim), mappedcrs, dim, index(dim))
 
 projectedindex(dims::Tuple) = map(projectedindex, dims)
 projectedindex(dim::Dimension) = index(dim)
 projectedindex(dim::Union{Y,X}) = projectedindex(mode(dim), dim)
 projectedindex(::Projected, dim) = index(dim)
-@noinline projectedindex(mode::IndexMode, dim) =
-    if mode isa Mapped
-        error("Load ArchGDAL to convert Mapped mode index to projected")
-    else
-        error("cannot get projected index of a $(nameof(typeof(mode))) mode dim")
-    end
+projectedindex(mode::Mapped, dim) = projectedindex(crs(mode), mode, dim)
+projectedindex(crs::Nothing, mode::Mapped, dim) =
+    error("No projection crs attached to $(name(dim)) dimension")
+projectedindex(crs::GeoFormat, mode::Mapped, dim) =
+    reproject(mappedcrs(dim), crs, dim, index(dim))

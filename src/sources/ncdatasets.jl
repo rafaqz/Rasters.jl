@@ -46,7 +46,7 @@ _firstkey(ds::NCD.NCDataset, key) = Symbol(key)
 function FileArray(var::NCD.CFVariable, filename::AbstractString; kw...)
     da = GeoDiskArray(var)
     size_ = size(da)
-    eachchunk = DA.eachchunk(da) 
+    eachchunk = DA.eachchunk(da)
     haschunks = DA.haschunks(da)
     T = eltype(var)
     N = length(size_)
@@ -428,30 +428,33 @@ end
 _unuseddimerror(dimname) = error("Netcdf contains unused dimension $dimname")
 
 function _ncd_eachchunk(var) 
-    chunkmode, chunkvec = NCDatasets.chunking(var)
-    chunksize = chunkmode == :chunked ? Tuple(chunkvec) : size(var)
+    # chunkmode, chunkvec = NCDatasets.chunking(var)
+    # chunksize = chunkmode == :chunked ? Tuple(chunkvec) : 
+    chunksize = size(var)
     DA.GridChunks(var, chunksize)
 end
 
 function _ncd_haschunks(var) 
-    chunkmode, _ = NCDatasets.chunking(var)
-    chunkmode == :chunked ? DA.Chunked() : DA.Unchunked()
+    # chunkmode, _ = NCDatasets.chunking(var)
+    # chunkmode == :chunked ? DA.Chunked() : 
+    DA.Unchunked()
 end
 
 # precompilation
-const _V = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}
-precompile(GeoData.FileArray, (_V, String))
+
+const _NCDVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}
+precompile(GeoData.FileArray, (_NCDVar, String))
 precompile(geoarray, (String,))
 precompile(GeoArray, (String,))
 precompile(layerkeys, (NCDatasets.NCDataset{Nothing},))
-precompile(dims, (_V,Symbol))
-precompile(dims, (_V,Symbol,Nothing,Nothing))
-precompile(dims, (_V,Symbol,Nothing,EPSG))
-precompile(dims, (_V,Symbol,EPSG,EPSG))
+precompile(dims, (_NCDVar,Symbol))
+precompile(dims, (_NCDVar,Symbol,Nothing,Nothing))
+precompile(dims, (_NCDVar,Symbol,Nothing,EPSG))
+precompile(dims, (_NCDVar,Symbol,EPSG,EPSG))
 precompile(_firstkey, (NCDatasets.NCDataset{Nothing},))
 precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, Nothing))
 precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, EPSG))
 precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, EPSG, EPSG))
 precompile(GeoArray, (NCDatasets.NCDataset{Nothing}, String, Nothing))
 precompile(GeoArray, (NCDatasets.NCDataset{Nothing}, String, Symbol))
-precompile(GeoArray, (_V, String, Symbol))
+precompile(GeoArray, (_NCDVar, String, Symbol))
