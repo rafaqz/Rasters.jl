@@ -113,7 +113,7 @@ function FileStack{SMAPfile}(ds::SMAPhdf5, filename::AbstractString; write=false
     layersizes = NamedTuple{keys}(map(x->x[2], type_size_ec_hc))
     eachchunk = NamedTuple{keys}(map(x->x[3], type_size_ec_hc))
     haschunks = NamedTuple{keys}(map(x->x[4], type_size_ec_hc))
-    FileStack{SMAPfile,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+    FileStack{SMAPfile}(filename, layertypes, layersizes, eachchunk, haschunks, write)
 end
 
 # Series #######################################################################

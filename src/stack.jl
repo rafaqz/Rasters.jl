@@ -128,7 +128,7 @@ function GeoStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     layers = map(keys(filenames), values(filenames)) do key, fn
         source = source isa Nothing ? _sourcetype(fn) : source
         crs = defaultcrs(source, crs)
-        mappecrs = defaultmappedcrs(source, mappedcrs)
+        mappedcrs = defaultmappedcrs(source, mappedcrs)
         _open(fn; key) do ds
             data = FileArray(ds, fn; key)
             dims = DD.dims(ds, crs, mappedcrs)
@@ -217,3 +217,7 @@ defaultcrs(T::Type) = nothing
 defaultmappedcrs(T::Type, crs) = crs
 defaultmappedcrs(T::Type, ::Nothing) = defaultmappedcrs(T)
 defaultmappedcrs(T::Type) = nothing
+
+
+# Precompile
+precompile(GeoStack, (String,))

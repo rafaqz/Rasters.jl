@@ -158,8 +158,7 @@ path = stem * ".gri"
             write(filename2, grdarray[Band(1)])
             saved = read(geoarray(filename2; crs=crs(grdarray)))
             @test size(saved) == size(grdarray[Band(1)])
-            @test replace_missing(saved, missingval(grdarray)) ≈ reverse(grdarray[Band(1)]; dims=Y)
-            @test replace_missing(saved, missingval(grdarray)) ≈ reverse(grdarray[Band(1)]; dims=Y)
+            @test replace_missing(saved, missingval(grdarray)) ≈ grdarray[Band(1)]
             @test index(saved, X) ≈ index(grdarray, X) .+ 0.5
             @test index(saved, Y) ≈ index(grdarray, Y) .+ 0.5
             @test bounds(saved, Y) == bounds(grdarray, Y)

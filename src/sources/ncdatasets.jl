@@ -344,7 +344,6 @@ _dimkeys(ds::NCD.Dataset) = keys(ds.dim)
 
 # Add a var array to a dataset before writing it.
 function _ncdwritevar!(ds, A::AbstractGeoArray{T,N}) where {T,N}
-    A = reorder(A, ForwardIndex()) |> a -> reorder(a, ForwardRelation())
     _def_dim_var!(ds, A)
     # Define required dim vars
     # TODO actually convert the metadata types
@@ -374,9 +373,10 @@ function _ncdwritevar!(ds, A::AbstractGeoArray{T,N}) where {T,N}
     end
 
     dimnames = lowercase.(string.(map(name, dims(A))))
-    attribvec = [attrib...] 
+    attribvec = [attrib...]
     var = NCD.defVar(ds, key, eltype(A), dimnames; attrib=attribvec)
-    var[:] = data(A)
+    # TODO do this with DiskArrays broadcast ??
+    var[:] = parent(read(A))
 end
 
 _def_dim_var!(ds, A) = map(d -> _def_dim_var!(ds, d), dims(A))
@@ -444,8 +444,6 @@ end
 
 const _NCDVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}
 precompile(GeoData.FileArray, (_NCDVar, String))
-precompile(geoarray, (String,))
-precompile(GeoArray, (String,))
 precompile(layerkeys, (NCDatasets.NCDataset{Nothing},))
 precompile(dims, (_NCDVar,Symbol))
 precompile(dims, (_NCDVar,Symbol,Nothing,Nothing))
@@ -458,3 +456,6 @@ precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, EPSG, EPSG))
 precompile(GeoArray, (NCDatasets.NCDataset{Nothing}, String, Nothing))
 precompile(GeoArray, (NCDatasets.NCDataset{Nothing}, String, Symbol))
 precompile(GeoArray, (_NCDVar, String, Symbol))
+
+precompile(geoarray, (String,))
+precompile(GeoArray, (String,))

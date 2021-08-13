@@ -23,9 +23,9 @@ const REVGRDfile_DATATYPE_TRANSLATION =
     Dict{DataType, String}(v => k for (k,v) in GRD_DATATYPE_TRANSLATION)
 
 # GRD attributes wrapper. Only used during file load, for dispatch.
-struct GRDattrib{T,F,A}
+struct GRDattrib{T,F}
     filename::F
-    attrib::A
+    attrib::Dict{String,String}
     write::Bool
 end
 function GRDattrib(filename::AbstractString; write=false)
@@ -34,7 +34,7 @@ function GRDattrib(filename::AbstractString; write=false)
     entries = filter!(x -> !isempty(x) && !(x[1] == '['), lines)
     attrib = Dict(Pair(string.(strip.(match(r"([^=]+)=(.*)", st).captures[1:2]))...) for st in entries)
     T = GRD_DATATYPE_TRANSLATION[attrib["datatype"]]
-    GRDattrib{T,typeof(filename),typeof(attrib)}(filename, attrib, write)
+    GRDattrib{T,typeof(filename)}(filename, attrib, write)
 end
 
 filekey(grd::GRDattrib, key::Nothing) = get(grd.attrib, "layername", Symbol(""))
@@ -228,4 +228,25 @@ function _mmapgrd(f, filename::AbstractString, T::Type, size::Tuple; write=false
         close(io)
         output
     end
+end
+
+
+# precompilation
+
+T = UInt16
+for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Int64, Float32, Float64)
+    precompile(GRDattrib, (String,))
+    DS = GeoData.GRDattrib{T,String}
+    precompile(crs, (DS,))
+    precompile(GeoData.FileArray, (DS, String))
+    precompile(dims, (DS,))
+    precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},Nothing))
+    precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},EPSG))
+    precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},ProjString))
+    precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},WellKnownText{GeoFormatTypes.CRS,String}))
+    precompile(metadata, (DS, ))
+    precompile(metadata, (DS, Symbol))
+    precompile(missingval, (DS,))
+    precompile(GeoArray, (DS, String, Nothing))
+    precompile(GeoArray, (DS, String, Symbol))
 end

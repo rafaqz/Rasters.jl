@@ -260,17 +260,13 @@ end
         @test size(geoA) == (3,)
     end
 
-    @testset "read" begin
-        @time st = read(ncstack);
-        @test st isa GeoStack
-        @test st.data isa NamedTuple
-        @test first(st.data) isa Array
-        st2 = map(a -> a .* 0, st)
-        @time read!(ncstack, st2);
-        st3 = map(a -> a .* 0, st)
-        @time st = read!(ncmulti, st3);
-        @test all(map((a, b, c) -> all(a .== b .== c), st, st2, st3))
-    end
+        # st2 = map(a -> a .* 0, st)
+        # @time read!(ncstack, st2);
+        # st3 = map(a -> a .* 0, st)
+        # @time st = read!(ncmulti, st3);
+        # @test all(map((a, b, c) -> all(a .== b .== c), st, st2, st3))
+        # st = st2 = st3 = nothing
+    # end
 
     if VERSION > v"1.1-"
         @testset "copy" begin
@@ -316,16 +312,21 @@ end
         @test keys(smallstack) == (:albedo, :evap, :runoff)
     end
 
-    @testset "save" begin
-        geostack = read(ncstack)
-        length(dims(geostack[:aclcac]))
+    # This is slow. We combine read/save to reduce test time
+    # And it seems the memory is not garbage collected??
+    @testset "read and save" begin
+        @time st = read(ncstack)
+        @test st isa GeoStack
+        @test st.data isa NamedTuple
+        @test first(st.data) isa Array
+        length(dims(st[:aclcac]))
         filename = tempname() * ".nc"
-        write(filename, geostack);
+        write(filename, st);
         saved = GeoStack(stack(filename))
-        @test keys(saved) == keys(geostack)
+        @test keys(saved) == keys(st)
         @test metadata(saved)["advection"] == "Lin & Rood"
-        @test metadata(saved) == metadata(geostack) == metadata(ncstack)
-        @test all(first(DimensionalData.layers(saved)) .== first(DimensionalData.layers(geostack)))
+        @test metadata(saved) == metadata(st) == metadata(ncstack)
+        @test all(first(DimensionalData.layers(saved)) .== first(DimensionalData.layers(st)))
     end
 
     @testset "show" begin
@@ -346,16 +347,9 @@ end
 
 @testset "Multi file stack" begin
     ncstack = stack((tropo=ncmulti, tsurf=ncmulti, aclcac=ncmulti, albedo=ncmulti))
+
     @test length(ncstack) == 4
     @test dims(ncstack) isa Tuple{<:X,<:Y,<:Ti,<:Z}
-
-    @testset "read" begin
-        st = read(ncstack)
-        @test st isa GeoStack
-        @test st.data isa NamedTuple
-        @test st.data[1] isa Array
-        @test st.data[2] isa Array
-    end
 
     @testset "child array properties" begin
         @test size(ncstack[:tropo]) == (192, 96, 8)
@@ -405,12 +399,16 @@ end
         end
     end
 
-    @testset "save" begin
-        geoA = read(ncstack[:tsurf])
+    @testset "read and save" begin
+        st = read(ncstack)
+        @test st isa GeoStack
+        @test st.data isa NamedTuple
+        @test st.data[1] isa Array
+        @test st.data[2] isa Array
         filename = tempname() * ".nc"
-        write(filename, ncstack)
-        saved = read(geoarray(filename))
-        @test_broken all(saved .== geoA)
+        write(filename, st)
+        saved = read(stack(filename))
+        @test all(saved[:tsurf] .== st[:tsurf])
     end
 
     @testset "show" begin

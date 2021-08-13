@@ -175,8 +175,9 @@ function missingval(raster::AG.RasterDataset, args...)
     end
 end
 
-crs(raster::AG.RasterDataset, args...) =
+function crs(raster::AG.RasterDataset, args...)
     WellKnownText(GeoFormatTypes.CRS(), string(AG.getproj(raster.ds)))
+end
 
 
 # Utils ########################################################################
@@ -237,8 +238,8 @@ function _gdalsetproperties!(dataset, A)
     # This allows saving NetCDF to Tiff
     # Set the index loci to the start of the cell for the lat and lon dimensions.
     # NetCDF or other formats use the center of the interval, so they need conversion.
-    x = convertmode(Projected, DD.maybeshiftlocus(GDAL_X_LOCUS, dims(A, X)))
-    y = convertmode(Projected, DD.maybeshiftlocus(GDAL_Y_LOCUS, dims(A, Y)))
+    x = DD.maybeshiftlocus(GDAL_X_LOCUS, convertmode(Projected, dims(A, X)))
+    y = DD.maybeshiftlocus(GDAL_Y_LOCUS, convertmode(Projected, dims(A, Y)))
     # Convert crs to WKT if it exists
     if !(crs(x) isa Nothing)
         AG.setproj!(dataset, convert(String, convert(WellKnownText, crs(x))))
@@ -359,3 +360,23 @@ function _dims2geotransform(x::X, y::Y)
     gt[GDAL_NS_RES] = step(y)
     return gt
 end
+
+# precompilation
+
+# const _GDALVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}
+
+# for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
+#     DS = AG.RasterDataset{T,AG.Dataset}
+#     precompile(crs, (DS,))
+#     precompile(GeoData.FileArray, (DS, String))
+#     precompile(dims, (DS,))
+#     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},Nothing))
+#     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},EPSG))
+#     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},ProjString))
+#     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},WellKnownText{GeoFormatTypes.CRS,String}))
+#     precompile(metadata, (DS, key))
+#     precompile(missingval, (DS, key))
+#     precompile(GeoArray, (DS, key))
+#     precompile(GeoArray, (DS, String, Nothing))
+#     precompile(GeoArray, (DS, String, Symbol))
+# end

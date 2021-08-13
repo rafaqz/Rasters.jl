@@ -221,3 +221,6 @@ end
 end
 
 filekey(ds, key) = key
+
+# Precompile
+precompile(GeoArray, (String,))

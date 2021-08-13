@@ -210,11 +210,11 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         @testset "to netcdf" begin
             filename2 = tempname() * ".nc"
             write(filename2, gdalarray[Band(1)])
-            saved = GeoArray(geoarray(filename2; crs=crs(gdalarray)))
+            saved = geoarray(filename2; crs=crs(gdalarray))
             @test size(saved) == size(gdalarray[Band(1)])
-            @test saved ≈ reverse(gdalarray[Band(1)]; dims=Y)
+            @test saved ≈ gdalarray[Band(1)]
             clat, clon = DimensionalData.shiftlocus.(Ref(Center()), dims(gdalarray, (Y, X)))
-            @test mappedindex(clat) ≈ reverse(mappedindex(saved, Y))
+            @test mappedindex(clat) ≈ mappedindex(saved, Y)
             @test mappedindex(clon) ≈ mappedindex(saved, X)
             @test all(mappedbounds(saved, X) .≈ mappedbounds(clon))
             @test all(mappedbounds(saved, Y) .≈ mappedbounds(clat))
@@ -223,7 +223,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             # reason lat crs conversion is less accrurate than lon TODO investigate further
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), 
                 projectedindex(gdalarray, Y), 
-                reverse(projectedindex(DimensionalData.shiftlocus(Start(), dims(saved, Y))))
+                projectedindex(DimensionalData.shiftlocus(Start(), dims(saved, Y)))
             ))
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Y),  projectedbounds(gdalarray, Y)))
         end
@@ -319,7 +319,7 @@ end
     end
 
     @testset "save" begin
-        geoA = GeoArray(gdalstack[:a])
+        geoA = gdalstack[:a]
         filename = tempname() * ".tif"
         write(filename, gdalstack)
         base, ext = splitext(filename)
