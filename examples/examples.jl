@@ -17,15 +17,15 @@ A = ncstack[:tos]
 # Plot the 1st, 4th, 7th and 10th months 
 A[Ti(1:3:12)] |> plot
 dims(A, Ti)
-savefig("tos_4.png")
+# savefig("tos_4.png")
 
 # Plot the Australia region
 A[Ti(Contains(DateTime360Day(2001, 01, 17))), Y(Between(-50, 0)), X(Between(100, 160))] |> plot
-savefig("tos_jan_australia.png")
+# savefig("tos_jan_australia.png")
 
 # Plot the mean
 mean(A; dims=Ti) |> plot
-savefig("mean_tos.png")
+# savefig("mean_tos.png")
 
 # Save the mean
 write("mean_tos.nc", mean(A; dims=Ti))
@@ -33,7 +33,7 @@ write("mean_tos.nc", mean(A; dims=Ti))
 # Plo a transect
 s = read(ncstack)
 A[X(Contains(20)), Ti(1)] |> plot
-savefig("tos_20deg_lat.png")
+# savefig("tos_20deg_lat.png")
 
 # Convert the stack to a dataframe
 # TODO broken: 
