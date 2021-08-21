@@ -119,6 +119,38 @@ convertmode(dstmode::Type, srcmode::Type{<:IndexMode}, dim::Dimension) = dim
 # AbstractProjected passes through if it's the same as dstmode
 convertmode(dstmode::Type{M}, srcmode::Type{M}, dim::Dimension) where M<:AbstractProjected = dim
 # Otherwise AbstractProjected needs ArchGDAL
-convertmode(dstmode::Type, srcmode::Type{<:AbstractProjected}, dim::Dimension) =
-    error("Load ArchGDAL.jl to convert projected dimensions")
-# The rest of these methods are in reprojected.jl as they need ArchGDAL
+function convertmode(dstmode::Type{Mapped}, srcmode::Type{Projected}, dim::Dimension)
+    m = mode(dim)
+    newindex = reproject(crs(m), mappedcrs(m), dim, index(dim))
+    newbounds = reproject(crs(m), mappedcrs(m), dim, DD.dim2boundsmatrix(dim))
+    newmode = Mapped(
+        order=order(m),
+        span=Explicit(newbounds),
+        sampling=sampling(m),
+        crs=crs(m),
+        mappedcrs=mappedcrs(m),
+    )
+    rebuild(dim; val=newindex, mode=newmode)
+end
+function convertmode(dstmode::Type{Projected}, srcmode::Type{Mapped}, dim::Dimension)
+    m = mode(dim)
+    newindex = _projectedrange(m, dim)
+    newmode = Projected(
+        order=order(m),
+        span=Regular(step(newindex)), sampling=sampling(m),
+        crs=crs(m),
+        mappedcrs=mappedcrs(m),
+    )
+    rebuild(dim; val=newindex, mode=newmode)
+end
+
+_projectedrange(::Projected, dim) = LinRange(first(dim), last(dim), length(dim))
+_projectedrange(m::Mapped, dim) = _projectedrange(span(m), crs(m), m, dim)
+_projectedrange(span, crs, m::Mapped, dim) = begin
+    start, stop = reproject(mappedcrs(m), crs, dim, [first(dim), last(dim)])
+    LinRange(start, stop, length(dim))
+end
+_projectedrange(::Regular, crs::Nothing, ::Mapped, dim) =
+    LinRange(first(dim), last(dim), length(dim))
+_projectedrange(::T, crs::Nothing, ::Mapped, dim) where T<:Union{Irregular,Explicit} =
+    error("Cannot convert a Mapped $T index to Projected when crs is nothing")

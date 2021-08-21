@@ -41,21 +41,21 @@ function Base.read!(filename::AbstractString, dst::AbstractGeoArray)
     )
     read!(src, dst)
 end
-function Base.read!(filename::AbstractString, dst::AbstractGeoStack)
-    src = stack(filename;
-        dims=dims(dst), refdims=refdims(dst), keys=keys(dst), metadata=metadata(dst),
-        layermetadata=DD.layermetadata(dst), layermissingval=layermissingval(dst),
-    )
-    read!(src, dst)
+function Base.read!(filenames::Union{NamedTuple,<:AbstractVector{<:AbstractString}}, dst::AbstractGeoStack)
+    _readstack!(filenames, dst)
 end
-function Base.read!(filenames::AbstractVector{<:AbstractString}, dst::AbstractGeoStack)
+function Base.read!(filenames::AbstractString, dst::AbstractGeoStack)
+    _readstack!(filenames, dst)
+end
+function Base.read!(filenames::AbstractVector{<:Union{AbstractString,NamedTuple}}, dst::AbstractGeoSeries)
+    map((fn, d) -> read!(fn, d), filenames, dst)
+    return dst
+end
+
+function _readstack!(filenames, dst)
     src = stack(filenames;
         dims=dims(dst), refdims=refdims(dst), keys=keys(dst), metadata=metadata(dst),
         layermetadata=DD.layermetadata(dst), layermissingval=layermissingval(dst),
     )
     read!(src, dst)
-end
-function Base.read!(filenames::AbstractVector{<:AbstractString}, dst::AbstractGeoSeries)
-    map((fn, d) -> read!(fn, d), filenames, dst)
-    return dst
 end

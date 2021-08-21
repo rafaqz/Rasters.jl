@@ -1,3 +1,5 @@
+const GeoStackOrArray = Union{AbstractGeoStack,AbstractGeoArray}
+
 """
     replace_missing(a::AbstractGeoArray, newmissingval)
     replace_missing(a::AbstractGeoStack, newmissingval)
@@ -22,7 +24,7 @@ function replace_missing(A::AbstractGeoArray, newmissingval=missing)
     rebuild(A; data=newdata, missingval=newmissingval)
 end
 function replace_missing(stack::AbstractGeoStack, newmissingval=missing)
-    rebuild(stack, map(a -> replace_missing(a, newmissingval, values(stack))))
+    map(A -> replace_missing(A, newmissingval), stack)
 end
 
 """
@@ -71,7 +73,7 @@ missingmask(A::AbstractArray, missingval) =
 """
     crop(layers::AbstractGeoArray...)
     crop(layers::Union{NamedTuple,Tuple})
-    crop(A::AbstractGeoArray; to::Tuple)
+    crop(A::Union{AbstractGeoArray,AbstractGeoStack}; to::Tuple)
 
 Crop multiple [`AbstractGeoArray`](@ref) to match the size 
 of the smallest one for any dimensions that are shared. 
@@ -86,18 +88,18 @@ crop(l1, l2, ls::AbstractGeoArray...; kw...) = crop((l1, l2, ls); kw...)
 function crop(layers::Union{Tuple,NamedTuple}; to=_smallestdims(layers))
     map(l -> crop(l; to), layers)
 end
-crop(A::AbstractGeoArray; to) = _crop_to(A, to)
+crop(x::GeoStackOrArray; to) = _crop_to(x, to)
 
 # crop `A` to values of dims of `to`
-_crop_to(A::AbstractGeoArray, to) = _crop_to(A, dims(to)) 
-function _crop_to(A::AbstractGeoArray, to::Tuple)
+_crop_to(A::GeoStackOrArray, to) = _crop_to(A, dims(to)) 
+function _crop_to(x::GeoStackOrArray, to::Tuple)
     # Create selectors for each dimension
     # `Between` the bounds of the dimension
     selectors = map(to) do d
         DD.basetypeof(d)(Between(DD.bounds(d)))
     end
     # Take a view of the `Between` selectors
-    return _without_mapped_crs(A) do a
+    return _without_mapped_crs(x) do a
         view(a, selectors...)
     end
 end
@@ -136,7 +138,7 @@ end
 """
     extend(layers::AbstractGeoArray...)
     extend(layers::Union{NamedTuple,Tuple})
-    extend(A::AbstractGeoArray; to)
+    extend(A::Union{AbstractGeoArray,AbstractGeoStack}; to)
 
 Extend multiple [`AbstractGeoArray`](@ref) to match the area covered by all.
 A single `AbstractGeoArray` can be extended by passing the new `dims` tuple 
@@ -152,9 +154,9 @@ function extend(layers::Union{NamedTuple,Tuple}; to=_largestdims(layers))
     # Extend all layers to `to`, by default the _largestdims
     map(l -> extend(l; to), layers)
 end
-extend(A::AbstractGeoArray; to=dims(A)) = _extend_to(A, to)
+extend(x::GeoStackOrArray; to=dims(x)) = _extend_to(x, to)
 
-_extend_to(A::AbstractGeoArray, to) = _extend_to(A, dims(to))
+_extend_to(x::GeoStackOrArray, to) = _extend_to(x, dims(to))
 function _extend_to(A::AbstractGeoArray, to::Tuple)
     sze = map(length, to)
     T = eltype(A)
@@ -177,6 +179,7 @@ function _extend_to(A::AbstractGeoArray, to::Tuple)
     ) 
     return newA
 end
+_extend_to(st::AbstractGeoStack, to::Tuple) = map(A -> _extend_to(A, to), st)
 
 @inline _maybeflipindex(::ForwardRelation, d, i) = i
 @inline _maybeflipindex(::ReverseRelation, d, i::Integer) = lastindex(d) - i + 1
@@ -219,7 +222,7 @@ padding will not be added beyond the original extent of the array.
 
 $EXPERIMENTAL
 """
-function trim(A::GeoArray; dims::Tuple=(X(), Y()), pad::Int=0)
+function trim(A::GeoStackOrArray; dims::Tuple=(X(), Y()), pad::Int=0)
     # Get the actual dimensions in their order in the array
     dims = commondims(A, dims)
     # Get the range of non-missing values for each dimension
@@ -261,7 +264,7 @@ function Base.setindex!(A::AxisTrackers, x, I::Int...)
 end
 
 function _trackedinds(A, I)
-    # Wrap indices in diensions so we can sort and filter them
+    # Wrap indices in dimensions so we can sort and filter them
     Id = map((d, i) -> DD.basetypeof(d)(i), A.dims, I)
     # Get just the tracked dimensions
     Itracked = dims(Id, A.trackeddims)
@@ -274,13 +277,16 @@ function _trimranges(A, targetdims)
     # Broadcast over the array and tracker to mark axis indices
     # as being missing or not
     trackers = AxisTrackers(dims(A), targetdims)
-    trackers .= A .!== missingval(A)
+    _update!(trackers, A)
     # Get the ranges that contain all non-missing values
     cropranges = map(trackers.tracking) do a
         findfirst(a):findlast(a)
     end
     return cropranges
 end
+
+_update!(tr::AxisTrackers, A::AbstractGeoArray) = tr .= A .!== missingval(A)
+_update!(tr::AxisTrackers, st::AbstractGeoStack) = map(A -> tr .= A .!== missingval(A), st)
 
 """
     slice(A::Union{AbstractGeoArray,AbstractGeoStack,AbstracGeoSeries}, dims)
@@ -296,10 +302,10 @@ with no dimensions will slice along the dimensions shared by both the series and
 
 $EXPERIMENTAL
 """
-slice(x::Union{AbstractGeoArray,AbstractGeoStack}, dims) = slice(x, (dims,))
-function slice(x::Union{AbstractGeoArray,AbstractGeoStack}, dims::Tuple)
+slice(x::GeoStackOrArray, dims) = slice(x, (dims,))
+function slice(x::GeoStackOrArray, dims::Tuple)
     # Make sure all dimensions in `dims` are in `x`
-    all(hasdim(x, dims)) || _errordimsnotfound(otherdims(dims, DD.dims(x)))
+    all(hasdim(x, dims)) || _errordimsnotfound(dims, DD.dims(x))
     # Define dimensions and data for the sliced GeoSeries
     seriesdims = DD.dims(x, dims)
     # series data is a generator of view slices
@@ -310,10 +316,8 @@ function slice(x::Union{AbstractGeoArray,AbstractGeoStack}, dims::Tuple)
 end
 slice(ser::AbstractGeoSeries, dims) = cat(map(x -> slice(x, dims), ser)...; dims=dims)
 
-@noinline _errordimsnotfound(dims) = 
-    throw(ArgumentError("$(map(DD.dim2key, dims)) were dims not found in $(nameof(typeof(x)))"))
-@noinline _errordimsnotfound(dims::Tuple{<:Any}) = 
-    throw(ArgumentError("$(DD.dim2key(dims[1])) was dim not found in $(nameof(typeof(x)))"))
+@noinline _errordimsnotfound(targets, dims) = 
+    throw(ArgumentError("Dimensions $(map(DD.dim2key, targets)) were not found in $(map(DD.dim2key, dims))"))
 
 # Get the bounds wrapped in Dim(Between)
 dimbounds(A::AbstractDimArray) = dimbounds(bounds, A)

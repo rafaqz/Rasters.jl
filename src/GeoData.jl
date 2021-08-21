@@ -41,7 +41,9 @@ export missingval, boolmask, missingmask, replace_missing,
        aggregate, aggregate!, disaggregate, disaggregate!,
        crop, extend, slice, trim
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
+export reproject, convertmode
 export geoarray, stack, series
+
 
 const DD = DimensionalData
 const DA = DiskArrays

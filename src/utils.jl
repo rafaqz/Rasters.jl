@@ -16,45 +16,29 @@ checkindexorder(dim::Dimension, order::Order) =
 
 cleankeys(keys) = Tuple(map(Symbol, keys))
 
-reindex_window(x, ::Nothing, I) = I
-reindex_window(x, ::Tuple{}, I) = I
-function reindex_window(x, window::Tuple, I)
-    win = DD.dims2indices(x, window)
-    if win == ()
-        DD.dims2indices(x, I)
-    else
-        Base.reindex(win, DD.dims2indices(x, I))
-    end
-end
-
-ends(dim::Dimension) = ends(indexorder(dim), dim)
-ends(order, dim) = first(dim), last(dim)
-ends(::ForwardIndex, dim) = first(dim), lasgt(dim)
-ends(::ReverseIndex, dim) = first(dim), last(dim)
-
 # We often need to convert the locus and the mode in the same step,
 # as doing it in the wrong order can give errors.
-function convert_locus_mode(M1::Type{<:IndexMode}, L1::Type{<:Locus}, dim::Dimension)
-    _convert(S1, L1, sampling(dim), locus(dim), span(dim), dim)
-end
+# function convert_locus_mode(M1::Type{<:IndexMode}, L1::Type{<:Locus}, dim::Dimension)
+#     _convert(S1, L1, sampling(dim), locus(dim), span(dim), dim)
+# end
 
-_convert(::Type{M1}, ::Type{L1}, mode::M2, l2::L2, span, dim) where {M1,M2<:M1,L1,L2<:L1} = dim
-_convert(::Type{M1}, ::Type{L1}, mode::M2, l2::L2, span, dim) where {M1,M2<:M1,L1,L2} = shiftlocus(L1(), dim)
-_convert(::Type{M1}, ::Type{L1}, mode::M2, l2::L2, span, dim) where {M1,M2<:M1,L1,L2} = 
-    _convert_by_locus(M1, L1, mode, l2, span, dim)
+# _convert(::Type{M1}, ::Type{L1}, mode::M2, l2::L2, span, dim) where {M1,M2<:M1,L1,L2<:L1} = dim
+# _convert(::Type{M1}, ::Type{L1}, mode::M2, l2::L2, span, dim) where {M1,M2<:M1,L1,L2} = shiftlocus(L1(), dim)
+# _convert(::Type{M1}, ::Type{L1}, mode::M2, l2::L2, span, dim) where {M1,M2<:M1,L1,L2} = 
+#     _convert_by_locus(M1, L1, mode, l2, span, dim)
 
-_convert_by_locus(M1, ::Type{Center}, mode, l2::Union{Start,End}, span, dim) = 
-    _convert_by_mode(M1, dim)
-_convert_by_locus(M1, L1::Type{Union{Start,End}}, mode, l2::Center, span, dim) = 
-    _convert_by_mode(M1, L1, dim)
-_convert_by_locus(M1, L1::Type{Start}, mode, l2::End, span, dim) = 
-    convertmode(M1, shiftlocus(L1, dim))
-_convert_by_locus(M1, L1::Type{End}, mode, l2::Start, span, dim) = 
-    convertmode(M1, shiftlocus(L1, dim))
-_convert_by_locus(M1, ::Type{L1}, mode, l2::L2, span, dim) where {L1,L2<:L1} = 
-    convertmode(M1, dim)
+# _convert_by_locus(M1, ::Type{Center}, mode, l2::Union{Start,End}, span, dim) = 
+#     _convert_by_mode(M1, dim)
+# _convert_by_locus(M1, L1::Type{Union{Start,End}}, mode, l2::Center, span, dim) = 
+#     _convert_by_mode(M1, L1, dim)
+# _convert_by_locus(M1, L1::Type{Start}, mode, l2::End, span, dim) = 
+#     convertmode(M1, shiftlocus(L1, dim))
+# _convert_by_locus(M1, L1::Type{End}, mode, l2::Start, span, dim) = 
+#     convertmode(M1, shiftlocus(L1, dim))
+# _convert_by_locus(M1, ::Type{L1}, mode, l2::L2, span, dim) where {L1,L2<:L1} = 
+#     convertmode(M1, dim)
 
-# Projected will have an accurate center point on an equal scale, but Mapped may not. 
-# So we always shift the locus while in Projected mode to avoid errors.
-_convert_by_mode(::Type{Mapped}, dim) = convertmode(Mapped, shiftlocus(Center(), dim))
-_convert_by_mode(::Type{Projected}, dim) = shiftlocus(Center(), convertmode(Projected, dim))
+# # Projected will have an accurate center point on an equal scale, but Mapped may not. 
+# # So we always shift the locus while in Projected mode to avoid errors.
+# _convert_by_mode(::Type{Mapped}, dim) = convertmode(Mapped, shiftlocus(Center(), dim))
+# _convert_by_mode(::Type{Projected}, dim) = shiftlocus(Center(), convertmode(Projected, dim))

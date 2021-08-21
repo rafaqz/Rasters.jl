@@ -29,9 +29,8 @@ Whithout ArchGDAL loaded, this is just the regular bounds.
 function mappedbounds end
 
 mappedbounds(dims::Tuple) = map(mappedbounds, dims)
-mappedbounds(dim::Dimension) = bounds(dim)
-mappedbounds(dim::Union{Y,X}) = mappedbounds(mode(dim), dim)
-mappedbounds(::Mapped, dim) = bounds(dim)
+mappedbounds(dim) = mappedbounds(mode(dim), dim)
+mappedbounds(::IndexMode, dim) = bounds(dim)
 mappedbounds(mode::Projected, dim) = mappedbounds(mappedcrs(mode), mode, dim)
 mappedbounds(mappedcrs::Nothing, mode::Projected, dim) =
     error("No mappedcrs attached to $(name(dim)) dimension")
@@ -39,9 +38,8 @@ mappedbounds(mappedcrs::GeoFormat, mode::Projected, dim) =
     _sort(reproject(crs(mode), mappedcrs, dim, bounds(dim)))
 
 projectedbounds(dims::Tuple) = map(projectedbounds, dims)
-projectedbounds(dim::Dimension) = bounds(dim)
-projectedbounds(dim::Union{Y,X}) = projectedbounds(mode(dim), dim)
-projectedbounds(::Projected, dim) = bounds(dim)
+projectedbounds(dim) = projectedbounds(mode(dim), dim)
+projectedbounds(::IndexMode, dim) = bounds(dim)
 projectedbounds(mode::Mapped, dim) = projectedbounds(crs(mode), mode, dim)
 projectedbounds(crs::Nothing, mode::Mapped, dim) =
     error("No projection crs attached to $(name(dim)) dimension")
@@ -60,9 +58,8 @@ Whithout ArchGDAL loaded, this is just the regular dim value.
 function mappedindex end
 
 mappedindex(dims::Tuple) = map(mappedindex, dims)
-mappedindex(dim::Dimension) = index(dim)
-mappedindex(dim::Union{Y,X}) = mappedindex(mode(dim), dim)
-mappedindex(::Mapped, dim) = index(dim)
+mappedindex(dim::Dimension) = mappedindex(mode(dim), dim)
+mappedindex(::IndexMode, dim) = index(dim)
 mappedindex(mode::Projected, dim) = mappedindex(mappedcrs(mode), mode, dim)
 mappedindex(mappedcrs::Nothing, mode::Projected, dim) =
     error("No mappedcrs attached to $(name(dim)) dimension")
@@ -70,9 +67,8 @@ mappedindex(mappedcrs::GeoFormat, mode::Projected, dim) =
     reproject(crs(dim), mappedcrs, dim, index(dim))
 
 projectedindex(dims::Tuple) = map(projectedindex, dims)
-projectedindex(dim::Dimension) = index(dim)
-projectedindex(dim::Union{Y,X}) = projectedindex(mode(dim), dim)
-projectedindex(::Projected, dim) = index(dim)
+projectedindex(dim::Dimension) = projectedindex(mode(dim), dim)
+projectedindex(::IndexMode, dim) = index(dim)
 projectedindex(mode::Mapped, dim) = projectedindex(crs(mode), mode, dim)
 projectedindex(crs::Nothing, mode::Mapped, dim) =
     error("No projection crs attached to $(name(dim)) dimension")

@@ -40,11 +40,11 @@ For [`Mapped`](@ref) mode this may be `nothing` as there may be no projected
 coordinate reference system at all.
 """
 function crs end
-function crs(A::AbstractGeoArray)
-    if hasdim(A, Y)
-        crs(dims(A, Y))
-    elseif hasdim(A, X)
-        crs(dims(A, X))
+function crs(obj)
+    if hasdim(obj, Y)
+        crs(dims(obj, Y))
+    elseif hasdim(obj, X)
+        crs(dims(obj, X))
     else
         error("No Y or X dimension, crs not available")
     end
@@ -63,11 +63,11 @@ show plot axes in the mapped projection.
 In `Mapped` mode this is the coordinate reference system of the index values.
 """
 function mappedcrs end
-function mappedcrs(A::AbstractGeoArray)
-    if hasdim(A, Y)
-        mappedcrs(dims(A, Y))
-    elseif hasdim(A, X)
-        mappedcrs(dims(A, X))
+function mappedcrs(obj)
+    if hasdim(obj, Y)
+        mappedcrs(dims(obj, Y))
+    elseif hasdim(obj, X)
+        mappedcrs(dims(obj, X))
     else
         error("No Y or X dimension, mappedcrs not available")
     end
