@@ -70,33 +70,44 @@ end
 
 Base.keys(ds::SMAPhdf5) = cleankeys(keys(parent(ds)[SMAPGEODATA]))
 Base.parent(wrapper::SMAPhdf5) = wrapper.ds
-Base.getindex(wrapper::SMAPhdf5, path) = wrapper.ds[path]
+Base.getindex(wrapper::SMAPhdf5, key) = SMAPvar(wrapper.ds[_smappath(key)])
 
 _smappath(key::Key) = SMAPGEODATA * "/" * string(key)
 
 struct SMAPvar{T}
     ds::T
 end
-Base.parent(wrapper::SMAPvar) = wrapper.ds
 
+Base.parent(wrapper::SMAPvar) = wrapper.ds
+Base.eltype(wrapper::SMAPvar) = eltype(parent(wrapper))
+Base.size(wrapper::SMAPvar) = SMAPSIZE
+Base.ndims(wrapper::SMAPvar) = length(SMAPSIZE)
+Base.getindex(wrapper::SMAPvar, args...) = getindex(parent(wrapper), args...)
+Base.setindex!(wrapper::SMAPvar, args...) = setindex!(parent(wrapper), args...)
+
+DA.eachchunk(var::SMAPvar) = DA.GridChunks(var, size(var))
+DA.haschunks(var::SMAPvar) = DA.Unchunked()
 
 # GeoArray ######################################################################
 
 function FileArray(ds::SMAPhdf5, filename::AbstractString; key, kw...)
-    FileArray(SMAPvar(SMAPDiskArray(ds[_smappath(key)])), filename; key, kw...)
+    FileArray(ds[key], filename; key, kw...)
 end
 function FileArray(var::SMAPvar, filename::AbstractString; key, kw...)
-    T = eltype(parent(var))
-    N = length(SMAPSIZE)
-    eachchunk = DA.eachchunk(parent(var))
-    haschunks = DA.haschunks(parent(var))
+    T = eltype(var)
+    N = ndims(var)
+    eachchunk = DA.eachchunk(var)
+    haschunks = DA.haschunks(var)
     FileArray{SMAPfile,T,N}(filename, SMAPSIZE; key, eachchunk, haschunks, kw...)
 end
 
 function Base.open(f::Function, A::FileArray{SMAPfile}; kw...)
-    _open(var -> f(SMAPDiskArray(var)), SMAPfile, filename(A); key=key(A), kw...)
+    _open(SMAPfile, filename(A); key=key(A), kw...) do var
+        f(GeoDiskArray{SMAPfile}(var)) 
+    end
 end
     
+DA.writeblock!(A::GeoDiskArray{SMAPfile}, v, r::AbstractUnitRange...) = A[r...] = v
 
 # Stack ########################################################################
 
@@ -105,7 +116,7 @@ end
 function FileStack{SMAPfile}(ds::SMAPhdf5, filename::AbstractString; write=false, keys)
     keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key
-        var = SMAPDiskArray(ds[_smappath(key)])
+        var = GeoDiskArray{SMAPfile}(ds[key])
         eltype(var), size(var), DA.eachchunk(var), DA.haschunks(var)
     end
     layertypes = NamedTuple{keys}(map(x->x[1], type_size_ec_hc))
@@ -177,11 +188,11 @@ end
 function _open(f, ::Type{SMAPfile}, filepath::AbstractString; key=nothing, kw...)
     if key isa Nothing
         h5open(filepath; kw...) do ds
-            cleanreturn(f(SMAPhdf5(ds))) 
+            cleanreturn(f(SMAPhdf5(ds)))
         end
     else
         h5open(filepath) do ds
-            cleanreturn(f(SMAPhdf5(ds)[_smappath(key)]))
+            cleanreturn(f(SMAPhdf5(ds)[key]))
         end
     end
 end
@@ -190,34 +201,13 @@ function _smap_timefromfilename(filename::String)
     dateformat = DateFormat("yyyymmddTHHMMSS")
     dateregex = r"SMAP_L4_SM_gph_(\d+T\d+)_"
     datematch = match(dateregex, filename)
-    if !(datematch === nothing)
-        DateTime(datematch.captures[1], dateformat)
+    if datematch !== nothing
+        return DateTime(datematch.captures[1], dateformat)
     else
-        error("Date/time not correctly formatted in path: $filenampathe")
+        error("Date/time not correctly formatted in path: $filename")
     end
 end
 
 _smap_timedim(t::DateTime) = _smap_timedim(t:Hour(3):t)
 _smap_timedim(times::AbstractVector) =
     Ti(times, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals(Start())))
-
-
-
-# HDF5 DiskArrays ########################################################################################
-# Copied from HDF5Utils as it is not up to date with HDF5 0.14/0.15
-struct SMAPDiskArray{T,N,D} <: AbstractDiskArray{T, N}
-    ds::D
-end
-
-Base.size(x::SMAPDiskArray{T,N}) where {T,N} = size(x.ds)::NTuple{N,Int}
-DA.haschunks(x::SMAPDiskArray) = DA.Unchunked()
-DA.readblock!(x::SMAPDiskArray, aout, r::AbstractUnitRange...) = aout .= x.ds[r...]
-DA.writeblock!(x::SMAPDiskArray, v, r::AbstractUnitRange...) = x.ds[r...] = v
-
-function SMAPDiskArray(ds::D) where {D<:HDF5.Dataset}
-    T = eltype(ds) 
-    N = ndims(ds)
-    SMAPDiskArray{T,N,D}(ds)
-end
-
-Base.getindex(x::SMAPDiskArray, I...) = getindex(x.ds, I...)

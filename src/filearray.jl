@@ -5,8 +5,6 @@
 Filearray is a DiskArrays.jl `AbstractDiskArray`. Instead of holding
 an open object, it just holds a filename string that is opened lazily 
 when it needs to be read.
-
-
 """
 struct FileArray{X,T,N,K,EC,HC} <: AbstractDiskArray{T,N}
     filename::String
@@ -50,18 +48,24 @@ DA.writeblock!(A::FileArray, src, r::AbstractUnitRange...) =
 """
     GeoDiskArray <: AbstractDiskArray
 
-GeoDiskArray is a basic DiskArrays.jl wrapper for objects that don't have
-one defined yet. When we `open` a `FileArray` it is replaced with a GeoDiskArray.
+A basic DiskArrays.jl wrapper for objects that don't have one defined yet. 
+When we `open` a `FileArray` it is replaced with a `GeoDiskArray`.
 """
-struct GeoDiskArray{T,N,V<:AbstractArray{T,N},EC,HC} <: AbstractDiskArray{T,N}
+struct GeoDiskArray{X,T,N,V,EC,HC} <: AbstractDiskArray{T,N}
     var::V
     eachchunk::EC
     haschunks::HC
 end
-GeoDiskArray(var) = GeoDiskArray(var, DA.eachchunk(var), DA.haschunks(var))
+function GeoDiskArray{X}(
+    var::V, eachchunk=DA.eachchunk(var), haschunks=DA.haschunks(var)
+) where {X,V}
+    T = eltype(var)
+    N = ndims(var)
+    GeoDiskArray{X,T,N,V,typeof(eachchunk),typeof(haschunks)}(var, eachchunk, haschunks)
+end
 
 Base.parent(A::GeoDiskArray) = A.var
-Base.size(A::GeoDiskArray{T,N}) where {T,N} = size(parent(A))::NTuple{N,Int}
+Base.size(A::GeoDiskArray{<:Any,T,N}) where {T,N} = size(parent(A))::NTuple{N,Int}
 
 DA.haschunks(A::GeoDiskArray) = A.haschunks
 DA.eachchunk(A::GeoDiskArray) = A.eachchunk

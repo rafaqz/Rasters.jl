@@ -136,8 +136,6 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     end
 end
 
-DD.refdims(raster::AG.RasterDataset, args...) = ()
-
 function DD.metadata(raster::AG.RasterDataset, args...)
     band = AG.getband(raster.ds, 1)
     # color = AG.getname(AG.getcolorinterp(band))
@@ -241,8 +239,8 @@ function _gdalsetproperties!(dataset, A)
 
     # Set the nodata value. GDAL can't handle missing. We could choose a default, 
     # but we would need to do this for all possible types. `nothing` means
-    # there is not missing value.
-    # TODO define default nodata values for missing
+    # there is no missing value.
+    # TODO define default nodata values for missing?
     if (missingval(A) !== missing) && (missingval(A) !== nothing)
         bands = hasdim(A, Band) ? index(A, Band) : 1
         for i in bands
@@ -317,9 +315,7 @@ end
 
 # _maybe_permute_gdal
 # Permute dims unless the match the GDAL dimension order
-function _maybe_permute_to_gdal(A)
-    _maybe_permute_to_gdal(A, DD.dims(A, (X, Y, Band)))
-end
+_maybe_permute_to_gdal(A) = _maybe_permute_to_gdal(A, DD.dims(A, (X, Y, Band)))
 _maybe_permute_to_gdal(A, dims::Tuple) = A
 _maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim,<:Band}) = permutedims(A, dims)
 _maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim}) = permutedims(A, dims)

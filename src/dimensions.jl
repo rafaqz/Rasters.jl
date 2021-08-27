@@ -58,20 +58,20 @@ Whithout ArchGDAL loaded, this is just the regular dim value.
 function mappedindex end
 
 mappedindex(dims::Tuple) = map(mappedindex, dims)
-mappedindex(dim::Dimension) = mappedindex(mode(dim), dim)
+mappedindex(dim::Dimension) = _mappedindex(mode(dim), dim)
 
 _mappedindex(::IndexMode, dim::Dimension) = index(dim)
-_mappedindex(mode::Projected, dim::Dimension) = mappedindex(mappedcrs(mode), mode, dim)
+_mappedindex(mode::Projected, dim::Dimension) = _mappedindex(mappedcrs(mode), mode, dim)
 _mappedindex(mappedcrs::Nothing, mode::Projected, dim) =
     error("No mappedcrs attached to $(name(dim)) dimension")
 _mappedindex(mappedcrs::GeoFormat, mode::Projected, dim) =
     reproject(crs(dim), mappedcrs, dim, index(dim))
 
 projectedindex(dims::Tuple) = map(projectedindex, dims)
-projectedindex(dim::Dimension) = projectedindex(mode(dim), dim)
+projectedindex(dim::Dimension) = _projectedindex(mode(dim), dim)
 
 _projectedindex(::IndexMode, dim::Dimension) = index(dim)
-_projectedindex(mode::Mapped, dim::Dimension) = projectedindex(crs(mode), mode, dim)
+_projectedindex(mode::Mapped, dim::Dimension) = _projectedindex(crs(mode), mode, dim)
 _projectedindex(crs::Nothing, mode::Mapped, dim::Dimension) =
     error("No projection crs attached to $(name(dim)) dimension")
 _projectedindex(crs::GeoFormat, mode::Mapped, dim::Dimension) =

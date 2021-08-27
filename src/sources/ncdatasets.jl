@@ -43,7 +43,7 @@ _firstkey(ds::NCD.NCDataset, key::Nothing=nothing) = Symbol(first(layerkeys(ds))
 _firstkey(ds::NCD.NCDataset, key) = Symbol(key)
 
 function FileArray(var::NCD.CFVariable, filename::AbstractString; kw...)
-    da = GeoDiskArray(var)
+    da = GeoDiskArray{NCDfile}(var)
     size_ = size(da)
     eachchunk = DA.eachchunk(da)
     haschunks = DA.haschunks(da)
@@ -54,7 +54,7 @@ end
 
 function Base.open(f::Function, A::FileArray{NCDfile}; write=A.write, kw...)
     _open(NCDfile, filename(A); key=key(A), write, kw...) do var
-        f(GeoDiskArray(var, DA.eachchunk(A), DA.haschunks(A)))
+        f(GeoDiskArray{NCDfile}(var, DA.eachchunk(A), DA.haschunks(A)))
     end
 end
 
@@ -109,8 +109,6 @@ function DD.dims(var::NCD.CFVariable, crs=nothing, mappedcrs=nothing)
         _ncddim(var.var.ds, name, crs, mappedcrs)
     end |> Tuple
 end
-
-DD.refdims(ds::NCD.Dataset, filename) = ()
 
 DD.metadata(ds::NCD.Dataset) = Metadata{NCDfile}(DD.metadatadict(ds.attrib))
 DD.metadata(var::NCD.CFVariable) = Metadata{NCDfile}(DD.metadatadict(var.attrib))
@@ -252,7 +250,6 @@ function _ncdmode(dimtype::Type, order, span, sampling, crs, mappedcrs)
 end
 
 
-
 function _ncdorder(index)
     index[end] > index[1] ? Ordered(ForwardIndex(), ForwardArray(), ForwardRelation()) :
                             Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
@@ -298,7 +295,7 @@ end
 function _parse_period(period_str::String)
     regex = r"(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)"
     mtch = match(regex, period_str)
-    if mtch isa Nothing
+    if mtch === nothing
         return nothing
     else
         vals = Tuple(parse.(Int, mtch.captures))
@@ -316,9 +313,8 @@ function _parse_period(period_str::String)
     end
 end
 
-_attribdict(metadata::Metadata{NCDfile}) = 
-    Dict{String,Any}(string(k) => v for (k, v) in metadata)
-_attribdict(metadata) = Dict{String,Any}()
+_attribdict(md::Metadata{NCDfile}) = Dict{String,Any}(string(k) => v for (k, v) in md)
+_attribdict(md) = Dict{String,Any}()
 
 _dimkeys(ds::NCD.Dataset) = keys(ds.dim)
 
