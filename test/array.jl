@@ -10,7 +10,7 @@ meta = NoMetadata()
 nme = :test
 
 ga2 = GeoArray(data2, dims2)
-ga1 = GeoArray(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=mval)
+ga1 = GeoArray(data1; dims=dims1, refdims=refdimz, name=nme, metadata=meta, missingval=mval)
 
 @test ga1 == data1
 @test ga2 == data2

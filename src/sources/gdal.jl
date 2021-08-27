@@ -43,8 +43,7 @@ function Base.write(
     filename::AbstractString, ::Type{GDALfile}, A::AbstractGeoArray{T,2}; kw...
 ) where T
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
-    correctedA = A
-    correctedA = permutedims(A, (X(), Y())) |>
+    correctedA = _maybe_permute_to_gdal(A) |>
         a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
     checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY))
@@ -59,8 +58,7 @@ function Base.write(
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
 
-    correctedA = A
-    correctedA = permutedims(A, (X(), Y(), Band())) |>
+    correctedA = _maybe_permute_to_gdal(A) |>
         a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX), Band(GDAL_BAND_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
     checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY, GDAL_BAND_ARRAY))
@@ -68,12 +66,6 @@ function Base.write(
 
     nbands = size(correctedA, Band())
     _gdalwrite(filename, correctedA, nbands; kw...)
-end
-
-function _add_band_dim(A)
-    data = reshape(A, (size(A)..., 1))
-    dims = (DD.dims(A)..., Band(1:1; mode=Categorical(Ordered())))
-    rebuild(A, data, dims) 
 end
 
 
@@ -280,18 +272,29 @@ function GeoArray(ds::AG.RasterDataset;
     end
 end
 
+# Convert AbstractGeoArray to in-memory datasets
+
+function AG.Dataset(f::Function, A::AbstractGeoArray)
+    all(hasdim(A, (XDim, YDim))) || throw(ArgumentError("`AbstractGeoArray` must have both an `XDim` and `YDim` to use be converted to an ArchGDAL `Dataset`"))
+    if ndims(A) === 3
+        thirddim = otherdims(A, (X, Y))[1]
+        thirddim isa Band || throw(ArgumentError("ArchGDAL can't handle $(DD.basetypeof(thirddim)) dims - only XDim, YDim, and Band"))
+    elseif ndims(A) > 3
+        throw(ArgumentError("ArchGDAL can only accept 2 or 3 dimensional arrays"))
+    end
+
+    dataset = unsafe_gdal_mem(A)
+    try
+        f(dataset)
+    finally
+        AG.destroy(dataset)
+    end
+end
+
 # Create a memory-backed GDAL dataset from any AbstractGeoArray
-unsafe_gdal_mem(A::AbstractGeoArray) = unsafe_gdal_mem(dims(A, (X(), Y(), Band())), A)
-function unsafe_gdal_mem(::Tuple{<:X,<:Y,<:Band}, A::AbstractGeoArray)
-    nbands = size(A, Band)
-    _unsafe_gdal_mem(permutedims(A, (X, Y, Band)), nbands)
-end
-function unsafe_gdal_mem(::Tuple{<:X,<:Y}, A::AbstractGeoArray)
-    nbands = 1
-    _unsafe_gdal_mem(permutedims(A, (X, Y)), nbands)
-end
-function unsafe_gdal_mem(::Tuple, A::AbstractGeoArray)
-    throw(ArgumentError("A GeoArray must have at least X an Y dims to use gdal tools"))
+function unsafe_gdal_mem(A::AbstractGeoArray)
+    nbands = hasdim(A, Band) ? size(A, Band) : 1
+    _unsafe_gdal_mem(_maybe_permute_to_gdal(A), nbands)
 end
 
 function _unsafe_gdal_mem(A::AbstractGeoArray, nbands)
@@ -312,15 +315,18 @@ function _unsafe_gdal_mem(A::AbstractGeoArray, nbands)
     return ds
 end
 
-function AG.Dataset(f::Function, A::AbstractGeoArray)
-    dataset = unsafe_gdal_mem(A)
-    try
-        f(dataset)
-    finally
-        AG.destroy(dataset)
-    end
+# _maybe_permute_gdal
+# Permute dims unless the match the GDAL dimension order
+function _maybe_permute_to_gdal(A)
+    _maybe_permute_to_gdal(A, DD.dims(A, (X, Y, Band)))
 end
+_maybe_permute_to_gdal(A, dims::Tuple) = A
+_maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim,<:Band}) = permutedims(A, dims)
+_maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim}) = permutedims(A, dims)
 
+_maybe_permute_from_gdal(A, dims::Tuple) = permutedims(A, dims)
+_maybe_permute_from_gdal(A, dims::Tuple{<:XDim,<:YDim,<:Band}) = A
+_maybe_permute_from_gdal(A, dims::Tuple{<:XDim,<:YDim}) = A
 
 #= Geotranforms ########################################################################
 
@@ -346,9 +352,9 @@ const GDAL_NS_RES = 6
 
 _isalligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
 
-_geotransform2affine(gt) =
-    AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]],
-              [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
+# _geotransform2affine(gt) =
+    # AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]],
+              # [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
 
 function _dims2geotransform(x::X, y::Y)
     gt = zeros(6)
@@ -363,20 +369,19 @@ end
 
 # precompilation
 
-# const _GDALVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}
+for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
+    DS = AG.RasterDataset{T,AG.Dataset}
+    precompile(crs, (DS,))
+    precompile(GeoData.FileArray, (DS, String))
+    precompile(dims, (DS,))
+    precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},Nothing))
+    precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},EPSG))
+    precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},ProjString))
+    precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},WellKnownText{GeoFormatTypes.CRS,String}))
+    precompile(metadata, (DS, key))
+    precompile(missingval, (DS, key))
+    precompile(GeoArray, (DS, key))
+    precompile(GeoArray, (DS, String, Nothing))
+    precompile(GeoArray, (DS, String, Symbol))
+end
 
-# for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
-#     DS = AG.RasterDataset{T,AG.Dataset}
-#     precompile(crs, (DS,))
-#     precompile(GeoData.FileArray, (DS, String))
-#     precompile(dims, (DS,))
-#     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},Nothing))
-#     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},EPSG))
-#     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},ProjString))
-#     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},WellKnownText{GeoFormatTypes.CRS,String}))
-#     precompile(metadata, (DS, key))
-#     precompile(missingval, (DS, key))
-#     precompile(GeoArray, (DS, key))
-#     precompile(GeoArray, (DS, String, Nothing))
-#     precompile(GeoArray, (DS, String, Symbol))
-# end

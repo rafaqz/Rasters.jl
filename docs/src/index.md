@@ -154,8 +154,11 @@ aggregate!
 disaggregate
 disaggregate!
 crop
+trim
 extend
 slice
+chunk
+points
 convertmode
 ```
 
@@ -174,6 +177,15 @@ These Base and DimensionalData methods have specific GeoData.jl versions:
 ```@docs
 modify
 read
+read!
 open
 write
+```
+
+## Internals
+
+```@docs
+GeoData.FileArray
+GeoData.FileStack
+GeoData.GeoDiskArray
 ```

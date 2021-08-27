@@ -33,8 +33,8 @@ if isfile(path1) && isfile(path2)
         end
     end
 
-    @testset "geoarray" begin
-        @time smaparray = geoarray(path1)
+    @testset "GeoArray" begin
+        @time smaparray = GeoArray(path1)
 
         @testset "open" begin
             @test all(open(A -> A[Y=1], smaparray) .=== smaparray[:, 1])
@@ -102,15 +102,32 @@ if isfile(path1) && isfile(path2)
             nca = smaparray[Y(Between(-80, -25)), X(Between(0, 180))]
         end
 
-        @testset "conversion to memory back GeoArray" begin
-            geoA = read(smaparray[X(1:50), Y(20:20)])
-            @test size(geoA) == (50, 1)
-            @test eltype(geoA) <: Union{Missing,Float32}
-            @time geoA isa GeoArray{Float32,1}
-            @test dims(geoA) isa Tuple{<:X,<:Y}
-            @test metadata(geoA) == metadata(smaparray)
-            @test missingval(geoA) == missingval(smaparray)
-            @test name(geoA) == :baseflow_flux
+        @testset "methods" begin 
+            @test all(mean(smaparray; dims=Y) .=== mean(parent(smaparray); dims=2))
+            @testset "trim, crop, extend" begin
+                a = read(smaparray)
+                a[X(1:20)] .= missingval(a)
+                trimmed = trim(a)
+                @test size(trimmed) == (3836, 1512)
+                cropped = crop(a; to=trimmed)
+                @test size(cropped) == (3836, 1512)
+                @test all(collect(cropped .=== trimmed))
+                extended = extend(cropped; to=a)
+                @test all(collect(extended .=== a))
+            end
+            @testset "chunk" begin
+                @test GeoData.chunk(smaparray) isa GeoSeries
+                @test size(GeoData.chunk(smaparray)) == (1, 1)
+            end
+            @testset "slice" begin
+                ser = GeoData.slice(smaparray, X) 
+                @test ser isa GeoSeries
+                @test size(ser) == (3856,)
+                @test index(ser, X) == index(smaparray, X)
+                @test bounds(ser, X) == (-180.0f0, 180.0f0)
+                A = ser[1]
+                @test bounds(A, Y) == (-85.04456f0, 85.04456f0)
+            end
         end
 
         @testset "save" begin
@@ -120,10 +137,10 @@ if isfile(path1) && isfile(path2)
                 @test size(geoA) == size(smaparray)
                 filename = tempname() * ".grd"
                 write(filename, geoA)
-                saved = read(geoarray(filename; mappedcrs=EPSG(4326))[Band(1)])
+                saved = read(GeoArray(filename; mappedcrs=EPSG(4326))[Band(1)])
                 @test size(saved) == size(geoA)
                 @test missingval(saved) === missingval(geoA)
-                @test map(metadata.(dims(saved)), metadata.(dims(geoarray))) do s, g
+                @test map(metadata.(dims(saved)), metadata.(dims(GeoArray))) do s, g
                     all(s .== g)
                 end |> all
                 @test GeoData.name(saved) == GeoData.name(geoA)
@@ -135,10 +152,12 @@ if isfile(path1) && isfile(path2)
             @testset "to gdal" begin
                 gdalfilename = tempname() * ".tif"
                 @time write(gdalfilename, read(smaparray))
-                gdalarray = geoarray(gdalfilename; mappedcrs=EPSG(4326))
+                gdalarray = GeoArray(gdalfilename; mappedcrs=EPSG(4326))
                 # These come out with slightly different format
                 # @test convert(ProjString, crs(gdalarray)) == crs(smaparray)
-                @test all(map((a, b) -> all(a .≈ b), mappedbounds(dims(gdalarray)), (bounds(smaparray)..., (1, 1))))
+                @test all(map((a, b) -> all(a .≈ b), 
+                              mappedbounds(dims(gdalarray))
+                              , (bounds(smaparray)..., (1, 1))))
                 # Tiff locus = Start, SMAP locus = Center
                 @test mappedindex(DimensionalData.shiftlocus(Center(), dims(gdalarray, Y))) ≈ index(smaparray, Y)
                 @test mappedindex(DimensionalData.shiftlocus(Center(), dims(gdalarray, X))) ≈ index(smaparray, X)
@@ -148,7 +167,7 @@ if isfile(path1) && isfile(path2)
                 ncdfilename = tempname() * ".nc"
                 @time write(ncdfilename, smaparray)
                 reorder(smaparray, ForwardIndex()) |> a -> reorder(a, ForwardRelation())
-                saved = geoarray(ncdfilename)
+                saved = GeoArray(ncdfilename)
                 @test_broken bounds(saved) == bounds(smaparray)
                 @test index(saved, Y) == index(smaparray, Y)
                 @test index(saved, X) == index(smaparray, X)
@@ -171,7 +190,7 @@ if isfile(path1) && isfile(path2)
     end
 
     @testset "stack" begin
-        @time smapstack = stack(path1)
+        @time smapstack = GeoStack(path1)
 
         @testset "read" begin
             @time st = read(smapstack);
@@ -226,19 +245,19 @@ if isfile(path1) && isfile(path2)
 
         @testset "window" begin
             # FIXME these are too slow to load
-            @time windowedstack = stack(path1; window=(Y(1:5), X(1:5)))
+            @time windowedstack = GeoStack(path1; window=(Y(1:5), X(1:5)))
             @time windowedarray = windowedstack[:soil_temp_layer1];
             @test size(windowedarray) == (5, 5)
             @test windowedarray[1:3, 2:2] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
             @test windowedarray[1:3, 2] == [-9999.0, -9999.0, -9999.0]
             @test windowedarray[1, 2] == -9999.0
-            @time windowedstack = stack(path1; window=(Y(1:5), X(1:5), Ti(1:1)))
+            @time windowedstack = GeoStack(path1; window=(Y(1:5), X(1:5), Ti(1:1)))
             @time windowedarray = windowedstack[:soil_temp_layer1];
             @test size(windowedarray) == (5, 5)
             @test windowedarray[1:3, 2:2, 1] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
             @test windowedarray[1:3, 2, 1] == [-9999.0, -9999.0, -9999.0]
             @test windowedarray[1, 2, 1] == -9999.0
-            @time windowedstack = stack(path1; window=(Ti(1),))
+            @time windowedstack = GeoStack(path1; window=(Ti(1),))
             @time windowedarray = windowedstack[:soil_temp_layer1];
             @test windowedarray[1:3, 2:2] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
             @test windowedarray[1:3, 2] == [-9999.0, -9999.0, -9999.0]
@@ -255,29 +274,29 @@ if isfile(path1) && isfile(path2)
 
     end
 
-    # @testset "series" begin
-    #     ser = smapseries([path1, path2])
-    #     val.(dims(ser))
-    #     @test ser[1] isa GeoStack
-    #     @test first(bounds(ser, Ti)) == DateTime(2016, 1, 1, 22, 30)
-    #     @test last(bounds(ser, Ti)) == DateTime(2016, 1, 3, 1, 30)
-    #     @time modified_series = modify(Array, ser)
-    #     stackkeys = keys(modified_series[1])
-    #     @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{stackkeys,<:Tuple{<:Array{Float32,2,},Vararg}}}}
+    @testset "series" begin
+        ser = smapseries([path1, path2])
+        val.(dims(ser))
+        @test ser[1] isa GeoStack
+        @test first(bounds(ser, Ti)) == DateTime(2016, 1, 1, 22, 30)
+        @test last(bounds(ser, Ti)) == DateTime(2016, 1, 3, 1, 30)
+        @time modified_series = modify(Array, ser)
+        stackkeys = keys(modified_series[1])
+        @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{stackkeys,<:Tuple{<:Array{Float32,2,},Vararg}}}}
 
-    #     @testset "read" begin
-    #         # FIXME: uses too much memory
-    #         # @time geoseries = read(ser)
-    #         # @test geoseries isa GeoSeries{<:GeoStack}
-    #         # @test geoseries.data isa Vector{<:GeoStack}
-    #         # @test first(geoseries.data[1].data) isa Array 
-    #     end
+        @testset "read" begin
+            # FIXME: uses too much memory
+            # @time geoseries = read(ser)
+            # @test geoseries isa GeoSeries{<:GeoStack}
+            # @test geoseries.data isa Vector{<:GeoStack}
+            # @test first(geoseries.data[1].data) isa Array 
+        end
 
-    #     @testset "show" begin
-    #         sh = sprint(show, MIME("text/plain"), ser)
-    #         # Test but don't lock this down too much
-    #         @test occursin("GeoSeries", sh)
-    #         @test occursin("Ti", sh)
-    #     end
-    # end
+        @testset "show" begin
+            sh = sprint(show, MIME("text/plain"), ser)
+            # Test but don't lock this down too much
+            @test occursin("GeoSeries", sh)
+            @test occursin("Ti", sh)
+        end
+    end
 end

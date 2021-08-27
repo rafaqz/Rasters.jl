@@ -14,7 +14,7 @@ meta = NoMetadata()
 ga1 = GeoArray(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=mval)
 ga2 = GeoArray(data2, dims2)
 
-st = stack((ga1, ga2); keys=(:ga1, :ga2))
+st = GeoStack((ga1, ga2); keys=(:ga1, :ga2))
 
 @testset "stack layers" begin
     @test length(st) == 2
@@ -115,6 +115,12 @@ end
     @test catstack[:ga2][Y(1), Ti(1)] == 2.0:2.0:40.0
     catstack = cat(stack_a, stack_b; dims=(X(), Y()))
     @test size(first(catstack)) == (20, 22)
+end
+
+@testset "copy" begin
+    cp = copy(st)
+    @test all(st[:ga1] .=== cp[:ga1])
+    @test st[:ga1] !== cp[:ga1]
 end
 
 @testset "show" begin

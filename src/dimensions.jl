@@ -29,7 +29,7 @@ Whithout ArchGDAL loaded, this is just the regular bounds.
 function mappedbounds end
 
 mappedbounds(dims::Tuple) = map(mappedbounds, dims)
-mappedbounds(dim) = mappedbounds(mode(dim), dim)
+mappedbounds(dim::Dimension) = mappedbounds(mode(dim), dim)
 mappedbounds(::IndexMode, dim) = bounds(dim)
 mappedbounds(mode::Projected, dim) = mappedbounds(mappedcrs(mode), mode, dim)
 mappedbounds(mappedcrs::Nothing, mode::Projected, dim) =
@@ -38,7 +38,7 @@ mappedbounds(mappedcrs::GeoFormat, mode::Projected, dim) =
     _sort(reproject(crs(mode), mappedcrs, dim, bounds(dim)))
 
 projectedbounds(dims::Tuple) = map(projectedbounds, dims)
-projectedbounds(dim) = projectedbounds(mode(dim), dim)
+projectedbounds(dim::Dimension) = projectedbounds(mode(dim), dim)
 projectedbounds(::IndexMode, dim) = bounds(dim)
 projectedbounds(mode::Mapped, dim) = projectedbounds(crs(mode), mode, dim)
 projectedbounds(crs::Nothing, mode::Mapped, dim) =
@@ -59,18 +59,20 @@ function mappedindex end
 
 mappedindex(dims::Tuple) = map(mappedindex, dims)
 mappedindex(dim::Dimension) = mappedindex(mode(dim), dim)
-mappedindex(::IndexMode, dim) = index(dim)
-mappedindex(mode::Projected, dim) = mappedindex(mappedcrs(mode), mode, dim)
-mappedindex(mappedcrs::Nothing, mode::Projected, dim) =
+
+_mappedindex(::IndexMode, dim::Dimension) = index(dim)
+_mappedindex(mode::Projected, dim::Dimension) = mappedindex(mappedcrs(mode), mode, dim)
+_mappedindex(mappedcrs::Nothing, mode::Projected, dim) =
     error("No mappedcrs attached to $(name(dim)) dimension")
-mappedindex(mappedcrs::GeoFormat, mode::Projected, dim) =
+_mappedindex(mappedcrs::GeoFormat, mode::Projected, dim) =
     reproject(crs(dim), mappedcrs, dim, index(dim))
 
 projectedindex(dims::Tuple) = map(projectedindex, dims)
 projectedindex(dim::Dimension) = projectedindex(mode(dim), dim)
-projectedindex(::IndexMode, dim) = index(dim)
-projectedindex(mode::Mapped, dim) = projectedindex(crs(mode), mode, dim)
-projectedindex(crs::Nothing, mode::Mapped, dim) =
+
+_projectedindex(::IndexMode, dim::Dimension) = index(dim)
+_projectedindex(mode::Mapped, dim::Dimension) = projectedindex(crs(mode), mode, dim)
+_projectedindex(crs::Nothing, mode::Mapped, dim::Dimension) =
     error("No projection crs attached to $(name(dim)) dimension")
-projectedindex(crs::GeoFormat, mode::Mapped, dim) =
+_projectedindex(crs::GeoFormat, mode::Mapped, dim::Dimension) =
     reproject(mappedcrs(dim), crs, dim, index(dim))

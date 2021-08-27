@@ -19,7 +19,6 @@ end
 missingval(ds::SMAPhdf5) = SMAPMISSING
 layermissingval(ds::SMAPhdf5) = SMAPMISSING
 layerkeys(ds::SMAPhdf5) = keys(ds)
-layersizes(ds::SMAPhdf5, keys) = map(_ -> SMAPSIZE, keys)
 filekey(ds::SMAPhdf5, key::Nothing) = first(keys(ds))
 
 function DD.dims(wrapper::SMAPhdf5)

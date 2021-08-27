@@ -24,7 +24,7 @@ abstract type AbstractGeoSeries{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} en
 
 # Interface methods ####################################################
 
-DD.metadata(A::AbstractGeoSeries) = nothing
+DD.metadata(A::AbstractGeoSeries) = NoMetadata()
 DD.name(A::AbstractGeoSeries) = NoName()
 DD.label(A::AbstractGeoSeries) = ""
 
@@ -54,14 +54,14 @@ DD.modify(f, A::AbstractGeoSeries) = map(child -> modify(f, child), values(A))
     GeoSeries(filenames::AbstractArray{<:AbstractString}, dims; kw...)
 
 Concrete implementation of [`AbstractGeoSeries`](@ref).
-Series hold paths to array or stack files, along some dimension(s).
+Series hold GeoArray or GeoStack files, along some dimension(s).
 
 # Keywords
 
 - `dims` known dimensions. These are usually read from the first file in the series
     and are assumed to be _the same for all stacks/arrays in the series_.
 - `refdims`: existing reference dimension/s 
-- `child`: constructor of child objects - `geoarray` or `stack`
+- `child`: constructor of child objects - `GeoArray` or `stack`
 """
 struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N}} <: AbstractGeoSeries{T,N,D,A}
     data::A
@@ -79,12 +79,12 @@ function GeoSeries(
     end
 end
 function GeoSeries(
-    data::Array{T}, dims; refdims=(), child=geoarray, kw...
+    data::Array{T}, dims; refdims=(), child=GeoArray, kw...
 ) where T<:Union{<:AbstractString}
     source = _sourcetype(first(data))
-    # Load the firs child
+    # Load the first child
     child1 = child(first(data); source, refdims, kw...)
-    if child == geoarray
+    if child === GeoArray
         # We assume all dims, metadata and missingvals are the same
         childdims = DD.dims(child1)
         metadata = DD.metadata(child1)
@@ -110,6 +110,10 @@ function GeoSeries(
     end
     GeoSeries(data, DD.formatdims(data, dims), refdims)
 end
+function GeoSeries(dirpath::AbstractString, dims=(Dim{:series}(),); ext=nothing, child=GeoArray, kw...)
+    filepaths = filter_ext(dirpath, ext)
+    GeoSeries(filepaths, dims; child=child, kw...)
+end
 
 @inline function DD.rebuild(
     A::GeoSeries, data, dims::Tuple, refdims=(), name=nothing, metadata=nothing,
@@ -122,3 +126,5 @@ end
 )
     GeoSeries(data, dims, refdims)
 end
+
+@deprecate series(args...; kw...) GeoSeries(args...; kw...)

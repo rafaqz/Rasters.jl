@@ -224,3 +224,5 @@ filekey(ds, key) = key
 
 # Precompile
 precompile(GeoArray, (String,))
+
+@deprecate geoarray(args...; kw...) GeoArray(args...; kw...)

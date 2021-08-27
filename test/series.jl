@@ -67,3 +67,52 @@ end
     @test ser[Ti(1)] == ser[Ti(2)]
 end
 
+@testset "rebuild" begin
+    @test rebuild(ser, parent(ser)) === ser
+    @test rebuild(ser; dims=dims(ser)) === ser
+    @test rebuild(ser; dims=(X(),)) !== ser
+    @test rebuild(ser; name=nothing) === ser
+    @test rebuild(ser; metadata=nothing) === ser
+end
+
+@testset "slice, combine" begin
+    ga1 = GeoArray(ones(4, 5, 10), (X(), Y(), Ti(10:10:100))) .* reshape(1:10, (1, 1, 10))
+    ga2 = ga1 .* 2
+    ser = slice(ga1, Ti)
+    @test size(ser) == (10,)
+    combined = GeoData.combine(ser, Ti())
+    @test combined == ga1
+    @test dims(combined) === dims(ga1)
+    ser = slice(ga1, (X, Ti))
+    @test size(ser) == (4, 10)
+    ser = slice(ga1, (X, Y, Ti))
+    combined2 = GeoData.combine(ser, (X, Y, Ti))
+    @test combined == ga1 == permutedims(combined2, (X, Y, Ti))
+    @test dims(combined) === dims(ga1) == dims(permutedims(combined2, (X, Y, Ti)))
+    stack = GeoStack((ga1=ga1, ga2=ga2))
+    ser = slice(stack, Ti)
+    @test size(ser) == (10,)
+    combined = GeoData.combine(ser, Ti)
+    ser = slice(stack, (Y, Ti))
+    @test size(ser) == (5, 10,)
+    combined = GeoData.combine(ser, (Y, Ti))
+end
+
+
+@testset "show" begin
+    # 2d
+    ser2 = slice(ga1, (X, Y))
+    sh = sprint(show, MIME("text/plain"), ser2)
+    # Test but don't lock this down too much
+    @test occursin("GeoSeries", sh)
+    @test occursin("GeoArray", sh)
+    @test occursin("X", sh)
+    @test occursin("Y", sh)
+    # 1d
+    ser1 = slice(ga1, X)
+    sh = sprint(show, MIME("text/plain"), ser1)
+    # Test but don't lock this down too much
+    @test occursin("GeoSeries", sh)
+    @test occursin("GeoArray", sh)
+    @test occursin("X", sh)
+end

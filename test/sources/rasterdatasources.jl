@@ -14,7 +14,7 @@ using GeoData, RasterDataSources, Test, Dates, NCDatasets, ArchGDAL
 
 @testset "load WorldClim Climate" begin
     # Weather time-series
-    ser = series(WorldClim{Climate}, (:prec,); res="10m", month=Jan:March);
+    ser = series(WorldClim{Climate}, :prec; res="10m", month=Jan:March);
     ser[Jan][:prec] 
     # Select Australia, using regular lat/lon selectors
     A = geoarray(WorldClim{Climate}, :prec; month=1, mappedcrs=EPSG(4326))

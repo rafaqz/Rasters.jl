@@ -6,14 +6,14 @@ struct GeoZPlot end
 @recipe function f(A::AbstractGeoArray)
     ddplot(A) = DimArray(A; dims=_maybe_mapped(dims(A)))
     max_res = get(plotattributes, :max_res, 1000)
-    if !(get(plotattributes, :seriestype, :none) in (:none, :heatmap))
+    if !(get(plotattributes, :seriestype, :none) in (:none, :heatmap, :contourf))
         DD.DimensionalPlot(), ddplot(A)
     elseif all(hasdim(A, (SpatialDim, SpatialDim)))
         # Heatmap or multiple heatmaps. Use GD recipes.
-        GeoPlot(), _prepare(A, max_res)
+        GeoPlot(), _prepare(_subsample(A, max_res))
     elseif hasdim(A, ZDim) && ndims(A) == 1
         # Z dim plot, but for spatial data we want Z on the Y axis
-        GeoZPlot(), _prepare(A, max_res)
+        GeoZPlot(), _prepare(A)
     else
         DD.DimensionalPlot(), ddplot(A)
     end
@@ -72,7 +72,6 @@ end
 
     yguide, xguide = label(dims(A))
 
-    :seriestype --> :heatmap
     :title --> "$(_maybename(A)) $(DD.refdims_title(A; issingle=true))"
     :xguide --> xguide
     :yguide --> yguide
@@ -107,6 +106,7 @@ end
         :levels --> range(clims[1], clims[2], length=20)
         xs, ys, clamp.(A, clims[1], clims[2])
     else
+        :seriestype --> :heatmap
         xs, ys, parent(A)
     end
 end
@@ -128,19 +128,19 @@ end
 # So we should center the index, and use the projected value.
 _prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped |> index
 # Convert arrays to a consistent missing value and Forward array order
-function _prepare(A::AbstractGeoArray, max_res)
-    open(A) do O
-        _subsample(O, max_res) |>
-        a -> reorder(a, ForwardIndex) |> a -> reorder(a, ForwardRelation) |>
-        a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A))) |>
-        a -> replace_missing(a, missing)
-    end
+function _prepare(A::AbstractGeoArray)
+    reorder(A, ForwardIndex) |> 
+    a -> reorder(a, ForwardRelation) |>
+    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A))) |>
+    a -> replace_missing(a, missing)
 end
 
 function _subsample(A, max_res)
+    ssdims = dims(A, (XDim, YDim, ZDim))[1:2]
     # Aggregate based on the number of pixels
-    ag = floor(Int, max(size(A, X()), size(A, Y())) / max_res) + 1
-    A[X(1:ag:end), Y(1:ag:end)]
+    s1, s2 = size(A, ssdims[1]), size(A, ssdims[2])
+    ag = floor(Int, max(s1, s2) / max_res) + 1
+    A[DD.basetypeof(ssdims[1])(1:ag:s1), DD.basetypeof(ssdims[2])(1:ag:s2)]
 end
 
 _maybename(A) = _maybename(name(A))

@@ -37,9 +37,9 @@ function GRDattrib(filename::AbstractString; write=false)
     GRDattrib{T,typeof(filename)}(filename, attrib, write)
 end
 
-filekey(grd::GRDattrib, key::Nothing) = get(grd.attrib, "layername", Symbol(""))
-filename(grd::GRDattrib) = grd.filename
 attrib(grd::GRDattrib) = grd.attrib
+filename(grd::GRDattrib) = grd.filename
+filekey(grd::GRDattrib, key::Nothing) = get(attrib(grd), "layername", Symbol(""))
 
 function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     attrib = grd.attrib

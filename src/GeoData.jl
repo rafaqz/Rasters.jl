@@ -39,7 +39,7 @@ export Projected, Mapped
 export Band
 export missingval, boolmask, missingmask, replace_missing,
        aggregate, aggregate!, disaggregate, disaggregate!,
-       crop, extend, slice, trim
+       resample, warp, crop, extend, trim, slice, chunk, points
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertmode
 export geoarray, stack, series
@@ -84,11 +84,11 @@ include("sources/grd.jl")
 include("show.jl")
 include("plotrecipes.jl")
 include("convenience.jl")
+include("write.jl")
 
 include("sources/smap.jl")
 include("sources/ncdatasets.jl")
 include("sources/gdal.jl")
-include("resample.jl")
 include("reproject.jl")
 include("sources/rasterdatasources.jl")
 

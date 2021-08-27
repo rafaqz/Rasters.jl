@@ -52,13 +52,6 @@ crs(mode::IndexMode) = nothing
 mappedcrs(mode::Projected) = mode.mappedcrs
 mappedcrs(mode::IndexMode) = nothing
 
-function DD.rebuild(
-    g::Projected, order=order(g), span=span(g), sampling=sampling(g),
-    crs=crs(g), mappedcrs=mappedcrs(g)
-)
-    Projected(order, span, sampling, crs, mappedcrs)
-end
-
 """
     Mapped <: AbstractProjected
 
@@ -87,18 +80,11 @@ function Mapped(;
     Mapped(order, span, sampling, crs, mappedcrs)
 end
 
-crs(mode::Mapped, dim) = crs(mode)
+# crs(mode::Mapped, dim) = crs(mode)
 crs(mode::Mapped) = mode.crs
 
-mappedcrs(mode::Mapped, dim) = mappedcrs(mode)
+# mappedcrs(mode::Mapped, dim) = mappedcrs(mode)
 mappedcrs(mode::Mapped) = mode.mappedcrs
-
-function DD.rebuild(
-    g::Mapped, order=order(g), span=span(g),
-    sampling=sampling(g), crs=crs(g), mappedcrs=mappedcrs(g)
-)
-    Mapped(order, span, sampling, crs, mappedcrs)
-end
 
 """
     convertmode(dstmode::Type{<:IndexMode}, x)

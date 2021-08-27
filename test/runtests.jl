@@ -18,10 +18,10 @@ end
 @time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "aggregate" begin include("aggregate.jl") end
 @time @safetestset "methods" begin include("methods.jl") end
-@time @safetestset "resample" begin include("resample.jl") end
+@time @safetestset "plot recipes" begin include("plotrecipes.jl") end
 # Only test SMAP locally for now
 if !haskey(ENV, "CI")
-    # @time @safetestset "smap" begin include("sources/smap.jl") end
+    @time @safetestset "smap" begin include("sources/smap.jl") end
 end
 if !Sys.iswindows()
     # GDAL Environment vars need to be set manually for windows, so skip for now

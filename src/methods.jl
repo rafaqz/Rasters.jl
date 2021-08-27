@@ -181,11 +181,6 @@ function _extend_to(A::AbstractGeoArray, to::Tuple)
 end
 _extend_to(st::AbstractGeoStack, to::Tuple) = map(A -> _extend_to(A, to), st)
 
-@inline _maybeflipindex(::ForwardRelation, d, i) = i
-@inline _maybeflipindex(::ReverseRelation, d, i::Integer) = lastindex(d) - i + 1
-@inline _maybeflipindex(::ReverseRelation, d, i::AbstractArray) =
-    reverse(lastindex(d) .- i .+ 1)
-
 # Get the largest dimensions in a tuple of AbstractGeoArray
 function _largestdims(layers)
     dims = DD.combinedims(layers...; check=false) 
@@ -303,6 +298,7 @@ with no dimensions will slice along the dimensions shared by both the series and
 $EXPERIMENTAL
 """
 slice(x::GeoStackOrArray, dims) = slice(x, (dims,))
+# Slice an array or stack into a series
 function slice(x::GeoStackOrArray, dims::Tuple)
     # Make sure all dimensions in `dims` are in `x`
     all(hasdim(x, dims)) || _errordimsnotfound(dims, DD.dims(x))
@@ -314,18 +310,51 @@ function slice(x::GeoStackOrArray, dims::Tuple)
     end
     return GeoSeries(seriesdata, seriesdims)
 end
+# Slice an existing series into smaller slices
 slice(ser::AbstractGeoSeries, dims) = cat(map(x -> slice(x, dims), ser)...; dims=dims)
 
 @noinline _errordimsnotfound(targets, dims) = 
     throw(ArgumentError("Dimensions $(map(DD.dim2key, targets)) were not found in $(map(DD.dim2key, dims))"))
 
-# Get the bounds wrapped in Dim(Between)
-dimbounds(A::AbstractDimArray) = dimbounds(bounds, A)
-function dimbounds(f::Function, A::AbstractDimArray)
-    map(dims(A), f(A)) do dim, bounds
-        # TODO is Between the right selector? do we need inclusive?
-        basetypeof(dim)(Between(bounds))
+# By default, combine all the GeoSeries dimensions and return a GeoArray or GeoStack
+combine(ser::AbstractGeoSeries) = combine(ser, dims(ser))
+# Fold over all the dimensions, combining the series one dimension at a time
+combine(ser::AbstractGeoSeries, dims::Tuple) = foldl(combine, dims; init=ser)
+# Slice the N-dimensional series into an array of 1-dimensional 
+# series, and combine them, returning a new series with 1 less dimension.
+function combine(ser::AbstractGeoSeries{<:Any,M}, dim::Union{Dimension,DD.DimType,Val,Symbol}) where M
+    od = otherdims(ser, dim)
+    slices = map(d -> view(ser, d...), DD.dimwise_generators(od))
+    newchilren = map(s -> combine(s, dim), slices)
+    return rebuild(ser; data=newchilren, dims=od) 
+end
+# Actually combine a 1-dimensional series with `cat`
+function combine(ser::AbstractGeoSeries{<:Any,1}, dim::Union{Dimension,DD.DimType,Val,Symbol})
+    dim = DD.dims(ser, dim)
+    D = DD.basetypeof(dim)
+    x = foldl(ser) do acc, x
+        # May need to reshape to match acc
+        cat(acc, _maybereshape(x, acc, dim); dims=D)
     end
+    return set(x, D => dims(ser, dim))
+end
+
+function _maybereshape(A::AbstractGeoArray{<:Any,N}, acc, dim) where N
+    if ndims(acc) != ndims(A)
+        newdata = reshape(parent(A), Val{N+1}())
+        d = if hasdim(refdims(A), dim)
+            dims(refdims(A), dim)
+        else
+            DD.basetypeof(dim)(1:1; mode=NoIndex())
+        end
+        newdims = (DD.dims(A)..., d)
+        return rebuild(A; data=newdata, dims=newdims)
+    else
+        return A
+    end
+end
+function _maybereshape(st::AbstractGeoStack, acc, dim)
+    map((s, a) -> _maybereshape(s, a, dim), st, acc)
 end
 
 """
@@ -354,7 +383,7 @@ function _chunk_inds(g, ichunk)
 end
 
 """
-    points(A::AbstractGeoArray; dims=(Y, X))
+    points(A::AbstractGeoArray; dims=(YDim, XDim))
     
 Returns a generator of the points in `A` for dimensions in `dims`,
 where points are a tuple of the values in each specified dimension 
@@ -364,7 +393,11 @@ The order of `dims` determines the order of the points.
 
 $EXPERIMENTAL
 """
-function points(A::AbstractGeoArray; dims=(Y, X))
+function points(A::AbstractGeoArray; dims=(YDim, XDim), ignore_missing=false)
+    ignore_missing ? _points(A, dims) : _points_missing(A, dims)
+end
+
+function _points(A::AbstractGeoArray, dims)
     # Get the actual dims
     dims = DD.dims(A, dims)
     # Get the axes of each dimension
@@ -374,4 +407,121 @@ function points(A::AbstractGeoArray; dims=(Y, X))
     # Lazily index into the dimensions with the generator
     return (map(getindex, dims, Tuple(I)) for I in indices)
 end
+function _points_missing(A::AbstractGeoArray, dims)
+    # Get the actual dims
+    dims = DD.dims(A, dims)
+    # Get the axes of each dimension
+    dim_axes = map(d -> axes(d, 1), dims)
+    # Construct a CartesianIndices generator
+    indices = CartesianIndices(dim_axes)
+    # Lazily index into the dimensions with the generator
+    # or return missing if the matching array value is missing
+    return (A[I] === missingval(A) ? map(getindex, dims, Tuple(I)) : missing for I in indices)
+end
 
+"""
+	resample(A::AbstractGeoArray, resolution::Number; crs, method)
+	resample(A::AbstractGeoArray; to::AbstractGeoArray, method)
+
+`resample` uses `ArchGDAL.gdalwarp` to resample an `AbstractGeoArray`.
+
+# Arguments
+
+- `A`: The `AbstractGeoArray` to resample.
+- `resolution`: A `Number` specifying the resolution for the output.
+    If the keyword argument `crs` (described below) is specified, `resolution` must be in units of the `crs`.
+
+# Keywords
+
+- `to`: an `AbstractGeoArray` whos resolution, crs and bounds will be snapped to.
+    For best results it should roughly cover the same extent, or a subset of `A`.
+- `crs`: A `GeoFormatTypes.GeoFormat` specifying an output crs
+    (`A` will be reprojected to `crs` in addition to being resampled). Defaults to `crs(A)`
+- `method`: A `Symbol` or `String` specifying the method to use for resampling. Defaults to `:near`
+    (nearest neighbor resampling). See [resampling method](https://gdal.org/programs/gdalwarp.html#cmdoption-gdalwarp-r)
+    in the gdalwarp docs for a complete list of possible values.
+
+"""
+function resample end
+function resample(A::AbstractGeoArray, resolution::Number;
+    crs::GeoFormat=crs(A), method=:near
+)
+    wkt = convert(String, convert(WellKnownText, crs))
+    flags = Dict(
+        :t_srs => wkt,
+        :tr => [resolution, resolution],
+        :r => method,
+    )
+    return warp(A, flags)
+end
+function resample(A::AbstractGeoArray; to, method=:near)
+    wkt = convert(String, convert(WellKnownText, crs(to)))
+    latres, lonres = map(abs ∘ step, span(to, (Y(), X())))
+    (latmin, latmax), (lonmin, lonmax) = bounds(to, (Y(), X()))
+    flags = Dict(
+        :t_srs => wkt,
+        :tr => [latres, lonres],
+        :te => [lonmin, latmin, lonmax, latmax],
+        :r => method,
+    )
+    return warp(A, flags)
+end
+resample(st::AbstractGeoStack, args...; kw...) = map(A -> resample(A, args...; kw...), st)
+
+"""
+    warp(A::AbstractGeoArray, flags::Dict)
+
+Gives access to the GDALs `gdalwarp` method given a `Dict` of flags,
+where arguments than can be converted to strings, or vectors
+of such arguments for flags that take multiple space separated arguments.
+
+Arrays with additional dimensions not handled by GDAL (ie other than X, Y, Band)
+are sliced, warped, and then combined - these dimensions will not change.
+
+See: https://gdal.org/programs/gdalwarp.html for a list of arguments.
+
+## Example
+
+This simply resamples the array with the `:tr` (output file resolution) and `:r` flags:
+
+```julia
+using GeoData, RasterDataSources, Plots
+A = GeoArray(WorldClim{Climate}, :prec; month=1)
+flags = Dict(
+    :tr => [1.0, 1.0],
+    :r => :near,
+)
+warp(A, flags) |> plot
+```
+
+In practise, prefer [`resample`](@ref) for this. But `warp` may be more flexible.
+"""
+function warp(A::AbstractGeoArray, flags::Dict)
+    odims = otherdims(A, (X, Y, Band))
+    if length(odims) > 0
+        # Handle dimensions other than X, Y, Band
+        slices = slice(A, odims)
+        warped = map(A -> _warp(A, flags), slices)
+        return combine(warped, odims)
+    else
+        return _warp(A, flags)
+    end
+end
+warp(st::AbstractGeoStack, flags::Dict) = map(A -> warp(A, flags), st)
+
+function _warp(A::AbstractGeoArray, flags::Dict)
+    flagvect = reduce([flags...]; init=[]) do acc, (key, val)
+        append!(acc, String[_asflag(key), _stringvect(val)...])
+    end
+    AG.Dataset(A) do dataset
+        AG.gdalwarp([dataset], flagvect) do warped
+            _maybe_permute_from_gdal(read(GeoArray(warped)), dims(A))
+        end
+    end
+end
+
+_asflag(x) = string(x)[1] == '-' ? x : string("-", x)
+
+_stringvect(x::AbstractVector) = Vector(string.(x))
+_stringvect(x::Tuple) = [map(string, x)...]
+_stringvect(x) = [string(x)]

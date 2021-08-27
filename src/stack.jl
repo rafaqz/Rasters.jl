@@ -38,12 +38,19 @@ function DD.layers(s::AbstractGeoStack{<:FileStack{<:Any,Keys}}) where Keys
     NamedTuple{Keys}(map(K -> s[K], Keys))
 end
 
-function DD.rebuild(s::T;
+function DD.rebuild(
+    s::AbstractGeoStack, data, dims=dims(s), refdims=refdims(s), 
+    layerdims=DD.layerdims(s), metadata=metadata(s), layermetadata=DD.layermetadata(s),
+    layermissingval=layermissingval(s), 
+)
+    DD.basetypeof(s)(data, dims, refdims, layerdims, metadata, layermetadata, layermissingval)
+end
+function DD.rebuild(s::AbstractGeoStack;
     data=data(s), dims=dims(s), refdims=refdims(s), layerdims=DD.layerdims(s),
     metadata=metadata(s), layermetadata=DD.layermetadata(s),
-    layermissingval=layermissingval(s), 
-) where T<:AbstractGeoStack
-    DD.basetypeof(T)(
+    layermissingval=layermissingval(s),
+)
+    DD.basetypeof(s)(
         data, dims, refdims, layerdims, metadata, layermetadata, layermissingval
     )
 end
@@ -90,7 +97,8 @@ end
     GeoStack(data::NamedTuple; window=nothing, metadata=NoMetadata(), refdims=()))
     GeoStack(s::AbstractGeoStack; [keys, data, refdims, window, metadata])
 
-A concrete `AbstractGeoStack` implementation. Holds layers of [`GeoArray`](@ref).
+Load a file path or a `NamedTuple` of paths as a `GeoStack`, or convert arguments, a 
+`Vector` or `NamedTuple` of `GeoArray` to `GeoStack`.
 
 # Arguments
 
@@ -105,6 +113,12 @@ A concrete `AbstractGeoStack` implementation. Holds layers of [`GeoArray`](@ref)
 - `refdims`: Reference dimensions from earlier subsetting.
 - `metadata`: A `DimensionalData.Metadata` object.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
+
+```julia
+files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
+stack = GeoStack(files; mappedcrs=EPSG(4326))
+stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
+```
 """
 struct GeoStack{L,D,R,LD,M,LM,LMV} <: AbstractGeoStack{L}
     data::L
@@ -185,8 +199,6 @@ function GeoStack(filename::AbstractString;
     GeoStack(data; field_kw..., window)
 end
 
-
-
 # Rebuild from internals
 function GeoStack(
     data::Union{FileStack,NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}};
@@ -218,6 +230,7 @@ defaultmappedcrs(T::Type, crs) = crs
 defaultmappedcrs(T::Type, ::Nothing) = defaultmappedcrs(T)
 defaultmappedcrs(T::Type) = nothing
 
-
 # Precompile
 precompile(GeoStack, (String,))
+
+@deprecate stack(args...; kw...) GeoStack(args...; kw...)
