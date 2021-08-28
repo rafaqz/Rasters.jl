@@ -345,7 +345,6 @@ function _ncdwritevar!(ds::NCD.Dataset, A::AbstractGeoArray{T,N}) where {T,N}
     end
 
     dimnames = lowercase.(string.(map(name, dims(A))))
-    @show attrib
     var = NCD.defVar(ds, key, eltype(A), dimnames; attrib=attrib)
     # TODO do this with DiskArrays broadcast ??
     var[:] = parent(read(A))

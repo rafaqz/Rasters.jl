@@ -212,14 +212,11 @@ if isfile(path1) && isfile(path2)
             @test span(smaparray) == (Irregular((-180.0f0, 180.0f0)), Irregular((-85.04456f0, 85.04456f0)))
             @test bounds(smaparray) == ((-180.0f0, 180.0f0), (-85.04456f0, 85.04456f0))
             @test index(smaparray) isa Tuple{Vector{Float32},Vector{Float32}}
-            @test refdims(smaparray) isa Tuple{<:Ti}
             @test missingval(smaparray) == -9999.0
             @test smaparray[1, 1] == -9999.0
             @test name(smaparray) == :soil_temp_layer1
             dt = DateTime(2016, 1, 1, 22, 30)
             step_ = Hour(3)
-            @test refdims(smapstack) ==
-                (Ti(dt:step_:dt; mode=Sampled(Ordered(), Regular(step_), Intervals(Start()))),)
             # Currently empty
             @test metadata(smaparray) isa Metadata{SMAPfile}
         end
@@ -269,7 +266,6 @@ if isfile(path1) && isfile(path2)
             @test occursin("GeoArray", sh1)
             @test occursin("Y", sh1)
             @test occursin("X", sh1)
-            @test occursin("Ti", sh1)
         end
 
     end

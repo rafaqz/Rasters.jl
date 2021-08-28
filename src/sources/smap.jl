@@ -52,8 +52,6 @@ function DD.dims(wrapper::SMAPhdf5)
     end
 end
 
-DD.refdims(wrapper::SMAPhdf5, filename) = (_smap_timedim(_smap_timefromfilename(filename)),)
-
 # TODO actually add metadata to the dict
 DD.metadata(wrapper::SMAPhdf5) = Metadata{SMAPfile}(Dict())
 

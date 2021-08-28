@@ -188,7 +188,7 @@ function GeoStack(filename::AbstractString;
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     data, field_kw = _open(filename) do ds
         dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
-        refdims = refdims == () || refdims isa Nothing ? DD.refdims(ds, filename) : refdims
+        refdims = refdims == () || refdims isa Nothing ? () : refdims
         layerdims = layerdims isa Nothing ? DD.layerdims(ds) : layerdims
         metadata = metadata isa Nothing ? DD.metadata(ds) : metadata
         layermetadata = layermetadata isa Nothing ? DD.layermetadata(ds) : layermetadata
