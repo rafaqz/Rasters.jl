@@ -11,10 +11,9 @@ as an array, but maintaining the spacial index, crs and metadata through all
 transformations.
 
 ```@docs
-geoarray
-geoarray(T::Type{<:RasterDataSources.RasterDataSource})
 AbstractGeoArray
 GeoArray
+GeoArray(T::Type{<:RasterDataSources.RasterDataSource})
 ```
 
 ## Stack
@@ -23,10 +22,9 @@ Spatial data often comes as a bundle of multiple named arrays, as in netcdf.
 Stacks can represent this, or multiple files organised in a similar way.
 
 ```@docs
-stack
-stack(T::Type{<:RasterDataSources.RasterDataSource})
 AbstractGeoStack
 GeoStack
+GeoStack(T::Type{<:RasterDataSources.RasterDataSource})
 ```
 
 ## Series
@@ -35,10 +33,9 @@ A series is an meta-array that holds other files/data that is distributed over
 some dimension, often time. These files/data can be `geoarray`s or `stack`s.
 
 ```@docs
-series
-series(T::Type{<:RasterDataSources.RasterDataSource})
 AbstractGeoSeries
 GeoSeries
+GeoSeries(T::Type{<:RasterDataSources.RasterDataSource})
 ```
 
 ## Dimensions
@@ -145,14 +142,14 @@ These methods are specific to GeoData.jl:
 
 ```@docs
 replace_missing
-resample
-reproject
 boolmask
 missingmask
 aggregate
 aggregate!
 disaggregate
 disaggregate!
+resample
+warp
 crop
 trim
 extend
@@ -160,6 +157,7 @@ slice
 chunk
 points
 convertmode
+reproject
 ```
 
 Field access:
