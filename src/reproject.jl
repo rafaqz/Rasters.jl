@@ -15,7 +15,7 @@ end
     reproject(source::GeoFormat, target::GeoFormat, dim::Dimension, val)
 
 `reproject` uses ArchGDAL.reproject, but implemented for a reprojecting
-a single dimension at a time.
+a value array of values, a single dimension at a time.
 """
 reproject(source, target, dim::Dimension, val) = val
 function reproject(source::GeoFormat, target::GeoFormat, dim::X, val::Number)
@@ -24,7 +24,8 @@ end
 function reproject(source::GeoFormat, target::GeoFormat, dim::Y, val::Number)
     AG.reproject((zero(val), val), source, target; order=:trad)[2]
 end
-function reproject(source::GeoFormat, target::GeoFormat, ::X, vals::AbstractArray) rep = AG.reproject(map(v -> (v, zero(v)), vals), source, target; order=:trad)
+function reproject(source::GeoFormat, target::GeoFormat, ::X, vals::AbstractArray) 
+    rep = AG.reproject(map(v -> (v, zero(v)), vals), source, target; order=:trad)
     map(r -> r[1], rep)
 end
 function reproject(source::GeoFormat, target::GeoFormat, dim::Y, vals::AbstractArray)

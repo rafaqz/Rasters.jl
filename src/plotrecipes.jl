@@ -72,7 +72,8 @@ end
 
     yguide, xguide = label(dims(A))
 
-    :title --> "$(_maybename(A)) $(DD.refdims_title(A; issingle=true))"
+    rdt = DD.refdims_title(A; issingle=true)
+    :title --> rdt === "" ? _maybename(A) : _maybename(A) * " " * rdt 
     :xguide --> xguide
     :yguide --> yguide
     :clims --> clims
@@ -111,12 +112,13 @@ end
     end
 end
 
-# # Plot a vertical 1d line
+# Plot a vertical 1d line
 @recipe function f(::GeoZPlot, A::GeoArray{T,1}) where T
     z_dim = dims(A, ZDim)
     yguide = label(z_dim)
     xguide = label(A)
-    :title --> "$(_maybename(A))$(DD.refdims_title(A; issingle=true))"
+    rdt = DD.refdims_title(A; issingle=true)
+    :title --> rdt == "" ? _maybename(A) : _maybename(A) * " " * rdt 
     :xguide --> xguide
     :yguide --> yguide
     :label --> ""
@@ -144,9 +146,9 @@ function _subsample(A, max_res)
 end
 
 _maybename(A) = _maybename(name(A))
-_maybename(n::Symbol) = n == Symbol("") ? "" : string(n, " - ")
 _maybename(n::Name{N}) where N = _maybename(N) 
 _maybename(n::NoName) = ""
+_maybename(n::Symbol) = string(n)
 
 _maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, eltype(A)(NaN))
 _maybe_replace_missing(A) = A
@@ -168,6 +170,6 @@ function DD.refdims_title(refdim::Band; issingle=false)
     if issingle
         ""
     else
-        string(name(refdim), ": ", refdims_title(mode(refdim), refdim))
+        string(name(refdim), ": ", DD.refdims_title(mode(refdim), refdim))
     end
 end
