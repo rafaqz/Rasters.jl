@@ -8,46 +8,45 @@ module GeoData
 end GeoData
 
 using Adapt,
+      ConstructionBase,
       Dates,
+      DiskArrays,
       Missings,
       Mmap,
       ProgressMeter,
       RecipesBase,
-      Reexport,
-      Requires
+      Reexport
 
-@reexport using DimensionalData, GeoFormatTypes
+import ColorTypes,
+       Flatten,
+       Setfield,
+       HDF5,
+       NCDatasets,
+       ArchGDAL
 
-const DD = DimensionalData
+@reexport using DimensionalData, GeoFormatTypes, RasterDataSources
+
 
 using Base: tail, @propagate_inbounds
-
 using DimensionalData: StandardIndices
+using Setfield: @set, @set!
+using ColorTypes: RGB
 
-export AbstractGeoArray, MemGeoArray, DiskGeoArray, GeoArray
-
-export AbstractGeoStack, MemGeoStack, DiskGeoStack, DiskStack, GeoStack
-
+export AbstractGeoArray, GeoArray
+export AbstractGeoStack, GeoStack
 export AbstractGeoSeries, GeoSeries
-
 export Projected, Mapped
-
-export Band, Lat, Lon, Vert, GeoXDim, GeoYDim, GeoZDim
-
+export Band
 export missingval, boolmask, missingmask, replace_missing,
-       aggregate, aggregate!, disaggregate, disaggregate!
-
+       aggregate, aggregate!, disaggregate, disaggregate!,
+       resample, warp, crop, extend, trim, slice, chunk, points
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
-
+export reproject, convertmode
 export geoarray, stack, series
 
 
-const Lon = X
-const Lat = Y 
-const Vert = Z 
-const GeoXDim = XDim 
-const GeoYDim = YDim 
-const GeoZDim = ZDim 
+const DD = DimensionalData
+const DA = DiskArrays
 
 # DimensionalData documentation urls
 const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api"
@@ -59,37 +58,38 @@ const DDlocusdocs = joinpath(DDdocs, "#DimensionalData.Locus")
 const DDselectordocs = joinpath(DDdocs, "#DimensionalData.Selector")
 const DDtidocs = joinpath(DDdocs, "#DimensionalData.Ti")
 
+const EXPERIMENTAL = """
+    WARNING: This feature is experimental. It may change in future versions, and may
+    not be 100% reliable in all cases. Please file github issues if problems occur.
+    """
+
+# Source dispatch singletons
+struct NCDfile end
+struct GRDfile end
+struct GDALfile end
+struct SMAPfile end
+
 include("mode.jl")
 include("dimensions.jl")
+include("filearray.jl")
 include("array.jl")
+include("filestack.jl")
 include("stack.jl")
 include("series.jl")
 include("utils.jl")
 include("aggregate.jl")
 include("methods.jl")
-include("open.jl")
 include("read.jl")
 include("sources/grd.jl")
 include("show.jl")
 include("plotrecipes.jl")
 include("convenience.jl")
+include("write.jl")
 
-function __init__()
-    @require HDF5="f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f" begin
-        # This section is for sources that rely on HDF5, not simply any HDF5.
-        include("sources/smap.jl")
-    end
-    @require NCDatasets="85f8d34a-cbdd-5861-8df4-14fed0d494ab" begin
-        include("sources/ncdatasets.jl")
-    end
-    @require ArchGDAL="c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3" begin
-        include("resample.jl")
-        include("reproject.jl")
-        include("sources/gdal.jl")
-    end
-    @require RasterDataSources="3cb90ccd-e1b6-4867-9617-4276c8b2ca36" begin
-        include("sources/rasterdatasources.jl")
-    end
-end
+include("sources/smap.jl")
+include("sources/ncdatasets.jl")
+include("sources/gdal.jl")
+include("reproject.jl")
+include("sources/rasterdatasources.jl")
 
 end

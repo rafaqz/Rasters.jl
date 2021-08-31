@@ -26,6 +26,8 @@ heatmap(ga4x[X(At(0.0)), Y(At(0.0))])
 plot(ga4x[Y(1)])
 # 3d plot by Ti dim
 plot(ga4ti[Z(1)])
+# GeoData handles filled contours
+contourf(ga2)
 
 # DD fallback
 contour(ga2)

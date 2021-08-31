@@ -18,7 +18,7 @@ end
 @time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "aggregate" begin include("aggregate.jl") end
 @time @safetestset "methods" begin include("methods.jl") end
-@time @safetestset "resample" begin include("resample.jl") end
+@time @safetestset "plot recipes" begin include("plotrecipes.jl") end
 # Only test SMAP locally for now
 if !haskey(ENV, "CI")
     @time @safetestset "smap" begin include("sources/smap.jl") end
@@ -29,5 +29,5 @@ if !Sys.iswindows()
     @time @safetestset "grd" begin include("sources/grd.jl") end
 end
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
-@time @safetestset "rasterdatasources" begin include("rasterdatasources.jl") end
+@time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
 @time @safetestset "run examples" begin include("../examples/examples.jl") end

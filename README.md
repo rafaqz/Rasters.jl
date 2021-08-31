@@ -14,16 +14,19 @@ used with identical syntax.
 
 Data loaded with GeoData.jl has some special properties:
 
-- Plots are always oriented the right way. Even if you reverse or permute a
-  `GeoArray` it will still plot the right way!
+- Plots are always oriented the right way.
+- Data is loaded lazily wherever possible using DiskArrays.jl under the hood.
+  Indexing a `GeoStack` by name is always lazy, while `view` of a `GeoArray` is
+  lazy and `getindex` will load to memory. `read` can be used on any 
+  object to ensure that all data is loaded to memory.
 - Regions and points selected with `Between` and `Contains` select the right
   points or whole intervals no matter the order of the index or it's position in
   the cell.
-- For `Projected` mode `GRDarray` and `GDALarray` You can index in any
-  projection you want to by setting the `mappedcrs` keyword on construction. You
-  don't even need to know the underlying projection, the conversion is handled
-  automatically. This means lat/lon `EPSG(4326)` can be used across all sources
-  seamlessly if you need that.
+- For `Projected` mode you can index in any projection you want to by setting
+  the `mappedcrs` keyword on construction. You don't even need to know the
+  underlying projection, the conversion is handled automatically. This means
+  lat/lon `EPSG(4326)` can be used across all sources seamlessly if you need
+  that.
 - Packages building on GeoData.jl can treat `AbstractGeoSeries`,
   `AbstractGeoStack`, and `AbstrackGeoArray` as black boxes:
   - The data could hold tiff or netcdf files, `Array`s in memory or `CuArray`s
@@ -36,41 +39,54 @@ Data loaded with GeoData.jl has some special properties:
 
 GeoData.jl extends
 [DimensionalData.jl](https://github.com/rafaqz/DimensionalData.jl) so that
-spatial data can be indexed using named dimensions like `Lat` and `Lon`, `Ti`
+spatial data can be indexed using named dimensions like `X`, `Y` and `Ti`
 (time), which can also be used in most `Base` and `Statistics` methods like
 `mean` and `reduce` where `dims` arguments are required. Much of the behaviour
 is covered in the [DimensionalData
 docs](https://rafaqz.github.io/DimensionalData.jl/stable/).
 
-  
 
+
+# Objects
 
 GeoData.jl provides general types for holding spatial data: `GeoArray`,
-`GeoStack`, and `GeoSeries`, and types specific to various backends for loading
-disk-based data. All can be loaded using the functions `geoarray`, `stack` and
-`series`, that will guess the backend from the file type. R `.grd` files can be
-loaded natively, GDAL when [ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl)
-(v0.5 or higher) is imported, and NetCDF can be loaded when
-[NCDatasets.jl](https://github.com/Alexander-Barth/NCDatasets.jl) is imported.
+`GeoStack`, and `GeoSeries`. 
 
-When HDF5.jl is imported, files from the Soil Moisture Active Passive
-([SMAP](https://smap.jpl.nasa.gov/)) dataset can be loaded with `stack` or
-`series`. This is both useful for users of SMAP, and a demonstration of the
-potential to build standardised interfaces for custom spatial dataset formats
-like those used in SMAP.
-
-Files can be written to disk in all formats using `write`, and can (with some caveats)
-be written to to different formats providing file-type conversion for spatial data.
+- `GeoArray` acts like an array, but has attached spatial metadata and can be
+  indexed with e.g. it's lattitude/longitude coordinates.
+- `GeoStack` is a stack of `GeoArray` layers that share (at least some)
+  dimensions. Indexing with `Symbol` names will return a `GeoArray`, indexing
+  with other values will return a new `GeoStack` for the selected region, or a
+  `NamedTuple` of single values.
+- `GeoSeries` is a `GeoArray` of `GeoArray` or `GeoStack`. Most often a
+  time-series, but can be multi-dimensional as well.
 
 
-# Warning: this is an MVP. 
+# Backends
 
-It works quite well but spatial data is very complicated. Some things may break.
-Currently saving a Netcdf to a GDAL tif, or the reverse, projections are not totally accurate.
+GeoData.jl relies on ArchGDAL, NCDatasets, HDF5, and simple MMap for loading
+disk-based files. The backend is detected automatically from the file type.
 
-Eventually they will be, but converting projections and index conventions between formats
-is difficult. with many edge case problems. For now, assume the index is not exactly correct.
-`Between`, `Contains` and `bounds` are close approximations, but may contain errors.
+- Netcdf `.nc` files can be loaded with `GeoArray(filename)` or
+  `GeoStack(filename)` when
+  [NCDatasets.jl](https://github.com/Alexander-Barth/NCDatasets.jl) is imported.
+- Anything GDAL can load can be loaded with `GeoArray(filename)`
+  [ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl). `GeoStack` can be made
+  with a `NamedTuple` holding filename `String`s or `GeoArray`s for each stack
+  layer.
+- Custom HDF5 `.h5` files can also be used. Currently, files from the Soil
+  Moisture Active Passive ([SMAP](https://smap.jpl.nasa.gov/)) dataset can be
+  loaded with `GeoStack` or `GeoSeries`. This is both useful for users of SMAP,
+  and a demonstration of the potential to build standardised interfaces for
+  custom spatial formats.
+- `.grd/.gri` files from R can be read and written natively using Julias MMap.
+  These are usually the most efficient file to work with, but are not compressed
+  so have large file sizes.
+
+Files can be written to disk in all formats using `write`, and can (with some
+caveats) be written to different formats than they were loaded in, providing
+file-type conversion for spatial data.
+
 
 ## Examples
 
@@ -81,21 +97,13 @@ an array. This netcdf file only has one layer, if it has more we
 could use `NCDstack` instead.
 
 ```julia
-julia> using GeoData, NCDatasets
+julia> using GeoData
 
 julia> url = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc";
 
 julia> filename = download(url, "tos_O1_2001-2002.nc");
 
 julia> A = geoarray(filename)
-NCDarray (named tos) with dimensions:
- Longitude (type Lon): Float64[1.0, 3.0, …, 357.0, 359.0] (Converted: Ordered Regular Intervals)
- Latitude (type Lat): Float64[-79.5, -78.5, …, 88.5, 89.5] (Converted: Ordered Regular Intervals)
- Time (type Ti): DateTime360Day[DateTime360Day(2001-01-16T00:00:00), DateTime360Day(2001-02-16T00:00:00), …, DateTime360Day(2002-11-16T00:00:00), DateTime360Day(2002-12-16T00:00:00)] (Sampled: Ordered Irregular Points)
-and data: 180×170×24 Array{Union{Missing, Float32},3}
-[:, :, 1]
- missing  missing     missing  …  271.437  271.445  271.459
- missing  missing     missing     271.438  271.445  271.459
 ...
 ```
 
@@ -149,11 +157,11 @@ julia> plot(mean_tos; color=:viridis)
 ![Mean temperatures](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/mean.png)
 
 Plotting recipes in DimensionalData.jl are the fallback for GedData.jl when 
-the object doesn't have both `Lat` and `Lon` dimensions. So (as a random example) we 
+the object doesn't have both `X` and `Y` dimensions. So (as a random example) we 
 could plot a transect of ocean surface temperature at 20 degree latitude :
 
 ```julia
-A[Lat(Near(20.0)), Ti(1)] |> plot
+A[Y(Near(20.0)), Ti(1)] |> plot
 ```
 
 ![Temperatures at lattitude 20-21](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/lat_20.png)
@@ -169,7 +177,7 @@ GeoData.jl provides a range of other methods that are being added to over time.
 For example, `aggregate`:
 
 ```julia
-julia> aggregate(mean, A, (Ti(12), Lat(20), Lon(20))
+julia> aggregate(mean, A, (Ti(12), Y(20), X(20))
 
 GeoArray (named tos) with dimensions:
  Longitude (type Lon): Float64[21.0, 61.0, …, 301.0, 341.0] (Converted: Ordered Regular Intervals)
@@ -182,16 +190,3 @@ and data: 9×8×2 Array{Union{Missing, Float32},3}
 ```
 
 These methods will also work for entire `GeoStacks` and `GeoSeries` using the same syntax.
-
-
-
-## Works in progress
-
-- Integration with Vector/DataFrame spatial types and point/line/polygon data
-  types. It should be possible to select polygons of data, and convert between
-  linear datasets and array formats.
-- Standardised handling and conversion of spatial metadata between data formats
-- Handling complex projections: Affine transformation of dimensions to indices.
-  AffineMaps will be stored as a wrapper dimension in `dims`.
-- Load and write the NetCDF projection format.
-

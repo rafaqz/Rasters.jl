@@ -1,6 +1,7 @@
-using GeoData, Test, Statistics, Dates, CFTime, Plots, GeoFormatTypes
+using GeoData, Test, Statistics, Dates, CFTime, Plots
 import ArchGDAL, NCDatasets
-using GeoData: name, window, mode, span, sampling, val, Ordered, metadata, bounds
+using GeoData: name, mode, span, sampling, val, Ordered, metadata, bounds,
+               FileArray, FileStack, NCDfile
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
@@ -25,26 +26,31 @@ stackkeys = (
     :xl, :xlvi
 )
 
-
-@testset "NCDarray" begin
-    ncarray = geoarray(ncsingle)
+@testset "GeoArray" begin
+    @time ncarray = GeoArray(ncsingle)
 
     @testset "open" begin
         @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
     end
 
     @testset "read" begin
-        A = read(ncarray)
+        @time A = read(ncarray);
         @test A isa GeoArray
         @test parent(A) isa Array
+        A2 = zero(A)
+        @time read!(ncarray, A2);
+        A3 = zero(A)
+        @time read!(ncsingle, A3)
+        @test all(A .=== A2) 
+        @test all(A .=== A3)
     end
 
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)
-        @test ncarray isa NCDarray
-        @test val(dims(ncarray, Ti())) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
-        @test val(dims(ncarray, Y())) == -79.5:89.5
-        @test val(dims(ncarray, X())) == 1.0:2:359.0
+        @test ncarray isa GeoArray
+        @test index(ncarray, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
+        @test index(ncarray, Y) == -79.5:89.5
+        @test index(ncarray, X) == 1.0:2:359.0
         @test bounds(ncarray) == (
             (0.0, 360.0), 
             (-80.0, 90.0), 
@@ -74,7 +80,7 @@ stackkeys = (
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
-        @test metadata(ncarray) isa Metadata{:NCD}
+        @test metadata(ncarray) isa Metadata{NCDfile}
         @test name(ncarray) == :tos
     end
 
@@ -91,10 +97,41 @@ stackkeys = (
         @test ncarray[Ti(2), X(At(59.0)), Y(At(-50.5))] == ncarray[30, 30, 2] === 278.47168f0
     end
 
+    @testset "methods" begin 
+        @test all(mean(ncarray; dims=Y) .=== mean(parent(ncarray); dims=2))
+        @testset "trim, crop, extend" begin
+            a = read(ncarray)
+            a[X(1:20)] .= missingval(a)
+            trimmed = trim(a)
+            @test size(trimmed) == (160, 169, 24)
+            cropped = crop(a; to=trimmed)
+            @test size(cropped) == (160, 169, 24)
+            @test all(collect(cropped .=== trimmed))
+            extended = extend(cropped; to=a)
+            @test all(collect(extended .=== a))
+        end
+        @testset "chunk" begin
+            @test GeoData.chunk(ncarray) isa GeoSeries
+            @test size(GeoData.chunk(ncarray)) == (1, 1, 1)
+        end
+        @testset "slice" begin
+            @test_throws ArgumentError GeoData.slice(ncarray, Z)
+            ser = GeoData.slice(ncarray, Ti) 
+            @test ser isa GeoSeries
+            @test size(ser) == (24,)
+            @test index(ser, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
+            @test bounds(ser) == ((DateTime360Day(2001, 1, 1), DateTime360Day(2003, 1, 1)),)
+            A = ser[1]
+            @test index(A, Y) == -79.5:89.5
+            @test index(A, X) == 1.0:2:359.0
+            @test bounds(A) == ((0.0, 360.0), (-80.0, 90.0))
+        end
+    end
+
     @testset "indexing with reverse lat" begin
         if !haskey(ENV, "CI") # CI downloads fail. But run locally
             ncrevlat = maybedownload("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
-            ncrevlatarray = NCDarray(ncrevlat, :sst; missingval=-9.96921f36, )
+            ncrevlatarray = GeoArray(ncrevlat; key=:sst, missingval=-9.96921f36)
             @test order(dims(ncrevlatarray, Y)) == Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
             @test ncrevlatarray[Y(At(40)), X(At(100)), Ti(1)] == missingval(ncrevlatarray)
             @test ncrevlatarray[Y(At(-40)), X(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0
@@ -108,26 +145,13 @@ stackkeys = (
         @test bounds(a) == ((50.0, 52.0),)
         x = ncarray[X(Near(150)), Y(Near(30)), Ti(1)]
         @test x isa Float32
-        # TODO make sure we are getting the right cell.
-        @test size(ncarray[Y(Between(-80, 90)), X(Between(0, 360)),
-            Ti(Between(DateTime360Day(2001, 1, 1), DateTime360Day(2003, 1, 1)))
-        ]) == (180, 170, 24)
-        nca = ncarray[Y(Between(-80, -25)), X(Between(0, 180)), 
-                      Ti(Near(DateTime360Day(2002, 02, 20)))]
-        @test size(nca) == (90, 55)
-    end
-    @testset "selectors" begin
-        a = ncarray[Lon(At(21.0)), Lat(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))]
-        @test bounds(a) == ((50.0, 52.0),)
-        x = ncarray[Lon(Near(150)), Lat(Near(30)), Ti(1)]
-        @test x isa Float32
-        dimz = Lon(Between(0.0, 360)), Lat(Between(-80, 90)), 
+        dimz = X(Between(0.0, 360)), Y(Between(-80, 90)), 
                Ti(Between(DateTime360Day(2001, 1, 1), DateTime360Day(2003, 01, 02)))
         @test size(ncarray[dimz...]) == (180, 170, 24)
         @test index(ncarray[dimz...]) == index(ncarray)
-        nca = ncarray[Lat(Between(-80, -25)), Lon(Between(0, 180)), Ti(Contains(DateTime360Day(2002, 02, 20)))]
+        nca = ncarray[Y(Between(-80, -25)), X(Between(0, 180)), Ti(Contains(DateTime360Day(2002, 02, 20)))]
         @test size(nca) == (90, 55)
-        @test index(nca, Lat) == index(ncarray[1:90, 1:55, 2], Lat)
+        @test index(nca, Y) == index(ncarray[1:90, 1:55, 2], Y)
         @test all(nca .=== ncarray[1:90, 1:55, 14])
     end
 
@@ -135,7 +159,7 @@ stackkeys = (
         geoA = ncarray[X(1:50), Y(20:20), Ti(1)]
         @test size(geoA) == (50, 1)
         @test eltype(geoA) <: Union{Missing,Float32}
-        @time geoA isa GeoArray{Float32,1}
+        @test geoA isa GeoArray{Union{Missing,Float32},2}
         @test dims(geoA) isa Tuple{<:X,<:Y}
         @test refdims(geoA) isa Tuple{<:Ti}
         @test metadata(geoA) == metadata(ncarray)
@@ -146,20 +170,19 @@ stackkeys = (
     @testset "save" begin
         @testset "to netcdf" begin
             # TODO save and load subset
-            geoA = GeoArray(ncarray)
-            metadata(geoA)
+            geoA = read(ncarray)
             @test size(geoA) == size(ncarray)
             filename = tempname() * ".nc"
             write(filename, geoA)
-            saved = GeoArray(NCDarray(filename))
+            saved = read(GeoArray(filename))
             @test size(saved) == size(geoA)
             @test refdims(saved) == refdims(geoA)
             @test missingval(saved) === missingval(geoA)
-            @test map(metadata.(dims(saved)), metadata.(dims(geoarray))) do s, g
+            @test map(metadata.(dims(saved)), metadata.(dims(GeoArray))) do s, g
                 all(s .== g)
             end |> all
-            @test_broken metadata(saved) == metadata(geoA)
-            @test_broken all(metadata.(dims(saved)) .== metadata.(dims(geoA)))
+            @test metadata(saved) == metadata(geoA)
+            @test all(metadata.(dims(saved)) == metadata.(dims(geoA)))
             @test GeoData.name(saved) == GeoData.name(geoA)
             @test all(mode.(dims(saved)) .!= mode.(dims(geoA)))
             @test all(order.(dims(saved)) .== order.(dims(geoA)))
@@ -167,7 +190,7 @@ stackkeys = (
             @test all(val.(span.(dims(saved))) .== val.(span.(dims(geoA))))
             @test all(sampling.(dims(saved)) .== sampling.(dims(geoA)))
             @test typeof(dims(saved)) <: typeof(dims(geoA))
-            @test val(dims(saved)[3]) == val(dims(geoA)[3])
+            @test index(saved, 3) == index(geoA, 3)
             @test all(val.(dims(saved)) .== val.(dims(geoA)))
             @test all(data(saved) .=== data(geoA))
             @test saved isa typeof(geoA)
@@ -177,25 +200,25 @@ stackkeys = (
             gdalfilename = tempname() * ".tif"
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write(gdalfilename, nccleaned)
-            gdalarray = geoarray(gdalfilename)
+            gdalarray = GeoArray(gdalfilename)
             # gdalarray WKT is missing one AUTHORITY
             # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
             # But the Proj representation is the same
             @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test bounds(gdalarray) == (bounds(nccleaned)..., (1, 1))
             # Tiff locus = Start, Netcdf locus = Center
-            @test reverse(val(dims(gdalarray, Y))) .+ 0.5 ≈ val(dims(nccleaned, Y))
-            @test val(dims(gdalarray, X)) .+ 1.0  ≈ val(dims(nccleaned, X))
+            @test reverse(index(gdalarray, Y)) .+ 0.5 ≈ index(nccleaned, Y)
+            @test index(gdalarray, X) .+ 1.0  ≈ index(nccleaned, X)
             @test reverse(GeoArray(gdalarray); dims=Y()) ≈ nccleaned
         end
         @testset "to grd" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write("testgrd.gri", nccleaned)
-            grdarray = GRDarray("testgrd");
+            grdarray = GeoArray("testgrd.gri");
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == (bounds(nccleaned)..., (1, 1))
-            @test val(dims(grdarray, Y)) ≈ val(dims(nccleaned, Y)) .- 0.5
-            @test val(dims(grdarray, X)) ≈ val(dims(nccleaned, X)) .- 1.0
+            @test index(grdarray, Y) ≈ index(nccleaned, Y) .- 0.5
+            @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
             @test GeoArray(grdarray) ≈ reverse(nccleaned; dims=Y)
         end
     end
@@ -203,7 +226,7 @@ stackkeys = (
     @testset "show" begin
         sh = sprint(show, MIME("text/plain"), ncarray)
         # Test but don't lock this down too much
-        @test occursin("NCDarray", sh)
+        @test occursin("GeoArray", sh)
         @test occursin("Y", sh)
         @test occursin("X", sh)
         @test occursin("Time", sh)
@@ -217,34 +240,27 @@ stackkeys = (
 
 end
 
-@testset "NCDstack" begin
-    ncstack = stack(ncmulti)
-
-    @testset "read" begin
-        st = read(ncstack)
-        @test st isa GeoStack
-        @test st.data isa NamedTuple
-        @test first(st.data) isa GeoArray
-        @test parent(first(st.data)) isa Array
-    end
+@testset "Single file stack" begin
+    @time ncstack = GeoStack(ncmulti)
 
     @testset "load ncstack" begin
-        @test ncstack isa NCDstack{String}
+        @test ncstack isa GeoStack
         @test ismissing(missingval(ncstack))
-        @test metadata(ncstack) isa Metadata{:NCD}
+        @test metadata(ncstack) isa Metadata{NCDfile}
+        @test dims(ncstack[:abso4]) == dims(ncstack, (X, Y, Ti)) 
         @test refdims(ncstack) == ()
         # Loads child as a regular GeoArray
-        @test_throws NCDatasets.NetCDFError ncstack[:not_a_key]
+        @test_throws ErrorException ncstack[:not_a_key]
         @test ncstack[:albedo] isa GeoArray{<:Any,3}
         @test ncstack[:albedo, 2, 3, 1] isa Float32
         @test ncstack[:albedo, :, 3, 1] isa GeoArray{<:Any,1}
-        @test dims(ncstack, :albedo) isa Tuple{<:X,<:Y,<:Ti}
+        @test dims(ncstack[:albedo]) isa Tuple{<:X,<:Y,<:Ti}
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test keys(ncstack) == stackkeys
         @test first(keys(ncstack)) == :abso4
-        @test metadata(ncstack) isa Metadata{:NCD}
+        @test metadata(ncstack) isa Metadata{NCDfile}
         @test metadata(ncstack)["institution"] == "Max-Planck-Institute for Meteorology"
-        @test metadata(ncstack, :albedo) isa Metadata{:NCD}
+        @test metadata(ncstack, :albedo) isa Metadata{NCDfile}
         @test metadata(ncstack, :albedo)["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
@@ -257,80 +273,180 @@ end
 
     if VERSION > v"1.1-"
         @testset "copy" begin
-            geoA = ncstack[:albedo]
+            geoA = read(ncstack[:albedo]) .* 2
             copy!(geoA, ncstack, :albedo);
             # First wrap with GeoArray() here or == loads from disk for each cell.
             # we need a general way of avoiding this in all disk-based sources
-            @test geoA == GeoArray(ncstack[:albedo])
+            @test geoA == read(ncstack[:albedo])
         end
     end
 
     @testset "indexing" begin
-        ncmultistack = NCDstack(ncsingle)
-        @test dims(ncmultistack, :tos) isa Tuple{<:X,<:Y,<:Ti}
+        ncmultistack = GeoStack(ncsingle)
+        @test dims(ncmultistack[:tos]) isa Tuple{<:X,<:Y,<:Ti}
         @test ncmultistack[:tos] isa GeoArray{<:Any,3}
-        @test ncmultistack[:tos, Ti(1)] isa GeoArray{<:Any,2}
+        @test ncmultistack[:tos][Ti(1)] isa GeoArray{<:Any,2}
         @test ncmultistack[:tos, Y(1), Ti(1)] isa GeoArray{<:Any,1}
         @test ncmultistack[:tos, 8, 30, 10] isa Float32
     end
 
     @testset "window" begin
-        windowedstack = stack(ncmulti; window=(Y(1:5), X(1:5), Ti(1)))
-        @test window(windowedstack) == (Y(1:5), X(1:5), Ti(1))
+        windowedstack = GeoStack(ncmulti; window=(Y(1:5), X(1:5), Ti(1)))
         windowedarray = windowedstack[:albedo]
         @test size(windowedarray) == (5, 5)
         @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
         @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
         @test windowedarray[1, 2] == 0.84936917f0
-        windowedstack = NCDstack(ncmulti; window=(Y(1:5), X(1:5), Ti(1:1)))
-        windowedarray = windowedstack[:albedo]
-        @test windowedarray[1:3, 2:2, 1:1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1, 1)
+        windowedstack = GeoStack(ncmulti; window=(Y(1:5), X(1:5), Ti(1:1)))
+        windowedarray = windowedstack[:albedo] 
+        @test windowedarray[1:3, 2:2, 1:1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1, 1) 
         @test windowedarray[1:3, 2:2, 1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
         @test windowedarray[1:3, 2, 1] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
         @test windowedarray[1, 2, 1] == 0.84936917f0
-        windowedstack = NCDstack(ncmulti; window=(Ti(1),))
+        windowedstack = GeoStack(ncmulti; window=(Ti(1),))
         windowedarray = windowedstack[:albedo]
         @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
         @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
         @test windowedarray[1, 2] ==  0.84936917f0
     end
 
-    @testset "conversion to GeoStack" begin
-        geostack = GeoStack(ncstack)
-        @test Symbol.(Tuple(keys(geostack))) == keys(ncstack)
+    @testset "Subsetting keys" begin
         smallstack = GeoStack(ncstack; keys=(:albedo, :evap, :runoff))
         @test keys(smallstack) == (:albedo, :evap, :runoff)
     end
 
-    @testset "save" begin
-        geostack = GeoStack(ncstack);
-        metadata(geostack)
-        length(dims(geostack[:aclcac]))
-        ndims(geostack[:aclcac])
+    # This is slow. We combine read/save to reduce test time
+    # And it seems the memory is not garbage collected??
+    @testset "read and save" begin
+        @time st = read(ncstack)
+        @test st isa GeoStack
+        @test st.data isa NamedTuple
+        @test first(st.data) isa Array
+        length(dims(st[:aclcac]))
         filename = tempname() * ".nc"
-        write(filename, geostack);
-        saved = GeoStack(NCDstack(filename))
-        @test keys(saved) == keys(geostack)
+        write(filename, st);
+        saved = GeoStack(GeoStack(filename))
+        @test keys(saved) == keys(st)
         @test metadata(saved)["advection"] == "Lin & Rood"
-        @test metadata(saved) == metadata(geostack) == metadata(ncstack)
-        @test all(first(values(saved)) .== first(values(geostack)))
+        @test metadata(saved) == metadata(st) == metadata(ncstack)
+        @test all(first(DimensionalData.layers(saved)) .== first(DimensionalData.layers(st)))
+    end
+
+    @testset "show" begin
+        ncstack = GeoStack(ncmulti; window=(X(7:99), Y(3:90)));
+        sh = sprint(show, MIME("text/plain"), ncstack)
+        # Test but don't lock this down too much
+        @test occursin("GeoStack", sh)
+        @test occursin("Y", sh)
+        @test occursin("X", sh)
+        @test occursin("Ti", sh)
+        @test occursin(":tropo", sh)
+        @test occursin(":tsurf", sh)
+        @test occursin(":aclcac", sh)
+        @test occursin("test_echam_spectral.nc", sh)
     end
 
 end
 
-@testset "NCD series" begin
-    ncseries = series([ncmulti, ncmulti], (Ti,); child=stack)
-    geoA = GeoArray(NCDarray(ncmulti, :albedo; name=:test))
-    @test ncseries[Ti(1)][:albedo] == geoA
-    @test typeof(ncseries[Ti(1)][:albedo]) == typeof(geoA)
-    modified_series = modify(Array, ncseries)
-    @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{stackkeys,<:Tuple{<:GeoArray{Float32,3,<:Tuple,<:Tuple,<:Array{Float32,3}},Vararg}}}}
+@testset "Multi file stack" begin
+    ncstack = GeoStack((tropo=ncmulti, tsurf=ncmulti, aclcac=ncmulti, albedo=ncmulti))
 
+    @test length(ncstack) == 4
+    @test dims(ncstack) isa Tuple{<:X,<:Y,<:Ti,<:Z}
+
+    @testset "child array properties" begin
+        @test size(ncstack[:tropo]) == (192, 96, 8)
+        @test ncstack[:tropo] isa GeoArray{Float32,3}
+    end
+
+    @testset "indexing" begin
+        @test ncstack[:aclcac, Ti(1)] == ncstack[:aclcac][Ti(1)]
+        @test typeof(ncstack[:aclcac, Ti(1)]) == typeof(ncstack[:aclcac][Ti(1)])
+    end
+
+    @testset "window" begin
+        windowedstack = GeoStack(ncmulti; window=(Y(1:5), X(1:5), Ti(1)))
+        windowedarray = windowedstack[:albedo]
+        @test size(windowedarray) == (5, 5)
+        @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
+        @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
+        @test windowedarray[1, 2] == 0.84936917f0
+        windowedstack = GeoStack(ncmulti; window=(Y(1:5), X(1:5), Ti(1:1)))
+        windowedarray = windowedstack[:albedo]
+        @test windowedarray[1:3, 2:2, 1:1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1, 1)
+        @test windowedarray[1:3, 2:2, 1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
+        @test windowedarray[1:3, 2, 1] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
+        @test windowedarray[1, 2, 1] == 0.84936917f0
+        windowedstack = GeoStack(ncmulti; window=(Ti(1),))
+        windowedarray = windowedstack[:albedo]
+        @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
+        @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
+        @test windowedarray[1, 2] ==  0.84936917f0
+    end
+
+    # Stack Constructors
+    @testset "conversion to GeoStack" begin
+        geostack = GeoStack(ncstack)
+        @test Symbol.(Tuple(keys(ncstack))) == keys(geostack)
+        smallstack = GeoStack(ncstack; keys=(:tsurf,))
+        @test keys(smallstack) == (:tsurf,)
+    end
+
+    if VERSION > v"1.1-"
+        @testset "copy" begin
+            geoA = zero(GeoArray(ncstack[:tropo]))
+            copy!(geoA, ncstack, :tropo)
+            # First wrap with GeoArray() here or == loads from disk for each cell.
+            # we need a general way of avoiding this in all disk-based sources
+            @test all(geoA .== GeoArray(ncstack[:tropo]))
+        end
+    end
+
+    @testset "read and save" begin
+        st = read(ncstack)
+        @test st isa GeoStack
+        @test st.data isa NamedTuple
+        @test st.data[1] isa Array
+        @test st.data[2] isa Array
+        st2 = map(a -> a .* 0, st)
+        # read! from stack
+        @time read!(ncstack, st2);
+        st3 = map(a -> a .* 0, st)
+        # read! from filename
+        @time st = read!(ncmulti, st3);
+        @test all(map((a, b, c) -> all(a .== b .== c), st, st2, st3))
+
+        filename = tempname() * ".nc"
+        write(filename, st)
+        saved = read(GeoStack(filename))
+        @test all(saved[:tsurf] .== st[:tsurf])
+    end
+
+    @testset "show" begin
+        sh = sprint(show, MIME("text/plain"), ncstack)
+        # Test but don't lock this down too much
+        @test occursin("GeoStack", sh)
+        @test occursin("Y", sh)
+        @test occursin("X", sh)
+        @test occursin("Ti", sh)
+        @test occursin(":tropo", sh)
+        @test occursin(":tsurf", sh)
+        @test occursin(":aclcac", sh)
+    end
+
+end
+
+@testset "series" begin
+    ncseries = GeoSeries([ncmulti, ncmulti], (Ti,); child=stack)
     @testset "read" begin
         geoseries = read(ncseries)
         @test geoseries isa GeoSeries{<:GeoStack}
         @test geoseries.data isa Vector{<:GeoStack}
     end
+    geoA = read(GeoArray(ncmulti; key=:albedo))
+    @test all(read(ncseries[Ti(1)][:albedo]) .== read(geoA))
+    @test read(ncseries[Ti(1)][:albedo]) == read(geoA)
+    @test all(read(ncseries[Ti(1)][:albedo]) .== read(geoA))
 end
 
 nothing

@@ -11,13 +11,9 @@ as an array, but maintaining the spacial index, crs and metadata through all
 transformations.
 
 ```@docs
-geoarray
-geoarray(T::Type{<:RasterDataSources.RasterDataSource})
 AbstractGeoArray
-MemGeoArray
-DiskGeoArray
 GeoArray
-GeoData.OpenGeoArray
+GeoArray(T::Type{<:RasterDataSources.RasterDataSource})
 ```
 
 ## Stack
@@ -26,13 +22,9 @@ Spatial data often comes as a bundle of multiple named arrays, as in netcdf.
 Stacks can represent this, or multiple files organised in a similar way.
 
 ```@docs
-stack
-stack(T::Type{<:RasterDataSources.RasterDataSource})
 AbstractGeoStack
-MemGeoStack
 GeoStack
-DiskGeoStack
-DiskStack
+GeoStack(T::Type{<:RasterDataSources.RasterDataSource})
 ```
 
 ## Series
@@ -41,10 +33,9 @@ A series is an meta-array that holds other files/data that is distributed over
 some dimension, often time. These files/data can be `geoarray`s or `stack`s.
 
 ```@docs
-series
-series(T::Type{<:RasterDataSources.RasterDataSource})
 AbstractGeoSeries
 GeoSeries
+GeoSeries(T::Type{<:RasterDataSources.RasterDataSource})
 ```
 
 ## Dimensions
@@ -82,11 +73,6 @@ R GRD files can be loaded natively. The are always 3 dimensional, and have
 
 If ArchGDAL.jl is loaded (to enable reprojection), they can have [`mappedcrs`](@ref).
 
-```@docs
-GRDarray
-GRDstack
-```
-
 ## NetCDF
 
 NetCDF files requires NCDatasets.jl to be imported:
@@ -97,10 +83,6 @@ import NCDatasets
 
 Single files can be treated as a array or a stack of arrays. 
 
-```@docs
-NCDarray
-NCDstack
-```
 
 ## GDAL
 
@@ -109,11 +91,6 @@ imported:
 
 ```julia
 import ArchGDAL
-```
-
-```@docs
-GDALarray
-GDALstack
 ```
 
 ## SMAP
@@ -129,13 +106,31 @@ import HDF5
 
 Files must be downloaded manually due to authentication restrictions. As the
 datasets are know files in standardised formats, whole folders can be loaded
-using [`SMAPseries`](@ref). Methods like `aggregate` can be done over whole
+using [`smapseries`](@ref). Methods like `aggregate` can be done over whole
 folders of stacks of data with a single command.
 
 ```@docs
-SMAPstack
-SMAPseries
+smapseries
 ```
+
+## Plotting
+
+Plots.jl is fully supported. `plot` will plot a heatmap with axes matching
+dimension values. If `mappedcrs` is used converted values will be shown on 
+axes instead of the underlying `crs` values.
+
+Pixel resolution is limited to allow loading very large files. `max_res` 
+specifies the maximum pixel resolution to show on the longest axis of the array.
+It can be set manually to change the resolution (e.g. for large or high-quality plots):
+
+```julia
+plot(A; max_res=3000)
+```
+
+Dimensions other than `X` an `Y` will produce multi-pane plots.
+
+![Global ocean surface temperatures](https://raw.githubusercontent.com/rafaqz/GeoData.jl/media/four_pane_map.png)
+
 
 ## Helper methods
 
@@ -147,13 +142,20 @@ These methods are specific to GeoData.jl:
 
 ```@docs
 replace_missing
-resample
 boolmask
 missingmask
 aggregate
 aggregate!
 disaggregate
 disaggregate!
+resample
+warp
+crop
+trim
+extend
+slice
+chunk
+points
 convertmode
 reproject
 ```
@@ -166,22 +168,22 @@ crs
 mappedcrs
 mappedbounds
 mappedindex
-data
 ```
 
-Not exported:
-```@docs
-GeoData.filename
-GeoData.childkwargs
-```
-
-These Base and DimensionalData methods have specific GeoData.jl version:
+These Base and DimensionalData methods have specific GeoData.jl versions:
 
 ```@docs
+modify
 read
+read!
 open
 write
-cat
-copy!
-modify
+```
+
+## Internals
+
+```@docs
+GeoData.FileArray
+GeoData.FileStack
+GeoData.GeoDiskArray
 ```
