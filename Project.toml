@@ -1,7 +1,7 @@
 name = "GeoData"
 uuid = "9b6fcbb8-86d6-11e9-1ce7-23a6bb139a78"
 authors = ["Rafael Schouten <rafaelschouten@gmail.com>"]
-version = "0.4.3"
+version = "0.4.6"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
@@ -29,7 +29,7 @@ Adapt = "2, 3.0"
 ArchGDAL = "0.6"
 ColorTypes = "0.10, 0.11"
 ConstructionBase = "1"
-DimensionalData = "^0.17.4"
+DimensionalData = "^0.17.10"
 DiskArrays = "^0.2.10"
 Flatten = "0.4"
 GeoFormatTypes = "^0.2.1, 0.3"
