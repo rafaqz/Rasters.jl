@@ -4,16 +4,17 @@ using GeoData: mode, span, sampling, name, bounds, FileArray, GDALfile
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
-path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
+gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
 @testset "array" begin
 
-    @time gdalarray = GeoArray(path; mappedcrs=EPSG(4326), name=:test)
+    @time gdalarray = GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test)
 
     @testset "open" begin
         @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1, :]
         tempfile = tempname() * ".tif"
-        cp(path, tempfile)
+        cp(gdalpath, tempfile)
         gdalwritearray = GeoArray(tempfile)
+        @test_throws ArchGDAL.GDAL.GDALError gdalwritearray .*= UInt8(2)
         open(gdalwritearray; write=true) do A
             A .*= UInt8(2)
             nothing
@@ -28,7 +29,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
         A2 = zero(A)
         @time read!(gdalarray, A2);
         A3 = zero(A)
-        @time read!(path, A3);
+        @time read!(gdalpath, A3);
         @test A == A2 == A3
     end
 
@@ -103,6 +104,21 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
             @test all(collect(cropped .=== trimmed))
             extended = extend(cropped; to=a)
             @test all(collect(extended .== a))
+            msk = replace_missing(gdalarray, missing)
+            msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
+            @test !any(gdalarray[X(1:100)] .=== missingval(msk))
+            masked = mask(gdalarray; to=msk)
+            @test all(masked[X(1:100), Y([1, 5, 95])] .=== missingval(msk))
+            @testset "mask! to disk" begin
+                tempfile = tempname() * ".tif"
+                cp(gdalpath, tempfile)
+                @test !all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
+                open(GeoArray(tempfile); write=true) do A
+                    mask!(A; to=msk, missingval=0x00)
+                end
+                @test all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
+                rm(tempfile)
+            end
         end
         @testset "chunk" begin
             @test GeoData.chunk(gdalarray) isa GeoSeries
@@ -129,7 +145,7 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
     end
 
     @testset "write" begin
-        gdalarray = GeoArray(path; mappedcrs=EPSG(4326), name=:test);
+        gdalarray = GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test);
 
         @testset "2d" begin
             geoA = view(gdalarray, Band(1))
@@ -253,14 +269,14 @@ path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif
 end
 
 @testset "stack" begin
-    @time gdalstack = GeoStack((a=path, b=path))
+    @time gdalstack = GeoStack((a=gdalpath, b=gdalpath))
 
     @test length(gdalstack) == 2
     @test dims(gdalstack) isa Tuple{<:X,<:Y,<:Band}
 
     @testset "read" begin
         st = read(gdalstack)
-        read!((a=path, b=path), st)
+        read!((a=gdalpath, b=gdalpath), st)
         @test st isa GeoStack
         @test st.data isa NamedTuple
         @test first(st.data) isa Array
@@ -281,7 +297,7 @@ end
     end
 
     @testset "window" begin
-        windowedstack = GeoStack((a=path, b=path); window=(Y(1:5), X(1:5), Band(1)))
+        windowedstack = GeoStack((a=gdalpath, b=gdalpath); window=(Y(1:5), X(1:5), Band(1)))
         windowedarray = GeoArray(windowedstack[:a])
         @test windowedarray isa GeoArray{UInt8,2}
         @test length.(dims(windowedarray)) == (5, 5)
@@ -289,13 +305,13 @@ end
         @test windowedarray[1:3, 2:2] == reshape([0x00, 0x00, 0x00], 3, 1)
         @test windowedarray[1:3, 2] == [0x00, 0x00, 0x00]
         @test windowedarray[1, 2] == 0x00
-        windowedstack = GeoStack((a=path, b=path); window=(Y(1:5), X(1:5), Band(1:1)))
+        windowedstack = GeoStack((a=gdalpath, b=gdalpath); window=(Y(1:5), X(1:5), Band(1:1)))
         windowedarray = windowedstack[:b]
         @test windowedarray[1:3, 2:2, 1:1] == reshape([0x00, 0x00, 0x00], 3, 1, 1)
         @test windowedarray[1:3, 2:2, 1] == reshape([0x00, 0x00, 0x00], 3, 1)
         @test windowedarray[1:3, 2, 1] == [0x00, 0x00, 0x00]
         @test windowedarray[1, 2, 1] == 0x00
-        windowedstack = GeoStack((a=path, b=path); window=(Band(1),))
+        windowedstack = GeoStack((a=gdalpath, b=gdalpath); window=(Band(1),))
         windowedarray = GeoArray(windowedstack[:b])
         @test windowedarray[1:3, 2:2] == reshape([0x00, 0x00, 0x00], 3, 1)
         @test windowedarray[1:3, 2] == [0x00, 0x00, 0x00]
@@ -316,6 +332,16 @@ end
             @test map((c, t) -> all(collect(c .=== t)), cropped, trimmed) |> all
             extended = extend(cropped; to=st)
             @test all(collect(extended .== st))
+            msk = replace_missing(gdalstack[:a], missing)
+            msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
+            @test !any(st[:b][X(1:100)] .=== missingval(msk))
+            masked = mask(st; to=msk)
+            masked[:b][X(1:100), Y([1, 5, 95])]
+            @test all(masked[:b][X(1:100), Y([1, 5, 95])] .=== missingval(msk))
+            st = read(gdalstack)
+            mask!(st; to=msk, missingval=0x00)
+            @test all(st[:a][X(1:100), Y([1, 5, 95])] .=== 0x00)
+            @test all(st[:b][X(1:100), Y([1, 5, 95])] .=== 0x00)
         end
     end
 
@@ -356,11 +382,11 @@ end
 end
 
 @testset "series" begin
-    gdalser = GeoSeries([path, path], (Ti(),); mappedcrs=EPSG(4326), name=:test)
-    @test read(gdalser[Ti(1)]) == read(GeoArray(path; mappedcrs=EPSG(4326), name=:test))
-    @test read(gdalser[Ti(1)]) == read(GeoArray(path; mappedcrs=EPSG(4326), name=:test))
+    gdalser = GeoSeries([gdalpath, gdalpath], (Ti(),); mappedcrs=EPSG(4326), name=:test)
+    @test read(gdalser[Ti(1)]) == read(GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test))
+    @test read(gdalser[Ti(1)]) == read(GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test))
 
-    gdalstack = GeoStack((a=path, b=path); mappedcrs=EPSG(4326))
+    gdalstack = GeoStack((a=gdalpath, b=gdalpath); mappedcrs=EPSG(4326))
     gdalser = GeoSeries([gdalstack, gdalstack], (Ti,))
     # Rebuild the ser by wrapping the disk data in Array.
     # `modify` forces `rebuild` on all containers as in-Memory variants
@@ -374,7 +400,7 @@ end
         @test first(ser1.data[1].data) isa Array 
         ser2 = modify(A -> A .* 0, ser1)
         ser3 = modify(A -> A .* 0, ser1)
-        read!([(a=path, b=path), (a=path, b=path)], ser2)
+        read!([(a=gdalpath, b=gdalpath), (a=gdalpath, b=gdalpath)], ser2)
         read!(ser1, ser3)
         @test map(ser1, ser2, ser3) do st1, st2, st3
             map(st1, st2, st3) do A1, A2, A3

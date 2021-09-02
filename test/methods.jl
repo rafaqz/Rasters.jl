@@ -26,6 +26,16 @@ end
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
     @test dims(missingmask(ga)) == (X(Base.OneTo(2), mode=NoIndex()), Y(Base.OneTo(2), mode=NoIndex()))
 end
+@testset "mask" begin
+    A1 = [missing 1; 2 3]
+    ga1 = GeoArray(A1, (X, Y); missingval=missing)
+    @test all(mask(ga1; to=ga) .=== [missing 1; 2 missing])
+    ga2 = replace_missing(ga1 .* 1.0; missingval=NaN)
+    @test all(mask(ga2; to=ga) .=== [NaN 1.0; 2.0 NaN])
+    ga3 = replace_missing(ga1; missingval=-9999)
+    mask!(ga3; to=ga)
+    @test all(ga3 .=== [-9999 1; 2 -9999])
+end
 
 @testset "points" begin
     ga = GeoArray(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); missingval=missing)
