@@ -73,26 +73,25 @@ missingmask(A::AbstractArray, missingval) =
 """
     mask(A::AbstractGeoArray; to; missingval=missingval(A))
 
-Mask `A` by the missing values of `to`, optionally setting a new `misssingval`.
+Return a new array with values of `A` masked by the missing values of `to`,
+optionally setting a new `misssingval`.
 
 $EXPERIMENTAL
-""" 
+"""
 function mask end
 function mask(A::AbstractGeoArray; to, missingval=missingval(A))
     missingval = missingval isa Nothing ? missing : missingval
     return mask!(replace_missing(A, missingval); to, missingval)
 end
-mask(xs::GeoSeriesOrStack; kw...) = map(x -> mask(x; kw...),  xs)  
+mask(xs::GeoSeriesOrStack; kw...) = map(x -> mask(x; kw...),  xs)
 
 """
     mask!(A; to::AbstractArray, missingval=missing)
 
-Extend multiple [`AbstractGeoArray`](@ref) to match the area covered by all.
-A single `AbstractGeoArray` can be extended by passing the new `dims` tuple 
-as the second argument.
+Mask `A` by the missing values of `to`, optionally setting a new `misssingval`.
 
 $EXPERIMENTAL
-""" 
+"""
 function mask!(A::AbstractGeoArray; to, missingval=missingval(A))
     missingval isa Nothing && throw(ArgumentError("Array has no `missingval`. Pass a `missingval` keyword compatible with the type, or use `rebuild(A; missingval=somemissingval)` to set it."))
     dimwise!(A, A, to) do a, t
@@ -105,16 +104,86 @@ function mask!(xs::GeoSeriesOrStack; kw...)
     return xs
 end
 
+"""
+    classify(x, pairs; lower, upper, others)
+    classify(x, pairs...; lower, upper, others)
+
+Create a new array with values in `x` classified by the values in `pairs`, where each 
+pair contains a value and a replacement, a tuple of lower and upper range and a replacement, 
+or a Tuple of `Fix2` like `>(x)`. If `Fix2` is not used, the `lower` and `upper` keywords
+determined which comparison operator is used for the lower and upper tuple values
+- e.g. `<` or `<=` and `>` or `>=`.
+
+If `others` is set other values not covered in `pairs` will be set to that values. 
+
+$EXPERIMENTAL
+"""
+function classify end
+classify(A::AbstractGeoArray, pairs::Pair...; kw...) = classify(A, pairs; kw...)
+function classify(A::AbstractGeoArray, pairs; lower=(>=), upper=(<), others=nothing)
+    broadcast(A) do x
+        _classify(x, pairs, lower, upper, others, missingval(A))
+    end
+end
+classify(xs::GeoSeriesOrStack, values; kw...) = map(x -> classify(x, values; kw...),  xs)
+
+"""
+    classify!(x, pairs...; lower, upper, others)
+    classify!(x, pairs; lower, upper, others)
+    classify!(x, pairs; lower, upper, others)
+
+Classify values in `x` by the values in `pairs`, where each pair contains a value
+and a replacement, a tuple of lower and upper range and a replacement, or a Tuple 
+of `Fix2` like `>(x)`. If `Fix2` is not used, the `lower` and `upper` keywords
+determined which comparison operator is used for the lower and upper tuple values
+- e.g. `<` or `<=` and `>` or `>=`.
+
+If `others` is set other values not covered in `pairs` will be set to that values. 
+
+$EXPERIMENTAL
+"""
+classify!(A::AbstractGeoArray, pairs::Pair...; kw...) = classify!(A, pairs; kw...)
+function classify!(A::AbstractGeoArray, pairs; lower=(>=), upper=(<), others=nothing)
+    broadcast!(A, A) do x
+        _classify(x, pairs, lower, upper, others, missingval(A))
+    end
+end
+function classify!(xs::GeoSeriesOrStack; kw...)
+    map(x -> classify!(x; kw...),  xs)
+    return xs
+end
+
+function _classify(x, pairs, lower, upper, others, missingval)
+    x === missingval && return x
+    found = false
+    for (find, replace) in pairs
+        if _compare(find, x, lower, upper)
+            x = replace
+            found = true
+            break
+        end
+    end
+    if !found && !(others isa Nothing)
+        x = others
+    end
+    return x
+end
+
+_compare(find, x, lower, upper) = find === x
+_compare(find::Base.Fix2, x, lower, upper) = find(x)
+_compare((l, u)::Tuple, x, lower, upper) = lower(x, l) && upper(x, u)
+_compare((l, u)::Tuple{<:Base.Fix2,<:Base.Fix2}, x, lower, upper) = l(x) && u(x)
+
 
 """
     crop(layers::AbstractGeoArray...)
     crop(layers::Union{NamedTuple,Tuple})
     crop(A::Union{AbstractGeoArray,AbstractGeoStack}; to::Tuple)
 
-Crop multiple [`AbstractGeoArray`](@ref) to match the size 
-of the smallest one for any dimensions that are shared. 
+Crop multiple [`AbstractGeoArray`](@ref) to match the size
+of the smallest one for any dimensions that are shared.
 
-Otherwise crop to the size of the keyword argument `to`. This can be a 
+Otherwise crop to the size of the keyword argument `to`. This can be a
 `Tuple` of `Dimension` or any object that will return one from `dims(to)`.
 
 $EXPERIMENTAL
@@ -127,7 +196,7 @@ end
 crop(x::GeoStackOrArray; to) = _crop_to(x, to)
 
 # crop `A` to values of dims of `to`
-_crop_to(A::GeoStackOrArray, to) = _crop_to(A, dims(to)) 
+_crop_to(A::GeoStackOrArray, to) = _crop_to(A, dims(to))
 function _crop_to(x::GeoStackOrArray, to::Tuple)
     # Create selectors for each dimension
     # `Between` the bounds of the dimension
@@ -144,13 +213,13 @@ _without_mapped_crs(f, A) = _without_mapped_crs(f, A, mappedcrs(A))
 _without_mapped_crs(f, A, ::Nothing) = f(A)
 function _without_mapped_crs(f, A, mappedcrs)
     # Drop mappedcrs
-    A = set(A; 
+    A = set(A;
         X=rebuild(mode(A, X); mappedcrs=nothing),
         Y=rebuild(mode(A, Y); mappedcrs=nothing),
     )
     A = f(A)
-    # Re-apply mappedcrs 
-    A = set(A; 
+    # Re-apply mappedcrs
+    A = set(A;
         X=rebuild(mode(A, X); mappedcrs=mappedcrs),
         Y=rebuild(mode(A, Y); mappedcrs=mappedcrs),
     )
@@ -165,7 +234,7 @@ function _smallestdims(layers)
     alldims = map(DD.dims, layers)
     return map(dims) do d
         matchingdims = map(ds -> DD.dims(ds, (d,)), alldims)
-        reduce(matchingdims) do a, b 
+        reduce(matchingdims) do a, b
             _choose(_shortest, a, b)
         end |> first
     end
@@ -177,7 +246,7 @@ end
     extend(A::Union{AbstractGeoArray,AbstractGeoStack}; to)
 
 Extend multiple [`AbstractGeoArray`](@ref) to match the area covered by all.
-A single `AbstractGeoArray` can be extended by passing the new `dims` tuple 
+A single `AbstractGeoArray` can be extended by passing the new `dims` tuple
 as the second argument.
 
 $EXPERIMENTAL
@@ -210,20 +279,20 @@ function _extend_to(A::AbstractGeoArray, to::Tuple)
     end
     # Copy the original data to the new array
     copyto!(
-        parent(newA), CartesianIndices((ranges...,)), 
+        parent(newA), CartesianIndices((ranges...,)),
         parent(read(A)), CartesianIndices(A)
-    ) 
+    )
     return newA
 end
 _extend_to(st::AbstractGeoStack, to::Tuple) = map(A -> _extend_to(A, to), st)
 
 # Get the largest dimensions in a tuple of AbstractGeoArray
 function _largestdims(layers)
-    dims = DD.combinedims(layers...; check=false) 
+    dims = DD.combinedims(layers...; check=false)
     alldims = map(DD.dims, layers)
     return map(dims) do d
         matchingdims = map(ds -> DD.dims(ds, (d,)), alldims)
-        reduce(matchingdims) do a, b 
+        reduce(matchingdims) do a, b
             _choose(_longest, a, b)
         end |> first
     end
@@ -233,7 +302,7 @@ end
 # (empty Tuple) or a comparison between two 1-Tuples
 _choose(f, ::Tuple{}, ::Tuple{}) = ()
 _choose(f, ::Tuple{}, (b,)::Tuple) = (b,)
-_choose(f, (a,)::Tuple, ::Tuple{}) = (a,) 
+_choose(f, (a,)::Tuple, ::Tuple{}) = (a,)
 _choose(f, (a,)::Tuple, (b,)::Tuple) = (f(a, b) ? a : b,)
 
 # Choose the shortest or longest dimension
@@ -242,13 +311,13 @@ _longest(a, b) = length(a) >= length(b)
 
 """
     trim(A::AbstractGeoArray; dims::Tuple, pad::Int)
-        
+
 Trim `missingval` from `A` for axes in dims, returning a view of `A`.
 
-By default `dims=(X, Y)`, so trimming keeps the area of `X` and `Y` 
+By default `dims=(X, Y)`, so trimming keeps the area of `X` and `Y`
 that contains non-missing values along all other dimensions.
 
-The trimmed size will be padded by `pad` on all sides, although 
+The trimmed size will be padded by `pad` on all sides, although
 padding will not be added beyond the original extent of the array.
 
 $EXPERIMENTAL
@@ -290,7 +359,7 @@ Base.size(A::AxisTrackers) = map(length, A.dims)
 Base.getindex(A::AxisTrackers, I...) = map(getindex, A.tracking, _trackedinds(I)) |> any
 function Base.setindex!(A::AxisTrackers, x, I::Int...)
     map(A.tracking, _trackedinds(A, I)) do axis, i
-        axis[i] |= x 
+        axis[i] |= x
     end
 end
 
@@ -326,13 +395,13 @@ _update!(tr::AxisTrackers, st::AbstractGeoStack) = map(A -> tr .= A .!== missing
 """
     slice(A::Union{AbstractGeoArray,AbstractGeoStack,AbstracGeoSeries}, dims)
 
-Slice an object along some dimension/s, lazily using `view`. 
+Slice an object along some dimension/s, lazily using `view`.
 
-For a single `GeoArray` or `GeoStack` this will return a `GeoSeries` of 
-`GeoArray` or `GeoStack` that are slices along the specified dimensions. 
+For a single `GeoArray` or `GeoStack` this will return a `GeoSeries` of
+`GeoArray` or `GeoStack` that are slices along the specified dimensions.
 
-For a `GeoSeries`, the output is another series where the child objects are sliced and the 
-series dimensions index is now of the child dimensions combined. `slice` on a `GeoSeries` 
+For a `GeoSeries`, the output is another series where the child objects are sliced and the
+series dimensions index is now of the child dimensions combined. `slice` on a `GeoSeries`
 with no dimensions will slice along the dimensions shared by both the series and child object.
 
 $EXPERIMENTAL
@@ -353,20 +422,20 @@ end
 # Slice an existing series into smaller slices
 slice(ser::AbstractGeoSeries, dims) = cat(map(x -> slice(x, dims), ser)...; dims=dims)
 
-@noinline _errordimsnotfound(targets, dims) = 
+@noinline _errordimsnotfound(targets, dims) =
     throw(ArgumentError("Dimensions $(map(DD.dim2key, targets)) were not found in $(map(DD.dim2key, dims))"))
 
 # By default, combine all the GeoSeries dimensions and return a GeoArray or GeoStack
 combine(ser::AbstractGeoSeries) = combine(ser, dims(ser))
 # Fold over all the dimensions, combining the series one dimension at a time
 combine(ser::AbstractGeoSeries, dims::Tuple) = foldl(combine, dims; init=ser)
-# Slice the N-dimensional series into an array of 1-dimensional 
+# Slice the N-dimensional series into an array of 1-dimensional
 # series, and combine them, returning a new series with 1 less dimension.
 function combine(ser::AbstractGeoSeries{<:Any,M}, dim::Union{Dimension,DD.DimType,Val,Symbol}) where M
     od = otherdims(ser, dim)
     slices = map(d -> view(ser, d...), DimIndices(od))
     newchilren = map(s -> combine(s, dim), slices)
-    return rebuild(ser; data=newchilren, dims=od) 
+    return rebuild(ser; data=newchilren, dims=od)
 end
 # Actually combine a 1-dimensional series with `cat`
 function combine(ser::AbstractGeoSeries{<:Any,1}, dim::Union{Dimension,DD.DimType,Val,Symbol})
@@ -400,7 +469,7 @@ end
 """
     chunk(A::AbstractGeoArray)
 
-Creat a GeoSeries of arrays matching the chunks of a chunked array. 
+Creat a GeoSeries of arrays matching the chunks of a chunked array.
 
 This may be useful for parallel or larger than memory applications.
 
@@ -416,7 +485,7 @@ function chunk(A::AbstractGeoArray)
 end
 
 # See iterate(::GridChunks) in Diskarrays.jl
-function _chunk_inds(g, ichunk) 
+function _chunk_inds(g, ichunk)
     outinds = map(ichunk.I, g.chunksize, g.parentsize, g.offset) do ic, cs, ps, of
         max((ic - 1) * cs + 1 -of, 1):min(ic * cs - of, ps)
     end
@@ -424,9 +493,9 @@ end
 
 """
     points(A::AbstractGeoArray; dims=(YDim, XDim))
-    
+
 Returns a generator of the points in `A` for dimensions in `dims`,
-where points are a tuple of the values in each specified dimension 
+where points are a tuple of the values in each specified dimension
 index.
 
 The order of `dims` determines the order of the points.

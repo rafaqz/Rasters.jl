@@ -36,6 +36,20 @@ end
     mask!(ga3; to=ga)
     @test all(ga3 .=== [-9999 1; 2 -9999])
 end
+@testset "classify" begin
+    A1 = [missing 1; 2 3]
+    ga1 = GeoArray(A1, (X, Y); missingval=missing)
+    @test all(classify(ga1, 1=>99, 2=>88, 3=>77) .=== [missing 99; 88 77])
+    @test all(classify(ga1, 1=>99, 2=>88, 3=>77; others=0) .=== [missing 99; 88 77])
+    @test all(classify(ga1, 1=>99, 2=>88; others=0) .=== [missing 99; 88 0])
+
+    A2 = [1.0 2.5; 3.0 4.0]
+    ga2 = GeoArray(A2, (X, Y); missingval=missing)
+    @test classify(ga2, (2, 3)=>:x, >(3)=>:y) == [1.0 :x; 3.0 :y]
+    @test classify(ga2, (>=(1), <(2))=>:x, >=(3)=>:y) == [:x 2.5; :y :y]
+    classify!(ga2, (1, 2.5)=>0.0, >=(3)=>-1.0; lower=(>), upper=(<=))
+    @test ga2 == [1.0 0.0; -1.0 -1.0]
+end
 
 @testset "points" begin
     ga = GeoArray(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); missingval=missing)
