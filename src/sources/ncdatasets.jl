@@ -26,7 +26,7 @@ const NCD_DIMMAP = Dict(
     "band" => Band,
 )
 
-can_write_stack(::Type{NCDfile}) = true
+haslayers(::Type{NCDfile}) = true
 defaultcrs(::Type{NCDfile}) = EPSG(4326) 
 defaultmappedcrs(::Type{NCDfile}) = EPSG(4326) 
 

@@ -184,19 +184,31 @@ function GeoStack(filename::AbstractString;
     layerdims=nothing, layermetadata=nothing, layermissingval=nothing,
     source=_sourcetype(filename), keys=nothing, window=nothing
 )
-    crs = defaultcrs(source, crs)
-    mappedcrs = defaultmappedcrs(source, mappedcrs)
-    data, field_kw = _open(filename) do ds
-        dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
-        refdims = refdims == () || refdims isa Nothing ? () : refdims
-        layerdims = layerdims isa Nothing ? DD.layerdims(ds) : layerdims
-        metadata = metadata isa Nothing ? DD.metadata(ds) : metadata
-        layermetadata = layermetadata isa Nothing ? DD.layermetadata(ds) : layermetadata
-        layermissingval = layermissingval isa Nothing ? GeoData.layermissingval(ds) : layermissingval
-        data = FileStack{source}(ds, filename; keys)
-        data, (; dims, refdims, layerdims, metadata, layermetadata, layermissingval)
+    if haslayers(_sourcetype(filename))
+        crs = defaultcrs(source, crs)
+        mappedcrs = defaultmappedcrs(source, mappedcrs)
+        data, field_kw = _open(filename) do ds
+            dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
+            refdims = refdims == () || refdims isa Nothing ? () : refdims
+            layerdims = layerdims isa Nothing ? DD.layerdims(ds) : layerdims
+            metadata = metadata isa Nothing ? DD.metadata(ds) : metadata
+            layermetadata = layermetadata isa Nothing ? DD.layermetadata(ds) : layermetadata
+            layermissingval = layermissingval isa Nothing ? GeoData.layermissingval(ds) : layermissingval
+            data = FileStack{source}(ds, filename; keys)
+            data, (; dims, refdims, layerdims, metadata, layermetadata, layermissingval)
+        end
+        GeoStack(data; field_kw..., window)
+    else
+        GeoStack(GeoArray(filename))
     end
-    GeoStack(data; field_kw..., window)
+end
+function GeoStack(A::GeoArray; from::Dimension=Band())
+    keys = map(dims(A, from)) do b
+        Symbol(string(dimkey(layers), b))
+    end
+    slices = slice(A, Band())
+    layers = NamedTuple{Tuple(keys)}(Tuple(slices))
+    GeoStack(layers)
 end
 
 # Rebuild from internals
@@ -222,6 +234,8 @@ function GeoStack(s::AbstractDimStack; keys=cleankeys(Base.keys(s)),
 end
 
 Base.convert(::Type{GeoStack}, src::AbstractDimStack) = GeoStack(src)
+
+GeoArray(stack::GeoStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
 
 defaultcrs(T::Type, crs) = crs
 defaultcrs(T::Type, ::Nothing) = defaultcrs(T)

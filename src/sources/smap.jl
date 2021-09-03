@@ -107,6 +107,8 @@ end
     
 DA.writeblock!(A::GeoDiskArray{SMAPfile}, v, r::AbstractUnitRange...) = A[r...] = v
 
+haslayers(::Type{SMAPfile}) = true
+
 # Stack ########################################################################
 
 @deprecate SMAPstack(args...; kw...) GeoStack(args...; source=SMAPfile, kw...)

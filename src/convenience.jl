@@ -16,7 +16,5 @@ _sourcetype(filename::AbstractString) = get(REV_EXT, splitext(filename)[2], GDAL
 
 # Internal read method
 function _open(f, filename::AbstractString; kw...)
-    ext = splitext(filename)[2]
-    source = get(REV_EXT, ext, GDALfile)
-    _open(f, source, filename; kw...)
+    _open(f, _sourcetype(filename), filename; kw...)
 end

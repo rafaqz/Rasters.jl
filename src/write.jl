@@ -20,18 +20,21 @@ Keyword arguments are passed to the `write` method for the backend.
 
 If the source can't be saved as a stack-like object, individual array layers will be saved.
 """
-function Base.write(filename::AbstractString, s::AbstractGeoStack; kw...)
+function Base.write(filename::AbstractString, s::AbstractGeoStack; suffix=nothing, kw...)
     base, ext = splitext(filename)
     T = _sourcetype(filename)
-    if can_write_stack(T)
+    if haslayers(T)
         write(filename, _sourcetype(filename), s; kw...)
     else
         # Otherwise write separate arrays
-        for key in keys(s)
-            fn = joinpath(string(base, "_", key, ext))
+        if suffix === nothing
+            suffix = map(k -> string("_", k), keys(s))
+        end
+        for sfx in suffix
+            fn = joinpath(string(base, sfx, ext))
             write(fn, _sourcetype(filename), s[key])
         end
     end
 end
 
-can_write_stack(T) = false
+haslayers(T) = false

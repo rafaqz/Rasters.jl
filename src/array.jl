@@ -113,23 +113,23 @@ Base.parent(A::AbstractGeoArray) = data(A)
     open(f, A::AbstractGeoArray; write=false)
 
 `open` is used to open any `AbstractGeoArray` and do multiple operations
-on it in a safe way. It's a shorthand for the unexported `OpenGeoArray`
-constructor. The `write` keyword opens the file in write mode so that it
+on it in a safe way. The `write` keyword opens the file in write mode so that it
 can be altered on disk using e.g. a broadcast.
 
-`f` is a method that accepts a single argument - an `OpenGeoArray` object
-which is just an `AbstractGeoArray` that holds an open disk - based object.
+`f` is a method that accepts a single argument - an `GeoArray` object
+which is just an `AbstractGeoArray` that holds an open disk-based object.
 Often it will be a `do` block:
 
 ```julia
-ga = geoarray(filepath)
-open(ga; write=true) do A
-    A[I...] .*= 2 # A is an `OpenGeoArray` wrapping the opened disk-based object.
+# A is an `GeoArray` wrapping the opened disk-based object.
+open(GeoArray(filepath); write=true) do A
+    mask!(A; to=maskfile)
+    A[I...] .*= 2
     # ...  other things you need to do with the open file
 end
 ```
 
-By using a do block to open file we ensure they are always closed again
+By using a do block to open files we ensure they are always closed again
 after we finish working with them.
 """
 function Base.open(f::Function, A::AbstractGeoArray; kw...)
@@ -221,6 +221,7 @@ end
 end
 
 filekey(ds, key) = key
+filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
 # Precompile
 precompile(GeoArray, (String,))
