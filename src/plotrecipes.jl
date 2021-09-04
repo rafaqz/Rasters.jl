@@ -62,6 +62,7 @@ end
     # If colorbar is close to symmetric (< 25% difference) use a symmetric 
     # colormap and set symmetric limits so zero shows up as a neutral color.
     A_min, A_max = extrema(skipmissing(A))
+
     if (A_min + A_max) / abs(A_max - A_min) < 0.25
         A_limit = max(abs(A_min), abs(A_max))
         clims = (-A_limit, A_limit)
@@ -72,14 +73,14 @@ end
 
     yguide, xguide = label(dims(A))
 
+    y, x = map(_prepare, dims(A))
+
     rdt = DD.refdims_title(A; issingle=true)
     :title --> rdt === "" ? _maybename(A) : _maybename(A) * " " * rdt 
     :xguide --> xguide
     :yguide --> yguide
     :clims --> clims
     :axes --> :none
-    :xlims --> bounds(A, D2)
-    :ylims --> bounds(A, D1)
     :guidefontsize --> 8
     :tickfontsize --> 6 
     :titlefontsize --> 10
@@ -94,25 +95,27 @@ end
     :gridalpha --> 0.4
 
     # Often Mapped mode/netcdf has wide pixels
-    if all((mode(D1) isa Mapped, mode(D2) isa Mapped))
+    mode(x) isa Mapped && (:xlims --> mappedbounds(x))
+    mode(y) isa Mapped && (:ylims --> mappedbounds(y))
+    if all(d -> mode(d) isa Mapped, (x, y))
         :aspect_ratio --> :equal 
-    # Otherwise use square pixels by default
     else
-        bnds = mappedbounds(A, (D1, D2))
+        :xlims --> bounds(A, x)
+        :ylims --> bounds(A, y)
+        bnds = bounds(A, (D1, D2))
         s1, s2 = map(((l, u),) -> (u - l), bnds) ./ (size(A, D1), size(A, D2))
         square_pixels = s2 / s1
         :aspect_ratio --> square_pixels 
     end
 
-    ys, xs = map(_prepare, dims(A))
-
     if get(plotattributes, :seriestype, :none) == :contourf
         :linewidth --> 0
         :levels --> range(clims[1], clims[2], length=20)
-        xs, ys, clamp.(A, clims[1], clims[2])
+        index(x), index(y), clamp.(A, clims[1], clims[2])
     else
         :seriestype --> :heatmap
-        xs, ys, parent(A)
+        parent(A)
+        index(x), index(y), parent(A)
     end
 end
 
@@ -127,7 +130,7 @@ end
     :yguide --> yguide
     :label --> ""
     z = map(_prepare, dims(A))
-    parent(A), z
+    parent(A), index(z)
 end
 
 # We only look at arrays with X, Y, Z dims here.
@@ -185,7 +188,7 @@ end
 
 # Plots.jl heatmaps pixels are centered.
 # So we should center the index, and use the projected value.
-_prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped |> index
+_prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
 # Convert arrays to a consistent missing value and Forward array order
 function _prepare(A::AbstractGeoArray)
     reorder(A, ForwardIndex) |> 
@@ -199,7 +202,11 @@ function _subsample(A, max_res)
     # Aggregate based on the number of pixels
     s1, s2 = size(A, ssdims[1]), size(A, ssdims[2])
     ag = floor(Int, max(s1, s2) / max_res) + 1
-    A[DD.basetypeof(ssdims[1])(1:ag:s1), DD.basetypeof(ssdims[2])(1:ag:s2)]
+    if ag == 1
+        return read(A)
+    else
+        return A[DD.basetypeof(ssdims[1])(1:ag:s1), DD.basetypeof(ssdims[2])(1:ag:s2)]
+    end
 end
 
 _maybename(A) = _maybename(name(A))

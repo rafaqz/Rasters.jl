@@ -92,22 +92,24 @@ path = stem * ".gri"
             extended = extend(cropped; to=a);
             @test all(collect(extended .== a))
         end
-        @testset "mask" begin
-            msk = replace_missing(gdalarray, missing)
-            msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
-            @test !any(gdalarray[X(1:100)] .=== missingval(msk))
-            masked = mask(gdalarray; to=msk)
-            @test all(masked[X(1:100), Y([1, 5, 95])] .=== missingval(msk))
-            @testset "mask! to disk" begin
-                tempfile = tempname() * ".tif"
-                cp(gdalpath, tempfile)
-                @test !all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
-                open(GeoArray(tempfile); write=true) do A
-                    mask!(A; to=msk, missingval=0x00)
-                end
-                @test all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
-                rm(tempfile)
+        @testset "mask and mask! to disk" begin
+            msk = replace_missing(grdarray, missing)
+            msk[X(1:73), Y([1, 5, 77])] .= missingval(msk)
+            @test !any(grdarray[X(1:73)] .=== missingval(msk))
+            masked = mask(grdarray; to=msk)
+            @test all(masked[X(1:73), Y([1, 5, 77])] .=== missingval(masked))
+            tn = tempname()
+            tempgrd = tn * ".grd"
+            tempgri = tn * ".gri"
+            cp(stem * ".grd", tempgrd)
+            cp(stem * ".gri", tempgri)
+            @test !all(GeoArray(tempgrd)[X(1:73), Y([1, 5, 77])] .=== missingval(grdarray))
+            open(GeoArray(tempgrd); write=true) do A
+                mask!(A; to=msk, missingval=missingval(A))
             end
+            @test all(GeoArray(tempgri)[X(1:73), Y([1, 5, 77])] .=== missingval(grdarray))
+            rm(tempgrd)
+            rm(tempgri)
         end
         @testset "chunk" begin
             @test GeoData.chunk(grdarray) isa GeoSeries

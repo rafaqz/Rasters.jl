@@ -28,7 +28,6 @@ stackkeys = (
 
 @testset "GeoArray" begin
     @time ncarray = GeoArray(ncsingle)
-    plot(ncarray[Ti(1)]; aspect_ratio=:equal)
 
     @testset "open" begin
         @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
@@ -99,7 +98,9 @@ stackkeys = (
     end
 
     @testset "methods" begin 
-        @test all(mean(ncarray; dims=Y) .=== mean(parent(ncarray); dims=2))
+        @testset "mean" begin
+            @test all(mean(ncarray; dims=Y) .=== mean(parent(ncarray); dims=2))
+        end
         @testset "trim, crop, extend" begin
             a = read(ncarray)
             a[X(1:20)] .= missingval(a)
@@ -110,23 +111,23 @@ stackkeys = (
             @test all(collect(cropped .=== trimmed))
             extended = extend(cropped; to=a)
             @test all(collect(extended .=== a))
+        end
+        @testset "mask and mask!" begin
             msk = read(ncarray)
             msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
             @test !all(ncarray[X(1:100)] .=== missingval(msk))
             masked = mask(ncarray; to=msk)
             @test all(masked[X(1:100), Y([1, 5, 95])] .=== missingval(msk))
-            @testset "mask! to disk" begin
-                tempfile = tempname() * ".nc"
-                cp(ncsingle, tempfile)
-                @test !all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
-                open(GeoArray(tempfile); write=true) do A
-                    mask!(A; to=msk, missingval=missing)
-                    # TODO: replace the CFVariable with a FileArray{NCDfile} so this is not required
-                    nothing
-                end
-                @test all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
-                rm(tempfile)
+            tempfile = tempname() * ".nc"
+            cp(ncsingle, tempfile)
+            @test !all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
+            open(GeoArray(tempfile); write=true) do A
+                mask!(A; to=msk, missingval=missing)
+                # TODO: replace the CFVariable with a FileArray{NCDfile} so this is not required
+                nothing
             end
+            @test all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
+            rm(tempfile)
         end
         @testset "chunk" begin
             @test GeoData.chunk(ncarray) isa GeoSeries
@@ -332,35 +333,6 @@ end
         smallstack = subset(ncstack, (:albedo, :evap, :runoff))
         @test keys(smallstack) == (:albedo, :evap, :runoff)
     end
-    
-    @testset "methods" begin 
-        smallstack = GeoStack(ncmulti; keys=(:albedo, :evap, :runoff))
-        means = map(A -> mean(parent(A); dims=2), smallstack)
-        @test map((a, b) -> all(a .== b), mean(smallstack; dims=Y), means) |> all
-        @testset "trim, crop, extend" begin
-            mv = zero(eltype(smallstack[:albedo]))
-            st = replace_missing(smallstack, mv)
-            st = map(A -> (view(A, X(1:100)) .= mv; A), st)
-            trimmed = trim(st)
-            @test size(trimmed) == (92, 96, 8)
-            cropped = crop(st; to=trimmed)
-            @test size(cropped) == (92, 96, 8)
-            @test map((c, t) -> all(collect(c .=== t)), cropped, trimmed) |> all
-            extended = extend(cropped; to=st)
-            @test all(map((e, s) -> all(e .== s), extended, st))
-
-            st = replace_missing(smallstack, mv)
-            msk = st[:runoff]
-            msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
-            @test !any(st[:albedo][X(1:100)] .=== missingval(masked[:albedo]))
-            masked = mask(st; to=msk)
-            @test all(masked[:albedo][X(1:100), Y([1, 5, 95])] .=== missingval(masked[:albedo]))
-            st = read(smallstack)
-            mask!(st; to=msk, missingval=missing)
-            @test all(st[:albedo][X(1:100), Y([1, 5, 95])] .=== missing)
-            @test all(st[:evap][X(1:100), Y([1, 5, 95])] .=== missing)
-            @test all(st[:runoff][X(1:100), Y([1, 5, 95])] .=== missing)
-        end
 
     # This is slow. We combine read/save to reduce test time
     # And it seems the memory is not garbage collected??
@@ -395,105 +367,15 @@ end
 
 end
 
-@testset "Multi file stack" begin
-    ncstack = GeoStack((tropo=ncmulti, tsurf=ncmulti, aclcac=ncmulti, albedo=ncmulti))
-
-    @test length(ncstack) == 4
-    @test dims(ncstack) isa Tuple{<:X,<:Y,<:Ti,<:Z}
-
-    @testset "child array properties" begin
-        @test size(ncstack[:tropo]) == (192, 96, 8)
-        @test ncstack[:tropo] isa GeoArray{Float32,3}
-    end
-
-    @testset "indexing" begin
-        @test ncstack[:aclcac, Ti(1)] == ncstack[:aclcac][Ti(1)]
-        @test typeof(ncstack[:aclcac, Ti(1)]) == typeof(ncstack[:aclcac][Ti(1)])
-    end
-
-    @testset "window" begin
-        windowedstack = GeoStack(ncmulti; window=(Y(1:5), X(1:5), Ti(1)))
-        windowedarray = windowedstack[:albedo]
-        @test size(windowedarray) == (5, 5)
-        @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
-        @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
-        @test windowedarray[1, 2] == 0.84936917f0
-        windowedstack = GeoStack(ncmulti; window=(Y(1:5), X(1:5), Ti(1:1)))
-        windowedarray = windowedstack[:albedo]
-        @test windowedarray[1:3, 2:2, 1:1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1, 1)
-        @test windowedarray[1:3, 2:2, 1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
-        @test windowedarray[1:3, 2, 1] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
-        @test windowedarray[1, 2, 1] == 0.84936917f0
-        windowedstack = GeoStack(ncmulti; window=(Ti(1),))
-        windowedarray = windowedstack[:albedo]
-        @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
-        @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
-        @test windowedarray[1, 2] ==  0.84936917f0
-    end
-
-    # Stack Constructors
-    @testset "conversion to GeoStack" begin
-        geostack = GeoStack(ncstack)
-        @test Symbol.(Tuple(keys(ncstack))) == keys(geostack)
-        smallstack = GeoStack(ncstack; keys=(:tsurf,))
-        @test keys(smallstack) == (:tsurf,)
-    end
-
-    if VERSION > v"1.1-"
-        @testset "copy" begin
-            geoA = zero(GeoArray(ncstack[:tropo]))
-            copy!(geoA, ncstack, :tropo)
-            # First wrap with GeoArray() here or == loads from disk for each cell.
-            # we need a general way of avoiding this in all disk-based sources
-            @test all(geoA .== GeoArray(ncstack[:tropo]))
-        end
-    end
-
-    @testset "read and write" begin
-        st = read(ncstack)
-        @test st isa GeoStack
-        @test st.data isa NamedTuple
-        @test st.data[1] isa Array
-        @test st.data[2] isa Array
-        st2 = map(a -> a .* 0, st)
-        # read! from stack
-        @time read!(ncstack, st2);
-        st3 = map(a -> a .* 0, st)
-        # read! from filename
-        @time st = read!(ncmulti, st3);
-        @test all(map((a, b, c) -> all(a .== b .== c), st, st2, st3))
-
-        filename = tempname() * ".nc"
-        write(filename, st)
-        saved = read(GeoStack(filename))
-        @test all(saved[:tsurf] .== st[:tsurf])
-    end
-
-    @testset "show" begin
-        sh = sprint(show, MIME("text/plain"), ncstack)
-        # Test but don't lock this down too much
-        @test occursin("GeoStack", sh)
-        @test occursin("Y", sh)
-        @test occursin("X", sh)
-        @test occursin("Ti", sh)
-        @test occursin(":tropo", sh)
-        @test occursin(":tsurf", sh)
-        @test occursin(":aclcac", sh)
-    end
-
-end
-
 @testset "series" begin
-    ncseries = GeoSeries([ncmulti, ncmulti], (Ti,); child=stack)
+    ncseries = GeoSeries([ncsingle, ncsingle], (Ti,); child=GeoStack)
     @testset "read" begin
         geoseries = read(ncseries)
         @test geoseries isa GeoSeries{<:GeoStack}
         @test geoseries.data isa Vector{<:GeoStack}
     end
-    geoA = read(GeoArray(ncmulti; key=:albedo))
-    @test all(read(ncseries[Ti(1)][:albedo]) .== read(geoA))
-    @test read(ncseries[Ti(1)][:albedo]) == read(geoA)
-    @test all(read(ncseries[Ti(1)][:albedo]) .== read(geoA))
+    geoA = GeoArray(ncsingle; key=:tos)
+    @test all(read(ncseries[Ti(1)][:tos]) .=== read(geoA))
 end
 
 nothing

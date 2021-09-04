@@ -32,7 +32,10 @@ function GRDattrib(filename::AbstractString; write=false)
     filename = first(splitext(filename))
     lines = readlines(filename * ".grd")
     entries = filter!(x -> !isempty(x) && !(x[1] == '['), lines)
-    attrib = Dict(Pair(string.(strip.(match(r"([^=]+)=(.*)", st).captures[1:2]))...) for st in entries)
+    matches = (match(r"([^=]+)=(.*)", st) for st in entries)
+    captures = (string.(strip.(m.captures[1:2])) for m in matches)
+    pairs = map(c -> Pair(c[1], c[2]), captures)
+    attrib = Dict(pairs...)
     T = GRD_DATATYPE_TRANSLATION[attrib["datatype"]]
     GRDattrib{T,typeof(filename)}(filename, attrib, write)
 end
@@ -90,11 +93,17 @@ function DD.metadata(grd::GRDattrib, args...)
 end
 
 function missingval(grd::GRDattrib{T}) where T
-    mv = try
-        parse(T, grd.attrib["nodatavalue"])
-    catch
-        @warn "nodatavalue $(grd.attrib["nodatavalue"]) is not convertible to data type $T. `missingval` set to `missing`."
-        missing
+    if haskey(grd.attrib, "nodatavalue")
+        ndv = grd.attrib["nodatavalue"]
+        ndv === "nothing" && return nothing
+        try
+            return parse(T, ndv)
+        catch
+            @warn "nodatavalue $(ndv) is not convertible to data type $T. `missingval` set to `nothing`."
+            return nothing
+        end
+    else
+        return nothing
     end
 end
 

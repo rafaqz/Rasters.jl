@@ -76,7 +76,7 @@ if Sys.islinux()
         st = stack(AWAP; date=DateTime(2019, 10, 19), resize=crop)
         dates = DateTime(2019, 09, 19), DateTime(2019, 11, 19)
         s = series(AWAP; date=dates, resize=crop);
-        s[DateTime(2019, 10, 1)][:solar]
+        s[At(DateTime(2019, 10, 1))][:solar]
         @test A isa GeoArray
         @test st isa GeoStack
         @test s isa GeoSeries

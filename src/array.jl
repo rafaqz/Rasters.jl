@@ -157,6 +157,7 @@ Base.write(A::T) where T <: AbstractGeoArray = write(filename(A), A)
     GeoArray(A::AbstractArray{T,N}, dims::Tuple; kw...)
     GeoArray(A::AbstractArray{T,N}; dims, kw...)
     GeoArray(A::AbstractGeoArray; kw...) =
+    GeoArray(A::AbstractGeoStack; kw...) =
 
 A generic, memory-backed spatial array type. All [`AbstractGeoArray`](@ref) are
 converted to `GeoArray` when indexed or otherwise transformed.

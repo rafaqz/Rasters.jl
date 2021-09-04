@@ -109,8 +109,9 @@ end
 
     GeoStack(data...; keys, kwargs...)
     GeoStack(data::Union{Vector,Tuple}; keys, kwargs...)
-    GeoStack(data::NamedTuple; window=nothing, metadata=NoMetadata(), refdims=()))
+    GeoStack(data::NamedTuple; window, metadata, refdims))
     GeoStack(s::AbstractGeoStack; [keys, data, refdims, window, metadata])
+    GeoStack(s::AbstractGeoArray; layersfrom=Band, [keys, refdims, metadata])
 
 Load a file path or a `NamedTuple` of paths as a `GeoStack`, or convert arguments, a 
 `Vector` or `NamedTuple` of `GeoArray` to `GeoStack`.

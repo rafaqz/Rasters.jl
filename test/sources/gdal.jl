@@ -93,7 +93,9 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
     end
 
     @testset "methods" begin 
-        @test mean(gdalarray; dims=Y) == mean(parent(gdalarray); dims=2)
+        @testset "mean" begin
+            @test mean(gdalarray; dims=Y) == mean(parent(gdalarray); dims=2)
+        end
         @testset "trim, crop, extend" begin
             a = replace_missing(gdalarray, zero(eltype(gdalarray)))
             a[X(1:100)] .= missingval(a)
@@ -319,8 +321,10 @@ end
     end
 
     @testset "methods" begin 
-        means = map(A -> mean(parent(A); dims=2), gdalstack)
-        @test map((a, b) -> all(a .== b), mean(gdalstack; dims=Y), means) |> all
+        @testset "mean" begin
+            means = map(A -> mean(parent(A); dims=2), gdalstack)
+            @test map((a, b) -> all(a .== b), mean(gdalstack; dims=Y), means) |> all
+        end
         @testset "trim, crop, extend" begin
             mv = zero(eltype(gdalstack[:a]))
             st = replace_missing(gdalstack, mv)
@@ -332,13 +336,15 @@ end
             @test map((c, t) -> all(collect(c .=== t)), cropped, trimmed) |> all
             extended = extend(cropped; to=st)
             @test all(collect(extended .== st))
+        end
+        @testset "mask and mask!" begin
+            st = read(gdalstack)
             msk = replace_missing(gdalstack[:a], missing)
             msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
             @test !any(st[:b][X(1:100)] .=== missingval(msk))
             masked = mask(st; to=msk)
             masked[:b][X(1:100), Y([1, 5, 95])]
-            @test all(masked[:b][X(1:100), Y([1, 5, 95])] .=== 0x00)
-            st = read(gdalstack)
+            @test all(masked[:b][X(1:100), Y([1, 5, 95])] .=== missing)
             mask!(st; to=msk, missingval=0x00)
             @test all(st[:a][X(1:100), Y([1, 5, 95])] .=== 0x00)
             @test all(st[:b][X(1:100), Y([1, 5, 95])] .=== 0x00)
@@ -356,8 +362,8 @@ end
     end
 
     @testset "write" begin
-        @testset "write multiple files"
-            geoA = gdalstack[:a]
+        geoA = read(gdalstack[:a])
+        @testset "write multiple files" begin
             filename = tempname() * ".tif"
             write(filename, gdalstack)
             base, ext = splitext(filename)
@@ -366,22 +372,21 @@ end
             @test all(saved .== geoA)
         end
 
-        @testset "write multiple files with custom suffix"
+        @testset "write multiple files with custom suffix" begin
             filename = tempname() * ".tif"
             write(filename, gdalstack; suffix=("_first", "_second"))
             base, ext = splitext(filename)
             filename_b = string(base, "_second", ext)
             saved = read(GeoArray(filename_b))
             @test all(saved .== geoA)
-            filename = tempname() * ".nc"
-            write(filename, gdalstack)
-            saved = GeoStack(filename)
         end
 
-        @testset "write netcdf"
+        @testset "write netcdf" begin
             filename = tempname() * ".nc"
-            write(filename, gdalstack)
-            saved = GeoStack(filename)
+            write(filename, gdalstack);
+            saved = GeoStack(filename);
+            @test all(read(saved[:a]) .== geoA)
+            rm(filename)
         end
     end
 

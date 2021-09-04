@@ -244,8 +244,11 @@ function _ncdmode(dimtype::Type{<:Union{X,Y}}, order, span, sampling, crs, mappe
     end
     return Mapped(order, span, sampling, crs, mappedcrs)
 end
+function _ncdmode(dimtype::Type{<:Band}, order, span, sampling, crs, mappedcrs)
+    Categorical(order)
+end
 function _ncdmode(dimtype::Type, order, span, sampling, crs, mappedcrs)
-    return Sampled(order, span, sampling)
+    Sampled(order, span, sampling)
 end
 
 
@@ -334,7 +337,7 @@ function _ncdwritevar!(ds::NCD.Dataset, A::AbstractGeoArray{T,N}) where {T,N}
     elseif missingval(A) isa T
         attrib["_FillValue"] = missingval(A)
     else
-        missingval isa Nothing || @warn "`missingval` $(missingval(A)) is not the same type as your data $T."
+        missingval(A) isa Nothing || @warn "`missingval` $(missingval(A)) is not the same type as your data $T."
     end
 
     key = if string(name(A)) == ""
