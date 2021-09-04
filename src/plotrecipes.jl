@@ -58,7 +58,7 @@ end
     end
 end
 # Plot a sinlge 2d map
-@recipe function f(::GeoPlot, A::GeoArray{T,2,<:Tuple{<:SpatialDim,<:SpatialDim}}) where T
+@recipe function f(::GeoPlot, A::GeoArray{T,2,<:Tuple{D1,D2}}) where {T,D1<:SpatialDim,D2<:SpatialDim}
     # If colorbar is close to symmetric (< 25% difference) use a symmetric 
     # colormap and set symmetric limits so zero shows up as a neutral color.
     A_min, A_max = extrema(skipmissing(A))
@@ -78,6 +78,8 @@ end
     :yguide --> yguide
     :clims --> clims
     :axes --> :none
+    :xlims --> bounds(A, D2)
+    :ylims --> bounds(A, D1)
     :guidefontsize --> 8
     :tickfontsize --> 6 
     :titlefontsize --> 10
@@ -89,15 +91,17 @@ end
     :widen --> true
     :foreground_color_axis --> RGB(0.5)
     :seriescolor --> :magma
-    :gridalpha --> 0.2
+    :gridalpha --> 0.4
 
-    if mappedcrs(A) === nothing
-        :aspect_ratio --> :equal
+    # Often Mapped mode/netcdf has wide pixels
+    if all((mode(D1) isa Mapped, mode(D2) isa Mapped))
+        :aspect_ratio --> :equal 
+    # Otherwise use square pixels by default
     else
-        bnds = bounds(A, (X, Y))
-        s1, s2 = map(((l, u),) -> (u - l), bnds) ./ size(A)
-        ratio = s1 / s2
-        :aspect_ratio --> ratio
+        bnds = mappedbounds(A, (D1, D2))
+        s1, s2 = map(((l, u),) -> (u - l), bnds) ./ (size(A, D1), size(A, D2))
+        square_pixels = s2 / s1
+        :aspect_ratio --> square_pixels 
     end
 
     ys, xs = map(_prepare, dims(A))
@@ -124,6 +128,59 @@ end
     :label --> ""
     z = map(_prepare, dims(A))
     parent(A), z
+end
+
+# We only look at arrays with X, Y, Z dims here.
+# Otherwise they fall back to DimensionalData.jl recipes
+@recipe function f(st::AbstractGeoStack)
+    nplots = length(keys(st))
+    max_res = get(plotattributes, :max_res, 1000/nplots)
+    if nplots > 1
+        ncols = (nplots - 1) ÷ ceil(Int, sqrt(nplots)) + 1
+        nrows = (nplots - 1) ÷ ncols + 1
+        :layout --> (ncols, nrows)
+        colorbar := false
+
+        l = DD.layers(st)
+        for r in 1:nrows, c in 1:ncols
+            i = (r + (c - 1) * nrows)
+            @series begin
+                titlefontsize := 7
+                tickfontsize := 6 
+                tickfontsize := 6 
+                subplot := i
+                if c != ncols || r != 1
+                    xformatter := _ -> ""
+                    yformatter := _ -> ""
+                    xguide := ""
+                    yguide := ""
+                end
+                if i <= nplots
+                    A = l[i]
+                    title := string(keys(st)[i])
+                    if length(dims(A, (XDim, YDim))) > 0 
+                        # Get a view of the first slice of the X/Y dimension
+                        ods = otherdims(A, (X, Y))
+                        if length(ods) > 0
+                            od1s = map(d -> DD.basetypeof(d)(firstindex(d)), ods)
+                            A = view(A, od1s...)
+                        end
+                        GeoPlot(), _prepare(_subsample(A, max_res))
+                    else
+                        framestyle := :none
+                        legend := :none
+                        []
+                    end
+                else
+                    framestyle := :none
+                    legend := :none
+                    []
+                end
+            end
+        end
+    else
+        GeoPlot(), _prepare(_subsample(A, max_res))
+    end
 end
 
 # Plots.jl heatmaps pixels are centered.
@@ -173,3 +230,4 @@ function DD.refdims_title(refdim::Band; issingle=false)
         string(name(refdim), ": ", DD.refdims_title(mode(refdim), refdim))
     end
 end
+

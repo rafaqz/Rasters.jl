@@ -132,7 +132,6 @@ function _layermetadata(ds, keys)
 end
 
 missingval(var::NCD.CFVariable) = missing
-
 layermissingval(ds::NCD.Dataset) = missing
 
 function layerkeys(ds::NCD.Dataset)

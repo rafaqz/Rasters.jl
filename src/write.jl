@@ -26,15 +26,16 @@ function Base.write(filename::AbstractString, s::AbstractGeoStack; suffix=nothin
     if haslayers(T)
         write(filename, _sourcetype(filename), s; kw...)
     else
-        # Otherwise write separate arrays
+        # Otherwise write separate files for each layer
         if suffix === nothing
             suffix = map(k -> string("_", k), keys(s))
         end
-        for sfx in suffix
-            fn = joinpath(string(base, sfx, ext))
+        for (i, key) in enumerate(keys(s))
+            fn = joinpath(string(base, suffix[i], ext))
             write(fn, _sourcetype(filename), s[key])
         end
     end
+    return filename
 end
 
 haslayers(T) = false

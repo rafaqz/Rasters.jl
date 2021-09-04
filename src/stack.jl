@@ -26,6 +26,20 @@ layermissingval(stack::AbstractGeoStack) = stack.layermissingval
 filename(stack::AbstractGeoStack) = filename(data(stack))
 missingval(s::AbstractGeoStack, key::Symbol) = _singlemissingval(layermissingval(s), key)
 
+"""
+    subset(s::AbstractGeoStack, keys)
+
+Subset a stack to hold only the layers in `keys`, where `keys` is a `Tuple`
+or `Array` of `String` or `Symbol`, or a `Tuple` or `Array` of `Int`
+"""
+subset(s::AbstractGeoStack, keys) = subset(s, Tuple(keys))
+function subset(s::AbstractGeoStack, keys::NTuple{<:Any,<:Key})
+    GeoStack(map(k -> s[k], Tuple(keys)))
+end
+function subset(s::AbstractGeoStack, I::NTuple{<:Any,Int})
+    subset(s, map(i -> keys(s)[i], I))
+end
+
 _singlemissingval(mvs::NamedTuple, key) = mvs[key]
 _singlemissingval(mv, key) = mv
 
@@ -75,7 +89,8 @@ Base.copy(stack::AbstractGeoStack) = map(copy, stack)
 
 #### Stack getindex ####
 # Different to DimensionalData as we construct a GeoArray
-@propagate_inbounds function Base.getindex(s::AbstractGeoStack, key::Symbol)
+Base.getindex(s::AbstractGeoStack, key::AbstractString) = s[Symbol(key)]
+function Base.getindex(s::AbstractGeoStack, key::Symbol)
     data_ = data(s)[key]
     dims_ = dims(s, DD.layerdims(s, key))
     metadata = DD.layermetadata(s, key)
@@ -182,9 +197,9 @@ end
 function GeoStack(filename::AbstractString;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, layermissingval=nothing,
-    source=_sourcetype(filename), keys=nothing, window=nothing
+    source=_sourcetype(filename), keys=nothing, window=nothing, layersfrom=nothing
 )
-    if haslayers(_sourcetype(filename))
+    st = if haslayers(_sourcetype(filename))
         crs = defaultcrs(source, crs)
         mappedcrs = defaultmappedcrs(source, mappedcrs)
         data, field_kw = _open(filename) do ds
@@ -199,16 +214,36 @@ function GeoStack(filename::AbstractString;
         end
         GeoStack(data; field_kw..., window)
     else
-        GeoStack(GeoArray(filename))
+        # Band dims acts as layers
+        st = GeoStack(GeoArray(filename); layersfrom)
+        window === nothing ? st : view(st, window...)
+    end
+
+    # Maybe split the stack into separate arrays to remove extra dims.
+    if !(keys isa Nothing)
+        return map(identity, st)
+    else
+        return st
     end
 end
-function GeoStack(A::GeoArray; from::Dimension=Band())
-    keys = map(dims(A, from)) do b
-        Symbol(string(dimkey(layers), b))
+function GeoStack(A::GeoArray; 
+    layersfrom=Band, keys=nothing, metadata=metadata(A), refdims=refdims(A), kw...
+)
+    layersfrom = layersfrom isa Nothing ? Band : layersfrom
+    keys = keys isa Nothing ? _layerkeysfromdim(A, layersfrom) : keys
+    slices = slice(A, layersfrom)
+    layers = NamedTuple{Tuple(map(Symbol, keys))}(Tuple(slices))
+    GeoStack(layers; refdims=refdims, metadata=metadata, kw...)
+end
+
+function _layerkeysfromdim(A, dim)
+    map(index(A, dim)) do x
+        if x isa Number
+            Symbol(string(DD.dim2key(dim), "_", x))
+        else
+            Symbol(x)
+        end
     end
-    slices = slice(A, Band())
-    layers = NamedTuple{Tuple(keys)}(Tuple(slices))
-    GeoStack(layers)
 end
 
 # Rebuild from internals

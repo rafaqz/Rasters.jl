@@ -98,6 +98,7 @@ function mask!(A::AbstractGeoArray; to, missingval=missingval(A))
     dimwise!(A, A, to) do a, t
         t === GeoData.missingval(to) ? missingval : a
     end
+    return A
 end
 function mask!(xs::GeoSeriesOrStack; kw...)
     map(x -> mask!(x; kw...),  xs)
@@ -310,7 +311,11 @@ function _trimranges(A, targetdims)
     _update!(trackers, A)
     # Get the ranges that contain all non-missing values
     cropranges = map(trackers.tracking) do a
-        findfirst(a):findlast(a)
+        f = findfirst(a)
+        l = findlast(a)
+        f = f === nothing ? firstindex(a) : f
+        l = l === nothing ? lastindex(a) : l
+        f:l
     end
     return cropranges
 end

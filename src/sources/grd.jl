@@ -215,6 +215,8 @@ end
 
 _open(f, ::Type{GRDfile}, filename; key=nothing, write=false) = f(GRDattrib(filename; write))
 
+haslayers(::Type{GRDfile}) = false
+
 # Utils ########################################################################
 
 function _mmapgrd(f, x::Union{FileArray,GRDattrib}; kw...)

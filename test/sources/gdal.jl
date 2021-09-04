@@ -324,7 +324,7 @@ end
         @testset "trim, crop, extend" begin
             mv = zero(eltype(gdalstack[:a]))
             st = replace_missing(gdalstack, mv)
-            map(A -> A .= mv, view(st, X(1:100)))
+            st = map(A -> (view(A, X(1:100)) .= mv; A), st)
             trimmed = trim(st)
             @test size(trimmed) == (414, 514, 1)
             cropped = crop(st; to=trimmed)
@@ -337,7 +337,7 @@ end
             @test !any(st[:b][X(1:100)] .=== missingval(msk))
             masked = mask(st; to=msk)
             masked[:b][X(1:100), Y([1, 5, 95])]
-            @test all(masked[:b][X(1:100), Y([1, 5, 95])] .=== missingval(msk))
+            @test all(masked[:b][X(1:100), Y([1, 5, 95])] .=== 0x00)
             st = read(gdalstack)
             mask!(st; to=msk, missingval=0x00)
             @test all(st[:a][X(1:100), Y([1, 5, 95])] .=== 0x00)
@@ -355,17 +355,34 @@ end
         end
     end
 
-    @testset "save" begin
-        geoA = gdalstack[:a]
-        filename = tempname() * ".tif"
-        write(filename, gdalstack)
-        base, ext = splitext(filename)
-        filename_b = string(base, "_b", ext)
-        saved = read(GeoArray(filename_b))
-        @test all(saved .== geoA)
-        filename = tempname() * ".nc"
-        write(filename, gdalstack)
-        saved = GeoStack(filename)
+    @testset "write" begin
+        @testset "write multiple files"
+            geoA = gdalstack[:a]
+            filename = tempname() * ".tif"
+            write(filename, gdalstack)
+            base, ext = splitext(filename)
+            filename_b = string(base, "_b", ext)
+            saved = read(GeoArray(filename_b))
+            @test all(saved .== geoA)
+        end
+
+        @testset "write multiple files with custom suffix"
+            filename = tempname() * ".tif"
+            write(filename, gdalstack; suffix=("_first", "_second"))
+            base, ext = splitext(filename)
+            filename_b = string(base, "_second", ext)
+            saved = read(GeoArray(filename_b))
+            @test all(saved .== geoA)
+            filename = tempname() * ".nc"
+            write(filename, gdalstack)
+            saved = GeoStack(filename)
+        end
+
+        @testset "write netcdf"
+            filename = tempname() * ".nc"
+            write(filename, gdalstack)
+            saved = GeoStack(filename)
+        end
     end
 
     @testset "show" begin

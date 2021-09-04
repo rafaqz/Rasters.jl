@@ -136,13 +136,13 @@ function Base.open(f::Function, A::AbstractGeoArray; kw...)
     # Open FileArray to expose the actual dataset object, even inside nested wrappers
     select = FileArray
     ignore = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
-    fa = Flatten.flatten(data(A), select, ignore)
+    fa = Flatten.flatten(parent(A), select, ignore)
     if fa == ()
-        f(GeoArray(data(A), dims(A), refdims(A), name(A), metadata(A), missingval(A)))
+        f(GeoArray(parent(A), dims(A), refdims(A), name(A), metadata(A), missingval(A)))
     else
         open(fa[1]; kw...) do x
             # Rewrap the opened object where the FileArray was
-            d = Flatten.reconstruct(data(A), (x,), select, ignore) 
+            d = Flatten.reconstruct(parent(A), (x,), select, ignore) 
             f(GeoArray(d, dims(A), refdims(A), name(A), metadata(A), missingval(A)))
         end
     end

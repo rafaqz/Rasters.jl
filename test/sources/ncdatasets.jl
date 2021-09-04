@@ -28,6 +28,7 @@ stackkeys = (
 
 @testset "GeoArray" begin
     @time ncarray = GeoArray(ncsingle)
+    plot(ncarray[Ti(1)]; aspect_ratio=:equal)
 
     @testset "open" begin
         @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
@@ -109,6 +110,23 @@ stackkeys = (
             @test all(collect(cropped .=== trimmed))
             extended = extend(cropped; to=a)
             @test all(collect(extended .=== a))
+            msk = read(ncarray)
+            msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
+            @test !all(ncarray[X(1:100)] .=== missingval(msk))
+            masked = mask(ncarray; to=msk)
+            @test all(masked[X(1:100), Y([1, 5, 95])] .=== missingval(msk))
+            @testset "mask! to disk" begin
+                tempfile = tempname() * ".nc"
+                cp(ncsingle, tempfile)
+                @test !all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
+                open(GeoArray(tempfile); write=true) do A
+                    mask!(A; to=msk, missingval=missing)
+                    # TODO: replace the CFVariable with a FileArray{NCDfile} so this is not required
+                    nothing
+                end
+                @test all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
+                rm(tempfile)
+            end
         end
         @testset "chunk" begin
             @test GeoData.chunk(ncarray) isa GeoSeries
@@ -167,7 +185,7 @@ stackkeys = (
         @test name(geoA) == :tos
     end
 
-    @testset "save" begin
+    @testset "write" begin
         @testset "to netcdf" begin
             # TODO save and load subset
             geoA = read(ncarray)
@@ -311,13 +329,42 @@ end
     end
 
     @testset "Subsetting keys" begin
-        smallstack = GeoStack(ncstack; keys=(:albedo, :evap, :runoff))
+        smallstack = subset(ncstack, (:albedo, :evap, :runoff))
         @test keys(smallstack) == (:albedo, :evap, :runoff)
     end
+    
+    @testset "methods" begin 
+        smallstack = GeoStack(ncmulti; keys=(:albedo, :evap, :runoff))
+        means = map(A -> mean(parent(A); dims=2), smallstack)
+        @test map((a, b) -> all(a .== b), mean(smallstack; dims=Y), means) |> all
+        @testset "trim, crop, extend" begin
+            mv = zero(eltype(smallstack[:albedo]))
+            st = replace_missing(smallstack, mv)
+            st = map(A -> (view(A, X(1:100)) .= mv; A), st)
+            trimmed = trim(st)
+            @test size(trimmed) == (92, 96, 8)
+            cropped = crop(st; to=trimmed)
+            @test size(cropped) == (92, 96, 8)
+            @test map((c, t) -> all(collect(c .=== t)), cropped, trimmed) |> all
+            extended = extend(cropped; to=st)
+            @test all(map((e, s) -> all(e .== s), extended, st))
+
+            st = replace_missing(smallstack, mv)
+            msk = st[:runoff]
+            msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
+            @test !any(st[:albedo][X(1:100)] .=== missingval(masked[:albedo]))
+            masked = mask(st; to=msk)
+            @test all(masked[:albedo][X(1:100), Y([1, 5, 95])] .=== missingval(masked[:albedo]))
+            st = read(smallstack)
+            mask!(st; to=msk, missingval=missing)
+            @test all(st[:albedo][X(1:100), Y([1, 5, 95])] .=== missing)
+            @test all(st[:evap][X(1:100), Y([1, 5, 95])] .=== missing)
+            @test all(st[:runoff][X(1:100), Y([1, 5, 95])] .=== missing)
+        end
 
     # This is slow. We combine read/save to reduce test time
     # And it seems the memory is not garbage collected??
-    @testset "read and save" begin
+    @testset "read and write" begin
         @time st = read(ncstack)
         @test st isa GeoStack
         @test st.data isa NamedTuple
@@ -402,7 +449,7 @@ end
         end
     end
 
-    @testset "read and save" begin
+    @testset "read and write" begin
         st = read(ncstack)
         @test st isa GeoStack
         @test st.data isa NamedTuple

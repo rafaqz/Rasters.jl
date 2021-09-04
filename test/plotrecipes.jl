@@ -28,6 +28,8 @@ plot(ga4x[Y(1)])
 plot(ga4ti[Z(1)])
 # GeoData handles filled contours
 contourf(ga2)
+# GeoStack plot
+plot(GeoStack(ga2, ga3))
 
 # DD fallback
 contour(ga2)

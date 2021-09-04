@@ -191,6 +191,7 @@ if isfile(path1) && isfile(path2)
 
     @testset "stack" begin
         @time smapstack = GeoStack(path1)
+        GeoArray(subset(smapstack, 1:4:20))
 
         @testset "read" begin
             @time st = read(smapstack);
