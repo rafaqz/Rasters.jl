@@ -155,11 +155,12 @@ warp
 crop
 trim
 extend
-slice
-chunk
-points
 convertmode
 reproject
+slice
+chunk
+subset
+points
 ```
 
 Field access:
