@@ -142,6 +142,8 @@ These methods are specific to GeoData.jl:
 
 ```@docs
 replace_missing
+mask
+mask!
 boolmask
 missingmask
 aggregate
@@ -153,11 +155,12 @@ warp
 crop
 trim
 extend
-slice
-chunk
-points
 convertmode
 reproject
+slice
+chunk
+subset
+points
 ```
 
 Field access:

@@ -92,6 +92,25 @@ path = stem * ".gri"
             extended = extend(cropped; to=a);
             @test all(collect(extended .== a))
         end
+        @testset "mask and mask! to disk" begin
+            msk = replace_missing(grdarray, missing)
+            msk[X(1:73), Y([1, 5, 77])] .= missingval(msk)
+            @test !any(grdarray[X(1:73)] .=== missingval(msk))
+            masked = mask(grdarray; to=msk)
+            @test all(masked[X(1:73), Y([1, 5, 77])] .=== missingval(masked))
+            tn = tempname()
+            tempgrd = tn * ".grd"
+            tempgri = tn * ".gri"
+            cp(stem * ".grd", tempgrd)
+            cp(stem * ".gri", tempgri)
+            @test !all(GeoArray(tempgrd)[X(1:73), Y([1, 5, 77])] .=== missingval(grdarray))
+            open(GeoArray(tempgrd); write=true) do A
+                mask!(A; to=msk, missingval=missingval(A))
+            end
+            @test all(GeoArray(tempgri)[X(1:73), Y([1, 5, 77])] .=== missingval(grdarray))
+            rm(tempgrd)
+            rm(tempgri)
+        end
         @testset "chunk" begin
             @test GeoData.chunk(grdarray) isa GeoSeries
             @test size(GeoData.chunk(grdarray)) == (1, 1, 1)
@@ -117,7 +136,7 @@ path = stem * ".gri"
         @test name(geoA) == Symbol("red:green:blue")
     end
 
-    @testset "save" begin
+    @testset "write" begin
         @testset "2d" begin
             filename2 = tempname() * ".gri"
             write(filename2, grdarray[Band(1)])
@@ -264,7 +283,7 @@ end
         end
     end
 
-    @testset "save" begin
+    @testset "write" begin
         geoA = GeoArray(grdstack[:b])
         filename = tempname() * ".grd"
         write(filename, grdstack)
@@ -284,6 +303,72 @@ end
         @test occursin("Band", sh)
         @test occursin(":a", sh)
         @test occursin(":b", sh)
+    end
+
+end
+
+
+@testset "Grd Band stack" begin
+    grdstack = GeoStack(path)
+
+    @test length(grdstack) == 3
+    @test dims(grdstack) isa Tuple{<:X,<:Y}
+
+    @testset "read" begin
+        st = read(grdstack)
+        @test st isa GeoStack
+        @test st.data isa NamedTuple
+        @test first(st.data) isa Array
+    end
+
+    @testset "indexing" begin
+        @test grdstack[:Band_3][Y(20), X(20)] == 70.0f0
+        @test grdstack[:Band_2][Y([2,3]), X(40)] == [240.0f0, 246.0f0]
+    end
+
+    @testset "child array properties" begin
+        @test size(grdstack[:Band_3]) == size(GeoArray(grdstack[:Band_3])) == (101, 77)
+        @test grdstack[:Band_1] isa GeoArray{Float32,2}
+    end
+
+    # Stack Constructors
+    @testset "conversion to GeoStack" begin
+        geostack = GeoStack(grdstack)
+        @test Symbol.(Tuple(keys(grdstack))) == keys(geostack)
+        smallstack = GeoStack(grdstack; keys=(:Band_2,))
+        @test keys(smallstack) == (:Band_2,)
+    end
+
+    if VERSION > v"1.1-"
+        @testset "copy" begin
+            geoA = zero(GeoArray(grdstack[:Band_3]))
+            copy!(geoA, grdstack, :Band_3)
+            # First wrap with GeoArray() here or == loads from disk for each cell.
+            # we need a general way of avoiding this in all disk-based sources
+            @test geoA == GeoArray(grdstack[:Band_3])
+        end
+    end
+
+    @testset "save" begin
+        geoA = GeoArray(grdstack[:Band_3])
+        filename = tempname() * ".grd"
+        write(filename, grdstack)
+        base, ext = splitext(filename)
+        filename_3 = string(base, "_Band_3", ext)
+        saved = read(GeoArray(filename_3))
+        @test typeof(rebuild(saved[Band(1)], refdims=())) == typeof(geoA)
+        @test parent(saved[Band(1)]) == parent(geoA)
+    end
+
+    @testset "show" begin
+        sh = sprint(show, MIME("text/plain"), grdstack)
+        # Test but don't lock this down too much
+        @test occursin("GeoStack", sh)
+        @test occursin("Y", sh)
+        @test occursin("X", sh)
+        @test occursin(":Band_1", sh)
+        @test occursin(":Band_2", sh)
+        @test occursin(":Band_3", sh)
     end
 
 end

@@ -113,36 +113,36 @@ Base.parent(A::AbstractGeoArray) = data(A)
     open(f, A::AbstractGeoArray; write=false)
 
 `open` is used to open any `AbstractGeoArray` and do multiple operations
-on it in a safe way. It's a shorthand for the unexported `OpenGeoArray`
-constructor. The `write` keyword opens the file in write mode so that it
+on it in a safe way. The `write` keyword opens the file in write mode so that it
 can be altered on disk using e.g. a broadcast.
 
-`f` is a method that accepts a single argument - an `OpenGeoArray` object
-which is just an `AbstractGeoArray` that holds an open disk - based object.
+`f` is a method that accepts a single argument - an `GeoArray` object
+which is just an `AbstractGeoArray` that holds an open disk-based object.
 Often it will be a `do` block:
 
 ```julia
-ga = geoarray(filepath)
-open(ga; write=true) do A
-    A[I...] .*= 2 # A is an `OpenGeoArray` wrapping the opened disk-based object.
+# A is an `GeoArray` wrapping the opened disk-based object.
+open(GeoArray(filepath); write=true) do A
+    mask!(A; to=maskfile)
+    A[I...] .*= 2
     # ...  other things you need to do with the open file
 end
 ```
 
-By using a do block to open file we ensure they are always closed again
+By using a do block to open files we ensure they are always closed again
 after we finish working with them.
 """
 function Base.open(f::Function, A::AbstractGeoArray; kw...)
     # Open FileArray to expose the actual dataset object, even inside nested wrappers
     select = FileArray
     ignore = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
-    fa = Flatten.flatten(data(A), select, ignore)
+    fa = Flatten.flatten(parent(A), select, ignore)
     if fa == ()
-        f(GeoArray(data(A), dims(A), refdims(A), name(A), metadata(A), missingval(A)))
+        f(GeoArray(parent(A), dims(A), refdims(A), name(A), metadata(A), missingval(A)))
     else
         open(fa[1]; kw...) do x
             # Rewrap the opened object where the FileArray was
-            d = Flatten.reconstruct(data(A), (x,), select, ignore) 
+            d = Flatten.reconstruct(parent(A), (x,), select, ignore) 
             f(GeoArray(d, dims(A), refdims(A), name(A), metadata(A), missingval(A)))
         end
     end
@@ -157,6 +157,7 @@ Base.write(A::T) where T <: AbstractGeoArray = write(filename(A), A)
     GeoArray(A::AbstractArray{T,N}, dims::Tuple; kw...)
     GeoArray(A::AbstractArray{T,N}; dims, kw...)
     GeoArray(A::AbstractGeoArray; kw...) =
+    GeoArray(A::AbstractGeoStack; kw...) =
 
 A generic, memory-backed spatial array type. All [`AbstractGeoArray`](@ref) are
 converted to `GeoArray` when indexed or otherwise transformed.
@@ -221,6 +222,7 @@ end
 end
 
 filekey(ds, key) = key
+filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
 # Precompile
 precompile(GeoArray, (String,))

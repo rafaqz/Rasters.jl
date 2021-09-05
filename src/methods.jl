@@ -1,4 +1,5 @@
 const GeoStackOrArray = Union{AbstractGeoStack,AbstractGeoArray}
+const GeoSeriesOrStack = Union{AbstractGeoSeries,AbstractGeoStack}
 
 """
     replace_missing(a::AbstractGeoArray, newmissingval)
@@ -10,22 +11,21 @@ also updating the `missingval` field/s.
 A `GeoArray` containing a newly allocated `Array` is always returned,
 even when the missing value matches the current value.
 """
-function replace_missing(A::AbstractGeoArray, newmissingval=missing)
+replace_missing(x; missingval=missing) = replace_missing(x, missingval)
+function replace_missing(A::AbstractGeoArray, missingval=missing)
     A = read(A)
-    newdata = if ismissing(missingval(A))
-        if ismissing(newmissingval)
+    newdata = if ismissing(GeoData.missingval(A))
+        if ismissing(missingval)
             copy(parent(read(A)))
         else
-            collect(Missings.replace(parent(A), newmissingval))
+            collect(Missings.replace(parent(A), missingval))
         end
     else
-        replace(parent(A), missingval(A) => newmissingval)
+        replace(parent(A), GeoData.missingval(A) => missingval)
     end
-    rebuild(A; data=newdata, missingval=newmissingval)
+    rebuild(A; data=newdata, missingval=missingval)
 end
-function replace_missing(stack::AbstractGeoStack, newmissingval=missing)
-    map(A -> replace_missing(A, newmissingval), stack)
-end
+replace_missing(x::GeoSeriesOrStack, args...) = map(A -> replace_missing(A, args...), x)
 
 """
     boolmask(A::AbstractArray, [missingval])
@@ -69,6 +69,42 @@ missingmask(A::AbstractArray, missingval) =
     else
         (a -> isapprox(a, missingval) ? missing : true).(parent(A))
     end
+
+"""
+    mask(A::AbstractGeoArray; to; missingval=missingval(A))
+
+Mask `A` by the missing values of `to`, optionally setting a new `misssingval`.
+
+$EXPERIMENTAL
+""" 
+function mask end
+function mask(A::AbstractGeoArray; to, missingval=missingval(A))
+    missingval = missingval isa Nothing ? missing : missingval
+    return mask!(replace_missing(A, missingval); to, missingval)
+end
+mask(xs::GeoSeriesOrStack; kw...) = map(x -> mask(x; kw...),  xs)  
+
+"""
+    mask!(A; to::AbstractArray, missingval=missing)
+
+Extend multiple [`AbstractGeoArray`](@ref) to match the area covered by all.
+A single `AbstractGeoArray` can be extended by passing the new `dims` tuple 
+as the second argument.
+
+$EXPERIMENTAL
+""" 
+function mask!(A::AbstractGeoArray; to, missingval=missingval(A))
+    missingval isa Nothing && throw(ArgumentError("Array has no `missingval`. Pass a `missingval` keyword compatible with the type, or use `rebuild(A; missingval=somemissingval)` to set it."))
+    dimwise!(A, A, to) do a, t
+        t === GeoData.missingval(to) ? missingval : a
+    end
+    return A
+end
+function mask!(xs::GeoSeriesOrStack; kw...)
+    map(x -> mask!(x; kw...),  xs)
+    return xs
+end
+
 
 """
     crop(layers::AbstractGeoArray...)
@@ -207,7 +243,7 @@ _longest(a, b) = length(a) >= length(b)
 """
     trim(A::AbstractGeoArray; dims::Tuple, pad::Int)
         
-Trim `missingval` from `A` for axes in dims.
+Trim `missingval` from `A` for axes in dims, returning a view of `A`.
 
 By default `dims=(X, Y)`, so trimming keeps the area of `X` and `Y` 
 that contains non-missing values along all other dimensions.
@@ -275,7 +311,11 @@ function _trimranges(A, targetdims)
     _update!(trackers, A)
     # Get the ranges that contain all non-missing values
     cropranges = map(trackers.tracking) do a
-        findfirst(a):findlast(a)
+        f = findfirst(a)
+        l = findlast(a)
+        f = f === nothing ? firstindex(a) : f
+        l = l === nothing ? lastindex(a) : l
+        f:l
     end
     return cropranges
 end
@@ -305,7 +345,7 @@ function slice(x::GeoStackOrArray, dims::Tuple)
     # Define dimensions and data for the sliced GeoSeries
     seriesdims = DD.dims(x, dims)
     # series data is a generator of view slices
-    seriesdata = map(DD.dimwise_generators(seriesdims)) do ds
+    seriesdata = map(DimIndices(seriesdims)) do ds
         view(x, ds...)
     end
     return GeoSeries(seriesdata, seriesdims)
@@ -324,7 +364,7 @@ combine(ser::AbstractGeoSeries, dims::Tuple) = foldl(combine, dims; init=ser)
 # series, and combine them, returning a new series with 1 less dimension.
 function combine(ser::AbstractGeoSeries{<:Any,M}, dim::Union{Dimension,DD.DimType,Val,Symbol}) where M
     od = otherdims(ser, dim)
-    slices = map(d -> view(ser, d...), DD.dimwise_generators(od))
+    slices = map(d -> view(ser, d...), DimIndices(od))
     newchilren = map(s -> combine(s, dim), slices)
     return rebuild(ser; data=newchilren, dims=od) 
 end

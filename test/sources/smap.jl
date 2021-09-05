@@ -35,6 +35,7 @@ if isfile(path1) && isfile(path2)
 
     @testset "GeoArray" begin
         @time smaparray = GeoArray(path1)
+        plot(smaparray)
 
         @testset "open" begin
             @test all(open(A -> A[Y=1], smaparray) .=== smaparray[:, 1])
@@ -191,6 +192,7 @@ if isfile(path1) && isfile(path2)
 
     @testset "stack" begin
         @time smapstack = GeoStack(path1)
+        GeoArray(subset(smapstack, 1:4:20))
 
         @testset "read" begin
             @time st = read(smapstack);

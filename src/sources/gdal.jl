@@ -24,6 +24,8 @@ end
 
 cleanreturn(A::AG.RasterDataset) = Array(A)
 
+haslayers(::Type{GDALfile}) = false
+
 # AbstractGeoArray methods
 
 """
@@ -242,7 +244,9 @@ function _gdalsetproperties!(dataset, A)
     # there is no missing value.
     # TODO define default nodata values for missing?
     if (missingval(A) !== missing) && (missingval(A) !== nothing)
-        bands = hasdim(A, Band) ? index(A, Band) : 1
+        # We use the axis instead of the values because
+        # GDAL has to have values 1:N, not whatever the index holds
+        bands = hasdim(A, Band) ? axes(A, Band) : 1
         for i in bands
             AG.setnodatavalue!(AG.getband(dataset, i), missingval(A))
         end
