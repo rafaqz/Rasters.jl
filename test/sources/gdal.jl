@@ -106,21 +106,30 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             @test all(collect(cropped .=== trimmed))
             extended = extend(cropped; to=a)
             @test all(collect(extended .== a))
+        end
+        @testset "mask and mask! to disk" begin
             msk = replace_missing(gdalarray, missing)
             msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
             @test !any(gdalarray[X(1:100)] .=== missingval(msk))
             masked = mask(gdalarray; to=msk)
             @test all(masked[X(1:100), Y([1, 5, 95])] .=== missingval(msk))
-            @testset "mask! to disk" begin
-                tempfile = tempname() * ".tif"
-                cp(gdalpath, tempfile)
-                @test !all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
-                open(GeoArray(tempfile); write=true) do A
-                    mask!(A; to=msk, missingval=0x00)
-                end
-                @test all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
-                rm(tempfile)
+            tempfile = tempname() * ".tif"
+            cp(gdalpath, tempfile)
+            @test !all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
+            open(GeoArray(tempfile); write=true) do A
+                mask!(A; to=msk, missingval=0x00)
             end
+            @test all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
+            rm(tempfile)
+        end
+        @testset "classify and classify! to disk" begin
+            tempfile = tempname() * ".tif"
+            cp(gdalpath, tempfile)
+            mapslices(x -> 2x, gdalarray; dims=1)
+            open(GeoArray(tempfile); write=true) do A
+                classify!(A, [0x01 a0xcf 0x00; 0xd0 0xff 0xff])
+            end
+            @test count(==(0x00), GeoArray(tempfile)) + count(==(0xff), GeoArray(tempfile)) == length(GeoArray(tempfile))
         end
         @testset "chunk" begin
             @test GeoData.chunk(gdalarray) isa GeoSeries

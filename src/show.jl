@@ -1,6 +1,6 @@
 
 function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractGeoArray)
-    if parent(A) isa AbstractDiskArray 
+    if parent(A) isa DiskArrays.AbstractDiskArray 
         if parent(A) isa FileArray 
             printstyled(io, "\nfrom file:\n"; color=:light_black)
             print(io, filename(parent(A)))

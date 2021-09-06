@@ -31,7 +31,7 @@ function aggregate(
 )
     f = i -> aggregate(method, series[i], scale, args...; progress=false, kw...)
     data = if progress
-        @showprogress "Aggregating series..." map(f, 1:length(series))
+        ProgressMeter.@showprogress "Aggregating series..." map(f, 1:length(series))
     else
         map(f, 1:length(series))
     end
@@ -43,7 +43,7 @@ function aggregate(
     f = key -> aggregate(method, stack[key], scale)
     keys_nt = NamedTuple{keys}(keys)
     arrays = if progress
-        @showprogress "Aggregating stack..." map(f, keys_nt)
+        ProgressMeter.@showprogress "Aggregating stack..." map(f, keys_nt)
     else
         map(f, keys_nt)
     end
@@ -137,7 +137,7 @@ function disaggregate end
 function disaggregate(method, series::AbstractGeoSeries, scale; progress=true, kw...)
     f = i -> disaggregate(method, series[i], scale; progress=false, kw...)
     return if progress
-        @showprogress "Disaggregating series..." map(f, 1:length(series))
+        ProgressMeter.@showprogress "Disaggregating series..." map(f, 1:length(series))
     else
         map(f, 1:length(series))
     end
@@ -148,7 +148,7 @@ function disaggregate(method, stack::AbstractGeoStack, scale;
     f = key -> disaggregate(method, stack[key], scale)
     keys_nt = NamedTuple{keys}(keys)
     arrays = if progress
-        @showprogress "Disaggregating stack..." map(f, keys_nt)
+        ProgressMeter.@showprogress "Disaggregating stack..." map(f, keys_nt)
     else
         map(f, keys_nt)
     end
