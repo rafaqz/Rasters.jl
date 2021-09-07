@@ -155,13 +155,47 @@ end
 
 function _classify(x, pairs, lower, upper, others, missingval)
     x === missingval && return x
-    found = false
-    for (find, replace) in pairs
-        if _compare(find, x, lower, upper)
-            x = replace
-            found = true
-            break
+    # Use a fold instead of a loop, for type stability
+    found = foldl(pairs; init=nothing) do found, (find, replace)
+        if found isa Nothing && _compare(find, x, lower, upper)
+            replace
+        else
+            found
         end
+    end
+    if found isa Nothing
+        if others isa Nothing
+            return x
+        else
+            return others
+        end
+    else
+        return found
+    end
+end
+function _classify(x, pairs::AbstractMatrix, lower, upper, others, missingval)
+    x === missingval && return x
+    found = false
+    if size(pairs, 2) == 2
+        for i in 1:size(pairs, 1)
+            find = pairs[i, 1]
+            if _compare(find, x, lower, upper)
+                x = pairs[i, 2]
+                found = true
+                break
+            end
+        end
+    elseif size(pairs, 2) == 3
+        for i in 1:size(pairs, 1)
+            find = pairs[i, 1], pairs[i, 2]
+            if _compare(find, x, lower, upper)
+                x = pairs[i, 3]
+                found = true
+                break
+            end
+        end
+    else
+        throw(ArgumentError("pairs Array must be a N*2 or N*3 matrix"))
     end
     if !found && !(others isa Nothing)
         x = others
@@ -550,6 +584,7 @@ end
     (nearest neighbor resampling). See [resampling method](https://gdal.org/programs/gdalwarp.html#cmdoption-gdalwarp-r)
     in the gdalwarp docs for a complete list of possible values.
 
+$EXPERIMENTAL
 """
 function resample end
 function resample(A::AbstractGeoArray, resolution::Number;
@@ -604,6 +639,8 @@ warp(A, flags) |> plot
 ```
 
 In practise, prefer [`resample`](@ref) for this. But `warp` may be more flexible.
+
+$EXPERIMENTAL
 """
 function warp(A::AbstractGeoArray, flags::Dict)
     odims = otherdims(A, (X, Y, Band))
@@ -634,3 +671,122 @@ _asflag(x) = string(x)[1] == '-' ? x : string("-", x)
 _stringvect(x::AbstractVector) = Vector(string.(x))
 _stringvect(x::Tuple) = [map(string, x)...]
 _stringvect(x) = [string(x)]
+
+"""
+    mosaic(f, layers::AbstractGeoArray...; dims, missingval)
+    mosaic(f, layers::AbstractGeoStack...; dims, missingval)
+    mosaic(f, layers::Tuple; dims, missingval)
+
+Combine layers using the function `f`, e.g. `mean`, `sum`, `first` or `last`
+where layers values overlap. 
+
+# Keywords
+- `dims`: The dimesions to mosaic over, `(XDim, YDim)` by default.
+- `missingval`: Fills empty areas, and defualts to the `missingval` of the first layer.
+
+$EXPERIMENTAL
+"""
+mosaic(f::Function, layers...; kw...) = mosaic(f, layers; kw...)
+function mosaic(f::Function, layers::Tuple; missingval=missingval(first(layers)), filename=nothing)
+    T = Base.promote_type(typeof(missingval), Base.promote_eltype(layers...))
+    dims = mosaic(map(DD.dims, layers))
+    data = if filename isa Nothing
+        Array{T,length(dims)}(undef, map(length, dims))
+    else
+        create(filename, T, dims; missingval)
+    end
+    A = rebuild(first(layers), data, dims)
+    open(A; write=true) do a
+        mosaic!(f, a, layers; missingval)
+    end
+end
+function mosaic(f::Function, layers::Tuple{<:AbstractGeoStack,Vararg}; kw...)
+    map(layers...) do A... 
+        mosaic(f, A...; kw...)
+    end
+end
+
+"""
+    mosaic!(f, A, layers::AbstractGeoArray...; dims, missingval)
+    mosaic!(f, A, layers::AbstractGeoStack...; dims, missingval)
+    mosaic!(f, A, layers::Tuple; dims, missingval)
+
+Combine layers using the function `f`, e.g. `mean`, `sum`, `first` or `last`
+where layers values overlap. 
+
+# Keywords
+- `dims`: The dimesions to mosaic over, `(XDim, YDim)` by default.
+- `missingval`: Fills empty areas, and defualts to the `missingval` of the first layer.
+
+$EXPERIMENTAL
+"""
+function mosaic!(f::Function, A, layers; missingval=missingval(first(layers)))
+    broadcast!(A, DimKeys(A)) do ds
+        # Get all the layers that have this point
+        ls = foldl(layers; init=()) do acc, l
+            DD.hasselection(l, ds) ? (acc..., l) : acc
+        end
+        values = foldl(ls; init=()) do acc, l
+            v = l[ds...]
+            v === GeoData.missingval(l) ? acc : (acc..., v)
+        end
+        if length(values) === 0
+            missingval
+        else
+            f(values)
+        end
+    end
+    return A
+end
+function mosaic!(f::Function, A::AbstractGeoStack, stacks; kw...)
+    map(A, stacks...) do a, s...
+        mosaic!(f, a, s...; kw...)
+    end
+end
+    
+function mosaic(alldims::Tuple{<:DimTuple,Vararg{<:DimTuple}})
+    map(mosaic, alldims...)
+end
+function mosaic(dims::Dimension...)
+    map(dims) do d
+        DD.comparedims(first(dims), d; val=false, length=false, mode=true)
+    end
+    _mosaic(mode(first(dims)), dims)
+end
+
+function _mosaic(mode::Categorical, dims::DimTuple)
+    newindex = sort(union(map(val, dims)...); ordering=DD._ordering(indexorder(mode)))
+    return rebuild(first(dims), newindex)
+end
+function _mosaic(mode::AbstractSampled, dims::DimTuple)
+    order(mode) isa Unordered && throw(ArgumentError("Cant mozaic an Unordered dimension $(basetypeof(dim))"))
+    _mosaic(span(mode), mode, dims)
+end
+function _mosaic(span::Regular, mode::AbstractSampled, dims::DimTuple)
+    allkeys = map(val, dims)
+    newindex = if indexorder(mode) isa ForwardIndex
+        mi = minimum(map(first, allkeys))
+        ma = maximum(map(last, allkeys))
+        mi:step(span):ma
+    else
+        mi = minimum(map(last, allkeys))
+        ma = maximum(map(first, allkeys))
+        ma:step(span):mi 
+    end
+    return rebuild(first(dims), newindex)
+end
+function _mosaic(::Irregular, mode::AbstractSampled, dims::DimTuple)
+    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
+    return rebuild(first(dims), newindex)
+end
+function _mosaic(span::Explicit, mode::AbstractSampled, dims::DimTuple)
+    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
+    bounds = map(val ∘ DD.span, dims)
+    lower = map(b -> view(b, 1, :), bounds)
+    upper = map(b -> view(b, 2, :), bounds)
+    newlower = sort(union(lower...); order=DD._ordering(indexorder(mode)))
+    newupper = sort(union(upper...); order=DD._ordering(indexorder(mode)))
+    newbounds = vcat(newlower', newupper')
+    newmode = rebuild(mode; span=Explicit(newbounds))
+    return rebuild(first(dims); val=newindex, mode=newmode)
+end
