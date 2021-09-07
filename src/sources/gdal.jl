@@ -200,7 +200,7 @@ function _gdalwrite(filename, A::AbstractGeoArray, nbands;
             end
         end
     else
-        # Create a  memory object and copy it to disk, as ArchGDAL.create
+        # Create a memory object and copy it to disk, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
         ArchGDAL.create(""; driver=AG.getdriver("MEM"), kw...) do ds
             _gdalsetproperties!(ds, A)
@@ -214,6 +214,40 @@ function _gdalwrite(filename, A::AbstractGeoArray, nbands;
     return filename
 end
 
+function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple; missingval=nothing,
+    driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing
+)
+    x = DD.dims(dims, XDim)
+    y = DD.dims(dims, YDim)
+    nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band)) : 1
+    kw = (width=length(x), height=length(y), nbands=nbands, dtype=T)
+    gdaldriver = AG.getdriver(driver)
+    if driver == "GTiff"
+        # block_x, block_y = DA.eachchunk(A).chunksize
+        # tileoptions = if chunk === nothing
+            # ["TILED=NO"]
+        tileoptions = ["TILED=YES"]
+        # else
+            # ["TILED=YES", "BLOCKXSIZE=$block_x", "BLOCKYSIZE=$block_y"]
+        # end
+        options = ["COMPRESS=$compress", tileoptions...]
+        AG.create(filename; driver=gdaldriver, options=options, kw...) do ds
+            _gdalsetproperties!(ds, dims, missingval)
+            rds = AG.RasterDataset(ds)
+        end
+    else
+        # Create a memory object and copy it to disk, as ArchGDAL.create
+        # does not support direct creation of ASCII etc. rasters
+        ArchGDAL.create(tempname() * ".tif"; driver=AG.getdriver("GTiff"), kw...) do ds
+            _gdalsetproperties!(ds, dims, missingval)
+            rds = AG.RasterDataset(ds)
+            AG.copy(ds; filename=filename, driver=gdaldriver) |> AG.destroy
+        end
+    end
+    return filename
+end
+ 
+
 function _gdalmetadata(dataset::AG.Dataset, key)
     meta = AG.metadata(dataset)
     regex = Regex("$key=(.*)")
@@ -225,13 +259,14 @@ function _gdalmetadata(dataset::AG.Dataset, key)
     end
 end
 
-function _gdalsetproperties!(dataset, A)
+_gdalsetproperties!(ds, A) = _gdalsetproperties!(ds, dims(A), missingval(A))
+function _gdalsetproperties!(dataset, dims, missingval)
     # Convert the dimensions to `Projected` if they are `Converted`
     # This allows saving NetCDF to Tiff
     # Set the index loci to the start of the cell for the lat and lon dimensions.
     # NetCDF or other formats use the center of the interval, so they need conversion.
-    x = DD.maybeshiftlocus(GDAL_X_LOCUS, convertmode(Projected, dims(A, X)))
-    y = DD.maybeshiftlocus(GDAL_Y_LOCUS, convertmode(Projected, dims(A, Y)))
+    x = DD.maybeshiftlocus(GDAL_X_LOCUS, convertmode(Projected, DD.dims(dims, X)))
+    y = DD.maybeshiftlocus(GDAL_Y_LOCUS, convertmode(Projected, DD.dims(dims, Y)))
     # Convert crs to WKT if it exists
     if !(crs(x) isa Nothing)
         AG.setproj!(dataset, convert(String, convert(WellKnownText, crs(x))))
@@ -243,12 +278,12 @@ function _gdalsetproperties!(dataset, A)
     # but we would need to do this for all possible types. `nothing` means
     # there is no missing value.
     # TODO define default nodata values for missing?
-    if (missingval(A) !== missing) && (missingval(A) !== nothing)
+    if (missingval !== missing) && (missingval !== nothing)
         # We use the axis instead of the values because
         # GDAL has to have values 1:N, not whatever the index holds
-        bands = hasdim(A, Band) ? axes(A, Band) : 1
+        bands = hasdim(dims, Band) ? axes(DD.dims(dims, Band)) : 1
         for i in bands
-            AG.setnodatavalue!(AG.getband(dataset, i), missingval(A))
+            AG.setnodatavalue!(AG.getband(dataset, i), missingval)
         end
     end
 
