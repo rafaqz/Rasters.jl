@@ -18,3 +18,8 @@ _sourcetype(filename::AbstractString) = get(REV_EXT, splitext(filename)[2], GDAL
 function _open(f, filename::AbstractString; kw...)
     _open(f, _sourcetype(filename), filename; kw...)
 end
+
+function create(filename::AbstractString, T, dims; kw...)
+    create(filename, _sourcetype(filename), T, dims; kw...)
+end
+
