@@ -33,6 +33,10 @@ stackkeys = (
         @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
     end
 
+    # GeoData.create(tempfile, eltype(ncarray), dims(ncarray); 
+        # keys=keys(ncarray), missingval=missingval(gdalarray)
+    # )
+
     @testset "read" begin
         @time A = read(ncarray);
         @test A isa GeoArray
@@ -77,6 +81,7 @@ stackkeys = (
         @test typeof(mode(ncarray)) == typeof(modes)
         @test bounds(ncarray) == ((0.0, 360.0), (-80.0, 90.0), (DateTime360Day(2001, 1, 1), DateTime360Day(2003, 1, 1)))
     end
+    tempfile = tempname() * ".nc"
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
@@ -128,6 +133,18 @@ stackkeys = (
             end
             @test all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
             rm(tempfile)
+        end
+        @testset "mosaic" begin
+            @time ncarray = GeoArray(ncsingle)
+            A1 = ncarray[X(1:80), Y(1:100)]
+            A2 = ncarray[X(50:150), Y(90:150)]
+            tempfile = tempname() * ".nc"
+            Afile = mosaic(first, A1, A2; missingval=missing, atol=1e-7, filename=tempfile)
+            Amem = mosaic(first, A1, A2; missingval=missing, atol=1e-7)
+            Atest = ncarray[X(1:150), Y(1:150)]
+            Atest[X(1:49), Y(101:150)] .= missing
+            Atest[X(81:150), Y(1:89)] .= missing
+            @test all(Atest .=== Afile .=== Amem)
         end
         @testset "chunk" begin
             @test GeoData.chunk(ncarray) isa GeoSeries

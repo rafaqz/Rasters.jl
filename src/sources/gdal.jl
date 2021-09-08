@@ -45,6 +45,9 @@ function Base.write(
     filename::AbstractString, ::Type{GDALfile}, A::AbstractGeoArray{T,2}; kw...
 ) where T
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
+    map(dims(A, (X, Y))) do d
+    end
+
     correctedA = _maybe_permute_to_gdal(A) |>
         a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
@@ -70,6 +73,46 @@ function Base.write(
     _gdalwrite(filename, correctedA, nbands; kw...)
 end
 
+function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple; 
+    missingval=nothing, metadata=nothing, keys=nothing,
+    driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing
+)
+    if !(keys isa Nothing) && length(keys) > 1
+        throw(ArgumentError("GDAL cant write more than one layer per file, but keys $keys have $(length(keys))"))
+    end
+    x, y = map(DD.dims(dims, (XDim, YDim))) do d
+        mode(d) isa NoIndex ? set(d, Sampled) : d
+    end
+    x = reorder(x, typeof(GDAL_X_INDEX))
+    y = reorder(y, typeof(GDAL_Y_INDEX))
+
+    nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band)) : 1
+    kw = (width=length(x), height=length(y), nbands=nbands, dtype=T)
+    gdaldriver = AG.getdriver(driver)
+    if driver == "GTiff"
+        # block_x, block_y = DA.eachchunk(A).chunksize
+        # tileoptions = if chunk === nothing
+            # ["TILED=NO"]
+        tileoptions = ["TILED=YES"]
+        # else
+            # ["TILED=YES", "BLOCKXSIZE=$block_x", "BLOCKYSIZE=$block_y"]
+        # end
+        options = ["COMPRESS=$compress", tileoptions...]
+        AG.create(filename; driver=gdaldriver, options=options, kw...) do ds
+            _gdalsetproperties!(ds, dims, missingval)
+            rds = AG.RasterDataset(ds)
+        end
+    else
+        # Create a memory object and copy it to disk, as ArchGDAL.create
+        # does not support direct creation of ASCII etc. rasters
+        ArchGDAL.create(tempname() * ".tif"; driver=AG.getdriver("GTiff"), kw...) do ds
+            _gdalsetproperties!(ds, dims, missingval)
+            rds = AG.RasterDataset(ds)
+            AG.copy(ds; filename=filename, driver=gdaldriver) |> AG.destroy
+        end
+    end
+    return GeoArray(filename)
+end
 
 # DimensionalData methods for ArchGDAL types ###############################
 
@@ -109,6 +152,16 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
             Intervals(GDAL_X_LOCUS), Intervals(GDAL_Y_LOCUS)
         end
 
+        # xindorder, xarrayorder = if xmin <= xmax 
+        #     ForwardIndex(), ForwardArray() 
+        # else
+        #     ReverseIndex(), ReverseArray()
+        # end
+        # yindorder, yarrayorder = if ymin <= ymax
+        #     ForwardIndex(), ForwardArray()
+        # else
+        #     ReverseIndex(), ReverseArray()
+        # end
         xmode = Projected(
             order=Ordered(GDAL_X_INDEX, GDAL_X_ARRAY, GDAL_RELATION),
             span=Regular(step(xindex)),
@@ -213,39 +266,6 @@ function _gdalwrite(filename, A::AbstractGeoArray, nbands;
     end
     return filename
 end
-
-function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple; missingval=nothing,
-    driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing
-)
-    x = DD.dims(dims, XDim)
-    y = DD.dims(dims, YDim)
-    nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band)) : 1
-    kw = (width=length(x), height=length(y), nbands=nbands, dtype=T)
-    gdaldriver = AG.getdriver(driver)
-    if driver == "GTiff"
-        # block_x, block_y = DA.eachchunk(A).chunksize
-        # tileoptions = if chunk === nothing
-            # ["TILED=NO"]
-        tileoptions = ["TILED=YES"]
-        # else
-            # ["TILED=YES", "BLOCKXSIZE=$block_x", "BLOCKYSIZE=$block_y"]
-        # end
-        options = ["COMPRESS=$compress", tileoptions...]
-        AG.create(filename; driver=gdaldriver, options=options, kw...) do ds
-            _gdalsetproperties!(ds, dims, missingval)
-            rds = AG.RasterDataset(ds)
-        end
-    else
-        # Create a memory object and copy it to disk, as ArchGDAL.create
-        # does not support direct creation of ASCII etc. rasters
-        ArchGDAL.create(tempname() * ".tif"; driver=AG.getdriver("GTiff"), kw...) do ds
-            _gdalsetproperties!(ds, dims, missingval)
-            rds = AG.RasterDataset(ds)
-            AG.copy(ds; filename=filename, driver=gdaldriver) |> AG.destroy
-        end
-    end
-    return filename
-end
  
 
 function _gdalmetadata(dataset::AG.Dataset, key)
@@ -281,7 +301,7 @@ function _gdalsetproperties!(dataset, dims, missingval)
     if (missingval !== missing) && (missingval !== nothing)
         # We use the axis instead of the values because
         # GDAL has to have values 1:N, not whatever the index holds
-        bands = hasdim(dims, Band) ? axes(DD.dims(dims, Band)) : 1
+        bands = hasdim(dims, Band) ? axes(DD.dims(dims, Band), 1) : 1
         for i in bands
             AG.setnodatavalue!(AG.getband(dataset, i), missingval)
         end

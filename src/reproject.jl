@@ -1,16 +1,3 @@
-function DD._sel2indices(mode::Projected, dim::Dimension, sel::Contains)
-    selval = reproject(mappedcrs(mode), crs(mode), dim, val(sel))
-    DD.contains(dim, rebuild(sel, selval))
-end
-function DD._sel2indices(mode::Projected, dim::Dimension, sel::At)
-    selval = reproject(mappedcrs(mode), crs(mode), dim, val(sel))
-    DD.at(dim, rebuild(sel, selval))
-end
-function DD._sel2indices(mode::Projected, dim::Dimension, sel::Between)
-    selval = map(v -> reproject(mappedcrs(mode), crs(mode), dim, v), val(sel))
-    DD.between(dim, rebuild(sel, selval))
-end
-
 """
     reproject(source::GeoFormat, target::GeoFormat, dim::Dimension, val)
 

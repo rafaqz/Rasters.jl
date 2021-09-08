@@ -150,8 +150,10 @@ aggregate
 aggregate!
 disaggregate
 disaggregate!
-classify
+classify 
 classify!
+mosaic
+mosaic!
 resample
 warp
 crop
