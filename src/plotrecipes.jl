@@ -66,7 +66,6 @@ end
     if (A_min + A_max) / abs(A_max - A_min) < 0.25
         A_limit = max(abs(A_min), abs(A_max))
         clims = (-A_limit, A_limit)
-        :seriescolor --> :curl
     else
         clims = A_min, A_max
     end
@@ -91,7 +90,7 @@ end
     :framestyle --> :grid
     :widen --> true
     :foreground_color_axis --> RGB(0.5)
-    :seriescolor --> :magma
+    :seriescolor --> :curl
     :gridalpha --> 0.4
 
     # Often Mapped mode/netcdf has wide pixels

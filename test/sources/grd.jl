@@ -111,12 +111,40 @@ path = stem * ".gri"
             rm(tempgrd)
             rm(tempgri)
         end
+        @testset "classify! to disk" begin
+            tn = tempname()
+            tempgrd = tn * ".grd"
+            tempgri = tn * ".gri"
+            cp(stem * ".grd", tempgrd)
+            cp(stem * ".gri", tempgri)
+            extrema(GeoArray(tempgrd))
+            open(GeoArray(tempgrd); write=true) do A
+                classify!(A, [0.0f0 100.0f0 100.0f0; 100 300 255.0f0])
+            end
+            A = GeoArray(tempgrd)
+            @test count(==(100.0f0), A) + count(==(255.0f0), A) == length(A)
+        end
+        @testset "mosaic" begin
+            @time grdarray = GeoArray(path)
+            A1 = grdarray[X(1:40), Y(1:30)]
+            A2 = grdarray[X(27:80), Y(25:60)]
+            tn = tempname()
+            tempgrd = tn * ".grd"
+            tempgri = tn * ".gri"
+            cp(stem * ".grd", tempgrd)
+            cp(stem * ".gri", tempgri)
+            Afile = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-7, filename=tempgrd)
+            Amem = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-7)
+            Atest = grdarray[X(1:80), Y(1:60)]
+            Atest[X(1:26), Y(31:60)] .= 0.0f0
+            Atest[X(41:80), Y(1:24)] .= 0.0f0
+            @test all(Atest .=== Amem .== Afile)
+        end
         @testset "chunk" begin
             @test GeoData.chunk(grdarray) isa GeoSeries
             @test size(GeoData.chunk(grdarray)) == (1, 1, 1)
         end
     end
-
 
     @testset "selectors" begin
         geoA = grdarray[Y(Contains(3)), X(:), Band(1)]

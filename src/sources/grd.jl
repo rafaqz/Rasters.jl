@@ -16,6 +16,8 @@ const GRD_DATATYPE_TRANSLATION = Dict{String, DataType}(
     "INT8S" => Int64,
     "INT1U" => UInt8,
     "INT2U" => UInt16,
+    "INT4U" => UInt32,
+    "INT8U" => UInt64,
     "FLT4S" => Float32,
     "FLT8S" => Float64
 )
@@ -165,7 +167,7 @@ function Base.write(filename::String, ::Type{GRDfile}, A::AbstractGeoArray)
     filename = splitext(filename)[1]
     minvalue = minimum(filter(x -> x !== missingval(A), parent(A)))
     maxvalue = maximum(filter(x -> x !== missingval(A), parent(A)))
-    _write_gri(filename, dims, missingval(A), minvalue, maxvalue, name(A))
+    _write_grd(filename, eltype(A), dims(A), missingval(A), minvalue, maxvalue, name(A))
 
     # Data: gri file
     open(filename * ".gri", write=true) do IO
@@ -175,7 +177,7 @@ function Base.write(filename::String, ::Type{GRDfile}, A::AbstractGeoArray)
     return filename
 end
 
-function _write_grd(filename, dims, missingval, minvalue, maxvalue, name)
+function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
     filename = splitext(filename)[1]
 
     x, y = map(DD.dims(dims, (X(), Y()))) do d
@@ -220,14 +222,16 @@ function _write_grd(filename, dims, missingval, minvalue, maxvalue, name)
 end
 
 
-function create(filename, ::Type{GRDfile}, T::Type, dims::DD.DimTuple; name="layer", missingval=nothing)
+function create(filename, ::Type{GRDfile}, T::Type, dims::DD.DimTuple; 
+    name="layer", missingval=nothing, metadata=nothing, keys=nothing,
+)
     # Remove extension
     basename = splitext(filename)[1]
     minvalue = maxvalue = zero(T)
     sze = map(length, DD.dims(dims, (XDim, YDim, Band)))
 
     # Metadata: grd file
-    _write_grd(basename, dims, missingval, minvalue, maxvalue, name)
+    _write_grd(basename, T, dims, missingval, minvalue, maxvalue, name)
 
     # Data: gri file
     open(basename * ".gri", write=true) do IO
