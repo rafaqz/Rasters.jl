@@ -61,6 +61,15 @@ end
               [(9.0, 0.1) (9.0, 0.2); (10.0, 0.1) (10.0, 0.2)])
 end
 
+@testset "extract" begin
+    A = [1 2; 3 4]
+    ga = GeoArray(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); missingval=missing)
+    @test all(extract(ga, [(9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]) .=== [1, 4, missing])
+    @test all(extract(ga, [(0.1, 9.0), (0.2, 10.0), (0.3, 10.0)]; order=(Y, X)) .=== [1, 4, missing])
+    sizeof([(0.1, 9.0), (0.2, 10.0), (0.3, 10.0)])
+    sizeof([(X(0.1), Y(9.0)), (X(0.2), Y(10.0)), (X(0.3), Y(10.0))])
+end
+
 @testset "trim, crop, extend" begin
     A = [missing missing missing
          missing 2.0     0.5
@@ -156,3 +165,10 @@ end
         @test isapprox(index(snaptarget, X), index(snapped, X))
     end
 end
+
+using Plots, Shapefile, GeoData
+A = GeoArray(WorldClim{BioClim}, 2) |> plot
+sh = Shapefile.Handle("/home/raf/Downloads/WB_Coastlines_10m/WB_Coastlines_10m.shp")
+p = plot(A)
+poi = sh.shapes[24].points[1] |> length
+

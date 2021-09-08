@@ -83,6 +83,21 @@ function mask(A::AbstractGeoArray; to, missingval=missingval(A))
     return mask!(replace_missing(A, missingval); to, missingval)
 end
 mask(xs::GeoSeriesOrStack; kw...) = map(x -> mask(x; kw...),  xs)
+"""
+    mask(A::AbstractGeoArray, polygon; order, [, filename])`
+
+Masks the array `A` by a polygon. 
+
+Creates a new array, where points falling outside the polygon have 
+been replaced by `missingval(A)`.
+
+$EXPERIMENTAL
+"""
+function mask(A::AbstractGeoArray, poly::AbstractVector; order=(XDim, YDim), filename=nothing)
+    broadcast(DimKeys(A)) do ds
+        _polymask(src, dst, ds)
+    end
+end
 
 """
     mask!(A; to::AbstractArray, missingval=missing)
@@ -101,6 +116,65 @@ end
 function mask!(xs::GeoSeriesOrStack; kw...)
     map(x -> mask!(x; kw...),  xs)
     return xs
+end
+function mask!(dst, src::AbstractGeoArray, poly::AbstractVector; order=(XDim, YDim), filename=nothing)
+    broadcast!(dst, DimKeys(src)) do ds
+        _polymask(dst, src, ds)
+    end
+end
+
+function _polymask(dst, src, dims)
+    x = src[dims...]
+    if x === missingval(src)
+        missingval(dst)
+    elseif isinside(map(val, dims), poly)
+        x
+    else
+        missingval(dst)
+    end
+end
+
+const Pt{T<:Real} = NTuple{N,T} where N
+
+isinside(sel::At, poly::AbstractVector) = isinside(val(sel), poly)
+function isinside(r::Pt, poly::AbstractVector)
+    # An implementation of Hormann-Agathos (2001) Point in Polygon algorithm
+    # See: http://www.sciencedirect.com/science/article/pii/S0925772101000128
+    # Code segment adapted from PolygonClipping.jl
+    c = false
+    detq(q1,q2,r) = (q1[1] - r[1]) * (q2[2] - r[2]) - (q2[1] - r[1]) * (q1[2] - r[2])
+
+    for i in eachindex(poly)[2:end]
+        q2 = poly[i]
+        q1 = poly[i - 1]
+        if q1 == r
+            @warn("point on polygon vertex - returning false")
+            return false
+        end
+        if q2[2] == r[2]
+            if q2[1] == r[1]
+                @warn("point on polygon vertex - returning false")
+                return false
+            elseif (q1[2] == r[2]) && ((q2[1] > x) == (q1[1] < r[1]))
+                @warn("point on edge - returning false")
+                return false
+            end
+        end
+        if (q1[2] < r[2]) != (q2[2] < r[2]) # crossing
+            if q1[1] >= r[1]
+                if q2[1] > r[1]
+                    c = !c
+                elseif ((detq(q1,q2,r) > 0) == (q2[2] > q1[2])) # right crossing
+                    c = !c
+                end
+            elseif q2[1] > r[1]
+                if ((detq(q1,q2,r) > 0) == (q2[2] > q1[2])) # right crossing
+                    c = !c
+                end
+            end
+        end
+    end
+    return c
 end
 
 """
@@ -812,3 +886,39 @@ function _without_mapped_crs(f, A, mappedcrs)
     return A
 end
 
+"""
+   extract(vsr::AbstractGeoArray, points...; kw...)
+   extract(vsr::AbstractGeoArray, points; kw...)
+
+Extracts the value of the raster at the given points.
+"""
+function extract(A::AbstractGeoArray, x, y, others...; kw...)
+    extract(A, (x, y, others...); kw...)
+end
+function extract(
+    A::AbstractGeoArray, points; 
+    order=(XDim, YDim, ZDim), atol=nothing
+)
+    ordereddims = dims(A, order)
+    dimtypes = map(DD.basetypeof, ordereddims)
+    seldims = map(ordereddims, dimtypes, points) do d, D, p
+        if sampling(d) isa Points
+            D(At(p; atol))
+        else # Intervals
+            D(Contains(p))
+        end
+    end
+    if DD.hasselection(A, seldims)
+        return A[seldims...]
+    else
+        return missing
+    end
+end
+function extract(
+    A::AbstractGeoArray, points::NTuple{N,T}; kw...
+) where {T<:AbstractVector,N}
+    extract.(Ref(A), zip(points...); kw...)
+end
+function extract(A::AbstractGeoArray, points::AbstractVector; kw...)
+    extract.(Ref(A), points; kw...)
+end
