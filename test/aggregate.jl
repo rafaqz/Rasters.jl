@@ -153,10 +153,33 @@ end
     @test length.(dims(A)) == size(A)
 end
 
+@testset "Aggregate with a function with missing values" begin
+    data_m = [ 1  2  3  4  5  6 -1
+              7  8  9 10 11 12 -1
+             13 14 15 16 missing 18 -1]
+    array_m = GeoArray(data_m, dimz)
+    @test all(aggregate(sum, array_m, 3) .=== [72 missing])
+    data_m0 = [ 1  2  3  4  5  6 -1
+              7  8  0 10 11 12 -1
+             13 14 15 16 17 18 -1]
+    array_m0 = GeoArray(data_m0, dimz; missingval=0)
+    @test aggregate(sum, array_m0, 3) == [0 99]
+    @test all(aggregate(mean, array_m0, 3) .=== [0.0 11.0])
+end
+
+@testset "Aggregate to an array with a different missing value" begin
+    data_m = [ 1  2  3  4  5  6 -1
+              7  8  9 10 11 12 -1
+             13 14 15 16 missing 18 -1]
+    src = GeoArray(data_m, dimz)
+    dst = GeoArray(zeros(1, 2), map(d -> aggregate(mean, d, 3), dimz); missingval=-9999.0)
+    @test all(aggregate!(sum, dst, src, 3) .=== [72.0 -9999.0])
+end
+
 @testset "Aggregate different index modes" begin
     dimz = Band(1:3), Dim{:category}([:a, :b, :c]), X([10, 20, 30, 40])
     a1 = [1 2 3; 4 5 6; 7 8 9]
     A = cat(a1, a1 .+ 10, a1 .+ 20, a1 .+ 30, dims=3)
-    da = DimensionalArray(A, dimz)
+    da = GeoArray(A, dimz)
     @test vec(aggregate(sum, da, (3, 2, 2))) == [114, 354]
 end
