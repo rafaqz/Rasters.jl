@@ -9,6 +9,7 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
 
     @time gdalarray = GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test)
 
+
     @testset "open" begin
         @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1, :]
         tempfile = tempname() * ".tif"
@@ -127,6 +128,16 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             end
             @test all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
             rm(tempfile)
+            @time gdalarray = GeoArray(gdalpath; name=:test)
+            pointvec = [
+                (-10493.0, 4.235824521665208e6),
+                (-15298.0, 4.224973143255847e6),
+                (-20398.0, 4.234973143255847e6),
+                (-20493.0, 4.245824521665208e6), 
+                (-10493.0, 4.235824521665208e6),
+            ]
+            x = mask(gdalarray, pointvec)
+            # TODO actually test polygon masking
         end
         @testset "classify! to disk" begin
             tempfile = tempname() * ".tif"

@@ -26,6 +26,7 @@ function replace_missing(A::AbstractGeoArray, missingval=missing)
 end
 replace_missing(x::GeoSeriesOrStack, args...) = map(A -> replace_missing(A, args...), x)
 
+
 """
     boolmask(A::AbstractArray, [missingval])
 
@@ -82,20 +83,32 @@ function mask(A::AbstractGeoArray; to, missingval=missingval(A))
     missingval = missingval isa Nothing ? missing : missingval
     return mask!(replace_missing(A, missingval); to, missingval)
 end
-mask(xs::GeoSeriesOrStack; kw...) = map(x -> mask(x; kw...),  xs)
+mask(xs::GeoSeriesOrStack, args...; kw...) = map(x -> mask(x, args...; kw...),  xs)
 """
-    mask(A::AbstractGeoArray, polygon; order, [, filename])`
+    mask(x, polygon; order=(XDim, YDim), filename=nothing)`
 
 Masks the array `A` by a polygon. 
 
 Creates a new array, where points falling outside the polygon have 
-been replaced by `missingval(A)`.
+been replaced by `missingval(A)`. 
+
+# Arguments
+- `x`: a `GeoArray` or `GeoStack`
+- `polygon`: an `AbstractVector` of `Tuple` points, the first and last must close the shape.
+    In future this method will accept more point types.
+
+# Keywords
+
+- `order`: the order of dimensions in the points. Defaults to `(XDim, YDim)`.
+- `filename`: the filename to write to, forcing write the output directly to disk.
 
 $EXPERIMENTAL
 """
 function mask(A::AbstractGeoArray, poly::AbstractVector; order=(XDim, YDim), filename=nothing)
-    broadcast(DimKeys(A)) do ds
-        _polymask(src, dst, ds)
+    _without_mapped_crs(A) do a
+        broadcast(a, DimKeys(a)) do x, seldims
+            _polymask(x, _missingval_or_missing(a), missingval(a), dims(seldims, order), poly)
+        end
     end
 end
 
@@ -113,30 +126,31 @@ function mask!(A::AbstractGeoArray; to, missingval=missingval(A))
     end
     return A
 end
-function mask!(xs::GeoSeriesOrStack; kw...)
-    map(x -> mask!(x; kw...),  xs)
+function mask!(xs::GeoSeriesOrStack, args...; kw...)
+    map(x -> mask!(x, args...; kw...),  xs)
     return xs
 end
 function mask!(dst, src::AbstractGeoArray, poly::AbstractVector; order=(XDim, YDim), filename=nothing)
-    broadcast!(dst, DimKeys(src)) do ds
-        _polymask(dst, src, ds)
+    _without_mapped_crs(src) do s
+        broadcast!(dst, DimKeys(s)) do seldims
+            _polymask(x, _missingval_or_missing(dst), missingval(src), dims(seldims, order), poly)
+        end
     end
 end
 
-function _polymask(dst, src, dims)
-    x = src[dims...]
-    if x === missingval(src)
-        missingval(dst)
-    elseif isinside(map(val, dims), poly)
-        x
+function _polymask(x, mvd, mvs, seldims, poly)
+    if x === mvs
+        return mvd
+    elseif isinside(map(val, seldims), poly)
+        return x
     else
-        missingval(dst)
+        return mvd
     end
 end
 
 const Pt{T<:Real} = NTuple{N,T} where N
 
-isinside(sel::At, poly::AbstractVector) = isinside(val(sel), poly)
+isinside(sel::NTuple{N,At}, poly::AbstractVector) where N = isinside(map(val, sel), poly)
 function isinside(r::Pt, poly::AbstractVector)
     # An implementation of Hormann-Agathos (2001) Point in Polygon algorithm
     # See: http://www.sciencedirect.com/science/article/pii/S0925772101000128
@@ -155,7 +169,8 @@ function isinside(r::Pt, poly::AbstractVector)
             if q2[1] == r[1]
                 @warn("point on polygon vertex - returning false")
                 return false
-            elseif (q1[2] == r[2]) && ((q2[1] > x) == (q1[1] < r[1]))
+            else
+            # elseif (q1[2] == r[2]) && ((q2[1] > x) == (q1[1] < r[1]))
                 @warn("point on edge - returning false")
                 return false
             end
@@ -756,7 +771,8 @@ function mosaic(f::Function, layers::Tuple{<:AbstractGeoArray,Vararg};
     data = if filename isa Nothing
         Array{T,length(dims)}(undef, map(length, dims))
     else
-        filename = create(filename, T, dims; missingval, metadata=metadata(first(layers)))
+        l1 = first(layers)
+        filename = create(filename, T, dims; name=name(l1), missingval, metadata=metadata(l1))
         parent(GeoArray(filename))
     end
     A = rebuild(first(layers); data, dims, missingval)
@@ -922,3 +938,5 @@ end
 function extract(A::AbstractGeoArray, points::AbstractVector; kw...)
     extract.(Ref(A), points; kw...)
 end
+
+_missingval_or_missing(x) = missingval(x) isa Nothing ? missing : missingval(x)

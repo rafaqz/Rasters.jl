@@ -156,7 +156,7 @@ _projectedrange(::T, crs::Nothing, ::Mapped, dim) where T<:Union{Irregular,Expli
     error("Cannot convert a Mapped $T index to Projected when crs is nothing")
 
 function setcrs(A, crs) 
-    if any(hasdim(A, XDim, YDim))
+    if any(hasdim(A, (XDim, YDim)))
         foldl(dims(A, (XDim, YDim)); init=A) do A, dim
             if hasdim(A, dim)
                 set(A, dim => rebuild(mode(A, dim); dcrs=mappedcrs))
@@ -170,8 +170,8 @@ function setcrs(A, crs)
 end
 
 function setmappedcrs(A, mappedcrs) 
-    if any(hasdim(A, XDim, YDim))
-        return foldl(dims(A, (XDim, YDim)); init=A) do a, dim
+    if any(hasdim(A, (X, Y)))
+        return foldl(dims(A, (X, YDim)); init=A) do a, dim
             if hasdim(a, dim)
                 set(a, dim => rebuild(mode(a, dim); mappedcrs=mappedcrs))
             else
