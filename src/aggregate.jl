@@ -3,30 +3,29 @@ const DimOrDimTuple = Union{Dimension,Tuple{Vararg{<:Dimension}}}
 const IntOrIntTuple = Union{Int,Tuple{Vararg{<:Int}}}
 
 """
-    aggregate(method, object, scale)
+    aggregate(method, object, scale; filename, progress)
 
-Aggregate an array or all arrays in a stack or series by some scale.
+Aggregate a GeoArray, or all arrays in a GeoStack or GeoSeries, by `scale` using
+`method`.
 
 # Arguments
 
 - `method`: a function such as `mean` or `sum` that can combine the
   value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
-  like `Start()` or `Center()` that species where to sample from in the interval.
+  like `Start()` or `Center()` that specifies where to sample from in the interval.
 - `object`: Object to aggregate, like `AbstractGeoSeries`, `AbstractStack`,
-  `AbstractGeoArray`, `Dimension`
+  `AbstractGeoArray` or `Dimension`.
 - `scale`: the aggregation factor, which can be an integer, a tuple of integers
   for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index.
+
+# Keywords
+
+- `filename`: a filename to write to, useful for large series.
+- `progress`: show a progress bar.
 """
 function aggregate end
-"""
-    aggregate(method, series::AbstractGeoSeries, scale)
-
-Aggregate an [`AbstractGeoSeries`](@ref) by `scale` using `method`.
-
-Returns a [`GeoSeries`](ref).
-"""
 function aggregate(
     method, series::AbstractGeoSeries, scale, args...; progress=true, kw...
 )
@@ -38,13 +37,6 @@ function aggregate(
     end
     return rebuild(series, data)
 end
-"""
-    aggregate(method, stack::AbstractGeoStack, scale)
-
-Aggregate an [`AbstractGeoStack`](@ref) by `scale` using `method`.
-
-Returns a [`GeoStack`](ref).
-"""
 function aggregate(
     method, stack::AbstractGeoStack, scale; keys=keys(stack), progress=true
 )
@@ -57,44 +49,25 @@ function aggregate(
     end
     return GeoStack(arrays)
 end
-# DimensionalData methods
-"""
-    aggregate(method, src::AbstractDimArray, scale)
-
-Aggregate an `AbstractDimArray` by `scale` using `method`.
-"""
-function aggregate(method, src::AbstractDimArray, scale)
-    aggregate!(method, alloc_ag(method, src, scale), src, scale)
+function aggregate(method, src::AbstractGeoArray, scale)
+    dst = alloc_ag(method, src, scale)
+    aggregate!(method, dst, src, scale)
 end
-"""
-    aggregate(method, dim::Dimension, scale)
-
-Aggregate a `Dimension` by `scale` using `method`.
-"""
 function aggregate(method, dim::Dimension, scale)
     intscale = _scale2int(dim, scale)
     intscale == 1 && return dim
     start, stop = _endpoints(dim, method, intscale)
     return rebuild(dim, val(dim)[start:scale:stop], aggregate(method, mode(dim), intscale))
 end
-"""
-    aggregate(method, dim::IndexMode, scale)
-
-Aggregate an `IndexMode` by `scale` using `method`.
-"""
 aggregate(method, mode::IndexMode, scale) = mode
 function aggregate(method, mode::AbstractSampled, scale)
     rebuild(mode; span=aggregate(method, span(mode), scale))
 end
-"""
-    aggregate(method, dim::Span, scale)
-
-Aggregate a `Span` by `scale` using `method`.
-"""
 aggregate(method, span::Span, scale) = span
 aggregate(method, span::Regular, scale) = Regular(val(span) * scale)
+
 """
-    aggregate!(method, dst::AbstractDimArray, src::AbstractDimArray, scale)
+    aggregate!(method, dst::AbstractGeoArray, src::AbstractGeoArray, scale)
 
 Aggregate array `src` to array `dst` by `scale`, using `method`.
 
@@ -107,6 +80,10 @@ Aggregate array `src` to array `dst` by `scale`, using `method`.
   for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index in the `src` array.
+
+# Keywords
+
+- `progress`: show a progress bar.
 """
 function aggregate!(locus::Locus, dst::AbstractGeoArray, src, scale)
     aggregate!((locus,), dst, src, scale)
@@ -114,25 +91,29 @@ end
 function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale)
     intscale = _scale2int(dims(src), scale)
     offsets = _agoffset.(loci, intscale)
-    for I in CartesianIndices(dst)
-        dst[I] = src[(upsample.(Tuple(I), intscale) .+ offsets)...]
+    broadcast!(dst, CartesianIndices(dst)) do I
+        val = src[(upsample.(Tuple(I), intscale) .+ offsets)...]
+        val === missingval(src) ? missingval(dst) : val
     end
-    return dst
 end
 # Function/functor methods
-function aggregate!(f, dst::AbstractDimArray, src, scale)
+function aggregate!(f, dst::AbstractGeoArray, src, scale)
     intscale = _scale2int(dims(src), scale)
-    for I in CartesianIndices(dst)
+    broadcast!(dst, CartesianIndices(dst)) do I
         topleft = upsample.(Tuple(I), intscale)
         bottomright = topleft .+ intscale .- 1
-        dst[I] = f(view(src, map(:, topleft, bottomright)...))
+        block = view(src, map(:, topleft, bottomright)...)
+        if any(map(x -> x === missingval(src), block))
+            missingval(dst) 
+        else
+            f(block)
+        end
     end
-    return dst
 end
 
 
 """
-    disaggregate(method, object, scale)
+    disaggregate(method, object, scale; filename, progress, keys)
 
 Disaggregate array, or all arrays in a stack or series, by some scale.
 
@@ -142,18 +123,17 @@ Disaggregate array, or all arrays in a stack or series, by some scale.
   value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
   like `Start()` or `Center()` that species where to sample from in the interval.
 - `object`: Object to aggregate, like `AbstractGeoSeries`, `AbstractStack`,
-  `AbstractGeoArray`, `Dimension`
+  `AbstractGeoArray` or a `Dimension`.
 - `scale`: the aggregation factor, which can be an integer, a tuple of integers
   for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index.
+
+# Keywords
+
+- `progress`: show a progress bar.
 """
 function disaggregate end
-"""
-    disaggregate(method, series::AbstractGeoSeries, scale)
-
-Disaggregate an [`AbstractGeoSeries`](@ref) by `scale` using `method`.
-"""
 function disaggregate(method, series::AbstractGeoSeries, scale; progress=true, kw...)
     f = i -> disaggregate(method, series[i], scale; progress=false, kw...)
     return if progress
@@ -162,11 +142,6 @@ function disaggregate(method, series::AbstractGeoSeries, scale; progress=true, k
         map(f, 1:length(series))
     end
 end
-"""
-    disaggregate(method, stack::AbstractGeoStack, scale)
-
-Disaggregate an [`AbstractGeoStack`](@ref) by `scale` using `method`.
-"""
 function disaggregate(method, stack::AbstractGeoStack, scale;
     keys=keys(stack), progress=true
 )
@@ -179,20 +154,9 @@ function disaggregate(method, stack::AbstractGeoStack, scale;
     end
     return GeoStack(arrays)
 end
-# DimensionalData methods
-"""
-    disaggregate(method, src::AbstractDimArray, scale)
-
-Disaggregate an `AbstractDimArray` by `scale` using `method`.
-"""
-function disaggregate(method, src::AbstractDimArray, scale)
+function disaggregate(method, src::AbstractGeoArray, scale)
     disaggregate!(method, alloc_disag(method, src, scale), src, scale)
 end
-"""
-    disaggregate(method, dim::Dimension, scale)
-
-Disaggregate a `Dimension` by `scale` using `method`.
-"""
 function disaggregate(locus::Locus, dim::Dimension, scale)
     intscale = _scale2int(dim, scale)
     intscale == 1 && return dim
@@ -203,23 +167,14 @@ function disaggregate(locus::Locus, dim::Dimension, scale)
     index = LinRange(start, stop, len)
     return rebuild(dim, index, disaggregate(locus, mode(dim), intscale))
 end
-"""
-    disaggregate(method, dim::IndexMode, scale)
-
-Disaggregate an `IndexMode` by `scale` using `method`.
-"""
 disaggregate(method, mode::IndexMode, scale) = mode
 disaggregate(method, mode::AbstractSampled, scale) =
     rebuild(mode; span=disaggregate(method, span(mode), scale))
-"""
-    disaggregate(method, dim::Span, scale)
-
-Disaggregate a `Span` by `scale` using `method`.
-"""
 disaggregate(method, span::Span, scale) = span
 disaggregate(method, span::Regular, scale) = Regular(val(span) / scale)
+
 """
-    disaggregate!(method, dst::AbstractDimArray, src::AbstractDimArray, scale)
+    disaggregate!(method, dst::AbstractGeoArray, src::AbstractGeoArray, filename, scale)
 
 Disaggregate array `src` to array `dst` by some scale, using `method`.
 
@@ -231,44 +186,58 @@ Disaggregate array `src` to array `dst` by some scale, using `method`.
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index in the `src` array.
 """
-function disaggregate!(locus::Locus, dst::AbstractDimArray, src, scale)
+function disaggregate!(locus::Locus, dst::AbstractGeoArray, src, scale)
     disaggregate!((locus,), dst, src, scale)
 end
-function disaggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractDimArray, src, scale)
+function disaggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale)
     intscale = _scale2int(dims(src), scale)
-    for I in CartesianIndices(dst)
-        dst[I] = src[(downsample.(Tuple(I), intscale))...]
+    broadcast!(dst, CartesianIndices(dst)) do I
+        val = src[(downsample.(Tuple(I), intscale))...]
+        val === missingval(src) ? missingval(dst) : val
     end
-    return dst
 end
 
 # Allocate an array of the correct size to aggregate `A` by `scale`
-alloc_ag(method, A::AbstractDimArray, scale) = alloc_ag((method,), A, scale)
-function alloc_ag(method::Tuple, A::AbstractDimArray, scale)
+alloc_ag(method, A::AbstractGeoArray, scale; kw...) = alloc_ag((method,), A, scale; kw...)
+function alloc_ag(method::Tuple, A::AbstractGeoArray, scale; filename=nothing)
     intscale = _scale2int(dims(A), scale)
     # Aggregate the dimensions
     dims_ = aggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size
     sze = map(length, dims_)
-    T = ag_eltype(method, A)
-    data_ = similar(parent(A), T, sze...)
-    return rebuild(A; data=data_, dims=dims_)
+    T = promote_type(ag_eltype(method, A), typeof(missingval(A)))
+    mv = convert(T, missingval(A))
+    data = if filename isa AbstractString
+        create(filename, T, dims_; keys=name(A))
+    else
+        similar(parent(A), T, sze...)
+    end
+    return rebuild(A; data=data, dims=dims_, missingval=mv)
 end
 
 # Allocate an array of the correct size to disaggregate `A` by `scale`
-alloc_disag(method, A::AbstractDimArray, scale) = alloc_disag((method,), A, scale)
-function alloc_disag(method::Tuple, A::AbstractDimArray, scale)
+alloc_disag(method, A::AbstractGeoArray, scale) = alloc_disag((method,), A, scale)
+function alloc_disag(method::Tuple, A::AbstractGeoArray, scale)
     intscale = _scale2int(dims(A), scale)
     dims_ = disaggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size
     sze = map(length, dims_)
     T = ag_eltype(method, A)
-    data_ = similar(parent(A), T, sze...)
-    return rebuild(A; data=data_, dims=dims_)
+    mv = convert(T, missingval(A))
+    data = if filename isa AbstractString
+        create(filename, T, dims_; keys=name(A))
+    else
+        similar(parent(A), T, sze...)
+    end
+    return rebuild(A; data=data, dims=dims_, missingval=mv)
 end
 
+# Handle how methods like `mean` can change the type
 ag_eltype(method::Tuple{<:Locus,Vararg}, A) = eltype(A)
-ag_eltype(method::Tuple{<:Any}, A) = eltype(method[1](view(A, 1)))
+function ag_eltype(method::Tuple{<:Any}, A) 
+    method_returntype = typeof(method[1](zero(eltype(A))))
+    promote_type(eltype(A), method_returntype)
+end
 
 
 # Convert indicies from the aggregated array to the larger original array.

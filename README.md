@@ -168,11 +168,22 @@ A[Y(Near(20.0)), Ti(1)] |> plot
 
 
 GeoData.jl provides a range of other methods that are being added to over time.
+Where applicable these methods read and write lazily to and from disk-based
+arrays of common raster file types. These methods also work for entire
+`GeoStacks` and `GeoSeries` using the same syntax.
 
-- `agregate`: aggregate data by the same or different amounts for each axis.
-- `disaggregate`: disaggregate data by the same or different amounts for each axis
+- `agregate` and `aggregate!` aggregate data by the same or different amounts for each axis.
+- `disaggregate` and `disaggregate!` similarly disaggregate data.
 - `resample` can resample data to a different size and projection, and snap to
-  an existing `AbstractGeoArray`. 
+    an existing `AbstractGeoArray`, using `warp` to access `gdalwarp`.
+- `mask` and `mask!` mask and object by a polygon or GeoArray along `X/Y`, or
+    arbitrary, dimensions.
+- `classify` and  `classify!` classify values into categories.
+- `mosaic` and `mosaic!` join rasters covering different extents into a single
+    array or file.
+- `crop` and `extend` shrink or extend objects to specific dimension sizes or
+    the exten of another object.
+- `trim` trims areas of missing values across arbitrary dimensions and stack layers.
 
 For example, `aggregate`:
 
@@ -188,5 +199,3 @@ and data: 9×8×2 Array{Union{Missing, Float32},3}
  missing  277.139        missing     missing     missing     missing  missing  missing
  missing  277.126        missing     missing     missing     missing  missing  missing
 ```
-
-These methods will also work for entire `GeoStacks` and `GeoSeries` using the same syntax.
