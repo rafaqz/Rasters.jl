@@ -26,6 +26,7 @@ end
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
     @test dims(missingmask(ga)) == (X(Base.OneTo(2), mode=NoIndex()), Y(Base.OneTo(2), mode=NoIndex()))
 end
+
 @testset "mask" begin
     A1 = [missing 1; 2 3]
     ga1 = GeoArray(A1, (X, Y); missingval=missing)
@@ -36,6 +37,7 @@ end
     mask!(ga3; to=ga)
     @test all(ga3 .=== [-9999 1; 2 -9999])
 end
+
 @testset "classify" begin
     A1 = [missing 1; 2 3]
     ga1 = GeoArray(A1, (X, Y); missingval=missing)
@@ -165,10 +167,3 @@ end
         @test isapprox(index(snaptarget, X), index(snapped, X))
     end
 end
-
-using Plots, Shapefile, GeoData
-A = GeoArray(WorldClim{BioClim}, 2) |> plot
-sh = Shapefile.Handle("/home/raf/Downloads/WB_Coastlines_10m/WB_Coastlines_10m.shp")
-p = plot(A)
-poi = sh.shapes[24].points[1] |> length
-

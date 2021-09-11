@@ -77,7 +77,7 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
     missingval=nothing, metadata=nothing, keys=nothing,
     driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing
 )
-    if !(keys isa Nothing) && length(keys) > 1
+    if !(keys isa Nothing || keys isa Symbol) && length(keys) > 1
         throw(ArgumentError("GDAL cant write more than one layer per file, but keys $keys have $(length(keys))"))
     end
     x, y = map(DD.dims(dims, (XDim, YDim))) do d

@@ -98,7 +98,7 @@ function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractGeoSta
 end 
 
 function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DD.DimTuple; 
-    keys=(:layer1,), layerdims=map(_->dims, keys), missingval=nothing, metadata=NoMetadata()
+    name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing, metadata=NoMetadata()
 )
     types = T isa Tuple ? T : Ref(T)
     missingval = T isa Tuple ? missingval : Ref(missingval)
