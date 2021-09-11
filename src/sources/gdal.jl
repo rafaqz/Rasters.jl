@@ -74,7 +74,7 @@ function Base.write(
 end
 
 function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple; 
-    missingval=nothing, metadata=nothing, keys=nothing,
+    missingval=nothing, metadata=nothing, name=nothing, keys=(name,),
     driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing
 )
     if !(keys isa Nothing || keys isa Symbol) && length(keys) > 1
