@@ -223,7 +223,7 @@ end
 
 
 function create(filename, ::Type{GRDfile}, T::Type, dims::DD.DimTuple; 
-    name="layer", missingval=nothing, metadata=nothing, keys=nothing,
+    name="layer", metadata=nothing, missingval=nothing, keys=(name,),
 )
     # Remove extension
     basename = splitext(filename)[1]

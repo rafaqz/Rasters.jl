@@ -49,6 +49,7 @@ function Base.write(
     end
 
     correctedA = _maybe_permute_to_gdal(A) |>
+        a -> noindex_to_sampled(a) |>
         a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
     checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY))
@@ -64,6 +65,7 @@ function Base.write(
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
 
     correctedA = _maybe_permute_to_gdal(A) |>
+        a -> noindex_to_sampled(a) |>
         a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX), Band(GDAL_BAND_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
     checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY, GDAL_BAND_ARRAY))
@@ -74,7 +76,7 @@ function Base.write(
 end
 
 function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple; 
-    missingval=nothing, metadata=nothing, keys=nothing,
+    missingval=nothing, metadata=nothing, name=nothing, keys=(name,),
     driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing
 )
     if !(keys isa Nothing || keys isa Symbol) && length(keys) > 1
@@ -207,18 +209,31 @@ function missingval(raster::AG.RasterDataset, args...)
     # We can only handle data where all bands have the same missingval
     band = AG.getband(raster.ds, 1)
     nodata = AG.getnodatavalue(band)
-    return if nodata isa Nothing
-        nothing
+    if nodata isa Nothing
+        return nothing
     else
-        # Convert in case getnodatavalue is the wrong type.
-        # This conversion should always be safe.
-        if eltype(band) <: AbstractFloat && nodata isa Real
-            convert(eltype(band), nodata)
-        else
-            nodata
-        end
+        return _gdalconvert(eltype(band), nodata)
     end
 end
+
+_gdalconvert(T::Type{<:AbstractFloat}, x::Real) = convert(T, x)
+function _gdalconvert(T::Type{<:Integer}, x::AbstractFloat)
+    if trunc(x) === x
+        convert(T, x)
+    else
+        @warn "Missing value $x can't be converted to array eltype $T. `missingval` set to `nothing`"
+        nothing
+    end
+end
+function _gdalconvert(T::Type{<:Integer}, x::Integer)
+    if x >= typemin(T) && x <= typemax(T)  
+        convert(T, x)
+    else
+        @warn "Missing value $x can't be converted to array eltype $T. `missingval` set to `nothing`"
+        nothing
+    end
+end
+_gdalconvert(T, x) = x
 
 function crs(raster::AG.RasterDataset, args...)
     WellKnownText(GeoFormatTypes.CRS(), string(AG.getproj(raster.ds)))
@@ -439,4 +454,3 @@ for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
     precompile(GeoArray, (DS, String, Nothing))
     precompile(GeoArray, (DS, String, Symbol))
 end
-

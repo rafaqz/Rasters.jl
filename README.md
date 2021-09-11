@@ -19,8 +19,11 @@ Data loaded with GeoData.jl has some special properties:
   Indexing a `GeoStack` by name is always lazy, while `view` of a `GeoArray` is
   lazy and `getindex` will load to memory. `read` can be used on any 
   object to ensure that all data is loaded to memory.
+- Broadcast over disk-based objects is lazy - it will only run when the array is indexed.
+    Always prefer broadcasts to explicit loops - these can be very slow with
+    disk-based data.
 - Regions and points selected with `Between` and `Contains` select the right
-  points or whole intervals no matter the order of the index or it's position in
+  point or whole interval no matter the order of the index or it's position in
   the cell.
 - For `Projected` mode you can index in any projection you want to by setting
   the `mappedcrs` keyword on construction. You don't even need to know the
@@ -64,7 +67,7 @@ GeoData.jl provides general types for holding spatial data: `GeoArray`,
 
 # Backends
 
-GeoData.jl relies on ArchGDAL, NCDatasets, HDF5, and simple MMap for loading
+GeoData.jl relies on ArchGDAL, NCDatasets, HDF5, and MMap for loading
 disk-based files. The backend is detected automatically from the file type.
 
 - Netcdf `.nc` files can be loaded with `GeoArray(filename)` or
@@ -79,7 +82,7 @@ disk-based files. The backend is detected automatically from the file type.
   loaded with `GeoStack` or `GeoSeries`. This is both useful for users of SMAP,
   and a demonstration of the potential to build standardised interfaces for
   custom spatial formats.
-- `.grd/.gri` files from R can be read and written natively using Julias MMap.
+- `.grd/.gri` files from R can be read and written natively using memory mapping.
   These are usually the most efficient file to work with, but are not compressed
   so have large file sizes.
 
@@ -188,14 +191,7 @@ arrays of common raster file types. These methods also work for entire
 For example, `aggregate`:
 
 ```julia
-julia> aggregate(mean, A, (Ti(12), Y(20), X(20))
-
-GeoArray (named tos) with dimensions:
- Longitude (type Lon): Float64[21.0, 61.0, …, 301.0, 341.0] (Converted: Ordered Regular Intervals)
- Latitude (type Lat): Float64[-69.5, -49.5, …, 50.5, 70.5] (Converted: Ordered Regular Intervals)
- Time (type Ti): DateTime360Day[2001-01-16T00:00:00, 2002-01-16T00:00:00] (Sampled: Ordered Irregular Points)
-and data: 9×8×2 Array{Union{Missing, Float32},3}
-[:, :, 1]
- missing  277.139        missing     missing     missing     missing  missing  missing
- missing  277.126        missing     missing     missing     missing  missing  missing
+using GeoData
+A = GeoArray(WorldClim{Climate}, :prec; month=1)
+aggregate(mean, A, (Ti(12), Y(20), X(20))
 ```

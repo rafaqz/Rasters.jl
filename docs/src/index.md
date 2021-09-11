@@ -164,6 +164,7 @@ reproject
 slice
 chunk
 subset
+extract
 points
 ```
 

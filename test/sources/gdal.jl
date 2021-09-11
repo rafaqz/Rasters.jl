@@ -20,7 +20,7 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             A .*= UInt8(2)
             nothing
         end
-        @test all(read(GeoArray(tempfile)) .== read(gdalarray) .* UInt8(2))
+        @test GeoArray(tempfile) == gdalarray .* UInt8(2)
     end
 
     @testset "read" begin
@@ -101,7 +101,7 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
 
     @testset "methods" begin 
         @testset "mean" begin
-            @test mean(gdalarray; dims=Y) == mean(parent(gdalarray); dims=2)
+            @test all(mean(gdalarray; dims=Y) .=== mean(parent(gdalarray); dims=2))
         end
         @testset "trim, crop, extend" begin
             a = replace_missing(gdalarray, zero(eltype(gdalarray)))
@@ -112,7 +112,7 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             @test size(cropped) == (414, 514, 1)
             @test all(collect(cropped .=== trimmed))
             extended = extend(cropped; to=a)
-            @test all(collect(extended .== a))
+            @test all(collect(extended .=== a))
         end
         @testset "mask and mask! to disk" begin
             msk = replace_missing(gdalarray, missing)
@@ -146,6 +146,17 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
                 classify!(A, [0x01 0xcf 0x00; 0xd0 0xff 0xff])
             end
             @test count(==(0x00), GeoArray(tempfile)) + count(==(0xff), GeoArray(tempfile)) == length(GeoArray(tempfile))
+        end
+        @testset "aggregate" begin
+            ag = aggregate(mean, gdalarray, 4)
+            @test ag == aggregate(mean, gdalarray, (X(4), Y(4), Band(1)))
+            tempfile = tempname() * ".tif"
+            write(tempfile, ag)
+            GeoArray(tempfile)
+            open(GeoArray(tempfile); write=true) do dst
+                aggregate!(mean, dst, gdalarray, 4)
+            end
+            GeoArray(tempfile) == ag
         end
         @testset "mosaic" begin
             @time gdalarray = GeoArray(gdalpath; name=:test)
@@ -185,6 +196,8 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             filename = tempname() * ".asc"
             @time write(filename, geoA)
             saved1 = GeoArray(filename; mappedcrs=EPSG(4326))[Band(1)];
+            eltype(saved1)
+            eltype(geoA)
             @test all(saved1 .== geoA)
             # @test typeof(saved1) == typeof(geoA)
             @test val(dims(saved1, X)) ≈ val(dims(geoA, X))
@@ -238,24 +251,23 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             @test bounds(grdarray) == (bounds(gdalarray))
             @test val(dims(grdarray, Y)) == reverse(val(dims(gdalarray, Y)))
             @test val(dims(grdarray, X)) ≈ val(dims(gdalarray, X))
-            @test all(read(grdarray) .== read(gdalarray))
+            @test grdarray == gdalarray
         end
 
-        # @testset "from GeoArray" begin
-        #     filename = tempname() * ".tiff"
-        #     ga = GeoArray(rand(100, 200), (X, Y))
-        #     write(filename, ga)
-        #     saved = GeoArray(filename)
-        #     order(saved)
-        #     @test parent(saved[Band(1)]) == parent(ga)
-        #     @test saved[1, 1, 1] == 
-        #     saved[At(1.0), At(1.0), At(1.0)] 
-        #     @test saved[100, 200, 1] == saved[At(100), At(200), At(1)] 
-        #     filename2 = tempname() * ".tif"
-        #     ga2 = GeoArray(rand(100, 200), (X(101:200; mode=Sampled()), Y(1:200; mode=Sampled())))
-        #     write(filename2, ga2)
-        #     @test parent(reorder(GeoArray(filename2)[Band(1)], ForwardArray)) == ga2
-        # end
+        @testset "from GeoArray" begin
+            filename = tempname() * ".tiff"
+            ga = GeoArray(rand(100, 200), (X, Y))
+            write(filename, ga)
+            saved = GeoArray(filename)
+            order(saved)
+            @test all(reverse(saved[Band(1)]; dims=Y) .=== ga)
+            @test saved[1, end, 1] == saved[At(1.0), At(1.0), At(1.0)] 
+            @test saved[100, 1, 1] == saved[At(100), At(200), At(1)] 
+            filename2 = tempname() * ".tif"
+            ga2 = GeoArray(rand(100, 200), (X(101:200; mode=Sampled()), Y(1:200; mode=Sampled())))
+            write(filename2, ga2)
+            @test reverse(GeoArray(filename2)[Band(1)]; dims=Y) == ga2
+        end
        
         @testset "to netcdf" begin
             filename2 = tempname() * ".nc"

@@ -2,8 +2,11 @@
 const DimOrDimTuple = Union{Dimension,Tuple{Vararg{<:Dimension}}}
 const IntOrIntTuple = Union{Int,Tuple{Vararg{<:Int}}}
 
+struct Ag end
+struct DisAg end
+
 """
-    aggregate(method, object, scale; filename, progress)
+    aggregate(method, object, scale; filename, progress, skipmissing)
 
 Aggregate a GeoArray, or all arrays in a GeoStack or GeoSeries, by `scale` using
 `method`.
@@ -20,10 +23,40 @@ Aggregate a GeoArray, or all arrays in a GeoStack or GeoSeries, by `scale` using
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index.
 
+When the aggregation `scale` of is larger than the array axis, the length of the axis is used.
+
 # Keywords
 
 - `filename`: a filename to write to, useful for large series.
 - `progress`: show a progress bar.
+- `skipmissingval`: if `true`, any `missingval` will be skipped during aggregation, so that 
+    only areas of all missing values will be aggregated to `missingval`. If `false`, any
+    aggegrated area containing a `missingval` will be assigned `missingval`.
+
+# Example
+
+```@doctest
+julia> using GeoData
+
+julia> A = read(GeoArray(WorldClim{Climate}, :prec; month=1));
+
+julia> aggregate(std, A, (Y(200), X(400)); skipmissingval=true)
+5×5×1 GeoArray{Float64,3} :prec with dimensions:
+  X: range(-180.0, stop=86.66666666666664, length=5)
+    Projected: Ordered Regular Intervals crs: WellKnownText,
+  Y: range(89.83333333333333, stop=-43.5, length=5)
+    Projected: Ordered Regular Intervals crs: WellKnownText,
+  Band: 1:1 Categorical: Ordered
+[:, :, 1]
+ 33.9801   99.1754   74.5989   86.5641   6.90469
+ 12.2274   35.2264  116.111   102.933   66.9999
+ 49.2657   43.2653   58.9215   80.7797  12.6547
+  7.91337  23.9869   59.2179   94.3359   7.90676
+  7.04697  22.4327  143.557    83.3885   4.78625
+```
+
+Note: currently it is faster to aggregate over memory-backed arrays. 
+Use [`read`](@ref) on `src` before use where required.
 """
 function aggregate end
 function aggregate(
@@ -38,9 +71,9 @@ function aggregate(
     return rebuild(series, data)
 end
 function aggregate(
-    method, stack::AbstractGeoStack, scale; keys=keys(stack), progress=true
+    method, stack::AbstractGeoStack, scale; keys=keys(stack), progress=true, kw...
 )
-    f = key -> aggregate(method, stack[key], scale)
+    f(key) = aggregate(method, stack[key], scale; kw...)
     keys_nt = NamedTuple{keys}(keys)
     arrays = if progress
         ProgressMeter.@showprogress "Aggregating stack..." map(f, keys_nt)
@@ -49,12 +82,12 @@ function aggregate(
     end
     return GeoStack(arrays)
 end
-function aggregate(method, src::AbstractGeoArray, scale)
+function aggregate(method, src::AbstractGeoArray, scale; kw...)
     dst = alloc_ag(method, src, scale)
-    aggregate!(method, dst, src, scale)
+    aggregate!(method, dst, src, scale; kw...)
 end
 function aggregate(method, dim::Dimension, scale)
-    intscale = _scale2int(dim, scale)
+    intscale = _scale2int(Ag(), dim, scale)
     intscale == 1 && return dim
     start, stop = _endpoints(dim, method, intscale)
     return rebuild(dim, val(dim)[start:scale:stop], aggregate(method, mode(dim), intscale))
@@ -67,7 +100,7 @@ aggregate(method, span::Span, scale) = span
 aggregate(method, span::Regular, scale) = Regular(val(span) * scale)
 
 """
-    aggregate!(method, dst::AbstractGeoArray, src::AbstractGeoArray, scale)
+    aggregate!(method, dst::AbstractGeoArray, src::AbstractGeoArray, scale; skipmissingval=false)
 
 Aggregate array `src` to array `dst` by `scale`, using `method`.
 
@@ -81,15 +114,23 @@ Aggregate array `src` to array `dst` by `scale`, using `method`.
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index in the `src` array.
 
+When the aggregation `scale` of is larger than the array axis, the length of the axis is used.
+
 # Keywords
 
 - `progress`: show a progress bar.
+- `skipmissingval`: if `true`, any `missingval` will be skipped during aggregation, so that 
+    only areas of all missing values will be aggregated to `missingval`. If `false`, any
+    aggegrated area containing a `missingval` will be assigned `missingval`.
+
+Note: currently it is faster to aggregate over memory-backed arrays. 
+Use [`read`](@ref) on `src` before use where required.
 """
-function aggregate!(locus::Locus, dst::AbstractGeoArray, src, scale)
+function aggregate!(locus::Locus, dst::AbstractGeoArray, src, scale; kw...)
     aggregate!((locus,), dst, src, scale)
 end
-function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale)
-    intscale = _scale2int(dims(src), scale)
+function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale; kw...)
+    intscale = _scale2int(Ag(), dims(src), scale)
     offsets = _agoffset.(loci, intscale)
     broadcast!(dst, CartesianIndices(dst)) do I
         val = src[(upsample.(Tuple(I), intscale) .+ offsets)...]
@@ -97,16 +138,31 @@ function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale
     end
 end
 # Function/functor methods
-function aggregate!(f, dst::AbstractGeoArray, src, scale)
-    intscale = _scale2int(dims(src), scale)
+function aggregate!(f, dst::AbstractGeoArray, src, scale; skipmissingval=false)
+    intscale = _scale2int(Ag(), dims(src), scale)
     broadcast!(dst, CartesianIndices(dst)) do I
-        topleft = upsample.(Tuple(I), intscale)
-        bottomright = topleft .+ intscale .- 1
-        block = view(src, map(:, topleft, bottomright)...)
-        if any(map(x -> x === missingval(src), block))
-            missingval(dst) 
+        upper = upsample.(Tuple(I), intscale)
+        lower = upper .+ intscale .- 1
+        block = if isdiskbased(src)
+            src[map(:, upper, lower)...]
         else
-            f(block)
+            view(src, map(:, upper, lower)...)
+        end
+        if skipmissingval
+            # All missing values return a missing value
+            if all(map(x -> x === missingval(src), block))
+                _missingval_or_missing(dst)
+            else
+                # Skip missing values
+                f((x for x in block if x !== missingval(src)))
+            end
+        else
+            # Any missing values return a missing value
+            if any(map(x -> x === missingval(src), block))
+                _missingval_or_missing(dst)
+            else
+                f(block)
+            end
         end
     end
 end
@@ -132,6 +188,11 @@ Disaggregate array, or all arrays in a stack or series, by some scale.
 # Keywords
 
 - `progress`: show a progress bar.
+
+Note: currently it is faster to aggregate over memory-backed arrays. 
+Use [`read`](@ref) on `src` before use where required.
+
+julia> A = read(GeoArray(WorldClim{Climate}, :prec; month=1));
 """
 function disaggregate end
 function disaggregate(method, series::AbstractGeoSeries, scale; progress=true, kw...)
@@ -158,7 +219,7 @@ function disaggregate(method, src::AbstractGeoArray, scale)
     disaggregate!(method, alloc_disag(method, src, scale), src, scale)
 end
 function disaggregate(locus::Locus, dim::Dimension, scale)
-    intscale = _scale2int(dim, scale)
+    intscale = _scale2int(DisAg(), dim, scale)
     intscale == 1 && return dim
     len = length(dim) * intscale
     step_ = step(mode(dim)) / intscale
@@ -185,12 +246,15 @@ Disaggregate array `src` to array `dst` by some scale, using `method`.
   for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index in the `src` array.
+
+Note: currently it is faster to aggregate over memory-backed arrays. 
+Use [`read`](@ref) on `src` before use where required.
 """
 function disaggregate!(locus::Locus, dst::AbstractGeoArray, src, scale)
     disaggregate!((locus,), dst, src, scale)
 end
 function disaggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale)
-    intscale = _scale2int(dims(src), scale)
+    intscale = _scale2int(DisAg(), dims(src), scale)
     broadcast!(dst, CartesianIndices(dst)) do I
         val = src[(downsample.(Tuple(I), intscale))...]
         val === missingval(src) ? missingval(dst) : val
@@ -200,13 +264,19 @@ end
 # Allocate an array of the correct size to aggregate `A` by `scale`
 alloc_ag(method, A::AbstractGeoArray, scale; kw...) = alloc_ag((method,), A, scale; kw...)
 function alloc_ag(method::Tuple, A::AbstractGeoArray, scale; filename=nothing)
-    intscale = _scale2int(dims(A), scale)
+    intscale = _scale2int(Ag(), dims(A), scale)
     # Aggregate the dimensions
     dims_ = aggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size
     sze = map(length, dims_)
-    T = promote_type(ag_eltype(method, A), typeof(missingval(A)))
-    mv = convert(T, missingval(A))
+    agT = ag_eltype(method, A)
+    if missingval(A) isa Nothing
+        T = agT
+        mv = nothing
+    else
+        T = promote_type(agT, typeof(missingval(A)))
+        mv = convert(T, missingval(A))
+    end
     data = if filename isa AbstractString
         create(filename, T, dims_; keys=name(A))
     else
@@ -218,7 +288,7 @@ end
 # Allocate an array of the correct size to disaggregate `A` by `scale`
 alloc_disag(method, A::AbstractGeoArray, scale) = alloc_disag((method,), A, scale)
 function alloc_disag(method::Tuple, A::AbstractGeoArray, scale)
-    intscale = _scale2int(dims(A), scale)
+    intscale = _scale2int(DisAg(), dims(A), scale)
     dims_ = disaggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size
     sze = map(length, dims_)
@@ -249,9 +319,12 @@ downsample(index::Int, scale::Int) = (index - 1) ÷ scale + 1
 downsample(index::Int, scale::Colon) = index
 
 # Convert scale or tuple of scale to integer using dims2indices
-_scale2int(dims, scale::Tuple) = map((d, s) -> _scale2int(d, s), dims, DD.dims2indices(dims, scale))
-_scale2int(dims, scale::Int) = scale
-_scale2int(dims, scale::Colon) = 1
+_scale2int(x, dims::DimTuple, scale::Tuple) = map((d, s) -> _scale2int(x, d, s), dims, DD.dims2indices(dims, scale))
+_scale2int(x, dims::DimTuple, scale::Int) = map(d -> _scale2int(x, d, scale), dims)
+_scale2int(x, dims::DimTuple, scale::Colon) = map(d -> _scale2int(x, d, scale), dims)
+_scale2int(::Ag, dim::Dimension, scale::Int) = scale > length(dim) ? length(dim) : scale
+_scale2int(::DisAg, dim::Dimension, scale::Int) = scale
+_scale2int(x, dim::Dimension, scale::Colon) = 1
 
 _agoffset(locus::Locus, dim::Dimension, scale) = _agoffset(locus, scale)
 _agoffset(method, dim::Dimension, scale) = _agoffset(locus(dim), scale)
