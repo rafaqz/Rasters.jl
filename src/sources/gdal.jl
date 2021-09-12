@@ -49,6 +49,7 @@ function Base.write(
     end
 
     correctedA = _maybe_permute_to_gdal(A) |>
+        a -> noindex_to_sampled(a) |>
         a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
     checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY))
@@ -64,6 +65,7 @@ function Base.write(
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
 
     correctedA = _maybe_permute_to_gdal(A) |>
+        a -> noindex_to_sampled(a) |>
         a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX), Band(GDAL_BAND_INDEX))) |>
         a -> reorder(a, GDAL_RELATION)
     checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY, GDAL_BAND_ARRAY))

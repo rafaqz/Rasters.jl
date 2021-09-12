@@ -75,7 +75,8 @@ end
     y, x = map(_prepare, dims(A))
 
     rdt = DD.refdims_title(A; issingle=true)
-    :title --> rdt === "" ? _maybename(A) : _maybename(A) * " " * rdt 
+    title = rdt === "" ? _maybename(A) : _maybename(A) * " " * rdt 
+    :title --> title
     :xguide --> xguide
     :yguide --> yguide
     :clims --> clims

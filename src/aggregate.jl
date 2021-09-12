@@ -2,6 +2,9 @@
 const DimOrDimTuple = Union{Dimension,Tuple{Vararg{<:Dimension}}}
 const IntOrIntTuple = Union{Int,Tuple{Vararg{<:Int}}}
 
+struct Ag end
+struct DisAg end
+
 """
     aggregate(method, object, scale; filename, progress)
 
@@ -19,6 +22,8 @@ Aggregate a GeoArray, or all arrays in a GeoStack or GeoSeries, by `scale` using
   for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index.
+
+When the aggregation `scale` of is larger than the array axis, the length of the axis is used.
 
 # Keywords
 
@@ -54,7 +59,7 @@ function aggregate(method, src::AbstractGeoArray, scale)
     aggregate!(method, dst, src, scale)
 end
 function aggregate(method, dim::Dimension, scale)
-    intscale = _scale2int(dim, scale)
+    intscale = _scale2int(Ag(), dim, scale)
     intscale == 1 && return dim
     start, stop = _endpoints(dim, method, intscale)
     return rebuild(dim, val(dim)[start:scale:stop], aggregate(method, mode(dim), intscale))
@@ -81,6 +86,8 @@ Aggregate array `src` to array `dst` by `scale`, using `method`.
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index in the `src` array.
 
+When the aggregation `scale` of is larger than the array axis, the length of the axis is used.
+
 # Keywords
 
 - `progress`: show a progress bar.
@@ -89,7 +96,7 @@ function aggregate!(locus::Locus, dst::AbstractGeoArray, src, scale)
     aggregate!((locus,), dst, src, scale)
 end
 function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale)
-    intscale = _scale2int(dims(src), scale)
+    intscale = _scale2int(Ag(), dims(src), scale)
     offsets = _agoffset.(loci, intscale)
     broadcast!(dst, CartesianIndices(dst)) do I
         val = src[(upsample.(Tuple(I), intscale) .+ offsets)...]
@@ -98,13 +105,17 @@ function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale
 end
 # Function/functor methods
 function aggregate!(f, dst::AbstractGeoArray, src, scale)
-    intscale = _scale2int(dims(src), scale)
+    intscale = _scale2int(Ag(), dims(src), scale)
     broadcast!(dst, CartesianIndices(dst)) do I
-        topleft = upsample.(Tuple(I), intscale)
-        bottomright = topleft .+ intscale .- 1
-        block = view(src, map(:, topleft, bottomright)...)
+        upper = upsample.(Tuple(I), intscale)
+        lower = upper .+ intscale .- 1
+        block = if isdiskbased(src)
+            src[map(:, upper, lower)...]
+        else
+            view(src, map(:, upper, lower)...)
+        end
         if any(map(x -> x === missingval(src), block))
-            missingval(dst) 
+            _missingval_or_missing(dst) 
         else
             f(block)
         end
@@ -158,7 +169,7 @@ function disaggregate(method, src::AbstractGeoArray, scale)
     disaggregate!(method, alloc_disag(method, src, scale), src, scale)
 end
 function disaggregate(locus::Locus, dim::Dimension, scale)
-    intscale = _scale2int(dim, scale)
+    intscale = _scale2int(DisAg(), dim, scale)
     intscale == 1 && return dim
     len = length(dim) * intscale
     step_ = step(mode(dim)) / intscale
@@ -190,7 +201,7 @@ function disaggregate!(locus::Locus, dst::AbstractGeoArray, src, scale)
     disaggregate!((locus,), dst, src, scale)
 end
 function disaggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale)
-    intscale = _scale2int(dims(src), scale)
+    intscale = _scale2int(DisAg(), dims(src), scale)
     broadcast!(dst, CartesianIndices(dst)) do I
         val = src[(downsample.(Tuple(I), intscale))...]
         val === missingval(src) ? missingval(dst) : val
@@ -200,13 +211,19 @@ end
 # Allocate an array of the correct size to aggregate `A` by `scale`
 alloc_ag(method, A::AbstractGeoArray, scale; kw...) = alloc_ag((method,), A, scale; kw...)
 function alloc_ag(method::Tuple, A::AbstractGeoArray, scale; filename=nothing)
-    intscale = _scale2int(dims(A), scale)
+    intscale = _scale2int(Ag(), dims(A), scale)
     # Aggregate the dimensions
     dims_ = aggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size
     sze = map(length, dims_)
-    T = promote_type(ag_eltype(method, A), typeof(missingval(A)))
-    mv = convert(T, missingval(A))
+    agT = ag_eltype(method, A)
+    if missingval(A) isa Nothing
+        T = agT
+        mv = nothing
+    else
+        T = promote_type(agT, typeof(missingval(A)))
+        mv = convert(T, missingval(A))
+    end
     data = if filename isa AbstractString
         create(filename, T, dims_; keys=name(A))
     else
@@ -218,7 +235,7 @@ end
 # Allocate an array of the correct size to disaggregate `A` by `scale`
 alloc_disag(method, A::AbstractGeoArray, scale) = alloc_disag((method,), A, scale)
 function alloc_disag(method::Tuple, A::AbstractGeoArray, scale)
-    intscale = _scale2int(dims(A), scale)
+    intscale = _scale2int(DisAg(), dims(A), scale)
     dims_ = disaggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size
     sze = map(length, dims_)
@@ -249,9 +266,12 @@ downsample(index::Int, scale::Int) = (index - 1) ÷ scale + 1
 downsample(index::Int, scale::Colon) = index
 
 # Convert scale or tuple of scale to integer using dims2indices
-_scale2int(dims, scale::Tuple) = map((d, s) -> _scale2int(d, s), dims, DD.dims2indices(dims, scale))
-_scale2int(dims, scale::Int) = scale
-_scale2int(dims, scale::Colon) = 1
+_scale2int(x, dims::DimTuple, scale::Tuple) = map((d, s) -> _scale2int(x, d, s), dims, DD.dims2indices(dims, scale))
+_scale2int(x, dims::DimTuple, scale::Int) = map(d -> _scale2int(x, d, scale), dims)
+_scale2int(x, dims::DimTuple, scale::Colon) = map(d -> _scale2int(x, d, scale), dims)
+_scale2int(::Ag, dim::Dimension, scale::Int) = scale > length(dim) ? length(dim) : scale
+_scale2int(::DisAg, dim::Dimension, scale::Int) = scale
+_scale2int(x, dim::Dimension, scale::Colon) = 1
 
 _agoffset(locus::Locus, dim::Dimension, scale) = _agoffset(locus, scale)
 _agoffset(method, dim::Dimension, scale) = _agoffset(locus(dim), scale)
