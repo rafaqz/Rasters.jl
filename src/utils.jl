@@ -14,6 +14,13 @@ checkindexorder(dim::Dimension, order::Order) =
 
 cleankeys(keys) = Tuple(map(Symbol, keys))
 
+noindex_to_sampled(A) = rebuild(A; dims=noindex_to_sampled(dims(A)))
+function noindex_to_sampled(dims::DimTuple)
+    map(dims) do d
+        mode(d) isa NoIndex ? set(d, Sampled) : d
+    end
+end
+
 # We often need to convert the locus and the mode in the same step,
 # as doing it in the wrong order can give errors.
 # function convert_locus_mode(M1::Type{<:IndexMode}, L1::Type{<:Locus}, dim::Dimension)

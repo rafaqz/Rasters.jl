@@ -16,6 +16,8 @@ const GRD_DATATYPE_TRANSLATION = Dict{String, DataType}(
     "INT8S" => Int64,
     "INT1U" => UInt8,
     "INT2U" => UInt16,
+    "INT4U" => UInt32,
+    "INT8U" => UInt64,
     "FLT4S" => Float32,
     "FLT8S" => Float64
 )
@@ -163,23 +165,32 @@ function Base.write(filename::String, ::Type{GRDfile}, A::AbstractGeoArray)
     end
     # Remove extension
     filename = splitext(filename)[1]
-
-    lon, lat = map(dims(A, (X(), Y()))) do d
-        convertmode(Projected, d)
-    end
-    ncols, nrows = size(A)
-    xmin, xmax = bounds(lon)
-    ymin, ymax = bounds(lat)
-    proj = convert(String, convert(ProjString, crs(lon)))
-    datatype = REVGRDfile_DATATYPE_TRANSLATION[eltype(A)]
-    nodatavalue = missingval(A)
-    minvalue = minimum(filter(x -> x !== missingval(A), data(A)))
-    maxvalue = maximum(filter(x -> x !== missingval(A), data(A)))
+    minvalue = minimum(filter(x -> x !== missingval(A), parent(A)))
+    maxvalue = maximum(filter(x -> x !== missingval(A), parent(A)))
+    _write_grd(filename, eltype(A), dims(A), missingval(A), minvalue, maxvalue, name(A))
 
     # Data: gri file
     open(filename * ".gri", write=true) do IO
-        write(IO, data(correctedA))
+        write(IO, parent(correctedA))
     end
+
+    return filename
+end
+
+function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
+    filename = splitext(filename)[1]
+
+    x, y = map(DD.dims(dims, (X(), Y()))) do d
+        convertmode(Projected, d)
+    end
+
+    nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band)) : 1
+    ncols, nrows = length(x), length(y)
+    xmin, xmax = bounds(x)
+    ymin, ymax = bounds(y)
+    proj = convert(String, convert(ProjString, crs(x)))
+    datatype = REVGRDfile_DATATYPE_TRANSLATION[T]
+    nodatavalue = missingval
 
     # Metadata: grd file
     open(filename * ".grd"; write=true) do IO
@@ -204,13 +215,30 @@ function Base.write(filename::String, ::Type{GRDfile}, A::AbstractGeoArray)
             minvalue= $minvalue
             maxvalue= $maxvalue
             [description]
-            layername= $(name(A))
+            layername= $name
             """
         )
     end
-    return filename
 end
 
+
+function create(filename, ::Type{GRDfile}, T::Type, dims::DD.DimTuple; 
+    name="layer", metadata=nothing, missingval=nothing, keys=(name,),
+)
+    # Remove extension
+    basename = splitext(filename)[1]
+    minvalue = maxvalue = zero(T)
+    sze = map(length, DD.dims(dims, (XDim, YDim, Band)))
+
+    # Metadata: grd file
+    _write_grd(basename, T, dims, missingval, minvalue, maxvalue, name)
+
+    # Data: gri file
+    open(basename * ".gri", write=true) do IO
+        write(IO, FillArrays.Zeros(sze))
+    end
+    return filename
+end
 
 # AbstractGeoStack methods
 

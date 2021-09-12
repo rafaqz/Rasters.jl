@@ -52,6 +52,19 @@ crs(mode::IndexMode) = nothing
 mappedcrs(mode::Projected) = mode.mappedcrs
 mappedcrs(mode::IndexMode) = nothing
 
+function DD._sel2indices(mode::Projected, dim::Dimension, sel::Contains)
+    selval = reproject(mappedcrs(mode), crs(mode), dim, val(sel))
+    DD.contains(dim, rebuild(sel; val=selval))
+end
+function DD._sel2indices(mode::Projected, dim::Dimension, sel::At)
+    selval = reproject(mappedcrs(mode), crs(mode), dim, val(sel))
+    DD.at(dim, rebuild(sel; val=selval))
+end
+function DD._sel2indices(mode::Projected, dim::Dimension, sel::Between)
+    selval = map(v -> reproject(mappedcrs(mode), crs(mode), dim, v), val(sel))
+    DD.between(dim, rebuild(sel; val=selval))
+end
+
 """
     Mapped <: AbstractProjected
 
@@ -85,6 +98,7 @@ crs(mode::Mapped) = mode.crs
 
 # mappedcrs(mode::Mapped, dim) = mappedcrs(mode)
 mappedcrs(mode::Mapped) = mode.mappedcrs
+
 
 """
     convertmode(dstmode::Type{<:IndexMode}, x)
@@ -140,3 +154,31 @@ _projectedrange(::Regular, crs::Nothing, ::Mapped, dim) =
     LinRange(first(dim), last(dim), length(dim))
 _projectedrange(::T, crs::Nothing, ::Mapped, dim) where T<:Union{Irregular,Explicit} =
     error("Cannot convert a Mapped $T index to Projected when crs is nothing")
+
+function setcrs(A, crs) 
+    if any(hasdim(A, (XDim, YDim)))
+        foldl(dims(A, (XDim, YDim)); init=A) do A, dim
+            if hasdim(A, dim)
+                set(A, dim => rebuild(mode(A, dim); dcrs=mappedcrs))
+            else
+                A
+            end
+        end
+    else
+        A
+    end
+end
+
+function setmappedcrs(A, mappedcrs) 
+    if any(hasdim(A, (X, Y)))
+        return foldl(dims(A, (X, YDim)); init=A) do a, dim
+            if hasdim(a, dim)
+                set(a, dim => rebuild(mode(a, dim); mappedcrs=mappedcrs))
+            else
+                a
+            end
+        end
+    else
+        return A
+    end
+end

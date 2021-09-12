@@ -30,6 +30,12 @@ filename(A::AbstractGeoArray) = filename(data(A))
 cleanreturn(A::AbstractGeoArray) = modify(cleanreturn, A)
 cleanreturn(x) = x
 
+isdiskbased(A::AbstractGeoArray) = parent(A) isa DiskArrays.AbstractDiskArray
+
+function Base.:(==)(A::AbstractGeoArray{T,N}, B::AbstractGeoArray{T,N}) where {T,N} 
+    size(A) == size(B) && all(A .== B)
+end
+
 """
     crs(x)
 

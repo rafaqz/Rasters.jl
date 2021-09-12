@@ -13,7 +13,6 @@ even when the missing value matches the current value.
 """
 replace_missing(x; missingval=missing) = replace_missing(x, missingval)
 function replace_missing(A::AbstractGeoArray, missingval=missing)
-    A = read(A)
     newdata = if ismissing(GeoData.missingval(A))
         if ismissing(missingval)
             copy(parent(read(A)))
@@ -26,6 +25,7 @@ function replace_missing(A::AbstractGeoArray, missingval=missing)
     rebuild(A; data=newdata, missingval=missingval)
 end
 replace_missing(x::GeoSeriesOrStack, args...) = map(A -> replace_missing(A, args...), x)
+
 
 """
     boolmask(A::AbstractArray, [missingval])
@@ -83,7 +83,34 @@ function mask(A::AbstractGeoArray; to, missingval=missingval(A))
     missingval = missingval isa Nothing ? missing : missingval
     return mask!(replace_missing(A, missingval); to, missingval)
 end
-mask(xs::GeoSeriesOrStack; kw...) = map(x -> mask(x; kw...),  xs)
+mask(xs::GeoSeriesOrStack, args...; kw...) = map(x -> mask(x, args...; kw...),  xs)
+"""
+    mask(x, polygon; order=(XDim, YDim), filename=nothing)`
+
+Masks the array `A` by a polygon. 
+
+Creates a new array, where points falling outside the polygon have 
+been replaced by `missingval(A)`. 
+
+# Arguments
+- `x`: a `GeoArray` or `GeoStack`
+- `polygon`: an `AbstractVector` of `Tuple` points, the first and last must close the shape.
+    In future this method will accept more point types.
+
+# Keywords
+
+- `order`: the order of dimensions in the points. Defaults to `(XDim, YDim)`.
+- `filename`: the filename to write to, forcing write the output directly to disk.
+
+$EXPERIMENTAL
+"""
+function mask(A::AbstractGeoArray, poly::AbstractVector; order=(XDim, YDim), filename=nothing)
+    _without_mapped_crs(A) do a
+        broadcast(a, DimKeys(a)) do x, seldims
+            _polymask(x, _missingval_or_missing(a), missingval(a), dims(seldims, order), poly)
+        end
+    end
+end
 
 """
     mask!(A; to::AbstractArray, missingval=missing)
@@ -99,22 +126,83 @@ function mask!(A::AbstractGeoArray; to, missingval=missingval(A))
     end
     return A
 end
-function mask!(xs::GeoSeriesOrStack; kw...)
-    map(x -> mask!(x; kw...),  xs)
+function mask!(xs::GeoSeriesOrStack, args...; kw...)
+    map(x -> mask!(x, args...; kw...),  xs)
     return xs
+end
+function mask!(dst, src::AbstractGeoArray, poly::AbstractVector; order=(XDim, YDim), filename=nothing)
+    _without_mapped_crs(src) do s
+        broadcast!(dst, DimKeys(s)) do seldims
+            _polymask(x, _missingval_or_missing(dst), missingval(src), dims(seldims, order), poly)
+        end
+    end
+end
+
+function _polymask(x, mvd, mvs, seldims, poly)
+    if x === mvs
+        return mvd
+    elseif isinside(map(val, seldims), poly)
+        return x
+    else
+        return mvd
+    end
+end
+
+const Pt{T<:Real} = NTuple{N,T} where N
+
+isinside(sel::NTuple{N,At}, poly::AbstractVector) where N = isinside(map(val, sel), poly)
+function isinside(r::Pt, poly::AbstractVector)
+    # An implementation of Hormann-Agathos (2001) Point in Polygon algorithm
+    # See: http://www.sciencedirect.com/science/article/pii/S0925772101000128
+    # Code segment adapted from PolygonClipping.jl
+    c = false
+    detq(q1,q2,r) = (q1[1] - r[1]) * (q2[2] - r[2]) - (q2[1] - r[1]) * (q1[2] - r[2])
+
+    for i in eachindex(poly)[2:end]
+        q2 = poly[i]
+        q1 = poly[i - 1]
+        if q1 == r
+            @warn("point on polygon vertex - returning false")
+            return false
+        end
+        if q2[2] == r[2]
+            if q2[1] == r[1]
+                @warn("point on polygon vertex - returning false")
+                return false
+            else
+            # elseif (q1[2] == r[2]) && ((q2[1] > x) == (q1[1] < r[1]))
+                @warn("point on edge - returning false")
+                return false
+            end
+        end
+        if (q1[2] < r[2]) != (q2[2] < r[2]) # crossing
+            if q1[1] >= r[1]
+                if q2[1] > r[1]
+                    c = !c
+                elseif ((detq(q1,q2,r) > 0) == (q2[2] > q1[2])) # right crossing
+                    c = !c
+                end
+            elseif q2[1] > r[1]
+                if ((detq(q1,q2,r) > 0) == (q2[2] > q1[2])) # right crossing
+                    c = !c
+                end
+            end
+        end
+    end
+    return c
 end
 
 """
     classify(x, pairs; lower, upper, others)
     classify(x, pairs...; lower, upper, others)
 
-Create a new array with values in `x` classified by the values in `pairs`, where each 
-pair contains a value and a replacement, a tuple of lower and upper range and a replacement, 
+Create a new array with values in `x` classified by the values in `pairs`, where each
+pair contains a value and a replacement, a tuple of lower and upper range and a replacement,
 or a Tuple of `Fix2` like `>(x)`. If `Fix2` is not used, the `lower` and `upper` keywords
 determined which comparison operator is used for the lower and upper tuple values
 - e.g. `<` or `<=` and `>` or `>=`.
 
-If `others` is set other values not covered in `pairs` will be set to that values. 
+If `others` is set other values not covered in `pairs` will be set to that values.
 
 $EXPERIMENTAL
 """
@@ -133,12 +221,12 @@ classify(xs::GeoSeriesOrStack, values; kw...) = map(x -> classify(x, values; kw.
     classify!(x, pairs; lower, upper, others)
 
 Classify values in `x` by the values in `pairs`, where each pair contains a value
-and a replacement, a tuple of lower and upper range and a replacement, or a Tuple 
+and a replacement, a tuple of lower and upper range and a replacement, or a Tuple
 of `Fix2` like `>(x)`. If `Fix2` is not used, the `lower` and `upper` keywords
 determined which comparison operator is used for the lower and upper tuple values
 - e.g. `<` or `<=` and `>` or `>=`.
 
-If `others` is set other values not covered in `pairs` will be set to that values. 
+If `others` is set other values not covered in `pairs` will be set to that values.
 
 $EXPERIMENTAL
 """
@@ -153,15 +241,51 @@ function classify!(xs::GeoSeriesOrStack; kw...)
     return xs
 end
 
+# _classify
+# Classify single values
 function _classify(x, pairs, lower, upper, others, missingval)
     x === missingval && return x
-    found = false
-    for (find, replace) in pairs
-        if _compare(find, x, lower, upper)
-            x = replace
-            found = true
-            break
+    # Use a fold instead of a loop, for type stability
+    found = foldl(pairs; init=nothing) do found, (find, replace)
+        if found isa Nothing && _compare(find, x, lower, upper)
+            replace
+        else
+            found
         end
+    end
+    if found isa Nothing
+        if others isa Nothing
+            return x
+        else
+            return others
+        end
+    else
+        return found
+    end
+end
+function _classify(x, pairs::AbstractMatrix, lower, upper, others, missingval)
+    x === missingval && return x
+    found = false
+    if size(pairs, 2) == 2
+        for i in 1:size(pairs, 1)
+            find = pairs[i, 1]
+            if _compare(find, x, lower, upper)
+                x = pairs[i, 2]
+                found = true
+                break
+            end
+        end
+    elseif size(pairs, 2) == 3
+        for i in 1:size(pairs, 1)
+            find = pairs[i, 1], pairs[i, 2]
+            if _compare(find, x, lower, upper)
+                x = pairs[i, 3]
+                found = true
+                break
+            end
+        end
+    else
+        throw(ArgumentError("pairs Array must be a N*2 or N*3 matrix"))
     end
     if !found && !(others isa Nothing)
         x = others
@@ -207,23 +331,6 @@ function _crop_to(x::GeoStackOrArray, to::Tuple)
     return _without_mapped_crs(x) do a
         view(a, selectors...)
     end
-end
-
-_without_mapped_crs(f, A) = _without_mapped_crs(f, A, mappedcrs(A))
-_without_mapped_crs(f, A, ::Nothing) = f(A)
-function _without_mapped_crs(f, A, mappedcrs)
-    # Drop mappedcrs
-    A = set(A;
-        X=rebuild(mode(A, X); mappedcrs=nothing),
-        Y=rebuild(mode(A, Y); mappedcrs=nothing),
-    )
-    A = f(A)
-    # Re-apply mappedcrs
-    A = set(A;
-        X=rebuild(mode(A, X); mappedcrs=mappedcrs),
-        Y=rebuild(mode(A, Y); mappedcrs=mappedcrs),
-    )
-    return A
 end
 
 # Get the smallest dimensions in a tuple of AbstractGeoArray
@@ -550,6 +657,7 @@ end
     (nearest neighbor resampling). See [resampling method](https://gdal.org/programs/gdalwarp.html#cmdoption-gdalwarp-r)
     in the gdalwarp docs for a complete list of possible values.
 
+$EXPERIMENTAL
 """
 function resample end
 function resample(A::AbstractGeoArray, resolution::Number;
@@ -604,6 +712,8 @@ warp(A, flags) |> plot
 ```
 
 In practise, prefer [`resample`](@ref) for this. But `warp` may be more flexible.
+
+$EXPERIMENTAL
 """
 function warp(A::AbstractGeoArray, flags::Dict)
     odims = otherdims(A, (X, Y, Band))
@@ -634,3 +744,199 @@ _asflag(x) = string(x)[1] == '-' ? x : string("-", x)
 _stringvect(x::AbstractVector) = Vector(string.(x))
 _stringvect(x::Tuple) = [map(string, x)...]
 _stringvect(x) = [string(x)]
+
+"""
+    mosaic(f, layers::AbstractGeoArray...; dims, missingval)
+    mosaic(f, layers::AbstractGeoStack...; dims, missingval)
+    mosaic(f, layers::Tuple; dims, missingval)
+
+Combine `layer`s using the function `f`, (e.g. `mean`, `sum`,
+`first` or `last`) where values from `layers` overlap.
+
+# Keywords
+- `dims`: The dimesions of `layers` to mosaic over, `(XDim, YDim)` by default.
+    If dims contains an index it will be ignored, but this may change in future.
+- `missingval`: Fills empty areas, and defualts to the
+    `missingval` of the first layer.
+
+$EXPERIMENTAL
+"""
+mosaic(f::Function, layers...; kw...) = mosaic(f, layers; kw...)
+function mosaic(f::Function, layers::Tuple{<:AbstractGeoArray,Vararg};
+    missingval=missingval(first(layers)), filename=nothing, kw...
+)
+    missingval isa Nothing && throw(ArgumentError("Layers have no missingval, so pass a `missingval` keyword explicitly"))
+    T = Base.promote_type(typeof(missingval), Base.promote_eltype(layers...))
+    dims = mosaic(map(DD.dims, layers))
+    data = if filename isa Nothing
+        Array{T,length(dims)}(undef, map(length, dims))
+    else
+        l1 = first(layers)
+        filename = create(filename, T, dims; name=name(l1), missingval, metadata=metadata(l1))
+        parent(GeoArray(filename))
+    end
+    A = rebuild(first(layers); data, dims, missingval)
+    open(A; write=true) do a
+        mosaic!(f, a, layers; missingval, kw...)
+    end
+end
+function mosaic(f::Function, layers::Tuple{<:AbstractGeoStack,Vararg}; kw...)
+    map(layers...) do A...
+        mosaic(f, A...; kw...)
+    end
+end
+
+"""
+    mosaic!(f, A, layers::AbstractGeoArray...; missingval, atol)
+    mosaic!(f, A, layers::AbstractGeoStack...; missingval, atol)
+    mosaic!(f, A, layers::Tuple; dims, missingval)
+
+Combine `layer`s to the array `A` using the function `f`,
+(e.g. `mean`, `sum`, `first` or `last`)
+where values from `layers` overlap.
+
+A may be a an opened disk-based `GeoArray` - the result will be
+written to disk. `layers` should be memory-backed, or may experience
+slow read speed with the current algorithm
+
+# Keywords
+
+- `missingval`: Fills empty areas, and defualts to the `missingval`
+    of the first layer.
+- `atol`: Absolute tolerance for comparison between index values.
+    This is often required due to minor differences in range values
+    due to floating point error. It is not applied to non-float dimensions.
+    A tuple of tolerances may be passed, matching the dimension order.
+
+$EXPERIMENTAL
+"""
+function mosaic!(f::Function, A, layers; missingval=missingval(A), atol=nothing)
+    _without_mapped_crs(A) do A
+        broadcast!(A, DimKeys(A; atol)) do ds
+            # Get all the layers that have this point
+            ls = foldl(layers; init=()) do acc, l
+                if DD.hasselection(l, ds)
+                    v = l[ds...]
+                    (acc..., l)
+                else
+                    acc
+                end
+            end
+            values = foldl(ls; init=()) do acc, l
+                v = l[ds...]
+                if isnothing(GeoData.missingval(l))
+                    (acc..., v)
+                elseif ismissing(GeoData.missingval(l))
+                    ismissing(v) ? acc : (acc..., v)
+                else
+                    v === GeoData.missingval(l) ? acc : (acc..., v)
+                end
+            end
+            if length(values) === 0
+                missingval
+            else
+                f(values)
+            end
+        end
+    end
+end
+function mosaic!(f::Function, A::AbstractGeoStack, stacks; kw...)
+    map(A, stacks...) do a, s...
+        mosaic!(f, a, s...; kw...)
+    end
+end
+
+function mosaic(alldims::Tuple{<:DimTuple,Vararg{<:DimTuple}})
+    map(mosaic, alldims...)
+end
+function mosaic(dims::Dimension...)
+    map(dims) do d
+        DD.comparedims(first(dims), d; val=false, length=false, mode=true)
+    end
+    _mosaic(mode(first(dims)), dims)
+end
+
+function _mosaic(mode::Categorical, dims::DimTuple)
+    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
+    return rebuild(first(dims), newindex)
+end
+function _mosaic(mode::AbstractSampled, dims::DimTuple)
+    order(mode) isa Unordered && throw(ArgumentError("Cant mozaic an Unordered dimension $(basetypeof(dim))"))
+    _mosaic(span(mode), mode, dims)
+end
+function _mosaic(span::Regular, mode::AbstractSampled, dims::DimTuple)
+    allkeys = map(val, dims)
+    newindex = if indexorder(mode) isa ForwardIndex
+        mi = minimum(map(first, allkeys))
+        ma = maximum(map(last, allkeys))
+        mi:step(span):ma
+    else
+        mi = minimum(map(last, allkeys))
+        ma = maximum(map(first, allkeys))
+        ma:step(span):mi
+    end
+    return rebuild(first(dims), newindex)
+end
+function _mosaic(::Irregular, mode::AbstractSampled, dims::DimTuple)
+    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
+    return rebuild(first(dims), newindex)
+end
+function _mosaic(span::Explicit, mode::AbstractSampled, dims::DimTuple)
+    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
+    bounds = map(val ∘ DD.span, dims)
+    lower = map(b -> view(b, 1, :), bounds)
+    upper = map(b -> view(b, 2, :), bounds)
+    newlower = sort(union(lower...); order=DD._ordering(indexorder(mode)))
+    newupper = sort(union(upper...); order=DD._ordering(indexorder(mode)))
+    newbounds = vcat(permutedims(newlower), permutedims(newupper))
+    newmode = rebuild(mode; span=Explicit(newbounds))
+    return rebuild(first(dims); val=newindex, mode=newmode)
+end
+
+_without_mapped_crs(f, A) = _without_mapped_crs(f, A, mappedcrs(A))
+_without_mapped_crs(f, A, ::Nothing) = f(A)
+function _without_mapped_crs(f, A, mappedcrs)
+    A = setmappedcrs(A, nothing)
+    A = f(A)
+    A = setmappedcrs(A, mappedcrs)
+    return A
+end
+
+"""
+   extract(vsr::AbstractGeoArray, points...; kw...)
+   extract(vsr::AbstractGeoArray, points; kw...)
+
+Extracts the value of the raster at the given points.
+"""
+function extract(A::AbstractGeoArray, x, y, others...; kw...)
+    extract(A, (x, y, others...); kw...)
+end
+function extract(
+    A::AbstractGeoArray, points; 
+    order=(XDim, YDim, ZDim), atol=nothing
+)
+    ordereddims = dims(A, order)
+    dimtypes = map(DD.basetypeof, ordereddims)
+    seldims = map(ordereddims, dimtypes, points) do d, D, p
+        if sampling(d) isa Points
+            D(At(p; atol))
+        else # Intervals
+            D(Contains(p))
+        end
+    end
+    if DD.hasselection(A, seldims)
+        return A[seldims...]
+    else
+        return missing
+    end
+end
+function extract(
+    A::AbstractGeoArray, points::NTuple{N,T}; kw...
+) where {T<:AbstractVector,N}
+    extract.(Ref(A), zip(points...); kw...)
+end
+function extract(A::AbstractGeoArray, points::AbstractVector; kw...)
+    extract.(Ref(A), points; kw...)
+end
+
+_missingval_or_missing(x) = missingval(x) isa Nothing ? missing : missingval(x)

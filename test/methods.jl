@@ -1,4 +1,4 @@
-using GeoData, Test, ArchGDAL
+using GeoData, Test, ArchGDAL, Dates, Statistics
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
@@ -26,6 +26,7 @@ end
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
     @test dims(missingmask(ga)) == (X(Base.OneTo(2), mode=NoIndex()), Y(Base.OneTo(2), mode=NoIndex()))
 end
+
 @testset "mask" begin
     A1 = [missing 1; 2 3]
     ga1 = GeoArray(A1, (X, Y); missingval=missing)
@@ -36,6 +37,7 @@ end
     mask!(ga3; to=ga)
     @test all(ga3 .=== [-9999 1; 2 -9999])
 end
+
 @testset "classify" begin
     A1 = [missing 1; 2 3]
     ga1 = GeoArray(A1, (X, Y); missingval=missing)
@@ -49,6 +51,8 @@ end
     @test classify(ga2, (>=(1), <(2))=>:x, >=(3)=>:y) == [:x 2.5; :y :y]
     classify!(ga2, (1, 2.5)=>0.0, >=(3)=>-1.0; lower=(>), upper=(<=))
     @test ga2 == [1.0 0.0; -1.0 -1.0]
+    classify!(ga2, [1 2.5 0.0; 2.5 4.0 -1.0]; lower=(>), upper=(<=))
+    @test ga2 == [1.0 0.0; -1.0 -1.0]
 end
 
 @testset "points" begin
@@ -57,6 +61,15 @@ end
     @test all(points(ga; dims=(X, Y)) .=== [(9.0, 0.1) missing; missing (10.0, 0.2)])
     @test all(points(ga; dims=(X, Y), ignore_missing=true) .===
               [(9.0, 0.1) (9.0, 0.2); (10.0, 0.1) (10.0, 0.2)])
+end
+
+@testset "extract" begin
+    A = [1 2; 3 4]
+    ga = GeoArray(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); missingval=missing)
+    @test all(extract(ga, [(9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]) .=== [1, 4, missing])
+    @test all(extract(ga, [(0.1, 9.0), (0.2, 10.0), (0.3, 10.0)]; order=(Y, X)) .=== [1, 4, missing])
+    sizeof([(0.1, 9.0), (0.2, 10.0), (0.3, 10.0)])
+    sizeof([(X(0.1), Y(9.0)), (X(0.2), Y(10.0)), (X(0.3), Y(10.0))])
 end
 
 @testset "trim, crop, extend" begin
@@ -76,10 +89,46 @@ end
     @test all(cropped_r .=== trimmed_r)
     extended = extend(cropped, ga)[1]
     extended_r = extend(cropped_r; to=ga_r)
-    @test all(extended .=== ga)
+    @test all(extended .=== ga) 
     @test all(extended_r .=== ga_r)
 end
 
+@testset "mosaic" begin
+    reg1 = GeoArray([0.1 0.2; 0.3 0.4], (X(2.0:1.0:3.0), Y(5.0:1.0:6.0)))
+    reg2 = GeoArray([1.1 1.2; 1.3 1.4], (X(3.0:1.0:4.0), Y(6.0:1.0:7.0)))
+    irreg1 = GeoArray([0.1 0.2; 0.3 0.4], (X([2.0, 3.0]), Y([5.0, 6.0])))
+    irreg2 = GeoArray([1.1 1.2; 1.3 1.4], (X([3.0, 4.0]), Y([6.0, 7.0])))
+
+    span_x1 = Explicit(vcat((1.5:1.0:2.5)', (2.5:1.0:3.5)'))
+    span_x2 = Explicit(vcat((2.5:1.0:3.5)', (3.5:1.0:4.5)'))
+    exp1 = GeoArray([0.1 0.2; 0.3 0.4], (X([2.0, 3.0]; mode=Sampled(span=span_x1)), Y([5.0, 6.0])))
+    exp2 = GeoArray([1.1 1.2; 1.3 1.4], (X([3.0, 4.0]; mode=Sampled(span=span_x2)), Y([6.0, 7.0])))
+    @test val(span(mosaic(first, exp1, exp2), X)) == [1.5 2.5 3.5; 2.5 3.5 4.5]
+    @test all(mosaic(first, reg1, reg2) .=== 
+              mosaic(first, irreg1, irreg2) .===
+              mosaic(first, irreg1, irreg2) .=== 
+              [0.1 0.2 missing; 
+               0.3 0.4 1.2; 
+               missing 1.3 1.4])
+    @test all(mosaic(last, reg1, reg2) .===
+              mosaic(last, irreg1, irreg2) .===
+              mosaic(last, exp1, exp2) .=== [0.1 0.2 missing; 
+                                             0.3 1.1 1.2; 
+                                             missing 1.3 1.4])
+
+    # 3 dimensions
+    A1 = GeoArray(ones(2, 2, 2), (X(2.0:-1.0:1.0), Y(5.0:1.0:6.0), Ti(DateTime(2001):Year(1):DateTime(2002))))
+    A2 = GeoArray(zeros(2, 2, 2), (X(3.0:-1.0:2.0), Y(4.0:1.0:5.0), Ti(DateTime(2002):Year(1):DateTime(2003))))
+    @test all(mosaic(mean, A1, A2) |> parent .=== cat([missing missing missing
+                                                 missing 1.0     1.0
+                                                 missing 1.0     1.0    ],
+                                                [0.0     0.0 missing
+                                                 0.0     0.5     1.0   
+                                                 missing 1.0     1.0    ],
+                                                [0.0     0.0     missing
+                                                 0.0     0.0     missing    
+                                                 missing missing missing], dims=3))
+end
 
 @testset "resample" begin
     raster_path = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")

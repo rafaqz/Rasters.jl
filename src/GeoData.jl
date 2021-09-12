@@ -7,28 +7,29 @@ module GeoData
     read(path, String)
 end GeoData
 
-using Adapt,
-      ConstructionBase,
-      Dates,
-      DiskArrays,
-      Missings,
-      Mmap,
-      ProgressMeter,
-      RecipesBase,
-      Reexport
+using Dates
 
-import ColorTypes,
+import Adapt,
+       ArchGDAL,
+       ColorTypes,
+       ConstructionBase,
+       DiskArrays,
+       FillArrays,
        Flatten,
-       Setfield,
        HDF5,
+       ProgressMeter,
+       Missings,
+       Mmap,
        NCDatasets,
-       ArchGDAL
+       RecipesBase,
+       Reexport,
+       Setfield
 
-@reexport using DimensionalData, GeoFormatTypes, RasterDataSources
+Reexport.@reexport using DimensionalData, GeoFormatTypes, RasterDataSources
 
-
+using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
-using DimensionalData: StandardIndices
+using DimensionalData: StandardIndices, DimTuple
 using Setfield: @set, @set!
 using ColorTypes: RGB
 
@@ -40,7 +41,7 @@ export Band
 export missingval, boolmask, missingmask, replace_missing,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!, 
        resample, warp, crop, extend, trim, slice, chunk, points, subset,
-       classify, classify!
+       classify, classify!, mosaic, mosaic!, extract
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertmode
 export geoarray, stack, series

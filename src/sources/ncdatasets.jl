@@ -94,7 +94,22 @@ function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractGeoSta
     finally
         close(ds)
     end
+    return filename
 end 
+
+function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DD.DimTuple; 
+    name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing, metadata=NoMetadata()
+)
+    types = T isa Tuple ? T : Ref(T)
+    missingval = T isa Tuple ? missingval : Ref(missingval)
+    # Create layers of zero arrays
+    layers = map(layerdims, keys, types, missingval) do lds, key, t, mv 
+        A = FillArrays.Zeros{t}(map(length, lds))
+        GeoArray(A, dims=lds; name=key, missingval=mv)
+    end
+    write(filename, NCDfile, GeoArray(first(layers)))
+    return GeoArray(filename)
+end
 
 # DimensionalData methods for NCDatasets types ###############################
 
@@ -325,8 +340,8 @@ function _ncdwritevar!(ds::NCD.Dataset, A::AbstractGeoArray{T,N}) where {T,N}
     _def_dim_var!(ds, A)
     attrib = _attribdict(metadata(A))
     # Set _FillValue
+    eltyp = _notmissingtype(Base.uniontypes(T)...)
     if ismissing(missingval(A))
-        eltyp = _notmissingtype(Base.uniontypes(T)...)
         fillval = if haskey(attrib, "_FillValue") && attrib["_FillValue"] isa eltyp
             attrib["_FillValue"]
         else
@@ -347,7 +362,7 @@ function _ncdwritevar!(ds::NCD.Dataset, A::AbstractGeoArray{T,N}) where {T,N}
     end
 
     dimnames = lowercase.(string.(map(name, dims(A))))
-    var = NCD.defVar(ds, key, eltype(A), dimnames; attrib=attrib)
+    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib)
     # TODO do this with DiskArrays broadcast ??
     var[:] = parent(read(A))
 end
