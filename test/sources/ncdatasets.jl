@@ -139,7 +139,7 @@ stackkeys = (
             A1 = ncarray[X(1:80), Y(1:100)]
             A2 = ncarray[X(50:150), Y(90:150)]
             tempfile = tempname() * ".nc"
-            Afile = mosaic(first, A1, A2; missingval=missing, atol=1e-7, filename=tempfile)
+            Afile = mosaic(first, read(A1), read(A2); missingval=missing, atol=1e-7, filename=tempfile)
             Amem = mosaic(first, A1, A2; missingval=missing, atol=1e-7)
             Atest = ncarray[X(1:150), Y(1:150)]
             Atest[X(1:49), Y(101:150)] .= missing
@@ -326,26 +326,6 @@ end
         @test ncmultistack[:tos, 8, 30, 10] isa Float32
     end
 
-    @testset "window" begin
-        windowedstack = GeoStack(ncmulti; window=(Y(1:5), X(1:5), Ti(1)))
-        windowedarray = windowedstack[:albedo]
-        @test size(windowedarray) == (5, 5)
-        @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
-        @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
-        @test windowedarray[1, 2] == 0.84936917f0
-        windowedstack = GeoStack(ncmulti; window=(Y(1:5), X(1:5), Ti(1:1)))
-        windowedarray = windowedstack[:albedo] 
-        @test windowedarray[1:3, 2:2, 1:1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1, 1) 
-        @test windowedarray[1:3, 2:2, 1] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
-        @test windowedarray[1:3, 2, 1] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
-        @test windowedarray[1, 2, 1] == 0.84936917f0
-        windowedstack = GeoStack(ncmulti; window=(Ti(1),))
-        windowedarray = windowedstack[:albedo]
-        @test windowedarray[1:3, 2:2] == reshape([0.84936917f0, 0.8776228f0, 0.87498736f0], 3, 1)
-        @test windowedarray[1:3, 2] == [0.84936917f0, 0.8776228f0, 0.87498736f0]
-        @test windowedarray[1, 2] ==  0.84936917f0
-    end
-
     @testset "Subsetting keys" begin
         smallstack = subset(ncstack, (:albedo, :evap, :runoff))
         @test keys(smallstack) == (:albedo, :evap, :runoff)
@@ -369,7 +349,7 @@ end
     end
 
     @testset "show" begin
-        ncstack = GeoStack(ncmulti; window=(X(7:99), Y(3:90)));
+        ncstack = view(GeoStack(ncmulti), X(7:99), Y(3:90));
         sh = sprint(show, MIME("text/plain"), ncstack)
         # Test but don't lock this down too much
         @test occursin("GeoStack", sh)

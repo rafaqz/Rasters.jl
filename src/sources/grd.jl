@@ -55,6 +55,7 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     xbounds = parse.(Float64, (attrib["xmin"], attrib["xmax"]))
     ybounds = parse.(Float64, (attrib["ymin"], attrib["ymax"]))
 
+    # Always intervals
     xspan = (xbounds[2] - xbounds[1]) / ncols
     yspan = (ybounds[2] - ybounds[1]) / nrows
 
@@ -144,8 +145,6 @@ end
 
 Write a `GeoArray` to a .grd file with a .gri header file. 
 The extension of `filename` will be ignored.
-
-Currently the `metadata` field is lost on `write`.
 
 Returns `filename`.
 """
@@ -261,7 +260,8 @@ function _mmapgrd(f, x::Union{FileArray,GRDattrib}; kw...)
 end
 function _mmapgrd(f, filename::AbstractString, T::Type, size::Tuple; write=false)
     arg = write ? "r+" : "r"  
-    open(filename * ".gri", arg) do io
+    basename = splitext(filename)[1]
+    open(basename * ".gri", arg) do io
         mmap = Mmap.mmap(io, Array{T,length(size)}, size)
         output = f(mmap)
         close(io)

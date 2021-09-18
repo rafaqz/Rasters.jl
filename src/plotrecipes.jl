@@ -1,4 +1,4 @@
-# Method specialisation singletons. 
+# Method specialisation singletons.
 struct GeoPlot end
 struct GeoZPlot end
 # We only look at arrays with X, Y, Z dims here.
@@ -10,7 +10,8 @@ struct GeoZPlot end
         DD.DimensionalPlot(), ddplot(A)
     elseif all(hasdim(A, (SpatialDim, SpatialDim)))
         # Heatmap or multiple heatmaps. Use GD recipes.
-        GeoPlot(), _prepare(_subsample(A, max_res))
+        A = _prepare(_subsample(A, max_res))
+        GeoPlot(), A
     elseif hasdim(A, ZDim) && ndims(A) == 1
         # Z dim plot, but for spatial data we want Z on the Y axis
         GeoZPlot(), _prepare(A)
@@ -18,48 +19,9 @@ struct GeoZPlot end
         DD.DimensionalPlot(), ddplot(A)
     end
 end
-
-# Plot 3d arrays as multiple tiled plots
-@recipe function f(::GeoPlot, A::GeoArray{T,3,<:Tuple{<:SpatialDim,<:SpatialDim,D}}) where {T,D}
-    nplots = size(A, 3)
-    if nplots > 1
-        ncols = (nplots - 1) ÷ ceil(Int, sqrt(nplots)) + 1
-        nrows = (nplots - 1) ÷ ncols + 1
-        :layout --> (ncols, nrows)
-        # link --> :both
-        # clims = extrema(A)
-        colorbar := false
-        titles = string.(index(A, D))
-        for r in 1:nrows, c in 1:ncols
-            i = (r + (c - 1) * nrows)
-            @series begin
-                titlefontsize := 7
-                tickfontsize := 6 
-                tickfontsize := 6 
-                subplot := i
-                if c != ncols || r != 1
-                    xformatter := _ -> ""
-                    yformatter := _ -> ""
-                    xguide := ""
-                    yguide := ""
-                end
-                if i <= nplots
-                    title := titles[i]
-                    GeoPlot(), A[:, :, i]
-                else
-                    framestyle := :none
-                    legend := :none
-                    []
-                end
-            end
-        end
-    else
-        GeoPlot(), A[:, :, 1]
-    end
-end
 # Plot a sinlge 2d map
 @recipe function f(::GeoPlot, A::GeoArray{T,2,<:Tuple{D1,D2}}) where {T,D1<:SpatialDim,D2<:SpatialDim}
-    # If colorbar is close to symmetric (< 25% difference) use a symmetric 
+    # If colorbar is close to symmetric (< 25% difference) use a symmetric
     # colormap and set symmetric limits so zero shows up as a neutral color.
     A_min, A_max = extrema(skipmissing(A))
 
@@ -75,46 +37,46 @@ end
     y, x = map(_prepare, dims(A))
 
     rdt = DD.refdims_title(A; issingle=true)
-    title = rdt === "" ? _maybename(A) : _maybename(A) * " " * rdt 
-    :title --> title
+    :title --> (rdt === "" ? _maybename(A) : _maybename(A) * "\n" * rdt)
     :xguide --> xguide
     :yguide --> yguide
     :clims --> clims
-    :axes --> :none
-    :guidefontsize --> 8
-    :tickfontsize --> 6 
-    :titlefontsize --> 10
+    :grid --> true
+    :gridalpha --> 0.2
+    # :guidefontsize --> 10
+    # :tickfontsize --> 8
+    # :titlefontsize --> 10
+    :linewidth --> 1
     :colorbar_title --> name(A)
     :colorbar_titlefontsize --> 9
     :colorbar_tickfontcolor --> RGB(0.3)
     :tickfontcolor --> RGB(0.3)
-    :framestyle --> :grid
-    :widen --> true
-    :foreground_color_axis --> RGB(0.5)
+    :tickcolor --> RGB(0.3)
+    :tick_direction --> :out
+    :framestyle --> :box
+    :foreground_color_axis --> RGB(0.3)
+    :foreground_color_border --> RGB(0.3)
     :seriescolor --> :curl
-    :gridalpha --> 0.4
 
     # Often Mapped mode/netcdf has wide pixels
     mode(x) isa Mapped && (:xlims --> mappedbounds(x))
     mode(y) isa Mapped && (:ylims --> mappedbounds(y))
     if all(d -> mode(d) isa Mapped, (x, y))
-        :aspect_ratio --> :equal 
+        :aspect_ratio --> :equal
     else
         :xlims --> bounds(A, x)
         :ylims --> bounds(A, y)
         bnds = bounds(A, (D1, D2))
         s1, s2 = map(((l, u),) -> (u - l), bnds) ./ (size(A, D1), size(A, D2))
         square_pixels = s2 / s1
-        :aspect_ratio --> square_pixels 
+        :aspect_ratio --> square_pixels
     end
 
     if get(plotattributes, :seriestype, :none) == :contourf
-        :linewidth --> 0
         :levels --> range(clims[1], clims[2], length=20)
         index(x), index(y), clamp.(A, clims[1], clims[2])
     else
         :seriestype --> :heatmap
-        parent(A)
         index(x), index(y), parent(A)
     end
 end
@@ -125,7 +87,7 @@ end
     yguide = label(z_dim)
     xguide = label(A)
     rdt = DD.refdims_title(A; issingle=true)
-    :title --> rdt == "" ? _maybename(A) : _maybename(A) * " " * rdt 
+    :title --> (rdt == "" ? _maybename(A) : _maybename(A) * "\n" * rdt)
     :xguide --> xguide
     :yguide --> yguide
     :label --> ""
@@ -133,35 +95,76 @@ end
     parent(A), index(z)
 end
 
+# Plot 3d arrays as multiple tiled plots
+@recipe function f(::GeoPlot, A::GeoArray{T,3,<:Tuple{<:SpatialDim,<:SpatialDim,D}}) where {T,D}
+    nplots = size(A, 3)
+    if nplots > 1
+        ncols, nrows = _balance_grid(nplots)
+        :layout --> (ncols, nrows)
+        # link --> :both
+        # clims = extrema(A)
+        :colorbar := false
+        titles = string.(index(A, D))
+        for r in 1:nrows, c in 1:ncols
+            i = (r + (c - 1) * nrows)
+            @series begin
+                :titlefontsize := 9
+                :tickfontsize := 7
+                subplot := i
+                if c != ncols || r != 1
+                    :xformatter := _ -> ""
+                    :yformatter := _ -> ""
+                    :xguide := ""
+                    :yguide := ""
+                end
+                if i <= nplots
+                    title := titles[i]
+                    GeoPlot(), A[:, :, i]
+                else
+                    :framestyle := :none
+                    :legend := :none
+                    []
+                end
+            end
+        end
+    else
+        GeoPlot(), A[:, :, 1]
+    end
+end
+
+function _balance_grid(nplots)
+    ncols = (nplots - 1) ÷ ceil(Int, sqrt(nplots)) + 1
+    nrows = (nplots - 1) ÷ ncols + 1
+    return ncols, nrows
+end
+
 # We only look at arrays with X, Y, Z dims here.
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(st::AbstractGeoStack)
     nplots = length(keys(st))
-    max_res = get(plotattributes, :max_res, 1000/nplots)
     if nplots > 1
-        ncols = (nplots - 1) ÷ ceil(Int, sqrt(nplots)) + 1
-        nrows = (nplots - 1) ÷ ncols + 1
+        ncols, nrows = _balance_grid(nplots)
         :layout --> (ncols, nrows)
         colorbar := false
+        max_res = get(plotattributes, :max_res, 1000/(max(nrows, ncols)))
 
         l = DD.layers(st)
         for r in 1:nrows, c in 1:ncols
             i = (r + (c - 1) * nrows)
             @series begin
-                titlefontsize := 7
-                tickfontsize := 6 
-                tickfontsize := 6 
+                :titlefontsize := 9
+                :tickfontsize := 7
                 subplot := i
                 if c != ncols || r != 1
-                    xformatter := _ -> ""
-                    yformatter := _ -> ""
-                    xguide := ""
-                    yguide := ""
+                    :xformatter := _ -> ""
+                    :yformatter := _ -> ""
+                    :xguide := ""
+                    :yguide := ""
                 end
                 if i <= nplots
                     A = l[i]
                     title := string(keys(st)[i])
-                    if length(dims(A, (XDim, YDim))) > 0 
+                    if length(dims(A, (XDim, YDim))) > 0
                         # Get a view of the first slice of the X/Y dimension
                         ods = otherdims(A, (X, Y))
                         if length(ods) > 0
@@ -182,7 +185,7 @@ end
             end
         end
     else
-        GeoPlot(), _prepare(_subsample(A, max_res))
+        first(st)
     end
 end
 
@@ -191,7 +194,7 @@ end
 _prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
 # Convert arrays to a consistent missing value and Forward array order
 function _prepare(A::AbstractGeoArray)
-    reorder(A, ForwardIndex) |> 
+    reorder(A, ForwardIndex) |>
     a -> reorder(a, ForwardRelation) |>
     a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A))) |>
     a -> replace_missing(a, missing)
@@ -210,7 +213,7 @@ function _subsample(A, max_res)
 end
 
 _maybename(A) = _maybename(name(A))
-_maybename(n::Name{N}) where N = _maybename(N) 
+_maybename(n::Name{N}) where N = _maybename(N)
 _maybename(n::NoName) = ""
 _maybename(n::Symbol) = string(n)
 

@@ -3,8 +3,7 @@
     read(A::AbstractGeoStack)
     read(A::AbstractGeoSeries)
 
-`read` will move a GeoData.jl object completely to memory, or make
-a copy if already in memory.
+`read` will move a GeoData.jl object completely to memory.
 ```
 """
 function Base.read(x::Union{AbstractGeoArray,AbstractGeoStack,AbstractGeoSeries})
@@ -15,12 +14,12 @@ function Base.read(x::Union{AbstractGeoArray,AbstractGeoStack,AbstractGeoSeries}
 end
 
 """
-    read!(filename, A::AbstractGeoArray)
-    read!(filename, A::AbstractGeoStack)
-    read!(filename, A::AbstractGeoSeries)
+    read!(src::Union{AbstractString,AbstractGeoArray}, dst::AbstractGeoArray)
+    read!(src::Union{AbstractString,AbstractGeoStack}, dst::AbstractGeoStack)
+    read!(scr::AbstractGeoSeries, dst::AbstractGeoSeries)
 
-`read!` will move a GeoData.jl object completely to memory, or make
-a copy if already in memory.
+`read!` will move the data from `src` to `dst`, where `src` can be an object
+or a file name `String`.
 ```
 """
 Base.read!(src::AbstractGeoArray, dst::AbstractArray) = dst .= src

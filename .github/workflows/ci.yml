@@ -50,5 +50,7 @@ jobs:
             Pkg.instantiate()'
       - run: julia --project=docs docs/make.jl
         env:
+          RASTERDATASOURCES_PATH: ".."
+          GKSwstype: "100"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}

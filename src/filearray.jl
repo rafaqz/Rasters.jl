@@ -40,9 +40,16 @@ function Base.open(f::Function, A::FileArray{X}; write=A.write, kw...) where X
     _open(f, X, filename(A); key=key(A), write, kw...)
 end
 
-DA.readblock!(A::FileArray, dst, r::AbstractUnitRange...) = open(o -> dst .= o[r...], A)
-DA.writeblock!(A::FileArray, src, r::AbstractUnitRange...) = 
-    open(o -> o[r...] .= src, A; write=A.write)
+function DA.readblock!(A::FileArray, dst, r::AbstractUnitRange...)
+    open(A) do O
+        DA.readblock!(O, dst, r...)
+    end
+end
+function DA.writeblock!(A::FileArray, src, r::AbstractUnitRange...) 
+    open(A; write=A.write) do O
+        DA.writeblock!(O, src, r...)
+    end
+end
 
 
 """

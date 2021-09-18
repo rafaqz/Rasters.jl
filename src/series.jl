@@ -68,48 +68,41 @@ struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N}} <: AbstractGeoSeries{T,N,D,A}
     dims::D
     refdims::R
 end
-function GeoSeries(
-    data::Array{T}, dims; refdims=(), child=nothing, window=nothing
-) where T<:Union{<:AbstractGeoStack,<:AbstractGeoArray}
-    ser=  GeoSeries(data, DD.formatdims(data, dims), refdims)
-    if window isa Nothing
-        ser
-    else
-        map(x -> view(x, window...), ser)
-    end
-end
-function GeoSeries(
-    data::Array{T}, dims; refdims=(), child=GeoArray, kw...
-) where T<:Union{<:AbstractString}
-    source = _sourcetype(first(data))
-    # Load the first child
-    child1 = child(first(data); source, refdims, kw...)
-    if child === GeoArray
-        # We assume all dims, metadata and missingvals are the same
-        childdims = DD.dims(child1)
-        metadata = DD.metadata(child1)
-        missingval = GeoData.missingval(child1)
-        data = map(data) do x
-            child(x; 
-                dims=childdims, source, metadata, missingval, name=name(child1), kw...
-            )
-        end
-    else
-        # We assume all dims, metadata and missingvals are the same
-        childdims = DD.dims(child1)
-        metadata = DD.metadata(child1)
-        layerdims = DD.layerdims(child1)
-        layermetadata = DD.layermetadata(child1)
-        layermissingval = GeoData.layermissingval(child1)
-        data = map(data) do x
-            child(x; 
-                dims=childdims, source, metadata, layerdims, layermetadata, 
-                layermissingval, keys=keys(child1), kw...
-            )
-        end
-    end
+function GeoSeries(data::AbstractArray{<:Union{AbstractGeoStack,AbstractGeoArray}}, dims; 
+    refdims=()
+)
     GeoSeries(data, DD.formatdims(data, dims), refdims)
 end
+function GeoSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims; 
+    duplicate_first=true, child=nothing, resize=nothing, kw...
+)
+    childtype = if isnothing(child)
+        eltype(filenames) <: NamedTuple ? GeoStack : GeoArray
+    else
+        child
+    end
+    data = if duplicate_first
+        # We assume all dims, metadata and missingvals are the same over the series
+        # We just load the first object, and swap in the filenames of the others.
+        data1 = if childtype <: AbstractGeoArray
+            childtype(first(filenames); kw...)
+        else
+            childtype(first(filenames); resize, kw...)
+        end
+        map(filenames) do fn
+            swap_filename(data1, fn)
+        end
+    else
+        # Load everything separately
+        if childtype <: AbstractGeoArray
+            [childtype(fn; kw...) for fn in filenames]
+        else
+            [childtype(fn; resize, kw...) for fn in filenames]
+        end
+    end
+    return GeoSeries(data, DD.formatdims(data, dims))
+end
+
 function GeoSeries(dirpath::AbstractString, dims=(Dim{:series}(),); ext=nothing, child=GeoArray, kw...)
     filepaths = filter_ext(dirpath, ext)
     GeoSeries(filepaths, dims; child=child, kw...)
@@ -128,3 +121,15 @@ end
 end
 
 @deprecate series(args...; kw...) GeoSeries(args...; kw...)
+
+swap_filename(x, filename) = rebuild(x, data=swap_filename(data(x), filename))
+swap_filename(x::NamedTuple, filenames::NamedTuple) = map(swap_filename, x, filenames)
+swap_filename(x::FileStack, filename::AbstractString) = @set x.filename = filename
+swap_filename(x::FileArray, filename::AbstractString) = @set x.filename = filename
+function swap_filename(x::AbstractArray, filename::AbstractString)
+    # The `FileArray` is wrapped, so use Flatten.jl to update it wherever it is
+    ignore = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
+    Flatten.modify(x, FileArray, ignore) do fa
+        @set fa.filename = filename
+    end
+end

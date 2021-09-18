@@ -10,9 +10,21 @@ also updating the `missingval` field/s.
 
 A `GeoArray` containing a newly allocated `Array` is always returned,
 even when the missing value matches the current value.
+
+# Example
+
+```jldoctest
+using GeoData
+A = GeoArray(WorldClim{Climate}, :prec; month=1) |> replace_missing
+missingval(A)
+# output
+missing
+```
+
 """
 replace_missing(x; missingval=missing) = replace_missing(x, missingval)
-function replace_missing(A::AbstractGeoArray, missingval=missing)
+function replace_missing(A::AbstractGeoArray{T}, missingval::MV=missing) where {T,MV}
+    missingval = convert(promote_type(T, MV), missingval)
     newdata = if ismissing(GeoData.missingval(A))
         if ismissing(missingval)
             copy(parent(read(A)))
@@ -26,96 +38,207 @@ function replace_missing(A::AbstractGeoArray, missingval=missing)
 end
 replace_missing(x::GeoSeriesOrStack, args...) = map(A -> replace_missing(A, args...), x)
 
-
 """
     boolmask(A::AbstractArray, [missingval])
 
-Create a mask array of `Bool` values, from any AbstractArray. For `AbstractGeoArray`
-the default `missingval` is `missingval(A)`, for all other `AbstractArray`s
-it is `missing`.
+Create a mask array of `Bool` values, from any `AbstractArray`.
+For [`AbstractGeoArray`](@ref) the default `missingval` is `missingval(A)`,
+for all other `AbstractArray`s it is `missing`.
 
 The array returned from calling `boolmask` on a `AbstractGeoArray` is a
-[`GeoArray`](@ref) with the same size and fields as the oridingl array
+[`GeoArray`](@ref) with the same size and fields as the original array.
+
+# Example
+
+```jldoctest
+using GeoData, Plots, Dates
+wc = GeoArray(WorldClim{Climate}, :prec; month=1)
+boolmask(wc) |> plot
+
+savefig("build/boolmask_example.png")
+# output
+```
+
+![boolmask](boolmask_example.png)
 """
 function boolmask end
-boolmask(A::AbstractGeoArray) =
-    rebuild(A; data=boolmask(A, missingval(A)), missingval=false, name=:Bool_mask)
+function boolmask(A::AbstractGeoArray)
+    rebuild(A; data=boolmask(A, missingval(A)), missingval=false, name=:boolmask)
+end
 boolmask(A::AbstractArray, missingval::Missing=missing) = (a -> !ismissing(a)).(parent(A))
-boolmask(A::AbstractArray, missingval) =
+function boolmask(A::AbstractArray, missingval)
     if isnan(missingval)
-        (a -> !isnan(a)).(parent(A))
+        broadcast(a -> !isnan(a), parent(A))
     else
-        (a -> !isapprox(a, missingval)).(parent(A))
+        broadcast(a -> a !== missingval, parent(A))
     end
+end
 
 """
     missingmask(A::AbstractArray, [missingval])
 
-Create a mask array of `missing` or `true` values, from any AbstractArray.
-For `AbstractGeoArray` the default `missingval` is `missingval(A)`,
+Create a mask array of `missing` or `true` values, from any `AbstractArray`.
+For [`AbstractGeoArray`](@ref) the default `missingval` is `missingval(A)`,
 for all other `AbstractArray`s it is `missing`.
 
-The array returned from calling `boolmask` on a `AbstractGeoArray` is a
-[`GeoArray`](@ref) with the same size and fields as the oridingl array
+The array returned from calling `missingmask` on a `AbstractGeoArray` is a
+[`GeoArray`](@ref) with the same size and fields as the original array.
+
+# Example
+
+```jldoctest
+using GeoData, Plots, Dates
+wc = GeoArray(WorldClim{Climate}, :prec; month=1)
+missingmask(wc) |> plot
+
+savefig("build/missingmask_example.png")
+# output
+```
+
+![missingmask](missingmask_example.png)
 """
 function missingmask end
-missingmask(A::AbstractGeoArray) =
-    rebuild(A; data=missingmask(A, missingval(A)), missingval=missing, name=:Missing_mask)
-missingmask(A::AbstractArray, missingval::Missing=missing) =
+function missingmask(A::AbstractGeoArray)
+    rebuild(A; data=missingmask(A, missingval(A)), missingval=missing, name=:missingmask)
+end
+function missingmask(A::AbstractArray, missingval::Missing=missing)
     (a -> ismissing(a) ? missing : true).(parent(A))
-missingmask(A::AbstractArray, missingval) =
+end
+function missingmask(A::AbstractArray, missingval)
     if isnan(missingval)
         (a -> isnan(a) ? missing : true).(parent(A))
     else
-        (a -> isapprox(a, missingval) ? missing : true).(parent(A))
+        (a -> a === missingval ? missing : true).(parent(A))
     end
+end
 
 """
-    mask(A::AbstractGeoArray; to; missingval=missingval(A))
+    mask(A::AbstractGeoArray; to, missingval=missingval(A))
+    mask(x; to, order=(XDim, YDim))
 
 Return a new array with values of `A` masked by the missing values of `to`,
-optionally setting a new `misssingval`.
+or by values outside `to` if it is a polygon.
+
+# Arguments
+
+- `x`: a `GeoArray` or `GeoStack`
+
+# Keywords
+
+- `to`: another `AbstractGeoArray` of a polygon `AbstractVector` of `Tuple` points,
+    the first and last must close the shape.
+- `order`: the order of `Dimension`s in the points. Defaults to `(XDim, YDim)`.
+- `missingval`: the order of dimensions in the points. Defaults to `(XDim, YDim)`.
+
+In future this method will accept more point types.
+
+# Example
+
+Mask an unmasked AWAP layer with a masked WorldClim layer,
+by first resampling the mask.
+
+```jldoctest
+using GeoData, Plots, Dates
+
+# Load and plot the file
+awap = read(GeoArray(AWAP, :tmax; date=DateTime(2001, 1, 1)))
+a = plot(awap)
+
+# Create a mask my resampling a worldclim file
+wc = GeoArray(WorldClim{Climate}, :prec; month=1)
+wc_mask = resample(wc; to=awap)
+
+# Mask
+awap_masked = mask(awap; to=wc_mask)
+b = plot(awap_masked)
+
+savefig(a, "build/mask_example_before.png")
+savefig(b, "build/mask_example_after.png")
+# output
+```
+
+### Before `mask`:
+
+![before mask](mask_example_before.png)
+
+### After `mask`:
+
+![after mask](mask_example_after.png)
 
 $EXPERIMENTAL
 """
 function mask end
-function mask(A::AbstractGeoArray; to, missingval=missingval(A))
-    missingval = missingval isa Nothing ? missing : missingval
-    return mask!(replace_missing(A, missingval); to, missingval)
+mask(A::AbstractGeoArray; to, kw...) = _mask(A, to; kw...)
+mask(xs::GeoSeriesOrStack, args...; kw...) = map(x -> mask(x; kw...), xs)
+
+function _mask(A::AbstractGeoArray, to=AbstractArray; missingval=_missingval_or_missing(A), kw...)
+    return mask!(read(replace_missing(A, missingval)); to, missingval)
 end
-mask(xs::GeoSeriesOrStack, args...; kw...) = map(x -> mask(x, args...; kw...),  xs)
-"""
-    mask(x, polygon; order=(XDim, YDim), filename=nothing)`
 
-Masks the array `A` by a polygon. 
-
-Creates a new array, where points falling outside the polygon have 
-been replaced by `missingval(A)`. 
-
-# Arguments
-- `x`: a `GeoArray` or `GeoStack`
-- `polygon`: an `AbstractVector` of `Tuple` points, the first and last must close the shape.
-    In future this method will accept more point types.
-
-# Keywords
-
-- `order`: the order of dimensions in the points. Defaults to `(XDim, YDim)`.
-- `filename`: the filename to write to, forcing write the output directly to disk.
-
-$EXPERIMENTAL
-"""
-function mask(A::AbstractGeoArray, poly::AbstractVector; order=(XDim, YDim), filename=nothing)
+function _mask(A::AbstractGeoArray, to::AbstractVector;
+    order=(XDim, YDim), missingval=_missingval_or_missing(A)
+)
     _without_mapped_crs(A) do a
         broadcast(a, DimKeys(a)) do x, seldims
-            _polymask(x, _missingval_or_missing(a), missingval(a), dims(seldims, order), poly)
+            _polymask(x, missingval, GeoData.missingval(a), dims(seldims, order), poly)
         end
     end
 end
 
 """
-    mask!(A; to::AbstractArray, missingval=missing)
+    mask!(A; to, missingval=missing, order=(XDim, YDim))
 
-Mask `A` by the missing values of `to`, optionally setting a new `misssingval`.
+Mask `A` by the missing values of `to`, or by values outside `to` if i is a polygon.
+
+If `to` is a polygon, creates a new array where points falling outside the polygon
+have been replaced by `missingval(A)`.
+
+Return a new array with values of `A` masked by the missing values of `to`,
+or by a polygon.
+
+# Arguments
+
+- `x`: a `GeoArray` or `GeoStack`.
+
+# Keywords
+
+- `to`: another `AbstractGeoArray` of a polygon `AbstractVector` of `Tuple` points, the
+    first and last must close the shape. In future this method will accept more point types.
+- `order`: the order of `Dimension`s in the points. Defaults to `(XDim, YDim)`.
+- `missingval`: the order of dimensions in the points. Defaults to `(XDim, YDim)`.
+
+# Example
+
+Mask an unmasked AWAP layer with a masked WorldClim layer,
+by first resampling the mask to match the size and projection.
+
+```jldoctest
+using GeoData, Plots, Dates
+
+# Load and plot the file
+awap = read(GeoStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
+a = plot(awap)
+
+# Create a mask my resampling a worldclim file
+wc = GeoArray(WorldClim{Climate}, :prec; month=1)
+wc_mask = resample(wc; to=awap)
+
+# Mask
+mask!(awap; to=wc_mask)
+b = plot(awap)
+
+savefig(a, "build/mask_bang_example_before.png")
+savefig(b, "build/mask_bang_example_after.png")
+# output
+```
+
+### Before `mask!`:
+
+![before mask!](mask_bang_example_before.png)
+
+### After `mask!`:
+
+![after mask!](mask_bang_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -193,16 +316,47 @@ function isinside(r::Pt, poly::AbstractVector)
 end
 
 """
-    classify(x, pairs; lower, upper, others)
+    classify(x, pairs; lower=(>=), upper=(<), others=nothing)
     classify(x, pairs...; lower, upper, others)
 
-Create a new array with values in `x` classified by the values in `pairs`, where each
-pair contains a value and a replacement, a tuple of lower and upper range and a replacement,
-or a Tuple of `Fix2` like `>(x)`. If `Fix2` is not used, the `lower` and `upper` keywords
-determined which comparison operator is used for the lower and upper tuple values
-- e.g. `<` or `<=` and `>` or `>=`.
+Create a new array with values in `x` classified by the values in `pairs`.
+
+If `Fix2` is not used, the `lower` and `upper` keywords.
 
 If `others` is set other values not covered in `pairs` will be set to that values.
+
+# Arguments
+
+- `x`: a `GeoArray` or `GeoStack`
+- `pairs`: each pair contains a value and a replacement, a tuple of lower and upper
+    range and a replacement, or a Tuple of `Fix2` like `(>(x), <(y)`.
+
+# Keywords
+
+- `lower`: Which comparison (`<` or `<=`) to use for lower values, if `Fix2` are not used.
+- `upper`: Which comparison (`>` or `>=`) to use for upper values, if `Fix2` are not used.
+- `others`: A value to assign to all values not included in `pairs`.
+    Passing `nothing` (the default) will leave them unchanged.
+
+# Example
+
+```jldoctest
+using GeoData, Plots
+A = GeoArray(WorldClim{Climate}, :tavg; month=6)
+classes = (5, 15) => 10,
+          (15, 25) => 20,
+          (25, 35) => 30,
+          >=(35) => 40
+classified = classify(A, classes; others=0)
+plot(classified; c=:magma)
+
+savefig("build/classify_example.png")
+# output
+```
+
+### Classified climate
+
+![classify](classify_example.png)
 
 $EXPERIMENTAL
 """
@@ -218,15 +372,59 @@ classify(xs::GeoSeriesOrStack, values; kw...) = map(x -> classify(x, values; kw.
 """
     classify!(x, pairs...; lower, upper, others)
     classify!(x, pairs; lower, upper, others)
-    classify!(x, pairs; lower, upper, others)
 
-Classify values in `x` by the values in `pairs`, where each pair contains a value
-and a replacement, a tuple of lower and upper range and a replacement, or a Tuple
-of `Fix2` like `>(x)`. If `Fix2` is not used, the `lower` and `upper` keywords
-determined which comparison operator is used for the lower and upper tuple values
-- e.g. `<` or `<=` and `>` or `>=`.
+Classify the values of `x` in-place, by the values in `pairs`.
+
+If `Fix2` is not used, the `lower` and `upper` keywords
 
 If `others` is set other values not covered in `pairs` will be set to that values.
+
+# Arguments
+
+- `x`: a `GeoArray` or `GeoStack`
+- `pairs`: each pair contains a value and a replacement, a tuple of lower and upper
+    range and a replacement, or a Tuple of `Fix2` like `(>(x), <(y)`.
+
+# Keywords
+
+- `lower`: Which comparison (`<` or `<=`) to use for lower values, if `Fix2` are not used.
+- `upper`: Which comparison (`>` or `>=`) to use for upper values, if `Fix2` are not used.
+- `others`: A value to assign to all values not included in `pairs`.
+    Passing `nothing` (the default) will leave them unchanged.
+
+# Example
+
+`classify!` to disk, with key steps:
+- copying a tempory file so we don't write over the RasterDataSources.jl version.
+- use `open` with `write=true` to open the file with disk-write permissions.
+- use `Float32` like `10.0f0` for all our replacement values and `other`, because
+    the file is stored as `Float32`. Attempting to write some other type will fail.
+
+```jldoctest
+using GeoData, Plots, RasterDataSources
+# Download and copy the file
+filename = getraster(WorldClim{Climate}, :tavg; month=6)
+tempfile = tempname() * ".tif"
+cp(filename, tempfile)
+# Define classes
+classes = (5, 15) => 10.0f0,
+          (15, 25) => 20.0f0,
+          (25, 35) => 30.0f0,
+          >=(35) => 40.0f0
+# Open the file with write permission
+open(GeoArray(tempfile); write=true) do A
+    classify!(A, classes; others=0.0f0)
+end
+# Open it again to plot the changes
+plot(GeoArray(tempfile); c=:magma)
+
+savefig("build/classify_bang_example.png")
+# output
+```
+
+### Classified climate
+
+![classify!](classify_bang_example.png)
 
 $EXPERIMENTAL
 """
@@ -300,36 +498,69 @@ _compare((l, u)::Tuple{<:Base.Fix2,<:Base.Fix2}, x, lower, upper) = l(x) && u(x)
 
 
 """
-    crop(layers::AbstractGeoArray...)
-    crop(layers::Union{NamedTuple,Tuple})
-    crop(A::Union{AbstractGeoArray,AbstractGeoStack}; to::Tuple)
+    crop(x; to)
+    crop(xs...; to)
 
-Crop multiple [`AbstractGeoArray`](@ref) to match the size
-of the smallest one for any dimensions that are shared.
+Crop one or multiple [`AbstractGeoArray`](@ref) or [`AbstractGeoStack`](@ref) `x`
+to match the size of the object `to`, or smallest of any dimensions that are shared.
 
 Otherwise crop to the size of the keyword argument `to`. This can be a
 `Tuple` of `Dimension` or any object that will return one from `dims(to)`.
 
+# Keywords
+
+- `to`: the array to crop to. If `to` keyword is passed, the smallest shared
+    area of all `x` is used.
+- `atol`: the absolute tolerance value to use when comparing the index of x and `to`.
+    If `atol` isnt set, `Near` will be used.
+
+# Example
+
+```jldoctest
+using GeoData, Plots
+evenness = GeoArray(EarthEnv{HabitatHeterogeneity}, :evenness)
+rnge = GeoArray(EarthEnv{HabitatHeterogeneity}, :range)
+
+# Roughly cut out New Zealand from the evenness raster
+nz_bounds = X(Between(165, 180)), Y(Between(-32, -50))
+nz_evenness = evenness[nz_bounds...]
+
+# Crop range to match evenness
+nz_range = crop(rnge; to=nz_evenness, atol=1e-7)
+plot(nz_range)
+
+savefig("build/crop_example.png")
+# output
+```
+
+![crop]/crop_example.png)
+
 $EXPERIMENTAL
 """
 function crop end
-crop(l1, l2, ls::AbstractGeoArray...; kw...) = crop((l1, l2, ls); kw...)
-function crop(layers::Union{Tuple,NamedTuple}; to=_smallestdims(layers))
-    map(l -> crop(l; to), layers)
+function crop(l1::GeoStackOrArray, l2::GeoStackOrArray, ls::GeoStackOrArray...; kw...)
+    crop((l1, l2, ls); kw...)
 end
-crop(x::GeoStackOrArray; to) = _crop_to(x, to)
+function crop(xs::Union{Tuple,NamedTuple}; to=_smallestdims(xs), kw...)
+    map(l -> crop(l; to, kw...), xs)
+end
+crop(x::GeoStackOrArray; to, kw...) = _crop_to(x, to; kw...)
 
 # crop `A` to values of dims of `to`
-_crop_to(A::GeoStackOrArray, to) = _crop_to(A, dims(to))
-function _crop_to(x::GeoStackOrArray, to::Tuple)
+_crop_to(A::GeoStackOrArray, to; kw...) = _crop_to(A, dims(to); kw...)
+function _crop_to(x::GeoStackOrArray, to::Tuple; atol=nothing)
     # Create selectors for each dimension
     # `Between` the bounds of the dimension
-    selectors = map(to) do d
-        DD.basetypeof(d)(Between(DD.bounds(d)))
-    end
-    # Take a view of the `Between` selectors
-    return _without_mapped_crs(x) do a
-        view(a, selectors...)
+    _without_mapped_crs(x) do x_wmc
+        dimranges = map(to) do d
+            dx = dims(x_wmc, d)
+            fi = DD.sel2indices(dx, Near(first(d)))
+            li = DD.sel2indices(dx, Near(last(d)))
+            newindex = fi <= li ? (fi:li) : (li:fi)
+            rebuild(dx, newindex)
+        end
+        # Take a view of the `Between` selectors
+        view(x_wmc, dimranges...)
     end
 end
 
@@ -356,15 +587,34 @@ Extend multiple [`AbstractGeoArray`](@ref) to match the area covered by all.
 A single `AbstractGeoArray` can be extended by passing the new `dims` tuple
 as the second argument.
 
+```jldoctest
+using GeoData, Plots
+evenness = GeoArray(EarthEnv{HabitatHeterogeneity}, :evenness)
+rnge = GeoArray(EarthEnv{HabitatHeterogeneity}, :range)
+
+# Roughly cut out South America
+sa_bounds = X(Between(-88, -32)), Y(Between(-57, 13))
+sa_evenness = evenness[sa_bounds...]
+
+# Extend range to match the whole-world raster
+sa_range = extend(sa_evenness; to=rnge)
+plot(sa_range)
+
+savefig("build/extend_example.png")
+# output
+```
+
+![extend](extend_example.png)
+
 $EXPERIMENTAL
 """
 function extend end
-function extend(l1::AbstractGeoArray, l2::AbstractGeoArray, ls::AbstractGeoArray...; kw...)
+function extend(l1::GeoStackOrArray, l2::GeoStackOrArray, ls::GeoStackOrArray...; kw...)
     extend((l1, l2, ls...); kw...)
 end
-function extend(layers::Union{NamedTuple,Tuple}; to=_largestdims(layers))
+function extend(xs::Union{NamedTuple,Tuple}; to=_largestdims(xs))
     # Extend all layers to `to`, by default the _largestdims
-    map(l -> extend(l; to), layers)
+    map(l -> extend(l; to), xs)
 end
 extend(x::GeoStackOrArray; to=dims(x)) = _extend_to(x, to)
 
@@ -380,15 +630,14 @@ function _extend_to(A::AbstractGeoArray, to::Tuple)
     newA = rebuild(A; data=newdata, dims=to)
     # Calculate the range of the old array in the extended array
     ranges = map(dims(A), to) do d, nd
+        # TODO use open Interval here
         start = DD.sel2indices(nd, Near(first(d)))
         stop = DD.sel2indices(nd, Near(last(d)))
         start <= stop ? (start:stop) : (stop:start)
     end
     # Copy the original data to the new array
-    copyto!(
-        parent(newA), CartesianIndices((ranges...,)),
-        parent(read(A)), CartesianIndices(A)
-    )
+    # Somehow this is slow from disk?
+    newA[ranges...] .= read(A)
     return newA
 end
 _extend_to(st::AbstractGeoStack, to::Tuple) = map(A -> _extend_to(A, to), st)
@@ -421,11 +670,42 @@ _longest(a, b) = length(a) >= length(b)
 
 Trim `missingval` from `A` for axes in dims, returning a view of `A`.
 
-By default `dims=(X, Y)`, so trimming keeps the area of `X` and `Y`
+By default `dims=(X, Y)`, so that trimming keeps the area of `X` and `Y`
 that contains non-missing values along all other dimensions.
 
 The trimmed size will be padded by `pad` on all sides, although
 padding will not be added beyond the original extent of the array.
+
+# Example
+
+Create trimmed layers of Australian habitat heterogeneity.
+
+```jldoctest
+using GeoData, Plots
+layers = (:evenness, :range, :contrast, :correlation)
+st = GeoStack(EarthEnv{HabitatHeterogeneity}, layers)
+plot(st)
+
+# Roughly cut out australia
+ausbounds = X(Between(100, 160)), Y(Between(-10, -50))
+aus = st[ausbounds...]
+a = plot(aus)
+
+# Trim missing values and plot
+b = plot(trim(aus))
+
+savefig(a, "build/trim_example_before.png")
+savefig(b, "build/trim_example_after.png")
+# output
+```
+
+### Before `trim`:
+
+![before trim](trim_example_before.png)
+
+### After `trim`:
+
+![after trim](trim_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -500,7 +780,396 @@ _update!(tr::AxisTrackers, A::AbstractGeoArray) = tr .= A .!== missingval(A)
 _update!(tr::AxisTrackers, st::AbstractGeoStack) = map(A -> tr .= A .!== missingval(A), st)
 
 """
-    slice(A::Union{AbstractGeoArray,AbstractGeoStack,AbstracGeoSeries}, dims)
+	resample(x, resolution::Number; crs, method)
+	resample(x; to, method)
+    resample(xs...; to=first(xs), method)
+
+`resample` uses `ArchGDAL.gdalwarp` to resample an [`GeoArray`](@ref) or
+[`AbstractGeoStack`](@ref).
+
+# Arguments
+
+- `x`: the object to resample.
+- `resolution`: a `Number` specifying the resolution for the output.
+    If the keyword argument `crs` (described below) is specified, `resolution` must be in units of the `crs`.
+
+# Keywords
+
+- `to`: an `AbstractGeoArray` whos resolution, crs and bounds will be snapped to.
+    For best results it should roughly cover the same extent, or a subset of `A`.
+- `crs`: A `GeoFormatTypes.GeoFormat` specifying an output crs
+    (`A` will be reprojected to `crs` in addition to being resampled). Defaults to `crs(A)`
+- `method`: A `Symbol` or `String` specifying the method to use for resampling. Defaults to `:near`
+    (nearest neighbor resampling). See [resampling method](https://gdal.org/programs/gdalwarp.html#cmdoption-gdalwarp-r)
+    in the gdalwarp docs for a complete list of possible values.
+
+# Example
+
+Resample a WorldClim layer to match an EarthEnv layer:
+
+```jldoctest
+using GeoData, Plots
+A = GeoArray(WorldClim{Climate}, :prec; month=1)
+B = GeoArray(EarthEnv{HabitatHeterogeneity}, :evenness)
+
+a = plot(A)
+b = plot(resample(A; to=B))
+
+savefig(a, "build/resample_example_before.png")
+savefig(b, "build/resample_example_after.png")
+# output
+```
+
+### Before `resample`:
+
+![before resample](resample_example_before.png)
+
+### After `resample`:
+
+![after resample](resample_example_after.png)
+
+$EXPERIMENTAL
+"""
+function resample end
+resample(xs::GeoStackOrArray...; kw...) = resample(xs; kw...)
+function resample(xs::Union{Tuple,NamedTuple}; to=first(xs), kw...)
+    map(x -> resample(x; to, kw...), xs)
+end
+function resample(A::GeoStackOrArray, resolution::Number;
+    crs::GeoFormat=crs(A), method=:near
+)
+    wkt = convert(String, convert(WellKnownText, crs))
+    flags = Dict(
+        :t_srs => wkt,
+        :tr => [resolution, resolution],
+        :r => method,
+    )
+    return warp(A, flags)
+end
+function resample(A::GeoStackOrArray; to, method=:near)
+    all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` mush have both XDim and YDim dimensions to resize with GDAL"))
+    if sampling(to, XDim) isa Points
+        to = set(to, dims(to, XDim) => Intervals(Start()))
+    end
+    if sampling(to, YDim) isa Points
+        to = set(to, dims(to, YDim) => Intervals(Start()))
+    end
+
+    wkt = convert(String, convert(WellKnownText, crs(to)))
+    xres, yres = map(abs ∘ step, span(to, (XDim, YDim)))
+    (xmin, xmax), (ymin, ymax) = bounds(to, (XDim, YDim))
+    flags = Dict(
+        :t_srs => wkt,
+        :tr => [yres, xres],
+        :te => [xmin, ymin, xmax, ymax],
+        :r => method,
+    )
+    return warp(A, flags)
+end
+
+"""
+    warp(A::AbstractGeoArray, flags::Dict)
+
+Gives access to the GDALs `gdalwarp` method given a `Dict` of flags,
+where arguments than can be converted to strings, or vectors
+of such arguments for flags that take multiple space-separated arguments.
+
+Arrays with additional dimensions not handled by GDAL (ie other than X, Y, Band)
+are sliced, warped, and then combined - these dimensions will not change.
+
+See: https://gdal.org/programs/gdalwarp.html for a list of arguments.
+
+## Example
+
+This simply resamples the array with the `:tr` (output file resolution) and `:r`
+flags, giving us a pixelated version:
+
+```jldoctest
+using GeoData, RasterDataSources, Plots
+A = GeoArray(WorldClim{Climate}, :prec; month=1)
+plot(A)
+savefig("build/warp_example_before.png")
+flags = Dict(
+    :tr => [2.0, 2.0],
+    :r => :near,
+)
+warp(A, flags) |> plot
+
+savefig("build/warp_example_after.png")
+# output
+```
+
+### Before `warp`:
+
+![before warp](warp_example_before.png)
+
+### After `warp`:
+
+![after warp](warp_example_after.png)
+
+In practise, prefer [`resample`](@ref) for this. But `warp` may be more flexible.
+
+$EXPERIMENTAL
+"""
+function warp(A::AbstractGeoArray, flags::Dict)
+    odims = otherdims(A, (X, Y, Band))
+    if length(odims) > 0
+        # Handle dimensions other than X, Y, Band
+        slices = slice(A, odims)
+        warped = map(A -> _warp(A, flags), slices)
+        return combine(warped, odims)
+    else
+        return _warp(A, flags)
+    end
+end
+warp(st::AbstractGeoStack, flags::Dict) = map(A -> warp(A, flags), st)
+
+function _warp(A::AbstractGeoArray, flags::Dict)
+    flagvect = reduce([flags...]; init=[]) do acc, (key, val)
+        append!(acc, String[_asflag(key), _stringvect(val)...])
+    end
+    AG.Dataset(A) do dataset
+        AG.gdalwarp([dataset], flagvect) do warped
+            _maybe_permute_from_gdal(read(GeoArray(warped)), dims(A))
+        end
+    end
+end
+
+_asflag(x) = string(x)[1] == '-' ? x : string("-", x)
+
+_stringvect(x::AbstractVector) = Vector(string.(x))
+_stringvect(x::Tuple) = [map(string, x)...]
+_stringvect(x) = [string(x)]
+
+"""
+    mosaic(f, regions...; dims, missingval, atol)
+    mosaic(f, regions::Tuple; dims, missingval, atol)
+
+Combine `layer`s using the function `f`, (e.g. `mean`, `sum`,
+`first` or `last`) where values from `regions` overlap.
+
+# Keywords
+
+- `dims`: The dimesions of `regions` to mosaic over, `(XDim, YDim)` by default.
+    If dims contains an index it will be ignored, but this may change in future.
+- `missingval`: Fills empty areas, and defualts to the
+    `missingval` of the first layer.
+- `atol`: Absolute tolerance for comparison between index values.
+    This is often required due to minor differences in range values
+    due to floating point error. It is not applied to non-float dimensions.
+    A tuple of tolerances may be passed, matching the dimension order.
+
+If your mosaic has has apparent line errors, increase the `atol` value.
+
+# Example
+
+Here we cut out australia and africa from a stack, and join them with `mosaic`.
+
+```jldoctest
+using GeoData, Plots
+st = GeoStack(WorldClim{Climate}; month=1);
+
+africa = st[X(Between(-20.0, 60.0)), Y(Between(35.0, -40.0))]
+a = plot(africa)
+
+aus = st[X(Between(100.0, 160.0)), Y(Between(-10.0, -50.0))]
+b = plot(aus)
+
+# Combine with mosaic
+mos = mosaic(first, aus, africa)
+c = plot(mos)
+
+savefig(a, "build/mosaic_example_africa.png")
+savefig(b, "build/mosaic_example_aus.png")
+savefig(c, "build/mosaic_example_combined.png")
+# output
+```
+
+### Individual continents
+
+![arica](mosaic_example_africa.png)
+
+![aus](mosaic_example_aus.png)
+
+### Mosaic of continents
+
+![mosaic](mosaic_example_combined.png)
+
+$EXPERIMENTAL
+"""
+mosaic(f::Function, regions...; kw...) = mosaic(f, regions; kw...)
+function mosaic(f::Function, regions::Tuple{<:AbstractGeoArray,Vararg};
+    missingval=missingval(first(regions)), filename=nothing, kw...
+)
+    missingval isa Nothing && throw(ArgumentError("Layers have no missingval, so pass a `missingval` keyword explicitly"))
+    T = Base.promote_type(typeof(missingval), Base.promote_eltype(regions...))
+    dims = mosaic(map(DD.dims, regions))
+    data = if filename isa Nothing
+        Array{T,length(dims)}(undef, map(length, dims))
+    else
+        l1 = first(regions)
+        filename = create(filename, T, dims; name=name(l1), missingval, metadata=metadata(l1))
+        parent(GeoArray(filename))
+    end
+    A = rebuild(first(regions); data, dims, missingval)
+    open(A; write=true) do a
+        mosaic!(f, a, regions; missingval, kw...)
+    end
+    return A
+end
+function mosaic(f::Function, regions::Tuple{<:AbstractGeoStack,Vararg}; kw...)
+    map(regions...) do A...
+        mosaic(f, A...; kw...)
+    end
+end
+
+"""
+    mosaic!(f, x, regions...; missingval, atol)
+    mosaic!(f, x, regions::Tuple; missingval, atol)
+
+Combine `regions`s in `x` using the function `f`.
+
+# Arguments
+
+- `f` a function (e.g. `mean`, `sum`, `first` or `last`) that is applied to
+    values where `regions` overlap.
+- `x`: A `GeoArray` or `GeoStack`. May be a an opened disk-based `GeoArray`,
+    the result will be written to disk.
+    slow read speed with the current algorithm
+- `regions`: source objects to be joined. These should be memory-backed
+    (use `read` first), or may experience poor performance. If all objects have
+    the same extent, `mosaic` is simply a merge.
+
+# Keywords
+
+- `missingval`: Fills empty areas, and defualts to the `missingval`
+    of the first layer.
+- `atol`: Absolute tolerance for comparison between index values.
+    This is often required due to minor differences in range values
+    due to floating point error. It is not applied to non-float dimensions.
+    A tuple of tolerances may be passed, matching the dimension order.
+
+# Example
+
+Cut out Australia and Africa stacks, then combined them
+into a single stack.
+
+```jldoctest
+using GeoData, Statistics, Plots
+st = read(GeoStack(WorldClim{Climate}; month=1))
+aus = st[X(Between(100.0, 160.0)), Y(Between(-10.0, -50.0))]
+africa = st[X(Between(-20.0, 60.0)), Y(Between(35.0, -40.0))]
+mosaic!(first, st, aus, africa)
+plot(st)
+savefig("build/mosaic_bang_example.png")
+# output
+```
+
+![mosaic](mosaic_bang_example.png)
+
+$EXPERIMENTAL
+"""
+function mosaic!(f::Function, A::AbstractGeoArray{T}, regions;
+    missingval=missingval(A), atol=_default_atol(T)
+) where T
+    _without_mapped_crs(A) do A
+        broadcast!(A, DimKeys(A; atol)) do ds
+            # Get all the regions that have this point
+            ls = foldl(regions; init=()) do acc, l
+                if DD.hasselection(l, ds)
+                    v = l[ds...]
+                    (acc..., l)
+                else
+                    acc
+                end
+            end
+            values = foldl(ls; init=()) do acc, l
+                v = l[ds...]
+                if isnothing(GeoData.missingval(l))
+                    (acc..., v)
+                elseif ismissing(GeoData.missingval(l))
+                    ismissing(v) ? acc : (acc..., v)
+                else
+                    v === GeoData.missingval(l) ? acc : (acc..., v)
+                end
+            end
+            if length(values) === 0
+                missingval
+            else
+                f(values)
+            end
+        end
+    end
+    return A
+end
+function mosaic!(f::Function, st::AbstractGeoStack, regions; kw...)
+    map(st, regions...) do A, r...
+        mosaic!(f, A, r; kw...)
+    end
+end
+mosaic!(f::Function, x, regions...; kw...) = mosaic!(f, x, regions; kw...)
+
+mosaic(alldims::Tuple{<:DimTuple,Vararg{<:DimTuple}}) = map(mosaic, alldims...)
+function mosaic(dims::Dimension...)
+    map(dims) do d
+        DD.comparedims(first(dims), d; val=false, length=false, mode=true)
+    end
+    return _mosaic(mode(first(dims)), dims)
+end
+
+function _mosaic(mode::Categorical, dims::DimTuple)
+    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
+    return rebuild(first(dims), newindex)
+end
+function _mosaic(mode::AbstractSampled, dims::DimTuple)
+    order(mode) isa Unordered && throw(ArgumentError("Cant mozaic an Unordered dimension $(basetypeof(dim))"))
+    return _mosaic(span(mode), mode, dims)
+end
+function _mosaic(span::Regular, mode::AbstractSampled, dims::DimTuple)
+    allkeys = map(val, dims)
+    newindex = if indexorder(mode) isa ForwardIndex
+        mi = minimum(map(first, allkeys))
+        ma = maximum(map(last, allkeys))
+        mi:step(span):ma
+    else
+        mi = minimum(map(last, allkeys))
+        ma = maximum(map(first, allkeys))
+        ma:step(span):mi
+    end
+    return rebuild(first(dims), newindex)
+end
+function _mosaic(::Irregular, mode::AbstractSampled, dims::DimTuple)
+    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
+    return rebuild(first(dims), newindex)
+end
+function _mosaic(span::Explicit, mode::AbstractSampled, dims::DimTuple)
+    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
+    bounds = map(val ∘ DD.span, dims)
+    lower = map(b -> view(b, 1, :), bounds)
+    upper = map(b -> view(b, 2, :), bounds)
+    newlower = sort(union(lower...); order=DD._ordering(indexorder(mode)))
+    newupper = sort(union(upper...); order=DD._ordering(indexorder(mode)))
+    newbounds = vcat(permutedims(newlower), permutedims(newupper))
+    newmode = rebuild(mode; span=Explicit(newbounds))
+    return rebuild(first(dims); val=newindex, mode=newmode)
+end
+
+_without_mapped_crs(f, A) = _without_mapped_crs(f, A, mappedcrs(A))
+_without_mapped_crs(f, A, ::Nothing) = f(A)
+function _without_mapped_crs(f, A, mappedcrs)
+    A = setmappedcrs(A, nothing)
+    A = f(A)
+    A = setmappedcrs(A, mappedcrs)
+    return A
+end
+
+_default_atol(::Type) = nothing
+_default_atol(T::Type{<:Float32}) = 100eps(T)
+_default_atol(T::Type{<:Float64}) = 1000eps(T)
+_default_atol(T::Type{<:Integer}) = T(1)
+
+"""
+    slice(A::Union{AbstractGeoArray,AbstractGeoStack,AbstracGeoSeries}, dims) => GeoSeries
 
 Slice an object along some dimension/s, lazily using `view`.
 
@@ -574,9 +1243,9 @@ function _maybereshape(st::AbstractGeoStack, acc, dim)
 end
 
 """
-    chunk(A::AbstractGeoArray)
+    chunk(A::AbstractGeoArray) => GeoSeries
 
-Creat a GeoSeries of arrays matching the chunks of a chunked array.
+Create a GeoSeries of arrays matching the chunks of a chunked array.
 
 This may be useful for parallel or larger than memory applications.
 
@@ -599,11 +1268,19 @@ function _chunk_inds(g, ichunk)
 end
 
 """
-    points(A::AbstractGeoArray; dims=(YDim, XDim))
+    points(A::AbstractGeoArray; dims=(YDim, XDim), ignore_missing) => Array{Tuple}
 
 Returns a generator of the points in `A` for dimensions in `dims`,
 where points are a tuple of the values in each specified dimension
 index.
+
+# Keywords
+
+- `dims` the dimensions to return points from. The first slice of other
+    layers will be used.
+- `ignore_missing`: wether to ignore missing values in the array when considering
+    points. If `true`, all points in the dimensions will be returned, if `false`
+    only the points that are not `=== missingval(A)` will be returned.
 
 The order of `dims` determines the order of the points.
 
@@ -635,288 +1312,58 @@ function _points_missing(A::AbstractGeoArray, dims)
     return (A[I] === missingval(A) ? map(getindex, dims, Tuple(I)) : missing for I in indices)
 end
 
-"""
-	resample(A::AbstractGeoArray, resolution::Number; crs, method)
-	resample(A::AbstractGeoArray; to::AbstractGeoArray, method)
 
-`resample` uses `ArchGDAL.gdalwarp` to resample an `AbstractGeoArray`.
+"""
+   extract(x, points...; order, atol)
+   extract(x, points; order, atol)
+
+Extracts the value of `GeoArray` or `GeoStack` at given points, returning
+a vector of values for `GeoArray`, and a Tables.jl compatible `Vector` of
+`NamedTuple` for `GeoStack`.
+
+Note that if objects have more dimensions than the length of point tuples,
+sliced arrays or stacks will be returned instead of single values.
 
 # Arguments
 
-- `A`: The `AbstractGeoArray` to resample.
-- `resolution`: A `Number` specifying the resolution for the output.
-    If the keyword argument `crs` (described below) is specified, `resolution` must be in units of the `crs`.
+-`x`: a `GeoArray` or `GeoStack` to extract values from.
+-`points`: multiple `Vector`s of point values, a `Vector{Tuple}`,
+    or a single `Tuple`.
 
 # Keywords
 
-- `to`: an `AbstractGeoArray` whos resolution, crs and bounds will be snapped to.
-    For best results it should roughly cover the same extent, or a subset of `A`.
-- `crs`: A `GeoFormatTypes.GeoFormat` specifying an output crs
-    (`A` will be reprojected to `crs` in addition to being resampled). Defaults to `crs(A)`
-- `method`: A `Symbol` or `String` specifying the method to use for resampling. Defaults to `:near`
-    (nearest neighbor resampling). See [resampling method](https://gdal.org/programs/gdalwarp.html#cmdoption-gdalwarp-r)
-    in the gdalwarp docs for a complete list of possible values.
+- `order`: a tuple of `Dimension` or `Type{::Dimension}` connecting the order
+    of the points to the array axes.
+- `atol`: a tolorerance for floating point lookup values for when the `Lookup`
+    contains `Points`. `atol` is ignored for `Intervals`.
 
-$EXPERIMENTAL
-"""
-function resample end
-function resample(A::AbstractGeoArray, resolution::Number;
-    crs::GeoFormat=crs(A), method=:near
-)
-    wkt = convert(String, convert(WellKnownText, crs))
-    flags = Dict(
-        :t_srs => wkt,
-        :tr => [resolution, resolution],
-        :r => method,
-    )
-    return warp(A, flags)
-end
-function resample(A::AbstractGeoArray; to, method=:near)
-    wkt = convert(String, convert(WellKnownText, crs(to)))
-    latres, lonres = map(abs ∘ step, span(to, (Y(), X())))
-    (latmin, latmax), (lonmin, lonmax) = bounds(to, (Y(), X()))
-    flags = Dict(
-        :t_srs => wkt,
-        :tr => [latres, lonres],
-        :te => [lonmin, latmin, lonmax, latmax],
-        :r => method,
-    )
-    return warp(A, flags)
-end
-resample(st::AbstractGeoStack, args...; kw...) = map(A -> resample(A, args...; kw...), st)
+# Example
 
-"""
-    warp(A::AbstractGeoArray, flags::Dict)
-
-Gives access to the GDALs `gdalwarp` method given a `Dict` of flags,
-where arguments than can be converted to strings, or vectors
-of such arguments for flags that take multiple space separated arguments.
-
-Arrays with additional dimensions not handled by GDAL (ie other than X, Y, Band)
-are sliced, warped, and then combined - these dimensions will not change.
-
-See: https://gdal.org/programs/gdalwarp.html for a list of arguments.
-
-## Example
-
-This simply resamples the array with the `:tr` (output file resolution) and `:r` flags:
+Here we extact points matching the occurrence of the Mountain Pygmy Possum,
+_Burramis parvus_. This could be used to fit a species distribution model.
 
 ```julia
-using GeoData, RasterDataSources, Plots
-A = GeoArray(WorldClim{Climate}, :prec; month=1)
-flags = Dict(
-    :tr => [1.0, 1.0],
-    :r => :near,
-)
-warp(A, flags) |> plot
+using GeoData, CSV, GBIF
+st = GeoStack(WorldClim{BioClim})[Band(1)] |> replace_missing
+obs = GBIF.occurrences("scientificName" => "Burramys parvus", "limit" => 300)
+# Read all the occurrences
+read!(obs)
+# use `extract` to get that values for all layers for each observation.
+vals = extract(st, map(o -> o.longitude, obs), map(o -> o.latitude, obs))
+# output
 ```
-
-In practise, prefer [`resample`](@ref) for this. But `warp` may be more flexible.
-
-$EXPERIMENTAL
 """
-function warp(A::AbstractGeoArray, flags::Dict)
-    odims = otherdims(A, (X, Y, Band))
-    if length(odims) > 0
-        # Handle dimensions other than X, Y, Band
-        slices = slice(A, odims)
-        warped = map(A -> _warp(A, flags), slices)
-        return combine(warped, odims)
-    else
-        return _warp(A, flags)
-    end
-end
-warp(st::AbstractGeoStack, flags::Dict) = map(A -> warp(A, flags), st)
-
-function _warp(A::AbstractGeoArray, flags::Dict)
-    flagvect = reduce([flags...]; init=[]) do acc, (key, val)
-        append!(acc, String[_asflag(key), _stringvect(val)...])
-    end
-    AG.Dataset(A) do dataset
-        AG.gdalwarp([dataset], flagvect) do warped
-            _maybe_permute_from_gdal(read(GeoArray(warped)), dims(A))
-        end
-    end
-end
-
-_asflag(x) = string(x)[1] == '-' ? x : string("-", x)
-
-_stringvect(x::AbstractVector) = Vector(string.(x))
-_stringvect(x::Tuple) = [map(string, x)...]
-_stringvect(x) = [string(x)]
-
-"""
-    mosaic(f, layers::AbstractGeoArray...; dims, missingval)
-    mosaic(f, layers::AbstractGeoStack...; dims, missingval)
-    mosaic(f, layers::Tuple; dims, missingval)
-
-Combine `layer`s using the function `f`, (e.g. `mean`, `sum`,
-`first` or `last`) where values from `layers` overlap.
-
-# Keywords
-- `dims`: The dimesions of `layers` to mosaic over, `(XDim, YDim)` by default.
-    If dims contains an index it will be ignored, but this may change in future.
-- `missingval`: Fills empty areas, and defualts to the
-    `missingval` of the first layer.
-
-$EXPERIMENTAL
-"""
-mosaic(f::Function, layers...; kw...) = mosaic(f, layers; kw...)
-function mosaic(f::Function, layers::Tuple{<:AbstractGeoArray,Vararg};
-    missingval=missingval(first(layers)), filename=nothing, kw...
-)
-    missingval isa Nothing && throw(ArgumentError("Layers have no missingval, so pass a `missingval` keyword explicitly"))
-    T = Base.promote_type(typeof(missingval), Base.promote_eltype(layers...))
-    dims = mosaic(map(DD.dims, layers))
-    data = if filename isa Nothing
-        Array{T,length(dims)}(undef, map(length, dims))
-    else
-        l1 = first(layers)
-        filename = create(filename, T, dims; name=name(l1), missingval, metadata=metadata(l1))
-        parent(GeoArray(filename))
-    end
-    A = rebuild(first(layers); data, dims, missingval)
-    open(A; write=true) do a
-        mosaic!(f, a, layers; missingval, kw...)
-    end
-end
-function mosaic(f::Function, layers::Tuple{<:AbstractGeoStack,Vararg}; kw...)
-    map(layers...) do A...
-        mosaic(f, A...; kw...)
-    end
-end
-
-"""
-    mosaic!(f, A, layers::AbstractGeoArray...; missingval, atol)
-    mosaic!(f, A, layers::AbstractGeoStack...; missingval, atol)
-    mosaic!(f, A, layers::Tuple; dims, missingval)
-
-Combine `layer`s to the array `A` using the function `f`,
-(e.g. `mean`, `sum`, `first` or `last`)
-where values from `layers` overlap.
-
-A may be a an opened disk-based `GeoArray` - the result will be
-written to disk. `layers` should be memory-backed, or may experience
-slow read speed with the current algorithm
-
-# Keywords
-
-- `missingval`: Fills empty areas, and defualts to the `missingval`
-    of the first layer.
-- `atol`: Absolute tolerance for comparison between index values.
-    This is often required due to minor differences in range values
-    due to floating point error. It is not applied to non-float dimensions.
-    A tuple of tolerances may be passed, matching the dimension order.
-
-$EXPERIMENTAL
-"""
-function mosaic!(f::Function, A, layers; missingval=missingval(A), atol=nothing)
-    _without_mapped_crs(A) do A
-        broadcast!(A, DimKeys(A; atol)) do ds
-            # Get all the layers that have this point
-            ls = foldl(layers; init=()) do acc, l
-                if DD.hasselection(l, ds)
-                    v = l[ds...]
-                    (acc..., l)
-                else
-                    acc
-                end
-            end
-            values = foldl(ls; init=()) do acc, l
-                v = l[ds...]
-                if isnothing(GeoData.missingval(l))
-                    (acc..., v)
-                elseif ismissing(GeoData.missingval(l))
-                    ismissing(v) ? acc : (acc..., v)
-                else
-                    v === GeoData.missingval(l) ? acc : (acc..., v)
-                end
-            end
-            if length(values) === 0
-                missingval
-            else
-                f(values)
-            end
-        end
-    end
-end
-function mosaic!(f::Function, A::AbstractGeoStack, stacks; kw...)
-    map(A, stacks...) do a, s...
-        mosaic!(f, a, s...; kw...)
-    end
-end
-
-function mosaic(alldims::Tuple{<:DimTuple,Vararg{<:DimTuple}})
-    map(mosaic, alldims...)
-end
-function mosaic(dims::Dimension...)
-    map(dims) do d
-        DD.comparedims(first(dims), d; val=false, length=false, mode=true)
-    end
-    _mosaic(mode(first(dims)), dims)
-end
-
-function _mosaic(mode::Categorical, dims::DimTuple)
-    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
-    return rebuild(first(dims), newindex)
-end
-function _mosaic(mode::AbstractSampled, dims::DimTuple)
-    order(mode) isa Unordered && throw(ArgumentError("Cant mozaic an Unordered dimension $(basetypeof(dim))"))
-    _mosaic(span(mode), mode, dims)
-end
-function _mosaic(span::Regular, mode::AbstractSampled, dims::DimTuple)
-    allkeys = map(val, dims)
-    newindex = if indexorder(mode) isa ForwardIndex
-        mi = minimum(map(first, allkeys))
-        ma = maximum(map(last, allkeys))
-        mi:step(span):ma
-    else
-        mi = minimum(map(last, allkeys))
-        ma = maximum(map(first, allkeys))
-        ma:step(span):mi
-    end
-    return rebuild(first(dims), newindex)
-end
-function _mosaic(::Irregular, mode::AbstractSampled, dims::DimTuple)
-    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
-    return rebuild(first(dims), newindex)
-end
-function _mosaic(span::Explicit, mode::AbstractSampled, dims::DimTuple)
-    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
-    bounds = map(val ∘ DD.span, dims)
-    lower = map(b -> view(b, 1, :), bounds)
-    upper = map(b -> view(b, 2, :), bounds)
-    newlower = sort(union(lower...); order=DD._ordering(indexorder(mode)))
-    newupper = sort(union(upper...); order=DD._ordering(indexorder(mode)))
-    newbounds = vcat(permutedims(newlower), permutedims(newupper))
-    newmode = rebuild(mode; span=Explicit(newbounds))
-    return rebuild(first(dims); val=newindex, mode=newmode)
-end
-
-_without_mapped_crs(f, A) = _without_mapped_crs(f, A, mappedcrs(A))
-_without_mapped_crs(f, A, ::Nothing) = f(A)
-function _without_mapped_crs(f, A, mappedcrs)
-    A = setmappedcrs(A, nothing)
-    A = f(A)
-    A = setmappedcrs(A, mappedcrs)
-    return A
-end
-
-"""
-   extract(vsr::AbstractGeoArray, points...; kw...)
-   extract(vsr::AbstractGeoArray, points; kw...)
-
-Extracts the value of the raster at the given points.
-"""
-function extract(A::AbstractGeoArray, x, y, others...; kw...)
-    extract(A, (x, y, others...); kw...)
+extract(A::GeoStackOrArray, x, y, others...; kw...) = extract(A, (x, y, others...); kw...)
+function extract(A::GeoStackOrArray, points::NTuple{N,T}; kw...) where {T<:AbstractVector,N}
+    extract.(Ref(A), zip(points...); kw...)
 end
 function extract(
-    A::AbstractGeoArray, points; 
+    A::GeoStackOrArray, points::Tuple;
     order=(XDim, YDim, ZDim), atol=nothing
 )
     ordereddims = dims(A, order)
     dimtypes = map(DD.basetypeof, ordereddims)
+    any(ismissing, points) && return missing
     seldims = map(ordereddims, dimtypes, points) do d, D, p
         if sampling(d) isa Points
             D(At(p; atol))
@@ -930,12 +1377,7 @@ function extract(
         return missing
     end
 end
-function extract(
-    A::AbstractGeoArray, points::NTuple{N,T}; kw...
-) where {T<:AbstractVector,N}
-    extract.(Ref(A), zip(points...); kw...)
-end
-function extract(A::AbstractGeoArray, points::AbstractVector; kw...)
+function extract(A::GeoStackOrArray, points::AbstractVector; kw...)
     extract.(Ref(A), points; kw...)
 end
 

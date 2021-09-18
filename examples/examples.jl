@@ -1,5 +1,5 @@
 using GeoData, Plots, Statistics, ArchGDAL, NCDatasets, Dates, DataFrames
-using GeoData: stack, Between
+using GeoData: Between
 
 geturl(url, filename=splitdir(url)[2]) = begin
     isfile(filename) || download(url, filename)
@@ -9,7 +9,7 @@ end
 # Load some layers from NetCDF #############################################
 ncurl = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc"
 ncfilename = geturl(ncurl, "tos_O1_2001-2002.nc")
-ncstack = stack(ncfilename)
+ncstack = GeoStack(ncfilename)
 
 # Load the sea surface temperature layer
 A = ncstack[:tos]
@@ -44,7 +44,7 @@ df = DataFrame(read(ncstack))
 # would really use a series of datasets matching the time dimension dates.
 timedim = Ti([DateTime360Day(2001, 01, 1), DateTime360Day(2001, 02, 1), DateTime360Day(2001, 03, 1)])
 filenames = [ncfilename, ncfilename, ncfilename]
-ncseries = series(filenames, (timedim,); child=stack)
+ncseries = series(filenames, (timedim,); child=GeoStack)
 
 
 # Get a single array from the series
@@ -86,7 +86,7 @@ array[Band(1)] |> plot
 
 # Make a stack (just using the same file three times for demonstration)
 filepaths = (one=tif_filename, two=tif_filename, three=tif_filename)
-diskstack = stack(filepaths)
+diskstack = GeoStack(filepaths)
 # Plot a section of the tif file
 diskstack[:two][Band(1), Y(1:100), X(1:150)] |> plot
 

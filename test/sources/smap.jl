@@ -1,6 +1,6 @@
 using GeoData, Test, Statistics, Dates, Plots
 import ArchGDAL, NCDatasets, HDF5, CFTime
-using GeoData: Time, name, layerkeys, SMAPfile
+using GeoData: Time, name, layerkeys, SMAPfile, bounds
 
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
@@ -35,7 +35,6 @@ if isfile(path1) && isfile(path2)
 
     @testset "GeoArray" begin
         @time smaparray = GeoArray(path1)
-        plot(smaparray)
 
         @testset "open" begin
             @test all(open(A -> A[Y=1], smaparray) .=== smaparray[:, 1])
@@ -139,6 +138,7 @@ if isfile(path1) && isfile(path2)
                 filename = tempname() * ".grd"
                 write(filename, geoA)
                 saved = read(GeoArray(filename; mappedcrs=EPSG(4326))[Band(1)])
+                dims(saved)
                 @test size(saved) == size(geoA)
                 @test missingval(saved) === missingval(geoA)
                 @test map(metadata.(dims(saved)), metadata.(dims(GeoArray))) do s, g
@@ -146,8 +146,12 @@ if isfile(path1) && isfile(path2)
                 end |> all
                 @test GeoData.name(saved) == GeoData.name(geoA)
                 @test all(mode.(dims(saved)) .!= mode.(dims(geoA)))
-                @test all(mappedbounds(saved)[1] .≈ bounds(geoA)[1])
+                @test all(
+                          mappedbounds(saved)[1]
+                          .≈ 
+                          bounds(geoA)[1])
                 @test all(mappedbounds(saved)[2] .≈ mappedbounds(geoA)[2])
+                bounds(saved)
                 @test all(data(saved) .=== data(geoA))
             end
             @testset "to gdal" begin
@@ -240,27 +244,6 @@ if isfile(path1) && isfile(path2)
                 copy!(geoA, smapstack, :soil_temp_layer1)
                 @test geoA == smapstack[:soil_temp_layer1]
             end
-        end
-
-        @testset "window" begin
-            # FIXME these are too slow to load
-            @time windowedstack = GeoStack(path1; window=(Y(1:5), X(1:5)))
-            @time windowedarray = windowedstack[:soil_temp_layer1];
-            @test size(windowedarray) == (5, 5)
-            @test windowedarray[1:3, 2:2] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
-            @test windowedarray[1:3, 2] == [-9999.0, -9999.0, -9999.0]
-            @test windowedarray[1, 2] == -9999.0
-            @time windowedstack = GeoStack(path1; window=(Y(1:5), X(1:5), Ti(1:1)))
-            @time windowedarray = windowedstack[:soil_temp_layer1];
-            @test size(windowedarray) == (5, 5)
-            @test windowedarray[1:3, 2:2, 1] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
-            @test windowedarray[1:3, 2, 1] == [-9999.0, -9999.0, -9999.0]
-            @test windowedarray[1, 2, 1] == -9999.0
-            @time windowedstack = GeoStack(path1; window=(Ti(1),))
-            @time windowedarray = windowedstack[:soil_temp_layer1];
-            @test windowedarray[1:3, 2:2] == reshape([-9999.0, -9999.0, -9999.0], 3, 1)
-            @test windowedarray[1:3, 2] == [-9999.0, -9999.0, -9999.0]
-            @test windowedarray[1, 2] == -9999.0
         end
 
         @testset "show" begin

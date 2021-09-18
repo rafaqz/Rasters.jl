@@ -17,8 +17,14 @@ const GDAL_Y_LOCUS = Start()
 @deprecate GDALarray(args...; kw...) GeoArray(args...; source=GDALfile, kw...)
 
 function FileArray(raster::AG.RasterDataset{T}, filename; kw...) where {T}
-    eachchunk = DA.eachchunk(raster)
-    haschunks = DA.haschunks(raster)
+    # Arbitrary array size cuttoff for chunked read/write.
+    # Could be tested/improved
+    chunks_cutoff = 1e8
+    eachchunk, haschunks = if prod(size(raster)) >= chunks_cutoff
+        DA.eachchunk(raster), DA.haschunks(raster)
+    else
+        DA.GridChunks(raster, size(raster)), DiskArrays.Unchunked()
+    end
     FileArray{GDALfile,T,3}(filename, size(raster); eachchunk, haschunks, kw...)
 end
 
@@ -77,7 +83,7 @@ end
 
 function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple; 
     missingval=nothing, metadata=nothing, name=nothing, keys=(name,),
-    driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing
+    driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing,
 )
     if !(keys isa Nothing || keys isa Symbol) && length(keys) > 1
         throw(ArgumentError("GDAL cant write more than one layer per file, but keys $keys have $(length(keys))"))
@@ -92,13 +98,8 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
     kw = (width=length(x), height=length(y), nbands=nbands, dtype=T)
     gdaldriver = AG.getdriver(driver)
     if driver == "GTiff"
-        # block_x, block_y = DA.eachchunk(A).chunksize
-        # tileoptions = if chunk === nothing
-            # ["TILED=NO"]
-        tileoptions = ["TILED=YES"]
-        # else
-            # ["TILED=YES", "BLOCKXSIZE=$block_x", "BLOCKYSIZE=$block_y"]
-        # end
+        # TODO implement chunking
+        tileoptions = ["TILED=NO"]
         options = ["COMPRESS=$compress", tileoptions...]
         AG.create(filename; driver=gdaldriver, options=options, kw...) do ds
             _gdalsetproperties!(ds, dims, missingval)
