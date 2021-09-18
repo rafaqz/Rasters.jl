@@ -1,6 +1,6 @@
 using HDF5
 
-export SMAPseries, SMAPstack, smapseries
+export smapseries
 
 const SMAPMISSING = -9999.0f0
 const SMAPGEODATA = "Geophysical_Data"
@@ -164,7 +164,7 @@ function smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
             end
         end
         # Use the first files time dim as a template, but join vals into an array of times.
-        timedim = _smap_timedim(timeseries)
+        dims = (_smap_timedim(timeseries),)
     else
         usedpaths = filenames
     end
@@ -173,14 +173,8 @@ function smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
         println("Some errors thrown during file load: ")
         println.(errors)
     end
-    # Get the dims once for the whole series
-    dims, metadata =_open(SMAPfile, first(filenames)) do ds
-        DD.dims(ds), DD.metadata(ds)
-    end
-    GeoSeries(usedpaths, (timedim,); child=stack, dims, metadata, kw...)
+    GeoSeries(usedpaths, dims; child=GeoStack, duplicate_first=true, kw...)
 end
-
-@deprecate SMAPseries(args...; kw...) smapseries(args...; kw...)
 
 
 # Utils ########################################################################

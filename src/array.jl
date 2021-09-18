@@ -30,7 +30,8 @@ filename(A::AbstractGeoArray) = filename(data(A))
 cleanreturn(A::AbstractGeoArray) = modify(cleanreturn, A)
 cleanreturn(x) = x
 
-isdiskbased(A::AbstractGeoArray) = parent(A) isa DiskArrays.AbstractDiskArray
+isdisk(A::AbstractGeoArray) = parent(A) isa DiskArrays.AbstractDiskArray
+ismem(A::AbstractGeoArray) = !isdisk(A)
 
 function Base.:(==)(A::AbstractGeoArray{T,N}, B::AbstractGeoArray{T,N}) where {T,N} 
     size(A) == size(B) && all(A .== B)
@@ -110,6 +111,12 @@ end
 
 DiskArrays.eachchunk(A::AbstractGeoArray) = DiskArrays.eachchunk(parent(A))
 DiskArrays.haschunks(A::AbstractGeoArray) = DiskArrays.haschunks(parent(A))
+function DA.readblock!(A::AbstractGeoArray, dst, r::AbstractUnitRange...)
+    DA.readblock!(parent(A), dst, r...)
+end
+function DA.writeblock!(A::AbstractGeoArray, src, r::AbstractUnitRange...) 
+    DA.writeblock!(parent(A), src, r...)
+end
 
 # Base methods
 
@@ -188,7 +195,7 @@ struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: Abstrac
     missingval::Mi
 end
 function GeoArray(A::AbstractArray, dims::Tuple;
-    refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing
+    refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing,
 )
     GeoArray(A, DD.formatdims(A, dims), refdims, name, metadata, missingval)
 end
@@ -198,7 +205,7 @@ function GeoArray(A::AbstractArray;
     GeoArray(A, DD.formatdims(A, dims), refdims, name, metadata, missingval)
 end
 function GeoArray(A::AbstractGeoArray;
-    data=Array(data(A)), dims=dims(A), refdims=refdims(A),
+    data=data(A), dims=dims(A), refdims=refdims(A),
     name=name(A), metadata=metadata(A), missingval=missingval(A)
 )
     GeoArray(data, dims, refdims, name, metadata, missingval)

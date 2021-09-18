@@ -5,12 +5,16 @@ const Key = Union{Symbol,AbstractString}
     AbstractGeoStack
 
 Abstract supertype for objects that hold multiple [`AbstractGeoArray`](@ref)
-that share spatial bounds.
+that share spatial dimensions.
 
 They are `NamedTuple`-like structures that may either contain `NamedTuple`
 of [`AbstractGeoArray`](@ref), string paths that will load [`AbstractGeoArray`](@ref),
 or a single path that points to as a file itself containing multiple layers, like
 NetCDF or HDF5. Use and syntax is similar or identical for all cases.
+
+`AbstractGeoStack` can hold layers that share some or all of their dimensions.
+They cannot have the same dimension with t different length or spatial extent as
+another layer.
 
 `getindex` on a `AbstractGeoStack` generally returns a memory backed standard
 [`GeoArray`](@ref). `geoarray[:somelayer] |> plot` plots the layers array,
@@ -109,8 +113,8 @@ end
 
     GeoStack(data...; keys, kwargs...)
     GeoStack(data::Union{Vector,Tuple}; keys, kwargs...)
-    GeoStack(data::NamedTuple; window, metadata, refdims))
-    GeoStack(s::AbstractGeoStack; [keys, data, refdims, window, metadata])
+    GeoStack(data::NamedTuple; metadata, refdims))
+    GeoStack(s::AbstractGeoStack; [keys, data, refdims, metadata])
     GeoStack(s::AbstractGeoArray; layersfrom=Band, [keys, refdims, metadata])
 
 Load a file path or a `NamedTuple` of paths as a `GeoStack`, or convert arguments, a 
@@ -124,8 +128,6 @@ Load a file path or a `NamedTuple` of paths as a `GeoStack`, or convert argument
 # Keywords
 
 - `keys`: Used as stack keys when a `Tuple` or `Vector` or splat of geoarrays are passed in.
-- `window`: A `Tuple` of `Dimension`/`Selector`/indices that will be applied to the
-    contained arrays when they are accessed.
 - `refdims`: Reference dimensions from earlier subsetting.
 - `metadata`: A `DimensionalData.Metadata` object.
 - `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
@@ -136,7 +138,7 @@ stack = GeoStack(files; mappedcrs=EPSG(4326))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
 """
-struct GeoStack{L,D,R,LD,M,LM,LMV} <: AbstractGeoStack{L}
+struct GeoStack{L<:Union{FileStack,NamedTuple},D<:Tuple,R<:Tuple,LD<:NamedTuple,M,LM,LMV} <: AbstractGeoStack{L}
     data::L
     dims::D
     refdims::R
@@ -177,9 +179,9 @@ function GeoStack(layers::Tuple{Vararg{<:AbstractGeoArray}}; keys=map(name, laye
 end
 # Multi GeoArray stack from NamedTuple
 function GeoStack(layers::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractGeoArray}}};
-    resize=nothing, refdims=(), metadata=NoMetadata(), window=nothing, kw...
+    resize=nothing, refdims=(), metadata=NoMetadata(), kw...
 )
-    # resize if not matching sizes - resize can be `crop` or `extent`
+    # resize if not matching sizes - resize can be `crop`, `resample` or `extend`
     layers = resize isa Nothing ? layers : resize(layers)
     # DD.comparedims(layers...)
     dims=DD.combinedims(layers...)
@@ -187,18 +189,17 @@ function GeoStack(layers::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractGeoArray}}};
     layerdims=map(DD.basedims, layers)
     layermetadata=map(DD.metadata, layers)
     layermissingval=map(missingval, layers)
-    st = GeoStack(
+    return GeoStack(
         data, dims, refdims, layerdims, metadata,
         layermetadata, layermissingval
     )
-    # For NamedTuple stacks we apply the whole window
-    window === nothing ? st : view(st, window...)
 end
 # Single-file stack from a string
 function GeoStack(filename::AbstractString;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, layermissingval=nothing,
-    source=_sourcetype(filename), keys=nothing, window=nothing, layersfrom=nothing
+    source=_sourcetype(filename), keys=nothing, layersfrom=nothing,
+    resize=nothing,
 )
     st = if haslayers(_sourcetype(filename))
         crs = defaultcrs(source, crs)
@@ -213,11 +214,10 @@ function GeoStack(filename::AbstractString;
             data = FileStack{source}(ds, filename; keys)
             data, (; dims, refdims, layerdims, metadata, layermetadata, layermissingval)
         end
-        GeoStack(data; field_kw..., window)
+        GeoStack(data; field_kw...)
     else
         # Band dims acts as layers
-        st = GeoStack(GeoArray(filename); layersfrom)
-        window === nothing ? st : view(st, window...)
+        GeoStack(GeoArray(filename); layersfrom)
     end
 
     # Maybe split the stack into separate arrays to remove extra dims.
@@ -250,23 +250,21 @@ end
 # Rebuild from internals
 function GeoStack(
     data::Union{FileStack,NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}};
-    dims, refdims=(), layerdims, metadata=NoMetadata(), layermetadata, layermissingval, window=nothing) 
+    dims, refdims=(), layerdims, metadata=NoMetadata(), layermetadata, layermissingval) 
     st = GeoStack(
         data, dims, refdims, layerdims, metadata, layermetadata, layermissingval
     )
-    window === nothing ? st : view(st, window...)
 end
 # GeoStack from another stack
 function GeoStack(s::AbstractDimStack; keys=cleankeys(Base.keys(s)),
     data=NamedTuple{keys}(s[key] for key in keys),
     dims=dims(s), refdims=refdims(s), layerdims=DD.layerdims(s),
     metadata=metadata(s), layermetadata=DD.layermetadata(s),
-    layermissingval=layermissingval(s), window=nothing
+    layermissingval=layermissingval(s)
 )
     st = GeoStack(
         data, dims, refdims, layerdims, metadata, layermetadata, layermissingval
     )
-    window === nothing ? st : view(st, window...)
 end
 
 Base.convert(::Type{GeoStack}, src::AbstractDimStack) = GeoStack(src)

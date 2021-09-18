@@ -270,29 +270,6 @@ end
         @test grdstack[:a] isa GeoArray{Float32,3}
     end
 
-    @testset "window" begin
-        windowedstack = GeoStack((a=path, b=path); window=(Y(1:5), X(1:5), Band(1)))
-        windowedarray = windowedstack[:a]
-        @test windowedarray isa GeoArray{Float32,2}
-        @test length.(dims(windowedarray)) == (5, 5)
-        @test size(windowedarray) == (5, 5)
-        @test windowedarray[1:3, 2:2] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1)
-        @test windowedarray[1:3, 2] == [255.0f0, 255.0f0, 255.0f0]
-        @test windowedarray[1, 2] == 255.0f0
-        windowedstack = GeoStack((a=path, b=path); window=(Y(1:5), X(1:5), Band(1:1)))
-        windowedarray = windowedstack[:b]
-        @test windowedarray[1:3, 2:2, 1:1] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1, 1)
-        @test windowedarray[1:3, 2:2, 1] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1)
-        @test windowedarray[1:3, 2, 1] == [255.0f0, 255.0f0, 255.0f0]
-        @test windowedarray[1, 2, 1] == 255.0f0
-        windowedstack = GeoStack((a=path, b=path); window=(Band(1),));
-        windowedarray = windowedstack[:b]
-        @test windowedarray[1:3, 2:2] == reshape([255.0f0, 255.0f0, 255.0f0], 3, 1)
-        @test windowedarray[1:3, 2] == [255.0f0, 255.0f0, 255.0f0]
-        @test windowedarray[30, 30] == 185.0f0
-        windowedarray |> plot
-    end
-
     # Stack Constructors
     @testset "conversion to GeoStack" begin
         geostack = GeoStack(grdstack)
@@ -318,7 +295,7 @@ end
         base, ext = splitext(filename)
         filename_b = string(base, "_b", ext)
         saved = read(GeoArray(filename_b))
-        @test typeof(saved) == typeof(geoA)
+        @test typeof(read(geoA)) == typeof(saved)
         @test data(saved) == data(geoA)
     end
 
@@ -384,7 +361,7 @@ end
         base, ext = splitext(filename)
         filename_3 = string(base, "_Band_3", ext)
         saved = read(GeoArray(filename_3))
-        @test typeof(rebuild(saved[Band(1)], refdims=())) == typeof(geoA)
+        @test typeof(rebuild(saved[Band(1)], refdims=())) == typeof(read(geoA))
         @test parent(saved[Band(1)]) == parent(geoA)
     end
 

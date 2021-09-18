@@ -16,6 +16,7 @@ stack1 = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
 stack2 = GeoStack(ga1a, ga2a; keys=(:ga1, :ga2))
 dates =[DateTime(2017), DateTime(2018)]
 ser = GeoSeries([stack1, stack2], (Ti(dates),))
+mode(ser)
 @test issorted(dates)
 
 @testset "getindex returns the currect types" begin
@@ -47,16 +48,6 @@ end
     @inferred ser[Ti(1)][:ga1][X(1), Y(2:4)]
     # @inferred ser[1][:ga1, X(1:2), Y(:)]
     @inferred ser[1][:ga1][X(1:2), Y(:)]
-end
-
-@testset "lazy view windows" begin
-    dimz = (Ti([DateTime(2017), DateTime(2018)]),)
-    dat = [stack1, stack2]
-    window_ = X(1:2), Y(3:4)
-    ser = GeoSeries(dat, dimz; window=window_)
-    st = ser[1]
-    @test st[:ga1] == [3 4; 7 8]
-    @test st[:ga1, 1, 2] == 4
 end
 
 @testset "setindex!" begin

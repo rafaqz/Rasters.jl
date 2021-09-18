@@ -35,25 +35,16 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 
 # Example
 
-```@doctest
-julia> using GeoData
-
-julia> A = read(GeoArray(WorldClim{Climate}, :prec; month=1));
-
-julia> aggregate(std, A, (Y(200), X(400)); skipmissingval=true)
-5×5×1 GeoArray{Float64,3} :prec with dimensions:
-  X: range(-180.0, stop=86.66666666666664, length=5)
-    Projected: Ordered Regular Intervals crs: WellKnownText,
-  Y: range(89.83333333333333, stop=-43.5, length=5)
-    Projected: Ordered Regular Intervals crs: WellKnownText,
-  Band: 1:1 Categorical: Ordered
-[:, :, 1]
- 33.9801   99.1754   74.5989   86.5641   6.90469
- 12.2274   35.2264  116.111   102.933   66.9999
- 49.2657   43.2653   58.9215   80.7797  12.6547
-  7.91337  23.9869   59.2179   94.3359   7.90676
-  7.04697  22.4327  143.557    83.3885   4.78625
+```jldoctest
+using GeoData, Statistics, Plots
+st = read(GeoStack(WorldClim{Climate}; month=1))
+ag = aggregate(Center(), st, (Y(20), X(20)); skipmissingval=true, progress=false)
+plot(ag)
+savefig("build/aggregate_example.png") 
+# output
 ```
+
+![aggregate](aggregate_example.png)
 
 Note: currently it is faster to aggregate over memory-backed arrays. 
 Use [`read`](@ref) on `src` before use where required.
@@ -143,7 +134,7 @@ function aggregate!(f, dst::AbstractGeoArray, src, scale; skipmissingval=false)
     broadcast!(dst, CartesianIndices(dst)) do I
         upper = upsample.(Tuple(I), intscale)
         lower = upper .+ intscale .- 1
-        block = if isdiskbased(src)
+        block = if isdisk(src)
             src[map(:, upper, lower)...]
         else
             view(src, map(:, upper, lower)...)
@@ -192,7 +183,6 @@ Disaggregate array, or all arrays in a stack or series, by some scale.
 Note: currently it is faster to aggregate over memory-backed arrays. 
 Use [`read`](@ref) on `src` before use where required.
 
-julia> A = read(GeoArray(WorldClim{Climate}, :prec; month=1));
 """
 function disaggregate end
 function disaggregate(method, series::AbstractGeoSeries, scale; progress=true, kw...)

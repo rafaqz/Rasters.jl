@@ -4,8 +4,6 @@ using .RasterDataSources: RasterDataSource
 
 const RDS = RasterDataSources
 
-const LayerItr = Union{AbstractArray,Tuple}
-
 """
     GeoArray(T::Type{<:RasterDataSource}, [layer]; kw...) => AbstractArray
 
@@ -21,11 +19,10 @@ are passed to `getraster`, while `kw` args are for both `getraster` and
 
 Normal `GeoArray` keywords are passed to the constructor.
 """
-GeoArray(T::Type{<:RasterDataSource}; kw...) = GeoArray(T, first(RDS.layers(T)); kw...) 
-function GeoArray(T::Type{<:RasterDataSource}, layer; kw...)
+function GeoArray(T::Type{<:RasterDataSource}, layer; crs=_source_crs(T), kw...)
     rds_kw, gd_kw = _filterkw(kw)
     filename = getraster(T, layer; rds_kw...)
-    GeoArray(filename; name=_layerkey(T, layer), _sourcekw(T)..., gd_kw...)
+    GeoArray(filename; name=RDS.layerkeys(T, layer), crs, gd_kw...)
 end
 
 """
@@ -45,10 +42,10 @@ Normal `GeoStack` keywords are passed to the constructor.
 """
 GeoStack(T::Type{<:RasterDataSource}; kw...) = GeoStack(T, RDS.layers(T); kw...) 
 GeoStack(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = GeoStack(T, (layer,); kw...) 
-function GeoStack(T::Type{<:RasterDataSource}, layers::LayerItr; kw...)
+function GeoStack(T::Type{<:RasterDataSource}, layers::Tuple; crs=_source_crs(T), kw...)
     rds_kw, gd_kw = _filterkw(kw)
     filenames = map(l -> getraster(T, l; rds_kw...), layers)
-    GeoStack(filenames; keys=_layerkey(T, layers), gd_kw...)
+    GeoStack(filenames; keys=RDS.layerkeys(T, layers), crs, gd_kw...)
 end
 
 """
@@ -67,37 +64,48 @@ are passed to `getraster`, while `kw` args are for both `getraster` and
 Normal `GeoStack` keywords are passed to the constructor.
 """
 GeoSeries(T::Type{<:RasterDataSource}; kw...) = GeoSeries(T, RDS.layers(T); kw...) 
-GeoSeries(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = GeoSeries(T, (layer,); kw...) 
-# Int month time-series
-function GeoSeries(T::Type{WorldClim{Climate}}, layers::LayerItr;
-    res=RDS.defres(T), month=1:12, 
-    window=nothing, resize=nothing, crs=nothing, mappedcrs=nothing, kw...
-)
-    timedim = Ti(month; mode=Sampled(span=Regular(1), sampling=Intervals(Start())))
-    stacks = [GeoStack(T, layers; res=res, month=m, window, crs, mappedcrs, resize) for m in month]
-    GeoSeries(stacks, timedim; kw...)
-end
 # DateTime time-series
-function GeoSeries(T::Type{<:Union{WorldClim{Weather},ALWB,AWAP}}, layers::LayerItr; 
-    date, window=nothing, resize=nothing, crs=nothing, mappedcrs=nothing, kw...
+function GeoSeries(T::Type{<:RasterDataSource}, layers; 
+    resize=_mayberesize(T), crs=_source_crs(T), mappedcrs=nothing, kw...
 )
-    step = _seriesstep(T)
-    dates = RDS._date_sequence(date, step)
-    timedim = Ti(dates; mode=Sampled(Ordered(), Regular(step), Intervals(Start())))
-    stacks = [stack(T, layers; date=d, window, crs, mappedcrs, resize) for d in dates]
-    GeoSeries(stacks, timedim; kw...)
+    monthdim = if haskey(kw.data, :month) kw.data[:month] isa AbstractArray
+        Dim{:month}(kw.data[:month]; mode=Sampled(; sampling=Intervals(Start())))
+    else
+        nothing
+    end
+    datedim = if haskey(kw.data, :date)
+        dates = if kw.data[:date] isa Tuple
+            dates = RasterDataSources.date_sequence(T, kw.data[:date])
+            Ti(dates; mode=Sampled(; sampling=Intervals(Start())))
+        elseif kw.data[:date] isa AbstractArray
+            Ti(dates; mode=Sampled(; sampling=Intervals(Start())))
+        else
+            nothing
+        end
+    else
+        nothing
+    end
+    if isnothing(monthdim) && isnothing(datedim)
+        throw(ArgumentError("A GeoSeries can only be constructed from a data source with `date` or `month` keywords that are AbstractArray. For other sources, use GeoStack or GeoArray directly"))
+    end
+
+    filenames = getraster(T, layers; kw...)
+    can_duplicate = RDS.has_constant_dims(T) && RDS.has_constant_metadata(T)
+
+    if filenames isa AbstractVector{<:AbstractVector}
+        series = [GeoSeries(inner_fns, monthdim; resize, crs, mappedcrs, duplicate_first=can_duplicate) for inner_fns in filenames]
+        return GeoSeries(series, datedim)
+    elseif filenames isa AbstractVector
+        dim = isnothing(datedim) ? monthdim : datedim
+        return GeoSeries(filenames, dim; resize, crs, mappedcrs, duplicate_first=can_duplicate)
+    end
 end
 
-_sourcekw(T) = ()
-_sourcekw(T::Type{AWAP}) = (crs=EPSG(4326),)
+_mayberesize(T) = RDS.has_matching_layer_size(T) ? nothing : crop
 
-_layerkey(T::Type{<:RasterDataSource}, keys::LayerItr) = map(k -> _layerkey(T, k), keys) 
-_layerkey(T::Type{<:Union{CHELSA{BioClim},WorldClim{BioClim}}}, key::Int) = Symbol(string("BIO", key))
-_layerkey(T::Type{<:RasterDataSource}, key) = Symbol(key)
-
-_seriesstep(T::Type{<:ALWB{M,P}}) where {M,P} = P(1)
-_seriesstep(T::Type{<:WorldClim{<:Weather}}) = Month(1)
-_seriesstep(T::Type{<:AWAP}) = Day(1)
+_source_crs(T) = nothing
+_source_crs(T::Type{AWAP}) = crs=EPSG(4326)
+_source_crs(T::Type{ALWB}) = crs=EPSG(4326)
 
 function _filterkw(kw)
     rds = []; gd = []

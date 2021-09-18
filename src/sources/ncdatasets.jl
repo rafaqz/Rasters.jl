@@ -80,7 +80,7 @@ end
 @deprecate NCDstack(args...; kw...) GeoStack(args...; source=NCDfile, kw...)
 
 """
-    Base.write(filename::AbstractString, ::Type{NCDstack}, s::AbstractGeoStack)
+    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractGeoStack)
 
 Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 
