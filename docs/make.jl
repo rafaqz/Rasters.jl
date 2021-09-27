@@ -11,7 +11,6 @@ makedocs(
     sitename = "GeoData.jl",
     strict = true,
     clean = false,
-    # doctest = false,
 )
 
 # Enable logging to console again
