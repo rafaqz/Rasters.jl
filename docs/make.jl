@@ -10,7 +10,6 @@ makedocs(
     modules = [GeoData],
     sitename = "GeoData.jl",
     strict = true,
-    clean = false,
 )
 
 # Enable logging to console again
