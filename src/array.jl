@@ -167,24 +167,36 @@ Base.write(A::T) where T <: AbstractGeoArray = write(filename(A), A)
 """
     GeoArray <: AbsractGeoArray
 
-    GeoArray(A::AbstractArray{T,N}, dims::Tuple; kw...)
-    GeoArray(A::AbstractArray{T,N}; dims, kw...)
-    GeoArray(A::AbstractGeoArray; kw...) =
-    GeoArray(A::AbstractGeoStack; kw...) =
+    GeoArray(filepath::AbstractString, dims; kw...)
+    GeoArray(A::AbstractArray{T,N}, dims; kw...)
+    GeoArray(A::AbstractGeoArray; kw...)
 
-A generic, memory-backed spatial array type. All [`AbstractGeoArray`](@ref) are
-converted to `GeoArray` when indexed or otherwise transformed.
+A generic [`AbstractGeoArray`](@ref) for spatial/raster array data. It may hold
+memory-backed arrays or [`FileArray`](@ref), that simply holds the `String` path
+to an unopened file. This will only be opened lazily when it is indexed with `getindex`
+or when `read(A)` is called. Broadcasting, taking a view, reversing and most other 
+methods _do not_ load data from disk: they are applied later, lazily.
 
 # Keywords
 
 - `data`: can replace the data in an `AbstractGeoArray`
 - `dims`: `Tuple` of `Dimension`s for the array.
-- `refdims`: `Tuple of` position `Dimension`s the array was sliced from,
-    defaulting to `()`.
-- `name`: `Symbol` name for the array.
-- `missingval`: Value reprsenting missing values, defaulting to `missing`.
-    can be passed it.
+- `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
+- `key`: `Symbol` key to desired layer in a multi-layer dataset, when a `filpath` is used.
+- `name`: `Symbol` name for the array. `key` is used by default when a filepath `String` is pased in.
+- `missingval`: value reprsenting missing data, normally detected form the file. Set manually
+    when you know the value is not specified or is incorrect. This will *not* change any
+    values in the raster, it simply assigns which value is treated as missing. To replace all of
+    the missing values in the raster, use [`replace_missing`](@ref).
 - `metadata`: `ArrayMetadata` object for the array, or `NoMetadata()`.
+- `crs`: the coordinate reference system of  the objects `XDim`/`YDim` dimensions. 
+    Only set this if you know the detected crs is incrorrect, or it is not present in
+    the file.
+- `mappedcrs`: the mapped coordinate reference system of the objects `XDim`/`YDim` dimensions.
+    for `Mapped` lookups these are the actual values of the index. For `Projected` lookups
+    this can be used to index in eg. `EPSG(4326)` lat/lon values, having it converted automatically.
+    Only set this if the detected `mappedcrs` in incorrect, or the file does not have a `mappedcrs`,
+    e.g. a tiff.
 """
 struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: AbstractGeoArray{T,N,D,A}
     data::A
@@ -217,6 +229,7 @@ function GeoArray(filename::AbstractString; key=nothing, kw...)
         GeoArray(ds, filename, key; kw...)
     end
 end
+# For loading opened datasets
 function GeoArray(ds, filename::AbstractString, key=nothing;
     crs=nothing, mappedcrs=nothing, dims=nothing, refdims=(),
     name=Symbol(key isa Nothing ? "" : string(key)),

@@ -12,11 +12,15 @@ function Base.write(
 end
 
 """
-    Base.write(filename::AbstractString, T::Type{<:AbstractGeoArray}, s::AbstractGeoStack)
+    Base.write(filename::AbstractString, s::AbstractGeoStack; suffix, kw...)
 
 Write any [`AbstractGeoStack`](@ref) to file, guessing the backend from the file extension.
 
-Keyword arguments are passed to the `write` method for the backend.
+## Keywords
+
+- `suffix`: suffix to append to file names. By default the layer key is used. 
+
+Other keyword arguments are passed to the `write` method for the backend.
 
 If the source can't be saved as a stack-like object, individual array layers will be saved.
 """
@@ -30,12 +34,13 @@ function Base.write(filename::AbstractString, s::AbstractGeoStack; suffix=nothin
         if suffix === nothing
             suffix = map(k -> string("_", k), keys(s))
         end
-        for (i, key) in enumerate(keys(s))
-            fn = joinpath(string(base, suffix[i], ext))
+        foreach(keys(s), suffix) do key, sfx
+            fn = string(base, sfx, ext)
             write(fn, _sourcetype(filename), s[key])
         end
     end
     return filename
 end
 
+# Trait for source data that has stack layers
 haslayers(T) = false

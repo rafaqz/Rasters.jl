@@ -111,11 +111,11 @@ end
 """
     GeoStack <: AbstrackGeoStack
 
-    GeoStack(data...; keys, kwargs...)
-    GeoStack(data::Union{Vector,Tuple}; keys, kwargs...)
-    GeoStack(data::NamedTuple; metadata, refdims))
-    GeoStack(s::AbstractGeoStack; [keys, data, refdims, metadata])
-    GeoStack(s::AbstractGeoArray; layersfrom=Band, [keys, refdims, metadata])
+    GeoStack(data...; keys, kw...)
+    GeoStack(data::Union{Vector,Tuple}; keys, kw...)
+    GeoStack(data::NamedTuple; kw...))
+    GeoStack(s::AbstractGeoStack; kw...)
+    GeoStack(s::AbstractGeoArray; layersfrom=Band, kw...)
 
 Load a file path or a `NamedTuple` of paths as a `GeoStack`, or convert arguments, a 
 `Vector` or `NamedTuple` of `GeoArray` to `GeoStack`.
@@ -127,10 +127,11 @@ Load a file path or a `NamedTuple` of paths as a `GeoStack`, or convert argument
 
 # Keywords
 
-- `keys`: Used as stack keys when a `Tuple` or `Vector` or splat of geoarrays are passed in.
-- `refdims`: Reference dimensions from earlier subsetting.
-- `metadata`: A `DimensionalData.Metadata` object.
-- `refdims`: `Tuple` of  position `Dimension` the array was sliced from.
+- `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of `GeoArray` is passed in.
+- `metadata`: A `Dict` or `DimensionalData.Metadata` object.
+- `refdims`: `Tuple` of `Dimension` that the stack was sliced from.
+- `layersfrom`: `Dimension` to source stack layers from if the file is not 
+    already multi-layered. This will often be `Band`, which is the default.
 
 ```julia
 files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
@@ -198,7 +199,7 @@ end
 function GeoStack(filename::AbstractString;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, layermissingval=nothing,
-    source=_sourcetype(filename), keys=nothing, layersfrom=nothing,
+    source=_sourcetype(filename), keys=nothing, layersfrom=Band,
     resize=nothing,
 )
     st = if haslayers(_sourcetype(filename))

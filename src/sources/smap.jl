@@ -129,8 +129,8 @@ end
 # Series #######################################################################
 
 """
-    SMAPseries(filenames::AbstractString; kw...)
-    SMAPseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
+    smapseries(filenames::AbstractString; kw...)
+    smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
 
 [`GeoSeries`](@ref) loader for SMAP files and whole folders of files,
 organised along the time dimension. Returns a [`GeoSeries`](@ref).

@@ -5,19 +5,22 @@ using .RasterDataSources: RasterDataSource
 const RDS = RasterDataSources
 
 """
-    GeoArray(T::Type{<:RasterDataSource}, [layer]; kw...) => AbstractArray
+    GeoArray(T::Type{<:RasterDataSource}, [layer]; kw...) => GeoArray
 
-Load a `RasterDataSource` as an `AbstractGeoArray`. `T`, `args` are
-are passed to `getraster`, while `kw` args are for both `getraster` and
-`AbstractGeoArray`.
+Load a `RasterDataSource` as an `GeoArray`. `T` and `layers` are are passed to
+`RasterDataSources.getraster`, while `kw` args are for both `getraster` and `GeoArray`.
 
 # Keywords
 
-- `month`: For `Climate` datasets
-- `date`: For `Weather` datasets
-- `res`: For datasets with multiple resolutions
+- `month`: an `Int` between `1` and `12`, usually for `Climate` datasets
+- `date`: a `DateTime` object, usually for `Weather` datasets.
+- `res`: a `String` resolution, for datasets with multiple resolutions.
 
-Normal `GeoArray` keywords are passed to the constructor.
+Other `GeoArray` keywords are passed to the `GeoArray` constructor.
+
+See the docs for 
+[`RasterDatasources.getraster`](http://docs.ecojulia.org/RasterDataSources.jl/stable/#getraster)
+for more specific details about data sources, layers and keyword arguments.
 """
 function GeoArray(T::Type{<:RasterDataSource}, layer; crs=_source_crs(T), kw...)
     rds_kw, gd_kw = _filterkw(kw)
@@ -26,19 +29,22 @@ function GeoArray(T::Type{<:RasterDataSource}, layer; crs=_source_crs(T), kw...)
 end
 
 """
-    GeoStack(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => AbstractGeoStack
+    GeoStack(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => GeoStack
 
-Load a `RasterDataSource` as an `AbstractGeoStack`. `T`, `args` are
-are passed to `getraster`, while `kw` args are for both `getraster` and
-`AbstractGeoStack`.
+Load a `RasterDataSource` as an `GeoStack`. `T` and `layers` are passed to
+`RasterDataSources.getraster`, while `kw` args are for both `getraster` and `GeoStack`.
 
 # Keywords
 
-- `month`: For `Climate` datasets
-- `date`: For `Weather` datasets
-- `res`: For datasets with multiple resolutions
+- `month`: an `Int` between `1` and `12`, usually for `Climate` datasets.
+- `date`: a `DateTime` object, usually for `Weather` datasets.
+- `res`: a `String` resolution, for datasets with multiple resolutions.
 
-Normal `GeoStack` keywords are passed to the constructor.
+Other `GeoStack` keywords are passed to the `GeoStack` constructor.
+
+See the docs for 
+[`RasterDatasources.getraster`](http://docs.ecojulia.org/RasterDataSources.jl/stable/#getraster)
+for more specific details about data sources, layers and keyword arguments.
 """
 GeoStack(T::Type{<:RasterDataSource}; kw...) = GeoStack(T, RDS.layers(T); kw...) 
 GeoStack(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = GeoStack(T, (layer,); kw...) 
@@ -51,17 +57,20 @@ end
 """
     GeoSeries(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => AbstractGeoSeries
 
-Load a `RasterDataSource` as an `AbstractGeoSeries`. `T`, `args` are
-are passed to `getraster`, while `kw` args are for both `getraster` and
-`AbstractGeoSeries`.
+Load a `RasterDataSource` as an `AbstractGeoSeries`. `T`, `args` are are passed to
+`RasterDataSource.getraster`, while `kw` args are for both `getraster` and `GeoSeries`.
 
 # Keywords
 
-- `month`: For `Climate` datasets
-- `date`: For `Weather` datasets
-- `res`: For datasets with multiple resolutions
+- `month`: a `Vector` or range of `Int` between `1` and `12`, usually for `Climate` datasets.
+- `date`: a `Vector` of `DateTime` objects, usually for `Weather` datasets.
+- `res`: a `String` resolution, for datasets with multiple resolutions.
 
-Normal `GeoStack` keywords are passed to the constructor.
+Other `GeoSeries` keywords are passed to the `GeoSeries` constructor.
+
+See the docs for 
+[`RasterDatasources.getraster`](http://docs.ecojulia.org/RasterDataSources.jl/stable/#getraster)
+for more specific details about data sources, layers and keyword arguments.
 """
 GeoSeries(T::Type{<:RasterDataSource}; kw...) = GeoSeries(T, RDS.layers(T); kw...) 
 # DateTime time-series

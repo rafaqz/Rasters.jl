@@ -8,9 +8,6 @@ const GeoSeriesOrStack = Union{AbstractGeoSeries,AbstractGeoStack}
 Replace missing values in the array or stack with a new missing value,
 also updating the `missingval` field/s.
 
-A `GeoArray` containing a newly allocated `Array` is always returned,
-even when the missing value matches the current value.
-
 # Example
 
 ```jldoctest
@@ -142,7 +139,7 @@ using GeoData, Plots, Dates
 
 # Load and plot the file
 awap = read(GeoArray(AWAP, :tmax; date=DateTime(2001, 1, 1)))
-a = plot(awap)
+a = plot(awap; clims=(10, 45))
 
 # Create a mask my resampling a worldclim file
 wc = GeoArray(WorldClim{Climate}, :prec; month=1)
@@ -150,7 +147,7 @@ wc_mask = resample(wc; to=awap)
 
 # Mask
 awap_masked = mask(awap; to=wc_mask)
-b = plot(awap_masked)
+b = plot(awap_masked; clims=(10, 45))
 
 savefig(a, "build/mask_example_before.png")
 savefig(b, "build/mask_example_after.png")
@@ -217,7 +214,7 @@ using GeoData, Plots, Dates
 
 # Load and plot the file
 awap = read(GeoStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
-a = plot(awap)
+a = plot(awap; clims=(10, 45))
 
 # Create a mask my resampling a worldclim file
 wc = GeoArray(WorldClim{Climate}, :prec; month=1)
@@ -225,7 +222,7 @@ wc_mask = resample(wc; to=awap)
 
 # Mask
 mask!(awap; to=wc_mask)
-b = plot(awap)
+b = plot(awap; clims=(10, 45))
 
 savefig(a, "build/mask_bang_example_before.png")
 savefig(b, "build/mask_bang_example_after.png")
@@ -321,7 +318,8 @@ end
 
 Create a new array with values in `x` classified by the values in `pairs`.
 
-If `Fix2` is not used, the `lower` and `upper` keywords.
+If `Fix2` functions are not used in `pairs, the `lower` and `upper` keywords define
+how the lower and upper boundaries are chosen.
 
 If `others` is set other values not covered in `pairs` will be set to that values.
 
@@ -353,8 +351,6 @@ plot(classified; c=:magma)
 savefig("build/classify_example.png")
 # output
 ```
-
-### Classified climate
 
 ![classify](classify_example.png)
 
@@ -421,8 +417,6 @@ plot(GeoArray(tempfile); c=:magma)
 savefig("build/classify_bang_example.png")
 # output
 ```
-
-### Classified climate
 
 ![classify!](classify_bang_example.png)
 

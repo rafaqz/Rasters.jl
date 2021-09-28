@@ -1,24 +1,21 @@
 """
     AbstractGeoSeries <: DimensionalData.AbstractDimensionalArray
 
-Abstract supertype for high-level `DimensionalArray` that hold stacks, arrays,
+Abstract supertype for high-level `DimensionalArray` that hold `GeoStacks`, `GeoArrays`,
 or the paths they can be loaded from. `GeoSeries` are indexed with dimensions
 as with a `AbstractGeoArray`. This is useful when you have multiple files containing
 rasters or stacks of rasters spread over dimensions like time and elevation.
+
 As much as possible, implementations should facilitate loading entire
 directories and detecting the dimensions from metadata.
 
-This allows syntax like:
+This allows syntax like for a series of stacks of arrays:
 
 ```julia
-series[Time(Near(DateTime(2001, 1))][:temp][Y(Between(70, 150)), X(Between(-20,20))] |> plot`
+GeoSeries[Time(Near(DateTime(2001, 1))][:temp][Y(Between(70, 150)), X(Between(-20,20))] |> plot`
 ```
 
-`GeoSeries` is the only concrete implementation. It includes a `chiltype` field
-indicating the constructor used then loading stacks or arrays of any type from disk,
-and holds a `kwargs` `NamedTuple` that will be splatted into to the keyword arguments
-of the `child` constructor. This gives control over the construction of lazy-loaded
-files.
+[`GeoSeries`](@ref) is the concrete implementation.
 """
 abstract type AbstractGeoSeries{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
 
@@ -49,19 +46,30 @@ DD.modify(f, A::AbstractGeoSeries) = map(child -> modify(f, child), values(A))
 """
     GeoSeries <: AbstractGeoSeries
 
-    GeoSeries(A::AbstractArray{<:AbstractGeoArray}, dims; kw...)
-    GeoSeries(A::AbstractArray{<:AbstractGeoStack}, dims; kw...)
-    GeoSeries(filenames::AbstractArray{<:AbstractString}, dims; kw...)
+    GeoSeries(arrays::AbstractArray{<:AbstractGeoArray}, dims; kw...)
+    GeoSeries(stacks::AbstractArray{<:AbstractGeoStack}, dims; kw...)
+    GeoSeries(filepaths::AbstractArray{<:AbstractString}, dims; child, duplicate_first, kw...)
+    GeoSeries(dirpath:::AbstractString, dims; ext, child, duplicate_first, kw...)
 
 Concrete implementation of [`AbstractGeoSeries`](@ref).
-Series hold GeoArray or GeoStack files, along some dimension(s).
+`GeoSeries` are an array of `GeoArray` or `GeoStack`, along some dimension(s).
+
+# Arguments
+
+- `dims`: series dimension/s.
 
 # Keywords
 
-- `dims` known dimensions. These are usually read from the first file in the series
-    and are assumed to be _the same for all stacks/arrays in the series_.
-- `refdims`: existing reference dimension/s 
-- `child`: constructor of child objects - `GeoArray` or `stack`
+- `refdims`: existing reference dimension/s.
+- `child`: constructor of child objects for use with filenames are passed in,
+    can be `GeoArray` or `GeoStack`. Defaults to `GeoArray`.
+- `duplicate_first::Bool`: wether to duplicate the dimensions and metadata of the
+    first file with all other files. This can save load time with a large
+    series where dimensions are essentially identical. `true` by default to improve
+    load times. If you need exact metadata, set to `false`.
+- `ext`: filename extension such as ".tiff" to find when only a directory path is passed in. 
+- `kw`: keywords passed to the child constructor [`GeoArray`](@ref) or [`GeoStack`](@ref)
+    if only file names are passed in.
 """
 struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N}} <: AbstractGeoSeries{T,N,D,A}
     data::A
@@ -74,7 +82,7 @@ function GeoSeries(data::AbstractArray{<:Union{AbstractGeoStack,AbstractGeoArray
     GeoSeries(data, DD.formatdims(data, dims), refdims)
 end
 function GeoSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims; 
-    duplicate_first=true, child=nothing, resize=nothing, kw...
+    refdims=(), duplicate_first=true, child=nothing, resize=nothing, kw...
 )
     childtype = if isnothing(child)
         eltype(filenames) <: NamedTuple ? GeoStack : GeoArray
@@ -100,12 +108,11 @@ function GeoSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}},
             [childtype(fn; resize, kw...) for fn in filenames]
         end
     end
-    return GeoSeries(data, DD.formatdims(data, dims))
+    return GeoSeries(data, DD.formatdims(data, dims); refdims)
 end
-
-function GeoSeries(dirpath::AbstractString, dims=(Dim{:series}(),); ext=nothing, child=GeoArray, kw...)
+function GeoSeries(dirpath::AbstractString, dims; ext=nothing, kw...)
     filepaths = filter_ext(dirpath, ext)
-    GeoSeries(filepaths, dims; child=child, kw...)
+    GeoSeries(filepaths, dims; kw...)
 end
 
 @inline function DD.rebuild(
@@ -122,6 +129,9 @@ end
 
 @deprecate series(args...; kw...) GeoSeries(args...; kw...)
 
+# Swap in the filename/s of an object for another filename, wherever it is.
+# This is used to use already loaded metadata of one file with another
+# file that is similar or identical besides tha actual raster data.
 swap_filename(x, filename) = rebuild(x, data=swap_filename(data(x), filename))
 swap_filename(x::NamedTuple, filenames::NamedTuple) = map(swap_filename, x, filenames)
 swap_filename(x::FileStack, filename::AbstractString) = @set x.filename = filename

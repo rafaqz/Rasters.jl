@@ -59,7 +59,7 @@ function Base.open(f::Function, A::FileArray{NCDfile}; write=A.write, kw...)
 end
 
 """
-    Base.write(filename::AbstractString, ::Type{NCDarray}, s::AbstractGeoArray)
+    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractGeoArray)
 
 Write an NCDarray to a NetCDF file using NCDatasets.jl
 

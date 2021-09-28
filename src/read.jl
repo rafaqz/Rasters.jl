@@ -4,7 +4,6 @@
     read(A::AbstractGeoSeries)
 
 `read` will move a GeoData.jl object completely to memory.
-```
 """
 function Base.read(x::Union{AbstractGeoArray,AbstractGeoStack,AbstractGeoSeries})
     modify(x) do ds
@@ -18,9 +17,9 @@ end
     read!(src::Union{AbstractString,AbstractGeoStack}, dst::AbstractGeoStack)
     read!(scr::AbstractGeoSeries, dst::AbstractGeoSeries)
 
-`read!` will move the data from `src` to `dst`, where `src` can be an object
-or a file name `String`.
-```
+`read!` will copy the data from `src` to the object `dst`. 
+
+`src` can be an object or a file-path `String`.
 """
 Base.read!(src::AbstractGeoArray, dst::AbstractArray) = dst .= src
 function Base.read!(src::AbstractGeoStack, dst::AbstractGeoStack)
@@ -34,7 +33,7 @@ end
 
 # Filename methods
 function Base.read!(filename::AbstractString, dst::AbstractGeoArray)
-    src = geoarray(filename;
+    src = GeoArray(filename;
         dims=dims(dst), refdims=refdims(dst), name=name(dst),
         metadata=metadata(dst), missingval=missingval(dst),
     )
@@ -52,7 +51,7 @@ function Base.read!(filenames::AbstractVector{<:Union{AbstractString,NamedTuple}
 end
 
 function _readstack!(filenames, dst)
-    src = stack(filenames;
+    src = GeoStack(filenames;
         dims=dims(dst), refdims=refdims(dst), keys=keys(dst), metadata=metadata(dst),
         layermetadata=DD.layermetadata(dst), layermissingval=layermissingval(dst),
     )
