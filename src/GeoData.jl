@@ -40,7 +40,7 @@ export Projected, Mapped
 export Band
 export missingval, boolmask, missingmask, replace_missing,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!, 
-       resample, warp, crop, extend, trim, slice, chunk, points, subset,
+       resample, warp, crop, extend, trim, slice, points, subset,
        classify, classify!, mosaic, mosaic!, extract
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertmode

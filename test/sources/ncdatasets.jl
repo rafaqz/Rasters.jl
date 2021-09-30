@@ -146,9 +146,9 @@ stackkeys = (
             Atest[X(81:150), Y(1:89)] .= missing
             @test all(Atest .=== Afile .=== Amem)
         end
-        @testset "chunk" begin
-            @test GeoData.chunk(ncarray) isa GeoSeries
-            @test size(GeoData.chunk(ncarray)) == (1, 1, 1)
+        @testset "chunk_series" begin
+            @test GeoData.chunk_series(ncarray) isa GeoSeries
+            @test size(GeoData.chunk_series(ncarray)) == (1, 1, 1)
         end
         @testset "slice" begin
             @test_throws ArgumentError GeoData.slice(ncarray, Z)

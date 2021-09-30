@@ -403,7 +403,6 @@ listed below.
 aggregate
 aggregate!
 boolmask
-chunk
 classify 
 classify!
 convertmode

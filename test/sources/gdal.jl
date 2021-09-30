@@ -170,9 +170,9 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             Atest[X(301:500), Y(1:100)] .= 0x00
             @test all(Atest .=== Amem .=== Afile)
         end
-        @testset "chunk" begin
-            @test GeoData.chunk(gdalarray) isa GeoSeries
-            @test size(GeoData.chunk(gdalarray)) == (1, 1, 1)
+        @testset "chunk_series" begin
+            @test GeoData.chunk_series(gdalarray) isa GeoSeries
+            @test size(GeoData.chunk_series(gdalarray)) == (1, 1, 1)
         end
     end
 

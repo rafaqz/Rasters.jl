@@ -140,9 +140,9 @@ path = stem * ".gri"
             Atest[X(41:80), Y(1:24)] .= 0.0f0
             @test all(Atest .=== Amem .== Afile)
         end
-        @testset "chunk" begin
-            @test GeoData.chunk(grdarray) isa GeoSeries
-            @test size(GeoData.chunk(grdarray)) == (1, 1, 1)
+        @testset "chunk_series" begin
+            @test GeoData.chunk_series(grdarray) isa GeoSeries
+            @test size(GeoData.chunk_series(grdarray)) == (1, 1, 1)
         end
     end
 

@@ -1236,16 +1236,10 @@ function _maybereshape(st::AbstractGeoStack, acc, dim)
     map((s, a) -> _maybereshape(s, a, dim), st, acc)
 end
 
-"""
-    chunk(A::AbstractGeoArray) => GeoSeries
-
-Create a GeoSeries of arrays matching the chunks of a chunked array.
-
-This may be useful for parallel or larger than memory applications.
-
-$EXPERIMENTAL
-"""
-function chunk(A::AbstractGeoArray)
+# chunk_series(A::AbstractGeoArray) => GeoSeries
+# Create a GeoSeries of arrays matching the chunks of a chunked array.
+# This may be useful for parallel or larger than memory applications.
+function chunk_series(A::AbstractGeoArray)
     # Get the index of each chunk of A
     gc = DiskArrays.eachchunk(A)
     ci = CartesianIndices(gc.chunkgridsize)
