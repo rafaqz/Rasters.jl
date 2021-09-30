@@ -17,7 +17,7 @@ GeoSeries[Time(Near(DateTime(2001, 1))][:temp][Y(Between(70, 150)), X(Between(-2
 
 [`GeoSeries`](@ref) is the concrete implementation.
 """
-abstract type AbstractGeoSeries{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
+abstract type AbstractGeoSeries{T,N,D,A} <: AbstractDimArray{T,N,D,A} end
 
 # Interface methods ####################################################
 
@@ -79,7 +79,7 @@ end
 function GeoSeries(data::AbstractArray{<:Union{AbstractGeoStack,AbstractGeoArray}}, dims; 
     refdims=()
 )
-    GeoSeries(data, DD.formatdims(data, dims), refdims)
+    GeoSeries(data, DD.format(dims, data), refdims)
 end
 function GeoSeries(filenames::NamedTuple{K}, dims; kw...) where K
     GeoSeries(map((fns...) -> NamedTuple{K}(fns), values(filenames)...), dims; kw...) 
@@ -111,7 +111,7 @@ function GeoSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}},
             [childtype(fn; resize, kw...) for fn in filenames]
         end
     end
-    return GeoSeries(data, DD.formatdims(data, dims); refdims)
+    return GeoSeries(data, DD.format(dims, data); refdims)
 end
 function GeoSeries(dirpath::AbstractString, dims; ext=nothing, kw...)
     filepaths = filter_ext(dirpath, ext)
@@ -125,7 +125,7 @@ end
 end
 @inline function DD.rebuild(
     A::GeoSeries; 
-    data=data(A), dims=dims(A), refdims=refdims(A), name=nothing, metadata=nothing,
+    data=parent(A), dims=dims(A), refdims=refdims(A), name=nothing, metadata=nothing,
 )
     GeoSeries(data, dims, refdims)
 end
@@ -135,7 +135,7 @@ end
 # Swap in the filename/s of an object for another filename, wherever it is.
 # This is used to use already loaded metadata of one file with another
 # file that is similar or identical besides tha actual raster data.
-swap_filename(x, filename) = rebuild(x, data=swap_filename(data(x), filename))
+swap_filename(x, filename) = rebuild(x, data=swap_filename(parent(x), filename))
 swap_filename(x::NamedTuple, filenames::NamedTuple) = map(swap_filename, x, filenames)
 swap_filename(x::FileStack, filename::AbstractString) = @set x.filename = filename
 swap_filename(x::FileArray, filename::AbstractString) = @set x.filename = filename

@@ -1,9 +1,9 @@
 using GeoData, DimensionalData, Test, Statistics, Dates
-using GeoData: data
+using GeoData.LookupArrays, GeoData.Dimensions
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
-dims1 = X(LinRange(10, 100, 10)), Y(LinRange(-50, 50, 11))
+dims1 = X(10.0:10.0:100.0), Y(-50.0:10.0:50.0)
 dims2 = (dims1..., Ti([DateTime(2019)]))
 refdimz = ()
 nme = :test
@@ -37,8 +37,8 @@ st = GeoStack((ga1, ga2); name=(:ga1, :ga2))
     @test DimensionalData.layers(st) isa NamedTuple
     @test st[:ga1] == ga1
     @test st[:ga2] == ga2
-    @test data(st[:ga1]) == data1
-    @test data(st[:ga1]) isa Array{Float64,2}
+    @test parent(st[:ga1]) == data1
+    @test parent(st[:ga1]) isa Array{Float64,2}
     @test keys(st) == (:ga1, :ga2)
     @test haskey(st, :ga1)
     @test names(st) == (:ga1, :ga2)
@@ -48,7 +48,7 @@ st = GeoStack((ga1, ga2); name=(:ga1, :ga2))
 end
 
 @testset "st fields " begin
-    @test DimensionalData.layerdims(st, :ga1) == DimensionalData.formatdims(data1, dims1)
+    @test DimensionalData.layerdims(st, :ga1) == DimensionalData.format(dims1, data1)
     @test metadata(st) == NoMetadata()
     @test metadata(st, :ga1) == NoMetadata()
 end
@@ -67,7 +67,7 @@ end
     a = st[X=2:4, Y=5:6]
     @test a isa GeoStack
     @test a[:ga1] isa GeoArray
-    @test data(a[:ga1]) isa Array
+    @test parent(a[:ga1]) isa Array
     @test a[:ga1] == data1[2:4, 5:6]
     @test a[:ga2] == data2[2:4, 5:6, 1:1]
 
@@ -75,12 +75,12 @@ end
         s = st[Y=Between(-10, 10.0), Ti=At(DateTime(2019))]
         @test s isa GeoStack
         @test s[:ga1] isa GeoArray
-        @test data(s[:ga1]) isa Array
+        @test parent(s[:ga1]) isa Array
         @test s[:ga1] == data1[:, 5:7]
         @test s[:ga2] == data2[:, 5:7, 1]
-        @test dims(s[:ga2]) == (X(LinRange(10.0, 100.0, 10); mode=Sampled(Ordered(), Regular(10.0), Points())),
-                                Y(LinRange(-10.0, 10.0, 3); mode=Sampled(Ordered(), Regular(10.0), Points())))
-        @test refdims(s[:ga2]) == (Ti(DateTime(2019); mode=Sampled(Ordered(), Irregular(), Points())),)
+        @test dims(s[:ga2]) == (X(Sampled(10.0:10.0:100.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
+                                Y(Sampled(-10.0:10.0:10.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())))
+        @test refdims(s[:ga2]) == (Ti(Sampled([DateTime(2019)], ForwardOrdered(), Irregular(nothing, nothing), Points(), NoMetadata())),)
         @test ismissing(missingval(s, :ga2)) && ismissing(missingval(s[:ga2]))
     end
 
@@ -88,18 +88,18 @@ end
         sv = view(st, Y=Between(-4.0, 27.0), Ti=At(DateTime(2019)))
         @test sv isa GeoStack
         @test sv[:ga1] isa GeoArray
-        @test data(sv[:ga1]) isa SubArray
+        @test parent(sv[:ga1]) isa SubArray
         @test sv[:ga1] == data1[:, 6:8]
         @test sv[:ga2] == data2[:, 6:8, 1]
-        @test dims(sv[:ga2]) == (X(LinRange(10.0, 100.0, 10); mode=Sampled(Ordered(), Regular(10.0), Points())),
-                                 Y(LinRange(0.0, 20.0, 3); mode=Sampled(Ordered(), Regular(10.0), Points())))
-        @test refdims(sv[:ga2])[1] == (Ti(DateTime(2019); mode=Sampled(Ordered(), Irregular(), Points())),)[1]
+        @test dims(sv[:ga2]) == (X(Sampled(10.0:10:100.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
+                                 Y(Sampled(0.0:10:20.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())))
+        @test refdims(sv[:ga2])[1] == Ti(Sampled(view([DateTime(2019)], 1:1), ForwardOrdered(), Irregular((nothing, nothing)), Points(), NoMetadata()))
         # Stack of view-based GeoArrays
         v = view(st, X(2:4), Y(5:6))
         # @inferred view(st, X(2:4), Y(5:6))
         @test v isa GeoStack
         @test v[:ga1] isa GeoArray
-        @test data(v[:ga1]) isa SubArray
+        @test parent(v[:ga1]) isa SubArray
         @test v[:ga1] == view(data1, 2:4, 5:6)
         @test v[:ga2] == view(data2, 2:4, 5:6, 1:1)
     end
@@ -116,7 +116,7 @@ end
 end
 
 @testset "concatenate stacks" begin
-    dims1b = X((110, 200)), Y((-50, 50))
+    dims1b = X(110:10:200), Y(-50:10:50)
     dims2b = (dims1b..., Ti([DateTime(2019)]))
     stack_a = GeoStack((ga1=ga1, ga2=ga2))
     stack_b = GeoStack((ga1=GeoArray(data1 .+ 10, dims1b), ga2=GeoArray(data2 .+ 20, dims2b)))

@@ -1,4 +1,5 @@
 using GeoData, Test, ArchGDAL, Dates, Statistics
+using GeoData.LookupArrays, GeoData.Dimensions
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
@@ -16,7 +17,7 @@ gaMi = replace_missing(ga, missing)
     @test boolmask(ga) == [false true; true false]
     @test boolmask(ga99) == [false true; true false]
     @test boolmask(gaNaN) == [false true; true false]
-    @test dims(boolmask(ga)) == (X(Base.OneTo(2), mode=NoIndex()), Y(Base.OneTo(2), mode=NoIndex()))
+    @test dims(boolmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
 end
 
 @testset "missingmask" begin
@@ -24,7 +25,7 @@ end
     @test all(missingmask(ga) .=== [missing true; true missing])
     @test all(missingmask(ga99) .=== [missing true; true missing])
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
-    @test dims(missingmask(ga)) == (X(Base.OneTo(2), mode=NoIndex()), Y(Base.OneTo(2), mode=NoIndex()))
+    @test dims(missingmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
 end
 
 @testset "mask" begin
@@ -109,8 +110,8 @@ end
 
     span_x1 = Explicit(vcat((1.5:1.0:2.5)', (2.5:1.0:3.5)'))
     span_x2 = Explicit(vcat((2.5:1.0:3.5)', (3.5:1.0:4.5)'))
-    exp1 = GeoArray([0.1 0.2; 0.3 0.4], (X([2.0, 3.0]; mode=Sampled(span=span_x1)), Y([5.0, 6.0])))
-    exp2 = GeoArray([1.1 1.2; 1.3 1.4], (X([3.0, 4.0]; mode=Sampled(span=span_x2)), Y([6.0, 7.0])))
+    exp1 = GeoArray([0.1 0.2; 0.3 0.4], (X(Sampled([2.0, 3.0]; span=span_x1)), Y([5.0, 6.0])))
+    exp2 = GeoArray([1.1 1.2; 1.3 1.4], (X(Sampled([3.0, 4.0]; span=span_x2)), Y([6.0, 7.0])))
     @test val(span(mosaic(first, exp1, exp2), X)) == [1.5 2.5 3.5; 2.5 3.5 4.5]
     @test all(mosaic(first, reg1, reg2) .=== 
               mosaic(first, irreg1, irreg2) .===

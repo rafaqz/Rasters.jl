@@ -1,6 +1,7 @@
 using GeoData, Test, Statistics, Dates, Plots, DiskArrays, RasterDataSources
+using GeoData.LookupArrays, GeoData.Dimensions
 import ArchGDAL, NCDatasets
-using GeoData: mode, span, sampling, name, bounds, FileArray, GDALfile
+using GeoData: FileArray, GDALfile
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
@@ -56,9 +57,9 @@ gdalpath = maybedownload(url)
         @test length(dims(gdalarray, X)) == 514
         @test ndims(gdalarray) == 3
         @test dims(gdalarray) isa Tuple{<:X,<:Y,<:Band}
-        @test mode(gdalarray, Band) == DimensionalData.Categorical(Ordered())
-        @test span(gdalarray, (Y, X)) ==
-            (Regular(-60.02213698319351), Regular(60.02213698319374))
+        @test lookup(gdalarray, Band) isa DimensionalData.Categorical;
+        # @test span(gdalarray, (Y, X)) ==
+            # (Regular(-60.02213698319351), Regular(60.02213698319374))
         @test sampling(gdalarray, (Y, X)) ==
             (Intervals(Start()), Intervals(Start()))
         @test refdims(gdalarray) == ()
@@ -115,7 +116,7 @@ gdalpath = maybedownload(url)
             a[X(1:100)] .= missingval(a)
             trimmed = trim(a)
             @test size(trimmed) == (414, 514, 1)
-            cropped = crop(a; to=trimmed)
+            cropped = GeoData.crop(a; to=trimmed)
             @test size(cropped) == (414, 514, 1)
             @test all(collect(cropped .=== trimmed))
             extended = extend(cropped; to=a)
@@ -174,7 +175,6 @@ gdalpath = maybedownload(url)
             @test ag == aggregate(mean, gdalarray, (X(4), Y(4), Band(1)))
             tempfile = tempname() * ".tif"
             write(tempfile, ag)
-            GeoArray(tempfile)
             open(GeoArray(tempfile); write=true) do dst
                 aggregate!(mean, dst, gdalarray, 4)
             end
@@ -186,8 +186,8 @@ gdalpath = maybedownload(url)
             A1 = gdalarray[X(1:300), Y(1:200)]
             A2 = gdalarray[X(57:500), Y(101:301)]
             tempfile = tempname() * ".tif"
-            Afile = mosaic(first, A1, A2; missingval=0x00, atol=1e-7, filename=tempfile)
-            Amem = mosaic(first, A1, A2; missingval=0x00, atol=1e-7)
+            Afile = mosaic(first, A1, A2; missingval=0x00, atol=1e-8, filename=tempfile)
+            Amem = mosaic(first, A1, A2; missingval=0x00, atol=1e-8)
             Atest = gdalarray[X(1:500), Y(1:301)]
             Atest[X(1:56), Y(201:301)] .= 0x00
             Atest[X(301:500), Y(1:100)] .= 0x00
@@ -210,6 +210,7 @@ gdalpath = maybedownload(url)
             @test GeoData.chunk_series(gdalarray) isa GeoSeries
             @test size(GeoData.chunk_series(gdalarray)) == (1, 1, 1)
         end
+
     end
 
     @testset "conversion to GeoArray" begin
@@ -255,8 +256,8 @@ gdalpath = maybedownload(url)
             @test val(metadata(saved2))[:filepath] == filename2
             @test missingval(saved2) === missingval(geoA2)
             @test GeoData.name(saved2) == GeoData.name(geoA2)
-            @test step(mode(dims(saved2, Y))) ≈ step(mode(dims(geoA2, Y)))
-            @test step(mode(dims(saved2, X))) ≈ step(mode(dims(geoA2, X)))
+            @test step(lookup(dims(saved2, Y))) ≈ step(lookup(dims(geoA2, Y)))
+            @test step(lookup(dims(saved2, X))) ≈ step(lookup(dims(geoA2, X)))
             @test typeof(dims(saved2)) == typeof(dims(geoA2))
             @test all(val(dims(saved2, Band)) .≈ val(dims(geoA2, Band)))
             @test all(val(dims(saved2, X)) .≈ val(dims(geoA2, X)))
@@ -284,8 +285,8 @@ gdalpath = maybedownload(url)
             write("testgrd.gri", gdalarray)
             grdarray = GeoArray("testgrd.gri")
             @test crs(grdarray) == convert(ProjString, crs(gdalarray))
-            @test bounds(grdarray) == (bounds(gdalarray))
-            @test val(dims(grdarray, Y)) == reverse(val(dims(gdalarray, Y)))
+            @test all(map((a, b) -> all(a .≈ b), bounds(grdarray), bounds(gdalarray)))
+            @test index(grdarray, Y) ≈ index(gdalarray, Y)
             @test val(dims(grdarray, X)) ≈ val(dims(gdalarray, X))
             @test grdarray == gdalarray
         end
@@ -299,7 +300,7 @@ gdalpath = maybedownload(url)
             @test saved[1, end, 1] == saved[At(1.0), At(1.0), At(1.0)]
             @test saved[100, 1, 1] == saved[At(100), At(200), At(1)]
             filename2 = tempname() * ".tif"
-            ga2 = GeoArray(rand(100, 200), (X(101:200; mode=Sampled()), Y(1:200; mode=Sampled())))
+            ga2 = GeoArray(rand(100, 200), (X(Sampled(101:200)), Y(Sampled(1:200))))
             write(filename2, ga2)
             @test reverse(GeoArray(filename2)[Band(1)]; dims=Y) == ga2
         end

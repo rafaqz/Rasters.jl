@@ -1,12 +1,8 @@
 export GRDstack, GRDarray
 
-const GRD_INDEX_ORDER = ForwardIndex()
-const GRD_X_ARRAY = ForwardArray()
-const GRD_Y_ARRAY = ReverseArray()
-const GRD_BAND_ARRAY = ForwardArray()
-const GRD_X_RELATION = ForwardRelation()
-const GRD_Y_RELATION = ReverseRelation()
-const GRD_BAND_RELATION= ForwardRelation()
+const GRD_X_ORDER = ForwardOrdered()
+const GRD_Y_ORDER = ReverseOrdered()
+const GRD_BAND_ORDER = ForwardOrdered()
 
 const GRD_DATATYPE_TRANSLATION = Dict{String, DataType}(
     "LOG1S" => Bool,
@@ -50,36 +46,44 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     attrib = grd.attrib
     crs = crs isa Nothing ? ProjString(attrib["projection"]) : crs
 
-    ncols, nrows, nbands = size(grd)
+    xsize, ysize, nbands = size(grd)
 
     xbounds = parse.(Float64, (attrib["xmin"], attrib["xmax"]))
     ybounds = parse.(Float64, (attrib["ymin"], attrib["ymax"]))
 
     # Always intervals
-    xspan = (xbounds[2] - xbounds[1]) / ncols
-    yspan = (ybounds[2] - ybounds[1]) / nrows
+    xspan = (xbounds[2] - xbounds[1]) / xsize
+    yspan = (ybounds[1] - ybounds[2]) / ysize
 
     # Not fully implemented yet
     xy_metadata = Metadata{GRDfile}(Dict())
 
-    xmode = Projected(
-        order=Ordered(GRD_INDEX_ORDER, GRD_X_ARRAY, GRD_X_RELATION),
+    xindex = LinRange(xbounds[1], xbounds[2] - xspan, xsize)
+    yindex = LinRange(ybounds[2] + yspan, ybounds[1], ysize)
+
+    xlookup = Projected(xindex;
+        order=GRD_X_ORDER,
         span=Regular(xspan),
         sampling=Intervals(Start()),
+        metadata=xy_metadata,
         crs=crs,
         mappedcrs=mappedcrs,
+        dim=X()
     )
-    ymode = Projected(
-        order=Ordered(GRD_INDEX_ORDER, GRD_Y_ARRAY, GRD_Y_RELATION),
+    ylookup = Projected(yindex;
+        order=GRD_Y_ORDER,
         span=Regular(yspan),
         sampling=Intervals(Start()),
+        metadata=xy_metadata,
         crs=crs,
         mappedcrs=mappedcrs,
+        dim=Y()
     )
-    x = X(LinRange(xbounds[1], xbounds[2] - xspan, ncols), xmode, xy_metadata)
-    y = Y(LinRange(ybounds[1], ybounds[2] - yspan, nrows), ymode, xy_metadata)
-    band = Band(1:nbands; mode=Categorical(Ordered()))
-    x, y, band
+
+    x = X(xlookup)
+    y = Y(ylookup)
+    band = Band(Categorical(1:nbands; order=GRD_BAND_ORDER))
+    return x, y, band
 end
 
 DD.name(grd::GRDattrib) = Symbol(get(grd.attrib, "layername", ""))
@@ -152,15 +156,11 @@ function Base.write(filename::String, ::Type{GRDfile}, A::AbstractGeoArray)
     A = maybe_typemin_as_missingval(filename, A)
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
-            a -> reorder(a, GRD_INDEX_ORDER) |>
-            a -> reorder(a, (X(GRD_X_RELATION), Y(GRD_Y_RELATION), Band(GRD_BAND_RELATION)))
-        checkarrayorder(correctedA, (GRD_X_ARRAY, GRD_Y_ARRAY, GRD_BAND_ARRAY))
+            a -> reorder(a, (X(GRD_X_ORDER), Y(GRD_Y_ORDER), Band(GRD_BAND_ORDER)))
         nbands = length(val(dims(correctedA, Band)))
     else
         correctedA = permutedims(A, (X, Y)) |>
-            a -> reorder(a, GRD_INDEX_ORDER) |>
-            a -> reorder(a, (X(GRD_X_RELATION), Y(GRD_Y_RELATION)))
-            checkarrayorder(correctedA, (GRD_X_ARRAY, GRD_Y_ARRAY))
+            a -> reorder(a, (X(GRD_X_ORDER), Y(GRD_Y_ORDER)))
         nbands = 1
     end
     # Remove extension
@@ -181,7 +181,7 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
     filename = splitext(filename)[1]
 
     x, y = map(DD.dims(dims, (X(), Y()))) do d
-        convertmode(Projected, d)
+        convertlookup(Projected, d)
     end
 
     nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band)) : 1

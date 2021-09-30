@@ -1,4 +1,5 @@
 using GeoData, Test, Dates, Statistics
+using GeoData.LookupArrays, GeoData.Dimensions
 using GeoData: upsample, downsample
 
 @testset "upsample" begin
@@ -25,8 +26,8 @@ data1 = [ 1  2  3  4  5  6 -1
 data2 = 2 * data1
 data3 = 3 * data1
 data4 = 4 * data1
-dimz = X([30., 40., 50.]; mode=Sampled(Ordered(), Regular(10.0), Points())), 
-       Y(LinRange(-10., 20., 7); mode=Sampled(Ordered(), Regular(5.0), Points()))
+dimz = X(Sampled([30., 40., 50.]; order=ForwardOrdered(), span=Regular(10.0), sampling=Points())), 
+       Y(Sampled(LinRange(-10., 20., 7); order=ForwardOrdered(), span=Regular(5.0), sampling=Points()))
 array1 = GeoArray(data1, dimz)
 array2 = GeoArray(data2, dimz)
 array1a = GeoArray(data3, dimz)
@@ -38,29 +39,28 @@ series = GeoSeries([stack1, stack2], (Ti(dates),));
 
 
 @testset "Aggregate a dimension" begin
-    lat = Y(LinRange(3, 13, 6); 
-              mode=Sampled(Ordered(), Regular(2.0), Intervals(Start())))
+    lat = Y(Sampled(LinRange(3, 13, 6), ForwardOrdered(), Regular(2.0), Intervals(Start()), NoMetadata()))
     aglat = aggregate(Start(), lat, 3)
-    @test span(mode(aglat)) == Regular(6.0)
+    @test span(lookup(aglat)) == Regular(6.0)
     @test disaggregate(Start(), aglat, 3) == lat
 
     aglon = aggregate(Start(), dimz[1], 3)
-    @test step(mode(aglon)) === 30.0
+    @test step(lookup(aglon)) === 30.0
     @test val(aglon) == [30.0]
     disaglon = disaggregate(Start(), aglon, 3)
-    @test val(disaglon) == val(dimz[1])
-    @test step(disaglon) == step(dimz[1])
-    @test mode(disaglon) == mode(dimz[1])
+    @test index(disaglon) == index(dimz[1])
+    @test span(disaglon) == span(dimz[1])
+    @test sampling(disaglon) == sampling(dimz[1])
 
     aglat = aggregate(Start(), dimz[2], 3)
-    @test step(mode(aglat)) === 15.0
-    @test val(aglat) == LinRange(-10.0, 5.0, 2)
+    @test step(lookup(aglat)) === 15.0
+    @test index(aglat) == LinRange(-10.0, 5.0, 2)
     disaglat = disaggregate(Start(), aglat, 3)
     # The last item is lost due to rounding in `aggregate`
-    @test val(disaglat) != val(dimz[2])
-    @test val(disaglat) === LinRange(-10.0, 15.0, 6)
-    @test step(disaglat) == step(dimz[2])
-    @test mode(disaglat) == mode(dimz[2])
+    @test index(disaglat) != index(dimz[2])
+    @test index(disaglat) === LinRange(-10.0, 15.0, 6)
+    @test span(disaglat) == span(dimz[2])
+    @test sampling(disaglat) == sampling(dimz[2])
 end
 
 @testset "aggregate a single dim" begin
@@ -178,7 +178,7 @@ end
     @test all(aggregate!(sum, dst, src, 3) .=== [72.0 -9999.0])
 end
 
-@testset "Aggregate different index modes" begin
+@testset "Aggregate different index lookups" begin
     dimz = Band(1:3), Dim{:category}([:a, :b, :c]), X([10, 20, 30, 40])
     a1 = [1 2 3; 4 5 6; 7 8 9]
     A = cat(a1, a1 .+ 10, a1 .+ 20, a1 .+ 30, dims=3)

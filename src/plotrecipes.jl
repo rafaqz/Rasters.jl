@@ -58,8 +58,7 @@ end
     :foreground_color_border --> RGB(0.3)
     :seriescolor --> :curl
 
-    # Often Mapped mode/netcdf has wide pixels
-    if all(d -> mode(d) isa Mapped, (x, y))
+    if all(d -> lookup(d) isa Mapped, (x, y))
         :xlims --> mappedbounds(x)
         :ylims --> mappedbounds(y)
         :aspect_ratio --> :equal
@@ -194,9 +193,8 @@ end
 _prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
 # Convert arrays to a consistent missing value and Forward array order
 function _prepare(A::AbstractGeoArray)
-    reorder(A, ForwardIndex) |>
-    a -> reorder(a, ForwardRelation) |>
-    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(a))) |>
+    reorder(A, DD.ForwardOrdered) |>
+    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A))) |>
     a -> replace_missing(a, missing)
 end
 
@@ -225,11 +223,11 @@ _maybe_shift(::Intervals, d) = DD.maybeshiftlocus(Center(), d)
 _maybe_shift(sampling, d) = d
 
 _maybe_mapped(dims::Tuple) = map(_maybe_mapped, dims)
-_maybe_mapped(dim::Dimension) = _maybe_mapped(mode(dim), dim)
-_maybe_mapped(mode::IndexMode, dim::Dimension) = dim
-_maybe_mapped(mode::Projected, dim::Dimension) = _maybe_mapped(mappedcrs(mode), dim)
+_maybe_mapped(dim::Dimension) = _maybe_mapped(lookup(dim), dim)
+_maybe_mapped(lookup::LookupArray, dim::Dimension) = dim
+_maybe_mapped(lookup::Projected, dim::Dimension) = _maybe_mapped(mappedcrs(lookup), dim)
 _maybe_mapped(::Nothing, dim::Dimension) = dim
-_maybe_mapped(::GeoFormat, dim::Dimension) = convertmode(Mapped, dim)
+_maybe_mapped(::GeoFormat, dim::Dimension) = convertlookup(Mapped, dim)
 
 # We don't show the Band label for a single-band raster,
 # it's just not interesting information.
@@ -237,7 +235,7 @@ function DD.refdims_title(refdim::Band; issingle=false)
     if issingle
         ""
     else
-        string(name(refdim), ": ", DD.refdims_title(mode(refdim), refdim))
+        string(name(refdim), ": ", DD.refdims_title(lookup(refdim), refdim))
     end
 end
 

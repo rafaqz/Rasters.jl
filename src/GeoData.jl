@@ -29,11 +29,17 @@ import Adapt,
 
 Reexport.@reexport using DimensionalData, GeoFormatTypes, RasterDataSources
 
-using DimensionalData.Tables
+using DimensionalData.Tables,
+      DimensionalData.LookupArrays,
+      DimensionalData.Dimensions
+
+using DimensionalData: Name, NoName
+using .Dimensions: StandardIndices, DimTuple
+using .LookupArrays: LookupArrayTuple 
 
 using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
-using DimensionalData: StandardIndices, DimTuple
+
 using Setfield: @set, @set!
 using ColorTypes: RGB
 
@@ -47,13 +53,14 @@ export missingval, boolmask, missingmask, replace_missing,
        resample, warp, crop, extend, trim, slice, points, subset, inpolygon,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
-export reproject, convertmode
+export reproject, convertlookup
 export geoarray, stack, series
 
 
 const DD = DimensionalData
 const DA = DiskArrays
 const GI = GeoInterface
+const LA = LookupArrays
 
 # DimensionalData documentation urls
 const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api"
@@ -76,7 +83,7 @@ struct GRDfile end
 struct GDALfile end
 struct SMAPfile end
 
-include("mode.jl")
+include("lookup.jl")
 include("dimensions.jl")
 include("filearray.jl")
 include("array.jl")

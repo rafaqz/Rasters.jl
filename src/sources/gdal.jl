@@ -2,13 +2,10 @@ export GDALstack, GDALarray
 
 const AG = ArchGDAL
 
-const GDAL_X_INDEX = ForwardIndex()
-const GDAL_Y_INDEX = ReverseIndex()
-const GDAL_BAND_INDEX = ForwardIndex()
-const GDAL_X_ARRAY = ForwardArray()
-const GDAL_Y_ARRAY = ReverseArray()
-const GDAL_BAND_ARRAY = ForwardArray()
-const GDAL_RELATION = ForwardRelation()
+const GDAL_X_ORDER = ForwardOrdered()
+const GDAL_Y_ORDER = ReverseOrdered()
+const GDAL_BAND_ORDER = ForwardOrdered()
+
 const GDAL_X_LOCUS = Start()
 const GDAL_Y_LOCUS = Start()
 
@@ -56,11 +53,7 @@ function Base.write(
 
     correctedA = _maybe_permute_to_gdal(A) |>
         a -> noindex_to_sampled(a) |>
-        a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX))) |>
-        a -> reorder(a, GDAL_RELATION)
-    checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY))
-    checkindexorder(correctedA, (GDAL_X_INDEX, GDAL_Y_INDEX))
-
+        a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER)))
     nbands = 1 
     _gdalwrite(filename, correctedA, nbands; kw...)
 end
@@ -72,10 +65,7 @@ function Base.write(
 
     correctedA = _maybe_permute_to_gdal(A) |>
         a -> noindex_to_sampled(a) |>
-        a -> reorder(a, (X(GDAL_X_INDEX), Y(GDAL_Y_INDEX), Band(GDAL_BAND_INDEX))) |>
-        a -> reorder(a, GDAL_RELATION)
-    checkarrayorder(correctedA, (GDAL_X_ARRAY, GDAL_Y_ARRAY, GDAL_BAND_ARRAY))
-    checkindexorder(correctedA, (GDAL_X_INDEX, GDAL_Y_INDEX, GDAL_BAND_INDEX))
+        a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER), Band(GDAL_BAND_ORDER)))
 
     nbands = size(correctedA, Band())
     _gdalwrite(filename, correctedA, nbands; kw...)
@@ -89,10 +79,10 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
         throw(ArgumentError("GDAL cant write more than one layer per file, but keys $keys have $(length(keys))"))
     end
     x, y = map(DD.dims(dims, (XDim, YDim))) do d
-        mode(d) isa NoIndex ? set(d, Sampled) : d
+        lookup(d) isa NoLookup ? set(d, Sampled) : d
     end
-    x = reorder(x, typeof(GDAL_X_INDEX))
-    y = reorder(y, typeof(GDAL_Y_INDEX))
+    x = reorder(x, GDAL_X_ORDER)
+    y = reorder(y, GDAL_Y_ORDER)
 
     nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band)) : 1
     kw = (width=length(x), height=length(y), nbands=nbands, dtype=T)
@@ -130,7 +120,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     xsize, ysize = size(raster)
 
     nbands = AG.nraster(raster)
-    band = Band(1:nbands, mode=Categorical(Ordered()))
+    band = Band(Categorical(1:nbands; order=GDAL_BAND_ORDER))
     crs = crs isa Nothing ? GeoData.crs(raster) : crs
     xy_metadata = Metadata{GDALfile}()
 
@@ -141,11 +131,15 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
         xmin = gt[GDAL_TOPLEFT_X]
         xmax = gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
         xindex = LinRange(xmin, xmax, xsize)
+        xindex_s = xmin:xstep:xmin
+        # @assert length(xindex) == length(xindex_s)
 
         ystep = gt[GDAL_NS_RES] # A negative number
         ymax = gt[GDAL_TOPLEFT_Y] + ystep
         ymin = gt[GDAL_TOPLEFT_Y] + ystep * ysize
         yindex = LinRange(ymax, ymin, ysize)
+        yindex_s = ymax:ystep:ymin
+        # @assert length(yindex) == length(yindex_s)
 
         # Spatial data defaults to area/inteval
         xsampling, ysampling = if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
@@ -155,40 +149,32 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
             Intervals(GDAL_X_LOCUS), Intervals(GDAL_Y_LOCUS)
         end
 
-        # xindorder, xarrayorder = if xmin <= xmax 
-        #     ForwardIndex(), ForwardArray() 
-        # else
-        #     ReverseIndex(), ReverseArray()
-        # end
-        # yindorder, yarrayorder = if ymin <= ymax
-        #     ForwardIndex(), ForwardArray()
-        # else
-        #     ReverseIndex(), ReverseArray()
-        # end
-        xmode = Projected(
-            order=Ordered(GDAL_X_INDEX, GDAL_X_ARRAY, GDAL_RELATION),
+        xlookup = Projected(xindex;
+            order=GDAL_X_ORDER,
             span=Regular(step(xindex)),
             sampling=xsampling,
+            metadata=xy_metadata,
             crs=crs,
             mappedcrs=mappedcrs,
         )
-        ymode = Projected(
-            order=Ordered(GDAL_Y_INDEX, GDAL_Y_ARRAY, GDAL_RELATION),
+        ylookup = Projected(yindex;
+            order=GDAL_Y_ORDER,
             sampling=ysampling,
             # Use the range step as is will be different to ystep due to float error
             span=Regular(step(yindex)),
+            metadata=xy_metadata,
             crs=crs,
-            mappedcrs=mappedcrs,
+            mappedcrs=mappedcrs, 
         )
-        x = X(xindex; mode=xmode, metadata=xy_metadata)
-        y = Y(yindex; mode=ymode, metadata=xy_metadata)
+        x = X(xlookup)
+        y = Y(ylookup)
 
-        DimensionalData._formatdims(map(Base.OneTo, (xsize, ysize, nbands)), (x, y, band))
+        DimensionalData.format((x, y, band), map(Base.OneTo, (xsize, ysize, nbands)))
     else
         error("Rotated/transformed dimensions are not handled yet. Open a github issue for GeoData.jl if you need this.")
         # affinemap = geotransform2affine(geotransform)
-        # x = X(affinemap; mode=TransformedIndex(dims=X()))
-        # y = Y(affinemap; mode=TransformedIndex(dims=Y()))
+        # x = X(affinemap; lookup=TransformedIndex(dims=X()))
+        # y = Y(affinemap; lookup=TransformedIndex(dims=Y()))
 
         # formatdims((xsize, ysize, nbands), (x, y, band))
     end
@@ -265,9 +251,9 @@ function _gdalwrite(filename, A::AbstractGeoArray, nbands;
             ["TILED=YES", "BLOCKXSIZE=$block_x", "BLOCKYSIZE=$block_y"]
         end
         options = ["COMPRESS=$compress", tileoptions...]
-        AG.create(filename; driver=gdaldriver, options=options, kw...) do ds
-            _gdalsetproperties!(ds, A)
-            rds = AG.RasterDataset(ds)
+        AG.create(filename; driver=gdaldriver, options=options, kw...) do dataset
+            _gdalsetproperties!(dataset, A)
+            rds = AG.RasterDataset(dataset)
             open(A; write=true) do O
                 rds .= parent(O)
             end
@@ -275,13 +261,13 @@ function _gdalwrite(filename, A::AbstractGeoArray, nbands;
     else
         # Create a memory object and copy it to disk, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
-        ArchGDAL.create(""; driver=AG.getdriver("MEM"), kw...) do ds
-            _gdalsetproperties!(ds, A)
-            rds = AG.RasterDataset(ds)
+        ArchGDAL.create(""; driver=AG.getdriver("MEM"), kw...) do dataset
+            _gdalsetproperties!(dataset, A)
+            rds = AG.RasterDataset(dataset)
             open(A; write=true) do O
                 rds .= parent(O)
             end
-            AG.copy(ds; filename=filename, driver=gdaldriver) |> AG.destroy
+            AG.copy(dataset; filename=filename, driver=gdaldriver) |> AG.destroy
         end
     end
     return filename
@@ -305,8 +291,8 @@ function _gdalsetproperties!(dataset, dims, missingval)
     # This allows saving NetCDF to Tiff
     # Set the index loci to the start of the cell for the lat and lon dimensions.
     # NetCDF or other formats use the center of the interval, so they need conversion.
-    x = DD.maybeshiftlocus(GDAL_X_LOCUS, convertmode(Projected, DD.dims(dims, X)))
-    y = DD.maybeshiftlocus(GDAL_Y_LOCUS, convertmode(Projected, DD.dims(dims, Y)))
+    x = DD.maybeshiftlocus(GDAL_X_LOCUS, convertlookup(Projected, DD.dims(dims, X)))
+    y = DD.maybeshiftlocus(GDAL_Y_LOCUS, convertlookup(Projected, DD.dims(dims, Y)))
     # Convert crs to WKT if it exists
     if !(crs(x) isa Nothing)
         AG.setproj!(dataset, convert(String, convert(WellKnownText, crs(x))))
@@ -355,7 +341,7 @@ function AG.Dataset(f::Function, A::AbstractGeoArray)
     all(hasdim(A, (XDim, YDim))) || throw(ArgumentError("`AbstractGeoArray` must have both an `XDim` and `YDim` to use be converted to an ArchGDAL `Dataset`"))
     if ndims(A) === 3
         thirddim = otherdims(A, (X, Y))[1]
-        thirddim isa Band || throw(ArgumentError("ArchGDAL can't handle $(DD.basetypeof(thirddim)) dims - only XDim, YDim, and Band"))
+        thirddim isa Band || throw(ArgumentError("ArchGDAL can't handle $(basetypeof(thirddim)) dims - only XDim, YDim, and Band"))
     elseif ndims(A) > 3
         throw(ArgumentError("ArchGDAL can only accept 2 or 3 dimensional arrays"))
     end
@@ -431,7 +417,7 @@ _isalligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_RO
     # AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]],
               # [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
 
-function _dims2geotransform(x::X, y::Y)
+function _dims2geotransform(x::XDim, y::YDim)
     gt = zeros(6)
     gt[GDAL_TOPLEFT_X] = first(x)
     gt[GDAL_WE_RES] = step(x)

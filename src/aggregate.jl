@@ -78,18 +78,22 @@ function aggregate(method, src::AbstractGeoArray, scale; kw...)
     dst = alloc_ag(method, src, scale)
     aggregate!(method, dst, src, scale; kw...)
 end
-function aggregate(method, dim::Dimension, scale)
-    intscale = _scale2int(Ag(), dim, scale)
-    intscale == 1 && return dim
-    start, stop = _endpoints(dim, method, intscale)
-    return rebuild(dim, val(dim)[start:scale:stop], aggregate(method, mode(dim), intscale))
-end
-aggregate(method, mode::IndexMode, scale) = mode
-function aggregate(method, mode::AbstractSampled, scale)
-    rebuild(mode; span=aggregate(method, span(mode), scale))
+aggregate(method, d::Dimension, scale) = rebuild(d, aggregate(method, lookup(d), scale))
+function aggregate(method, lookup::LookupArray, scale)
+    intscale = _scale2int(Ag(), lookup, scale)
+    intscale == 1 && return lookup
+    start, stop = _endpoints(method, lookup, intscale)
+    newlookup = lookup[start:scale:stop]
+    if lookup isa AbstractSampled
+        sp = aggregate(method, span(lookup), scale)
+        return rebuild(newlookup; span=sp)
+    else
+        return newlookup
+    end
 end
 aggregate(method, span::Span, scale) = span
 aggregate(method, span::Regular, scale) = Regular(val(span) * scale)
+
 
 """
     aggregate!(method, dst::AbstractGeoArray, src::AbstractGeoArray, scale; skipmissingval=false)
@@ -210,18 +214,25 @@ function disaggregate(method, src::AbstractGeoArray, scale)
     disaggregate!(method, alloc_disag(method, src, scale), src, scale)
 end
 function disaggregate(locus::Locus, dim::Dimension, scale)
-    intscale = _scale2int(DisAg(), dim, scale)
-    intscale == 1 && return dim
-    len = length(dim) * intscale
-    step_ = step(mode(dim)) / intscale
-    start = dim[1] - _agoffset(locus, intscale) * step_
+    rebuild(dim, disaggregate(locus, lookup(dim), scale))
+end
+function disaggregate(locus, lookup::LookupArray, scale)
+    intscale = _scale2int(DisAg(), lookup, scale)
+    intscale == 1 && return lookup
+
+    len = length(lookup) * intscale
+    step_ = step(lookup) / intscale
+    start = lookup[1] - _agoffset(locus, intscale) * step_
     stop = start + (len - 1)  * step_
     index = LinRange(start, stop, len)
-    return rebuild(dim, index, disaggregate(locus, mode(dim), intscale))
+    if lookup isa AbstractSampled
+        sp = disaggregate(locus, span(lookup), intscale)
+        return rebuild(lookup; data=index, span=sp)
+    else
+        return rebuild(lookup; data=index)
+    end
 end
-disaggregate(method, mode::IndexMode, scale) = mode
-disaggregate(method, mode::AbstractSampled, scale) =
-    rebuild(mode; span=disaggregate(method, span(mode), scale))
+
 disaggregate(method, span::Span, scale) = span
 disaggregate(method, span::Regular, scale) = Regular(val(span) / scale)
 
@@ -310,21 +321,24 @@ downsample(index::Int, scale::Int) = (index - 1) ÷ scale + 1
 downsample(index::Int, scale::Colon) = index
 
 # Convert scale or tuple of scale to integer using dims2indices
-_scale2int(x, dims::DimTuple, scale::Tuple) = map((d, s) -> _scale2int(x, d, s), dims, DD.dims2indices(dims, scale))
+function _scale2int(x, dims::DimTuple, scale::Tuple)
+    map((d, s) -> _scale2int(x, d, s), dims, DD.dims2indices(dims, scale))
+end
 _scale2int(x, dims::DimTuple, scale::Int) = map(d -> _scale2int(x, d, scale), dims)
 _scale2int(x, dims::DimTuple, scale::Colon) = map(d -> _scale2int(x, d, scale), dims)
-_scale2int(::Ag, dim::Dimension, scale::Int) = scale > length(dim) ? length(dim) : scale
-_scale2int(::DisAg, dim::Dimension, scale::Int) = scale
+_scale2int(x, dim::Dimension, scale::Int) = _scale2int(x, lookup(dim), scale)
+_scale2int(::Ag, l::LookupArray, scale::Int) = scale > length(l) ? length(l) : scale
+_scale2int(::DisAg, l::LookupArray, scale::Int) = scale
 _scale2int(x, dim::Dimension, scale::Colon) = 1
 
-_agoffset(locus::Locus, dim::Dimension, scale) = _agoffset(locus, scale)
-_agoffset(method, dim::Dimension, scale) = _agoffset(locus(dim), scale)
+_agoffset(locus::Locus, l::LookupArray, scale) = _agoffset(locus, scale)
+_agoffset(method, l::LookupArray, scale) = _agoffset(locus(l), scale)
 _agoffset(locus::Start, scale) = 0
 _agoffset(locus::End, scale) = scale - 1
 _agoffset(locus::Center, scale) = scale ÷ 2
 
-function _endpoints(dim, method, scale)
-    start = firstindex(dim) + _agoffset(method, dim, scale)
-    stop = (length(dim) ÷ scale) * scale
+function _endpoints(method, l::LookupArray, scale)
+    start = firstindex(l) + _agoffset(method, l, scale)
+    stop = (length(l) ÷ scale) * scale
     return start, stop
 end

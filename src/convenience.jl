@@ -20,7 +20,7 @@ function _open(f, filename::AbstractString; kw...)
     _open(f, _sourcetype(filename), filename; kw...)
 end
 
-function create(filename::AbstractString, T, dims; kw...)
+function create(filename::AbstractString, T::Type, dims::Tuple; kw...)
     create(filename, _sourcetype(filename), T, dims; kw...)
 end
 

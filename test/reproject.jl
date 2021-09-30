@@ -1,5 +1,6 @@
 using GeoData, Test, ArchGDAL
-using GeoData: reproject, convertmode
+using GeoData.LookupArrays, GeoData.Dimensions
+using GeoData: reproject, convertlookup
 
 @testset "reproject" begin
     cea = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
@@ -19,20 +20,20 @@ using GeoData: reproject, convertmode
     @test reproject(cea, proj4326, X(), [1.7367530445161372e7]) ≈ [180.0]
 end
 
-@testset "convertmode" begin
+@testset "convertlookup" begin
     projcea = ProjString("+proj=cea")
     proj4326 = convert(ProjString, EPSG(4326))
 
     lonstart, lonend = 0.5, 179.5
     cealonstart, cealonend = reproject(proj4326, projcea, X(), [lonstart, lonend])
     cealonrange = LinRange(cealonstart, cealonend, 180)
-    lon = X(cealonrange; mode=Projected(Ordered(), Regular(step(cealonrange)), 
-              Intervals(Center()), projcea, proj4326))
-    convertedlon = convertmode(Mapped, lon)
+    lon = X(Projected(cealonrange, ForwardOrdered(), Regular(step(cealonrange)), 
+                      Intervals(Center()), NoMetadata(), projcea, proj4326, X()))
+    convertedlon = convertlookup(Mapped, lon)
     @test all(isapprox.(bounds(convertedlon), (0.0, 180.0); atol=1e-10))
     @test val(convertedlon) ≈ 0.5:179.5
 
-    projectedlon = convertmode(Projected, convertedlon)
+    projectedlon = convertlookup(Projected, convertedlon)
     @test val(projectedlon) ≈ val(lon)
     @test all(isapprox.(bounds(projectedlon), bounds(lon); atol=1e-10))
 
@@ -41,19 +42,19 @@ end
     ceabounds = reproject(proj4326, projcea, Y(), latbounds)
     # Vals are the bounding range without the end bound
     cealatrange = LinRange(ceabounds..., 181)[1:180]
-    lat = Y(cealatrange; mode=Projected(Ordered(), Regular(step(cealatrange)), 
-              Intervals(Start()), projcea, proj4326))
-    convertedlat = convertmode(Mapped, lat)
+    lat = Y(Projected(cealatrange, ForwardOrdered(), Regular(step(cealatrange)), 
+                      Intervals(Start()), NoMetadata(), projcea, proj4326, Y()))
+    convertedlat = convertlookup(Mapped, lat)
     @test first(convertedlat) ≈ -90.0 atol=1e-5
     @test all(isapprox.(bounds(convertedlat), (-90.0, 90.0); atol=1e-5))
     @test val(lat) ≈ reproject(proj4326, projcea, Y(), val(convertedlat))
 
-    projectedlat = convertmode(Projected, convertedlat)
+    projectedlat = convertlookup(Projected, convertedlat)
     @test val(projectedlat) ≈ val(lat)
     @test all(bounds(projectedlat) .≈ bounds(lat))
 
     A = DimArray(zeros(length(lon), length(lat)), (lon, lat))
-    Aconv = convertmode(Mapped, A)
+    Aconv = convertlookup(Mapped, A)
 
     @test index(Aconv) == (index(convertedlon), index(convertedlat))
     @test val.(span(Aconv)) == val.(span.((convertedlon, convertedlat)))

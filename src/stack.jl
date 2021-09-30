@@ -27,7 +27,7 @@ getindex applied to all the arrays in the stack.
 abstract type AbstractGeoStack{L} <: AbstractDimStack{L} end
 
 layermissingval(stack::AbstractGeoStack) = stack.layermissingval
-filename(stack::AbstractGeoStack) = filename(data(stack))
+filename(stack::AbstractGeoStack) = filename(parent(stack))
 missingval(s::AbstractGeoStack, key::Symbol) = _singlemissingval(layermissingval(s), key)
 
 isdisk(A::AbstractGeoStack) = isdisk(first(A))
@@ -66,7 +66,7 @@ function DD.rebuild(
     DD.basetypeof(s)(data, dims, refdims, layerdims, metadata, layermetadata, layermissingval)
 end
 function DD.rebuild(s::AbstractGeoStack;
-    data=data(s), dims=dims(s), refdims=refdims(s), layerdims=DD.layerdims(s),
+    data=parent(s), dims=dims(s), refdims=refdims(s), layerdims=DD.layerdims(s),
     metadata=metadata(s), layermetadata=DD.layermetadata(s),
     layermissingval=layermissingval(s),
 )
@@ -97,7 +97,7 @@ Base.copy(stack::AbstractGeoStack) = map(copy, stack)
 # Different to DimensionalData as we construct a GeoArray
 Base.getindex(s::AbstractGeoStack, key::AbstractString) = s[Symbol(key)]
 function Base.getindex(s::AbstractGeoStack, key::Symbol)
-    data_ = data(s)[key]
+    data_ = parent(s)[key]
     dims_ = dims(s, DD.layerdims(s, key))
     metadata = DD.layermetadata(s, key)
     GeoArray(data_, dims_, refdims(s), key, metadata, missingval(s, key))

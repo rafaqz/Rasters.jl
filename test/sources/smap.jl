@@ -1,6 +1,7 @@
 using GeoData, Test, Statistics, Dates, Plots
+using GeoData.LookupArrays, GeoData.Dimensions
 import ArchGDAL, NCDatasets, HDF5, CFTime
-using GeoData: Time, name, layerkeys, SMAPfile, bounds
+using GeoData: layerkeys, SMAPfile
 
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
@@ -62,13 +63,8 @@ if isfile(path1) && isfile(path2)
             end
             @test dims(smaparray) isa Tuple{<:X,<:Y}
             @test refdims(smaparray) == ()
-            # TODO detect the time span, and make it Regular
-            modes = (
-                Mapped(Ordered(), Irregular((-180.0f0, 180.0f0)), Intervals(Center()), GeoData.SMAPCRS, EPSG(4326)),
-                Mapped(Ordered(ReverseIndex(), ReverseArray(), ForwardRelation()), Irregular((-85.04456f0, 85.04456f0)), Intervals(Center()), GeoData.SMAPCRS, EPSG(4326)),
-            )
-            @test val.(span(smaparray)) == val.(span.(modes))
-            @test typeof(mode(smaparray)) == typeof(modes)
+            @test sampling(smaparray) == (Intervals(Center()), Intervals(Center()))
+            @test span(smaparray) == (Irregular((-180.0f0, 180.0f0)), Irregular((-85.04456f0, 85.04456f0)))
             @test bounds(smaparray) == ((-180.0f0, 180.0f0), (-85.04456f0, 85.04456f0))
         end
 
@@ -91,8 +87,6 @@ if isfile(path1) && isfile(path2)
 
         @testset "selectors" begin
             a = smaparray[X(Near(21.0)), Y(Between(50, 52))]
-            index(smaparray, Y)
-            indexorder(smaparray, Y)
             @test bounds(a) == ((50.08451f0, 51.977905f0),)
             x = smaparray[X(Near(150)), Y(Near(30))]
             @test x isa Float32
@@ -145,14 +139,14 @@ if isfile(path1) && isfile(path2)
                     all(s .== g)
                 end |> all
                 @test GeoData.name(saved) == GeoData.name(geoA)
-                @test all(mode.(dims(saved)) .!= mode.(dims(geoA)))
+                @test all(lookup.(dims(saved)) .!= lookup.(dims(geoA)))
                 @test all(
                           mappedbounds(saved)[1]
                           .≈ 
                           bounds(geoA)[1])
                 @test all(mappedbounds(saved)[2] .≈ mappedbounds(geoA)[2])
                 bounds(saved)
-                @test all(data(saved) .=== data(geoA))
+                @test all(parent(saved) .=== parent(geoA))
             end
             @testset "to gdal" begin
                 gdalfilename = tempname() * ".tif"
@@ -171,7 +165,7 @@ if isfile(path1) && isfile(path2)
             @testset "to netcdf" begin
                 ncdfilename = tempname() * ".nc"
                 @time write(ncdfilename, smaparray)
-                reorder(smaparray, ForwardIndex()) |> a -> reorder(a, ForwardRelation())
+                reorder(smaparray, ForwardOrdered())
                 saved = GeoArray(ncdfilename)
                 @test_broken bounds(saved) == bounds(smaparray)
                 @test index(saved, Y) == index(smaparray, Y)
@@ -213,7 +207,7 @@ if isfile(path1) && isfile(path2)
         @testset "conversion to GeoArray" begin
             smaparray = smapstack[:soil_temp_layer1];
             @test smaparray isa GeoArray{Float32,2}
-            @test dims(smaparray) isa Tuple{<:X{<:Array{Float32,1}}, <:Y{<:Array{Float32,1}}}
+            @test dims(smaparray) isa Tuple{<:X{<:Mapped{Float32}}, <:Y{<:Mapped{Float32}}}
             @test span(smaparray) isa Tuple{Irregular{Tuple{Float32,Float32}},Irregular{Tuple{Float32,Float32}}}
             @test span(smaparray) == (Irregular((-180.0f0, 180.0f0)), Irregular((-85.04456f0, 85.04456f0)))
             @test bounds(smaparray) == ((-180.0f0, 180.0f0), (-85.04456f0, 85.04456f0))
@@ -264,9 +258,9 @@ if isfile(path1) && isfile(path2)
         @time modified_series = modify(Array, ser)
         stackkeys = keys(modified_series[1])
         @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{stackkeys,<:Tuple{<:Array{Float32,2,},Vararg}}}}
-
         @testset "read" begin
             # FIXME: uses too much memory
+            # Seems to be a HDF5.jl memory leak?
             # @time geoseries = read(ser)
             # @test geoseries isa GeoSeries{<:GeoStack}
             # @test geoseries.data isa Vector{<:GeoStack}
