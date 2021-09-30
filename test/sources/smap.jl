@@ -115,9 +115,9 @@ if isfile(path1) && isfile(path2)
                 extended = extend(cropped; to=a)
                 @test all(collect(extended .=== a))
             end
-            @testset "chunk" begin
-                @test GeoData.chunk(smaparray) isa GeoSeries
-                @test size(GeoData.chunk(smaparray)) == (1, 1)
+            @testset "chunk_series" begin
+                @test GeoData.chunk_series(smaparray) isa GeoSeries
+                @test size(GeoData.chunk_series(smaparray)) == (1, 1)
             end
             @testset "slice" begin
                 ser = GeoData.slice(smaparray, X) 
