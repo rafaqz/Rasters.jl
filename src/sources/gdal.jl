@@ -244,7 +244,7 @@ end
 # Utils ########################################################################
 
 function _open(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...)
-    flags = write ? (; flags=AG.OF_Update) : () 
+    flags = write ? (; flags=AG.OF_UPDATE) : () 
     AG.readraster(cleanreturn ∘ f, filename; flags...)
 end
 

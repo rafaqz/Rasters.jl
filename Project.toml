@@ -28,7 +28,7 @@ Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 
 [compat]
 Adapt = "2, 3.0"
-ArchGDAL = "0.6"
+ArchGDAL = "0.7"
 ColorTypes = "0.10, 0.11"
 ConstructionBase = "1"
 DimensionalData = "0.18.0"
