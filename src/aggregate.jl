@@ -42,6 +42,7 @@ ag = aggregate(Center(), st, (Y(20), X(20)); skipmissingval=true, progress=false
 plot(ag)
 savefig("build/aggregate_example.png") 
 # output
+
 ```
 
 ![aggregate](aggregate_example.png)

@@ -31,19 +31,26 @@ function replace_missing(A::AbstractGeoArray{T}, missingval::MV=missing) where {
     else
         replace(parent(A), GeoData.missingval(A) => missingval)
     end
-    rebuild(A; data=newdata, missingval=missingval)
+    return rebuild(A; data=newdata, missingval=missingval)
 end
 replace_missing(x::GeoSeriesOrStack, args...) = map(A -> replace_missing(A, args...), x)
 
 """
     boolmask(A::AbstractArray, [missingval])
+    boolmask(T, A::AbstractArray, [missingval])
 
 Create a mask array of `Bool` values, from any `AbstractArray`.
-For [`AbstractGeoArray`](@ref) the default `missingval` is `missingval(A)`,
-for all other `AbstractArray`s it is `missing`.
+
 
 The array returned from calling `boolmask` on a `AbstractGeoArray` is a
 [`GeoArray`](@ref) with the same size and fields as the original array.
+
+# Arguments
+
+- `T`: `BitArray` or `Array`
+- `A`: An `AbstractArray`.
+- `missingval`: The missing value of the source array. For [`AbstractGeoArray`](@ref) the
+    default `missingval` is `missingval(A)`, for all other `AbstractArray`s it is `missing`.
 
 # Example
 
@@ -59,15 +66,31 @@ savefig("build/boolmask_example.png")
 ![boolmask](boolmask_example.png)
 """
 function boolmask end
-function boolmask(A::AbstractGeoArray)
-    rebuild(A; data=boolmask(A, missingval(A)), missingval=false, name=:boolmask)
+function boolmask(A::AbstractArray, missingval=_missingval_or_missing(A))
+    boolmask(Array, A, missingval)
 end
-boolmask(A::AbstractArray, missingval::Missing=missing) = (a -> !ismissing(a)).(parent(A))
-function boolmask(A::AbstractArray, missingval)
-    if isnan(missingval)
-        broadcast(a -> !isnan(a), parent(A))
+boolmask(T::Type, A::AbstractArray, missingval=missing) = _boolmask(T, A, missingval)
+function boolmask(T::Type, A::AbstractGeoArray, missingval=_missingval_or_missing(A))
+    rebuild(A; data=_boolmask(T, A, missingval), missingval=false)
+end
+
+function _boolmask(::Type{<:Array}, A::AbstractArray, missingval)
+    dest = Array{Bool}(undef, size(A))
+    return boolmask!(dest, A, missingval)
+end
+function _boolmask(::Type{<:BitArray}, A::AbstractArray, missingval)
+    dest = BitArray(undef, size(A))
+    return boolmask!(dest, A, missingval)
+end
+
+function boolmask!(dest::AbstractArray{Bool}, src::AbstractArray, missingval::Missing)
+    broadcast!(a -> !ismissing(a), dest, src)
+end
+function boolmask!(dest::AbstractArray{Bool}, src::AbstractArray, missingval=_missingval_or_missing(src))
+    if missingval isa Number && isnan(missingval)
+        broadcast!(a -> !isnan(a), dest, src)
     else
-        broadcast(a -> a !== missingval, parent(A))
+        broadcast!(a -> a !== missingval, parent(dest), parent(src))
     end
 end
 
@@ -98,11 +121,12 @@ function missingmask end
 function missingmask(A::AbstractGeoArray)
     rebuild(A; data=missingmask(A, missingval(A)), missingval=missing, name=:missingmask)
 end
+missingmask(A::AbstractArray, missingval::Nothing) = missingmask(A, missing)
 function missingmask(A::AbstractArray, missingval::Missing=missing)
     (a -> ismissing(a) ? missing : true).(parent(A))
 end
 function missingmask(A::AbstractArray, missingval)
-    if isnan(missingval)
+    if missingval isa Number && isnan(missingval)
         (a -> isnan(a) ? missing : true).(parent(A))
     else
         (a -> a === missingval ? missing : true).(parent(A))
@@ -114,7 +138,7 @@ end
     mask(x; to, order=(XDim, YDim))
 
 Return a new array with values of `A` masked by the missing values of `to`,
-or by values outside `to` if it is a polygon.
+or by when more than 50% outside `to`, if it is a polygon.
 
 # Arguments
 
@@ -122,8 +146,9 @@ or by values outside `to` if it is a polygon.
 
 # Keywords
 
-- `to`: another `AbstractGeoArray` of a polygon `AbstractVector` of `Tuple` points,
-    the first and last must close the shape.
+- `to`: another `AbstractGeoArray`, a `AbstractVector` of `Tuple` points,
+    or any GeoInterface.jl `AbstractGeometry`. The coordinate reference system
+    of the point must match `crs(A)`.
 - `order`: the order of `Dimension`s in the points. Defaults to `(XDim, YDim)`.
 - `missingval`: the order of dimensions in the points. Defaults to `(XDim, YDim)`.
 
@@ -165,21 +190,46 @@ savefig(b, "build/mask_example_after.png")
 $EXPERIMENTAL
 """
 function mask end
+mask(xs::AbstractGeoSeries; kw...) = map(x -> mask(x; kw...), xs)
+mask(xs::AbstractGeoStack; to, kw...) = _mask(xs, to; kw...)
 mask(A::AbstractGeoArray; to, kw...) = _mask(A, to; kw...)
-mask(xs::GeoSeriesOrStack, args...; kw...) = map(x -> mask(x; kw...), xs)
 
-function _mask(A::AbstractGeoArray, to=AbstractArray; missingval=_missingval_or_missing(A), kw...)
+_mask(xs::GeoStack, to::AbstractArray; kw...) = map(x -> mask(x; to, kw...),  xs)
+function _mask(st::GeoStack, to::AbstractVector;
+    order=dims(st, (XDim, YDim)), kw...
+)
+    # Mask it with the polygon
+    B = _poly_mask(first(st), to; order, kw...)
+    # Run array masking to=B over all layers
+    return map(x -> _mask(x, B; kw...),  st)
+end
+function _mask(A::GeoStackOrArray, poly::GI.AbstractGeometry; kw...)
+    _mask(A, GI.coordinates(poly); kw...)
+end
+function _mask(A::AbstractGeoArray, poly::AbstractVector; order=(X, Y),kw...)
+    # Mask it with the polygon
+    B = _poly_mask(A, poly; order, kw...)
+    # Then apply it to A. This is much faster when
+    # A has additional dimensions to broadcast over.
+    return _mask(A, B; kw...)
+end
+function _mask(A::AbstractGeoArray, to::AbstractArray; missingval=_missingval_or_missing(A), kw...)
     return mask!(read(replace_missing(A, missingval)); to, missingval)
 end
 
-function _mask(A::AbstractGeoArray, to::AbstractVector;
-    order=(XDim, YDim), missingval=_missingval_or_missing(A)
-)
-    _without_mapped_crs(A) do a
-        broadcast(a, DimKeys(a)) do x, seldims
-            _polymask(x, missingval, GeoData.missingval(a), dims(seldims, order), poly)
+function _bool_template(A, order)
+    template = if length(otherdims(A, order)) > 0
+        # There are more dimensions than the order of the points have,
+        # so we can just broadcast over the additional dimensions later.
+        # So we take a view with ones in the other dimensions.
+        otherdim_ones = map(otherdims(A, order)) do d
+            DD.basetypeof(d)(1)
         end
+        view(A, otherdim_ones...)
+    else
+        A # There are no other dims, use as-is
     end
+    return boolmask(BitArray, template)
 end
 
 """
@@ -199,8 +249,9 @@ or by a polygon.
 
 # Keywords
 
-- `to`: another `AbstractGeoArray` of a polygon `AbstractVector` of `Tuple` points, the
-    first and last must close the shape. In future this method will accept more point types.
+- `to`: another `AbstractGeoArray`, a `AbstractVector` of `Tuple` points,
+    or any GeoInterface.jl `AbstractGeometry`. The coordinate reference system
+    of the point must match `crs(A)`.
 - `order`: the order of `Dimension`s in the points. Defaults to `(XDim, YDim)`.
 - `missingval`: the order of dimensions in the points. Defaults to `(XDim, YDim)`.
 
@@ -239,77 +290,427 @@ savefig(b, "build/mask_bang_example_after.png")
 
 $EXPERIMENTAL
 """
-function mask!(A::AbstractGeoArray; to, missingval=missingval(A))
-    missingval isa Nothing && throw(ArgumentError("Array has no `missingval`. Pass a `missingval` keyword compatible with the type, or use `rebuild(A; missingval=somemissingval)` to set it."))
+mask!(xs::AbstractGeoSeries, args...; kw...) = map(x -> mask!(x, args...; kw...),  xs)
+mask!(xs::AbstractGeoStack; to, kw...) = _mask!(xs, to; kw...)
+mask!(A::AbstractGeoArray; to, kw...) = _mask!(A, to; kw...)
+
+# Polygon mask
+function _mask!(A::AbstractGeoStack, poly::GI.AbstractGeometry; kw...)
+    _mask!(A, GI.coordinates(poly))
+end
+# Coordinates mask
+function _mask!(st::GeoStack, to::AbstractVector; order=(X, Y), kw...)
+    B = _poly_mask(first(st), to; order, kw...)
+    map(x -> _mask!(x, B; kw...), st)
+    return st
+end
+# Array mask
+_mask!(xs::GeoStack, to::AbstractArray; kw...) = map(x -> mask!(x; to, kw...),  xs)
+
+# Polygon mask
+function _mask!(A::GeoStackOrArray, poly::GI.AbstractGeometry; kw...)
+    _mask!(A, GI.coordinates(poly))
+end
+# Array mask
+function _mask!(A::AbstractGeoArray, to::AbstractArray; missingval=missingval(A))
+    missingval isa Nothing && _nomissingerror()
     dimwise!(A, A, to) do a, t
         t === GeoData.missingval(to) ? missingval : a
     end
     return A
 end
-function mask!(xs::GeoSeriesOrStack, args...; kw...)
-    map(x -> mask!(x, args...; kw...),  xs)
-    return xs
-end
-function mask!(dst, src::AbstractGeoArray, poly::AbstractVector; order=(XDim, YDim), filename=nothing)
-    _without_mapped_crs(src) do s
-        broadcast!(dst, DimKeys(s)) do seldims
-            _polymask(x, _missingval_or_missing(dst), missingval(src), dims(seldims, order), poly)
-        end
-    end
-end
 
-function _polymask(x, mvd, mvs, seldims, poly)
-    if x === mvs
-        return mvd
-    elseif isinside(map(val, seldims), poly)
-        return x
+function _poly_mask(A::AbstractGeoArray, poly::AbstractVector; order=(XDim, YDim))
+    missingval isa Nothing && _nomissingerror()
+    # We need a tuple of all the dims in `order`
+    # We also need the index locus to be the center so we are
+    # only selecting cells more than half inside the polygon
+    shifted_dims = map(d -> DD.maybeshiftlocus(Center(), d), dims(A))
+
+    # Get the array as points
+    pts = vec(collect(points(shifted_dims; order)))
+
+    nodes = flat_nodes(poly)
+    poly_bounds = map(1:length(order)) do i
+        extrema((p[i] for p in nodes))
+    end
+    array_bounds = bounds(dims(A, order))
+    is_crossover = map(poly_bounds, array_bounds) do (p_min, p_max), (a_min, a_max)
+        if p_max >= a_max
+            p_min <= a_max
+        else
+            p_max >= a_min
+        end
+    end |> all
+
+    # Only run inpolygon if the polygon has any point in the bounding box
+    if is_crossover
+        # Check if theyre in the polygon
+        inpoly = inpolygon(pts, poly)
+        # Reshape the first column of the output matrix to match `A`
+        inpoly = BitArray(reshape(view(inpoly, :, 1), size(A)))
     else
-        return mvd
+        inpoly = BitArray(undef, size(A))
+        inpoly .= false
     end
+
+    # Rebuild a with the masked values
+    return rebuild(A; data=inpoly, missingval=false)
 end
 
-const Pt{T<:Real} = NTuple{N,T} where N
+_nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `missingval` keyword compatible with the type, or use `rebuild(A; missingval=somemissingval)` to set it."))
 
-isinside(sel::NTuple{N,At}, poly::AbstractVector) where N = isinside(map(val, sel), poly)
-function isinside(r::Pt, poly::AbstractVector)
-    # An implementation of Hormann-Agathos (2001) Point in Polygon algorithm
-    # See: http://www.sciencedirect.com/science/article/pii/S0925772101000128
-    # Code segment adapted from PolygonClipping.jl
-    c = false
-    detq(q1,q2,r) = (q1[1] - r[1]) * (q2[2] - r[2]) - (q2[1] - r[1]) * (q1[2] - r[2])
+const Pt{T<:Real} = Union{AbstractVector{T},NTuple{<:Any,T}}
+const Poly = AbstractVector{<:Union{NTuple{<:Any,<:Real},AbstractVector{<:Real}}}
 
-    for i in eachindex(poly)[2:end]
-        q2 = poly[i]
-        q1 = poly[i - 1]
-        if q1 == r
-            @warn("point on polygon vertex - returning false")
-            return false
-        end
-        if q2[2] == r[2]
-            if q2[1] == r[1]
-                @warn("point on polygon vertex - returning false")
-                return false
+function unwrap_point(q::GI.AbstractPoint)
+    (q.x, q.y)
+end
+unwrap_point(q) = q
+
+
+"""
+    rasterize(data; kw...)
+    rasterize(points, values; kw...)
+
+Rasterize the points and values in `data`, or the `points` and `values` objects,
+into the [`GeoArray`](@ref) or [`GeoStack`](@ref) `x`. 
+
+# Arguments
+
+- `data`: a Tables.jl compatible object containing points and values or a
+    polygon - an GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `Vectors`.
+- `points`: A `Vector` or nested `Vectors` holding `Vector` or `Tuple` of `Real`
+- `values` A `Vector` of values to be written to a `GeoArray`, or a Vector of `NamedTupled`
+    to write to a `GeoStack`.
+
+# Keywords
+
+These are detected automatically from `A` and `data` where possible.
+
+- `to`: a `GeoArray` or `GeoStack` to rasterize to.
+- `order`: A `Tuple` of pairs `Dim => Symbol` for the keys in the data that match
+    the dimension.
+- `value`: A `Tuple` of `Symbol` for the keys in the data that provide
+    values to add to `A`.
+- `fill`: the value to fill a polygon with, if `data` is a polygon. 
+- `atol`: an absolute tolerance for rasterizing to dimensions with `Points` sampling.
+
+# Example
+
+```julia
+using GeoData, Plots, Dates, Shapefile, GeoInterface
+
+# Download a borders shapefile
+shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
+shapefile_name = "boundary_lines.shp"
+isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
+
+# Load the shapes for denmark
+indonesia_border = Shapefile.Handle(shapefile_name).shapes[1]
+
+# Make an empty EPSG 4326 projected GeoArray of the area of Indonesia
+dimz = Y(-15.0:0.1:10.9; mode=Projected(; sampling=Intervals(Start()), crs=EPSG(4326))), 
+       X(90.0:0.1:145; mode=Projected(; sampling=Intervals(Start()), crs=EPSG(4326)))
+A = GeoArray(zeros(UInt16, dimz); missingval=0)
+
+# Rasterize each island with a different number
+for (i, shp) in enumerate(coordinates(indonesia_border))
+    rasterize!(A, shp; fill=i, order=(X, Y))
+end
+
+# And plot
+p = plot(A; color=:spring)
+plot!(p, indonesia_border; fillalpha=0, linewidth=0.7)
+savefig("build/indonesia_rasterized.png")
+# output
+```
+
+![rasterize](indonesia_rasterized.png)
+
+$EXPERIMENTAL
+"""
+rasterize(args...; to, kw...) = _rasterize(to, args...; kw...)
+
+function _rasterize(to::AbstractGeoStack, args...; kw...)
+    st = map(to) do A
+        similar(A) .= missingval(A)
+    end
+    return rasterize!(st, args...; kw...)
+end
+function _rasterize(to::AbstractGeoArray, args...; kw...)
+    A = similar(to) .= missingval(to)
+    return rasterize!(A, args...; kw...)
+end
+
+
+"""
+    rasterize!(x, data; order, colnames, atol)
+    rasterize!(x, points, values; order, atol)
+
+Rasterize the points and values in `data`, or the `points` and `values` objects,
+into the [`GeoArray`](@ref) or [`GeoStack`](@ref) `x`.
+
+# Arguments
+
+- `x`: a `GeoArray` or `GeoStack` to rasterize to.
+- `data`: a Tables.jl compatible object containing points and values or a
+    polygon - an GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `Vectors`.
+- `points`: A `Vector` or nested `Vector` holding `Vector` or `Tuple` of `Real`
+- `values` A `Vector` of values to be written when `x` is a `GeoArray`, or a Vector of
+    `NamedTupled` to write when `x` is a `GeoStack`.
+
+# Keywords
+
+These are detected automatically from `A` and `data` where possible.
+
+- `point`: A `Tuple` of pairs `Dim => Symbol` for the keys in the data that match
+    the dimension.
+- `value`: A `Tuple` of `Symbol` for the keys in the data that provide
+    values to add to `A`.
+- `fill`: the value to fill a polygon with, if `data` is a polygon. 
+- `atol`: an absolute tolerance for rasterizing to dimensions with `Points` sampling.
+
+# Example
+
+Rasterize a shapefile for denmark and plot, with a border.
+
+```julia
+using GeoData, Plots, Dates, Shapefile
+
+# Download a borders shapefile
+shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
+shapefile_name = "boundary_lines.shp"
+isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
+
+# Loade the shapes for china
+china_border = Shapefile.Handle(shapefile_name).shapes[10]
+
+# Make an empty EPSG 4326 projected GeoArray of the China area
+dimz = Y(15.0:0.1:55.0; mode=Projected(; sampling=Intervals(Start()), crs=EPSG(4326))), 
+       X(70.0:0.1:140; mode=Projected(; sampling=Intervals(Start()), crs=EPSG(4326)))
+A = GeoArray(zeros(UInt8, dimz); missingval=0)
+
+# Rasterize the border polygon 
+rasterize!(A, china_border; fill=1, order=(X, Y))
+
+# And plot
+p = plot(A; color=:spring)
+plot!(p, china_border; fillalpha=0, linewidth=0.6)
+savefig("build/china_rasterized.png")
+# output
+```
+
+![rasterize](china_rasterized.png)
+
+$EXPERIMENTAL
+"""
+function rasterize!(A::AbstractGeoArray, data;
+    order=_auto_pointcols(A, data),
+    colnames=first(_not_a_dimcol(data, order)), kw...
+)
+    isdisk(data) && _warn_disk(rasterize)
+    ordered_dims = map(p -> DD.basetypeof(p[1])(p[2]), order)
+    ordered_keys = map(last, order)
+    points = (map(k -> r[k], ordered_keys) for r in Tables.rows(data))
+    if colnames isa Symbol
+        values = (r[colnames] for r in Tables.rows(data))
+    elseif value isa Tuple
+        values = (r[first(colnames)] for r in Tables.rows(data))
+    end
+    return rasterize!(A, points, values; order=ordered_dims, kw...)
+end
+function rasterize!(A::AbstractGeoArray, points, values;
+    order=(XDim, YDim, ZDim), atol=nothing
+)
+    isdisk(A) && _warn_disk(rasterize)
+    ordered_dims = dims(A, ntuple(i -> order[i], length(first(points))))
+    _without_mapped_crs(A) do A1
+        map(points, values) do p, v
+            any(map(ismissing, p)) && return nothing
+            selectors = map((d, x) -> _at_or_contains(d, x, atol), ordered_dims, p)
+            if length(selectors) == length(dims(A))
+                A1[selectors...] = v
             else
-            # elseif (q1[2] == r[2]) && ((q2[1] > x) == (q1[1] < r[1]))
-                @warn("point on edge - returning false")
-                return false
+                A1[selectors...] .= v
             end
-        end
-        if (q1[2] < r[2]) != (q2[2] < r[2]) # crossing
-            if q1[1] >= r[1]
-                if q2[1] > r[1]
-                    c = !c
-                elseif ((detq(q1,q2,r) > 0) == (q2[2] > q1[2])) # right crossing
-                    c = !c
-                end
-            elseif q2[1] > r[1]
-                if ((detq(q1,q2,r) > 0) == (q2[2] > q1[2])) # right crossing
-                    c = !c
-                end
-            end
+            return nothing
         end
     end
-    return c
+    return A
+end
+function rasterize!(st::AbstractGeoStack, data;
+    point=_auto_pointcols(st, data), colnames=_not_a_dimcol(data, point), kw...
+)
+    isdisk(data) && _warn_disk(rasterize!)
+    point_dims = map(p ->  DD.basetypeof(p[1])(p[2]), point)
+    order = map(last, point)
+    points = (map(pk -> r[pk], order) for r in Tables.rows(data))
+    if colnames isa Symbol
+        values = (r[colnames] for r in Tables.rows(data))
+    elseif colnames isa Tuple
+        values = (map(vk -> r[vk], colnames) for r in Tables.rows(data))
+    end
+    return rasterize!(st, points, values; order=point_dims, kw...)
+end
+function rasterize!(st::AbstractGeoStack, points, values;
+    order=(XDim, YDim, ZDim), atol=nothing
+)
+    isdisk(first(st)) && _warn_disk(rasterize!)
+    ordered_dims = dims(st, order)
+    _without_mapped_crs(st) do st1
+        map(points, values) do p, v
+            any(map(ismissing, p)) && return nothing
+            selectors = map((d, x) -> _at_or_contains(d, x, atol), ordered_dims, p)
+            map(Base.values(st1), v) do A, v_n
+                if length(selectors) == length(dims(A))
+                    A[selectors...] = v_n
+                else
+                    A[selectors...] .= v_n
+                end
+            end
+            return nothing
+        end
+    end
+    return st
+end
+function rasterize!(st::AbstractGeoStack, poly::GI.AbstractGeometry;
+    order=(XDim, YDim, ZDim), kw...
+)
+    if bbox_overlaps(st, order, poly)
+        rasterize!(st, GI.coordinates(poly); order, kw...)
+    end
+    return st
+end
+function rasterize!(st::AbstractGeoStack, poly::AbstractVector{<:AbstractVector};
+    fill, order=(XDim, YDim, ZDim)
+)
+    ordered_dims = dims(st, order)
+    B = _poly_mask(first(st), poly; order=ordered_dims)
+    map(st, fill) do A, f
+        broadcast!(A, A, B) do a, b
+            b ? (fill isa Function ? fill(a) : fill) : a
+        end
+    end
+    return st
+end
+function rasterize!(A::AbstractGeoArray, poly::GI.AbstractGeometry;
+    order=(XDim, YDim, ZDim), kw...
+)
+    if bbox_overlaps(A, order, poly)
+        rasterize!(A, GI.coordinates(poly); kw...)
+    end
+    return A
+end
+function rasterize!(A::AbstractGeoArray, poly::AbstractVector{<:AbstractVector};
+    fill, order=(XDim, YDim, ZDim)
+)
+    ordered_dims = dims(A, order)
+    B = _poly_mask(A, poly; order=ordered_dims)
+    broadcast!(A, A, B) do a, b
+        b ? (fill isa Function ? fill(a) : fill) : a
+    end
+    return A
+end
+
+function bbox_overlaps(x, order, poly)
+    x_bnds = bounds(x, order)
+    p_bbox = GI.bbox(poly)
+    # If there is no bbox available just act as if it
+    # overlaps and let the checks later on sort it out
+    p_bbox isa Nothing && return true
+    bbox_dims = length(p_bbox) ÷ 2
+    p_bnds = [(p_bbox[i], p_bbox[i+bbox_dims]) for i in 1:bbox_dims]
+    
+    isin(bounds, x) = x >= bounds[1] && x <= bounds[2]
+
+    has_overlap = map(x_bnds, p_bnds) do xb, pb
+        # is xb inside pb
+        isin(xb, pb[1]) || isin(xb, pb[2]) || 
+        # or is pb inside xb
+        isin(pb, xb[1]) || isin(pb, xb[2])
+    end |> all
+
+    return has_overlap
+end
+
+
+function _at_or_contains(d, v, atol)
+    selector = sampling(d) isa Intervals ? Contains(v) : At(v; atol=atol)
+    DD.basetypeof(d)(selector)
+end
+
+function _auto_pointcols(A, data)
+    names = Tables.columnnames(data)
+    if names == ()
+        names = keys(first(Tables.rows(data)))
+    end
+    Tuple(DD.basedims(d) => DD.dim2key(d) for d in dims(A) if DD.dim2key(d) in names)
+end
+
+function _not_a_dimcol(data, pointcol)
+    names = Tables.columnnames(data)
+    if names == ()
+        names = keys(first(Tables.rows(data)))
+    end
+    not_dim_keys = Tuple(k for k in names if !(k in map(last, pointcol)))
+    return  not_dim_keys
+end
+
+"""
+    inpolygon(points, poly)
+
+Check if a point or `Vector` of points is inside a polygon.
+
+This algorithm is very efficient for many points, less so a single point.
+
+# Arguments
+
+- `points`: an `AbstractVector` or a `Tuple` or `Real`, Or a `Vector` of these.
+- `poly`: an `AbstractVector` or nested `AbstractVector` with an inner
+    `AbstractVector` or `Tuple` of `Real`. It can also be a `GeoInterface.AbstractGeometry`.
+
+Returns a `Bool` or `BitVector{Bool}
+"""
+function inpolygon end
+function inpolygon(point::Union{NTuple{<:Any,At},Pt}, poly::GI.AbstractGeometry)
+    inpolygon(point, GI.coordinates(poly))
+end
+function inpolygon(points::AbstractVector, poly::GI.AbstractGeometry)
+    inpolygon(points, GI.coordinates(poly))
+end
+inpolygon(point::AbstractVector{<:Real}, poly::AbstractVector) = inpoly([point], poly)
+inpolygon(point::Tuple, poly::AbstractVector) = inpoly([point], poly)
+function inpolygon(points::AbstractVector, poly::AbstractVector)
+    edges = Matrix{Int}(undef, 0, 2)
+    edgenum = 0
+    edges, _ = _get_edges(edges, edgenum, poly)
+    nodes = collect(flat_nodes(poly))
+    PolygonInbounds.inpoly2(points, nodes, edges)
+end
+
+function _get_edges(edges, edgenum, poly::AbstractVector{<:GI.AbstractGeometry})
+    foldl(poly; init=(edges, edgenum)) do (e, en), p
+        _get_edges(e, en, GI.coordinates(p))
+    end
+end
+function _get_edges(edges, edgenum, poly::AbstractVector{<:AbstractVector})
+    foldl(poly; init=(edges, edgenum)) do (e, en), p
+        _get_edges(e, en, p)
+    end
+end
+# Analyse a single polygon
+function _get_edges(edges, edgenum, poly::AbstractVector{<:Union{<:NTuple{<:Any,T},<:AbstractVector{T}}}) where T<:Real
+    newedges = Matrix{Int}(undef, length(poly), 2)
+    for i in eachindex(poly)[1:end-1]
+        newedges[i, 1] = i + edgenum
+        newedges[i, 2] = i + edgenum + 1
+    end
+    newedges[end, 1] = length(poly) + edgenum
+    newedges[end, 2] = edgenum + 1
+
+    edges = vcat(edges, newedges)
+    return edges, edgenum + length(poly)
 end
 
 """
@@ -340,7 +741,7 @@ If `others` is set other values not covered in `pairs` will be set to that value
 
 ```jldoctest
 using GeoData, Plots
-A = GeoArray(WorldClim{Climate}, :tavg; month=6)
+A = GeoArray(WorldClim{Climate}, :tavg; month=1)
 classes = (5, 15) => 10,
           (15, 25) => 20,
           (25, 35) => 30,
@@ -542,21 +943,26 @@ crop(x::GeoStackOrArray; to, kw...) = _crop_to(x, to; kw...)
 
 # crop `A` to values of dims of `to`
 _crop_to(A::GeoStackOrArray, to; kw...) = _crop_to(A, dims(to); kw...)
-function _crop_to(x::GeoStackOrArray, to::Tuple; atol=nothing)
+function _crop_to(x::GeoStackOrArray, to::DimTuple; atol=maybe_eps(to))
     # Create selectors for each dimension
     # `Between` the bounds of the dimension
     _without_mapped_crs(x) do x_wmc
-        dimranges = map(to) do d
+        dimranges = map(to, atol) do d, atol_n
             dx = dims(x_wmc, d)
-            fi = DD.sel2indices(dx, Near(first(d)))
-            li = DD.sel2indices(dx, Near(last(d)))
+            fi = DD.sel2indices(dx, At(first(d); atol=atol_n))
+            li = DD.sel2indices(dx, At(last(d); atol=atol_n))
             newindex = fi <= li ? (fi:li) : (li:fi)
             rebuild(dx, newindex)
         end
-        # Take a view of the `Between` selectors
+        # Take a view of the selectors
         view(x_wmc, dimranges...)
     end
 end
+
+maybe_eps(dims::DimTuple) = map(maybe_eps, dims)
+maybe_eps(dim::Dimension) = maybe_eps(eltype(dim))
+maybe_eps(::Type) = nothing
+maybe_eps(T::Type{<:AbstractFloat}) = _default_atol(T)
 
 # Get the smallest dimensions in a tuple of AbstractGeoArray
 function _smallestdims(layers)
@@ -596,6 +1002,7 @@ plot(sa_range)
 
 savefig("build/extend_example.png")
 # output
+
 ```
 
 ![extend](extend_example.png)
@@ -871,7 +1278,7 @@ of such arguments for flags that take multiple space-separated arguments.
 Arrays with additional dimensions not handled by GDAL (ie other than X, Y, Band)
 are sliced, warped, and then combined - these dimensions will not change.
 
-See: https://gdal.org/programs/gdalwarp.html for a list of arguments.
+See [the gdalwarp docs](https://gdal.org/programs/gdalwarp.html) for a list of arguments.
 
 ## Example
 
@@ -977,6 +1384,7 @@ savefig(a, "build/mosaic_example_africa.png")
 savefig(b, "build/mosaic_example_aus.png")
 savefig(c, "build/mosaic_example_combined.png")
 # output
+
 ```
 
 ### Individual continents
@@ -1149,18 +1557,30 @@ function _mosaic(span::Explicit, mode::AbstractSampled, dims::DimTuple)
 end
 
 _without_mapped_crs(f, A) = _without_mapped_crs(f, A, mappedcrs(A))
-_without_mapped_crs(f, A, ::Nothing) = f(A)
-function _without_mapped_crs(f, A, mappedcrs)
+_without_mapped_crs(f, A::AbstractGeoArray, ::Nothing) = f(A)
+function _without_mapped_crs(f, A::AbstractGeoArray, mappedcrs)
     A = setmappedcrs(A, nothing)
-    A = f(A)
-    A = setmappedcrs(A, mappedcrs)
-    return A
+    x = f(A)
+    if x isa AbstractGeoArray
+        x = setmappedcrs(x, mappedcrs)
+    end
+    return x
+end
+_without_mapped_crs(f, A::AbstractGeoStack, ::Nothing) = f(A)
+function _without_mapped_crs(f, A::AbstractGeoStack, mappedcrs) 
+    st1 = map(A -> setmappedcrs(A, nothing), st)
+    x = f(st1)
+    if x isa AbstractGeoStack
+        x = map(A -> setmappedcrs(A, mappedcrs), x)
+    end
+    return x
 end
 
-_default_atol(::Type) = nothing
+# These are pretty random default, but seem to work
 _default_atol(T::Type{<:Float32}) = 100eps(T)
 _default_atol(T::Type{<:Float64}) = 1000eps(T)
 _default_atol(T::Type{<:Integer}) = T(1)
+_default_atol(::Type) = nothing
 
 """
     slice(A::Union{AbstractGeoArray,AbstractGeoStack,AbstracGeoSeries}, dims) => GeoSeries
@@ -1274,99 +1694,153 @@ The order of `dims` determines the order of the points.
 
 $EXPERIMENTAL
 """
-function points(A::AbstractGeoArray; dims=(YDim, XDim), ignore_missing=false)
-    ignore_missing ? _points(A, dims) : _points_missing(A, dims)
+function points(A::AbstractGeoArray; ignore_missing=false, order=(XDim, YDim, ZDim))
+    ignore_missing ? _points(A; order) : _points_missing(A; order)
+end
+function points(dims::DimTuple; order=(XDim, YDim, ZDim))
+    indices = DimIndices(dims)
+    ordered_dims = DD.dims(dims, order)
+    # Lazily reorder the pionts and index into the dims in the generator
+    ordered_point(I) = map(ordered_dims, DD.dims(I, ordered_dims)) do d, i
+        d[val(i)] 
+    end
+    return (ordered_point(I) for I in indices)
 end
 
-function _points(A::AbstractGeoArray, dims)
-    # Get the actual dims
-    dims = DD.dims(A, dims)
-    # Get the axes of each dimension
-    dim_axes = map(d -> axes(d, 1), dims)
-    # Construct a CartesianIndices generator
-    indices = CartesianIndices(dim_axes)
-    # Lazily index into the dimensions with the generator
-    return (map(getindex, dims, Tuple(I)) for I in indices)
-end
-function _points_missing(A::AbstractGeoArray, dims)
-    # Get the actual dims
-    dims = DD.dims(A, dims)
-    # Get the axes of each dimension
-    dim_axes = map(d -> axes(d, 1), dims)
-    # Construct a CartesianIndices generator
-    indices = CartesianIndices(dim_axes)
-    # Lazily index into the dimensions with the generator
+_points(A::AbstractGeoArray; kw...) = points(dims(A); kw...)
+function _points_missing(A::AbstractGeoArray; order)
+    indices = DimIndices(A)
+    ordered_dims = dims(A, order)
+    # Lazily reorder the points and index into the dims in the generator
     # or return missing if the matching array value is missing
-    return (A[I] === missingval(A) ? map(getindex, dims, Tuple(I)) : missing for I in indices)
+    function ordered_point_or_missing(I) 
+        if A[I...] === missingval(A)
+            missing
+        else
+            map((d, i) -> d[val(i)], ordered_dims, DD.dims(I, ordered_dims))
+        end
+    end
+    return (ordered_point_or_missing(I) for I in indices)
 end
-
 
 """
-   extract(x, points...; order, atol)
    extract(x, points; order, atol)
 
 Extracts the value of `GeoArray` or `GeoStack` at given points, returning
-a vector of values for `GeoArray`, and a Tables.jl compatible `Vector` of
-`NamedTuple` for `GeoStack`.
+a vector of `NamedTuple` with columns for the point dimensions and layer
+value/s.
 
-Note that if objects have more dimensions than the length of point tuples,
+Note that if objects have more dimensions than the length of the point tuples,
 sliced arrays or stacks will be returned instead of single values.
 
 # Arguments
 
--`x`: a `GeoArray` or `GeoStack` to extract values from.
--`points`: multiple `Vector`s of point values, a `Vector{Tuple}`,
-    or a single `Tuple`.
+- `x`: a `GeoArray` or `GeoStack` to extract values from.
+- `points`: multiple `Vector`s of point values, a `Vector{Tuple}`,
+    or a single `Tuple` or `Vector`. `points` can also be a Tables.jl compatible
+    table, in which case `order` may need to specify the keys.
 
 # Keywords
 
-- `order`: a tuple of `Dimension` or `Type{::Dimension}` connecting the order
-    of the points to the array axes.
+- `order`: a tuple of `Dimension` connecting the order of the points to the array
+    axes, such as `(X, Y)`, with a defaut `(XDim, YDim, ZDim)` order.
+    If `points` is a table, `order` should be a `Tuple` of `Dimension`/`Symbol` pairs
+    like `(X => :xcol, Y => :ycol)`. This will be automatically detected wherever
+    possible, assuming the keys match the dimensions of the object `x`.
 - `atol`: a tolorerance for floating point lookup values for when the `Lookup`
     contains `Points`. `atol` is ignored for `Intervals`.
+
+Note: extracting polygons in a `GeoInterface.AbstractGeometry` is not yet supported,
+but will be in future.
 
 # Example
 
 Here we extact points matching the occurrence of the Mountain Pygmy Possum,
 _Burramis parvus_. This could be used to fit a species distribution model.
 
-```julia
-using GeoData, CSV, GBIF
-st = GeoStack(WorldClim{BioClim})[Band(1)] |> replace_missing
-obs = GBIF.occurrences("scientificName" => "Burramys parvus", "limit" => 300)
-# Read all the occurrences
-read!(obs)
-# use `extract` to get that values for all layers for each observation.
-vals = extract(st, map(o -> o.longitude, obs), map(o -> o.latitude, obs))
+```jldoctest
+using GeoData, GBIF, CSV
+
+# Get a stack of BioClim layers, and replace missing values with `missing`
+st = GeoStack(WorldClim{BioClim}, (1, 3, 5, 7, 12))[Band(1)] |> replace_missing
+
+# Download some occurrence data
+obs = GBIF.occurrences("scientificName" => "Burramys parvus", "limit" => 5)
+
+# use `extract` to get values for all layers at each observation point.
+points = map(o -> (o.longitude, o.latitude), obs)
+vals = extract(st, points)
 # output
+5-element Vector{NamedTuple{(:X, :Y, :bio1, :bio3, :bio5, :bio7, :bio12), T} where T<:Tuple}:
+ (X = missing, Y = missing, bio1 = missing, bio3 = missing, bio5 = missing, bio7 = missing, bio12 = missing)
+ (X = 147.096394, Y = -36.935687, bio1 = 9.408354f0, bio3 = 40.790546f0, bio5 = 22.39425f0, bio7 = 23.0895f0, bio12 = 1292.0f0)
+ (X = 148.450743, Y = -35.999643, bio1 = 8.269542f0, bio3 = 41.030262f0, bio5 = 21.4485f0, bio7 = 23.858f0, bio12 = 1440.0f0)
+ (X = 148.461854, Y = -36.009001, bio1 = 6.928167f0, bio3 = 41.78015f0, bio5 = 20.18025f0, bio7 = 23.69975f0, bio12 = 1647.0f0)
+ (X = 148.459452, Y = -36.002648, bio1 = 6.928167f0, bio3 = 41.78015f0, bio5 = 20.18025f0, bio7 = 23.69975f0, bio12 = 1647.0f0)
 ```
 """
-extract(A::GeoStackOrArray, x, y, others...; kw...) = extract(A, (x, y, others...); kw...)
-function extract(A::GeoStackOrArray, points::NTuple{N,T}; kw...) where {T<:AbstractVector,N}
-    extract.(Ref(A), zip(points...); kw...)
+function extract(A::GeoStackOrArray, points::NTuple{<:Any,<:AbstractVector}; kw...)
+    extract(A, zip(points...); kw...)
 end
-function extract(
-    A::GeoStackOrArray, points::Tuple;
-    order=(XDim, YDim, ZDim), atol=nothing
-)
-    ordereddims = dims(A, order)
-    dimtypes = map(DD.basetypeof, ordereddims)
-    any(ismissing, points) && return missing
-    seldims = map(ordereddims, dimtypes, points) do d, D, p
-        if sampling(d) isa Points
-            D(At(p; atol))
-        else # Intervals
-            D(Contains(p))
-        end
-    end
-    if DD.hasselection(A, seldims)
-        return A[seldims...]
-    else
-        return missing
-    end
+function extract(A::GeoStackOrArray, points::GI.AbstractGeometry; kw...)
+    extract(A, flat_nodes(GI.coordinates(points)); kw...)
 end
-function extract(A::GeoStackOrArray, points::AbstractVector; kw...)
+function extract(A::GeoStackOrArray, points::AbstractVector{<:Tuple}; kw...)
     extract.(Ref(A), points; kw...)
 end
+function extract(A::GeoStackOrArray, points::AbstractVector{<:AbstractVector{<:Real}}; kw...)
+    extract.(Ref(A), points; kw...)
+end
+function extract(A::GeoStackOrArray, data; order=_auto_pointcols(A, data), kw...) 
+    rows = Tables.rows(data)
+    point_dims = map(p -> DD.basetypeof(p[1])(p[2]), order)
+    point_keys = map(val, point_dims)
+    map(rows) do row
+        point_vals = map(pk -> row[pk], point_keys)
+        extract(A, point_vals; order=map(first, order), point_keys, kw...)
+    end
+end
+extract(A::GeoStackOrArray, points::Missing; kw...) = missing
+function extract(
+    A::GeoStackOrArray, point::Union{Tuple,AbstractVector{<:AbstractFloat}};
+    order=(XDim, YDim, ZDim),
+    point_keys=map(DD.dim2key, dims(A, order)),
+    layer_keys=_layer_keys(A, order),
+    atol=nothing
+)
+    # Get the actual dimensions available in the object
+    # Usually this will be `X` and `Y`, but `Z` as well if it exists.
+    ordered_dims = dims(A, order)
+    length(point) == length(ordered_dims) || throw(ArgumentError("Length of `point` does not match dims. Pass `order` dims manually"))
+    point = ntuple(i -> point[i], length(ordered_dims))
+    dimtypes = map(DD.basetypeof, ordered_dims)
+
+    # Extract the values
+    if any(map(ismissing, point)) 
+        point_vals = map(_ -> missing, ordered_dims)
+        layer_vals = map(_ -> missing, layer_keys)
+    else
+        selectors = map((d, x) -> _at_or_contains(d, x, atol), ordered_dims, point)
+        point_vals = map(val ∘ val, selectors)
+        layer_vals = if DD.hasselection(A, selectors)
+            A[selectors...]
+        else
+            map(_ -> missing, layer_keys)
+        end
+    end
+    return NamedTuple{(point_keys..., layer_keys...)}((point_vals..., layer_vals...))
+end
+
+
+_layer_keys(A::AbstractGeoArray, order) = (name(A),)
+_layer_keys(A::AbstractGeoStack, order) = keys(A)
 
 _missingval_or_missing(x) = missingval(x) isa Nothing ? missing : missingval(x)
+
+function flat_nodes(A::AbstractVector{<:AbstractVector{<:AbstractVector}})
+    Iterators.flatten(map(flat_nodes, A))
+end
+flat_nodes(A::AbstractVector{<:AbstractVector{<:AbstractFloat}}) = A
+flat_nodes(A::AbstractVector{<:GI.AbstractGeometry}) = flat_nodes(map(GI.coordinates, A))
+
+_warn_disk(f) = @warn "Disk-based objects may be very slow with $f. User `read` first."

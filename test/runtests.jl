@@ -30,4 +30,3 @@ if !Sys.iswindows()
 end
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
 @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
-@time @safetestset "run examples" begin include("../examples/examples.jl") end

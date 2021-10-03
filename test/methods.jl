@@ -12,7 +12,7 @@ gaMi = replace_missing(ga, missing)
 @test all(gaMi .=== ga)
 
 @testset "boolmask" begin
-    @test boolmask(A) == [false true; true false]
+    @test boolmask(Array, ga) == [false true; true false]
     @test boolmask(ga) == [false true; true false]
     @test boolmask(ga99) == [false true; true false]
     @test boolmask(gaNaN) == [false true; true false]
@@ -57,19 +57,27 @@ end
 
 @testset "points" begin
     ga = GeoArray(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); missingval=missing)
-    @test all(points(ga) .=== [(0.1, 9.0) missing; missing (0.2, 10.0)])
-    @test all(points(ga; dims=(X, Y)) .=== [(9.0, 0.1) missing; missing (10.0, 0.2)])
-    @test all(points(ga; dims=(X, Y), ignore_missing=true) .===
+    @test all(collect(points(ga; order=(Y, X))) .=== [missing (0.2, 9.0); (0.1, 10.0) missing])
+    @test all(collect(points(ga; order=(X, Y))) .=== [missing (9.0, 0.2); (10.0, 0.1) missing])
+    @test all(points(ga; order=(X, Y), ignore_missing=true) .===
               [(9.0, 0.1) (9.0, 0.2); (10.0, 0.1) (10.0, 0.2)])
 end
 
 @testset "extract" begin
     A = [1 2; 3 4]
-    ga = GeoArray(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); missingval=missing)
-    @test all(extract(ga, [(9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]) .=== [1, 4, missing])
-    @test all(extract(ga, [(0.1, 9.0), (0.2, 10.0), (0.3, 10.0)]; order=(Y, X)) .=== [1, 4, missing])
-    sizeof([(0.1, 9.0), (0.2, 10.0), (0.3, 10.0)])
-    sizeof([(X(0.1), Y(9.0)), (X(0.2), Y(10.0)), (X(0.3), Y(10.0))])
+    ga = GeoArray(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); name=:test, missingval=missing)
+    @testset "points" begin
+        @test all(extract(ga, [(9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]) .=== 
+                  [(X=9.0, Y=0.1, test=1), (X=10.0, Y=0.2, test=4), (X=10.0, Y=0.3, test=missing)])
+        @test all(extract(ga, [(0.1, 9.0), (0.2, 10.0), (0.3, 10.0)]; order=(Y, X)) .=== 
+                  [(Y=0.1, X=9.0, test=1), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing)])
+    end
+    @testset "Tables.jl compatible" begin
+        @test all(extract(ga, [(X=9.0, Y=0.1), (X=10.0, Y=0.2), (X=10.0, Y=0.3)]) .=== 
+              [(X=9.0, Y=0.1, test=1), (X=10.0, Y=0.2, test=4), (X=10.0, Y=0.3, test=missing)])
+        @test all(extract(ga, [(X=9.0, Y=0.1), (X=10.0, Y=0.2), (X=10.0, Y=0.3)]; order=(Y=>:Y, X=>:X)) .=== 
+              [(Y=0.1, X=9.0, test=1), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing)])
+    end
 end
 
 @testset "trim, crop, extend" begin

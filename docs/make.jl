@@ -1,15 +1,27 @@
-using Documenter, GeoData, Plots, Logging
+using Documenter, GeoData, Plots, Logging, Statistics, Dates
 
 ENV["GKSwstype"] = "100"
 
-# Disable logging as @info messes with doctests
-Logging.disable_logging(Logging.Warn)
+# Plots warnings are breaking doctests. They dont warn the second time.
+# Downloads also show op in doctests. So download everything first.
+function flush_info_and_warnings()
+    # GeoStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1))
+    # GeoStack(EarthEnv{HabitatHeterogeneity}, (:evenness, :range, :contrast, :correlation))
+    # GeoStack(WorldClim{BioClim}, (1, 3, 5, 7, 12))
+    st = GeoStack(WorldClim{Climate}; month=1);
+    plot(st)
+end
+flush_info_and_warnings()
+
+
+Logging.disable_logging(Logging.Info)
 
 # Make the docs, without running the tests again
 makedocs(
     modules = [GeoData],
     sitename = "GeoData.jl",
-    strict = false,
+    strict = true,
+    clean = false,
 )
 
 # Enable logging to console again

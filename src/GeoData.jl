@@ -16,7 +16,9 @@ import Adapt,
        DiskArrays,
        FillArrays,
        Flatten,
+       GeoInterface,
        HDF5,
+       PolygonInbounds,
        ProgressMeter,
        Missings,
        Mmap,
@@ -26,6 +28,8 @@ import Adapt,
        Setfield
 
 Reexport.@reexport using DimensionalData, GeoFormatTypes, RasterDataSources
+
+using DimensionalData.Tables
 
 using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
@@ -40,8 +44,8 @@ export Projected, Mapped
 export Band
 export missingval, boolmask, missingmask, replace_missing,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!, 
-       resample, warp, crop, extend, trim, slice, points, subset,
-       classify, classify!, mosaic, mosaic!, extract
+       resample, warp, crop, extend, trim, slice, points, subset, inpolygon,
+       classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertmode
 export geoarray, stack, series
@@ -49,6 +53,7 @@ export geoarray, stack, series
 
 const DD = DimensionalData
 const DA = DiskArrays
+const GI = GeoInterface
 
 # DimensionalData documentation urls
 const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api"
