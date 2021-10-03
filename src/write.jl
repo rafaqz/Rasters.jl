@@ -34,12 +34,12 @@ function Base.write(filename::AbstractString, s::AbstractGeoStack; suffix=nothin
         if suffix === nothing
             suffix = map(k -> string("_", k), keys(s))
         end
-        foreach(keys(s), suffix) do key, sfx
+        @warn string("Cannot write stacks to \"", ext, "\", writing layers as individual files")
+        map(keys(s), suffix) do key, sfx
             fn = string(base, sfx, ext)
             write(fn, _sourcetype(filename), s[key])
         end
     end
-    return filename
 end
 
 # Trait for source data that has stack layers

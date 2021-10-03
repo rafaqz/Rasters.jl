@@ -31,7 +31,8 @@ cleanreturn(A::AbstractGeoArray) = modify(cleanreturn, A)
 cleanreturn(x) = x
 
 isdisk(A::AbstractGeoArray) = parent(A) isa DiskArrays.AbstractDiskArray
-ismem(A::AbstractGeoArray) = !isdisk(A)
+isdisk(x) = false
+ismem(x) = !isdisk(A)
 
 function Base.:(==)(A::AbstractGeoArray{T,N}, B::AbstractGeoArray{T,N}) where {T,N} 
     size(A) == size(B) && all(A .== B)
@@ -216,7 +217,7 @@ function GeoArray(A::AbstractArray;
 )
     GeoArray(A, DD.formatdims(A, dims), refdims, name, metadata, missingval)
 end
-function GeoArray(A::AbstractGeoArray;
+function GeoArray(A::AbstractDimArray;
     data=data(A), dims=dims(A), refdims=refdims(A),
     name=name(A), metadata=metadata(A), missingval=missingval(A)
 )

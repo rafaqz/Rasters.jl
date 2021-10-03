@@ -30,6 +30,8 @@ layermissingval(stack::AbstractGeoStack) = stack.layermissingval
 filename(stack::AbstractGeoStack) = filename(data(stack))
 missingval(s::AbstractGeoStack, key::Symbol) = _singlemissingval(layermissingval(s), key)
 
+isdisk(A::AbstractGeoStack) = isdisk(first(A))
+
 """
     subset(s::AbstractGeoStack, keys)
 

@@ -44,10 +44,10 @@ end
     :grid --> true
     :gridalpha --> 0.2
     # :guidefontsize --> 10
-    # :tickfontsize --> 8
     # :titlefontsize --> 10
+    # :tickfontsize --> 6
     :linewidth --> 1
-    :colorbar_title --> name(A)
+    # :colorbar_title --> name(A)
     :colorbar_titlefontsize --> 9
     :colorbar_tickfontcolor --> RGB(0.3)
     :tickfontcolor --> RGB(0.3)
@@ -103,7 +103,7 @@ end
         :layout --> (ncols, nrows)
         # link --> :both
         # clims = extrema(A)
-        :colorbar := false
+        # :colorbar := false
         titles = string.(index(A, D))
         for r in 1:nrows, c in 1:ncols
             i = (r + (c - 1) * nrows)
@@ -145,7 +145,7 @@ end
     if nplots > 1
         ncols, nrows = _balance_grid(nplots)
         :layout --> (ncols, nrows)
-        colorbar := false
+        # colorbar := false
         max_res = get(plotattributes, :max_res, 1000/(max(nrows, ncols)))
 
         l = DD.layers(st)

@@ -9,7 +9,6 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
 
     @time gdalarray = GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test)
 
-
     @testset "open" begin
         @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1, :]
         tempfile = tempname() * ".tif"
@@ -103,6 +102,7 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
         @testset "mean" begin
             @test all(mean(gdalarray; dims=Y) .=== mean(parent(gdalarray); dims=2))
         end
+
         @testset "trim, crop, extend" begin
             a = replace_missing(gdalarray, zero(eltype(gdalarray)))
             a[X(1:100)] .= missingval(a)
@@ -114,6 +114,7 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             extended = extend(cropped; to=a)
             @test all(collect(extended .=== a))
         end
+
         @testset "mask and mask! to disk" begin
             msk = replace_missing(gdalarray, missing)
             msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
@@ -128,17 +129,30 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             end
             @test all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
             rm(tempfile)
-            @time gdalarray = GeoArray(gdalpath; name=:test)
-            pointvec = [
-                (-10493.0, 4.235824521665208e6),
-                (-15298.0, 4.224973143255847e6),
-                (-20398.0, 4.234973143255847e6),
-                (-20493.0, 4.245824521665208e6),
-                (-10493.0, 4.235824521665208e6),
-            ]
-            x = mask(gdalarray; to=pointvec)
-            # TODO actually test polygon masking
         end
+
+        @testset "polygon mask" begin
+            A = read(GeoArray(gdalpath; name=:test))
+            ds = map(dims(A)) do d
+                DimensionalData.maybeshiftlocus(Center(), d)
+            end
+            A = set(A, ds)
+            A = set(A, X => Points, Y=> Points)
+            polymask = [[-20000, 4.23e6],
+                        [-20000, 4.245e6],
+                        [0.0, 4.245e6],
+                        [0.0, 4.23e6],
+                        [-20000, 4.23e6]]
+            rastermask = replace_missing(copy(A), missing)
+            # mask or `Between` is not exactly accurate yet...
+            section = X(Between(-20000.0, 0.0)), Y(Between(4.23005e6, 4.24495e6)), Band(1)
+            rastermask .= missing
+            rastermask[section...] .= A[section...]
+            pmasked = mask(A; to=polymask) |> read
+            rmasked = mask(A; to=rastermask) |> read
+            @test all(rmasked .=== pmasked)
+        end
+
         @testset "classify! to disk" begin
             tempfile = tempname() * ".tif"
             cp(gdalpath, tempfile)
@@ -147,6 +161,7 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             end
             @test count(==(0x00), GeoArray(tempfile)) + count(==(0xff), GeoArray(tempfile)) == length(GeoArray(tempfile))
         end
+
         @testset "aggregate" begin
             ag = aggregate(mean, gdalarray, 4)
             @test ag == aggregate(mean, gdalarray, (X(4), Y(4), Band(1)))
@@ -156,8 +171,9 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             open(GeoArray(tempfile); write=true) do dst
                 aggregate!(mean, dst, gdalarray, 4)
             end
-            GeoArray(tempfile) == ag
+            @test GeoArray(tempfile) == ag
         end
+
         @testset "mosaic" begin
             @time gdalarray = GeoArray(gdalpath; name=:test)
             A1 = gdalarray[X(1:300), Y(1:200)]
@@ -170,6 +186,17 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             Atest[X(301:500), Y(1:100)] .= 0x00
             @test all(Atest .=== Amem .=== Afile)
         end
+
+        @testset "rasterize" begin
+            A = rebuild(read(gdalarray); missingval=0x00)
+            # We round-trip rasterise the Tables.jl form of A
+            R = rasterize(A; to=A)
+            @test all(A .=== R .== gdalarray)
+            B = rebuild(read(gdalarray) .= 0x00; missingval=0x00)
+            rasterize!(B, read(gdalarray))
+            @test all(B .=== gdalarray |> collect)
+        end
+
         @testset "chunk_series" begin
             @test GeoData.chunk_series(gdalarray) isa GeoSeries
             @test size(GeoData.chunk_series(gdalarray)) == (1, 1, 1)
@@ -259,7 +286,6 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             ga = GeoArray(rand(100, 200), (X, Y))
             write(filename, ga)
             saved = GeoArray(filename)
-            order(saved)
             @test all(reverse(saved[Band(1)]; dims=Y) .=== ga)
             @test saved[1, end, 1] == saved[At(1.0), At(1.0), At(1.0)]
             @test saved[100, 1, 1] == saved[At(100), At(200), At(1)]
@@ -378,6 +404,16 @@ end
             mask!(st; to=msk, missingval=0x00)
             @test all(st[:a][X(1:100), Y([1, 5, 95])] .=== 0x00)
             @test all(st[:b][X(1:100), Y([1, 5, 95])] .=== 0x00)
+        end
+
+        @testset "rasterize" begin
+            st = map(A -> rebuild(A; missingval=0x00), gdalstack) |> read
+            # We round-trip rasterise the Tables.jl form of A
+            r_st = rasterize(read(gdalstack); to=st)
+            @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, gdalstack))
+            st = map(A -> rebuild(A .* 0x00; missingval=0x00), gdalstack) |> read
+            rasterize!(st, read(gdalstack))
+            @test all(map((a, b) -> all(a .=== b), st, gdalstack))
         end
     end
 

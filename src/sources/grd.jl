@@ -174,7 +174,7 @@ function Base.write(filename::String, ::Type{GRDfile}, A::AbstractGeoArray)
         write(IO, parent(correctedA))
     end
 
-    return filename
+    return filename * ".grd"
 end
 
 function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)

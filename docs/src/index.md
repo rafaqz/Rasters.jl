@@ -30,12 +30,7 @@ using GeoData, Plots
 A = GeoArray(WorldClim{BioClim}, 5)
 madagascar = view(A, X(Between(43.25, 50.48)), Y(Between(-25.61, -12.04))) 
 plot(madagascar)
-savefig("madagascar_bio5.png")
 ```
-
-![Bioclim 5 for madagascar](madagascar_bio5.png)
-
-### Changing an objects resolution or extent
 
 Methods that change the reslolution or extent of an object are listed here.
 Click through to the function documentation for more in-depth descriptions and
@@ -50,8 +45,7 @@ examples.
 | [`extend`](@ref)          | extend objects to specific dimension sizes or the extent of another object.  |
 | [`trim`](@ref)            | trims areas of missing values for arrays and across stack layers.            |
 | [`resample`](@ref)        | resample data to a different size and projection, or snap to another object. |
-| [`warp`](@ref)            | use `gdalwarp` directly on any object, e.g. a multidimensional NetCDF stack. |
-
+| [`warp`](@ref)            | use `gdalwarp` on any object, e.g. a multidimensional NetCDF stack.          |
 
 
 ### Methods that change an objects values: 
@@ -64,6 +58,15 @@ Note that most regular Julia methods, such as `replace`, work as for a standard
 | [`classify`](@ref)        | classify values into categories.                                             |
 | [`mask`](@ref)            | mask and object by a polygon or `GeoArray` along `X/Y`, or other dimensions. |
 | [`replace_missing`](@ref) | replace all missing values in an object and update `missingval`.             |
+
+
+### Point, polygon and table operation
+
+|                           |                                                                              |
+| :------------------------ | :--------------------------------------------------------------------------- |
+| [`rasterize`](@ref)       | rasterize point and tabular data, or polygons.                               |
+| [`extract`](@ref)         | extract values using points or tables.                                       |
+| [`inpolygon`](@ref)       | find if a point or points are in a polygon.                                  |
 
 
 ### Methods to load, write and modify data sources:
@@ -117,7 +120,6 @@ newstack = map(stack) do A
 end
 ```
 
-
 ### Modifying object properties
 
 `rebuild` can be used to modify the fields of an object, generating a new object
@@ -128,6 +130,8 @@ If you know that a file had an incorrectly specified missing value, you can do:
 ```julia
 rebuild(A; missingval=-9999)
 ```
+
+(`replace_missing` will actualy replace the current values)
 
 Or if you need to change the name of the layer:
 
@@ -153,9 +157,9 @@ We can also reassign dimensions, here `X` becomes `Z`:
 set(A, X => Z)
 ```
 
-`setcrs(A, crs)` and `setmappedcrs(A, crs)` will set the crs values to any
-`GeoFormat` from GeoFormatTypes.jl. These can't be set directly with `set`, as
-they can be the same objects.
+`setcrs(A, crs)` and `setmappedcrs(A, crs)` will set the crs value/s of and
+object to any `GeoFormat` from GeoFormatTypes.jl.
+
 
 
 ## Examples and Plotting
@@ -175,14 +179,15 @@ A = GeoArray(WorldClim{BioClim}, 5)
 plot(A; max_res=3000)
 ```
 
+## Loading and plotting data
 
 Our first example simply loads a file from disk and plots it.
 
 This netcdf file only has one layer, if it has more we could use `GeoStack`
-instead.
+instead. 
 
 ```@example nc
-using GeoData, NCDatasets, Plots 
+using GeoData, Plots
 url = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc";
 filename = download(url, "tos_O1_2001-2002.nc");
 A = GeoArray(filename)
@@ -193,23 +198,19 @@ Here we plot every third month in the first year, just using the regular index:
 
 ```@example nc
 A[Ti(1:3:12)] |> plot
-savefig("four_pane.png") 
-# output
 ```
 
-![Global ocean surface temperatures](four_pane.png)
-
 Now plot the ocean temperatures areound the Americas in the first month of 2001.
-Notice we are using lat/lon coordinates and date/time instead of regular indexes:
+Notice we are using lat/lon coordinates and date/time instead of regular
+indexes: The time dimension uses `DateTime360Day`, so we need to load CFTime.jl
+to index it with `Near`.
 
 ```@example nc
+using CFTime
 A[Ti(Near(DateTime360Day(2001, 01, 17))), 
   Y(Between(-60.0, 90.0)), 
   X(Between(190.0, 345.0))] |> plot
-savefig("tos_americas.png")
 ```
-
-![Americas regional ocean surface temperature](tos_americas.png)
 
 Now get the mean over the timespan, then save it to disk, and plot it as a
 filled contour:
@@ -218,21 +219,23 @@ Other plot functions and sliced objects that have only one `X`/`Y`/`Z` dimension
 fall back to generic DimensionalData.jl plotting, which will still correctly
 label plot axes.
 
-
-```@exampe nc
+```@example nc
 using Statistics
 # Take the mean
 mean_tos = mean(A; dims=Ti)
-
-# Plot a contour plot
-contourf(mean_tos; dpi=300, size=(800, 400))
-savefig("mean_tos_contour.png")
-
-# Write the mean values to disk
-write("mean_tos.nc", mean_tos)
 ```
 
-![Mean temperatures](mean_tos_contour.png)
+### Plot a contour plot
+
+```@example nc
+contourf(mean_tos; dpi=300, size=(800, 400))
+```
+
+Write the mean values to disk
+
+```@example nc
+write("mean_tos.nc", mean_tos)
+```
 
 Plotting recipes in DimensionalData.jl are the fallback for GeoData.jl when the
 object doesn't have 2 `X`/`Y`/`Z` dimensions, or a non-spatial plot command is
@@ -241,17 +244,160 @@ temperature at 20 degree latitude :
 
 ```@example nc
 A[Y(Near(20.0)), Ti(1)] |> plot
-savefig("tos_transect.png")
 ```
 
-![Temperatures at lattitude 20-21](tos_transect.png)
 
+## A basic species distribution modelling workflow
+
+Load occurrences for the Mountain Pygmy Possum using GBIF.jl
+
+```@example sdm
+using GeoData, GBIF, Plots 
+records = GBIF.occurrences("scientificName" => "Burramys parvus", "limit" => 300)
+
+# Get the rest of the occurrences, we need to do this manually with a loop.
+# Note: GBIF.jl uses non-standard semantics for `size`. This is comparing 
+# the occurrances already downloaded with the total occurrances.
+while length(records) < size(records)
+    occurrences!(records)
+end
+```
+
+Extract the longitude/latitude value to a Vector of Tuple:
+
+```@example sdm
+coords = map(r -> (r.longitude, r.latitude), records)
+```
+
+Get BioClim layers and subset to south-east australia
+
+```@example sdm
+A = GeoStack(WorldClim{BioClim}, (1, 3, 7, 12))
+SE_aus = A[X=Between(138, 155), Y=Between(-40, -25), Band=1]
+```
+
+And plot BioClim predictors and scatter occurrence points on all subplots
+
+```@example sdm
+p = plot(SE_aus);
+foreach(i -> scatter!(p, coords; subplot=i, legend=:none), 1:4)
+p
+```
+
+Then extract predictor variables and write to CSV.
+
+```@example sdm
+using CSV
+predictors = extract(SE_aus, coords)
+CSV.write("burramys_parvus_predictors.csv", predictors)
+```
+
+Or convert them to a `DataFrame`.
+
+```julia
+using DataFrames
+df = DataFrame(predictors)
+```
+
+
+## Polygon masking, mosaic and plot
+
+In this example we wil l `mask` the scandinavian countries with border polygons,
+then `mosaic` together to make a single plot. 
+
+First, get the country boundary shape files using GADM.jl.
+
+```@example mask
+using GeoData, Shapefile, Plots, Dates, Downloads
+
+# Download the shapefile
+shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
+shapefile_name = "boundary_lines.shp"
+Downloads.download(shapefile_url, shapefile_name)
+
+# Load using Shapefile.jl
+shapes = Shapefile.Handle(shapefile_name)
+denmark_border = shapes.shapes[79]
+norway_border = shapes.shapes[58]
+sweden_border = shapes.shapes[59]
+```
+
+Then load raster data. We load some worldclim layers using RasterDataSources via
+GeoData.jl, and drop the Band dimension.
+
+```@example mask
+A = GeoStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)[Band(1)]
+```
+
+`mask` denmark, norway and sweden from the global dataset using their border polygon,
+then trim the missing values. We pad `trim` with a 10 pixel margin.
+
+```@example mask
+mask_trim(A, poly) = trim(mask(A; to=poly); pad=10)
+
+denmark = mask_trim(A, denmark_border)
+norway = mask_trim(A, norway_border)
+sweden = mask_trim(A, sweden_border)
+```
+
+Combine the countries into a single raster using `mosaic`. `first` will take the
+first value if/when there is an overlap.
+
+```@example mask
+scandinavia = mosaic(first, denmark, norway, sweden)
+```
+
+### Plotting
+
+First define a function to add borders to all subplots.
+
+```@example mask
+function borders!(p, poly) 
+    for i in 1:length(p)
+        plot!(p, poly; subplot=i, fillalpha=0, linewidth=0.6)
+    end
+    return p
+end
+```
+
+Now we can plot the individual countries.
+
+```@example mask
+dp = plot(denmark)
+borders!(dp, denmark_border)
+```
+
+```@example mask
+sp = plot(sweden)
+borders!(sp, sweden_border)
+```
+
+```@example mask
+np = plot(norway)
+borders!(np, norway_border)
+```
+
+And plot scandinavia, with all borders included:
+
+```@example mask
+p = plot(scandinavia)
+borders!(p, denmark_border)
+borders!(p, norway_border)
+borders!(p, sweden_border)
+```
+
+And save to netcdf - a single multi-layered file, and tif, which will write a
+file for each stack layer.
+
+```@example mask
+write("scandinavia.nc", scandinavia)
+write("scandinavia.tif", scandinavia)
+```
 
 GeoData.jl provides a range of other methods that are being added to over time.
 Where applicable these methods read and write lazily to and from disk-based
 arrays of common raster file types. These methods also work for entire
 `GeoStacks` and `GeoSeries` using the same syntax.
-
 
 ## Objects
 
@@ -306,10 +452,9 @@ Band
 ### Index modes
 
 These specify properties of the index associated with e.g. the X and Y
-dimension. GeoData.jl additional modes to handle dimensions with projections
-with `Projected`, and where the projection is mapped to another projection like
-`EPSG(4326)` in `Mapped`, to handle e.g. NetCDF dimensions.
-
+dimension. GeoData.jl defines additional modes to handle dimensions with
+projections with `Projected`, and where the projection is mapped to another
+projection like `EPSG(4326)` in `Mapped`, to handle e.g. NetCDF dimensions.
 
 ```@docs
 GeoData.AbstractProjected
@@ -322,13 +467,13 @@ Mapped
 GeoData.jl uses a number of backends to load raster data. `GeoArray`, `GeoStack`
 and `GeoSeries` will detect which backend to use for you, automatically.
 
-#### GRD
+### GRD
 
 R GRD files can be loaded natively, using Julias `MMap` - which means they are
 very fast, but are not compressed. They are always 3 dimensional, and have `Y`,
 `X` and [`Band`](@ref) dimensions.
 
-#### NetCDF
+### NetCDF
 
 NetCDF `.nc` files are loaded using
 [NCDatasets.jl](https://github.com/Alexander-Barth/NCDatasets.jl). Layers from
@@ -340,7 +485,7 @@ NetCDF layers can have arbitrary dimensions. Known, common dimension names are
 converted to `X`, `Y` `Z`, and `Ti`, otherwise `Dim{:layername}` is used. Layers
 in the same file may also have different dimensions.
 
-#### GDAL
+### GDAL
 
 All files GDAL can access, such as `.tiff` and `.asc` files, can be loaded,
 using [ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl/issues). These are
@@ -348,7 +493,7 @@ generally best loaded as `GeoArray("filename.tif")`, but can be loaded as
 `GeoStack("filename.tif"; layersfrom=Band)`, taking layers from the `Band`
 dimension, which is also the default.
 
-#### SMAP
+### SMAP
 
 The [Soil Moisture Active-Passive](https://smap.jpl.nasa.gov/) dataset provides
 global layers of soil moisture, temperature and other related data, in a custom
@@ -362,7 +507,17 @@ the first layer is used.
 smapseries
 ```
 
-### RasterDataSources.jl integration
+### Writing file formats to disk
+
+Files can be written to disk in all formats other than SMAP HDF5 using
+`write("filename.ext", A)`. See the docs for [`write`](@ref). They can (with
+some caveats) be written to different formats than they were loaded in,
+providing file-type conversion for spatial data.
+
+Some metadata may be lost in formats that store little metadata, or where
+metadata conversion has not been completely implemented.
+
+## RasterDataSources.jl integration
 
 [RasterDataSources.jl](https://github.com/EcoJulia/RasterDataSources.jl)
 standardises the download of common raster data sources, with a focus on
@@ -374,21 +529,11 @@ directly to download and load data as a `GeoArray`, `GeoStack`, or `GeoSeries`.
 using GeoData, Plots, Dates
 A = GeoArray(WorldClim{Climate}, :tavg; month=June)
 plot(A)
-savefig("worldclim_june_average_temp.png")
 ```
 
-![WorldClim June verage temperatures](worldclim_june_average_temp.png)
-
-### Writing file formats to disk
-
-Files can be written to disk in all formats other than SMAP HDF5 using
-`write("filename.ext", A)`. See the docs for [`write`](@ref). They can (with
-some caveats) be written to different formats than they were loaded in,
-providing file-type conversion for spatial data.
-
-Some metadata may be lost in formats that store little metadata, or where
-metadata conversion has not been completely implemented.
-
+See the docs for [`GeoArray`](@ref), [`GeoStack`](@ref) and [`GeoSeries`](@ref),
+and the docs for `RasterDataSources.getraster` for syntax to specify various
+data sources.
 
 ## Exported functions
 
@@ -412,6 +557,7 @@ disaggregate
 disaggregate!
 extend
 extract
+inpolygon
 mappedcrs
 mappedbounds
 mappedindex
@@ -422,6 +568,8 @@ missingmask
 mosaic
 mosaic!
 points
+rasterize
+rasterize!
 resample
 replace_missing
 reproject
