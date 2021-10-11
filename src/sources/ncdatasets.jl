@@ -170,7 +170,7 @@ end
 function FileStack{NCDfile}(ds::NCD.Dataset, filename::AbstractString; write=false, keys)
     keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key
-        var = NCD.variable(ds, string(key))
+        var = ds[string(key)]
         Union{Missing,eltype(var)}, size(var), _ncd_eachchunk(var), _ncd_haschunks(var)
     end
     layertypes = NamedTuple{keys}(map(x->x[1], type_size_ec_hc))
