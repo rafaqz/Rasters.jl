@@ -430,8 +430,7 @@ end
     @test read(gdalser[Ti(1)]) == read(GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test))
     @test read(gdalser[Ti(1)]) == read(GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test))
 
-    gdalstack = GeoStack((a=gdalpath, b=gdalpath); mappedcrs=EPSG(4326))
-    gdalser = GeoSeries([gdalstack, gdalstack], (Ti,))
+    gdalser = GeoSeries((a=[gdalpath, gdalpath], b=[gdalpath, gdalpath]), (Ti,))
     # Rebuild the ser by wrapping the disk data in Array.
     # `modify` forces `rebuild` on all containers as in-Memory variants
     modified_ser = modify(Array, gdalser)
