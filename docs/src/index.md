@@ -317,9 +317,9 @@ Downloads.download(shapefile_url, shapefile_name)
 
 # Load using Shapefile.jl
 shapes = Shapefile.Handle(shapefile_name)
-denmark_border = shapes.shapes[79]
-norway_border = shapes.shapes[58]
-sweden_border = shapes.shapes[59]
+denmark_border = shapes.shapes[72]
+norway_border = shapes.shapes[54]
+sweden_border = shapes.shapes[55]
 ```
 
 Then load raster data. We load some worldclim layers using RasterDataSources via
