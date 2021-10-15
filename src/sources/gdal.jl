@@ -251,6 +251,7 @@ end
 function _gdalwrite(filename, A::AbstractGeoArray, nbands; 
     driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing
 )
+    A = maybe_typemin_as_missingval(filename, A)
     kw = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
     gdaldriver = AG.getdriver(driver)
     if driver == "GTiff" 

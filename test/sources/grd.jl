@@ -229,6 +229,14 @@ path = stem * ".gri"
             @test val(dims(gdalarray2, Band)) == 1:3
         end
 
+        @testset "write missing" begin
+            A = replace_missing(grdarray, missing)
+            filename = tempname() * ".grd"
+            write(filename, A)
+            @test missingval(GeoArray(filename)) === typemin(Float32)
+            rm(filename)
+        end
+
     end
 
     @testset "show" begin
