@@ -21,6 +21,17 @@ function noindex_to_sampled(dims::DimTuple)
     end
 end
 
+function maybe_typemin_as_missingval(filename::String, A::AbstractGeoArray{T}) where T
+    if ismissing(missingval(A))
+        newmissingval = typemin(Missings.nonmissingtype(T)) 
+        ext = splitext(filename)
+        @warn "`missing` cant be written to $ext, typemin of $newmissingval used instead" 
+        replace_missing(A, newmissingval)
+    else
+        A
+    end
+end
+
 # We often need to convert the locus and the mode in the same step,
 # as doing it in the wrong order can give errors.
 # function convert_locus_mode(M1::Type{<:IndexMode}, L1::Type{<:Locus}, dim::Dimension)

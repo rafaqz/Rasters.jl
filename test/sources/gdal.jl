@@ -290,6 +290,14 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Y),  projectedbounds(gdalarray, Y)))
         end
 
+        @testset "write missing" begin
+            A = replace_missing(gdalarray, missing)
+            filename = tempname() * ".tif"
+            write(filename, A)
+            @test missingval(GeoArray(filename)) === typemin(UInt8)
+            rm(filename)
+        end
+
     end
 
     @testset "show" begin

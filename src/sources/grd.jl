@@ -149,6 +149,7 @@ The extension of `filename` will be ignored.
 Returns `filename`.
 """
 function Base.write(filename::String, ::Type{GRDfile}, A::AbstractGeoArray)
+    A = maybe_typemin_as_missingval(filename, A)
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
             a -> reorder(a, GRD_INDEX_ORDER) |>
