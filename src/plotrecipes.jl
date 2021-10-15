@@ -25,12 +25,12 @@ end
     # colormap and set symmetric limits so zero shows up as a neutral color.
     A_min, A_max = extrema(skipmissing(A))
 
-    if (A_min + A_max) / abs(A_max - A_min) < 0.25
-        A_limit = max(abs(A_min), abs(A_max))
-        clims = (-A_limit, A_limit)
-    else
-        clims = A_min, A_max
-    end
+    # if (A_min + A_max) / abs(A_max - A_min) < 0.25
+        # A_limit = max(abs(A_min), abs(A_max))
+        # clims = (-A_limit, A_limit)
+    # else
+    # end
+    clims = A_min, A_max
 
     yguide, xguide = label(dims(A))
 
@@ -59,9 +59,9 @@ end
     :seriescolor --> :curl
 
     # Often Mapped mode/netcdf has wide pixels
-    mode(x) isa Mapped && (:xlims --> mappedbounds(x))
-    mode(y) isa Mapped && (:ylims --> mappedbounds(y))
     if all(d -> mode(d) isa Mapped, (x, y))
+        :xlims --> mappedbounds(x)
+        :ylims --> mappedbounds(y)
         :aspect_ratio --> :equal
     else
         :xlims --> bounds(A, x)
@@ -196,7 +196,7 @@ _prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
 function _prepare(A::AbstractGeoArray)
     reorder(A, ForwardIndex) |>
     a -> reorder(a, ForwardRelation) |>
-    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A))) |>
+    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(a))) |>
     a -> replace_missing(a, missing)
 end
 
