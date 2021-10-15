@@ -326,18 +326,18 @@ Then load raster data. We load some worldclim layers using RasterDataSources via
 GeoData.jl, and drop the Band dimension.
 
 ```@example mask
-A = GeoStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)[Band(1)]
+clim = GeoStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)[Band(1)]
 ```
 
 `mask` denmark, norway and sweden from the global dataset using their border polygon,
 then trim the missing values. We pad `trim` with a 10 pixel margin.
 
 ```@example mask
-mask_trim(A, poly) = trim(mask(A; to=poly); pad=10)
+mask_trim(A, poly) = trim(mask(clim; to=poly); pad=10)
 
-denmark = mask_trim(A, denmark_border)
-norway = mask_trim(A, norway_border)
-sweden = mask_trim(A, sweden_border)
+denmark = mask_trim(clim, denmark_border)
+norway = mask_trim(clim, norway_border)
+sweden = mask_trim(clim, sweden_border)
 ```
 
 Combine the countries into a single raster using `mosaic`. `first` will take the
@@ -373,6 +373,17 @@ borders!(sp, sweden_border)
 ```
 
 ```@example mask
+np = plot(norway)
+borders!(np, norway_border)
+```
+
+
+The Norway shape includes a lot of islands. Lets crop them out using `Between`.
+
+```@example mask
+norway_region = clim[X=Between(0, 40), Y=Between(55, 73)]
+plot(norway_region)
+norway = mask_trim(norway, norway_border)
 np = plot(norway)
 borders!(np, norway_border)
 ```

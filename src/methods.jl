@@ -399,7 +399,7 @@ These are detected automatically from `A` and `data` where possible.
 # Example
 
 ```jldoctest
-using GeoData, Plots, Dates, Shapefile, GeoInterface
+using GeoData, Plots, Dates, Shapefile, GeoInterface, Downloads
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -476,7 +476,7 @@ These are detected automatically from `A` and `data` where possible.
 Rasterize a shapefile for denmark and plot, with a border.
 
 ```jldoctest
-using GeoData, Plots, Dates, Shapefile
+using GeoData, Plots, Dates, Shapefile, Downloads
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
