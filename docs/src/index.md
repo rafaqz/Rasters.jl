@@ -88,7 +88,7 @@ that take a `dims` argument can also use the dimension name. To take the mean
 over the time dimension:
 
 ```julia
-mean(A dims=Ti)
+mean(A, dims=Ti)
 ```
 
 `broadcast` works lazily from disk, and is only applied when data is directly
@@ -294,7 +294,7 @@ CSV.write("burramys_parvus_predictors.csv", predictors)
 
 Or convert them to a `DataFrame`.
 
-```julia
+```@example sdm
 using DataFrames
 df = DataFrame(predictors)
 ```
