@@ -1,5 +1,10 @@
 
 function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractGeoArray)
+
+    if missingval(A) !== nothing
+        printstyled(io, "with missingval: "; color=:light_black)
+        print(string(missingval(A)), "\n")
+    end
     if parent(A) isa DiskArrays.AbstractDiskArray 
         if parent(A) isa FileArray 
             printstyled(io, "\nfrom file:\n"; color=:light_black)
