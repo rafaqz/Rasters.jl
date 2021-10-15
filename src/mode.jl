@@ -123,6 +123,10 @@ function convertmode(dstmode::Type{Mapped}, srcmode::Type{Projected}, dim::Dimen
     m = mode(dim)
     newindex = reproject(crs(m), mappedcrs(m), dim, index(dim))
     newbounds = reproject(crs(m), mappedcrs(m), dim, DD.dim2boundsmatrix(dim))
+    # GDAL may have wrapped the first/last values due to floating-point error
+    fix_wrapped!(view(newbounds, 1, :), dim)
+    fix_wrapped!(view(newbounds, 2, :), dim)
+    fix_wrapped!(newindex, dim)
     newmode = Mapped(
         order=order(m),
         span=Explicit(newbounds),
@@ -142,6 +146,26 @@ function convertmode(dstmode::Type{Projected}, srcmode::Type{Mapped}, dim::Dimen
         mappedcrs=mappedcrs(m),
     )
     rebuild(dim; val=newindex, mode=newmode)
+end
+
+# GDAL can wrap values around due to floating point error
+# So fix them by rounding and flipping the bit.
+fix_wrapped!(b::AbstractRange, dims::Dimension) = nothing
+fix_wrapped!(b::AbstractArray, dim::Dimension) = fix_wrapped!(b, indexorder(dim), dim)
+function fix_wrapped!(b, ::ForwardIndex, dim::Dimension)
+    b[1] > b[2] && fix_wrapped!(b, dim, firstindex(b))
+    b[end] < b[end-1] && fix_wrapped!(b, dim, lastindex(b))
+end
+function fix_wrapped!(b, ::ReverseIndex, dim::Dimension)
+    b[1] < b[2] && fix_wrapped(b, dim, firstindex(b))
+    b[end] > b[end-1] && fix_wrapped(b, dim, lastindex(b))
+end
+function fix_wrapped!(b, dim::Dimension, i) 
+    x = b[i] 
+    xfixed = round(-x)
+    D = DD.basetypeof(dim)
+    @warn "Fixing index $i value $x to $xfixed for $D. It appears to have been wrapped by GDAL" 
+    b[i] = xfixed
 end
 
 _projectedrange(::Projected, dim) = LinRange(first(dim), last(dim), length(dim))
