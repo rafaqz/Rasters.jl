@@ -398,7 +398,7 @@ These are detected automatically from `A` and `data` where possible.
 
 # Example
 
-```julia
+```jldoctest
 using GeoData, Plots, Dates, Shapefile, GeoInterface
 
 # Download a borders shapefile
@@ -475,7 +475,7 @@ These are detected automatically from `A` and `data` where possible.
 
 Rasterize a shapefile for denmark and plot, with a border.
 
-```julia
+```jldoctest
 using GeoData, Plots, Dates, Shapefile
 
 # Download a borders shapefile
