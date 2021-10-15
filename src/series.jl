@@ -81,6 +81,9 @@ function GeoSeries(data::AbstractArray{<:Union{AbstractGeoStack,AbstractGeoArray
 )
     GeoSeries(data, DD.formatdims(data, dims), refdims)
 end
+function GeoSeries(filenames::NamedTuple{K}, dims; kw...) where K
+    GeoSeries(map((fns...) -> NamedTuple{K}(fns), values(filenames)...), dims; kw...) 
+end
 function GeoSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims; 
     refdims=(), duplicate_first=true, child=nothing, resize=nothing, kw...
 )
