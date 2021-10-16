@@ -445,7 +445,7 @@ end
 
 
 """
-    rasterize!(x, data; order, colnames, atol)
+    rasterize!(x, data; order, name, atol)
     rasterize!(x, points, values; order, atol)
 
 Rasterize the points and values in `data`, or the `points` and `values` objects,
@@ -507,16 +507,16 @@ $EXPERIMENTAL
 """
 function rasterize!(A::AbstractGeoArray, data;
     order=_auto_pointcols(A, data),
-    colnames=first(_not_a_dimcol(data, order)), kw...
+    name=first(_not_a_dimcol(data, order)), kw...
 )
     isdisk(data) && _warn_disk(rasterize)
     ordered_dims = map(p -> DD.basetypeof(p[1])(p[2]), order)
     ordered_keys = map(last, order)
     points = (map(k -> r[k], ordered_keys) for r in Tables.rows(data))
-    if colnames isa Symbol
-        values = (r[colnames] for r in Tables.rows(data))
+    if name isa Symbol
+        values = (r[name] for r in Tables.rows(data))
     elseif value isa Tuple
-        values = (r[first(colnames)] for r in Tables.rows(data))
+        values = (r[first(name)] for r in Tables.rows(data))
     end
     return rasterize!(A, points, values; order=ordered_dims, kw...)
 end
@@ -540,16 +540,16 @@ function rasterize!(A::AbstractGeoArray, points, values;
     return A
 end
 function rasterize!(st::AbstractGeoStack, data;
-    point=_auto_pointcols(st, data), colnames=_not_a_dimcol(data, point), kw...
+    point=_auto_pointcols(st, data), name=_not_a_dimcol(data, point), kw...
 )
     isdisk(data) && _warn_disk(rasterize!)
     point_dims = map(p ->  DD.basetypeof(p[1])(p[2]), point)
     order = map(last, point)
     points = (map(pk -> r[pk], order) for r in Tables.rows(data))
-    if colnames isa Symbol
-        values = (r[colnames] for r in Tables.rows(data))
-    elseif colnames isa Tuple
-        values = (map(vk -> r[vk], colnames) for r in Tables.rows(data))
+    if name isa Symbol
+        values = (r[name] for r in Tables.rows(data))
+    elseif name isa Tuple
+        values = (map(vk -> r[vk], name) for r in Tables.rows(data))
     end
     return rasterize!(st, points, values; order=point_dims, kw...)
 end
