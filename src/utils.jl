@@ -58,3 +58,15 @@ end
 # # So we always shift the locus while in Projected mode to avoid errors.
 # _convert_by_mode(::Type{Mapped}, dim) = convertmode(Mapped, shiftlocus(Center(), dim))
 # _convert_by_mode(::Type{Projected}, dim) = shiftlocus(Center(), convertmode(Projected, dim))
+#
+
+_not_a_dimcol(data, dimcols::DimTuple) = _not_a_dimcol(data, map(DD.dim2key, dimcols))
+_not_a_dimcol(data, dimcols::Tuple{Vararg{<:Pair}}) = _not_a_dimcol(data, map(last, dimcols))
+function _not_a_dimcol(data, dimcols::Tuple{Vararg{Symbol}})
+    names = Tables.columnnames(data)
+    if length(names) == 0
+        names = keys(first(Tables.rows(data)))
+    end
+    not_dim_keys = Tuple(k for k in names if !(k in dimcols))
+    return  not_dim_keys
+end

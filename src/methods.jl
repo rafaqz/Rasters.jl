@@ -648,15 +648,6 @@ function _auto_pointcols(A, data)
     Tuple(DD.basedims(d) => DD.dim2key(d) for d in dims(A) if DD.dim2key(d) in names)
 end
 
-function _not_a_dimcol(data, pointcol)
-    names = Tables.columnnames(data)
-    if names == ()
-        names = keys(first(Tables.rows(data)))
-    end
-    not_dim_keys = Tuple(k for k in names if !(k in map(last, pointcol)))
-    return  not_dim_keys
-end
-
 """
     inpolygon(points, poly)
 

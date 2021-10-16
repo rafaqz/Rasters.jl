@@ -113,8 +113,8 @@ end
 """
     GeoStack <: AbstrackGeoStack
 
-    GeoStack(data...; keys, kw...)
-    GeoStack(data::Union{Vector,Tuple}; keys, kw...)
+    GeoStack(data...; name, kw...)
+    GeoStack(data::Union{Vector,Tuple}; name, kw...)
     GeoStack(data::NamedTuple; kw...))
     GeoStack(s::AbstractGeoStack; kw...)
     GeoStack(s::AbstractGeoArray; layersfrom=Band, kw...)
@@ -125,11 +125,11 @@ Load a file path or a `NamedTuple` of paths as a `GeoStack`, or convert argument
 # Arguments
 
 - `data`: A `NamedTuple` of [`GeoArray`](@ref), or a `Vector`, `Tuple` or splatted arguments
-    of [`GeoArray`](@ref). The latter options must pass a `keys` keyword argument.
+    of [`GeoArray`](@ref). The latter options must pass a `name` keyword argument.
 
 # Keywords
 
-- `keys`: Used as stack keys when a `Tuple`, `Vector` or splat of `GeoArray` is passed in.
+- `name`: Used as stack layer names when a `Tuple`, `Vector` or splat of `GeoArray` is passed in.
 - `metadata`: A `Dict` or `DimensionalData.Metadata` object.
 - `refdims`: `Tuple` of `Dimension` that the stack was sliced from.
 - `layersfrom`: `Dimension` to source stack layers from if the file is not 
@@ -153,7 +153,7 @@ end
 # Multi-file stack from strings
 function GeoStack(
     filenames::Union{AbstractArray{<:AbstractString},Tuple{<:AbstractString,Vararg}};
-    keys=map(filekey, filenames), kw...
+    name=map(filekey, filenames), keys=name, kw...
 )
     GeoStack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
 end
@@ -174,10 +174,24 @@ function GeoStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     end
     GeoStack(NamedTuple{K}(layers); kw...)
 end
-# Multi GeoArray stack from splat with `keys` keyword
+# Multi GeoArray stack from Tuple of AbstractArray
+function GeoStack(data::Tuple{Vararg{<:AbstractArray}}, dims::DimTuple; name=nothing, keys=name, kw...)
+    return GeoStack(NamedTuple{cleankeys(keys)}(data), dims; kw...)
+end
+# Multi GeoArray stack from NamedTuple of AbstractArray
+function GeoStack(data::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}, dims::DimTuple; kw...)
+    # TODO: make this more sophisticated an match dimension length to axes?
+    layers = map(data) do A
+        GeoArray(A, dims[1:ndims(A)])
+    end
+    return GeoStack(layers; kw...)
+end
+# Multi GeoArray stack from AbstractDimArray splat
 GeoStack(layers::AbstractDimArray...; kw...) = GeoStack(layers; kw...)
 # Multi GeoArray stack from tuple with `keys` keyword
-function GeoStack(layers::Tuple{Vararg{<:AbstractGeoArray}}; keys=map(name, layers), kw...)
+function GeoStack(layers::Tuple{Vararg{<:AbstractGeoArray}}; 
+    name=map(name, layers), keys=name, kw...
+)
     GeoStack(NamedTuple{cleankeys(keys)}(layers); kw...)
 end
 # Multi GeoArray stack from NamedTuple
@@ -201,7 +215,7 @@ end
 function GeoStack(filename::AbstractString;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, layermissingval=nothing,
-    source=_sourcetype(filename), keys=nothing, layersfrom=Band,
+    source=_sourcetype(filename), name=nothing, keys=name, layersfrom=Band,
     resize=nothing,
 )
     st = if haslayers(_sourcetype(filename))
@@ -231,13 +245,29 @@ function GeoStack(filename::AbstractString;
     end
 end
 function GeoStack(A::GeoArray; 
-    layersfrom=Band, keys=nothing, metadata=metadata(A), refdims=refdims(A), kw...
+    layersfrom=Band, name=nothing, keys=name, metadata=metadata(A), refdims=refdims(A), kw...
 )
     layersfrom = layersfrom isa Nothing ? Band : layersfrom
     keys = keys isa Nothing ? _layerkeysfromdim(A, layersfrom) : keys
     slices = slice(A, layersfrom)
     layers = NamedTuple{Tuple(map(Symbol, keys))}(Tuple(slices))
     GeoStack(layers; refdims=refdims, metadata=metadata, kw...)
+end
+# Stack from stack, dims args
+GeoStack(st::AbstractGeoStack, dims::DimTuple; kw...) = GeoStack(st; dims, kw...)
+# Stack from table, dims args
+function GeoStack(table, dims::DimTuple; name=_not_a_dimcol(table, dims), keys=name, kw...)
+    # TODO use `name` everywhere, not keys
+    if keys isa Symbol
+        col = Tables.getcolumn(table, keys)
+        layers = NamedTuple{(keys,)}((reshape(col, map(length, dims)),))
+    else
+        layers = map(keys) do k
+            col = Tables.getcolumn(table, k)
+            reshape(col, map(length, dims))
+        end |> NamedTuple{keys}
+    end
+    GeoStack(layers, dims; kw...)
 end
 
 function _layerkeysfromdim(A, dim)
@@ -259,15 +289,18 @@ function GeoStack(
     )
 end
 # GeoStack from another stack
-function GeoStack(s::AbstractDimStack; keys=cleankeys(Base.keys(s)),
+function GeoStack(s::AbstractDimStack; name=cleankeys(Base.keys(s)), keys=name,
     data=NamedTuple{keys}(s[key] for key in keys),
     dims=dims(s), refdims=refdims(s), layerdims=DD.layerdims(s),
     metadata=metadata(s), layermetadata=DD.layermetadata(s),
     layermissingval=layermissingval(s)
 )
     st = GeoStack(
-        data, dims, refdims, layerdims, metadata, layermetadata, layermissingval
+        data, DD.dims(s), refdims, layerdims, metadata, layermetadata, layermissingval
     )
+
+    # TODO This is a bit of a hack, it should use `formatdims`. 
+    return set(st, dims...)
 end
 
 Base.convert(::Type{GeoStack}, src::AbstractDimStack) = GeoStack(src)
