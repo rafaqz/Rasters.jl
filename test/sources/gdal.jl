@@ -192,6 +192,8 @@ gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea
             # We round-trip rasterise the Tables.jl form of A
             R = rasterize(A; to=A)
             @test all(A .=== R .== gdalarray)
+            R = rasterize(A; to=A, name=:test)
+            @test all(A .=== R .== gdalarray)
             B = rebuild(read(gdalarray) .= 0x00; missingval=0x00)
             rasterize!(B, read(gdalarray))
             @test all(B .=== gdalarray |> collect)
@@ -410,6 +412,8 @@ end
             st = map(A -> rebuild(A; missingval=0x00), gdalstack) |> read
             # We round-trip rasterise the Tables.jl form of A
             r_st = rasterize(read(gdalstack); to=st)
+            @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, gdalstack))
+            r_st = rasterize(read(gdalstack); to=st, name=(:a, :b))
             @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, gdalstack))
             st = map(A -> rebuild(A .* 0x00; missingval=0x00), gdalstack) |> read
             rasterize!(st, read(gdalstack))

@@ -175,6 +175,7 @@ specifies the maximum pixel resolution to show on the longest axis of the array.
 It can be set manually to change the resolution (e.g. for large or high-quality plots):
 
 ```julia
+using GeoData, Plots
 A = GeoArray(WorldClim{BioClim}, 5)
 plot(A; max_res=3000)
 ```
@@ -297,8 +298,8 @@ Or convert them to a `DataFrame`.
 ```@example sdm
 using DataFrames
 df = DataFrame(predictors)
+df[1:5, :]
 ```
-
 
 ## Polygon masking, mosaic and plot
 
@@ -326,25 +327,18 @@ Then load raster data. We load some worldclim layers using RasterDataSources via
 GeoData.jl, and drop the Band dimension.
 
 ```@example mask
-clim = GeoStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)[Band(1)]
+climate = GeoStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)[Band(1)]
 ```
 
 `mask` denmark, norway and sweden from the global dataset using their border polygon,
 then trim the missing values. We pad `trim` with a 10 pixel margin.
 
 ```@example mask
-mask_trim(A, poly) = trim(mask(clim; to=poly); pad=10)
+mask_trim(climate; to=poly) = trim(mask(climate; to); pad=10)
 
-denmark = mask_trim(clim, denmark_border)
-norway = mask_trim(clim, norway_border)
-sweden = mask_trim(clim, sweden_border)
-```
-
-Combine the countries into a single raster using `mosaic`. `first` will take the
-first value if/when there is an overlap.
-
-```@example mask
-scandinavia = mosaic(first, denmark, norway, sweden)
+denmark = mask_trim(climate; to=denmark_border)
+norway = mask_trim(climate; to=norway_border)
+sweden = mask_trim(climate; to=sweden_border)
 ```
 
 ### Plotting
@@ -377,15 +371,25 @@ np = plot(norway)
 borders!(np, norway_border)
 ```
 
-
 The Norway shape includes a lot of islands. Lets crop them out using `Between`.
 
 ```@example mask
-norway_region = clim[X=Between(0, 40), Y=Between(55, 73)]
+norway_region = climate[X=Between(0, 40), Y=Between(55, 73)]
 plot(norway_region)
-norway = mask_trim(norway, norway_border)
+```
+
+And mask it with the border again:
+```@example mask
+norway = mask_trim(norway_region; to=norway_border)
 np = plot(norway)
 borders!(np, norway_border)
+```
+
+Now we can combine the countries into a single raster using `mosaic`.
+`first` will take the first value if/when there is an overlap.
+
+```@example mask
+scandinavia = mosaic(first, denmark, norway, sweden)
 ```
 
 And plot scandinavia, with all borders included:
