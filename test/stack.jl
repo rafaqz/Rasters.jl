@@ -3,7 +3,7 @@ using GeoData: data
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
-dims1 = X((10, 100)), Y((-50, 50))
+dims1 = X(LinRange(10, 100, 10)), Y(LinRange(-50, 50, 11))
 dims2 = (dims1..., Ti([DateTime(2019)]))
 refdimz = ()
 nme = :test
@@ -14,7 +14,21 @@ meta = NoMetadata()
 ga1 = GeoArray(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=mval)
 ga2 = GeoArray(data2, dims2)
 
-st = GeoStack((ga1, ga2); keys=(:ga1, :ga2))
+@testset "stack constructors" begin
+    st1 = GeoStack((ga1, ga2); name=(:ga1, :ga2))
+    st2 = GeoStack((ga1, ga2); keys=(:ga1, :ga2))
+    st3 = GeoStack((data1, data2), dims2; keys=(:ga1, :ga2))
+    st4 = GeoStack(st3)
+    st5 = GeoStack(st3, dims2)
+    @test st1 == st2 == st3 == st4 == st5
+
+    # The dimension differences are lost because the table
+    # is tidy - every column is the same length
+    table_st = GeoStack(DimTable(st3), dims2)
+    @test dims(table_st[:ga1]) isa Tuple{<:X,<:Y,<:Ti}
+end
+
+st = GeoStack((ga1, ga2); name=(:ga1, :ga2))
 
 @testset "stack layers" begin
     @test length(st) == 2

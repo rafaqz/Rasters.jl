@@ -212,11 +212,15 @@ function GeoArray(A::AbstractArray, dims::Tuple;
 )
     GeoArray(A, DD.formatdims(A, dims), refdims, name, metadata, missingval)
 end
-function GeoArray(A::AbstractArray;
-    dims, refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing
-)
-    GeoArray(A, DD.formatdims(A, dims), refdims, name, metadata, missingval)
+function GeoArray(A::AbstractArray{<:Any,1}, dims::Tuple{<:Dimension,<:Dimension,Vararg}; kw...)
+    GeoArray(reshape(A, map(length, dims)), dims; kw...)
 end
+function GeoArray(table, dims::Tuple; name, kw...)
+    cols = Tables.getcolumns(table)
+    reshape(cols[name], map(length, dims))
+    GeoStack(layers; name, kw...)
+end
+GeoArray(A::AbstractArray; dims, kw...) = GeoArray(A, dims; kw...)
 function GeoArray(A::AbstractDimArray;
     data=data(A), dims=dims(A), refdims=refdims(A),
     name=name(A), metadata=metadata(A), missingval=missingval(A)
