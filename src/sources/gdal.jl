@@ -244,6 +244,9 @@ end
 # Utils ########################################################################
 
 function _open(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...)
+    if length(filename) > 8 && (filename[1:7] == "http://" || filename[1:8] == "https://")
+       filename = "/vsicurl/" * filename
+    end
     flags = write ? (; flags=AG.OF_UPDATE) : () 
     AG.readraster(cleanreturn ∘ f, filename; flags...)
 end

@@ -228,13 +228,11 @@ function GeoArray(A::AbstractDimArray;
     GeoArray(data, dims, refdims, name, metadata, missingval)
 end
 function GeoArray(filename::AbstractString; key=nothing, kw...)
-    isfile(filename) || error("File not found: $filename")
     _open(filename) do ds
         key = filekey(ds, key)
         GeoArray(ds, filename, key; kw...)
     end
 end
-# For loading opened datasets
 function GeoArray(ds, filename::AbstractString, key=nothing;
     crs=nothing, mappedcrs=nothing, dims=nothing, refdims=(),
     name=Symbol(key isa Nothing ? "" : string(key)),

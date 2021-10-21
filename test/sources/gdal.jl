@@ -3,11 +3,18 @@ import ArchGDAL, NCDatasets
 using GeoData: mode, span, sampling, name, bounds, FileArray, GDALfile
 
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
-gdalpath = maybedownload("https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif")
+url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
+gdalpath = maybedownload(url)
 
 @testset "array" begin
 
     @time gdalarray = GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test)
+    
+    @testset "load from url" begin
+        A = GeoArray("/vsicurl/" * url)
+        B = GeoArray(url)
+        @test read(A) == read(B) == gdalarray
+    end
 
     @testset "open" begin
         @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1, :]
