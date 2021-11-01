@@ -82,7 +82,7 @@ function GeoSeries(T::Type{<:RasterDataSource}, layers;
     else
         nothing
     end
-    datedim = if haskey(values(data), :date)
+    datedim = if haskey(values(kw), :date)
         dates = if values(kw)[:date] isa Tuple
             dates = RasterDataSources.date_sequence(T, values(kw)[:date])
             Ti(dates; lookup=Sampled(; sampling=Intervals(Start())))
