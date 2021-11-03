@@ -1,5 +1,7 @@
 using Documenter, GeoData, Plots, Logging, Statistics, Dates
 
+using GeoData.LookupArrays, GeoData.Dimensions
+
 ENV["GKSwstype"] = "100"
 
 # Plots warnings are breaking doctests. They dont warn the second time.

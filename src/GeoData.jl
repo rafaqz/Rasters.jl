@@ -51,7 +51,8 @@ export Band
 export missingval, boolmask, missingmask, replace_missing,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!, 
        resample, warp, crop, extend, trim, slice, points, subset, inpolygon,
-       classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!
+       classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
+       setcrs, setmappedcrs
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertlookup
 export geoarray, stack, series

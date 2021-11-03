@@ -37,6 +37,7 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 
 ```jldoctest
 using GeoData, Statistics, Plots
+using GeoData: Center 
 st = read(GeoStack(WorldClim{Climate}; month=1))
 ag = aggregate(Center(), st, (Y(20), X(20)); skipmissingval=true, progress=false)
 plot(ag)

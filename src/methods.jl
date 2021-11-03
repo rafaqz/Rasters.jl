@@ -400,6 +400,7 @@ These are detected automatically from `A` and `data` where possible.
 
 ```jldoctest
 using GeoData, Plots, Dates, Shapefile, GeoInterface, Downloads
+using GeoData.LookupArrays
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -423,7 +424,9 @@ end
 p = plot(A; color=:spring)
 plot!(p, indonesia_border; fillalpha=0, linewidth=0.7)
 savefig("build/indonesia_rasterized.png")
+
 # output
+
 ```
 
 ![rasterize](indonesia_rasterized.png)
@@ -477,6 +480,7 @@ Rasterize a shapefile for denmark and plot, with a border.
 
 ```jldoctest
 using GeoData, Plots, Dates, Shapefile, Downloads
+using GeoData.LookupArrays
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -487,8 +491,8 @@ isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 china_border = Shapefile.Handle(shapefile_name).shapes[10]
 
 # Make an empty EPSG 4326 projected GeoArray of the China area
-dimz = Y(15.0:0.1:55.0; mode=Projected(; sampling=Intervals(Start()), crs=EPSG(4326))), 
-       X(70.0:0.1:140; mode=Projected(; sampling=Intervals(Start()), crs=EPSG(4326)))
+dimz = Y(Projected(15.0:0.1:55.0; sampling=Intervals(Start()), crs=EPSG(4326))), 
+       X(Projected(70.0:0.1:140; sampling=Intervals(Start()), crs=EPSG(4326)))
 A = GeoArray(zeros(UInt8, dimz); missingval=0)
 
 # Rasterize the border polygon 
@@ -498,7 +502,9 @@ rasterize!(A, china_border; fill=1, order=(X, Y))
 p = plot(A; color=:spring)
 plot!(p, china_border; fillalpha=0, linewidth=0.6)
 savefig("build/china_rasterized.png")
+
 # output
+
 ```
 
 ![rasterize](china_rasterized.png)
@@ -1776,13 +1782,15 @@ obs = GBIF.occurrences("scientificName" => "Burramys parvus", "limit" => 5)
 # use `extract` to get values for all layers at each observation point.
 points = map(o -> (o.longitude, o.latitude), obs)
 vals = extract(st, points)
+
 # output
-5-element Vector{NamedTuple{(:X, :Y, :bio1, :bio3, :bio5, :bio7, :bio12), T} where T<:Tuple}:
+5-element Vector{NamedTuple{(:X, :Y, :bio1, :bio3, :bio5, :bio7, :bio12)}}:
  (X = missing, Y = missing, bio1 = missing, bio3 = missing, bio5 = missing, bio7 = missing, bio12 = missing)
  (X = 147.096394, Y = -36.935687, bio1 = 9.408354f0, bio3 = 40.790546f0, bio5 = 22.39425f0, bio7 = 23.0895f0, bio12 = 1292.0f0)
  (X = 148.450743, Y = -35.999643, bio1 = 8.269542f0, bio3 = 41.030262f0, bio5 = 21.4485f0, bio7 = 23.858f0, bio12 = 1440.0f0)
  (X = 148.461854, Y = -36.009001, bio1 = 6.928167f0, bio3 = 41.78015f0, bio5 = 20.18025f0, bio7 = 23.69975f0, bio12 = 1647.0f0)
  (X = 148.459452, Y = -36.002648, bio1 = 6.928167f0, bio3 = 41.78015f0, bio5 = 20.18025f0, bio7 = 23.69975f0, bio12 = 1647.0f0)
+
 ```
 """
 function extract(A::GeoStackOrArray, points::NTuple{<:Any,<:AbstractVector}; kw...)

@@ -464,12 +464,13 @@ details on how they work.
 Band
 ```
 
-### Index modes
+### Lookup Arrays
 
 These specify properties of the index associated with e.g. the X and Y
-dimension. GeoData.jl defines additional modes to handle dimensions with
-projections with `Projected`, and where the projection is mapped to another
-projection like `EPSG(4326)` in `Mapped`, to handle e.g. NetCDF dimensions.
+dimension. GeoData.jl defines additional lookup arrays: [`Projected`](@ref) to handle
+dimensions with projections, and [`Mapped`](@ref) where the projection is mapped to
+another projection like `EPSG(4326)`. `Mapped` is largely designed to handle
+NetCDF dimensions, especially with `Explicit` spans.
 
 ```@docs
 GeoData.AbstractProjected
@@ -565,7 +566,7 @@ aggregate!
 boolmask
 classify 
 classify!
-convertmode
+convertlookup
 crop
 crs
 disaggregate
@@ -588,6 +589,8 @@ rasterize!
 resample
 replace_missing
 reproject
+setcrs
+setmappedcrs
 slice
 subset
 trim
