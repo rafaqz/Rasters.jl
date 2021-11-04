@@ -16,7 +16,7 @@ end
 flush_info_and_warnings()
 
 
-Logging.disable_logging(Logging.Info)
+Logging.disable_logging(Logging.Warn)
 
 # Make the docs, without running the tests again
 makedocs(
