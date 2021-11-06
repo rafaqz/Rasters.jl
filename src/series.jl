@@ -1,9 +1,9 @@
 """
-    AbstractGeoSeries <: DimensionalData.AbstractDimensionalArray
+    AbstractRasterSeries <: DimensionalData.AbstractDimensionalArray
 
-Abstract supertype for high-level `DimensionalArray` that hold `GeoStacks`, `GeoArrays`,
-or the paths they can be loaded from. `GeoSeries` are indexed with dimensions
-as with a `AbstractGeoArray`. This is useful when you have multiple files containing
+Abstract supertype for high-level `DimensionalArray` that hold `RasterStacks`, `Rasters`,
+or the paths they can be loaded from. `RasterSeries` are indexed with dimensions
+as with a `AbstractRaster`. This is useful when you have multiple files containing
 rasters or stacks of rasters spread over dimensions like time and elevation.
 
 As much as possible, implementations should facilitate loading entire
@@ -12,25 +12,25 @@ directories and detecting the dimensions from metadata.
 This allows syntax like for a series of stacks of arrays:
 
 ```julia
-GeoSeries[Time(Near(DateTime(2001, 1))][:temp][Y(Between(70, 150)), X(Between(-20,20))] |> plot`
+RasterSeries[Time(Near(DateTime(2001, 1))][:temp][Y(Between(70, 150)), X(Between(-20,20))] |> plot`
 ```
 
-[`GeoSeries`](@ref) is the concrete implementation.
+[`RasterSeries`](@ref) is the concrete implementation.
 """
-abstract type AbstractGeoSeries{T,N,D,A} <: AbstractDimArray{T,N,D,A} end
+abstract type AbstractRasterSeries{T,N,D,A} <: AbstractDimArray{T,N,D,A} end
 
 # Interface methods ####################################################
 
-DD.metadata(A::AbstractGeoSeries) = NoMetadata()
-DD.name(A::AbstractGeoSeries) = NoName()
-DD.label(A::AbstractGeoSeries) = ""
+DD.metadata(A::AbstractRasterSeries) = NoMetadata()
+DD.name(A::AbstractRasterSeries) = NoName()
+DD.label(A::AbstractRasterSeries) = ""
 
 """
-    modify(f, series::AbstractGeoSeries)
+    modify(f, series::AbstractRasterSeries)
 
 Apply function `f` to the data of the child object.
-If the child is an `AbstractGeoStack` the function will
-be passed on to its child `AbstractGeoArray`s.
+If the child is an `AbstractRasterStack` the function will
+be passed on to its child `AbstractRaster`s.
 
 `f` must return an idenically sized array.
 
@@ -41,18 +41,18 @@ This is useful for swapping out array backend for an
 entire series to `CuArray` from CUDA.jl to copy data to a GPU,
 and potentially other types like `DAarray` from Distributed.jl.
 """
-DD.modify(f, A::AbstractGeoSeries) = map(child -> modify(f, child), values(A))
+DD.modify(f, A::AbstractRasterSeries) = map(child -> modify(f, child), values(A))
 
 """
-    GeoSeries <: AbstractGeoSeries
+    RasterSeries <: AbstractRasterSeries
 
-    GeoSeries(arrays::AbstractArray{<:AbstractGeoArray}, dims; kw...)
-    GeoSeries(stacks::AbstractArray{<:AbstractGeoStack}, dims; kw...)
-    GeoSeries(filepaths::AbstractArray{<:AbstractString}, dims; child, duplicate_first, kw...)
-    GeoSeries(dirpath:::AbstractString, dims; ext, child, duplicate_first, kw...)
+    RasterSeries(arrays::AbstractArray{<:AbstractRaster}, dims; kw...)
+    RasterSeries(stacks::AbstractArray{<:AbstractRasterStack}, dims; kw...)
+    RasterSeries(filepaths::AbstractArray{<:AbstractString}, dims; child, duplicate_first, kw...)
+    RasterSeries(dirpath:::AbstractString, dims; ext, child, duplicate_first, kw...)
 
-Concrete implementation of [`AbstractGeoSeries`](@ref).
-`GeoSeries` are an array of `GeoArray` or `GeoStack`, along some dimension(s).
+Concrete implementation of [`AbstractRasterSeries`](@ref).
+`RasterSeries` are an array of `Raster` or `RasterStack`, along some dimension(s).
 
 # Arguments
 
@@ -62,40 +62,40 @@ Concrete implementation of [`AbstractGeoSeries`](@ref).
 
 - `refdims`: existing reference dimension/s.
 - `child`: constructor of child objects for use with filenames are passed in,
-    can be `GeoArray` or `GeoStack`. Defaults to `GeoArray`.
+    can be `Raster` or `RasterStack`. Defaults to `Raster`.
 - `duplicate_first::Bool`: wether to duplicate the dimensions and metadata of the
     first file with all other files. This can save load time with a large
     series where dimensions are essentially identical. `true` by default to improve
     load times. If you need exact metadata, set to `false`.
 - `ext`: filename extension such as ".tiff" to find when only a directory path is passed in. 
-- `kw`: keywords passed to the child constructor [`GeoArray`](@ref) or [`GeoStack`](@ref)
+- `kw`: keywords passed to the child constructor [`Raster`](@ref) or [`RasterStack`](@ref)
     if only file names are passed in.
 """
-struct GeoSeries{T,N,D,R,A<:AbstractArray{T,N}} <: AbstractGeoSeries{T,N,D,A}
+struct RasterSeries{T,N,D,R,A<:AbstractArray{T,N}} <: AbstractRasterSeries{T,N,D,A}
     data::A
     dims::D
     refdims::R
 end
-function GeoSeries(data::AbstractArray{<:Union{AbstractGeoStack,AbstractGeoArray}}, dims; 
+function RasterSeries(data::AbstractArray{<:Union{AbstractRasterStack,AbstractRaster}}, dims; 
     refdims=()
 )
-    GeoSeries(data, DD.format(dims, data), refdims)
+    RasterSeries(data, DD.format(dims, data), refdims)
 end
-function GeoSeries(filenames::NamedTuple{K}, dims; kw...) where K
-    GeoSeries(map((fns...) -> NamedTuple{K}(fns), values(filenames)...), dims; kw...) 
+function RasterSeries(filenames::NamedTuple{K}, dims; kw...) where K
+    RasterSeries(map((fns...) -> NamedTuple{K}(fns), values(filenames)...), dims; kw...) 
 end
-function GeoSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims; 
+function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims; 
     refdims=(), duplicate_first=true, child=nothing, resize=nothing, kw...
 )
     childtype = if isnothing(child)
-        eltype(filenames) <: NamedTuple ? GeoStack : GeoArray
+        eltype(filenames) <: NamedTuple ? RasterStack : Raster
     else
         child
     end
     data = if duplicate_first
         # We assume all dims, metadata and missingvals are the same over the series
         # We just load the first object, and swap in the filenames of the others.
-        data1 = if childtype <: AbstractGeoArray
+        data1 = if childtype <: AbstractRaster
             childtype(first(filenames); kw...)
         else
             childtype(first(filenames); resize, kw...)
@@ -105,32 +105,32 @@ function GeoSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}},
         end
     else
         # Load everything separately
-        if childtype <: AbstractGeoArray
+        if childtype <: AbstractRaster
             [childtype(fn; kw...) for fn in filenames]
         else
             [childtype(fn; resize, kw...) for fn in filenames]
         end
     end
-    return GeoSeries(data, DD.format(dims, data); refdims)
+    return RasterSeries(data, DD.format(dims, data); refdims)
 end
-function GeoSeries(dirpath::AbstractString, dims; ext=nothing, kw...)
+function RasterSeries(dirpath::AbstractString, dims; ext=nothing, kw...)
     filepaths = filter_ext(dirpath, ext)
-    GeoSeries(filepaths, dims; kw...)
+    RasterSeries(filepaths, dims; kw...)
 end
 
 @inline function DD.rebuild(
-    A::GeoSeries, data, dims::Tuple, refdims=(), name=nothing, metadata=nothing,
+    A::RasterSeries, data, dims::Tuple, refdims=(), name=nothing, metadata=nothing,
 )
-    GeoSeries(data, dims, refdims)
+    RasterSeries(data, dims, refdims)
 end
 @inline function DD.rebuild(
-    A::GeoSeries; 
+    A::RasterSeries; 
     data=parent(A), dims=dims(A), refdims=refdims(A), name=nothing, metadata=nothing,
 )
-    GeoSeries(data, dims, refdims)
+    RasterSeries(data, dims, refdims)
 end
 
-@deprecate series(args...; kw...) GeoSeries(args...; kw...)
+@deprecate series(args...; kw...) RasterSeries(args...; kw...)
 
 # Swap in the filename/s of an object for another filename, wherever it is.
 # This is used to use already loaded metadata of one file with another

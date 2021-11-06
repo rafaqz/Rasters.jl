@@ -1,9 +1,9 @@
 # Method specialisation singletons.
-struct GeoPlot end
-struct GeoZPlot end
+struct RasterPlot end
+struct RasterZPlot end
 # We only look at arrays with X, Y, Z dims here.
 # Otherwise they fall back to DimensionalData.jl recipes
-@recipe function f(A::AbstractGeoArray)
+@recipe function f(A::AbstractRaster)
     ddplot(A) = DimArray(A; dims=_maybe_mapped(dims(A)))
     max_res = get(plotattributes, :max_res, 1000)
     if !(get(plotattributes, :seriestype, :none) in (:none, :heatmap, :contourf))
@@ -11,16 +11,16 @@ struct GeoZPlot end
     elseif all(hasdim(A, (SpatialDim, SpatialDim)))
         # Heatmap or multiple heatmaps. Use GD recipes.
         A = _prepare(_subsample(A, max_res))
-        GeoPlot(), A
+        RasterPlot(), A
     elseif hasdim(A, ZDim) && ndims(A) == 1
         # Z dim plot, but for spatial data we want Z on the Y axis
-        GeoZPlot(), _prepare(A)
+        RasterZPlot(), _prepare(A)
     else
         DD.DimensionalPlot(), ddplot(A)
     end
 end
 # Plot a sinlge 2d map
-@recipe function f(::GeoPlot, A::GeoArray{T,2,<:Tuple{D1,D2}}) where {T,D1<:SpatialDim,D2<:SpatialDim}
+@recipe function f(::RasterPlot, A::AbstractRaster{T,2,<:Tuple{D1,D2}}) where {T,D1<:SpatialDim,D2<:SpatialDim}
     # If colorbar is close to symmetric (< 25% difference) use a symmetric
     # colormap and set symmetric limits so zero shows up as a neutral color.
 
@@ -73,7 +73,7 @@ end
 end
 
 # Plot a vertical 1d line
-@recipe function f(::GeoZPlot, A::GeoArray{T,1}) where T
+@recipe function f(::RasterZPlot, A::Raster{T,1}) where T
     z_dim = dims(A, ZDim)
     yguide = label(z_dim)
     xguide = label(A)
@@ -87,7 +87,7 @@ end
 end
 
 # Plot 3d arrays as multiple tiled plots
-@recipe function f(::GeoPlot, A::GeoArray{T,3,<:Tuple{<:SpatialDim,<:SpatialDim,D}}) where {T,D}
+@recipe function f(::RasterPlot, A::Raster{T,3,<:Tuple{<:SpatialDim,<:SpatialDim,D}}) where {T,D}
     nplots = size(A, 3)
     if nplots > 1
         ncols, nrows = _balance_grid(nplots)
@@ -109,7 +109,7 @@ end
                 end
                 if i <= nplots
                     title := titles[i]
-                    GeoPlot(), A[:, :, i]
+                    RasterPlot(), A[:, :, i]
                 else
                     :framestyle := :none
                     :legend := :none
@@ -118,7 +118,7 @@ end
             end
         end
     else
-        GeoPlot(), A[:, :, 1]
+        RasterPlot(), A[:, :, 1]
     end
 end
 
@@ -130,7 +130,7 @@ end
 
 # We only look at arrays with X, Y, Z dims here.
 # Otherwise they fall back to DimensionalData.jl recipes
-@recipe function f(st::AbstractGeoStack)
+@recipe function f(st::AbstractRasterStack)
     nplots = length(keys(st))
     if nplots > 1
         ncols, nrows = _balance_grid(nplots)
@@ -161,7 +161,7 @@ end
                             od1s = map(d -> DD.basetypeof(d)(firstindex(d)), ods)
                             A = view(A, od1s...)
                         end
-                        GeoPlot(), _prepare(_subsample(A, max_res))
+                        RasterPlot(), _prepare(_subsample(A, max_res))
                     else
                         framestyle := :none
                         legend := :none
@@ -183,7 +183,7 @@ end
 # So we should center the index, and use the projected value.
 _prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
 # Convert arrays to a consistent missing value and Forward array order
-function _prepare(A::AbstractGeoArray)
+function _prepare(A::AbstractRaster)
     reorder(A, DD.ForwardOrdered) |>
     a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A))) |>
     a -> replace_missing(a, missing)

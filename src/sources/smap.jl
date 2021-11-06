@@ -88,7 +88,7 @@ Base.setindex!(wrapper::SMAPvar, args...) = setindex!(parent(wrapper), args...)
 DA.eachchunk(var::SMAPvar) = DA.GridChunks(var, size(var))
 DA.haschunks(var::SMAPvar) = DA.Unchunked()
 
-# GeoArray ######################################################################
+# Raster ######################################################################
 
 function FileArray(ds::SMAPhdf5, filename::AbstractString; key, kw...)
     FileArray(ds[key], filename; key, kw...)
@@ -103,22 +103,22 @@ end
 
 function Base.open(f::Function, A::FileArray{SMAPfile}; kw...)
     _open(SMAPfile, filename(A); key=key(A), kw...) do var
-        f(GeoDiskArray{SMAPfile}(var)) 
+        f(RasterDiskArray{SMAPfile}(var)) 
     end
 end
     
-DA.writeblock!(A::GeoDiskArray{SMAPfile}, v, r::AbstractUnitRange...) = A[r...] = v
+DA.writeblock!(A::RasterDiskArray{SMAPfile}, v, r::AbstractUnitRange...) = A[r...] = v
 
 haslayers(::Type{SMAPfile}) = true
 
 # Stack ########################################################################
 
-@deprecate SMAPstack(args...; kw...) GeoStack(args...; source=SMAPfile, kw...)
+@deprecate SMAPstack(args...; kw...) RasterStack(args...; source=SMAPfile, kw...)
 
 function FileStack{SMAPfile}(ds::SMAPhdf5, filename::AbstractString; write=false, keys)
     keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key
-        var = GeoDiskArray{SMAPfile}(ds[key])
+        var = RasterDiskArray{SMAPfile}(ds[key])
         eltype(var), size(var), DA.eachchunk(var), DA.haschunks(var)
     end
     layertypes = NamedTuple{keys}(map(x->x[1], type_size_ec_hc))
@@ -134,8 +134,8 @@ end
     smapseries(filenames::AbstractString; kw...)
     smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
 
-[`GeoSeries`](@ref) loader for SMAP files and whole folders of files,
-organised along the time dimension. Returns a [`GeoSeries`](@ref).
+[`RasterSeries`](@ref) loader for SMAP files and whole folders of files,
+organised along the time dimension. Returns a [`RasterSeries`](@ref).
 
 # Arguments
 
@@ -146,7 +146,7 @@ organised along the time dimension. Returns a [`GeoSeries`](@ref).
 
 # Keywords
 
-- `kw`: Passed to `GeoSeries`.
+- `kw`: Passed to `RasterSeries`.
 """
 function smapseries(dir::AbstractString; kw...)
     smapseries(joinpath.(dir, filter_ext(dir, ".h5")); kw...)
@@ -175,7 +175,7 @@ function smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
         println("Some errors thrown during file load: ")
         println.(errors)
     end
-    GeoSeries(usedpaths, dims; child=GeoStack, duplicate_first=true, kw...)
+    RasterSeries(usedpaths, dims; child=RasterStack, duplicate_first=true, kw...)
 end
 
 

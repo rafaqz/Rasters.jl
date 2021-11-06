@@ -1,4 +1,4 @@
-# GeoData.jl
+# Rasters.jl
 
 ```@docs
 GeoData
@@ -27,7 +27,7 @@ Use the `Between` selector to take a `view` of madagascar:
 
 ```@example
 using GeoData, Plots
-A = GeoArray(WorldClim{BioClim}, 5)
+A = Raster(WorldClim{BioClim}, 5)
 madagascar = view(A, X(Between(43.25, 50.48)), Y(Between(-25.61, -12.04))) 
 plot(madagascar)
 ```
@@ -56,7 +56,7 @@ Note that most regular Julia methods, such as `replace`, work as for a standard
 |                           |                                                                              |
 | :------------------------ | :--------------------------------------------------------------------------- |
 | [`classify`](@ref)        | classify values into categories.                                             |
-| [`mask`](@ref)            | mask and object by a polygon or `GeoArray` along `X/Y`, or other dimensions. |
+| [`mask`](@ref)            | mask and object by a polygon or `Raster` along `X/Y`, or other dimensions. |
 | [`replace_missing`](@ref) | replace all missing values in an object and update `missingval`.             |
 
 
@@ -92,7 +92,7 @@ mean(A, dims=Ti)
 ```
 
 `broadcast` works lazily from disk, and is only applied when data is directly
-indexed. Adding a dot to any function will use broadcast over a `GeoArray`. 
+indexed. Adding a dot to any function will use broadcast over a `Raster`. 
 
 ### Broadcasting
 
@@ -106,12 +106,12 @@ A .*= 2
 To broadcast directly to disk, we need to open the file in write mode:
 
 ```julia
-open(GeoArray(filename); write=true) do O
+open(Raster(filename); write=true) do O
     O .*= 2
 end
 ```
 
-To broadcast over a `GeoStack` use `map`, which applies a function to the layers
+To broadcast over a `RasterStack` use `map`, which applies a function to the layers
 of the stack - here `A`.
 
 ```julia
@@ -165,7 +165,7 @@ object to any `GeoFormat` from GeoFormatTypes.jl.
 ## Examples and Plotting
 
 [Plots.jl](https://github.com/JuliaPlots/Plots.jl) is fully supported by
-GeoData.jl, with recipes for plotting `GeoArray` and `GeoStack` provided. `plot`
+GeoData.jl, with recipes for plotting `Raster` and `RasterStack` provided. `plot`
 will plot a heatmap with axes matching dimension values. If `mappedcrs` is used,
 converted values will be shown on axes instead of the underlying `crs` values.
 `contourf` will similarly plot a filled contour plot.
@@ -176,7 +176,7 @@ It can be set manually to change the resolution (e.g. for large or high-quality 
 
 ```julia
 using GeoData, Plots
-A = GeoArray(WorldClim{BioClim}, 5)
+A = Raster(WorldClim{BioClim}, 5)
 plot(A; max_res=3000)
 ```
 
@@ -184,14 +184,14 @@ plot(A; max_res=3000)
 
 Our first example simply loads a file from disk and plots it.
 
-This netcdf file only has one layer, if it has more we could use `GeoStack`
+This netcdf file only has one layer, if it has more we could use `RasterStack`
 instead. 
 
 ```@example nc
 using GeoData, Plots
 url = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc";
 filename = download(url, "tos_O1_2001-2002.nc");
-A = GeoArray(filename)
+A = Raster(filename)
 ```
 
 Objects with Dimensions other than `X` an `Y` will produce multi-pane plots.
@@ -273,7 +273,7 @@ coords = map(r -> (r.longitude, r.latitude), records)
 Get BioClim layers and subset to south-east australia
 
 ```@example sdm
-A = GeoStack(WorldClim{BioClim}, (1, 3, 7, 12))
+A = RasterStack(WorldClim{BioClim}, (1, 3, 7, 12))
 SE_aus = A[X=Between(138, 155), Y=Between(-40, -25), Band=1]
 ```
 
@@ -327,7 +327,7 @@ Then load raster data. We load some worldclim layers using RasterDataSources via
 GeoData.jl, and drop the Band dimension.
 
 ```@example mask
-climate = GeoStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)[Band(1)]
+climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)[Band(1)]
 ```
 
 `mask` denmark, norway and sweden from the global dataset using their border polygon,
@@ -412,43 +412,43 @@ write("scandinavia.tif", scandinavia)
 GeoData.jl provides a range of other methods that are being added to over time.
 Where applicable these methods read and write lazily to and from disk-based
 arrays of common raster file types. These methods also work for entire
-`GeoStacks` and `GeoSeries` using the same syntax.
+`RasterStacks` and `RasterSeries` using the same syntax.
 
 ## Objects
 
-### GeoArray
+### Raster
 
-Spatial raster data is essentially just an `Array`. But `GeoArray` wrappers
+Spatial raster data is essentially just an `Array`. But `Raster` wrappers
 allow treating them as an array that maintains its spatial index, crs and other
 metadata through all transformations. This means the can always be plotted and
 written to disk after applying most base Julia methods, and most `broadcast`s.
 
 ```@docs
-AbstractGeoArray
-GeoArray
-GeoArray(T::Type{<:RasterDataSources.RasterDataSource}, layer)
+AbstractRaster
+Raster
+Raster(T::Type{<:RasterDataSources.RasterDataSource}, layer)
 ```
 
-### GeoStack
+### RasterStack
 
 Spatial data often comes as a bundle of multiple named arrays, as in netcdf.
-`GeoStack` can represent this, or multiple files organised in a similar way.
+`RasterStack` can represent this, or multiple files organised in a similar way.
 
 ```@docs
-AbstractGeoStack
-GeoStack
-GeoStack(T::Type{<:RasterDataSources.RasterDataSource})
+AbstractRasterStack
+RasterStack
+RasterStack(T::Type{<:RasterDataSources.RasterDataSource})
 ```
 
-### GeoSeries
+### RasterSeries
 
 A series is an meta-array that holds other files/data that is distributed over
-some dimension, often time. These files/data can be `GeoArray`s or `GeoStack`s.
+some dimension, often time. These files/data can be `Raster`s or `RasterStack`s.
 
 ```@docs
-AbstractGeoSeries
-GeoSeries
-GeoSeries(T::Type{<:RasterDataSources.RasterDataSource})
+AbstractRasterSeries
+RasterSeries
+RasterSeries(T::Type{<:RasterDataSources.RasterDataSource})
 ```
 
 ### Dimensions
@@ -480,8 +480,8 @@ Mapped
 
 ## Data sources
 
-GeoData.jl uses a number of backends to load raster data. `GeoArray`, `GeoStack`
-and `GeoSeries` will detect which backend to use for you, automatically.
+GeoData.jl uses a number of backends to load raster data. `Raster`, `RasterStack`
+and `RasterSeries` will detect which backend to use for you, automatically.
 
 ### GRD
 
@@ -493,8 +493,8 @@ very fast, but are not compressed. They are always 3 dimensional, and have `Y`,
 
 NetCDF `.nc` files are loaded using
 [NCDatasets.jl](https://github.com/Alexander-Barth/NCDatasets.jl). Layers from
-files can be loaded as `GeoArray("filename.nc"; key=:layername)`. Without `key`
-the first layer is used. `GeoStack("filename.nc")` will use all netcdf variables
+files can be loaded as `Raster("filename.nc"; key=:layername)`. Without `key`
+the first layer is used. `RasterStack("filename.nc")` will use all netcdf variables
 in the file that are not dimensions as layers. 
 
 NetCDF layers can have arbitrary dimensions. Known, common dimension names are
@@ -505,8 +505,8 @@ in the same file may also have different dimensions.
 
 All files GDAL can access, such as `.tiff` and `.asc` files, can be loaded,
 using [ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl/issues). These are
-generally best loaded as `GeoArray("filename.tif")`, but can be loaded as
-`GeoStack("filename.tif"; layersfrom=Band)`, taking layers from the `Band`
+generally best loaded as `Raster("filename.tif")`, but can be loaded as
+`RasterStack("filename.tif"; layersfrom=Band)`, taking layers from the `Band`
 dimension, which is also the default.
 
 ### SMAP
@@ -515,8 +515,8 @@ The [Soil Moisture Active-Passive](https://smap.jpl.nasa.gov/) dataset provides
 global layers of soil moisture, temperature and other related data, in a custom
 HDF5 format. Layers are always 2 dimensional, with `Y` and `X` dimensions.
 
-These can be loaded as multi-layered `GeoStack("filename.h5")`. Individual
-layers can be loaded as `GeoArray("filename.h5"; key=:layerkey)`, without `key`
+These can be loaded as multi-layered `RasterStack("filename.h5")`. Individual
+layers can be loaded as `Raster("filename.h5"; key=:layerkey)`, without `key`
 the first layer is used.
 
 ```@docs
@@ -539,15 +539,15 @@ metadata conversion has not been completely implemented.
 standardises the download of common raster data sources, with a focus on
 datasets used in ecology and the environmental sciences. RasterDataSources.jl is
 tightly integrated into GeoData.jl, so that datsets and keywords can be used
-directly to download and load data as a `GeoArray`, `GeoStack`, or `GeoSeries`.
+directly to download and load data as a `Raster`, `RasterStack`, or `RasterSeries`.
 
 ```@example
 using GeoData, Plots, Dates
-A = GeoArray(WorldClim{Climate}, :tavg; month=June)
+A = Raster(WorldClim{Climate}, :tavg; month=June)
 plot(A)
 ```
 
-See the docs for [`GeoArray`](@ref), [`GeoStack`](@ref) and [`GeoSeries`](@ref),
+See the docs for [`Raster`](@ref), [`RasterStack`](@ref) and [`RasterSeries`](@ref),
 and the docs for `RasterDataSources.getraster` for syntax to specify various
 data sources.
 

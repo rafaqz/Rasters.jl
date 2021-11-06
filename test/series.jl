@@ -1,7 +1,7 @@
-using GeoData, Test, Dates
-using GeoData.LookupArrays, GeoData.Dimensions
+using Rasters, Test, Dates
+using Rasters.LookupArrays, Rasters.Dimensions
 
-# GeoSeries from GeoArray/GeoStack components
+# RasterSeries from Raster/RasterStack components
 
 data1 = [1 2 3 4
          5 6 7 8]
@@ -9,19 +9,19 @@ data2 = 2 * data1
 data3 = 3 * data1
 data4 = 4 * data1
 dimz = X([30, 40]), Y(-10.0:10.0:20.0)
-ga1 = GeoArray(data1, dimz)
-ga2 = GeoArray(data2, dimz)
-ga1a = GeoArray(data3, dimz)
-ga2a = GeoArray(data4, dimz)
-stack1 = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
-stack2 = GeoStack(ga1a, ga2a; keys=(:ga1, :ga2))
+ga1 = Raster(data1, dimz)
+ga2 = Raster(data2, dimz)
+ga1a = Raster(data3, dimz)
+ga2a = Raster(data4, dimz)
+stack1 = RasterStack(ga1, ga2; keys=(:ga1, :ga2))
+stack2 = RasterStack(ga1a, ga2a; keys=(:ga1, :ga2))
 dates =[DateTime(2017), DateTime(2018)]
-ser = GeoSeries([stack1, stack2], (Ti(dates),))
+ser = RasterSeries([stack1, stack2], (Ti(dates),))
 @test issorted(dates)
 
 @testset "getindex returns the currect types" begin
-    @test ser[Ti(1)] isa GeoStack{<:NamedTuple}
-    @test ser[Ti(1)][:ga2] isa GeoArray{Int,2}
+    @test ser[Ti(1)] isa RasterStack{<:NamedTuple}
+    @test ser[Ti(1)][:ga2] isa Raster{Int,2}
     @test ser[Ti(1)][:ga2, 1, 1] isa Int
     @test ser[Ti(1)][:ga2][1, 1] isa Int
 end
@@ -67,26 +67,26 @@ end
 end
 
 @testset "slice, combine" begin
-    ga1 = GeoArray(ones(4, 5, 10), (X(), Y(), Ti(10:10:100))) .* reshape(1:10, (1, 1, 10))
+    ga1 = Raster(ones(4, 5, 10), (X(), Y(), Ti(10:10:100))) .* reshape(1:10, (1, 1, 10))
     ga2 = ga1 .* 2
     ser = slice(ga1, Ti)
     @test size(ser) == (10,)
-    combined = GeoData.combine(ser, Ti())
+    combined = Rasters.combine(ser, Ti())
     @test combined == ga1
     @test dims(combined) === dims(ga1)
     ser = slice(ga1, (X, Ti))
     @test size(ser) == (4, 10)
     ser = slice(ga1, (X, Y, Ti))
-    combined2 = GeoData.combine(ser, (X, Y, Ti))
+    combined2 = Rasters.combine(ser, (X, Y, Ti))
     @test combined == ga1 == permutedims(combined2, (X, Y, Ti))
     @test dims(combined) === dims(ga1) == dims(permutedims(combined2, (X, Y, Ti)))
-    stack = GeoStack((ga1=ga1, ga2=ga2))
+    stack = RasterStack((ga1=ga1, ga2=ga2))
     ser = slice(stack, Ti)
     @test size(ser) == (10,)
-    combined = GeoData.combine(ser, Ti)
+    combined = Rasters.combine(ser, Ti)
     ser = slice(stack, (Y, Ti))
     @test size(ser) == (5, 10,)
-    combined = GeoData.combine(ser, (Y, Ti))
+    combined = Rasters.combine(ser, (Y, Ti))
 end
 
 
@@ -95,15 +95,15 @@ end
     ser2 = slice(ga1, (X, Y))
     sh = sprint(show, MIME("text/plain"), ser2)
     # Test but don't lock this down too much
-    @test occursin("GeoSeries", sh)
-    @test occursin("GeoArray", sh)
+    @test occursin("RasterSeries", sh)
+    @test occursin("Raster", sh)
     @test occursin("X", sh)
     @test occursin("Y", sh)
     # 1d
     ser1 = slice(ga1, X)
     sh = sprint(show, MIME("text/plain"), ser1)
     # Test but don't lock this down too much
-    @test occursin("GeoSeries", sh)
-    @test occursin("GeoArray", sh)
+    @test occursin("RasterSeries", sh)
+    @test occursin("Raster", sh)
     @test occursin("X", sh)
 end

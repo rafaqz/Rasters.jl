@@ -2,47 +2,47 @@
 const Key = Union{Symbol,AbstractString}
 
 """
-    AbstractGeoStack
+    AbstractRasterStack
 
-Abstract supertype for objects that hold multiple [`AbstractGeoArray`](@ref)
+Abstract supertype for objects that hold multiple [`AbstractRaster`](@ref)
 that share spatial dimensions.
 
 They are `NamedTuple`-like structures that may either contain `NamedTuple`
-of [`AbstractGeoArray`](@ref), string paths that will load [`AbstractGeoArray`](@ref),
+of [`AbstractRaster`](@ref), string paths that will load [`AbstractRaster`](@ref),
 or a single path that points to as a file itself containing multiple layers, like
 NetCDF or HDF5. Use and syntax is similar or identical for all cases.
 
-`AbstractGeoStack` can hold layers that share some or all of their dimensions.
+`AbstractRasterStack` can hold layers that share some or all of their dimensions.
 They cannot have the same dimension with t different length or spatial extent as
 another layer.
 
-`getindex` on a `AbstractGeoStack` generally returns a memory backed standard
-[`GeoArray`](@ref). `geoarray[:somelayer] |> plot` plots the layers array,
+`getindex` on a `AbstractRasterStack` generally returns a memory backed standard
+[`Raster`](@ref). `geoarray[:somelayer] |> plot` plots the layers array,
 while `geoarray[:somelayer, X(1:100), Band(2)] |> plot` will plot the
 subset without loading the whole array.
 
-`getindex` on a `AbstractGeoStack` with a key returns another stack with
+`getindex` on a `AbstractRasterStack` with a key returns another stack with
 getindex applied to all the arrays in the stack.
 """
-abstract type AbstractGeoStack{L} <: AbstractDimStack{L} end
+abstract type AbstractRasterStack{L} <: AbstractDimStack{L} end
 
-layermissingval(stack::AbstractGeoStack) = stack.layermissingval
-filename(stack::AbstractGeoStack) = filename(parent(stack))
-missingval(s::AbstractGeoStack, key::Symbol) = _singlemissingval(layermissingval(s), key)
+layermissingval(stack::AbstractRasterStack) = stack.layermissingval
+filename(stack::AbstractRasterStack) = filename(parent(stack))
+missingval(s::AbstractRasterStack, key::Symbol) = _singlemissingval(layermissingval(s), key)
 
-isdisk(A::AbstractGeoStack) = isdisk(first(A))
+isdisk(A::AbstractRasterStack) = isdisk(first(A))
 
 """
-    subset(s::AbstractGeoStack, keys)
+    subset(s::AbstractRasterStack, keys)
 
 Subset a stack to hold only the layers in `keys`, where `keys` is a `Tuple`
 or `Array` of `String` or `Symbol`, or a `Tuple` or `Array` of `Int`
 """
-subset(s::AbstractGeoStack, keys) = subset(s, Tuple(keys))
-function subset(s::AbstractGeoStack, keys::NTuple{<:Any,<:Key})
-    GeoStack(map(k -> s[k], Tuple(keys)))
+subset(s::AbstractRasterStack, keys) = subset(s, Tuple(keys))
+function subset(s::AbstractRasterStack, keys::NTuple{<:Any,<:Key})
+    RasterStack(map(k -> s[k], Tuple(keys)))
 end
-function subset(s::AbstractGeoStack, I::NTuple{<:Any,Int})
+function subset(s::AbstractRasterStack, I::NTuple{<:Any,Int})
     subset(s, map(i -> keys(s)[i], I))
 end
 
@@ -52,20 +52,20 @@ _singlemissingval(mv, key) = mv
 # DimensionalData methods ######################################################
 
 # Always read a stack before loading it as a table.
-DD.DimTable(stack::AbstractGeoStack) = invoke(DD.DimTable, Tuple{AbstractDimStack}, read(stack))
+DD.DimTable(stack::AbstractRasterStack) = invoke(DD.DimTable, Tuple{AbstractDimStack}, read(stack))
 
-function DD.layers(s::AbstractGeoStack{<:FileStack{<:Any,Keys}}) where Keys
+function DD.layers(s::AbstractRasterStack{<:FileStack{<:Any,Keys}}) where Keys
     NamedTuple{Keys}(map(K -> s[K], Keys))
 end
 
 function DD.rebuild(
-    s::AbstractGeoStack, data, dims=dims(s), refdims=refdims(s), 
+    s::AbstractRasterStack, data, dims=dims(s), refdims=refdims(s), 
     layerdims=DD.layerdims(s), metadata=metadata(s), layermetadata=DD.layermetadata(s),
     layermissingval=layermissingval(s), 
 )
     DD.basetypeof(s)(data, dims, refdims, layerdims, metadata, layermetadata, layermissingval)
 end
-function DD.rebuild(s::AbstractGeoStack;
+function DD.rebuild(s::AbstractRasterStack;
     data=parent(s), dims=dims(s), refdims=refdims(s), layerdims=DD.layerdims(s),
     metadata=metadata(s), layermetadata=DD.layermetadata(s),
     layermissingval=layermissingval(s),
@@ -76,7 +76,7 @@ function DD.rebuild(s::AbstractGeoStack;
 end
 
 function DD.rebuild_from_arrays(
-    s::AbstractGeoStack, das::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractDimArray}}}; 
+    s::AbstractRasterStack, das::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractDimArray}}}; 
     refdims=DD.refdims(s), 
     metadata=DD.metadata(s), 
     data=map(parent, das), 
@@ -90,46 +90,46 @@ end
 
 # Base methods #################################################################
 
-Base.names(s::AbstractGeoStack) = keys(s)
-Base.copy(stack::AbstractGeoStack) = map(copy, stack)
+Base.names(s::AbstractRasterStack) = keys(s)
+Base.copy(stack::AbstractRasterStack) = map(copy, stack)
 
 #### Stack getindex ####
-# Different to DimensionalData as we construct a GeoArray
-Base.getindex(s::AbstractGeoStack, key::AbstractString) = s[Symbol(key)]
-function Base.getindex(s::AbstractGeoStack, key::Symbol)
+# Different to DimensionalData as we construct a Raster
+Base.getindex(s::AbstractRasterStack, key::AbstractString) = s[Symbol(key)]
+function Base.getindex(s::AbstractRasterStack, key::Symbol)
     data_ = parent(s)[key]
     dims_ = dims(s, DD.layerdims(s, key))
     metadata = DD.layermetadata(s, key)
-    GeoArray(data_, dims_, refdims(s), key, metadata, missingval(s, key))
+    Raster(data_, dims_, refdims(s), key, metadata, missingval(s, key))
 end
 # Key + Index
-@propagate_inbounds @inline function Base.getindex(s::AbstractGeoStack, key::Symbol, i1, I...)
+@propagate_inbounds @inline function Base.getindex(s::AbstractRasterStack, key::Symbol, i1, I...)
     A = s[key][i1, I...]
 end
 
 
-# Concrete AbstrackGeoStack implementation #################################################
+# Concrete AbstrackRasterStack implementation #################################################
 
 """
-    GeoStack <: AbstrackGeoStack
+    RasterStack <: AbstrackRasterStack
 
-    GeoStack(data...; name, kw...)
-    GeoStack(data::Union{Vector,Tuple}; name, kw...)
-    GeoStack(data::NamedTuple; kw...))
-    GeoStack(s::AbstractGeoStack; kw...)
-    GeoStack(s::AbstractGeoArray; layersfrom=Band, kw...)
+    RasterStack(data...; name, kw...)
+    RasterStack(data::Union{Vector,Tuple}; name, kw...)
+    RasterStack(data::NamedTuple; kw...))
+    RasterStack(s::AbstractRasterStack; kw...)
+    RasterStack(s::AbstractRaster; layersfrom=Band, kw...)
 
-Load a file path or a `NamedTuple` of paths as a `GeoStack`, or convert arguments, a 
-`Vector` or `NamedTuple` of `GeoArray` to `GeoStack`.
+Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert arguments, a 
+`Vector` or `NamedTuple` of `Raster` to `RasterStack`.
 
 # Arguments
 
-- `data`: A `NamedTuple` of [`GeoArray`](@ref), or a `Vector`, `Tuple` or splatted arguments
-    of [`GeoArray`](@ref). The latter options must pass a `name` keyword argument.
+- `data`: A `NamedTuple` of [`Raster`](@ref), or a `Vector`, `Tuple` or splatted arguments
+    of [`Raster`](@ref). The latter options must pass a `name` keyword argument.
 
 # Keywords
 
-- `name`: Used as stack layer names when a `Tuple`, `Vector` or splat of `GeoArray` is passed in.
+- `name`: Used as stack layer names when a `Tuple`, `Vector` or splat of `Raster` is passed in.
 - `metadata`: A `Dict` or `DimensionalData.Metadata` object.
 - `refdims`: `Tuple` of `Dimension` that the stack was sliced from.
 - `layersfrom`: `Dimension` to source stack layers from if the file is not 
@@ -137,11 +137,11 @@ Load a file path or a `NamedTuple` of paths as a `GeoStack`, or convert argument
 
 ```julia
 files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
-stack = GeoStack(files; mappedcrs=EPSG(4326))
+stack = RasterStack(files; mappedcrs=EPSG(4326))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
 """
-struct GeoStack{L<:Union{FileStack,NamedTuple},D<:Tuple,R<:Tuple,LD<:NamedTuple,M,LM,LMV} <: AbstractGeoStack{L}
+struct RasterStack{L<:Union{FileStack,NamedTuple},D<:Tuple,R<:Tuple,LD<:NamedTuple,M,LM,LMV} <: AbstractRasterStack{L}
     data::L
     dims::D
     refdims::R
@@ -151,13 +151,13 @@ struct GeoStack{L<:Union{FileStack,NamedTuple},D<:Tuple,R<:Tuple,LD<:NamedTuple,
     layermissingval::LMV
 end
 # Multi-file stack from strings
-function GeoStack(
+function RasterStack(
     filenames::Union{AbstractArray{<:AbstractString},Tuple{<:AbstractString,Vararg}};
     name=map(filekey, filenames), keys=name, kw...
 )
-    GeoStack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
+    RasterStack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
 end
-function GeoStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
+function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     crs=nothing, mappedcrs=nothing, source=nothing, kw...
 ) where K
     layers = map(keys(filenames), values(filenames)) do key, fn
@@ -169,33 +169,33 @@ function GeoStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
             dims = DD.dims(ds, crs, mappedcrs)
             md = metadata(ds)
             mv = missingval(ds)
-            GeoArray(data, dims; name=key, metadata=md, missingval=mv)
+            Raster(data, dims; name=key, metadata=md, missingval=mv)
         end
     end
-    GeoStack(NamedTuple{K}(layers); kw...)
+    RasterStack(NamedTuple{K}(layers); kw...)
 end
-# Multi GeoArray stack from Tuple of AbstractArray
-function GeoStack(data::Tuple{Vararg{<:AbstractArray}}, dims::DimTuple; name=nothing, keys=name, kw...)
-    return GeoStack(NamedTuple{cleankeys(keys)}(data), dims; kw...)
+# Multi Raster stack from Tuple of AbstractArray
+function RasterStack(data::Tuple{Vararg{<:AbstractArray}}, dims::DimTuple; name=nothing, keys=name, kw...)
+    return RasterStack(NamedTuple{cleankeys(keys)}(data), dims; kw...)
 end
-# Multi GeoArray stack from NamedTuple of AbstractArray
-function GeoStack(data::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}, dims::DimTuple; kw...)
+# Multi Raster stack from NamedTuple of AbstractArray
+function RasterStack(data::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}, dims::DimTuple; kw...)
     # TODO: make this more sophisticated an match dimension length to axes?
     layers = map(data) do A
-        GeoArray(A, dims[1:ndims(A)])
+        Raster(A, dims[1:ndims(A)])
     end
-    return GeoStack(layers; kw...)
+    return RasterStack(layers; kw...)
 end
-# Multi GeoArray stack from AbstractDimArray splat
-GeoStack(layers::AbstractDimArray...; kw...) = GeoStack(layers; kw...)
-# Multi GeoArray stack from tuple with `keys` keyword
-function GeoStack(layers::Tuple{Vararg{<:AbstractGeoArray}}; 
+# Multi Raster stack from AbstractDimArray splat
+RasterStack(layers::AbstractDimArray...; kw...) = RasterStack(layers; kw...)
+# Multi Raster stack from tuple with `keys` keyword
+function RasterStack(layers::Tuple{Vararg{<:AbstractRaster}}; 
     name=map(name, layers), keys=name, kw...
 )
-    GeoStack(NamedTuple{cleankeys(keys)}(layers); kw...)
+    RasterStack(NamedTuple{cleankeys(keys)}(layers); kw...)
 end
-# Multi GeoArray stack from NamedTuple
-function GeoStack(layers::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractGeoArray}}};
+# Multi Raster stack from NamedTuple
+function RasterStack(layers::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractRaster}}};
     resize=nothing, refdims=(), metadata=NoMetadata(), kw...
 )
     # resize if not matching sizes - resize can be `crop`, `resample` or `extend`
@@ -206,13 +206,13 @@ function GeoStack(layers::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractGeoArray}}};
     layerdims=map(DD.basedims, layers)
     layermetadata=map(DD.metadata, layers)
     layermissingval=map(missingval, layers)
-    return GeoStack(
+    return RasterStack(
         data, dims, refdims, layerdims, metadata,
         layermetadata, layermissingval
     )
 end
 # Single-file stack from a string
-function GeoStack(filename::AbstractString;
+function RasterStack(filename::AbstractString;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, layermissingval=nothing,
     source=_sourcetype(filename), name=nothing, keys=name, layersfrom=Band,
@@ -227,14 +227,14 @@ function GeoStack(filename::AbstractString;
             layerdims = layerdims isa Nothing ? DD.layerdims(ds) : layerdims
             metadata = metadata isa Nothing ? DD.metadata(ds) : metadata
             layermetadata = layermetadata isa Nothing ? DD.layermetadata(ds) : layermetadata
-            layermissingval = layermissingval isa Nothing ? GeoData.layermissingval(ds) : layermissingval
+            layermissingval = layermissingval isa Nothing ? Rasters.layermissingval(ds) : layermissingval
             data = FileStack{source}(ds, filename; keys)
             data, (; dims, refdims, layerdims, metadata, layermetadata, layermissingval)
         end
-        GeoStack(data; field_kw...)
+        RasterStack(data; field_kw...)
     else
         # Band dims acts as layers
-        GeoStack(GeoArray(filename); layersfrom)
+        RasterStack(Raster(filename); layersfrom)
     end
 
     # Maybe split the stack into separate arrays to remove extra dims.
@@ -244,19 +244,19 @@ function GeoStack(filename::AbstractString;
         return st
     end
 end
-function GeoStack(A::GeoArray; 
+function RasterStack(A::Raster; 
     layersfrom=Band, name=nothing, keys=name, metadata=metadata(A), refdims=refdims(A), kw...
 )
     layersfrom = layersfrom isa Nothing ? Band : layersfrom
     keys = keys isa Nothing ? _layerkeysfromdim(A, layersfrom) : keys
     slices = slice(A, layersfrom)
     layers = NamedTuple{Tuple(map(Symbol, keys))}(Tuple(slices))
-    GeoStack(layers; refdims=refdims, metadata=metadata, kw...)
+    RasterStack(layers; refdims=refdims, metadata=metadata, kw...)
 end
 # Stack from stack, dims args
-GeoStack(st::AbstractGeoStack, dims::DimTuple; kw...) = GeoStack(st; dims, kw...)
+RasterStack(st::AbstractRasterStack, dims::DimTuple; kw...) = RasterStack(st; dims, kw...)
 # Stack from table, dims args
-function GeoStack(table, dims::DimTuple; name=_not_a_dimcol(table, dims), keys=name, kw...)
+function RasterStack(table, dims::DimTuple; name=_not_a_dimcol(table, dims), keys=name, kw...)
     # TODO use `name` everywhere, not keys
     if keys isa Symbol
         col = Tables.getcolumn(table, keys)
@@ -267,7 +267,7 @@ function GeoStack(table, dims::DimTuple; name=_not_a_dimcol(table, dims), keys=n
             reshape(col, map(length, dims))
         end |> NamedTuple{keys}
     end
-    GeoStack(layers, dims; kw...)
+    RasterStack(layers, dims; kw...)
 end
 
 function _layerkeysfromdim(A, dim)
@@ -281,21 +281,21 @@ function _layerkeysfromdim(A, dim)
 end
 
 # Rebuild from internals
-function GeoStack(
+function RasterStack(
     data::Union{FileStack,NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}};
     dims, refdims=(), layerdims, metadata=NoMetadata(), layermetadata, layermissingval) 
-    st = GeoStack(
+    st = RasterStack(
         data, dims, refdims, layerdims, metadata, layermetadata, layermissingval
     )
 end
-# GeoStack from another stack
-function GeoStack(s::AbstractDimStack; name=cleankeys(Base.keys(s)), keys=name,
+# RasterStack from another stack
+function RasterStack(s::AbstractDimStack; name=cleankeys(Base.keys(s)), keys=name,
     data=NamedTuple{keys}(s[key] for key in keys),
     dims=dims(s), refdims=refdims(s), layerdims=DD.layerdims(s),
     metadata=metadata(s), layermetadata=DD.layermetadata(s),
     layermissingval=layermissingval(s)
 )
-    st = GeoStack(
+    st = RasterStack(
         data, DD.dims(s), refdims, layerdims, metadata, layermetadata, layermissingval
     )
 
@@ -303,9 +303,9 @@ function GeoStack(s::AbstractDimStack; name=cleankeys(Base.keys(s)), keys=name,
     return set(st, dims...)
 end
 
-Base.convert(::Type{GeoStack}, src::AbstractDimStack) = GeoStack(src)
+Base.convert(::Type{RasterStack}, src::AbstractDimStack) = RasterStack(src)
 
-GeoArray(stack::GeoStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
+Raster(stack::RasterStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
 
 defaultcrs(T::Type, crs) = crs
 defaultcrs(T::Type, ::Nothing) = defaultcrs(T)
@@ -315,6 +315,6 @@ defaultmappedcrs(T::Type, ::Nothing) = defaultmappedcrs(T)
 defaultmappedcrs(T::Type) = nothing
 
 # Precompile
-precompile(GeoStack, (String,))
+precompile(RasterStack, (String,))
 
-@deprecate stack(args...; kw...) GeoStack(args...; kw...)
+@deprecate stack(args...; kw...) RasterStack(args...; kw...)

@@ -1,5 +1,5 @@
-using GeoData, Adapt, Test
-using GeoData.GeoFormatTypes, GeoData.LookupArrays
+using Rasters, Adapt, Test
+using Rasters.GeoFormatTypes, Rasters.LookupArrays
 
 struct CustomArray{T,N} <: AbstractArray{T,N}
     arr::Array

@@ -5,10 +5,10 @@ using .RasterDataSources: RasterDataSource
 const RDS = RasterDataSources
 
 """
-    GeoArray(T::Type{<:RasterDataSource}, [layer]; kw...) => GeoArray
+    Raster(T::Type{<:RasterDataSource}, [layer]; kw...) => Raster
 
-Load a `RasterDataSource` as an `GeoArray`. `T` and `layers` are are passed to
-`RasterDataSources.getraster`, while `kw` args are for both `getraster` and `GeoArray`.
+Load a `RasterDataSource` as an `Raster`. `T` and `layers` are are passed to
+`RasterDataSources.getraster`, while `kw` args are for both `getraster` and `Raster`.
 
 # Keywords
 
@@ -16,23 +16,23 @@ Load a `RasterDataSource` as an `GeoArray`. `T` and `layers` are are passed to
 - `date`: a `DateTime` object, usually for `Weather` datasets.
 - `res`: a `String` resolution, for datasets with multiple resolutions.
 
-Other `GeoArray` keywords are passed to the `GeoArray` constructor.
+Other `Raster` keywords are passed to the `Raster` constructor.
 
 See the docs for 
 [`RasterDatasources.getraster`](http://docs.ecojulia.org/RasterDataSources.jl/stable/#getraster)
 for more specific details about data sources, layers and keyword arguments.
 """
-function GeoArray(T::Type{<:RasterDataSource}, layer; crs=_source_crs(T), kw...)
+function Raster(T::Type{<:RasterDataSource}, layer; crs=_source_crs(T), kw...)
     rds_kw, gd_kw = _filterkw(kw)
     filename = getraster(T, layer; rds_kw...)
-    GeoArray(filename; name=RDS.layerkeys(T, layer), crs, gd_kw...)
+    Raster(filename; name=RDS.layerkeys(T, layer), crs, gd_kw...)
 end
 
 """
-    GeoStack(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => GeoStack
+    RasterStack(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => RasterStack
 
-Load a `RasterDataSource` as an `GeoStack`. `T` and `layers` are passed to
-`RasterDataSources.getraster`, while `kw` args are for both `getraster` and `GeoStack`.
+Load a `RasterDataSource` as an `RasterStack`. `T` and `layers` are passed to
+`RasterDataSources.getraster`, while `kw` args are for both `getraster` and `RasterStack`.
 
 # Keywords
 
@@ -40,25 +40,25 @@ Load a `RasterDataSource` as an `GeoStack`. `T` and `layers` are passed to
 - `date`: a `DateTime` object, usually for `Weather` datasets.
 - `res`: a `String` resolution, for datasets with multiple resolutions.
 
-Other `GeoStack` keywords are passed to the `GeoStack` constructor.
+Other `RasterStack` keywords are passed to the `RasterStack` constructor.
 
 See the docs for 
 [`RasterDatasources.getraster`](http://docs.ecojulia.org/RasterDataSources.jl/stable/#getraster)
 for more specific details about data sources, layers and keyword arguments.
 """
-GeoStack(T::Type{<:RasterDataSource}; kw...) = GeoStack(T, RDS.layers(T); kw...) 
-GeoStack(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = GeoStack(T, (layer,); kw...) 
-function GeoStack(T::Type{<:RasterDataSource}, layers::Tuple; crs=_source_crs(T), kw...)
+RasterStack(T::Type{<:RasterDataSource}; kw...) = RasterStack(T, RDS.layers(T); kw...) 
+RasterStack(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = RasterStack(T, (layer,); kw...) 
+function RasterStack(T::Type{<:RasterDataSource}, layers::Tuple; crs=_source_crs(T), kw...)
     rds_kw, gd_kw = _filterkw(kw)
     filenames = map(l -> getraster(T, l; rds_kw...), layers)
-    GeoStack(filenames; keys=RDS.layerkeys(T, layers), crs, gd_kw...)
+    RasterStack(filenames; keys=RDS.layerkeys(T, layers), crs, gd_kw...)
 end
 
 """
-    GeoSeries(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => AbstractGeoSeries
+    RasterSeries(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => AbstractRasterSeries
 
-Load a `RasterDataSource` as an `AbstractGeoSeries`. `T`, `args` are are passed to
-`RasterDataSource.getraster`, while `kw` args are for both `getraster` and `GeoSeries`.
+Load a `RasterDataSource` as an `AbstractRasterSeries`. `T`, `args` are are passed to
+`RasterDataSource.getraster`, while `kw` args are for both `getraster` and `RasterSeries`.
 
 # Keywords
 
@@ -66,15 +66,15 @@ Load a `RasterDataSource` as an `AbstractGeoSeries`. `T`, `args` are are passed 
 - `date`: a `Vector` of `DateTime` objects, usually for `Weather` datasets.
 - `res`: a `String` resolution, for datasets with multiple resolutions.
 
-Other `GeoSeries` keywords are passed to the `GeoSeries` constructor.
+Other `RasterSeries` keywords are passed to the `RasterSeries` constructor.
 
 See the docs for 
 [`RasterDatasources.getraster`](http://docs.ecojulia.org/RasterDataSources.jl/stable/#getraster)
 for more specific details about data sources, layers and keyword arguments.
 """
-GeoSeries(T::Type{<:RasterDataSource}; kw...) = GeoSeries(T, RDS.layers(T); kw...) 
+RasterSeries(T::Type{<:RasterDataSource}; kw...) = RasterSeries(T, RDS.layers(T); kw...) 
 # DateTime time-series
-function GeoSeries(T::Type{<:RasterDataSource}, layers; 
+function RasterSeries(T::Type{<:RasterDataSource}, layers; 
     resize=_mayberesize(T), crs=_source_crs(T), mappedcrs=nothing, kw...
 )
     monthdim = if haskey(values(kw), :month) values(kw)[:month] isa AbstractArray
@@ -95,18 +95,18 @@ function GeoSeries(T::Type{<:RasterDataSource}, layers;
         nothing
     end
     if isnothing(monthdim) && isnothing(datedim)
-        throw(ArgumentError("A GeoSeries can only be constructed from a data source with `date` or `month` keywords that are AbstractArray. For other sources, use GeoStack or GeoArray directly"))
+        throw(ArgumentError("A RasterSeries can only be constructed from a data source with `date` or `month` keywords that are AbstractArray. For other sources, use RasterStack or Raster directly"))
     end
 
     filenames = getraster(T, layers; kw...)
     can_duplicate = RDS.has_constant_dims(T) && RDS.has_constant_metadata(T)
 
     if filenames isa AbstractVector{<:AbstractVector}
-        series = [GeoSeries(inner_fns, monthdim; resize, crs, mappedcrs, duplicate_first=can_duplicate) for inner_fns in filenames]
-        return GeoSeries(series, datedim)
+        series = [RasterSeries(inner_fns, monthdim; resize, crs, mappedcrs, duplicate_first=can_duplicate) for inner_fns in filenames]
+        return RasterSeries(series, datedim)
     elseif filenames isa AbstractVector
         dim = isnothing(datedim) ? monthdim : datedim
-        return GeoSeries(filenames, dim; resize, crs, mappedcrs, duplicate_first=can_duplicate)
+        return RasterSeries(filenames, dim; resize, crs, mappedcrs, duplicate_first=can_duplicate)
     end
 end
 

@@ -1,5 +1,5 @@
-name = "GeoData"
-uuid = "9b6fcbb8-86d6-11e9-1ce7-23a6bb139a78"
+name = "Rasters"
+uuid = "a3a2b9e3-a471-40c9-b274-f788e487c689"
 authors = ["Rafael Schouten <rafaelschouten@gmail.com>"]
 version = "0.6.1"
 

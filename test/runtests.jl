@@ -1,13 +1,13 @@
-using GeoData, Test, Aqua, SafeTestsets
+using Rasters, Test, Aqua, SafeTestsets
 
 if VERSION >= v"1.5.0"
-    # Aqua.test_ambiguities([GeoData, Base, Core])
-    # Aqua.test_unbound_args(GeoData)
-    # Aqua.test_stale_deps(GeoData)
-    Aqua.test_undefined_exports(GeoData)
-    Aqua.test_project_extras(GeoData)
-    Aqua.test_deps_compat(GeoData)
-    Aqua.test_project_toml_formatting(GeoData)
+    # Aqua.test_ambiguities([Rasters, Base, Core])
+    # Aqua.test_unbound_args(Rasters)
+    # Aqua.test_stale_deps(Rasters)
+    Aqua.test_undefined_exports(Rasters)
+    Aqua.test_project_extras(Rasters)
+    Aqua.test_deps_compat(Rasters)
+    Aqua.test_project_toml_formatting(Rasters)
 end
 
 @time @safetestset "array" begin include("array.jl") end

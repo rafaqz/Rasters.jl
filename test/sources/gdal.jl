@@ -1,19 +1,19 @@
-using GeoData, Test, Statistics, Dates, Plots, DiskArrays, RasterDataSources
-using GeoData.LookupArrays, GeoData.Dimensions
+using Rasters, Test, Statistics, Dates, Plots, DiskArrays, RasterDataSources
+using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using GeoData: FileArray, GDALfile
+using Rasters: FileArray, GDALfile
 
-include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
+include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 gdalpath = maybedownload(url)
 
 @testset "array" begin
 
-    @time gdalarray = GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test)
+    @time gdalarray = Raster(gdalpath; mappedcrs=EPSG(4326), name=:test)
     
     @testset "load from url" begin
-        A = GeoArray("/vsicurl/" * url)
-        B = GeoArray(url)
+        A = Raster("/vsicurl/" * url)
+        B = Raster(url)
         @test read(A) == read(B) == gdalarray
     end
 
@@ -21,18 +21,18 @@ gdalpath = maybedownload(url)
         @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1, :]
         tempfile = tempname() * ".tif"
         cp(gdalpath, tempfile)
-        gdalwritearray = GeoArray(tempfile)
+        gdalwritearray = Raster(tempfile)
         @test_throws ArchGDAL.GDAL.GDALError gdalwritearray .*= UInt8(2)
         open(gdalwritearray; write=true) do A
             A .*= UInt8(2)
             nothing
         end
-        @test GeoArray(tempfile) == gdalarray .* UInt8(2)
+        @test Raster(tempfile) == gdalarray .* UInt8(2)
     end
 
     @testset "read" begin
         @time A = read(gdalarray);
-        @test A isa GeoArray
+        @test A isa Raster
         @test parent(A) isa Array
         A2 = zero(A)
         @time read!(gdalarray, A2);
@@ -43,14 +43,14 @@ gdalpath = maybedownload(url)
 
     @testset "view" begin
         A = view(gdalarray, 1:10, 1:10, 1)
-        @test A isa GeoArray
+        @test A isa Raster
         @test parent(A) isa DiskArrays.SubDiskArray
-        @test parent(parent(A)) isa GeoData.FileArray
+        @test parent(parent(A)) isa Rasters.FileArray
     end
 
     @testset "array properties" begin
         @test size(gdalarray) == (514, 515, 1)
-        @test gdalarray isa GeoArray{UInt8,3}
+        @test gdalarray isa Raster{UInt8,3}
     end
 
     @testset "dimensions" begin
@@ -91,9 +91,9 @@ gdalpath = maybedownload(url)
     end
 
     @testset "indexing" begin
-        @test gdalarray[Band(1)] isa GeoArray{UInt8,2}
-        @test gdalarray[Y(1), Band(1)] isa GeoArray{UInt8,1}
-        @test gdalarray[X(1), Band(1)] isa GeoArray{UInt8,1}
+        @test gdalarray[Band(1)] isa Raster{UInt8,2}
+        @test gdalarray[Y(1), Band(1)] isa Raster{UInt8,1}
+        @test gdalarray[X(1), Band(1)] isa Raster{UInt8,1}
         @test gdalarray[X(1), Y(1), Band(1)] isa UInt8
         @test gdalarray[1, 1, 1] isa UInt8
         # Value indexed in python with rasterio
@@ -103,7 +103,7 @@ gdalpath = maybedownload(url)
     @testset "selectors" begin
         # TODO verify the value with R/gdal etc
         @test gdalarray[Y(Contains(33.8)), X(Contains(-117.5)), Band(1)] isa UInt8
-        @test gdalarray[Y(Between(33.7, 33.9)), Band(1)] isa GeoArray
+        @test gdalarray[Y(Between(33.7, 33.9)), Band(1)] isa Raster
     end
 
     @testset "methods" begin
@@ -116,7 +116,7 @@ gdalpath = maybedownload(url)
             a[X(1:100)] .= missingval(a)
             trimmed = trim(a)
             @test size(trimmed) == (414, 514, 1)
-            cropped = GeoData.crop(a; to=trimmed)
+            cropped = Rasters.crop(a; to=trimmed)
             @test size(cropped) == (414, 514, 1)
             @test all(collect(cropped .=== trimmed))
             extended = extend(cropped; to=a)
@@ -131,16 +131,16 @@ gdalpath = maybedownload(url)
             @test all(masked[X(1:100), Y([1, 5, 95])] .=== missingval(msk))
             tempfile = tempname() * ".tif"
             cp(gdalpath, tempfile)
-            @test !all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
-            open(GeoArray(tempfile); write=true) do A
+            @test !all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
+            open(Raster(tempfile); write=true) do A
                 mask!(A; to=msk, missingval=0x00)
             end
-            @test all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
+            @test all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
             rm(tempfile)
         end
 
         @testset "polygon mask" begin
-            A = read(GeoArray(gdalpath; name=:test))
+            A = read(Raster(gdalpath; name=:test))
             ds = map(dims(A)) do d
                 DimensionalData.maybeshiftlocus(Center(), d)
             end
@@ -164,10 +164,10 @@ gdalpath = maybedownload(url)
         @testset "classify! to disk" begin
             tempfile = tempname() * ".tif"
             cp(gdalpath, tempfile)
-            open(GeoArray(tempfile); write=true) do A
+            open(Raster(tempfile); write=true) do A
                 classify!(A, [0x01 0xcf 0x00; 0xd0 0xff 0xff])
             end
-            @test count(==(0x00), GeoArray(tempfile)) + count(==(0xff), GeoArray(tempfile)) == length(GeoArray(tempfile))
+            @test count(==(0x00), Raster(tempfile)) + count(==(0xff), Raster(tempfile)) == length(Raster(tempfile))
         end
 
         @testset "aggregate" begin
@@ -175,14 +175,14 @@ gdalpath = maybedownload(url)
             @test ag == aggregate(mean, gdalarray, (X(4), Y(4), Band(1)))
             tempfile = tempname() * ".tif"
             write(tempfile, ag)
-            open(GeoArray(tempfile); write=true) do dst
+            open(Raster(tempfile); write=true) do dst
                 aggregate!(mean, dst, gdalarray, 4)
             end
-            @test GeoArray(tempfile) == ag
+            @test Raster(tempfile) == ag
         end
 
         @testset "mosaic" begin
-            @time gdalarray = GeoArray(gdalpath; name=:test)
+            @time gdalarray = Raster(gdalpath; name=:test)
             A1 = gdalarray[X(1:300), Y(1:200)]
             A2 = gdalarray[X(57:500), Y(101:301)]
             tempfile = tempname() * ".tif"
@@ -207,17 +207,17 @@ gdalpath = maybedownload(url)
         end
 
         @testset "chunk_series" begin
-            @test GeoData.chunk_series(gdalarray) isa GeoSeries
-            @test size(GeoData.chunk_series(gdalarray)) == (1, 1, 1)
+            @test Rasters.chunk_series(gdalarray) isa RasterSeries
+            @test size(Rasters.chunk_series(gdalarray)) == (1, 1, 1)
         end
 
     end
 
-    @testset "conversion to GeoArray" begin
+    @testset "conversion to Raster" begin
         geoA = gdalarray[X(1:50), Y(1:1), Band(1)]
         @test size(geoA) == (50, 1)
         @test eltype(geoA) <: UInt8
-        @time geoA isa GeoArray{UInt8,1}
+        @time geoA isa Raster{UInt8,1}
         @test dims(geoA) isa Tuple{<:X,Y}
         @test refdims(geoA) isa Tuple{<:Band}
         @test metadata(geoA) == metadata(gdalarray)
@@ -226,13 +226,13 @@ gdalpath = maybedownload(url)
     end
 
     @testset "write" begin
-        gdalarray = GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test);
+        gdalarray = Raster(gdalpath; mappedcrs=EPSG(4326), name=:test);
 
         @testset "2d" begin
             geoA = view(gdalarray, Band(1))
             filename = tempname() * ".asc"
             @time write(filename, geoA)
-            saved1 = GeoArray(filename; mappedcrs=EPSG(4326))[Band(1)];
+            saved1 = Raster(filename; mappedcrs=EPSG(4326))[Band(1)];
             eltype(saved1)
             eltype(geoA)
             @test all(saved1 .== geoA)
@@ -249,13 +249,13 @@ gdalpath = maybedownload(url)
             geoA2 = gdalarray[Y(Between(33.7, 33.9)), X(Between(-117.6, -117.4))]
             filename2 = tempname() * ".tif"
             write(filename2, geoA2)
-            saved2 = read(GeoArray(filename2; name=:test, mappedcrs=EPSG(4326)))
+            saved2 = read(Raster(filename2; name=:test, mappedcrs=EPSG(4326)))
             @test size(saved2) == size(geoA2) == length.(dims(saved2)) == length.(dims(geoA2))
             @test refdims(saved2) == refdims(geoA2)
             #TODO test a file with more metadata
             @test val(metadata(saved2))[:filepath] == filename2
             @test missingval(saved2) === missingval(geoA2)
-            @test GeoData.name(saved2) == GeoData.name(geoA2)
+            @test Rasters.name(saved2) == Rasters.name(geoA2)
             @test step(lookup(dims(saved2, Y))) ≈ step(lookup(dims(geoA2, Y)))
             @test step(lookup(dims(saved2, X))) ≈ step(lookup(dims(geoA2, X)))
             @test typeof(dims(saved2)) == typeof(dims(geoA2))
@@ -268,7 +268,7 @@ gdalpath = maybedownload(url)
             filename3 = tempname() * ".tif"
             geoA3 = cat(gdalarray[Band(1)], gdalarray[Band(1)], gdalarray[Band(1)]; dims=Band(1:3))
             write(filename3, geoA3)
-            saved3 = read(GeoArray(filename3; mappedcrs=EPSG(4326)))
+            saved3 = read(Raster(filename3; mappedcrs=EPSG(4326)))
             @test all(saved3 .== geoA3)
             @test val(dims(saved3, Band)) == 1:3
         end
@@ -276,14 +276,14 @@ gdalpath = maybedownload(url)
         @testset "resave current" begin
             filename = tempname() * ".rst"
             write(filename, gdalarray)
-            gdalarray2 = GeoArray(filename)
+            gdalarray2 = Raster(filename)
             write(gdalarray2)
-            @test read(GeoArray(filename)) == read(gdalarray2)
+            @test read(Raster(filename)) == read(gdalarray2)
         end
 
         @testset "to grd" begin
             write("testgrd.gri", gdalarray)
-            grdarray = GeoArray("testgrd.gri")
+            grdarray = Raster("testgrd.gri")
             @test crs(grdarray) == convert(ProjString, crs(gdalarray))
             @test all(map((a, b) -> all(a .≈ b), bounds(grdarray), bounds(gdalarray)))
             @test index(grdarray, Y) ≈ index(gdalarray, Y)
@@ -291,24 +291,24 @@ gdalpath = maybedownload(url)
             @test grdarray == gdalarray
         end
 
-        @testset "from GeoArray" begin
+        @testset "from Raster" begin
             filename = tempname() * ".tiff"
-            ga = GeoArray(rand(100, 200), (X, Y))
+            ga = Raster(rand(100, 200), (X, Y))
             write(filename, ga)
-            saved = GeoArray(filename)
+            saved = Raster(filename)
             @test all(reverse(saved[Band(1)]; dims=Y) .=== ga)
             @test saved[1, end, 1] == saved[At(1.0), At(1.0), At(1.0)]
             @test saved[100, 1, 1] == saved[At(100), At(200), At(1)]
             filename2 = tempname() * ".tif"
-            ga2 = GeoArray(rand(100, 200), (X(Sampled(101:200)), Y(Sampled(1:200))))
+            ga2 = Raster(rand(100, 200), (X(Sampled(101:200)), Y(Sampled(1:200))))
             write(filename2, ga2)
-            @test reverse(GeoArray(filename2)[Band(1)]; dims=Y) == ga2
+            @test reverse(Raster(filename2)[Band(1)]; dims=Y) == ga2
         end
 
         @testset "to netcdf" begin
             filename2 = tempname() * ".nc"
             write(filename2, gdalarray[Band(1)])
-            saved = GeoArray(filename2; crs=crs(gdalarray))
+            saved = Raster(filename2; crs=crs(gdalarray))
             @test size(saved) == size(gdalarray[Band(1)])
             @test saved ≈ gdalarray[Band(1)]
             clat, clon = DimensionalData.shiftlocus.(Ref(Center()), dims(gdalarray, (Y, X)))
@@ -330,7 +330,7 @@ gdalpath = maybedownload(url)
             A = replace_missing(gdalarray, missing)
             filename = tempname() * ".tif"
             write(filename, A)
-            @test missingval(GeoArray(filename)) === typemin(UInt8)
+            @test missingval(Raster(filename)) === typemin(UInt8)
             rm(filename)
         end
 
@@ -339,7 +339,7 @@ gdalpath = maybedownload(url)
     @testset "show" begin
         sh = sprint(show, MIME("text/plain"), gdalarray)
         # Test but don't lock this down too much
-        @test occursin("GeoArray", sh)
+        @test occursin("Raster", sh)
         @test occursin("Y", sh)
         @test occursin("X", sh)
         @test occursin("Band", sh)
@@ -351,7 +351,7 @@ gdalpath = maybedownload(url)
     end
 
     @testset "nodatavalue type matches the array type" begin
-        A = GeoArray(WorldClim{Climate}, :tavg; res="10m", month=1)
+        A = Raster(WorldClim{Climate}, :tavg; res="10m", month=1)
         @test typeof(missingval(A)) === eltype(A)
         @test missingval(A) === -3.4f38
     end
@@ -359,7 +359,7 @@ gdalpath = maybedownload(url)
 end
 
 @testset "stack" begin
-    @time gdalstack = GeoStack((a=gdalpath, b=gdalpath))
+    @time gdalstack = RasterStack((a=gdalpath, b=gdalpath))
 
     @test length(gdalstack) == 2
     @test dims(gdalstack) isa Tuple{<:X,<:Y,<:Band}
@@ -367,7 +367,7 @@ end
     @testset "read" begin
         st = read(gdalstack)
         read!((a=gdalpath, b=gdalpath), st)
-        @test st isa GeoStack
+        @test st isa RasterStack
         @test st.data isa NamedTuple
         @test first(st.data) isa Array
         @test all(st[:a] .=== gdalstack[:a])
@@ -375,7 +375,7 @@ end
 
     @testset "child array properties" begin
         @test size(gdalstack[:a]) == (514, 515, 1)
-        @test gdalstack[:a] isa GeoArray{UInt8,3}
+        @test gdalstack[:a] isa Raster{UInt8,3}
     end
 
     @testset "indexing" begin
@@ -431,11 +431,11 @@ end
 
     if VERSION > v"1.1-"
         @testset "copy" begin
-            geoA = zero(GeoArray(gdalstack[:a]))
+            geoA = zero(Raster(gdalstack[:a]))
             copy!(geoA, gdalstack, :a)
-            # First wrap with GeoArray() here or == loads from disk for each cell.
+            # First wrap with Raster() here or == loads from disk for each cell.
             # we need a general way of avoiding this in all disk-based sources
-            @test all(geoA .== GeoArray(gdalstack[:a]))
+            @test all(geoA .== Raster(gdalstack[:a]))
         end
     end
 
@@ -446,7 +446,7 @@ end
             write(filename, gdalstack)
             base, ext = splitext(filename)
             filename_b = string(base, "_b", ext)
-            saved = read(GeoArray(filename_b))
+            saved = read(Raster(filename_b))
             @test all(saved .== geoA)
         end
 
@@ -455,14 +455,14 @@ end
             write(filename, gdalstack; suffix=("_first", "_second"))
             base, ext = splitext(filename)
             filename_b = string(base, "_second", ext)
-            saved = read(GeoArray(filename_b))
+            saved = read(Raster(filename_b))
             @test all(saved .== geoA)
         end
 
         @testset "write netcdf" begin
             filename = tempname() * ".nc"
             write(filename, gdalstack);
-            saved = GeoStack(filename);
+            saved = RasterStack(filename);
             @test all(read(saved[:a]) .== geoA)
             rm(filename)
         end
@@ -471,7 +471,7 @@ end
     @testset "show" begin
         sh = sprint(show, MIME("text/plain"), gdalstack)
         # Test but don't lock this down too much
-        @test occursin("GeoStack", sh)
+        @test occursin("RasterStack", sh)
         @test occursin("Y", sh)
         @test occursin("X", sh)
         @test occursin("Band", sh)
@@ -482,20 +482,20 @@ end
 end
 
 @testset "series" begin
-    gdalser = GeoSeries([gdalpath, gdalpath], (Ti(),); mappedcrs=EPSG(4326), name=:test)
-    @test read(gdalser[Ti(1)]) == read(GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test))
-    @test read(gdalser[Ti(1)]) == read(GeoArray(gdalpath; mappedcrs=EPSG(4326), name=:test))
+    gdalser = RasterSeries([gdalpath, gdalpath], (Ti(),); mappedcrs=EPSG(4326), name=:test)
+    @test read(gdalser[Ti(1)]) == read(Raster(gdalpath; mappedcrs=EPSG(4326), name=:test))
+    @test read(gdalser[Ti(1)]) == read(Raster(gdalpath; mappedcrs=EPSG(4326), name=:test))
 
-    gdalser = GeoSeries((a=[gdalpath, gdalpath], b=[gdalpath, gdalpath]), (Ti,))
+    gdalser = RasterSeries((a=[gdalpath, gdalpath], b=[gdalpath, gdalpath]), (Ti,))
     # Rebuild the ser by wrapping the disk data in Array.
     # `modify` forces `rebuild` on all containers as in-Memory variants
     modified_ser = modify(Array, gdalser)
-    @test typeof(modified_ser) <: GeoSeries{<:GeoStack{<:NamedTuple{(:a,:b),<:Tuple{<:Array{UInt8,3},Vararg}}}}
+    @test typeof(modified_ser) <: RasterSeries{<:RasterStack{<:NamedTuple{(:a,:b),<:Tuple{<:Array{UInt8,3},Vararg}}}}
 
     @testset "read" begin
         ser1 = read(gdalser)
-        @test ser1 isa GeoSeries{<:GeoStack}
-        @test ser1.data isa Vector{<:GeoStack}
+        @test ser1 isa RasterSeries{<:RasterStack}
+        @test ser1.data isa Vector{<:RasterStack}
         @test first(ser1.data[1].data) isa Array
         ser2 = modify(A -> A .* 0, ser1)
         ser3 = modify(A -> A .* 0, ser1)
@@ -511,8 +511,8 @@ end
     @testset "show" begin
         sh = sprint(show, MIME("text/plain"), gdalser)
         # Test but don't lock this down too much
-        @test occursin("GeoSeries", sh)
-        @test occursin("GeoStack", sh)
+        @test occursin("RasterSeries", sh)
+        @test occursin("RasterStack", sh)
         @test occursin("Ti", sh)
     end
 end

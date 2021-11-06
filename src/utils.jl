@@ -21,7 +21,7 @@ function noindex_to_sampled(dims::DimTuple)
     end
 end
 
-function maybe_typemin_as_missingval(filename::String, A::AbstractGeoArray{T}) where T
+function maybe_typemin_as_missingval(filename::String, A::AbstractRaster{T}) where T
     if ismissing(missingval(A))
         newmissingval = typemin(Missings.nonmissingtype(T)) 
         ext = splitext(filename)

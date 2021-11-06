@@ -1,9 +1,9 @@
-using GeoData, Test
-using GeoData.LookupArrays, GeoData.Dimensions
+using Rasters, Test
+using Rasters.LookupArrays, Rasters.Dimensions
 
 @testset "set"  begin
     A = [missing 7; 2 missing]
-    ga = GeoArray(A, (Y(-20:40:20), X(50:10:60)); missingval=missing)
+    ga = Raster(A, (Y(-20:40:20), X(50:10:60)); missingval=missing)
 
     # Use the Projected lookup, with crs
     lu = Projected(; crs=EPSG(2024))

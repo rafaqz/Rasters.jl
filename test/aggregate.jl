@@ -1,6 +1,6 @@
-using GeoData, Test, Dates, Statistics
-using GeoData.LookupArrays, GeoData.Dimensions
-using GeoData: upsample, downsample
+using Rasters, Test, Dates, Statistics
+using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters: upsample, downsample
 
 @testset "upsample" begin
     @test upsample(1, 2) == 1
@@ -28,14 +28,14 @@ data3 = 3 * data1
 data4 = 4 * data1
 dimz = X(Sampled([30., 40., 50.]; order=ForwardOrdered(), span=Regular(10.0), sampling=Points())), 
        Y(Sampled(LinRange(-10., 20., 7); order=ForwardOrdered(), span=Regular(5.0), sampling=Points()))
-array1 = GeoArray(data1, dimz)
-array2 = GeoArray(data2, dimz)
-array1a = GeoArray(data3, dimz)
-array2a = GeoArray(data4, dimz)
-stack1 = GeoStack(array1, array2; keys=(:array1, :array2))
-stack2 = GeoStack(array1a, array2a; keys=(:array1, :array2))
+array1 = Raster(data1, dimz)
+array2 = Raster(data2, dimz)
+array1a = Raster(data3, dimz)
+array2a = Raster(data4, dimz)
+stack1 = RasterStack(array1, array2; keys=(:array1, :array2))
+stack2 = RasterStack(array1a, array2a; keys=(:array1, :array2))
 dates = DateTime(2017):Year(1):DateTime(2018)
-series = GeoSeries([stack1, stack2], (Ti(dates),));
+series = RasterSeries([stack1, stack2], (Ti(dates),));
 
 
 @testset "Aggregate a dimension" begin
@@ -107,7 +107,7 @@ end
             [32 32 32 44 44 44
              32 32 32 44 44 44
              32 32 32 44 44 44]
-        @test typeof(aggregate(Start(), series, scale)) <: GeoSeries
+        @test typeof(aggregate(Start(), series, scale)) <: RasterSeries
     end
 
     @testset "mixed scales" begin
@@ -157,13 +157,13 @@ end
     data_m = [ 1  2  3  4  5  6 -1
                7  8  9 10 11 12 -1
               13 14 15 16 missing 18 -1]
-    array_m = GeoArray(data_m, dimz)
+    array_m = Raster(data_m, dimz)
     @test all(aggregate(sum, array_m, 3) .=== [72 missing])
     @test all(aggregate(sum, array_m, 3; skipmissingval=true) .=== [72 82])
     data_m0 = [ 1  2  3  4  5  6 -1
                 7  8  0 10 11 12 -1
                13 14 15 16 17 18 -1]
-    array_m0 = GeoArray(data_m0, dimz; missingval=0)
+    array_m0 = Raster(data_m0, dimz; missingval=0)
     @test aggregate(sum, array_m0, 3) == [0 99]
     @test aggregate(sum, array_m0, 3; skipmissingval=true) == [63 99]
     @test all(aggregate(mean, array_m0, 3) .=== [0.0 11.0])
@@ -173,8 +173,8 @@ end
     data_m = [ 1  2  3  4  5  6 -1
               7  8  9 10 11 12 -1
              13 14 15 16 missing 18 -1]
-    src = GeoArray(data_m, dimz)
-    dst = GeoArray(zeros(1, 2), map(d -> aggregate(mean, d, 3), dimz); missingval=-9999.0)
+    src = Raster(data_m, dimz)
+    dst = Raster(zeros(1, 2), map(d -> aggregate(mean, d, 3), dimz); missingval=-9999.0)
     @test all(aggregate!(sum, dst, src, 3) .=== [72.0 -9999.0])
 end
 
@@ -182,6 +182,6 @@ end
     dimz = Band(1:3), Dim{:category}([:a, :b, :c]), X([10, 20, 30, 40])
     a1 = [1 2 3; 4 5 6; 7 8 9]
     A = cat(a1, a1 .+ 10, a1 .+ 20, a1 .+ 30, dims=3)
-    da = GeoArray(A, dimz)
+    da = Raster(A, dimz)
     @test vec(aggregate(sum, da, (3, 2, 2))) == [114, 354]
 end

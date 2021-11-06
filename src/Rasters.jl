@@ -1,11 +1,11 @@
-module GeoData
+module Rasters
 
 # Use the README as the module docs
 @doc let
     path = joinpath(dirname(@__DIR__), "README.md")
     include_dependency(path)
     read(path, String)
-end GeoData
+end Rasters
 
 using Dates
 
@@ -43,9 +43,9 @@ using Base: tail, @propagate_inbounds
 using Setfield: @set, @set!
 using ColorTypes: RGB
 
-export AbstractGeoArray, GeoArray
-export AbstractGeoStack, GeoStack
-export AbstractGeoSeries, GeoSeries
+export AbstractRaster, Raster
+export AbstractRasterStack, RasterStack
+export AbstractRasterSeries, RasterSeries
 export Projected, Mapped
 export Band
 export missingval, boolmask, missingmask, replace_missing,

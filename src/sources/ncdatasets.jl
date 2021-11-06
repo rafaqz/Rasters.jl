@@ -30,20 +30,20 @@ haslayers(::Type{NCDfile}) = true
 defaultcrs(::Type{NCDfile}) = EPSG(4326) 
 defaultmappedcrs(::Type{NCDfile}) = EPSG(4326) 
 
-# GeoArray ########################################################################
+# Raster ########################################################################
 
-@deprecate NCDarray(args...; kw...) GeoArray(args...; source=NCDfile, kw...)
+@deprecate NCDarray(args...; kw...) Raster(args...; source=NCDfile, kw...)
 
-function GeoArray(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw...)
+function Raster(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw...)
     key = _firstkey(ds, key)
-    GeoArray(ds[key], filename, key; kw...)
+    Raster(ds[key], filename, key; kw...)
 end
 
 _firstkey(ds::NCD.NCDataset, key::Nothing=nothing) = Symbol(first(layerkeys(ds)))
 _firstkey(ds::NCD.NCDataset, key) = Symbol(key)
 
 function FileArray(var::NCD.CFVariable, filename::AbstractString; kw...)
-    da = GeoDiskArray{NCDfile}(var)
+    da = RasterDiskArray{NCDfile}(var)
     size_ = size(da)
     eachchunk = DA.eachchunk(da)
     haschunks = DA.haschunks(da)
@@ -54,18 +54,18 @@ end
 
 function Base.open(f::Function, A::FileArray{NCDfile}; write=A.write, kw...)
     _open(NCDfile, filename(A); key=key(A), write, kw...) do var
-        f(GeoDiskArray{NCDfile}(var, DA.eachchunk(A), DA.haschunks(A)))
+        f(RasterDiskArray{NCDfile}(var, DA.eachchunk(A), DA.haschunks(A)))
     end
 end
 
 """
-    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractGeoArray)
+    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRaster)
 
 Write an NCDarray to a NetCDF file using NCDatasets.jl
 
 Returns `filename`.
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractGeoArray)
+function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster)
     ds = NCD.Dataset(filename, "c"; attrib=_attribdict(metadata(A)))
     try
         _ncdwritevar!(ds, A)
@@ -77,17 +77,17 @@ end
 
 # Stack ########################################################################
 
-@deprecate NCDstack(args...; kw...) GeoStack(args...; source=NCDfile, kw...)
+@deprecate NCDstack(args...; kw...) RasterStack(args...; source=NCDfile, kw...)
 
 """
-    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractGeoStack)
+    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack)
 
 Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 
 Currently `Metadata` is not handled for dimensions, and `Metadata`
-from other [`AbstractGeoArray`](@ref) @types is ignored.
+from other [`AbstractRaster`](@ref) @types is ignored.
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractGeoStack)
+function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack)
     ds = NCD.Dataset(filename, "c"; attrib=_attribdict(metadata(s)))
     try 
         map(key -> _ncdwritevar!(ds, s[key]), keys(s))
@@ -105,10 +105,10 @@ function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DimTuple;
     # Create layers of zero arrays
     layers = map(layerdims, keys, types, missingval) do lds, key, t, mv 
         A = FillArrays.Zeros{t}(map(length, lds))
-        GeoArray(A, dims=lds; name=key, missingval=mv)
+        Raster(A, dims=lds; name=key, missingval=mv)
     end
-    write(filename, NCDfile, GeoArray(first(layers)))
-    return GeoArray(filename)
+    write(filename, NCDfile, Raster(first(layers)))
+    return Raster(filename)
 end
 
 # DimensionalData methods for NCDatasets types ###############################
@@ -352,7 +352,7 @@ _attribdict(md) = Dict{String,Any}()
 _dimkeys(ds::NCD.Dataset) = keys(ds.dim)
 
 # Add a var array to a dataset before writing it.
-function _ncdwritevar!(ds::NCD.Dataset, A::AbstractGeoArray{T,N}) where {T,N}
+function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}) where {T,N}
     _def_dim_var!(ds, A)
     attrib = _attribdict(metadata(A))
     # Set _FillValue
@@ -446,7 +446,7 @@ end
 # precompilation
 
 const _NCDVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}
-precompile(GeoData.FileArray, (_NCDVar, String))
+precompile(Rasters.FileArray, (_NCDVar, String))
 precompile(layerkeys, (NCDatasets.NCDataset{Nothing},))
 precompile(dims, (_NCDVar,Symbol))
 precompile(dims, (_NCDVar,Symbol,Nothing,Nothing))
@@ -456,9 +456,9 @@ precompile(_firstkey, (NCDatasets.NCDataset{Nothing},))
 precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, Nothing))
 precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, EPSG))
 precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, EPSG, EPSG))
-precompile(GeoArray, (NCDatasets.NCDataset{Nothing}, String, Nothing))
-precompile(GeoArray, (NCDatasets.NCDataset{Nothing}, String, Symbol))
-precompile(GeoArray, (_NCDVar, String, Symbol))
+precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Nothing))
+precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Symbol))
+precompile(Raster, (_NCDVar, String, Symbol))
 
 precompile(geoarray, (String,))
-precompile(GeoArray, (String,))
+precompile(Raster, (String,))

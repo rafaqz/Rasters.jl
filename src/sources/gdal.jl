@@ -9,9 +9,9 @@ const GDAL_BAND_ORDER = ForwardOrdered()
 const GDAL_X_LOCUS = Start()
 const GDAL_Y_LOCUS = Start()
 
-# Array ######################################################################## @deprecate GDALarray(args...; kw...) GeoArray(args...; source=GDALfile, kw...)
+# Array ######################################################################## @deprecate GDALarray(args...; kw...) Raster(args...; source=GDALfile, kw...)
 
-@deprecate GDALarray(args...; kw...) GeoArray(args...; source=GDALfile, kw...)
+@deprecate GDALarray(args...; kw...) Raster(args...; source=GDALfile, kw...)
 
 function FileArray(raster::AG.RasterDataset{T}, filename; kw...) where {T}
     # Arbitrary array size cuttoff for chunked read/write.
@@ -29,12 +29,12 @@ cleanreturn(A::AG.RasterDataset) = Array(A)
 
 haslayers(::Type{GDALfile}) = false
 
-# AbstractGeoArray methods
+# AbstractRaster methods
 
 """
-    Base.write(filename::AbstractString, ::Type{GDALfile}, A::AbstractGeoArray; kw...)
+    Base.write(filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster; kw...)
 
-Write a `GeoArray` to file using GDAL.
+Write a `Raster` to file using GDAL.
 
 # Keywords
 
@@ -45,7 +45,7 @@ Write a `GeoArray` to file using GDAL.
 Returns `filename`.
 """
 function Base.write(
-    filename::AbstractString, ::Type{GDALfile}, A::AbstractGeoArray{T,2}; kw...
+    filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster{T,2}; kw...
 ) where T
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
     map(dims(A, (X, Y))) do d
@@ -58,7 +58,7 @@ function Base.write(
     _gdalwrite(filename, correctedA, nbands; kw...)
 end
 function Base.write(
-    filename::AbstractString, ::Type{GDALfile}, A::AbstractGeoArray{T,3}, kw...
+    filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster{T,3}, kw...
 ) where T
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
@@ -104,12 +104,12 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
             AG.copy(ds; filename=filename, driver=gdaldriver) |> AG.destroy
         end
     end
-    return GeoArray(filename)
+    return Raster(filename)
 end
 
 # DimensionalData methods for ArchGDAL types ###############################
 
-@deprecate GDALstack(args...; kw...) GeoStack(args...; source=GDALfile, kw...)
+@deprecate GDALstack(args...; kw...) RasterStack(args...; source=GDALfile, kw...)
 
 function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     gt = try
@@ -121,7 +121,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
 
     nbands = AG.nraster(raster)
     band = Band(Categorical(1:nbands; order=GDAL_BAND_ORDER))
-    crs = crs isa Nothing ? GeoData.crs(raster) : crs
+    crs = crs isa Nothing ? Rasters.crs(raster) : crs
     xy_metadata = Metadata{GDALfile}()
 
     # Output Sampled index dims when the transformation is lat/lon alligned,
@@ -171,7 +171,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
 
         DimensionalData.format((x, y, band), map(Base.OneTo, (xsize, ysize, nbands)))
     else
-        error("Rotated/transformed dimensions are not handled yet. Open a github issue for GeoData.jl if you need this.")
+        error("Rotated/transformed dimensions are not handled yet. Open a github issue for Rasters.jl if you need this.")
         # affinemap = geotransform2affine(geotransform)
         # x = X(affinemap; lookup=TransformedIndex(dims=X()))
         # y = Y(affinemap; lookup=TransformedIndex(dims=Y()))
@@ -237,7 +237,7 @@ function _open(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...
     AG.readraster(cleanreturn ∘ f, filename; flags...)
 end
 
-function _gdalwrite(filename, A::AbstractGeoArray, nbands; 
+function _gdalwrite(filename, A::AbstractRaster, nbands; 
     driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing
 )
     A = maybe_typemin_as_missingval(filename, A)
@@ -316,9 +316,9 @@ function _gdalsetproperties!(dataset, dims, missingval)
     return dataset
 end
 
-# Create a GeoArray from a memory-backed dataset
-GeoArray(ds::AG.Dataset; kw...) = GeoArray(AG.RasterDataset(ds); kw...) 
-function GeoArray(ds::AG.RasterDataset;
+# Create a Raster from a memory-backed dataset
+Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...) 
+function Raster(ds::AG.RasterDataset;
     crs=crs(ds), mappedcrs=nothing,
     dims=dims(ds, crs, mappedcrs),
     refdims=(), name=Symbol(""),
@@ -329,16 +329,16 @@ function GeoArray(ds::AG.RasterDataset;
     filelist = AG.filelist(ds)
     if length(filelist) > 0
         filename = first(filelist)
-        return GeoArray(FileArray(ds, filename), args...)
+        return Raster(FileArray(ds, filename), args...)
     else
-        return GeoArray(Array(ds), args...)
+        return Raster(Array(ds), args...)
     end
 end
 
-# Convert AbstractGeoArray to in-memory datasets
+# Convert AbstractRaster to in-memory datasets
 
-function AG.Dataset(f::Function, A::AbstractGeoArray)
-    all(hasdim(A, (XDim, YDim))) || throw(ArgumentError("`AbstractGeoArray` must have both an `XDim` and `YDim` to use be converted to an ArchGDAL `Dataset`"))
+function AG.Dataset(f::Function, A::AbstractRaster)
+    all(hasdim(A, (XDim, YDim))) || throw(ArgumentError("`AbstractRaster` must have both an `XDim` and `YDim` to use be converted to an ArchGDAL `Dataset`"))
     if ndims(A) === 3
         thirddim = otherdims(A, (X, Y))[1]
         thirddim isa Band || throw(ArgumentError("ArchGDAL can't handle $(basetypeof(thirddim)) dims - only XDim, YDim, and Band"))
@@ -354,13 +354,13 @@ function AG.Dataset(f::Function, A::AbstractGeoArray)
     end
 end
 
-# Create a memory-backed GDAL dataset from any AbstractGeoArray
-function unsafe_gdal_mem(A::AbstractGeoArray)
+# Create a memory-backed GDAL dataset from any AbstractRaster
+function unsafe_gdal_mem(A::AbstractRaster)
     nbands = hasdim(A, Band) ? size(A, Band) : 1
     _unsafe_gdal_mem(_maybe_permute_to_gdal(A), nbands)
 end
 
-function _unsafe_gdal_mem(A::AbstractGeoArray, nbands)
+function _unsafe_gdal_mem(A::AbstractRaster, nbands)
     width = size(A, X)
     height = size(A, Y)
     ds = AG.unsafe_create("tmp";
@@ -433,7 +433,7 @@ end
 for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
     DS = AG.RasterDataset{T,AG.Dataset}
     precompile(crs, (DS,))
-    precompile(GeoData.FileArray, (DS, String))
+    precompile(Rasters.FileArray, (DS, String))
     precompile(dims, (DS,))
     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},Nothing))
     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},EPSG))
@@ -441,7 +441,7 @@ for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},WellKnownText{GeoFormatTypes.CRS,String}))
     precompile(metadata, (DS, key))
     precompile(missingval, (DS, key))
-    precompile(GeoArray, (DS, key))
-    precompile(GeoArray, (DS, String, Nothing))
-    precompile(GeoArray, (DS, String, Symbol))
+    precompile(Raster, (DS, key))
+    precompile(Raster, (DS, String, Nothing))
+    precompile(Raster, (DS, String, Symbol))
 end
