@@ -23,14 +23,6 @@ end
 @recipe function f(::GeoPlot, A::GeoArray{T,2,<:Tuple{D1,D2}}) where {T,D1<:SpatialDim,D2<:SpatialDim}
     # If colorbar is close to symmetric (< 25% difference) use a symmetric
     # colormap and set symmetric limits so zero shows up as a neutral color.
-    A_min, A_max = extrema(skipmissing(A))
-
-    # if (A_min + A_max) / abs(A_max - A_min) < 0.25
-        # A_limit = max(abs(A_min), abs(A_max))
-        # clims = (-A_limit, A_limit)
-    # else
-    # end
-    clims = A_min, A_max
 
     yguide, xguide = label(dims(A))
 
@@ -40,14 +32,13 @@ end
     :title --> (rdt === "" ? _maybename(A) : _maybename(A) * "\n" * rdt)
     :xguide --> xguide
     :yguide --> yguide
-    :clims --> clims
     :grid --> true
     :gridalpha --> 0.2
     # :guidefontsize --> 10
     # :titlefontsize --> 10
     # :tickfontsize --> 6
-    :linewidth --> 1
     # :colorbar_title --> name(A)
+    :linewidth --> 1
     :colorbar_titlefontsize --> 9
     :colorbar_tickfontcolor --> RGB(0.3)
     :tickfontcolor --> RGB(0.3)
@@ -72,6 +63,7 @@ end
     end
 
     if get(plotattributes, :seriestype, :none) == :contourf
+        clims = extrema(skipmissing(A))
         :levels --> range(clims[1], clims[2], length=20)
         index(x), index(y), clamp.(A, clims[1], clims[2])
     else
@@ -101,7 +93,6 @@ end
         ncols, nrows = _balance_grid(nplots)
         :layout --> (ncols, nrows)
         # link --> :both
-        # clims = extrema(A)
         # :colorbar := false
         titles = string.(index(A, D))
         for r in 1:nrows, c in 1:ncols
