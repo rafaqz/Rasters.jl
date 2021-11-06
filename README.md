@@ -12,6 +12,10 @@ manipulating spatial data.
 These currently include raster arrays like GeoTIFF and NetCDF, R grd files, 
 multi-layered stacks, and multi-file series of arrays and stacks. 
 
+![EarthEnv HabitatHeterogeneity layers trimmed to Australia](https://rafaqz.github.io/GeoData.jl/stable/trim_example_after.png)
+
+_A GeoStack of EarthEnv HabitatHeterogeneity layers, trimmed to Australia and plotted with Plots.jl_
+
 
 ## Lazyness
 
