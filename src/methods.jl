@@ -177,6 +177,7 @@ b = plot(awap_masked; clims=(10, 45))
 savefig(a, "build/mask_example_before.png")
 savefig(b, "build/mask_example_after.png")
 # output
+
 ```
 
 ### Before `mask`:
@@ -1464,6 +1465,7 @@ mosaic!(first, st, aus, africa)
 plot(st)
 savefig("build/mosaic_bang_example.png")
 # output
+
 ```
 
 ![mosaic](mosaic_bang_example.png)
@@ -1784,7 +1786,7 @@ points = map(o -> (o.longitude, o.latitude), obs)
 vals = extract(st, points)
 
 # output
-5-element Vector{NamedTuple{(:X, :Y, :bio1, :bio3, :bio5, :bio7, :bio12)}}:
+5-element Vector{NamedTuple{(:X, :Y, :bio1, :bio3, :bio5, :bio7, :bio12), T} where T<:Tuple}:
  (X = missing, Y = missing, bio1 = missing, bio3 = missing, bio5 = missing, bio7 = missing, bio12 = missing)
  (X = 147.096394, Y = -36.935687, bio1 = 9.408354f0, bio3 = 40.790546f0, bio5 = 22.39425f0, bio7 = 23.0895f0, bio12 = 1292.0f0)
  (X = 148.450743, Y = -35.999643, bio1 = 8.269542f0, bio3 = 41.030262f0, bio5 = 21.4485f0, bio7 = 23.858f0, bio12 = 1440.0f0)
