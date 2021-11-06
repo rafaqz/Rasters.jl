@@ -185,7 +185,7 @@ end
 """
     setcrs(x, crs)
 
-Set the crs of a `GeoArray`, `GeoStack`, `Tuple` of `Dimension`,or a `Dimension`.
+Set the crs of a `Raster`, `RasterStack`, `Tuple` of `Dimension`,or a `Dimension`.
 """
 setcrs(A, crs) = set(A, setcrs(dims(A), crs)...)
 setcrs(dims::DimTuple, crs) = map(d -> setcrs(d, mappedcrs), dims)
@@ -195,7 +195,7 @@ setcrs(dim::LookupArray, crs) = rebuild(lookup(dim); crs)
 """
     setmappedcrs(x, crs)
 
-Set the mapped crs of a `GeoArray`, a `GeoStack`, a `Tuple`
+Set the mapped crs of a `Raster`, a `RasterStack`, a `Tuple`
 of `Dimension`, or a `Dimension`.
 """
 setmappedcrs(A, mappedcrs) = set(A, setmappedcrs(dims(A), mappedcrs)...)

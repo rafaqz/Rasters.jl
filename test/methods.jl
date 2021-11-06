@@ -1,10 +1,10 @@
-using GeoData, Test, ArchGDAL, Dates, Statistics
-using GeoData.LookupArrays, GeoData.Dimensions
+using Rasters, Test, ArchGDAL, Dates, Statistics
+using Rasters.LookupArrays, Rasters.Dimensions
 
-include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
+include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
 A = [missing 7.0f0; 2.0f0 missing]
-ga = GeoArray(A, (X, Y); missingval=missing)
+ga = Raster(A, (X, Y); missingval=missing)
 ga99 = replace_missing(ga, -9999)
 @test all(ga99 .=== [-9999.0f0 7.0f0; 2.0f0 -9999.0f0])
 gaNaN = replace_missing(ga, NaN32)
@@ -30,7 +30,7 @@ end
 
 @testset "mask" begin
     A1 = [missing 1; 2 3]
-    ga1 = GeoArray(A1, (X, Y); missingval=missing)
+    ga1 = Raster(A1, (X, Y); missingval=missing)
     @test all(mask(ga1; to=ga) .=== [missing 1; 2 missing])
     ga2 = replace_missing(ga1 .* 1.0; missingval=NaN)
     @test all(mask(ga2; to=ga) .=== [NaN 1.0; 2.0 NaN])
@@ -41,13 +41,13 @@ end
 
 @testset "classify" begin
     A1 = [missing 1; 2 3]
-    ga1 = GeoArray(A1, (X, Y); missingval=missing)
+    ga1 = Raster(A1, (X, Y); missingval=missing)
     @test all(classify(ga1, 1=>99, 2=>88, 3=>77) .=== [missing 99; 88 77])
     @test all(classify(ga1, 1=>99, 2=>88, 3=>77; others=0) .=== [missing 99; 88 77])
     @test all(classify(ga1, 1=>99, 2=>88; others=0) .=== [missing 99; 88 0])
 
     A2 = [1.0 2.5; 3.0 4.0]
-    ga2 = GeoArray(A2, (X, Y); missingval=missing)
+    ga2 = Raster(A2, (X, Y); missingval=missing)
     @test classify(ga2, (2, 3)=>:x, >(3)=>:y) == [1.0 :x; 3.0 :y]
     @test classify(ga2, (>=(1), <(2))=>:x, >=(3)=>:y) == [:x 2.5; :y :y]
     classify!(ga2, (1, 2.5)=>0.0, >=(3)=>-1.0; lower=(>), upper=(<=))
@@ -57,7 +57,7 @@ end
 end
 
 @testset "points" begin
-    ga = GeoArray(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); missingval=missing)
+    ga = Raster(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); missingval=missing)
     @test all(collect(points(ga; order=(Y, X))) .=== [missing (0.2, 9.0); (0.1, 10.0) missing])
     @test all(collect(points(ga; order=(X, Y))) .=== [missing (9.0, 0.2); (10.0, 0.1) missing])
     @test all(points(ga; order=(X, Y), ignore_missing=true) .===
@@ -66,7 +66,7 @@ end
 
 @testset "extract" begin
     A = [1 2; 3 4]
-    ga = GeoArray(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); name=:test, missingval=missing)
+    ga = Raster(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); name=:test, missingval=missing)
     @testset "points" begin
         @test all(extract(ga, [(9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]) .=== 
                   [(X=9.0, Y=0.1, test=1), (X=10.0, Y=0.2, test=4), (X=10.0, Y=0.3, test=missing)])
@@ -85,7 +85,7 @@ end
     A = [missing missing missing
          missing 2.0     0.5
          missing 1.0     missing]
-    ga = GeoArray(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing)
+    ga = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing)
     # Test with missing on all sides
     ga_r = rot180(ga)
     trimmed = trim(ga)
@@ -103,15 +103,15 @@ end
 end
 
 @testset "mosaic" begin
-    reg1 = GeoArray([0.1 0.2; 0.3 0.4], (X(2.0:1.0:3.0), Y(5.0:1.0:6.0)))
-    reg2 = GeoArray([1.1 1.2; 1.3 1.4], (X(3.0:1.0:4.0), Y(6.0:1.0:7.0)))
-    irreg1 = GeoArray([0.1 0.2; 0.3 0.4], (X([2.0, 3.0]), Y([5.0, 6.0])))
-    irreg2 = GeoArray([1.1 1.2; 1.3 1.4], (X([3.0, 4.0]), Y([6.0, 7.0])))
+    reg1 = Raster([0.1 0.2; 0.3 0.4], (X(2.0:1.0:3.0), Y(5.0:1.0:6.0)))
+    reg2 = Raster([1.1 1.2; 1.3 1.4], (X(3.0:1.0:4.0), Y(6.0:1.0:7.0)))
+    irreg1 = Raster([0.1 0.2; 0.3 0.4], (X([2.0, 3.0]), Y([5.0, 6.0])))
+    irreg2 = Raster([1.1 1.2; 1.3 1.4], (X([3.0, 4.0]), Y([6.0, 7.0])))
 
     span_x1 = Explicit(vcat((1.5:1.0:2.5)', (2.5:1.0:3.5)'))
     span_x2 = Explicit(vcat((2.5:1.0:3.5)', (3.5:1.0:4.5)'))
-    exp1 = GeoArray([0.1 0.2; 0.3 0.4], (X(Sampled([2.0, 3.0]; span=span_x1)), Y([5.0, 6.0])))
-    exp2 = GeoArray([1.1 1.2; 1.3 1.4], (X(Sampled([3.0, 4.0]; span=span_x2)), Y([6.0, 7.0])))
+    exp1 = Raster([0.1 0.2; 0.3 0.4], (X(Sampled([2.0, 3.0]; span=span_x1)), Y([5.0, 6.0])))
+    exp2 = Raster([1.1 1.2; 1.3 1.4], (X(Sampled([3.0, 4.0]; span=span_x2)), Y([6.0, 7.0])))
     @test val(span(mosaic(first, exp1, exp2), X)) == [1.5 2.5 3.5; 2.5 3.5 4.5]
     @test all(mosaic(first, reg1, reg2) .=== 
               mosaic(first, irreg1, irreg2) .===
@@ -126,8 +126,8 @@ end
                                              missing 1.3 1.4])
 
     # 3 dimensions
-    A1 = GeoArray(ones(2, 2, 2), (X(2.0:-1.0:1.0), Y(5.0:1.0:6.0), Ti(DateTime(2001):Year(1):DateTime(2002))))
-    A2 = GeoArray(zeros(2, 2, 2), (X(3.0:-1.0:2.0), Y(4.0:1.0:5.0), Ti(DateTime(2002):Year(1):DateTime(2003))))
+    A1 = Raster(ones(2, 2, 2), (X(2.0:-1.0:1.0), Y(5.0:1.0:6.0), Ti(DateTime(2001):Year(1):DateTime(2002))))
+    A2 = Raster(zeros(2, 2, 2), (X(3.0:-1.0:2.0), Y(4.0:1.0:5.0), Ti(DateTime(2002):Year(1):DateTime(2003))))
     @test all(mosaic(mean, A1, A2) |> parent .=== cat([missing missing missing
                                                  missing 1.0     1.0
                                                  missing 1.0     1.0    ],

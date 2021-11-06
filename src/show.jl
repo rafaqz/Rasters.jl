@@ -1,5 +1,5 @@
 
-function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractGeoArray)
+function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractRaster)
 
     if missingval(A) !== nothing
         printstyled(io, "with missingval: "; color=:light_black)
@@ -15,7 +15,7 @@ function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractGeoArray)
     end
 end
 
-function DD.show_after(io, mime, stack::AbstractGeoStack) 
+function DD.show_after(io, mime, stack::AbstractRasterStack) 
     if parent(stack) isa FileStack 
         printstyled(io, "\nfrom file:\n"; color=:light_black)
         println(io, filename(stack))
@@ -23,7 +23,7 @@ function DD.show_after(io, mime, stack::AbstractGeoStack)
 end
 
 # Stack types can be enourmous. Just use nameof(T)
-function Base.summary(io::IO, ser::AbstractGeoSeries{T,N}) where {T,N}
+function Base.summary(io::IO, ser::AbstractRasterSeries{T,N}) where {T,N}
     if N == 0  
         print(io, "0-dimensional ")
     elseif N == 1
@@ -34,7 +34,7 @@ function Base.summary(io::IO, ser::AbstractGeoSeries{T,N}) where {T,N}
     printstyled(io, string(nameof(typeof(ser)), "{$(nameof(T)),$N}"); color=:blue)
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", A::AbstractGeoSeries{T,N}) where {T,N}
+function Base.show(io::IO, mime::MIME"text/plain", A::AbstractRasterSeries{T,N}) where {T,N}
     lines = 0
     summary(io, A)
     DD.print_name(io, name(A))

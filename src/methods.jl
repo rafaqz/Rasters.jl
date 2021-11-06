@@ -1,9 +1,9 @@
-const GeoStackOrArray = Union{AbstractGeoStack,AbstractGeoArray}
-const GeoSeriesOrStack = Union{AbstractGeoSeries,AbstractGeoStack}
+const RasterStackOrArray = Union{AbstractRasterStack,AbstractRaster}
+const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}
 
 """
-    replace_missing(a::AbstractGeoArray, newmissingval)
-    replace_missing(a::AbstractGeoStack, newmissingval)
+    replace_missing(a::AbstractRaster, newmissingval)
+    replace_missing(a::AbstractRasterStack, newmissingval)
 
 Replace missing values in the array or stack with a new missing value,
 also updating the `missingval` field/s.
@@ -11,8 +11,8 @@ also updating the `missingval` field/s.
 # Example
 
 ```jldoctest
-using GeoData
-A = GeoArray(WorldClim{Climate}, :prec; month=1) |> replace_missing
+using Rasters
+A = Raster(WorldClim{Climate}, :prec; month=1) |> replace_missing
 missingval(A)
 # output
 missing
@@ -20,20 +20,20 @@ missing
 
 """
 replace_missing(x; missingval=missing) = replace_missing(x, missingval)
-function replace_missing(A::AbstractGeoArray{T}, missingval::MV=missing) where {T,MV}
+function replace_missing(A::AbstractRaster{T}, missingval::MV=missing) where {T,MV}
     missingval = convert(promote_type(T, MV), missingval)
-    newdata = if ismissing(GeoData.missingval(A))
+    newdata = if ismissing(Rasters.missingval(A))
         if ismissing(missingval)
             copy(parent(read(A)))
         else
             collect(Missings.replace(parent(A), missingval))
         end
     else
-        replace(parent(A), GeoData.missingval(A) => missingval)
+        replace(parent(A), Rasters.missingval(A) => missingval)
     end
     return rebuild(A; data=newdata, missingval=missingval)
 end
-replace_missing(x::GeoSeriesOrStack, args...) = map(A -> replace_missing(A, args...), x)
+replace_missing(x::RasterSeriesOrStack, args...) = map(A -> replace_missing(A, args...), x)
 
 """
     boolmask(A::AbstractArray, [missingval])
@@ -42,21 +42,21 @@ replace_missing(x::GeoSeriesOrStack, args...) = map(A -> replace_missing(A, args
 Create a mask array of `Bool` values, from any `AbstractArray`.
 
 
-The array returned from calling `boolmask` on a `AbstractGeoArray` is a
-[`GeoArray`](@ref) with the same size and fields as the original array.
+The array returned from calling `boolmask` on a `AbstractRaster` is a
+[`Raster`](@ref) with the same size and fields as the original array.
 
 # Arguments
 
 - `T`: `BitArray` or `Array`
 - `A`: An `AbstractArray`.
-- `missingval`: The missing value of the source array. For [`AbstractGeoArray`](@ref) the
+- `missingval`: The missing value of the source array. For [`AbstractRaster`](@ref) the
     default `missingval` is `missingval(A)`, for all other `AbstractArray`s it is `missing`.
 
 # Example
 
 ```jldoctest
-using GeoData, Plots, Dates
-wc = GeoArray(WorldClim{Climate}, :prec; month=1)
+using Rasters, Plots, Dates
+wc = Raster(WorldClim{Climate}, :prec; month=1)
 boolmask(wc) |> plot
 
 savefig("build/boolmask_example.png")
@@ -70,7 +70,7 @@ function boolmask(A::AbstractArray, missingval=_missingval_or_missing(A))
     boolmask(Array, A, missingval)
 end
 boolmask(T::Type, A::AbstractArray, missingval=missing) = _boolmask(T, A, missingval)
-function boolmask(T::Type, A::AbstractGeoArray, missingval=_missingval_or_missing(A))
+function boolmask(T::Type, A::AbstractRaster, missingval=_missingval_or_missing(A))
     rebuild(A; data=_boolmask(T, A, missingval), missingval=false)
 end
 
@@ -98,17 +98,17 @@ end
     missingmask(A::AbstractArray, [missingval])
 
 Create a mask array of `missing` or `true` values, from any `AbstractArray`.
-For [`AbstractGeoArray`](@ref) the default `missingval` is `missingval(A)`,
+For [`AbstractRaster`](@ref) the default `missingval` is `missingval(A)`,
 for all other `AbstractArray`s it is `missing`.
 
-The array returned from calling `missingmask` on a `AbstractGeoArray` is a
-[`GeoArray`](@ref) with the same size and fields as the original array.
+The array returned from calling `missingmask` on a `AbstractRaster` is a
+[`Raster`](@ref) with the same size and fields as the original array.
 
 # Example
 
 ```jldoctest
-using GeoData, Plots, Dates
-wc = GeoArray(WorldClim{Climate}, :prec; month=1)
+using Rasters, Plots, Dates
+wc = Raster(WorldClim{Climate}, :prec; month=1)
 missingmask(wc) |> plot
 
 savefig("build/missingmask_example.png")
@@ -118,7 +118,7 @@ savefig("build/missingmask_example.png")
 ![missingmask](missingmask_example.png)
 """
 function missingmask end
-function missingmask(A::AbstractGeoArray)
+function missingmask(A::AbstractRaster)
     rebuild(A; data=missingmask(A, missingval(A)), missingval=missing, name=:missingmask)
 end
 missingmask(A::AbstractArray, missingval::Nothing) = missingmask(A, missing)
@@ -134,7 +134,7 @@ function missingmask(A::AbstractArray, missingval)
 end
 
 """
-    mask(A::AbstractGeoArray; to, missingval=missingval(A))
+    mask(A::AbstractRaster; to, missingval=missingval(A))
     mask(x; to, order=(XDim, YDim))
 
 Return a new array with values of `A` masked by the missing values of `to`,
@@ -142,11 +142,11 @@ or by when more than 50% outside `to`, if it is a polygon.
 
 # Arguments
 
-- `x`: a `GeoArray` or `GeoStack`
+- `x`: a `Raster` or `RasterStack`
 
 # Keywords
 
-- `to`: another `AbstractGeoArray`, a `AbstractVector` of `Tuple` points,
+- `to`: another `AbstractRaster`, a `AbstractVector` of `Tuple` points,
     or any GeoInterface.jl `AbstractGeometry`. The coordinate reference system
     of the point must match `crs(A)`.
 - `order`: the order of `Dimension`s in the points. Defaults to `(XDim, YDim)`.
@@ -160,14 +160,14 @@ Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask.
 
 ```jldoctest
-using GeoData, Plots, Dates
+using Rasters, Plots, Dates
 
 # Load and plot the file
-awap = read(GeoArray(AWAP, :tmax; date=DateTime(2001, 1, 1)))
+awap = read(Raster(AWAP, :tmax; date=DateTime(2001, 1, 1)))
 a = plot(awap; clims=(10, 45))
 
 # Create a mask my resampling a worldclim file
-wc = GeoArray(WorldClim{Climate}, :prec; month=1)
+wc = Raster(WorldClim{Climate}, :prec; month=1)
 wc_mask = resample(wc; to=awap)
 
 # Mask
@@ -191,12 +191,12 @@ savefig(b, "build/mask_example_after.png")
 $EXPERIMENTAL
 """
 function mask end
-mask(xs::AbstractGeoSeries; kw...) = map(x -> mask(x; kw...), xs)
-mask(xs::AbstractGeoStack; to, kw...) = _mask(xs, to; kw...)
-mask(A::AbstractGeoArray; to, kw...) = _mask(A, to; kw...)
+mask(xs::AbstractRasterSeries; kw...) = map(x -> mask(x; kw...), xs)
+mask(xs::AbstractRasterStack; to, kw...) = _mask(xs, to; kw...)
+mask(A::AbstractRaster; to, kw...) = _mask(A, to; kw...)
 
-_mask(xs::GeoStack, to::AbstractArray; kw...) = map(x -> mask(x; to, kw...),  xs)
-function _mask(st::GeoStack, to::AbstractVector;
+_mask(xs::RasterStack, to::AbstractArray; kw...) = map(x -> mask(x; to, kw...),  xs)
+function _mask(st::RasterStack, to::AbstractVector;
     order=dims(st, (XDim, YDim)), kw...
 )
     # Mask it with the polygon
@@ -204,17 +204,17 @@ function _mask(st::GeoStack, to::AbstractVector;
     # Run array masking to=B over all layers
     return map(x -> _mask(x, B; kw...),  st)
 end
-function _mask(A::GeoStackOrArray, poly::GI.AbstractGeometry; kw...)
+function _mask(A::RasterStackOrArray, poly::GI.AbstractGeometry; kw...)
     _mask(A, GI.coordinates(poly); kw...)
 end
-function _mask(A::AbstractGeoArray, poly::AbstractVector; order=(X, Y),kw...)
+function _mask(A::AbstractRaster, poly::AbstractVector; order=(X, Y),kw...)
     # Mask it with the polygon
     B = _poly_mask(A, poly; order, kw...)
     # Then apply it to A. This is much faster when
     # A has additional dimensions to broadcast over.
     return _mask(A, B; kw...)
 end
-function _mask(A::AbstractGeoArray, to::AbstractArray; missingval=_missingval_or_missing(A), kw...)
+function _mask(A::AbstractRaster, to::AbstractArray; missingval=_missingval_or_missing(A), kw...)
     return mask!(read(replace_missing(A, missingval)); to, missingval)
 end
 
@@ -246,11 +246,11 @@ or by a polygon.
 
 # Arguments
 
-- `x`: a `GeoArray` or `GeoStack`.
+- `x`: a `Raster` or `RasterStack`.
 
 # Keywords
 
-- `to`: another `AbstractGeoArray`, a `AbstractVector` of `Tuple` points,
+- `to`: another `AbstractRaster`, a `AbstractVector` of `Tuple` points,
     or any GeoInterface.jl `AbstractGeometry`. The coordinate reference system
     of the point must match `crs(A)`.
 - `order`: the order of `Dimension`s in the points. Defaults to `(XDim, YDim)`.
@@ -262,14 +262,14 @@ Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask to match the size and projection.
 
 ```jldoctest
-using GeoData, Plots, Dates
+using Rasters, Plots, Dates
 
 # Load and plot the file
-awap = read(GeoStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
+awap = read(RasterStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
 a = plot(awap; clims=(10, 45))
 
 # Create a mask my resampling a worldclim file
-wc = GeoArray(WorldClim{Climate}, :prec; month=1)
+wc = Raster(WorldClim{Climate}, :prec; month=1)
 wc_mask = resample(wc; to=awap)
 
 # Mask
@@ -291,37 +291,37 @@ savefig(b, "build/mask_bang_example_after.png")
 
 $EXPERIMENTAL
 """
-mask!(xs::AbstractGeoSeries, args...; kw...) = map(x -> mask!(x, args...; kw...),  xs)
-mask!(xs::AbstractGeoStack; to, kw...) = _mask!(xs, to; kw...)
-mask!(A::AbstractGeoArray; to, kw...) = _mask!(A, to; kw...)
+mask!(xs::AbstractRasterSeries, args...; kw...) = map(x -> mask!(x, args...; kw...),  xs)
+mask!(xs::AbstractRasterStack; to, kw...) = _mask!(xs, to; kw...)
+mask!(A::AbstractRaster; to, kw...) = _mask!(A, to; kw...)
 
 # Polygon mask
-function _mask!(A::AbstractGeoStack, poly::GI.AbstractGeometry; kw...)
+function _mask!(A::AbstractRasterStack, poly::GI.AbstractGeometry; kw...)
     _mask!(A, GI.coordinates(poly))
 end
 # Coordinates mask
-function _mask!(st::GeoStack, to::AbstractVector; order=(X, Y), kw...)
+function _mask!(st::RasterStack, to::AbstractVector; order=(X, Y), kw...)
     B = _poly_mask(first(st), to; order, kw...)
     map(x -> _mask!(x, B; kw...), st)
     return st
 end
 # Array mask
-_mask!(xs::GeoStack, to::AbstractArray; kw...) = map(x -> mask!(x; to, kw...),  xs)
+_mask!(xs::RasterStack, to::AbstractArray; kw...) = map(x -> mask!(x; to, kw...),  xs)
 
 # Polygon mask
-function _mask!(A::GeoStackOrArray, poly::GI.AbstractGeometry; kw...)
+function _mask!(A::RasterStackOrArray, poly::GI.AbstractGeometry; kw...)
     _mask!(A, GI.coordinates(poly))
 end
 # Array mask
-function _mask!(A::AbstractGeoArray, to::AbstractArray; missingval=missingval(A))
+function _mask!(A::AbstractRaster, to::AbstractArray; missingval=missingval(A))
     missingval isa Nothing && _nomissingerror()
     dimwise!(A, A, to) do a, t
-        t === GeoData.missingval(to) ? missingval : a
+        t === Rasters.missingval(to) ? missingval : a
     end
     return A
 end
 
-function _poly_mask(A::AbstractGeoArray, poly::AbstractVector; order=(XDim, YDim))
+function _poly_mask(A::AbstractRaster, poly::AbstractVector; order=(XDim, YDim))
     missingval isa Nothing && _nomissingerror()
     # We need a tuple of all the dims in `order`
     # We also need the index locus to be the center so we are
@@ -375,21 +375,21 @@ unwrap_point(q) = q
     rasterize(points, values; kw...)
 
 Rasterize the points and values in `data`, or the `points` and `values` objects,
-into the [`GeoArray`](@ref) or [`GeoStack`](@ref) `x`. 
+into the [`Raster`](@ref) or [`RasterStack`](@ref) `x`. 
 
 # Arguments
 
 - `data`: a Tables.jl compatible object containing points and values or a
     polygon - an GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `Vectors`.
 - `points`: A `Vector` or nested `Vectors` holding `Vector` or `Tuple` of `Real`
-- `values` A `Vector` of values to be written to a `GeoArray`, or a Vector of `NamedTupled`
-    to write to a `GeoStack`.
+- `values` A `Vector` of values to be written to a `Raster`, or a Vector of `NamedTupled`
+    to write to a `RasterStack`.
 
 # Keywords
 
 These are detected automatically from `A` and `data` where possible.
 
-- `to`: a `GeoArray` or `GeoStack` to rasterize to.
+- `to`: a `Raster` or `RasterStack` to rasterize to.
 - `order`: A `Tuple` of pairs `Dim => Symbol` for the keys in the data that match
     the dimension.
 - `value`: A `Tuple` of `Symbol` for the keys in the data that provide
@@ -400,8 +400,8 @@ These are detected automatically from `A` and `data` where possible.
 # Example
 
 ```jldoctest
-using GeoData, Plots, Dates, Shapefile, GeoInterface, Downloads
-using GeoData.LookupArrays
+using Rasters, Plots, Dates, Shapefile, GeoInterface, Downloads
+using Rasters.LookupArrays
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -411,10 +411,10 @@ isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 # Load the shapes for denmark
 indonesia_border = Shapefile.Handle(shapefile_name).shapes[1]
 
-# Make an empty EPSG 4326 projected GeoArray of the area of Indonesia
+# Make an empty EPSG 4326 projected Raster of the area of Indonesia
 dimz = Y(-15.0:0.1:10.9; mode=Projected(; sampling=Intervals(Start()), crs=EPSG(4326))), 
        X(90.0:0.1:145; mode=Projected(; sampling=Intervals(Start()), crs=EPSG(4326)))
-A = GeoArray(zeros(UInt16, dimz); missingval=0)
+A = Raster(zeros(UInt16, dimz); missingval=0)
 
 # Rasterize each island with a different number
 for (i, shp) in enumerate(coordinates(indonesia_border))
@@ -436,13 +436,13 @@ $EXPERIMENTAL
 """
 rasterize(args...; to, kw...) = _rasterize(to, args...; kw...)
 
-function _rasterize(to::AbstractGeoStack, args...; kw...)
+function _rasterize(to::AbstractRasterStack, args...; kw...)
     st = map(to) do A
         similar(A) .= missingval(A)
     end
     return rasterize!(st, args...; kw...)
 end
-function _rasterize(to::AbstractGeoArray, args...; kw...)
+function _rasterize(to::AbstractRaster, args...; kw...)
     A = similar(to) .= missingval(to)
     return rasterize!(A, args...; kw...)
 end
@@ -453,16 +453,16 @@ end
     rasterize!(x, points, values; order, atol)
 
 Rasterize the points and values in `data`, or the `points` and `values` objects,
-into the [`GeoArray`](@ref) or [`GeoStack`](@ref) `x`.
+into the [`Raster`](@ref) or [`RasterStack`](@ref) `x`.
 
 # Arguments
 
-- `x`: a `GeoArray` or `GeoStack` to rasterize to.
+- `x`: a `Raster` or `RasterStack` to rasterize to.
 - `data`: a Tables.jl compatible object containing points and values or a
     polygon - an GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `Vectors`.
 - `points`: A `Vector` or nested `Vector` holding `Vector` or `Tuple` of `Real`
-- `values` A `Vector` of values to be written when `x` is a `GeoArray`, or a Vector of
-    `NamedTupled` to write when `x` is a `GeoStack`.
+- `values` A `Vector` of values to be written when `x` is a `Raster`, or a Vector of
+    `NamedTupled` to write when `x` is a `RasterStack`.
 
 # Keywords
 
@@ -480,8 +480,8 @@ These are detected automatically from `A` and `data` where possible.
 Rasterize a shapefile for denmark and plot, with a border.
 
 ```jldoctest
-using GeoData, Plots, Dates, Shapefile, Downloads
-using GeoData.LookupArrays
+using Rasters, Plots, Dates, Shapefile, Downloads
+using Rasters.LookupArrays
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -491,10 +491,10 @@ isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 # Loade the shapes for china
 china_border = Shapefile.Handle(shapefile_name).shapes[10]
 
-# Make an empty EPSG 4326 projected GeoArray of the China area
+# Make an empty EPSG 4326 projected Raster of the China area
 dimz = Y(Projected(15.0:0.1:55.0; sampling=Intervals(Start()), crs=EPSG(4326))), 
        X(Projected(70.0:0.1:140; sampling=Intervals(Start()), crs=EPSG(4326)))
-A = GeoArray(zeros(UInt8, dimz); missingval=0)
+A = Raster(zeros(UInt8, dimz); missingval=0)
 
 # Rasterize the border polygon 
 rasterize!(A, china_border; fill=1, order=(X, Y))
@@ -512,7 +512,7 @@ savefig("build/china_rasterized.png")
 
 $EXPERIMENTAL
 """
-function rasterize!(A::AbstractGeoArray, data;
+function rasterize!(A::AbstractRaster, data;
     order=_auto_pointcols(A, data),
     name=first(_not_a_dimcol(data, order)), kw...
 )
@@ -527,7 +527,7 @@ function rasterize!(A::AbstractGeoArray, data;
     end
     return rasterize!(A, points, values; order=ordered_dims, kw...)
 end
-function rasterize!(A::AbstractGeoArray, points, values;
+function rasterize!(A::AbstractRaster, points, values;
     order=(XDim, YDim, ZDim), atol=nothing
 )
     isdisk(A) && _warn_disk(rasterize)
@@ -546,7 +546,7 @@ function rasterize!(A::AbstractGeoArray, points, values;
     end
     return A
 end
-function rasterize!(st::AbstractGeoStack, data;
+function rasterize!(st::AbstractRasterStack, data;
     point=_auto_pointcols(st, data), name=_not_a_dimcol(data, point), kw...
 )
     isdisk(data) && _warn_disk(rasterize!)
@@ -560,7 +560,7 @@ function rasterize!(st::AbstractGeoStack, data;
     end
     return rasterize!(st, points, values; order=point_dims, kw...)
 end
-function rasterize!(st::AbstractGeoStack, points, values;
+function rasterize!(st::AbstractRasterStack, points, values;
     order=(XDim, YDim, ZDim), atol=nothing
 )
     isdisk(first(st)) && _warn_disk(rasterize!)
@@ -581,7 +581,7 @@ function rasterize!(st::AbstractGeoStack, points, values;
     end
     return st
 end
-function rasterize!(st::AbstractGeoStack, poly::GI.AbstractGeometry;
+function rasterize!(st::AbstractRasterStack, poly::GI.AbstractGeometry;
     order=(XDim, YDim, ZDim), kw...
 )
     if bbox_overlaps(st, order, poly)
@@ -589,7 +589,7 @@ function rasterize!(st::AbstractGeoStack, poly::GI.AbstractGeometry;
     end
     return st
 end
-function rasterize!(st::AbstractGeoStack, poly::AbstractVector{<:AbstractVector};
+function rasterize!(st::AbstractRasterStack, poly::AbstractVector{<:AbstractVector};
     fill, order=(XDim, YDim, ZDim)
 )
     ordered_dims = dims(st, order)
@@ -601,7 +601,7 @@ function rasterize!(st::AbstractGeoStack, poly::AbstractVector{<:AbstractVector}
     end
     return st
 end
-function rasterize!(A::AbstractGeoArray, poly::GI.AbstractGeometry;
+function rasterize!(A::AbstractRaster, poly::GI.AbstractGeometry;
     order=(XDim, YDim, ZDim), kw...
 )
     if bbox_overlaps(A, order, poly)
@@ -609,7 +609,7 @@ function rasterize!(A::AbstractGeoArray, poly::GI.AbstractGeometry;
     end
     return A
 end
-function rasterize!(A::AbstractGeoArray, poly::AbstractVector{<:AbstractVector};
+function rasterize!(A::AbstractRaster, poly::AbstractVector{<:AbstractVector};
     fill, order=(XDim, YDim, ZDim)
 )
     ordered_dims = dims(A, order)
@@ -724,7 +724,7 @@ If `others` is set other values not covered in `pairs` will be set to that value
 
 # Arguments
 
-- `x`: a `GeoArray` or `GeoStack`
+- `x`: a `Raster` or `RasterStack`
 - `pairs`: each pair contains a value and a replacement, a tuple of lower and upper
     range and a replacement, or a Tuple of `Fix2` like `(>(x), <(y)`.
 
@@ -738,8 +738,8 @@ If `others` is set other values not covered in `pairs` will be set to that value
 # Example
 
 ```jldoctest
-using GeoData, Plots
-A = GeoArray(WorldClim{Climate}, :tavg; month=1)
+using Rasters, Plots
+A = Raster(WorldClim{Climate}, :tavg; month=1)
 classes = (5, 15) => 10,
           (15, 25) => 20,
           (25, 35) => 30,
@@ -756,13 +756,13 @@ savefig("build/classify_example.png")
 $EXPERIMENTAL
 """
 function classify end
-classify(A::AbstractGeoArray, pairs::Pair...; kw...) = classify(A, pairs; kw...)
-function classify(A::AbstractGeoArray, pairs; lower=(>=), upper=(<), others=nothing)
+classify(A::AbstractRaster, pairs::Pair...; kw...) = classify(A, pairs; kw...)
+function classify(A::AbstractRaster, pairs; lower=(>=), upper=(<), others=nothing)
     broadcast(A) do x
         _classify(x, pairs, lower, upper, others, missingval(A))
     end
 end
-classify(xs::GeoSeriesOrStack, values; kw...) = map(x -> classify(x, values; kw...),  xs)
+classify(xs::RasterSeriesOrStack, values; kw...) = map(x -> classify(x, values; kw...),  xs)
 
 """
     classify!(x, pairs...; lower, upper, others)
@@ -776,7 +776,7 @@ If `others` is set other values not covered in `pairs` will be set to that value
 
 # Arguments
 
-- `x`: a `GeoArray` or `GeoStack`
+- `x`: a `Raster` or `RasterStack`
 - `pairs`: each pair contains a value and a replacement, a tuple of lower and upper
     range and a replacement, or a Tuple of `Fix2` like `(>(x), <(y)`.
 
@@ -796,7 +796,7 @@ If `others` is set other values not covered in `pairs` will be set to that value
     the file is stored as `Float32`. Attempting to write some other type will fail.
 
 ```jldoctest
-using GeoData, Plots, RasterDataSources
+using Rasters, Plots, RasterDataSources
 # Download and copy the file
 filename = getraster(WorldClim{Climate}, :tavg; month=6)
 tempfile = tempname() * ".tif"
@@ -807,11 +807,11 @@ classes = (5, 15) => 10.0f0,
           (25, 35) => 30.0f0,
           >=(35) => 40.0f0
 # Open the file with write permission
-open(GeoArray(tempfile); write=true) do A
+open(Raster(tempfile); write=true) do A
     classify!(A, classes; others=0.0f0)
 end
 # Open it again to plot the changes
-plot(GeoArray(tempfile); c=:magma)
+plot(Raster(tempfile); c=:magma)
 
 savefig("build/classify_bang_example.png")
 # output
@@ -821,13 +821,13 @@ savefig("build/classify_bang_example.png")
 
 $EXPERIMENTAL
 """
-classify!(A::AbstractGeoArray, pairs::Pair...; kw...) = classify!(A, pairs; kw...)
-function classify!(A::AbstractGeoArray, pairs; lower=(>=), upper=(<), others=nothing)
+classify!(A::AbstractRaster, pairs::Pair...; kw...) = classify!(A, pairs; kw...)
+function classify!(A::AbstractRaster, pairs; lower=(>=), upper=(<), others=nothing)
     broadcast!(A, A) do x
         _classify(x, pairs, lower, upper, others, missingval(A))
     end
 end
-function classify!(xs::GeoSeriesOrStack; kw...)
+function classify!(xs::RasterSeriesOrStack; kw...)
     map(x -> classify!(x; kw...),  xs)
     return xs
 end
@@ -894,7 +894,7 @@ _compare((l, u)::Tuple{<:Base.Fix2,<:Base.Fix2}, x, lower, upper) = l(x) && u(x)
     crop(x; to)
     crop(xs...; to)
 
-Crop one or multiple [`AbstractGeoArray`](@ref) or [`AbstractGeoStack`](@ref) `x`
+Crop one or multiple [`AbstractRaster`](@ref) or [`AbstractRasterStack`](@ref) `x`
 to match the size of the object `to`, or smallest of any dimensions that are shared.
 
 Otherwise crop to the size of the keyword argument `to`. This can be a
@@ -910,9 +910,9 @@ Otherwise crop to the size of the keyword argument `to`. This can be a
 # Example
 
 ```jldoctest
-using GeoData, Plots
-evenness = GeoArray(EarthEnv{HabitatHeterogeneity}, :evenness)
-rnge = GeoArray(EarthEnv{HabitatHeterogeneity}, :range)
+using Rasters, Plots
+evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
+rnge = Raster(EarthEnv{HabitatHeterogeneity}, :range)
 
 # Roughly cut out New Zealand from the evenness raster
 nz_bounds = X(Between(165, 180)), Y(Between(-32, -50))
@@ -931,17 +931,17 @@ savefig("build/crop_example.png")
 $EXPERIMENTAL
 """
 function crop end
-function crop(l1::GeoStackOrArray, l2::GeoStackOrArray, ls::GeoStackOrArray...; kw...)
+function crop(l1::RasterStackOrArray, l2::RasterStackOrArray, ls::RasterStackOrArray...; kw...)
     crop((l1, l2, ls); kw...)
 end
 function crop(xs::Union{Tuple,NamedTuple}; to=_smallestdims(xs), kw...)
     map(l -> crop(l; to, kw...), xs)
 end
-crop(x::GeoStackOrArray; to, kw...) = _crop_to(x, to; kw...)
+crop(x::RasterStackOrArray; to, kw...) = _crop_to(x, to; kw...)
 
 # crop `A` to values of dims of `to`
-_crop_to(A::GeoStackOrArray, to; kw...) = _crop_to(A, dims(to); kw...)
-function _crop_to(x::GeoStackOrArray, to::DimTuple; atol=maybe_eps(to))
+_crop_to(A::RasterStackOrArray, to; kw...) = _crop_to(A, dims(to); kw...)
+function _crop_to(x::RasterStackOrArray, to::DimTuple; atol=maybe_eps(to))
     # Create selectors for each dimension
     # `Between` the bounds of the dimension
     _without_mapped_crs(x) do x1
@@ -963,7 +963,7 @@ maybe_eps(dim::Dimension) = maybe_eps(eltype(dim))
 maybe_eps(::Type) = nothing
 maybe_eps(T::Type{<:AbstractFloat}) = _default_atol(T)
 
-# Get the smallest dimensions in a tuple of AbstractGeoArray
+# Get the smallest dimensions in a tuple of AbstractRaster
 function _smallestdims(layers)
     # Combine the dimensions of all layers
     dims = DD.combinedims(layers...; check=false)
@@ -978,18 +978,18 @@ function _smallestdims(layers)
 end
 
 """
-    extend(layers::AbstractGeoArray...)
+    extend(layers::AbstractRaster...)
     extend(layers::Union{NamedTuple,Tuple})
-    extend(A::Union{AbstractGeoArray,AbstractGeoStack}; to)
+    extend(A::Union{AbstractRaster,AbstractRasterStack}; to)
 
-Extend multiple [`AbstractGeoArray`](@ref) to match the area covered by all.
-A single `AbstractGeoArray` can be extended by passing the new `dims` tuple
+Extend multiple [`AbstractRaster`](@ref) to match the area covered by all.
+A single `AbstractRaster` can be extended by passing the new `dims` tuple
 as the second argument.
 
 ```jldoctest
-using GeoData, Plots
-evenness = GeoArray(EarthEnv{HabitatHeterogeneity}, :evenness)
-rnge = GeoArray(EarthEnv{HabitatHeterogeneity}, :range)
+using Rasters, Plots
+evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
+rnge = Raster(EarthEnv{HabitatHeterogeneity}, :range)
 
 # Roughly cut out South America
 sa_bounds = X(Between(-88, -32)), Y(Between(-57, 13))
@@ -1009,17 +1009,17 @@ savefig("build/extend_example.png")
 $EXPERIMENTAL
 """
 function extend end
-function extend(l1::GeoStackOrArray, l2::GeoStackOrArray, ls::GeoStackOrArray...; kw...)
+function extend(l1::RasterStackOrArray, l2::RasterStackOrArray, ls::RasterStackOrArray...; kw...)
     extend((l1, l2, ls...); kw...)
 end
 function extend(xs::Union{NamedTuple,Tuple}; to=_largestdims(xs))
     # Extend all layers to `to`, by default the _largestdims
     map(l -> extend(l; to), xs)
 end
-extend(x::GeoStackOrArray; to=dims(x)) = _extend_to(x, to)
+extend(x::RasterStackOrArray; to=dims(x)) = _extend_to(x, to)
 
-_extend_to(x::GeoStackOrArray, to) = _extend_to(x, dims(to))
-function _extend_to(A::AbstractGeoArray, to::Tuple)
+_extend_to(x::RasterStackOrArray, to) = _extend_to(x, dims(to))
+function _extend_to(A::AbstractRaster, to::Tuple)
     sze = map(length, to)
     T = eltype(A)
     # Create a new extended array
@@ -1041,9 +1041,9 @@ function _extend_to(A::AbstractGeoArray, to::Tuple)
     newA[ranges...] .= read(A)
     return newA
 end
-_extend_to(st::AbstractGeoStack, to::Tuple) = map(A -> _extend_to(A, to), st)
+_extend_to(st::AbstractRasterStack, to::Tuple) = map(A -> _extend_to(A, to), st)
 
-# Get the largest dimensions in a tuple of AbstractGeoArray
+# Get the largest dimensions in a tuple of AbstractRaster
 function _largestdims(layers)
     dims = DD.combinedims(layers...; check=false)
     alldims = map(DD.dims, layers)
@@ -1067,7 +1067,7 @@ _shortest(a, b) = length(a) <= length(b)
 _longest(a, b) = length(a) >= length(b)
 
 """
-    trim(A::AbstractGeoArray; dims::Tuple, pad::Int)
+    trim(A::AbstractRaster; dims::Tuple, pad::Int)
 
 Trim `missingval` from `A` for axes in dims, returning a view of `A`.
 
@@ -1082,9 +1082,9 @@ padding will not be added beyond the original extent of the array.
 Create trimmed layers of Australian habitat heterogeneity.
 
 ```jldoctest
-using GeoData, Plots
+using Rasters, Plots
 layers = (:evenness, :range, :contrast, :correlation)
-st = GeoStack(EarthEnv{HabitatHeterogeneity}, layers)
+st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers)
 plot(st)
 
 # Roughly cut out australia
@@ -1110,7 +1110,7 @@ savefig(b, "build/trim_example_after.png")
 
 $EXPERIMENTAL
 """
-function trim(A::GeoStackOrArray; dims::Tuple=(X(), Y()), pad::Int=0)
+function trim(A::RasterStackOrArray; dims::Tuple=(X(), Y()), pad::Int=0)
     # Get the actual dimensions in their order in the array
     dims = commondims(A, dims)
     # Get the range of non-missing values for each dimension
@@ -1177,16 +1177,16 @@ function _trimranges(A, targetdims)
     return cropranges
 end
 
-_update!(tr::AxisTrackers, A::AbstractGeoArray) = tr .= A .!== missingval(A)
-_update!(tr::AxisTrackers, st::AbstractGeoStack) = map(A -> tr .= A .!== missingval(A), st)
+_update!(tr::AxisTrackers, A::AbstractRaster) = tr .= A .!== missingval(A)
+_update!(tr::AxisTrackers, st::AbstractRasterStack) = map(A -> tr .= A .!== missingval(A), st)
 
 """
 	resample(x, resolution::Number; crs, method)
 	resample(x; to, method)
     resample(xs...; to=first(xs), method)
 
-`resample` uses `ArchGDAL.gdalwarp` to resample an [`GeoArray`](@ref) or
-[`AbstractGeoStack`](@ref).
+`resample` uses `ArchGDAL.gdalwarp` to resample an [`Raster`](@ref) or
+[`AbstractRasterStack`](@ref).
 
 # Arguments
 
@@ -1196,7 +1196,7 @@ _update!(tr::AxisTrackers, st::AbstractGeoStack) = map(A -> tr .= A .!== missing
 
 # Keywords
 
-- `to`: an `AbstractGeoArray` whos resolution, crs and bounds will be snapped to.
+- `to`: an `AbstractRaster` whos resolution, crs and bounds will be snapped to.
     For best results it should roughly cover the same extent, or a subset of `A`.
 - `crs`: A `GeoFormatTypes.GeoFormat` specifying an output crs
     (`A` will be reprojected to `crs` in addition to being resampled). Defaults to `crs(A)`
@@ -1209,9 +1209,9 @@ _update!(tr::AxisTrackers, st::AbstractGeoStack) = map(A -> tr .= A .!== missing
 Resample a WorldClim layer to match an EarthEnv layer:
 
 ```jldoctest
-using GeoData, Plots
-A = GeoArray(WorldClim{Climate}, :prec; month=1)
-B = GeoArray(EarthEnv{HabitatHeterogeneity}, :evenness)
+using Rasters, Plots
+A = Raster(WorldClim{Climate}, :prec; month=1)
+B = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 
 a = plot(A)
 b = plot(resample(A; to=B))
@@ -1232,11 +1232,11 @@ savefig(b, "build/resample_example_after.png")
 $EXPERIMENTAL
 """
 function resample end
-resample(xs::GeoStackOrArray...; kw...) = resample(xs; kw...)
+resample(xs::RasterStackOrArray...; kw...) = resample(xs; kw...)
 function resample(xs::Union{Tuple,NamedTuple}; to=first(xs), kw...)
     map(x -> resample(x; to, kw...), xs)
 end
-function resample(A::GeoStackOrArray, resolution::Number;
+function resample(A::RasterStackOrArray, resolution::Number;
     crs::GeoFormat=crs(A), method=:near
 )
     wkt = convert(String, convert(WellKnownText, crs))
@@ -1247,7 +1247,7 @@ function resample(A::GeoStackOrArray, resolution::Number;
     )
     return warp(A, flags)
 end
-function resample(A::GeoStackOrArray; to, method=:near)
+function resample(A::RasterStackOrArray; to, method=:near)
     all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` mush have both XDim and YDim dimensions to resize with GDAL"))
     if sampling(to, XDim) isa Points
         to = set(to, dims(to, XDim) => Intervals(Start()))
@@ -1269,7 +1269,7 @@ function resample(A::GeoStackOrArray; to, method=:near)
 end
 
 """
-    warp(A::AbstractGeoArray, flags::Dict)
+    warp(A::AbstractRaster, flags::Dict)
 
 Gives access to the GDALs `gdalwarp` method given a `Dict` of flags,
 where arguments than can be converted to strings, or vectors
@@ -1286,8 +1286,8 @@ This simply resamples the array with the `:tr` (output file resolution) and `:r`
 flags, giving us a pixelated version:
 
 ```jldoctest
-using GeoData, RasterDataSources, Plots
-A = GeoArray(WorldClim{Climate}, :prec; month=1)
+using Rasters, RasterDataSources, Plots
+A = Raster(WorldClim{Climate}, :prec; month=1)
 plot(A)
 savefig("build/warp_example_before.png")
 flags = Dict(
@@ -1312,7 +1312,7 @@ In practise, prefer [`resample`](@ref) for this. But `warp` may be more flexible
 
 $EXPERIMENTAL
 """
-function warp(A::AbstractGeoArray, flags::Dict)
+function warp(A::AbstractRaster, flags::Dict)
     odims = otherdims(A, (X, Y, Band))
     if length(odims) > 0
         # Handle dimensions other than X, Y, Band
@@ -1323,15 +1323,15 @@ function warp(A::AbstractGeoArray, flags::Dict)
         return _warp(A, flags)
     end
 end
-warp(st::AbstractGeoStack, flags::Dict) = map(A -> warp(A, flags), st)
+warp(st::AbstractRasterStack, flags::Dict) = map(A -> warp(A, flags), st)
 
-function _warp(A::AbstractGeoArray, flags::Dict)
+function _warp(A::AbstractRaster, flags::Dict)
     flagvect = reduce([flags...]; init=[]) do acc, (key, val)
         append!(acc, String[_asflag(key), _stringvect(val)...])
     end
     AG.Dataset(A) do dataset
         AG.gdalwarp([dataset], flagvect) do warped
-            _maybe_permute_from_gdal(read(GeoArray(warped)), dims(A))
+            _maybe_permute_from_gdal(read(Raster(warped)), dims(A))
         end
     end
 end
@@ -1367,8 +1367,8 @@ If your mosaic has has apparent line errors, increase the `atol` value.
 Here we cut out australia and africa from a stack, and join them with `mosaic`.
 
 ```jldoctest
-using GeoData, Plots
-st = GeoStack(WorldClim{Climate}; month=1);
+using Rasters, Plots
+st = RasterStack(WorldClim{Climate}; month=1);
 
 africa = st[X(Between(-20.0, 60.0)), Y(Between(35.0, -40.0))]
 a = plot(africa)
@@ -1400,7 +1400,7 @@ savefig(c, "build/mosaic_example_combined.png")
 $EXPERIMENTAL
 """
 mosaic(f::Function, regions...; kw...) = mosaic(f, regions; kw...)
-function mosaic(f::Function, regions::Tuple{<:AbstractGeoArray,Vararg};
+function mosaic(f::Function, regions::Tuple{<:AbstractRaster,Vararg};
     missingval=missingval(first(regions)), filename=nothing, kw...
 )
     missingval isa Nothing && throw(ArgumentError("Layers have no missingval, so pass a `missingval` keyword explicitly"))
@@ -1411,7 +1411,7 @@ function mosaic(f::Function, regions::Tuple{<:AbstractGeoArray,Vararg};
     else
         l1 = first(regions)
         create(filename, T, dims; name=name(l1), missingval, metadata=metadata(l1))
-        parent(GeoArray(filename))
+        parent(Raster(filename))
     end
     A = rebuild(first(regions); data, dims, missingval)
     open(A; write=true) do a
@@ -1419,7 +1419,7 @@ function mosaic(f::Function, regions::Tuple{<:AbstractGeoArray,Vararg};
     end
     return A
 end
-function mosaic(f::Function, regions::Tuple{<:AbstractGeoStack,Vararg}; kw...)
+function mosaic(f::Function, regions::Tuple{<:AbstractRasterStack,Vararg}; kw...)
     map(regions...) do A...
         mosaic(f, A...; kw...)
     end
@@ -1435,7 +1435,7 @@ Combine `regions`s in `x` using the function `f`.
 
 - `f` a function (e.g. `mean`, `sum`, `first` or `last`) that is applied to
     values where `regions` overlap.
-- `x`: A `GeoArray` or `GeoStack`. May be a an opened disk-based `GeoArray`,
+- `x`: A `Raster` or `RasterStack`. May be a an opened disk-based `Raster`,
     the result will be written to disk.
     slow read speed with the current algorithm
 - `regions`: source objects to be joined. These should be memory-backed
@@ -1457,8 +1457,8 @@ Cut out Australia and Africa stacks, then combined them
 into a single stack.
 
 ```jldoctest
-using GeoData, Statistics, Plots
-st = read(GeoStack(WorldClim{Climate}; month=1))
+using Rasters, Statistics, Plots
+st = read(RasterStack(WorldClim{Climate}; month=1))
 aus = st[X(Between(100.0, 160.0)), Y(Between(-10.0, -50.0))]
 africa = st[X(Between(-20.0, 60.0)), Y(Between(35.0, -40.0))]
 mosaic!(first, st, aus, africa)
@@ -1472,7 +1472,7 @@ savefig("build/mosaic_bang_example.png")
 
 $EXPERIMENTAL
 """
-function mosaic!(f::Function, A::AbstractGeoArray{T}, regions;
+function mosaic!(f::Function, A::AbstractRaster{T}, regions;
     missingval=missingval(A), atol=_default_atol(T)
 ) where T
     _without_mapped_crs(A) do A1
@@ -1488,12 +1488,12 @@ function mosaic!(f::Function, A::AbstractGeoArray{T}, regions;
             end
             values = foldl(ls; init=()) do acc, l
                 v = l[ds...]
-                if isnothing(GeoData.missingval(l))
+                if isnothing(Rasters.missingval(l))
                     (acc..., v)
-                elseif ismissing(GeoData.missingval(l))
+                elseif ismissing(Rasters.missingval(l))
                     ismissing(v) ? acc : (acc..., v)
                 else
-                    v === GeoData.missingval(l) ? acc : (acc..., v)
+                    v === Rasters.missingval(l) ? acc : (acc..., v)
                 end
             end
             if length(values) === 0
@@ -1505,7 +1505,7 @@ function mosaic!(f::Function, A::AbstractGeoArray{T}, regions;
     end
     return A
 end
-function mosaic!(f::Function, st::AbstractGeoStack, regions; kw...)
+function mosaic!(f::Function, st::AbstractRasterStack, regions; kw...)
     map(st, regions...) do A, r...
         mosaic!(f, A, r; kw...)
     end
@@ -1571,20 +1571,20 @@ function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::LookupArrayTu
 end
 
 _without_mapped_crs(f, A) = _without_mapped_crs(f, A, mappedcrs(A))
-_without_mapped_crs(f, A::AbstractGeoArray, ::Nothing) = f(A)
-function _without_mapped_crs(f, A::AbstractGeoArray, mappedcrs)
+_without_mapped_crs(f, A::AbstractRaster, ::Nothing) = f(A)
+function _without_mapped_crs(f, A::AbstractRaster, mappedcrs)
     A = setmappedcrs(A, nothing)
     x = f(A)
-    if x isa AbstractGeoArray
+    if x isa AbstractRaster
         x = setmappedcrs(x, mappedcrs)
     end
     return x
 end
-_without_mapped_crs(f, A::AbstractGeoStack, ::Nothing) = f(A)
-function _without_mapped_crs(f, A::AbstractGeoStack, mappedcrs) 
+_without_mapped_crs(f, A::AbstractRasterStack, ::Nothing) = f(A)
+function _without_mapped_crs(f, A::AbstractRasterStack, mappedcrs) 
     st1 = map(A -> setmappedcrs(A, nothing), st)
     x = f(st1)
-    if x isa AbstractGeoStack
+    if x isa AbstractRasterStack
         x = map(A -> setmappedcrs(A, mappedcrs), x)
     end
     return x
@@ -1597,52 +1597,52 @@ _default_atol(T::Type{<:Integer}) = T(1)
 _default_atol(::Type) = nothing
 
 """
-    slice(A::Union{AbstractGeoArray,AbstractGeoStack,AbstracGeoSeries}, dims) => GeoSeries
+    slice(A::Union{AbstractRaster,AbstractRasterStack,AbstracRasterSeries}, dims) => RasterSeries
 
 Slice an object along some dimension/s, lazily using `view`.
 
-For a single `GeoArray` or `GeoStack` this will return a `GeoSeries` of
-`GeoArray` or `GeoStack` that are slices along the specified dimensions.
+For a single `Raster` or `RasterStack` this will return a `RasterSeries` of
+`Raster` or `RasterStack` that are slices along the specified dimensions.
 
-For a `GeoSeries`, the output is another series where the child objects are sliced and the
-series dimensions index is now of the child dimensions combined. `slice` on a `GeoSeries`
+For a `RasterSeries`, the output is another series where the child objects are sliced and the
+series dimensions index is now of the child dimensions combined. `slice` on a `RasterSeries`
 with no dimensions will slice along the dimensions shared by both the series and child object.
 
 $EXPERIMENTAL
 """
-slice(x::GeoStackOrArray, dims) = slice(x, (dims,))
+slice(x::RasterStackOrArray, dims) = slice(x, (dims,))
 # Slice an array or stack into a series
-function slice(x::GeoStackOrArray, dims::Tuple)
+function slice(x::RasterStackOrArray, dims::Tuple)
     # Make sure all dimensions in `dims` are in `x`
     all(hasdim(x, dims)) || _errordimsnotfound(dims, DD.dims(x))
-    # Define dimensions and data for the sliced GeoSeries
+    # Define dimensions and data for the sliced RasterSeries
     seriesdims = DD.dims(x, dims)
     # series data is a generator of view slices
     seriesdata = map(DimIndices(seriesdims)) do ds
         view(x, ds...)
     end
-    return GeoSeries(seriesdata, seriesdims)
+    return RasterSeries(seriesdata, seriesdims)
 end
 # Slice an existing series into smaller slices
-slice(ser::AbstractGeoSeries, dims) = cat(map(x -> slice(x, dims), ser)...; dims=dims)
+slice(ser::AbstractRasterSeries, dims) = cat(map(x -> slice(x, dims), ser)...; dims=dims)
 
 @noinline _errordimsnotfound(targets, dims) =
     throw(ArgumentError("Dimensions $(map(DD.dim2key, targets)) were not found in $(map(DD.dim2key, dims))"))
 
-# By default, combine all the GeoSeries dimensions and return a GeoArray or GeoStack
-combine(ser::AbstractGeoSeries) = combine(ser, dims(ser))
+# By default, combine all the RasterSeries dimensions and return a Raster or RasterStack
+combine(ser::AbstractRasterSeries) = combine(ser, dims(ser))
 # Fold over all the dimensions, combining the series one dimension at a time
-combine(ser::AbstractGeoSeries, dims::Tuple) = foldl(combine, dims; init=ser)
+combine(ser::AbstractRasterSeries, dims::Tuple) = foldl(combine, dims; init=ser)
 # Slice the N-dimensional series into an array of 1-dimensional
 # series, and combine them, returning a new series with 1 less dimension.
-function combine(ser::AbstractGeoSeries{<:Any,M}, dim::Union{Dimension,DD.DimType,Val,Symbol}) where M
+function combine(ser::AbstractRasterSeries{<:Any,M}, dim::Union{Dimension,DD.DimType,Val,Symbol}) where M
     od = otherdims(ser, dim)
     slices = map(d -> view(ser, d...), DimIndices(od))
     newchilren = map(s -> combine(s, dim), slices)
     return rebuild(ser; data=newchilren, dims=od)
 end
 # Actually combine a 1-dimensional series with `cat`
-function combine(ser::AbstractGeoSeries{<:Any,1}, dim::Union{Dimension,DD.DimType,Val,Symbol})
+function combine(ser::AbstractRasterSeries{<:Any,1}, dim::Union{Dimension,DD.DimType,Val,Symbol})
     dim = DD.dims(ser, dim)
     D = DD.basetypeof(dim)
     x = foldl(ser) do acc, x
@@ -1652,7 +1652,7 @@ function combine(ser::AbstractGeoSeries{<:Any,1}, dim::Union{Dimension,DD.DimTyp
     return set(x, D => dims(ser, dim))
 end
 
-function _maybereshape(A::AbstractGeoArray{<:Any,N}, acc, dim) where N
+function _maybereshape(A::AbstractRaster{<:Any,N}, acc, dim) where N
     if ndims(acc) != ndims(A)
         newdata = reshape(parent(A), Val{N+1}())
         d = if hasdim(refdims(A), dim)
@@ -1666,20 +1666,20 @@ function _maybereshape(A::AbstractGeoArray{<:Any,N}, acc, dim) where N
         return A
     end
 end
-function _maybereshape(st::AbstractGeoStack, acc, dim)
+function _maybereshape(st::AbstractRasterStack, acc, dim)
     map((s, a) -> _maybereshape(s, a, dim), st, acc)
 end
 
-# chunk_series(A::AbstractGeoArray) => GeoSeries
-# Create a GeoSeries of arrays matching the chunks of a chunked array.
+# chunk_series(A::AbstractRaster) => RasterSeries
+# Create a RasterSeries of arrays matching the chunks of a chunked array.
 # This may be useful for parallel or larger than memory applications.
-function chunk_series(A::AbstractGeoArray)
+function chunk_series(A::AbstractRaster)
     # Get the index of each chunk of A
     gc = DiskArrays.eachchunk(A)
     ci = CartesianIndices(gc.chunkgridsize)
     # Create a series over the chunks
     data = collect(view(A, _chunk_inds(gc, I)...) for I in ci)
-    return GeoSeries(data, DD.basedims(dims(A)))
+    return RasterSeries(data, DD.basedims(dims(A)))
 end
 
 # See iterate(::GridChunks) in Diskarrays.jl
@@ -1690,7 +1690,7 @@ function _chunk_inds(g, ichunk)
 end
 
 """
-    points(A::AbstractGeoArray; dims=(YDim, XDim), ignore_missing) => Array{Tuple}
+    points(A::AbstractRaster; dims=(YDim, XDim), ignore_missing) => Array{Tuple}
 
 Returns a generator of the points in `A` for dimensions in `dims`,
 where points are a tuple of the values in each specified dimension
@@ -1708,7 +1708,7 @@ The order of `dims` determines the order of the points.
 
 $EXPERIMENTAL
 """
-function points(A::AbstractGeoArray; ignore_missing=false, order=(XDim, YDim, ZDim))
+function points(A::AbstractRaster; ignore_missing=false, order=(XDim, YDim, ZDim))
     ignore_missing ? _points(A; order) : _points_missing(A; order)
 end
 function points(dims::DimTuple; order=(XDim, YDim, ZDim))
@@ -1721,8 +1721,8 @@ function points(dims::DimTuple; order=(XDim, YDim, ZDim))
     return (ordered_point(I) for I in indices)
 end
 
-_points(A::AbstractGeoArray; kw...) = points(dims(A); kw...)
-function _points_missing(A::AbstractGeoArray; order)
+_points(A::AbstractRaster; kw...) = points(dims(A); kw...)
+function _points_missing(A::AbstractRaster; order)
     indices = DimIndices(A)
     ordered_dims = dims(A, order)
     # Lazily reorder the points and index into the dims in the generator
@@ -1740,7 +1740,7 @@ end
 """
    extract(x, points; order, atol)
 
-Extracts the value of `GeoArray` or `GeoStack` at given points, returning
+Extracts the value of `Raster` or `RasterStack` at given points, returning
 a vector of `NamedTuple` with columns for the point dimensions and layer
 value/s.
 
@@ -1749,7 +1749,7 @@ sliced arrays or stacks will be returned instead of single values.
 
 # Arguments
 
-- `x`: a `GeoArray` or `GeoStack` to extract values from.
+- `x`: a `Raster` or `RasterStack` to extract values from.
 - `points`: multiple `Vector`s of point values, a `Vector{Tuple}`,
     or a single `Tuple` or `Vector`. `points` can also be a Tables.jl compatible
     table, in which case `order` may need to specify the keys.
@@ -1773,10 +1773,10 @@ Here we extact points matching the occurrence of the Mountain Pygmy Possum,
 _Burramis parvus_. This could be used to fit a species distribution lookupl.
 
 ```jldoctest
-using GeoData, GBIF, CSV
+using Rasters, GBIF, CSV
 
 # Get a stack of BioClim layers, and replace missing values with `missing`
-st = GeoStack(WorldClim{BioClim}, (1, 3, 5, 7, 12))[Band(1)] |> replace_missing
+st = RasterStack(WorldClim{BioClim}, (1, 3, 5, 7, 12))[Band(1)] |> replace_missing
 
 # Download some occurrence data
 obs = GBIF.occurrences("scientificName" => "Burramys parvus", "limit" => 5)
@@ -1795,19 +1795,19 @@ vals = extract(st, points)
 
 ```
 """
-function extract(A::GeoStackOrArray, points::NTuple{<:Any,<:AbstractVector}; kw...)
+function extract(A::RasterStackOrArray, points::NTuple{<:Any,<:AbstractVector}; kw...)
     extract(A, zip(points...); kw...)
 end
-function extract(A::GeoStackOrArray, points::GI.AbstractGeometry; kw...)
+function extract(A::RasterStackOrArray, points::GI.AbstractGeometry; kw...)
     extract(A, flat_nodes(GI.coordinates(points)); kw...)
 end
-function extract(A::GeoStackOrArray, points::AbstractVector{<:Tuple}; kw...)
+function extract(A::RasterStackOrArray, points::AbstractVector{<:Tuple}; kw...)
     extract.(Ref(A), points; kw...)
 end
-function extract(A::GeoStackOrArray, points::AbstractVector{<:AbstractVector{<:Real}}; kw...)
+function extract(A::RasterStackOrArray, points::AbstractVector{<:AbstractVector{<:Real}}; kw...)
     extract.(Ref(A), points; kw...)
 end
-function extract(A::GeoStackOrArray, data; order=_auto_pointcols(A, data), kw...) 
+function extract(A::RasterStackOrArray, data; order=_auto_pointcols(A, data), kw...) 
     rows = Tables.rows(data)
     point_dims = map(p -> DD.basetypeof(p[1])(p[2]), order)
     point_keys = map(val, point_dims)
@@ -1816,9 +1816,9 @@ function extract(A::GeoStackOrArray, data; order=_auto_pointcols(A, data), kw...
         extract(A, point_vals; order=map(first, order), point_keys, kw...)
     end
 end
-extract(A::GeoStackOrArray, points::Missing; kw...) = missing
+extract(A::RasterStackOrArray, points::Missing; kw...) = missing
 function extract(
-    A::GeoStackOrArray, point::Union{Tuple,AbstractVector{<:AbstractFloat}};
+    A::RasterStackOrArray, point::Union{Tuple,AbstractVector{<:AbstractFloat}};
     order=(XDim, YDim, ZDim),
     point_keys=map(DD.dim2key, dims(A, order)),
     layer_keys=_layer_keys(A, order),
@@ -1848,8 +1848,8 @@ function extract(
 end
 
 
-_layer_keys(A::AbstractGeoArray, order) = (name(A),)
-_layer_keys(A::AbstractGeoStack, order) = keys(A)
+_layer_keys(A::AbstractRaster, order) = (name(A),)
+_layer_keys(A::AbstractRasterStack, order) = keys(A)
 
 _missingval_or_missing(x) = missingval(x) isa Nothing ? missing : missingval(x)
 

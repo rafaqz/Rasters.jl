@@ -8,7 +8,7 @@ struct DisAg end
 """
     aggregate(method, object, scale; filename, progress, skipmissing)
 
-Aggregate a GeoArray, or all arrays in a GeoStack or GeoSeries, by `scale` using
+Aggregate a Raster, or all arrays in a RasterStack or RasterSeries, by `scale` using
 `method`.
 
 # Arguments
@@ -16,8 +16,8 @@ Aggregate a GeoArray, or all arrays in a GeoStack or GeoSeries, by `scale` using
 - `method`: a function such as `mean` or `sum` that can combine the
   value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
   like `Start()` or `Center()` that specifies where to sample from in the interval.
-- `object`: Object to aggregate, like `AbstractGeoSeries`, `AbstractStack`,
-  `AbstractGeoArray` or `Dimension`.
+- `object`: Object to aggregate, like `AbstractRasterSeries`, `AbstractStack`,
+  `AbstractRaster` or `Dimension`.
 - `scale`: the aggregation factor, which can be an integer, a tuple of integers
   for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
   usually use in `getindex`. Using a `Selector` will determine the scale by the
@@ -36,9 +36,9 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 # Example
 
 ```jldoctest
-using GeoData, Statistics, Plots
-using GeoData: Center 
-st = read(GeoStack(WorldClim{Climate}; month=1))
+using Rasters, Statistics, Plots
+using Rasters: Center 
+st = read(RasterStack(WorldClim{Climate}; month=1))
 ag = aggregate(Center(), st, (Y(20), X(20)); skipmissingval=true, progress=false)
 plot(ag)
 savefig("build/aggregate_example.png") 
@@ -53,7 +53,7 @@ Use [`read`](@ref) on `src` before use where required.
 """
 function aggregate end
 function aggregate(
-    method, series::AbstractGeoSeries, scale, args...; progress=true, kw...
+    method, series::AbstractRasterSeries, scale, args...; progress=true, kw...
 )
     f = i -> aggregate(method, series[i], scale, args...; progress=false, kw...)
     data = if progress
@@ -64,7 +64,7 @@ function aggregate(
     return rebuild(series, data)
 end
 function aggregate(
-    method, stack::AbstractGeoStack, scale; keys=keys(stack), progress=true, kw...
+    method, stack::AbstractRasterStack, scale; keys=keys(stack), progress=true, kw...
 )
     f(key) = aggregate(method, stack[key], scale; kw...)
     keys_nt = NamedTuple{keys}(keys)
@@ -73,9 +73,9 @@ function aggregate(
     else
         map(f, keys_nt)
     end
-    return GeoStack(arrays)
+    return RasterStack(arrays)
 end
-function aggregate(method, src::AbstractGeoArray, scale; kw...)
+function aggregate(method, src::AbstractRaster, scale; kw...)
     dst = alloc_ag(method, src, scale)
     aggregate!(method, dst, src, scale; kw...)
 end
@@ -97,7 +97,7 @@ aggregate(method, span::Regular, scale) = Regular(val(span) * scale)
 
 
 """
-    aggregate!(method, dst::AbstractGeoArray, src::AbstractGeoArray, scale; skipmissingval=false)
+    aggregate!(method, dst::AbstractRaster, src::AbstractRaster, scale; skipmissingval=false)
 
 Aggregate array `src` to array `dst` by `scale`, using `method`.
 
@@ -123,10 +123,10 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 Note: currently it is faster to aggregate over memory-backed arrays. 
 Use [`read`](@ref) on `src` before use where required.
 """
-function aggregate!(locus::Locus, dst::AbstractGeoArray, src, scale; kw...)
+function aggregate!(locus::Locus, dst::AbstractRaster, src, scale; kw...)
     aggregate!((locus,), dst, src, scale)
 end
-function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale; kw...)
+function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractRaster, src, scale; kw...)
     intscale = _scale2int(Ag(), dims(src), scale)
     offsets = _agoffset.(loci, intscale)
     broadcast!(dst, CartesianIndices(dst)) do I
@@ -135,7 +135,7 @@ function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale
     end
 end
 # Function/functor methods
-function aggregate!(f, dst::AbstractGeoArray, src, scale; skipmissingval=false)
+function aggregate!(f, dst::AbstractRaster, src, scale; skipmissingval=false)
     intscale = _scale2int(Ag(), dims(src), scale)
     broadcast!(dst, CartesianIndices(dst)) do I
         upper = upsample.(Tuple(I), intscale)
@@ -175,8 +175,8 @@ Disaggregate array, or all arrays in a stack or series, by some scale.
 - `method`: a function such as `mean` or `sum` that can combine the
   value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
   like `Start()` or `Center()` that species where to sample from in the interval.
-- `object`: Object to aggregate, like `AbstractGeoSeries`, `AbstractStack`,
-  `AbstractGeoArray` or a `Dimension`.
+- `object`: Object to aggregate, like `AbstractRasterSeries`, `AbstractStack`,
+  `AbstractRaster` or a `Dimension`.
 - `scale`: the aggregation factor, which can be an integer, a tuple of integers
   for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
   usually use in `getindex`. Using a `Selector` will determine the scale by the
@@ -191,7 +191,7 @@ Use [`read`](@ref) on `src` before use where required.
 
 """
 function disaggregate end
-function disaggregate(method, series::AbstractGeoSeries, scale; progress=true, kw...)
+function disaggregate(method, series::AbstractRasterSeries, scale; progress=true, kw...)
     f = i -> disaggregate(method, series[i], scale; progress=false, kw...)
     return if progress
         ProgressMeter.@showprogress "Disaggregating series..." map(f, 1:length(series))
@@ -199,7 +199,7 @@ function disaggregate(method, series::AbstractGeoSeries, scale; progress=true, k
         map(f, 1:length(series))
     end
 end
-function disaggregate(method, stack::AbstractGeoStack, scale;
+function disaggregate(method, stack::AbstractRasterStack, scale;
     keys=keys(stack), progress=true
 )
     f = key -> disaggregate(method, stack[key], scale)
@@ -209,9 +209,9 @@ function disaggregate(method, stack::AbstractGeoStack, scale;
     else
         map(f, keys_nt)
     end
-    return GeoStack(arrays)
+    return RasterStack(arrays)
 end
-function disaggregate(method, src::AbstractGeoArray, scale)
+function disaggregate(method, src::AbstractRaster, scale)
     disaggregate!(method, alloc_disag(method, src, scale), src, scale)
 end
 function disaggregate(locus::Locus, dim::Dimension, scale)
@@ -238,7 +238,7 @@ disaggregate(method, span::Span, scale) = span
 disaggregate(method, span::Regular, scale) = Regular(val(span) / scale)
 
 """
-    disaggregate!(method, dst::AbstractGeoArray, src::AbstractGeoArray, filename, scale)
+    disaggregate!(method, dst::AbstractRaster, src::AbstractRaster, filename, scale)
 
 Disaggregate array `src` to array `dst` by some scale, using `method`.
 
@@ -253,10 +253,10 @@ Disaggregate array `src` to array `dst` by some scale, using `method`.
 Note: currently it is faster to aggregate over memory-backed arrays. 
 Use [`read`](@ref) on `src` before use where required.
 """
-function disaggregate!(locus::Locus, dst::AbstractGeoArray, src, scale)
+function disaggregate!(locus::Locus, dst::AbstractRaster, src, scale)
     disaggregate!((locus,), dst, src, scale)
 end
-function disaggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, scale)
+function disaggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractRaster, src, scale)
     intscale = _scale2int(DisAg(), dims(src), scale)
     broadcast!(dst, CartesianIndices(dst)) do I
         val = src[(downsample.(Tuple(I), intscale))...]
@@ -265,8 +265,8 @@ function disaggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractGeoArray, src, sc
 end
 
 # Allocate an array of the correct size to aggregate `A` by `scale`
-alloc_ag(method, A::AbstractGeoArray, scale; kw...) = alloc_ag((method,), A, scale; kw...)
-function alloc_ag(method::Tuple, A::AbstractGeoArray, scale; filename=nothing)
+alloc_ag(method, A::AbstractRaster, scale; kw...) = alloc_ag((method,), A, scale; kw...)
+function alloc_ag(method::Tuple, A::AbstractRaster, scale; filename=nothing)
     intscale = _scale2int(Ag(), dims(A), scale)
     # Aggregate the dimensions
     dims_ = aggregate.(method, dims(A), intscale)
@@ -289,8 +289,8 @@ function alloc_ag(method::Tuple, A::AbstractGeoArray, scale; filename=nothing)
 end
 
 # Allocate an array of the correct size to disaggregate `A` by `scale`
-alloc_disag(method, A::AbstractGeoArray, scale) = alloc_disag((method,), A, scale)
-function alloc_disag(method::Tuple, A::AbstractGeoArray, scale)
+alloc_disag(method, A::AbstractRaster, scale) = alloc_disag((method,), A, scale)
+function alloc_disag(method::Tuple, A::AbstractRaster, scale)
     intscale = _scale2int(DisAg(), dims(A), scale)
     dims_ = disaggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size

@@ -1,9 +1,9 @@
-using GeoData, Test, Statistics, Dates, Plots
-using GeoData.LookupArrays, GeoData.Dimensions
+using Rasters, Test, Statistics, Dates, Plots
+using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets, HDF5, CFTime
-using GeoData: layerkeys, SMAPfile
+using Rasters: layerkeys, SMAPfile
 
-testpath = joinpath(dirname(pathof(GeoData)), "../test/")
+testpath = joinpath(dirname(pathof(Rasters)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
 
 # TODO example files without a login requirement
@@ -28,14 +28,14 @@ if isfile(path1) && isfile(path2)
     # We need to wrap HDF5 for SMAP, as h5 file may not be SMAP files
     @testset "SMAPhdf5 wrapper" begin
         HDF5.h5open(path1) do f
-            ds= GeoData.SMAPhdf5(f)
+            ds= Rasters.SMAPhdf5(f)
             @test keys(ds) == layerkeys(ds) == smapkeys
             @test dims(ds) isa Tuple{<:X,<:Y}
         end
     end
 
-    @testset "GeoArray" begin
-        @time smaparray = GeoArray(path1)
+    @testset "Raster" begin
+        @time smaparray = Raster(path1)
 
         @testset "open" begin
             @test all(open(A -> A[Y=1], smaparray) .=== smaparray[:, 1])
@@ -43,7 +43,7 @@ if isfile(path1) && isfile(path2)
 
         @testset "read" begin
             @time A = read(smaparray);
-            @test A isa GeoArray
+            @test A isa Raster
             @test parent(A) isa Array
             A2 = zero(A)
             read!(smaparray, A2)
@@ -53,7 +53,7 @@ if isfile(path1) && isfile(path2)
         end
 
         @testset "array properties" begin
-            @test smaparray isa GeoArray
+            @test smaparray isa Raster
         end
 
         @testset "dimensions" begin
@@ -74,9 +74,9 @@ if isfile(path1) && isfile(path2)
         end
 
         @testset "indexing" begin
-            @test smaparray[Ti(1)] isa GeoArray{<:Any,2}
-            @test smaparray[Y(1), Ti(1)] isa GeoArray{<:Any,1}
-            @test smaparray[X(1), Ti(1)] isa GeoArray{<:Any,1}
+            @test smaparray[Ti(1)] isa Raster{<:Any,2}
+            @test smaparray[Y(1), Ti(1)] isa Raster{<:Any,1}
+            @test smaparray[X(1), Ti(1)] isa Raster{<:Any,1}
             @test smaparray[X(1), Y(1)] == -9999.0
             @test smaparray[X(30), Y(30)] isa Float32
             # Russia
@@ -110,12 +110,12 @@ if isfile(path1) && isfile(path2)
                 @test all(collect(extended .=== a))
             end
             @testset "chunk_series" begin
-                @test GeoData.chunk_series(smaparray) isa GeoSeries
-                @test size(GeoData.chunk_series(smaparray)) == (1, 1)
+                @test Rasters.chunk_series(smaparray) isa RasterSeries
+                @test size(Rasters.chunk_series(smaparray)) == (1, 1)
             end
             @testset "slice" begin
-                ser = GeoData.slice(smaparray, X) 
-                @test ser isa GeoSeries
+                ser = Rasters.slice(smaparray, X) 
+                @test ser isa RasterSeries
                 @test size(ser) == (3856,)
                 @test index(ser, X) == index(smaparray, X)
                 @test bounds(ser, X) == (-180.0f0, 180.0f0)
@@ -131,14 +131,14 @@ if isfile(path1) && isfile(path2)
                 @test size(geoA) == size(smaparray)
                 filename = tempname() * ".grd"
                 write(filename, geoA)
-                saved = read(GeoArray(filename; mappedcrs=EPSG(4326))[Band(1)])
+                saved = read(Raster(filename; mappedcrs=EPSG(4326))[Band(1)])
                 dims(saved)
                 @test size(saved) == size(geoA)
                 @test missingval(saved) === missingval(geoA)
-                @test map(metadata.(dims(saved)), metadata.(dims(GeoArray))) do s, g
+                @test map(metadata.(dims(saved)), metadata.(dims(Raster))) do s, g
                     all(s .== g)
                 end |> all
-                @test GeoData.name(saved) == GeoData.name(geoA)
+                @test Rasters.name(saved) == Rasters.name(geoA)
                 @test all(lookup.(dims(saved)) .!= lookup.(dims(geoA)))
                 @test all(
                           mappedbounds(saved)[1]
@@ -151,7 +151,7 @@ if isfile(path1) && isfile(path2)
             @testset "to gdal" begin
                 gdalfilename = tempname() * ".tif"
                 @time write(gdalfilename, read(smaparray))
-                gdalarray = GeoArray(gdalfilename; mappedcrs=EPSG(4326))
+                gdalarray = Raster(gdalfilename; mappedcrs=EPSG(4326))
                 # These come out with slightly different format
                 # @test convert(ProjString, crs(gdalarray)) == crs(smaparray)
                 @test all(map((a, b) -> all(a .≈ b), 
@@ -166,7 +166,7 @@ if isfile(path1) && isfile(path2)
                 ncdfilename = tempname() * ".nc"
                 @time write(ncdfilename, smaparray)
                 reorder(smaparray, ForwardOrdered())
-                saved = GeoArray(ncdfilename)
+                saved = Raster(ncdfilename)
                 @test_broken bounds(saved) == bounds(smaparray)
                 @test index(saved, Y) == index(smaparray, Y)
                 @test index(saved, X) == index(smaparray, X)
@@ -175,7 +175,7 @@ if isfile(path1) && isfile(path2)
 
         @testset "show" begin
             sh = sprint(show, MIME("text/plain"), smaparray)
-            @test occursin("GeoArray", sh)
+            @test occursin("Raster", sh)
             @test occursin("Y", sh)
             @test occursin("X", sh)
         end
@@ -189,12 +189,12 @@ if isfile(path1) && isfile(path2)
     end
 
     @testset "stack" begin
-        @time smapstack = GeoStack(path1)
-        GeoArray(subset(smapstack, 1:4:20))
+        @time smapstack = RasterStack(path1)
+        Raster(subset(smapstack, 1:4:20))
 
         @testset "read" begin
             @time st = read(smapstack);
-            @test st isa GeoStack
+            @test st isa RasterStack
             @test st.data isa NamedTuple
             @test first(st.data) isa Array
             st2 = map(a -> a .* 0, st)
@@ -204,9 +204,9 @@ if isfile(path1) && isfile(path2)
             @test all(map((a, b, c) -> all(a .== b .== c), st, st2, st3))
         end
 
-        @testset "conversion to GeoArray" begin
+        @testset "conversion to Raster" begin
             smaparray = smapstack[:soil_temp_layer1];
-            @test smaparray isa GeoArray{Float32,2}
+            @test smaparray isa Raster{Float32,2}
             @test dims(smaparray) isa Tuple{<:X{<:Mapped{Float32}}, <:Y{<:Mapped{Float32}}}
             @test span(smaparray) isa Tuple{Irregular{Tuple{Float32,Float32}},Irregular{Tuple{Float32,Float32}}}
             @test span(smaparray) == (Irregular((-180.0f0, 180.0f0)), Irregular((-85.04456f0, 85.04456f0)))
@@ -221,19 +221,19 @@ if isfile(path1) && isfile(path2)
             @test metadata(smaparray) isa Metadata{SMAPfile}
         end
 
-        @testset "conversion to GeoStack" begin
+        @testset "conversion to RasterStack" begin
             # Stack Constructors
             # This uses too much ram! There is a lingering memory leak in HDF5.
-            # geostack = GeoStack(stack)
+            # geostack = RasterStack(stack)
             # @test Symbol.(Tuple(keys(stack))) == keys(geostack)
-            geostack = GeoStack(smapstack; keys=(:baseflow_flux, :snow_mass, :soil_temp_layer1))
+            geostack = RasterStack(smapstack; keys=(:baseflow_flux, :snow_mass, :soil_temp_layer1))
             @test keys(geostack) == (:baseflow_flux, :snow_mass, :soil_temp_layer1)
         end
 
         if VERSION > v"1.1-"
             @testset "copy" begin
                 geoA = zero(smapstack[:soil_temp_layer1])
-                @test geoA isa GeoArray
+                @test geoA isa Raster
                 @test geoA != smapstack[:soil_temp_layer1]
                 copy!(geoA, smapstack, :soil_temp_layer1)
                 @test geoA == smapstack[:soil_temp_layer1]
@@ -242,7 +242,7 @@ if isfile(path1) && isfile(path2)
 
         @testset "show" begin
             sh1 = sprint(show, MIME("text/plain"), smapstack[:soil_temp_layer1])
-            @test occursin("GeoArray", sh1)
+            @test occursin("Raster", sh1)
             @test occursin("Y", sh1)
             @test occursin("X", sh1)
         end
@@ -252,25 +252,25 @@ if isfile(path1) && isfile(path2)
     @testset "series" begin
         ser = smapseries([path1, path2])
         val.(dims(ser))
-        @test ser[1] isa GeoStack
+        @test ser[1] isa RasterStack
         @test first(bounds(ser, Ti)) == DateTime(2016, 1, 1, 22, 30)
         @test last(bounds(ser, Ti)) == DateTime(2016, 1, 3, 1, 30)
         @time modified_series = modify(Array, ser)
         stackkeys = keys(modified_series[1])
-        @test typeof(modified_series) <: GeoSeries{<:GeoStack{<:NamedTuple{stackkeys,<:Tuple{<:Array{Float32,2,},Vararg}}}}
+        @test typeof(modified_series) <: RasterSeries{<:RasterStack{<:NamedTuple{stackkeys,<:Tuple{<:Array{Float32,2,},Vararg}}}}
         @testset "read" begin
             # FIXME: uses too much memory
             # Seems to be a HDF5.jl memory leak?
             # @time geoseries = read(ser)
-            # @test geoseries isa GeoSeries{<:GeoStack}
-            # @test geoseries.data isa Vector{<:GeoStack}
+            # @test geoseries isa RasterSeries{<:RasterStack}
+            # @test geoseries.data isa Vector{<:RasterStack}
             # @test first(geoseries.data[1].data) isa Array 
         end
 
         @testset "show" begin
             sh = sprint(show, MIME("text/plain"), ser)
             # Test but don't lock this down too much
-            @test occursin("GeoSeries", sh)
+            @test occursin("RasterSeries", sh)
         end
     end
 end

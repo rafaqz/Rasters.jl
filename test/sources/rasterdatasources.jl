@@ -1,4 +1,4 @@
-using GeoData, RasterDataSources, Test, Dates, NCDatasets, ArchGDAL
+using Rasters, RasterDataSources, Test, Dates, NCDatasets, ArchGDAL
 
 # Too big to test on CI
 # if !haskey(ENV, "CI")
@@ -13,85 +13,85 @@ using GeoData, RasterDataSources, Test, Dates, NCDatasets, ArchGDAL
 
 @testset "load WorldClim Climate" begin
     # Weather time-series
-    ser = GeoSeries(WorldClim{Climate}, :prec; res="10m", month=Jan:March, mappedcrs=EPSG(4326))
+    ser = RasterSeries(WorldClim{Climate}, :prec; res="10m", month=Jan:March, mappedcrs=EPSG(4326))
     # Select Australia, using regular lat/lon selectors
     A = ser[month=Jan]
-    @test A isa GeoArray
+    @test A isa Raster
     A[Y(Between(-10, -45)), X(Between(110, 160))]
-    st = GeoStack(WorldClim{Climate}, (:prec, :tmax); month=1)
+    st = RasterStack(WorldClim{Climate}, (:prec, :tmax); month=1)
     st[:prec]
-    @test st isa GeoStack
+    @test st isa RasterStack
 end
 
 @testset "load WorldClim BioClim" begin
-    A = GeoArray(WorldClim{BioClim}, :Bio_1; mappedcrs=EPSG(4326))
+    A = Raster(WorldClim{BioClim}, :Bio_1; mappedcrs=EPSG(4326))
     A[Y(Between(-10, -45)), X(Between(110, 160))]
-    @test A isa GeoArray
+    @test A isa Raster
     st = stack(WorldClim{BioClim}, (1, 2))
     st[:bio1]
-    @test st isa GeoStack
-    @test A isa GeoArray
+    @test st isa RasterStack
+    @test A isa Raster
 end
 
 @testset "load CHELSA BioClim" begin
-    A = GeoArray(CHELSA{BioClim}, 1; mappedcrs=EPSG(4326))
-    @test GeoData.name(A) == :bio1
-    st = GeoStack(CHELSA{BioClim}, (:bio1, :BIO2))
+    A = Raster(CHELSA{BioClim}, 1; mappedcrs=EPSG(4326))
+    @test Rasters.name(A) == :bio1
+    st = RasterStack(CHELSA{BioClim}, (:bio1, :BIO2))
     @test keys(st) == (:bio1, :bio2)
-    @test A isa GeoArray
-    @test st isa GeoStack
-    @test st[:bio2] isa GeoArray
+    @test A isa Raster
+    @test st isa RasterStack
+    @test st[:bio2] isa Raster
 end
 
 @testset "load EarthEnv HabitatHeterogeneity" begin
-    A = GeoArray(EarthEnv{HabitatHeterogeneity}, :cv; mappedcrs=EPSG(4326))
+    A = Raster(EarthEnv{HabitatHeterogeneity}, :cv; mappedcrs=EPSG(4326))
     A[Y(Between(-10, -45)), X(Between(110, 160))] 
-    st = GeoStack(EarthEnv{HabitatHeterogeneity}, (:cv, :evenness))
-    @test A isa GeoArray
-    @test st isa GeoStack
-    @test st[:evenness] isa GeoArray
+    st = RasterStack(EarthEnv{HabitatHeterogeneity}, (:cv, :evenness))
+    @test A isa Raster
+    @test st isa RasterStack
+    @test st[:evenness] isa Raster
 end
 
 @testset "load EarthEnv LandCover" begin
-    A = GeoArray(EarthEnv{LandCover}, 2; mappedcrs=EPSG(4326))
-    @test GeoData.name(A) == :evergreen_broadleaf_trees
+    A = Raster(EarthEnv{LandCover}, 2; mappedcrs=EPSG(4326))
+    @test Rasters.name(A) == :evergreen_broadleaf_trees
     A[Y(Between(-10, -45)), X(Between(110, 160))]
-    @test A isa GeoArray
-    st = GeoStack(EarthEnv{LandCover}, (:evergreen_broadleaf_trees, :deciduous_broadleaf_trees); mappedcrs=EPSG(4326))
+    @test A isa Raster
+    st = RasterStack(EarthEnv{LandCover}, (:evergreen_broadleaf_trees, :deciduous_broadleaf_trees); mappedcrs=EPSG(4326))
     keys(st) = (:evergreen_broadleaf_trees, :deciduous_broadleaf_trees)
-    @test st isa GeoStack
+    @test st isa RasterStack
 end
 
 @testset "load ALWB" begin
-    A = GeoArray(ALWB{Deciles,Day}, :rain_day; date=DateTime(2019, 10, 19))
+    A = Raster(ALWB{Deciles,Day}, :rain_day; date=DateTime(2019, 10, 19))
     @test crs(A) == EPSG(4326)
-    A = GeoArray(ALWB{Values,Day}, :ss_pct; date=DateTime(2019, 10, 19))
+    A = Raster(ALWB{Values,Day}, :ss_pct; date=DateTime(2019, 10, 19))
     @test crs(A) == EPSG(4326)
-    st = GeoStack(ALWB{Values,Day}, (:s0_pct, :ss_pct); date=DateTime(2019, 10, 19))
+    st = RasterStack(ALWB{Values,Day}, (:s0_pct, :ss_pct); date=DateTime(2019, 10, 19))
     @test crs(st) == EPSG(4326)
     @test crs(st[:s0_pct]) == EPSG(4326)
     dates = DateTime(2019, 10, 19), DateTime(2021, 11, 20)
-    s = GeoSeries(ALWB{Values,Day}, (:s0_pct, :ss_pct); date=dates)
+    s = RasterSeries(ALWB{Values,Day}, (:s0_pct, :ss_pct); date=dates)
     s[1]
-    @test A isa GeoArray
-    @test st isa GeoStack
-    @test s isa GeoSeries
+    @test A isa Raster
+    @test st isa RasterStack
+    @test s isa RasterSeries
 end
 
 # Obscure .Z format may not work on windows
 if Sys.islinux()
     @testset "load AWAP" begin
-        A = GeoArray(AWAP, :rainfall; date=DateTime(2019, 10, 19))
+        A = Raster(AWAP, :rainfall; date=DateTime(2019, 10, 19))
         @test crs(A) == EPSG(4326)
-        st = GeoStack(AWAP; date=DateTime(2019, 10, 19), resize=crop)
+        st = RasterStack(AWAP; date=DateTime(2019, 10, 19), resize=crop)
         @test crs(st) == EPSG(4326)
         dates = DateTime(2019, 09, 19), DateTime(2019, 11, 19)
-        s = GeoSeries(AWAP; date=dates, resize=crop)
-        # s = GeoSeries(AWAP; date=dates, resize=resample, crs=EPSG(4326)) TODO: all the same
-        # s = GeoSeries(AWAP; date=dates, resize=extend) TODO: this is slow !!!
+        s = RasterSeries(AWAP; date=dates, resize=crop)
+        # s = RasterSeries(AWAP; date=dates, resize=resample, crs=EPSG(4326)) TODO: all the same
+        # s = RasterSeries(AWAP; date=dates, resize=extend) TODO: this is slow !!!
         @test crs(s[1][:solar]) == EPSG(4326)
-        @test A isa GeoArray
-        @test st isa GeoStack
-        @test s isa GeoSeries
+        @test A isa Raster
+        @test st isa RasterStack
+        @test s isa RasterSeries
     end
 end

@@ -1,6 +1,6 @@
-using GeoData, Test, ArchGDAL
-using GeoData.LookupArrays, GeoData.Dimensions
-using GeoData: reproject, convertlookup
+using Rasters, Test, ArchGDAL
+using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters: reproject, convertlookup
 
 @testset "reproject" begin
     cea = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")

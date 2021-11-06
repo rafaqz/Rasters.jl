@@ -1,19 +1,19 @@
 
 """
-    AbstractGeoArray <: DimensionalData.AbstractDimArray
+    AbstractRaster <: DimensionalData.AbstractDimArray
 
 Abstract supertype for objects that wrap an array (or location of an array) 
 and metadata about its contents. It may be memory or hold a `FileArray`, which
 holds the filename, and is only opened when required.
 
-`AbstractGeoArray`s inherit from [`AbstractDimArray`]($DDarraydocs)
+`AbstractRaster`s inherit from [`AbstractDimArray`]($DDarraydocs)
 from DimensionalData.jl. They can be indexed as regular Julia arrays or with
 DimensionalData.jl [`Dimension`]($DDdimdocs)s. They will plot as a heatmap in
 Plots.jl with correct coordinates and labels, even after slicing with
-`getindex` or `view`. `getindex` on a `AbstractGeoArray` will always return
-a memory-backed `GeoArray`.
+`getindex` or `view`. `getindex` on a `AbstractRaster` will always return
+a memory-backed `Raster`.
 """
-abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimArray{T,N,D,A} end
+abstract type AbstractRaster{T,N,D,A} <: AbstractDimArray{T,N,D,A} end
 
 # Interface methods ###########################################################
 """
@@ -23,18 +23,18 @@ Returns the value representing missing data in the dataset
 """
 function missingval end
 missingval(x) = missing
-missingval(A::AbstractGeoArray) = A.missingval
+missingval(A::AbstractRaster) = A.missingval
 
-filename(A::AbstractGeoArray) = filename(parent(A))
+filename(A::AbstractRaster) = filename(parent(A))
 
-cleanreturn(A::AbstractGeoArray) = modify(cleanreturn, A)
+cleanreturn(A::AbstractRaster) = modify(cleanreturn, A)
 cleanreturn(x) = x
 
-isdisk(A::AbstractGeoArray) = parent(A) isa DiskArrays.AbstractDiskArray
+isdisk(A::AbstractRaster) = parent(A) isa DiskArrays.AbstractDiskArray
 isdisk(x) = false
 ismem(x) = !isdisk(A)
 
-function Base.:(==)(A::AbstractGeoArray{T,N}, B::AbstractGeoArray{T,N}) where {T,N} 
+function Base.:(==)(A::AbstractRaster{T,N}, B::AbstractRaster{T,N}) where {T,N} 
     size(A) == size(B) && all(A .== B)
 end
 
@@ -42,7 +42,7 @@ end
     crs(x)
 
 Get the projected coordinate reference system of a `Y` or `X` `Dimension`,
-or of the `Y`/`X` dims of an `AbstractGeoArray`.
+or of the `Y`/`X` dims of an `AbstractRaster`.
 
 For [`Mapped`](@ref) lookup this may be `nothing` as there may be no projected
 coordinate reference system at all.
@@ -83,60 +83,60 @@ end
 mappedcrs(dim::Dimension) = mappedcrs(lookup(dim))
 
 for f in (:mappedbounds, :projectedbounds, :mappedindex, :projectedindex)
-    @eval ($f)(A::AbstractGeoArray, dims_) = ($f)(dims(A, dims_))
-    @eval ($f)(A::AbstractGeoArray) = ($f)(dims(A))
+    @eval ($f)(A::AbstractRaster, dims_) = ($f)(dims(A, dims_))
+    @eval ($f)(A::AbstractRaster) = ($f)(dims(A))
 end
 
 # DimensionalData methods
 
-DD.units(A::AbstractGeoArray) = get(metadata(A), :units, nothing)
-# Rebuild all types of AbstractGeoArray as GeoArray
+DD.units(A::AbstractRaster) = get(metadata(A), :units, nothing)
+# Rebuild all types of AbstractRaster as Raster
 function DD.rebuild(
-    A::AbstractGeoArray, data, dims::Tuple, refdims, name,
+    A::AbstractRaster, data, dims::Tuple, refdims, name,
     metadata, missingval=missingval(A)
 )
-    GeoArray(data, dims, refdims, name, metadata, missingval)
+    Raster(data, dims, refdims, name, metadata, missingval)
 end
-function DD.rebuild(A::AbstractGeoArray;
+function DD.rebuild(A::AbstractRaster;
     data=parent(A), dims=dims(A), refdims=refdims(A), name=name(A),
     metadata=metadata(A), missingval=missingval(A)
 )
     rebuild(A, data, dims, refdims, name, metadata, missingval)
 end
 
-function DD.DimTable(As::Tuple{<:AbstractGeoArray,Vararg{<:AbstractGeoArray}}...)
+function DD.DimTable(As::Tuple{<:AbstractRaster,Vararg{<:AbstractRaster}}...)
     DimTable(DimStack(map(read, As...)))
 end
 
 # DiskArrays methods
 
-DiskArrays.eachchunk(A::AbstractGeoArray) = DiskArrays.eachchunk(parent(A))
-DiskArrays.haschunks(A::AbstractGeoArray) = DiskArrays.haschunks(parent(A))
-function DA.readblock!(A::AbstractGeoArray, dst, r::AbstractUnitRange...)
+DiskArrays.eachchunk(A::AbstractRaster) = DiskArrays.eachchunk(parent(A))
+DiskArrays.haschunks(A::AbstractRaster) = DiskArrays.haschunks(parent(A))
+function DA.readblock!(A::AbstractRaster, dst, r::AbstractUnitRange...)
     DA.readblock!(parent(A), dst, r...)
 end
-function DA.writeblock!(A::AbstractGeoArray, src, r::AbstractUnitRange...) 
+function DA.writeblock!(A::AbstractRaster, src, r::AbstractUnitRange...) 
     DA.writeblock!(parent(A), src, r...)
 end
 
 # Base methods
 
-Base.parent(A::AbstractGeoArray) = A.data
+Base.parent(A::AbstractRaster) = A.data
 
 """
-    open(f, A::AbstractGeoArray; write=false)
+    open(f, A::AbstractRaster; write=false)
 
-`open` is used to open any `AbstractGeoArray` and do multiple operations
+`open` is used to open any `AbstractRaster` and do multiple operations
 on it in a safe way. The `write` keyword opens the file in write lookup so that it
 can be altered on disk using e.g. a broadcast.
 
-`f` is a method that accepts a single argument - an `GeoArray` object
-which is just an `AbstractGeoArray` that holds an open disk-based object.
+`f` is a method that accepts a single argument - an `Raster` object
+which is just an `AbstractRaster` that holds an open disk-based object.
 Often it will be a `do` block:
 
 ```julia
-# A is an `GeoArray` wrapping the opened disk-based object.
-open(GeoArray(filepath); write=true) do A
+# A is an `Raster` wrapping the opened disk-based object.
+open(Raster(filepath); write=true) do A
     mask!(A; to=maskfile)
     A[I...] .*= 2
     # ...  other things you need to do with the open file
@@ -146,33 +146,33 @@ end
 By using a do block to open files we ensure they are always closed again
 after we finish working with them.
 """
-function Base.open(f::Function, A::AbstractGeoArray; kw...)
+function Base.open(f::Function, A::AbstractRaster; kw...)
     # Open FileArray to expose the actual dataset object, even inside nested wrappers
     select = FileArray
     ignore = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
     fa = Flatten.flatten(parent(A), select, ignore)
     if fa == ()
-        f(GeoArray(parent(A), dims(A), refdims(A), name(A), metadata(A), missingval(A)))
+        f(Raster(parent(A), dims(A), refdims(A), name(A), metadata(A), missingval(A)))
     else
         open(fa[1]; kw...) do x
             # Rewrap the opened object where the FileArray was
             d = Flatten.reconstruct(parent(A), (x,), select, ignore) 
-            f(GeoArray(d, dims(A), refdims(A), name(A), metadata(A), missingval(A)))
+            f(Raster(d, dims(A), refdims(A), name(A), metadata(A), missingval(A)))
         end
     end
 end
-Base.write(A::T) where T <: AbstractGeoArray = write(filename(A), A)
+Base.write(A::T) where T <: AbstractRaster = write(filename(A), A)
 
 # Concrete implementation ######################################################
 
 """
-    GeoArray <: AbsractGeoArray
+    Raster <: AbsractRaster
 
-    GeoArray(filepath::AbstractString, dims; kw...)
-    GeoArray(A::AbstractArray{T,N}, dims; kw...)
-    GeoArray(A::AbstractGeoArray; kw...)
+    Raster(filepath::AbstractString, dims; kw...)
+    Raster(A::AbstractArray{T,N}, dims; kw...)
+    Raster(A::AbstractRaster; kw...)
 
-A generic [`AbstractGeoArray`](@ref) for spatial/raster array data. It may hold
+A generic [`AbstractRaster`](@ref) for spatial/raster array data. It may hold
 memory-backed arrays or [`FileArray`](@ref), that simply holds the `String` path
 to an unopened file. This will only be opened lazily when it is indexed with `getindex`
 or when `read(A)` is called. Broadcasting, taking a view, reversing and most other 
@@ -180,7 +180,7 @@ methods _do not_ load data from disk: they are applied later, lazily.
 
 # Keywords
 
-- `data`: can replace the data in an `AbstractGeoArray`
+- `data`: can replace the data in an `AbstractRaster`
 - `dims`: `Tuple` of `Dimension`s for the array.
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
 - `key`: `Symbol` key to desired layer in a multi-layer dataset, when a `filpath` is used.
@@ -199,7 +199,7 @@ methods _do not_ load data from disk: they are applied later, lazily.
     Only set this if the detected `mappedcrs` in incorrect, or the file does not have a `mappedcrs`,
     e.g. a tiff.
 """
-struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: AbstractGeoArray{T,N,D,A}
+struct Raster{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: AbstractRaster{T,N,D,A}
     data::A
     dims::D
     refdims::R
@@ -207,33 +207,33 @@ struct GeoArray{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: Abstrac
     metadata::Me
     missingval::Mi
 end
-function GeoArray(A::AbstractArray, dims::Tuple;
+function Raster(A::AbstractArray, dims::Tuple;
     refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing,
 )
-    GeoArray(A, Dimensions.format(dims, A), refdims, name, metadata, missingval)
+    Raster(A, Dimensions.format(dims, A), refdims, name, metadata, missingval)
 end
-function GeoArray(A::AbstractArray{<:Any,1}, dims::Tuple{<:Dimension,<:Dimension,Vararg}; kw...)
-    GeoArray(reshape(A, map(length, dims)), dims; kw...)
+function Raster(A::AbstractArray{<:Any,1}, dims::Tuple{<:Dimension,<:Dimension,Vararg}; kw...)
+    Raster(reshape(A, map(length, dims)), dims; kw...)
 end
-function GeoArray(table, dims::Tuple; name, kw...)
+function Raster(table, dims::Tuple; name, kw...)
     cols = Tables.getcolumns(table)
     A = reshape(cols[name], map(length, dims))
-    return GeoArray(A; name, kw...)
+    return Raster(A; name, kw...)
 end
-GeoArray(A::AbstractArray; dims, kw...) = GeoArray(A, dims; kw...)
-function GeoArray(A::AbstractDimArray;
+Raster(A::AbstractArray; dims, kw...) = Raster(A, dims; kw...)
+function Raster(A::AbstractDimArray;
     data=parent(A), dims=dims(A), refdims=refdims(A),
     name=name(A), metadata=metadata(A), missingval=missingval(A)
 )
-    return GeoArray(data, dims, refdims, name, metadata, missingval)
+    return Raster(data, dims, refdims, name, metadata, missingval)
 end
-function GeoArray(filename::AbstractString; name=nothing, key=name, kw...)
+function Raster(filename::AbstractString; name=nothing, key=name, kw...)
     _open(filename) do ds
         key = filekey(ds, key)
-        GeoArray(ds, filename, key; kw...)
+        Raster(ds, filename, key; kw...)
     end
 end
-function GeoArray(ds, filename::AbstractString, key=nothing;
+function Raster(ds, filename::AbstractString, key=nothing;
     crs=nothing, mappedcrs=nothing, dims=nothing, refdims=(),
     name=Symbol(key isa Nothing ? "" : string(key)),
     metadata=metadata(ds), missingval=missingval(ds), write=false,
@@ -243,10 +243,10 @@ function GeoArray(ds, filename::AbstractString, key=nothing;
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
     data = FileArray(ds, filename; key, write)
-    return GeoArray(data, dims, refdims, name, metadata, missingval)
+    return Raster(data, dims, refdims, name, metadata, missingval)
 end
 
-@propagate_inbounds function Base.setindex!(A::GeoArray, x, I::DD.StandardIndices...)
+@propagate_inbounds function Base.setindex!(A::Raster, x, I::DD.StandardIndices...)
     setindex!(parent(A), x, I...)
 end
 
@@ -254,8 +254,8 @@ filekey(ds, key) = key
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
 # Precompile
-precompile(GeoArray, (String,))
+precompile(Raster, (String,))
 
-@deprecate geoarray(args...; kw...) GeoArray(args...; kw...)
+@deprecate geoarray(args...; kw...) Raster(args...; kw...)
 
-DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = GeoArray
+DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = Raster

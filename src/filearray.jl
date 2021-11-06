@@ -53,28 +53,28 @@ end
 
 
 """
-    GeoDiskArray <: DiskArrays.AbstractDiskArray
+    RasterDiskArray <: DiskArrays.AbstractDiskArray
 
 A basic DiskArrays.jl wrapper for objects that don't have one defined yet. 
-When we `open` a `FileArray` it is replaced with a `GeoDiskArray`.
+When we `open` a `FileArray` it is replaced with a `RasterDiskArray`.
 """
-struct GeoDiskArray{X,T,N,V,EC,HC} <: DiskArrays.AbstractDiskArray{T,N}
+struct RasterDiskArray{X,T,N,V,EC,HC} <: DiskArrays.AbstractDiskArray{T,N}
     var::V
     eachchunk::EC
     haschunks::HC
 end
-function GeoDiskArray{X}(
+function RasterDiskArray{X}(
     var::V, eachchunk=DA.eachchunk(var), haschunks=DA.haschunks(var)
 ) where {X,V}
     T = eltype(var)
     N = ndims(var)
-    GeoDiskArray{X,T,N,V,typeof(eachchunk),typeof(haschunks)}(var, eachchunk, haschunks)
+    RasterDiskArray{X,T,N,V,typeof(eachchunk),typeof(haschunks)}(var, eachchunk, haschunks)
 end
 
-Base.parent(A::GeoDiskArray) = A.var
-Base.size(A::GeoDiskArray{<:Any,T,N}) where {T,N} = size(parent(A))::NTuple{N,Int}
+Base.parent(A::RasterDiskArray) = A.var
+Base.size(A::RasterDiskArray{<:Any,T,N}) where {T,N} = size(parent(A))::NTuple{N,Int}
 
-DA.haschunks(A::GeoDiskArray) = A.haschunks
-DA.eachchunk(A::GeoDiskArray) = A.eachchunk
-DA.readblock!(A::GeoDiskArray, aout, r::AbstractUnitRange...) = aout .= parent(A)[r...]
-DA.writeblock!(A::GeoDiskArray, v, r::AbstractUnitRange...) = parent(A)[r...] .= v
+DA.haschunks(A::RasterDiskArray) = A.haschunks
+DA.eachchunk(A::RasterDiskArray) = A.eachchunk
+DA.readblock!(A::RasterDiskArray, aout, r::AbstractUnitRange...) = aout .= parent(A)[r...]
+DA.writeblock!(A::RasterDiskArray, v, r::AbstractUnitRange...) = parent(A)[r...] .= v

@@ -130,7 +130,7 @@ Base.Array(grd::GRDattrib) = _mmapgrd(Array, grd)
 
 # Array ########################################################################
 
-@deprecate GRDarray(args...; kw...) GeoArray(args...; source=GRDfile, kw...)
+@deprecate GRDarray(args...; kw...) Raster(args...; source=GRDfile, kw...)
 
 function FileArray(grd::GRDattrib, filename=filename(grd); kw...)
     filename = first(splitext(filename))
@@ -145,14 +145,14 @@ end
 # Base methods
 
 """
-    Base.write(filename::AbstractString, ::Type{GRDfile}, s::AbstractGeoArray)
+    Base.write(filename::AbstractString, ::Type{GRDfile}, s::AbstractRaster)
 
-Write a `GeoArray` to a .grd file with a .gri header file. 
+Write a `Raster` to a .grd file with a .gri header file. 
 The extension of `filename` will be ignored.
 
 Returns `filename`.
 """
-function Base.write(filename::String, ::Type{GRDfile}, A::AbstractGeoArray)
+function Base.write(filename::String, ::Type{GRDfile}, A::AbstractRaster)
     A = maybe_typemin_as_missingval(filename, A)
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
@@ -197,7 +197,7 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
         write(IO,
             """
             [general]
-            creator=GeoData.jl
+            creator=Rasters.jl
             created= $(string(now()))
             [georeference]
             nrows= $nrows
@@ -240,14 +240,14 @@ function create(filename, ::Type{GRDfile}, T::Type, dims::DD.DimTuple;
     return filename
 end
 
-# AbstractGeoStack methods
+# AbstractRasterStack methods
 
-@deprecate GRDstack(args...; kw...) GeoStack(args...; source=GRDfile, kw...)
+@deprecate GRDstack(args...; kw...) RasterStack(args...; source=GRDfile, kw...)
 
 # Custom `open` because the data and metadata objects are separate
 # Here we _mmapgrd instead of `_open`
 function Base.open(f::Function, A::FileArray{GRDfile}, key...; write=A.write)
-    _mmapgrd(mm -> f(GeoDiskArray{GRDfile}(mm, A.eachchunk, A.haschunks)), A; write)
+    _mmapgrd(mm -> f(RasterDiskArray{GRDfile}(mm, A.eachchunk, A.haschunks)), A; write)
 end
 
 _open(f, ::Type{GRDfile}, filename; key=nothing, write=false) = f(GRDattrib(filename; write))
@@ -276,9 +276,9 @@ end
 T = UInt16
 for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Int64, Float32, Float64)
     precompile(GRDattrib, (String,))
-    DS = GeoData.GRDattrib{T,String}
+    DS = Rasters.GRDattrib{T,String}
     precompile(crs, (DS,))
-    precompile(GeoData.FileArray, (DS, String))
+    precompile(Rasters.FileArray, (DS, String))
     precompile(dims, (DS,))
     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},Nothing))
     precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS,String},EPSG))
@@ -287,6 +287,6 @@ for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Int64, Float32, Float64)
     precompile(metadata, (DS, ))
     precompile(metadata, (DS, Symbol))
     precompile(missingval, (DS,))
-    precompile(GeoArray, (DS, String, Nothing))
-    precompile(GeoArray, (DS, String, Symbol))
+    precompile(Raster, (DS, String, Nothing))
+    precompile(Raster, (DS, String, Symbol))
 end

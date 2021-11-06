@@ -1,8 +1,8 @@
-using GeoData, DimensionalData, Test, Statistics, Dates, CFTime, Plots
-using GeoData.LookupArrays, GeoData.Dimensions
+using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
+using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using GeoData: FileArray, FileStack, NCDfile
-include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
+using Rasters: FileArray, FileStack, NCDfile
+include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = maybedownload(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
@@ -26,20 +26,20 @@ stackkeys = (
     :xl, :xlvi
 )
 
-@testset "GeoArray" begin
-    @time ncarray = GeoArray(ncsingle)
+@testset "Raster" begin
+    @time ncarray = Raster(ncsingle)
 
     @testset "open" begin
         @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
     end
 
-    # GeoData.create(tempfile, eltype(ncarray), dims(ncarray); 
+    # Rasters.create(tempfile, eltype(ncarray), dims(ncarray); 
         # keys=keys(ncarray), missingval=missingval(gdalarray)
     # )
 
     @testset "read" begin
         @time A = read(ncarray);
-        @test A isa GeoArray
+        @test A isa Raster
         @test parent(A) isa Array
         A2 = zero(A)
         @time read!(ncarray, A2);
@@ -51,7 +51,7 @@ stackkeys = (
 
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)
-        @test ncarray isa GeoArray
+        @test ncarray isa Raster
         @test index(ncarray, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
         @test index(ncarray, Y) == -79.5:89.5
         @test index(ncarray, X) == 1.0:2:359.0
@@ -86,9 +86,9 @@ stackkeys = (
     end
 
     @testset "indexing" begin
-        @test ncarray[Ti(1)] isa GeoArray{<:Any,2}
-        @test ncarray[Y(1), Ti(1)] isa GeoArray{<:Any,1}
-        @test ncarray[X(1), Ti(1)] isa GeoArray{<:Any,1}
+        @test ncarray[Ti(1)] isa Raster{<:Any,2}
+        @test ncarray[Y(1), Ti(1)] isa Raster{<:Any,1}
+        @test ncarray[X(1), Ti(1)] isa Raster{<:Any,1}
         @test ncarray[X(1), Y(1), Ti(1)] isa Missing
         @test ncarray[X(30), Y(30), Ti(1)] isa Float32
         # Russia
@@ -121,17 +121,17 @@ stackkeys = (
             @test all(masked[X(1:100), Y([1, 5, 95])] .=== missingval(msk))
             tempfile = tempname() * ".nc"
             cp(ncsingle, tempfile)
-            @test !all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
-            open(GeoArray(tempfile); write=true) do A
+            @test !all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
+            open(Raster(tempfile); write=true) do A
                 mask!(A; to=msk, missingval=missing)
                 # TODO: replace the CFVariable with a FileArray{NCDfile} so this is not required
                 nothing
             end
-            @test all(GeoArray(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
+            @test all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
             rm(tempfile)
         end
         @testset "mosaic" begin
-            @time ncarray = GeoArray(ncsingle)
+            @time ncarray = Raster(ncsingle)
             A1 = ncarray[X(1:80), Y(1:100)]
             A2 = ncarray[X(50:150), Y(90:150)]
             tempfile = tempname() * ".nc"
@@ -143,13 +143,13 @@ stackkeys = (
             @test all(Atest .=== Afile .=== Amem)
         end
         @testset "chunk_series" begin
-            @test GeoData.chunk_series(ncarray) isa GeoSeries
-            @test size(GeoData.chunk_series(ncarray)) == (1, 1, 1)
+            @test Rasters.chunk_series(ncarray) isa RasterSeries
+            @test size(Rasters.chunk_series(ncarray)) == (1, 1, 1)
         end
         @testset "slice" begin
-            @test_throws ArgumentError GeoData.slice(ncarray, Z)
-            ser = GeoData.slice(ncarray, Ti) 
-            @test ser isa GeoSeries
+            @test_throws ArgumentError Rasters.slice(ncarray, Z)
+            ser = Rasters.slice(ncarray, Ti) 
+            @test ser isa RasterSeries
             @test size(ser) == (24,)
             @test index(ser, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
             @test bounds(ser) == ((DateTime360Day(2001, 1, 1), DateTime360Day(2003, 1, 1)),)
@@ -163,7 +163,7 @@ stackkeys = (
     @testset "indexing with reverse lat" begin
         if !haskey(ENV, "CI") # CI downloads fail. But run locally
             ncrevlat = maybedownload("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
-            ncrevlatarray = GeoArray(ncrevlat; key=:sst, missingval=-9.96921f36)
+            ncrevlatarray = Raster(ncrevlat; key=:sst, missingval=-9.96921f36)
             @test order(dims(ncrevlatarray, Y)) == ReverseOrdered()
             @test ncrevlatarray[Y(At(40)), X(At(100)), Ti(1)] == missingval(ncrevlatarray)
             @test ncrevlatarray[Y(At(-40)), X(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0
@@ -187,11 +187,11 @@ stackkeys = (
         @test all(nca .=== ncarray[1:90, 1:55, 14])
     end
 
-    @testset "conversion to GeoArray" begin
+    @testset "conversion to Raster" begin
         geoA = ncarray[X(1:50), Y(20:20), Ti(1)]
         @test size(geoA) == (50, 1)
         @test eltype(geoA) <: Union{Missing,Float32}
-        @test geoA isa GeoArray{Union{Missing,Float32},2}
+        @test geoA isa Raster{Union{Missing,Float32},2}
         @test dims(geoA) isa Tuple{<:X,<:Y}
         @test refdims(geoA) isa Tuple{<:Ti}
         @test metadata(geoA) == metadata(ncarray)
@@ -206,16 +206,16 @@ stackkeys = (
             @test size(geoA) == size(ncarray)
             filename = tempname() * ".nc"
             write(filename, geoA)
-            saved = read(GeoArray(filename))
+            saved = read(Raster(filename))
             @test size(saved) == size(geoA)
             @test refdims(saved) == refdims(geoA)
             @test missingval(saved) === missingval(geoA)
-            @test map(metadata.(dims(saved)), metadata.(dims(GeoArray))) do s, g
+            @test map(metadata.(dims(saved)), metadata.(dims(Raster))) do s, g
                 all(s .== g)
             end |> all
             @test metadata(saved) == metadata(geoA)
             @test all(metadata.(dims(saved)) == metadata.(dims(geoA)))
-            @test GeoData.name(saved) == GeoData.name(geoA)
+            @test Rasters.name(saved) == Rasters.name(geoA)
             @test all(lookup.(dims(saved)) .== lookup.(dims(geoA)))
             @test all(order.(dims(saved)) .== order.(dims(geoA)))
             @test all(typeof.(span.(dims(saved))) .== typeof.(span.(dims(geoA))))
@@ -232,7 +232,7 @@ stackkeys = (
             gdalfilename = tempname() * ".tif"
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write(gdalfilename, nccleaned)
-            gdalarray = GeoArray(gdalfilename)
+            gdalarray = Raster(gdalfilename)
             # gdalarray WKT is missing one AUTHORITY
             # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
             # But the Proj representation is the same
@@ -241,24 +241,24 @@ stackkeys = (
             # Tiff locus = Start, Netcdf locus = Center
             @test reverse(index(gdalarray, Y)) .+ 0.5 ≈ index(nccleaned, Y)
             @test index(gdalarray, X) .+ 1.0  ≈ index(nccleaned, X)
-            @test reverse(GeoArray(gdalarray); dims=Y()) ≈ nccleaned
+            @test reverse(Raster(gdalarray); dims=Y()) ≈ nccleaned
         end
         @testset "to grd" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write("testgrd.gri", nccleaned)
-            grdarray = GeoArray("testgrd.gri");
+            grdarray = Raster("testgrd.gri");
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == (bounds(nccleaned)..., (1, 1))
             @test reverse(index(grdarray, Y)) ≈ index(nccleaned, Y) .- 0.5
             @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
-            @test GeoArray(grdarray) ≈ reverse(nccleaned; dims=Y)
+            @test Raster(grdarray) ≈ reverse(nccleaned; dims=Y)
         end
     end
 
     @testset "show" begin
         sh = sprint(show, MIME("text/plain"), ncarray)
         # Test but don't lock this down too much
-        @test occursin("GeoArray", sh)
+        @test occursin("Raster", sh)
         @test occursin("Y", sh)
         @test occursin("X", sh)
         @test occursin("Time", sh)
@@ -273,19 +273,19 @@ stackkeys = (
 end
 
 @testset "Single file stack" begin
-    @time ncstack = GeoStack(ncmulti)
+    @time ncstack = RasterStack(ncmulti)
 
     @testset "load ncstack" begin
-        @test ncstack isa GeoStack
+        @test ncstack isa RasterStack
         @test ismissing(missingval(ncstack))
         @test metadata(ncstack) isa Metadata{NCDfile}
         @test dims(ncstack[:abso4]) == dims(ncstack, (X, Y, Ti)) 
         @test refdims(ncstack) == ()
-        # Loads child as a regular GeoArray
+        # Loads child as a regular Raster
         @test_throws ErrorException ncstack[:not_a_key]
-        @test ncstack[:albedo] isa GeoArray{<:Any,3}
+        @test ncstack[:albedo] isa Raster{<:Any,3}
         @test ncstack[:albedo][2, 3, 1] isa Float32
-        @test ncstack[:albedo][:, 3, 1] isa GeoArray{<:Any,1}
+        @test ncstack[:albedo][:, 3, 1] isa Raster{<:Any,1}
         @test dims(ncstack[:albedo]) isa Tuple{<:X,<:Y,<:Ti}
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test keys(ncstack) == stackkeys
@@ -307,18 +307,18 @@ end
         @testset "copy" begin
             geoA = read(ncstack[:albedo]) .* 2
             copy!(geoA, ncstack, :albedo);
-            # First wrap with GeoArray() here or == loads from disk for each cell.
+            # First wrap with Raster() here or == loads from disk for each cell.
             # we need a general way of avoiding this in all disk-based sources
             @test geoA == read(ncstack[:albedo])
         end
     end
 
     @testset "indexing" begin
-        ncmultistack = GeoStack(ncsingle)
+        ncmultistack = RasterStack(ncsingle)
         @test dims(ncmultistack[:tos]) isa Tuple{<:X,<:Y,<:Ti}
-        @test ncmultistack[:tos] isa GeoArray{<:Any,3}
-        @test ncmultistack[:tos][Ti(1)] isa GeoArray{<:Any,2}
-        @test ncmultistack[:tos, Y(1), Ti(1)] isa GeoArray{<:Any,1}
+        @test ncmultistack[:tos] isa Raster{<:Any,3}
+        @test ncmultistack[:tos][Ti(1)] isa Raster{<:Any,2}
+        @test ncmultistack[:tos, Y(1), Ti(1)] isa Raster{<:Any,1}
         @test ncmultistack[:tos, 8, 30, 10] isa Float32
     end
 
@@ -331,13 +331,13 @@ end
     # And it seems the memory is not garbage collected??
     @testset "read and write" begin
         @time st = read(ncstack)
-        @test st isa GeoStack
+        @test st isa RasterStack
         @test st.data isa NamedTuple
         @test first(st.data) isa Array
         length(dims(st[:aclcac]))
         filename = tempname() * ".nc"
         write(filename, st);
-        saved = GeoStack(GeoStack(filename))
+        saved = RasterStack(RasterStack(filename))
         @test keys(saved) == keys(st)
         @test metadata(saved)["advection"] == "Lin & Rood"
         @test metadata(saved) == metadata(st) == metadata(ncstack)
@@ -345,10 +345,10 @@ end
     end
 
     @testset "show" begin
-        ncstack = view(GeoStack(ncmulti), X(7:99), Y(3:90));
+        ncstack = view(RasterStack(ncmulti), X(7:99), Y(3:90));
         sh = sprint(show, MIME("text/plain"), ncstack)
         # Test but don't lock this down too much
-        @test occursin("GeoStack", sh)
+        @test occursin("RasterStack", sh)
         @test occursin("Y", sh)
         @test occursin("X", sh)
         @test occursin("Ti", sh)
@@ -361,13 +361,13 @@ end
 end
 
 @testset "series" begin
-    @time ncseries = GeoSeries([ncsingle, ncsingle], (Ti,); child=GeoStack)
+    @time ncseries = RasterSeries([ncsingle, ncsingle], (Ti,); child=RasterStack)
     @testset "read" begin
         @time geoseries = read(ncseries)
-        @test geoseries isa GeoSeries{<:GeoStack}
-        @test geoseries.data isa Vector{<:GeoStack}
+        @test geoseries isa RasterSeries{<:RasterStack}
+        @test geoseries.data isa Vector{<:RasterStack}
     end
-    geoA = GeoArray(ncsingle; key=:tos)
+    geoA = Raster(ncsingle; key=:tos)
     @test all(read(ncseries[Ti(1)][:tos]) .=== read(geoA))
 end
 

@@ -1,12 +1,12 @@
-using GeoData, Test, Dates, Plots
+using Rasters, Test, Dates, Plots
 
-ga2 = GeoArray(ones(91) * (-25:15)', (X(0.0:4.0:360.0), Y(-25.0:1.0:15.0), ); name=:Test)
-ga3 = GeoArray(rand(10, 41, 91), (Z(100:100:1000), Y(-20.0:1.0:20.0), X(0.0:4.0:360.0)))
-ga4ti = GeoArray(
+ga2 = Raster(ones(91) * (-25:15)', (X(0.0:4.0:360.0), Y(-25.0:1.0:15.0), ); name=:Test)
+ga3 = Raster(rand(10, 41, 91), (Z(100:100:1000), Y(-20.0:1.0:20.0), X(0.0:4.0:360.0)))
+ga4ti = Raster(
     rand(10, 41, 91, 4), 
     (Z(100:100:1000), Y(-20.0:1.0:20.0), X(0.0:4.0:360.0), Ti(Date(2001):Year(1):Date(2004)))
 )
-ga4x = GeoArray(
+ga4x = Raster(
     rand(10, 41, 91, 4), 
     (Z(100:100:1000), Y(-20.0:1.0:20.0), X(0.0:4.0:360.0), X())
 )
@@ -26,10 +26,10 @@ heatmap(ga4x[X(At(0.0)), Y(At(0.0))])
 plot(ga4x[Y(1)])
 # 3d plot by Ti dim
 plot(ga4ti[Z(1)])
-# GeoData handles filled contours
+# Rasters handles filled contours
 contourf(ga2)
-# GeoStack plot
-plot(GeoStack(ga2, ga3))
+# RasterStack plot
+plot(RasterStack(ga2, ga3))
 
 # DD fallback
 contour(ga2)
