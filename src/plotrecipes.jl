@@ -23,14 +23,6 @@ end
 @recipe function f(::GeoPlot, A::GeoArray{T,2,<:Tuple{D1,D2}}) where {T,D1<:SpatialDim,D2<:SpatialDim}
     # If colorbar is close to symmetric (< 25% difference) use a symmetric
     # colormap and set symmetric limits so zero shows up as a neutral color.
-    A_min, A_max = extrema(skipmissing(A))
-
-    # if (A_min + A_max) / abs(A_max - A_min) < 0.25
-        # A_limit = max(abs(A_min), abs(A_max))
-        # clims = (-A_limit, A_limit)
-    # else
-    # end
-    clims = A_min, A_max
 
     yguide, xguide = label(dims(A))
 
@@ -40,14 +32,13 @@ end
     :title --> (rdt === "" ? _maybename(A) : _maybename(A) * "\n" * rdt)
     :xguide --> xguide
     :yguide --> yguide
-    :clims --> clims
     :grid --> true
     :gridalpha --> 0.2
     # :guidefontsize --> 10
     # :titlefontsize --> 10
     # :tickfontsize --> 6
-    :linewidth --> 1
     # :colorbar_title --> name(A)
+    :linewidth --> 1
     :colorbar_titlefontsize --> 9
     :colorbar_tickfontcolor --> RGB(0.3)
     :tickfontcolor --> RGB(0.3)
@@ -58,8 +49,7 @@ end
     :foreground_color_border --> RGB(0.3)
     :seriescolor --> :curl
 
-    # Often Mapped mode/netcdf has wide pixels
-    if all(d -> mode(d) isa Mapped, (x, y))
+    if all(d -> lookup(d) isa Mapped, (x, y))
         :xlims --> mappedbounds(x)
         :ylims --> mappedbounds(y)
         :aspect_ratio --> :equal
@@ -73,6 +63,7 @@ end
     end
 
     if get(plotattributes, :seriestype, :none) == :contourf
+        clims = extrema(skipmissing(A))
         :levels --> range(clims[1], clims[2], length=20)
         index(x), index(y), clamp.(A, clims[1], clims[2])
     else
@@ -102,7 +93,6 @@ end
         ncols, nrows = _balance_grid(nplots)
         :layout --> (ncols, nrows)
         # link --> :both
-        # clims = extrema(A)
         # :colorbar := false
         titles = string.(index(A, D))
         for r in 1:nrows, c in 1:ncols
@@ -194,9 +184,8 @@ end
 _prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
 # Convert arrays to a consistent missing value and Forward array order
 function _prepare(A::AbstractGeoArray)
-    reorder(A, ForwardIndex) |>
-    a -> reorder(a, ForwardRelation) |>
-    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(a))) |>
+    reorder(A, DD.ForwardOrdered) |>
+    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A))) |>
     a -> replace_missing(a, missing)
 end
 
@@ -225,11 +214,11 @@ _maybe_shift(::Intervals, d) = DD.maybeshiftlocus(Center(), d)
 _maybe_shift(sampling, d) = d
 
 _maybe_mapped(dims::Tuple) = map(_maybe_mapped, dims)
-_maybe_mapped(dim::Dimension) = _maybe_mapped(mode(dim), dim)
-_maybe_mapped(mode::IndexMode, dim::Dimension) = dim
-_maybe_mapped(mode::Projected, dim::Dimension) = _maybe_mapped(mappedcrs(mode), dim)
+_maybe_mapped(dim::Dimension) = _maybe_mapped(lookup(dim), dim)
+_maybe_mapped(lookup::LookupArray, dim::Dimension) = dim
+_maybe_mapped(lookup::Projected, dim::Dimension) = _maybe_mapped(mappedcrs(lookup), dim)
 _maybe_mapped(::Nothing, dim::Dimension) = dim
-_maybe_mapped(::GeoFormat, dim::Dimension) = convertmode(Mapped, dim)
+_maybe_mapped(::GeoFormat, dim::Dimension) = convertlookup(Mapped, dim)
 
 # We don't show the Band label for a single-band raster,
 # it's just not interesting information.
@@ -237,7 +226,7 @@ function DD.refdims_title(refdim::Band; issingle=false)
     if issingle
         ""
     else
-        string(name(refdim), ": ", DD.refdims_title(mode(refdim), refdim))
+        string(name(refdim), ": ", DD.refdims_title(lookup(refdim), refdim))
     end
 end
 

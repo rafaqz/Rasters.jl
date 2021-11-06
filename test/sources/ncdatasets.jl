@@ -1,7 +1,7 @@
-using GeoData, Test, Statistics, Dates, CFTime, Plots
+using GeoData, DimensionalData, Test, Statistics, Dates, CFTime, Plots
+using GeoData.LookupArrays, GeoData.Dimensions
 import ArchGDAL, NCDatasets
-using GeoData: name, mode, span, sampling, val, Ordered, metadata, bounds,
-               FileArray, FileStack, NCDfile
+using GeoData: FileArray, FileStack, NCDfile
 include(joinpath(dirname(pathof(GeoData)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
@@ -67,21 +67,17 @@ stackkeys = (
         @test length.(dims(ncarray)) == (180, 170, 24)
         @test dims(ncarray) isa Tuple{<:X,<:Y,<:Ti}
         @test refdims(ncarray) == ()
-        # TODO detect the time span, and make it Regular
-        modes = (
-             Mapped(Ordered(), Explicit(vcat((0.0:2.0:358.0)', (2.0:2.0:360.0)')), Intervals(Center()), EPSG(4326), EPSG(4326)),
-             Mapped(Ordered(), Explicit(vcat((-80.0:89.0)', (-79.0:90.0)')), Intervals(Center()), EPSG(4326), EPSG(4326)),
-             Sampled(Ordered(), Explicit(
-                 vcat(permutedims(DateTime360Day(2001, 1, 1):Month(1):DateTime360Day(2002, 12, 1)), 
-                      permutedims(DateTime360Day(2001, 2, 1):Month(1):DateTime360Day(2003, 1, 1)))
-                ), Intervals(Center())
+        @test val.(span(ncarray)) == 
+            (vcat((0.0:2.0:358.0)', (2.0:2.0:360.0)'),
+             vcat((-80.0:89.0)', (-79.0:90.0)'),
+             vcat(permutedims(DateTime360Day(2001, 1, 1):Month(1):DateTime360Day(2002, 12, 1)), 
+                  permutedims(DateTime360Day(2001, 2, 1):Month(1):DateTime360Day(2003, 1, 1)))
             )
-        )
-        @test val.(span(ncarray)) == val.(span.(modes))
-        @test typeof(mode(ncarray)) == typeof(modes)
+        @test typeof(lookup(ncarray)) <: Tuple{<:Mapped,<:Mapped,<:Sampled}
         @test bounds(ncarray) == ((0.0, 360.0), (-80.0, 90.0), (DateTime360Day(2001, 1, 1), DateTime360Day(2003, 1, 1)))
     end
     tempfile = tempname() * ".nc"
+
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
@@ -167,8 +163,8 @@ stackkeys = (
     @testset "indexing with reverse lat" begin
         if !haskey(ENV, "CI") # CI downloads fail. But run locally
             ncrevlat = maybedownload("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
-            ncrevlatarray = GeoArray(ncrevlat; name=:sst, missingval=-9.96921f36)
-            @test order(dims(ncrevlatarray, Y)) == Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
+            ncrevlatarray = GeoArray(ncrevlat; key=:sst, missingval=-9.96921f36)
+            @test order(dims(ncrevlatarray, Y)) == ReverseOrdered()
             @test ncrevlatarray[Y(At(40)), X(At(100)), Ti(1)] == missingval(ncrevlatarray)
             @test ncrevlatarray[Y(At(-40)), X(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0
             @test val(span(ncrevlatarray, Ti)) == Month(1)
@@ -220,7 +216,7 @@ stackkeys = (
             @test metadata(saved) == metadata(geoA)
             @test all(metadata.(dims(saved)) == metadata.(dims(geoA)))
             @test GeoData.name(saved) == GeoData.name(geoA)
-            @test all(mode.(dims(saved)) .!= mode.(dims(geoA)))
+            @test all(lookup.(dims(saved)) .== lookup.(dims(geoA)))
             @test all(order.(dims(saved)) .== order.(dims(geoA)))
             @test all(typeof.(span.(dims(saved))) .== typeof.(span.(dims(geoA))))
             @test all(val.(span.(dims(saved))) .== val.(span.(dims(geoA))))
@@ -228,7 +224,7 @@ stackkeys = (
             @test typeof(dims(saved)) <: typeof(dims(geoA))
             @test index(saved, 3) == index(geoA, 3)
             @test all(val.(dims(saved)) .== val.(dims(geoA)))
-            @test all(data(saved) .=== data(geoA))
+            @test all(parent(saved) .=== parent(geoA))
             @test saved isa typeof(geoA)
             # TODO test crs
         end
@@ -253,7 +249,7 @@ stackkeys = (
             grdarray = GeoArray("testgrd.gri");
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == (bounds(nccleaned)..., (1, 1))
-            @test index(grdarray, Y) ≈ index(nccleaned, Y) .- 0.5
+            @test reverse(index(grdarray, Y)) ≈ index(nccleaned, Y) .- 0.5
             @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
             @test GeoArray(grdarray) ≈ reverse(nccleaned; dims=Y)
         end
@@ -288,16 +284,16 @@ end
         # Loads child as a regular GeoArray
         @test_throws ErrorException ncstack[:not_a_key]
         @test ncstack[:albedo] isa GeoArray{<:Any,3}
-        @test ncstack[:albedo, 2, 3, 1] isa Float32
-        @test ncstack[:albedo, :, 3, 1] isa GeoArray{<:Any,1}
+        @test ncstack[:albedo][2, 3, 1] isa Float32
+        @test ncstack[:albedo][:, 3, 1] isa GeoArray{<:Any,1}
         @test dims(ncstack[:albedo]) isa Tuple{<:X,<:Y,<:Ti}
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test keys(ncstack) == stackkeys
         @test first(keys(ncstack)) == :abso4
         @test metadata(ncstack) isa Metadata{NCDfile}
         @test metadata(ncstack)["institution"] == "Max-Planck-Institute for Meteorology"
-        @test metadata(ncstack, :albedo) isa Metadata{NCDfile}
-        @test metadata(ncstack, :albedo)["long_name"] == "surface albedo"
+        @test metadata(ncstack[:albedo]) isa Metadata{NCDfile}
+        @test metadata(ncstack[:albedo])["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
         @test axes(mean(ncstack[:albedo, Y(1:20)] , dims=Ti)) ==
@@ -365,9 +361,9 @@ end
 end
 
 @testset "series" begin
-    ncseries = GeoSeries([ncsingle, ncsingle], (Ti,); child=GeoStack)
+    @time ncseries = GeoSeries([ncsingle, ncsingle], (Ti,); child=GeoStack)
     @testset "read" begin
-        geoseries = read(ncseries)
+        @time geoseries = read(ncseries)
         @test geoseries isa GeoSeries{<:GeoStack}
         @test geoseries.data isa Vector{<:GeoStack}
     end

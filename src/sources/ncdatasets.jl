@@ -97,7 +97,7 @@ function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractGeoSta
     return filename
 end 
 
-function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DD.DimTuple; 
+function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DimTuple; 
     name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing, metadata=NoMetadata()
 )
     types = T isa Tuple ? T : Ref(T)
@@ -125,13 +125,15 @@ function DD.dims(var::NCD.CFVariable, crs=nothing, mappedcrs=nothing)
     end |> Tuple
 end
 
-DD.metadata(ds::NCD.Dataset) = Metadata{NCDfile}(DD.metadatadict(ds.attrib))
-DD.metadata(var::NCD.CFVariable) = Metadata{NCDfile}(DD.metadatadict(var.attrib))
-DD.metadata(var::NCD.Variable) = Metadata{NCDfile}(DD.metadatadict(var.attrib))
+DD.metadata(ds::NCD.Dataset) = Metadata{NCDfile}(LA.metadatadict(ds.attrib))
+DD.metadata(var::NCD.CFVariable) = Metadata{NCDfile}(LA.metadatadict(var.attrib))
+DD.metadata(var::NCD.Variable) = Metadata{NCDfile}(LA.metadatadict(var.attrib))
 
 function DD.layerdims(ds::NCD.Dataset)
     keys = Tuple(layerkeys(ds))
-    dimtypes = map(k -> DD.layerdims(NCD.variable(ds, string(k))), keys)
+    dimtypes = map(keys) do key
+        DD.layerdims(NCD.variable(ds, string(key)))
+    end
     NamedTuple{map(Symbol, keys)}(dimtypes)
 end
 function DD.layerdims(var::NCD.Variable)
@@ -183,11 +185,11 @@ end
 # Utils ########################################################################
 
 function _open(f, ::Type{NCDfile}, filename::AbstractString; key=nothing, write=false)
-    mode = write ? "a" : "r"
+    lookup = write ? "a" : "r"
     if key isa Nothing
-        NCD.Dataset(cleanreturn ∘ f, filename, mode)
+        NCD.Dataset(cleanreturn ∘ f, filename, lookup)
     else
-        NCD.Dataset(filename, mode) do ds
+        NCD.Dataset(filename, lookup) do ds
             cleanreturn(f(ds[_firstkey(ds, key)]))
         end
     end
@@ -197,18 +199,15 @@ cleanreturn(A::NCD.CFVariable) = Array(A)
 
 function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
     if haskey(ds, dimname)
-        dvar = ds[dimname]
-        dimtype = _ncddimtype(dimname)
-        index = dvar[:]
-        meta = Metadata{NCDfile}(DD.metadatadict(dvar.attrib))
-        mode = _ncdmode(ds, dimname, index, dimtype, crs, mappedcrs, meta)
-        return dimtype(index, mode, meta)
+        D = _ncddimtype(dimname)
+        lookup = _ncdlookup(ds, dimname, D, crs, mappedcrs)
+        return D(lookup)
     else
         # The var doesn't exist. Maybe its `complex` or some other marker,
-        # so make it a custom `Dim` with `NoIndex`
+        # so make it a custom `Dim` with `NoLookup`
         len = _ncfinddimlen(ds, dimname)
         len === nothing && _unuseddimerror()
-        return Dim{Symbol(dimname)}(Base.OneTo(len), NoIndex(), NoMetadata())
+        return Dim{Symbol(dimname)}(NoLookup(Base.OneTo(len)))
     end
 end
 
@@ -227,10 +226,22 @@ end
 # use the generic Dim with the dim name as type parameter
 _ncddimtype(dimname) = haskey(NCD_DIMMAP, dimname) ? NCD_DIMMAP[dimname] : DD.basetypeof(DD.key2dim(Symbol(dimname)))
 
-_ncdmode(ds, dimname, index, dimtype, crs, mappedcrs, mode) = Categorical()
-function _ncdmode(
-    ds, dimname, index::AbstractArray{<:Union{Number,Dates.AbstractTime}}, 
-    dimtype, crs, mappedcrs, metadata
+# _ncdlookup
+# Generate a `LookupArray` from a netcdf dim.
+function _ncdlookup(ds::NCD.Dataset, dimname, D, crs, mappedcrs)
+    dvar = ds[dimname]
+    index = dvar[:]
+    metadata = Metadata{NCDfile}(LA.metadatadict(dvar.attrib))
+    return _ncdlookup(ds, dimname, D, index, metadata, crs, mappedcrs)
+end
+# For unknown types we just make a Categorical lookup
+function _ncdlookup(ds::NCD.Dataset, dimname, D, index::AbstractArray, metadata, crs, mappedcrs)
+    Categorical(index; metadata=metadata)
+end
+# For Number and AbstractTime we generate order/span/sampling
+function _ncdlookup(
+    ds::NCD.Dataset, dimname, D, index::AbstractArray{<:Union{Number,Dates.AbstractTime}}, 
+    metadata, crs, mappedcrs
 )
     # Assume the locus is at the center of the cell if boundaries aren't provided.
     # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
@@ -240,16 +251,19 @@ function _ncdmode(
         boundskey = var.attrib["bounds"]
         boundsmatrix = Array(ds[boundskey])
         span, sampling = Explicit(boundsmatrix), Intervals(Center())
-        return _ncdmode(dimtype, order, span, sampling, crs, mappedcrs)
+        return _ncdlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     elseif eltype(index) <: Dates.AbstractTime
         span, sampling = _ncdperiod(index, metadata)
-        return _ncdmode(dimtype, order, span, sampling, crs, mappedcrs)
+        return _ncdlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     else
         span, sampling = _ncdspan(index, order), Points()
-        return _ncdmode(dimtype, order, span, sampling, crs, mappedcrs)
+        return _ncdlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     end
 end
-function _ncdmode(dimtype::Type{<:Union{X,Y}}, order, span, sampling, crs, mappedcrs)
+# For X and Y use a Mapped <: AbstractSampled lookup
+function _ncdlookup(
+    D::Type{<:Union{<:XDim,<:YDim}}, index, order::Order, span, sampling, metadata, crs, mappedcrs
+)
     # If the index is regularly spaced and there is no crs
     # then there is probably just one crs - the mappedcrs
     crs = if crs isa Nothing && span isa Regular
@@ -257,32 +271,34 @@ function _ncdmode(dimtype::Type{<:Union{X,Y}}, order, span, sampling, crs, mappe
     else
         crs
     end
-    return Mapped(order, span, sampling, crs, mappedcrs)
+    dim = DD.basetypeof(D)()
+    return Mapped(index, order, span, sampling, metadata, crs, mappedcrs, dim)
 end
-function _ncdmode(dimtype::Type{<:Band}, order, span, sampling, crs, mappedcrs)
-    Categorical(order)
+# Band dims have a Categorical lookup, with order
+function _ncdlookup(D::Type{<:Band}, index, order::Order, span, sampling, metadata, crs, mappedcrs)
+    Categorical(index, order, metadata)
 end
-function _ncdmode(dimtype::Type, order, span, sampling, crs, mappedcrs)
-    Sampled(order, span, sampling)
+# Otherwise use a regular Sampled lookup
+function _ncdlookup(D::Type, index, order::Order, span, sampling, metadata, crs, mappedcrs)
+    Sampled(index, order, span, sampling, metadata)
 end
 
 
 function _ncdorder(index)
-    index[end] > index[1] ? Ordered(ForwardIndex(), ForwardArray(), ForwardRelation()) :
-                            Ordered(ReverseIndex(), ReverseArray(), ForwardRelation())
+    index[end] > index[1] ? ForwardOrdered() : ReverseOrdered()
 end
 
 function _ncdspan(index, order)
     # Handle a length 1 index
     length(index) == 1 && return Regular(zero(eltype(index)))
     step = index[2] - index[1]
-    for i in 2:length(index) -1
+    for i in 2:length(index)-1
         # If any step sizes don't match, its Irregular
         if !(index[i+1] - index[i] ≈ step)
             bounds = if length(index) > 1
                 beginhalfcell = abs((index[2] - index[1]) * 0.5)
                 endhalfcell = abs((index[end] - index[end-1]) * 0.5)
-                if DD.isrev(indexorder(order))
+                if LA.isrev(order)
                     index[end] - endhalfcell, index[1] + beginhalfcell
                 else
                     index[1] - beginhalfcell, index[end] + endhalfcell
@@ -306,7 +322,7 @@ function _ncdperiod(index, metadata::Metadata{NCDfile})
         period = _parse_period(metadata[:avg_period])
         period isa Nothing || return Regular(period), Intervals(Center())
     end
-    return sampling = Irregular(), Points()
+    return sampling = Irregular((nothing, nothing)), Points()
 end
 
 function _parse_period(period_str::String)
@@ -372,12 +388,12 @@ function _def_dim_var!(ds::NCD.Dataset, dim::Dimension)
     dimkey = lowercase(string(name(dim)))
     haskey(ds.dim, dimkey) && return nothing
     NCD.defDim(ds, dimkey, length(dim))
-    mode(dim) isa NoIndex && return nothing
+    lookup(dim) isa NoLookup && return nothing
 
     # Shift index before conversion to Mapped
     dim = _ncdshiftlocus(dim)
     if dim isa Y || dim isa X
-        dim = convertmode(Mapped, dim)
+        dim = convertlookup(Mapped, dim)
     end
     attrib = _attribdict(metadata(dim))
     if span(dim) isa Explicit
@@ -394,10 +410,10 @@ _notmissingtype(::Type{Missing}, next...) = _notmissingtype(next...)
 _notmissingtype(x::Type, next...) = x in NCD_FILL_TYPES ? x : _notmissingtype(next...)
 _notmissingtype() = error("Your data is not a type that netcdf can store")
 
-_ncdshiftlocus(dim::Dimension) = _ncdshiftlocus(mode(dim), dim)
-_ncdshiftlocus(::IndexMode, dim::Dimension) = dim
-function _ncdshiftlocus(mode::AbstractSampled, dim::Dimension)
-    if span(mode) isa Regular && sampling(mode) isa Intervals
+_ncdshiftlocus(dim::Dimension) = _ncdshiftlocus(lookup(dim), dim)
+_ncdshiftlocus(::LookupArray, dim::Dimension) = dim
+function _ncdshiftlocus(lookup::AbstractSampled, dim::Dimension)
+    if span(lookup) isa Regular && sampling(lookup) isa Intervals
         # We cant easily shift a DateTime value
         if eltype(dim) isa Dates.AbstractDateTime
             if !(locus(dim) isa Center)
@@ -405,7 +421,7 @@ function _ncdshiftlocus(mode::AbstractSampled, dim::Dimension)
             end
             dim
         else
-            DD.shiftlocus(Center(), dim)
+            shiftlocus(Center(), dim)
         end
     else
         dim
@@ -415,15 +431,15 @@ end
 _unuseddimerror(dimname) = error("Netcdf contains unused dimension $dimname")
 
 function _ncd_eachchunk(var) 
-    # chunkmode, chunkvec = NCDatasets.chunking(var)
-    # chunksize = chunkmode == :chunked ? Tuple(chunkvec) : 
+    # chunklookup, chunkvec = NCDatasets.chunking(var)
+    # chunksize = chunklookup == :chunked ? Tuple(chunkvec) : 
     chunksize = size(var)
     DA.GridChunks(var, chunksize)
 end
 
 function _ncd_haschunks(var) 
-    # chunkmode, _ = NCDatasets.chunking(var)
-    # chunkmode == :chunked ? DA.Chunked() : 
+    # chunklookup, _ = NCDatasets.chunking(var)
+    # chunklookup == :chunked ? DA.Chunked() : 
     DA.Unchunked()
 end
 

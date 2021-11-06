@@ -30,23 +30,25 @@ function DD.dims(wrapper::SMAPhdf5)
         extent = HDF5.attributes(HDF5.root(dataset)["Metadata/Extent"])
         lonbounds = read(extent["westBoundLongitude"]), read(extent["eastBoundLongitude"])
         latbounds = read(extent["southBoundLatitude"]), read(extent["northBoundLatitude"])
-        latvec = HDF5.root(dataset)["cell_lat"][1, :]
         lonvec = HDF5.root(dataset)["cell_lon"][:, 1]
-        lonmode = Mapped(
-           order=Ordered(),
+        latvec = HDF5.root(dataset)["cell_lat"][1, :]
+        lonlookup = Mapped(lonvec;
+           order=ForwardOrdered(),
            span=Irregular(lonbounds),
            sampling=Intervals(Center()),
            crs=SMAPCRS,
-           mappedcrs=EPSG(4326)
+           mappedcrs=EPSG(4326),
+           dim=X(),
         )
-        latmode = Mapped(
-            order=Ordered(ReverseIndex(), ReverseArray(), ForwardRelation()),
+        latlookup = Mapped(latvec;
+            order=ReverseOrdered(),
             span=Irregular(latbounds),
             sampling=Intervals(Center()),
             crs=SMAPCRS,
             mappedcrs=EPSG(4326),
+            dim=Y(),
         )
-        (X(lonvec; mode=lonmode), Y(latvec; mode=latmode))
+        return X(lonlookup), Y(latlookup)
     else
         error("projection $proj not supported")
     end
@@ -203,5 +205,6 @@ function _smap_timefromfilename(filename::String)
 end
 
 _smap_timedim(t::DateTime) = _smap_timedim(t:Hour(3):t)
-_smap_timedim(times::AbstractVector) =
-    Ti(times, mode=Sampled(Ordered(), Regular(Hour(3)), Intervals(Start())))
+function _smap_timedim(times::AbstractVector)
+    Ti(Sampled(times, ForwardOrdered(), Regular(Hour(3)), Intervals(Start()), NoMetadata()))
+end

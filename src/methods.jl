@@ -177,6 +177,7 @@ b = plot(awap_masked; clims=(10, 45))
 savefig(a, "build/mask_example_before.png")
 savefig(b, "build/mask_example_after.png")
 # output
+
 ```
 
 ### Before `mask`:
@@ -400,6 +401,7 @@ These are detected automatically from `A` and `data` where possible.
 
 ```jldoctest
 using GeoData, Plots, Dates, Shapefile, GeoInterface, Downloads
+using GeoData.LookupArrays
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -423,7 +425,9 @@ end
 p = plot(A; color=:spring)
 plot!(p, indonesia_border; fillalpha=0, linewidth=0.7)
 savefig("build/indonesia_rasterized.png")
+
 # output
+
 ```
 
 ![rasterize](indonesia_rasterized.png)
@@ -477,6 +481,7 @@ Rasterize a shapefile for denmark and plot, with a border.
 
 ```jldoctest
 using GeoData, Plots, Dates, Shapefile, Downloads
+using GeoData.LookupArrays
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -487,8 +492,8 @@ isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 china_border = Shapefile.Handle(shapefile_name).shapes[10]
 
 # Make an empty EPSG 4326 projected GeoArray of the China area
-dimz = Y(15.0:0.1:55.0; mode=Projected(; sampling=Intervals(Start()), crs=EPSG(4326))), 
-       X(70.0:0.1:140; mode=Projected(; sampling=Intervals(Start()), crs=EPSG(4326)))
+dimz = Y(Projected(15.0:0.1:55.0; sampling=Intervals(Start()), crs=EPSG(4326))), 
+       X(Projected(70.0:0.1:140; sampling=Intervals(Start()), crs=EPSG(4326)))
 A = GeoArray(zeros(UInt8, dimz); missingval=0)
 
 # Rasterize the border polygon 
@@ -498,7 +503,9 @@ rasterize!(A, china_border; fill=1, order=(X, Y))
 p = plot(A; color=:spring)
 plot!(p, china_border; fillalpha=0, linewidth=0.6)
 savefig("build/china_rasterized.png")
+
 # output
+
 ```
 
 ![rasterize](china_rasterized.png)
@@ -937,16 +944,17 @@ _crop_to(A::GeoStackOrArray, to; kw...) = _crop_to(A, dims(to); kw...)
 function _crop_to(x::GeoStackOrArray, to::DimTuple; atol=maybe_eps(to))
     # Create selectors for each dimension
     # `Between` the bounds of the dimension
-    _without_mapped_crs(x) do x_wmc
+    _without_mapped_crs(x) do x1
         dimranges = map(to, atol) do d, atol_n
-            dx = dims(x_wmc, d)
-            fi = DD.sel2indices(dx, At(first(d); atol=atol_n))
-            li = DD.sel2indices(dx, At(last(d); atol=atol_n))
+            dx = dims(x1, d)
+            l = lookup(dx)
+            fi = DD.selectindices(l, At(first(d); atol=atol_n))
+            li = DD.selectindices(l, At(last(d); atol=atol_n))
             newindex = fi <= li ? (fi:li) : (li:fi)
             rebuild(dx, newindex)
         end
         # Take a view of the selectors
-        view(x_wmc, dimranges...)
+        view(x1, dimranges...)
     end
 end
 
@@ -1023,8 +1031,9 @@ function _extend_to(A::AbstractGeoArray, to::Tuple)
     # Calculate the range of the old array in the extended array
     ranges = map(dims(A), to) do d, nd
         # TODO use open Interval here
-        start = DD.sel2indices(nd, Near(first(d)))
-        stop = DD.sel2indices(nd, Near(last(d)))
+        l = lookup(nd)
+        start = DD.selectindices(l, Near(first(d)))
+        stop = DD.selectindices(l, Near(last(d)))
         start <= stop ? (start:stop) : (stop:start)
     end
     # Copy the original data to the new array
@@ -1396,12 +1405,12 @@ function mosaic(f::Function, regions::Tuple{<:AbstractGeoArray,Vararg};
 )
     missingval isa Nothing && throw(ArgumentError("Layers have no missingval, so pass a `missingval` keyword explicitly"))
     T = Base.promote_type(typeof(missingval), Base.promote_eltype(regions...))
-    dims = mosaic(map(DD.dims, regions))
+    dims = _mosaic(map(DD.dims, regions))
     data = if filename isa Nothing
         Array{T,length(dims)}(undef, map(length, dims))
     else
         l1 = first(regions)
-        filename = create(filename, T, dims; name=name(l1), missingval, metadata=metadata(l1))
+        create(filename, T, dims; name=name(l1), missingval, metadata=metadata(l1))
         parent(GeoArray(filename))
     end
     A = rebuild(first(regions); data, dims, missingval)
@@ -1435,7 +1444,7 @@ Combine `regions`s in `x` using the function `f`.
 
 # Keywords
 
-- `missingval`: Fills empty areas, and defualts to the `missingval`
+- `missingval`: Fills empty areas, and defualts to the `missingval/
     of the first layer.
 - `atol`: Absolute tolerance for comparison between index values.
     This is often required due to minor differences in range values
@@ -1456,6 +1465,7 @@ mosaic!(first, st, aus, africa)
 plot(st)
 savefig("build/mosaic_bang_example.png")
 # output
+
 ```
 
 ![mosaic](mosaic_bang_example.png)
@@ -1465,8 +1475,8 @@ $EXPERIMENTAL
 function mosaic!(f::Function, A::AbstractGeoArray{T}, regions;
     missingval=missingval(A), atol=_default_atol(T)
 ) where T
-    _without_mapped_crs(A) do A
-        broadcast!(A, DimKeys(A; atol)) do ds
+    _without_mapped_crs(A) do A1
+        broadcast!(A1, DimKeys(A1; atol)) do ds
             # Get all the regions that have this point
             ls = foldl(regions; init=()) do acc, l
                 if DD.hasselection(l, ds)
@@ -1502,49 +1512,62 @@ function mosaic!(f::Function, st::AbstractGeoStack, regions; kw...)
 end
 mosaic!(f::Function, x, regions...; kw...) = mosaic!(f, x, regions; kw...)
 
-mosaic(alldims::Tuple{<:DimTuple,Vararg{<:DimTuple}}) = map(mosaic, alldims...)
-function mosaic(dims::Dimension...)
+_mosaic(alldims::Tuple{<:DimTuple,Vararg{<:DimTuple}}) = map(_mosaic, alldims...)
+function _mosaic(dims::Dimension...)
     map(dims) do d
-        DD.comparedims(first(dims), d; val=false, length=false, mode=true)
+        DD.comparedims(first(dims), d; val=false, length=false, lookup=true)
     end
-    return _mosaic(mode(first(dims)), dims)
+    return rebuild(first(dims), _mosaic(lookup(dims)))
+end
+_mosaic(lookups::LookupArrayTuple) = _mosaic(first(lookups), lookups)
+function _mosaic(lookup::Categorical, lookups::LookupArrayTuple)
+    newindex = union(lookups...)
+    if order isa ForwardOrdered
+        newindex = sort(newindex; order=LA.ordering(order(lookup)))
+    end
+    return rebuild(lookup; data=newindex)
+end
+function _mosaic(lookup::AbstractSampled, lookups::LookupArrayTuple)
+    order(lookup) isa Unordered && throw(ArgumentError("Cant mozaic an Unordered lookup"))
+    return _mosaic(span(lookup), lookup, lookups)
+end
+function _mosaic(span::Regular, lookup::AbstractSampled, lookups::LookupArrayTuple)
+    newindex = if order(lookup) isa ForwardOrdered
+        mi = minimum(map(first, lookups))
+        ma = maximum(map(last, lookups))
+        if mi isa AbstractFloat
+            # Handle slight range erorrs to make sure
+            # we dont drop one step of the range
+            mi:step(span):ma + 2eps(ma)
+        else
+            mi:step(span):ma
+        end
+    else
+        mi = minimum(map(last, lookups))
+        ma = maximum(map(first, lookups))
+        if mi isa AbstractFloat
+            ma:step(span):mi - 2eps(mi)
+        else
+            ma:step(span):mi
+        end
+    end
+    return rebuild(lookup; data=newindex)
 end
 
-function _mosaic(mode::Categorical, dims::DimTuple)
-    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
-    return rebuild(first(dims), newindex)
+function _mosaic(::Irregular, lookup::AbstractSampled, lookups::LookupArrayTuple)
+    newindex = sort(union(map(parent, lookups)...); order=LA.ordering(order(lookup)))
+    return rebuild(lookup; data=newindex)
 end
-function _mosaic(mode::AbstractSampled, dims::DimTuple)
-    order(mode) isa Unordered && throw(ArgumentError("Cant mozaic an Unordered dimension $(basetypeof(dim))"))
-    return _mosaic(span(mode), mode, dims)
-end
-function _mosaic(span::Regular, mode::AbstractSampled, dims::DimTuple)
-    allkeys = map(val, dims)
-    newindex = if indexorder(mode) isa ForwardIndex
-        mi = minimum(map(first, allkeys))
-        ma = maximum(map(last, allkeys))
-        mi:step(span):ma
-    else
-        mi = minimum(map(last, allkeys))
-        ma = maximum(map(first, allkeys))
-        ma:step(span):mi
-    end
-    return rebuild(first(dims), newindex)
-end
-function _mosaic(::Irregular, mode::AbstractSampled, dims::DimTuple)
-    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
-    return rebuild(first(dims), newindex)
-end
-function _mosaic(span::Explicit, mode::AbstractSampled, dims::DimTuple)
-    newindex = sort(union(map(val, dims)...); order=DD._ordering(indexorder(mode)))
-    bounds = map(val ∘ DD.span, dims)
+function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::LookupArrayTuple)
+    # TODO make this less fragile to floating point innaccuracy
+    newindex = sort(union(map(parent, lookups)...); order=LA.ordering(order(lookup)))
+    bounds = map(val ∘ DD.span, lookups)
     lower = map(b -> view(b, 1, :), bounds)
     upper = map(b -> view(b, 2, :), bounds)
-    newlower = sort(union(lower...); order=DD._ordering(indexorder(mode)))
-    newupper = sort(union(upper...); order=DD._ordering(indexorder(mode)))
+    newlower = sort(union(lower...); order=LA.ordering(order(lookup)))
+    newupper = sort(union(upper...); order=LA.ordering(order(lookup)))
     newbounds = vcat(permutedims(newlower), permutedims(newupper))
-    newmode = rebuild(mode; span=Explicit(newbounds))
-    return rebuild(first(dims); val=newindex, mode=newmode)
+    return rebuild(lookup; data=newindex, span=Explicit(newbounds))
 end
 
 _without_mapped_crs(f, A) = _without_mapped_crs(f, A, mappedcrs(A))
@@ -1635,7 +1658,7 @@ function _maybereshape(A::AbstractGeoArray{<:Any,N}, acc, dim) where N
         d = if hasdim(refdims(A), dim)
             dims(refdims(A), dim)
         else
-            DD.basetypeof(dim)(1:1; mode=NoIndex())
+            DD.basetypeof(dim)(1:1; lookup=NoLookup())
         end
         newdims = (DD.dims(A)..., d)
         return rebuild(A; data=newdata, dims=newdims)
@@ -1738,7 +1761,7 @@ sliced arrays or stacks will be returned instead of single values.
     If `points` is a table, `order` should be a `Tuple` of `Dimension`/`Symbol` pairs
     like `(X => :xcol, Y => :ycol)`. This will be automatically detected wherever
     possible, assuming the keys match the dimensions of the object `x`.
-- `atol`: a tolorerance for floating point lookup values for when the `Lookup`
+- `atol`: a tolorerance for floating point lookup values for when the `LookupArray`
     contains `Points`. `atol` is ignored for `Intervals`.
 
 Note: extracting polygons in a `GeoInterface.AbstractGeometry` is not yet supported,
@@ -1747,7 +1770,7 @@ but will be in future.
 # Example
 
 Here we extact points matching the occurrence of the Mountain Pygmy Possum,
-_Burramis parvus_. This could be used to fit a species distribution model.
+_Burramis parvus_. This could be used to fit a species distribution lookupl.
 
 ```jldoctest
 using GeoData, GBIF, CSV
@@ -1761,6 +1784,7 @@ obs = GBIF.occurrences("scientificName" => "Burramys parvus", "limit" => 5)
 # use `extract` to get values for all layers at each observation point.
 points = map(o -> (o.longitude, o.latitude), obs)
 vals = extract(st, points)
+
 # output
 5-element Vector{NamedTuple{(:X, :Y, :bio1, :bio3, :bio5, :bio7, :bio12), T} where T<:Tuple}:
  (X = missing, Y = missing, bio1 = missing, bio3 = missing, bio5 = missing, bio7 = missing, bio12 = missing)
@@ -1768,6 +1792,7 @@ vals = extract(st, points)
  (X = 148.450743, Y = -35.999643, bio1 = 8.269542f0, bio3 = 41.030262f0, bio5 = 21.4485f0, bio7 = 23.858f0, bio12 = 1440.0f0)
  (X = 148.461854, Y = -36.009001, bio1 = 6.928167f0, bio3 = 41.78015f0, bio5 = 20.18025f0, bio7 = 23.69975f0, bio12 = 1647.0f0)
  (X = 148.459452, Y = -36.002648, bio1 = 6.928167f0, bio3 = 41.78015f0, bio5 = 20.18025f0, bio7 = 23.69975f0, bio12 = 1647.0f0)
+
 ```
 """
 function extract(A::GeoStackOrArray, points::NTuple{<:Any,<:AbstractVector}; kw...)

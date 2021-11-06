@@ -13,7 +13,7 @@ Plots.jl with correct coordinates and labels, even after slicing with
 `getindex` or `view`. `getindex` on a `AbstractGeoArray` will always return
 a memory-backed `GeoArray`.
 """
-abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimensionalArray{T,N,D,A} end
+abstract type AbstractGeoArray{T,N,D,A} <: AbstractDimArray{T,N,D,A} end
 
 # Interface methods ###########################################################
 """
@@ -25,7 +25,7 @@ function missingval end
 missingval(x) = missing
 missingval(A::AbstractGeoArray) = A.missingval
 
-filename(A::AbstractGeoArray) = filename(data(A))
+filename(A::AbstractGeoArray) = filename(parent(A))
 
 cleanreturn(A::AbstractGeoArray) = modify(cleanreturn, A)
 cleanreturn(x) = x
@@ -44,7 +44,7 @@ end
 Get the projected coordinate reference system of a `Y` or `X` `Dimension`,
 or of the `Y`/`X` dims of an `AbstractGeoArray`.
 
-For [`Mapped`](@ref) mode this may be `nothing` as there may be no projected
+For [`Mapped`](@ref) lookup this may be `nothing` as there may be no projected
 coordinate reference system at all.
 """
 function crs end
@@ -57,18 +57,18 @@ function crs(obj)
         error("No Y or X dimension, crs not available")
     end
 end
-crs(dim::Dimension) = crs(mode(dim))
+crs(dim::Dimension) = crs(lookup(dim))
 
 """
     mappedcrs(x)
 
 Get the mapped coordinate reference system for the `Y`/`X` dims of an array.
 
-In [`Projected`](@ref) mode this is used to convert [`Selector`]($DDselectordocs)
+In [`Projected`](@ref) lookup this is used to convert [`Selector`]($DDselectordocs)
 values form the mappedcrs defined projection to the underlying projection, and to
 show plot axes in the mapped projection.
 
-In `Mapped` mode this is the coordinate reference system of the index values.
+In `Mapped` lookup this is the coordinate reference system of the index values.
 """
 function mappedcrs end
 function mappedcrs(obj)
@@ -80,7 +80,7 @@ function mappedcrs(obj)
         error("No Y or X dimension, mappedcrs not available")
     end
 end
-mappedcrs(dim::Dimension) = mappedcrs(mode(dim))
+mappedcrs(dim::Dimension) = mappedcrs(lookup(dim))
 
 for f in (:mappedbounds, :projectedbounds, :mappedindex, :projectedindex)
     @eval ($f)(A::AbstractGeoArray, dims_) = ($f)(dims(A, dims_))
@@ -98,7 +98,7 @@ function DD.rebuild(
     GeoArray(data, dims, refdims, name, metadata, missingval)
 end
 function DD.rebuild(A::AbstractGeoArray;
-    data=data(A), dims=dims(A), refdims=refdims(A), name=name(A),
+    data=parent(A), dims=dims(A), refdims=refdims(A), name=name(A),
     metadata=metadata(A), missingval=missingval(A)
 )
     rebuild(A, data, dims, refdims, name, metadata, missingval)
@@ -121,13 +121,13 @@ end
 
 # Base methods
 
-Base.parent(A::AbstractGeoArray) = data(A)
+Base.parent(A::AbstractGeoArray) = A.data
 
 """
     open(f, A::AbstractGeoArray; write=false)
 
 `open` is used to open any `AbstractGeoArray` and do multiple operations
-on it in a safe way. The `write` keyword opens the file in write mode so that it
+on it in a safe way. The `write` keyword opens the file in write lookup so that it
 can be altered on disk using e.g. a broadcast.
 
 `f` is a method that accepts a single argument - an `GeoArray` object
@@ -210,24 +210,24 @@ end
 function GeoArray(A::AbstractArray, dims::Tuple;
     refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing,
 )
-    GeoArray(A, DD.formatdims(A, dims), refdims, name, metadata, missingval)
+    GeoArray(A, Dimensions.format(dims, A), refdims, name, metadata, missingval)
 end
 function GeoArray(A::AbstractArray{<:Any,1}, dims::Tuple{<:Dimension,<:Dimension,Vararg}; kw...)
     GeoArray(reshape(A, map(length, dims)), dims; kw...)
 end
 function GeoArray(table, dims::Tuple; name, kw...)
     cols = Tables.getcolumns(table)
-    reshape(cols[name], map(length, dims))
-    GeoStack(layers; name, kw...)
+    A = reshape(cols[name], map(length, dims))
+    return GeoArray(A; name, kw...)
 end
 GeoArray(A::AbstractArray; dims, kw...) = GeoArray(A, dims; kw...)
 function GeoArray(A::AbstractDimArray;
-    data=data(A), dims=dims(A), refdims=refdims(A),
+    data=parent(A), dims=dims(A), refdims=refdims(A),
     name=name(A), metadata=metadata(A), missingval=missingval(A)
 )
-    GeoArray(data, dims, refdims, name, metadata, missingval)
+    return GeoArray(data, dims, refdims, name, metadata, missingval)
 end
-function GeoArray(filename::AbstractString; key=nothing, kw...)
+function GeoArray(filename::AbstractString; name=nothing, key=name, kw...)
     _open(filename) do ds
         key = filekey(ds, key)
         GeoArray(ds, filename, key; kw...)
@@ -243,11 +243,11 @@ function GeoArray(ds, filename::AbstractString, key=nothing;
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
     data = FileArray(ds, filename; key, write)
-    GeoArray(data, dims, refdims, name, metadata, missingval)
+    return GeoArray(data, dims, refdims, name, metadata, missingval)
 end
 
 @propagate_inbounds function Base.setindex!(A::GeoArray, x, I::DD.StandardIndices...)
-    setindex!(data(A), x, I...)
+    setindex!(parent(A), x, I...)
 end
 
 filekey(ds, key) = key

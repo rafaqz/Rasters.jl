@@ -1,6 +1,7 @@
 using GeoData, Test, Statistics, Dates, Plots
+using GeoData.LookupArrays, GeoData.Dimensions
 import NCDatasets, ArchGDAL
-using GeoData: name, mode, bounds, FileArray, GRDfile, GDALfile
+using GeoData: FileArray, GRDfile, GDALfile
 
 testpath = joinpath(dirname(pathof(GeoData)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
@@ -75,7 +76,7 @@ path = stem * ".gri"
         @test grdarray[X(1), Band(1)] isa GeoArray{Float32,1}
         @test grdarray[X(50), Y(30), Band(1)] == 115.0f0
         @test grdarray[1, 1, 1] == 255.0f0
-        @test grdarray[Y(At(20)), X(At(20)), Band(3)] == 255.0f0
+        @test grdarray[Y(At(20.0; atol=1e10)), X(At(20; atol=1e10)), Band(3)] == 255.0f0
         @test grdarray[Y(Contains(60)), X(Contains(20)), Band(1)] == 255.0f0
     end
 
@@ -92,6 +93,7 @@ path = stem * ".gri"
             extended = extend(cropped; to=a);
             @test all(collect(extended .== a))
         end
+
         @testset "mask and mask! to disk" begin
             msk = replace_missing(grdarray, missing)
             msk[X(1:73), Y([1, 5, 77])] .= missingval(msk)
@@ -111,6 +113,7 @@ path = stem * ".gri"
             rm(tempgrd)
             rm(tempgri)
         end
+
         @testset "classify! to disk" begin
             tn = tempname()
             tempgrd = tn * ".grd"
@@ -124,6 +127,7 @@ path = stem * ".gri"
             A = GeoArray(tempgrd)
             @test count(==(100.0f0), A) + count(==(255.0f0), A) == length(A)
         end
+
         @testset "mosaic" begin
             @time grdarray = GeoArray(path)
             A1 = grdarray[X(1:40), Y(1:30)]
@@ -133,11 +137,12 @@ path = stem * ".gri"
             tempgri = tn * ".gri"
             cp(stem * ".grd", tempgrd)
             cp(stem * ".gri", tempgri)
-            Afile = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-7, filename=tempgrd)
-            Amem = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-7)
+            Afile = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1, filename=tempgrd)
+            Amem = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1)
             Atest = grdarray[X(1:80), Y(1:60)]
             Atest[X(1:26), Y(31:60)] .= 0.0f0
             Atest[X(41:80), Y(1:24)] .= 0.0f0
+            @test size(Atest) == size(Afile) == size(Amem)
             @test all(Atest .=== Amem .== Afile)
         end
 
@@ -146,10 +151,10 @@ path = stem * ".gri"
             R = rasterize(A; to=A)
             # Currently the relation makes this upside-down
             # This will be fixed in another branch.
-            @test_broken all(A .=== R .== grdarray)
+            @test all(A .=== R .== grdarray)
             B = rebuild(read(grdarray) .= 0x00; missingval=0x00)
             rasterize!(B, read(grdarray))
-            @test_broken all(B .=== grdarray |> collect)
+            @test all(B .=== grdarray |> collect)
         end
 
         @testset "chunk_series" begin
@@ -183,7 +188,7 @@ path = stem * ".gri"
             saved = read(GeoArray(filename2))
             # 1 band is added again on save
             @test size(saved) == size(grdarray[Band(1:1)])
-            @test data(saved) == data(grdarray[Band(1:1)])
+            @test parent(saved) == parent(grdarray[Band(1:1)])
         end
 
         @testset "3d with subset" begin
@@ -200,15 +205,15 @@ path = stem * ".gri"
             @test metadata(saved)["creator"] == "GeoData.jl"
             @test all(metadata.(dims(saved)) .== metadata.(dims(geoA)))
             @test name(saved) == name(geoA)
-            @test all(mode.(dims(saved)) .== mode.(dims(geoA)))
+            @test all(lookup.(dims(saved)) .== lookup.(dims(geoA)))
             @test dims(saved) isa typeof(dims(geoA))
             @test all(val.(dims(saved)) .== val.(dims(geoA)))
-            @test all(mode.(dims(saved)) .== mode.(dims(geoA)))
+            @test all(lookup.(dims(saved)) .== lookup.(dims(geoA)))
             @test all(metadata.(dims(saved)) .== metadata.(dims(geoA)))
             @test dims(saved) == dims(geoA)
-            @test all(data(saved) .=== data(geoA))
+            @test all(parent(saved) .=== parent(geoA))
             @test saved isa typeof(geoA)
-            @test data(saved) == data(geoA)
+            @test parent(saved) == parent(geoA)
         end
 
         @testset "to netcdf" begin
@@ -231,7 +236,7 @@ path = stem * ".gri"
             gdalarray = GeoArray(gdalfilename)
             # @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test val(dims(gdalarray, X)) ≈ val(dims(grdarray, X))
-            @test reverse(val(dims(gdalarray, Y))) ≈ val(dims(grdarray, Y))
+            @test val(dims(gdalarray, Y)) ≈ val(dims(grdarray, Y))
             @test GeoArray(gdalarray) ≈ permutedims(grdarray[Band(1)], [X(), Y()])
             # 3 Bands
             gdalfilename2 = tempname() * ".tif"
@@ -316,7 +321,7 @@ end
         filename_b = string(base, "_b", ext)
         saved = read(GeoArray(filename_b))
         @test typeof(read(geoA)) == typeof(saved)
-        @test data(saved) == data(geoA)
+        @test parent(saved) == parent(geoA)
     end
 
     @testset "show" begin

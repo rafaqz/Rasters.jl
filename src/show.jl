@@ -11,12 +11,12 @@ function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractGeoArray)
             print(io, filename(parent(A)))
         end
     else
-        DD.show_array(io, mime, parent(A))
+        DD.print_array(io, mime, parent(A))
     end
 end
 
 function DD.show_after(io, mime, stack::AbstractGeoStack) 
-    if data(stack) isa FileStack 
+    if parent(stack) isa FileStack 
         printstyled(io, "\nfrom file:\n"; color=:light_black)
         println(io, filename(stack))
     end
@@ -34,35 +34,31 @@ function Base.summary(io::IO, ser::AbstractGeoSeries{T,N}) where {T,N}
     printstyled(io, string(nameof(typeof(ser)), "{$(nameof(T)),$N}"); color=:blue)
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", ser::AbstractGeoSeries{T,N}) where {T,N}
-    lines = _print_array_info(io, mime, ser)
+function Base.show(io::IO, mime::MIME"text/plain", A::AbstractGeoSeries{T,N}) where {T,N}
+    lines = 0
+    summary(io, A)
+    DD.print_name(io, name(A))
+    lines += Dimensions.print_dims(io, mime, dims(A))
+    !(isempty(dims(A)) || isempty(refdims(A))) && println(io)
+    lines += Dimensions.print_refdims(io, mime, refdims(A))
+    println(io)
     ds = displaysize(io)
     ioctx = IOContext(io, :displaysize => (ds[1] - lines, ds[2]))
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", mode::AbstractProjected)
-    DD._printmode(io, mode)
-    print(io, ": ")
-    DD._printorder(io, mode)
+function Base.show(io::IO, mime::MIME"text/plain", lookup::AbstractProjected)
+    LA.show_compact(io, mime, lookup)
+    LA.print_index(io, mime, parent(lookup))
     print(io, " ")
-    DD._printspan(io, mode)
+    LA.print_order(io, lookup)
     print(io, " ")
-    DD._printsampling(io, mode)
-    if !(crs(mode) isa Nothing)
-        print(io, " crs: ", nameof(typeof(crs(mode))))
+    LA.print_span(io, lookup)
+    print(io, " ")
+    LA.print_sampling(io, lookup)
+    if !(crs(lookup) isa Nothing)
+        print(io, " crs: ", nameof(typeof(crs(lookup))))
     end
-    if !(mappedcrs(mode) isa Nothing)
-        print(io, " mappedcrs: ", nameof(typeof(mappedcrs(mode))))
+    if !(mappedcrs(lookup) isa Nothing)
+        print(io, " mappedcrs: ", nameof(typeof(mappedcrs(lookup))))
     end
-end
-
-function _print_array_info(io, mime, A)
-    lines = 0
-    summary(io, A)
-    DD._printname(io, name(A))
-    lines += DD._printdims(io, mime, dims(A))
-    !(isempty(dims(A)) || isempty(refdims(A))) && println(io)
-    lines += DD._printrefdims(io, mime, refdims(A))
-    println(io)
-    return lines
 end

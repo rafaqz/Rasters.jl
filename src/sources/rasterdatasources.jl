@@ -77,17 +77,17 @@ GeoSeries(T::Type{<:RasterDataSource}; kw...) = GeoSeries(T, RDS.layers(T); kw..
 function GeoSeries(T::Type{<:RasterDataSource}, layers; 
     resize=_mayberesize(T), crs=_source_crs(T), mappedcrs=nothing, kw...
 )
-    monthdim = if haskey(kw.data, :month) kw.data[:month] isa AbstractArray
-        Dim{:month}(kw.data[:month]; mode=Sampled(; sampling=Intervals(Start())))
+    monthdim = if haskey(values(kw), :month) values(kw)[:month] isa AbstractArray
+        Dim{:month}(values(kw)[:month]; lookup=Sampled(; sampling=Intervals(Start())))
     else
         nothing
     end
-    datedim = if haskey(kw.data, :date)
-        dates = if kw.data[:date] isa Tuple
-            dates = RasterDataSources.date_sequence(T, kw.data[:date])
-            Ti(dates; mode=Sampled(; sampling=Intervals(Start())))
-        elseif kw.data[:date] isa AbstractArray
-            Ti(dates; mode=Sampled(; sampling=Intervals(Start())))
+    datedim = if haskey(values(kw), :date)
+        dates = if values(kw)[:date] isa Tuple
+            dates = RasterDataSources.date_sequence(T, values(kw)[:date])
+            Ti(dates; lookup=Sampled(; sampling=Intervals(Start())))
+        elseif values(kw)[:date] isa AbstractArray
+            Ti(dates; lookup=Sampled(; sampling=Intervals(Start())))
         else
             nothing
         end

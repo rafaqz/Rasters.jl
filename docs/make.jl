@@ -1,8 +1,10 @@
 using Documenter, GeoData, Plots, Logging, Statistics, Dates
 
+using GeoData.LookupArrays, GeoData.Dimensions
+
 ENV["GKSwstype"] = "100"
 
-# Plots warnings are breaking doctests. They dont warn the second time.
+# Plots warnings are brWarn doctests. They dont warn the second time.
 # Downloads also show op in doctests. So download everything first.
 function flush_info_and_warnings()
     # GeoStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1))
@@ -14,7 +16,7 @@ end
 flush_info_and_warnings()
 
 
-Logging.disable_logging(Logging.Info)
+Logging.disable_logging(Logging.Warn)
 
 # Make the docs, without running the tests again
 makedocs(

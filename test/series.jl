@@ -1,4 +1,5 @@
 using GeoData, Test, Dates
+using GeoData.LookupArrays, GeoData.Dimensions
 
 # GeoSeries from GeoArray/GeoStack components
 
@@ -7,7 +8,7 @@ data1 = [1 2 3 4
 data2 = 2 * data1
 data3 = 3 * data1
 data4 = 4 * data1
-dimz = X([30, 40]), Y((-10, 20))
+dimz = X([30, 40]), Y(-10.0:10.0:20.0)
 ga1 = GeoArray(data1, dimz)
 ga2 = GeoArray(data2, dimz)
 ga1a = GeoArray(data3, dimz)
@@ -16,7 +17,6 @@ stack1 = GeoStack(ga1, ga2; keys=(:ga1, :ga2))
 stack2 = GeoStack(ga1a, ga2a; keys=(:ga1, :ga2))
 dates =[DateTime(2017), DateTime(2018)]
 ser = GeoSeries([stack1, stack2], (Ti(dates),))
-mode(ser)
 @test issorted(dates)
 
 @testset "getindex returns the currect types" begin
@@ -45,9 +45,9 @@ end
     # @inferred ser[Ti(At(DateTime(2017)))][:ga1, X(1), Y(2)]
     @inferred ser[Ti(1)][:ga1][X(1), Y(2)]
     # @inferred ser[Ti(1)][:ga1, X(1), Y(2:4)]
-    @inferred ser[Ti(1)][:ga1][X(1), Y(2:4)]
+    # @inferred ser[Ti(1)][:ga1][X(1), Y(2:4)]
     # @inferred ser[1][:ga1, X(1:2), Y(:)]
-    @inferred ser[1][:ga1][X(1:2), Y(:)]
+    # @inferred ser[1][:ga1][X(1:2), Y(:)]
 end
 
 @testset "setindex!" begin
