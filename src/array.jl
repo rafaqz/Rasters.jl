@@ -257,3 +257,5 @@ filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 precompile(GeoArray, (String,))
 
 @deprecate geoarray(args...; kw...) GeoArray(args...; kw...)
+
+DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = GeoArray

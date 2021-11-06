@@ -23,6 +23,35 @@ ga1 = GeoArray(data1; dims=dims1, refdims=refdimz, name=nme, metadata=meta, miss
     @test missingval(ga1) == -9999.0
 end
 
+@testset "constructors" begin
+    x = X(Projected(1.0:1.0:2.0; crs=ProjString("+proj=")))
+    y = Y(Projected(1.0:1.0:2.0; crs=ProjString("+proj=")))
+
+    A1 = rand(Float32, x, y)
+    @test A1 isa GeoArray{Float32,2}
+    @test size(A1) == (2, 2)
+
+    A2 = zeros(Int, x, y)
+    @test A2 isa GeoArray{Int,2}
+    @test A2 == [0 0; 0 0] 
+
+    A3 = ones(x, y)
+    @test A3 isa GeoArray{Float64,2}
+    @test A3 == [1.0 1.0; 1.0 1.0] 
+
+    A4 = fill(99.0, x, y)
+    @test A4 isa GeoArray{Float64,2}
+    @test A4 == [99.0 99.0; 99.0 99.0] 
+
+    A5 = trues(x, y)
+    @test A5 isa GeoArray{Bool,2}
+    @test A5 == [true true; true true] 
+
+    A6 = falses(x, y)
+    @test A6 isa GeoArray{Bool,2}
+    @test A6 == [false false; false false] 
+end
+
 @testset "show" begin
     sh = sprint(show, MIME("text/plain"), ga1)
     # Test but don't lock this down too much
