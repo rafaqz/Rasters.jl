@@ -18,6 +18,7 @@ end
 @time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "aggregate" begin include("aggregate.jl") end
 @time @safetestset "methods" begin include("methods.jl") end
+@time @safetestset "adapt" begin include("adapt.jl") end
 @time @safetestset "plot recipes" begin include("plotrecipes.jl") end
 # Only test SMAP locally for now
 if !haskey(ENV, "CI")

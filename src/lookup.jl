@@ -8,7 +8,10 @@ abstract type AbstractProjected{T,O,Sp,Sa} <: AbstractSampled{T,O,Sp,Sa} end
 struct AutoDim end
 
 # For now we just remove CRS on GPU - it often contains strings
-Adapt.adapt_structure(to, m::AbstractProjected) = Sampled(order(m), span(m), sampling(m))
+function Adapt.adapt_structure(to, l::AbstractProjected)
+    sampled = Sampled(parent(l), order(l), span(l), sampling(l), metadata(l))
+    return Adapt.adapt_structure(to, sampled)
+end
 
 crs(lookup::LookupArray) = nothing
 mappedcrs(lookup::LookupArray) = nothing
