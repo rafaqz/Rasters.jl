@@ -1,7 +1,7 @@
 # Rasters.jl
 
 ```@docs
-GeoData
+Rasters
 ```
 
 ## Common Applications
@@ -26,7 +26,7 @@ e.g. certain X/Y coordinates. The available selectors are listed here:
 Use the `Between` selector to take a `view` of madagascar:
 
 ```@example
-using GeoData, Plots
+using Rasters, Plots
 A = Raster(WorldClim{BioClim}, 5)
 madagascar = view(A, X(Between(43.25, 50.48)), Y(Between(-25.61, -12.04))) 
 plot(madagascar)
@@ -165,7 +165,7 @@ object to any `GeoFormat` from GeoFormatTypes.jl.
 ## Examples and Plotting
 
 [Plots.jl](https://github.com/JuliaPlots/Plots.jl) is fully supported by
-GeoData.jl, with recipes for plotting `Raster` and `RasterStack` provided. `plot`
+Rasters.jl, with recipes for plotting `Raster` and `RasterStack` provided. `plot`
 will plot a heatmap with axes matching dimension values. If `mappedcrs` is used,
 converted values will be shown on axes instead of the underlying `crs` values.
 `contourf` will similarly plot a filled contour plot.
@@ -175,7 +175,7 @@ specifies the maximum pixel resolution to show on the longest axis of the array.
 It can be set manually to change the resolution (e.g. for large or high-quality plots):
 
 ```julia
-using GeoData, Plots
+using Rasters, Plots
 A = Raster(WorldClim{BioClim}, 5)
 plot(A; max_res=3000)
 ```
@@ -188,7 +188,7 @@ This netcdf file only has one layer, if it has more we could use `RasterStack`
 instead. 
 
 ```@example nc
-using GeoData, Plots
+using Rasters, Plots
 url = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc";
 filename = download(url, "tos_O1_2001-2002.nc");
 A = Raster(filename)
@@ -238,7 +238,7 @@ Write the mean values to disk
 write("mean_tos.nc", mean_tos)
 ```
 
-Plotting recipes in DimensionalData.jl are the fallback for GeoData.jl when the
+Plotting recipes in DimensionalData.jl are the fallback for Rasters.jl when the
 object doesn't have 2 `X`/`Y`/`Z` dimensions, or a non-spatial plot command is
 used. So (as a random example) we could plot a transect of ocean surface
 temperature at 20 degree latitude :
@@ -253,7 +253,7 @@ A[Y(Near(20.0)), Ti(1)] |> plot
 Load occurrences for the Mountain Pygmy Possum using GBIF.jl
 
 ```@example sdm
-using GeoData, GBIF, Plots 
+using Rasters, GBIF, Plots 
 records = GBIF.occurrences("scientificName" => "Burramys parvus", "limit" => 300)
 
 # Get the rest of the occurrences, we need to do this manually with a loop.
@@ -309,7 +309,7 @@ then `mosaic` together to make a single plot.
 First, get the country boundary shape files using GADM.jl.
 
 ```@example mask
-using GeoData, Shapefile, Plots, Dates, Downloads
+using Rasters, Shapefile, Plots, Dates, Downloads
 
 # Download the shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -324,7 +324,7 @@ sweden_border = shapes.shapes[55]
 ```
 
 Then load raster data. We load some worldclim layers using RasterDataSources via
-GeoData.jl, and drop the Band dimension.
+Rasters.jl, and drop the Band dimension.
 
 ```@example mask
 climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)[Band(1)]
@@ -409,7 +409,7 @@ write("scandinavia.nc", scandinavia)
 write("scandinavia.tif", scandinavia)
 ```
 
-GeoData.jl provides a range of other methods that are being added to over time.
+Rasters.jl provides a range of other methods that are being added to over time.
 Where applicable these methods read and write lazily to and from disk-based
 arrays of common raster file types. These methods also work for entire
 `RasterStacks` and `RasterSeries` using the same syntax.
@@ -453,7 +453,7 @@ RasterSeries(T::Type{<:RasterDataSources.RasterDataSource})
 
 ### Dimensions
 
-GeoData uses `X`, `Y`, and `Z` dimensions from DimensionalData.jl to represent
+Rasters uses `X`, `Y`, and `Z` dimensions from DimensionalData.jl to represent
 spatial directions like longitude, latitude and the vertical dimension, and
 subset data with them. `Ti` is used for time, and `Band` represent bands. Other
 dimensions can have arbitrary names, but will be treated generically. See
@@ -467,20 +467,20 @@ Band
 ### Lookup Arrays
 
 These specify properties of the index associated with e.g. the X and Y
-dimension. GeoData.jl defines additional lookup arrays: [`Projected`](@ref) to handle
+dimension. Rasters.jl defines additional lookup arrays: [`Projected`](@ref) to handle
 dimensions with projections, and [`Mapped`](@ref) where the projection is mapped to
 another projection like `EPSG(4326)`. `Mapped` is largely designed to handle
 NetCDF dimensions, especially with `Explicit` spans.
 
 ```@docs
-GeoData.AbstractProjected
+Rasters.AbstractProjected
 Projected
 Mapped
 ```
 
 ## Data sources
 
-GeoData.jl uses a number of backends to load raster data. `Raster`, `RasterStack`
+Rasters.jl uses a number of backends to load raster data. `Raster`, `RasterStack`
 and `RasterSeries` will detect which backend to use for you, automatically.
 
 ### GRD
@@ -538,11 +538,11 @@ metadata conversion has not been completely implemented.
 [RasterDataSources.jl](https://github.com/EcoJulia/RasterDataSources.jl)
 standardises the download of common raster data sources, with a focus on
 datasets used in ecology and the environmental sciences. RasterDataSources.jl is
-tightly integrated into GeoData.jl, so that datsets and keywords can be used
+tightly integrated into Rasters.jl, so that datsets and keywords can be used
 directly to download and load data as a `Raster`, `RasterStack`, or `RasterSeries`.
 
 ```@example
-using GeoData, Plots, Dates
+using Rasters, Plots, Dates
 A = Raster(WorldClim{Climate}, :tavg; month=June)
 plot(A)
 ```
@@ -553,11 +553,11 @@ data sources.
 
 ## Exported functions
 
-GeoData.jl is a direct extension of DimensionalData.jl. See [DimensionalData.jl
+Rasters.jl is a direct extension of DimensionalData.jl. See [DimensionalData.jl
 docs](https://rafaqz.github.io/DimensionalData.jl/stable/) for the majority of
-types and functions that can be used in GeoData.jl.
+types and functions that can be used in Rasters.jl.
 
-Functions more specific to geospatial data are included in GeoData.jl, and
+Functions more specific to geospatial data are included in Rasters.jl, and
 listed below.
 
 ```@docs
@@ -599,7 +599,7 @@ warp
 
 ### File operations
 
-These Base and DimensionalData methods have specific GeoData.jl versions:
+These Base and DimensionalData methods have specific Rasters.jl versions:
 
 ```@docs
 modify
@@ -612,7 +612,7 @@ write
 ## Internals
 
 ```@docs
-GeoData.FileArray
-GeoData.FileStack
-GeoData.GeoDiskArray
+Rasters.FileArray
+Rasters.FileStack
+Rasters.RasterDiskArray
 ```
