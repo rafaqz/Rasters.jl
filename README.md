@@ -1,18 +1,18 @@
-# GeoData
+# Rasters
 
-[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://rafaqz.github.io/GeoData.jl/stable)
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://rafaqz.github.io/GeoData.jl/dev)
-[![Build Status](https://travis-ci.com/rafaqz/GeoData.jl.svg?branch=master)](https://travis-ci.com/rafaqz/GeoData.jl)
-[![Codecov](https://codecov.io/gh/rafaqz/GeoData.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/rafaqz/GeoData.jl)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://rafaqz.github.io/Rasters.jl/stable)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://rafaqz.github.io/Rasters.jl/dev)
+[![Build Status](https://travis-ci.com/rafaqz/Rasters.jl.svg?branch=master)](https://travis-ci.com/rafaqz/Rasters.jl)
+[![Codecov](https://codecov.io/gh/rafaqz/Rasters.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/rafaqz/Rasters.jl)
 [![Aqua.jl Quality Assurance](https://img.shields.io/badge/Aquajl-%F0%9F%8C%A2-aqua.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-GeoData.jl defines common types and methods for reading, writing and
+Rasters.jl defines common types and methods for reading, writing and
 manipulating spatial data. 
 
 These currently include raster arrays like GeoTIFF and NetCDF, R grd files, 
 multi-layered stacks, and multi-file series of arrays and stacks. 
 
-![EarthEnv HabitatHeterogeneity layers trimmed to Australia](https://rafaqz.github.io/GeoData.jl/stable/trim_example_after.png)
+![EarthEnv HabitatHeterogeneity layers trimmed to Australia](https://rafaqz.github.io/Rasters.jl/stable/trim_example_after.png)
 
 _A RasterStack of EarthEnv HabitatHeterogeneity layers, trimmed to Australia and plotted with Plots.jl_
 
@@ -30,10 +30,10 @@ _A RasterStack of EarthEnv HabitatHeterogeneity layers, trimmed to Australia and
 
 ## Data-source abstraction
 
-GeoData provides a standardised interface that allows many source data types to
+Rasters provides a standardised interface that allows many source data types to
 be used with identical syntax.
 
-- Scripts and packages building on GeoData.jl can treat `AbstractRaster`,
+- Scripts and packages building on Rasters.jl can treat `AbstractRaster`,
   `AbstractRasterStack`, and `AbstrackRasterSeries` as black boxes.
   - The data could hold GeoTiff or NetCDF files, `Array`s in memory or
     `CuArray`s on the GPU - they will all behave in the same way.
@@ -50,7 +50,7 @@ be used with identical syntax.
 
 ## Named dimensions and index lookups
 
-GeoData.jl extends
+Rasters.jl extends
 [DimensionalData.jl](https://github.com/rafaqz/DimensionalData.jl) so that
 spatial data can be indexed using named dimensions like `X`, `Y` and `Ti` (time)
 and e.g. spatial coordinates.
@@ -60,5 +60,5 @@ and `reduce` where `dims` arguments are required. Much of the behaviour is
 covered in the [DimensionalData
 docs](https://rafaqz.github.io/DimensionalData.jl/stable/).
 
-See [the docs](https://rafaqz.github.io/GeoData.jl/stable) for more details and
-examples for GeoData.jl.
+See [the docs](https://rafaqz.github.io/Rasters.jl/stable) for more details and
+examples for Rasters.jl.
