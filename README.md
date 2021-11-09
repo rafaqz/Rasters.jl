@@ -7,7 +7,7 @@
 [![Aqua.jl Quality Assurance](https://img.shields.io/badge/Aquajl-%F0%9F%8C%A2-aqua.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 Rasters.jl defines common types and methods for reading, writing and
-manipulating spatial data. 
+manipulating rasterized spatial data. 
 
 These currently include raster arrays like GeoTIFF and NetCDF, R grd files, 
 multi-layered stacks, and multi-file series of arrays and stacks. 
