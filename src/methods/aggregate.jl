@@ -27,11 +27,13 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 
 # Keywords
 
-- `filename`: a filename to write to, useful for large series.
 - `progress`: show a progress bar.
 - `skipmissingval`: if `true`, any `missingval` will be skipped during aggregation, so that 
     only areas of all missing values will be aggregated to `missingval`. If `false`, any
     aggegrated area containing a `missingval` will be assigned `missingval`.
+- `filename`: a filename to write to directly, useful for large files.
+- `suffix`: a string or value to append to the filename.
+    A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
 
 # Example
 
@@ -52,31 +54,33 @@ Note: currently it is faster to aggregate over memory-backed arrays.
 Use [`read`](@ref) on `src` before use where required.
 """
 function aggregate end
-function aggregate(
-    method, series::AbstractRasterSeries, scale, args...; progress=true, kw...
+function aggregate(method, series::AbstractRasterSeries, scale, args...;
+    progress=true, kw...
 )
-    f = i -> aggregate(method, series[i], scale, args...; progress=false, kw...)
-    data = if progress
-        ProgressMeter.@showprogress "Aggregating series..." map(f, 1:length(series))
+    f(A) = aggregate(method, A, scale, args...; progress=false, kw...)
+    if progress
+        ProgressMeter.@showprogress "Aggregating series..." map(f, series)
     else
-        map(f, 1:length(series))
+        map(f, series)
     end
-    return rebuild(series, data)
 end
-function aggregate(
-    method, stack::AbstractRasterStack, scale; keys=keys(stack), progress=true, kw...
+function aggregate(method, stack::AbstractRasterStack, scale;
+    keys=keys(stack), filename=nothing, suffix=keys, progress=true, kw...
 )
-    f(key) = aggregate(method, stack[key], scale; kw...)
-    keys_nt = NamedTuple{keys}(keys)
-    arrays = if progress
-        ProgressMeter.@showprogress "Aggregating stack..." map(f, keys_nt)
+    f(A, suffix) = aggregate(method, A, scale; filename, suffix, kw...)
+
+    layers = if progress
+        ProgressMeter.@showprogress "Aggregating stack..." map(f, values(stack), Tuple(suffix))
     else
-        map(f, keys_nt)
+        map(f, values(stack), Tuple(suffix))
     end
-    return RasterStack(arrays)
+
+    return DD.rebuild_from_arrays(stack, layers)
 end
-function aggregate(method, src::AbstractRaster, scale; kw...)
-    dst = alloc_ag(method, src, scale)
+function aggregate(method, src::AbstractRaster, scale;
+    suffix=nothing, filename=nothing, kw...
+)
+    dst = alloc_ag(method, src, scale; filename, suffix, kw...)
     aggregate!(method, dst, src, scale; kw...)
 end
 aggregate(method, d::Dimension, scale) = rebuild(d, aggregate(method, lookup(d), scale))
@@ -120,7 +124,7 @@ When the aggregation `scale` of is larger than the array axis, the length of the
     only areas of all missing values will be aggregated to `missingval`. If `false`, any
     aggegrated area containing a `missingval` will be assigned `missingval`.
 
-Note: currently it is faster to aggregate over memory-backed arrays. 
+Note: currently it is _much_ faster to aggregate over memory-backed arrays. 
 Use [`read`](@ref) on `src` before use where required.
 """
 function aggregate!(locus::Locus, dst::AbstractRaster, src, scale; kw...)
@@ -200,19 +204,22 @@ function disaggregate(method, series::AbstractRasterSeries, scale; progress=true
     end
 end
 function disaggregate(method, stack::AbstractRasterStack, scale;
-    keys=keys(stack), progress=true
+    keys=keys(stack), suffix=keys, filename=nothing, progress=true
 )
-    f = key -> disaggregate(method, stack[key], scale)
-    keys_nt = NamedTuple{keys}(keys)
-    arrays = if progress
-        ProgressMeter.@showprogress "Disaggregating stack..." map(f, keys_nt)
+    f(A, suffix) = disaggregate(method, A, scale; filename, suffix)
+
+    layers = if progress
+        ProgressMeter.@showprogress "Disaggregating stack..." map(f, values(stack), Tuple(suffix))
     else
-        map(f, keys_nt)
+        map(f, values(stack), Tuple(suffix))
     end
-    return RasterStack(arrays)
+    return DD.rebuild_from_arrays(stack, layers)
 end
-function disaggregate(method, src::AbstractRaster, scale)
-    disaggregate!(method, alloc_disag(method, src, scale), src, scale)
+function disaggregate(method, src::AbstractRaster, scale;
+    suffix=nothing, filename=nothing, kw...
+)
+    dst = alloc_disag(method, src, scale; filename, suffix, kw...)
+    disaggregate!(method, dst, src, scale)
 end
 function disaggregate(locus::Locus, dim::Dimension, scale)
     rebuild(dim, disaggregate(locus, lookup(dim), scale))
@@ -266,7 +273,9 @@ end
 
 # Allocate an array of the correct size to aggregate `A` by `scale`
 alloc_ag(method, A::AbstractRaster, scale; kw...) = alloc_ag((method,), A, scale; kw...)
-function alloc_ag(method::Tuple, A::AbstractRaster, scale; filename=nothing)
+function alloc_ag(method::Tuple, A::AbstractRaster, scale;
+    filename=nothing, suffix=nothing, skipmissingval=nothing
+)
     intscale = _scale2int(Ag(), dims(A), scale)
     # Aggregate the dimensions
     dims_ = aggregate.(method, dims(A), intscale)
@@ -280,29 +289,23 @@ function alloc_ag(method::Tuple, A::AbstractRaster, scale; filename=nothing)
         T = promote_type(agT, typeof(missingval(A)))
         mv = convert(T, missingval(A))
     end
-    data = if filename isa AbstractString
-        create(filename, T, dims_; keys=name(A))
-    else
-        similar(parent(A), T, sze...)
-    end
-    return rebuild(A; data=data, dims=dims_, missingval=mv)
+    return create(filename, T, dims_; name=name(A), suffix, missingval=mv)
 end
 
 # Allocate an array of the correct size to disaggregate `A` by `scale`
-alloc_disag(method, A::AbstractRaster, scale) = alloc_disag((method,), A, scale)
-function alloc_disag(method::Tuple, A::AbstractRaster, scale)
+function alloc_disag(method, A::AbstractRaster, scale; kw...)
+    alloc_disag((method,), A, scale; kw...)
+end
+function alloc_disag(method::Tuple, A::AbstractRaster, scale;
+    filename=nothing, suffix=nothing
+)
     intscale = _scale2int(DisAg(), dims(A), scale)
     dims_ = disaggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size
     sze = map(length, dims_)
     T = ag_eltype(method, A)
     mv = convert(T, missingval(A))
-    data = if filename isa AbstractString
-        create(filename, T, dims_; keys=name(A))
-    else
-        similar(parent(A), T, sze...)
-    end
-    return rebuild(A; data=data, dims=dims_, missingval=mv)
+    return create(filename, T, dims_; name=name(A), suffix, missingval=mv)
 end
 
 # Handle how methods like `mean` can change the type
@@ -311,7 +314,6 @@ function ag_eltype(method::Tuple{<:Any}, A)
     method_returntype = typeof(method[1](zero(eltype(A))))
     promote_type(eltype(A), method_returntype)
 end
-
 
 # Convert indicies from the aggregated array to the larger original array.
 upsample(index::Int, scale::Int) = (index - 1) * scale + 1

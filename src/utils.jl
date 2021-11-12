@@ -24,11 +24,17 @@ end
 function maybe_typemin_as_missingval(filename::String, A::AbstractRaster{T}) where T
     if ismissing(missingval(A))
         newmissingval = typemin(Missings.nonmissingtype(T)) 
-        ext = splitext(filename)
-        @warn "`missing` cant be written to $ext, typemin of $newmissingval used instead" 
-        replace_missing(A, newmissingval)
+        base, ext = splitext(filename)
+        A1 = replace_missing(A, newmissingval)
+        if missing isa eltype(A1)
+            A1 = replace_missing(A, missing)
+        end
+        @warn "`missing` cant be written to $ext, typemin for `$(eltype(A1))` of `$newmissingval` used instead" 
+        return A1
+    elseif missing isa eltype(A)
+        A1 = replace_missing(A, missingval)
     else
-        A
+        return A
     end
 end
 
@@ -58,15 +64,59 @@ end
 # # So we always shift the locus while in Projected lookup to avoid errors.
 # _convert_by_lookup(::Type{Mapped}, dim) = convertlookup(Mapped, shiftlocus(Center(), dim))
 # _convert_by_lookup(::Type{Projected}, dim) = shiftlocus(Center(), convertlookup(Projected, dim))
-#
 
-_not_a_dimcol(data, dimcols::DimTuple) = _not_a_dimcol(data, map(DD.dim2key, dimcols))
-_not_a_dimcol(data, dimcols::Tuple{Vararg{<:Pair}}) = _not_a_dimcol(data, map(last, dimcols))
-function _not_a_dimcol(data, dimcols::Tuple{Vararg{Symbol}})
-    names = Tables.columnnames(data)
-    if length(names) == 0
-        names = keys(first(Tables.rows(data)))
-    end
-    not_dim_keys = Tuple(k for k in names if !(k in dimcols))
-    return  not_dim_keys
+
+_missingval_or_missing(x) = missingval(x) isa Nothing ? missing : missingval(x)
+
+maybe_eps(dims::DimTuple) = map(maybe_eps, dims)
+maybe_eps(dim::Dimension) = maybe_eps(eltype(dim))
+maybe_eps(::Type) = nothing
+maybe_eps(T::Type{<:AbstractFloat}) = _default_atol(T)
+
+_writeable_missing(filename::Nothing, T) = missing
+_writeable_missing(filename::AbstractString, T) = _writeable_missing(T)
+function _writeable_missing(T)
+    missingval = typemin(Missings.nonmissingtype(T)) 
+    @info "`missingval` set to typemin of $missingval"
+    return missingval
 end
+
+# Map filename suffix over a stack
+function mapargs(f, st::AbstractRasterStack, args...)
+    layers = map(map(values, st), args...) do A, mappedargs...
+        f(A, mappedargs...)
+    end
+    return DD.rebuild_from_arrays(st, Tuple(layers))
+end
+
+_without_mapped_crs(f, dims::DimTuple) = _without_mapped_crs(f, dims, mappedcrs(dims))
+_without_mapped_crs(f, dims::DimTuple, ::Nothing) = f(dims)
+function _without_mapped_crs(f, dims::DimTuple, mappedcrs)
+    dims1 = setmappedcrs(dims, nothing)
+    x = f(dims1)
+    if x isa DimTuple
+        x = setmappedcrs(x, mappedcrs)
+    end
+    return x
+end
+_without_mapped_crs(f, A) = _without_mapped_crs(f, A, mappedcrs(A))
+_without_mapped_crs(f, A::AbstractRaster, ::Nothing) = f(A)
+function _without_mapped_crs(f, A::AbstractRaster, mappedcrs)
+    A = setmappedcrs(A, nothing)
+    x = f(A)
+    if x isa AbstractRaster
+        x = setmappedcrs(x, mappedcrs)
+    end
+    return x
+end
+_without_mapped_crs(f, A::AbstractRasterStack, ::Nothing) = f(A)
+function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs) 
+    st1 = map(A -> setmappedcrs(A, nothing), st)
+    x = f(st1)
+    if x isa AbstractRasterStack
+        x = map(A -> setmappedcrs(A, mappedcrs(st)), x)
+    end
+    return x
+end
+
+_warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."

@@ -95,7 +95,7 @@ path = stem * ".gri"
         end
 
         @testset "mask and mask! to disk" begin
-            msk = replace_missing(grdarray, missing)
+            msk = read(replace_missing(grdarray, missing))
             msk[X(1:73), Y([1, 5, 77])] .= missingval(msk)
             @test !any(grdarray[X(1:73)] .=== missingval(msk))
             masked = mask(grdarray; to=msk)

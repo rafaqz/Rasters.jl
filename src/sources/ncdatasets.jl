@@ -108,7 +108,7 @@ function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DimTuple;
         Raster(A, dims=lds; name=key, missingval=mv)
     end
     write(filename, NCDfile, Raster(first(layers)))
-    return Raster(filename)
+    return Raster(filename; source=NCDfile)
 end
 
 # DimensionalData methods for NCDatasets types ###############################
@@ -149,7 +149,7 @@ function _layermetadata(ds, keys)
 end
 
 missingval(var::NCD.CFVariable) = missing
-layermissingval(ds::NCD.Dataset) = missing
+missingval(ds::NCD.Dataset) = missing
 
 function layerkeys(ds::NCD.Dataset)
     dimkeys = _dimkeys(ds)

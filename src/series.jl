@@ -130,6 +130,15 @@ end
     RasterSeries(data, dims, refdims)
 end
 
+function Base.map(f, series::RasterSeries)
+    vals = map(f, parent(series))
+    if eltype(vals) <: Union{AbstractRaster,AbstractRasterStack}
+        return rebuild(series, vals)
+    else
+        return DimArray(vals, dims(series))
+    end
+end
+
 @deprecate series(args...; kw...) RasterSeries(args...; kw...)
 
 # Swap in the filename/s of an object for another filename, wherever it is.

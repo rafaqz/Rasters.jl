@@ -70,6 +70,12 @@ function Projected(data=AutoIndex();
 )
     Projected(data, order, span, sampling, metadata, crs, mappedcrs, dim)
 end
+function Projected(l::Sampled;
+    order=order(l), span=span(l), sampling=sampling(l),
+    metadata=metadata(l), crs, mappedcrs=nothing, dim=AutoDim()
+)
+    Projected(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
+end
 
 crs(lookup::Projected) = lookup.crs
 mappedcrs(lookup::Projected) = lookup.mappedcrs
@@ -118,6 +124,12 @@ function Mapped(data=AutoIndex();
     metadata=NoMetadata(), crs=nothing, mappedcrs, dim=AutoDim()
 )
     Mapped(data, order, span, sampling, metadata, crs, mappedcrs, dim)
+end
+function Mapped(l::Sampled;
+    order=order(l), span=span(l), sampling=span(l),
+    metadata=metadata(l), crs=nothing, mappedcrs, dim=AutoDim()
+)
+    Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 
 crs(lookup::Mapped) = lookup.crs
@@ -187,10 +199,15 @@ end
 
 Set the crs of a `Raster`, `RasterStack`, `Tuple` of `Dimension`,or a `Dimension`.
 """
-setcrs(A, crs) = set(A, setcrs(dims(A), crs)...)
-setcrs(dims::DimTuple, crs) = map(d -> setcrs(d, mappedcrs), dims)
-setcrs(dim::Dimension, crs) = rebuild(dim, setcrs(lookup(dim), crs))
-setcrs(dim::LookupArray, crs) = rebuild(lookup(dim); crs)
+setcrs(dims::DimTuple, crs) = map(d -> setcrs(d, crs), dims)
+function setcrs(dim::Dimension, crs)
+    rebuild(dim, setcrs(parent(dim), crs; dim=basetypeof(dim)()))
+end
+setcrs(l::AbstractProjected, crs) = rebuild(l; crs)
+function setcrs(l::Sampled, crs; dim)
+    dim isa Union{XDim,YDim} ? Projected(l; crs, dim) : l
+end
+setcrs(A::AbstractArray, crs) = A
 
 """
     setmappedcrs(x, crs)
@@ -198,10 +215,15 @@ setcrs(dim::LookupArray, crs) = rebuild(lookup(dim); crs)
 Set the mapped crs of a `Raster`, a `RasterStack`, a `Tuple`
 of `Dimension`, or a `Dimension`.
 """
-setmappedcrs(A, mappedcrs) = set(A, setmappedcrs(dims(A), mappedcrs)...)
 setmappedcrs(dims::DimTuple, mappedcrs) = map(d -> setmappedcrs(d, mappedcrs), dims)
-setmappedcrs(d::Dimension, mappedcrs) = rebuild(d, setmappedcrs(lookup(d), mappedcrs))
-setmappedcrs(l::LookupArray, mappedcrs) = rebuild(l; mappedcrs)
+function setmappedcrs(dim::Dimension, mappedcrs)
+    rebuild(dim, setmappedcrs(parent(dim), mappedcrs; dim))
+end
+setmappedcrs(l::AbstractProjected, mappedcrs; dim) = rebuild(l; mappedcrs, dim=basetypeof(dim)())
+setmappedcrs(A::AbstractArray, mappedcrs; dim=nothing) = A
+function setmappedcrs(l::Sampled, mappedcrs; dim)
+    dim isa Union{XDim,YDim} ? Mapped(l; mappedcrs, dim) : l
+end
 
 
 """
@@ -214,7 +236,7 @@ Whithout ArchGDAL loaded, this is just the regular bounds.
 function mappedbounds end
 
 mappedbounds(dims::Tuple) = map(mappedbounds, dims)
-mappedbounds(dim::Dimension) = mappedbounds(lookup(dim), dim)
+mappedbounds(dim::Dimension) = mappedbounds(parent(dim), dim)
 mappedbounds(::LookupArray, dim) = bounds(dim)
 mappedbounds(lookup::Projected, dim) = mappedbounds(mappedcrs(lookup), lookup, dim)
 mappedbounds(mappedcrs::Nothing, lookup::Projected, dim) =
@@ -223,7 +245,7 @@ mappedbounds(mappedcrs::GeoFormat, lookup::Projected, dim) =
     _sort(reproject(crs(lookup), mappedcrs, dim, bounds(dim)))
 
 projectedbounds(dims::Tuple) = map(projectedbounds, dims)
-projectedbounds(dim::Dimension) = projectedbounds(lookup(dim), dim)
+projectedbounds(dim::Dimension) = projectedbounds(parent(dim), dim)
 projectedbounds(::LookupArray, dim) = bounds(dim)
 projectedbounds(lookup::Mapped, dim) = projectedbounds(crs(lookup), lookup, dim)
 projectedbounds(crs::Nothing, lookup::Mapped, dim) =
@@ -243,7 +265,7 @@ Whithout ArchGDAL loaded, this is just the regular dim value.
 function mappedindex end
 
 mappedindex(dims::Tuple) = map(mappedindex, dims)
-mappedindex(dim::Dimension) = _mappedindex(lookup(dim), dim)
+mappedindex(dim::Dimension) = _mappedindex(parent(dim), dim)
 
 _mappedindex(::LookupArray, dim::Dimension) = index(dim)
 _mappedindex(lookup::Projected, dim::Dimension) = _mappedindex(mappedcrs(lookup), lookup, dim)
@@ -253,7 +275,7 @@ _mappedindex(mappedcrs::GeoFormat, lookup::Projected, dim) =
     reproject(crs(dim), mappedcrs, dim, index(dim))
 
 projectedindex(dims::Tuple) = map(projectedindex, dims)
-projectedindex(dim::Dimension) = _projectedindex(lookup(dim), dim)
+projectedindex(dim::Dimension) = _projectedindex(parent(dim), dim)
 
 _projectedindex(::LookupArray, dim::Dimension) = index(dim)
 _projectedindex(lookup::Mapped, dim::Dimension) = _projectedindex(crs(lookup), lookup, dim)

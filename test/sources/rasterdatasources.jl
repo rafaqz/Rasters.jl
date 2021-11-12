@@ -1,4 +1,4 @@
-using Rasters, RasterDataSources, Test, Dates, NCDatasets, ArchGDAL
+using Rasters, RasterDataSources, Test, Dates
 
 # Too big to test on CI
 # if !haskey(ENV, "CI")
@@ -83,13 +83,18 @@ if Sys.islinux()
     @testset "load AWAP" begin
         A = Raster(AWAP, :rainfall; date=DateTime(2019, 10, 19))
         @test crs(A) == EPSG(4326)
-        st = RasterStack(AWAP; date=DateTime(2019, 10, 19), resize=crop)
+        # ALWB :solar has a broken index - the size is different and the
+        # points dont exactly match the other layers.
+        # Need to work out how to best resolve this kind of problem so that we can
+        # still use the layers in stacks.
+        layers = (:rainfall, :vprpress09, :vprpress15, :tmin, :tmax)
+        st = RasterStack(AWAP, layers; date=DateTime(2019, 10, 19), resize=crop)
         @test crs(st) == EPSG(4326)
         dates = DateTime(2019, 09, 19), DateTime(2019, 11, 19)
-        s = RasterSeries(AWAP; date=dates, resize=crop)
+        s = RasterSeries(AWAP, layers; date=dates, resize=crop)
         # s = RasterSeries(AWAP; date=dates, resize=resample, crs=EPSG(4326)) TODO: all the same
         # s = RasterSeries(AWAP; date=dates, resize=extend) TODO: this is slow !!!
-        @test crs(s[1][:solar]) == EPSG(4326)
+        @test crs(s[1][:rainfall]) == EPSG(4326)
         @test A isa Raster
         @test st isa RasterStack
         @test s isa RasterSeries

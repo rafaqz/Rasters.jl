@@ -17,7 +17,7 @@ struct SMAPhdf5{T}
 end
 
 missingval(ds::SMAPhdf5) = SMAPMISSING
-layermissingval(ds::SMAPhdf5) = SMAPMISSING
+missingval(ds::SMAPhdf5) = SMAPMISSING
 layerkeys(ds::SMAPhdf5) = keys(ds)
 filekey(ds::SMAPhdf5, key::Nothing) = first(keys(ds))
 

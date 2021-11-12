@@ -195,9 +195,11 @@ function _subsample(A, max_res)
     s1, s2 = size(A, ssdims[1]), size(A, ssdims[2])
     ag = floor(Int, max(s1, s2) / max_res) + 1
     if ag == 1
-        return read(A)
+        return modify(Array, A)
     else
-        return A[DD.basetypeof(ssdims[1])(1:ag:s1), DD.basetypeof(ssdims[2])(1:ag:s2)]
+        d1 = rebuild(ssdims[1], 1:ag:s1)
+        d2 = rebuild(ssdims[2], 1:ag:s2)
+        return modify(Array, view(A, d1, d2))
     end
 end
 
@@ -205,6 +207,7 @@ _maybename(A) = _maybename(name(A))
 _maybename(n::Name{N}) where N = _maybename(N)
 _maybename(n::NoName) = ""
 _maybename(n::Symbol) = string(n)
+_maybename(n::AbstractString) = n
 
 _maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, eltype(A)(NaN))
 _maybe_replace_missing(A) = A

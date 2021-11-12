@@ -78,3 +78,18 @@ DA.haschunks(A::RasterDiskArray) = A.haschunks
 DA.eachchunk(A::RasterDiskArray) = A.eachchunk
 DA.readblock!(A::RasterDiskArray, aout, r::AbstractUnitRange...) = aout .= parent(A)[r...]
 DA.writeblock!(A::RasterDiskArray, v, r::AbstractUnitRange...) = parent(A)[r...] .= v
+
+struct MissingDiskArray{T,N,V} <: DiskArrays.AbstractDiskArray{T,N}
+    var::V
+end
+function MissingDiskArray(::Type{MT}, var::A) where {MT,A <: AbstractArray{T,N}} where {T,N}
+    MissingDiskArray{MT,N,A}(var)
+end
+
+Base.parent(A::MissingDiskArray) = A.var
+Base.size(A::MissingDiskArray) = size(parent(A))
+
+DA.haschunks(A::MissingDiskArray) = DA.haschunks(parent(A))
+DA.eachchunk(A::MissingDiskArray) = DA.eachchunk(parent(A))
+DA.readblock!(A::MissingDiskArray, aout, r::AbstractUnitRange...) = DA.readblock!(parent(A), aout, r...)
+DA.writeblock!(A::MissingDiskArray, v, r::AbstractUnitRange...) = DA.writeblock!(parent(A), v, r...)

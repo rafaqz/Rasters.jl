@@ -53,7 +53,7 @@ end
 function _readstack!(filenames, dst)
     src = RasterStack(filenames;
         dims=dims(dst), refdims=refdims(dst), keys=keys(dst), metadata=metadata(dst),
-        layermetadata=DD.layermetadata(dst), layermissingval=layermissingval(dst),
+        layermetadata=DD.layermetadata(dst), missingval=missingval(dst),
     )
     read!(src, dst)
 end

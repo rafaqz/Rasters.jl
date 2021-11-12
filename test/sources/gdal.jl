@@ -1,7 +1,7 @@
 using Rasters, Test, Statistics, Dates, Plots, DiskArrays, RasterDataSources
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, GDALfile
+using Rasters: FileArray, GDALfile, crs
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
@@ -9,7 +9,7 @@ gdalpath = maybedownload(url)
 
 @testset "array" begin
 
-    @time gdalarray = Raster(gdalpath; mappedcrs=EPSG(4326), name=:test)
+    @time gdalarray = Raster(gdalpath; name=:test)
     
     @testset "load from url" begin
         A = Raster("/vsicurl/" * url)
@@ -76,17 +76,12 @@ gdalpath = maybedownload(url)
         @test name(gdalarray) == :test
         @test label(gdalarray) == "test"
         @test units(gdalarray) == nothing
-        @test mappedcrs(dims(gdalarray, Y)) == EPSG(4326)
-        @test mappedcrs(dims(gdalarray, X)) == EPSG(4326)
-        @test mappedcrs(gdalarray) == EPSG(4326)
-        @test mappedcrs(gdalarray[Y(1)]) == EPSG(4326)
+        @test crs(dims(gdalarray, Y)) isa WellKnownText 
+        @test crs(dims(gdalarray, X)) isa WellKnownText
+        @test crs(gdalarray) isa WellKnownText
+        @test crs(gdalarray[Y(1)]) isa WellKnownText
+        @test mappedcrs(gdalarray) === nothing
         @test_throws ErrorException mappedcrs(gdalarray[Y(1), X(1)])
-        wkt = WellKnownText(GeoFormatTypes.CRS(),
-          "PROJCS[\"unnamed\",GEOGCS[\"NAD27\",DATUM[\"North_American_Datum_1927\",SPHEROID[\"Clarke 1866\",6378206.4,294.978698213898,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6267\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4267\"]],PROJECTION[\"Cylindrical_Equal_Area\"],PARAMETER[\"standard_parallel_1\",33.75],PARAMETER[\"central_meridian\",-117.333333333333],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]")
-        @test crs(dims(gdalarray, Y)) == wkt
-        @test crs(dims(gdalarray, X)) == wkt
-        @test crs(gdalarray) == wkt
-        @test crs(gdalarray[Y(1)]) == wkt
         @test_throws ErrorException crs(gdalarray[Y(1), X(1)])
     end
 
@@ -102,8 +97,8 @@ gdalpath = maybedownload(url)
 
     @testset "selectors" begin
         # TODO verify the value with R/gdal etc
-        @test gdalarray[Y(Contains(33.8)), X(Contains(-117.5)), Band(1)] isa UInt8
-        @test gdalarray[Y(Between(33.7, 33.9)), Band(1)] isa Raster
+        @test gdalarray[X(Contains(-28492)), Y(Contains(4.225e6)), Band(1)] isa UInt8
+        @test gdalarray[Y(Between(4.224e6, 4.226e6)), Band(1)] isa Raster
     end
 
     @testset "methods" begin
@@ -112,7 +107,7 @@ gdalpath = maybedownload(url)
         end
 
         @testset "trim, crop, extend" begin
-            a = replace_missing(gdalarray, zero(eltype(gdalarray)))
+            a = read(replace_missing(gdalarray, zero(eltype(gdalarray))))
             a[X(1:100)] .= missingval(a)
             trimmed = trim(a)
             @test size(trimmed) == (414, 514, 1)
@@ -124,7 +119,7 @@ gdalpath = maybedownload(url)
         end
 
         @testset "mask and mask! to disk" begin
-            msk = replace_missing(gdalarray, missing)
+            msk = read(replace_missing(gdalarray, missing))
             msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
             @test !any(gdalarray[X(1:100)] .=== missingval(msk))
             masked = mask(gdalarray; to=msk)
@@ -153,12 +148,16 @@ gdalpath = maybedownload(url)
                         [-20000, 4.23e6]]
             rastermask = replace_missing(copy(A), missing)
             # mask or `Between` is not exactly accurate yet...
-            section = X(Between(-20000.0, 0.0)), Y(Between(4.23005e6, 4.24495e6)), Band(1)
+            section = X(Between(-20000.0, 0.0)), Y(Between(4.23e6, 4.245e6)), Band(1)
             rastermask .= missing
             rastermask[section...] .= A[section...]
-            pmasked = mask(A; to=polymask) |> read
-            rmasked = mask(A; to=rastermask) |> read
-            @test all(rmasked .=== pmasked)
+            pmasked = mask(A; to=polymask, order=(X, Y));
+            revX_pmasked = reverse(mask(reverse(A; dims=X); to=polymask, order=(X, Y)); dims=X);
+            revY_pmasked = reverse(mask(reverse(A; dims=Y); to=polymask, order=(X, Y)); dims=Y);
+            perm_pmasked1 = permutedims(mask(permutedims(A, (Y, X, Band)); to=polymask, order=(X, Y)), (X, Y, Band));
+            perm_pmasked2 = permutedims(mask(permutedims(A, (Band, Y, X)); to=polymask, order=(X, Y)), (X, Y, Band));
+            rmasked = mask(A; to=rastermask)
+            @test all(rmasked .=== pmasked .=== revX_pmasked .=== revY_pmasked .=== perm_pmasked1 .=== perm_pmasked2)
         end
 
         @testset "classify! to disk" begin
@@ -196,13 +195,13 @@ gdalpath = maybedownload(url)
 
         @testset "rasterize" begin
             A = rebuild(read(gdalarray); missingval=0x00)
-            # We round-trip rasterise the Tables.jl form of A
-            R = rasterize(A; to=A)
-            @test all(A .=== R .== gdalarray)
-            R = rasterize(A; to=A, name=:test)
+            # We round-trip rasterise the Tables.jl form of 
+            R = rasterize(A[Band(1)]; to=A)
+            @test all(A .===  R .=== gdalarray)
+            R = rasterize(A[Band(1)]; to=A, name=:test)
             @test all(A .=== R .== gdalarray)
             B = rebuild(read(gdalarray) .= 0x00; missingval=0x00)
-            rasterize!(B, read(gdalarray))
+            rasterize!(B, read(gdalarray[Band(1)]))
             @test all(B .=== gdalarray |> collect)
         end
 
@@ -226,13 +225,13 @@ gdalpath = maybedownload(url)
     end
 
     @testset "write" begin
-        gdalarray = Raster(gdalpath; mappedcrs=EPSG(4326), name=:test);
+        gdalarray = Raster(gdalpath; name=:test);
 
         @testset "2d" begin
             geoA = view(gdalarray, Band(1))
             filename = tempname() * ".asc"
             @time write(filename, geoA)
-            saved1 = Raster(filename; mappedcrs=EPSG(4326))[Band(1)];
+            saved1 = Raster(filename)[Band(1)];
             eltype(saved1)
             eltype(geoA)
             @test all(saved1 .== geoA)
@@ -246,10 +245,10 @@ gdalpath = maybedownload(url)
         end
 
         @testset "3d, with subsetting" begin
-            geoA2 = gdalarray[Y(Between(33.7, 33.9)), X(Between(-117.6, -117.4))]
+            geoA2 = gdalarray[Y(Between(4.224e6, 4.226e6)), X(Between(-28492, 0))]
             filename2 = tempname() * ".tif"
             write(filename2, geoA2)
-            saved2 = read(Raster(filename2; name=:test, mappedcrs=EPSG(4326)))
+            saved2 = read(Raster(filename2; name=:test))
             @test size(saved2) == size(geoA2) == length.(dims(saved2)) == length.(dims(geoA2))
             @test refdims(saved2) == refdims(geoA2)
             #TODO test a file with more metadata
@@ -268,7 +267,7 @@ gdalpath = maybedownload(url)
             filename3 = tempname() * ".tif"
             geoA3 = cat(gdalarray[Band(1)], gdalarray[Band(1)], gdalarray[Band(1)]; dims=Band(1:3))
             write(filename3, geoA3)
-            saved3 = read(Raster(filename3; mappedcrs=EPSG(4326)))
+            saved3 = read(Raster(filename3))
             @test all(saved3 .== geoA3)
             @test val(dims(saved3, Band)) == 1:3
         end
@@ -308,14 +307,14 @@ gdalpath = maybedownload(url)
         @testset "to netcdf" begin
             filename2 = tempname() * ".nc"
             write(filename2, gdalarray[Band(1)])
-            saved = Raster(filename2; crs=crs(gdalarray))
+            saved = Raster(filename2; crs=crs(gdalarray), mappedcrs=crs(gdalarray))
             @test size(saved) == size(gdalarray[Band(1)])
             @test saved ≈ gdalarray[Band(1)]
             clat, clon = DimensionalData.shiftlocus.(Ref(Center()), dims(gdalarray, (Y, X)))
-            @test mappedindex(clat) ≈ mappedindex(saved, Y)
-            @test mappedindex(clon) ≈ mappedindex(saved, X)
-            @test all(mappedbounds(saved, X) .≈ mappedbounds(clon))
-            @test all(mappedbounds(saved, Y) .≈ mappedbounds(clat))
+            @test index(clat) ≈ index(saved, Y)
+            @test index(clon) ≈ index(saved, X)
+            @test all(bounds(saved, X) .≈ bounds(clon))
+            @test all(bounds(saved, Y) .≈ bounds(clat))
             @test projectedindex(clon) ≈ projectedindex(saved, X)
             @test all(projectedbounds(clon) .≈ projectedbounds(saved, X))
             # reason lat crs conversion is less accrurate than lon TODO investigate further
@@ -327,7 +326,7 @@ gdalpath = maybedownload(url)
         end
 
         @testset "write missing" begin
-            A = replace_missing(gdalarray, missing)
+            A = read(replace_missing(gdalarray, missing))
             filename = tempname() * ".tif"
             write(filename, A)
             @test missingval(Raster(filename)) === typemin(UInt8)
@@ -393,19 +392,19 @@ end
         end
         @testset "trim, crop, extend" begin
             mv = zero(eltype(gdalstack[:a]))
-            st = replace_missing(gdalstack, mv)
+            st = read(replace_missing(gdalstack, mv))
             st = map(A -> (view(A, X(1:100)) .= mv; A), st)
             trimmed = trim(st)
             @test size(trimmed) == (414, 514, 1)
             cropped = crop(st; to=trimmed)
             @test size(cropped) == (414, 514, 1)
             @test map((c, t) -> all(collect(c .=== t)), cropped, trimmed) |> all
-            extended = extend(cropped; to=st)
-            @test all(collect(extended .== st))
+            extended = extend(read(cropped); to=st)
+            @test all(map((s, e) -> all(s .=== e), st, extended))
         end
         @testset "mask and mask!" begin
             st = read(gdalstack)
-            msk = replace_missing(gdalstack[:a], missing)
+            msk = read(replace_missing(gdalstack[:a], missing))
             msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
             @test !any(st[:b][X(1:100)] .=== missingval(msk))
             masked = mask(st; to=msk)
@@ -418,14 +417,22 @@ end
 
         @testset "rasterize" begin
             st = map(A -> rebuild(A; missingval=0x00), gdalstack) |> read
-            # We round-trip rasterise the Tables.jl form of A
+            # We round-trip rasterise the Tables.jl form of st
             r_st = rasterize(read(gdalstack); to=st)
-            @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, gdalstack))
+            @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, read(gdalstack)))
             r_st = rasterize(read(gdalstack); to=st, name=(:a, :b))
-            @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, gdalstack))
+            @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, read(gdalstack)))
             st = map(A -> rebuild(A .* 0x00; missingval=0x00), gdalstack) |> read
             rasterize!(st, read(gdalstack))
             @test all(map((a, b) -> all(a .=== b), st, gdalstack))
+
+            # Getting the band column works if we force it
+            # name of Symbol gives a Raster, Tuple gives a RasterStack
+            b_r = rasterize(read(gdalstack); to=st, name=:Band)
+            @test b_r isa Raster
+            b_st = rasterize(read(gdalstack); to=st, name=(:Band, ))
+            @test b_st isa RasterStack
+            @test b_r == b_st[:Band]
         end
     end
 
@@ -514,5 +521,15 @@ end
         @test occursin("RasterSeries", sh)
         @test occursin("RasterStack", sh)
         @test occursin("Ti", sh)
+    end
+
+
+    @testset "crs" begin
+        @time gdalarray = Raster(gdalpath; mappedcrs=EPSG(4326), name=:test)
+        wkt = WellKnownText(GeoFormatTypes.CRS(), "PROJCS[\"unnamed\",GEOGCS[\"NAD27\",DATUM[\"North_American_Datum_1927\",SPHEROID[\"Clarke 1866\",6378206.4,294.978698213898,AUTHORITY[\"EPSG\",\"7008\"]],AUTHORITY[\"EPSG\",\"6267\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4267\"]],PROJECTION[\"Cylindrical_Equal_Area\"],PARAMETER[\"standard_parallel_1\",33.75],PARAMETER[\"central_meridian\",-117.333333333333],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]")
+        @test crs(dims(gdalarray, Y)) == wkt
+        @test crs(dims(gdalarray, X)) == wkt
+        @test crs(gdalarray) == wkt
+        @test crs(gdalarray[Y(1)]) == wkt
     end
 end

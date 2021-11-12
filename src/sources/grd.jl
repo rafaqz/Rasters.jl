@@ -237,7 +237,7 @@ function create(filename, ::Type{GRDfile}, T::Type, dims::DD.DimTuple;
     open(basename * ".gri", write=true) do IO
         write(IO, FillArrays.Zeros(sze))
     end
-    return filename
+    return Raster(filename; source=GRDfile)
 end
 
 # AbstractRasterStack methods
