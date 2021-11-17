@@ -677,8 +677,8 @@ end
 function inpolygon(points::AbstractVector, poly::GI.AbstractGeometry)
     inpolygon(points, GI.coordinates(poly))
 end
-inpolygon(point::AbstractVector{<:Real}, poly::AbstractVector) = inpoly([point], poly)
-inpolygon(point::Tuple, poly::AbstractVector) = inpoly([point], poly)
+inpolygon(point::AbstractVector{<:Real}, poly::AbstractVector) = inpolygon([point], poly)
+inpolygon(point::Tuple, poly::AbstractVector) = inpolygon([point], poly)
 function inpolygon(points::AbstractVector, poly::AbstractVector)
     edges = Matrix{Int}(undef, 0, 2)
     edgenum = 0
