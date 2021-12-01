@@ -40,10 +40,10 @@ be used with identical syntax.
   - `RasterStack` can be backed by a Netcdf or HDF5 file, or a `NamedTuple` of
     `Raster` holding `.tif` files, or all `Raster` in memory.
   - Users do not have to deal with the specifics of spatial file types.
-- `Projected` lookups can by indexed with any projection by setting the
-  `mappedcrs` keyword on construction. You don't need to know the underlying
+- `Projected` lookups with Cylindrical projections can by indexed using other Cylindrical projections
+  by setting the `mappedcrs` keyword on construction. You don't need to know the underlying
   projection, the conversion is handled automatically. This means lat/lon
-  `EPSG(4326)` can be used across all sources seamlessly if you need that.
+  `EPSG(4326)` can be used seamlessly if you need that.
 - Regions and points selected with `Between` and `Contains` select the right
   point or whole interval no matter the order of the index or it's position in
   the cell.
