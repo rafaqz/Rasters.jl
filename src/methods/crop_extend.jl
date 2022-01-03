@@ -12,10 +12,10 @@ Otherwise crop to the size of the keyword argument `to`. This can be a
 
 # Keywords
 
-- `to`: the array to crop to. If `to` keyword is passed, the smallest shared
-    area of all `x` is used.
+- `to`: the object to crop to. If `to` keyword is passed, the smallest shared
+    area of all `xs` is used.
 
-As `crop` is lazy, `filename` and `suffix` keywords dont apply.
+As `crop` is lazy, `filename` and `suffix` keywords don't apply.
 
 # Example
 
@@ -106,16 +106,14 @@ end
     extend(xs; [to])
     extend(x::Union{AbstractRaster,AbstractRasterStack}; to, kw...)
 
-Extend multiple [`AbstractRaster`](@ref) to match the area covered by all,
-or the keyword argument `to`. A single `AbstractRaster` can be extended by
-passing a reference ojbect or new `dims` tuple as the `to` argument.
+Extend one or multiple [`AbstractRaster`](@ref) to match the area
+covered by all `xs`, or by the keyword argument `to`.
 
 # Keywords
 
 - `to`: the Raster or dims to extend to. If no `to` keyword is passed, the largest
     shared area of all `xs` is used.
 - `atol`: the absolute tolerance value to use when comparing the index of x and `to`.
-    If `atol` isnt set, `Near` will be used.
 - `filename`: a filename to write to directly, useful for large files.
 - `suffix`: a string or value to append to the filename.
     A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.

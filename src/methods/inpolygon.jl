@@ -1,7 +1,7 @@
 """
     inpolygon(points, poly)
 
-Check if a point or `Vector` of points is inside a polygon.
+Check if a point or iterable of points is inside a polygon.
 
 This algorithm is very efficient for many points, less so a single point.
 
@@ -11,7 +11,7 @@ This algorithm is very efficient for many points, less so a single point.
 - `poly`: an `AbstractVector` or nested `AbstractVector` with an inner
     `AbstractVector` or `Tuple` of `Real`. It can also be a `GeoInterface.AbstractGeometry`.
 
-Returns a `Bool` or `BitVector{Bool}
+Returns a `Bool` or `AbstractVector{Bool}`.
 """
 function inpolygon end
 function inpolygon(points, geom::GI.AbstractGeometry; kw...)

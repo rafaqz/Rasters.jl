@@ -3,7 +3,7 @@
     mask(x; to, order=(XDim, YDim))
 
 Return a new array with values of `A` masked by the missing values of `to`,
-or by when more than 50% outside `to`, if it is a polygon.
+or by the shape of `to`, if `to` is a geometric object.
 
 # Arguments
 
@@ -25,13 +25,12 @@ or by when more than 50% outside `to`, if it is a polygon.
 These can be used when a `GeoInterface.AbstractGeometry` is passed in.
 
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`.
+    With GeoInterface.jl geometries this will be detected from the data.
 
 And specifically for `shape=:polygon`:
 
 - `boundary`: include pixels where the `:center` is inside the polygon, where 
     the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
-
-In future this method will accept more point types.
 
 # Example
 
@@ -99,9 +98,9 @@ function _mask(xs::AbstractRasterSeries, to::AbstractRaster; kw...)
 end
 
 """
-    mask!(A; to, missingval=missingval(A), order=(XDim, YDim))
+    mask!(x; to, missingval=missingval(A), order=(XDim, YDim))
 
-Mask `A` by the missing values of `to`, or by values outside `to` if i is a polygon.
+Mask `A` by the missing values of `to`, or by all values outside `to` if it is a polygon.
 
 If `to` is a polygon, creates a new array where points falling outside the polygon
 have been replaced by `missingval(A)`.

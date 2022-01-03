@@ -3,8 +3,9 @@
 	resample(x; to, method)
     resample(xs...; to=first(xs), method)
 
-`resample` uses `ArchGDAL.gdalwarp` to resample an [`Raster`](@ref) or
-[`AbstractRasterStack`](@ref).
+`resample` uses `ArchGDAL.gdalwarp` to resample a [`Raster`](@ref) or
+[`RasterStack`](@ref) to a new `resolution` and optionally new `crs`,
+or to snap to the bounds, resolution and crs of the object `to`.
 
 # Arguments
 
@@ -16,8 +17,8 @@
 
 - `to`: an `AbstractRaster` whos resolution, crs and bounds will be snapped to.
     For best results it should roughly cover the same extent, or a subset of `A`.
-- `crs`: A `GeoFormatTypes.GeoFormat` specifying an output crs
-    (`A` will be reprojected to `crs` in addition to being resampled). Defaults to `crs(A)`
+- `crs`: A `GeoFormatTypes.GeoFormat` such as `EPSG(x)` or `WellKnownText(string)` specifying an
+    output crs (`A` will be reprojected to `crs` in addition to being resampled). Defaults to `crs(A)`
 - `method`: A `Symbol` or `String` specifying the method to use for resampling.
     From the docs for [`gdalwarp`](https://gdal.org/programs/gdalwarp.html#cmdoption-gdalwarp-r):
     * `:near`: nearest neighbour resampling (default, fastest algorithm, worst interpolation quality).

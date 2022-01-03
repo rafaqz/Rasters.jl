@@ -1,11 +1,12 @@
 """
     trim(x; dims::Tuple, pad::Int)
 
-Trim `missingval` from `A` for axes in dims, returning a view of `A`.
+Trim `missingval(x)` from `x` for axes in `dims`, returning a view of `x`.
 
 # Arguments
 
-- `x`: A `Raster` or `RasterStack`
+- `x`: A `Raster` or `RasterStack`. For stacks, all layers must having
+    missing values for a pixel for it to be trimmed.
 
 # Keywords
 
@@ -49,17 +50,17 @@ savefig(b, "build/trim_example_after.png")
 
 $EXPERIMENTAL
 """
-function trim(A::RasterStackOrArray; dims::Tuple=(XDim, YDim), pad::Int=0)
+function trim(x::RasterStackOrArray; dims::Tuple=(XDim, YDim), pad::Int=0)
     # Get the actual dimensions in their order in the array
-    dims = commondims(A, dims)
+    dims = commondims(x, dims)
     # Get the range of non-missing values for each dimension
-    ranges = _trimranges(A, dims)
+    ranges = _trimranges(x, dims)
     # Add paddding
-    padded = map(ranges, map(d -> size(A, d), dims)) do r, l
+    padded = map(ranges, map(d -> size(x, d), dims)) do r, l
         max(first(r)-pad, 1):min(last(r)+pad, l)
     end
     dims = map(rebuild, dims, padded)
-    return view(A, dims...)
+    return view(x, dims...)
 end
 
 # Tracks the status of an index for some subset of dimensions of an Array
