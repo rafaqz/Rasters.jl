@@ -122,13 +122,13 @@ gdalpath = maybedownload(url)
             msk = read(replace_missing(gdalarray, missing))
             msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
             @test !any(gdalarray[X(1:100)] .=== missingval(msk))
-            masked = mask(gdalarray; to=msk)
+            masked = mask(gdalarray; with=msk)
             @test all(masked[X(1:100), Y([1, 5, 95])] .=== missingval(msk))
             tempfile = tempname() * ".tif"
             cp(gdalpath, tempfile)
             @test !all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
             open(Raster(tempfile); write=true) do A
-                mask!(A; to=msk, missingval=0x00)
+                mask!(A; with=msk, missingval=0x00)
             end
             @test all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
             rm(tempfile)
@@ -151,12 +151,12 @@ gdalpath = maybedownload(url)
             section = X(Between(-20000.0, 0.0)), Y(Between(4.23e6, 4.245e6)), Band(1)
             rastermask .= missing
             rastermask[section...] .= A[section...]
-            pmasked = mask(A; to=polymask, order=(X, Y));
-            revX_pmasked = reverse(mask(reverse(A; dims=X); to=polymask, order=(X, Y)); dims=X);
-            revY_pmasked = reverse(mask(reverse(A; dims=Y); to=polymask, order=(X, Y)); dims=Y);
-            perm_pmasked1 = permutedims(mask(permutedims(A, (Y, X, Band)); to=polymask, order=(X, Y)), (X, Y, Band));
-            perm_pmasked2 = permutedims(mask(permutedims(A, (Band, Y, X)); to=polymask, order=(X, Y)), (X, Y, Band));
-            rmasked = mask(A; to=rastermask)
+            pmasked = mask(A; with=polymask, order=(X, Y));
+            revX_pmasked = reverse(mask(reverse(A; dims=X); with=polymask, order=(X, Y)); dims=X);
+            revY_pmasked = reverse(mask(reverse(A; dims=Y); with=polymask, order=(X, Y)); dims=Y);
+            perm_pmasked1 = permutedims(mask(permutedims(A, (Y, X, Band)); with=polymask, order=(X, Y)), (X, Y, Band));
+            perm_pmasked2 = permutedims(mask(permutedims(A, (Band, Y, X)); with=polymask, order=(X, Y)), (X, Y, Band));
+            rmasked = mask(A; with=rastermask)
             @test all(rmasked .=== pmasked .=== revX_pmasked .=== revY_pmasked .=== perm_pmasked1 .=== perm_pmasked2)
         end
 
@@ -407,10 +407,10 @@ end
             msk = read(replace_missing(gdalstack[:a], missing))
             msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
             @test !any(st[:b][X(1:100)] .=== missingval(msk))
-            masked = mask(st; to=msk)
+            masked = mask(st; with=msk)
             masked[:b][X(1:100), Y([1, 5, 95])]
             @test all(masked[:b][X(1:100), Y([1, 5, 95])] .=== missing)
-            mask!(st; to=msk, missingval=0x00)
+            mask!(st; with=msk, missingval=0x00)
             @test all(st[:a][X(1:100), Y([1, 5, 95])] .=== 0x00)
             @test all(st[:b][X(1:100), Y([1, 5, 95])] .=== 0x00)
         end

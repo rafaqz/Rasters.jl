@@ -117,13 +117,13 @@ stackkeys = (
             msk = read(ncarray)
             msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
             @test !all(ncarray[X(1:100)] .=== missingval(msk))
-            masked = mask(ncarray; to=msk)
+            masked = mask(ncarray; with=msk)
             @test all(masked[X(1:100), Y([1, 5, 95])] .=== missingval(msk))
             tempfile = tempname() * ".nc"
             cp(ncsingle, tempfile)
             @test !all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
             open(Raster(tempfile); write=true) do A
-                mask!(A; to=msk, missingval=missing)
+                mask!(A; with=msk, missingval=missing)
                 # TODO: replace the CFVariable with a FileArray{NCDfile} so this is not required
                 nothing
             end

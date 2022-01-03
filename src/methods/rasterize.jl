@@ -149,6 +149,7 @@ end
 function _alloc_rasterize(f, filename, T, to; missingval, suffix=nothing, kw...)
     T = promote_type(typeof(missingval), T)
     A = create(filename, T, to; suffix, missingval, kw...)
+    open(f, A; write=true)
     return A
 end
 

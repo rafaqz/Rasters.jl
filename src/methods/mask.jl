@@ -1,9 +1,9 @@
 """
-    mask(A:AbstractRaster; to, missingval=missingval(A))
-    mask(x; to, order=(XDim, YDim))
+    mask(A:AbstractRaster; with, missingval=missingval(A))
+    mask(x; with, order=(XDim, YDim))
 
-Return a new array with values of `A` masked by the missing values of `to`,
-or by the shape of `to`, if `to` is a geometric object.
+Return a new array with values of `A` masked by the missing values of `with`,
+or by the shape of `with`, if `with` is a geometric object.
 
 # Arguments
 
@@ -11,7 +11,7 @@ or by the shape of `to`, if `to` is a geometric object.
 
 # Keywords
 
-- `to`: another `AbstractRaster`, a `AbstractVector` of `Tuple` points,
+- `with`: another `AbstractRaster`, a `AbstractVector` of `Tuple` points,
     or any GeoInterface.jl `AbstractGeometry`. The coordinate reference system
     of the point must match `crs(A)`.
 - `order`: the order of `Dimension`s in the points. Defaults to `(XDim, YDim)`.
@@ -49,7 +49,7 @@ wc = Raster(WorldClim{Climate}, :prec; month=1)
 wc_mask = resample(wc; to=awap)
 
 # Mask
-awap_masked = mask(awap; to=wc_mask)
+awap_masked = mask(awap; with=wc_mask)
 b = plot(awap_masked; clims=(10, 45))
 
 savefig(a, "build/mask_example_before.png")
@@ -68,44 +68,44 @@ savefig(b, "build/mask_example_after.png")
 
 $EXPERIMENTAL
 """
-mask(x; to, kw...) = _mask(x, to; kw...)
+mask(x; with, kw...) = _mask(x, with; kw...)
 
 # Geometry mask
-function _mask(s::AbstractRasterSeries, geom; kw...)
-    B = boolmask(geom; template=first(s), kw...)
+function _mask(s::AbstractRasterSeries, with; kw...)
+    B = boolmask(with; to=first(s), kw...)
     return _mask(s, B)
 end
-function _mask(x::RasterStackOrArray, geom; kw...)
-    B = boolmask(geom; template=x, kw...)
+function _mask(x::RasterStackOrArray, with; kw...)
+    B = boolmask(with; to=x, kw...)
     return _mask(x, B)
 end
 # Array mask
-function _mask(A::AbstractRaster, to::AbstractRaster; 
+function _mask(A::AbstractRaster, with::AbstractRaster; 
     filename=nothing, suffix=nothing, missingval=_missingval_or_missing(A), kw...
 )
     A1 = create(filename, A; suffix, missingval)
     open(A1; write=true) do a
         # The values array will be be written to A1 in `mask!`
-        mask!(a; to, missingval, values=A)
+        mask!(a; with, missingval, values=A)
     end
     return A1
 end
-function _mask(xs::AbstractRasterStack, to::AbstractRaster; suffix=keys(xs), kw...) 
-    mapargs((x, s) -> mask(x; to, suffix=s, kw...), xs, suffix)
+function _mask(xs::AbstractRasterStack, with::AbstractRaster; suffix=keys(xs), kw...) 
+    mapargs((x, s) -> mask(x; with, suffix=s, kw...), xs, suffix)
 end
-function _mask(xs::AbstractRasterSeries, to::AbstractRaster; kw...) 
-    map(x -> mask(x; to, kw...), xs)
+function _mask(xs::AbstractRasterSeries, with::AbstractRaster; kw...) 
+    map(x -> mask(x; with, kw...), xs)
 end
 
 """
-    mask!(x; to, missingval=missingval(A), order=(XDim, YDim))
+    mask!(x; with, missingval=missingval(A), order=(XDim, YDim))
 
-Mask `A` by the missing values of `to`, or by all values outside `to` if it is a polygon.
+Mask `A` by the missing values of `with`, or by all values outside `with` if it is a polygon.
 
-If `to` is a polygon, creates a new array where points falling outside the polygon
+If `with` is a polygon, creates a new array where points falling outside the polygon
 have been replaced by `missingval(A)`.
 
-Return a new array with values of `A` masked by the missing values of `to`,
+Return a new array with values of `A` masked by the missing values of `with`,
 or by a polygon.
 
 # Arguments
@@ -114,7 +114,7 @@ or by a polygon.
 
 # Keywords
 
-- `to`: another `AbstractRaster`, a `AbstractVector` of `Tuple` points,
+- `with`: another `AbstractRaster`, a `AbstractVector` of `Tuple` points,
     or any GeoInterface.jl `AbstractGeometry`. The coordinate reference system
     of the point must match `crs(A)`.
 - `order`: the order of `Dimension`s in the points. Defaults to `(XDim, YDim)`.
@@ -135,7 +135,7 @@ a = plot(awap; clims=(10, 45))
 
 # Create a mask my resampling a worldclim file wc = Raster(WorldClim{Climate}, :prec; month=1)
 wc_mask = resample(wc; to=awap)
-# Mask mask!(awap; to=wc_mask) b = plot(awap; clims=(10, 45))
+# Mask mask!(awap; with=wc_mask) b = plot(awap; clims=(10, 45))
 
 savefig(a, "build/mask_bang_example_before.png")
 savefig(b, "build/mask_bang_example_after.png")
@@ -157,27 +157,27 @@ function mask!(xs::AbstractRasterSeries; kw...)
     foreach(x -> mask!(x; kw...), xs)
     return xs
 end
-mask!(xs::RasterStackOrArray; to, kw...) = _mask!(xs, to; kw...)
+mask!(xs::RasterStackOrArray; with, kw...) = _mask!(xs, with; kw...)
 
 # Geometry mask
 function _mask!(x::RasterStackOrArray, geom; kw...)
-    B = boolmask(geom; template=dims(x), kw...)
+    B = boolmask(geom; to=dims(x), kw...)
     _mask!(x, B; missingval=fals)
     return x
 end
 # Array mask
-function _mask!(st::RasterStack, to::AbstractRaster; kw...)
-    map(A -> mask!(A; to, kw...), st)
+function _mask!(st::RasterStack, with::AbstractRaster; kw...)
+    map(A -> mask!(A; with, kw...), st)
     return st
 end
-function _mask!(A::AbstractRaster, to::AbstractRaster;
+function _mask!(A::AbstractRaster, with::AbstractRaster;
     missingval=missingval(A), values=A
 )
     missingval isa Nothing && _nomissingerror()
     missingval = convert(eltype(A), missingval)
 
-    broadcast_dims!(A, values, to) do s, t
-        isequal(t, Rasters.missingval(to)) ? missingval : convert(eltype(A), s)
+    broadcast_dims!(A, values, with) do s, t
+        isequal(t, Rasters.missingval(with)) ? missingval : convert(eltype(A), s)
     end
     return A
 end
@@ -186,7 +186,7 @@ _nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `miss
 
 """
     boolmask(A::AbstractArray; [missingval])
-    boolmask(geom; template, order, shape, crossing)
+    boolmask(geom; to, order, shape, crossing)
 
 Create a mask array of `Bool` values, from any `AbstractArray`.
 
@@ -207,7 +207,7 @@ For arrays:
 
 For gemoetries:
 
-- `template`: an `AbstractRaster` or `AbstractRasterStack`.
+- `to`: an `AbstractRaster` or `AbstractRasterStack`.
 - `order`: the order of `Dimension`s in the points. Defaults to `(XDim, YDim)`.
 
 # Example
@@ -227,8 +227,8 @@ $EXPERIMENTAL
 """
 function boolmask end
 boolmask(x::RasterStackOrArray; kw...) = boolmask!(_bools(x, dims(x)), x; kw...)
-function boolmask(x; template, order=(XDim, YDim), kw...)
-    boolmask!(_bools(template, commondims(template, order)), x; order, kw...)
+function boolmask(x; to, order=(XDim, YDim), kw...)
+    boolmask!(_bools(to, commondims(to, order)), x; order, kw...)
 end
 
 _bools(x) = _bools(x, dims(x))
