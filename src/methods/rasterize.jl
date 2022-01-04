@@ -72,9 +72,7 @@ dms = Y(Projected(15.0:0.1:55.0; order=ForwardOrdered(), span=Regular(0.1), samp
       X(Projected(70.0:0.1:140; order=ForwardOrdered(), span=Regular(0.1), sampling=Intervals(Start()), crs=EPSG(4326)))
 
 # Rasterize the border polygon 
-using BenchmarkTools
-using ProfileView
-@time china = rasterize(china_border; 
+china = rasterize(china_border; 
     to=dms, missingval=-9999, fill=1, 
     order=(X, Y),# shape=:line, 
     boundary=:touches,
