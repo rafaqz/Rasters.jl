@@ -32,8 +32,8 @@ missingval(s::AbstractRasterStack, key::Symbol) = _singlemissingval(missingval(s
 
 isdisk(A::AbstractRasterStack) = isdisk(first(A))
 
-setcrs(x::AbstractRaster, crs) = set(x, setcrs(dims(x), crs)...)
-setmappedcrs(x::AbstractRaster, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
+setcrs(x::AbstractRasterStack, crs) = set(x, setcrs(dims(x), crs)...)
+setmappedcrs(x::AbstractRasterStack, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
 
 """
     subset(s::AbstractRasterStack, keys)

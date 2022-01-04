@@ -133,9 +133,13 @@ using Rasters, Plots, Dates
 awap = read(RasterStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
 a = plot(awap; clims=(10, 45))
 
-# Create a mask my resampling a worldclim file wc = Raster(WorldClim{Climate}, :prec; month=1)
+# Create a mask my resampling a worldclim file 
+wc = Raster(WorldClim{Climate}, :prec; month=1)
 wc_mask = resample(wc; to=awap)
-# Mask mask!(awap; with=wc_mask) b = plot(awap; clims=(10, 45))
+
+# Mask 
+mask!(awap; with=wc_mask) 
+b = plot(awap; clims=(10, 45))
 
 savefig(a, "build/mask_bang_example_before.png")
 savefig(b, "build/mask_bang_example_after.png")

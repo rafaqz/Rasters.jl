@@ -32,8 +32,8 @@ function _fill_geometry!(B::AbstractRaster{Bool}, geom::GI.AbstractGeometry;
     return B
 end
 function _fill_geometry!(B::AbstractRaster{Bool}, geom; shape=:polygon, order, kw...)
-    geom = _flat_nodes(geom) 
-    gbounds = _geom_bounds(geom, order) 
+    geom = _flat_nodes(geom)
+    gbounds = _geom_bounds(geom, order)
     abounds = bounds(dims(B, order)) # Only mask if the gemoetry bounding box overlaps the array bounding box
     bounds_overlap(gbounds, abounds) || return B
     if shape === :polygon
@@ -106,7 +106,7 @@ function _inner_fill_polygon!(B::AbstractRaster{Bool}, poly, inpoly; order, fill
     inpolydims = dims(B, order)
     reshaped = Raster(reshape(inpoly, size(inpolydims)), inpolydims)
     for D in DimIndices(B)
-        @inbounds if reshaped[D...] 
+        @inbounds if reshaped[D...]
             @inbounds B[D...] = fill
         end
     end
@@ -250,7 +250,7 @@ end
 # _flat_nodes
 # Convert a geometry/nested vectors to a flat iterator of point nodes for PolygonInbounds
 _flat_nodes(A::GI.AbstractGeometry) = _flat_nodes(GI.coordinates(A))
-_flat_nodes(A::AbstractVector{<:GI.AbstractGeometry}) = _flat_nodes(map(_flat_nodes, A))
+_flat_nodes(A::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry}}) = Iterators.flatten(map(_flat_nodes, A))
 function _flat_nodes(A::AbstractVector{<:AbstractVector{<:AbstractVector}})
     Iterators.flatten(map(_flat_nodes, A))
 end
@@ -284,12 +284,40 @@ end
 function _to_edges!(
     edges, edgenum, poly::AbstractVector{<:Union{<:NTuple{<:Any,T},<:AbstractVector{T}}}
 ) where T<:Real
-    for i in eachindex(poly)[1:end-1]
-        push!(edges, (i + edgenum, i + edgenum + 1))
+    # Any polygon may actually be made up of multiple sub-polygons,
+    # indicated by returning to the first point in the sub-polygon.
+    # So we keep track of the first point, and insert closing edges
+    # wherever we find it repeated.
+    fresh_start = true
+    startpoint = first(poly)
+    start_edgenum = edgenum
+    added_edges = 0
+    for (e, point) in enumerate(poly)
+        if fresh_start
+            # The first edge in the sub-polygon
+            start_edgenum = edgenum + e
+            startedge = (start_edgenum, start_edgenum + 1)
+            push!(edges, startedge)
+            startpoint = point
+            fresh_start = false
+        elseif point == startpoint
+            # The closing edge of a sub-polygon 
+            closingedge = (edgenum + e, start_edgenum)
+            push!(edges, closingedge)
+            fresh_start = true
+        else
+            # A regular edge somewhere in a sub-polygon
+            edge = (edgenum + e, edgenum + e + 1)
+            push!(edges, edge)
+        end
+        # Track the total number of edges we have added
+        added_edges += 1
     end
-    edges[end] = length(poly) - 1 + edgenum, edgenum + 1
-
-    return edgenum + length(poly)
+    if last(edges)[2] != start_edgenum
+        push!(edges, (last(edges)[2], first_edgenum))
+        edgecount += 1
+    end
+    return edgenum + added_edges
 end
 
 _flatlength(x::Base.Iterators.Flatten) = x.it
@@ -362,7 +390,7 @@ end
 unwrap_point(q) = q
 
 # Copied from PolygonInbounds, to add extra keyword arguments
-function inpoly2(vert, node, edge=zeros(Int); 
+function inpoly2(vert, node, edge=zeros(Int);
     atol::T=0.0, rtol::T=NaN, iyperm=nothing, vmin=nothing, vmax=nothing
 ) where T<:AbstractFloat
     rtol = !isnan(rtol) ? rtol : iszero(atol) ? eps(T)^0.85 : zero(T)
@@ -377,15 +405,17 @@ function inpoly2(vert, node, edge=zeros(Int);
 
     lbar = sum(pmax - pmin)
     tol = max(abs(rtol * lbar), abs(atol))
-    
+
     ac = PolygonInbounds.areacount(poly)
     stat = ac > 1 ? falses(npoints, 2, ac) : falses(npoints, 2)
-    # flip coordinates so expected efford is minimal
+    # flip coordinates so expected effort is minimal
 
     dvert = vmax .- vmin
-    ix = dvert[1] < dvert[2] ? 1 : 2
     if isnothing(iyperm)
+        ix = dvert[1] < dvert[2] ? 1 : 2
         iyperm = sortperm(points, 3 - ix)
+    else
+        ix = 1
     end
 
     PolygonInbounds.inpoly2!(points, iyperm, poly, ix, tol, stat)

@@ -107,7 +107,6 @@ include("plotrecipes.jl")
 
 
 include("methods/aggregate.jl")
-include("methods/aggregate.jl")
 include("methods/classify.jl")
 include("methods/crop_extend.jl")
 include("methods/extract.jl")

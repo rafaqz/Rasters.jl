@@ -22,7 +22,7 @@ missing
 ```
 
 """
-replace_missing(x; missingval=missing, kw...) = replace_missing(x, missingval, kw...)
+replace_missing(x; missingval=missing, kw...) = replace_missing(x, missingval; kw...)
 function replace_missing(A::AbstractRaster{T}, missingval::MV;
     filename=nothing, suffix=nothing
 ) where {T,MV}

@@ -74,9 +74,8 @@ dms = Y(Projected(15.0:0.1:55.0; order=ForwardOrdered(), span=Regular(0.1), samp
 # Rasterize the border polygon 
 china = rasterize(china_border; 
     to=dms, missingval=-9999, fill=1, 
-    order=(X, Y),# shape=:line, 
+    order=(X, Y), shape=:polygon, 
     boundary=:touches,
-    # filename="rasterize.tif"
 )
 
 # And plot
@@ -204,7 +203,7 @@ using Rasters.LookupArrays
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
-shapefile_name = "boundary_lines.shp"
+shapefile_name = "indonesia_border.shp"
 isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 
 # Load the shapes for denmark
@@ -217,12 +216,8 @@ dimz = Y(-15.0:0.1:10.9; mode=Projected(; sampling=Intervals(Start()), crs=EPSG(
 A = Raster(zeros(UInt16, dimz); missingval=0)
 
 # Rasterize each island with a different number
-using ProfileView
-@profview for (i, shp) in enumerate(coordinates(indonesia_border))
-    rasterize!(A, shp; fill=i, order=(X, Y), shape=:polygon, boundary=:center)
-end
-@time for (i, shp) in enumerate(coordinates(indonesia_border))
-    rasterize!(A, shp; fill=i, order=(X, Y), shape=:polygon, boundary=:all)
+for (i, shp) in enumerate(coordinates(indonesia_border))
+    rasterize!(A, shp; fill=i, order=(X, Y), shape=:polygon, boundary=:touches)
 end
 
 # And plot

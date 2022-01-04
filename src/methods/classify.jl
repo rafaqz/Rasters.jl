@@ -27,7 +27,7 @@ If `others` is set other values not covered in `pairs` will be set to that value
 ```jldoctest
 using Rasters, Plots
 A = Raster(WorldClim{Climate}, :tavg; month=1)
-classes = (5, 15) => 10,
+classes = <(15) => 10,
           (15, 25) => 20,
           (25, 35) => 30,
           >=(35) => 40
@@ -45,10 +45,15 @@ $EXPERIMENTAL
 function classify end
 classify(A::AbstractRaster, pairs::Pair...; kw...) = classify(A, pairs; kw...)
 function classify(A::AbstractRaster, pairs;
-    filename=nothing, suffix=nothing, lower=(>=), upper=(<), others=nothing
+    filename=nothing, suffix=nothing, lower=(>=), upper=(<),
+    others=nothing, missingval=missingval(A)
 )
-    f(x) = _classify(x, pairs, lower, upper, others, missingval(A))
-    T = Base.Broadcast.combine_eltypes(f, (A,))
+    # Make sure we get a concrete type. Broadcast doesn't always work.
+    T = promote_type(eltype(A), _pairs_type(pairs), typeof(missingval))
+    T = _maybe_promote_others(T, others)
+    # We use `Val{T}` to force type stability through the closure
+    valT = Val{T}()
+    f(x) = _convert_val(valT, _classify(x, pairs, lower, upper, others, Rasters.missingval(A), missingval))
     A1 = create(filename, T, A; suffix)
     open(A1; write=true) do O
         broadcast!(f, O, A)
@@ -62,6 +67,14 @@ end
 function classify(xs::AbstractRasterSeries, pairs; kw...)
     map(x -> classify(x, pairs; suffix=s, kw...), xs)
 end
+
+_pairs_type(pairs) = promote_type(map(eltype ∘ last, pairs)...)
+_pairs_type(pairs::AbstractArray{T}) where T = T
+
+_maybe_promote_others(::Type{T}, others) where T = promote_type(T, typeof(others))
+_maybe_promote_others(::Type{T}, others::Nothing) where T = T
+
+_convert_val(::Val{T}, x) where T = convert(T, x)
 
 """
     classify!(x, pairs...; lower, upper, others)
@@ -101,13 +114,13 @@ filename = getraster(WorldClim{Climate}, :tavg; month=6)
 tempfile = tempname() * ".tif"
 cp(filename, tempfile)
 # Define classes
-classes = (5, 15) => 10.0f0,
-          (15, 25) => 20.0f0,
-          (25, 35) => 30.0f0,
-          >=(35) => 40.0f0
+classes = (5, 15) => 10,
+          (15, 25) => 20,
+          (25, 35) => 30,
+          >=(35) => 40
 # Open the file with write permission
 open(Raster(tempfile); write=true) do A
-    classify!(A, classes; others=0.0f0)
+    classify!(A, classes; others=0)
 end
 # Open it again to plot the changes
 plot(Raster(tempfile); c=:magma)
@@ -121,9 +134,15 @@ savefig("build/classify_bang_example.png")
 $EXPERIMENTAL
 """
 classify!(A::AbstractRaster, pairs::Pair...; kw...) = classify!(A, pairs; kw...)
-function classify!(A::AbstractRaster, pairs; lower=(>=), upper=(<), others=nothing)
+function classify!(A::AbstractRaster, pairs;
+    lower=(>=), upper=(<), others=nothing, missingval=missingval(A)
+)
+    T = promote_type(eltype(A), _pairs_type(pairs), typeof(missingval))
+    T = _maybe_promote_others(T, others)
+    # We use `Val{T}` to force type stability through the closure
+    valT = Val{T}()
     broadcast!(A, A) do x
-        _classify(x, pairs, lower, upper, others, missingval(A))
+        _convert_val(valT, _classify(x, pairs, lower, upper, others, Rasters.missingval(A), missingval))
     end
 end
 function classify!(xs::RasterSeriesOrStack, pairs...; kw...)
@@ -133,8 +152,8 @@ end
 
 # _classify
 # Classify single values
-function _classify(x, pairs, lower, upper, others, missingval)
-    isequal(x, missingval) && return x
+function _classify(x, pairs, lower, upper, others, oldmissingval, newmissingval)
+    isequal(x, oldmissingval) && return newmissingval
     # Use a fold instead of a loop, for type stability
     found = foldl(pairs; init=nothing) do found, (find, replace)
         if found isa Nothing && _compare(find, x, lower, upper)
@@ -153,8 +172,8 @@ function _classify(x, pairs, lower, upper, others, missingval)
         return found
     end
 end
-function _classify(x, pairs::AbstractMatrix, lower, upper, others, missingval)
-    isequal(x, missingval) && return x
+function _classify(x, pairs::AbstractMatrix, lower, upper, others, oldmissingval, newmissingval)
+    isequal(x, oldmissingval) && return newmissingval
     found = false
     if size(pairs, 2) == 2
         for i in 1:size(pairs, 1)

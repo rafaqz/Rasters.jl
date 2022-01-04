@@ -9,7 +9,7 @@ B = [1.0 0.4; 2.0 missing]
 ga = Raster(A, (X, Y); missingval=missing)
 ga99 = replace_missing(ga, -9999)
 gaNaN = replace_missing(ga, NaN32)
-gaMi = replace_missing(ga, missing)
+gaMi = replace_missing(ga)
 st = RasterStack((a=A, b=B), (X, Y); missingval=(a=missing,b=missing))
 
 polygon = [[-20.0, 30.0],

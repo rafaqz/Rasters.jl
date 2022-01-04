@@ -19,6 +19,8 @@ As `crop` is lazy, `filename` and `suffix` keywords don't apply.
 
 # Example
 
+Cropt to another raster:
+
 ```jldoctest
 using Rasters, Plots
 evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
@@ -34,21 +36,27 @@ plot(nz_range)
 
 savefig("build/crop_example.png")
 # output
+```
 
+![new zealand evennes cropped]/nz_crop_example.png)
+
+Crop to a polygon:
+
+```julia
 using Rasters, Plots, Dates, Shapefile, Downloads
 using Rasters.LookupArrays
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
-shapefile_name = "boundary_lines.shp"
+shapefile_name = "boundary.shp"
 isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
-shp = Shapefile.Handle(shapefile_name).shapes
-
-nz_range = crop(evenness; to=shp, atol=1e-7)
-
+shp = Shapefile.Handle(shapefile_name).shapes[6]
+argentina_range = crop(evenness; to=shp)
+plot(argentina_range)
+savefig("build/argentina_crop_example.png")
 ```
 
-![crop]/crop_example.png)
+![argentina evenness cropped]/argentina_crop_example.png)
 
 $EXPERIMENTAL
 """
@@ -133,7 +141,6 @@ plot(sa_range)
 
 savefig("build/extend_example.png")
 # output
-
 ```
 
 ![extend](extend_example.png)
