@@ -32,6 +32,7 @@ Reexport.@reexport using DimensionalData, GeoFormatTypes, RasterDataSources
 using DimensionalData.Tables,
       DimensionalData.LookupArrays,
       DimensionalData.Dimensions
+      DimensionalData.LookupArrays.IntervalSets
 
 using DimensionalData: Name, NoName
 using .Dimensions: StandardIndices, DimTuple

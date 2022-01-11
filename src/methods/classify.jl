@@ -4,7 +4,11 @@
 
 Create a new array with values in `x` classified by the values in `pairs`.
 
-If `Fix2` functions are not used in `pairs, the `lower` and `upper` keywords define
+`pairs` can hold tuples fo values `(2, 3)`, a `Fix2` function e.g. `<=(1)`, a `Tuple`
+of `Fix2` e.g. `(>=(4), <(7))`, or an IntervalSets.jl interval, e.g. `3..9` or `OpenInterval(10, 12)`.
+`pairs` can also be a `n * 3` matrix where each row is lower bounds, upper bounds, replacement.
+
+If if tuples or a `Matrix` are used, the `lower` and `upper` keywords define
 how the lower and upper boundaries are chosen.
 
 If `others` is set other values not covered in `pairs` will be set to that values.
@@ -27,10 +31,10 @@ If `others` is set other values not covered in `pairs` will be set to that value
 ```jldoctest
 using Rasters, Plots
 A = Raster(WorldClim{Climate}, :tavg; month=1)
-classes = <(15) => 10,
-          (15, 25) => 20,
-          (25, 35) => 30,
-          >=(35) => 40
+classes = <=(15) => 10,
+          15..25 => 20,
+          25..35 => 30,
+          >(35) => 40
 classified = classify(A, classes; others=0)
 plot(classified; c=:magma)
 
@@ -49,15 +53,15 @@ function classify(A::AbstractRaster, pairs;
     others=nothing, missingval=missingval(A)
 )
     # Make sure we get a concrete type. Broadcast doesn't always work.
-    T = promote_type(eltype(A), _pairs_type(pairs), typeof(missingval))
-    T = _maybe_promote_others(T, others)
+    T = promote_type(_pairs_type(pairs), _others_type(others, A), typeof(missingval))
     # We use `Val{T}` to force type stability through the closure
     valT = Val{T}()
     f(x) = _convert_val(valT, _classify(x, pairs, lower, upper, others, Rasters.missingval(A), missingval))
-    A1 = create(filename, T, A; suffix)
+    A1 = create(filename, T, A; suffix, missingval)
     open(A1; write=true) do O
         broadcast!(f, O, A)
     end
+    return A1
 end
 function classify(xs::AbstractRasterStack, pairs; suffix=keys(xs), kw...)
     mapargs(xs, suffix) do x, s
@@ -71,8 +75,8 @@ end
 _pairs_type(pairs) = promote_type(map(eltype ∘ last, pairs)...)
 _pairs_type(pairs::AbstractArray{T}) where T = T
 
-_maybe_promote_others(::Type{T}, others) where T = promote_type(T, typeof(others))
-_maybe_promote_others(::Type{T}, others::Nothing) where T = T
+_others_type(others, A) = typeof(others)
+_others_type(others::Nothing, A) = eltype(A)
 
 _convert_val(::Val{T}, x) where T = convert(T, x)
 
@@ -137,13 +141,13 @@ classify!(A::AbstractRaster, pairs::Pair...; kw...) = classify!(A, pairs; kw...)
 function classify!(A::AbstractRaster, pairs;
     lower=(>=), upper=(<), others=nothing, missingval=missingval(A)
 )
-    T = promote_type(eltype(A), _pairs_type(pairs), typeof(missingval))
-    T = _maybe_promote_others(T, others)
+    T = promote_type(_pairs_type(pairs), _others_type(others, A), typeof(missingval))
     # We use `Val{T}` to force type stability through the closure
     valT = Val{T}()
-    broadcast!(A, A) do x
+    out = broadcast!(A, A) do x
         _convert_val(valT, _classify(x, pairs, lower, upper, others, Rasters.missingval(A), missingval))
     end
+    return rebuild(out; missingval=missingval)
 end
 function classify!(xs::RasterSeriesOrStack, pairs...; kw...)
     map(x -> classify!(x, pairs...; kw...),  xs)
@@ -154,7 +158,7 @@ end
 # Classify single values
 function _classify(x, pairs, lower, upper, others, oldmissingval, newmissingval)
     isequal(x, oldmissingval) && return newmissingval
-    # Use a fold instead of a loop, for type stability
+    # Use a fold instead of a loop, for small Union type stability
     found = foldl(pairs; init=nothing) do found, (find, replace)
         if found isa Nothing && _compare(find, x, lower, upper)
             replace
@@ -206,5 +210,6 @@ _compare(find, x, lower, upper) = find === x
 _compare(find::Base.Fix2, x, lower, upper) = find(x)
 _compare((l, u)::Tuple, x, lower, upper) = lower(x, l) && upper(x, u)
 _compare((l, u)::Tuple{<:Base.Fix2,<:Base.Fix2}, x, lower, upper) = l(x) && u(x)
+_compare(interval::LA.IntervalSets.Interval, x, lower, upper) = x in interval
 
 

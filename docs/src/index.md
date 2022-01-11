@@ -318,9 +318,9 @@ Downloads.download(shapefile_url, shapefile_name)
 
 # Load using Shapefile.jl
 shapes = Shapefile.Handle(shapefile_name)
-denmark_border = shapes.shapes[72]
-norway_border = shapes.shapes[54]
-sweden_border = shapes.shapes[55]
+denmark_border = shapes.shapes[71]
+norway_border = shapes.shapes[53]
+sweden_border = shapes.shapes[54]
 ```
 
 Then load raster data. We load some worldclim layers using RasterDataSources via
@@ -334,11 +334,11 @@ climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=Ju
 then trim the missing values. We pad `trim` with a 10 pixel margin.
 
 ```@example mask
-mask_trim(climate; to=poly) = trim(mask(climate; to); pad=10)
+mask_trim(climate, poly) = trim(mask(climate; with=poly); pad=10)
 
-denmark = mask_trim(climate; to=denmark_border)
-norway = mask_trim(climate; to=norway_border)
-sweden = mask_trim(climate; to=sweden_border)
+denmark = mask_trim(climate, denmark_border)
+norway = mask_trim(climate, norway_border)
+sweden = mask_trim(climate, sweden_border)
 ```
 
 ### Plotting
@@ -380,7 +380,7 @@ plot(norway_region)
 
 And mask it with the border again:
 ```@example mask
-norway = mask_trim(norway_region; to=norway_border)
+norway = mask_trim(norway_region, norway_border)
 np = plot(norway)
 borders!(np, norway_border)
 ```
