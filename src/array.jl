@@ -26,6 +26,7 @@ missingval(x) = missing
 missingval(A::AbstractRaster) = A.missingval
 
 filename(A::AbstractRaster) = filename(parent(A))
+filename(A::AbstractArray) = nothing # Fallback
 
 cleanreturn(A::AbstractRaster) = modify(cleanreturn, A)
 cleanreturn(x) = x
