@@ -16,7 +16,7 @@ end
 flush_info_and_warnings()
 
 
-# Logging.disable_logging(Logging.Warn)
+Logging.disable_logging(Logging.Warn)
 
 # Make the docs, without running the tests again
 makedocs(
@@ -27,7 +27,7 @@ makedocs(
 )
 
 # Enable logging to console again
-# Logging.disable_logging(Logging.BelowMinLevel)
+Logging.disable_logging(Logging.BelowMinLevel)
 
 deploydocs(
     repo = "github.com/rafaqz/Rasters.jl.git",
