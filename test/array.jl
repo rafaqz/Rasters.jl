@@ -59,3 +59,19 @@ end
     @test occursin("Y", sh)
     @test occursin("X", sh)
 end
+
+@testset "skipmissing uses missingval" begin
+    raster = Raster([NaN 1.0; 2.0 NaN], (X, Y); missingval=NaN)
+    @test collect(skipmissing(raster)) == [2.0, 1.0]
+    @test collect(keys(skipmissing(raster))) == [CartesianIndex(2, 1), CartesianIndex(1, 2)]
+    @test collect(eachindex(skipmissing(raster))) == [2, 3]
+    @test_throws MissingException skipmissing(raster)[1]
+    @test skipmissing(raster)[2] == 2.0
+    # It skips actual missing values as well
+    mraster = Raster([NaN 1.0; missing NaN], (X, Y); missingval=NaN)
+    @test collect(skipmissing(mraster)) == [1.0]
+    @test collect(keys(skipmissing(mraster))) == [CartesianIndex(1, 2)]
+    @test collect(eachindex(skipmissing(mraster))) == [3]
+    @test skipmissing(mraster)[3] == 1.0
+    @test_throws MissingException skipmissing(mraster)[2]
+end
