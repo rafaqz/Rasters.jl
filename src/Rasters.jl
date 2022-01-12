@@ -32,6 +32,7 @@ Reexport.@reexport using DimensionalData, GeoFormatTypes, RasterDataSources
 using DimensionalData.Tables,
       DimensionalData.LookupArrays,
       DimensionalData.Dimensions
+      DimensionalData.LookupArrays.IntervalSets
 
 using DimensionalData: Name, NoName
 using .Dimensions: StandardIndices, DimTuple
@@ -48,7 +49,7 @@ export AbstractRasterStack, RasterStack
 export AbstractRasterSeries, RasterSeries
 export Projected, Mapped
 export Band
-export missingval, boolmask, missingmask, replace_missing,
+export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!, 
        resample, warp, crop, extend, trim, slice, points, subset, inpolygon,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
@@ -87,24 +88,45 @@ struct SMAPfile end
 include("lookup.jl")
 include("dimensions.jl")
 include("filearray.jl")
-include("array.jl")
 include("filestack.jl")
+include("array.jl")
 include("stack.jl")
 include("series.jl")
+
+const RasterStackOrArray = Union{AbstractRasterStack,AbstractRaster}
+const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}
+
 include("utils.jl")
-include("aggregate.jl")
-include("methods.jl")
+include("polygon_ops.jl")
+include("table_ops.jl")
+include("create.jl")
 include("read.jl")
-include("sources/grd.jl")
+include("write.jl")
+include("convenience.jl")
 include("show.jl")
 include("plotrecipes.jl")
-include("convenience.jl")
-include("write.jl")
 
+
+include("methods/aggregate.jl")
+include("methods/classify.jl")
+include("methods/crop_extend.jl")
+include("methods/extract.jl")
+include("methods/inpolygon.jl")
+include("methods/mask.jl")
+include("methods/mosaic.jl")
+include("methods/points.jl")
+include("methods/rasterize.jl")
+include("methods/replace_missing.jl")
+include("methods/reproject.jl")
+include("methods/resample.jl")
+include("methods/slice_combine.jl")
+include("methods/trim.jl")
+include("methods/warp.jl")
+
+include("sources/grd.jl")
 include("sources/smap.jl")
 include("sources/ncdatasets.jl")
 include("sources/gdal.jl")
-include("reproject.jl")
 include("sources/rasterdatasources.jl")
 
 end

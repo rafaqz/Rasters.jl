@@ -16,7 +16,7 @@ ga2a = Raster(data4, dimz)
 stack1 = RasterStack(ga1, ga2; keys=(:ga1, :ga2))
 stack2 = RasterStack(ga1a, ga2a; keys=(:ga1, :ga2))
 dates =[DateTime(2017), DateTime(2018)]
-ser = RasterSeries([stack1, stack2], (Ti(dates),))
+ser = RasterSeries([stack1, stack2], Ti(dates))
 @test issorted(dates)
 
 @testset "getindex returns the currect types" begin

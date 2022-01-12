@@ -95,10 +95,10 @@ path = stem * ".gri"
         end
 
         @testset "mask and mask! to disk" begin
-            msk = replace_missing(grdarray, missing)
+            msk = read(replace_missing(grdarray, missing))
             msk[X(1:73), Y([1, 5, 77])] .= missingval(msk)
             @test !any(grdarray[X(1:73)] .=== missingval(msk))
-            masked = mask(grdarray; to=msk)
+            masked = mask(grdarray; with=msk)
             @test all(masked[X(1:73), Y([1, 5, 77])] .=== missingval(masked))
             tn = tempname()
             tempgrd = tn * ".grd"
@@ -107,7 +107,7 @@ path = stem * ".gri"
             cp(stem * ".gri", tempgri)
             @test !all(Raster(tempgrd)[X(1:73), Y([1, 5, 77])] .=== missingval(grdarray))
             open(Raster(tempgrd); write=true) do A
-                mask!(A; to=msk, missingval=missingval(A))
+                mask!(A; with=msk, missingval=missingval(A))
             end
             @test all(Raster(tempgri)[X(1:73), Y([1, 5, 77])] .=== missingval(grdarray))
             rm(tempgrd)

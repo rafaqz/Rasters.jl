@@ -26,6 +26,7 @@ missingval(x) = missing
 missingval(A::AbstractRaster) = A.missingval
 
 filename(A::AbstractRaster) = filename(parent(A))
+filename(A::AbstractArray) = nothing # Fallback
 
 cleanreturn(A::AbstractRaster) = modify(cleanreturn, A)
 cleanreturn(x) = x
@@ -33,6 +34,9 @@ cleanreturn(x) = x
 isdisk(A::AbstractRaster) = parent(A) isa DiskArrays.AbstractDiskArray
 isdisk(x) = false
 ismem(x) = !isdisk(A)
+
+setcrs(x::AbstractRaster, crs) = set(x, setcrs(dims(x), crs)...)
+setmappedcrs(x::AbstractRaster, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
 
 function Base.:(==)(A::AbstractRaster{T,N}, B::AbstractRaster{T,N}) where {T,N} 
     size(A) == size(B) && all(A .== B)
@@ -209,13 +213,19 @@ struct Raster{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: AbstractR
 end
 function Raster(A::AbstractArray, dims::Tuple;
     refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing,
+    crs=nothing, mappedcrs=nothing
 )
-    Raster(A, Dimensions.format(dims, A), refdims, name, metadata, missingval)
+    A = Raster(A, Dimensions.format(dims, A), refdims, name, metadata, missingval)
+    A = isnothing(crs) ? A : setmappedcrs(A, crs)
+    A = isnothing(mappedcrs) ? A : setmappedcrs(A, mappedcrs)
+    return A
 end
 function Raster(A::AbstractArray{<:Any,1}, dims::Tuple{<:Dimension,<:Dimension,Vararg}; kw...)
     Raster(reshape(A, map(length, dims)), dims; kw...)
 end
-function Raster(table, dims::Tuple; name, kw...)
+function Raster(table, dims::Tuple; name=nothing, kw...)
+    Tables.istable(table) || throw(ArgumentError("First argument to `Raster` is not a table or other known object: $table"))
+    isnothing(name) && throw(UndefKeywordError(:name))
     cols = Tables.getcolumns(table)
     A = reshape(cols[name], map(length, dims))
     return Raster(A; name, kw...)
@@ -223,9 +233,9 @@ end
 Raster(A::AbstractArray; dims, kw...) = Raster(A, dims; kw...)
 function Raster(A::AbstractDimArray;
     data=parent(A), dims=dims(A), refdims=refdims(A),
-    name=name(A), metadata=metadata(A), missingval=missingval(A)
+    name=name(A), metadata=metadata(A), missingval=missingval(A), kw...
 )
-    return Raster(data, dims, refdims, name, metadata, missingval)
+    return Raster(data, dims; refdims, name, metadata, missingval, kw...)
 end
 function Raster(filename::AbstractString; name=nothing, key=name, kw...)
     _open(filename) do ds

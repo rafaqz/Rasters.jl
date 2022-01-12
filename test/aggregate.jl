@@ -65,7 +65,7 @@ end
 
 @testset "aggregate a single dim" begin
     aggregate(Start(), series, (X(3), ))
-    aggregate(Start(), series, (Y(5), ))
+    @test_broken aggregate(Start(), series, (Y(5), ))
 end
 
 @testset "aggregate and disaggregate at a locus" begin

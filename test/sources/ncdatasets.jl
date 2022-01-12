@@ -1,7 +1,7 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, FileStack, NCDfile
+using Rasters: FileArray, FileStack, NCDfile, crs
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
@@ -117,13 +117,13 @@ stackkeys = (
             msk = read(ncarray)
             msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
             @test !all(ncarray[X(1:100)] .=== missingval(msk))
-            masked = mask(ncarray; to=msk)
+            masked = mask(ncarray; with=msk)
             @test all(masked[X(1:100), Y([1, 5, 95])] .=== missingval(msk))
             tempfile = tempname() * ".nc"
             cp(ncsingle, tempfile)
             @test !all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
             open(Raster(tempfile); write=true) do A
-                mask!(A; to=msk, missingval=missing)
+                mask!(A; with=msk, missingval=missing)
                 # TODO: replace the CFVariable with a FileArray{NCDfile} so this is not required
                 nothing
             end
@@ -176,12 +176,14 @@ stackkeys = (
         a = ncarray[X(At(21.0)), Y(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))]
         @test bounds(a) == ((50.0, 52.0),)
         x = ncarray[X(Near(150)), Y(Near(30)), Ti(1)]
+        size(ncarray)
         @test x isa Float32
-        dimz = X(Between(0.0, 360)), Y(Between(-80, 90)), 
+        lookup(ncarray)
+        dimz = X(Between(-0.0, 360)), Y(Between(-90, 90)), 
                Ti(Between(DateTime360Day(2001, 1, 1), DateTime360Day(2003, 01, 02)))
         @test size(ncarray[dimz...]) == (180, 170, 24)
         @test index(ncarray[dimz...]) == index(ncarray)
-        nca = ncarray[Y(Between(-80, -25)), X(Between(0, 180)), Ti(Contains(DateTime360Day(2002, 02, 20)))]
+        nca = ncarray[Y(Between(-80, -25)), X(Between(-0.0, 180.0)), Ti(Contains(DateTime360Day(2002, 02, 20)))]
         @test size(nca) == (90, 55)
         @test index(nca, Y) == index(ncarray[1:90, 1:55, 2], Y)
         @test all(nca .=== ncarray[1:90, 1:55, 14])
