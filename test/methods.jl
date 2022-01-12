@@ -194,11 +194,11 @@ end
     gi_polygon = Polygon([polygon])
     poly = gi_polygon
     for poly in (polygon, gi_polygon)
-        @test inpolygon((-10.0, 20.0), poly) == [true]
-        @test inpolygon((-19.0, 29.0), poly) == [true]
-        @test inpolygon((-30.0, 20.0), poly) == [false]
+        @test inpolygon((-10.0, 20.0), poly) == true
+        @test inpolygon((-19.0, 29.0), poly) == true
+        @test inpolygon((-30.0, 20.0), poly) == false
         @test inpolygon([(-10.0, 20.0), (-30.0, 40.0)], poly) == [true, false]
-        @test inpolygon(Point([-20.0, 50.0]), poly) == [false]
+        @test inpolygon(Point([-20.0, 50.0]), poly) == false
         @test inpolygon(LineString([[-10.0, 20.0], [-30.0, 40.0]]), poly) == [true, false]
         @test inpolygon(Polygon([[[-10.0, 20.0], [-30.0, 40.0]]]), poly) == [true, false]
     end
