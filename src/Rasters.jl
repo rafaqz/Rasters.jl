@@ -97,6 +97,7 @@ const RasterStackOrArray = Union{AbstractRasterStack,AbstractRaster}
 const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}
 
 include("utils.jl")
+include("skipmissing.jl")
 include("polygon_ops.jl")
 include("table_ops.jl")
 include("create.jl")
