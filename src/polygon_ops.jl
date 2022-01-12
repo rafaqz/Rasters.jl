@@ -314,8 +314,8 @@ function _to_edges!(
         added_edges += 1
     end
     if last(edges)[2] != start_edgenum
-        push!(edges, (last(edges)[2], first_edgenum))
-        edgecount += 1
+        push!(edges, (last(edges)[2], start_edgenum))
+        added_edges += 1
     end
     return edgenum + added_edges
 end
