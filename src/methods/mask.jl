@@ -239,13 +239,16 @@ _bools(x) = _bools(x, dims(x))
 _bools(x::AbstractRasterSeries, dims) = _bools(first(x), dims)
 _bools(x::AbstractRasterStack, dims) = _bools(first(x), dims)
 _bools(x, dims) = Raster(falses(dims); missingval=false)
-function _bools(x::AbstractRaster, dims)
-    data = if parent(x) isa Array || parent(x) isa DA.AbstractDiskArray
+function _bools(A::AbstractRaster, dims)
+    # TODO: improve this so that only e.g. CuArray uses `similar`
+    # This is a little annoying to lock down for all wrapper types,
+    # maybe ArrayInterface has tools for this.
+    da = if parent(A) isa Union{Array,DA.AbstractDiskArray}
         falses(dims) # Use a BitArray
     else
-        fill!(similar(parent(x), Bool), false)
+        fill!(similar(A, Bool, dims), false) # Fill 
     end
-    return Raster(data; dims, missingval=false)
+    return Raster(da; missingval=false)
 end
 
 function boolmask!(dest::AbstractRaster, src::AbstractRaster; 

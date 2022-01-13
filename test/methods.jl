@@ -58,8 +58,11 @@ end
 
 @testset "mask" begin
     A1 = [missing 1; 2 3]
+    A2 = view([0 missing 1; 0 2 3], :, 2:3)
+    A3 = view([0 missing 1; 0 2 3], :, 2:3)
     ga1 = Raster(A1, (X, Y); missingval=missing)
-    @test all(mask(ga1; with=ga) .=== [missing 1; 2 missing])
+    ga2 = Raster(A2, (X, Y); missingval=missing)
+    @test all(mask(ga1; with=ga) .=== mask(ga2; with=ga) .=== [missing 1; 2 missing])
     ga2 = replace_missing(ga1 .* 1.0; missingval=NaN)
     @test all(mask(ga2; with=ga) .=== [NaN 1.0; 2.0 NaN])
     ga3 = replace_missing(ga1; missingval=-9999)
