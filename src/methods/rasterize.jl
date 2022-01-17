@@ -100,47 +100,51 @@ function rasterize(data; to, order=nothing, name=nothing, kw...)
         return _rasterize(to, data; order, init=_Undefined(), kw...)
     end
 end
-function rasterize(points, values; to, kw...) 
-    return _rasterize(to, points, values; kw...)
-end
+rasterize(points, values; to, kw...)  = _rasterize(to, points, values; kw...)
 
 function _rasterize(to::DimTuple, points;
-    filename=nothing, suffix=nothing, metadata=NoMetadata(), name=nothing, parent=nothing,
+    filename=nothing, suffix=nothing, metadata=NoMetadata(), keys=nothing, name=keys, parent=nothing,
     fill, eltype=typeof(fill), missingval=_writeable_missing(filename, eltype), kw...
 )
     A = _alloc_rasterize(filename, eltype, to; missingval, suffix, parent) do a
-        rasterize!(a, points; fill, missingval, kw...)
+        rasterize!(a, points; fill, missingval, name, kw...)
     end
     return A
 end
 function _rasterize(to::DimTuple, points, vals;
     missingval=nothing, filename=nothing, suffix=nothing,
-    metadata=NoMetadata(), name=nothing, parent=nothing, kw...
+    metadata=NoMetadata(), keys=nothing, name=keys, parent=nothing, kw...
 )
     firstval = first(vals)
-    if firstval isa NamedTuple
+
+    if firstval isa Union{NamedTuple,Tuple,AbstractArray}
+        keys = _filter_name(name, vals)
         # Rasterize mutiple values to a stack
-        layers = map(keys(firstval), values(firstval)) do key, val
+        layers = map(keys, values(firstval)) do key, val
             missingval = isnothing(missingval) ? _writeable_missing(filename, typeof(val)) : missingval
             _alloc_rasterize(filename, typeof(val), to; name, metadata, missingval, suffix=key, parent) do a
                 a .= missingval
             end
-        end |> NamedTuple{keys(firstval)}
+        end |> NamedTuple{keys}
         st = RasterStack(layers, to)
         return rasterize!(st, points, vals; kw...)
+    else
+        name = first(cleankeys(name))
+        # Rasterize to an array
+        missingval = isnothing(missingval) ? _writeable_missing(filename, typeof(firstval)) : missingval
+        A = _alloc_rasterize(filename, typeof(firstval), to; name, metadata, missingval, suffix, parent) do a
+            a .= missingval
+        end
+        return rasterize!(A, points, vals; kw...)
     end
-    # Rasterize to an array
-    missingval = isnothing(missingval) ? _writeable_missing(filename, typeof(firstval)) : missingval
-    A = _alloc_rasterize(filename, typeof(firstval), to; name, metadata, missingval, suffix, parent) do a
-        a .= missingval
-    end
-    return rasterize!(A, points, vals; kw...)
 end
-function _rasterize(to::AbstractRaster, args...; missingval=missingval(to), kw...)
-    _rasterize(dims(to), args...; missingval, kw...)
+function _rasterize(to::AbstractRaster, args...; 
+    missingval=missingval(to), keys=name(to), name=keys, kw...
+)
+    _rasterize(dims(to), args...; name, missingval, kw...)
 end
-function _rasterize(to::AbstractRasterStack, args...; kw...)
-    return _rasterize(dims(to), args...; kw...)
+function _rasterize(to::AbstractRasterStack, args...; keys=keys(to), name=keys, kw...)
+    return _rasterize(dims(to), args...; name, kw...)
 end
 
 function _alloc_rasterize(f, filename, T, to; missingval, suffix=nothing, kw...)
@@ -250,24 +254,9 @@ end
 function rasterize!(st::AbstractRasterStack, geom::GI.AbstractGeometry, vals; shape=:point, kw...)
     rasterize!(st, _flat_nodes(geom), vals; kw...)
 end
-function rasterize!(x::AbstractRasterStack, points, vals; name=nothing, kw...)
-    firstval = first(vals)
-    name = if isnothing(name) 
-        if firstval isa NamedTuple
-            keys(first(vals)) 
-        else
-            length(name) == keys(x) || throw(ArgumentError("`name` keyword does not match number of layers in stack"))
-            keys(x)
-        end
-    else
-        if firstval isa NamedTuple
-            name == keys(first(vals)) || throw(ArgumentError("`name` keyword does not match point names"))
-        elseif firstval isa Union{Tuple,Array}
-            length(name) == length(firstval) || throw(ArgumentError("`name` keyword does not match length of point"))
-        end
-        name
-    end
-    return _rasterize!(x[name], points, vals; name, kw...)
+function rasterize!(st::AbstractRasterStack, points, vals; keys=keys(st), name=keys, kw...)
+    keys = _filter_name(name, vals)
+    return _rasterize!(st[name], points, vals; name, kw...)
 end
 function rasterize!(A::AbstractRaster, points, vals; name=nothing, kw...)
     _rasterize!(A, points, vals; name, kw...)
@@ -331,9 +320,9 @@ end
 
 _fill(B, fill, missingval) where T = broadcast_dims(x -> x ? fill : missingval, B)
 
-function _fill!(A::AbstractRasterStack, B, fill, args...)
+function _fill!(st::AbstractRasterStack, B, fill, args...)
     map((a, f) -> _fill!(a, B, f, args...), st, fill)
-    return A
+    return st
 end
 # If the array is initialised, we can use the existing values
 function _fill!(A::AbstractRaster{T}, B, fill, init::_Defined, missingval) where T
@@ -354,4 +343,22 @@ end
 function _at_or_contains(d, v, atol)
     selector = sampling(d) isa Intervals ? Contains(v) : At(v; atol=atol)
     DD.basetypeof(d)(selector)
+end
+
+function _filter_name(name, vals)
+    firstval = first(vals)
+    name = if isnothing(name)
+        if firstval isa NamedTuple
+            keys(firstval) 
+        else
+            stackkeys
+        end
+    else
+        if firstval isa NamedTuple
+            name == keys(firstval) || throw(ArgumentError("`name` keyword does not match point names"))
+        elseif firstval isa Union{Tuple,Array}
+            length(name) == length(firstval) || throw(ArgumentError("`name` keyword does not match length of point"))
+        end
+        name
+    end
 end

@@ -1,4 +1,4 @@
-using Rasters, Test, Dates
+using Rasters, Test, Dates, DimensionalData
 using Rasters.LookupArrays, Rasters.Dimensions
 
 # RasterSeries from Raster/RasterStack components
@@ -26,9 +26,16 @@ ser = RasterSeries([stack1, stack2], Ti(dates))
     @test ser[Ti(1)][:ga2][1, 1] isa Int
 end
 
+@testset "map" begin
+    @test map(x -> x[1], ser) == Raster([(ga1=1, ga2=2), (ga1=3, ga2=4)], dims(ser))
+    @test map(x -> x, ser) == ser;
+end
+
 @testset "properties" begin
     @test refdims(ser) === ()
-    # Should these be real fields? what is the use-case?  @test metadata(ser) === nothing @test name(ser) === ""
+    # Should these be real fields? what is the use-case?  
+    @test metadata(ser) === NoMetadata()
+    @test name(ser) === DimensionalData.NoName()
     @test label(ser) === ""
 end
 

@@ -62,7 +62,7 @@ $EXPERIMENTAL
 """
 function crop end
 function crop(l1::RasterStackOrArray, l2::RasterStackOrArray, ls::RasterStackOrArray...; kw...)
-    crop((l1, l2, ls); kw...)
+    crop((l1, l2, ls...); kw...)
 end
 function crop(xs; to=nothing, kw...)
     if isnothing(to)
@@ -75,8 +75,8 @@ end
 crop(x::RasterStackOrArray; to, kw...) = _crop_to(x, to; kw...)
 
 # crop `A` to values of dims of `to`
-_crop_to(A::RasterStackOrArray, to::RasterStackOrArray; kw...) = _crop_to(A, dims(to); kw...)
-function _crop_to(x::RasterStackOrArray, to::DimTuple; atol=maybe_eps(to))
+_crop_to(A, to::RasterStackOrArray; kw...) = _crop_to(A, dims(to); kw...)
+function _crop_to(x, to::DimTuple; atol=maybe_eps(to))
     # We can only crop to sampled dims (e.g. not categorical dims like Band)
     sampled = reduce(to; init=()) do acc, d 
         lookup(d) isa AbstractSampled ? (acc..., d) : acc
@@ -84,20 +84,15 @@ function _crop_to(x::RasterStackOrArray, to::DimTuple; atol=maybe_eps(to))
     wrapped_bounds = map(d ->  rebuild(d, bounds(d)), sampled)
     return _crop_to_bounds(x, wrapped_bounds)
 end
-function _crop_to(x::RasterStackOrArray, to; order=nothing)
-    if Tables.istable(to)
-        order = _table_point_order(dims(x), to, order)
-        wrapped_bounds = _wrapped_table_bounds(dims(x), to, order)
-    else
-        order = isnothing(order) ? DEFAULT_POINT_ORDER : order
-        # Wrap the bounds in dims so we can reorder them
-        wrapped_bounds = _wrapped_geom_bounds(dims(x), to, order)
-    end
+function _crop_to(x, to; order=nothing)
     order, wrapped_bounds = _order_and_bounds(x, to, order)
     return _crop_to_bounds(x, wrapped_bounds)
 end
 
-function _crop_to_bounds(x, wrapped_bounds)
+function _crop_to_bounds(ser::RasterSeries, wrapped_bounds::DimTuple)
+    map(x -> _crop_to_bounds(x, wrapped_bounds), ser)
+end
+function _crop_to_bounds(x::RasterStackOrArray, wrapped_bounds::DimTuple)
     # Take a view over the bounds
     _without_mapped_crs(x) do x1
         dimranges = map(wrapped_bounds) do d
@@ -162,7 +157,7 @@ end
 extend(x::RasterStackOrArray; to=dims(x), kw...) = _extend_to(x, to; kw...)
 
 _extend_to(x::RasterStackOrArray, to::RasterStackOrArray; kw...) = _extend_to(x, dims(to); kw...)
-function _extend_to(x::RasterStackOrArray, to; order=nothing, kw...)
+function _extend_to(x, to; order=nothing, kw...)
     order, wrapped_bounds = _order_and_bounds(x, to, order)
     all(map(s -> s isa Regular, span(x, order))) || throw(ArgumentError("All dims must have `Regular` span to be extended with a polygon"))
     return _extend_to_bounds(x, wrapped_bounds; kw...)
@@ -201,6 +196,9 @@ function _extend_to(st::AbstractRasterStack, to::Tuple; suffix=keys(st), kw...)
     mapargs((A, s) -> _extend_to(A, to; suffix=s, kw...), st, suffix)
 end
 
+function _extend_to_bounds(ser::RasterSeries, to::DimTuple; kw...)
+    map(x -> _extend_to_bounds(x, wrapped_bounds; kw...), ser)
+end
 function _extend_to_bounds(x, wrapped_bounds; kw...)
     newdims = map(wrapped_bounds) do wb
         d = dims(x, wb)
@@ -242,9 +240,10 @@ function _subsetbounds(fs, layers)
     end
 end
 
+_order_and_bounds(ser::AbstractRasterSeries, to, order) = _order_and_bounds(first(ser), to, order)
 function _order_and_bounds(x, to, order)
     if Tables.istable(to)
-        order = _table_point_order(dims(x), order)
+        order = _table_point_order(dims(x), to, order)
         wrapped_bounds = _wrapped_table_bounds(dims(x), to, order)
     else
         order = isnothing(order) ? DEFAULT_POINT_ORDER : order

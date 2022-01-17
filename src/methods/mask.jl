@@ -189,18 +189,19 @@ end
 _nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `missingval` keyword compatible with the type, or use `rebuild(A; missingval=somemissingval)` to set it."))
 
 """
-    boolmask(A::AbstractArray; [missingval])
-    boolmask(geom; to, order, shape, crossing)
+    boolmask(x::AbstractArray; [missingval])
+    boolmask(x; to, [order])
 
-Create a mask array of `Bool` values, from any `AbstractArray`.
+Create a mask array of `Bool` values, from any `AbstractArray`. An 
+`AbstractRasterStack` or `AbstractRasterSeries` are also accepted, but a mask
+is taken of the first layer or object *not* all of them. 
 
 The array returned from calling `boolmask` on a `AbstractRaster` is a
 [`Raster`](@ref) with the same size and fields as the original array.
 
 # Arguments
 
-- `T`: `BitArray` or `Array`
-- `A`: An `AbstractArray`.
+- `x`: an `AbstractRaster`, polygon or table.
 
 # Keywords
 
@@ -230,7 +231,8 @@ savefig("build/boolmask_example.png")
 $EXPERIMENTAL
 """
 function boolmask end
-boolmask(x::RasterStackOrArray; kw...) = boolmask!(_bools(x, dims(x)), x; kw...)
+boolmask(x::Union{AbstractRasterSeries,AbstractRasterStack,AbstractRaster}; kw...) =
+    boolmask!(_bools(x, dims(x)), x; kw...)
 function boolmask(x; to, order=(XDim, YDim), kw...)
     boolmask!(_bools(to, commondims(to, order)), x; order, kw...)
 end

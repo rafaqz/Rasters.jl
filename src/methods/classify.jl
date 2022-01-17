@@ -47,8 +47,8 @@ savefig("build/classify_example.png")
 $EXPERIMENTAL
 """
 function classify end
-classify(A::AbstractRaster, pairs::Pair...; kw...) = classify(A, pairs; kw...)
-function classify(A::AbstractRaster, pairs;
+classify(A::AbstractRaster, p1::Pair, pairs::Pair...; kw...) = classify(A, (p1, pairs...); kw...)
+function classify(A::AbstractRaster, pairs::Union{Tuple,AbstractArray};
     filename=nothing, suffix=nothing, lower=(>=), upper=(<),
     others=nothing, missingval=missingval(A)
 )
@@ -63,13 +63,13 @@ function classify(A::AbstractRaster, pairs;
     end
     return A1
 end
-function classify(xs::AbstractRasterStack, pairs; suffix=keys(xs), kw...)
+function classify(xs::AbstractRasterStack, pairs...; suffix=keys(xs), kw...)
     mapargs(xs, suffix) do x, s
         classify(x, pairs; suffix=s, kw...)
     end
 end
-function classify(xs::AbstractRasterSeries, pairs; kw...)
-    map(x -> classify(x, pairs; suffix=s, kw...), xs)
+function classify(xs::AbstractRasterSeries, pairs...; kw...)
+    map(x -> classify(x, pairs...; kw...), xs)
 end
 
 _pairs_type(pairs) = promote_type(map(eltype ∘ last, pairs)...)
@@ -137,7 +137,8 @@ savefig("build/classify_bang_example.png")
 
 $EXPERIMENTAL
 """
-classify!(A::AbstractRaster, pairs::Pair...; kw...) = classify!(A, pairs; kw...)
+classify!(A::AbstractRaster, p1::Pair, pairs::Pair...; kw...) = 
+    classify!(A, (p1, pairs...); kw...)
 function classify!(A::AbstractRaster, pairs;
     lower=(>=), upper=(<), others=nothing, missingval=missingval(A)
 )
@@ -158,32 +159,32 @@ end
 # Classify single values
 function _classify(x, pairs, lower, upper, others, oldmissingval, newmissingval)
     isequal(x, oldmissingval) && return newmissingval
-    # Use a fold instead of a loop, for small Union type stability
-    found = foldl(pairs; init=nothing) do found, (find, replace)
-        if found isa Nothing && _compare(find, x, lower, upper)
-            replace
+    # Use a fold instead of a loop, for type stability
+    init = (false, nothing)
+    found, foundval = foldl(pairs; init) do (found, foundval), (find, replace)
+        if !found && _compare(find, x, lower, upper)
+            (true, replace)
         else
-            found
+            (found, foundval)
         end
     end
-    if found isa Nothing
-        if others isa Nothing
-            return x
-        else
-            return others
-        end
+    if found
+        return foundval
     else
-        return found
+        return isnothing(others) ? x : others
     end
 end
-function _classify(x, pairs::AbstractMatrix, lower, upper, others, oldmissingval, newmissingval)
+function _classify(x, pairs::AbstractArray, lower, upper, others, oldmissingval, newmissingval)
     isequal(x, oldmissingval) && return newmissingval
     found = false
-    if size(pairs, 2) == 2
+    local foundval
+    if ndims(pairs) != 2 || !(size(pairs, 2) in (2, 3))
+        throw(ArgumentError("pairs must be a N*2 or N*3 matrix, or Pair"))
+    elseif size(pairs, 2) == 2
         for i in 1:size(pairs, 1)
             find = pairs[i, 1]
             if _compare(find, x, lower, upper)
-                x = pairs[i, 2]
+                foundval = pairs[i, 2]
                 found = true
                 break
             end
@@ -192,18 +193,17 @@ function _classify(x, pairs::AbstractMatrix, lower, upper, others, oldmissingval
         for i in 1:size(pairs, 1)
             find = pairs[i, 1], pairs[i, 2]
             if _compare(find, x, lower, upper)
-                x = pairs[i, 3]
+                foundval = pairs[i, 3]
                 found = true
                 break
             end
         end
+    end
+    if found
+        return foundval
     else
-        throw(ArgumentError("pairs Array must be a N*2 or N*3 matrix"))
+        return isnothing(others) ? x : others
     end
-    if !found && !(others isa Nothing)
-        x = others
-    end
-    return x
 end
 
 _compare(find, x, lower, upper) = find === x

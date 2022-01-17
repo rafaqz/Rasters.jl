@@ -3,16 +3,18 @@ filter_ext(path, exts::Union{Tuple,AbstractArray}) =
     filter(fn -> splitext(fn)[2] in exts, readdir(path))
 filter_ext(path, ext::Nothing) = readdir(path)
 
-# Check that array order matches expectation
-checkarrayorder(A, order::Tuple) = map(checkarrayorder, dims(A), order)
-checkarrayorder(dim::Dimension, order::Order) =
-    arrayorder(dim) == order || @warn "Array order for `$(DD.basetypeof(order))` is `$(arrayorder(dim))`, usually `$order`"
+cleankeys(name) = (_cleankey(name),)
+function cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray})
+    Tuple(map(_cleankey, keys, ntuple(i -> i, length(keys))))
+end
 
-checkorder(A, order::Tuple) = map(checkorder, dims(A), order)
-checkorder(dim::Dimension, order::Order) =
-    order(dim) == order || @warn "Array order for `$(DD.basetypeof(order))` is `$(order(dim))`, usually `$order`"
-
-cleankeys(keys) = Tuple(map(Symbol, keys))
+function _cleankey(name::Union{Symbol,AbstractString,Name,NoName}, i=1)
+    if name in (NoName(), Symbol(""), Name(Symbol("")))
+        Symbol("layer$i")
+    else
+        Symbol(name)
+    end
+end
 
 noindex_to_sampled(A) = rebuild(A; dims=noindex_to_sampled(dims(A)))
 function noindex_to_sampled(dims::DimTuple)
@@ -89,9 +91,9 @@ function mapargs(f, st::AbstractRasterStack, args...)
     return DD.rebuild_from_arrays(st, Tuple(layers))
 end
 
-_without_mapped_crs(f, dims::DimTuple) = _without_mapped_crs(f, dims, mappedcrs(dims))
-_without_mapped_crs(f, dims::DimTuple, ::Nothing) = f(dims)
-function _without_mapped_crs(f, dims::DimTuple, mappedcrs)
+_without_mapped_crs(f, x) = _without_mapped_crs(f, x, mappedcrs(x))
+_without_mapped_crs(f, x, ::Nothing) = f(x)
+function _without_mapped_crs(f, dims::DimTuple, mappedcrs::GeoFormat)
     dims1 = setmappedcrs(dims, nothing)
     x = f(dims1)
     if x isa DimTuple
@@ -99,9 +101,7 @@ function _without_mapped_crs(f, dims::DimTuple, mappedcrs)
     end
     return x
 end
-_without_mapped_crs(f, A) = _without_mapped_crs(f, A, mappedcrs(A))
-_without_mapped_crs(f, A::AbstractRaster, ::Nothing) = f(A)
-function _without_mapped_crs(f, A::AbstractRaster, mappedcrs)
+function _without_mapped_crs(f, A::AbstractRaster, mappedcrs::GeoFormat)
     A = setmappedcrs(A, nothing)
     x = f(A)
     if x isa AbstractRaster
@@ -109,8 +109,7 @@ function _without_mapped_crs(f, A::AbstractRaster, mappedcrs)
     end
     return x
 end
-_without_mapped_crs(f, A::AbstractRasterStack, ::Nothing) = f(A)
-function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs) 
+function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat) 
     st1 = map(A -> setmappedcrs(A, nothing), st)
     x = f(st1)
     if x isa AbstractRasterStack

@@ -135,7 +135,7 @@ function Base.map(f, series::RasterSeries)
     if eltype(vals) <: Union{AbstractRaster,AbstractRasterStack}
         return rebuild(series, vals)
     else
-        return DimArray(vals, dims(series))
+        return Raster(vals, dims(series))
     end
 end
 

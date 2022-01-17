@@ -65,29 +65,37 @@ end
 function extract(A::RasterStackOrArray, points::AbstractVector{<:Tuple}; kw...)
     extract.(Ref(A), points; kw...)
 end
-function extract(A::RasterStackOrArray, points::AbstractVector{<:AbstractVector{<:Real}}; kw...)
+function extract(A::RasterStackOrArray, points::AbstractVector{Union{<:AbstractVector{<:Union{Real,Missing}},Missing}}; kw...)
     extract.(Ref(A), points; kw...)
 end
-function extract(A::RasterStackOrArray, data; order=_auto_dim_columns(dims(A), data), kw...) 
-    rows = Tables.rows(data)
-    point_dims = map(p -> DD.basetypeof(p[1])(p[2]), order)
-    point_keys = map(val, point_dims)
-    map(rows) do row
-        point_vals = map(pk -> row[pk], point_keys)
-        extract(A, point_vals; order=map(first, order), point_keys, kw...)
+function extract(A::RasterStackOrArray, data; order=nothing, kw...) 
+    if Tables.istable(data)
+        order = isnothing(order) ? _auto_dim_columns(dims(A), data) : order
+        rows = Tables.rows(data)
+        point_dims = map(p -> DD.basetypeof(p[1])(p[2]), order)
+        point_keys = map(val, point_dims)
+        map(rows) do row
+            point_vals = map(pk -> row[pk], point_keys)
+            extract(A, point_vals; order=map(first, order), point_keys, kw...)
+        end
+    else
+        order = isnothing(order) ? DEFAULT_POINT_ORDER : order
+        map(data) do point
+            extract(A, point; order, kw...)
+        end
     end
 end
 extract(A::RasterStackOrArray, points::Missing; kw...) = missing
 function extract(
-    A::RasterStackOrArray, point::Union{Tuple,AbstractVector{<:AbstractFloat}};
+    x::RasterStackOrArray, point::Union{Tuple,AbstractVector{<:Union{Missing,<:Real}}};
     order=(XDim, YDim, ZDim),
-    point_keys=map(DD.dim2key, dims(A, order)),
-    layer_keys=_layer_keys(A, order),
+    point_keys=map(DD.dim2key, dims(x, order)),
+    layer_keys=_layer_keys(x),
     atol=nothing
 )
     # Get the actual dimensions available in the object
     # Usually this will be `X` and `Y`, but `Z` as well if it exists.
-    ordered_dims = dims(A, order)
+    ordered_dims = dims(x, order)
     length(point) == length(ordered_dims) || throw(ArgumentError("Length of `point` does not match dims. Pass `order` dims manually"))
     point = ntuple(i -> point[i], length(ordered_dims))
     dimtypes = map(DD.basetypeof, ordered_dims)
@@ -99,8 +107,8 @@ function extract(
     else
         selectors = map((d, x) -> _at_or_contains(d, x, atol), ordered_dims, point)
         point_vals = map(val ∘ val, selectors)
-        layer_vals = if DD.hasselection(A, selectors)
-            A[selectors...]
+        layer_vals = if DD.hasselection(x, selectors)
+            x isa Raster ? (x[selectors...],) : x[selectors...]
         else
             map(_ -> missing, layer_keys)
         end
@@ -109,5 +117,5 @@ function extract(
 end
 
 
-_layer_keys(A::AbstractRaster, order) = (name(A),)
-_layer_keys(A::AbstractRasterStack, order) = keys(A)
+_layer_keys(A::AbstractRaster) = cleankeys(name(A))
+_layer_keys(A::AbstractRasterStack) = cleankeys(keys(A))

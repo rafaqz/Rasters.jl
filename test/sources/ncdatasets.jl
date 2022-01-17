@@ -33,10 +33,6 @@ stackkeys = (
         @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
     end
 
-    # Rasters.create(tempfile, eltype(ncarray), dims(ncarray); 
-        # keys=keys(ncarray), missingval=missingval(gdalarray)
-    # )
-
     @testset "read" begin
         @time A = read(ncarray);
         @test A isa Raster

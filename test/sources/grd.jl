@@ -339,7 +339,8 @@ end
 
 
 @testset "Grd Band stack" begin
-    grdstack = RasterStack(path)
+    @test keys(RasterStack(path)) == (Symbol("red:green:blue"),)
+    grdstack = RasterStack(path; layersfrom=Band)
 
     @test length(grdstack) == 3
     @test dims(grdstack) isa Tuple{<:X,<:Y}

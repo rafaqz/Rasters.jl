@@ -17,6 +17,7 @@ polygon = [[-20.0, 30.0],
            [0.0, 10.0],
            [0.0, 30.0],
            [-20.0, 30.0]]
+vals = [1, 2, 3, 4, 5]
 
 @testset "replace_missing" begin
     @test all(isequal.(ga99, [-9999.0f0 7.0f0; 2.0f0 -9999.0f0]))
@@ -59,7 +60,6 @@ end
 @testset "mask" begin
     A1 = [missing 1; 2 3]
     A2 = view([0 missing 1; 0 2 3], :, 2:3)
-    A3 = view([0 missing 1; 0 2 3], :, 2:3)
     ga1 = Raster(A1, (X, Y); missingval=missing)
     ga2 = Raster(A2, (X, Y); missingval=missing)
     @test all(mask(ga1; with=ga) .=== mask(ga2; with=ga) .=== [missing 1; 2 missing])
@@ -75,6 +75,20 @@ end
     @test Rasters.isdisk(stmask)
     rm("mask_a.tif")
     rm("mask_b.tif")
+    @testset "to polygon" begin
+        a1 = Raster(ones(X(-20:5), Y(0:30)))
+        st1 = RasterStack(a1, a1)
+        ser1 = RasterSeries([a1, a1], Ti(1:2))
+        @test all(mask(a1; with=polygon) .===
+            mask(st1; with=polygon)[:layer1] .===
+            mask(ser1; with=polygon)[1]
+        )
+        # TODO: investigate this more for Points/Intervals
+        # Exactly how do we define when boundary values are inside/outside a polygon
+        @test sum(skipmissing(mask(a1; with=polygon, boundary=:inside))) == 19 * 19
+        @test sum(skipmissing(mask(a1; with=polygon, boundary=:center))) == 20 * 20
+        @test sum(skipmissing(mask(a1; with=polygon, boundary=:touches))) == 21 * 21
+    end
 end
 
 @testset "classify" begin
@@ -91,6 +105,8 @@ end
     @test ga2 == [1.0 0.0; -1.0 -1.0]
     classify!(ga2, [1 2.5 0.0; 2.5 4.0 -1.0]; lower=(>), upper=(<=))
     @test ga2 == [1.0 0.0; -1.0 -1.0]
+    @test all(classify(ga1, [1 99; 2 88; 3 77]) .=== [missing 99; 88 77])
+    @test_throws ArgumentError classify(ga1, [1, 2, 3])
 end
 
 @testset "points" begin
@@ -105,13 +121,35 @@ end
 end
 
 @testset "extract" begin
-    A = [1 2; 3 4]
-    ga = Raster(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); name=:test, missingval=missing)
-    @testset "points" begin
-        @test all(extract(ga, [(9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]) .=== 
+    A1 = [1 2; 3 4]
+    A2 = [5 6; 7 8]
+    dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
+    ga = Raster(A1, dimz; name=:test, missingval=missing)
+    ga2 = Raster(A2, dimz; name=:test2, missingval=missing)
+    st = RasterStack(ga, ga2)
+    @testset "from Raster" begin
+        @test all(extract(ga, [missing, [9.0, 0.1], [10.0, 0.2], [10.0, 0.3]]) .=== 
+                  [missing, (X=9.0, Y=0.1, test=1), (X=10.0, Y=0.2, test=4), (X=10.0, Y=0.3, test=missing)])
+        @test all(extract(ga, ([9.0, 10.0, 10.0], [0.1, 0.2, 0.3])) .=== 
                   [(X=9.0, Y=0.1, test=1), (X=10.0, Y=0.2, test=4), (X=10.0, Y=0.3, test=missing)])
-        @test all(extract(ga, [(0.1, 9.0), (0.2, 10.0), (0.3, 10.0)]; order=(Y, X)) .=== 
+        @test all(extract(ga, Polygon([[9.0, 0.1], [10.0, 0.2], [10.0, 0.3]])) .=== 
+                  [(X=9.0, Y=0.1, test=1), (X=10.0, Y=0.2, test=4), (X=10.0, Y=0.3, test=missing)])
+        @test all(extract(ga, [(0.1, 9.0), (0.2, 10.0), (0.3, 10.0), missing]; order=(Y, X)) .=== 
+                  [(Y=0.1, X=9.0, test=1), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing), missing])
+        @test all(extract(ga, ([0.1, 0.2, 0.3], [9.0, 10.0, 10.0]); order=(Y, X)) .=== 
                   [(Y=0.1, X=9.0, test=1), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing)])
+        @test all(extract(ga, Polygon([[0.1, 9.0], [0.2, 10.0], [0.3, 10.0]]); order=(Y, X)) .=== 
+                  [(Y=0.1, X=9.0, test=1), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing)])
+        @test all(extract(ga, [(missing, 9.0), (0.2, 10.0), (0.3, 10.0)]; order=(Y, X)) .=== 
+                  [(Y=missing, X=missing, test=missing), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing)])
+        @test all(extract(ga, [[missing, 9.0], [0.2, 10.0], [0.3, 10.0]]; order=(Y, X)) .=== 
+                  [(Y=missing, X=missing, test=missing), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing)])
+        @test_throws ArgumentError extract(ga, [missing, [9.0, 0.1], [10.0, 0.2], [10.0, 0.3]]; order=())
+        @test_throws ArgumentError extract(ga, [missing, [9.0, 0.1], [10.0, 0.2], [10.0, 0.3]]; order=(Z, X))
+    end
+    @testset "from stack" begin
+        @test all(extract(st, [missing, [9.0, 0.1], [10.0, 0.2], [10.0, 0.3]]) .=== 
+              [missing, (X=9.0, Y=0.1, test=1, test2=5), (X=10.0, Y=0.2, test=4, test2=8), (X=10.0, Y=0.3, test=missing, test2=missing)])
     end
     @testset "Tables.jl compatible" begin
         @test all(extract(ga, [(X=9.0, Y=0.1), (X=10.0, Y=0.2), (X=10.0, Y=0.3)]) .=== 
@@ -125,6 +163,7 @@ end
     A = [missing missing missing
          missing 2.0     0.5
          missing 1.0     missing]
+
     r_fwd = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing)
     r_revX = reverse(r_fwd; dims=X)
     r_revY = reverse(r_fwd; dims=Y)
@@ -141,6 +180,7 @@ end
             @test all(trimmed_r .=== [missing 1.0; 0.5 2.0])
         end
         cropped = crop(ga; to=trimmed)
+        _, cropped2 = crop(trimmed, ga)
         cropped_r = crop(ga_r; to=trimmed_r)
         @test all(cropped .=== trimmed)
         @test all(cropped_r .=== trimmed_r)
@@ -149,9 +189,28 @@ end
         extended_d = extend(cropped; to=ga, filename="extended.tif")
         @test all(extended .=== ga) 
         @test all(extended_r .=== ga_r)
-        A1 = Raster(zeros(X(-20:-5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
-        crop(A1; to=polygon)
-        extend(A1; to=polygon)
+
+        @testset "to polygons" begin
+            A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
+            A2 = Raster(ones(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
+            A1crop1 = crop(A1; to=polygon)
+            A1crop2, A2crop = crop(A1, A2; to=polygon)
+            size(A1crop1)
+            @test size(A1crop1) == size(A1crop2) == size(A2crop) == (16, 21)
+            @test bounds(A1crop1) == bounds(A1crop2) == bounds(A2crop) == ((-20, -5), (10, 30))
+            A1extend1 = extend(A1; to=polygon)
+            A1extend2, A2extend = extend(A1, A2; to=polygon)
+            @test all(A1extend1 .=== A1extend2)
+            @test size(A1extend1) == size(A1extend2) == size(A2extend) == (21, 31)
+            @test bounds(A1extend1) == bounds(A1extend2) == bounds(A2extend) == ((-20.0, 0.0), (0, 30))
+        end
+        @testset "to table" begin
+            A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
+            table = map(polygon, vals) do p, v
+                (x=p[1], y=p[2], val1=v, val2=2.0f0v)
+            end
+            A1crop1 = crop(A1; to=table, order=(X=>:x, Y=>:y))
+        end
     end
 
 end
@@ -182,15 +241,17 @@ end
     # 3 dimensions
     A1 = Raster(ones(2, 2, 2), (X(2.0:-1.0:1.0), Y(5.0:1.0:6.0), Ti(DateTime(2001):Year(1):DateTime(2002))))
     A2 = Raster(zeros(2, 2, 2), (X(3.0:-1.0:2.0), Y(4.0:1.0:5.0), Ti(DateTime(2002):Year(1):DateTime(2003))))
-    @test all(mosaic(mean, A1, A2) |> parent .=== cat([missing missing missing
-                                                 missing 1.0     1.0
-                                                 missing 1.0     1.0    ],
-                                                [0.0     0.0 missing
-                                                 0.0     0.5     1.0   
-                                                 missing 1.0     1.0    ],
-                                                [0.0     0.0     missing
-                                                 0.0     0.0     missing    
-                                                 missing missing missing], dims=3))
+    @test all(mosaic(mean, A1, A2) |> parent .=== 
+              first(mosaic(mean, RasterStack(A1), RasterStack(A2))) .===
+              cat([missing missing missing
+                   missing 1.0     1.0
+                   missing 1.0     1.0    ],
+                   [0.0     0.0 missing
+                   0.0     0.5     1.0   
+                   missing 1.0     1.0    ],
+                   [0.0     0.0     missing
+                   0.0     0.0     missing    
+                   missing missing missing], dims=3))
 end
 
 @testset "inpolygon" begin
@@ -210,9 +271,9 @@ end
 @testset "rasterize" begin
     gi_polygon = Polygon([polygon])
     rev_polygon = reverse.(polygon)
-    vals = [1, 2, 3, 4, 5]
-    A1 = Raster(zeros(X(-20:-5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
-    A2 = Raster(zeros(Y(0:30; sampling=Intervals()), X(-20:-5; sampling=Intervals())))
+    A1 = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
+    A2 = Raster(zeros(Y(0:30; sampling=Intervals()), X(-20:5; sampling=Intervals())))
+    st = RasterStack((A1, A1))
 
     A = A1
     poly = polygon
@@ -220,48 +281,61 @@ end
     for A in (A1, A2), (ord, poly) in (((X, Y), polygon), ((X, Y), gi_polygon), ((Y, X), rev_polygon))
         A .= 0
         rasterize!(A, poly, vals; order=ord)
-        @test sum(A) == 7 # Currently the last value overwrites
-        # plot(A; c=:magma)
+        @test sum(A) == 14 # The last value overwrites the first
         A .= 0
         rasterize!(A, poly; shape=:point, fill=1, order=ord)
-        @test sum(A) == 2
-        # plot(A; c=:magma)
+        @test sum(A) == 4
         A .= 0
         rasterize!(A, poly; shape=:line, fill=1, order=ord)
-        @test sum(A) == 21 + 15 + 15
-        # plot(A; c=:magma)
+        @test sum(A) == 20 + 20 + 20 + 20
         A .= 0
         rasterize!(A, poly; shape=:polygon, fill=1, boundary=:center, order=ord)
-        @test sum(A) == 20 * 16
-        # plot(A; c=:magma)
+        @test sum(A) == 20 * 20
         A .= 0
         rasterize!(A, poly; shape=:polygon, fill=1, boundary=:touches, order=ord)
-        @test sum(A) == 21 * 16
-        # plot(A; c=:magma)
+        @test sum(A) == 21 * 21
         A .= 0
         rasterize!(A, poly; shape=:polygon, fill=1, boundary=:inside, order=ord)
-        @test sum(A) == 19 * 15
-        # plot(A; c=:magma)
-        A = Raster(zeros(X(-20:-5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
-        gi_polygon = Polygon([polygon])
+        @test sum(A) == 19 * 19
+        A = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
         R = rasterize(poly, vals; to=A, order=ord)
-        @test sum(skipmissing(R)) == 7 # Currently the last value overwrites
-        # plot(R; c=:magma)
+        @test sum(skipmissing(R)) == 14 # The last value overwrites the first
         R = rasterize(poly; fill=1, to=A, order=ord)
-        @test sum(skipmissing(R)) == 20 * 16 # Currently the last value overwrites
-        # plot(R; c=:magma)
+        @test sum(skipmissing(R)) == 20 * 20
+        @test_throws ArgumentError rasterize(poly, vals; to=A, order=())
+        @test_throws ArgumentError rasterize!(A, poly; shape=:notashape, fill=1, order=ord)
+        @test_throws ArgumentError rasterize!(A, poly; shape=:polygon, fill=1, boundary=:notaboundary, order=ord)
+
+        st[:layer1] .= st[:layer2] .= 0
+        rasterize!(st, poly; shape=:point, fill=1, order=ord)
+        @test sum(st[:layer1]) == sum(st[:layer2]) == 4
+        st[:layer1] .= st[:layer2] .= 0
+        ra1 = rasterize(poly, vals; to=st, order=ord)
+        @test name(ra1) == :layer1
+        @test sum(skipmissing(ra1)) == 14 # The last value overwrites the first
+        stvals = [(1, 2), (3, 4), (5, 6), (7, 8), (9, 10)]
+        st2 = rasterize(poly, stvals; to=st, order=ord)
+        @test sum(skipmissing(st2[:layer1])) == 24 # The last value overwrites the first
+        @test sum(skipmissing(st2[:layer2])) == 28
     end
 
-    table = map(polygon, vals) do p, v
-        (x=p[1], y=p[2], val1=v, val2=2.0f0v)
+    @testset "table" begin
+        table = map(polygon, vals) do p, v
+            (x=p[1], y=p[2], val1=v, val2=2.0f0v)
+        end
+        @test sum(skipmissing(rasterize(table; to=A, order=(X=>:x, Y=>:y), name=:val1))) == 14
+        rst = rasterize(table; to=A, order=(X=>:x, Y=>:y), name=(:val1, :val2))
+        @test map(sum ∘ skipmissing, rst) === (val1=14, val2=28.0f0)
+        R = rasterize(table; to=A, order=(X=>:x, Y=>:y)) 
+        @test sum(skipmissing(R[:val1])) === 14
+        @test sum(skipmissing(R[:val2])) === 28.0f0
+        @test keys(R) == (:val1, :val2)
+        @test dims(R) == dims(A)
+        @test_throws ArgumentError rasterize(table; to=A, order=(), name=:val1)
+        @test_throws ArgumentError rasterize(table; to=A, order=(Z,), name=:val1)
+        @test_throws ArgumentError rasterize(table; to=A, name=:val1)
     end
-    @test rasterize(table; to=A, order=(X=>:x, Y=>:y), name=:val1) isa Raster
-    @test rasterize(table; to=A, order=(X=>:x, Y=>:y), name=(:val1, :val2)) isa RasterStack
-    R = rasterize(table; to=A, order=(X=>:x, Y=>:y)) 
-    @test sum(skipmissing(R[:val1])) === 7
-    @test sum(skipmissing(R[:val2])) === 14.0f0
-    @test keys(R) == (:val1, :val2)
-    @test dims(R) == dims(A)
+
 end
 
 @testset "resample" begin

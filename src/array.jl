@@ -33,7 +33,7 @@ cleanreturn(x) = x
 
 isdisk(A::AbstractRaster) = parent(A) isa DiskArrays.AbstractDiskArray
 isdisk(x) = false
-ismem(x) = !isdisk(A)
+ismem(x) = !isdisk(x)
 
 setcrs(x::AbstractRaster, crs) = set(x, setcrs(dims(x), crs)...)
 setmappedcrs(x::AbstractRaster, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
@@ -58,7 +58,7 @@ function crs(obj)
     elseif hasdim(obj, X)
         crs(dims(obj, X))
     else
-        error("No Y or X dimension, crs not available")
+        nothing
     end
 end
 crs(dim::Dimension) = crs(lookup(dim))
@@ -81,7 +81,7 @@ function mappedcrs(obj)
     elseif hasdim(obj, X)
         mappedcrs(dims(obj, X))
     else
-        error("No Y or X dimension, mappedcrs not available")
+        nothing
     end
 end
 mappedcrs(dim::Dimension) = mappedcrs(lookup(dim))
@@ -223,12 +223,12 @@ end
 function Raster(A::AbstractArray{<:Any,1}, dims::Tuple{<:Dimension,<:Dimension,Vararg}; kw...)
     Raster(reshape(A, map(length, dims)), dims; kw...)
 end
-function Raster(table, dims::Tuple; name=nothing, kw...)
+function Raster(table, dims::Tuple; name=first(_not_a_dimcol(table, dims)), kw...)
     Tables.istable(table) || throw(ArgumentError("First argument to `Raster` is not a table or other known object: $table"))
     isnothing(name) && throw(UndefKeywordError(:name))
-    cols = Tables.getcolumns(table)
+    cols = Tables.columns(table)
     A = reshape(cols[name], map(length, dims))
-    return Raster(A; name, kw...)
+    return Raster(A, dims; name, kw...)
 end
 Raster(A::AbstractArray; dims, kw...) = Raster(A, dims; kw...)
 function Raster(A::AbstractDimArray;
