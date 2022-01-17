@@ -15,12 +15,17 @@ ga1 = Raster(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=
 ga2 = Raster(data2, dims2)
 
 @testset "stack constructors" begin
+    # Maybe too many ways to define a stack...
     st1 = RasterStack((ga1, ga2); name=(:ga1, :ga2))
     st2 = RasterStack((ga1, ga2); keys=(:ga1, :ga2))
-    st3 = RasterStack((data1, data2), dims2; keys=(:ga1, :ga2))
+    st3 = RasterStack((data1, data2), dims2; keys=[:ga1, :ga2])
     st4 = RasterStack(st3)
     st5 = RasterStack(st3, dims2)
-    @test st1 == st2 == st3 == st4 == st5
+    st6 = RasterStack(RasterStack(ga1)..., RasterStack(ga2)...; name=(:ga1, :ga2))
+    st7 = RasterStack(RasterStack(ga1; name=:ga1)..., RasterStack(ga2; name=:ga2)...)
+    st8 = RasterStack((; ga1, ga2))
+    st9 = RasterStack((ga1=data1, ga2=data2), dims2)
+    @test st1 == st2 == st3 == st4 == st5 == st6 == st7 == st8 == st9
 
     # The dimension differences are lost because the table
     # is tidy - every column is the same length

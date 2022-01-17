@@ -71,6 +71,9 @@ $EXPERIMENTAL
 """
 function resample end
 resample(xs::RasterStackOrArray...; kw...) = resample(xs; kw...)
+function resample(ser::AbstractRasterSeries, args...; kw...)
+    map(x -> resample(x, args...; kw...), ser)
+end
 function resample(xs::Union{Tuple,NamedTuple}; to=first(xs), kw...)
     map(x -> resample(x; to, kw...), xs)
 end

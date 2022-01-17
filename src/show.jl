@@ -31,7 +31,7 @@ function Base.summary(io::IO, ser::AbstractRasterSeries{T,N}) where {T,N}
     else
         print(io, join(size(ser), "×"), " ")
     end
-    printstyled(io, string(nameof(typeof(ser)), "{$(nameof(T)),$N}"); color=:blue)
+    print(io, string(nameof(typeof(ser)), "{$(nameof(T)),$N}"))
 end
 
 function Base.show(io::IO, mime::MIME"text/plain", A::AbstractRasterSeries{T,N}) where {T,N}

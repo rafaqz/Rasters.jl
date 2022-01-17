@@ -1,5 +1,7 @@
-using Rasters, Test, Dates
+using Rasters, Test, Dates, DiskArrays
 using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters: isdisk, ismem, filename
+
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
@@ -16,11 +18,28 @@ ga1 = Raster(data1; dims=dims1, refdims=refdimz, name=nme, metadata=meta, missin
 @test ga1 == data1
 @test ga2 == data2
 
+@testset "array properties" begin
+    @test name(ga1) == :test
+    @test missingval(ga1) == -9999.0
+    @test isdisk(ga1) == false
+    @test ismem(ga1) == true
+    @test filename(ga1) === nothing
+    @test DiskArrays.haschunks(ga1) == DiskArrays.Unchunked()
+    @test DiskArrays.eachchunk(ga1) == DiskArrays.GridChunks((10, 11), (10, 11))
+end
+
+@testset "crs" begin
+    crs(ga1) == nothing
+    mappedcrs(ga1) == nothing
+    gapr = setcrs(ga1, EPSG(4326))
+    gampr = setmappedcrs(gapr, EPSG(4326))
+    @test crs(gapr) == crs(gapr[X(1)]) == EPSG(4326)
+    @test mappedcrs(gampr) == mappedcrs(gampr[X(1)]) == EPSG(4326)
+end
+
 @testset "arary dims have been formatted" begin
     @test index(ga2) == (10.0:10:100, -50.0:10:50.0, [DateTime(2019)])
     @test dims(ga1)[1:2] == dims(ga2)[1:2]
-    @test name(ga1) == :test
-    @test missingval(ga1) == -9999.0
 end
 
 @testset "constructors" begin
@@ -74,4 +93,18 @@ end
     @test collect(eachindex(skipmissing(mraster))) == [3]
     @test skipmissing(mraster)[3] == 1.0
     @test_throws MissingException skipmissing(mraster)[2]
+end
+
+@testset "table" begin
+    table = DimTable(ga1)
+    tra = Raster(table, dims(ga1))
+    @test tra == ga1
+    @test name(tra) == :test
+    @test_throws ArgumentError Raster(table, dims(ga1); name=:x)
+end
+
+@testset "from vector" begin
+    vra = Raster(vec(ga1), dims(ga1); name=:from_vector)
+    @test vra == ga1
+    @test name(vra) == :from_vector
 end

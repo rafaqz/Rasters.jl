@@ -135,8 +135,9 @@ Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert argum
 - `name`: Used as stack layer names when a `Tuple`, `Vector` or splat of `Raster` is passed in.
 - `metadata`: A `Dict` or `DimensionalData.Metadata` object.
 - `refdims`: `Tuple` of `Dimension` that the stack was sliced from.
-- `layersfrom`: `Dimension` to source stack layers from if the file is not 
-    already multi-layered. This will often be `Band`, which is the default.
+- `layersfrom`: `Dimension` to source stack layers from if the file is not already multi-layered.
+    `nothing` is default, so that a single `RasterStack(raster)` is a single layered stack.
+    `RasterStack(raster; layersfrom=Band)` will use the bands as layers.
 
 ```julia
 files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
@@ -218,7 +219,7 @@ end
 function RasterStack(filename::AbstractString;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, missingval=nothing,
-    source=_sourcetype(filename), name=nothing, keys=name, layersfrom=Band,
+    source=_sourcetype(filename), name=nothing, keys=name, layersfrom=nothing,
     resize=nothing,
 )
     st = if haslayers(_sourcetype(filename))
@@ -248,12 +249,22 @@ function RasterStack(filename::AbstractString;
     end
 end
 function RasterStack(A::Raster; 
-    layersfrom=Band, name=nothing, keys=name, metadata=metadata(A), refdims=refdims(A), kw...
+    layersfrom=nothing, name=nothing, keys=name, metadata=metadata(A), refdims=refdims(A), kw...
 )
-    layersfrom = layersfrom isa Nothing ? Band : layersfrom
-    keys = keys isa Nothing ? _layerkeysfromdim(A, layersfrom) : keys
-    slices = slice(A, layersfrom)
-    layers = NamedTuple{Tuple(map(Symbol, keys))}(Tuple(slices))
+
+    keys = keys isa Union{AbstractString,Symbol,Name} ? (keys,) : keys
+    layers = if isnothing(layersfrom)
+        keys = if keys isa Nothing
+            keys = DD.name(A) in (NoName(), Symbol(""), Name(Symbol(""))) ? ("layer1",) : DD.name(A) 
+        else
+            keys
+        end
+        NamedTuple{cleankeys(keys)}((A,))
+    else
+        keys = keys isa Nothing ? _layerkeysfromdim(A, layersfrom) : keys
+        slices = slice(A, layersfrom)
+        NamedTuple{cleankeys(keys)}(Tuple(slices))
+    end
     RasterStack(layers; refdims=refdims, metadata=metadata, kw...)
 end
 # Stack from stack, dims args

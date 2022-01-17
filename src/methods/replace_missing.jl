@@ -70,10 +70,7 @@ end
 function replace_missing!(s::RasterSeriesOrStack, args...; kw...)
     map(x -> replace_missing!(x, args...; kw...), s)
 end
-function replace_missing!(A::AbstractRaster{T}, missingval::MV=missing) where {T,MV}
-    # Disk-backed arrays need to be lazy, memory-backed don't.
-    # But in both cases we make sure we return an array with the missingval
-    # in the eltype, even if there are no missing values in the array.
+function replace_missing!(A::AbstractRaster, missingval=missing)
     repmissing(x) = isequal(x, Rasters.missingval(A)) ? missingval : x
     A .= repmissing.(A)
     return rebuild(A; missingval)

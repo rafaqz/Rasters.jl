@@ -46,8 +46,12 @@ function _table_point_order(dims::DimTuple, table, order)
 end
 function _table_point_order(dims::DimTuple, table, order::Nothing)
     order = _auto_dim_columns(dims, table)
+    names = Tables.columnnames(table)
+    if names === ()
+        names = keys(first(Tables.rows(table)))
+    end
     if order === ()
-        msg = "Could not detect dimension columns in the table. Please specify `order` as `dim => colonum` pairs, e.g. `order=(X => :xcol, Y => :ycol)`"
+        msg = "Could not detect dimension columns in `$names`. Please specify `order` as `dim => :column` pairs, e.g. `order=(X => :xcol, Y => :ycol)`"
         throw(ArgumentError(msg))
     end
     return order
@@ -68,12 +72,9 @@ function _table_bounds(table, order)
     return bounds
 end
 
-function _wrapped_table_bounds(dims::DimTuple, geom, order::Tuple)
-    nodes = _flat_nodes(geom)
-    bounds = map(ntuple(identity, length(order))) do i
-        extrema(p[i] for p in nodes)
-    end
-    return DD.dims(bounds, dims)
+function _wrapped_table_bounds(dims::DimTuple, table, order::Tuple)
+    ds = DD.dims(dims,  map(first, order))
+    map(rebuild, ds, _table_bounds(table, order))
 end
 
 function _auto_dim_columns(dims::DimTuple, table)

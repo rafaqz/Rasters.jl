@@ -7,7 +7,7 @@ const DEFAULT_POINT_ORDER = (XDim, YDim)
 # Fill a raster with `fill` where it interacts with a geometry.
 # We reduce all geometries to vectors with `coordinates` so that a simple
 # vector can also represent a polygon. In future we should do this lazily.
-function _fill_geometry!(B::AbstractRaster{Bool}, coll::GI.AbstractFeatureCollection; order, kw...)
+function _fill_geometry!(B::AbstractRaster, coll::GI.AbstractFeatureCollection; order, kw...)
     if bbox_might_overlap(B, coll, order)
         foreach(coll.features) do feature
             _fill_geometry!(B, feature; order, kw...)
@@ -15,13 +15,13 @@ function _fill_geometry!(B::AbstractRaster{Bool}, coll::GI.AbstractFeatureCollec
     end
     return B
 end
-function _fill_geometry!(B::AbstractRaster{Bool}, feature::GI.AbstractFeature; order, kw...)
+function _fill_geometry!(B::AbstractRaster, feature::GI.AbstractFeature; order, kw...)
     if bbox_might_overlap(B, feature, order)
         _fill_geometry!(B, feature.geometry; order, kw...)
     end
     return B
 end
-function _fill_geometry!(B::AbstractRaster{Bool}, geom::GI.AbstractGeometry;
+function _fill_geometry!(B::AbstractRaster, geom::GI.AbstractGeometry;
     shape=nothing, order=DEFAULT_ORDER, kw...
 )
     order = dims(B, order)
@@ -31,7 +31,7 @@ function _fill_geometry!(B::AbstractRaster{Bool}, geom::GI.AbstractGeometry;
     end
     return B
 end
-function _fill_geometry!(B::AbstractRaster{Bool}, geom; shape=:polygon, order, kw...)
+function _fill_geometry!(B::AbstractRaster, geom; shape=:polygon, order, kw...)
     geom = _flat_nodes(geom)
     gbounds = _geom_bounds(geom, order)
     abounds = bounds(dims(B, order)) # Only mask if the gemoetry bounding box overlaps the array bounding box
@@ -51,10 +51,10 @@ end
 # _fill_polygon!
 # Fill a raster with `fill` where pixels are inside a polygon
 # `boundary` determines how edges are handled
-function _fill_polygon!(B::AbstractRaster{Bool}, poly::Base.Iterators.Flatten; kw...)
+function _fill_polygon!(B::AbstractRaster, poly::Base.Iterators.Flatten; kw...)
     _fill_polygon!(B, collect(poly); kw...)
 end
-function _fill_polygon!(B::AbstractRaster{Bool}, poly; polybounds, order, fill=true, boundary=:center, kw...)
+function _fill_polygon!(B::AbstractRaster, poly; polybounds, order, fill=true, boundary=:center, kw...)
     # TODO take a view of B for the polygon
     # We need a tuple of all the dims in `order`
     # We also need the index locus to be the center so we are
@@ -99,7 +99,7 @@ _order_step(::ReverseOrdered) = -1
 _order_step(::ForwardOrdered) = 1
 
 # split to make a type stability function barrier
-function _inner_fill_polygon!(B::AbstractRaster{Bool}, poly, inpoly; order, fill=true, boundary=:center, kw...)
+function _inner_fill_polygon!(B::AbstractRaster, poly, inpoly; order, fill=true, boundary=:center, kw...)
     # Get the array as points
     # Use the first column of the output - the points in the polygon,
     # and reshape to match `A`
@@ -124,7 +124,7 @@ end
 
 # _fill_point!
 # Fill a raster with `fill` where points are inside raster pixels
-function _fill_point!(B::AbstractRaster{Bool}, points; order, fill=true, atol=nothing, kw...)
+function _fill_point!(B::AbstractRaster, points; order, fill=true, atol=nothing, kw...)
     # Just find which pixels contian the points, and set them to true
     _without_mapped_crs(B) do B1
         for point in points
@@ -184,17 +184,17 @@ end
 # Fill a raster with `fill` where pixels touch a line
 # TODO: generalise to 3d and Irregular spacing?
 function _fill_line!(A::AbstractRaster, line, fill, order::Tuple{<:Any,<:Any})
-    regular = map(dims(A)) do d
-        lookup(d) isa Sampled && sampling(d) isa Regular
+    regular = map(dims(A, order)) do d
+        lookup(d) isa Sampled && span(d) isa Regular
     end
-    all(regular) && throw(ArgumentError( """
+    all(regular) || throw(ArgumentError("""
             Can only fill lines where dimensions are regular.
             Consider reprojecting the crs, or make an issue in Rasters.jl on github if you need this to work.
             """))
 
     xd, yd = order
-    x_scale = (bounds(A, xd)[2] - bounds(A, xd)[1]) / size(A, xd)
-    y_scale = (bounds(A, yd)[2] - bounds(A, yd)[1]) / size(A, yd)
+    x_scale = abs(step(span(A, X)))
+    y_scale = abs(step(span(A, Y)))
     raw_x_offset = bounds(A, xd)[1]
     raw_y_offset = bounds(A, yd)[1]
     raw_start, raw_stop = line.start, line.stop # Float
@@ -212,12 +212,20 @@ function _fill_line!(A::AbstractRaster, line, fill, order::Tuple{<:Any,<:Any})
     yoffset = stop.y > start.y ? (ceil(start.y) - start.y) : (start.y - floor(start.y))
     # Angle of ray/slope.
     angle = atan(-diff_y, diff_x)
-    # How far to move along the ray to cross the first cell boundary.
-    max_x = xoffset / cos(angle)
-    max_y = yoffset / sin(angle)
-    # How far to move along the ray to move 1 grid cell.
-    delta_x = 1.0 / cos(angle)
-    delta_y = 1.0 / sin(angle)
+    # max: How far to move along the ray to cross the first cell boundary.
+    # delta: How far to move along the ray to move 1 grid cell.
+    cs = cos(angle)
+    si = sin(angle)
+    max_x, delta_x = if isapprox(cs, zero(cs); atol=1e-10) 
+        -Inf, Inf
+    else
+        1.0 / cs, xoffset / cs
+    end
+    max_y, delta_y = if isapprox(si, zero(si); atol=1e-10)
+        -Inf, Inf
+    else
+        1.0 / si, yoffset / si
+    end
     # Travel one grid cell at a time.
     manhattan_distance = floor(Int, abs(floor(start.x) - floor(stop.x)) + abs(floor(start.y) - floor(stop.y)))
     dimconstructors = map(DD.basetypeof, dims(A, order))
@@ -320,10 +328,6 @@ function _to_edges!(
     return edgenum + added_edges
 end
 
-_flatlength(x::Base.Iterators.Flatten) = x.it
-_flatlength(x::AbstractVector) = mapreduce(_flatlength, +, x)
-_flatlength(x::AbstractVector{<:Pt}) = length(x)
-
 # _geom_bounds
 # Get the bounds of a geometry
 function _geom_bounds(geom, order)
@@ -377,17 +381,10 @@ function _geom_shape(geom)
     elseif typ in (:Polygon, :MultiPolygon)
         return :polygon
     else
-        throw(ArgumentError("$typ not known"))
+        throw(ArgumentError("Geometry type $typ not known"))
     end
     # TODO: What to do with :GeometryCollection
 end
-
-# unwrap_point
-# Unwrap a GeoInterface point, to a tuple
-function unwrap_point(q::GI.AbstractPoint)
-    (q.x, q.y)
-end
-unwrap_point(q) = q
 
 # Copied from PolygonInbounds, to add extra keyword arguments
 function inpoly2(vert, node, edge=zeros(Int);

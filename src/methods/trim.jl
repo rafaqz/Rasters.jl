@@ -52,15 +52,33 @@ $EXPERIMENTAL
 """
 function trim(x::RasterStackOrArray; dims::Tuple=(XDim, YDim), pad::Int=0)
     # Get the actual dimensions in their order in the array
-    dims = commondims(x, dims)
+    targetdims = commondims(x, dims)
     # Get the range of non-missing values for each dimension
-    ranges = _trimranges(x, dims)
-    # Add paddding
-    padded = map(ranges, map(d -> size(x, d), dims)) do r, l
+    trackers = AxisTrackers(DD.dims(x), targetdims)
+    _update!(trackers, x)
+    ranges = _cropranges(trackers)
+    padded_ranges = _pad(ranges, targetdims, pad)
+    rangedims = map(rebuild, targetdims, padded_ranges)
+    return view(x, rangedims...)
+end
+function trim(ser::AbstractRasterSeries; dims::Tuple=(XDim, YDim), pad::Int=0)
+    x = first(ser)
+    # Get the actual dimensions in their order in the array
+    targetdims = commondims(x, dims)
+    # Get the range of non-missing values for each dimension
+    trackers = AxisTrackers(DD.dims(x), targetdims)
+    map(x -> _update!(trackers, x), ser)
+    # Get the ranges that contain all non-missing values
+    ranges = _cropranges(trackers)
+    padded_ranges = _pad(ranges, targetdims, pad)
+    rangedims = map(rebuild, targetdims, padded_ranges)
+    return map(x -> view(x, rangedims...), ser)
+end
+
+function _pad(ranges, dims, pad)
+    map(ranges, size(dims)) do r, l
         max(first(r)-pad, 1):min(last(r)+pad, l)
     end
-    dims = map(rebuild, dims, padded)
-    return view(x, dims...)
 end
 
 # Tracks the status of an index for some subset of dimensions of an Array
@@ -100,23 +118,17 @@ function _trackedinds(A, I)
     return map(val, Itracked)
 end
 
-# Get the ranges to trim to for dimensions in `dims`
-function _trimranges(A, targetdims)
-    # Broadcast over the array and tracker to mark axis indices
-    # as being missing or not
-    trackers = AxisTrackers(dims(A), targetdims)
-    _update!(trackers, A)
-    # Get the ranges that contain all non-missing values
-    cropranges = map(trackers.tracking) do a
+function _cropranges(trackers::AxisTrackers)
+    map(trackers.tracking) do a
         f = findfirst(a)
         l = findlast(a)
         f = f === nothing ? firstindex(a) : f
         l = l === nothing ? lastindex(a) : l
         f:l
     end
-    return cropranges
 end
 
+# Broadcast over the array and tracker to mark axis indices as being missing or not
 _update!(tr::AxisTrackers, A::AbstractRaster) = tr .= A .!== missingval(A)
 _update!(tr::AxisTrackers, st::AbstractRasterStack) = map(A -> tr .= A .!== missingval(A), st)
 

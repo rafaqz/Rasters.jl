@@ -81,8 +81,8 @@ gdalpath = maybedownload(url)
         @test crs(gdalarray) isa WellKnownText
         @test crs(gdalarray[Y(1)]) isa WellKnownText
         @test mappedcrs(gdalarray) === nothing
-        @test_throws ErrorException mappedcrs(gdalarray[Y(1), X(1)])
-        @test_throws ErrorException crs(gdalarray[Y(1), X(1)])
+        @test mappedcrs(gdalarray[Y(1), X(1)]) === nothing
+        @test crs(gdalarray[Y(1), X(1)]) === nothing
     end
 
     @testset "indexing" begin
@@ -404,7 +404,7 @@ end
         end
         @testset "mask and mask!" begin
             st = read(gdalstack)
-            msk = read(replace_missing(gdalstack[:a], missing))
+            msk = read(replace_missing(gdalstack, missing))[:a]
             msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
             @test !any(st[:b][X(1:100)] .=== missingval(msk))
             masked = mask(st; with=msk)
@@ -433,6 +433,16 @@ end
             b_st = rasterize(read(gdalstack); to=st, name=(:Band, ))
             @test b_st isa RasterStack
             @test b_r == b_st[:Band]
+        end
+
+        @testset "classify" begin
+            cstack = classify(gdalstack, 0x01..0xcf => 0x00, 0xd0..0xff => 0xff)
+            @test count(==(0x00), cstack[:a]) + count(==(0xff), cstack[:a]) == length(gdalstack[:a])
+            @test count(==(0x00), cstack[:b]) + count(==(0xff), cstack[:b]) == length(gdalstack[:b])
+            cstack = copy(gdalstack)
+            cstack = classify!(cstack, 0x01..0xcf => 0x00, 0xd0..0xff => 0xff)
+            @test count(==(0x00), cstack[:a]) + count(==(0xff), cstack[:a]) == length(gdalstack[:a])
+            @test count(==(0x00), cstack[:b]) + count(==(0xff), cstack[:b]) == length(gdalstack[:b])
         end
     end
 
@@ -488,19 +498,102 @@ end
 
 end
 
+@testset "resample and warp" begin
+    gdalarray = read(Raster(gdalpath; name=:test))
+    gdalstack = read(RasterStack((a=gdalpath, b=gdalpath)))
+    gdalser = read(RasterSeries([gdalpath, gdalpath], (Ti(),); mappedcrs=EPSG(4326), name=:test))
+
+    output_res = 0.0027
+    output_crs = EPSG(4326)
+    resample_method = "near"
+
+    ## Resample cea.tif manually with ArchGDAL
+    wkt = convert(String, convert(WellKnownText, output_crs))
+    AG_output = ArchGDAL.read(gdalpath) do dataset
+        ArchGDAL.gdalwarp([dataset], ["-t_srs", "$(wkt)",
+                                "-tr", "$(output_res)", "$(output_res)",
+                                "-r", "$(resample_method)"]) do warped
+            ArchGDAL.read(ArchGDAL.getband(warped, 1))
+        end
+    end
+
+    ## Resample cea.tif using resample
+    raster_output = resample(gdalarray, output_res; crs=output_crs, method=resample_method)
+    disk_output = resample(gdalarray, output_res; crs=output_crs, method=resample_method, filename="resample.tif")
+    stack_output = resample(gdalstack, output_res; crs=output_crs, method=resample_method)
+    series_output = resample(gdalser, output_res; crs=output_crs, method=resample_method)
+
+    extradim_raster = cat(gdalarray, gdalarray, gdalarray; dims=Z)
+    extradim_output = resample(extradim_raster, output_res; crs=output_crs, method=resample_method)
+
+    permuted_raster = permutedims(gdalarray, (Y, X, Band))
+    permuted_output = resample(permuted_raster, output_res; crs=output_crs, method=resample_method)
+
+    # Compare ArchGDAL, resample and permuted resample 
+    @test AG_output ==
+        raster_output[Band(1)] ==
+        disk_output[Band(1)] ==
+        stack_output[:a][Band(1)] ==
+        stack_output[:b][Band(1)] ==
+        series_output[1][Band(1)] ==
+        extradim_output[Z(3), Band(1)] ==
+        permutedims(permuted_output, (X, Y, Band))[Band(1)]
+    @test abs(step(dims(raster_output, Y))) ≈
+        abs(step(dims(raster_output, X))) ≈ 
+        abs(step(dims(disk_output, X))) ≈ 
+        abs(step(dims(disk_output, Y))) ≈ 
+        abs(step(dims(stack_output[:a], X))) ≈ 
+        abs(step(dims(stack_output[:a], Y))) ≈ 
+        abs(step(dims(stack_output[:b], X))) ≈ 
+        abs(step(dims(stack_output[:b], Y))) ≈ 
+        abs(step(dims(series_output[1], X))) ≈ 
+        abs(step(dims(series_output[2], Y))) ≈ 
+        abs(step(dims(series_output[1], X))) ≈ 
+        abs(step(dims(series_output[2], Y))) ≈ 
+        abs(step(dims(extradim_output, X))) ≈ 
+        abs(step(dims(extradim_output, Y))) ≈ 
+        abs(step(dims(permuted_output, X))) ≈ 
+        abs(step(dims(permuted_output, Y))) ≈ output_res
+
+    rm("resample.tif")
+
+    @testset "snapped size and dim index match" begin
+        snaptarget = aggregate(Center(), read(gdalarray), 2)
+        snapped = resample(read(gdalarray); to=snaptarget)
+        disk_snapped = resample(gdalarray; to=snaptarget, filename="snap_resample.tif")
+        stack_snapped = resample(read(gdalstack); to=snaptarget, filename="snap_resample.tif")
+        ser_snapped = resample(read(gdalser); to=snaptarget)
+        extradim_snapped = resample(extradim_raster; to=snaptarget)
+        @test size(snapped) == size(disk_snapped) == size(snaptarget)
+        @test isapprox(index(snaptarget, Y), index(snapped, Y))
+        @test isapprox(index(snaptarget, X), index(snapped, X))
+        @test isapprox(index(snaptarget, Y), index(stack_snapped, Y))
+        @test isapprox(index(snaptarget, X), index(stack_snapped, X))
+        @test isapprox(index(snaptarget, Y), index(first(ser_snapped), Y))
+        @test isapprox(index(snaptarget, X), index(first(ser_snapped), X))
+        @test isapprox(index(snaptarget, Y), index(disk_snapped, Y))
+        @test isapprox(index(snaptarget, X), index(disk_snapped, X))
+        @test isapprox(index(snaptarget, Y), index(extradim_snapped, Y))
+        @test isapprox(index(snaptarget, X), index(extradim_snapped, X))
+        rm("snap_resample.tif")
+        rm("snap_resample_a.tif")
+        rm("snap_resample_b.tif")
+    end
+end
+
 @testset "series" begin
     gdalser = RasterSeries([gdalpath, gdalpath], (Ti(),); mappedcrs=EPSG(4326), name=:test)
     @test read(gdalser[Ti(1)]) == read(Raster(gdalpath; mappedcrs=EPSG(4326), name=:test))
     @test read(gdalser[Ti(1)]) == read(Raster(gdalpath; mappedcrs=EPSG(4326), name=:test))
 
-    gdalser = RasterSeries((a=[gdalpath, gdalpath], b=[gdalpath, gdalpath]), (Ti,))
+    stackser = RasterSeries((a=[gdalpath, gdalpath], b=[gdalpath, gdalpath]), (Ti,))
     # Rebuild the ser by wrapping the disk data in Array.
     # `modify` forces `rebuild` on all containers as in-Memory variants
-    modified_ser = modify(Array, gdalser)
+    modified_ser = modify(Array, stackser)
     @test typeof(modified_ser) <: RasterSeries{<:RasterStack{<:NamedTuple{(:a,:b),<:Tuple{<:Array{UInt8,3},Vararg}}}}
 
     @testset "read" begin
-        ser1 = read(gdalser)
+        ser1 = read(stackser)
         @test ser1 isa RasterSeries{<:RasterStack}
         @test ser1.data isa Vector{<:RasterStack}
         @test first(ser1.data[1].data) isa Array
@@ -515,14 +608,57 @@ end
         end |> all
     end
 
+    @testset "methods" begin
+        @testset "classify" begin
+            cser = classify(gdalser, 0x01..0xcf => 0x00, 0xd0..0xff => 0xff)
+            @test count(==(0x00), cser[1]) + count(==(0xff), cser[1]) == length(gdalser[1])
+            @test count(==(0x00), cser[2]) + count(==(0xff), cser[2]) == length(gdalser[2])
+            cser = copy.(gdalser)
+            cser = classify!(cser, 0x01..0xcf => 0x00, 0xd0..0xff => 0xff)
+            @test count(==(0x00), cser[1]) + count(==(0xff), cser[1]) == length(gdalser[1])
+            @test count(==(0x00), cser[2]) + count(==(0xff), cser[2]) == length(gdalser[2])
+        end
+        @testset "trim, crop, extend" begin
+            mv = zero(eltype(gdalser[1]))
+            ser = read(replace_missing(gdalser, mv))
+            ser = map(A -> (view(A, X(1:100)) .= mv; A), ser)
+            trimmed = trim(ser)
+            @test size(trimmed[1]) == (414, 514, 1)
+            cropped = crop(ser; to=trimmed[1])
+            @test size(cropped[1]) == (414, 514, 1)
+            @test map((c, t) -> all(collect(c .=== t)), cropped, trimmed) |> all
+            extended = extend(read(cropped); to=ser[1])
+            @test all(map((s, e) -> all(s .=== e), ser, extended))
+        end
+        @testset "replace_missing" begin
+            mser = map(x -> rebuild(x; missingval=0x00), read(gdalser))
+            repser = replace_missing(mser)
+            @test eltype(first(repser)) == Union{Missing,UInt8}
+            replace_missing!(repser, 0xff)
+            @test count(x -> x == 0xff, first(repser)) == 
+                count(x -> x == 0xff, first(mser)) + count(x -> x == 0x00, first(mser))
+        end
+        @testset "mask and mask!" begin
+            ser = read(gdalser)
+            msk = first(read(replace_missing(gdalser, missing)))
+            msk[X(1:100), Y([1, 5, 95])] .= missingval(msk)
+            @test !any(ser[1][X(1:100)] .=== missingval(msk))
+            masked = mask(ser; with=msk)
+            masked[1][X(1:100), Y([1, 5, 95])]
+            @test all(masked[1][X(1:100), Y([1, 5, 95])] .=== missing)
+            mask!(ser; with=msk, missingval=0x00)
+            @test all(ser[1][X(1:100), Y([1, 5, 95])] .=== 0x00)
+            @test all(ser[2][X(1:100), Y([1, 5, 95])] .=== 0x00)
+        end
+    end
+
     @testset "show" begin
-        sh = sprint(show, MIME("text/plain"), gdalser)
+        sh = sprint(show, MIME("text/plain"), stackser)
         # Test but don't lock this down too much
         @test occursin("RasterSeries", sh)
         @test occursin("RasterStack", sh)
         @test occursin("Ti", sh)
     end
-
 
     @testset "crs" begin
         @time gdalarray = Raster(gdalpath; mappedcrs=EPSG(4326), name=:test)
@@ -533,3 +669,4 @@ end
         @test crs(gdalarray[Y(1)]) == wkt
     end
 end
+
