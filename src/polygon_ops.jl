@@ -185,11 +185,12 @@ end
 # TODO: generalise to 3d and Irregular spacing?
 function _fill_line!(A::AbstractRaster, line, fill, order::Tuple{<:Any,<:Any})
     regular = map(dims(A, order)) do d
-        lookup(d) isa Sampled && span(d) isa Regular
+        lookup(d) isa AbstractSampled && span(d) isa Regular
     end
     all(regular) || throw(ArgumentError("""
             Can only fill lines where dimensions are regular.
-            Consider reprojecting the crs, or make an issue in Rasters.jl on github if you need this to work.
+            Consider using `boundary=center` reprojecting the crs,
+            or make an issue in Rasters.jl on github if you need this to work.
             """))
 
     xd, yd = order
@@ -228,6 +229,7 @@ function _fill_line!(A::AbstractRaster, line, fill, order::Tuple{<:Any,<:Any})
     end
     # Travel one grid cell at a time.
     manhattan_distance = floor(Int, abs(floor(start.x) - floor(stop.x)) + abs(floor(start.y) - floor(stop.y)))
+    # For arbitrary dimension indexing
     dimconstructors = map(DD.basetypeof, dims(A, order))
     for t in 0:manhattan_distance
         D = map((d, o) -> d(o), dimconstructors, (x, y))
