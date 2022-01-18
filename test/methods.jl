@@ -238,6 +238,12 @@ end
                                              0.3 1.1 1.2; 
                                              missing 1.3 1.4])
 
+    @test all(mosaic(first, [reverse(reg2; dims=Y), reverse(reg1; dims=Y)]) .=== 
+              [missing 0.2 0.1; 
+               1.2 1.1 0.3; 
+               1.4 1.3 missing]
+             )
+
     # 3 dimensions
     A1 = Raster(ones(2, 2, 2), (X(2.0:-1.0:1.0), Y(5.0:1.0:6.0), Ti(DateTime(2001):Year(1):DateTime(2002))))
     A2 = Raster(zeros(2, 2, 2), (X(3.0:-1.0:2.0), Y(4.0:1.0:5.0), Ti(DateTime(2002):Year(1):DateTime(2003))))

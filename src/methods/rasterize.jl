@@ -86,7 +86,7 @@ savefig("build/china_rasterized.png")
 # output
 ```
 
-![rasterize](china_rasterized.pngfill)
+![rasterize](china_rasterized.png)
 
 $EXPERIMENTAL
 """
