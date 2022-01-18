@@ -10,6 +10,7 @@ function Base.write(
 )
     write(filename, _sourcetype(filename), A; kw...)
 end
+Base.write(A::AbstractRaster) = write(filename(A), A)
 
 """
     Base.write(filename::AbstractString, s::AbstractRasterStack; suffix, kw...)

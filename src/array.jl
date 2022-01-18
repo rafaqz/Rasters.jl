@@ -141,7 +141,7 @@ Often it will be a `do` block:
 ```julia
 # A is an `Raster` wrapping the opened disk-based object.
 open(Raster(filepath); write=true) do A
-    mask!(A; to=maskfile)
+    mask!(A; with=maskfile)
     A[I...] .*= 2
     # ...  other things you need to do with the open file
 end
@@ -165,7 +165,6 @@ function Base.open(f::Function, A::AbstractRaster; kw...)
         end
     end
 end
-Base.write(A::T) where T <: AbstractRaster = write(filename(A), A)
 
 # Concrete implementation ######################################################
 
