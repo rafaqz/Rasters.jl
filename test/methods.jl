@@ -324,6 +324,8 @@ end
         st2 = rasterize(poly, stvals; to=st, order=ord)
         @test sum(skipmissing(st2[:layer1])) == 24 # The last value overwrites the first
         @test sum(skipmissing(st2[:layer2])) == 28
+        # Make sure this still works
+        rasterize!(A, poly[1:end-1]; order=ord, fill=1)
     end
 
     @testset "table" begin
