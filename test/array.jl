@@ -93,6 +93,12 @@ end
     @test collect(eachindex(skipmissing(mraster))) == [3]
     @test skipmissing(mraster)[3] == 1.0
     @test_throws MissingException skipmissing(mraster)[2]
+
+    r = Raster(ones(Int16, 8, 8), (X,Y); missingval = Int16(-9999))
+    r[1:4, 1:4] .= -9999
+    r = float.(r)
+    @test !(missingval(r) in skipmissing(r))
+    @test length(collect(skipmissing(r))) == 48
 end
 
 @testset "table" begin

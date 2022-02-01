@@ -591,6 +591,7 @@ replace_missing
 reproject
 setcrs
 setmappedcrs
+skipmissing
 slice
 subset
 trim

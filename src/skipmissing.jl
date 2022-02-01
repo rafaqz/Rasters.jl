@@ -1,4 +1,8 @@
+"""
+    skipmissing(itr::Raster)
 
+Returns an iterable over the elements in a `Raster` object, skipping any values equal to either the `missingval` or `missing`.
+"""
 function Base.skipmissing(itr::Raster)
     if ismissing(missingval(itr))
         Base.SkipMissing(itr)
@@ -29,7 +33,14 @@ function Base.iterate(itr::SkipMissingVal, state...)
     item, state
 end
 
-_missing(x, itr) = x === missingval(itr) || x === missing
+_missing(x, itr) = ismissing(x) || x == missingval(itr)  # mind the order, as comparison with missing returns missing
+function _missing(x::AbstractFloat, itr)
+    if isnan(missingval(itr))
+        return ismissing(x) || isnan(x)
+    else
+        return ismissing(x) || x == missingval(itr)
+    end
+end
 
 Base.IndexStyle(::Type{<:SkipMissingVal{T}}) where {T} = IndexStyle(T)
 Base.eachindex(itr::SkipMissingVal) =
