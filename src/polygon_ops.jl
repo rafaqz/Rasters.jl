@@ -127,10 +127,10 @@ function _inner_fill_polygon!(B::AbstractRaster, poly, inpoly, reshaped; order, 
 end
 
 function _iyperm(dims::Tuple{<:Dimension,<:Dimension})
-    of, ol, os = LA.ordered_firstindex, LA.ordered_lastindex, _order_step
-    l1, l2 = map(parent, dims)
-    a1 = of(l1):os(l1):ol(l1)
-    a2 = of(l2):os(l2):ol(l2) 
+    a1, a2 = map(dims) do d
+        l = parent(d)
+        LA.ordered_firstindex(l1):_order_step(l1):LA.ordered_lastindex(l1)
+    end
     iyperm = Array{Int}(undef, length(a1) * length(a2))
     lis = (LinearIndices(size(dims))[i, j] for j in a2 for i in a1)
     for (i, li) in enumerate(lis)
@@ -139,15 +139,15 @@ function _iyperm(dims::Tuple{<:Dimension,<:Dimension})
     return iyperm
 end
 function _iyperm(dims::Tuple{<:Dimension,<:Dimension,<:Dimension})
-    of, ol, os = LA.ordered_firstindex, LA.ordered_lastindex, _order_step
-    l1, l2, l3 = map(parent, dims)
-    a1 = of(l1):os(l1):ol(l1)
-    a2 = of(l2):os(l2):ol(l2) 
-    a3 = of(l3):os(l3):ol(l3)
+    a1, a2, a3 = map(dims) do d
+        l = parent(d)
+        LA.ordered_firstindex(l1):_order_step(l1):LA.ordered_lastindex(l1)
+    end
     iyperm = Array{Int}(undef, length(a1) * length(a2) * length(a3))
     lis = (LinearIndices(size(dims))[i, j, k] for k in a3 for j in a2 for i in a1)
     for (i, li) in enumerate(lis)
-        Iyperm[i] = li end
+        Iyperm[i] = li
+    end
     return iyperm
 end
 
@@ -189,7 +189,7 @@ function _fill_linestring!(B::AbstractRaster, linestring::AbstractVector{<:Abstr
         _fill_linestring!(B, ls, args...; kw...)
     end
 end
-function _fill_linestring!(B::AbstractRaster, linestring::AbstractArray{<:Union{<:AbstractArray{<:Real},Tuple}}; order, fill=true, kw...)
+function _fill_linestring!(B::AbstractRaster, linestring::Poly; order, fill=true, kw...)
     linestring = collect(linestring)
     # Flip the order with a view to keep our alg simple
     forward_ordered_B = reduce(dims(B); init=B) do A, d
@@ -309,7 +309,7 @@ end
 
 # PolygonInbounds.jl setup
 
-# _flat_shapes
+# _flat_nodes
 # Convert a geometry/nested vectors to a flat iterator of point nodes for PolygonInbounds
 _flat_nodes(A::GI.AbstractGeometry) = _flat_nodes(GI.coordinates(A))
 _flat_nodes(A::GI.AbstractFeature) = _flat_nodes(GI.geometry(A))
@@ -408,16 +408,6 @@ function _to_edges!(
     append!(nodes, poly)
     nextpoint = pointnum + added_nodes
     return nextpoint
-    if last(edges)[2] != start_edgenum
-        if last(edges)[2] > length(poly)
-            edges[end] = (last(edges)[1], start_edgenum)
-        # else
-            # push!(edges, (last(edges)[2], start_edgenum))
-            # added_edges += 1
-        end
-    end
-
-    return edgenum + added_edges
 end
 
 # _geom_bounds
@@ -425,7 +415,7 @@ end
 function _geom_bounds(geom, order)
     nodes = _flat_nodes(geom)
     bounds = map(ntuple(identity, length(order))) do i
-        extrema(p[i] for p in Iterators.flatten(nodes))
+        extrema(p[i] for p in nodes)
     end
     return bounds
 end
