@@ -32,7 +32,7 @@ function _fill_geometry!(B::AbstractRaster, geom::GI.AbstractGeometry;
     return B
 end
 function _fill_geometry!(B::AbstractRaster, geom; shape=:polygon, order, kw...)
-    geom = _flat_shapes(geom)
+    geom = collect(_flat_shapes(geom))
     gbounds = _geom_bounds(geom, order)
     abounds = bounds(dims(B, order)) # Only mask if the gemoetry bounding box overlaps the array bounding box
     bounds_overlap(gbounds, abounds) || return B
@@ -289,8 +289,9 @@ _flat_shapes(A::AbstractVector{<:Union{Missing,<:GI.AbstractPoint}}) = map(GI.co
 function _flat_shapes(A::AbstractVector{<:AbstractVector{<:AbstractVector{<:AbstractVector}}})
     Iterators.flatten(map(_flat_shapes, A))
 end
-_flat_shapes(A::AbstractVector{<:AbstractVector{<:AbstractVector{<:AbstractFloat}}}) = A
+_flat_shapes(A::AbstractVector{<:AbstractVector{<:AbstractVector{<:Real}}}) = A
 _flat_shapes(A::AbstractVector{<:AbstractVector{<:Tuple}}) = A
+_flat_shapes(A::AbstractVector{<:AbstractVector{<:Real}}) = [A]
 _flat_shapes(iter::Base.Iterators.Flatten) = iter
 
 _flat_nodes(x) = Iterators.Flatten(_flat_shapes(x))
