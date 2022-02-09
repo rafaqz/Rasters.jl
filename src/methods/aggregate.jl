@@ -14,8 +14,9 @@ Aggregate a Raster, or all arrays in a RasterStack or RasterSeries, by `scale` u
 # Arguments
 
 - `method`: a function such as `mean` or `sum` that can combine the
-  value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
-  like `Start()` or `Center()` that specifies where to sample from in the interval.
+  value of multiple cells to generate the aggregated cell, a [`Locus`]($DDlocusdocs)
+  like `Start()` or `Center()`, `End` that species where to sample from in the interval,
+  or a `Symbol` from `:start`, `:center`, or `:end`.
 - `object`: Object to aggregate, like `AbstractRasterSeries`, `AbstractStack`,
   `AbstractRaster` or `Dimension`.
 - `scale`: the aggregation factor, which can be an integer, a tuple of integers
@@ -39,9 +40,8 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 
 ```jldoctest
 using Rasters, Statistics, Plots
-using Rasters: Center 
 st = read(RasterStack(WorldClim{Climate}; month=1))
-ag = aggregate(Center(), st, (Y(20), X(20)); skipmissingval=true, progress=false)
+ag = aggregate(:center, st, (Y(20), X(20)); skipmissingval=true, progress=false)
 plot(ag)
 savefig("build/aggregate_example.png") 
 # output
@@ -108,8 +108,9 @@ Aggregate array `src` to array `dst` by `scale`, using `method`.
 # Arguments
 
 - `method`: a function such as `mean` or `sum` that can combine the
-  value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
-  like `Start()` or `Center()` that species where to sample from in the interval.
+  value of multiple cells to generate the aggregated cell, a [`Locus`]($DDlocusdocs)
+  like `Start()` or `Center()`, `End` that species where to sample from in the interval,
+  or a `Symbol` from `:start`, `:center`, or `:end`.
 - `scale`: the aggregation factor, which can be an integer, a tuple of integers
   for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
   usually use in `getindex`. Using a `Selector` will determine the scale by the
@@ -177,8 +178,9 @@ Disaggregate array, or all arrays in a stack or series, by some scale.
 # Arguments
 
 - `method`: a function such as `mean` or `sum` that can combine the
-  value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
-  like `Start()` or `Center()` that species where to sample from in the interval.
+  value of multiple cells to generate the aggregated cell, a [`Locus`]($DDlocusdocs)
+  like `Start()` or `Center()`, `End` that species where to sample from in the interval,
+  or a `Symbol` from `:start`, `:center`, or `:end`.
 - `object`: Object to aggregate, like `AbstractRasterSeries`, `AbstractStack`,
   `AbstractRaster` or a `Dimension`.
 - `scale`: the aggregation factor, which can be an integer, a tuple of integers
@@ -250,8 +252,9 @@ disaggregate(method, span::Regular, scale) = Regular(val(span) / scale)
 Disaggregate array `src` to array `dst` by some scale, using `method`.
 
 - `method`: a function such as `mean` or `sum` that can combine the
-  value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
-  like `Start()` or `Center()` that species where to sample from in the interval.
+  value of multiple cells to generate the aggregated cell, a [`Locus`]($DDlocusdocs)
+  like `Start()` or `Center()`, `End` that species where to sample from in the interval,
+  or a `Symbol` from `:start`, `:center`, or `:end`.
 - `scale`: the aggregation factor, which can be an integer, a tuple of integers
   for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
   usually use in `getindex`. Using a `Selector` will determine the scale by the
@@ -344,4 +347,21 @@ function _endpoints(method, l::LookupArray, scale)
     start = firstindex(l) + _agoffset(method, l, scale)
     stop = (length(l) ÷ scale) * scale
     return start, stop
+end
+
+for f in (:aggregate, :aggregate!, :disaggregate, :disaggregate!)
+    @eval begin
+        $f(::Type{L}, A::AbstractRaster, args...) where L<:Locus = $f(L(), A, args...)
+        function $f(locus::Symbol, A::AbstractRaster, args...)
+            if locus in (:start, :Start)
+                $f(Start(), A, args...)
+            elseif locus in (:center, :Center)
+                $f(Center(), A, args...)
+            elseif locus in (:end, :End)
+                $f(End(), A, args...)
+            else
+                throw(ArgumentError("$locus is not an accepted Symbol input. Use :start, :center or :end"))
+            end
+        end
+    end
 end
