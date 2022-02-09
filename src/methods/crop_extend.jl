@@ -67,6 +67,7 @@ end
 function crop(xs; to=nothing, kw...)
     if isnothing(to)
         to = _subsetbounds((max, min), xs)
+        display(to)
         map(l -> _crop_to_bounds(l, to), xs)
     else
         map(l -> crop(l; to, kw...), xs)
@@ -78,7 +79,7 @@ crop(x::RasterStackOrArray; to, kw...) = _crop_to(x, to; kw...)
 _crop_to(A, to::RasterStackOrArray; kw...) = _crop_to(A, dims(to); kw...)
 function _crop_to(x, to::DimTuple; atol=maybe_eps(to))
     # We can only crop to sampled dims (e.g. not categorical dims like Band)
-    sampled = reduce(to; init=()) do acc, d 
+    sampled = reduce(dims(x, to); init=()) do acc, d 
         lookup(d) isa AbstractSampled ? (acc..., d) : acc
     end
     wrapped_bounds = map(d ->  rebuild(d, bounds(d)), sampled)
@@ -97,7 +98,7 @@ function _crop_to_bounds(x::RasterStackOrArray, wrapped_bounds::DimTuple)
     _without_mapped_crs(x) do x1
         dimranges = map(wrapped_bounds) do d
             x_d = dims(x1, d)
-            range = DD.selectindices(x_d, Between(parent(d)))
+            range = DD.selectindices(x_d, LA.ClosedInterval(parent(d)...))
             rebuild(x_d, range)
         end
         view(x1, dimranges...)
@@ -169,7 +170,7 @@ function _extend_to(A::AbstractRaster, to::DimTuple;
     ranges = _without_mapped_crs(A) do A
         _without_mapped_crs(to) do to
             map(dims(A), to) do d, t
-                range = DD.selectindices(t, Between(bounds(d)))
+                range = DD.selectindices(t, LA.ClosedInterval(bounds(d)...))
                 rebuild(d, range)
             end
         end
@@ -231,12 +232,13 @@ function _subsetbounds(fs, layers)
     dims = DD.combinedims(layers...; check=false)
     # Search through all the dimensions choosing the shortest
     alldims = map(DD.dims, layers)
-    map(dims) do d
+    reduce(dims; init=()) do acc, d
+        all(map(l -> hasdim(l, d), layers)) || return acc
         matchingdims = map(ds -> DD.dims(ds, (d,)), alldims)
         bounds = reduce(matchingdims) do a, b
             _choosebounds(fs, a, b)
         end
-        rebuild(d, bounds)
+        return (acc..., rebuild(d, bounds))
     end
 end
 
