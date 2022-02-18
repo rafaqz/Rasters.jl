@@ -25,18 +25,27 @@ Other keyword arguments are passed to the `write` method for the backend.
 
 If the source can't be saved as a stack-like object, individual array layers will be saved.
 """
-function Base.write(filename::AbstractString, s::AbstractRasterStack; suffix=nothing, kw...)
-    base, ext = splitext(filename)
+function Base.write(filename::AbstractString, s::AbstractRasterStack; suffix=nothing, ext=nothing, kw...)
+    if isnothing(ext)
+        base, ext = splitext(filename)
+    else
+        base = filename
+    end
     T = _sourcetype(filename)
     if haslayers(T)
         write(filename, _sourcetype(filename), s; kw...)
     else
         # Otherwise write separate files for each layer
-        if suffix === nothing
-            suffix = map(k -> string("_", k), keys(s))
+        suffix1 = if suffix === nothing
+            divider = Sys.iswindows() ? '\\' : '/'
+            # Add an underscore to the key if there is a file name already
+            spacer = last(filename) == divider ? "" : "_"
+            map(k -> string(spacer, k), keys(s))
+        else
+            suffix 
         end
         @warn string("Cannot write stacks to \"", ext, "\", writing layers as individual files")
-        map(keys(s), suffix) do key, sfx
+        map(keys(s), suffix1) do key, sfx
             fn = string(base, sfx, ext)
             write(fn, _sourcetype(filename), s[key])
         end

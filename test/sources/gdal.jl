@@ -515,7 +515,7 @@ end
 
 @testset "resample and warp" begin
     gdalarray = read(Raster(gdalpath; name=:test))
-    gdalstack = read(RasterStack((a=gdalpath, b=gdalpath)))
+    gdalstack = read(RasterStack((a=Raster(gdalpath), b=Raster(gdalpath) .* Int32(2))))
     gdalser = read(RasterSeries([gdalpath, gdalpath], (Ti(),); mappedcrs=EPSG(4326), name=:test))
 
     output_res = 0.0027
@@ -536,6 +536,7 @@ end
     raster_output = resample(gdalarray, output_res; crs=output_crs, method=resample_method)
     disk_output = resample(gdalarray, output_res; crs=output_crs, method=resample_method, filename="resample.tif")
     stack_output = resample(gdalstack, output_res; crs=output_crs, method=resample_method)
+    written_stack_output = resample(gdalstack, output_res; crs=output_crs, method=resample_method, filename="resample.tif")
     series_output = resample(gdalser, output_res; crs=output_crs, method=resample_method)
 
     extradim_raster = cat(gdalarray, gdalarray, gdalarray; dims=Z)
@@ -546,13 +547,14 @@ end
 
     # Compare ArchGDAL, resample and permuted resample 
     @test AG_output ==
-        raster_output[Band(1)] ==
-        disk_output[Band(1)] ==
+        raster_output[Band(1)] == disk_output[Band(1)] ==
         stack_output[:a][Band(1)] ==
-        stack_output[:b][Band(1)] ==
+        written_stack_output[:a][Band(1)] ==
         series_output[1][Band(1)] ==
         extradim_output[Z(3), Band(1)] ==
         permutedims(permuted_output, (X, Y, Band))[Band(1)]
+
+    @test stack_output[:b][Band(1)] == written_stack_output[:b][Band(1)] == AG_output .* 2
     @test abs(step(dims(raster_output, Y))) ≈
         abs(step(dims(raster_output, X))) ≈ 
         abs(step(dims(disk_output, X))) ≈ 
@@ -571,6 +573,8 @@ end
         abs(step(dims(permuted_output, Y))) ≈ output_res
 
     rm("resample.tif")
+    rm("resample_a.tif")
+    rm("resample_b.tif")
 
     @testset "snapped size and dim index match" begin
         snaptarget = aggregate(Center(), read(gdalarray), 2)
