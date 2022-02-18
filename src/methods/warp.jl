@@ -64,9 +64,14 @@ function _warp(A::AbstractRaster, flags::Dict; filename=nothing, suffix="", kw..
     end
     tempfile = isnothing(filename) ? nothing : tempname() * ".tif"
     warp_kw = isnothing(filename) || filename == "/vsimem/tmp" ? () : (; dest=filename)
-    AG.Dataset(A; filename=tempfile, kw...) do dataset
+    warped = AG.Dataset(A; filename=tempfile, kw...) do dataset
         AG.gdalwarp([dataset], flagvect; warp_kw...) do warped
-            raster = _maybe_permute_from_gdal(Raster(warped), dims(A))
+            # Either read the MEM dataset, or get the filename as a FileArray
+            raster = if isnothing(filename) 
+                read(_maybe_permute_from_gdal(Raster(warped), dims(A)))
+            else
+                _maybe_permute_from_gdal(Raster(warped), dims(A))
+            end
             # Drop the Band dim unless it exists in `A`
             if hasdim(A, Band())
                 raster 

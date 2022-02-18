@@ -85,7 +85,7 @@ end
 
 # Map filename suffix over a stack
 function mapargs(f, st::AbstractRasterStack, args...)
-    layers = map(map(values, st), args...) do A, mappedargs...
+    layers = map(values(st), args...) do A, mappedargs...
         f(A, mappedargs...)
     end
     return DD.rebuild_from_arrays(st, Tuple(layers))
