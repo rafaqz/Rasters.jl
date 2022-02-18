@@ -29,11 +29,11 @@ Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 
 [compat]
 Adapt = "2, 3.0"
-ArchGDAL = "0.7, 0.8"
+ArchGDAL = "0.8"
 ColorTypes = "0.10, 0.11"
 ConstructionBase = "1"
 DimensionalData = "0.20"
-DiskArrays = "^0.2.10"
+DiskArrays = "0.3"
 FillArrays = "0.12, 0.13"
 Flatten = "0.4"
 GeoFormatTypes = "^0.2.1, 0.3"
