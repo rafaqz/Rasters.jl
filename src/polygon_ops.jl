@@ -21,18 +21,16 @@ function _fill_geometry!(B::AbstractRaster, feature::GI.AbstractFeature; order, 
     end
     return B
 end
-function _fill_geometry!(B::AbstractRaster, geom::GI.AbstractGeometry;
-    shape=nothing, order=DEFAULT_ORDER, kw...
-)
-    order = dims(B, order)
-    shape = isnothing(shape) ? _geom_shape(geom) : shape
-    if bbox_might_overlap(B, geom, order)
-        _fill_geometry!(B, GI.coordinates(geom); shape, order, kw...)
-    end
-    return B
+function _fill_geometry!(B::AbstractRaster, geoms::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry}}; order, kw...)
+    any(map(g -> bbox_might_overlap(B, g, order), geoms)) || return B
+    _fill_geometry!(B, GI.coordinates.(geoms); order, kw...)
 end
-function _fill_geometry!(B::AbstractRaster, geom; shape=:polygon, order, kw...)
-    geom = _flat_nodes(geom)
+function _fill_geometry!(B::AbstractRaster, geom::GI.AbstractGeometry; order, kw...)
+    # Dont do anything if the bbox doesn't overlap
+    bbox_might_overlap(B, geom, order) || return B
+    _fill_geometry!(B, GI.coordinates(geom); order, kw...)
+end
+function _fill_geometry!(B::AbstractRaster, geom::AbstractVector; shape=:polygon, order, kw...)
     gbounds = _geom_bounds(geom, order)
     abounds = bounds(dims(B, order)) # Only mask if the gemoetry bounding box overlaps the array bounding box
     bounds_overlap(gbounds, abounds) || return B
@@ -41,7 +39,7 @@ function _fill_geometry!(B::AbstractRaster, geom; shape=:polygon, order, kw...)
     elseif shape === :line
         _fill_linestring!(B, geom; order, kw...)
     elseif shape === :point
-        _fill_point!(B, geom; order, kw...)
+        _fill_points!(B, geom; order, kw...)
     else
         _shape_error(shape)
     end
@@ -51,9 +49,6 @@ end
 # _fill_polygon!
 # Fill a raster with `fill` where pixels are inside a polygon
 # `boundary` determines how edges are handled
-function _fill_polygon!(B::AbstractRaster, poly::Base.Iterators.Flatten; kw...)
-    _fill_polygon!(B, collect(poly); kw...)
-end
 function _fill_polygon!(B::AbstractRaster, poly; polybounds, order, fill=true, boundary=:center, kw...)
     # TODO take a view of B for the polygon
     # We need a tuple of all the dims in `order`
@@ -64,6 +59,7 @@ function _fill_polygon!(B::AbstractRaster, poly; polybounds, order, fill=true, b
         # DimPoints are faster if we materialise the dims
         modify(Array, d)
     end
+    pts = DimPoints(shifted_dims)
     inpoly = if any(map(d -> DD.order(d) isa Unordered, shifted_dims))
         inpolygon(vec(pts), poly)
     else
@@ -76,7 +72,6 @@ function _fill_polygon!(B::AbstractRaster, poly; polybounds, order, fill=true, b
         # This is much faster than calling `sortperm` in PolygonInbounds.jl
         vmin = [first.(pointbounds)...]'
         vmax = [last.(pointbounds)...]'
-        pts = DimPoints(shifted_dims)
         iyperm = _iyperm(shifted_dims)
         inpolygon(vec(pts), poly; vmin, vmax, iyperm)
     end
@@ -124,24 +119,39 @@ end
 
 # _fill_point!
 # Fill a raster with `fill` where points are inside raster pixels
-function _fill_point!(B::AbstractRaster, points; order, fill=true, atol=nothing, kw...)
+function _fill_points!(B::AbstractRaster, points; kw...)
     # Just find which pixels contian the points, and set them to true
     _without_mapped_crs(B) do B1
-        for point in points
-            selectors = map(dims(B, order), ntuple(i -> i, length(order))) do d, i
-                _at_or_contains(d, point[i], atol)
-            end
-            if hasselection(B, selectors)
-                B[selectors...] = fill
-            end
-        end
+        _fill_points1!(B, points; kw...)
     end
     return B
 end
 
+function _fill_points1!(B::AbstractRaster, points::AbstractVector; kw...)
+    for point in points
+        _fill_points1!(B, point; kw...)
+    end
+end
+function _fill_points1!(B::AbstractRaster, point::Union{Tuple,<:AbstractVector{<:Real}}; 
+    order, fill=true, atol=nothing, kw...
+)
+    selectors = map(dims(B, order), ntuple(i -> i, length(order))) do d, i
+        _at_or_contains(d, point[i], atol)
+    end
+    if hasselection(B, selectors)
+        B[selectors...] = fill
+    end
+end
+
 # _fill_linestring!
 # Fill a raster with `fill` where pixels touch lines in a linestring
-function _fill_linestring!(B::AbstractRaster, linestring; order, fill=true, kw...)
+# Separated for a type stability function barrier
+function _fill_linestring!(B::AbstractRaster, linestring::AbstractVector{<:AbstractVector{<:AbstractVector}}, args...; kw...)
+    for ls in linestring
+        _fill_linestring!(B, ls, args...; kw...)
+    end
+end
+function _fill_linestring!(B::AbstractRaster, linestring::Poly; order, fill=true, kw...)
     linestring = collect(linestring)
     # Flip the order with a view to keep our alg simple
     forward_ordered_B = reduce(dims(B); init=B) do A, d
@@ -157,8 +167,7 @@ function _fill_linestring!(B::AbstractRaster, linestring; order, fill=true, kw..
     return B
 end
 
-# Separated for a type stability function barrier
-function _fill_line_segments!(B::AbstractArray{<:Any,N}, linestring, fill, order) where N
+function _fill_line_segments!(B::AbstractArray, linestring::Poly, fill, order::Tuple{<:Dimension,<:Dimension})
     isfirst = true
     local firstpoint, lastpoint
     for point in linestring
@@ -183,15 +192,16 @@ end
 # fill_line!
 # Fill a raster with `fill` where pixels touch a line
 # TODO: generalise to 3d and Irregular spacing?
-function _fill_line!(A::AbstractRaster, line, fill, order::Tuple{<:Any,<:Any})
+function _fill_line!(A::AbstractRaster, line, fill, order::Tuple{<:Dimension,<:Dimension})
     regular = map(dims(A, order)) do d
         lookup(d) isa AbstractSampled && span(d) isa Regular
     end
-    all(regular) || throw(ArgumentError("""
-            Can only fill lines where dimensions are regular.
-            Consider using `boundary=center` reprojecting the crs,
-            or make an issue in Rasters.jl on github if you need this to work.
-            """))
+    msg = """
+        Can only fill lines where dimensions are regular.
+        Consider using `boundary=center` reprojecting the crs,
+        or make an issue in Rasters.jl on github if you need this to work.
+        """
+    all(regular) || throw(ArgumentError(msg))
 
     xd, yd = order
     x_scale = abs(step(span(A, X)))
@@ -247,12 +257,12 @@ function _fill_line!(A::AbstractRaster, line, fill, order::Tuple{<:Any,<:Any})
     end
     return A
 end
-function _fill_line!(A::AbstractRaster, line, fill, order::Tuple)
-    throw(ArgumentError(""""
+function _fill_line!(A::AbstractRaster, line, fill, order::Tuple{Vararg{<:Dimension}})
+    msg = """"
         Converting a `:line` geometry to raster is currently only implemented for 2d lines.
         Make a Rasters.jl github issue if you need this for more dimensions.
         """
-    ))
+    throw(ArgumentError(msg))
 end
 
 # PolygonInbounds.jl setup
@@ -260,39 +270,65 @@ end
 # _flat_nodes
 # Convert a geometry/nested vectors to a flat iterator of point nodes for PolygonInbounds
 _flat_nodes(A::GI.AbstractGeometry) = _flat_nodes(GI.coordinates(A))
-_flat_nodes(A::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry}}) = Iterators.flatten(map(_flat_nodes, A))
+function _flat_nodes(A::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry}})
+    Iterators.flatten(map(_flat_nodes, A))
+end
 function _flat_nodes(A::AbstractVector{<:AbstractVector{<:AbstractVector}})
     Iterators.flatten(map(_flat_nodes, A))
 end
-_flat_nodes(A::AbstractVector{<:AbstractVector{<:AbstractFloat}}) = A
+_flat_nodes(A::AbstractVector{<:AbstractVector{<:Real}}) = A
+_flat_nodes(A::AbstractVector{<:Real}) = A
 _flat_nodes(A::AbstractVector{<:Tuple}) = A
 _flat_nodes(iter::Base.Iterators.Flatten) = iter
+
+_node_vecs(A::GI.AbstractGeometry) = GI.coordinates(A)
+function _node_vecs(A::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry}})
+    map(_node_vecs, A)
+end
+function _node_vecs(A::AbstractVector{<:AbstractVector{<:AbstractVector}})
+    A
+end
+_node_vecs(A::AbstractVector{<:AbstractVector{<:AbstractFloat}}) = A
+_node_vecs(A::AbstractVector{<:Tuple}) = A
+_node_vecs(iter::Base.Iterators.Flatten) = collect(iter)
 
 
 # _to_edges
 # Convert a polygon to the `edges` needed by PolygonInbounds
-function to_edges(poly)
-    edgenum = 0
+function to_edges_and_nodes(poly)
+    p1 = first(_flat_nodes(poly))
     edges = Vector{Tuple{Int,Int}}(undef, 0)
-    _to_edges!(edges, edgenum, poly)
-    return PermutedDimsArray(reinterpret(reshape, Int, edges), (2, 1))
+    nodes = Vector{typeof(p1)}(undef, 0)
+    nodenum = 0
+    _to_edges!(edges, nodes, nodenum, poly)
+    edges = PermutedDimsArray(reinterpret(reshape, Int, edges), (2, 1))
+    lastx = 0
+    for (i, x) in enumerate(view(edges, :, 1))
+        x == lastx + 1 || error("edge dup at $x $lastx $i")
+        lastx = x
+    end
+    return edges, nodes
 end
 
 # _to_edges!(edges, edgenum, poly)
 # fill edges vector with edges from polygon, numbered starting at `edgenum`
-function _to_edges!(edges, edgenum, poly::AbstractVector{<:GI.AbstractGeometry})
-    foldl(poly; init=edgenum) do n, p
-        _to_edges!(edges, n, GI.coordinates(p))
+function _to_edges!(edges, nodes, pointnum, poly::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry}})
+    foldl(poly; init=pointnum) do n, p
+        _to_edges!(edges, nodes, n, p)
     end
 end
-function _to_edges!(edges, edgenum, poly::AbstractVector{<:AbstractVector})
-    foldl(poly; init=edgenum) do n, p
-        _to_edges!(edges, n, p)
+function _to_edges!(edges, nodes, pointnum, poly::GI.AbstractGeometry)
+    _to_edges!(edges, nodes, pointnum, GI.coordinates(poly))
+end
+function _to_edges!(edges, nodes, pointnum, poly::AbstractVector{<:AbstractVector})
+    foldl(poly; init=pointnum) do n, p
+        _to_edges!(edges, nodes, n, p)
     end
 end
 # Analyse a single polygon
 function _to_edges!(
-    edges, edgenum, poly::AbstractVector{<:Union{<:NTuple{<:Any,T},<:AbstractVector{T}}}
+    edges, nodes, pointnum,
+    poly::AbstractVector{<:Union{<:NTuple{<:Any,T},<:AbstractVector{T}}}
 ) where T<:Real
     # Any polygon may actually be made up of multiple sub-polygons,
     # indicated by returning to the first point in the sub-polygon.
@@ -300,34 +336,32 @@ function _to_edges!(
     # wherever we find it repeated.
     fresh_start = true
     startpoint = first(poly)
-    start_edgenum = edgenum
-    added_edges = 0
-    for (e, point) in enumerate(poly)
+    start_pointnum = pointnum
+    added_nodes = 0
+    for (n, point) in enumerate(poly)
         if fresh_start
             # The first edge in the sub-polygon
-            start_edgenum = edgenum + e
-            startedge = (start_edgenum, start_edgenum + 1)
+            start_pointnum = pointnum + n
+            startedge = (start_pointnum, start_pointnum + 1)
             push!(edges, startedge)
             startpoint = point
             fresh_start = false
-        elseif point == startpoint
+        elseif point == startpoint || n == length(poly)
             # The closing edge of a sub-polygon 
-            closingedge = (edgenum + e, start_edgenum)
+            closingedge = (pointnum + n, start_pointnum)
             push!(edges, closingedge)
             fresh_start = true
         else
             # A regular edge somewhere in a sub-polygon
-            edge = (edgenum + e, edgenum + e + 1)
+            edge = (pointnum + n, pointnum + n + 1)
             push!(edges, edge)
         end
-        # Track the total number of edges we have added
-        added_edges += 1
+        # Track the total number of nodes we have added
+        added_nodes = n
     end
-    if last(edges)[2] != start_edgenum
-        push!(edges, (last(edges)[2], start_edgenum))
-        added_edges += 1
-    end
-    return edgenum + added_edges
+    append!(nodes, poly)
+    nextpoint = pointnum + added_nodes
+    return nextpoint
 end
 
 # _geom_bounds
@@ -359,7 +393,7 @@ function bounds_overlap(a, b)
 end
 
 # bbox_might_overlap
-# Check if there is a bbox fot the geometry
+# Check if there is a bbox for the geometry
 function bbox_might_overlap(x, geom, order)
     x_bnds = bounds(x, order)
     p_bbox = GI.bbox(geom)
@@ -378,10 +412,7 @@ function _geom_shape(geom)
     typ = GI.geotype(geom)
     if typ in (:Point, :MultiPoint)
         return :point
-    elseif typ in (:LineString, :MultiLineString)
-        return :line
-    elseif typ in (:Polygon, :MultiPolygon)
-        return :polygon
+    elseif typ in (:LineString, :MultiLineString) return :line elseif typ in (:Polygon, :MultiPolygon) return :polygon
     else
         throw(ArgumentError("Geometry type $typ not known"))
     end
@@ -389,6 +420,7 @@ function _geom_shape(geom)
 end
 
 # Copied from PolygonInbounds, to add extra keyword arguments
+# PR to include these when this has solidied
 function inpoly2(vert, node, edge=zeros(Int);
     atol::T=0.0, rtol::T=NaN, iyperm=nothing, vmin=nothing, vmax=nothing
 ) where T<:AbstractFloat
