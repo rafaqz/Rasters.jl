@@ -256,7 +256,7 @@ end
 
 @testset "inpolygon" begin
     gi_polygon = Polygon([polygon])
-    poly = gi_polygon
+    poly = polygon
     for poly in (polygon, gi_polygon)
         @test inpolygon((-10.0, 20.0), poly) == true
         @test inpolygon((-19.0, 29.0), poly) == true
@@ -277,6 +277,7 @@ end
 
     A = A1
     poly = polygon
+    poly = gi_polygon
     ord = (X, Y)
     for A in (A1, A2), (ord, poly) in (((X, Y), polygon), ((X, Y), gi_polygon), ((Y, X), rev_polygon))
         A .= 0

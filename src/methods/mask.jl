@@ -233,9 +233,8 @@ $EXPERIMENTAL
 function boolmask end
 boolmask(x::Union{AbstractRasterSeries,AbstractRasterStack,AbstractRaster}; kw...) =
     boolmask!(_bools(x, dims(x)), x; kw...)
-function boolmask(x; to, order=(XDim, YDim), kw...)
+boolmask(x; to, order=DEFAULT_POINT_ORDER, kw...) =
     boolmask!(_bools(to, commondims(to, order)), x; order, kw...)
-end
 
 _bools(x) = _bools(x, dims(x))
 _bools(x::AbstractRasterSeries, dims) = _bools(first(x), dims)
@@ -258,7 +257,11 @@ function boolmask!(dest::AbstractRaster, src::AbstractRaster;
 )
     broadcast!(a -> !isequal(a, missingval), dest, src)
 end
-boolmask!(dest::AbstractRaster, geom; kw...) = _fill_geometry!(dest, geom; kw...)
+function boolmask!(dest::AbstractRaster, geom; order=DEFAULT_POINT_ORDER, kw...)
+    order = dims(dest, order)
+    _fill_geometry!(dest, geom; order, kw...)
+    return dest
+end
 
 """
     missingmask(x; kw...)
