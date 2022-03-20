@@ -65,10 +65,10 @@ Write an NCDarray to a NetCDF file using NCDatasets.jl
 
 Returns `filename`.
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster)
+function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster; kw...)
     ds = NCD.Dataset(filename, "c"; attrib=_attribdict(metadata(A)))
     try
-        _ncdwritevar!(ds, A)
+        _ncdwritevar!(ds, A; kw...)
     finally
         close(ds)
     end
@@ -80,22 +80,24 @@ end
 @deprecate NCDstack(args...; kw...) RasterStack(args...; source=NCDfile, kw...)
 
 """
-    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack)
+    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; kw...)
 
 Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 
 Currently `Metadata` is not handled for dimensions, and `Metadata`
 from other [`AbstractRaster`](@ref) @types is ignored.
+
+`kw...`: see keyword arguments in [`NCDataset.defVar`].
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack)
+function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; kw...)
     ds = NCD.Dataset(filename, "c"; attrib=_attribdict(metadata(s)))
-    try 
-        map(key -> _ncdwritevar!(ds, s[key]), keys(s))
+    try
+        map(key -> _ncdwritevar!(ds, s[key]), keys(s); kw...)
     finally
         close(ds)
     end
     return filename
-end 
+end
 
 function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DimTuple; 
     name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing, metadata=NoMetadata()
@@ -352,7 +354,7 @@ _attribdict(md) = Dict{String,Any}()
 _dimkeys(ds::NCD.Dataset) = keys(ds.dim)
 
 # Add a var array to a dataset before writing it.
-function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}) where {T,N}
+function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}; kw...) where {T,N}
     _def_dim_var!(ds, A)
     attrib = _attribdict(metadata(A))
     # Set _FillValue
@@ -378,7 +380,7 @@ function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}) where {T,N}
     end
 
     dimnames = lowercase.(string.(map(name, dims(A))))
-    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib)
+    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...)
     # TODO do this with DiskArrays broadcast ??
     var[:] = parent(read(A))
 end
