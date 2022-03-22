@@ -87,7 +87,26 @@ Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 Currently `Metadata` is not handled for dimensions, and `Metadata`
 from other [`AbstractRaster`](@ref) @types is ignored.
 
-`kw...`: see keyword arguments in [`NCDataset.defVar`].
+# Arguments:
+- `kw...`: keyword arguments passed to [`NCDataset.defVar`].
+
+    •  `fillvalue`: A value filled in the NetCDF file to indicate missing data. It
+    will be stored in the `_FillValue` attribute.
+
+    •  `chunksizes`: Vector integers setting the chunk size. The total size of a
+    chunk must be less than 4 GiB.
+
+    •  `deflatelevel`: Compression level: 0 (default) means no compression and 9
+    means maximum compression. Each chunk will be compressed individually.
+
+    •  `shuffle`: If true, the shuffle filter is activated which can improve the
+    compression ratio.
+
+    •  `checksum`: The checksum method can be `:fletcher32` or `:nochecksum`
+    (checksumming is disabled, which is the default)
+
+    •  `typename` (string): The name of the NetCDF type required for vlen arrays
+    (https://web.archive.org/save/https://www.unidata.ucar.edu/software/netcdf/netcdf-4/newdocs/netcdf-c/nc_005fdef_005fvlen.html)
 """
 function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; kw...)
     ds = NCD.Dataset(filename, "c"; attrib=_attribdict(metadata(s)))
