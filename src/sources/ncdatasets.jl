@@ -94,7 +94,7 @@ Keywords are passed to `NCDatasets.defVar`.
 - `fillvalue`: A value filled in the NetCDF file to indicate missing data. It
     will be stored in the `_FillValue` attribute.
 
-    - `chunksizes`: Vector integers setting the chunk size. The total size of a
+- `chunksizes`: Vector integers setting the chunk size. The total size of a
     chunk must be less than 4 GiB.
 
     - `deflatelevel`: Compression level: 0 (default) means no compression and 9
