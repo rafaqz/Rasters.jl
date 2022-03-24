@@ -241,8 +241,8 @@ stackkeys = (
             r2 = Raster(x, (X, Y); name = "v2")
             f = "test.nc"
             isfile(f) && rm(f)
-            write(f, r1); size1 = filesize(f)
-            write(f, r2); size2 = filesize(f)
+            write(f, r1, append = false); size1 = filesize(f)
+            write(f, r2; append = true); size2 = filesize(f)
             @test size2 > size1*1.8 # two variable 
             isfile(f) && rm(f)
         end
