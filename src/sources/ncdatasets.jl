@@ -65,10 +65,10 @@ Write an NCDarray to a NetCDF file using NCDatasets.jl
 
 Returns `filename`.
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster)
+function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster; kw...)
     ds = NCD.Dataset(filename, "c"; attrib=_attribdict(metadata(A)))
     try
-        _ncdwritevar!(ds, A)
+        _ncdwritevar!(ds, A; kw...)
     finally
         close(ds)
     end
@@ -80,22 +80,44 @@ end
 @deprecate NCDstack(args...; kw...) RasterStack(args...; source=NCDfile, kw...)
 
 """
-    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack)
+    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; kw...)
 
 Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 
 Currently `Metadata` is not handled for dimensions, and `Metadata`
 from other [`AbstractRaster`](@ref) @types is ignored.
+
+# Keywords
+
+Keywords are passed to `NCDatasets.defVar`.
+
+- `fillvalue`: A value filled in the NetCDF file to indicate missing data. It
+    will be stored in the `_FillValue` attribute.
+
+- `chunksizes`: Vector integers setting the chunk size. The total size of a
+    chunk must be less than 4 GiB.
+
+- `deflatelevel`: Compression level: 0 (default) means no compression and 9
+    means maximum compression. Each chunk will be compressed individually.
+
+- `shuffle`: If true, the shuffle filter is activated which can improve the
+    compression ratio.
+
+- `checksum`: The checksum method can be `:fletcher32` or `:nochecksum`
+    (checksumming is disabled, which is the default)
+
+ - `typename` (string): The name of the NetCDF type required for vlen arrays
+    (https://web.archive.org/save/https://www.unidata.ucar.edu/software/netcdf/netcdf-4/newdocs/netcdf-c/nc_005fdef_005fvlen.html)
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack)
+function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; kw...)
     ds = NCD.Dataset(filename, "c"; attrib=_attribdict(metadata(s)))
-    try 
-        map(key -> _ncdwritevar!(ds, s[key]), keys(s))
+    try
+        map(key -> _ncdwritevar!(ds, s[key]), keys(s); kw...)
     finally
         close(ds)
     end
     return filename
-end 
+end
 
 function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DimTuple; 
     name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing, metadata=NoMetadata()
@@ -352,7 +374,7 @@ _attribdict(md) = Dict{String,Any}()
 _dimkeys(ds::NCD.Dataset) = keys(ds.dim)
 
 # Add a var array to a dataset before writing it.
-function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}) where {T,N}
+function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}; kw...) where {T,N}
     _def_dim_var!(ds, A)
     attrib = _attribdict(metadata(A))
     # Set _FillValue
@@ -378,7 +400,7 @@ function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}) where {T,N}
     end
 
     dimnames = lowercase.(string.(map(name, dims(A))))
-    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib)
+    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...)
     # TODO do this with DiskArrays broadcast ??
     var[:] = parent(read(A))
 end

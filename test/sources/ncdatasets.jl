@@ -225,6 +225,14 @@ stackkeys = (
             @test all(parent(saved) .=== parent(geoA))
             @test saved isa typeof(geoA)
             # TODO test crs
+
+            # test for nc `kw...`
+            geoA = read(ncarray)
+            write("tos.nc", geoA) # default `deflatelevel = 0`
+            write("tos_small.nc", geoA; deflatelevel=2)
+            @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
+            isfile("tos.nc") && rm("tos.nc")
+            isfile("tos_small.nc") && rm("tos_small.nc")
         end
         @testset "to gdal" begin
             gdalfilename = tempname() * ".tif"
