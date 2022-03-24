@@ -100,7 +100,7 @@ Keywords are passed to `NCDatasets.defVar`.
 - `deflatelevel`: Compression level: 0 (default) means no compression and 9
     means maximum compression. Each chunk will be compressed individually.
 
-    - `shuffle`: If true, the shuffle filter is activated which can improve the
+- `shuffle`: If true, the shuffle filter is activated which can improve the
     compression ratio.
 
 - `checksum`: The checksum method can be `:fletcher32` or `:nochecksum`
