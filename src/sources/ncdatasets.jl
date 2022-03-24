@@ -106,7 +106,7 @@ Keywords are passed to `NCDatasets.defVar`.
 - `checksum`: The checksum method can be `:fletcher32` or `:nochecksum`
     (checksumming is disabled, which is the default)
 
-    - `typename` (string): The name of the NetCDF type required for vlen arrays
+ - `typename` (string): The name of the NetCDF type required for vlen arrays
     (https://web.archive.org/save/https://www.unidata.ucar.edu/software/netcdf/netcdf-4/newdocs/netcdf-c/nc_005fdef_005fvlen.html)
 """
 function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; kw...)
