@@ -103,7 +103,7 @@ Keywords are passed to `NCDatasets.defVar`.
     - `shuffle`: If true, the shuffle filter is activated which can improve the
     compression ratio.
 
-    - `checksum`: The checksum method can be `:fletcher32` or `:nochecksum`
+- `checksum`: The checksum method can be `:fletcher32` or `:nochecksum`
     (checksumming is disabled, which is the default)
 
     - `typename` (string): The name of the NetCDF type required for vlen arrays
