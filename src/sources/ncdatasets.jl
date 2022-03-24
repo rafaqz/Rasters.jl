@@ -59,14 +59,15 @@ function Base.open(f::Function, A::FileArray{NCDfile}; write=A.write, kw...)
 end
 
 """
-    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRaster)
+    Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster)
 
 Write an NCDarray to a NetCDF file using NCDatasets.jl
 
 Returns `filename`.
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster; kw...)
-    ds = NCD.Dataset(filename, "c"; attrib=_attribdict(metadata(A)))
+function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster; append = true, kw...)
+    mode  = !isfile(filename) || !append ? "c" : "a";
+    ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(A)))
     try
         _ncdwritevar!(ds, A; kw...)
     finally
@@ -109,8 +110,9 @@ Keywords are passed to `NCDatasets.defVar`.
  - `typename` (string): The name of the NetCDF type required for vlen arrays
     (https://web.archive.org/save/https://www.unidata.ucar.edu/software/netcdf/netcdf-4/newdocs/netcdf-c/nc_005fdef_005fvlen.html)
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; kw...)
-    ds = NCD.Dataset(filename, "c"; attrib=_attribdict(metadata(s)))
+function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; append = true, kw...)
+    mode  = !isfile(filename) || !append ? "c" : "a";
+    ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(s)))
     try
         map(key -> _ncdwritevar!(ds, s[key]), keys(s); kw...)
     finally
