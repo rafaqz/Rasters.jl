@@ -97,7 +97,7 @@ Keywords are passed to `NCDatasets.defVar`.
 - `chunksizes`: Vector integers setting the chunk size. The total size of a
     chunk must be less than 4 GiB.
 
-    - `deflatelevel`: Compression level: 0 (default) means no compression and 9
+- `deflatelevel`: Compression level: 0 (default) means no compression and 9
     means maximum compression. Each chunk will be compressed individually.
 
     - `shuffle`: If true, the shuffle filter is activated which can improve the
