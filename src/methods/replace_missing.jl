@@ -31,8 +31,9 @@ function replace_missing(A::AbstractRaster{T}, missingval::MV;
     else
         nonmissingtype(T)
     end
+    old_missingval = Rasters.missingval(A)
     missingval = convert(MT, missingval)
-    repmissing(x) = isequal(x, Rasters.missingval(A)) || ismissing(x) ? missingval : x
+    repmissing(x) = isequal(x, old_missingval) || ismissing(x) ? missingval : x
     # Disk-backed arrays need to be lazy, memory-backed don't.
     # But in both cases we make sure we return an array with the missingval
     # in the eltype, even if there are no missing values in the array.
