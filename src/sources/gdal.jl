@@ -123,9 +123,7 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
     if hasdim(dims, Band)
         return Raster(filename; source=GDALfile)
     else
-        A = view(Raster(filename; source=GDALfile), Band(1))
-        @show typeof(Base.parent(A))
-        return A
+        return view(Raster(filename; source=GDALfile), Band(1))
     end
 end
 
