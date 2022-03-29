@@ -6,9 +6,14 @@
 `read` will move a Rasters.jl object completely to memory.
 """
 function Base.read(x::Union{AbstractRaster,AbstractRasterStack,AbstractRasterSeries})
-    modify(x) do ds
-        # Some backends don't implement `Array` properly.
-        Array{eltype(ds),ndims(ds)}(undef, size(ds)) .= ds
+    map(Base.read, x)
+end
+function Base.read(A::AbstractRaster)
+    open(A) do O 
+        modify(O) do ds
+            # Some backends don't implement `Array` properly.
+            Array{eltype(ds),ndims(ds)}(undef, size(ds)) .= ds
+        end
     end
 end
 
