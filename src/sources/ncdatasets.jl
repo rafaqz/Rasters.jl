@@ -59,14 +59,15 @@ function Base.open(f::Function, A::FileArray{NCDfile}; write=A.write, kw...)
 end
 
 """
-    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRaster)
+    Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster)
 
 Write an NCDarray to a NetCDF file using NCDatasets.jl
 
 Returns `filename`.
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster; kw...)
-    ds = NCD.Dataset(filename, "c"; attrib=_attribdict(metadata(A)))
+function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster; append = false, kw...)
+    mode  = !isfile(filename) || !append ? "c" : "a";
+    ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(A)))
     try
         _ncdwritevar!(ds, A; kw...)
     finally
@@ -84,12 +85,17 @@ end
 
 Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 
-Currently `Metadata` is not handled for dimensions, and `Metadata`
-from other [`AbstractRaster`](@ref) @types is ignored.
+Currently `Metadata` is not handled for dimensions, and `Metadata` from other
+[`AbstractRaster`](@ref) @types is ignored.
 
 # Keywords
 
 Keywords are passed to `NCDatasets.defVar`.
+
+- `append`: If true, the variable of the current Raster will be appended to
+    `filename`. Note that the variable of the current Raster should be not exist
+    before. If not, you need to set `append = false`. `Rasters` can not
+    overwrite a previous existing variable.
 
 - `fillvalue`: A value filled in the NetCDF file to indicate missing data. It
     will be stored in the `_FillValue` attribute.
@@ -109,8 +115,9 @@ Keywords are passed to `NCDatasets.defVar`.
  - `typename` (string): The name of the NetCDF type required for vlen arrays
     (https://web.archive.org/save/https://www.unidata.ucar.edu/software/netcdf/netcdf-4/newdocs/netcdf-c/nc_005fdef_005fvlen.html)
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; kw...)
-    ds = NCD.Dataset(filename, "c"; attrib=_attribdict(metadata(s)))
+function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; append = false, kw...)
+    mode  = !isfile(filename) || !append ? "c" : "a";
+    ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(s)))
     try
         map(key -> _ncdwritevar!(ds, s[key]), keys(s); kw...)
     finally

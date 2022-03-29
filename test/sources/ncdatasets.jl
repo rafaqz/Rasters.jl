@@ -233,6 +233,18 @@ stackkeys = (
             @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
             isfile("tos.nc") && rm("tos.nc")
             isfile("tos_small.nc") && rm("tos_small.nc")
+
+            # test for nc `append`
+            n = 100
+            x = rand(n, n)
+            r1 = Raster(x, (X, Y); name = "v1")
+            r2 = Raster(x, (X, Y); name = "v2")
+            f = "test.nc"
+            isfile(f) && rm(f)
+            write(f, r1, append = false); size1 = filesize(f)
+            write(f, r2; append = true); size2 = filesize(f)
+            @test size2 > size1*1.8 # two variable 
+            isfile(f) && rm(f)
         end
         @testset "to gdal" begin
             gdalfilename = tempname() * ".tif"
