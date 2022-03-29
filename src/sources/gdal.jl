@@ -99,10 +99,10 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
     if hasdim(dims, Band)
         b = DD.dims(dims, Band)
         nbands = length(b)
-        dims = (x, y, b)
+        newdims = (x, y, b)
     else
         nbands = 1
-        dims = (x, y)
+        newdims = (x, y)
     end
     kw = (width=length(x), height=length(y), nbands=nbands, dtype=T)
     gdaldriver = AG.getdriver(driver)
@@ -110,17 +110,23 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
         # TODO implement chunking
         options = ["COMPRESS=$compress", "TILED=NO"]
         AG.create(filename; driver=gdaldriver, options=options, kw...) do ds
-            _gdalsetproperties!(ds, dims, missingval)
+            _gdalsetproperties!(ds, newdims, missingval)
         end
     else
         # Create a tif and copy it to `filename`, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
         ArchGDAL.create(tempname() * ".tif"; driver=AG.getdriver("GTiff"), kw...) do ds
-            _gdalsetproperties!(ds, dims, missingval)
+            _gdalsetproperties!(ds, newdims, missingval)
             AG.copy(ds; filename=filename, driver=gdaldriver) |> AG.destroy
         end
     end
-    return Raster(filename; source=GDALfile)
+    if hasdim(dims, Band)
+        return Raster(filename; source=GDALfile)
+    else
+        A = view(Raster(filename; source=GDALfile), Band(1))
+        @show typeof(Base.parent(A))
+        return A
+    end
 end
 
 # DimensionalData methods for ArchGDAL types ###############################
