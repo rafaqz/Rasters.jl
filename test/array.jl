@@ -71,6 +71,14 @@ end
     @test A6 == [false false; false false] 
 end
 
+
+@testset "collect and Array" begin
+    @test collect(ga1) isa Array
+    @test collect(ga1) == data1
+    @test Array(ga1) isa Array{Float64,2}
+    @test Array(ga1) == data1
+end
+
 @testset "show" begin
     sh = sprint(show, MIME("text/plain"), ga1)
     # Test but don't lock this down too much

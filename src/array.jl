@@ -28,7 +28,7 @@ missingval(A::AbstractRaster) = A.missingval
 filename(A::AbstractRaster) = filename(parent(A))
 filename(A::AbstractArray) = nothing # Fallback
 
-cleanreturn(A::AbstractRaster) = modify(cleanreturn, A)
+cleanreturn(A::AbstractRaster) = rebuild(A, cleanreturn(parent(A)))
 cleanreturn(x) = x
 
 isdisk(A::AbstractRaster) = parent(A) isa DiskArrays.AbstractDiskArray
@@ -108,6 +108,14 @@ function DD.rebuild(A::AbstractRaster;
     rebuild(A, data, dims, refdims, name, metadata, missingval)
 end
 
+function DD.modify(f, A::AbstractRaster)
+    newdata = open(A) do O
+        f(parent(O))
+    end
+    size(newdata) == size(A) || error("$f returns an array with size $(size(newdata)) when the original size was $(size(A))")
+    return rebuild(A, newdata)
+end
+
 function DD.DimTable(As::Tuple{<:AbstractRaster,Vararg{<:AbstractRaster}}...)
     DimTable(DimStack(map(read, As...)))
 end
@@ -126,6 +134,9 @@ end
 # Base methods
 
 Base.parent(A::AbstractRaster) = A.data
+# Make sure a disk-based Raster is open before Array/collect
+Base.Array(A::AbstractRaster) = open(O -> Array(parent(O)), A)
+Base.collect(A::AbstractRaster) = open(O -> collect(parent(O)), A)
 
 """
     open(f, A::AbstractRaster; write=false)

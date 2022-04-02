@@ -85,6 +85,13 @@ end
 function MissingDiskArray(::Type{MT}, var::A) where {MT,A <: AbstractArray{T,N}} where {T,N}
     MissingDiskArray{MT,N,A}(var)
 end
+MissingDiskArray{MT,N}(var::V) where {MT,N,V} = MissingDiskArray{MT,N,V}(var)
+
+struct MissingDiskArrayConstructor{T,N} end
+(::MissingDiskArrayConstructor{T,N})(var) where {T,N} = MissingDiskArray{T,N}(var)
+
+ConstructionBase.constructorof(::Type{MissingDiskArray{T,N,V}}) where {T,N,V} =
+    MissingDiskArrayConstructor{T,N}()
 
 Base.parent(A::MissingDiskArray) = A.var
 Base.size(A::MissingDiskArray) = size(parent(A))
