@@ -51,6 +51,15 @@ gdalpath = maybedownload(url)
         @test A == A2 == A3
     end
 
+    @testset "read and write band names" begin
+        A = set(cat(gdalarray, gdalarray; dims=Band), Band=>1:2)
+        named = set(A, Band => string.(Ref("layer_"), dims(A, Band)))
+        tempfile = tempname() * ".tif"
+        write(tempfile, named)
+        @test parent(dims(Raster(tempfile), Band)) == ["layer_1", "layer_2"]
+        @test keys(RasterStack(tempfile; layersfrom=Band)) == (:layer_1, :layer_2)
+    end
+
     @testset "view" begin
         A = view(gdalarray, 1:10, 1:10, 1)
         @test A isa Raster
@@ -182,6 +191,7 @@ gdalpath = maybedownload(url)
         @testset "aggregate" begin
             ag = aggregate(mean, gdalarray, 4)
             @test ag == aggregate(mean, gdalarray, (X(4), Y(4), Band(1)))
+            ag = set(ag, Band => string.(Ref("layer_"), dims(ag, Band)))
             tempfile = tempname() * ".tif"
             write(tempfile, ag)
             open(Raster(tempfile); write=true) do dst

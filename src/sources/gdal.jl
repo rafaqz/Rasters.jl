@@ -138,9 +138,14 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
         GDAL_EMPTY_TRANSFORM
     end
     xsize, ysize = size(raster)
-
     nbands = AG.nraster(raster)
-    band = Band(Categorical(1:nbands; order=GDAL_BAND_ORDER))
+    bandnames = _gdal_bandnames(raster, nbands)
+    band = if all(==(""), bandnames)
+        Band(Categorical(1:nbands; order=GDAL_BAND_ORDER))
+    else
+        Band(Categorical(bandnames; order=GDAL_BAND_ORDER))
+    end
+    
     crs = crs isa Nothing ? Rasters.crs(raster) : crs
     xy_metadata = Metadata{GDALfile}()
 
@@ -295,6 +300,13 @@ function _gdalwrite(filename, A::AbstractRaster, nbands;
     return filename
 end
 
+function _gdal_bandnames(raster::AG.RasterDataset, nbands = AG.nraster(raster))
+    map(1:nbands) do b
+        AG.getband(raster.ds, b) do band
+            AG.GDAL.gdalgetdescription(band.ptr)
+        end
+    end
+end
 
 function _gdalmetadata(dataset::AG.Dataset, key)
     meta = AG.metadata(dataset)
@@ -332,6 +344,18 @@ function _gdalsetproperties!(dataset, dims, missingval)
         bands = hasdim(dims, Band) ? axes(DD.dims(dims, Band), 1) : 1
         for i in bands
             AG.setnodatavalue!(AG.getband(dataset, i), missingval)
+        end
+    end
+
+    # Write band labels if they are not Integers.
+    if hasdim(dims, Band)
+        bandlookup = DD.lookup(dims, Band)
+        if !(eltype(bandlookup) <: Integer)
+            for i in eachindex(bandlookup)
+                AG.getband(dataset, i) do band
+                    AG.GDAL.gdalsetdescription(band.ptr, string(bandlookup[i]))
+                end
+            end
         end
     end
 
@@ -490,3 +514,6 @@ for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
     precompile(Raster, (DS, String, Nothing))
     precompile(Raster, (DS, String, Symbol))
 end
+
+f = "/home/raf/Downloads/PMLV2_yearly_G010_v014_2017-01-01.tif"
+RasterStack(f; layersfrom=Band)
