@@ -4,7 +4,6 @@ const AG = ArchGDAL
 
 const GDAL_X_ORDER = ForwardOrdered()
 const GDAL_Y_ORDER = ReverseOrdered()
-const GDAL_BAND_ORDER = ForwardOrdered()
 
 const GDAL_X_LOCUS = Start()
 const GDAL_Y_LOCUS = Start()
@@ -65,7 +64,7 @@ function Base.write(
 
     correctedA = _maybe_permute_to_gdal(A) |>
         a -> noindex_to_sampled(a) |>
-        a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER), Band(GDAL_BAND_ORDER)))
+        a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER)))
 
     nbands = size(correctedA, Band())
     _gdalwrite(filename, correctedA, nbands; kw...)
@@ -141,9 +140,9 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     nbands = AG.nraster(raster)
     bandnames = _gdal_bandnames(raster, nbands)
     band = if all(==(""), bandnames)
-        Band(Categorical(1:nbands; order=GDAL_BAND_ORDER))
+        Band(Categorical(1:nbands; order=ForwardOrdered()))
     else
-        Band(Categorical(bandnames; order=GDAL_BAND_ORDER))
+        Band(Categorical(bandnames; order=Unordered()))
     end
     
     crs = crs isa Nothing ? Rasters.crs(raster) : crs
