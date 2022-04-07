@@ -224,7 +224,7 @@ function RasterStack(filename::AbstractString;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, missingval=nothing,
     source=_sourcetype(filename), name=nothing, keys=name, layersfrom=nothing,
-    resize=nothing,
+    resize=nothing, lazy=true,
 )
     st = if haslayers(_sourcetype(filename))
         crs = defaultcrs(source, crs)
