@@ -213,16 +213,16 @@ end
 
 # Utils ########################################################################
 
-function _open(f, ::Type{NCDfile}, filename::AbstractString; key=nothing, write=false)
-    lookup = write ? "a" : "r"
-    if key isa Nothing
-        NCD.Dataset(cleanreturn ∘ f, filename, lookup)
-    else
-        NCD.Dataset(filename, lookup) do ds
-            cleanreturn(f(ds[_firstkey(ds, key)]))
-        end
+function _open(f, ::Type{NCDfile}, filename::AbstractString; write=false, kw...)
+    mode = write ? "a" : "r"
+    NCD.Dataset(filename, mode) do ds
+        _open(f, NCDfile, ds; kw...)
     end
 end
+function _open(f, ::Type{NCDfile}, ds::NCD.Dataset; key=nothing, kw...)
+    cleanreturn(f(key isa Nothing ? ds : ds[_firstkey(ds, key)]))
+end
+_open(f, ::Type{NCDfile}, var::NCD.CFVariable; kw...) = cleanreturn(f(var))
 
 cleanreturn(A::NCD.CFVariable) = Array(A)
 

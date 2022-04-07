@@ -257,13 +257,18 @@ end
 function Raster(ds, filename::AbstractString, key=nothing;
     crs=nothing, mappedcrs=nothing, dims=nothing, refdims=(),
     name=Symbol(key isa Nothing ? "" : string(key)),
-    metadata=metadata(ds), missingval=missingval(ds), write=false,
-    source=_sourcetype(filename)
+    metadata=metadata(ds), missingval=missingval(ds), 
+    source=_sourcetype(filename), 
+    write=false, lazy=true,
 )
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
-    data = FileArray(ds, filename; key, write)
+    data = if lazy 
+        FileArray(ds, filename; key, write)
+    else
+        _open(Array, source, ds; key)
+    end
     return Raster(data, dims, refdims, name, metadata, missingval)
 end
 

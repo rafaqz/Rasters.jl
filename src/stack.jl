@@ -162,14 +162,18 @@ function RasterStack(
     RasterStack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
 end
 function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
-    crs=nothing, mappedcrs=nothing, source=nothing, kw...
+    crs=nothing, mappedcrs=nothing, source=nothing, lazy=true, kw...
 ) where K
     layers = map(keys(filenames), values(filenames)) do key, fn
         source = source isa Nothing ? _sourcetype(fn) : source
         crs = defaultcrs(source, crs)
         mappedcrs = defaultmappedcrs(source, mappedcrs)
-        _open(fn; key) do ds
-            data = FileArray(ds, fn; key)
+        _open(source, fn; key) do ds
+            data = if lazy
+                FileArray(ds, fn; key)
+            else
+                _open(Array, source, ds; key)
+            end
             dims = DD.dims(ds, crs, mappedcrs)
             md = metadata(ds)
             mv = missingval(ds)
@@ -232,7 +236,13 @@ function RasterStack(filename::AbstractString;
             metadata = metadata isa Nothing ? DD.metadata(ds) : metadata
             layermetadata = layermetadata isa Nothing ? DD.layermetadata(ds) : layermetadata
             missingval = missingval isa Nothing ? Rasters.missingval(ds) : missingval
-            data = FileStack{source}(ds, filename; keys)
+            data = if lazy
+                FileStack{source}(ds, filename; keys)
+            else
+                map(Tuple(keys)) do key 
+                    _open(Array, ds, filename; key)
+                end
+            end
             data, (; dims, refdims, layerdims, metadata, layermetadata, missingval)
         end
         RasterStack(data; field_kw...)

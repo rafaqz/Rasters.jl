@@ -29,6 +29,16 @@ stackkeys = (
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle)
 
+    @testset "lazyness" begin
+        @time read(Raster(ncsingle));
+        @time lazyarray = Raster(ncsingle; lazy=true);
+        @time eagerarray = Raster(ncsingle; lazy=false);
+        # Lazy is the default
+        @test parent(ncarray) isa FileArray
+        @test parent(lazyarray) isa FileArray
+        @test parent(eagerarray) isa Array
+    end
+
     @testset "open" begin
         @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
     end
@@ -292,6 +302,16 @@ end
 
 @testset "Single file stack" begin
     @time ncstack = RasterStack(ncmulti)
+
+    @testset "lazyness" begin
+        # @time read(RasterStack(ncmulti));
+        @time lazystack = RasterStack(ncmulti; lazy=true);
+        @time eagerstack = RasterStack(ncmulti; lazy=false);
+        # Lazy is the default
+        @test parent(grdstack[:a]) isa FileArray
+        @test parent(lazystack[:a]) isa FileArray
+        @test parent(eagerstack[:a]) isa Array
+    end
 
     @testset "load ncstack" begin
         @test ncstack isa RasterStack

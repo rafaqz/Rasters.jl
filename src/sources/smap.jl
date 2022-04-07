@@ -83,6 +83,7 @@ Base.size(wrapper::SMAPvar) = SMAPSIZE
 Base.ndims(wrapper::SMAPvar) = length(SMAPSIZE)
 Base.getindex(wrapper::SMAPvar, args...) = getindex(parent(wrapper), args...)
 Base.setindex!(wrapper::SMAPvar, args...) = setindex!(parent(wrapper), args...)
+Base.Array(wrapper::SMAPvar) = Array(parent(wrapper))
 
 DA.eachchunk(var::SMAPvar) = DA.GridChunks(var, size(var))
 DA.haschunks(var::SMAPvar) = DA.Unchunked()
@@ -181,16 +182,14 @@ end
 # Utils ########################################################################
 
 function _open(f, ::Type{SMAPfile}, filepath::AbstractString; key=nothing, kw...)
-    if key isa Nothing
-        h5open(filepath; kw...) do ds
-            cleanreturn(f(SMAPhdf5(ds)))
-        end
-    else
-        h5open(filepath) do ds
-            cleanreturn(f(SMAPhdf5(ds)[key]))
-        end
+    h5open(filepath; kw...) do ds
+        _open(f, SMAPfile, SMAPhdf5(ds); key, kw...)
     end
 end
+function _open(f, ::Type{SMAPfile}, ds::SMAPhdf5; key=nothing, kw...)
+    cleanreturn(f(key isa Nothing ? ds : ds[key]))
+end
+
 
 function _smap_timefromfilename(filename::String)
     dateformat = DateFormat("yyyymmddTHHMMSS")

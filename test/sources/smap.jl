@@ -37,6 +37,16 @@ if isfile(path1) && isfile(path2)
     @testset "Raster" begin
         @time smaparray = Raster(path1)
 
+        @testset "lazyness" begin
+            @time read(Raster(path1));
+            @time lazyarray = Raster(path1; lazy=true);
+            @time eagerarray = Raster(path1; lazy=false);
+            # Lazy is the default
+            @test parent(smaparray) isa FileArray
+            @test parent(lazyarray) isa FileArray
+            @test parent(eagerarray) isa Array
+        end
+
         @testset "open" begin
             @test all(open(A -> A[Y=1], smaparray) .=== smaparray[:, 1])
         end

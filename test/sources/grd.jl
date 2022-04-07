@@ -12,10 +12,20 @@ maybedownload("https://github.com/rspatial/raster/raw/master/inst/external/rlogo
 stem = joinpath(testpath, "data/rlogo")
 @test isfile(stem * ".grd")
 @test isfile(stem * ".gri")
-path = stem * ".gri"
+grdpath = stem * ".gri"
 
 @testset "Grd array" begin
-    @time grdarray = Raster(path)
+    @time grdarray = Raster(grdpath)
+
+    @testset "lazyness" begin
+        @time read(Raster(grdpath));
+        @time lazyarray = Raster(grdpath; lazy=true);
+        @time eagerarray = Raster(grdpath; lazy=false);
+        # Lazy is the default
+        @test parent(grdarray) isa FileArray
+        @test parent(lazyarray) isa FileArray
+        @test parent(eagerarray) isa Array
+    end
 
     @testset "open" begin
         @test all(open(A -> A[Y=1], grdarray) .=== grdarray[:, 1, :])
@@ -36,7 +46,7 @@ path = stem * ".gri"
         A2 = zero(A)
         @time read!(grdarray, A2);
         A3 = zero(A)
-        @time read!(path, A3);
+        @time read!(grdpath, A3);
         @test A == A2 == A3
     end
 
@@ -58,7 +68,7 @@ path = stem * ".gri"
         @test name(grdarray) == Symbol("red:green:blue")
         @test label(grdarray) == "red:green:blue"
         @test units(grdarray) == nothing
-        customgrdarray = Raster(path; name=:test, mappedcrs=EPSG(4326));
+        customgrdarray = Raster(grdpath; name=:test, mappedcrs=EPSG(4326));
         @test name(customgrdarray) == :test
         @test label(customgrdarray) == "test"
         @test mappedcrs(dims(customgrdarray, Y)) == EPSG(4326)
@@ -129,7 +139,7 @@ path = stem * ".gri"
         end
 
         @testset "mosaic" begin
-            @time grdarray = Raster(path)
+            @time grdarray = Raster(grdpath)
             A1 = grdarray[X(1:40), Y(1:30)]
             A2 = grdarray[X(27:80), Y(25:60)]
             tn = tempname()
@@ -273,7 +283,17 @@ path = stem * ".gri"
 end
 
 @testset "Grd stack" begin
-    grdstack = RasterStack((a=path, b=path))
+    grdstack = RasterStack((a=grdpath, b=grdpath))
+
+    @testset "lazyness" begin
+        @time read(RasterStack((a=grdpath, b=grdpath)));
+        @time lazystack = RasterStack((a=grdpath, b=grdpath); lazy=true);
+        @time eagerstack = RasterStack((a=grdpath, b=grdpath); lazy=false);
+        # Lazy is the default
+        @test parent(grdstack[:a]) isa FileArray
+        @test parent(lazystack[:a]) isa FileArray
+        @test parent(eagerstack[:a]) isa Array
+    end
 
     @test length(grdstack) == 2
     @test dims(grdstack) isa Tuple{<:X,<:Y,<:Band}

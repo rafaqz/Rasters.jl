@@ -10,6 +10,16 @@ gdalpath = maybedownload(url)
 @testset "array" begin
 
     @time gdalarray = Raster(gdalpath; name=:test)
+
+    @testset "lazyness" begin
+        @time read(Raster(gdalpath));
+        @time lazyarray = Raster(gdalpath; lazy=true);
+        @time eagerarray = Raster(gdalpath; lazy=false);
+        # Lazy is the default
+        @test parent(gdalarray) isa FileArray
+        @test parent(lazyarray) isa FileArray
+        @test parent(eagerarray) isa Array
+    end
     
     @testset "load from url" begin
         A = Raster("/vsicurl/" * url)

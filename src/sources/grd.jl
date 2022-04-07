@@ -250,7 +250,10 @@ function Base.open(f::Function, A::FileArray{GRDfile}, key...; write=A.write)
     _mmapgrd(mm -> f(RasterDiskArray{GRDfile}(mm, A.eachchunk, A.haschunks)), A; write)
 end
 
-_open(f, ::Type{GRDfile}, filename; key=nothing, write=false) = f(GRDattrib(filename; write))
+function _open(f, ::Type{GRDfile}, filename; key=nothing, write=false)
+    _open(f, GRDfile, GRDattrib(filename; write))
+end
+_open(f, ::Type{GRDfile}, attrib::GRDattrib; kw...) = f(attrib)
 
 haslayers(::Type{GRDfile}) = false
 
