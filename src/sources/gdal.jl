@@ -513,6 +513,3 @@ for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
     precompile(Raster, (DS, String, Nothing))
     precompile(Raster, (DS, String, Symbol))
 end
-
-f = "/home/raf/Downloads/PMLV2_yearly_G010_v014_2017-01-01.tif"
-RasterStack(f; layersfrom=Band)
