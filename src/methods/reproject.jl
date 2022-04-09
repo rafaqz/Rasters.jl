@@ -1,10 +1,39 @@
 """
+    reproject(target::GeoFormat, x)
+
+Reproject the dimensions of `x` to a different crs.
+
+# Arguments
+
+- `target`: any crs in a GeoFormatTypes.jl wrapper, e.g. `EPSG`, `WellKnownText`, `ProjString`.
+- `x`: a `Dimension`, `Tuple` of `Dimension`, `Raster` or `RasterStack`.
+
+Dimensions without an `AbstractProjected` lookup (such as a `Ti` dimension)
+are silently returned without modification.
+"""
+reproject(target::GeoFormat, x) = rebuild(x; dims=reproject(target, dims(x)))
+reproject(target::GeoFormat, dims::Tuple) = map(d -> reproject(target, d), dims)
+reproject(target::GeoFormat, dim::Dimension) = rebuild(dim, reproject(target, lookup(dim)))
+function reproject(target::GeoFormat, l::AbstractProjected)
+    source = crs(l)
+    newdata = reproject(source, target, l.dim, parent(l))
+    newlookup = rebuild(l; data=newdata, crs=target)
+    if isregular(newdata)
+        return set(newlookup, Regular(stepof(newdata)))
+    else
+        newbounds = reproject(crs(l), target, l.dim, bounds(l))
+        return set(newlookup, Irregular(newbounds))
+    end
+end
+reproject(target::GeoFormat, l::LookupArray) = l
+
+"""
     reproject(source::GeoFormat, target::GeoFormat, dim::Dimension, val)
 
 `reproject` uses ArchGDAL.reproject, but implemented for a reprojecting
 a value array of values, a single dimension at a time.
 """
-reproject(source, target, dim, val) = val
+reproject(source::GeoFormat, target::GeoFormat, dim, val) = val
 function reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim}, val::Number)
     # This is a dumb way to do this. But it save having to inspect crs, 
     # and prevents reprojections that dont make sense from working.
@@ -36,3 +65,18 @@ function reproject(source::GeoFormat, target::GeoFormat, dim::YDim, vals::Abstra
 end
 
 _rep_error(source, target) = throw(ArgumentError("Cannot reproject from: \n $source \nto: \n $target")) 
+
+# Guess the step for arrays
+stepof(A::AbstractArray) = (last(A) - first(A)) / (length(A) - 1)
+stepof(A::AbstractRange) = step(A)
+
+isregular(A::AbstractRange) = true
+function isregular(A::AbstractArray)
+    step = stepof(A)
+    for i in eachindex(A)[2:end]
+        if !(A[i] - A[i-1] ≈ step)
+            return false 
+        end
+    end
+    return true
+end
