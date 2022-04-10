@@ -30,4 +30,4 @@ if !Sys.iswindows()
     @time @safetestset "grd" begin include("sources/grd.jl") end
 end
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
-@time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
+# @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
