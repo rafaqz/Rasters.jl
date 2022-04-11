@@ -359,8 +359,8 @@ end
 
 
 @testset "Grd Band stack" begin
-    @test keys(RasterStack(path)) == (Symbol("red:green:blue"),)
-    grdstack = RasterStack(path; layersfrom=Band)
+    @test keys(RasterStack(grdpath)) == (Symbol("red:green:blue"),)
+    grdstack = RasterStack(grdpath; layersfrom=Band)
 
     @test length(grdstack) == 3
     @test dims(grdstack) isa Tuple{<:X,<:Y}
@@ -425,12 +425,12 @@ end
 end
 
 @testset "Grd series" begin
-    grdseries = RasterSeries([path, path], (Ti,); mappedcrs=EPSG(4326))
-    @test grdseries[Ti(1)] == Raster(path; mappedcrs=EPSG(4326))
-    stacks = [RasterStack((a=path, b=path); mappedcrs=EPSG(4326))]
+    grdseries = RasterSeries([grdpath, grdpath], (Ti,); mappedcrs=EPSG(4326))
+    @test grdseries[Ti(1)] == Raster(grdpath; mappedcrs=EPSG(4326))
+    stacks = [RasterStack((a=grdpath, b=grdpath); mappedcrs=EPSG(4326))]
 
     grdseries2 = RasterSeries(stacks, (Ti,))
-    @test all(grdseries2[Ti(1)][:a] .== Raster(path; mappedcrs=EPSG(4326), name=:test))
+    @test all(grdseries2[Ti(1)][:a] .== Raster(grdpath; mappedcrs=EPSG(4326), name=:test))
     modified_ser = modify(x -> Array(1.0f0x), grdseries2)
     @test typeof(modified_ser) <: RasterSeries{<:RasterStack{<:NamedTuple{(:a,:b),<:Tuple{<:Array{Float32,3},Vararg}}},1}
 
