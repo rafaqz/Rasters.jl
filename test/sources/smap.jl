@@ -1,7 +1,7 @@
 using Rasters, Test, Statistics, Dates, Plots
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets, HDF5, CFTime
-using Rasters: layerkeys, SMAPfile
+using Rasters: layerkeys, SMAPfile, FileArray
 
 testpath = joinpath(dirname(pathof(Rasters)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
@@ -36,6 +36,16 @@ if isfile(path1) && isfile(path2)
 
     @testset "Raster" begin
         @time smaparray = Raster(path1)
+
+        @testset "lazyness" begin
+            @time read(Raster(path1));
+            @time lazyarray = Raster(path1; lazy=true);
+            @time eagerarray = Raster(path1; lazy=false);
+            # Lazy is the default
+            @test parent(smaparray) isa FileArray
+            @test parent(lazyarray) isa FileArray
+            @test parent(eagerarray) isa Array
+        end
 
         @testset "open" begin
             @test all(open(A -> A[Y=1], smaparray) .=== smaparray[:, 1])
@@ -193,7 +203,16 @@ if isfile(path1) && isfile(path2)
 
     @testset "stack" begin
         @time smapstack = RasterStack(path1)
-        Raster(subset(smapstack, 1:4:20))
+
+        @testset "lazyness" begin
+            @time read(RasterStack(path1));
+            @time lazystack = RasterStack(path1; lazy=true)
+            @time eagerstack = RasterStack(path1; lazy=false);
+            # Lazy is the default
+            @test parent(smapstack[:snow_mass]) isa FileArray
+            @test parent(lazystack[:snow_mass]) isa FileArray
+            @test parent(eagerstack[:snow_mass]) isa Array
+        end
 
         @testset "read" begin
             @time st = read(smapstack);
@@ -224,11 +243,11 @@ if isfile(path1) && isfile(path2)
             @test metadata(smaparray) isa Metadata{SMAPfile}
         end
 
-        @testset "conversion to RasterStack" begin
+        @testset "conversion to regular RasterStack" begin
             # Stack Constructors
-            # This uses too much ram! There is a lingering memory leak in HDF5.
-            # geostack = RasterStack(stack)
-            # @test Symbol.(Tuple(keys(stack))) == keys(geostack)
+            geostack = RasterStack(smapstack)
+            @test parent(geostack) isa NamedTuple;
+            @test Symbol.(Tuple(keys(smapstack))) == keys(geostack)
             geostack = RasterStack(smapstack; keys=(:baseflow_flux, :snow_mass, :soil_temp_layer1))
             @test keys(geostack) == (:baseflow_flux, :snow_mass, :soil_temp_layer1)
         end

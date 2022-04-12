@@ -29,6 +29,16 @@ stackkeys = (
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle)
 
+    @testset "lazyness" begin
+        @time read(Raster(ncsingle));
+        @time lazyarray = Raster(ncsingle; lazy=true);
+        @time eagerarray = Raster(ncsingle; lazy=false);
+        # Lazy is the default
+        @test parent(ncarray) isa FileArray
+        @test parent(lazyarray) isa FileArray
+        @test parent(eagerarray) isa Array
+    end
+
     @testset "open" begin
         @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
     end
@@ -293,6 +303,16 @@ end
 @testset "Single file stack" begin
     @time ncstack = RasterStack(ncmulti)
 
+    @testset "lazyness" begin
+        @time read(RasterStack(ncmulti));
+        @time lazystack = RasterStack(ncmulti; lazy=true)
+        @time eagerstack = RasterStack(ncmulti; lazy=false);
+        # Lazy is the default
+        @test parent(ncstack[:xi]) isa FileArray
+        @test parent(lazystack[:xi]) isa FileArray
+        @test parent(eagerstack[:xi]) isa Array
+    end
+
     @testset "load ncstack" begin
         @test ncstack isa RasterStack
         @test ismissing(missingval(ncstack))
@@ -300,10 +320,10 @@ end
         @test dims(ncstack[:abso4]) == dims(ncstack, (X, Y, Ti)) 
         @test refdims(ncstack) == ()
         # Loads child as a regular Raster
-        @test_throws ErrorException ncstack[:not_a_key]
         @test ncstack[:albedo] isa Raster{<:Any,3}
         @test ncstack[:albedo][2, 3, 1] isa Float32
         @test ncstack[:albedo][:, 3, 1] isa Raster{<:Any,1}
+        @test_throws ErrorException ncstack[:not_a_key]
         @test dims(ncstack[:albedo]) isa Tuple{<:X,<:Y,<:Ti}
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test keys(ncstack) == stackkeys

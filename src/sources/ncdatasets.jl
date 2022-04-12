@@ -27,8 +27,8 @@ const NCD_DIMMAP = Dict(
 )
 
 haslayers(::Type{NCDfile}) = true
-defaultcrs(::Type{NCDfile}) = EPSG(4326) 
-defaultmappedcrs(::Type{NCDfile}) = EPSG(4326) 
+defaultcrs(::Type{NCDfile}) = EPSG(4326)
+defaultmappedcrs(::Type{NCDfile}) = EPSG(4326)
 
 # Raster ########################################################################
 
@@ -126,13 +126,13 @@ function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRaster
     return filename
 end
 
-function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DimTuple; 
+function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DimTuple;
     name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing, metadata=NoMetadata()
 )
     types = T isa Tuple ? T : Ref(T)
     missingval = T isa Tuple ? missingval : Ref(missingval)
     # Create layers of zero arrays
-    layers = map(layerdims, keys, types, missingval) do lds, key, t, mv 
+    layers = map(layerdims, keys, types, missingval) do lds, key, t, mv
         A = FillArrays.Zeros{t}(map(length, lds))
         Raster(A, dims=lds; name=key, missingval=mv)
     end
@@ -204,25 +204,29 @@ function FileStack{NCDfile}(ds::NCD.Dataset, filename::AbstractString; write=fal
         var = ds[string(key)]
         Union{Missing,eltype(var)}, size(var), _ncd_eachchunk(var), _ncd_haschunks(var)
     end
-    layertypes = NamedTuple{keys}(map(x->x[1], type_size_ec_hc))
-    layersizes = NamedTuple{keys}(map(x->x[2], type_size_ec_hc))
-    eachchunk = NamedTuple{keys}(map(x->x[3], type_size_ec_hc))
-    haschunks = NamedTuple{keys}(map(x->x[4], type_size_ec_hc))
-    return FileStack{NCDfile}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+    layertypes = map(x->x[1], type_size_ec_hc)
+    layersizes = map(x->x[2], type_size_ec_hc)
+    eachchunk = map(x->x[3], type_size_ec_hc)
+    haschunks = map(x->x[4], type_size_ec_hc)
+    return FileStack{NCDfile,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
 end
+function OpenStack(fs::FileStack{NCDfile,K}) where K
+    OpenStack{NCDfile,K}(NCD.Dataset(filename(fs)))
+end
+Base.close(os::OpenStack{NCDfile}) = NCD.close(dataset(os))
 
 # Utils ########################################################################
 
-function _open(f, ::Type{NCDfile}, filename::AbstractString; key=nothing, write=false)
-    lookup = write ? "a" : "r"
-    if key isa Nothing
-        NCD.Dataset(cleanreturn ∘ f, filename, lookup)
-    else
-        NCD.Dataset(filename, lookup) do ds
-            cleanreturn(f(ds[_firstkey(ds, key)]))
-        end
+function _open(f, ::Type{NCDfile}, filename::AbstractString; write=false, kw...)
+    mode = write ? "a" : "r"
+    NCD.Dataset(filename, mode) do ds
+        _open(f, NCDfile, ds; kw...)
     end
 end
+function _open(f, ::Type{NCDfile}, ds::NCD.Dataset; key=nothing, kw...)
+    cleanreturn(f(key isa Nothing ? ds : ds[_firstkey(ds, key)]))
+end
+_open(f, ::Type{NCDfile}, var::NCD.CFVariable; kw...) = cleanreturn(f(var))
 
 cleanreturn(A::NCD.CFVariable) = Array(A)
 
@@ -240,18 +244,18 @@ function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
     end
 end
 
-function _ncfinddimlen(ds, dimname) 
+function _ncfinddimlen(ds, dimname)
     for key in keys(ds)
         var = NCD.variable(ds, key)
         dimnames = NCD.dimnames(var)
-        if dimname in dimnames 
+        if dimname in dimnames
             return size(var)[findfirst(==(dimname), dimnames)]
         end
     end
     return nothing
 end
 
-# Find the matching dimension constructor. If its an unknown name 
+# Find the matching dimension constructor. If its an unknown name
 # use the generic Dim with the dim name as type parameter
 _ncddimtype(dimname) = haskey(NCD_DIMMAP, dimname) ? NCD_DIMMAP[dimname] : DD.basetypeof(DD.key2dim(Symbol(dimname)))
 
@@ -269,7 +273,7 @@ function _ncdlookup(ds::NCD.Dataset, dimname, D, index::AbstractArray, metadata,
 end
 # For Number and AbstractTime we generate order/span/sampling
 function _ncdlookup(
-    ds::NCD.Dataset, dimname, D, index::AbstractArray{<:Union{Number,Dates.AbstractTime}}, 
+    ds::NCD.Dataset, dimname, D, index::AbstractArray{<:Union{Number,Dates.AbstractTime}},
     metadata, crs, mappedcrs
 )
     # Assume the locus is at the center of the cell if boundaries aren't provided.
@@ -370,7 +374,7 @@ function _parse_period(period_str::String)
                 return compound
             end
         else
-            return nothing 
+            return nothing
         end
     end
 end
@@ -459,16 +463,16 @@ end
 
 _unuseddimerror(dimname) = error("Netcdf contains unused dimension $dimname")
 
-function _ncd_eachchunk(var) 
+function _ncd_eachchunk(var)
     # chunklookup, chunkvec = NCDatasets.chunking(var)
-    # chunksize = chunklookup == :chunked ? Tuple(chunkvec) : 
+    # chunksize = chunklookup == :chunked ? Tuple(chunkvec) :
     chunksize = size(var)
     DA.GridChunks(var, chunksize)
 end
 
-function _ncd_haschunks(var) 
+function _ncd_haschunks(var)
     # chunklookup, _ = NCDatasets.chunking(var)
-    # chunklookup == :chunked ? DA.Chunked() : 
+    # chunklookup == :chunked ? DA.Chunked() :
     DA.Unchunked()
 end
 

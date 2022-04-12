@@ -615,5 +615,6 @@ write
 ```@docs
 Rasters.FileArray
 Rasters.FileStack
+Rasters.OpenStack
 Rasters.RasterDiskArray
 ```

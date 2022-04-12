@@ -256,6 +256,8 @@ function _open(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...
     flags = write ? (; flags=AG.OF_UPDATE) : ()
     AG.readraster(cleanreturn ∘ f, filename; flags...)
 end
+_open(f, ::Type{GDALfile}, ds::AG.RasterDataset; kw...) = cleanreturn(f(ds))
+
 
 function _gdalwrite(filename, A::AbstractRaster, nbands;
     driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing

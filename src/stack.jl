@@ -60,6 +60,9 @@ DD.DimTable(stack::AbstractRasterStack) = invoke(DD.DimTable, Tuple{AbstractDimS
 function DD.layers(s::AbstractRasterStack{<:FileStack{<:Any,Keys}}) where Keys
     NamedTuple{Keys}(map(K -> s[K], Keys))
 end
+function DD.layers(s::AbstractRasterStack{<:OpenStack{<:Any,Keys}}) where Keys
+    NamedTuple{Keys}(map(K -> s[K], Keys))
+end
 
 function DD.rebuild(
     s::AbstractRasterStack, data, dims=dims(s), refdims=refdims(s), 
@@ -145,7 +148,7 @@ stack = RasterStack(files; mappedcrs=EPSG(4326))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
 """
-struct RasterStack{L<:Union{FileStack,NamedTuple},D<:Tuple,R<:Tuple,LD<:NamedTuple,M,LM,MV} <: AbstractRasterStack{L}
+struct RasterStack{L<:Union{FileStack,OpenStack,NamedTuple},D<:Tuple,R<:Tuple,LD<:NamedTuple,M,LM,MV} <: AbstractRasterStack{L}
     data::L
     dims::D
     refdims::R
@@ -162,14 +165,18 @@ function RasterStack(
     RasterStack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
 end
 function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
-    crs=nothing, mappedcrs=nothing, source=nothing, kw...
+    crs=nothing, mappedcrs=nothing, source=nothing, lazy=true, kw...
 ) where K
     layers = map(keys(filenames), values(filenames)) do key, fn
         source = source isa Nothing ? _sourcetype(fn) : source
         crs = defaultcrs(source, crs)
         mappedcrs = defaultmappedcrs(source, mappedcrs)
-        _open(fn; key) do ds
-            data = FileArray(ds, fn; key)
+        _open(source, fn; key) do ds
+            data = if lazy
+                FileArray(ds, fn; key)
+            else
+                _open(Array, source, ds; key)
+            end
             dims = DD.dims(ds, crs, mappedcrs)
             md = metadata(ds)
             mv = missingval(ds)
@@ -220,7 +227,7 @@ function RasterStack(filename::AbstractString;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, missingval=nothing,
     source=_sourcetype(filename), name=nothing, keys=name, layersfrom=nothing,
-    resize=nothing,
+    resize=nothing, lazy=true,
 )
     st = if haslayers(_sourcetype(filename))
         crs = defaultcrs(source, crs)
@@ -235,7 +242,11 @@ function RasterStack(filename::AbstractString;
             data = FileStack{source}(ds, filename; keys)
             data, (; dims, refdims, layerdims, metadata, layermetadata, missingval)
         end
-        RasterStack(data; field_kw...)
+        if lazy
+            RasterStack(data; field_kw...)
+        else
+            read(RasterStack(data; field_kw...))
+        end
     else
         # Band dims acts as layers
         RasterStack(Raster(filename); layersfrom)
@@ -284,6 +295,16 @@ function RasterStack(table, dims::Tuple; name=_not_a_dimcol(table, dims), keys=n
     RasterStack(layers, dims; kw...)
 end
 
+function DD.modify(f, s::AbstractDimStack{<:FileStack})
+    open(s) do o 
+        map(a -> modify(f, a), o)
+    end
+end
+
+function Base.open(f::Function, s::AbstractDimStack{<:FileStack})
+    f(rebuild(s; data=OpenStack(parent(s))))
+end
+
 function _layerkeysfromdim(A, dim)
     map(index(A, dim)) do x
         if x isa Number
@@ -296,7 +317,7 @@ end
 
 # Rebuild from internals
 function RasterStack(
-    data::Union{FileStack,NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}};
+    data::Union{FileStack,OpenStack,NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}};
     dims, refdims=(), layerdims, metadata=NoMetadata(), layermetadata, missingval) 
     st = RasterStack(
         data, dims, refdims, layerdims, metadata, layermetadata, missingval

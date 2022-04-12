@@ -27,6 +27,8 @@ _A RasterStack of EarthEnv HabitatHeterogeneity layers, trimmed to Australia and
 - Broadcast over disk-based objects is lazy - it will only run when the array is
   indexed. Always prefer broadcasts to explicit loops - these can be very slow
   with disk-based data.
+- Laziness can be avoided using the `lazy=false` keyword to `Raster`,
+  `RasterStack` or `RasterSeries`, which will give a performance improvement for some files.
 
 ## Data-source abstraction
 
