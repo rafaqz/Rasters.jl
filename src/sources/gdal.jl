@@ -4,7 +4,6 @@ const AG = ArchGDAL
 
 const GDAL_X_ORDER = ForwardOrdered()
 const GDAL_Y_ORDER = ReverseOrdered()
-const GDAL_BAND_ORDER = ForwardOrdered()
 
 const GDAL_X_LOCUS = Start()
 const GDAL_Y_LOCUS = Start()
@@ -65,7 +64,7 @@ function Base.write(
 
     correctedA = _maybe_permute_to_gdal(A) |>
         a -> noindex_to_sampled(a) |>
-        a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER), Band(GDAL_BAND_ORDER)))
+        a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER)))
 
     nbands = size(correctedA, Band())
     _gdalwrite(filename, correctedA, nbands; kw...)
@@ -138,9 +137,14 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
         GDAL_EMPTY_TRANSFORM
     end
     xsize, ysize = size(raster)
-
     nbands = AG.nraster(raster)
-    band = Band(Categorical(1:nbands; order=GDAL_BAND_ORDER))
+    bandnames = _gdal_bandnames(raster, nbands)
+    band = if all(==(""), bandnames)
+        Band(Categorical(1:nbands; order=ForwardOrdered()))
+    else
+        Band(Categorical(bandnames; order=Unordered()))
+    end
+    
     crs = crs isa Nothing ? Rasters.crs(raster) : crs
     xy_metadata = Metadata{GDALfile}()
 
@@ -295,6 +299,13 @@ function _gdalwrite(filename, A::AbstractRaster, nbands;
     return filename
 end
 
+function _gdal_bandnames(raster::AG.RasterDataset, nbands = AG.nraster(raster))
+    map(1:nbands) do b
+        AG.getband(raster.ds, b) do band
+            AG.GDAL.gdalgetdescription(band.ptr)
+        end
+    end
+end
 
 function _gdalmetadata(dataset::AG.Dataset, key)
     meta = AG.metadata(dataset)
@@ -332,6 +343,18 @@ function _gdalsetproperties!(dataset, dims, missingval)
         bands = hasdim(dims, Band) ? axes(DD.dims(dims, Band), 1) : 1
         for i in bands
             AG.setnodatavalue!(AG.getband(dataset, i), missingval)
+        end
+    end
+
+    # Write band labels if they are not Integers.
+    if hasdim(dims, Band)
+        bandlookup = DD.lookup(dims, Band)
+        if !(eltype(bandlookup) <: Integer)
+            for i in eachindex(bandlookup)
+                AG.getband(dataset, i) do band
+                    AG.GDAL.gdalsetdescription(band.ptr, string(bandlookup[i]))
+                end
+            end
         end
     end
 
