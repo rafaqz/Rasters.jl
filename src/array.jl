@@ -109,8 +109,12 @@ function DD.rebuild(A::AbstractRaster;
 end
 
 function DD.modify(f, A::AbstractRaster)
-    newdata = open(A) do O
-        f(parent(O))
+    newdata = if isdisk(A) 
+        open(A) do O
+            f(parent(O))
+        end
+    else
+        f(parent(A))
     end
     size(newdata) == size(A) || error("$f returns an array with size $(size(newdata)) when the original size was $(size(A))")
     return rebuild(A, newdata)

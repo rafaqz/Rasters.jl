@@ -73,8 +73,8 @@ Base.getindex(wrapper::SMAPhdf5, key) = SMAPvar(wrapper.ds[_smappath(key)])
 
 _smappath(key::Key) = SMAPGEODATA * "/" * string(key)
 
-struct SMAPvar{T}
-    ds::T
+struct SMAPvar{DS} <: AbstractArray{Float32,2}
+    ds::DS
 end
 
 Base.parent(wrapper::SMAPvar) = wrapper.ds
@@ -84,6 +84,7 @@ Base.ndims(wrapper::SMAPvar) = length(SMAPSIZE)
 Base.getindex(wrapper::SMAPvar, args...) = getindex(parent(wrapper), args...)
 Base.setindex!(wrapper::SMAPvar, args...) = setindex!(parent(wrapper), args...)
 Base.Array(wrapper::SMAPvar) = Array(parent(wrapper))
+Base.collect(wrapper::SMAPvar) = collect(parent(wrapper))
 
 DA.eachchunk(var::SMAPvar) = DA.GridChunks(var, size(var))
 DA.haschunks(var::SMAPvar) = DA.Unchunked()
@@ -121,12 +122,17 @@ function FileStack{SMAPfile}(ds::SMAPhdf5, filename::AbstractString; write=false
         var = RasterDiskArray{SMAPfile}(ds[key])
         eltype(var), size(var), DA.eachchunk(var), DA.haschunks(var)
     end
-    layertypes = NamedTuple{keys}(map(x->x[1], type_size_ec_hc))
-    layersizes = NamedTuple{keys}(map(x->x[2], type_size_ec_hc))
-    eachchunk = NamedTuple{keys}(map(x->x[3], type_size_ec_hc))
-    haschunks = NamedTuple{keys}(map(x->x[4], type_size_ec_hc))
-    FileStack{SMAPfile}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+    layertypes = map(x->x[1], type_size_ec_hc)
+    layersizes = map(x->x[2], type_size_ec_hc)
+    eachchunk = map(x->x[3], type_size_ec_hc)
+    haschunks = map(x->x[4], type_size_ec_hc)
+    FileStack{SMAPfile,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
 end
+function OpenStack(fs::FileStack{SMAPfile,K}; kw...) where K
+    ds = h5open(filename(fs); kw...)
+    OpenStack{SMAPfile,K}(SMAPhdf5(ds))
+end
+Base.close(os::OpenStack{SMAPfile}) = close(dataset(os))
 
 # Series #######################################################################
 
