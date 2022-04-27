@@ -167,10 +167,6 @@ grdpath = stem * ".gri"
             @test all(B .=== grdarray |> collect)
         end
 
-        @testset "chunk_series" begin
-            @test Rasters.chunk_series(grdarray) isa RasterSeries
-            @test size(Rasters.chunk_series(grdarray)) == (1, 1, 1)
-        end
     end
 
     @testset "selectors" begin

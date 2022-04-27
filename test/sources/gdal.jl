@@ -225,11 +225,6 @@ gdalpath = maybedownload(url)
             @test all(B .=== gdalarray |> collect)
         end
 
-        @testset "chunk_series" begin
-            @test Rasters.chunk_series(gdalarray) isa RasterSeries
-            @test size(Rasters.chunk_series(gdalarray)) == (1, 1, 1)
-        end
-
     end
 
     @testset "conversion to Raster" begin

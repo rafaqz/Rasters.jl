@@ -122,10 +122,6 @@ if isfile(path1) && isfile(path2)
                 extended = extend(cropped; to=a)
                 @test all(collect(extended .=== a))
             end
-            @testset "chunk_series" begin
-                @test Rasters.chunk_series(smaparray) isa RasterSeries
-                @test size(Rasters.chunk_series(smaparray)) == (1, 1)
-            end
             @testset "slice" begin
                 ser = Rasters.slice(smaparray, X) 
                 @test ser isa RasterSeries

@@ -148,10 +148,6 @@ stackkeys = (
             Atest[X(81:150), Y(1:89)] .= missing
             @test all(Atest .=== Afile .=== Amem)
         end
-        @testset "chunk_series" begin
-            @test Rasters.chunk_series(ncarray) isa RasterSeries
-            @test size(Rasters.chunk_series(ncarray)) == (1, 1, 1)
-        end
         @testset "slice" begin
             @test_throws ArgumentError Rasters.slice(ncarray, Z)
             ser = Rasters.slice(ncarray, Ti) 
