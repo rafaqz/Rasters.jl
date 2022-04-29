@@ -13,14 +13,7 @@ const GDAL_Y_LOCUS = Start()
 @deprecate GDALarray(args...; kw...) Raster(args...; source=GDALfile, kw...)
 
 function FileArray(raster::AG.RasterDataset{T}, filename; kw...) where {T}
-    # Arbitrary array size cuttoff for chunked read/write.
-    # Could be tested/improved
-    chunks_cutoff = 1e8
-    eachchunk, haschunks = if prod(size(raster)) >= chunks_cutoff
-        DA.eachchunk(raster), DA.haschunks(raster)
-    else
-        DA.GridChunks(raster, size(raster)), DiskArrays.Unchunked()
-    end
+    eachchunk, haschunks = DA.eachchunk(raster), DA.haschunks(raster)
     FileArray{GDALfile,T,3}(filename, size(raster); eachchunk, haschunks, kw...)
 end
 
