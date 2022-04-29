@@ -17,18 +17,23 @@ function _fill_geometry!(B::AbstractRaster, coll::GI.AbstractFeatureCollection; 
 end
 function _fill_geometry!(B::AbstractRaster, feature::GI.AbstractFeature; order, kw...)
     if bbox_might_overlap(B, feature, order)
-        _fill_geometry!(B, feature.geometry; order, kw...)
+        _fill_geometry!(B, GI.geometry(feature); order, kw...)
     end
     return B
 end
-function _fill_geometry!(B::AbstractRaster, geoms::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry}}; order, kw...)
+function _fill_geometry!(B::AbstractRaster, geoms::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry,<:GI.AbstractFeature}}; order, kw...)
     any(map(g -> bbox_might_overlap(B, g, order), geoms)) || return B
-    _fill_geometry!(B, GI.coordinates.(geoms); order, kw...)
+    if all(g -> typeof(g) == typeof(first(geoms)), geoms)
+        coords = GI.coordinates.(GI.geometry.(geoms))
+        _fill_geometry!(B, coords; order, shape=_geom_shape(GI.geometry(first(geoms))), kw...)
+    else
+        _fill_mixed_geometries!(B, geoms; order, kw...)
+    end
 end
 function _fill_geometry!(B::AbstractRaster, geom::GI.AbstractGeometry; order, kw...)
     # Dont do anything if the bbox doesn't overlap
     bbox_might_overlap(B, geom, order) || return B
-    _fill_geometry!(B, GI.coordinates(geom); order, kw...)
+    _fill_geometry!(B, GI.coordinates(geom); order, shape=_geom_shape(geom), kw...)
 end
 function _fill_geometry!(B::AbstractRaster, geom::AbstractVector; shape=:polygon, order, kw...)
     gbounds = _geom_bounds(geom, order)
@@ -44,6 +49,22 @@ function _fill_geometry!(B::AbstractRaster, geom::AbstractVector; shape=:polygon
         _shape_error(shape)
     end
     return B
+end
+
+# Multiple geometry types. Rasterize by groups of types separately
+@noinline function _fill_mixed_geometries!(B, geoms; order, kw...)
+    geomgroups = Dict{Type,Vector}()
+    for geom in geoms
+        key = typeof(geom)
+        if haskey(geomgroups, key)
+            push!(geomgroups[key], geom)  
+        else
+            geomgroups[key] = [geom]
+        end
+    end
+    for group in values(geomgroups)
+        _fill_geometry!(B, GI.coordinates.(group); order, shape=_geom_shape(first(group)), kw...)
+    end
 end
 
 # _fill_polygon!
@@ -244,7 +265,11 @@ function _fill_line!(A::AbstractRaster, line, fill, order::Tuple{<:Dimension,<:D
     for t in 0:manhattan_distance
         D = map((d, o) -> d(o), dimconstructors, (x, y))
         if checkbounds(Bool, A, D...)
-            @inbounds A[D...] = fill
+            if fill isa Function 
+                @inbounds A[D...] = fill(A[D...])
+            else
+                @inbounds A[D...] = fill
+            end
         end
         # Only move in either X or Y coordinates, not both.
         if abs(max_x) <= abs(max_y)
@@ -270,6 +295,9 @@ end
 # _flat_nodes
 # Convert a geometry/nested vectors to a flat iterator of point nodes for PolygonInbounds
 _flat_nodes(A::GI.AbstractGeometry) = _flat_nodes(GI.coordinates(A))
+_flat_nodes(A::GI.AbstractFeature) = _flat_nodes(GI.geometry(A))
+_flat_nodes(A::AbstractVector{<:GI.AbstractGeometry}) = Iterators.flatten(map(_flat_nodes, A))
+_flat_nodes(A::AbstractVector{<:GI.AbstractFeature}) = Iterators.flatten(map(_flat_nodes, A))
 function _flat_nodes(A::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry}})
     Iterators.flatten(map(_flat_nodes, A))
 end
@@ -282,7 +310,8 @@ _flat_nodes(A::AbstractVector{<:Tuple}) = A
 _flat_nodes(iter::Base.Iterators.Flatten) = iter
 
 _node_vecs(A::GI.AbstractGeometry) = GI.coordinates(A)
-function _node_vecs(A::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry}})
+_node_vecs(A::GI.AbstractFeature) = _node_vecs(GI.geometry(A))
+function _node_vecs(A::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry,<:GI.AbstractFeature}})
     map(_node_vecs, A)
 end
 function _node_vecs(A::AbstractVector{<:AbstractVector{<:AbstractVector}})
@@ -412,7 +441,10 @@ function _geom_shape(geom)
     typ = GI.geotype(geom)
     if typ in (:Point, :MultiPoint)
         return :point
-    elseif typ in (:LineString, :MultiLineString) return :line elseif typ in (:Polygon, :MultiPolygon) return :polygon
+    elseif typ in (:LineString, :MultiLineString) 
+        return :line 
+    elseif typ in (:Polygon, :MultiPolygon)
+        return :polygon
     else
         throw(ArgumentError("Geometry type $typ not known"))
     end
