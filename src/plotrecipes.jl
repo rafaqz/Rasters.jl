@@ -195,11 +195,13 @@ function _subsample(A, max_res)
     s1, s2 = size(A, ssdims[1]), size(A, ssdims[2])
     ag = floor(Int, max(s1, s2) / max_res) + 1
     if ag == 1
-        return modify(Array, A)
+        return read(A)
     else
         d1 = rebuild(ssdims[1], 1:ag:s1)
         d2 = rebuild(ssdims[2], 1:ag:s2)
-        return modify(Array, view(A, d1, d2))
+        # TODO make this actually load lazily.
+        # DiskArrays.jl does not handle StepRange views
+        return view(read(A), d1, d2)
     end
 end
 

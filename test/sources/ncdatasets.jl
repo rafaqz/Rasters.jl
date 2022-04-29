@@ -148,10 +148,6 @@ stackkeys = (
             Atest[X(81:150), Y(1:89)] .= missing
             @test all(Atest .=== Afile .=== Amem)
         end
-        @testset "chunk_series" begin
-            @test Rasters.chunk_series(ncarray) isa RasterSeries
-            @test size(Rasters.chunk_series(ncarray)) == (1, 1, 1)
-        end
         @testset "slice" begin
             @test_throws ArgumentError Rasters.slice(ncarray, Z)
             ser = Rasters.slice(ncarray, Ti) 
@@ -169,10 +165,10 @@ stackkeys = (
     @testset "indexing with reverse lat" begin
         if !haskey(ENV, "CI") # CI downloads fail. But run locally
             ncrevlat = maybedownload("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
-            ncrevlatarray = Raster(ncrevlat; key=:sst, missingval=-9.96921f36)
+            ncrevlatarray = Raster(ncrevlat; key=:sst)
             @test order(dims(ncrevlatarray, Y)) == ReverseOrdered()
-            @test ncrevlatarray[Y(At(40)), X(At(100)), Ti(1)] == missingval(ncrevlatarray)
-            @test ncrevlatarray[Y(At(-40)), X(At(100)), Ti(1)] == ncrevlatarray[51, 65, 1] == 14.5916605f0
+            @test ncrevlatarray[Y(At(40)), X(At(100)), Ti(1)] === missing
+            @test ncrevlatarray[Y(At(-40)), X(At(100)), Ti(1)] === ncrevlatarray[51, 65, 1] == 14.5916605f0
             @test val(span(ncrevlatarray, Ti)) == Month(1)
             @test val(span(ncrevlatarray, Ti)) isa Month # Not CompoundPeriod
         end

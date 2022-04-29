@@ -72,18 +72,6 @@ function _maybereshape(st::AbstractRasterStack, acc, dim)
     map((s, a) -> _maybereshape(s, a, dim), st, acc)
 end
 
-# chunk_series(A::AbstractRaster) => RasterSeries
-# Create a RasterSeries of arrays matching the chunks of a chunked array.
-# This may be useful for parallel or larger than memory applications.
-function chunk_series(A::AbstractRaster)
-    # Get the index of each chunk of A
-    gc = DiskArrays.eachchunk(A)
-    ci = CartesianIndices(gc.chunkgridsize)
-    # Create a series over the chunks
-    data = collect(view(A, _chunk_inds(gc, I)...) for I in ci)
-    return RasterSeries(data, DD.basedims(dims(A)))
-end
-
 # See iterate(::GridChunks) in Diskarrays.jl
 function _chunk_inds(g, ichunk)
     outinds = map(ichunk.I, g.chunksize, g.parentsize, g.offset) do ic, cs, ps, of

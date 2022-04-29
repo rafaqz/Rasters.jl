@@ -13,14 +13,7 @@ const GDAL_Y_LOCUS = Start()
 @deprecate GDALarray(args...; kw...) Raster(args...; source=GDALfile, kw...)
 
 function FileArray(raster::AG.RasterDataset{T}, filename; kw...) where {T}
-    # Arbitrary array size cuttoff for chunked read/write.
-    # Could be tested/improved
-    chunks_cutoff = 1e8
-    eachchunk, haschunks = if prod(size(raster)) >= chunks_cutoff
-        DA.eachchunk(raster), DA.haschunks(raster)
-    else
-        DA.GridChunks(raster, size(raster)), DiskArrays.Unchunked()
-    end
+    eachchunk, haschunks = DA.eachchunk(raster), DA.haschunks(raster)
     FileArray{GDALfile,T,3}(filename, size(raster); eachchunk, haschunks, kw...)
 end
 
@@ -270,7 +263,7 @@ function _gdalwrite(filename, A::AbstractRaster, nbands;
     kw = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
     gdaldriver = AG.getdriver(driver)
     if driver == "GTiff"
-        block_x, block_y = DA.eachchunk(A).chunksize
+        block_x, block_y = DA.max_chunksize(DA.eachchunk(A))
         tileoptions = if chunk === nothing
             ["TILED=NO"]
         else
@@ -391,12 +384,13 @@ function AG.Dataset(f::Function, A::AbstractRaster; filename=nothing)
         throw(ArgumentError("ArchGDAL can only accept 2 or 3 dimensional arrays"))
     end
 
-    # block_x, block_y = DA.eachchunk(A).chunksize
+    # block_x, block_y = DA.max_chunksize(DA.eachchunk(A))
     A_p = _maybe_permute_to_gdal(A)
     dataset = _unsafe_gdal_ds(A_p; filename)
     try
+        rds = AG.RasterDataset(dataset)
         open(A_p) do a
-            AG.RasterDataset(dataset) .= a
+            rds .= parent(a)
         end
         f(dataset)
     finally
