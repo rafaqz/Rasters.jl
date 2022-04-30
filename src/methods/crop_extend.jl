@@ -67,7 +67,6 @@ end
 function crop(xs; to=nothing, kw...)
     if isnothing(to)
         to = _subsetbounds((max, min), xs)
-        display(to)
         map(l -> _crop_to_bounds(l, to), xs)
     else
         map(l -> crop(l; to, kw...), xs)
@@ -79,7 +78,7 @@ crop(x::RasterStackOrArray; to, kw...) = _crop_to(x, to; kw...)
 _crop_to(A, to::RasterStackOrArray; kw...) = _crop_to(A, dims(to); kw...)
 function _crop_to(x, to::DimTuple; atol=maybe_eps(to))
     # We can only crop to sampled dims (e.g. not categorical dims like Band)
-    sampled = reduce(dims(x, to); init=()) do acc, d 
+    sampled = reduce(to; init=()) do acc, d 
         lookup(d) isa AbstractSampled ? (acc..., d) : acc
     end
     wrapped_bounds = map(d ->  rebuild(d, bounds(d)), sampled)
