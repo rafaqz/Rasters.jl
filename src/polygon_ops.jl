@@ -129,7 +129,7 @@ end
 function _iyperm(dims::Tuple{<:Dimension,<:Dimension})
     a1, a2 = map(dims) do d
         l = parent(d)
-        LA.ordered_firstindex(l1):_order_step(l1):LA.ordered_lastindex(l1)
+        LA.ordered_firstindex(l):_order_step(l):LA.ordered_lastindex(l)
     end
     iyperm = Array{Int}(undef, length(a1) * length(a2))
     lis = (LinearIndices(size(dims))[i, j] for j in a2 for i in a1)
@@ -141,7 +141,7 @@ end
 function _iyperm(dims::Tuple{<:Dimension,<:Dimension,<:Dimension})
     a1, a2, a3 = map(dims) do d
         l = parent(d)
-        LA.ordered_firstindex(l1):_order_step(l1):LA.ordered_lastindex(l1)
+        LA.ordered_firstindex(l):_order_step(l):LA.ordered_lastindex(l)
     end
     iyperm = Array{Int}(undef, length(a1) * length(a2) * length(a3))
     lis = (LinearIndices(size(dims))[i, j, k] for k in a3 for j in a2 for i in a1)
