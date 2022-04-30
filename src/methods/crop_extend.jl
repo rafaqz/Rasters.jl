@@ -97,7 +97,7 @@ function _crop_to_bounds(x::RasterStackOrArray, wrapped_bounds::DimTuple)
     _without_mapped_crs(x) do x1
         dimranges = map(wrapped_bounds) do d
             x_d = dims(x1, d)
-            range = DD.selectindices(x_d, Between(parent(d)))
+            range = DD.selectindices(x_d, LA.ClosedInterval(parent(d)...))
             rebuild(x_d, range)
         end
         view(x1, dimranges...)
@@ -169,7 +169,7 @@ function _extend_to(A::AbstractRaster, to::DimTuple;
     ranges = _without_mapped_crs(A) do A
         _without_mapped_crs(to) do to
             map(dims(A), to) do d, t
-                range = DD.selectindices(t, Between(bounds(d)))
+                range = DD.selectindices(t, LA.ClosedInterval(bounds(d)...))
                 rebuild(d, range)
             end
         end
@@ -231,12 +231,13 @@ function _subsetbounds(fs, layers)
     dims = DD.combinedims(layers...; check=false)
     # Search through all the dimensions choosing the shortest
     alldims = map(DD.dims, layers)
-    map(dims) do d
+    reduce(dims; init=()) do acc, d
+        all(map(l -> hasdim(l, d), layers)) || return acc
         matchingdims = map(ds -> DD.dims(ds, (d,)), alldims)
         bounds = reduce(matchingdims) do a, b
             _choosebounds(fs, a, b)
         end
-        rebuild(d, bounds)
+        return (acc..., rebuild(d, bounds))
     end
 end
 

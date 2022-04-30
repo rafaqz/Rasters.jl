@@ -35,7 +35,7 @@ classes = <=(15) => 10,
           15..25 => 20,
           25..35 => 30,
           >(35) => 40
-classified = classify(A, classes; others=0)
+classified = classify(A, classes; others=0, missingval=0)
 plot(classified; c=:magma)
 
 savefig("build/classify_example.png")
@@ -160,7 +160,7 @@ end
 function _classify(x, pairs, lower, upper, others, oldmissingval, newmissingval)
     isequal(x, oldmissingval) && return newmissingval
     # Use a fold instead of a loop, for type stability
-    init = (false, nothing)
+    init = (false, last(first(pairs)))
     found, foundval = foldl(pairs; init) do (found, foundval), (find, replace)
         if !found && _compare(find, x, lower, upper)
             (true, replace)

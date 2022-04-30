@@ -93,34 +93,22 @@ function _fill_polygon!(B::AbstractRaster, poly; polybounds, order, fill=true, b
         # This is much faster than calling `sortperm` in PolygonInbounds.jl
         vmin = [first.(pointbounds)...]'
         vmax = [last.(pointbounds)...]'
+        pmin = [first.(polybounds)...]'
+        pmax = [last.(polybounds)...]'
+        pts = DimPoints(shifted_dims)
         iyperm = _iyperm(shifted_dims)
-        inpolygon(vec(pts), poly; vmin, vmax, iyperm)
+        inpolygon(vec(pts), poly; vmin, vmax, pmin, pmax, iyperm)
     end
-    return _inner_fill_polygon!(B, poly, inpoly; order, fill, boundary)
+    inpolydims = dims(B, order)
+    reshaped = Raster(reshape(inpoly, size(inpolydims)), inpolydims)
+    return _inner_fill_polygon!(B, poly, inpoly, reshaped; order, fill, boundary)
 end
-
-function _iyperm(dims::Tuple{<:Dimension,<:Dimension})
-    of, ol, os = LA.ordered_firstindex, LA.ordered_lastindex, _order_step
-    l1, l2 = map(parent, dims)
-    [LinearIndices(size(dims))[i, j] for j in of(l2):os(l2):ol(l2) for i in of(l1):os(l1):ol(l1)]
-end
-function _iyperm(dims::Tuple{<:Dimension,<:Dimension,<:Dimension})
-    of, ol, os = LA.ordered_firstindex, LA.ordered_lastindex, _order_step
-    l1, l2, l3 = map(parent, dims)
-    [LinearIndices(size(dims))[i, j, k] for k in of(l3):os(l3):ol(l3) for j in of(l2):os(l2):ol(l2) for i in of(l1):os(l1):ol(l1)]
-end
-
-_order_step(x) = _order_step(order(x))
-_order_step(::ReverseOrdered) = -1
-_order_step(::ForwardOrdered) = 1
 
 # split to make a type stability function barrier
-function _inner_fill_polygon!(B::AbstractRaster, poly, inpoly; order, fill=true, boundary=:center, kw...)
+function _inner_fill_polygon!(B::AbstractRaster, poly, inpoly, reshaped; order, fill=true, boundary=:center, kw...)
     # Get the array as points
     # Use the first column of the output - the points in the polygon,
     # and reshape to match `A`
-    inpolydims = dims(B, order)
-    reshaped = Raster(reshape(inpoly, size(inpolydims)), inpolydims)
     for D in DimIndices(B)
         @inbounds if reshaped[D...]
             @inbounds B[D...] = fill
@@ -137,6 +125,35 @@ function _inner_fill_polygon!(B::AbstractRaster, poly, inpoly; order, fill=true,
     end
     return B
 end
+
+function _iyperm(dims::Tuple{<:Dimension,<:Dimension})
+    a1, a2 = map(dims) do d
+        l = parent(d)
+        LA.ordered_firstindex(l):_order_step(l):LA.ordered_lastindex(l)
+    end
+    iyperm = Array{Int}(undef, length(a1) * length(a2))
+    lis = (LinearIndices(size(dims))[i, j] for j in a2 for i in a1)
+    for (i, li) in enumerate(lis)
+        iyperm[i] = li
+    end
+    return iyperm
+end
+function _iyperm(dims::Tuple{<:Dimension,<:Dimension,<:Dimension})
+    a1, a2, a3 = map(dims) do d
+        l = parent(d)
+        LA.ordered_firstindex(l):_order_step(l):LA.ordered_lastindex(l)
+    end
+    iyperm = Array{Int}(undef, length(a1) * length(a2) * length(a3))
+    lis = (LinearIndices(size(dims))[i, j, k] for k in a3 for j in a2 for i in a1)
+    for (i, li) in enumerate(lis)
+        Iyperm[i] = li
+    end
+    return iyperm
+end
+
+_order_step(x) = _order_step(order(x))
+_order_step(::ReverseOrdered) = -1
+_order_step(::ForwardOrdered) = 1
 
 # _fill_point!
 # Fill a raster with `fill` where points are inside raster pixels
@@ -454,7 +471,8 @@ end
 # Copied from PolygonInbounds, to add extra keyword arguments
 # PR to include these when this has solidied
 function inpoly2(vert, node, edge=zeros(Int);
-    atol::T=0.0, rtol::T=NaN, iyperm=nothing, vmin=nothing, vmax=nothing
+    atol::T=0.0, rtol::T=NaN, iyperm=nothing, 
+    vmin=nothing, vmax=nothing, pmin=nothing, pmax=nothing
 ) where T<:AbstractFloat
     rtol = !isnan(rtol) ? rtol : iszero(atol) ? eps(T)^0.85 : zero(T)
     poly = PolygonInbounds.PolygonMesh(node, edge)
@@ -463,8 +481,8 @@ function inpoly2(vert, node, edge=zeros(Int);
 
     vmin = isnothing(vmin) ? minimum(points) : vmin
     vmax = isnothing(vmax) ? maximum(points) : vmax
-    pmin = minimum(poly)
-    pmax = maximum(poly)
+    pmin = isnothing(pmin) ? minimum(poly) : pmin
+    pmax = isnothing(pmax) ? maximum(poly) : pmax
 
     lbar = sum(pmax - pmin)
     tol = max(abs(rtol * lbar), abs(atol))

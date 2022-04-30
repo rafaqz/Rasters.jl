@@ -71,7 +71,7 @@ china_border = Shapefile.Handle(shapefile_name).shapes[10]
 dms = Y(Projected(15.0:0.1:55.0; order=ForwardOrdered(), span=Regular(0.1), sampling=Intervals(Start()), crs=EPSG(4326))), 
       X(Projected(70.0:0.1:140; order=ForwardOrdered(), span=Regular(0.1), sampling=Intervals(Start()), crs=EPSG(4326)))
 
-# Rasterize the border polygon 
+# Rasterize the border polygon
 china = rasterize(china_border; 
     to=dms, missingval=-9999, fill=1, 
     order=(X, Y), shape=:polygon, 
@@ -86,7 +86,7 @@ savefig("build/china_rasterized.png")
 # output
 ```
 
-![rasterize](china_rasterized.pngfill)
+![rasterize](china_rasterized.png)
 
 $EXPERIMENTAL
 """
