@@ -186,14 +186,13 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
         x = X(xlookup)
         y = Y(ylookup)
 
-        DimensionalData.format((x, y, band), map(Base.OneTo, (xsize, ysize, nbands)))
+        DD.format((x, y, band), map(Base.OneTo, (xsize, ysize, nbands)))
     else
-        error("Rotated/transformed dimensions are not handled yet. Open a github issue for Rasters.jl if you need this.")
-        # affinemap = geotransform2affine(geotransform)
-        # x = X(affinemap; lookup=TransformedIndex(dims=X()))
-        # y = Y(affinemap; lookup=TransformedIndex(dims=Y()))
+        affinemap = geotransform2affine(geotransform)
+        x = X(affinemap; lookup=TransformedIndex(dims=X()))
+        y = Y(affinemap; lookup=TransformedIndex(dims=Y()))
 
-        # formatdims((xsize, ysize, nbands), (x, y, band))
+        DD.format((x, y, band), map(Base.OneTo, (xsize, ysize, nbands)))
     end
 end
 
@@ -475,9 +474,9 @@ const GDAL_NS_RES = 6
 
 _isalligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
 
-# _geotransform2affine(gt) =
-    # AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]],
-              # [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
+function _geotransform2affine(gt) =
+    AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]], [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
+end
 
 function _dims2geotransform(x::XDim, y::YDim)
     gt = zeros(6)
@@ -488,6 +487,20 @@ function _dims2geotransform(x::XDim, y::YDim)
     gt[GDAL_ROT2] = zero(eltype(gt))
     gt[GDAL_NS_RES] = step(y)
     return gt
+end
+
+function get_affine_map(ds::ArchGDAL.IDataset)
+    # ArchGDAL fails hard on datasets without
+    # an affinemap. GDAL documents that on fail
+    # a default affinemap should be returned.
+    local gt
+    try
+        gt = ArchGDAL.getgeotransform(ds)
+    catch y
+        @warn y.msg
+        gt = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    end
+    geotransform_to_affine(gt)
 end
 
 # precompilation

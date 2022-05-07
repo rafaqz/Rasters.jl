@@ -132,6 +132,19 @@ function Mapped(l::Sampled;
     Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 
+struct AffineProjected{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC,MC,D} <: Unalligned
+    f::F
+    order::O
+    span::Sp
+    sampling::Sa
+    metadata::MD
+    crs::PC
+    mappedcrs::MC
+    dim::D
+end
+
+    x, y = first(i) - 1, first(j) - 1
+
 crs(lookup::Mapped) = lookup.crs
 mappedcrs(lookup::Mapped) = lookup.mappedcrs
 dim(lookup::Mapped) = lookup.dim
@@ -283,3 +296,4 @@ _projectedindex(crs::Nothing, lookup::Mapped, dim::Dimension) =
     error("No projection crs attached to $(name(dim)) dimension")
 _projectedindex(crs::GeoFormat, lookup::Mapped, dim::Dimension) =
     reproject(mappedcrs(dim), crs, dim, index(dim))
+
