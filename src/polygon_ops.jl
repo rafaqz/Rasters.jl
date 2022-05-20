@@ -5,50 +5,48 @@ const DEFAULT_POINT_ORDER = (XDim, YDim)
 
 # _fill_geometry!
 # Fill a raster with `fill` where it interacts with a geometry.
-# We reduce all geometries to vectors with `coordinates` so that a simple
-# vector can also represent a polygon. In future we should do this lazily.
-function _fill_geometry!(B::AbstractRaster, coll::GI.AbstractFeatureCollection; order, kw...)
-    if bbox_might_overlap(B, coll, order)
-        foreach(coll.features) do feature
+function _fill_geometry!(B::AbstractRaster, geom; order, kw...)
+    if isfeature(geom)
+        bbox_might_overlap(B, geom, order) || return B
+        _fill_geometry!(B, GI.geometry(geom), geom; order, kw...)
+    elseif isgeom(geom)
+        bbox_might_overlap(B, geom, order) || return B
+        _fill_geometry!(B, geom; order, shape=_geom_shape(geom), kw...)
+    end
+end
+function _fill_geometry!(B::AbstractRaster, geoms::AbstractVector; shape=:polygon, order, kw...)
+    if isfeature(first(geoms))
+        bbox_might_overlap(B, geom, order) || return B
+        for feature in geom
             _fill_geometry!(B, feature; order, kw...)
         end
-    end
-    return B
-end
-function _fill_geometry!(B::AbstractRaster, feature::GI.AbstractFeature; order, kw...)
-    if bbox_might_overlap(B, feature, order)
-        _fill_geometry!(B, GI.geometry(feature); order, kw...)
-    end
-    return B
-end
-function _fill_geometry!(B::AbstractRaster, geoms::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry,<:GI.AbstractFeature}}; order, kw...)
-    any(map(g -> bbox_might_overlap(B, g, order), geoms)) || return B
-    if all(g -> typeof(g) == typeof(first(geoms)), geoms)
-        coords = GI.coordinates.(GI.geometry.(geoms))
-        _fill_geometry!(B, coords; order, shape=_geom_shape(GI.geometry(first(geoms))), kw...)
+        return B
+    elseif isgeometry(first(geoms))
+        any(map(g -> bbox_might_overlap(B, g, order), geoms)) || return B
+        if eltype(geoms) == typeof(first(geoms))
+            shape = _geom_shape(first(geom))
+            for geom in geoms
+                _fill_geometry!(B, geom; order, shape, kw...)
+            end
+        else
+            _fill_mixed_geometries!(B, geoms; order, kw...)
+        end
+        return B
     else
-        _fill_mixed_geometries!(B, geoms; order, kw...)
+        gbounds = _geom_bounds(geoms, order)
+        abounds = bounds(dims(B, order)) # Only mask if the gemoetry bounding box overlaps the array bounding box
+        bounds_overlap(gbounds, abounds) || return B
+        if shape === :polygon
+            _fill_polygon!(B, geoms; polybounds=gbounds, order, kw...)
+        elseif shape === :line
+            _fill_linestring!(B, geoms; order, kw...)
+        elseif shape === :point
+            _fill_points!(B, geoms; order, kw...)
+        else
+            _shape_error(shape)
+        end
+        return B
     end
-end
-function _fill_geometry!(B::AbstractRaster, geom::GI.AbstractGeometry; order, kw...)
-    # Dont do anything if the bbox doesn't overlap
-    bbox_might_overlap(B, geom, order) || return B
-    _fill_geometry!(B, GI.coordinates(geom); order, shape=_geom_shape(geom), kw...)
-end
-function _fill_geometry!(B::AbstractRaster, geom::AbstractVector; shape=:polygon, order, kw...)
-    gbounds = _geom_bounds(geom, order)
-    abounds = bounds(dims(B, order)) # Only mask if the gemoetry bounding box overlaps the array bounding box
-    bounds_overlap(gbounds, abounds) || return B
-    if shape === :polygon
-        _fill_polygon!(B, geom; polybounds=gbounds, order, kw...)
-    elseif shape === :line
-        _fill_linestring!(B, geom; order, kw...)
-    elseif shape === :point
-        _fill_points!(B, geom; order, kw...)
-    else
-        _shape_error(shape)
-    end
-    return B
 end
 
 # Multiple geometry types. Rasterize by groups of types separately
@@ -81,6 +79,7 @@ function _fill_polygon!(B::AbstractRaster, poly; polybounds, order, fill=true, b
         modify(Array, d)
     end
     pts = DimPoints(shifted_dims)
+    points = getpoint(polygon)
     inpoly = if any(map(d -> DD.order(d) isa Unordered, shifted_dims))
         inpolygon(vec(pts), poly)
     else
@@ -157,24 +156,21 @@ _order_step(::ForwardOrdered) = 1
 
 # _fill_point!
 # Fill a raster with `fill` where points are inside raster pixels
-function _fill_points!(B::AbstractRaster, points; kw...)
+function _fill_points!(B::AbstractRaster, geom; kw...)
     # Just find which pixels contian the points, and set them to true
     _without_mapped_crs(B) do B1
-        _fill_points1!(B, points; kw...)
+        for point in getpoint(geom)
+            _fill_point!(B, point; kw...)
+        end
     end
     return B
 end
 
-function _fill_points1!(B::AbstractRaster, points::AbstractVector; kw...)
-    for point in points
-        _fill_points1!(B, point; kw...)
-    end
-end
-function _fill_points1!(B::AbstractRaster, point::Union{Tuple,<:AbstractVector{<:Real}}; 
+function _fill_point!(B::AbstractRaster, point; 
     order, fill=true, atol=nothing, kw...
 )
     selectors = map(dims(B, order), ntuple(i -> i, length(order))) do d, i
-        _at_or_contains(d, point[i], atol)
+        _at_or_contains(d, getcoord(point, i], atol)
     end
     if hasselection(B, selectors)
         B[selectors...] = fill
@@ -311,37 +307,19 @@ end
 
 # _flat_nodes
 # Convert a geometry/nested vectors to a flat iterator of point nodes for PolygonInbounds
-_flat_nodes(A::GI.AbstractGeometry) = _flat_nodes(GI.coordinates(A))
-_flat_nodes(A::GI.AbstractFeature) = _flat_nodes(GI.geometry(A))
-_flat_nodes(A::AbstractVector{<:GI.AbstractGeometry}) = Iterators.flatten(map(_flat_nodes, A))
-_flat_nodes(A::AbstractVector{<:GI.AbstractFeature}) = Iterators.flatten(map(_flat_nodes, A))
-function _flat_nodes(A::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry}})
-    Iterators.flatten(map(_flat_nodes, A))
+function _flat_nodes(A::AbstractVector{T})
+    if GI.geomtrait(first(A)) isa AbstractPointTrait
+        A
+    else
+        Iterators.flatten(map(_flat_nodes, A))
+    end
 end
-function _flat_nodes(A::AbstractVector{<:AbstractVector{<:AbstractVector}})
-    Iterators.flatten(map(_flat_nodes, A))
-end
-_flat_nodes(A::AbstractVector{<:AbstractVector{<:Real}}) = A
-_flat_nodes(A::AbstractVector{<:Real}) = A
-_flat_nodes(A::AbstractVector{<:Tuple}) = A
 _flat_nodes(iter::Base.Iterators.Flatten) = iter
-
-_node_vecs(A::GI.AbstractGeometry) = GI.coordinates(A)
-_node_vecs(A::GI.AbstractFeature) = _node_vecs(GI.geometry(A))
-function _node_vecs(A::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry,<:GI.AbstractFeature}})
-    map(_node_vecs, A)
-end
-function _node_vecs(A::AbstractVector{<:AbstractVector{<:AbstractVector}})
-    A
-end
-_node_vecs(A::AbstractVector{<:AbstractVector{<:AbstractFloat}}) = A
-_node_vecs(A::AbstractVector{<:Tuple}) = A
-_node_vecs(iter::Base.Iterators.Flatten) = collect(iter)
-
 
 # _to_edges
 # Convert a polygon to the `edges` needed by PolygonInbounds
-function to_edges_and_nodes(poly)
+to_edges_and_nodes(poly) = to_edges_and_nodes(GI.geomtrait(poly), poly)
+function to_edges_and_nodes(::Nothing, poly)
     p1 = first(_flat_nodes(poly))
     edges = Vector{Tuple{Int,Int}}(undef, 0)
     nodes = Vector{typeof(p1)}(undef, 0)
@@ -355,33 +333,27 @@ function to_edges_and_nodes(poly)
     end
     return edges, nodes
 end
+function to_edges_and_nodes(::Union{AbstractPolygonTrait,AbstractMultiPolygonTrait}, poly)
+    n = npoint(poly)
+    edges = Vector{Tuple{Int,Int}}(undef, n)
+    nodes = Vector{typeof(p1)}(undef, n)
+    nodenum = 0
+    for ring in getring(poly)
+        nodenum = _to_edges!(edges, nodes, nodenum, poly)
+    end
+end
 
 # _to_edges!(edges, edgenum, poly)
 # fill edges vector with edges from polygon, numbered starting at `edgenum`
-function _to_edges!(edges, nodes, pointnum, poly::AbstractVector{<:Union{Missing,<:GI.AbstractGeometry}})
-    foldl(poly; init=pointnum) do n, p
-        _to_edges!(edges, nodes, n, p)
-    end
-end
-function _to_edges!(edges, nodes, pointnum, poly::GI.AbstractGeometry)
-    _to_edges!(edges, nodes, pointnum, GI.coordinates(poly))
-end
-function _to_edges!(edges, nodes, pointnum, poly::AbstractVector{<:AbstractVector})
+function _to_edges!(edges, nodes, pointnum, poly::AbstractVector)
     foldl(poly; init=pointnum) do n, p
         _to_edges!(edges, nodes, n, p)
     end
 end
 # Analyse a single polygon
-function _to_edges!(
-    edges, nodes, pointnum,
-    poly::AbstractVector{<:Union{<:NTuple{<:Any,T},<:AbstractVector{T}}}
-) where T<:Real
-    # Any polygon may actually be made up of multiple sub-polygons,
-    # indicated by returning to the first point in the sub-polygon.
-    # So we keep track of the first point, and insert closing edges
-    # wherever we find it repeated.
+function _to_edges!(edges, nodes, pointnum, poly)
     fresh_start = true
-    startpoint = first(poly)
+    startpoint = getpoint(poly, 1)
     start_pointnum = pointnum
     added_nodes = 0
     for (n, point) in enumerate(poly)
@@ -454,19 +426,11 @@ end
 
 # _geom_shape
 # Get the shape category for a geometry
-function _geom_shape(geom)
-    typ = GI.geotype(geom)
-    if typ in (:Point, :MultiPoint)
-        return :point
-    elseif typ in (:LineString, :MultiLineString) 
-        return :line 
-    elseif typ in (:Polygon, :MultiPolygon)
-        return :polygon
-    else
-        throw(ArgumentError("Geometry type $typ not known"))
-    end
-    # TODO: What to do with :GeometryCollection
-end
+_geom_shape(geom) = _geom_shape(GI.geomtrait(geom), geom)
+_geom_shape(geom::Union{PointTrait,MultiPointTrait}) = :point
+_geom_shape(geom::Union{LineStringTrait,MultiLineStringTrait}) = :line 
+_geom_shape(geom::Union{LinearRingTrait,PolygonTrait,MultiPolygonTrait}) = :polygon
+_geom_shape(trait, geom) = throw(ArgumentError("Geometry trait $trait not handled by Rasters.jl"))
 
 # Copied from PolygonInbounds, to add extra keyword arguments
 # PR to include these when this has solidied
