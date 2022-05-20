@@ -59,8 +59,8 @@ vals = extract(st, points)
 function extract(A::RasterStackOrArray, points::NTuple{<:Any,<:AbstractVector}; kw...)
     extract(A, zip(points...); kw...)
 end
-function extract(A::RasterStackOrArray, points::GI.AbstractGeometry; kw...)
-    extract(A, _flat_nodes(GI.coordinates(points)); kw...)
+function extract(A::RasterStackOrArray, points; kw...)
+    extract(A, _flat_nodes(points); kw...)
 end
 function extract(A::RasterStackOrArray, points::AbstractVector{<:Tuple}; kw...)
     extract.(Ref(A), points; kw...)

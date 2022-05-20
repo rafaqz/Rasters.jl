@@ -242,24 +242,28 @@ function rasterize!(x::RasterStackOrArray, data;
 )
     if Tables.istable(data)
         _rasterize_table!(x, data; name, kw...)
-    else
+    elseif GI.isgeometry(data)
         order = isnothing(order) ? DEFAULT_POINT_ORDER : order
         buffer = Raster(falses(commondims(x, order)))
         _rasterize_geometry!(x, data; order, buffer, init=_Defined(), missingval, kw...)
+    else
+        throw(ArgumentError("data should be either a GeoInterface compatible object, or a table with points columns")
     end
 end
-function rasterize!(A::AbstractRaster, geom::GI.AbstractGeometry, vals; shape=:point, kw...)
-    rasterize!(A, _flat_nodes(geom), vals; kw...)
-end
-function rasterize!(st::AbstractRasterStack, geom::GI.AbstractGeometry, vals; shape=:point, kw...)
-    rasterize!(st, _flat_nodes(geom), vals; kw...)
-end
 function rasterize!(st::AbstractRasterStack, points, vals; keys=keys(st), name=keys, kw...)
-    keys = _filter_name(name, vals)
-    return _rasterize!(st[name], points, vals; name, kw...)
+    if GI.isgeometry(points)
+        rasterize!(st, _flat_nodes(geom), vals; kw...)
+    else
+        keys = _filter_name(name, vals)
+        _rasterize!(st[name], points, vals; name, kw...)
+    end
 end
 function rasterize!(A::AbstractRaster, points, vals; name=nothing, kw...)
-    _rasterize!(A, points, vals; name, kw...)
+    if GI.isgeometry(points)
+        _rasterize!(A, _flat_nodes(geom), vals; name, kw...)
+    else
+        _rasterize!(A, points, vals; name, kw...)
+    end
 end
 
 function _rasterize!(x::RasterStackOrArray, points, vals; 
