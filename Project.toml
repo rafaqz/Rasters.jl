@@ -51,7 +51,7 @@ RasterDataSources = "0.5"
 RecipesBase = "0.7, 0.8, 1.0"
 Reexport = "0.2, 1.0"
 Requires = "0.5, 1"
-Setfield = "0.6, 0.7, 0.8"
+Setfield = "0.6, 0.7, 0.8, 1"
 julia = "1"
 
 [extras]
