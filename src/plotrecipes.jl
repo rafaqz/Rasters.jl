@@ -5,6 +5,11 @@ struct RasterZPlot end
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(A::AbstractRaster)
     ddplot(A) = DimArray(A; dims=_maybe_mapped(dims(A)))
+    l = parent(first(dims(A, (X, Y)))) 
+    if l isa AffineProjected
+        res = Y(l.affinemap.linear[1, 1]), X(l.affinemap.linear[2, 2])
+        A = resample(A, res)
+    end
     max_res = get(plotattributes, :max_res, 1000)
     if !(get(plotattributes, :seriestype, :none) in (:none, :heatmap, :contourf))
         DD.DimensionalPlot(), ddplot(A)
@@ -31,6 +36,7 @@ end
     rdt = DD.refdims_title(A; issingle=true)
     :title --> (rdt === "" ? _maybename(A) : _maybename(A) * "\n" * rdt)
     :xguide --> xguide
+    :xrotation --> -45
     :yguide --> yguide
     :grid --> true
     :gridalpha --> 0.2

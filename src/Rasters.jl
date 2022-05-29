@@ -12,6 +12,7 @@ using Dates
 import Adapt,
        ArchGDAL,
        ColorTypes,
+       CoordinateTransformations,
        ConstructionBase,
        DiskArrays,
        Extents,

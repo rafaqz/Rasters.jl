@@ -8,9 +8,10 @@ const GDAL_Y_ORDER = ReverseOrdered()
 const GDAL_X_LOCUS = Start()
 const GDAL_Y_LOCUS = Start()
 
-# Array ######################################################################## @deprecate GDALarray(args...; kw...) Raster(args...; source=GDALfile, kw...)
-
 @deprecate GDALarray(args...; kw...) Raster(args...; source=GDALfile, kw...)
+@deprecate GDALstack(args...; kw...) RasterStack(args...; source=GDALfile, kw...)
+
+# Array ########################################################################
 
 function FileArray(raster::AG.RasterDataset{T}, filename; kw...) where {T}
     eachchunk, haschunks = DA.eachchunk(raster), DA.haschunks(raster)
@@ -20,8 +21,6 @@ end
 cleanreturn(A::AG.RasterDataset) = Array(A)
 
 haslayers(::Type{GDALfile}) = false
-
-# AbstractRaster methods
 
 """
     Base.write(filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster; kw...)
@@ -75,7 +74,7 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
     end
     x = reorder(x, GDAL_X_ORDER)
     y = reorder(y, GDAL_Y_ORDER)
-    T = Missings.nonmissingtype(T) 
+    T = Missings.nonmissingtype(T)
 
     if ismissing(missingval)
         missingval = _writeable_missing(T)
@@ -121,8 +120,7 @@ end
 
 # DimensionalData methods for ArchGDAL types ###############################
 
-@deprecate GDALstack(args...; kw...) RasterStack(args...; source=GDALfile, kw...)
-
+# We allow passing in crs and mappedcrs manually
 function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     gt = try
         AG.getgeotransform(raster)
@@ -137,9 +135,9 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     else
         Band(Categorical(bandnames; order=Unordered()))
     end
-    
+
     crs = crs isa Nothing ? Rasters.crs(raster) : crs
-    xy_metadata = Metadata{GDALfile}()
+    xy_metadata = metadata(raster)
 
     # Output Sampled index dims when the transformation is lat/lon alligned,
     # otherwise use Transformed index, with an affine map.
@@ -188,9 +186,9 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
 
         DD.format((x, y, band), map(Base.OneTo, (xsize, ysize, nbands)))
     else
-        affinemap = geotransform2affine(geotransform)
-        x = X(affinemap; lookup=TransformedIndex(dims=X()))
-        y = Y(affinemap; lookup=TransformedIndex(dims=Y()))
+        affinemap = _geotransform2affine(gt)
+        x = X(AffineProjected(affinemap; crs, mappedcrs, metadata=xy_metadata, dim=X()))
+        y = Y(AffineProjected(affinemap; crs, mappedcrs, metadata=xy_metadata, dim=Y()))
 
         DD.format((x, y, band), map(Base.OneTo, (xsize, ysize, nbands)))
     end
@@ -208,6 +206,27 @@ function DD.metadata(raster::AG.RasterDataset, args...)
     Metadata{GDALfile}(Dict(:filepath=>path, :scale=>scale, :offset=>offset, upair...))
 end
 
+# Rasters methods for ArchGDAL types ##############################
+
+# Create a Raster from a memory-backed dataset
+Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
+function Raster(ds::AG.RasterDataset;
+    crs=crs(ds), mappedcrs=nothing,
+    dims=dims(ds, crs, mappedcrs),
+    refdims=(), name=Symbol(""),
+    metadata=metadata(ds),
+    missingval=missingval(ds)
+)
+    args = dims, refdims, name, metadata, missingval
+    filelist = AG.filelist(ds)
+    if length(filelist) > 0
+        filename = first(filelist)
+        return Raster(FileArray(ds, filename), args...)
+    else
+        return Raster(Array(ds), args...)
+    end
+end
+
 function missingval(raster::AG.RasterDataset, args...)
     # We can only handle data where all bands have the same missingval
     band = AG.getband(raster.ds, 1)
@@ -215,31 +234,43 @@ function missingval(raster::AG.RasterDataset, args...)
     if nodata isa Nothing
         return nothing
     else
-        return _gdalconvert(eltype(band), nodata)
+        return _gdalconvertmissing(eltype(band), nodata)
     end
 end
-
-_gdalconvert(T::Type{<:AbstractFloat}, x::Real) = convert(T, x)
-function _gdalconvert(T::Type{<:Integer}, x::AbstractFloat)
-    if trunc(x) === x
-        convert(T, x)
-    else
-        @warn "Missing value $x can't be converted to array eltype $T. `missingval` set to `nothing`"
-        nothing
-    end
-end
-function _gdalconvert(T::Type{<:Integer}, x::Integer)
-    if x >= typemin(T) && x <= typemax(T)
-        convert(T, x)
-    else
-        @warn "Missing value $x can't be converted to array eltype $T. `missingval` set to `nothing`"
-        nothing
-    end
-end
-_gdalconvert(T, x) = x
 
 function crs(raster::AG.RasterDataset, args...)
     WellKnownText(GeoFormatTypes.CRS(), string(AG.getproj(raster.ds)))
+end
+
+# ArchGDAL methods for Rasters types ####################################
+
+# Extend ArchGDAL RasterDataset and Dataset to accept AbstractRaster as input
+function AG.Dataset(f::Function, A::AbstractRaster; kw...)
+    AG.RasterDataset(A; kw...) do rds
+        f(rds.ds)
+    end
+end
+function AG.RasterDataset(f::Function, A::AbstractRaster; filename=nothing)
+    all(hasdim(A, (XDim, YDim))) || throw(ArgumentError("`AbstractRaster` must have both an `XDim` and `YDim` to use be converted to an ArchGDAL `Dataset`"))
+    if ndims(A) === 3
+        thirddim = otherdims(A, (X, Y))[1]
+        thirddim isa Band || throw(ArgumentError("ArchGDAL can't handle $(basetypeof(thirddim)) dims - only XDim, YDim, and Band"))
+    elseif ndims(A) > 3
+        throw(ArgumentError("ArchGDAL can only accept 2 or 3 dimensional arrays"))
+    end
+
+    # block_x, block_y = DA.max_chunksize(DA.eachchunk(A))
+    A_p = _maybe_permute_to_gdal(A)
+    dataset = _unsafe_gdal_ds(A_p; filename)
+    try
+        rds = AG.RasterDataset(dataset)
+        open(A_p) do a
+            rds .= parent(a)
+        end
+        f(rds)
+    finally
+        AG.destroy(dataset)
+    end
 end
 
 
@@ -254,6 +285,25 @@ function _open(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...
 end
 _open(f, ::Type{GDALfile}, ds::AG.RasterDataset; kw...) = cleanreturn(f(ds))
 
+
+_gdalconvertmissing(T::Type{<:AbstractFloat}, x::Real) = convert(T, x)
+function _gdalconvertmissing(T::Type{<:Integer}, x::AbstractFloat)
+    if trunc(x) === x
+        convert(T, x)
+    else
+        @warn "Missing value $x can't be converted to array eltype $T. `missingval` set to `nothing`"
+        nothing
+    end
+end
+function _gdalconvertmissing(T::Type{<:Integer}, x::Integer)
+    if x >= typemin(T) && x <= typemax(T)
+        convert(T, x)
+    else
+        @warn "Missing value $x can't be converted to array eltype $T. `missingval` set to `nothing`"
+        nothing
+    end
+end
+_gdalconvertmissing(T, x) = x
 
 function _gdalwrite(filename, A::AbstractRaster, nbands;
     driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing
@@ -304,9 +354,9 @@ function _gdalmetadata(dataset::AG.Dataset, key)
     regex = Regex("$key=(.*)")
     i = findfirst(f -> occursin(regex, f), meta)
     if i isa Nothing
-        nothing
+        return nothing
     else
-        match(regex, meta[i])[1]
+        return match(regex, meta[i])[1]
     end
 end
 
@@ -353,51 +403,7 @@ function _gdalsetproperties!(dataset, dims, missingval)
     return dataset
 end
 
-# Create a Raster from a memory-backed dataset
-Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
-function Raster(ds::AG.RasterDataset;
-    crs=crs(ds), mappedcrs=nothing,
-    dims=dims(ds, crs, mappedcrs),
-    refdims=(), name=Symbol(""),
-    metadata=metadata(ds),
-    missingval=missingval(ds)
-)
-    args = dims, refdims, name, metadata, missingval
-    filelist = AG.filelist(ds)
-    if length(filelist) > 0
-        filename = first(filelist)
-        return Raster(FileArray(ds, filename), args...)
-    else
-        return Raster(Array(ds), args...)
-    end
-end
-
-# Convert AbstractRaster to in-memory datasets
-
-function AG.Dataset(f::Function, A::AbstractRaster; filename=nothing)
-    all(hasdim(A, (XDim, YDim))) || throw(ArgumentError("`AbstractRaster` must have both an `XDim` and `YDim` to use be converted to an ArchGDAL `Dataset`"))
-    if ndims(A) === 3
-        thirddim = otherdims(A, (X, Y))[1]
-        thirddim isa Band || throw(ArgumentError("ArchGDAL can't handle $(basetypeof(thirddim)) dims - only XDim, YDim, and Band"))
-    elseif ndims(A) > 3
-        throw(ArgumentError("ArchGDAL can only accept 2 or 3 dimensional arrays"))
-    end
-
-    # block_x, block_y = DA.max_chunksize(DA.eachchunk(A))
-    A_p = _maybe_permute_to_gdal(A)
-    dataset = _unsafe_gdal_ds(A_p; filename)
-    try
-        rds = AG.RasterDataset(dataset)
-        open(A_p) do a
-            rds .= parent(a)
-        end
-        f(dataset)
-    finally
-        AG.destroy(dataset)
-    end
-end
-
-# Create a memory-backed GDAL dataset from any AbstractRaster
+# Create a GDAL dataset from any AbstractRaster or dims
 function _unsafe_gdal_ds(A::AbstractRaster; missingval=missingval(A), eltype=eltype(A), kw...)
     _unsafe_gdal_ds(dims(A); missingval, eltype, kw...)
 end
@@ -405,7 +411,6 @@ function _unsafe_gdal_ds(dims::DimTuple; kw...)
     nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band)) : 1
     _unsafe_gdal_ds(dims, nbands; kw...)
 end
-
 function _unsafe_gdal_ds(dims::DimTuple, nbands; filename=nothing, suffix=nothing,
     missingval=nothing, metadata=nothing, name=nothing, keys=(name,),
     eltype, driver=_extensiondriver(filename), compress="DEFLATE", chunk=nothing,
@@ -414,7 +419,7 @@ function _unsafe_gdal_ds(dims::DimTuple, nbands; filename=nothing, suffix=nothin
     kw = (
         width=length(DD.dims(dims, X)),
         height=length(DD.dims(dims, Y)),
-        nbands=nbands, 
+        nbands=nbands,
         dtype=eltype,
     )
     dataset = if driver == "MEM"
@@ -474,8 +479,23 @@ const GDAL_NS_RES = 6
 
 _isalligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
 
-function _geotransform2affine(gt) =
-    AffineMap([gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]], [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]])
+function _geotransform2affine(gt::AbstractVector)
+    M = [gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]]
+    v = [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]]
+    CoordinateTransformations.AffineMap(M, v)
+end
+
+function _affine2geotransform(am::CoordinateTransformations.AffineMap)
+    M = am.linear
+    v = am.translation
+    gt = zeros(6)
+    gt[GDAL_TOPLEFT_X] = v[1]
+    gt[GDAL_WE_RES] = M[1, 1]
+    gt[GDAL_ROT1] = M[1, 2]
+    gt[GDAL_TOPLEFT_Y] = v[2]
+    gt[GDAL_ROT2] = M[2, 1]
+    gt[GDAL_NS_RES] = M[2, 2]
+    return gt
 end
 
 function _dims2geotransform(x::XDim, y::YDim)
@@ -488,19 +508,8 @@ function _dims2geotransform(x::XDim, y::YDim)
     gt[GDAL_NS_RES] = step(y)
     return gt
 end
-
-function get_affine_map(ds::ArchGDAL.IDataset)
-    # ArchGDAL fails hard on datasets without
-    # an affinemap. GDAL documents that on fail
-    # a default affinemap should be returned.
-    local gt
-    try
-        gt = ArchGDAL.getgeotransform(ds)
-    catch y
-        @warn y.msg
-        gt = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-    end
-    geotransform_to_affine(gt)
+function _dims2geotransform(x::XDim{<:AffineProjected}, y::YDim)
+    _affine2geotransform(parent(x).affinemap)
 end
 
 # precompilation

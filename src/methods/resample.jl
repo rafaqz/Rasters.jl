@@ -77,13 +77,21 @@ end
 function resample(xs::Union{Tuple,NamedTuple}; to=first(xs), kw...)
     map(x -> resample(x; to, kw...), xs)
 end
-function resample(A::RasterStackOrArray, resolution::Number;
+function resample(A::RasterStackOrArray, resolution::Number; kw...)
+    dimres = map(d -> DD.basetypeof(d)(resolution), dims(A, (XDim, YDim)))
+    resample(A, dimres; kw...)
+end
+function resample(A::RasterStackOrArray, pairs::Pair...; kw...)
+    resample(A, map((D, x) -> D(x), pairs); kw...)
+end
+function resample(A::RasterStackOrArray, resdims::DimTuple;
     crs::GeoFormat=crs(A), method=:near, kw...
 )
     wkt = convert(String, convert(WellKnownText, crs))
+    res = map(val, dims(resdims, (YDim, XDim)))
     flags = Dict(
         :t_srs => wkt,
-        :tr => [resolution, resolution],
+        :tr => res, 
         :r => method,
     )
     return warp(A, flags; kw...)

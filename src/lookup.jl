@@ -101,13 +101,14 @@ end
     Mapped(; order=AutoOrder(), span=AutoSpan(), sampling=AutoSampling(), crs=nothing, mappedcrs)
 
 An [`AbstractSampled`]($DDabssampleddocs) `LookupArray`, where the dimension index has
-been mapped to another projection, usually lat/lon or `EPSG(4326)`.
+been mapped to another projection, usually lat/lon or `EPSG(4326)`. 
+`Mapped` matches the dimension format commonly used in netcdf files.
 
 Fields and behaviours are identical to [`Sampled`]($DDsampleddocs) with the addition of
 `crs` and `mappedcrs` fields.
 
 The mapped dimension index will be used as for [`Sampled`]($DDsampleddocs),
-but to save in another format the underlying `projectioncrs` may be used.
+but to save in another format the underlying `crs` may be used to convert it.
 """
 struct Mapped{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC,MC,D} <: AbstractProjected{T,O,Sp,Sa}
     data::A
@@ -132,22 +133,61 @@ function Mapped(l::Sampled;
     Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 
-struct AffineProjected{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC,MC,D} <: Unalligned
-    f::F
-    order::O
-    span::Sp
-    sampling::Sa
-    metadata::MD
-    crs::PC
+struct AffineProjected{T,F,A<:AbstractVector{T},M,C,MC} <: LA.Unaligned{T,1}
+    affinemap::F
+    data::A
+    metadata::M
+    crs::C
     mappedcrs::MC
-    dim::D
+end
+function AffineProjected(f; 
+    data=AutoIndex(), metadata=NoMetadata(), crs=nothing, mappedcrs, dim=AutoDim()
+)
+    AffineProjected(f, data, metadata, crs, mappedcrs)
 end
 
-    x, y = first(i) - 1, first(j) - 1
+crs(lookup::AffineProjected) = lookup.crs
+mappedcrs(lookup::AffineProjected) = lookup.mappedcrs
 
-crs(lookup::Mapped) = lookup.crs
-mappedcrs(lookup::Mapped) = lookup.mappedcrs
-dim(lookup::Mapped) = lookup.dim
+DD.metadata(lookup::AffineProjected) = lookup.metadata
+function DD.rebuild(l::AffineProjected; 
+    affinemap=l.affinemap, data=l.data, metadata=metadata(l),
+    crs=crs(l), mappedcrs=mappedcrs(l), dim=dims(l), args...
+)
+    AffineProjected(affinemap, data, metadata, crs, mappedcrs)
+end
+function Dimensions.format(l::AffineProjected, D::Type, index, axis::AbstractRange)
+    return rebuild(l; data=axis)
+end
+LA.transformfunc(lookup::AffineProjected) = CoordinateTransformations.inv(lookup.affinemap)
+# DD.bounds(lookup::AffineProjected) = lookup.metadata
+
+function Dimensions.sliceunalligneddims(
+    f, uI::NTuple{<:Any,<:Union{Colon,AbstractArray}},
+    ud1::Dimension{<:AffineProjected}, ud2::Dimension{<:AffineProjected}
+)
+    # swap colons for the dimension index, which is the same as the array axis
+    udims = ud1, ud2
+    uI = map(udims, uI) do d, i
+        i isa Colon ? parent(lookup(d)) : i
+    end
+    
+    M = copy(lookup(ud1).affinemap.linear)
+    # Change of step size when necessary
+    M[1, 1] *= step(uI[1])
+    M[2, 2] *= step(uI[2])
+    # Change of extent
+    v = lookup(ud1).affinemap([map(i -> first(i) - 1, uI)...])
+    # Create a new affine map
+    affinemap = CoordinateTransformations.AffineMap(M, v)
+    # Build new lookups with the affine map. Probably should define `set` to do this.
+    dims = map(udims, uI) do d, i
+        newlookup = rebuild(lookup(d); data=Base.OneTo(length(i)), affinemap)
+        rebuild(d, newlookup)
+    end
+    refdims = ()
+    return dims, refdims
+end
 
 """
     convertlookup(dstlookup::Type{<:LookupArray}, x)
@@ -193,7 +233,6 @@ function convertlookup(::Type{<:Projected}, l::Mapped)
         dim=dim(l),
     )
 end
-
 
 
 _projectedrange(l::Projected) = LinRange(first(l), last(l), length(l))
