@@ -198,9 +198,9 @@ function disaggregate end
 function disaggregate(method, series::AbstractRasterSeries, scale; progress=true, kw...)
     f = i -> disaggregate(method, series[i], scale; progress=false, kw...)
     return if progress
-        ProgressMeter.@showprogress "Disaggregating series..." map(f, 1:length(series))
+        ProgressMeter.@showprogress "Disaggregating series..." map(f, eachindex(series))
     else
-        map(f, 1:length(series))
+        map(f, eachindex(series))
     end
 end
 function disaggregate(method, stack::AbstractRasterStack, scale;

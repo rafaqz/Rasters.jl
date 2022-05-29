@@ -1,12 +1,12 @@
 """
     warp(A::AbstractRaster, flags::Dict)
 
-Gives access to the GDALs `gdalwarp` method given a `Dict` of flags,
-where arguments than can be converted to strings, or vectors
-of such arguments for flags that take multiple space-separated arguments.
+Gives access to the GDALs `gdalwarp` method given a `Dict` of 
+`flag => value` arguments that can be converted to strings, or vectors
+where multiple space-separated arguments are required.
 
-Arrays with additional dimensions not handled by GDAL (ie other than X, Y, Band)
-are sliced, warped, and then combined - these dimensions will not change.
+Arrays with additional dimensions not handled by GDAL (other than `X`, `Y`, `Band`)
+are sliced, warped, and then combined to match the original array dimensions.
 
 See [the gdalwarp docs](https://gdal.org/programs/gdalwarp.html) for a list of arguments.
 
