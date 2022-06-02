@@ -189,6 +189,11 @@ function Dimensions.sliceunalligneddims(
     return dims, refdims
 end
 
+function Base.reverse(lookup::AffineProjected)
+    sp = reverse(span(lookup))
+    rebuild(lookup; data=i, order=o, span=sp)
+end
+
 """
     convertlookup(dstlookup::Type{<:LookupArray}, x)
 
