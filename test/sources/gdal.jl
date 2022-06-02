@@ -7,9 +7,31 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 gdalpath = maybedownload(url)
 
+gdalpath = "/home/raf/Downloads/FARAD_X_BAND/20151027_1027X04_PS0010_PT000001_N03_M1_CH0_OSAPF.ntf"
+
 @testset "array" begin
 
-    @time gdalarray = Raster(gdalpath; name=:test)
+    @time gdalarray = Raster(gdalpath; lazy=false, name=:test, missingval=typemax(UInt16))
+    x1 = gdalarray[:, :, 1]
+    dims(x1)
+    parent(dims(x1, X))
+    x2 = gdalarray[1200:1300, 500:599, 1];
+    x3 = gdalarray[1200:1300, 500:1:599, 1]
+    x3 = gdalarray[1:3:end, 1:3:2000, 1]
+    x3 = gdalarray[X=Between(-106.557, -106.558), Y=Near(35.155), Band=1]
+    plot(plot(x1; clims=(0, 100)), plot(x3; clims=(0, 100)))
+    parent(dims(gdalarray, X)).affinemap
+    parent(dims(x1, X)).affinemap
+    parent(dims(x2, X)).affinemap
+    parent(dims(x3, X)).affinemap
+    collect(parent(gdalarray))
+
+    l = parent(dims(x1, X))
+    l.affinemap([35.155, -106.555])
+    res = Y(l.affinemap.linear[1, 1]), X(l.affinemap.linear[2, 2])
+    plot(gdalarray; c=:terrain)
+    savefig("rotated.png")
+    crs(gdalarray)
 
     @testset "lazyness" begin
         @time read(Raster(gdalpath));
