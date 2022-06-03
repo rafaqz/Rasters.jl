@@ -247,34 +247,26 @@ function rasterize!(x::RasterStackOrArray, data;
         buffer = Raster(falses(commondims(x, order)))
         _rasterize_geometry!(x, data; order, buffer, init=_Defined(), missingval, kw...)
     else
-        throw(ArgumentError("data should be either a GeoInterface compatible object, or a table with points columns")
+        throw(ArgumentError("data should be either a GeoInterface compatible object, or a table with points columns"))
     end
 end
-function rasterize!(st::AbstractRasterStack, points, vals; keys=keys(st), name=keys, kw...)
-    if GI.isgeometry(points)
-        rasterize!(st, _flat_nodes(geom), vals; kw...)
-    else
-        keys = _filter_name(name, vals)
-        _rasterize!(st[name], points, vals; name, kw...)
-    end
+function rasterize!(st::AbstractRasterStack, geom, vals; keys=keys(st), name=keys, kw...)
+    _rasterize!(st, GI.getpoint(geom), vals; name, kw...)
 end
-function rasterize!(A::AbstractRaster, points, vals; name=nothing, kw...)
-    if GI.isgeometry(points)
-        _rasterize!(A, _flat_nodes(geom), vals; name, kw...)
-    else
-        _rasterize!(A, points, vals; name, kw...)
-    end
+function rasterize!(A::AbstractRaster, geom, vals; kw...)
+    _rasterize!(A, GI.getpoint(geom), vals; name, kw...)
 end
 
 function _rasterize!(x::RasterStackOrArray, points, vals; 
     order=DEFAULT_POINT_ORDER, atol=nothing, name=nothing
 )
     check_points(points, order)
-    isdisk(first(x)) && _warn_disk()
+    is3d = GI.is3d(first(points))
+    isdisk(x) && _warn_disk()
     ordered_dims = dims(x, order)
     _without_mapped_crs(x) do x
-        map(points, vals) do p, v
-            any(map(ismissing, p)) && return nothing
+        foreach(points, vals) do p, v
+            # any(map(ismissing, getcoord(p))) && return nothing
             selectors = map((d, x) -> _at_or_contains(d, x, atol), ordered_dims, p)
             all(map(DD.hasselection, ordered_dims, selectors)) || return nothing
             _set_at_selection!(x, selectors, v)
@@ -301,9 +293,9 @@ function _set_at_selection!(A::AbstractRaster, selectors, val)
 end
 
 function check_points(points, order)
-    lp = length(first(points))
+    lp = GI.ncoord(first(points))
     lo = length(order) 
-    if lp !== lo 
+    if lp != lo 
         throw(ArgumentError("length of points in `points` ($lp) is different to the length of `order` ($lo)")) 
     end
 end
