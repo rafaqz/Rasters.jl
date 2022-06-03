@@ -1,6 +1,5 @@
 using Rasters, Test, ArchGDAL, Dates, Statistics, GeoInterface
 using Rasters.LookupArrays, Rasters.Dimensions 
-using GeoInterface: Point, Polygon, LineString
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
@@ -261,22 +260,19 @@ end
 end
 
 @testset "inpolygon" begin
-    gi_polygon = Polygon([polygon])
-    poly = polygon
-    for poly in (polygon, gi_polygon)
-        @test inpolygon((-10.0, 20.0), poly) == true
-        @test inpolygon((-19.0, 29.0), poly) == true
-        @test inpolygon((-30.0, 20.0), poly) == false
-        @test inpolygon([(-10.0, 20.0), (-30.0, 40.0)], poly) == [true, false]
-        @test inpolygon(Point([-20.0, 50.0]), poly) == false
-        @test inpolygon(LineString([[-10.0, 20.0], [-30.0, 40.0]]), poly) == [true, false]
-        @test inpolygon(Polygon([[[-10.0, 20.0], [-30.0, 40.0]]]), poly) == [true, false]
-    end
+    poly = ArchGDAL.createpolygon([polygon])
+    @test inpolygon((-10.0, 20.0), poly) == true
+    @test inpolygon((-19.0, 29.0), poly) == true
+    @test inpolygon((-30.0, 20.0), poly) == false
+    @test inpolygon([(-10.0, 20.0), (-30.0, 40.0)], poly) == [true, false]
+    @test inpolygon((-20.0, 50.0), poly) == false
+    @test inpolygon(ArchGDAL.createlinestring([[-10.0, 20.0], [-30.0, 40.0]]), poly) == [true, false]
+    @test inpolygon(ArchGDAL.createpolygon([[[-10.0, 20.0], [-30.0, 40.0]]]), poly) == [true, false]
 end
 
 @testset "rasterize" begin
-    gi_polygon = Polygon([polygon])
-    rev_polygon = reverse.(polygon)
+    gi_polygon = ArchGDAL.createpolygon([polygon])
+    rev_polygon = ArchGDAL.createpolygon(reverse.(polygon))
     A1 = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
     A2 = Raster(zeros(Y(0:30; sampling=Intervals()), X(-20:5; sampling=Intervals())))
     st = RasterStack((A1, A1))
@@ -285,7 +281,7 @@ end
     poly = polygon
     poly = gi_polygon
     ord = (X, Y)
-    for A in (A1, A2), (ord, poly) in (((X, Y), polygon), ((X, Y), gi_polygon), ((Y, X), rev_polygon))
+    for A in (A1, A2), (ord, poly) in ((X, Y), gi_polygon), ((Y, X), rev_polygon))
         A .= 0
         rasterize!(A, poly, vals; order=ord)
         @test sum(A) == 14 # The last value overwrites the first

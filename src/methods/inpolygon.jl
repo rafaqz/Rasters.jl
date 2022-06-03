@@ -14,15 +14,19 @@ This algorithm is very efficient for many points, less so a single point.
 
 Returns a `Bool` or `AbstractVector{Bool}`.
 """
-function inpolygon(point::Union{Tuple,AbstractVector{<:Real}}, poly; kw...)
-    inpolygon([point], poly; kw...)[1]
-end
-function inpolygon(points, poly; kw...)
-    if isgeometry(poly)
-        inpolygon(collect(_flat_nodes(GI.coordinates(points))), poly, kw...)
-    else
-        edges, nodes = to_edges_and_nodes(poly)
-        inpoly_matrix = inpoly2(points, nodes, edges; kw...)
-    end
+inpolygon(geom, poly; kw...) = inpolygon(GI.geomtrait(points), geom, poly; kw...) 
+function inpolygon(::Nothing, geom, poly; kw...)
+    edges, nodes = to_edges_and_nodes(poly)
+    inpoly_matrix = inpoly2(points, nodes, edges; kw...)
     return view(inpoly_matrix, :, 1)
+end
+function inpolygon(::GI.AbstractFeatureTrait, feature, poly; kw...)
+    geom = GI.geometry(feature)
+    inpolygon(GI.geomtrait(geom), geom, kw...)
+end
+function inpolygon(t::GI.AbstractGeometryTrait, geom, poly; kw...)
+    return inpolygon(GI.getpoint(t, geom), poly, kw...)
+end
+function inpolygon(::GI.AbstractPointTrait, geom, poly; kw...)
+    inpolygon((GI.x(point), GI.y(point)), poly; kw...)[1]
 end

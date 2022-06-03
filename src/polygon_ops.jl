@@ -79,7 +79,7 @@ function _fill_polygon!(B::AbstractRaster, poly; polybounds, order, fill=true, b
         modify(Array, d)
     end
     pts = DimPoints(shifted_dims)
-    points = getpoint(polygon)
+    points = Gi.getpoint(polygon)
     inpoly = if any(map(d -> DD.order(d) isa Unordered, shifted_dims))
         inpolygon(vec(pts), poly)
     else
@@ -159,7 +159,7 @@ _order_step(::ForwardOrdered) = 1
 function _fill_points!(B::AbstractRaster, geom; kw...)
     # Just find which pixels contian the points, and set them to true
     _without_mapped_crs(B) do B1
-        for point in getpoint(geom)
+        for point in GI.getpoint(geom)
             _fill_point!(B, point; kw...)
         end
     end
@@ -170,7 +170,7 @@ function _fill_point!(B::AbstractRaster, point;
     order, fill=true, atol=nothing, kw...
 )
     selectors = map(dims(B, order), ntuple(i -> i, length(order))) do d, i
-        _at_or_contains(d, getcoord(point, i], atol)
+        _at_or_contains(d, GI.getcoord(point, i), atol)
     end
     if hasselection(B, selectors)
         B[selectors...] = fill
@@ -307,8 +307,8 @@ end
 
 # _flat_nodes
 # Convert a geometry/nested vectors to a flat iterator of point nodes for PolygonInbounds
-function _flat_nodes(A::AbstractVector{T})
-    if GI.geomtrait(first(A)) isa AbstractPointTrait
+function _flat_nodes(A::AbstractVector)
+    if GI.geomtrait(first(A)) isa GI.AbstractPointTrait
         A
     else
         Iterators.flatten(map(_flat_nodes, A))
@@ -319,12 +319,15 @@ _flat_nodes(iter::Base.Iterators.Flatten) = iter
 # _to_edges
 # Convert a polygon to the `edges` needed by PolygonInbounds
 to_edges_and_nodes(poly) = to_edges_and_nodes(GI.geomtrait(poly), poly)
-function to_edges_and_nodes(::Nothing, poly)
-    p1 = first(_flat_nodes(poly))
-    edges = Vector{Tuple{Int,Int}}(undef, 0)
-    nodes = Vector{typeof(p1)}(undef, 0)
+to_edges_and_nodes(trai, poly) = 
+function to_edges_and_nodes(::Union{GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, poly)
+    n = GI.npoint(poly)
+    edges = Vector{Tuple{Int,Int}}(undef, n)
+    nodes = Vector{Tuple{Float64,Float64}}(undef, n)
     nodenum = 0
-    _to_edges!(edges, nodes, nodenum, poly)
+    for ring in GI.getring(poly)
+        nodenum = to_edges_and_nodes!(edges, nodes, nodenum, ring)
+    end
     edges = PermutedDimsArray(reinterpret(reshape, Int, edges), (2, 1))
     lastx = 0
     for (i, x) in enumerate(view(edges, :, 1))
@@ -333,30 +336,14 @@ function to_edges_and_nodes(::Nothing, poly)
     end
     return edges, nodes
 end
-function to_edges_and_nodes(::Union{AbstractPolygonTrait,AbstractMultiPolygonTrait}, poly)
-    n = npoint(poly)
-    edges = Vector{Tuple{Int,Int}}(undef, n)
-    nodes = Vector{typeof(p1)}(undef, n)
-    nodenum = 0
-    for ring in getring(poly)
-        nodenum = _to_edges!(edges, nodes, nodenum, poly)
-    end
-end
-
 # _to_edges!(edges, edgenum, poly)
-# fill edges vector with edges from polygon, numbered starting at `edgenum`
-function _to_edges!(edges, nodes, pointnum, poly::AbstractVector)
-    foldl(poly; init=pointnum) do n, p
-        _to_edges!(edges, nodes, n, p)
-    end
-end
 # Analyse a single polygon
-function _to_edges!(edges, nodes, pointnum, poly)
+function to_edges_and_nodes!(edges, nodes, pointnum, poly)
     fresh_start = true
-    startpoint = getpoint(poly, 1)
+    startpoint = GI.getpoint(poly, 1)
     start_pointnum = pointnum
     added_nodes = 0
-    for (n, point) in enumerate(poly)
+    for (n, point) in enumerate(GI.getgeom(poly))
         if fresh_start
             # The first edge in the sub-polygon
             start_pointnum = pointnum + n
@@ -364,20 +351,19 @@ function _to_edges!(edges, nodes, pointnum, poly)
             push!(edges, startedge)
             startpoint = point
             fresh_start = false
-        elseif point == startpoint || n == length(poly)
+        elseif point == startpoint || n == GI.npoint(poly)
             # The closing edge of a sub-polygon 
             closingedge = (pointnum + n, start_pointnum)
-            push!(edges, closingedge)
+            edges[closingedge]
             fresh_start = true
         else
             # A regular edge somewhere in a sub-polygon
             edge = (pointnum + n, pointnum + n + 1)
-            push!(edges, edge)
+            edges[edge]
         end
         # Track the total number of nodes we have added
         added_nodes = n
     end
-    append!(nodes, poly)
     nextpoint = pointnum + added_nodes
     return nextpoint
 end
@@ -427,9 +413,9 @@ end
 # _geom_shape
 # Get the shape category for a geometry
 _geom_shape(geom) = _geom_shape(GI.geomtrait(geom), geom)
-_geom_shape(geom::Union{PointTrait,MultiPointTrait}) = :point
-_geom_shape(geom::Union{LineStringTrait,MultiLineStringTrait}) = :line 
-_geom_shape(geom::Union{LinearRingTrait,PolygonTrait,MultiPolygonTrait}) = :polygon
+_geom_shape(geom::Union{GI.PointTrait,GI.MultiPointTrait}) = :point
+_geom_shape(geom::Union{GI.LineStringTrait,GI.MultiLineStringTrait}) = :line 
+_geom_shape(geom::Union{GI.LinearRingTrait,GI.PolygonTrait,GI.MultiPolygonTrait}) = :polygon
 _geom_shape(trait, geom) = throw(ArgumentError("Geometry trait $trait not handled by Rasters.jl"))
 
 # Copied from PolygonInbounds, to add extra keyword arguments
@@ -441,7 +427,7 @@ function inpoly2(vert, node, edge=zeros(Int);
     rtol = !isnan(rtol) ? rtol : iszero(atol) ? eps(T)^0.85 : zero(T)
     poly = PolygonInbounds.PolygonMesh(node, edge)
     points = PolygonInbounds.PointsInbound(vert)
-    npoints = length(points)
+    npoints = GI.npoints(points)
 
     vmin = isnothing(vmin) ? minimum(points) : vmin
     vmax = isnothing(vmax) ? maximum(points) : vmax
