@@ -275,10 +275,6 @@ function Raster(ds, filename::AbstractString, key=nothing;
     return Raster(data, dims, refdims, name, metadata, missingval)
 end
 
-@propagate_inbounds function Base.setindex!(A::Raster, x, I::DD.StandardIndices...)
-    setindex!(parent(A), x, I...)
-end
-
 filekey(ds, key) = key
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
