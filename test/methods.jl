@@ -1,4 +1,4 @@
-using Rasters, Test, ArchGDAL, Dates, Statistics, GeoInterface
+using Rasters, Test, ArchGDAL, Dates, Statistics, GeoInterface, DataFrames
 using Rasters.LookupArrays, Rasters.Dimensions 
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
@@ -11,12 +11,23 @@ gaNaN = replace_missing(ga, NaN32)
 gaMi = replace_missing(ga)
 st = RasterStack((a=A, b=B), (X, Y); missingval=(a=missing,b=missing))
 
-polygon = [[-20.0, 30.0],
-           [-20.0, 10.0],
-           [0.0, 10.0],
-           [0.0, 30.0],
-           [-20.0, 30.0]]
+
+pointvec = [(-20.0, 30.0),
+              (-20.0, 10.0),
+              (0.0, 10.0),
+              (0.0, 30.0),
+              (-20.0, 30.0)]
 vals = [1, 2, 3, 4, 5]
+polygon = ArchGDAL.createpolygon(pointvec)
+multi_polygon = ArchGDAL.createmultipolygon([[pointvec]])
+multi_polygon = ArchGDAL.createmultipolygon([[pointvec]])
+multi_point = ArchGDAL.createmultipoint(pointvec)
+linestring = ArchGDAL.createlinestring(pointvec)
+multi_linestring = ArchGDAL.createmultilinestring([pointvec])
+linearring = ArchGDAL.createlinearring(pointvec)
+pointfc = map(GeoInterface.getpoint(polygon), vals) do geom, v
+    (geometry=geom, val1=v, val2=2.0f0v)
+end
 
 @testset "replace_missing" begin
     @test all(isequal.(ga99, [-9999.0f0 7.0f0; 2.0f0 -9999.0f0]))
@@ -75,18 +86,21 @@ end
     rm("mask_a.tif")
     rm("mask_b.tif")
     @testset "to polygon" begin
-        a1 = Raster(ones(X(-20:5), Y(0:30)))
-        st1 = RasterStack(a1, a1)
-        ser1 = RasterSeries([a1, a1], Ti(1:2))
-        @test all(mask(a1; with=polygon) .===
-            mask(st1; with=polygon)[:layer1] .===
-            mask(ser1; with=polygon)[1]
-        )
-        # TODO: investigate this more for Points/Intervals
-        # Exactly how do we define when boundary values are inside/outside a polygon
-        @test sum(skipmissing(mask(a1; with=polygon, boundary=:inside))) == 19 * 19
-        @test sum(skipmissing(mask(a1; with=polygon, boundary=:center))) == 20 * 20
-        @test sum(skipmissing(mask(a1; with=polygon, boundary=:touches))) == 21 * 21
+        for poly in (polygon, multi_polygon) 
+            a1 = Raster(ones(X(-20:5), Y(0:30)))
+            st1 = RasterStack(a1, a1)
+            ser1 = RasterSeries([a1, a1], Ti(1:2))
+            @test all(
+                mask(a1; with=polygon) .===
+                mask(st1; with=polygon)[:layer1] .===
+                mask(ser1; with=polygon)[1]
+            )
+            # TODO: investigate this more for Points/Intervals
+            # Exactly how do we define when boundary values are inside/outside a polygon
+            @test sum(skipmissing(mask(a1; with=polygon, boundary=:inside))) == 19 * 19
+            @test sum(skipmissing(mask(a1; with=polygon, boundary=:center))) == 20 * 20
+            @test sum(skipmissing(mask(a1; with=polygon, boundary=:touches))) == 21 * 21
+        end
     end
 end
 
@@ -110,51 +124,46 @@ end
 
 @testset "points" begin
     ga = Raster(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); missingval=missing)
-    @test all(
-              collect(
-                      points(ga; order=(Y, X)))
-              .=== [missing (0.2, 9.0); (0.1, 10.0) missing])
+    @test all(collect(points(ga; order=(Y, X))) .=== [missing (0.2, 9.0); (0.1, 10.0) missing])
     @test all(collect(points(ga; order=(X, Y))) .=== [missing (9.0, 0.2); (10.0, 0.1) missing])
     @test all(points(ga; order=(X, Y), ignore_missing=true) .===
               [(9.0, 0.1) (9.0, 0.2); (10.0, 0.1) (10.0, 0.2)])
 end
 
+# Idea for generic constructors
+# Polygon(mod, values) = Polygon(Val{Symbol(mod)}(), values)
+# Polygon(::Val{:ArchGDAL}, values) = ArchGDAL.createpolygon(values)
+
+createpoint(args...) = ArchGDAL.createpoint(args...)
+createfeature(x::Tuple{<:Any,<:Any}) = NamedTuple{(:geometry,:test)}(x)
+createfeature(x::Tuple{<:Any,<:Any,<:Any}) = NamedTuple{(:geometry,:test,:test2)}(x)
+createfeature(::Missing) = missing
+
 @testset "extract" begin
-    A1 = [1 2; 3 4]
-    A2 = [5 6; 7 8]
     dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
-    ga = Raster(A1, dimz; name=:test, missingval=missing)
-    ga2 = Raster(A2, dimz; name=:test2, missingval=missing)
+    ga = Raster([1 2; 3 4], dimz; name=:test, missingval=missing)
+    ga2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=missing)
     st = RasterStack(ga, ga2)
     @testset "from Raster" begin
-        @test all(extract(ga, [missing, [9.0, 0.1], [10.0, 0.2], [10.0, 0.3]]) .=== 
-                  [missing, (X=9.0, Y=0.1, test=1), (X=10.0, Y=0.2, test=4), (X=10.0, Y=0.3, test=missing)])
-        @test all(extract(ga, ([9.0, 10.0, 10.0], [0.1, 0.2, 0.3])) .=== 
-                  [(X=9.0, Y=0.1, test=1), (X=10.0, Y=0.2, test=4), (X=10.0, Y=0.3, test=missing)])
-        @test all(extract(ga, Polygon([[9.0, 0.1], [10.0, 0.2], [10.0, 0.3]])) .=== 
-                  [(X=9.0, Y=0.1, test=1), (X=10.0, Y=0.2, test=4), (X=10.0, Y=0.3, test=missing)])
-        @test all(extract(ga, [(0.1, 9.0), (0.2, 10.0), (0.3, 10.0), missing]; order=(Y, X)) .=== 
-                  [(Y=0.1, X=9.0, test=1), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing), missing])
-        @test all(extract(ga, ([0.1, 0.2, 0.3], [9.0, 10.0, 10.0]); order=(Y, X)) .=== 
-                  [(Y=0.1, X=9.0, test=1), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing)])
-        @test all(extract(ga, Polygon([[0.1, 9.0], [0.2, 10.0], [0.3, 10.0]]); order=(Y, X)) .=== 
-                  [(Y=0.1, X=9.0, test=1), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing)])
-        @test all(extract(ga, [(missing, 9.0), (0.2, 10.0), (0.3, 10.0)]; order=(Y, X)) .=== 
-                  [(Y=missing, X=missing, test=missing), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing)])
-        @test all(extract(ga, [[missing, 9.0], [0.2, 10.0], [0.3, 10.0]]; order=(Y, X)) .=== 
-                  [(Y=missing, X=missing, test=missing), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing)])
-        @test_throws ArgumentError extract(ga, [missing, [9.0, 0.1], [10.0, 0.2], [10.0, 0.3]]; order=())
-        @test_throws ArgumentError extract(ga, [missing, [9.0, 0.1], [10.0, 0.2], [10.0, 0.3]]; order=(Z, X))
+        # Tuple points
+        @test all(extract(ga, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]) .=== 
+                  createfeature.([missing, ((9.0, 0.1), 1), ((9.0, 0.2), 2), ((10.0, 0.3), missing)]))
+        # NamedTuple (reversed) points
+        @test all(extract(ga, [missing, (Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) |> collect .=== 
+                  createfeature.([missing, ((Y=0.1, X=9.0), 1), ((Y=0.2, X=10.0), 4), ((Y=0.3, X=10.0), missing)]))
+        # Vector points
+        @test all(extract(ga, [[9.0, 0.1], [10.0, 0.2]]) .== createfeature.([([9.0, 0.1], 1), ([10.0, 0.2], 4)]))
+        # ArchGDAL equality is broken
+        # @test all(extract(ga, ArchGDAL.createmultipoint([[0.1, 9.0], [0.2, 10.0], [0.3, 10.0]])) .==
+                  # createfeature.([(createpoint(0.1, 9.0), 1), (createpoint(0.2, 10.0), 4), (createpoint(0.3, 10.0), missing)]))
+        # Extract a polygon
+        p = ArchGDAL.createpolygon([[[8.0, 0.0], [11.0, 0.0], [11.0, 0.4], [8.0, 0.0]]])
+        @test all(extract(ga, p) .=== 
+            createfeature.([((X=9.0, Y=0.1), 1), ((X=10.0, Y=0.1), 3), ((X=10.0, Y=0.2), 4)]))
     end
     @testset "from stack" begin
-        @test all(extract(st, [missing, [9.0, 0.1], [10.0, 0.2], [10.0, 0.3]]) .=== 
-              [missing, (X=9.0, Y=0.1, test=1, test2=5), (X=10.0, Y=0.2, test=4, test2=8), (X=10.0, Y=0.3, test=missing, test2=missing)])
-    end
-    @testset "Tables.jl compatible" begin
-        @test all(extract(ga, [(X=9.0, Y=0.1), (X=10.0, Y=0.2), (X=10.0, Y=0.3)]) .=== 
-              [(X=9.0, Y=0.1, test=1), (X=10.0, Y=0.2, test=4), (X=10.0, Y=0.3, test=missing)])
-        @test all(extract(ga, [(X=9.0, Y=0.1), (X=10.0, Y=0.2), (X=10.0, Y=0.3)]; order=(Y=>:Y, X=>:X)) .=== 
-              [(Y=0.1, X=9.0, test=1), (Y=0.2, X=10.0, test=4), (Y=0.3, X=10.0, test=missing)])
+        @test all(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]) |> collect .===
+                  createfeature.([missing, ((9.0, 0.1), 1, 5), ((10.0, 0.2), 4, 8), ((10.0, 0.3), missing, missing)]))
     end
 end
 
@@ -203,12 +212,16 @@ end
             @test size(A1extend1) == size(A1extend2) == size(A2extend) == (21, 31)
             @test bounds(A1extend1) == bounds(A1extend2) == bounds(A2extend) == ((-20.0, 0.0), (0, 30))
         end
-        @testset "to table" begin
+        @testset "to featurecollection and table" begin
             A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
-            table = map(polygon, vals) do p, v
-                (x=p[1], y=p[2], val1=v, val2=2.0f0v)
+            featurecollection = map(GeoInterface.getpoint(polygon), vals) do geometry, v
+                (; geometry, val1=v, val2=2.0f0v)
             end
-            A1crop1 = crop(A1; to=table, order=(X=>:x, Y=>:y))
+            fccrop = crop(A1; to=featurecollection)
+            table = DataFrame(featurecollection)
+            tablecrop = crop(A1; to=table)
+            @test size(fccrop) == size(tablecrop) == (16, 21)
+            @test bounds(fccrop) == bounds(tablecrop) == ((-20, -5), (10, 30))
         end
     end
 
@@ -260,89 +273,126 @@ end
 end
 
 @testset "inpolygon" begin
-    poly = ArchGDAL.createpolygon([polygon])
-    @test inpolygon((-10.0, 20.0), poly) == true
-    @test inpolygon((-19.0, 29.0), poly) == true
-    @test inpolygon((-30.0, 20.0), poly) == false
-    @test inpolygon([(-10.0, 20.0), (-30.0, 40.0)], poly) == [true, false]
-    @test inpolygon((-20.0, 50.0), poly) == false
-    @test inpolygon(ArchGDAL.createlinestring([[-10.0, 20.0], [-30.0, 40.0]]), poly) == [true, false]
-    @test inpolygon(ArchGDAL.createpolygon([[[-10.0, 20.0], [-30.0, 40.0]]]), poly) == [true, false]
+    @test inpolygon((-10.0, 20.0), polygon) == true
+    @test inpolygon((-19.0, 29.0), polygon) == true
+    @test inpolygon((-30.0, 20.0), polygon) == false
+    @test inpolygon([(-10.0, 20.0), (-30.0, 40.0)], polygon) == [true, false]
+    @test inpolygon((-20.0, 50.0), polygon) == false
+    @test inpolygon((-20.0, 50.0), (geometry=polygon, test="test",)) == false
+    @test inpolygon(ArchGDAL.createlinestring([[-5.0, 20.0], [-10.0, 10.0]]), polygon) == true
+    @test inpolygon(ArchGDAL.createlinestring([[-10.0, 20.0], [-30.0, 40.0]]), polygon) == false
+    @test inpolygon(ArchGDAL.createpolygon([[[-10.0, 20.0], [-30.0, 40.0]]]), polygon) == false
+    feat = (geometry=ArchGDAL.createlinestring([[-5.0, 20.0], [-10.0, 10.0]]), test=false)
+    @test inpolygon(feat, polygon) == true
 end
 
-@testset "rasterize" begin
-    gi_polygon = ArchGDAL.createpolygon([polygon])
-    rev_polygon = ArchGDAL.createpolygon(reverse.(polygon))
+@testset "rasterize and rasterize!" begin
     A1 = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
     A2 = Raster(zeros(Y(0:30; sampling=Intervals()), X(-20:5; sampling=Intervals())))
-    st = RasterStack((A1, A1))
+    st = RasterStack((A1, copy(A1)))
 
-    A = A1
-    poly = polygon
-    poly = gi_polygon
-    ord = (X, Y)
-    for A in (A1, A2), (ord, poly) in ((X, Y), gi_polygon), ((Y, X), rev_polygon))
-        A .= 0
-        rasterize!(A, poly, vals; order=ord)
-        @test sum(A) == 14 # The last value overwrites the first
-        A .= 0
-        rasterize!(A, poly; shape=:point, fill=1, order=ord)
-        @test sum(A) == 4
-        A .= 0
-        rasterize!(A, poly; shape=:line, fill=1, order=ord)
-        @test sum(A) == 20 + 20 + 20 + 20
-        A .= 0
-        rasterize!(A, poly; shape=:polygon, fill=1, boundary=:center, order=ord)
-        @test sum(A) == 20 * 20
-        A .= 0
-        rasterize!(A, poly; shape=:polygon, fill=1, boundary=:touches, order=ord)
-        @test sum(A) == 21 * 21
-        A .= 0
-        rasterize!(A, poly; shape=:polygon, fill=1, boundary=:inside, order=ord)
-        @test sum(A) == 19 * 19
-        A = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
-        R = rasterize(poly, vals; to=A, order=ord)
-        @test sum(skipmissing(R)) == 14 # The last value overwrites the first
-        R = rasterize(poly; fill=1, to=A, order=ord)
-        @test sum(skipmissing(R)) == 20 * 20
-        @test_throws ArgumentError rasterize(poly, vals; to=A, order=())
-        @test_throws ArgumentError rasterize!(A, poly; shape=:notashape, fill=1, order=ord)
-        @test_throws ArgumentError rasterize!(A, poly; shape=:polygon, fill=1, boundary=:notaboundary, order=ord)
-
-        st[:layer1] .= st[:layer2] .= 0
-        rasterize!(st, poly; shape=:point, fill=1, order=ord)
-        @test sum(st[:layer1]) == sum(st[:layer2]) == 4
-        st[:layer1] .= st[:layer2] .= 0
-        ra1 = rasterize(poly, vals; to=st, order=ord)
-        @test name(ra1) == :layer1
-        @test sum(skipmissing(ra1)) == 14 # The last value overwrites the first
-        stvals = [(1, 2), (3, 4), (5, 6), (7, 8), (9, 10)]
-        st2 = rasterize(poly, stvals; to=st, order=ord)
-        @test sum(skipmissing(st2[:layer1])) == 24 # The last value overwrites the first
-        @test sum(skipmissing(st2[:layer2])) == 28
-        # Make sure this still works
-        if poly isa Vector
-            rasterize!(A, poly[1:end-1]; order=ord, fill=1)
+    @testset "all geoms work as :point" begin
+        A = A1
+        geom = pointvec
+        for A in (A1, A2), geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon)
+            A .= 0
+            rasterize!(A, geom; shape=:point, fill=1)
+            @test sum(A) == 4
+            st[:layer1] .= st[:layer2] .= 0
+            rasterize!(st, geom; shape=:point, fill=(1, 2))
+            @test sum(st[:layer1]) == 4
+            @test sum(st[:layer2]) == 8
+            st[:layer1] .= st[:layer2] .= 0
         end
     end
 
-    @testset "table" begin
-        table = map(polygon, vals) do p, v
-            (x=p[1], y=p[2], val1=v, val2=2.0f0v)
+    @testset "all line and polygon geoms work as :line" begin
+        A = A1
+        for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon)
+            rasterize!(A, geom; shape=:line, fill=1)
+            @test sum(A) == 20 + 20 + 20 + 20
+            A .= 0
         end
-        @test sum(skipmissing(rasterize(table; to=A, order=(X=>:x, Y=>:y), name=:val1))) == 14
-        rst = rasterize(table; to=A, order=(X=>:x, Y=>:y), name=(:val1, :val2))
-        @test map(sum ∘ skipmissing, rst) === (val1=14, val2=28.0f0)
-        R = rasterize(table; to=A, order=(X=>:x, Y=>:y)) 
-        @test sum(skipmissing(R[:val1])) === 14
-        @test sum(skipmissing(R[:val2])) === 28.0f0
-        @test keys(R) == (:val1, :val2)
-        @test dims(R) == dims(A)
-        @test_throws ArgumentError rasterize(table; to=A, order=(), name=:val1)
-        @test_throws ArgumentError rasterize(table; to=A, order=(Z,), name=:val1)
-        @test_throws ArgumentError rasterize(table; to=A, name=:val1)
+        @testset ":line is detected for line geometries" begin
+            for A in (A1, A2), geom in (linestring, multi_linestring)
+                rasterize!(A, geom; fill=1)
+                @test sum(A) == 20 + 20 + 20 + 20
+                A .= 0
+            end
+        end
     end
 
+    @testset "polygon geoms work as :polygon" begin
+        A = A1
+        poly = polygon
+        for A in (A1, A2), poly in (polygon, multi_polygon)
+            ra = rasterize(poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center)
+            @test sum(ra) === 20 * 20
+            ra = rasterize(poly; to=A, shape=:polygon, fill=1, boundary=:touches)
+            @test sum(skipmissing(ra)) === 21 * 21
+            rasterize!(A, poly; shape=:polygon, fill=1, boundary=:inside)
+            @test sum(A) === 19.0 * 19.0
+            A .= 0
+
+            @testset "polygon is detected for polygon geometries" begin
+                A = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
+                R = rasterize(poly; to=A, fill=1)
+                @test sum(skipmissing(R)) == 20 * 20
+                @test_throws ArgumentError rasterize!(A, poly; shape=:notashape, fill=1)
+                @test_throws ArgumentError rasterize!(A, poly; shape=:polygon, fill=1, boundary=:notaboundary)
+            end
+
+            st = rasterize(poly; fill=(layer1=1, layer2=2), to=st)
+            @test sum(skipmissing(st[:layer1])) == 400 # The last value overwrites the first
+            @test sum(skipmissing(st[:layer2])) == 800
+        end
+    end
+
+    @testset "from geometries, tables and features of points" begin
+        A = A1
+
+        for data in (pointfc, DataFrame(pointfc), multi_point, pointvec, reverse(pointvec))
+            @test sum(skipmissing(rasterize(data; to=A, fill=1))) == 4
+
+            @testset "to and fill Keywords are required" begin
+                @test_throws UndefKeywordError R = rasterize(data; fill=1) 
+                @test_throws UndefKeywordError R = rasterize(data; to=A) 
+            end
+            @testset "NamedTuple of value fill makes a stack" begin
+                rst = rasterize(data; to=A, fill=(fill1=3, fill2=6.0f0))
+                @test keys(rst) == (:fill1, :fill2)
+                @test dims(rst) == dims(A)
+                @test map(sum ∘ skipmissing, rst) === (fill1=12, fill2=24.0f0)
+            end
+            @testset "Tuple of value fill makes an stack with `:layerN` keys" begin
+                rst = rasterize(data; to=A, fill=(3, 6.0f0))
+                @test keys(rst) == (:layer1, :layer2)
+                @test dims(rst) == dims(A)
+                @test map(sum ∘ skipmissing, rst) === (layer1=12, layer2=24.0f0)
+            end
+            @testset "Single value fill makes an array (ignoring table vals)" begin
+                ra = rasterize(data; to=A, fill=0x03, missingval=0x00)
+                @test eltype(ra) == UInt8
+                @test sum(ra) == 12
+            end
+        end
+
+        @testset "feature collection, table from fill of Symbol keys" begin
+            for data in (pointfc, DataFrame(pointfc))
+                @testset "NTuple of Symbol fill makes an stack" begin
+                    rst = rasterize(data; to=A, fill=(:val1, :val2))
+                    @test keys(rst) == (:val1, :val2)
+                    @test dims(rst) == dims(A)
+                    @test map(sum ∘ skipmissing, rst) === (val1=14, val2=28.0f0)
+                end
+                @testset "Symbol fill makes an array" begin
+                    ra = rasterize(data; to=A, fill=:val1)
+                    @test ra isa Raster
+                    @test name(ra) == :val1
+                end
+            end
+        end
+    end
 end
 
 @testset "resample" begin
