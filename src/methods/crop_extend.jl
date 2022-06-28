@@ -38,7 +38,7 @@ savefig("build/crop_example.png")
 # output
 ```
 
-![new zealand evennes cropped]/nz_crop_example.png)
+![new zealand evennes cropped](nz_crop_example.png)
 
 Crop to a polygon:
 
@@ -56,7 +56,7 @@ plot(argentina_range)
 savefig("build/argentina_crop_example.png")
 ```
 
-![argentina evenness cropped]/argentina_crop_example.png)
+![argentina evenness cropped](argentina_crop_example.png)
 
 $EXPERIMENTAL
 """
@@ -67,7 +67,7 @@ end
 function crop(xs; to=nothing, kw...)
     if isnothing(to)
         to = _subsetbounds((max, min), xs)
-        map(l -> _crop_to_bounds(l, to), xs)
+        map(l -> _crop_to(l, to), xs)
     else
         map(l -> crop(l; to, kw...), xs)
     end
@@ -75,32 +75,30 @@ end
 crop(x::RasterStackOrArray; to, kw...) = _crop_to(x, to; kw...)
 
 # crop `A` to values of dims of `to`
+function _crop_to(x, to; kw...)
+    ext = _extent(to)
+    if isnothing(ext) 
+        if isnothing(dims(to)) 
+            throw(ArgumentError("No dims or extent available on `to` object of type $(typeof(to))"))
+        else
+            return _crop_to(x, dims(to); kw...)
+        end
+    else
+        return _crop_to(x, _extent(to); kw...)
+    end
+end
 _crop_to(A, to::RasterStackOrArray; kw...) = _crop_to(A, dims(to); kw...)
 function _crop_to(x, to::DimTuple; atol=maybe_eps(to))
     # We can only crop to sampled dims (e.g. not categorical dims like Band)
     sampled = reduce(to; init=()) do acc, d 
         lookup(d) isa AbstractSampled ? (acc..., d) : acc
     end
-    wrapped_bounds = map(d ->  rebuild(d, bounds(d)), sampled)
-    return _crop_to_bounds(x, wrapped_bounds)
+    return _crop_to(x, Extents.extent(to))
 end
-function _crop_to(x, to; order=nothing)
-    order, wrapped_bounds = _order_and_bounds(x, to, order)
-    return _crop_to_bounds(x, wrapped_bounds)
-end
-
-function _crop_to_bounds(ser::RasterSeries, wrapped_bounds::DimTuple)
-    map(x -> _crop_to_bounds(x, wrapped_bounds), ser)
-end
-function _crop_to_bounds(x::RasterStackOrArray, wrapped_bounds::DimTuple)
+function _crop_to(x, to::Extents.Extent)
     # Take a view over the bounds
     _without_mapped_crs(x) do x1
-        dimranges = map(wrapped_bounds) do d
-            x_d = dims(x1, d)
-            range = DD.selectindices(x_d, LA.ClosedInterval(parent(d)...))
-            rebuild(x_d, range)
-        end
-        view(x1, dimranges...)
+        view(x1, to)
     end
 end
 
@@ -149,7 +147,7 @@ end
 function extend(xs; to=nothing)
     if isnothing(to)
         to = _subsetbounds((min, max), xs)
-        map(l -> _extend_to_bounds(l, to), xs)
+        map(l -> _extend_to(l, to), xs)
     else
         map(l -> extend(l; to), xs)
     end
@@ -157,11 +155,12 @@ end
 extend(x::RasterStackOrArray; to=dims(x), kw...) = _extend_to(x, to; kw...)
 
 _extend_to(x::RasterStackOrArray, to::RasterStackOrArray; kw...) = _extend_to(x, dims(to); kw...)
-function _extend_to(x, to; order=nothing, kw...)
-    order, wrapped_bounds = _order_and_bounds(x, to, order)
-    all(map(s -> s isa Regular, span(x, order))) || throw(ArgumentError("All dims must have `Regular` span to be extended with a polygon"))
-    return _extend_to_bounds(x, wrapped_bounds; kw...)
+function _extend_to(x::RasterStackOrArray, to; kw...)
+    ext = _extent(to)
+    isnothing(ext) && throw(ArgumentError("No dims or extent available on `to` object of type $(typeof(to))"))
+    return _extend_to(x, ext; kw...)
 end
+
 function _extend_to(A::AbstractRaster, to::DimTuple;
     filename=nothing, suffix=nothing
 )
@@ -192,17 +191,16 @@ function _extend_to(A::AbstractRaster, to::DimTuple;
     end
     return newA
 end
-function _extend_to(st::AbstractRasterStack, to::Tuple; suffix=keys(st), kw...)
+function _extend_to(st::AbstractRasterStack, to::DimTuple; suffix=keys(st), kw...)
     mapargs((A, s) -> _extend_to(A, to; suffix=s, kw...), st, suffix)
 end
-
-function _extend_to_bounds(ser::RasterSeries, to::DimTuple; kw...)
-    map(x -> _extend_to_bounds(x, wrapped_bounds; kw...), ser)
+function _extend_to(ser::RasterSeries, to::DimTuple; kw...)
+    map(x -> _extend_to(x, to; kw...), ser)
 end
-function _extend_to_bounds(x, wrapped_bounds; kw...)
-    newdims = map(wrapped_bounds) do wb
-        d = dims(x, wb)
-        b = parent(wb)
+function _extend_to(x::RasterStackOrArray, extent::Extents.Extent{K}; kw...) where K
+    shareddims = dims(x, dims(extent))
+    bnds = map(val, dims(extent, shareddims))
+    newdims = map(shareddims, bnds) do d, b
         l = lookup(d)
         # Use ranges for math because they have TwicePrecision magic
         # Define a range down to the lowest value,
@@ -231,7 +229,7 @@ function _subsetbounds(fs, layers)
     dims = DD.combinedims(layers...; check=false)
     # Search through all the dimensions choosing the shortest
     alldims = map(DD.dims, layers)
-    reduce(dims; init=()) do acc, d
+    bounds = reduce(dims; init=()) do acc, d
         all(map(l -> hasdim(l, d), layers)) || return acc
         matchingdims = map(ds -> DD.dims(ds, (d,)), alldims)
         bounds = reduce(matchingdims) do a, b
@@ -239,18 +237,7 @@ function _subsetbounds(fs, layers)
         end
         return (acc..., rebuild(d, bounds))
     end
-end
-
-_order_and_bounds(ser::AbstractRasterSeries, to, order) = _order_and_bounds(first(ser), to, order)
-function _order_and_bounds(x, to, order)
-    if Tables.istable(to)
-        order = _table_point_order(dims(x), to, order)
-        wrapped_bounds = _wrapped_table_bounds(dims(x), to, order)
-    else
-        order = isnothing(order) ? DEFAULT_POINT_ORDER : order
-        wrapped_bounds = _wrapped_geom_bounds(dims(x), to, order)
-    end
-    return order, wrapped_bounds
+    return Extents.Extent{dim2key(bounds)}(map(val, bounds))
 end
 
 # Choose bounds from either missing dimension

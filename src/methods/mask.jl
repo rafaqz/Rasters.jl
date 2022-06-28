@@ -1,6 +1,6 @@
 """
     mask(A:AbstractRaster; with, missingval=missingval(A))
-    mask(x; with, order=(XDim, YDim))
+    mask(x; with)
 
 Return a new array with values of `A` masked by the missing values of `with`,
 or by the shape of `with`, if `with` is a geometric object.
@@ -14,7 +14,6 @@ or by the shape of `with`, if `with` is a geometric object.
 - `with`: another `AbstractRaster`, a `AbstractVector` of `Tuple` points,
     or any GeoInterface.jl `AbstractGeometry`. The coordinate reference system
     of the point must match `crs(A)`.
-- `order`: the order of `Dimension`s in the points. Defaults to `(XDim, YDim)`.
 - `missingval`: the missing value to use in the returned file.
 - `filename`: a filename to write to directly, useful for large files.
 - `suffix`: a string or value to append to the filename.
@@ -25,7 +24,7 @@ or by the shape of `with`, if `with` is a geometric object.
 These can be used when a `GeoInterface.AbstractGeometry` is passed in.
 
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`.
-    With GeoInterface.jl geometries this will be detected from the data.
+    For GeoInterface.jl geometries this will be detected from the data.
 
 And specifically for `shape=:polygon`:
 
@@ -98,7 +97,7 @@ function _mask(xs::AbstractRasterSeries, with::AbstractRaster; kw...)
 end
 
 """
-    mask!(x; with, missingval=missingval(A), order=(XDim, YDim))
+    mask!(x; with, missingval=missingval(A))
 
 Mask `A` by the missing values of `with`, or by all values outside `with` if it is a polygon.
 
@@ -117,7 +116,6 @@ or by a polygon.
 - `with`: another `AbstractRaster`, a `AbstractVector` of `Tuple` points,
     or any GeoInterface.jl `AbstractGeometry`. The coordinate reference system
     of the point must match `crs(A)`.
-- `order`: the order of `Dimension`s in the points. Defaults to `(XDim, YDim)`.
 - `missingval`: the missing value to write to A in masked areas,
     by default `missingval(A)`.
 
@@ -166,7 +164,7 @@ mask!(xs::RasterStackOrArray; with, kw...) = _mask!(xs, with; kw...)
 # Geometry mask
 function _mask!(x::RasterStackOrArray, geom; kw...)
     B = boolmask(geom; to=dims(x), kw...)
-    _mask!(x, B; missingval=fals)
+    _mask!(x, B; missingval=false)
     return x
 end
 # Array mask
@@ -190,7 +188,7 @@ _nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `miss
 
 """
     boolmask(x::AbstractArray; [missingval])
-    boolmask(x; to, [order])
+    boolmask(x; to)
 
 Create a mask array of `Bool` values, from any `AbstractArray`. An 
 `AbstractRasterStack` or `AbstractRasterSeries` are also accepted, but a mask
@@ -213,7 +211,6 @@ For arrays:
 For gemoetries:
 
 - `to`: an `AbstractRaster` or `AbstractRasterStack`.
-- `order`: the order of `Dimension`s in the points. Defaults to `(XDim, YDim)`.
 
 # Example
 
@@ -233,8 +230,7 @@ $EXPERIMENTAL
 function boolmask end
 boolmask(x::Union{AbstractRasterSeries,AbstractRasterStack,AbstractRaster}; kw...) =
     boolmask!(_bools(x, dims(x)), x; kw...)
-boolmask(x; to, order=DEFAULT_POINT_ORDER, kw...) =
-    boolmask!(_bools(to, commondims(to, order)), x; order, kw...)
+boolmask(x; to, kw...) = boolmask!(_bools(to, commondims(to, (XDim, YDim))), x; kw...)
 
 _bools(x) = _bools(x, dims(x))
 _bools(x::AbstractRasterSeries, dims) = _bools(first(x), dims)
@@ -247,7 +243,7 @@ function _bools(A::AbstractRaster, dims)
     da = if parent(A) isa Union{Array,DA.AbstractDiskArray}
         falses(dims) # Use a BitArray
     else
-        fill!(similar(A, Bool, dims), false) # Fill 
+        fill!(similar(A, Bool, dims), false) # Fill some other array type
     end
     return Raster(da; missingval=false)
 end
@@ -257,9 +253,8 @@ function boolmask!(dest::AbstractRaster, src::AbstractRaster;
 )
     broadcast!(a -> !isequal(a, missingval), dest, src)
 end
-function boolmask!(dest::AbstractRaster, geom; order=DEFAULT_POINT_ORDER, kw...)
-    order = dims(dest, order)
-    _fill_geometry!(dest, geom; order, kw...)
+function boolmask!(dest::AbstractRaster, geom; kw...)
+    _fill_geometry!(dest, geom; fill=true, kw...)
     return dest
 end
 

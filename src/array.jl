@@ -121,7 +121,7 @@ function DD.modify(f, A::AbstractRaster)
 end
 
 function DD.DimTable(As::Tuple{<:AbstractRaster,Vararg{<:AbstractRaster}}...)
-    DimTable(DimStack(map(read, As...)))
+    DD.DimTable(DimStack(map(read, As...)))
 end
 
 # DiskArrays methods

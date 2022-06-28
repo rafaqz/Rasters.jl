@@ -29,7 +29,7 @@ stackkeys = (
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle)
 
-    @testset "lazyness" begin
+   @testset "lazyness" begin
         @time read(Raster(ncsingle));
         @time lazyarray = Raster(ncsingle; lazy=true);
         @time eagerarray = Raster(ncsingle; lazy=false);

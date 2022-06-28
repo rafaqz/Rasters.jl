@@ -68,6 +68,9 @@ end
 # _convert_by_lookup(::Type{Projected}, dim) = shiftlocus(Center(), convertlookup(Projected, dim))
 
 
+_unwrap(::Val{X}) where X = X 
+_unwrap(x) = x
+
 _missingval_or_missing(x) = missingval(x) isa Nothing ? missing : missingval(x)
 
 maybe_eps(dims::DimTuple) = map(maybe_eps, dims)

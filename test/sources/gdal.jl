@@ -117,7 +117,7 @@ gdalpath = maybedownload(url)
     @testset "selectors" begin
         # TODO verify the value with R/gdal etc
         @test gdalarray[X(Contains(-28492)), Y(Contains(4.225e6)), Band(1)] isa UInt8
-        @test gdalarray[Y(Between(4.224e6, 4.226e6)), Band(1)] isa Raster
+        @test gdalarray[Y(4.224e6..4.226e6), Band(1)] isa Raster
     end
 
     @testset "methods" begin
@@ -158,23 +158,24 @@ gdalpath = maybedownload(url)
             ds = map(dims(A)) do d
                 DimensionalData.maybeshiftlocus(Center(), d)
             end
-            A = set(A, ds)
-            A = set(A, X => Points, Y=> Points)
-            polymask = [[-20000, 4.23e6],
-                        [-20000, 4.245e6],
-                        [0.0, 4.245e6],
-                        [0.0, 4.23e6],
-                        [-20000, 4.23e6]]
+            A = set(set(A, ds), X => Points, Y => Points)
+            polymask = ArchGDAL.createpolygon([
+                [-20000, 4.23e6],
+                [-20000, 4.245e6],
+                [0.0, 4.245e6],
+                [0.0, 4.23e6],
+                [-20000, 4.23e6]
+            ])
+
             rastermask = replace_missing(copy(A), missing)
-            # mask or `Between` is not exactly accurate yet...
-            section = X(Between(-20000.0, 0.0)), Y(Between(4.23e6, 4.245e6)), Band(1)
+            section = X((-20000.0..0.0)), Y((4.23e6..4.245e6)), Band(1)
             rastermask .= missing
             rastermask[section...] .= A[section...]
-            pmasked = mask(A; with=polymask, order=(X, Y));
-            revX_pmasked = reverse(mask(reverse(A; dims=X); with=polymask, order=(X, Y)); dims=X);
-            revY_pmasked = reverse(mask(reverse(A; dims=Y); with=polymask, order=(X, Y)); dims=Y);
-            perm_pmasked1 = permutedims(mask(permutedims(A, (Y, X, Band)); with=polymask, order=(X, Y)), (X, Y, Band));
-            perm_pmasked2 = permutedims(mask(permutedims(A, (Band, Y, X)); with=polymask, order=(X, Y)), (X, Y, Band));
+            pmasked = mask(A; with=polymask);
+            revX_pmasked = reverse(mask(reverse(A; dims=X); with=polymask); dims=X);
+            revY_pmasked = reverse(mask(reverse(A; dims=Y); with=polymask); dims=Y);
+            perm_pmasked1 = permutedims(mask(permutedims(A, (Y, X, Band)); with=polymask), (X, Y, Band));
+            perm_pmasked2 = permutedims(mask(permutedims(A, (Band, Y, X)); with=polymask), (X, Y, Band));
             rmasked = mask(A; with=rastermask)
             @test all(rmasked .=== pmasked .=== revX_pmasked .=== revY_pmasked .=== perm_pmasked1 .=== perm_pmasked2)
         end
@@ -213,15 +214,14 @@ gdalpath = maybedownload(url)
             @test all(Atest .=== Amem .=== Afile)
         end
 
-        @testset "rasterize" begin
+        @testset "rasterize round trip" begin
             A = rebuild(read(gdalarray); missingval=0x00)
-            # We round-trip rasterise the Tables.jl form of 
-            R = rasterize(A[Band(1)]; to=A)
+            R = rasterize(A[Band(1)]; to=A, fill=:test)
             @test all(A .===  R .=== gdalarray)
-            R = rasterize(A[Band(1)]; to=A, name=:test)
+            R = rasterize(A[Band(1)]; to=A, fill=:test)
             @test all(A .=== R .== gdalarray)
             B = rebuild(read(gdalarray) .= 0x00; missingval=0x00)
-            rasterize!(B, read(gdalarray[Band(1)]))
+            rasterize!(B, read(gdalarray[Band(1)]); fill=:test)
             @test all(B .=== gdalarray |> collect)
         end
 
@@ -260,7 +260,7 @@ gdalpath = maybedownload(url)
         end
 
         @testset "3d, with subsetting" begin
-            geoA2 = gdalarray[Y(Between(4.224e6, 4.226e6)), X(Between(-28492, 0))]
+            geoA2 = gdalarray[Y(4.224e6..4.226e6), X(-28492..0)]
             filename2 = tempname() * ".tif"
             write(filename2, geoA2)
             saved2 = read(Raster(filename2; name=:test))
@@ -430,22 +430,22 @@ end
             @test all(st[:b][X(1:100), Y([1, 5, 95])] .=== 0x00)
         end
 
-        @testset "rasterize" begin
+        @testset "rasterize roud trip" begin
             st = map(A -> rebuild(A; missingval=0x00), gdalstack) |> read
             # We round-trip rasterise the Tables.jl form of st
-            r_st = rasterize(read(gdalstack); to=st)
+            r_st = rasterize(read(gdalstack); to=st, fill=keys(gdalstack))
             @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, read(gdalstack)))
-            r_st = rasterize(read(gdalstack); to=st, name=(:a, :b))
+            r_st = rasterize(read(gdalstack); to=st, fill=(:a, :b))
             @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, read(gdalstack)))
             st = map(A -> rebuild(A .* 0x00; missingval=0x00), gdalstack) |> read
-            rasterize!(st, read(gdalstack))
+            rasterize!(st, read(gdalstack), fill=keys(st))
             @test all(map((a, b) -> all(a .=== b), st, gdalstack))
 
             # Getting the band column works if we force it
             # name of Symbol gives a Raster, Tuple gives a RasterStack
-            b_r = rasterize(read(gdalstack); to=st, name=:Band)
+            b_r = rasterize(read(gdalstack); to=st, fill=:Band)
             @test b_r isa Raster
-            b_st = rasterize(read(gdalstack); to=st, name=(:Band, ))
+            b_st = rasterize(read(gdalstack); to=st, fill=(:Band, ))
             @test b_st isa RasterStack
             @test b_r == b_st[:Band]
         end

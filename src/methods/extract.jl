@@ -2,7 +2,7 @@
    extract(x, points; order, atol)
 
 Extracts the value of `Raster` or `RasterStack` at given points, returning
-a vector of `NamedTuple` with columns for the point dimensions and layer
+a vector of `NamedTuple` with columns for the point geometry and values
 value/s.
 
 Note that if objects have more dimensions than the length of the point tuples,
@@ -56,66 +56,59 @@ vals = extract(st, points)
 
 ```
 """
-function extract(A::RasterStackOrArray, points::NTuple{<:Any,<:AbstractVector}; kw...)
-    extract(A, zip(points...); kw...)
-end
-function extract(A::RasterStackOrArray, points; kw...)
-    extract(A, _flat_nodes(points); kw...)
-end
-function extract(A::RasterStackOrArray, points::AbstractVector{<:Tuple}; kw...)
-    extract.(Ref(A), points; kw...)
-end
-function extract(A::RasterStackOrArray, points::AbstractVector{Union{<:AbstractVector{<:Union{Real,Missing}},Missing}}; kw...)
-    extract.(Ref(A), points; kw...)
-end
-function extract(A::RasterStackOrArray, data; order=nothing, kw...) 
-    if Tables.istable(data)
-        order = isnothing(order) ? _auto_dim_columns(dims(A), data) : order
-        rows = Tables.rows(data)
-        point_dims = map(p -> DD.basetypeof(p[1])(p[2]), order)
-        point_keys = map(val, point_dims)
-        map(rows) do row
-            point_vals = map(pk -> row[pk], point_keys)
-            extract(A, point_vals; order=map(first, order), point_keys, kw...)
-        end
-    else
-        order = isnothing(order) ? DEFAULT_POINT_ORDER : order
-        map(data) do point
-            extract(A, point; order, kw...)
-        end
-    end
-end
-extract(A::RasterStackOrArray, points::Missing; kw...) = missing
-function extract(
-    x::RasterStackOrArray, point::Union{Tuple,AbstractVector{<:Union{Missing,<:Real}}};
-    order=(XDim, YDim, ZDim),
-    point_keys=map(DD.dim2key, dims(x, order)),
-    layer_keys=_layer_keys(x),
-    atol=nothing
+function extract(x::RasterStackOrArray, data; 
+    dims=DD.dims(x, DEFAULT_POINT_ORDER), kw...
 )
+    _extract(x, data; dims, names=_names(x), kw...)
+end
+_extract(A::RasterStackOrArray, point::Missing; kw...) = missing
+function _extract(A::RasterStackOrArray, geom; kw...) 
+    _extract(GI.geomtrait(geom), A, geom; kw...) 
+end
+function _extract(::GI.AbstractFeatureTrait, A::RasterStackOrArray, feature; kw...) 
+    _extract(A, GI.geometry(feature); kw...) 
+end
+function _extract(::GI.AbstractMultiPointTrait, A::RasterStackOrArray, geom; kw...) 
+    (_extract(A, p; kw...) for p in GI.getpoint(geom))
+end
+function _extract(::Nothing, A::RasterStackOrArray, geoms; kw...) 
+    GI.isgeometry(first(geoms))
+    (_extract(A, g; kw...) for g in geoms)
+end
+function _extract(::GI.AbstractGeometryTrait, A::RasterStackOrArray, geom; names, kw...) 
+    B = boolmask(geom; to=dims(A, DEFAULT_POINT_ORDER), kw...)
+    pts = DimPoints(B)
+    dis = DimIndices(B)
+    ((; geometry=_geom_nt(dims(B), pts[I]), _prop_nt(A, I, names)...) for I in CartesianIndices(B) if B[I])  
+end
+_geom_nt(dims::DimTuple, pts) = NamedTuple{map(dim2key, dims)}(pts) 
+_prop_nt(st::AbstractRasterStack, I, names::NamedTuple{K}) where K = NamedTuple{K}(values(st[I]))
+_prop_nt(A::AbstractRaster, I, names::NamedTuple{K}) where K = NamedTuple{K}((A[I],))
+
+function _extract(::GI.PointTrait, x::RasterStackOrArray, point; dims, names, atol=nothing)
     # Get the actual dimensions available in the object
-    # Usually this will be `X` and `Y`, but `Z` as well if it exists.
-    ordered_dims = dims(x, order)
-    length(point) == length(ordered_dims) || throw(ArgumentError("Length of `point` does not match dims. Pass `order` dims manually"))
-    point = ntuple(i -> point[i], length(ordered_dims))
-    dimtypes = map(DD.basetypeof, ordered_dims)
+    coords = map(DD.dims(x)) do d
+        _dimcoord(d, point)
+    end
 
     # Extract the values
-    if any(map(ismissing, point)) 
-        point_vals = map(_ -> missing, ordered_dims)
+    if any(map(ismissing, coords)) 
+        point_vals = map(_ -> missing, coords)
         layer_vals = map(_ -> missing, layer_keys)
     else
-        selectors = map((d, x) -> _at_or_contains(d, x, atol), ordered_dims, point)
-        point_vals = map(val ∘ val, selectors)
+        selectors = map(dims, coords) do d, c
+            _at_or_contains(d, c, atol)
+        end
         layer_vals = if DD.hasselection(x, selectors)
             x isa Raster ? (x[selectors...],) : x[selectors...]
         else
-            map(_ -> missing, layer_keys)
+            map(_ -> missing, names)
         end
     end
-    return NamedTuple{(point_keys..., layer_keys...)}((point_vals..., layer_vals...))
+    geometry = point
+    properties = NamedTuple{keys(names)}(layer_vals)
+    return (; geometry, properties...)
 end
 
-
-_layer_keys(A::AbstractRaster) = cleankeys(name(A))
-_layer_keys(A::AbstractRasterStack) = cleankeys(keys(A))
+_names(A::AbstractRaster) = NamedTuple{(Symbol(name(A)),)}((Symbol(name(A)),))
+_names(A::AbstractRasterStack) = NamedTuple{keys(A)}(keys(A))
