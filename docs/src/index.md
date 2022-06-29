@@ -28,7 +28,7 @@ Use the `Between` selector to take a `view` of madagascar:
 ```@example
 using Rasters, Plots
 A = Raster(WorldClim{BioClim}, 5)
-madagascar = view(A, X(Between(43.25, 50.48)), Y(Between(-25.61, -12.04))) 
+madagascar = view(A, X(43.25..50.48), Y((-25.61)..(-12.04))) 
 plot(madagascar)
 ```
 
@@ -198,7 +198,7 @@ Objects with Dimensions other than `X` an `Y` will produce multi-pane plots.
 Here we plot every third month in the first year, just using the regular index:
 
 ```@example nc
-A[Ti(1:3:12)] |> plot
+A[Ti=1:3:12] |> plot
 ```
 
 Now plot the ocean temperatures areound the Americas in the first month of 2001.
@@ -208,9 +208,9 @@ to index it with `Near`.
 
 ```@example nc
 using CFTime
-A[Ti(Near(DateTime360Day(2001, 01, 17))), 
-  Y(Between(-60.0, 90.0)), 
-  X(Between(190.0, 345.0))] |> plot
+A[Ti=Near(DateTime360Day(2001, 01, 17)), 
+  Y=Between(-60.0, 90.0), 
+  X=Between(190.0, 345.0)] |> plot
 ```
 
 Now get the mean over the timespan, then save it to disk, and plot it as a
@@ -267,14 +267,14 @@ end
 Extract the longitude/latitude value to a Vector of Tuple:
 
 ```@example sdm
-coords = map(r -> (r.longitude, r.latitude), records)
+coords = [(r.longitude, r.latitude) for r in records if !ismissing(r.longitude)]
 ```
 
 Get BioClim layers and subset to south-east australia
 
 ```@example sdm
 A = RasterStack(WorldClim{BioClim}, (1, 3, 7, 12))
-SE_aus = A[X=Between(138, 155), Y=Between(-40, -25), Band=1]
+SE_aus = A[X=138..155, Y=-40..(-25), Band=1]
 ```
 
 And plot BioClim predictors and scatter occurrence points on all subplots
@@ -371,10 +371,10 @@ np = plot(norway)
 borders!(np, norway_border)
 ```
 
-The Norway shape includes a lot of islands. Lets crop them out using `Between`.
+The Norway shape includes a lot of islands. Lets crop them out using `..` intervals:
 
 ```@example mask
-norway_region = climate[X=Between(0, 40), Y=Between(55, 73)]
+norway_region = climate[X=0..40, Y=55..73]
 plot(norway_region)
 ```
 
@@ -500,6 +500,9 @@ in the file that are not dimensions as layers.
 NetCDF layers can have arbitrary dimensions. Known, common dimension names are
 converted to `X`, `Y` `Z`, and `Ti`, otherwise `Dim{:layername}` is used. Layers
 in the same file may also have different dimensions.
+
+NetCDF files still have issues loading directly from disk for some operations.
+Using `read(ncstack)` may help.
 
 ### GDAL
 

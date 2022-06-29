@@ -174,11 +174,14 @@ function _fill_index!(st::AbstractRasterStack, fill, I)
     end
 end
 _fill_index!(A::AbstractRaster, fill, I::NTuple{<:Any,Int}) = A[I...] = fill
+_fill_index!(A::AbstractRaster, fill::Function, I::NTuple{<:Any,Int}) =
+    A[I...] = fill(A[I...])
 # Handle filling over arbitrary dimensions.
 function _fill_index!(A::AbstractRaster, fill, I)
     v = view(A, I...)
     for i in eachindex(v)
-        v[i] = fill
+        val = fill isa Function ? fill(v[i]) : fill
+        v[i] = val
     end
 end
 

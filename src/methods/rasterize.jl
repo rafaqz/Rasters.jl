@@ -2,8 +2,7 @@ struct _Undefined end
 struct _Defined end
 
 """
-    rasterize(x; kw...)
-    rasterize(points, values; kw...)
+    rasterize(data; to, fill, kw...)
 
 Rasterize the points and values in a Tables.jl compatible object,
 or separate `points` and `values` vetors/iterators, which must be
@@ -16,17 +15,16 @@ applied to the existing value present in the array.
 
 # Arguments
 
-- `x`: a Tables.jl compatible object containing points and values columns,
-    an GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `Vectors`.
-- `points`: A `Vector` or nested `Vectors` holding `Vector` or `Tuple` of `Real`
-- `values` A `Vector` of values to be written to a `Raster`, or a Vector of `NamedTuple`
-    to write to a `RasterStack`.
+- `data`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
+    or a Tables.jl compatible object containing points and values columns.
 
 # Keywords
 
 These are detected automatically from `A` and `data` where possible.
 
 - `to`: a `Raster`, `RasterStack` of `Tuple` of `Dimension` to use as a to.
+- `fill`: the value to fill a polygon with. A `Symbol` or tuple of `Symbol` will
+    be used to retrieve properties from features or column values from table rows.
 - `atol`: an absolute tolerance for rasterizing to dimensions with `Points` sampling.
 - `filename`: a filename to write to directly, useful for large files.
 - `suffix`: a string or value to append to the filename.
@@ -36,14 +34,9 @@ These are detected automatically from `A` and `data` where possible.
 
 These can be used when a `GeoInterface.AbstractGeometry` is passed in.
 
-- `fill`: the value to fill a polygon with, if `data` is a polygon.
-    A `Symbol` or tuple of `Symbol` will be used to retrieve properties from features or table rows.
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`.
-
-And specifically for `shape=:polygon`:
-
-- `boundary`: include pixels where the `:center` is inside the polygon, where
-    the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
+- `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
+    where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
 
 # Example
 
@@ -161,16 +154,17 @@ function _create_rasterize_dest(fill, name, dims;
 end
 
 """
-    rasterize!(x, data; fill, atol)
+    rasterize!(dest, data; fill, atol)
 
 Rasterize the geometries in `data` into the [`Raster`](@ref) or [`RasterStack`](@ref) `x`,
 using the values specified by `fill`.
 
 # Arguments
 
-- `x`: a `Raster` or `RasterStack` to rasterize to.
-- `data`: an GeoInterface.jl compatible object or a `AbstractVector` or
-    Tables.jl compatible table containing GeoInterface compatible objects.
+- `dest`: a `Raster` or `RasterStack` to rasterize into.
+- `data`: an GeoInterface.jl compatible object or `AbstractVector` of such objects,
+    or a Tables.jl compatible table containing GeoInterface compatible objects or 
+    columns with point names `X` and `Y`.
 - `fill`: the value or key to fill with, or the key/s in a feature or table.
     `fill can also be a `Function` of the existing value.
 

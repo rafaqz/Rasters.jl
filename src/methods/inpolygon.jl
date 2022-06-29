@@ -3,17 +3,17 @@
 
 Check if a point or points are inside a polygon.
 
-This algorithm is very efficient for many points, less so a single point.
+This algorithm is efficient for many points, less so for a single point.
 
 # Arguments
 
-- `points`: an `AbstractGeom` `AbstractVector` 
-- `poly`: an `AbstractVector` or nested `AbstractVector` with an inner
-    `AbstractVector` or `Tuple` of `Real`, or a `GeoInterface.AbstractPolygon`.
+- `points`: a GeoInterface.jl compatable object, or `AbstractVector` of objects.
+- `poly`: a GeoInterface.jl compatable polygon, or a feature or feature collection
+    of polygons.
 
 Returns a `Bool` or `AbstractVector{Bool}`.
 """
-inpolygon(points, geom; kw...) = _inpolygon(points, geom; kw...)
+inpolygon(points, poly; kw...) = _inpolygon(points, poly; kw...)
 
 _inpolygon(points, geom; kw...) = _inpolygon(GI.trait(points), points, geom; kw...)
 function _inpolygon(::Nothing, points::AbstractVector, geom; kw...)
@@ -51,7 +51,7 @@ function _inpolygon(::GI.AbstractPointTrait, points, ::GI.AbstractGeometryTrait,
     return first(inpoly2([(GI.x(points), GI.y(points))], nodes, edges; kw...))
 end
 
-# Copied from PolygonInbounds, to add extra keyword arguments
+# Copied from PolygonInbounds, to add extra keyword arguments.
 # PR to include these when this has solidified
 function inpoly2(vert, node, edge=zeros(Int);
     atol::T=0.0, rtol::T=NaN, iyperm=nothing,
