@@ -11,9 +11,8 @@ or by the shape of `with`, if `with` is a geometric object.
 
 # Keywords
 
-- `with`: another `AbstractRaster`, a `AbstractVector` of `Tuple` points,
-    or any GeoInterface.jl `AbstractGeometry`. The coordinate reference system
-    of the point must match `crs(A)`.
+- `with`: an `AbstractRaster`, or any GeoInterface.jl compatible objects
+    or table. The coordinate reference system of the point must match `crs(A)`.
 - `missingval`: the missing value to use in the returned file.
 - `filename`: a filename to write to directly, useful for large files.
 - `suffix`: a string or value to append to the filename.
@@ -25,11 +24,8 @@ These can be used when a `GeoInterface.AbstractGeometry` is passed in.
 
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`.
     For GeoInterface.jl geometries this will be detected from the data.
-
-And specifically for `shape=:polygon`:
-
-- `boundary`: include pixels where the `:center` is inside the polygon, where 
-    the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
+- `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
+    where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
 
 # Example
 
@@ -187,8 +183,8 @@ end
 _nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `missingval` keyword compatible with the type, or use `rebuild(A; missingval=somemissingval)` to set it."))
 
 """
-    boolmask(x::AbstractArray; [missingval])
-    boolmask(x; to)
+    boolmask(obj; [missingval])
+    boolmask(obj; to)
 
 Create a mask array of `Bool` values, from any `AbstractArray`. An 
 `AbstractRasterStack` or `AbstractRasterSeries` are also accepted, but a mask
@@ -199,18 +195,24 @@ The array returned from calling `boolmask` on a `AbstractRaster` is a
 
 # Arguments
 
-- `x`: an `AbstractRaster`, polygon or table.
+- `obj`: a [`Raster`](@ref) or [`RasterStack`](@ref), or
+    a GeoInterface.jl geometry, or a vector or table of geometries.
 
-# Keywords
+# Array Keywords
 
-For arrays:
+- `missingval`: The missing value of the source array, with default `missingval(raster)`.
 
-- `missingval`: The missing value of the source array. For [`AbstractRaster`](@ref) the
-    default `missingval` is `missingval(A)`, for all other `AbstractArray`s it is `missing`.
+# Geometry keywords
 
-For gemoetries:
+- `to`: an `AbstractRaster`, `AbstractRasterStack` that defines extent and resolution
+    of the output.
+- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point` geometries.
+    using points or lines as polygons may have unexpected results.
 
-- `to`: an `AbstractRaster` or `AbstractRasterStack`.
+And specifically for `shape=:polygon`:
+
+- `boundary`: include pixels where the `:center` is inside the polygon, where
+    the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
 
 # Example
 
