@@ -56,7 +56,8 @@ function _extract(A::RasterStackOrArray, geom; kw...)
     _extract(A, GI.geomtrait(geom), geom; kw...) 
 end
 function _extract(A::RasterStackOrArray, ::Nothing, geoms; kw...) 
-    if GI.isgeometry(first(geoms))
+    geom1 = first(skipmissing(geoms))
+    if GI.isgeometry(geom1) || GI.isfeature(geom1) || GI.isfeaturecollection(geom1)
         (_extract(A, g; kw...) for g in geoms)
     else
         throw(ArgumentError("`data` does not contain geomety objects"))
