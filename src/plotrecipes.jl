@@ -5,8 +5,9 @@ struct RasterZPlot end
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(A::AbstractRaster)
     ddplot(A) = DimArray(A; dims=_maybe_mapped(dims(A)))
-    l = parent(first(dims(A, (X, Y)))) 
-    if l isa AffineProjected
+    # Resample AffineProjected
+    if all(hasdim(A, (X, Y))) && first(lookup(A, (X, Y))) isa AffineProjected
+        l = first(lookup(A, (X, Y)))
         res = Y(l.affinemap.linear[1, 1]), X(l.affinemap.linear[2, 2])
         A = resample(A, res)
     end
@@ -63,6 +64,7 @@ end
         :xlims --> bounds(A, x)
         :ylims --> bounds(A, y)
         bnds = bounds(A, (D1, D2))
+        # TODO: Rethink this....
         s1, s2 = map(((l, u),) -> (u - l), bnds) ./ (size(A, D1), size(A, D2))
         square_pixels = s2 / s1
         :aspect_ratio --> square_pixels
