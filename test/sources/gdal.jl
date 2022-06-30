@@ -1,4 +1,4 @@
-using Rasters, Test, Statistics, Dates, Plots, DiskArrays, RasterDataSources
+using Rasters, Test, Statistics, Dates, Plots, DiskArrays, RasterDataSources, CoordinateTransformations
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
 using Rasters: FileArray, GDALfile, crs
@@ -10,26 +10,6 @@ gdalpath = maybedownload(url)
 @testset "array" begin
 
     @time gdalarray = Raster(gdalpath; lazy=false, name=:test, missingval=typemax(UInt16))
-    x1 = gdalarray[:, :, 1]
-    dims(x1)
-    parent(dims(x1, X))
-    x2 = gdalarray[1200:1300, 500:599, 1];
-    x3 = gdalarray[1200:1300, 500:1:599, 1]
-    x3 = gdalarray[1:3:end, 1:3:2000, 1]
-    x3 = gdalarray[X=Between(-106.557, -106.558), Y=Near(35.155), Band=1]
-    plot(plot(x1; clims=(0, 100)), plot(x3; clims=(0, 100)))
-    parent(dims(gdalarray, X)).affinemap
-    parent(dims(x1, X)).affinemap
-    parent(dims(x2, X)).affinemap
-    parent(dims(x3, X)).affinemap
-    collect(parent(gdalarray))
-
-    l = parent(dims(x1, X))
-    l.affinemap([35.155, -106.555])
-    res = Y(l.affinemap.linear[1, 1]), X(l.affinemap.linear[2, 2])
-    plot(gdalarray; c=:terrain)
-    savefig("rotated.png")
-    crs(gdalarray)
 
     @testset "lazyness" begin
         @time read(Raster(gdalpath));
@@ -388,6 +368,12 @@ gdalpath = maybedownload(url)
         A = Raster(WorldClim{Climate}, :tavg; res="10m", month=1)
         @test typeof(missingval(A)) === eltype(A)
         @test missingval(A) === -3.4f38
+    end
+
+    @testset "rotations" begin
+        AffineMap([60.0 20; 40; 60], [first.(bounds(gdalarray, (X, Y)))...])
+        af = Rasters.AffineProjected(
+        DimensionalData.format(
     end
 
 end
