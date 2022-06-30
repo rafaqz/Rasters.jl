@@ -9,7 +9,7 @@ gdalpath = maybedownload(url)
 
 @testset "array" begin
 
-    @time gdalarray = Raster(gdalpath; lazy=false, name=:test, missingval=typemax(UInt16))
+    @time gdalarray = Raster(gdalpath; lazy=true, name=:test)
 
     @testset "lazyness" begin
         @time read(Raster(gdalpath));
@@ -253,8 +253,6 @@ gdalpath = maybedownload(url)
             # @test typeof(saved1) == typeof(geoA)
             @test val(dims(saved1, X)) ≈ val(dims(geoA, X))
             @test val(dims(saved1, Y)) ≈ val(dims(geoA, Y))
-            @test all(metadata.(dims(saved1)) .== metadata.(dims(geoA)))
-            @test metadata(dims(saved1)[1]) == metadata(dims(geoA)[1])
             @test missingval(saved1) === missingval(geoA)
             @test refdims(saved1) == refdims(geoA)
         end
@@ -276,7 +274,6 @@ gdalpath = maybedownload(url)
             @test all(val(dims(saved2, Band)) .≈ val(dims(geoA2, Band)))
             @test all(val(dims(saved2, X)) .≈ val(dims(geoA2, X)))
             @test all(val(dims(saved2, Y)) .≈ val(dims(geoA2, Y)))
-            @test all(metadata.(dims(saved2)) .== metadata.(dims(geoA2)))
             @test parent(saved2) == parent(geoA2)
             @test typeof(saved2) == typeof(geoA2)
             filename3 = tempname() * ".tif"
@@ -371,9 +368,18 @@ gdalpath = maybedownload(url)
     end
 
     @testset "rotations" begin
-        AffineMap([60.0 20; 40; 60], [first.(bounds(gdalarray, (X, Y)))...])
-        af = Rasters.AffineProjected(
-        DimensionalData.format(
+        am = AffineMap([60.0 20; 40 60], [first.(bounds(gdalarray, (X, Y)))...])
+        ap = Rasters.AffineProjected(am; crs=crs(gdalarray))
+        affine_dims = DimensionalData.format((X(ap), Y(ap), Band(1:1)), gdalarray)
+        rotated = rebuild(gdalarray; dims=affine_dims)
+        @test rotated[X=At(-1e4; atol=0.5), Y=Near(4.24e6), Band=1] == 0x8c
+        plot(rotated)
+        write("rotated.tif", rotated)
+        newrotated = Raster("rotated.tif")
+        plot(newrotated)
+        @test rotated == newrotated
+        @test lookup(rotated, X).affinemap.linear == lookup(newrotated, X).affinemap.linear
+        @test lookup(rotated, X).affinemap.translation == lookup(newrotated, X).affinemap.translation
     end
 
 end
