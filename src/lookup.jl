@@ -133,6 +133,10 @@ function Mapped(l::Sampled;
     Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 
+crs(lookup::Mapped) = lookup.crs
+mappedcrs(lookup::Mapped) = lookup.mappedcrs
+dim(lookup::Mapped) = lookup.dim
+
 struct AffineProjected{T,F,A<:AbstractVector{T},M,C,MC} <: LA.Unaligned{T,1}
     affinemap::F
     data::A
@@ -141,7 +145,7 @@ struct AffineProjected{T,F,A<:AbstractVector{T},M,C,MC} <: LA.Unaligned{T,1}
     mappedcrs::MC
 end
 function AffineProjected(f; 
-    data=AutoIndex(), metadata=NoMetadata(), crs=nothing, mappedcrs, dim=AutoDim()
+    data=AutoIndex(), metadata=NoMetadata(), crs=nothing, mappedcrs=nothing, dim=AutoDim()
 )
     AffineProjected(f, data, metadata, crs, mappedcrs)
 end
@@ -163,25 +167,23 @@ LA.transformfunc(lookup::AffineProjected) = CoordinateTransformations.inv(lookup
 # DD.bounds(lookup::AffineProjected) = lookup.metadata
 
 function Dimensions.sliceunalligneddims(
-    f, uI::NTuple{<:Any,<:Union{Colon,AbstractArray}},
+    _, I::NTuple{<:Any,<:Union{Colon,AbstractArray}},
     ud1::Dimension{<:AffineProjected}, ud2::Dimension{<:AffineProjected}
 )
     # swap colons for the dimension index, which is the same as the array axis
-    udims = ud1, ud2
-    uI = map(udims, uI) do d, i
+    I = map((ud1, ud2), I) do d, i
         i isa Colon ? parent(lookup(d)) : i
     end
     
-    M = copy(lookup(ud1).affinemap.linear)
-    # Change of step size when necessary
-    M[1, 1] *= step(uI[1])
-    M[2, 2] *= step(uI[2])
-    # Change of extent
-    v = lookup(ud1).affinemap([map(i -> first(i) - 1, uI)...])
+    af = lookup(ud1).affinemap
+    # New resolution for step size changes
+    M = af.linear * [step(I[1]) 0; 0 step(I[2])]
+    # New of origin for slice
+    v = af(collect(first.(I) .- 1))  
     # Create a new affine map
     affinemap = CoordinateTransformations.AffineMap(M, v)
     # Build new lookups with the affine map. Probably should define `set` to do this.
-    dims = map(udims, uI) do d, i
+    dims = map((ud1, ud2), I) do d, i
         newlookup = rebuild(lookup(d); data=Base.OneTo(length(i)), affinemap)
         rebuild(d, newlookup)
     end
@@ -238,6 +240,7 @@ function convertlookup(::Type{<:Projected}, l::Mapped)
         dim=dim(l),
     )
 end
+
 
 
 _projectedrange(l::Projected) = LinRange(first(l), last(l), length(l))
@@ -340,4 +343,3 @@ _projectedindex(crs::Nothing, lookup::Mapped, dim::Dimension) =
     error("No projection crs attached to $(name(dim)) dimension")
 _projectedindex(crs::GeoFormat, lookup::Mapped, dim::Dimension) =
     reproject(mappedcrs(dim), crs, dim, index(dim))
-
