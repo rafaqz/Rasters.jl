@@ -39,12 +39,14 @@ function Base.write(
     filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster{T,2}; kw...
 ) where T
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
-    map(dims(A, (X, Y))) do d
-    end
 
-    correctedA = _maybe_permute_to_gdal(A) |>
-        a -> noindex_to_sampled(a) |>
-        a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER)))
+    correctedA = if lookup(A, X) isa AffineProjected
+        A
+    else
+        _maybe_permute_to_gdal(A) |>
+            a -> noindex_to_sampled(a) |>
+            a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER)))
+    end
     nbands = 1
     _gdalwrite(filename, correctedA, nbands; kw...)
 end
@@ -54,9 +56,13 @@ function Base.write(
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
 
-    correctedA = _maybe_permute_to_gdal(A) |>
-        a -> noindex_to_sampled(a) |>
-        a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER)))
+    correctedA = if lookup(A, X) isa AffineProjected
+        A
+    else
+        _maybe_permute_to_gdal(A) |>
+            a -> noindex_to_sampled(a) |>
+            a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER)))
+    end
 
     nbands = size(correctedA, Band())
     _gdalwrite(filename, correctedA, nbands; kw...)
