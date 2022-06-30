@@ -7,8 +7,6 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 gdalpath = maybedownload(url)
 
-gdalpath = "/home/raf/Downloads/FARAD_X_BAND/20151027_1027X04_PS0010_PT000001_N03_M1_CH0_OSAPF.ntf"
-
 @testset "array" begin
 
     @time gdalarray = Raster(gdalpath; lazy=false, name=:test, missingval=typemax(UInt16))
