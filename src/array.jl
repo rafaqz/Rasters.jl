@@ -216,6 +216,7 @@ methods _do not_ load data from disk: they are applied later, lazily.
     this can be used to index in eg. `EPSG(4326)` lat/lon values, having it converted automatically.
     Only set this if the detected `mappedcrs` in incorrect, or the file does not have a `mappedcrs`,
     e.g. a tiff.
+- `lazy`: A `Bool` specifying if to load the stack lazily from disk. `false` by default.
 """
 struct Raster{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: AbstractRaster{T,N,D,A}
     data::A
@@ -262,7 +263,7 @@ function Raster(ds, filename::AbstractString, key=nothing;
     name=Symbol(key isa Nothing ? "" : string(key)),
     metadata=metadata(ds), missingval=missingval(ds), 
     source=_sourcetype(filename), 
-    write=false, lazy=true,
+    write=false, lazy=false,
 )
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)

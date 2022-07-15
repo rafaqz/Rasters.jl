@@ -141,6 +141,7 @@ Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert argum
 - `layersfrom`: `Dimension` to source stack layers from if the file is not already multi-layered.
     `nothing` is default, so that a single `RasterStack(raster)` is a single layered stack.
     `RasterStack(raster; layersfrom=Band)` will use the bands as layers.
+- `lazy`: A `Bool` specifying if to load the stack lazily from disk. `false` by default.
 
 ```julia
 files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
@@ -165,7 +166,7 @@ function RasterStack(
     RasterStack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
 end
 function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
-    crs=nothing, mappedcrs=nothing, source=nothing, lazy=true, kw...
+    crs=nothing, mappedcrs=nothing, source=nothing, lazy=false, kw...
 ) where K
     layers = map(keys(filenames), values(filenames)) do key, fn
         source = source isa Nothing ? _sourcetype(fn) : source
