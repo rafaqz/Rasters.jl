@@ -1,4 +1,4 @@
-using Rasters, Test, ArchGDAL, Dates, Statistics, GeoInterface, DataFrames
+using Rasters, Test, ArchGDAL, Dates, Statistics, GeoInterface, DataFrames, Extents
 using Rasters.LookupArrays, Rasters.Dimensions 
 using Rasters: bounds
 
@@ -19,7 +19,6 @@ pointvec = [(-20.0, 30.0),
               (-20.0, 30.0)]
 vals = [1, 2, 3, 4, 5]
 polygon = ArchGDAL.createpolygon(pointvec)
-multi_polygon = ArchGDAL.createmultipolygon([[pointvec]])
 multi_polygon = ArchGDAL.createmultipolygon([[pointvec]])
 multi_point = ArchGDAL.createmultipoint(pointvec)
 linestring = ArchGDAL.createlinestring(pointvec)
@@ -103,8 +102,36 @@ end
     end
 end
 
+@testset "zonal" begin
+    a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
+    zonal(sum, a; of=polygon) ==
+        zonal(sum, a; of=[polygon])[1] ==
+        zonal(sum, a; of=(geometry=polygon, x=:a, y=:b)) ==
+        zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1]
+        zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
+        sum(skipmissing(mask(a; with=polygon)))  
+    @test zonal(sum, a; of=a) == 
+        zonal(sum, a; of=dims(a)) == 
+        zonal(sum, a; of=Extents.extent(a)) == 
+        sum(a)
+
+    b = a .* 2
+    c = cat(a .* 3, a .* 3; dims=:newdim)
+    st = RasterStack((; a, b, c))
+    zonal(sum, st; of=polygon) == zonal(sum, st; of=[polygon])[1] ==
+        zonal(sum, st; of=(geometry=polygon, x=:a, y=:b)) ==
+        zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
+        zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
+        map(sum ∘ skipmissing, mask(st; with=polygon))  
+    @test zonal(sum, st; of=st) == 
+        zonal(sum, st; of=dims(st)) == 
+        zonal(sum, st; of=Extents.extent(st)) == 
+        sum(st)
+end
+
 @testset "classify" begin
     A1 = [missing 1; 2 3]
+    @which checkbounds(A1, 1, :)
     ga1 = Raster(A1, (X, Y); missingval=missing)
     @test all(classify(ga1, 1=>99, 2=>88, 3=>77) .=== [missing 99; 88 77])
     @test all(classify(ga1, 1=>99, 2=>88, 3=>77; others=0) .=== [missing 99; 88 77])
