@@ -12,6 +12,7 @@ gaNaN = replace_missing(ga, NaN32)
 gaMi = replace_missing(ga)
 st = RasterStack((a=A, b=B), (X, Y); missingval=(a=missing,b=missing))
 
+
 pointvec = [(-20.0, 30.0),
               (-20.0, 10.0),
               (0.0, 10.0),
@@ -19,6 +20,7 @@ pointvec = [(-20.0, 30.0),
               (-20.0, 30.0)]
 vals = [1, 2, 3, 4, 5]
 polygon = ArchGDAL.createpolygon(pointvec)
+multi_polygon = ArchGDAL.createmultipolygon([[pointvec]])
 multi_polygon = ArchGDAL.createmultipolygon([[pointvec]])
 multi_point = ArchGDAL.createmultipoint(pointvec)
 linestring = ArchGDAL.createlinestring(pointvec)
@@ -131,7 +133,6 @@ end
 
 @testset "classify" begin
     A1 = [missing 1; 2 3]
-    @which checkbounds(A1, 1, :)
     ga1 = Raster(A1, (X, Y); missingval=missing)
     @test all(classify(ga1, 1=>99, 2=>88, 3=>77) .=== [missing 99; 88 77])
     @test all(classify(ga1, 1=>99, 2=>88, 3=>77; others=0) .=== [missing 99; 88 77])
