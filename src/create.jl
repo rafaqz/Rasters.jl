@@ -6,11 +6,15 @@ function create(filename, T, A::AbstractRaster;
 )
     create(filename, T, dims(A); parent=parent(A), name, metadata, missingval, kw...)
 end
-function create(filename::AbstractString, T::Type, dims::Tuple; parent=nothing, suffix=nothing, kw...)
+function create(filename::AbstractString, T::Type, dims::Tuple;
+    lazy=true, parent=nothing, suffix=nothing, kw...
+)
     filename = _maybe_add_suffix(filename, suffix)
-    create(filename, _sourcetype(filename), T, dims; kw...)
+    create(filename, _sourcetype(filename), T, dims; lazy, kw...)
 end
-function create(filename::Nothing, T::Type, dims::Tuple; parent=nothing, suffix=nothing, missingval, kw...)
+function create(filename::Nothing, T::Type, dims::Tuple;
+    parent=nothing, suffix=nothing, missingval, kw...
+)
     T = isnothing(missingval) ? T : promote_type(T, typeof(missingval))
     data = isnothing(parent) ? Array{T}(undef, dims) : similar(parent, T, size(dims))
     Raster(data, dims; missingval, kw...)

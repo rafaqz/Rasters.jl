@@ -223,7 +223,7 @@ end
 
 
 function create(filename, ::Type{GRDfile}, T::Type, dims::DD.DimTuple; 
-    name="layer", metadata=nothing, missingval=nothing, keys=(name,),
+    name="layer", metadata=nothing, missingval=nothing, keys=(name,), lazy=true, 
 )
     # Remove extension
     basename = splitext(filename)[1]
@@ -237,7 +237,7 @@ function create(filename, ::Type{GRDfile}, T::Type, dims::DD.DimTuple;
     open(basename * ".gri", write=true) do IO
         write(IO, FillArrays.Zeros(sze))
     end
-    return Raster(filename; source=GRDfile)
+    return Raster(filename; source=GRDfile, lazy)
 end
 
 # AbstractRasterStack methods

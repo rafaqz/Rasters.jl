@@ -70,7 +70,8 @@ end
 
 function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
     missingval=nothing, metadata=nothing, name=nothing, keys=(name,),
-    driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing, parent=nothing
+    driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing,
+    parent=nothing, lazy=true, 
 )
     if !(keys isa Nothing || keys isa Symbol) && length(keys) > 1
         throw(ArgumentError("GDAL cant write more than one layer per file, but keys $keys have $(length(keys))"))
@@ -118,9 +119,9 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
         end
     end
     if hasdim(dims, Band)
-        return Raster(filename; source=GDALfile)
+        return Raster(filename; source=GDALfile, lazy)
     else
-        return view(Raster(filename; source=GDALfile), Band(1))
+        return view(Raster(filename; source=GDALfile, lazy), Band(1))
     end
 end
 

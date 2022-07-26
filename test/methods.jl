@@ -43,7 +43,6 @@ end
     end)
     dNaN = replace_missing(ga, NaN32; filename="test.tif")
     @test all(isequal.(dNaN, [NaN32 7.0f0; 2.0f0 NaN32]))
-    @test Rasters.isdisk(dNaN)
     rm("test.tif")
     stNaN = replace_missing(st, NaN32; filename="teststack.tif")
     @test all(map(stNaN[Band(1)], (a=[NaN32 7.0f0; 2.0f0 NaN32], b=[1.0 0.4; 2.0 NaN])) do x, y
