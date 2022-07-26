@@ -20,12 +20,12 @@ or by the shape of `with`, if `with` is a geometric object.
 
 # Geometry keywords
 
-These can be used when a `GeoInterface.AbstractGeometry` is passed in.
+These can be used when `with` is a GeoInterface.jl compatible object:
 
-- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`.
-    For GeoInterface.jl geometries this will be detected from the data.
+- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`, where possible.
 - `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
     where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
+    The default is `:center`.
 
 # Example
 
@@ -213,6 +213,7 @@ And specifically for `shape=:polygon`:
 
 - `boundary`: include pixels where the `:center` is inside the polygon, where
     the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
+    The default is `:center`.
 
 # Example
 

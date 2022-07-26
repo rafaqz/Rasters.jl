@@ -1,4 +1,4 @@
-using Rasters, Test, ArchGDAL, Dates, Statistics, GeoInterface, DataFrames
+using Rasters, Test, ArchGDAL, Dates, Statistics, GeoInterface, DataFrames, Extents
 using Rasters.LookupArrays, Rasters.Dimensions 
 using Rasters: bounds
 
@@ -11,6 +11,7 @@ ga99 = replace_missing(ga, -9999)
 gaNaN = replace_missing(ga, NaN32)
 gaMi = replace_missing(ga)
 st = RasterStack((a=A, b=B), (X, Y); missingval=(a=missing,b=missing))
+
 
 pointvec = [(-20.0, 30.0),
               (-20.0, 10.0),
@@ -101,6 +102,33 @@ end
             @test sum(skipmissing(mask(a1; with=polygon, boundary=:touches))) == 21 * 21
         end
     end
+end
+
+@testset "zonal" begin
+    a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
+    zonal(sum, a; of=polygon) ==
+        zonal(sum, a; of=[polygon])[1] ==
+        zonal(sum, a; of=(geometry=polygon, x=:a, y=:b)) ==
+        zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1]
+        zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
+        sum(skipmissing(mask(a; with=polygon)))  
+    @test zonal(sum, a; of=a) == 
+        zonal(sum, a; of=dims(a)) == 
+        zonal(sum, a; of=Extents.extent(a)) == 
+        sum(a)
+
+    b = a .* 2
+    c = cat(a .* 3, a .* 3; dims=:newdim)
+    st = RasterStack((; a, b, c))
+    zonal(sum, st; of=polygon) == zonal(sum, st; of=[polygon])[1] ==
+        zonal(sum, st; of=(geometry=polygon, x=:a, y=:b)) ==
+        zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
+        zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
+        map(sum ∘ skipmissing, mask(st; with=polygon))  
+    @test zonal(sum, st; of=st) == 
+        zonal(sum, st; of=dims(st)) == 
+        zonal(sum, st; of=Extents.extent(st)) == 
+        sum(st)
 end
 
 @testset "classify" begin
