@@ -32,8 +32,6 @@ defaultmappedcrs(::Type{NCDfile}) = EPSG(4326)
 
 # Raster ########################################################################
 
-@deprecate NCDarray(args...; kw...) Raster(args...; source=NCDfile, kw...)
-
 function Raster(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw...)
     key = _firstkey(ds, key)
     Raster(ds[key], filename, key; kw...)
@@ -77,8 +75,6 @@ function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster
 end
 
 # Stack ########################################################################
-
-@deprecate NCDstack(args...; kw...) RasterStack(args...; source=NCDfile, kw...)
 
 """
     Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; kw...)

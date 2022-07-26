@@ -363,5 +363,3 @@ defaultmappedcrs(T::Type) = nothing
 
 # Precompile
 precompile(RasterStack, (String,))
-
-@deprecate stack(args...; kw...) RasterStack(args...; kw...)

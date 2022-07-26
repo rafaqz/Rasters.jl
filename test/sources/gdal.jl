@@ -8,7 +8,6 @@ url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 gdalpath = maybedownload(url)
 
 @testset "array" begin
-
     @time gdalarray = Raster(gdalpath; name=:test)
     @time lazyarray = Raster(gdalpath; lazy=true);
     @time eagerarray = Raster(gdalpath; lazy=false);

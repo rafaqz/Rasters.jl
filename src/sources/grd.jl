@@ -130,8 +130,6 @@ Base.Array(grd::GRDattrib) = _mmapgrd(Array, grd)
 
 # Array ########################################################################
 
-@deprecate GRDarray(args...; kw...) Raster(args...; source=GRDfile, kw...)
-
 function FileArray(grd::GRDattrib, filename=filename(grd); kw...)
     filename = first(splitext(filename))
     size_ = size(grd)
@@ -241,8 +239,6 @@ function create(filename, ::Type{GRDfile}, T::Type, dims::DD.DimTuple;
 end
 
 # AbstractRasterStack methods
-
-@deprecate GRDstack(args...; kw...) RasterStack(args...; source=GRDfile, kw...)
 
 # Custom `open` because the data and metadata objects are separate
 # Here we _mmapgrd instead of `_open`
