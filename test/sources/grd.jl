@@ -21,8 +21,8 @@ grdpath = stem * ".gri"
         @time read(Raster(grdpath));
         @time lazyarray = Raster(grdpath; lazy=true);
         @time eagerarray = Raster(grdpath; lazy=false);
-        # Lazy is the default
-        @test parent(grdarray) isa FileArray
+        # Eager is the default
+        @test parent(grdarray) isa Array
         @test parent(lazyarray) isa FileArray
         @test parent(eagerarray) isa Array
     end

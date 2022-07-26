@@ -1,7 +1,7 @@
 using Rasters, Test, Statistics, Dates, Plots, DiskArrays, RasterDataSources, CoordinateTransformations
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, GDALfile, crs
+using Rasters: FileArray, GDALfile, crs, bounds
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
@@ -9,14 +9,14 @@ gdalpath = maybedownload(url)
 
 @testset "array" begin
 
-    @time gdalarray = Raster(gdalpath; lazy=true, name=:test)
+    @time gdalarray = Raster(gdalpath; name=:test)
 
     @testset "lazyness" begin
         @time read(Raster(gdalpath));
         @time lazyarray = Raster(gdalpath; lazy=true);
         @time eagerarray = Raster(gdalpath; lazy=false);
-        # Lazy is the default
-        @test parent(gdalarray) isa FileArray
+        # Eager is the default
+        @test parent(gdalarray) isa Array
         @test parent(lazyarray) isa FileArray
         @test parent(eagerarray) isa Array
     end
@@ -31,7 +31,7 @@ gdalpath = maybedownload(url)
         @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1, :]
         tempfile = tempname() * ".tif"
         cp(gdalpath, tempfile)
-        gdalwritearray = Raster(tempfile)
+        gdalwritearray = Raster(tempfile; lazy=true)
         @test_throws ArchGDAL.GDAL.GDALError gdalwritearray .*= UInt8(2)
         open(gdalwritearray; write=true) do A
             A .*= UInt8(2)
