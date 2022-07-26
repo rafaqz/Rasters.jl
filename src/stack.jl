@@ -124,6 +124,7 @@ end
     RasterStack(data::NamedTuple; kw...))
     RasterStack(s::AbstractRasterStack; kw...)
     RasterStack(s::AbstractRaster; layersfrom=Band, kw...)
+    RasterStack(filename::AbstractString; kw...)
 
 Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert arguments, a 
 `Vector` or `NamedTuple` of `Raster` to `RasterStack`.
@@ -132,6 +133,8 @@ Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert argum
 
 - `data`: A `NamedTuple` of [`Raster`](@ref), or a `Vector`, `Tuple` or splatted arguments
     of [`Raster`](@ref). The latter options must pass a `name` keyword argument.
+- `filename`: A file (such as netcdf or tif) to be loaded as a stack, or a directory path
+    containing multiple files.
 
 # Keywords
 
@@ -144,7 +147,7 @@ Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert argum
 - `lazy`: A `Bool` specifying if to load the stack lazily from disk. `false` by default.
 
 ```julia
-files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
+files = (temp="temp.tif", pressure="pressure.tif", relhum="relhum.tif")
 stack = RasterStack(files; mappedcrs=EPSG(4326))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
@@ -268,6 +271,8 @@ function RasterStack(filename::AbstractString;
             keys
         end
         RasterStack(joinpath.(Ref(filename), filenames); keys)
+    else
+        throw(ArgumentError("$filename is not a file or directory"))
     end
     return lazy ? st : read(st)
 end

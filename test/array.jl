@@ -2,7 +2,6 @@ using Rasters, Test, Dates, DiskArrays
 using Rasters.LookupArrays, Rasters.Dimensions
 using Rasters: isdisk, ismem, filename
 
-
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
 dims1 = X(10:10:100), Y(-50:10:50) 
@@ -17,6 +16,11 @@ ga1 = Raster(data1; dims=dims1, refdims=refdimz, name=nme, metadata=meta, missin
 
 @test ga1 == data1
 @test ga2 == data2
+
+@testset "from file" begin
+    @test_throws ArgumentError Raster("notafile")
+    @test_throws ArgumentError Raster("notafile", dims1)
+end
 
 @testset "array properties" begin
     @test name(ga1) == :test

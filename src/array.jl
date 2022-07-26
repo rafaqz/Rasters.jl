@@ -235,7 +235,7 @@ function Raster(A::AbstractArray, dims::Tuple;
     A = isnothing(mappedcrs) ? A : setmappedcrs(A, mappedcrs)
     return A
 end
-function Raster(A::AbstractArray{<:Any,1}, dims::Tuple{<:Dimension,<:Dimension,Vararg}; kw...)
+function Raster(A::AbstractArray{<:Any,1}, dims::DD.DimTuple; kw...)
     Raster(reshape(A, map(length, dims)), dims; kw...)
 end
 function Raster(table, dims::Tuple; name=first(_not_a_dimcol(table, dims)), kw...)
@@ -252,7 +252,9 @@ function Raster(A::AbstractDimArray;
 )
     return Raster(data, dims; refdims, name, metadata, missingval, kw...)
 end
+Raster(filename::AbstractString, dims::DD.DimTuple; kw...) = Raster(filename; dims, kw...)
 function Raster(filename::AbstractString; name=nothing, key=name, kw...)
+    isfile(filename) || _filenotfound_error(filename)
     _open(filename) do ds
         key = filekey(ds, key)
         Raster(ds, filename, key; kw...)
