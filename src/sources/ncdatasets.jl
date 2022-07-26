@@ -127,7 +127,8 @@ function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRaster
 end
 
 function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DimTuple;
-    name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing, metadata=NoMetadata()
+    name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing,
+    metadata=NoMetadata(), lazy=true, 
 )
     types = T isa Tuple ? T : Ref(T)
     missingval = T isa Tuple ? missingval : Ref(missingval)
@@ -137,7 +138,7 @@ function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DimTuple;
         Raster(A, dims=lds; name=key, missingval=mv)
     end
     write(filename, NCDfile, Raster(first(layers)))
-    return Raster(filename; source=NCDfile)
+    return Raster(filename; source=NCDfile, lazy)
 end
 
 # DimensionalData methods for NCDatasets types ###############################

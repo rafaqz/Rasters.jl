@@ -1,5 +1,6 @@
 using Rasters, Test, ArchGDAL, Dates, Statistics, GeoInterface, DataFrames
 using Rasters.LookupArrays, Rasters.Dimensions 
+using Rasters: bounds
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
@@ -10,7 +11,6 @@ ga99 = replace_missing(ga, -9999)
 gaNaN = replace_missing(ga, NaN32)
 gaMi = replace_missing(ga)
 st = RasterStack((a=A, b=B), (X, Y); missingval=(a=missing,b=missing))
-
 
 pointvec = [(-20.0, 30.0),
               (-20.0, 10.0),
@@ -43,7 +43,6 @@ end
     end)
     dNaN = replace_missing(ga, NaN32; filename="test.tif")
     @test all(isequal.(dNaN, [NaN32 7.0f0; 2.0f0 NaN32]))
-    @test Rasters.isdisk(dNaN)
     rm("test.tif")
     stNaN = replace_missing(st, NaN32; filename="teststack.tif")
     @test all(map(stNaN[Band(1)], (a=[NaN32 7.0f0; 2.0f0 NaN32], b=[1.0 0.4; 2.0 NaN])) do x, y

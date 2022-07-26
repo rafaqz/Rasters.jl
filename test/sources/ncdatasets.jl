@@ -29,12 +29,12 @@ stackkeys = (
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle)
 
-   @testset "lazyness" begin
+    @testset "lazyness" begin
         @time read(Raster(ncsingle));
         @time lazyarray = Raster(ncsingle; lazy=true);
         @time eagerarray = Raster(ncsingle; lazy=false);
-        # Lazy is the default
-        @test parent(ncarray) isa FileArray
+        # Eager is the default
+        @test parent(ncarray) isa Array
         @test parent(lazyarray) isa FileArray
         @test parent(eagerarray) isa Array
     end
@@ -128,7 +128,7 @@ stackkeys = (
             tempfile = tempname() * ".nc"
             cp(ncsingle, tempfile)
             @test !all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
-            open(Raster(tempfile); write=true) do A
+            open(Raster(tempfile; lazy=true); write=true) do A
                 mask!(A; with=msk, missingval=missing)
                 # TODO: replace the CFVariable with a FileArray{NCDfile} so this is not required
                 nothing

@@ -41,8 +41,8 @@ if isfile(path1) && isfile(path2)
             @time read(Raster(path1));
             @time lazyarray = Raster(path1; lazy=true);
             @time eagerarray = Raster(path1; lazy=false);
-            # Lazy is the default
-            @test parent(smaparray) isa FileArray
+            # Eager is the default
+            @test parent(smaparray) isa Array
             @test parent(lazyarray) isa FileArray
             @test parent(eagerarray) isa Array
         end

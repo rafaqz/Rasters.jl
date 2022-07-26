@@ -2,8 +2,8 @@ using Rasters, Test, Aqua, SafeTestsets
 
 if VERSION >= v"1.5.0"
     # Aqua.test_ambiguities([Rasters, Base, Core])
-    # Aqua.test_unbound_args(Rasters)
-    # Aqua.test_stale_deps(Rasters)
+    Aqua.test_unbound_args(Rasters)
+    Aqua.test_stale_deps(Rasters)
     Aqua.test_undefined_exports(Rasters)
     Aqua.test_project_extras(Rasters)
     Aqua.test_deps_compat(Rasters)
