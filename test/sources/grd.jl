@@ -16,11 +16,10 @@ grdpath = stem * ".gri"
 
 @testset "Grd array" begin
     @time grdarray = Raster(grdpath)
+    @time lazyarray = Raster(grdpath; lazy=true);
+    @time eagerarray = Raster(grdpath; lazy=false);
 
     @testset "lazyness" begin
-        @time read(Raster(grdpath));
-        @time lazyarray = Raster(grdpath; lazy=true);
-        @time eagerarray = Raster(grdpath; lazy=false);
         # Eager is the default
         @test parent(grdarray) isa Array
         @test parent(lazyarray) isa FileArray
@@ -32,7 +31,7 @@ grdpath = stem * ".gri"
         tempfile = tempname()
         cp(stem * ".grd", tempfile * ".grd")
         cp(stem * ".gri", tempfile * ".gri")
-        grdwritearray = Raster(tempfile * ".gri")
+        grdwritearray = Raster(tempfile * ".gri"; lazy=true)
         open(grdwritearray; write=true) do A
             A .*= 2
         end
@@ -116,7 +115,7 @@ grdpath = stem * ".gri"
             cp(stem * ".grd", tempgrd)
             cp(stem * ".gri", tempgri)
             @test !all(Raster(tempgrd)[X(1:73), Y([1, 5, 77])] .=== missingval(grdarray))
-            open(Raster(tempgrd); write=true) do A
+            open(Raster(tempgrd; lazy=true); write=true) do A
                 mask!(A; with=msk, missingval=missingval(A))
             end
             @test all(Raster(tempgri)[X(1:73), Y([1, 5, 77])] .=== missingval(grdarray))
@@ -131,7 +130,7 @@ grdpath = stem * ".gri"
             cp(stem * ".grd", tempgrd)
             cp(stem * ".gri", tempgri)
             extrema(Raster(tempgrd))
-            open(Raster(tempgrd); write=true) do A
+            open(Raster(tempgrd; lazy=true); write=true) do A
                 classify!(A, [0.0f0 100.0f0 100.0f0; 100 300 255.0f0])
             end
             A = Raster(tempgrd)
@@ -189,7 +188,7 @@ grdpath = stem * ".gri"
         @testset "2d" begin
             filename2 = tempname() * ".gri"
             write(filename2, grdarray[Band(1)])
-            saved = read(Raster(filename2))
+            saved = Raster(filename2)
             # 1 band is added again on save
             @test size(saved) == size(grdarray[Band(1:1)])
             @test parent(saved) == parent(grdarray[Band(1:1)])
@@ -199,7 +198,7 @@ grdpath = stem * ".gri"
             geoA = grdarray[1:100, 1:50, 1:2]
             filename = tempname() * ".grd"
             write(filename, GRDfile, geoA)
-            saved = read(Raster(filename))
+            saved = Raster(filename)
             @test size(saved) == size(geoA)
             @test refdims(saved) == ()
             @test bounds(saved) == bounds(geoA)
@@ -224,7 +223,7 @@ grdpath = stem * ".gri"
             filename2 = tempname() * ".nc"
             span(grdarray[Band(1)])
             write(filename2, grdarray[Band(1)])
-            saved = read(Raster(filename2; crs=crs(grdarray)))
+            saved = Raster(filename2; crs=crs(grdarray))
             @test size(saved) == size(grdarray[Band(1)])
             @test replace_missing(saved, missingval(grdarray)) ≈ grdarray[Band(1)]
             @test index(saved, X) ≈ index(grdarray, X) .+ 0.5
@@ -278,13 +277,12 @@ end
 
 @testset "Grd stack" begin
     grdstack = RasterStack((a=grdpath, b=grdpath))
+    @time lazystack = RasterStack((a=grdpath, b=grdpath); lazy=true);
+    @time eagerstack = RasterStack((a=grdpath, b=grdpath); lazy=false);
 
     @testset "lazyness" begin
-        @time read(RasterStack((a=grdpath, b=grdpath)));
-        @time lazystack = RasterStack((a=grdpath, b=grdpath); lazy=true);
-        @time eagerstack = RasterStack((a=grdpath, b=grdpath); lazy=false);
         # Lazy is the default
-        @test parent(grdstack[:a]) isa FileArray
+        @test parent(grdstack[:a]) isa Array
         @test parent(lazystack[:a]) isa FileArray
         @test parent(eagerstack[:a]) isa Array
     end

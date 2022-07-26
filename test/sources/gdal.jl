@@ -10,11 +10,10 @@ gdalpath = maybedownload(url)
 @testset "array" begin
 
     @time gdalarray = Raster(gdalpath; name=:test)
+    @time lazyarray = Raster(gdalpath; lazy=true);
+    @time eagerarray = Raster(gdalpath; lazy=false);
 
     @testset "lazyness" begin
-        @time read(Raster(gdalpath));
-        @time lazyarray = Raster(gdalpath; lazy=true);
-        @time eagerarray = Raster(gdalpath; lazy=false);
         # Eager is the default
         @test parent(gdalarray) isa Array
         @test parent(lazyarray) isa FileArray
@@ -60,8 +59,8 @@ gdalpath = maybedownload(url)
         @test keys(RasterStack(tempfile; layersfrom=Band)) == (:layer_1, :layer_2)
     end
 
-    @testset "view" begin
-        A = view(gdalarray, 1:10, 1:10, 1)
+    @testset "view of disk array" begin
+        A = view(lazyarray, 1:10, 1:10, 1)
         @test A isa Raster
         @test parent(A) isa DiskArrays.SubDiskArray
         @test parent(parent(A)) isa Rasters.FileArray
@@ -90,7 +89,7 @@ gdalpath = maybedownload(url)
     @testset "other fields" begin
         # This file has an inorrect missing value
         @test missingval(gdalarray) == nothing
-        @test metadata(gdalarray) isa Metadata{GDALfile}
+        @test metadata(gdalarray) isa Metadata{GDALfile} 
         @test basename(metadata(gdalarray).val[:filepath]) == "cea.tif"
         @test name(gdalarray) == :test
         @test label(gdalarray) == "test"
@@ -146,7 +145,7 @@ gdalpath = maybedownload(url)
             tempfile = tempname() * ".tif"
             cp(gdalpath, tempfile)
             @test !all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
-            open(Raster(tempfile); write=true) do A
+            open(Raster(tempfile; lazy=true); write=true) do A
                 mask!(A; with=msk, missingval=0x00)
             end
             @test all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== 0x00)
@@ -183,7 +182,7 @@ gdalpath = maybedownload(url)
         @testset "classify! to disk" begin
             tempfile = tempname() * ".tif"
             cp(gdalpath, tempfile)
-            open(Raster(tempfile); write=true) do A
+            open(Raster(tempfile; lazy=true); write=true) do A
                 classify!(A, [0x01 0xcf 0x00; 0xd0 0xff 0xff])
             end
             @test count(==(0x00), Raster(tempfile)) + count(==(0xff), Raster(tempfile)) == length(Raster(tempfile))
@@ -287,7 +286,7 @@ gdalpath = maybedownload(url)
         @testset "resave current" begin
             filename = tempname() * ".rst"
             write(filename, gdalarray)
-            gdalarray2 = Raster(filename)
+            gdalarray2 = Raster(filename; lazy=true)
             write(gdalarray2)
             @test read(Raster(filename)) == read(gdalarray2)
         end
@@ -510,6 +509,7 @@ end
             @test all(read(saved[:a]) .== geoA)
             rm(filename)
         end
+
     end
 
     @testset "show" begin
