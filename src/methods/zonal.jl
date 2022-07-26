@@ -1,15 +1,14 @@
 """
-    zonal(f, x::RasterStackOrArray; of)
+    zonal(f, x::Union{Raster,RasterStack}; of, kw...)
 
-Calculate zonal statistics for the the zone of a `Raster` or `RasterStack` defined
-the `of` keyword, which can be an `Extent`, or GeoInterface.jl compatible object. 
-Tables, `AbstractVectors` an feature collections will return `Vector`s of values.
+Calculate zonal statistics for the the zone of a `Raster` or `RasterStack`
+covered by the `of` object/s.
 
 # Arguments
 
 - `f`: any function that reduces an iterable to a single value, such as `Base.sum` or `Statistic.mean`
 - `x`: A `Raster` or `RasterStack`
-- `zone`: A `Raster`, `RasterStack`, dim tuple, extent, GeoInterface.jl compatible geometry,
+- `of`: A `Raster`, `RasterStack`, dim tuple, extent, GeoInterface.jl compatible geometry,
     Tables.jl compatible table of a `:geometry` column, or an `AbstractVector` of
     any of these objects..
 
@@ -46,17 +45,16 @@ insertcols!(january_stats, 1, :country => countries.ADMIN)
 
 # output
 """
-zonal(f, x::RasterStackOrArray; of, shape=nothing, boundary=nothing) = 
-    _zonal(f, x, of; shape, boundary)
+zonal(f, x::RasterStackOrArray; of, kw...) = _zonal(f, x, of; kw...)
 
 _zonal(f, x::RasterStackOrArray, of::RasterStackOrArray) = _zonal(f, x, Extents.extent(of))
 _zonal(f, x::RasterStackOrArray, of::DimTuple) = _zonal(f, x, Extents.extent(of))
 # We don't need to `mask` with an extent, it's square so `crop` will do enough.
 _zonal(f, x::Raster, of::Extents.Extent) = f(skipmissing(crop(x; to=of)))
 function _zonal(f, x::RasterStack, ext::Extents.Extent)
-    zone = crop(x; to=ext)
-    prod(size(zone)) > 0 || return missing
-    return map(zone) do A
+    cropped = crop(x; to=ext)
+    prod(size(cropped)) > 0 || return missing
+    return map(cropped) do A
         f(skipmissing(A))
     end
 end
@@ -70,8 +68,8 @@ _zonal(f, x::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...) =
 function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom; kw...)
     cropped = crop(x; to=geom)
     prod(size(cropped)) > 0 || return missing
-    zone = mask(cropped; with=geom, kw...)
-    return f(skipmissing(zone))
+    masked = mask(cropped; with=geom, kw...)
+    return f(skipmissing(masked))
 end
 function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; kw...)
     cropped = crop(st; to=geom)
