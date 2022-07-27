@@ -16,27 +16,13 @@ multi-layered stacks, and multi-file series of arrays and stacks.
 
 _A RasterStack of EarthEnv HabitatHeterogeneity layers, trimmed to Australia and plotted with Plots.jl_
 
-
-## Lazyness
-
-- Data is loaded lazily wherever possible using
-  [DiskArrays.jl](https://github.com/meggart/DiskArrays.jl). Indexing a
-  `RasterStack` by name is always lazy, while `view` of a `Raster` is lazy and
-  `getindex` will load to memory. `read` can be used on any object to ensure
-  that all data is loaded to memory.
-- Broadcast over disk-based objects is lazy - it will only run when the array is
-  indexed. Always prefer broadcasts to explicit loops - these can be very slow
-  with disk-based data.
-- Laziness can be avoided using the `lazy=false` keyword to `Raster`,
-  `RasterStack` or `RasterSeries`, which will give a performance improvement for some files.
-
 ## Data-source abstraction
 
 Rasters provides a standardised interface that allows many source data types to
 be used with identical syntax.
 
-- Scripts and packages building on Rasters.jl can treat `AbstractRaster`,
-  `AbstractRasterStack`, and `AbstrackRasterSeries` as black boxes.
+- Scripts and packages building on Rasters.jl can treat `Raster`,
+  `RasterStack`, and `RasterSeries` as black boxes.
   - The data could hold GeoTiff or NetCDF files, `Array`s in memory or
     `CuArray`s on the GPU - they will all behave in the same way.
   - `RasterStack` can be backed by a Netcdf or HDF5 file, or a `NamedTuple` of
@@ -46,9 +32,6 @@ be used with identical syntax.
   by setting the `mappedcrs` keyword on construction. You don't need to know the underlying
   projection, the conversion is handled automatically. This means lat/lon
   `EPSG(4326)` can be used seamlessly if you need that.
-- Regions and points selected with `Between` and `Contains` select the right
-  point or whole interval no matter the order of the index or it's position in
-  the cell.
 
 ## Named dimensions and index lookups
 
@@ -56,6 +39,8 @@ Rasters.jl extends
 [DimensionalData.jl](https://github.com/rafaqz/DimensionalData.jl) so that
 spatial data can be indexed using named dimensions like `X`, `Y` and `Ti` (time)
 and e.g. spatial coordinates.
+
+Regions and points can be selected with `a..b`, `At` `Near` and `Contains`.
 
 Dimensions can also be used in most `Base` and `Statistics` methods like `mean`
 and `reduce` where `dims` arguments are required. Much of the behaviour is
