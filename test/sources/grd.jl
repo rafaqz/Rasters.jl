@@ -18,6 +18,8 @@ grdpath = stem * ".gri"
     @time grdarray = Raster(grdpath)
     @time lazyarray = Raster(grdpath; lazy=true);
     @time eagerarray = Raster(grdpath; lazy=false);
+    @test_throws ArgumentError Raster("notafile.grd")
+    @test_throws ArgumentError Raster("notafile.gri")
 
     @testset "lazyness" begin
         # Eager is the default

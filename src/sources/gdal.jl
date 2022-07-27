@@ -283,7 +283,7 @@ function _open(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...
     # /vsicurl/ is added to urls for GDAL
     if length(filename) > 8 && (filename[1:7] == "http://" || filename[1:8] == "https://")
        filename = "/vsicurl/" * filename
-    elseif filename[1:9] != "/vsicurl/" # maybe viscurl was already added
+    elseif !(length(filename) > 8 && filename[1:9] == "/vsicurl/") # maybe viscurl was already added
         # check the file actually exists because GDALs error is unhelpful
         isfile(filename) || _filenotfound_error(filename)
     end
