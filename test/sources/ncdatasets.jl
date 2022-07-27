@@ -28,6 +28,8 @@ stackkeys = (
 
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle)
+    @time lazyarray = Raster(ncsingle; lazy=true);
+    @time eagerarray = Raster(ncsingle; lazy=false);
     @test_throws ArgumentError Raster("notafile.nc")
 
     @testset "lazyness" begin
