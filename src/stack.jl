@@ -233,7 +233,20 @@ function RasterStack(filename::AbstractString;
     source=_sourcetype(filename), name=nothing, keys=name, layersfrom=nothing,
     resize=nothing, lazy=true, ext=nothing
 )
-    st = if isfile(filename)
+    st = if isdir(filename)
+        # Load a whole directory
+        filenames = readdir(filename)
+        length(filenames) > 0 || throw(ArgumentError("No files in directory $filename"))
+        # Detect keys from names
+        keys = if isnothing(keys)
+            all_shared = true
+            stripped = lstrip.(x -> x in (" ", "_"), (x -> x[1:end]).(filenames))
+            Symbol.(replace.(first.(splitext.(stripped)), Ref(" " => "_")))
+        else
+            keys
+        end
+        RasterStack(joinpath.(Ref(filename), filenames); keys)
+    else
         st = if haslayers(_sourcetype(filename))
             crs = defaultcrs(source, crs)
             mappedcrs = defaultmappedcrs(source, mappedcrs)
@@ -258,21 +271,6 @@ function RasterStack(filename::AbstractString;
         else
             st
         end
-    elseif isdir(filename)
-        # Load a whole directory
-        filenames = readdir(filename)
-        length(filenames) > 0 || throw(ArgumentError("No files in directory $filename"))
-        # Detect keys from names
-        keys = if isnothing(keys)
-            all_shared = true
-            stripped = lstrip.(x -> x in (" ", "_"), (x -> x[1:end]).(filenames))
-            Symbol.(replace.(first.(splitext.(stripped)), Ref(" " => "_")))
-        else
-            keys
-        end
-        RasterStack(joinpath.(Ref(filename), filenames); keys)
-    else
-        throw(ArgumentError("$filename is not a file or directory"))
     end
     return lazy ? st : read(st)
 end

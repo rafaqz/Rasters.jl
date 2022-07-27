@@ -212,6 +212,7 @@ Base.close(os::OpenStack{NCDfile}) = NCD.close(dataset(os))
 # Utils ########################################################################
 
 function _open(f, ::Type{NCDfile}, filename::AbstractString; write=false, kw...)
+    isfile(filename) || _filenotfound_error(filename)
     mode = write ? "a" : "r"
     NCD.Dataset(filename, mode) do ds
         _open(f, NCDfile, ds; kw...)

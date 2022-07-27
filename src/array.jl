@@ -256,7 +256,6 @@ function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Va
     Raster(filename; dims, kw...)
 end
 function Raster(filename::AbstractString; name=nothing, key=name, kw...)
-    isfile(filename) || _filenotfound_error(filename)
     _open(filename) do ds
         key = filekey(ds, key)
         Raster(ds, filename, key; kw...)
