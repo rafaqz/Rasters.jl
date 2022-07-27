@@ -58,7 +58,6 @@ export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        setcrs, setmappedcrs
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertlookup
-export geoarray, stack, series
 
 
 const DD = DimensionalData

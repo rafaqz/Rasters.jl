@@ -114,8 +114,6 @@ haslayers(::Type{SMAPfile}) = true
 
 # Stack ########################################################################
 
-@deprecate SMAPstack(args...; kw...) RasterStack(args...; source=SMAPfile, kw...)
-
 function FileStack{SMAPfile}(ds::SMAPhdf5, filename::AbstractString; write=false, keys)
     keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key

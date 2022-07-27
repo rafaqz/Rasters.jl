@@ -17,8 +17,8 @@ They cannot have the same dimension with t different length or spatial extent as
 another layer.
 
 `getindex` on a `AbstractRasterStack` generally returns a memory backed standard
-[`Raster`](@ref). `geoarray[:somelayer] |> plot` plots the layers array,
-while `geoarray[:somelayer, X(1:100), Band(2)] |> plot` will plot the
+[`Raster`](@ref). `raster[:somelayer] |> plot` plots the layers array,
+while `raster[:somelayer, X(1:100), Band(2)] |> plot` will plot the
 subset without loading the whole array.
 
 `getindex` on a `AbstractRasterStack` with a key returns another stack with
@@ -363,5 +363,3 @@ defaultmappedcrs(T::Type) = nothing
 
 # Precompile
 precompile(RasterStack, (String,))
-
-@deprecate stack(args...; kw...) RasterStack(args...; kw...)

@@ -5,9 +5,9 @@ using Rasters, RasterDataSources, Test, Dates
 #     @testset "load WorldClim Weather" begin
 #         # Weather time-series
 #         dates = (Date(2001), Date(2002))
-#         ser = series(WorldClim{Weather}, (:prec,); date=dates)
+#         ser = RasterSeries(WorldClim{Weather}, (:prec,); date=dates)
 #         ser[Date(2001, 1)][:prec]
-#         A = geoarray(WorldClim{Weather}, :prec; date=DateTime(2001, 05), mappedcrs=EPSG(4326))
+#         A = Raster(WorldClim{Weather}, :prec; date=DateTime(2001, 05), mappedcrs=EPSG(4326))
 #     end
 # end
 
@@ -27,7 +27,7 @@ end
     A = Raster(WorldClim{BioClim}, :Bio_1; mappedcrs=EPSG(4326))
     A[Y(Between(-10, -45)), X(Between(110, 160))]
     @test A isa Raster
-    st = stack(WorldClim{BioClim}, (1, 2))
+    st = RasterStack(WorldClim{BioClim}, (1, 2))
     st[:bio1]
     @test st isa RasterStack
     @test A isa Raster

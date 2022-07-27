@@ -1,6 +1,3 @@
-
-export NCDstack, NCDarray
-
 const NCD = NCDatasets
 
 const UNNAMED_NCD_FILE_KEY = "unnamed"
@@ -31,8 +28,6 @@ defaultcrs(::Type{NCDfile}) = EPSG(4326)
 defaultmappedcrs(::Type{NCDfile}) = EPSG(4326)
 
 # Raster ########################################################################
-
-@deprecate NCDarray(args...; kw...) Raster(args...; source=NCDfile, kw...)
 
 function Raster(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw...)
     key = _firstkey(ds, key)
@@ -77,8 +72,6 @@ function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster
 end
 
 # Stack ########################################################################
-
-@deprecate NCDstack(args...; kw...) RasterStack(args...; source=NCDfile, kw...)
 
 """
     Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; kw...)
@@ -494,5 +487,4 @@ precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Nothing))
 precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Symbol))
 precompile(Raster, (_NCDVar, String, Symbol))
 
-precompile(geoarray, (String,))
 precompile(Raster, (String,))

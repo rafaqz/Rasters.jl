@@ -139,8 +139,6 @@ function Base.map(f, series::RasterSeries)
     end
 end
 
-@deprecate series(args...; kw...) RasterSeries(args...; kw...)
-
 # Swap in the filename/s of an object for another filename, wherever it is.
 # This is used to use already loaded metadata of one file with another
 # file that is similar or identical besides tha actual raster data.

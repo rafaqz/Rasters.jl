@@ -1,5 +1,3 @@
-export GDALstack, GDALarray
-
 const AG = ArchGDAL
 
 const GDAL_X_ORDER = ForwardOrdered()
@@ -7,9 +5,6 @@ const GDAL_Y_ORDER = ReverseOrdered()
 
 const GDAL_X_LOCUS = Start()
 const GDAL_Y_LOCUS = Start()
-
-@deprecate GDALarray(args...; kw...) Raster(args...; source=GDALfile, kw...)
-@deprecate GDALstack(args...; kw...) RasterStack(args...; source=GDALfile, kw...)
 
 # Array ########################################################################
 

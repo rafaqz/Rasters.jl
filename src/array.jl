@@ -282,6 +282,4 @@ filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 # Precompile
 precompile(Raster, (String,))
 
-@deprecate geoarray(args...; kw...) Raster(args...; kw...)
-
 DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = Raster
