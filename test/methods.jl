@@ -412,11 +412,11 @@ end
     end
 
     ## Resample cea.tif using resample
-    cea = read(geoarray(raster_path))
+    cea = Raster(raster_path)
     raster_output = resample(cea, output_res; crs=output_crs, method=resample_method)
     disk_output = resample(cea, output_res; crs=output_crs, method=resample_method, filename="resample.tif")
 
-    cea_permuted = permutedims(read(geoarray(raster_path)), (Y, X, Band))
+    cea_permuted = permutedims(Raster(raster_path), (Y, X, Band))
     permuted_output = resample(cea_permuted, output_res; crs=output_crs, method=resample_method)
 
     # Compare ArchGDAL, resample and permuted resample 
