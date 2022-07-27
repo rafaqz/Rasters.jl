@@ -1,5 +1,3 @@
-export GRDstack, GRDarray
-
 const GRD_X_ORDER = ForwardOrdered()
 const GRD_Y_ORDER = ReverseOrdered()
 const GRD_BAND_ORDER = ForwardOrdered()

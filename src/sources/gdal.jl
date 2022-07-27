@@ -1,5 +1,3 @@
-export GDALstack, GDALarray
-
 const AG = ArchGDAL
 
 const GDAL_X_ORDER = ForwardOrdered()

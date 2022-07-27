@@ -1,6 +1,3 @@
-
-export NCDstack, NCDarray
-
 const NCD = NCDatasets
 
 const UNNAMED_NCD_FILE_KEY = "unnamed"
