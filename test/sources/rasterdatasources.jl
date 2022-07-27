@@ -5,7 +5,7 @@ using Rasters, RasterDataSources, Test, Dates
 #     @testset "load WorldClim Weather" begin
 #         # Weather time-series
 #         dates = (Date(2001), Date(2002))
-#         ser = series(WorldClim{Weather}, (:prec,); date=dates)
+#         ser = RasterSeries(WorldClim{Weather}, (:prec,); date=dates)
 #         ser[Date(2001, 1)][:prec]
 #         A = geoarray(WorldClim{Weather}, :prec; date=DateTime(2001, 05), mappedcrs=EPSG(4326))
 #     end

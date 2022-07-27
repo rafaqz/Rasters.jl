@@ -490,5 +490,4 @@ precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Nothing))
 precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Symbol))
 precompile(Raster, (_NCDVar, String, Symbol))
 
-precompile(geoarray, (String,))
 precompile(Raster, (String,))
