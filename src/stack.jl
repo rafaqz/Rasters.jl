@@ -124,6 +124,7 @@ end
     RasterStack(data::NamedTuple; kw...))
     RasterStack(s::AbstractRasterStack; kw...)
     RasterStack(s::AbstractRaster; layersfrom=Band, kw...)
+    RasterStack(filename::AbstractString; kw...)
 
 Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert arguments, a 
 `Vector` or `NamedTuple` of `Raster` to `RasterStack`.
@@ -132,6 +133,8 @@ Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert argum
 
 - `data`: A `NamedTuple` of [`Raster`](@ref), or a `Vector`, `Tuple` or splatted arguments
     of [`Raster`](@ref). The latter options must pass a `name` keyword argument.
+- `filename`: A file (such as netcdf or tif) to be loaded as a stack, or a directory path
+    containing multiple files.
 
 # Keywords
 
@@ -144,7 +147,7 @@ Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert argum
 - `lazy`: A `Bool` specifying if to load the stack lazily from disk. `false` by default.
 
 ```julia
-files = (:temp="temp.tif", :pressure="pressure.tif", :relhum="relhum.tif")
+files = (temp="temp.tif", pressure="pressure.tif", relhum="relhum.tif")
 stack = RasterStack(files; mappedcrs=EPSG(4326))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
@@ -230,7 +233,20 @@ function RasterStack(filename::AbstractString;
     source=_sourcetype(filename), name=nothing, keys=name, layersfrom=nothing,
     resize=nothing, lazy=true, ext=nothing
 )
-    st = if isfile(filename)
+    st = if isdir(filename)
+        # Load a whole directory
+        filenames = readdir(filename)
+        length(filenames) > 0 || throw(ArgumentError("No files in directory $filename"))
+        # Detect keys from names
+        keys = if isnothing(keys)
+            all_shared = true
+            stripped = lstrip.(x -> x in (" ", "_"), (x -> x[1:end]).(filenames))
+            Symbol.(replace.(first.(splitext.(stripped)), Ref(" " => "_")))
+        else
+            keys
+        end
+        RasterStack(joinpath.(Ref(filename), filenames); keys)
+    else
         st = if haslayers(_sourcetype(filename))
             crs = defaultcrs(source, crs)
             mappedcrs = defaultmappedcrs(source, mappedcrs)
@@ -255,19 +271,6 @@ function RasterStack(filename::AbstractString;
         else
             st
         end
-    elseif isdir(filename)
-        # Load a whole directory
-        filenames = readdir(filename)
-        length(filenames) > 0 || throw(ArgumentError("No files in directory $filename"))
-        # Detect keys from names
-        keys = if isnothing(keys)
-            all_shared = true
-            stripped = lstrip.(x -> x in (" ", "_"), (x -> x[1:end]).(filenames))
-            Symbol.(replace.(first.(splitext.(stripped)), Ref(" " => "_")))
-        else
-            keys
-        end
-        RasterStack(joinpath.(Ref(filename), filenames); keys)
     end
     return lazy ? st : read(st)
 end

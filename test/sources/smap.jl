@@ -36,6 +36,7 @@ if isfile(path1) && isfile(path2)
 
     @testset "Raster" begin
         @time smaparray = Raster(path1)
+        @test_throws ArgumentError Raster("notafile.h5")
 
         @testset "lazyness" begin
             @time read(Raster(path1));

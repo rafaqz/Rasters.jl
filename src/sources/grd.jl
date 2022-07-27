@@ -245,6 +245,7 @@ function Base.open(f::Function, A::FileArray{GRDfile}, key...; write=A.write)
 end
 
 function _open(f, ::Type{GRDfile}, filename; key=nothing, write=false)
+    isfile(filename) || _filenotfound_error(filename)
     _open(f, GRDfile, GRDattrib(filename; write))
 end
 _open(f, ::Type{GRDfile}, attrib::GRDattrib; kw...) = f(attrib)

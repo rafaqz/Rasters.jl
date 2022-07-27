@@ -122,3 +122,5 @@ function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
 end
 
 _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
+
+_filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not found"))

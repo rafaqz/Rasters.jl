@@ -279,8 +279,17 @@ end
 # Utils ########################################################################
 
 function _open(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...)
-    if length(filename) > 8 && (filename[1:7] == "http://" || filename[1:8] == "https://")
-       filename = "/vsicurl/" * filename
+    # Handle url filenames
+    # /vsicurl/ is added to urls for GDAL, /vsimem/ for in memory
+    if length(filename) >= 8 
+        if (filename[1:7] == "http://" || filename[1:8] == "https://")
+           filename = "/vsicurl/" * filename
+        elseif !(filename[1:8] in ("/vsicurl", "/vsimem/"))
+            # check the file actually exists because GDALs error is unhelpful
+            isfile(filename) || _filenotfound_error(filename)
+        end
+    else
+        isfile(filename) || _filenotfound_error(filename)
     end
     flags = write ? (; flags=AG.OF_UPDATE) : ()
     AG.readraster(cleanreturn ∘ f, filename; flags...)
