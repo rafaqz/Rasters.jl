@@ -29,6 +29,7 @@ import Adapt,
        Missings,
        Mmap,
        NCDatasets,
+       CfGRIB,
        RecipesBase,
        Reexport,
        Setfield
@@ -94,6 +95,7 @@ struct NCDfile end
 struct GRDfile end
 struct GDALfile end
 struct SMAPfile end
+struct GRIBfile end
 
 include("lookup.jl")
 include("dimensions.jl")
@@ -141,6 +143,7 @@ include("sources/grd.jl")
 include("sources/smap.jl")
 include("sources/ncdatasets.jl")
 include("sources/gdal.jl")
+include("sources/grib.jl")
 include("sources/rasterdatasources.jl")
 
 # extensions
