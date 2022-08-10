@@ -47,13 +47,13 @@ _dimnames(var::CFG.Variable) = var.dimensions
 
 
 function FileArray(var::CFG.Variable, filename::AbstractString; kw...)
-    da = RasterDiskArray{NCDfile}(var.data)
+    da = RasterDiskArray{GRIBfile}(var.data)
     size_ = size(da)
     eachchunk = DA.eachchunk(da)
     haschunks = DA.haschunks(da)
     T = eltype(var)
     N = length(size_)
-    FileArray{NCDfile,T,N}(filename, size_; eachchunk, haschunks, kw...)
+    FileArray{GRIBfile,T,N}(filename, size_; eachchunk, haschunks, kw...)
 end
 
 
