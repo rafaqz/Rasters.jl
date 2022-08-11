@@ -127,7 +127,7 @@ function Mapped(data=AutoIndex();
     Mapped(data, order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 function Mapped(l::Sampled;
-    order=order(l), span=span(l), sampling=span(l),
+    order=order(l), span=span(l), sampling=sampling(l),
     metadata=metadata(l), crs=nothing, mappedcrs, dim=AutoDim()
 )
     Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
@@ -282,7 +282,7 @@ end
 setmappedcrs(l::AbstractProjected, mappedcrs; dim) = rebuild(l; mappedcrs, dim=basetypeof(dim)())
 setmappedcrs(A::AbstractArray, mappedcrs; dim=nothing) = A
 function setmappedcrs(l::Sampled, mappedcrs; dim)
-    dim isa Union{XDim,YDim} ? Mapped(l; mappedcrs, dim) : l
+    dim isa Union{XDim,YDim} ? Mpped(l; mappedcrs, dim) : l
 end
 
 

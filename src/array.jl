@@ -231,7 +231,7 @@ function Raster(A::AbstractArray, dims::Tuple;
     crs=nothing, mappedcrs=nothing
 )
     A = Raster(A, Dimensions.format(dims, A), refdims, name, metadata, missingval)
-    A = isnothing(crs) ? A : setmappedcrs(A, crs)
+    A = isnothing(crs) ? A : setcrs(A, crs)
     A = isnothing(mappedcrs) ? A : setmappedcrs(A, mappedcrs)
     return A
 end
