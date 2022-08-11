@@ -334,14 +334,15 @@ function to_edges_and_nodes!(edges, nodes, lastnode, geom)
         i = lastnode + n
         if n == npoints
             # The closing edge of a sub-polygon 
-            closingedge = (i, lastnode + 1)
-            edges[i, :] .= closingedge
+            edges[i, 1] = i
+            edges[i, 2] = lastnode + 1
         else
             # A regular edge somewhere in a sub-polygon
-            edge = (i, i + 1)
-            edges[i, :] .= edge
+            edges[i, 1] = i
+            edges[i, 2] = i + 1
         end
-        nodes[i, :] .= (GI.x(point), GI.y(point))
+        nodes[i, 1] = GI.x(point)
+        nodes[i, 2] = GI.y(point)
     end
     return lastnode + npoints
 end
@@ -350,7 +351,7 @@ end
 # Get the bounds of a geometry
 _extent(geom) = _extent(GI.trait(geom), geom)
 function _extent(::Nothing, data::AbstractVector)
-    reduce(geom; init=_extent(first(data))) do ext, geom
+    reduce(data; init=_extent(first(data))) do ext, geom
         Extents.union(ext, _extent(geom))
     end
 end
