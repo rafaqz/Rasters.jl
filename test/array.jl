@@ -126,3 +126,14 @@ end
     @test vra == ga1
     @test name(vra) == :from_vector
 end
+
+@testset "with properties" begin
+    rast = Raster(rand(X(10:0.1:20), Y(9:0.1:19)); 
+        name=:test, missingval=9999.9, crs=EPSG(4326), mappedcrs=EPSG(3857), refdims=(Ti(DateTime(2000,1,1)),)
+    )
+    @test name(rast) == :test
+    @test missingval(rast) == 9999.9
+    @test crs(rast) == EPSG(4326)
+    @test mappedcrs(rast) == EPSG(3857)
+    @test refdims(rast) == (Ti(DateTime(2000,1,1)),)
+end

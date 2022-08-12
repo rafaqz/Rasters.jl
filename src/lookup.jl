@@ -127,7 +127,7 @@ function Mapped(data=AutoIndex();
     Mapped(data, order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 function Mapped(l::Sampled;
-    order=order(l), span=span(l), sampling=span(l),
+    order=order(l), span=span(l), sampling=sampling(l),
     metadata=metadata(l), crs=nothing, mappedcrs, dim=AutoDim()
 )
     Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
