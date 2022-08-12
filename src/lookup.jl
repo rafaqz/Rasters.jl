@@ -282,7 +282,7 @@ end
 setmappedcrs(l::AbstractProjected, mappedcrs; dim) = rebuild(l; mappedcrs, dim=basetypeof(dim)())
 setmappedcrs(A::AbstractArray, mappedcrs; dim=nothing) = A
 function setmappedcrs(l::Sampled, mappedcrs; dim)
-    dim isa Union{XDim,YDim} ? Mpped(l; mappedcrs, dim) : l
+    dim isa Union{XDim,YDim} ? Mapped(l; mappedcrs, dim) : l
 end
 
 
