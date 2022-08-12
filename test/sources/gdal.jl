@@ -382,6 +382,20 @@ gdalpath = maybedownload(url)
         @test lookup(rotated, X).affinemap.translation == lookup(newrotated, X).affinemap.translation
     end
 
+    @testset "South up/ForwardOrdered Y rasters still work" begin
+        # This is not common in the wild, but should work anyway
+        ArchGDAL.create(
+            "test.tif", driver = ArchGDAL.getdriver("GTiff"), width=240, height=180, nbands=1, dtype=Float32
+        ) do dataset
+            ArchGDAL.write!(dataset, rand(240, 180), 1)
+        end
+        rast = Raster("test.tif")
+        @test order(dims(rast)) == (ForwardOrdered(), ForwardOrdered(), ForwardOrdered())
+        @test span(rast) == (Regular(1.0), Regular(1.0), NoSpan())
+        @test sampling(rast) == (Intervals(Start()), Intervals(Start()), NoSampling())
+        @test index(rast) == (LinRange(0.0, 239.0, 240), LinRange(0.0, 179.0, 180), 1:1)
+    end
+
 end
 
 @testset "stack" begin

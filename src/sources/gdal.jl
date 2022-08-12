@@ -145,18 +145,29 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     # otherwise use Transformed index, with an affine map.
     if _isalligned(gt)
         xstep = gt[GDAL_WE_RES]
-        xmin = gt[GDAL_TOPLEFT_X]
-        xmax = gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
+        if xstep > 0 
+            xmin = gt[GDAL_TOPLEFT_X]
+            xmax = gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
+            xorder = ForwardOrdered()
+        else
+            xmin = gt[GDAL_TOPLEFT_X] + xstep 
+            xmax = gt[GDAL_TOPLEFT_X] + xstep * xsize
+            xorder = ReverseOrdered()
+        end
         xindex = LinRange(xmin, xmax, xsize)
-        xindex_s = xmin:xstep:xmin
-        # @assert length(xindex) == length(xindex_s)
+        xorder = xstep > 0 ? ForwardOrdered() : ReverseOrdered()
 
         ystep = gt[GDAL_NS_RES] # A negative number
-        ymax = gt[GDAL_TOPLEFT_Y] + ystep
-        ymin = gt[GDAL_TOPLEFT_Y] + ystep * ysize
+        if ystep > 0 
+            ymax = gt[GDAL_TOPLEFT_Y]
+            ymin = gt[GDAL_TOPLEFT_Y] + ystep * (ysize - 1)
+            yorder = ForwardOrdered()
+        else
+            ymax = gt[GDAL_TOPLEFT_Y] + ystep
+            ymin = gt[GDAL_TOPLEFT_Y] + ystep * ysize
+            yorder = ReverseOrdered()
+        end
         yindex = LinRange(ymax, ymin, ysize)
-        yindex_s = ymax:ystep:ymin
-        # @assert length(yindex) == length(yindex_s)
 
         # Spatial data defaults to area/inteval
         xsampling, ysampling = if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
@@ -167,7 +178,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
         end
 
         xlookup = Projected(xindex;
-            order=GDAL_X_ORDER,
+            order=xorder,
             span=Regular(step(xindex)),
             sampling=xsampling,
             metadata=xy_metadata,
@@ -175,7 +186,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
             mappedcrs=mappedcrs,
         )
         ylookup = Projected(yindex;
-            order=GDAL_Y_ORDER,
+            order=yorder,
             sampling=ysampling,
             # Use the range step as is will be different to ystep due to float error
             span=Regular(step(yindex)),
