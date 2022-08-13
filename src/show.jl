@@ -11,7 +11,7 @@ function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractRaster)
             print(io, filename(parent(A)))
         end
     else
-        DD.print_array(io, mime, parent(A))
+        DD.print_array(io, mime, A)
     end
 end
 
