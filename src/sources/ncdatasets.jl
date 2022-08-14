@@ -311,6 +311,10 @@ function _ncdlookup(D::Type, index, order::Order, span, sampling, metadata, crs,
     Sampled(index, order, span, sampling, metadata)
 end
 
+function _ncdorder(index)
+    index[end] > index[1] ? ForwardOrdered() : ReverseOrdered()
+end
+
 function _ncdspan(index, order)
     # Handle a length 1 index
     length(index) == 1 && return Regular(zero(eltype(index)))
