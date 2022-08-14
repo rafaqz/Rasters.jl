@@ -34,6 +34,9 @@ reproject(target::GeoFormat, l::LookupArray) = l
 a value array of values, a single dimension at a time.
 """
 reproject(source::GeoFormat, target::GeoFormat, dim, val) = val
+reproject(source::Nothing, target::GeoFormat, dim, val) = val
+reproject(source::GeoFormat, target::Nothing, dim, val) = val
+reproject(source::Nothing, target::Nothing, dim, val) = val
 function reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim}, val::Number)
     # This is a dumb way to do this. But it save having to inspect crs, 
     # and prevents reprojections that dont make sense from working.
@@ -45,6 +48,9 @@ function reproject(source::GeoFormat, target::GeoFormat, dim, vals::NTuple{N}) w
     return ntuple(x -> reps[x], N)
 end
 function reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim}, vals::AbstractArray) 
+    reshape(reproject(source, target, dim, vec(vals)), size(vals))
+end
+function reproject(source::Nothing, target::GeoFormat, dim::Union{XDim,YDim}, vals::AbstractArray) 
     reshape(reproject(source, target, dim, vec(vals)), size(vals))
 end
 function reproject(source::GeoFormat, target::GeoFormat, ::XDim, vals::AbstractVector) 
