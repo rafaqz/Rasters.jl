@@ -120,7 +120,7 @@ _source_crs(T::Type{ALWB}) = crs=EPSG(4326)
 function _filterkw(kw)
     rds = []; gd = []
     for p in kw
-        dest = first(p) in (:date, :month, :res) ? rds : gd
+        dest = first(p) in (:date, :month, :res, :lat, :lon, :km_ab, :km_lr) ? rds : gd
         push!(dest, p)
     end
     rds, gd
