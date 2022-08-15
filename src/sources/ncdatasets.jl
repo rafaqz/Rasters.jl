@@ -259,28 +259,31 @@ _ncddimtype(dimname) = haskey(NCD_DIMMAP, dimname) ? NCD_DIMMAP[dimname] : DD.ba
 function _ncdlookup(ds::NCD.Dataset, dimname, D, crs, mappedcrs)
     dvar = ds[dimname]
     index = dvar[:]
+    @show typeof(index)
     metadata = Metadata{NCDfile}(LA.metadatadict(dvar.attrib))
     return _ncdlookup(ds, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For unknown types we just make a Categorical lookup
 function _ncdlookup(ds::NCD.Dataset, dimname, D, index::AbstractArray, metadata, crs, mappedcrs)
-    Categorical(index; metadata=metadata)
+    Categorical(index; order=Unordered(), metadata=metadata)
 end
 # For Number and AbstractTime we generate order/span/sampling
+# We need to include `Missing` in unions in case `_FillValue` is used
+# on coordinate variables in a file and propagates here.
 function _ncdlookup(
-    ds::NCD.Dataset, dimname, D, index::AbstractArray{<:Union{Number,Dates.AbstractTime}},
+    ds::NCD.Dataset, dimname, D, index::AbstractArray{<:Union{Missing,Number,Dates.AbstractTime}},
     metadata, crs, mappedcrs
 )
     # Assume the locus is at the center of the cell if boundaries aren't provided.
     # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
-    order = _ncdorder(index)
+    order = LA.orderof(index)
     var = NCD.variable(ds, dimname)
     if haskey(var.attrib, "bounds")
         boundskey = var.attrib["bounds"]
         boundsmatrix = Array(ds[boundskey])
         span, sampling = Explicit(boundsmatrix), Intervals(Center())
         return _ncdlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
-    elseif eltype(index) <: Dates.AbstractTime
+    elseif eltype(index) <: Union{Missing,Dates.AbstractTime}
         span, sampling = _ncdperiod(index, metadata)
         return _ncdlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     else
@@ -309,10 +312,6 @@ end
 # Otherwise use a regular Sampled lookup
 function _ncdlookup(D::Type, index, order::Order, span, sampling, metadata, crs, mappedcrs)
     Sampled(index, order, span, sampling, metadata)
-end
-
-function _ncdorder(index)
-    index[end] > index[1] ? ForwardOrdered() : ReverseOrdered()
 end
 
 function _ncdspan(index, order)
