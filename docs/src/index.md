@@ -67,6 +67,7 @@ Note that most regular Julia methods, such as `replace`, work as for a standard
 | [`rasterize`](@ref)       | rasterize point and tabular data, or polygons.                               |
 | [`extract`](@ref)         | extract values using points or tables.                                       |
 | [`inpolygon`](@ref)       | find if a point or points are in a polygon.                                  |
+| [`zonal`](@ref)           | calculate zonal statistics for an object masked by polygons.                 |
 
 
 ### Methods to load, write and modify data sources:
@@ -599,6 +600,7 @@ slice
 subset
 trim
 warp
+zonal
 ```
 
 ### File operations
