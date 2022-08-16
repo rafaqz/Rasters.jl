@@ -41,9 +41,31 @@ countries = Shapefile.Table(shp_name) |> DataFrame
 # Calculate the january mean of all climate variables for all countries
 january_stats = zonal(mean, st; of=countries, boundary=:touches) |> DataFrame
 # Add the country name column (natural earth has some string errors it seems)
-insertcols!(january_stats, 1, :country => countries.ADMIN)
+insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Za-z ]")))
 
 # output
+258×8 DataFrame
+ Row │ country                       tmin           tmax           tavg        ⋯
+     │ SubStrin…                     Float32?       Float32?       Float32?    ⋯
+─────┼──────────────────────────────────────────────────────────────────────────
+   1 │ Indonesia                          21.5472        29.1787        25.363 ⋯
+   2 │ Malaysia                           21.287         28.4143        24.850
+   3 │ Chile                               7.19998       17.8956        12.547
+   4 │ Bolivia                            17.2376        27.7764        22.506
+   5 │ Peru                               15.0198        25.5402        20.28  ⋯
+   6 │ Argentina                          13.6718        27.6623        20.666
+   7 │ Dhekelia Sovereign Base Area  missing        missing        missing
+   8 │ Cyprus                              5.03622       14.2194         9.627
+  ⋮  │              ⋮                      ⋮              ⋮              ⋮     ⋱
+ 252 │ Spratly Islands                    25.1           29.4           27.2   ⋯
+ 253 │ Clipperton Island             missing        missing        missing
+ 254 │ Macao S                       missing        missing        missing
+ 255 │ Ashmore and Cartier Islands   missing        missing        missing
+ 256 │ Bajo Nuevo Bank               missing        missing        missing     ⋯
+ 257 │ Serranilla Bank               missing        missing        missing
+ 258 │ Scarborough Reef              missing        missing        missing
+                                                  5 columns and 243 rows omitted
+```
 """
 zonal(f, x::RasterStackOrArray; of, kw...) = _zonal(f, x, of; kw...)
 
