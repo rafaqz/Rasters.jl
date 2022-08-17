@@ -1,53 +1,40 @@
-const CFG = CfGRIB
+const GDS = GRIBDatasets
 
 const GRIB_DIMMAP = Dict(
-    "lat" => Y,
     "latitude" => Y,
-    "lon" => X,
-    "long" => X,
     "longitude" => X,
     "valid_time" => Ti,
-    "time" => Ti,
-    "lev" => Z,
-    "mlev" => Z,
     "level" => Z,
     "vertical" => Z,
     "x" => X,
     "y" => Y,
     "z" => Z,
-    "band" => Band,
 )
 
 haslayers(::Type{GRIBfile}) = true
 defaultcrs(::Type{GRIBfile}) = EPSG(4326)
 defaultmappedcrs(::Type{GRIBfile}) = EPSG(4326)
 
-# Implement some methods on DataSet and Variable that are needed for conversion to Raster
-
-Base.getindex(ds::CFG.DataSet, index) = getindex(ds.variables, String(index))
-Base.getindex(var::CFG.Variable, index...) = getindex(var.data, index...)
-# Base.getindex(var::CFG.Variable, index) = getindex(var, String(index))
-Base.haskey(ds::CFG.DataSet, key) = haskey(ds.variables, String(key))
-Base.Array(var::CFG.Variable) = Array(var.data)
-Base.size(var::CFG.Variable) = size(var.data)
-DA.readblock!(var::CFG.Variable, args...) = DA.readblock!(var.data, args...)
+# Implement some methods on Dataset and Variable that are needed for conversion to Raster
+Base.Array(var::GDS.Variable) = Array(var.values)
+DA.readblock!(var::GDS.Variable, args...) = DA.readblock!(var.values, args...)
 
 # Raster ########################################################################
 
-function Raster(ds::CFG.DataSet, filename::AbstractString, key=nothing; kw...)
+function Raster(ds::GDS.Dataset, filename::AbstractString, key=nothing; kw...)
     key = _firstkey(ds, key)
     Raster(ds[key], filename, key; kw...)
 end
 
-_firstkey(ds::CFG.DataSet, key::Nothing=nothing) = Symbol(first(layerkeys(ds)))
-_firstkey(ds::CFG.DataSet, key) = Symbol(key)
+_firstkey(ds::GDS.Dataset, key::Nothing=nothing) = Symbol(first(layerkeys(ds)))
+_firstkey(ds::GDS.Dataset, key) = Symbol(key)
 
-_dimkeys(ds::CFG.DataSet) = collect(keys(ds.dimensions))
-_dimnames(var::CFG.Variable) = var.dimensions
+_dimkeys(ds::GDS.Dataset) = collect(keys(ds.dims))
+_dimnames(var::GDS.Variable) = collect(keys(var.dims))
 
 
-function FileArray(var::CFG.Variable, filename::AbstractString; kw...)
-    da = RasterDiskArray{GRIBfile}(var.data)
+function FileArray(var::GDS.Variable, filename::AbstractString; kw...)
+    da = RasterDiskArray{GRIBfile}(var.values)
     size_ = size(da)
     eachchunk = DA.eachchunk(da)
     haschunks = DA.haschunks(da)
@@ -57,53 +44,52 @@ function FileArray(var::CFG.Variable, filename::AbstractString; kw...)
 end
 
 
-# DimensionalData methods for CfGRIB.DataSet types ###############################
+# DimensionalData methods for CfGRIB.Dataset types ###############################
 
-function DD.dims(ds::CFG.DataSet, crs=nothing, mappedcrs=nothing)
+function DD.dims(ds::GDS.Dataset, crs=nothing, mappedcrs=nothing)
     map(_dimkeys(ds)) do key
         _cfgdim(ds, key, crs, mappedcrs)
     end |> Tuple
 end
-function DD.dims(var::CFG.Variable, crs=nothing, mappedcrs=nothing)
+function DD.dims(var::GDS.Variable, crs=nothing, mappedcrs=nothing)
     names = _dimnames(var)
+    ds = var.ds
     map(names) do name
-        # Not good since we have to rebuild the DataSet each time! Should modify CfGRIB to keep a reference to the DataSet in the Variable
-        ds = CFG.DataSet(var.data.grib_path)
         _cfgdim(ds, name, crs, mappedcrs)
     end |> Tuple
 end
 
-DD.metadata(ds::CFG.DataSet) = Metadata{GRIBfile}(LA.metadatadict(ds.attributes))
-DD.metadata(var::CFG.Variable) = Metadata{GRIBfile}(LA.metadatadict(var.attributes))
+DD.metadata(ds::GDS.Dataset) = Metadata{GRIBfile}(LA.metadatadict(ds.attrib))
+DD.metadata(var::GDS.Variable) = Metadata{GRIBfile}(LA.metadatadict(var.attrib))
 
-function DD.layerdims(ds::CFG.DataSet)
+function DD.layerdims(ds::GDS.Dataset)
     keys = Tuple(layerkeys(ds))
     dimtypes = map(keys) do key
         DD.layerdims(ds[string(key)])
     end
     NamedTuple{map(Symbol, keys)}(dimtypes)
 end
-function DD.layerdims(var::CFG.Variable)
+function DD.layerdims(var::GDS.Variable)
     map(_dimnames(var)) do dimname
         _cfgdimtype(dimname)()
     end
 end
 
-DD.layermetadata(ds::CFG.DataSet) = _layermetadata(ds, Tuple(layerkeys(ds)))
-function _layermetadata(ds::CFG.DataSet, keys)
+DD.layermetadata(ds::GDS.Dataset) = _layermetadata(ds, Tuple(layerkeys(ds)))
+function _layermetadata(ds::GDS.Dataset, keys)
     dimtypes = map(k -> DD.metadata(ds[string(k)]), keys)
     NamedTuple{map(Symbol, keys)}(dimtypes)
 end
 
-missingval(var::CFG.Variable) = missing
-missingval(ds::CFG.DataSet) = missing
+missingval(var::GDS.Variable) = missing
+missingval(ds::GDS.Dataset) = missing
 
-function layerkeys(ds::CFG.DataSet)
-    dimension_keys = [k for (k, v) in ds.variables if length(size(v.data)) <= 1]
-    return setdiff(keys(ds.variables), dimension_keys)
+function layerkeys(ds::GDS.Dataset)
+    # dimension_keys = [k for (k, v) in ds.variables if length(size(v.data)) <= 1]
+    GDS.getlayersname(ds)
 end
 
-function FileStack{GRIBfile}(ds::CFG.DataSet, filename::AbstractString; write=false, keys)
+function FileStack{GRIBfile}(ds::GDS.Dataset, filename::AbstractString; write=false, keys)
     keys = map(Symbol, keys isa Nothing ? collect(layerkeys(ds)) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key
         var = ds[string(key)]
@@ -121,18 +107,18 @@ end
 function _open(f, ::Type{GRIBfile}, filename::AbstractString; write=false, kw...)
     isfile(filename) || _filenotfound_error(filename)
     mode = write ? "a" : "r"
-    # CFG.DataSet(filename) do ds
+    # CFG.Dataset(filename) do ds
     #     _open(f, GRIBfile, ds; kw...)
     # end
-    ds = CFG.DataSet(filename)
+    ds = GDS.Dataset(filename)
     _open(f, GRIBfile, ds; kw...)
 end
-function _open(f, ::Type{GRIBfile}, ds::CFG.DataSet; key=nothing, kw...)
+function _open(f, ::Type{GRIBfile}, ds::GDS.Dataset; key=nothing, kw...)
     cleanreturn(f(key isa Nothing ? ds : ds[_firstkey(ds, key)]))
 end
-_open(f, ::Type{GRIBfile}, var::CFG.Variable; kw...) = cleanreturn(f(var))
+_open(f, ::Type{GRIBfile}, var::GDS.Variable; kw...) = cleanreturn(f(var))
 
-cleanreturn(A::CFG.Variable) = Array(A.data)
+cleanreturn(A::GDS.Variable) = Array(A.values)
 
 function _cfgdim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
     if haskey(ds, dimname)
@@ -150,19 +136,19 @@ function _cfgdim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
 end
 
 # Generate a `LookupArray` from a netcdf dim.
-function _cfglookup(ds::CFG.DataSet, dimname, D, crs, mappedcrs)
+function _cfglookup(ds::GDS.Dataset, dimname, D, crs, mappedcrs)
     dvar = ds[dimname]
     index = dvar[:]
-    metadata = Metadata{GRIBfile}(LA.metadatadict(dvar.attributes))
+    metadata = Metadata{GRIBfile}(LA.metadatadict(dvar.attrib))
     return _cfglookup(ds, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For unknown types we just make a Categorical lookup
-function _cfglookup(ds::CFG.DataSet, dimname, D, index::AbstractArray, metadata, crs, mappedcrs)
+function _cfglookup(ds::GDS.Dataset, dimname, D, index::AbstractArray, metadata, crs, mappedcrs)
     Categorical(index; metadata=metadata)
 end
 # For Number and AbstractTime we generate order/span/sampling
 function _cfglookup(
-    ds::CFG.DataSet, dimname, D, index::AbstractArray{<:Union{Number,Dates.AbstractTime}},
+    ds::GDS.Dataset, dimname, D, index::AbstractArray{<:Union{Number,Dates.AbstractTime}},
     metadata, crs, mappedcrs
 )
     # Assume the locus is at the center of the cell if boundaries aren't provided.
@@ -219,5 +205,5 @@ end
 # use the generic Dim with the dim name as type parameter
 _cfgdimtype(dimname) = haskey(GRIB_DIMMAP, dimname) ? GRIB_DIMMAP[dimname] : DD.basetypeof(DD.key2dim(Symbol(dimname)))
 
-_cfg_eachchunk(var) = DA.eachchunk(var.data)
-_cfg_haschunks(var) = DA.haschunks(var.data)
+_cfg_eachchunk(var) = DA.eachchunk(var.values)
+_cfg_haschunks(var) = DA.haschunks(var.values)

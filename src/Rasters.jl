@@ -25,7 +25,7 @@ import Adapt,
        Missings,
        Mmap,
        NCDatasets,
-       CfGRIB,
+       GRIBDatasets,
        RecipesBase,
        Reexport,
        Setfield

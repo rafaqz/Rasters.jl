@@ -1,4 +1,4 @@
-using Rasters, Test, CfGRIB
+using Rasters, Test, GRIBDatasets
 using Rasters: FileArray, FileStack, NCDfile, crs
 
 test_files = [
@@ -18,7 +18,7 @@ test_files = [
     "t_analysis_and_fc_0.grib", # OK
 ]
 
-gribexamples_dir = abspath(joinpath(dirname(pathof(CfGRIB)), "..", "test", "sample-data"))
+gribexamples_dir = abspath(joinpath(dirname(pathof(GRIBDatasets)), "..", "test", "sample-data"))
 
 gribfiles = joinpath.(gribexamples_dir, test_files)
 gribfile = gribfiles[1]
