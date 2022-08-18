@@ -141,6 +141,7 @@ include("methods/zonal.jl")
 
 include("sources/grd.jl")
 include("sources/smap.jl")
+include("sources/common.jl")
 include("sources/ncdatasets.jl")
 include("sources/gdal.jl")
 include("sources/grib.jl")

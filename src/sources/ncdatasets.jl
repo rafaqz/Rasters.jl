@@ -1,5 +1,3 @@
-const NCD = NCDatasets
-
 const UNNAMED_NCD_FILE_KEY = "unnamed"
 
 const NCDAllowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
@@ -156,13 +154,13 @@ end
 
 function DD.dims(ds::NCD.Dataset, crs=nothing, mappedcrs=nothing)
     map(_dimkeys(ds)) do key
-        _ncddim(ds, key, crs, mappedcrs)
+        _dsdim(ds, key, crs, mappedcrs)
     end |> Tuple
 end
 function DD.dims(var::NCD.CFVariable, crs=nothing, mappedcrs=nothing)
     names = NCD.dimnames(var)
     map(names) do name
-        _ncddim(var.var.ds, name, crs, mappedcrs)
+        _dsdim(var.var.ds, name, crs, mappedcrs)
     end |> Tuple
 end
 
@@ -505,8 +503,6 @@ function _ncdshiftlocus(lookup::AbstractSampled, dim::Dimension)
         dim
     end
 end
-
-_unuseddimerror(dimname) = error("Netcdf contains unused dimension $dimname")
 
 function _ncd_eachchunk(var)
     # chunklookup, chunkvec = NCDatasets.chunking(var)
