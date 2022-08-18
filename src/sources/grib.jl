@@ -72,7 +72,7 @@ end
 function DD.layerdims(var::GDS.Variable)
     map(_dimnames(var)) do dimname
         _cfgdimtype(dimname)()
-    end
+    end |> Tuple
 end
 
 DD.layermetadata(ds::GDS.Dataset) = _layermetadata(ds, Tuple(layerkeys(ds)))
