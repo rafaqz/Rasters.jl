@@ -83,10 +83,11 @@ function RasterSeries(T::Type{<:RasterDataSource}, layers;
         nothing
     end
     datedim = if haskey(values(kw), :date)
-        dates = if values(kw)[:date] isa Tuple
+        if values(kw)[:date] isa Tuple
             dates = RasterDataSources.date_sequence(T, values(kw)[:date])
             Ti(dates; lookup=Sampled(; sampling=Intervals(Start())))
         elseif values(kw)[:date] isa AbstractArray
+            dates = values(kw)[:date]
             Ti(dates; lookup=Sampled(; sampling=Intervals(Start())))
         else
             nothing
@@ -95,7 +96,7 @@ function RasterSeries(T::Type{<:RasterDataSource}, layers;
         nothing
     end
     if isnothing(monthdim) && isnothing(datedim)
-        throw(ArgumentError("A RasterSeries can only be constructed from a data source with `date` or `month` keywords that are AbstractArray. For other sources, use RasterStack or Raster directly"))
+        throw(ArgumentError("A RasterSeries can only be constructed from a data source with `date` or `month` keywords that are AbstractArray or Tuple. For other sources, use RasterStack or Raster directly"))
     end
 
     filenames = getraster(T, layers; kw...)

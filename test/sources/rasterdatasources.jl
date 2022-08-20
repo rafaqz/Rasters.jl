@@ -92,11 +92,15 @@ if Sys.islinux()
         @test crs(st) == EPSG(4326)
         dates = DateTime(2019, 09, 19), DateTime(2019, 11, 19)
         s = RasterSeries(AWAP, layers; date=dates, resize=crop)
+        # test date as an Array
+        s2 = RasterSeries(AWAP, layers; date=[dates...], resize=crop)
         # s = RasterSeries(AWAP; date=dates, resize=resample, crs=EPSG(4326)) TODO: all the same
         # s = RasterSeries(AWAP; date=dates, resize=extend) TODO: this is slow !!!
         @test crs(s[1][:rainfall]) == EPSG(4326)
         @test A isa Raster
         @test st isa RasterStack
         @test s isa RasterSeries
+        @test s2 isa RasterSeries
+        @test length(s2) == 2 # date is an array: don't take intermediate steps
     end
 end
