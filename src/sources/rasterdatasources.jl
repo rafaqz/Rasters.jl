@@ -84,7 +84,7 @@ function RasterSeries(T::Type{<:RasterDataSource}, layers;
     end
     datedim = if haskey(values(kw), :date)
         if values(kw)[:date] isa Tuple
-            dates = RasterDataSources.date_sequence(T, values(kw)[:date])
+            dates = RasterDataSources.date_sequence(T, values(kw)[:date]; kw...)
             Ti(dates; lookup=Sampled(; sampling=Intervals(Start())))
         elseif values(kw)[:date] isa AbstractArray
             dates = values(kw)[:date]
