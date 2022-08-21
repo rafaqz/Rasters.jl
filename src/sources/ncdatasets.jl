@@ -259,7 +259,6 @@ _ncddimtype(dimname) = haskey(NCD_DIMMAP, dimname) ? NCD_DIMMAP[dimname] : DD.ba
 function _ncdlookup(ds::NCD.Dataset, dimname, D, crs, mappedcrs)
     dvar = ds[dimname]
     index = dvar[:]
-    @show typeof(index)
     metadata = Metadata{NCDfile}(LA.metadatadict(dvar.attrib))
     return _ncdlookup(ds, dimname, D, index, metadata, crs, mappedcrs)
 end
