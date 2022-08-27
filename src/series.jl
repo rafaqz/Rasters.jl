@@ -63,10 +63,11 @@ Concrete implementation of [`AbstractRasterSeries`](@ref).
 - `refdims`: existing reference dimension/s.
 - `child`: constructor of child objects for use with filenames are passed in,
     can be `Raster` or `RasterStack`. Defaults to `Raster`.
+- `lazy`: load files lazily. This is `true` by default for series, as it is common to
+    load many files to openare over lazily.
 - `duplicate_first::Bool`: wether to duplicate the dimensions and metadata of the
     first file with all other files. This can save load time with a large
-    series where dimensions are essentially identical. `true` by default to improve
-    load times. If you need exact metadata, set to `false`.
+    series where dimensions are essentially identical. `false` by default.
 - `ext`: filename extension such as ".tiff" to find when only a directory path is passed in. 
 - `kw`: keywords passed to the child constructor [`Raster`](@ref) or [`RasterStack`](@ref)
     if only file names are passed in.
@@ -85,14 +86,14 @@ function RasterSeries(filenames::NamedTuple{K}, dims; kw...) where K
     RasterSeries(map((fns...) -> NamedTuple{K}(fns), values(filenames)...), dims; kw...) 
 end
 function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims; 
-    refdims=(), duplicate_first=true, child=nothing, resize=nothing, kw...
+    refdims=(), lazy=true, duplicate_first=false, child=nothing, resize=nothing, kw...
 )
     childtype = if isnothing(child)
         eltype(filenames) <: NamedTuple ? RasterStack : Raster
     else
         child
     end
-    data = if duplicate_first
+    data = if lazy && duplicate_first
         # We assume all dims, metadata and missingvals are the same over the series
         # We just load the first object, and swap in the filenames of the others.
         data1 = if childtype <: AbstractRaster
@@ -106,9 +107,9 @@ function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple
     else
         # Load everything separately
         if childtype <: AbstractRaster
-            [childtype(fn; kw...) for fn in filenames]
+            [childtype(fn; lazy, kw...) for fn in filenames]
         else
-            [childtype(fn; resize, kw...) for fn in filenames]
+            [childtype(fn; resize, lazy, kw...) for fn in filenames]
         end
     end
     return RasterSeries(data, DD.format(dims, data); refdims)

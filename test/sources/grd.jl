@@ -419,9 +419,12 @@ end
 end
 
 @testset "Grd series" begin
-    grdseries = RasterSeries([grdpath, grdpath], (Ti,); mappedcrs=EPSG(4326))
-    @test grdseries[Ti(1)] == Raster(grdpath; mappedcrs=EPSG(4326))
-    stacks = [RasterStack((a=grdpath, b=grdpath); mappedcrs=EPSG(4326))]
+    grdpath2 = grdpath * 2
+    write(grdpath2, 2 .* Raster(grdpath))
+    grdseries = RasterSeries([grdpath, grdpath2], (Ti,); mappedcrs=EPSG(4326))
+    @test grdseries[Ti(1)] == Raster(grdpath)
+    @test grdseries[Ti(2)] == Raster(grdpath2; mappedcrs=EPSG(4326))
+    stacks = [RasterStack((a=grdpath, b=grdpath); mappedcrs=EPSG(4326)), RasterStack((a=grdpath2, b=grdpath2); mappedcrs=EPSG(4326))]
 
     grdseries2 = RasterSeries(stacks, (Ti,))
     @test all(grdseries2[Ti(1)][:a] .== Raster(grdpath; mappedcrs=EPSG(4326), name=:test))
