@@ -48,9 +48,9 @@ stackkeys = (
         @time A = read(ncarray);
         @test A isa Raster
         @test parent(A) isa Array
-        A2 = zero(A)
+        A2 = copy(A) .= 0
         @time read!(ncarray, A2);
-        A3 = zero(A)
+        A3 = copy(A) .= 0
         @time read!(ncsingle, A3)
         @test all(A .=== A2) 
         @test all(A .=== A3)
