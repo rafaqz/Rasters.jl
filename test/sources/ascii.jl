@@ -38,4 +38,9 @@ ascpath = "britanny.asc"
         @time read!(ascpath, A3);
         @test A == A2 == A3
     end
+        
+    @testset "array properties" begin
+        @test ascarray isa Raster{Float64,2}
+    end
+
 end
