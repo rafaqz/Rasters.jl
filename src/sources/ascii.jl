@@ -18,6 +18,7 @@ params(ap::ASCIIparams) = ap.params
 filename(ap::ASCIIparams) = ap.filename
 
 # DimensionalData methods
+#########################
 
 function DD.dims(ap::ASCIIparams, crs=nothing, mappedcrs=nothing)
     crs = crs isa Nothing ? ASCII_DEFAULT_CRS : crs
@@ -82,6 +83,8 @@ end
 Base.Array(ap::ASCIIparams) = _asciigrid(a -> Array(a), ap)
 
 # Array
+#######
+
 function FileArray(ap::ASCIIparams, filename = filename(ap); kw...)
     size_ = size(ap)
     eachchunk = DiskArrays.GridChunks(size_, size_)
@@ -92,6 +95,7 @@ function FileArray(ap::ASCIIparams, filename = filename(ap); kw...)
 end
 
 # Base i/o methods
+###################
 
 # data (ASCIIfile) and metadata (ASCIIparams) objects are separate 
 # so data is opened using _asciigrid
@@ -128,6 +132,9 @@ function _asciigrid(f, filename::AbstractString, T::Type, size::Tuple; write = f
     end
     dat
 end
+
+# Utilities
+###########
 
 function _detect_datatype(pars)
     Float64
