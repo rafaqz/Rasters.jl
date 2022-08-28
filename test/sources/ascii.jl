@@ -27,4 +27,15 @@ ascpath = "britanny.asc"
         end
         @test Raster(tempfile * ".asc") == ascarray .* 2
     end
+
+    @testset "read" begin
+        A = read(ascarray)
+        @test A isa Raster
+        @test parent(A) isa Array
+        A2 = zero(A)
+        @time read!(ascarray, A2);
+        A3 = zero(A)
+        @time read!(ascpath, A3);
+        @test A == A2 == A3
+    end
 end
