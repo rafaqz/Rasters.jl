@@ -111,6 +111,49 @@ end
 
 _open(f, ::Type{ASCIIfile}, ap::ASCIIparams; kw...) = f(ap)
 
+function Base.write(filename::String, ::Type{ASCIIfile}, A::AbstractRaster{T, 2}) where T
+    # handle nodatavalue:
+    # set to default if missingval is not defined
+    if ismissing(missingval(A)) || isnothing(missingval(A))
+        A = replace_missing(A, -9999)
+    end
+
+    correctedA = permutedims(A, (X, Y)) |>
+        a -> reorder(a, (X(ForwardOrdered()), Y(ReverseOrdered())))
+
+    #build header
+    ncols, nrows = size(A)
+
+    xbounds, ybounds = bounds(A, (X, Y))
+    
+    xll = min(xbounds...)
+    yll = min(ybounds...)
+
+    dx = abs((xbounds[1] - xbounds[2])/ncols)
+    dy = abs((ybounds[1] - ybounds[2])/nrows)
+
+    type = eltype(A)
+
+    nodatavalue = type(missingval(A))
+
+    pars = (
+        ncols = ncols,
+        nrows = nrows,
+        xll = xll,
+        yll = yll,
+        dx = dx,
+        dy = dy,
+        nodatavalue = nodatavalue
+    )
+
+    ASCIIrasters.write_ascii(filename, _flip(correctedA, (nrows, ncols), type), pars)
+
+    return filename
+end
+
+# Utilities
+###########
+
 function _asciigrid(f::Function, ap::Union{ASCIIparams, FileArray}; kw...)
     _asciigrid(f, filename(ap), eltype(ap), size(ap); kw...)
 end
@@ -130,9 +173,6 @@ function _asciigrid(f, filename::AbstractString, T::Type, size::Tuple; write = f
     end
     dat
 end
-
-# Utilities
-###########
 
 function _detect_datatype(pars)
     Float64
