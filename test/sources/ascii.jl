@@ -1,4 +1,4 @@
-using Rasters, Test, Dates, DimensionalData, RasterDataSources
+using Rasters, Test, Dates, DimensionalData, RasterDataSources, Statistics, Plots
 using Rasters.LookupArrays, Rasters.Dimensions
 using Rasters: FileArray, ASCIIfile
 
@@ -76,6 +76,23 @@ ascpath = getraster(MOD13Q1, :NDVI; RasterDataSources.crozon...)
         @test ascarray[6, 3] == 7432.0
         @test ascarray[Y(At(1; atol=1e10)), X(At(2; atol=1e10))] == -3000.0
         @test ascarray[Y(Contains(48.24)), X(Contains(-4.49))] == 5592.0
+    end
+
+    @testset "methods" begin
+        @test mean(ascarray) == 5736.0
+        @test mean(ascarray; dims=Y) == mean(parent(ascarray); dims=2)
+
+        @testset "trim, crop, extend" begin
+            a = read(ascarray)
+            a[X(1:2)] .= missingval(a)
+            trimmed = trim(a)
+            @test size(trimmed) == (7, 9)
+            cropped = crop(a; to = trimmed)
+            @test size(cropped) == (7, 9)
+            # @test all(collect(cropped .== trimmed))
+            # extended = extend(cropped; to = b)
+            # @test all(collect(extended .== b))
+        end
     end
 
 end
