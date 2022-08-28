@@ -1,10 +1,10 @@
-using Rasters, Test, Dates, DimensionalData
+using Rasters, Test, Dates, DimensionalData, RasterDataSources
 using Rasters.LookupArrays, Rasters.Dimensions
 using Rasters: FileArray, ASCIIfile
 
 const DD = DimensionalData
 
-ascpath = "britanny.asc"
+ascpath = getraster(MOD13Q1, :NDVI; RasterDataSources.crozon...)
 
 @testset "ASCII array" begin
     @time ascarray = Raster(ascpath)
@@ -45,11 +45,11 @@ ascpath = "britanny.asc"
     end
 
     @testset "dimensions" begin
-        @test length(val(dims(dims(ascarray), X))) == 401
+        @test length(val(dims(dims(ascarray), X))) == 9
         @test ndims(ascarray) == 2
         @test dims(ascarray) isa Tuple{<:X,<:Y}
         @test refdims(ascarray) == ()
-        @test bounds(ascarray) == ((-4.591421949457, -3.3483663541919997), (47.832347916354, 48.665462015892))
+        @test bounds(ascarray) == ((-4.513046935220226, -4.484930533174481), (48.231304357467636, 48.24592039430238))
     end
 
     @testset "fields" begin
@@ -72,10 +72,10 @@ ascpath = "britanny.asc"
     @testset "getindex" begin
         @test ascarray[X(1)] isa Raster{Float64, 1}
         @test ascarray[Y(1)] isa Raster{Float64, 1}
-        @test ascarray[X(12), Y(56)] == 5340.0
-        @test ascarray[35, 42] == 7482.0
-        @test ascarray[Y(At(20.0; atol=1e10)), X(At(20; atol=1e10))] == 5500.0
-        @test ascarray[Y(Contains(48.5)), X(Contains(-4.2))] == 6624.0
+        @test ascarray[X(8), Y(7)] == 2425.0
+        @test ascarray[6, 3] == 7432.0
+        @test ascarray[Y(At(1; atol=1e10)), X(At(2; atol=1e10))] == -3000.0
+        @test ascarray[Y(Contains(48.24)), X(Contains(-4.49))] == 5592.0
     end
 
 end
