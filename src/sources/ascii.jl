@@ -121,8 +121,6 @@ function _asciigrid(f, filename::AbstractString, T::Type, size::Tuple; write = f
         # dat is a nr x nc matrix, we want a nc x nr matrix for use
         # as Raster.data
         mat = _flip(dat, size, _detect_datatype(pars))
-        
-        
         output = f(mat)
         output, pars
     end
@@ -141,10 +139,11 @@ function _detect_datatype(pars)
 end
 
 function _flip(mat, size, type)
-    out = Matrix{type}(undef,size[2], size[1])
-    for r in 1:size[2]
-        for c in 1:size[1]
-            out[c,r] = mat[r,c]
+    new_nr, new_nc = size # size is a raster size so nc x nr
+    out = Matrix{type}(undef,new_nr, new_nc)
+    for r in 1:new_nr
+        for c in 1:new_nc
+            out[r,c] = mat[c,r]
         end
     end
     out
