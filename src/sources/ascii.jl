@@ -78,7 +78,7 @@ function Base.size(ap::ASCIIparams)
     params(ap)[:ncols], params(ap)[:nrows]
 end
 
-Base.Array(ap::ASCIIparams) = _open(a -> Array(a), ap)
+Base.Array(ap::ASCIIparams) = _asciigrid(a -> Array(a), ap)
 
 # Array
 function FileArray(ap::ASCIIparams, filename = filename(ap); kw...)
@@ -92,8 +92,10 @@ end
 
 # Base i/o methods
 
+# data (ASCIIfile) and metadata (ASCIIparams) objects are separate 
+# so data is opened using _asciigrid
 function Base.open(f::Function, A::FileArray{ASCIIfile}, key...; write = A.write)
-    _open(dat -> f(RasterDiskArray{ASCIIfile}(dat, A.eachchunk, A.haschunks)), A; write)
+    _asciigrid(dat -> f(RasterDiskArray{ASCIIfile}(dat, A.eachchunk, A.haschunks)), A; write)
 end
 
 # also called by _open(f, fa::FileArray{ASCIIfile})
@@ -104,18 +106,38 @@ end
 
 _open(f, ::Type{ASCIIfile}, ap::ASCIIparams; kw...) = f(ap)
 
-function _open(f::Function, ap::ASCIIparams; kw...)
+function _asciigrid(f::Function, ap::Union{ASCIIparams, FileArray}; kw...)
     _asciigrid(f, filename(ap), eltype(ap), size(ap); kw...)
 end
 
 function _asciigrid(f, filename::AbstractString, T::Type, size::Tuple; write = false, kw...)
-    out = open(filename, "r") do io
+    dat, pars = open(filename, "r") do io
         dat, pars = ASCIIrasters.read_ascii(filename; lazy = false)
-        output = f(dat)
-        output
+        # dat is a nr x nc matrix, we want a nc x nr matrix for use
+        # as Raster.data
+        mat = _flip(dat, size, _detect_datatype(pars))
+        
+        
+        output = f(mat)
+        output, pars
     end
     if write
-        ASCIIrasters.write_ascii(filename, dat; pars...)
+        mat = _flip(dat, (size[2], size[1]), _detect_datatype(pars))
+        ASCIIrasters.write_ascii(filename, mat; pars...)
+    end
+    dat
+end
+
+function _detect_datatype(pars)
+    Float64
+end
+
+function _flip(mat, size, type)
+    out = Matrix{type}(undef,size[2], size[1])
+    for r in 1:size[2]
+        for c in 1:size[1]
+            out[c,r] = mat[r,c]
+        end
     end
     out
 end
