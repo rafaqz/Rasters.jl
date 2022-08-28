@@ -27,7 +27,8 @@ import Adapt,
        NCDatasets,
        RecipesBase,
        Reexport,
-       Setfield
+       Setfield,
+       ASCIIrasters
 
 Reexport.@reexport using DimensionalData, GeoFormatTypes, RasterDataSources
 
