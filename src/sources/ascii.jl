@@ -33,7 +33,7 @@ function DD.dims(ap::ASCIIparams, crs=nothing, mappedcrs=nothing)
     xspan = (xbounds[2] - xbounds[1]) / nc
     yspan = (ybounds[2] - ybounds[1]) / nr
 
-    # Not fully implemented yet
+    # Not implemented yet
     xy_metadata = Metadata{ASCIIfile}(Dict())
 
     xindex = LinRange(xbounds[1], xbounds[2] - xspan, nc)
@@ -67,6 +67,7 @@ end
 
 missingval(ap::ASCIIparams) = params(ap)[:nodatavalue]
 
+# no metadata for now
 DD.metadata(ap::ASCIIparams) = Metadata{ASCIIfile}()
 DD.ndims(ap::ASCIIparams) = 2
 
