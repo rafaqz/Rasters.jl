@@ -1,0 +1,1 @@
+has_layers(::Type{ASCIIfile}) = false

@@ -85,6 +85,7 @@ struct NCDfile end
 struct GRDfile end
 struct GDALfile end
 struct SMAPfile end
+struct ASCIIfile end
 
 include("lookup.jl")
 include("dimensions.jl")
@@ -130,6 +131,7 @@ include("methods/zonal.jl")
 include("sources/grd.jl")
 include("sources/smap.jl")
 include("sources/ncdatasets.jl")
+include("sources/ascii.jl")
 include("sources/gdal.jl")
 include("sources/rasterdatasources.jl")
 
