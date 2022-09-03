@@ -174,7 +174,7 @@ end
 _mosaic(alldims::Tuple{<:DimTuple,Vararg{<:DimTuple}}) = map(_mosaic, alldims...)
 function _mosaic(dims::Dimension...)
     map(dims) do d
-        DD.comparedims(first(dims), d; val=false, length=false, lookup=true)
+        DD.comparedims(first(dims), d; val=false, length=false, valtype=true)
     end
     return rebuild(first(dims), _mosaic(lookup(dims)))
 end
