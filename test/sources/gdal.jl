@@ -3,6 +3,10 @@ using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
 using Rasters: FileArray, GDALfile, crs, bounds
 
+using SnoopCompile
+
+a@snoopi_deep
+
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 gdalpath = maybedownload(url)

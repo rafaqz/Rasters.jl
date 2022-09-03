@@ -86,7 +86,7 @@ function RasterSeries(filenames::NamedTuple{K}, dims; kw...) where K
     RasterSeries(map((fns...) -> NamedTuple{K}(fns), values(filenames)...), dims; kw...) 
 end
 function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims; 
-    refdims=(), lazy=true, duplicate_first=false, child=nothing, resize=nothing, kw...
+    refdims=(), lazy=false, duplicate_first=false, child=nothing, resize=nothing, kw...
 )
     childtype = if isnothing(child)
         eltype(filenames) <: NamedTuple ? RasterStack : Raster
@@ -97,9 +97,9 @@ function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple
         # We assume all dims, metadata and missingvals are the same over the series
         # We just load the first object, and swap in the filenames of the others.
         data1 = if childtype <: AbstractRaster
-            childtype(first(filenames); kw...)
+            childtype(first(filenames); lazy, kw...)
         else
-            childtype(first(filenames); resize, kw...)
+            childtype(first(filenames); lazy, resize, kw...)
         end
         map(filenames) do fn
             swap_filename(data1, fn)
@@ -144,6 +144,7 @@ end
 # This is used to use already loaded metadata of one file with another
 # file that is similar or identical besides tha actual raster data.
 swap_filename(x, filename) = rebuild(x, data=swap_filename(parent(x), filename))
+swap_filename(x::Raster, filename::AbstractString) = rebuild(x, data=swap_filename(parent(x), filename))
 swap_filename(x::NamedTuple, filenames::NamedTuple) = map(swap_filename, x, filenames)
 swap_filename(x::FileStack, filename::AbstractString) = @set x.filename = filename
 swap_filename(x::FileArray, filename::AbstractString) = @set x.filename = filename
@@ -151,6 +152,7 @@ function swap_filename(x::AbstractArray, filename::AbstractString)
     # The `FileArray` is wrapped, so use Flatten.jl to update it wherever it is
     ignore = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
     Flatten.modify(x, FileArray, ignore) do fa
-        @set fa.filename = filename
+
+        @set fa.flename = filename
     end
 end

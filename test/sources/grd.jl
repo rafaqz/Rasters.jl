@@ -419,11 +419,14 @@ end
 end
 
 @testset "Grd series" begin
-    grdpath2 = grdpath * 2
+    grdpath2 = stem * "2" * ".gri"
     write(grdpath2, 2 .* Raster(grdpath))
-    grdseries = RasterSeries([grdpath, grdpath2], (Ti,); mappedcrs=EPSG(4326))
-    @test grdseries[Ti(1)] == Raster(grdpath)
-    @test grdseries[Ti(2)] == Raster(grdpath2; mappedcrs=EPSG(4326))
+    Raster(grdpath) .* 2 == Raster(grdpath2)
+    eager_grdseries = RasterSeries([grdpath, grdpath2], (Ti,); mappedcrs=EPSG(4326))
+    lazy_grdseries = RasterSeries([grdpath, grdpath2], (Ti,); mappedcrs=EPSG(4326), lazy=true)
+    duplicate_first_grdseries = RasterSeries([grdpath, grdpath2], (Ti,); mappedcrs=EPSG(4326), lazy=true, duplicate_first=true)
+    @test eager_grdseries[Ti(1)] == lazy_grdseries[Ti(1)] == duplicate_first_grdseries[Ti(1)] == Raster(grdpath)
+    @test eager_grdseries[Ti(2)] == lazy_grdseries[Ti(2)] == duplicate_first_grdseries[Ti(2)] == Raster(grdpath2)
     stacks = [RasterStack((a=grdpath, b=grdpath); mappedcrs=EPSG(4326)), RasterStack((a=grdpath2, b=grdpath2); mappedcrs=EPSG(4326))]
 
     grdseries2 = RasterSeries(stacks, (Ti,))
