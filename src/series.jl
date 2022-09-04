@@ -63,10 +63,11 @@ Concrete implementation of [`AbstractRasterSeries`](@ref).
 - `refdims`: existing reference dimension/s.
 - `child`: constructor of child objects for use with filenames are passed in,
     can be `Raster` or `RasterStack`. Defaults to `Raster`.
+- `lazy`: load files lazily. This is `true` by default for series, as it is common to
+    load many files to openare over lazily.
 - `duplicate_first::Bool`: wether to duplicate the dimensions and metadata of the
     first file with all other files. This can save load time with a large
-    series where dimensions are essentially identical. `true` by default to improve
-    load times. If you need exact metadata, set to `false`.
+    series where dimensions are essentially identical. `false` by default.
 - `ext`: filename extension such as ".tiff" to find when only a directory path is passed in. 
 - `kw`: keywords passed to the child constructor [`Raster`](@ref) or [`RasterStack`](@ref)
     if only file names are passed in.
@@ -85,20 +86,20 @@ function RasterSeries(filenames::NamedTuple{K}, dims; kw...) where K
     RasterSeries(map((fns...) -> NamedTuple{K}(fns), values(filenames)...), dims; kw...) 
 end
 function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims; 
-    refdims=(), duplicate_first=true, child=nothing, resize=nothing, kw...
+    refdims=(), lazy=false, duplicate_first=false, child=nothing, resize=nothing, kw...
 )
     childtype = if isnothing(child)
         eltype(filenames) <: NamedTuple ? RasterStack : Raster
     else
         child
     end
-    data = if duplicate_first
+    data = if lazy && duplicate_first
         # We assume all dims, metadata and missingvals are the same over the series
         # We just load the first object, and swap in the filenames of the others.
         data1 = if childtype <: AbstractRaster
-            childtype(first(filenames); kw...)
+            childtype(first(filenames); lazy, kw...)
         else
-            childtype(first(filenames); resize, kw...)
+            childtype(first(filenames); lazy, resize, kw...)
         end
         map(filenames) do fn
             swap_filename(data1, fn)
@@ -106,9 +107,9 @@ function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple
     else
         # Load everything separately
         if childtype <: AbstractRaster
-            [childtype(fn; kw...) for fn in filenames]
+            [childtype(fn; lazy, kw...) for fn in filenames]
         else
-            [childtype(fn; resize, kw...) for fn in filenames]
+            [childtype(fn; resize, lazy, kw...) for fn in filenames]
         end
     end
     return RasterSeries(data, DD.format(dims, data); refdims)
@@ -143,6 +144,7 @@ end
 # This is used to use already loaded metadata of one file with another
 # file that is similar or identical besides tha actual raster data.
 swap_filename(x, filename) = rebuild(x, data=swap_filename(parent(x), filename))
+swap_filename(x::Raster, filename::AbstractString) = rebuild(x, data=swap_filename(parent(x), filename))
 swap_filename(x::NamedTuple, filenames::NamedTuple) = map(swap_filename, x, filenames)
 swap_filename(x::FileStack, filename::AbstractString) = @set x.filename = filename
 swap_filename(x::FileArray, filename::AbstractString) = @set x.filename = filename
@@ -150,6 +152,7 @@ function swap_filename(x::AbstractArray, filename::AbstractString)
     # The `FileArray` is wrapped, so use Flatten.jl to update it wherever it is
     ignore = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
     Flatten.modify(x, FileArray, ignore) do fa
-        @set fa.filename = filename
+
+        @set fa.flename = filename
     end
 end
