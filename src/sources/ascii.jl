@@ -115,7 +115,7 @@ function Base.write(filename::String, ::Type{ASCIIfile}, A::AbstractRaster{T, 2}
     # handle nodatavalue:
     # set to default if missingval is not defined
     if ismissing(missingval(A)) || isnothing(missingval(A))
-        A = replace_missing(A, -9999)
+        A = replace_missing(A, -9999.0)
     end
 
     correctedA = permutedims(A, (X, Y)) |>
