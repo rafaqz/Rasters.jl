@@ -171,8 +171,7 @@ function _layermetadata(ds, keys)
     NamedTuple{map(Symbol, keys)}(dimtypes)
 end
 
-missingval(var::NCD.CFVariable) = missing
-missingval(ds::NCD.Dataset) = missing
+missingval(var::NCD.CFVariable{T}) where T = missing isa T ? missing : nothing
 
 function layerkeys(ds::NCD.Dataset)
     dimkeys = _dimkeys(ds)
