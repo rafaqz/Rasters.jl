@@ -330,7 +330,7 @@ end
 # Analyse a single geometry
 function to_edges_and_nodes!(edges, nodes, lastnode, geom)
     npoints = GI.npoint(geom)
-    for (n, point) in enumerate(GI.getgeom(geom))
+    for (n, point) in enumerate(GI.getpoint(geom))
         i = lastnode + n
         if n == npoints
             # The closing edge of a sub-polygon 
