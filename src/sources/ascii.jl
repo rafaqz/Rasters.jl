@@ -163,12 +163,13 @@ function _asciigrid(f, filename::AbstractString, T::Type, size::Tuple; write = f
         dat, pars = ASCIIrasters.read_ascii(filename; lazy = false)
         # dat is a nr x nc matrix, we want a nc x nr matrix for use
         # as Raster.data
-        mat = _flip(dat, size, _detect_datatype(pars))
+        mat = permutedims(dat, (2, 1))
         output = f(mat)
         output, pars
     end
     if write
-        mat = _flip(dat, (size[2], size[1]), _detect_datatype(pars))
+        # mat = _flip(dat, (size[2], size[1]), _detect_datatype(pars))
+        mat = permutedims(dat, (2,1))
         ASCIIrasters.write_ascii(filename, mat; pars...)
     end
     dat
