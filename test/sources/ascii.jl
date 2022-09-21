@@ -41,7 +41,7 @@ ascpath = getraster(MOD13Q1, :NDVI; RasterDataSources.crozon...)
     end
         
     @testset "array properties" begin
-        @test ascarray isa Raster{Float64,2}
+        @test ascarray isa Raster{Float32,2}
     end
 
     @testset "dimensions" begin
@@ -70,8 +70,8 @@ ascpath = getraster(MOD13Q1, :NDVI; RasterDataSources.crozon...)
     end
 
     @testset "getindex" begin
-        @test ascarray[X(1)] isa Raster{Float64, 1}
-        @test ascarray[Y(1)] isa Raster{Float64, 1}
+        @test ascarray[X(1)] isa Raster{Float32, 1}
+        @test ascarray[Y(1)] isa Raster{Float32, 1}
         @test ascarray[X(8), Y(7)] == 2425.0
         @test ascarray[6, 3] == 7432.0
         @test ascarray[Y(At(1; atol=1e10)), X(At(2; atol=1e10))] == -3000.0
