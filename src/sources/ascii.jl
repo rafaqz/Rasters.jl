@@ -174,18 +174,3 @@ function _asciigrid(f, filename::AbstractString, T::Type, size::Tuple; write = f
     end
     dat
 end
-
-function _detect_datatype(pars)
-    Float64
-end
-
-function _flip(mat, size, type)
-    new_nr, new_nc = size # size is a raster size so nc x nr
-    out = Matrix{type}(undef,new_nr, new_nc)
-    for r in 1:new_nr
-        for c in 1:new_nc
-            out[r,c] = mat[c,r]
-        end
-    end
-    out
-end
