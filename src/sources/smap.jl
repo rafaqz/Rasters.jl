@@ -185,8 +185,9 @@ end
 
 # Utils ########################################################################
 
-function _open(f, ::Type{SMAPfile}, filepath::AbstractString; key=nothing, kw...)
-    h5open(filepath; kw...) do ds
+function _open(f, ::Type{SMAPfile}, filename::AbstractString; key=nothing, kw...)
+    isfile(filename) || _filenotfound_error(filename)
+    h5open(filename; kw...) do ds
         _open(f, SMAPfile, SMAPhdf5(ds); key, kw...)
     end
 end
