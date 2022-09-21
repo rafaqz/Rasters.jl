@@ -168,7 +168,6 @@ function _asciigrid(f, filename::AbstractString, T::Type, size::Tuple; write = f
         output, pars
     end
     if write
-        # mat = _flip(dat, (size[2], size[1]), _detect_datatype(pars))
         mat = permutedims(dat, (2,1))
         ASCIIrasters.write_ascii(filename, mat; pars...)
     end
