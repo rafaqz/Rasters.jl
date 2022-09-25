@@ -363,6 +363,3 @@ defaultcrs(T::Type) = nothing
 defaultmappedcrs(T::Type, crs) = crs
 defaultmappedcrs(T::Type, ::Nothing) = defaultmappedcrs(T)
 defaultmappedcrs(T::Type) = nothing
-
-# Precompile
-precompile(RasterStack, (String,))
