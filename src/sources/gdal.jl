@@ -215,8 +215,8 @@ function DD.metadata(raster::AG.RasterDataset, args...)
     # norvw = AG.noverview(band)
     path = first(AG.filelist(raster))
     units = AG.getunittype(band)
-    upair = units == "" ? () : (:units=>units,)
-    Metadata{GDALfile}(Dict(:filepath=>path, :scale=>scale, :offset=>offset, upair...))
+    upair = units == "" ? () : ("units"=>units,)
+    _metadatadict(GDALfile, "filepath"=>path, "scale"=>scale, "offset"=>offset, upair...)
 end
 
 # Rasters methods for ArchGDAL types ##############################

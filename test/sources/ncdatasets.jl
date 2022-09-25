@@ -88,7 +88,7 @@ stackkeys = (
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
-        @test metadata(ncarray) isa Metadata{NCDfile}
+        @test metadata(ncarray) isa Metadata{NCDfile,Dict{String,Any}}
         @test name(ncarray) == :tos
     end
 
@@ -219,7 +219,7 @@ stackkeys = (
                 all(s .== g)
             end |> all
             @test metadata(saved) == metadata(geoA)
-            @test all(metadata.(dims(saved)) == metadata.(dims(geoA)))
+            @test_broken all(metadata(dims(saved))[2] == metadata.(dims(geoA))[2])
             @test Rasters.name(saved) == Rasters.name(geoA)
             @test all(lookup.(dims(saved)) .== lookup.(dims(geoA)))
             @test all(order.(dims(saved)) .== order.(dims(geoA)))
@@ -322,7 +322,6 @@ end
     @testset "load ncstack" begin
         @test ncstack isa RasterStack
         @test ismissing(missingval(ncstack))
-        @test metadata(ncstack) isa Metadata{NCDfile}
         @test dims(ncstack[:abso4]) == dims(ncstack, (X, Y, Ti)) 
         @test refdims(ncstack) == ()
         # Loads child as a regular Raster
@@ -334,10 +333,10 @@ end
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test keys(ncstack) == stackkeys
         @test first(keys(ncstack)) == :abso4
-        @test metadata(ncstack) isa Metadata{NCDfile}
-        @test metadata(ncstack)[:institution] == "Max-Planck-Institute for Meteorology"
-        @test metadata(ncstack[:albedo]) isa Metadata{NCDfile}
-        @test metadata(ncstack[:albedo])[:long_name] == "surface albedo"
+        @test metadata(ncstack) isa Metadata{NCDfile,Dict{String,Any}}
+        @test metadata(ncstack)["institution"] == "Max-Planck-Institute for Meteorology"
+        @test metadata(ncstack[:albedo]) isa Metadata{NCDfile,Dict{String,Any}}
+        @test metadata(ncstack[:albedo])["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
         @test axes(mean(ncstack[:albedo, Y(1:20)] , dims=Ti)) ==
@@ -383,7 +382,7 @@ end
         write(filename, st);
         saved = RasterStack(RasterStack(filename))
         @test keys(saved) == keys(st)
-        @test metadata(saved)[:advection] == "Lin & Rood"
+        @test metadata(saved)["advection"] == "Lin & Rood"
         @test metadata(saved) == metadata(st) == metadata(ncstack)
         @test all(first(DimensionalData.layers(saved)) .== first(DimensionalData.layers(st)))
     end

@@ -40,6 +40,17 @@ function maybe_typemin_as_missingval(filename::String, A::AbstractRaster{T}) whe
     end
 end
 
+# Create a standardisted Metadata object of source T, containing a `Dict{String,Any}`
+_metadatadict(T::Type, p1::Pair, pairs::Pair...) = _metadatadict(T, (p1, pairs...))
+_metadatadict(::Type{T}) where T = Metadata{T}(Dict{String,Any}())
+function _metadatadict(::Type{T}, pairs) where T
+    dict = Dict{String,Any}()
+    for (k, v) in pairs
+        dict[String(k)] = v
+    end
+    return Metadata{T}(dict)
+end
+
 # We often need to convert the locus and the lookup in the same step,
 # as doing it in the wrong order can give errors.
 # function convert_locus_lookup(M1::Type{<:LookupArray}, L1::Type{<:Locus}, dim::Dimension)
@@ -124,3 +135,4 @@ end
 _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
 
 _filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not found"))
+
