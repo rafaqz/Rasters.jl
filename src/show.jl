@@ -46,9 +46,7 @@ function Base.show(io::IO, mime::MIME"text/plain", A::AbstractRasterSeries{T,N})
     ioctx = IOContext(io, :displaysize => (ds[1] - lines, ds[2]))
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", lookup::AbstractProjected)
-    LA.show_compact(io, mime, lookup)
-    LA.print_index(io, mime, parent(lookup))
+function LA.show_properties(io::IO, lookup::AbstractProjected)
     print(io, " ")
     LA.print_order(io, lookup)
     print(io, " ")

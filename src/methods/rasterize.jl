@@ -54,7 +54,9 @@ dms = Y(Projected(15.0:0.1:55.0; order=ForwardOrdered(), span=Regular(0.1), samp
       X(Projected(70.0:0.1:140; order=ForwardOrdered(), span=Regular(0.1), sampling=Intervals(Start()), crs=EPSG(4326)))
 
 # Rasterize the border polygon
-china = rasterize(china_border; to=dms, missingval=0, fill=1, boundary=:touches);
+china = rasterize(china_border; to=dms, shape=:line, missingval=0, fill=1, boundary=:touches)
+rebuild(lookup(china, 1); data=lookup(china, 1) .* 3)
+rebuild(lookup(china, 1); data=lookup(china, 1) .* 3)
 
 # And plot
 p = plot(china; color=:spring)
