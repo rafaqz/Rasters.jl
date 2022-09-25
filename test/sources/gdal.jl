@@ -90,8 +90,9 @@ gdalpath = maybedownload(url)
     @testset "other fields" begin
         # This file has an inorrect missing value
         @test missingval(gdalarray) == nothing
-        @test metadata(gdalarray) isa Metadata{GDALfile} 
-        @test basename(metadata(gdalarray).val[:filepath]) == "cea.tif"
+        @test metadata(gdalarray) isa Metadata{GDALfile,Dict{String,Any}} 
+        @test basename(metadata(gdalarray)["filepath"]) == "cea.tif"
+        metadata(gdalarray)["filepath"]
         @test name(gdalarray) == :test
         @test label(gdalarray) == "test"
         @test units(gdalarray) == nothing
@@ -265,7 +266,7 @@ gdalpath = maybedownload(url)
             @test size(saved2) == size(geoA2) == length.(dims(saved2)) == length.(dims(geoA2))
             @test refdims(saved2) == refdims(geoA2)
             #TODO test a file with more metadata
-            @test val(metadata(saved2))[:filepath] == filename2
+            @test val(metadata(saved2))["filepath"] == filename2
             @test missingval(saved2) === missingval(geoA2)
             @test Rasters.name(saved2) == Rasters.name(geoA2)
             @test step(lookup(dims(saved2, Y))) ≈ step(lookup(dims(geoA2, Y)))

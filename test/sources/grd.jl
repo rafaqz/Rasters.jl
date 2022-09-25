@@ -65,7 +65,7 @@ grdpath = stem * ".gri"
 
     @testset "other fields" begin
         @test missingval(grdarray) == -3.4f38
-        @test metadata(grdarray) isa Metadata{GRDfile}
+        @test metadata(grdarray) isa Metadata{GRDfile,Dict{String,Any}}
         @test name(grdarray) == Symbol("red:green:blue")
         @test label(grdarray) == "red:green:blue"
         @test units(grdarray) == nothing

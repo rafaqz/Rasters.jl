@@ -54,7 +54,7 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     yspan = (ybounds[1] - ybounds[2]) / ysize
 
     # Not fully implemented yet
-    xy_metadata = Metadata{GRDfile}(Dict())
+    xy_metadata = _metadatadict(GRDfile)
 
     xindex = LinRange(xbounds[1], xbounds[2] - xspan, xsize)
     yindex = LinRange(ybounds[2] + yspan, ybounds[1], ysize)

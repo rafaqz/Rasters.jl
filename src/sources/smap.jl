@@ -54,7 +54,7 @@ function DD.dims(wrapper::SMAPhdf5)
 end
 
 # TODO actually add metadata to the dict
-DD.metadata(wrapper::SMAPhdf5) = Metadata{SMAPfile}(Dict())
+DD.metadata(wrapper::SMAPhdf5) = _metadatadict(SMAPfile, )
 
 function DD.layerdims(ds::SMAPhdf5)
     keys = cleankeys(layerkeys(ds))
@@ -209,5 +209,5 @@ end
 
 _smap_timedim(t::DateTime) = _smap_timedim(t:Hour(3):t)
 function _smap_timedim(times::AbstractVector)
-    Ti(Sampled(times, ForwardOrdered(), Regular(Hour(3)), Intervals(Start()), NoMetadata()))
+    Ti(Sampled(times, ForwardOrdered(), Regular(Hour(3)), Intervals(Start()), _metadatadict(SMAPfile)))
 end

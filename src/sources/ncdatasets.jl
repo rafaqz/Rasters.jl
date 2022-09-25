@@ -148,9 +148,9 @@ function DD.dims(var::NCD.CFVariable, crs=nothing, mappedcrs=nothing)
     end |> Tuple
 end
 
-DD.metadata(ds::NCD.Dataset) = Metadata{NCDfile}(LA.metadatadict(ds.attrib))
-DD.metadata(var::NCD.CFVariable) = Metadata{NCDfile}(LA.metadatadict(var.attrib))
-DD.metadata(var::NCD.Variable) = Metadata{NCDfile}(LA.metadatadict(var.attrib))
+DD.metadata(ds::NCD.Dataset) = _metadatadict(NCDfile, ds.attrib)
+DD.metadata(var::NCD.CFVariable) = _metadatadict(NCDfile, var.attrib)
+DD.metadata(var::NCD.Variable) = _metadatadict(NCDfile, var.attrib)
 
 function DD.layerdims(ds::NCD.Dataset)
     keys = Tuple(layerkeys(ds))
@@ -258,7 +258,7 @@ _ncddimtype(dimname) = haskey(NCD_DIMMAP, dimname) ? NCD_DIMMAP[dimname] : DD.ba
 function _ncdlookup(ds::NCD.Dataset, dimname, D, crs, mappedcrs)
     dvar = ds[dimname]
     index = dvar[:]
-    metadata = Metadata{NCDfile}(LA.metadatadict(dvar.attrib))
+    metadata = _metadatadict(NCDfile, dvar.attrib)
     return _ncdlookup(ds, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For unknown types we just make a Categorical lookup
