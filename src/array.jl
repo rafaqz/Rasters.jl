@@ -282,7 +282,4 @@ end
 filekey(ds, key) = key
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
-# Precompile
-precompile(Raster, (String,))
-
 DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = Raster
