@@ -43,9 +43,9 @@ end
 # Create a standardisted Metadata object of source T, containing a `Dict{String,Any}`
 _metadatadict(T::Type, p1::Pair, pairs::Pair...) = _metadatadict(T, (p1, pairs...))
 _metadatadict(::Type{T}) where T = Metadata{T}(Dict{String,Any}())
-function _metadatadict(::Type{T}, dict) where T
+function _metadatadict(::Type{T}, pairs) where T
     dict = Dict{String,Any}()
-    for (k, v) in dict
+    for (k, v) in pairs
         dict[String(k)] = v
     end
     return Metadata{T}(dict)

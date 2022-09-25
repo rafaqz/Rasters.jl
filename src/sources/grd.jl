@@ -87,7 +87,7 @@ end
 DD.name(grd::GRDattrib) = Symbol(get(grd.attrib, "layername", ""))
 
 function DD.metadata(grd::GRDattrib, args...)
-    metadata = Metadata{GRDfile}()
+    metadata = _metadatadict(GRDfile)
     for key in ("creator", "created", "history")
         val = get(grd.attrib, key, "")
         if val != ""

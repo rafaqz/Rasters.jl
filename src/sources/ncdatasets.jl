@@ -339,11 +339,11 @@ end
 
 # delta_t and ave_period are not CF standards, but CDC
 function _ncdperiod(index, metadata::Metadata{NCDfile})
-    if haskey(metadata, :delta_t)
-        period = _parse_period(metadata[:delta_t])
+    if haskey(metadata, "delta_t")
+        period = _parse_period(metadata["delta_t"])
         period isa Nothing || return Regular(period), Points()
-    elseif haskey(metadata, :avg_period)
-        period = _parse_period(metadata[:avg_period])
+    elseif haskey(metadata, "avg_period")
+        period = _parse_period(metadata["avg_period"])
         period isa Nothing || return Regular(period), Intervals(Center())
     end
     return sampling = Irregular((nothing, nothing)), Points()
