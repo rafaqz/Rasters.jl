@@ -339,19 +339,15 @@ function _gdalwrite(filename, A::AbstractRaster, nbands;
 )
     A = maybe_typemin_as_missingval(filename, A)
     properties = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
-    if driver isa String
-        gdaldriver = AG.getdriver(driver)
-    else
-        gdaldriver = driver
-    end
+    gdaldriver = driver isa String ? AG.getdriver(driver) : driver
     options_dict = _parsegdaloptions(options)
 
     if !("COMPRESS" in keys(options_dict))
         options_dict["COMPRESS"] = "ZSTD"
     end
-    
+        
     # drivers supporting the gdal Create() method to directly write to disk
-    drivers_supporting_create = ["GTiff", "COG"]  # this should only be a temporary place to put this
+    drivers_supporting_create = ["GTiff", "HDF4", "KEA", "netCDF", "PCIDSK", "Zarr" #=...=#]  # this should only be a temporary place to put this
 
     # the goal is to set write block sizes that correspond to eventually blocked reads
     # creation options are driver dependent
@@ -379,7 +375,7 @@ function _gdalwrite(filename, A::AbstractRaster, nbands;
 
     options_vec = ["$k=$v" for (k,v) in options_dict]
 
-    if driver in drivers_supporting_create
+    if AG.shortname(gdaldriver) in drivers_supporting_create
         AG.create(filename; driver=gdaldriver, properties..., options=options_vec) do dataset
             _gdalsetproperties!(dataset, A)
             rds = AG.RasterDataset(dataset)
@@ -390,13 +386,13 @@ function _gdalwrite(filename, A::AbstractRaster, nbands;
     else
         # Create a memory object and copy it to disk, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
-        ArchGDAL.create(""; driver=AG.getdriver("MEM"), properties..., options=options_vec) do dataset
+        ArchGDAL.create(""; driver=AG.getdriver("MEM"), properties...) do dataset
             _gdalsetproperties!(dataset, A)
             rds = AG.RasterDataset(dataset)
             open(A; write=true) do O
                 rds .= parent(O)
             end
-            AG.copy(dataset; filename=filename, driver=gdaldriver) |> AG.destroy
+            AG.copy(dataset; filename=filename, driver=gdaldriver, options=options_vec) |> AG.destroy
         end
     end
     return filename
