@@ -405,9 +405,9 @@ function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}; kw...) where {T,
     dimnames = lowercase.(string.(map(name, dims(A))))
     var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...)
 
-    # NCDatasets needs Steprange indices to write without allocations
+    # NCDatasets needs Colon indices to write without allocations
     # TODO do this with DiskArrays broadcast ??
-    var[map(StepRange, axes(A))...] = parent(read(A))
+    var[map(_ -> Colon(), axes(A))...] = parent(read(A))
 
     return nothing
 end
