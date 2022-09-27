@@ -2,7 +2,7 @@ const NCD = NCDatasets
 
 const UNNAMED_NCD_FILE_KEY = "unnamed"
 
-const NCD_FILL_TYPES = (Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String)
+const NCDAllowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
 
 # CF standards don't enforce dimension names.
 # But these are common, and should take care of most dims.
@@ -380,7 +380,8 @@ function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}; kw...) where {T,
     _def_dim_var!(ds, A)
     attrib = _attribdict(metadata(A))
     # Set _FillValue
-    eltyp = _notmissingtype(Base.uniontypes(T)...)
+    eltyp = Missings.nonmissingtype(T)
+    eltyp <: NCDAllowedType || throw(ArgumentError("$eltyp cannot be written to NetCDF, convert to one of $(Base.uniontypes(NCDAllowedType))"))
     if ismissing(missingval(A))
         fillval = if haskey(attrib, "_FillValue") && attrib["_FillValue"] isa eltyp
             attrib["_FillValue"]
@@ -403,8 +404,12 @@ function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}; kw...) where {T,
 
     dimnames = lowercase.(string.(map(name, dims(A))))
     var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...)
+
+    # NCDatasets needs Steprange indices to write without allocations
     # TODO do this with DiskArrays broadcast ??
-    var[:] = parent(read(A))
+    var[map(StepRange, axes(A))...] = parent(read(A))
+
+    return nothing
 end
 
 _def_dim_var!(ds::NCD.Dataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
@@ -429,10 +434,6 @@ function _def_dim_var!(ds::NCD.Dataset, dim::Dimension)
     NCD.defVar(ds, dimkey, Vector(index(dim)), (dimkey,); attrib=attrib)
     return nothing
 end
-
-_notmissingtype(::Type{Missing}, next...) = _notmissingtype(next...)
-_notmissingtype(x::Type, next...) = x in NCD_FILL_TYPES ? x : _notmissingtype(next...)
-_notmissingtype() = error("Your data is not a type that netcdf can store")
 
 _ncdshiftlocus(dim::Dimension) = _ncdshiftlocus(lookup(dim), dim)
 _ncdshiftlocus(::LookupArray, dim::Dimension) = dim

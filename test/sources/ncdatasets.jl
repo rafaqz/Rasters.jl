@@ -252,6 +252,10 @@ stackkeys = (
             write(f, r2; append = true); size2 = filesize(f)
             @test size2 > size1*1.8 # two variable 
             isfile(f) && rm(f)
+
+            @testset "non allowed values" begin
+                @test_throws ArgumentError write(filename, convert.(Union{Missing,Float16}, geoA))
+            end
         end
         @testset "to gdal" begin
             gdalfilename = tempname() * ".tif"
