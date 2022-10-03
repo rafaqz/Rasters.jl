@@ -56,6 +56,14 @@ stackkeys = (
         @test all(A .=== A3)
     end
 
+    @testset "ignore empty variables" begin
+        st = RasterStack((empty=view(ncarray, 1, 1, 1), full=ncarray))
+        write("emptyval_test.nc", st)
+        rast = Raster("emptyval_test.nc")
+        @test name(rast) == :full
+        rm("emptyval_test.nc")
+    end
+
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)
         @test ncarray isa Raster

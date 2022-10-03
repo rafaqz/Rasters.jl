@@ -44,8 +44,18 @@ defaultmappedcrs(::Type{NCDfile}) = EPSG(4326)
 # Raster ########################################################################
 
 function Raster(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw...)
-    key = _firstkey(ds, key)
-    Raster(ds[key], filename, key; kw...)
+    if isnothing(key)
+        # Find the first valid variable
+        for key in layerkeys(ds)
+            if ndims(NCD.variable(ds, key)) > 0 
+                @info "No `key` keyword provided, using first valid key `:$key`"
+                return Raster(ds[key], filename, key; kw...)
+            end
+        end
+        throw(ArgumentError("dataset at $filename has no array variables"))
+    else
+       return Raster(ds[key], filename, key; kw...)
+    end
 end
 
 _firstkey(ds::NCD.NCDataset, key::Nothing=nothing) = Symbol(first(layerkeys(ds)))
@@ -101,24 +111,18 @@ Keywords are passed to `NCDatasets.defVar`.
 
 - `append`: If true, the variable of the current Raster will be appended to
     `filename`. Note that the variable of the current Raster should be not exist
-    before. If not, you need to set `append = false`. `Rasters` can not
+    before. If not, you need to set `append = false`. Rasters.jl can not
     overwrite a previous existing variable.
-
 - `fillvalue`: A value filled in the NetCDF file to indicate missing data. It
     will be stored in the `_FillValue` attribute.
-
 - `chunksizes`: Vector integers setting the chunk size. The total size of a
     chunk must be less than 4 GiB.
-
 - `deflatelevel`: Compression level: 0 (default) means no compression and 9
     means maximum compression. Each chunk will be compressed individually.
-
 - `shuffle`: If true, the shuffle filter is activated which can improve the
     compression ratio.
-
 - `checksum`: The checksum method can be `:fletcher32` or `:nochecksum`
     (checksumming is disabled, which is the default)
-
  - `typename` (string): The name of the NetCDF type required for vlen arrays
     (https://web.archive.org/save/https://www.unidata.ucar.edu/software/netcdf/netcdf-4/newdocs/netcdf-c/nc_005fdef_005fvlen.html)
 """
@@ -239,6 +243,8 @@ _open(f, ::Type{NCDfile}, var::NCD.CFVariable; kw...) = cleanreturn(f(var))
 # Utils ########################################################################
 
 cleanreturn(A::NCD.CFVariable) = Array(A)
+
+# Utils ########################################################################
 
 function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
     if haskey(ds, dimname)
