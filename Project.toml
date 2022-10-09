@@ -4,9 +4,9 @@ authors = ["Rafael Schouten <rafaelschouten@gmail.com>"]
 version = "0.4.3"
 
 [deps]
-ASCIIrasters = "81770e7c-c736-4fa5-8129-46dd21831640"
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
+ASCIIrasters = "81770e7c-c736-4fa5-8129-46dd21831640"
 ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
 ConstructionBase = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
 CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
