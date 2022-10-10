@@ -226,7 +226,7 @@ gdalpath = maybedownload(url)
             @test all(B .=== gdalarray |> collect)
         end
 
-    end
+    end # methods
 
     @testset "conversion to Raster" begin
         geoA = gdalarray[X(1:50), Y(1:1), Band(1)]
@@ -283,6 +283,20 @@ gdalpath = maybedownload(url)
             saved3 = read(Raster(filename3))
             @test all(saved3 .== geoA3)
             @test val(dims(saved3, Band)) == 1:3
+        end
+
+        @testset "custom gdal options" begin
+            gdalarray = Raster(gdalpath; name=:test);
+            filename = tempname() * ".tif"
+            write(filename, gdalarray; driver="GTiff", options=Dict("COMPRESS"=>"DEFLATE", "PREDICTOR"=>"2"))
+            @test isfile(filename)
+            if isfile(filename)
+                ret = read(`gdalinfo $filename`, String)
+                @test contains(ret, "DEFLATE")
+                @test contains(ret, "PREDICTOR=2")
+                rm(filename)
+            end
+            @test_throws ArgumentError write(filename, gdalarray; driver="GTiff", options=Dict("COMPRESS"=>"FOOBAR"))
         end
 
         @testset "resave current" begin

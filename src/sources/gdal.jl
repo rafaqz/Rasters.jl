@@ -24,9 +24,9 @@ Write a `Raster` to file using GDAL.
 
 # Keywords
 
-- `driver::String`: a GDAL driver name. Guessed from the filename extension by default.
-- `compress::String`: GeoTIFF compression flag. "DEFLATE" by default.
-- `tiled::Bool`: GeoTiff tiling. Defaults to `true`.
+- `driver`: A GDAL driver name or a GDAL driver retrieved via `ArchGDAL.getdriver(drivername)`. Guessed from the filename extension by default.
+- `options::Dict{String,String}`: A dictionary containing the dataset creation options passed to the driver. For example: `Dict("COMPRESS"=>"DEFLATE")`\n
+  Valid options for the drivers can be looked up here: https://gdal.org/drivers/raster/index.html
 
 Returns `filename`.
 """
@@ -327,23 +327,16 @@ function _gdalconvertmissing(T::Type{<:Integer}, x::Integer)
 end
 _gdalconvertmissing(T, x) = x
 
-# utility for parsing gdal driver creation options given as Vector{String}
-function _parsegdaloptions(options)
-    splitted = split.(options, '=')
-    splitted = [string.(s) for s in splitted]
-    Dict(splitted)
-end
-
 function _gdalwrite(filename, A::AbstractRaster, nbands;
-    driver=AG.extensiondriver(filename), options=Vector{String}()
+    driver=AG.extensiondriver(filename), options=Dict{String, String}()
 )
     A = maybe_typemin_as_missingval(filename, A)
     properties = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
     gdaldriver = driver isa String ? AG.getdriver(driver) : driver
-    options_dict = _parsegdaloptions(options)
 
-    if !("COMPRESS" in keys(options_dict))
-        options_dict["COMPRESS"] = "ZSTD"
+    # set default compression
+    if !("COMPRESS" in keys(options)) && AG.validate(gdaldriver, ["COMPRESS=ZSTD"])
+        options["COMPRESS"] = "ZSTD"
     end
         
     # drivers supporting the gdal Create() method to directly write to disk
@@ -356,24 +349,37 @@ function _gdalwrite(filename, A::AbstractRaster, nbands;
 
         if driver == "GTiff"
             # dont overwrite user specified values
-            if !("BLOCKXSIZE" in keys(options_dict))
-                options_dict["BLOCKXSIZE"] = block_x
+            if !("BLOCKXSIZE" in keys(options))
+                options["BLOCKXSIZE"] = block_x
             end
-            if !("BLOCKYSIZE" in keys(options_dict))
-                options_dict["BLOCKYSIZE"] = block_y
+            if !("BLOCKYSIZE" in keys(options))
+                options["BLOCKYSIZE"] = block_y
             end
         elseif driver == "COG"
-            if !("BLOCKSIZE" in keys(options_dict))
+            if !("BLOCKSIZE" in keys(options))
                 # cog only supports square blocks
                 # if the source already has square blocks, use them
                 # otherwise use the driver default
-                options_dict["BLOCKSIZE"] = block_x == block_y ? block_x : 512
+                options["BLOCKSIZE"] = block_x == block_y ? block_x : 512
             end
         end
     end
     # if the input is unchunked we just use the driver defaults
 
-    options_vec = ["$k=$v" for (k,v) in options_dict]
+    options_vec = ["$(uppercase(k))=$(uppercase(string(v)))" for (k,v) in options]
+
+    invalid_options = String[]
+    for option in options_vec
+        if !AG.validate(gdaldriver, [option])
+            push!(invalid_options, option)
+        end
+    end
+
+    if length(invalid_options) > 0
+        throw(ArgumentError("Invalid driver creation option(s) detected.
+        Please check them carefully with the documentation at https://gdal.org/drivers/raster/index.html.
+        $invalid_options"))
+    end
 
     if AG.shortname(gdaldriver) in drivers_supporting_create
         AG.create(filename; driver=gdaldriver, properties..., options=options_vec) do dataset
