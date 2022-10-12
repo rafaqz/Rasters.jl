@@ -288,12 +288,12 @@ gdalpath = maybedownload(url)
         @testset "custom gdal options" begin
             gdalarray = Raster(gdalpath; name=:test);
             filename = tempname() * ".tif"
-            write(filename, gdalarray; driver="GTiff", options=Dict("COMPRESS"=>"DEFLATE", "PREDICTOR"=>"2"))
+            write(filename, gdalarray; driver="GTiff", options=Dict("TILED"=>"YES","BLOCKXSIZE"=>"128","BLOCKYSIZE"=>"128"))
             @test isfile(filename)
             if isfile(filename)
-                ret = read(`gdalinfo $filename`, String)
-                @test contains(ret, "DEFLATE")
-                @test contains(ret, "PREDICTOR=2")
+                r = Raster(filename; lazy=true) # lazy is important here, otherwise it's not chunked
+                block_x, block_y = DiskArrays.max_chunksize(DiskArrays.eachchunk(r))
+                @test block_x == block_y == 128
                 rm(filename)
             end
             @test_throws ArgumentError write(filename, gdalarray; driver="GTiff", options=Dict("COMPRESS"=>"FOOBAR"))
