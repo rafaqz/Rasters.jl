@@ -87,12 +87,15 @@ function _rasterize(to::DimTuple, data;
 )
     _rasterize(to, GeoInterface.trait(data), data; fill, name, kw...)
 end
-function _rasterize(to::DimTuple, ::GI.AbstractFeatureTrait, feature; fill, kw...)
-    fill = _featurefillval(feature, fill)
-    dest = _create_rasterize_dest(fill, to; kw...)
+function _rasterize(to::DimTuple, ::GI.AbstractFeatureTrait, feature; fill, name, kw...)
+    fillval = _featurefillval(feature, fill)
+    name = _filter_name(name, fill)
+    @show name fillval
+    dest = _create_rasterize_dest(fillval, to; name, kw...)
     return rasterize!(dest, feature; fill, kw...)
 end
 function _rasterize(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name, fill, kw...)
+    # TODO: how to handle when there are fillvals with different types
     fillval = _featurefillval(GI.getfeature(fc, 1), fill)
     name = _filter_name(name, fill)
     dest = _create_rasterize_dest(fillval, to; name, kw...)
@@ -122,6 +125,7 @@ function _rasterize(to::DimTuple, ::Nothing, data; fill, name, kw...)
     return rasterize!(dest, data; fill, kw...)
 end
 
+# Create a destination raster to fill into using `rasterize!`
 function _create_rasterize_dest(fill, dims; name=nothing, kw...)
     _create_rasterize_dest(fill, name, dims; kw...)
 end
@@ -249,7 +253,8 @@ function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
     return x
 end
 function _rasterize!(x, ::GI.AbstractFeatureTrait, feature; fill, kw...)
-    rasterize!(x, geom; fill=_featurefillval(feature, fill), kw...)
+    # TODO test this branch
+    rasterize!(x, GI.geometry(feature); fill=_featurefillval(feature, fill), kw...)
 end
 function _rasterize!(x, ::GI.AbstractGeometryTrait, geom; fill, _buffer=nothing, kw...)
     # TODO fix DimensionalData selectors so this works without _pad
@@ -397,6 +402,7 @@ end
 _filter_name(name, fill::NamedTuple) = keys(fill)
 _filter_name(name::NamedTuple, fill::NamedTuple) = keys(fill)
 _filter_name(name::Nothing, fill::Nothing) = nothing
+_filter_name(name::DimensionalData.NoName, fill::Nothing) = nothing
 _filter_name(name::Union{NamedTuple,Tuple,Array}, fill::NTuple{<:Any,Symbol}) = fill
 function _filter_name(name::Union{NamedTuple,Tuple,Array}, fill::Union{Tuple,Array})
     length(name) == length(fill) || throw(ArgumentError("`name` keyword (possibly from `to` object) does not match length of fill. A fix is to use a `NamedTuple` for `fill`."))

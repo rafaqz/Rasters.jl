@@ -167,7 +167,7 @@ LA.transformfunc(lookup::AffineProjected) = CoordinateTransformations.inv(lookup
 # DD.bounds(lookup::AffineProjected) = lookup.metadata
 
 function Dimensions.sliceunalligneddims(
-    _, I::NTuple{<:Any,<:Union{Colon,AbstractArray}},
+    _, I::NTuple{2,<:Union{Colon,AbstractArray}},
     ud1::Dimension{<:AffineProjected}, ud2::Dimension{<:AffineProjected}
 )
     # swap colons for the dimension index, which is the same as the array axis
@@ -193,7 +193,7 @@ end
 
 function Base.reverse(lookup::AffineProjected)
     sp = reverse(span(lookup))
-    rebuild(lookup; data=i, order=o, span=sp)
+    rebuild(lookup; order=o, span=sp)
 end
 
 """

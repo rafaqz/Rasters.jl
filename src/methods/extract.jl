@@ -87,8 +87,9 @@ function _extract(x::RasterStackOrArray, ::GI.PointTrait, point; dims, names, at
 
     # Extract the values
     if any(map(ismissing, coords)) 
+        # TODO test this branch somehow
         geometry = map(_ -> missing, coords)
-        layer_vals = map(_ -> missing, layer_keys)
+        layer_vals = map(_ -> missing, names)
     else
         selectors = map(dims, coords) do d, c
             _at_or_contains(d, c, atol)
