@@ -24,9 +24,9 @@ Write a `Raster` to file using GDAL.
 
 # Keywords
 
-- `driver::String`: a GDAL driver name. Guessed from the filename extension by default.
-- `compress::String`: GeoTIFF compression flag. "DEFLATE" by default.
-- `tiled::Bool`: GeoTiff tiling. Defaults to `true`.
+- `driver`: A GDAL driver name or a GDAL driver retrieved via `ArchGDAL.getdriver(drivername)`. Guessed from the filename extension by default.
+- `options::Dict{String,String}`: A dictionary containing the dataset creation options passed to the driver. For example: `Dict("COMPRESS"=>"DEFLATE")`\n
+  Valid options for the drivers can be looked up here: https://gdal.org/drivers/raster/index.html
 
 Returns `filename`.
 """
@@ -46,7 +46,7 @@ function Base.write(
     _gdalwrite(filename, correctedA, nbands; kw...)
 end
 function Base.write(
-    filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster{T,3}, kw...
+    filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster{T,3}; kw...
 ) where T
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
@@ -328,20 +328,61 @@ end
 _gdalconvertmissing(T, x) = x
 
 function _gdalwrite(filename, A::AbstractRaster, nbands;
-    driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing
+    driver=AG.extensiondriver(filename), options=Dict{String, String}()
 )
     A = maybe_typemin_as_missingval(filename, A)
-    kw = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
-    gdaldriver = AG.getdriver(driver)
-    if driver == "GTiff"
-        block_x, block_y = DA.max_chunksize(DA.eachchunk(A))
-        tileoptions = if chunk === nothing
-            ["TILED=NO"]
-        else
-            ["TILED=YES", "BLOCKXSIZE=$block_x", "BLOCKYSIZE=$block_y"]
+    properties = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
+    gdaldriver = driver isa String ? AG.getdriver(driver) : driver
+
+    # set default compression
+    if !("COMPRESS" in keys(options)) && AG.validate(gdaldriver, ["COMPRESS=ZSTD"])
+        options["COMPRESS"] = "ZSTD"
+    end
+        
+    # drivers supporting the gdal Create() method to directly write to disk
+    drivers_supporting_create = ["GTiff", "HDF4", "KEA", "netCDF", "PCIDSK", "Zarr" #=...=#]  # this should only be a temporary place to put this
+
+    # the goal is to set write block sizes that correspond to eventually blocked reads
+    # creation options are driver dependent
+    if DA.haschunks(A) == DA.Chunked()
+        block_x, block_y = string.(DA.max_chunksize(DA.eachchunk(A)))
+
+        if driver == "GTiff"
+            # dont overwrite user specified values
+            if !("BLOCKXSIZE" in keys(options))
+                options["BLOCKXSIZE"] = block_x
+            end
+            if !("BLOCKYSIZE" in keys(options))
+                options["BLOCKYSIZE"] = block_y
+            end
+        elseif driver == "COG"
+            if !("BLOCKSIZE" in keys(options))
+                # cog only supports square blocks
+                # if the source already has square blocks, use them
+                # otherwise use the driver default
+                options["BLOCKSIZE"] = block_x == block_y ? block_x : 512
+            end
         end
-        options = ["COMPRESS=$compress", tileoptions...]
-        AG.create(filename; driver=gdaldriver, options=options, kw...) do dataset
+    end
+    # if the input is unchunked we just use the driver defaults
+
+    options_vec = ["$(uppercase(k))=$(uppercase(string(v)))" for (k,v) in options]
+
+    invalid_options = String[]
+    for option in options_vec
+        if !AG.validate(gdaldriver, [option])
+            push!(invalid_options, option)
+        end
+    end
+
+    if length(invalid_options) > 0
+        throw(ArgumentError("Invalid driver creation option(s) detected.
+        Please check them carefully with the documentation at https://gdal.org/drivers/raster/index.html.
+        $invalid_options"))
+    end
+
+    if AG.shortname(gdaldriver) in drivers_supporting_create
+        AG.create(filename; driver=gdaldriver, properties..., options=options_vec) do dataset
             _gdalsetproperties!(dataset, A)
             rds = AG.RasterDataset(dataset)
             open(A; write=true) do O
@@ -351,13 +392,13 @@ function _gdalwrite(filename, A::AbstractRaster, nbands;
     else
         # Create a memory object and copy it to disk, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
-        ArchGDAL.create(""; driver=AG.getdriver("MEM"), kw...) do dataset
+        ArchGDAL.create(""; driver=AG.getdriver("MEM"), properties...) do dataset
             _gdalsetproperties!(dataset, A)
             rds = AG.RasterDataset(dataset)
             open(A; write=true) do O
                 rds .= parent(O)
             end
-            AG.copy(dataset; filename=filename, driver=gdaldriver) |> AG.destroy
+            AG.copy(dataset; filename=filename, driver=gdaldriver, options=options_vec) |> AG.destroy
         end
     end
     return filename
