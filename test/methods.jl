@@ -421,7 +421,6 @@ end
         @testset "feature collection, table from fill of Symbol keys" begin
             for data in (pointfc, DataFrame(pointfc))
                 @testset "NTuple of Symbol fill makes an stack" begin
-                    rst = rasterize(pointfc; to=A, fill=(:val1, :val2))
                     rst = rasterize(data; to=A, fill=(:val1, :val2))
                     @test keys(rst) == (:val1, :val2)
                     @test dims(rst) == dims(A)
