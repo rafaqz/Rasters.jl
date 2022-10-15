@@ -403,16 +403,17 @@ end
             end
         end
         @testset "a single feature" begin
-            feature = pointfc[1]
+            feature = pointfc[4]
             GeoInterface.isfeature(feature)
             @testset "NTuple of Symbol fill makes an stack" begin
                 rst = rasterize(feature; to=A, fill=(:val1, :val2))
+                rst = rasterize(feature; to=A, fill=(:val1, :val2))
                 @test keys(rst) == (:val1, :val2)
                 @test dims(rst) == dims(A)
-                @test map(sum ∘ skipmissing, rst) === (val1=14, val2=28.0f0)
+                @test map(sum ∘ skipmissing, rst) === (val1=4, val2=8.0f0)
             end
             @testset "Symbol fill makes an array" begin
-                ra = rasterize(data; to=A, fill=:val1)
+                ra = rasterize(feature; to=A, fill=:val1)
                 @test ra isa Raster{Union{Missing,Int64}}
                 @test name(ra) == :val1
             end
@@ -420,6 +421,7 @@ end
         @testset "feature collection, table from fill of Symbol keys" begin
             for data in (pointfc, DataFrame(pointfc))
                 @testset "NTuple of Symbol fill makes an stack" begin
+                    rst = rasterize(pointfc; to=A, fill=(:val1, :val2))
                     rst = rasterize(data; to=A, fill=(:val1, :val2))
                     @test keys(rst) == (:val1, :val2)
                     @test dims(rst) == dims(A)
