@@ -23,6 +23,7 @@ ConstructionBase.constructorof(::Type{<:OpenStack{X,K}}) where {X,K} = OpenStack
 
 dataset(os::OpenStack) = os.dataset
 Base.keys(os::OpenStack{<:Any,K}) where K = K
-Base.values(os::OpenStack{<:Any}) = (fs[k] for k in keys(fs))
+# TODO test this, and does it make sense to return an iterator here?
+Base.values(os::OpenStack{<:Any}) = (os[k] for k in keys(os))
 # Indexing OpenStack returns memory-backed Raster. 
 Base.getindex(os::OpenStack, key::Symbol) = dataset(os)[key]

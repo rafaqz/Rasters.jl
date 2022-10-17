@@ -9,8 +9,8 @@ const DEFAULT_TABLE_DIM_KEYS = (:X, :Y, :Z)
 function _fill_geometry!(B::AbstractRaster, geom; kw...)
     _fill_geometry!(B, GI.trait(geom), geom; kw...)
 end
-function _fill_geometry!(B::AbstractRaster, ::GI.AbstractFeatureTrait, geom; kw...)
-    return _fill_geometry!(B, GI.geometry(geom), geom; kw...)
+function _fill_geometry!(B::AbstractRaster, ::GI.AbstractFeatureTrait, feature; kw...)
+    return _fill_geometry!(B, GI.geometry(feature); kw...)
 end
 function _fill_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait, fc; kw...)
     for feature in GI.getfeature(fc)
@@ -25,7 +25,7 @@ function _fill_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; sh
         _fill_linestring!(B, geom; shape, kw...)
     elseif shape === :polygon
         geomextent = _extent(geom)
-        arrayextent = Extents.extent(B, DEFAULT_POINT_ORDER) 
+        arrayextent = Extents.extent(B, DEFAULT_POINT_ORDER)
         # Only fill if the gemoetry bounding box overlaps the array bounding box
         Extents.intersects(geomextent, arrayextent) || return B
         _fill_polygon!(B, geom; shape, geomextent, kw...)
@@ -125,6 +125,7 @@ function _iyperm(dims::Tuple{<:Dimension,<:Dimension})
     return iyperm
 end
 function _iyperm(dims::Tuple{<:Dimension,<:Dimension,<:Dimension})
+    # TODO: test this 3d case
     a1, a2, a3 = map(dims) do d
         l = parent(d)
         LA.ordered_firstindex(l):_order_step(l):LA.ordered_lastindex(l)
@@ -132,7 +133,7 @@ function _iyperm(dims::Tuple{<:Dimension,<:Dimension,<:Dimension})
     iyperm = Array{Int}(undef, length(a1) * length(a2) * length(a3))
     lis = (LinearIndices(size(dims))[i, j, k] for k in a3 for j in a2 for i in a1)
     for (i, li) in enumerate(lis)
-        Iyperm[i] = li
+        iyperm[i] = li
     end
     return iyperm
 end
@@ -263,7 +264,7 @@ function _fill_line!(A::AbstractRaster, line, fill)
     # delta: How far to move along the ray to move 1 grid cell.
     cs = cos(angle)
     si = sin(angle)
-    max_x, delta_x = if isapprox(cs, zero(cs); atol=1e-10) 
+    max_x, delta_x = if isapprox(cs, zero(cs); atol=1e-10)
         -Inf, Inf
     else
         1.0 / cs, xoffset / cs
@@ -280,7 +281,7 @@ function _fill_line!(A::AbstractRaster, line, fill)
     for t in 0:manhattan_distance
         D = map((d, o) -> d(o), dimconstructors, (x, y))
         if checkbounds(Bool, A, D...)
-            if fill isa Function 
+            if fill isa Function
                 @inbounds A[D...] = fill(A[D...])
             else
                 @inbounds A[D...] = fill
@@ -333,7 +334,7 @@ function to_edges_and_nodes!(edges, nodes, lastnode, geom)
     for (n, point) in enumerate(GI.getpoint(geom))
         i = lastnode + n
         if n == npoints
-            # The closing edge of a sub-polygon 
+            # The closing edge of a sub-polygon
             edges[i, 1] = i
             edges[i, 2] = lastnode + 1
         else
@@ -367,10 +368,11 @@ function _extent(::Nothing, data)
                 Extents.union(ext, _extent(geom))
             end
         else
+            # TODO: test this branch
             # Table of points with dimension columns
             reduce(DEFAULT_TABLE_DIM_KEYS; init=(;)) do acc, key
-                if key in Tables.columnnames(cols) 
-                    merge(acc, (; key=extrema(columns)))
+                if key in Tables.columnnames(cols)
+                    merge(acc, (; key=extrema(cols[key])))
                 else
                     acc
                 end
@@ -393,7 +395,7 @@ function _extent(::GI.AbstractTrait, geom)
     end
 end
 _extent(::GI.AbstractFeatureTrait, feature) = _extent(GI.geometry(feature))
-function _extent(::GI.AbstractFeatureCollectionTrait, features) 
+function _extent(::GI.AbstractFeatureCollectionTrait, features)
     features = GI.getfeature(features)
     reduce(features; init=_extent(first(features))) do acc, f
         Extents.union(acc, _extent(f))
@@ -403,12 +405,13 @@ end
 # extent_may_intersect
 # Check if there is an extent for the geometry
 function extent_may_intersect(x, geom)
+    # TODO: this is not actually used.
     rasterextent = Extents.extent(x, DEFAULT_POINT_ORDER)
     geomextent = GI.extent(geom)
-    if ext isa Nothing 
+    if isnothing(rasterextent) || isnothing(geomextent)
         return true
     else
-        return Extents.intersects(geomextent, rasterext)
+        return Extents.intersects(geomextent, rasterextent)
     end
 end
 
@@ -422,7 +425,7 @@ _dimcoord(::ZDim, point) = GI.z(point)
 # Get the shape category for a geometry
 @inline _geom_shape(geom) = _geom_shape(GI.geomtrait(geom))
 @inline _geom_shape(geom::Union{<:GI.PointTrait,<:GI.MultiPointTrait}) = :point
-@inline _geom_shape(geom::Union{<:GI.LineStringTrait,<:GI.MultiLineStringTrait}) = :line 
+@inline _geom_shape(geom::Union{<:GI.LineStringTrait,<:GI.MultiLineStringTrait}) = :line
 @inline _geom_shape(geom::Union{<:GI.LinearRingTrait,<:GI.PolygonTrait,<:GI.MultiPolygonTrait}) = :polygon
 # _geom_shape(trait, geom) = throw(ArgumentError("Geometry trait $trait not handled by Rasters.jl"))
 
