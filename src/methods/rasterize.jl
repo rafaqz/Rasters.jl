@@ -147,7 +147,7 @@ end
 function _create_rasterize_dest(fill, name, dims;
     filename=nothing, missingval=nothing, metadata=NoMetadata(), suffix=nothing, kw...
 )
-    missingval = isnothing(missingval) ? _writeable_missing(filename, typeof(val)) : missingval
+    missingval = isnothing(missingval) ? _writeable_missing(filename, typeof(fill)) : missingval
     A = _alloc_rasterize(filename, typeof(fill), dims; name, metadata, missingval, suffix) do a
         a .= missingval
     end
@@ -253,7 +253,6 @@ function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
     return x
 end
 function _rasterize!(x, ::GI.AbstractFeatureTrait, feature; fill, kw...)
-    # TODO test this branch
     rasterize!(x, GI.geometry(feature); fill=_featurefillval(feature, fill), kw...)
 end
 function _rasterize!(x, ::GI.AbstractGeometryTrait, geom; fill, _buffer=nothing, kw...)

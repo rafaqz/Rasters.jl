@@ -370,13 +370,14 @@ function _extent(::Nothing, data)
         else
             # TODO: test this branch
             # Table of points with dimension columns
-            reduce(DEFAULT_TABLE_DIM_KEYS; init=(;)) do acc, key
+            data = reduce(DEFAULT_TABLE_DIM_KEYS; init=(;)) do acc, key
                 if key in Tables.columnnames(cols)
                     merge(acc, (; key=extrema(cols[key])))
                 else
                     acc
                 end
             end
+            return Extent(data)
         end
     else
         return Extents.extent(data)
@@ -408,7 +409,7 @@ function extent_may_intersect(x, geom)
     # TODO: this is not actually used.
     rasterextent = Extents.extent(x, DEFAULT_POINT_ORDER)
     geomextent = GI.extent(geom)
-    if isnothing(rasterextent) || isnothing(geomextent)
+    if isnothing(geomextent)
         return true
     else
         return Extents.intersects(geomextent, rasterextent)
