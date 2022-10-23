@@ -417,7 +417,7 @@ function _gdalmetadata(dataset::AG.Dataset, key)
     regex = Regex("$key=(.*)")
     i = findfirst(f -> occursin(regex, f), meta)
     if i isa Nothing
-        return nothing
+        return ""
     else
         return match(regex, meta[i])[1]
     end

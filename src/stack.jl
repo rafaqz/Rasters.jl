@@ -191,6 +191,7 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
 end
 # Multi Raster stack from Tuple of AbstractArray
 function RasterStack(data::Tuple{Vararg{<:AbstractArray}}, dims::Tuple; name=nothing, keys=name, kw...)
+    isnothing(keys) && throw(ArgumentError("`name` or `keys` keyword must be a tuple of `Symbol`"))
     return RasterStack(NamedTuple{cleankeys(keys)}(data), dims; kw...)
 end
 # Multi Raster stack from NamedTuple of AbstractArray
