@@ -90,7 +90,6 @@ end
 function _rasterize(to::DimTuple, ::GI.AbstractFeatureTrait, feature; fill, name, kw...)
     fillval = _featurefillval(feature, fill)
     name = _filter_name(name, fill)
-    @show name fillval
     dest = _create_rasterize_dest(fillval, to; name, kw...)
     return rasterize!(dest, feature; fill, kw...)
 end
