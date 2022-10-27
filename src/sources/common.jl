@@ -8,7 +8,7 @@ _unuseddimerror(dimname) = error("Netcdf contains unused dimension $dimname")
 
 function _dsdim(ds::NCD.Dataset, dimname::Key, crs=nothing, mappedcrs=nothing)
     if haskey(ds, dimname)
-        D = _dsdimtype(dimname)
+        D = _ncddimtype(dimname)
         lookup = _dslookup(ds, dimname, D, crs, mappedcrs)
         return D(lookup)
     else
