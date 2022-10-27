@@ -1,5 +1,7 @@
 using Rasters, Test, GRIBDatasets
-using Rasters: FileArray, FileStack, NCDfile, crs
+using Rasters: FileArray
+using Rasters.LookupArrays, Rasters.Dimensions
+using Dates
 
 test_files = [
     "era5-levels-members.grib", # OK
@@ -21,16 +23,26 @@ test_files = [
 gribexamples_dir = abspath(joinpath(dirname(pathof(GRIBDatasets)), "..", "test", "sample-data"))
 
 gribfiles = joinpath.(gribexamples_dir, test_files)
-gribfile = gribfiles[1]
+era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
+
+# for test_file in gribfiles
+#     print("Testing: ", test_file)
+#     stack = try
+#         RasterStack(test_file)
+#         println(lpad("OK", 5))
+#     catch
+#         println(lpad("NOK", 5))
+#     end
+# end
 
 @testset "Raster" begin
-    @time ncarray = Raster(gribfile)
-    @time lazyarray = Raster(gribfile; lazy=true);
-    @time eagerarray = Raster(gribfile; lazy=false);
-    @test_throws ArgumentError Raster("notafile.grib")
+    @time ncarray = Raster(era5)
+    @time lazyarray = Raster(era5; lazy=true);
+    @time eagerarray = Raster(era5; lazy=false);
+    @time ds = GRIBDataset(era5)
 
     @testset "lazyness" begin
-        @time read(Raster(gribfile));
+        @time read(Raster(era5));
         # Eager is the default
         @test parent(ncarray) isa Array
         @test parent(lazyarray) isa FileArray
@@ -48,15 +60,25 @@ gribfile = gribfiles[1]
         A2 = zero(A)
         @time read!(ncarray, A2);
         A3 = zero(A)
-        @time read!(gribfile, A3)
+        @time read!(ncarray, A3)
         @test all(A .=== A2) 
         @test all(A .=== A3)
     end
 
+    @testset "stack" begin
+        stack = RasterStack(era5)
+        ds = GRIBDataset(era5)
+
+        diff = stack[:z][:,:,1,1,1] - ds["z"][:,:,1,1,1]
+
+        @test all(diff .== 0.)
+    end
+
     # @testset "array properties" begin
-    #     @test size(ncarray) == (10, 4, 2, 120, 61)
+    #     dsvar = ds["z"]
+    #     @test size(ncarray) == size(dsvar)
     #     @test ncarray isa Raster
-    #     @test index(ncarray, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
+    #     @test index(ncarray, Ti) == DateTime(2017, 1, 1):Hour(12):DateTime(2017, 1, 2, 12)
     #     @test index(ncarray, Y) == -79.5:89.5
     #     @test index(ncarray, X) == 1.0:2:359.0
     #     @test bounds(ncarray) == (
@@ -66,20 +88,21 @@ gribfile = gribfiles[1]
     #     )
     # end
 
-    # @testset "dimensions" begin
-    #     @test ndims(ncarray) == 3
-    #     @test length.(dims(ncarray)) == (180, 170, 24)
-    #     @test dims(ncarray) isa Tuple{<:X,<:Y,<:Ti}
-    #     @test refdims(ncarray) == ()
-    #     @test val.(span(ncarray)) == 
-    #         (vcat((0.0:2.0:358.0)', (2.0:2.0:360.0)'),
-    #          vcat((-80.0:89.0)', (-79.0:90.0)'),
-    #          vcat(permutedims(DateTime360Day(2001, 1, 1):Month(1):DateTime360Day(2002, 12, 1)), 
-    #               permutedims(DateTime360Day(2001, 2, 1):Month(1):DateTime360Day(2003, 1, 1)))
-    #         )
-    #     @test typeof(lookup(ncarray)) <: Tuple{<:Mapped,<:Mapped,<:Sampled}
-    #     @test bounds(ncarray) == ((0.0, 360.0), (-80.0, 90.0), (DateTime360Day(2001, 1, 1), DateTime360Day(2003, 1, 1)))
-    # end
+    @testset "dimensions" begin
+        @test ndims(ncarray) == 5
+        @test length.(dims(ncarray)) == (120, 61, 10, 4, 2)
+        @test dims(ncarray) isa Tuple{<:X,<:Y,<:Dim{:number},<:Ti,<:Z}
+        @test refdims(ncarray) == ()
+        # @test val.(span(ncarray)) == 
+        #     (vcat((0.0:2.0:358.0)', (2.0:2.0:360.0)'),
+        #      vcat((-80.0:89.0)', (-79.0:90.0)'),
+        #      vcat(permutedims(DateTime360Day(2001, 1, 1):Month(1):DateTime360Day(2002, 12, 1)), 
+        #           permutedims(DateTime360Day(2001, 2, 1):Month(1):DateTime360Day(2003, 1, 1)))
+        #     )
+        # this test not passing 
+        @test typeof(lookup(ncarray)) <: Tuple{<:Mapped,<:Mapped,<:Sampled,<:Sampled,<:Sampled}
+        @test bounds(ncarray) == ((0.0, 357.0), (-90.0, 90.0), (0, 9), (DateTime("2017-01-01T00:00:00"), DateTime("2017-01-02T12:00:00")), (500, 850))
+    end
     # tempfile = tempname() * ".nc"
 
 
@@ -89,18 +112,18 @@ gribfile = gribfiles[1]
     #     @test name(ncarray) == :tos
     # end
 
-    # @testset "indexing" begin
-    #     @test ncarray[Ti(1)] isa Raster{<:Any,2}
-    #     @test ncarray[Y(1), Ti(1)] isa Raster{<:Any,1}
-    #     @test ncarray[X(1), Ti(1)] isa Raster{<:Any,1}
-    #     @test ncarray[X(1), Y(1), Ti(1)] isa Missing
-    #     @test ncarray[X(30), Y(30), Ti(1)] isa Float32
-    #     # Russia
-    #     @test ncarray[X(50), Y(100), Ti(1)] isa Missing
-    #     # Alaska
-    #     @test ncarray[Y(Near(64.2008)), X(Near(149.4937)), Ti(1)] isa Missing
-    #     @test ncarray[Ti(2), X(At(59.0)), Y(At(-50.5))] == ncarray[30, 30, 2] === 278.47168f0
-    # end
+    @testset "indexing" begin
+        @test ncarray[Ti(1)] isa Raster{<:Any,4}
+        @test ncarray[Y(1), Ti(1)] isa Raster{<:Any,3}
+        @test ncarray[X(1), Ti(1)] isa Raster{<:Any,3}
+        # @test ncarray[X(1), Y(1), Ti(1)] isa Missing
+        @test ncarray[X(30), Y(30), Ti(1), Z(1), number = 2] isa Float64
+        # Russia
+        # @test ncarray[X(50), Y(100), Ti(1)] isa Missing
+        # Alaska
+        # @test ncarray[Y(Near(64.2008)), X(Near(149.4937)), Ti(1)] isa Missing
+        # @test ncarray[Ti(2), X(At(59.0)), Y(At(-50.5))] == ncarray[30, 30, 2] === 278.47168f0
+    end
 
     # @testset "methods" begin 
     #     @testset "mean" begin
