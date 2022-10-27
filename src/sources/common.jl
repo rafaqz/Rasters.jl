@@ -6,7 +6,7 @@ const NCD_OR_GDS = Union{NCD.Dataset, GDS.Dataset}
 
 _unuseddimerror(dimname) = error("Netcdf contains unused dimension $dimname")
 
-function _dsdim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
+function _dsdim(ds::NCD.Dataset, dimname::Key, crs=nothing, mappedcrs=nothing)
     if haskey(ds, dimname)
         D = _dsdimtype(dimname)
         lookup = _dslookup(ds, dimname, D, crs, mappedcrs)
@@ -18,6 +18,12 @@ function _dsdim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
         len === nothing && _unuseddimerror()
         return Dim{Symbol(dimname)}(NoLookup(Base.OneTo(len)))
     end
+end
+
+function _dsdim(ds::GDS.Dataset, dimname::Key, crs=nothing, mappedcrs=nothing)
+    D = _gdsdimtype(dimname)
+    lookup = _dslookup(ds, dimname, D, crs, mappedcrs)
+    return D(lookup)
 end
 
 function _dsfinddimlen(ds, dimname)
@@ -102,13 +108,15 @@ function _dslookup(
     # var = NCD.variable(ds, dimname)
     if dimname in ["time", "valid_time"]
         # We consider the epoch 1970-01-01T00:00:00, as it appears to be in gribs files
-        dates = Dates.unix2datetime.(index)
+        # dates = Dates.unix2datetime.(index)
+        dates = Second.(index) .+ GDS.DEFAULT_EPOCH
         steps = unique(dates[2:end] .- dates[1:end-1])
         if length(steps) == 1
             span, sampling = Regular(steps[1]), Points()
         else
             span, sampling = Irregular((extrema(dates)...)), Points()
         end
+        index = dates
         return _dslookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     else
         span, sampling = _dsspan(index, order), Points()
