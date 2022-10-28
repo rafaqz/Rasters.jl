@@ -14,16 +14,16 @@ with an `Array`. `view` is always lazy, and reads from disk are deferred until
 way to subset an object, making use of the objects index to find values at 
 e.g. certain X/Y coordinates. The available selectors are listed here:
 
-|                      |                                                                    |
-| :------------------- | :----------------------------------------------------------------- |
-| `At(x)`              | get the index exactly matching the passed in value(s)              |
-| `Near(x)`            | get the closest index to the passed in value(s)                    |
-| `Where(f::Function)` | filter the array axis by a function of the dimension index values. |
-| `Between(a, b)`      | get all indices between two values, excluding the high value.      |
-| `Contains(x)`        | get indices where the value x falls within an interval             |
+|                        |                                                                    |
+| :--------------------- | :----------------------------------------------------------------- |
+| `At(x)`                | get the index exactly matching the passed in value(s)              |
+| `Near(x)`              | get the closest index to the passed in value(s)                    |
+| `Where(f::Function)`   | filter the array axis by a function of the dimension index values. |
+| `a..b`/`Between(a, b)` | get all indices between two values, excluding the high value.      |
+| `Contains(x)`          | get indices where the value x falls within an interval             |
 
 
-Use the `Between` selector to take a `view` of madagascar:
+Use the `..` selector to take a `view` of madagascar:
 
 ```@example
 using Rasters, Plots
@@ -209,9 +209,7 @@ to index it with `Near`.
 
 ```@example nc
 using CFTime
-A[Ti=Near(DateTime360Day(2001, 01, 17)), 
-  Y=Between(-60.0, 90.0), 
-  X=Between(190.0, 345.0)] |> plot
+A[Ti=Near(DateTime360Day(2001, 01, 17)), Y=-60.0..90.0), X=190.0..45.0)] |> plot 
 ```
 
 Now get the mean over the timespan, then save it to disk, and plot it as a

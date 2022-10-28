@@ -1,6 +1,7 @@
-using Rasters, Test, ArchGDAL, Dates, Statistics, GeoInterface, DataFrames, Extents
+using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, GeoInterface, DataFrames, Extents, Shapefile
 using Rasters.LookupArrays, Rasters.Dimensions 
 using Rasters: bounds
+
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
@@ -434,6 +435,58 @@ end
             end
         end
     end
+
+    function gdal_read_rasterize(fn, options...)
+        source_ds = ArchGDAL.unsafe_read(fn)
+        dest_ds = ArchGDAL.Dataset(GDAL.gdalrasterize(
+            "gadm36_ARG_1.mem",
+            Ptr{GDAL.GDALDatasetH}(C_NULL),
+            source_ds.ptr,
+            GDAL.gdalrasterizeoptionsnew([
+                "-of", "MEM",
+                "-ts", "250", "250",  # target size:
+                "-ot", "Byte",
+                "-burn", "1.0",
+                options...
+            ], C_NULL),
+            C_NULL
+        ))
+        raster = ArchGDAL.read(dest_ds)
+        ArchGDAL.destroy(dest_ds)
+        ArchGDAL.destroy(source_ds)
+        return raster
+    end
+
+    test_shape_dir = realpath(joinpath(dirname(pathof(Shapefile)), "..", "test", "shapelib_testcases"))
+    shp_paths = filter(x -> occursin("shp", x), readdir(test_shape_dir; join=true))
+    shp = shp_paths[1]
+    shx = splitext(shp)[1] * ".shx"
+
+    xs = LinRange(0.0, 179.28, 250)
+    ys = LinRange(169.32, 0.0, 250)
+
+    @testset "center in polygon rasterization" begin
+        gdal_raster = gdal_read_rasterize(shp)
+        rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes; 
+            size=250, fill=UInt8(1), missingval=UInt8(0)
+        )
+        # Same results as GDAL
+        @test sum(gdal_raster) == sum(rasters_raster)
+        @test reverse(gdal_raster[:, :, 1]; dims=2) == rasters_raster
+    end
+
+    @testset "line touches rasterization" begin
+        gdal_raster = gdal_read_rasterize(shp, "-at")
+        rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes; 
+            size=(250, 250), fill=UInt8(1), missingval=UInt8(0), boundary=:touches
+        )
+
+        # We are off by 2 - pixels in the middle of the line dont always agree with gdal
+        @test_broken sum(gdal_raster) == sum(rasters_raster)
+        @test_broken gdal_raster == rasters_raster
+        @test sum(rasters_raster) - sum(gdal_raster) == 2
+    end
+    # GDAL doesnt do inside / not touching rasterization, so we have no test against GDAL
 end
 
 @testset "resample" begin
@@ -483,4 +536,5 @@ end
         @test isapprox(index(snaptarget, Y), index(disk_snapped, Y))
         @test isapprox(index(snaptarget, X), index(disk_snapped, X))
     end
+
 end

@@ -51,11 +51,15 @@ function _inpolygon(::GI.AbstractPointTrait, points, ::GI.AbstractGeometryTrait,
     return first(inpoly2([(GI.x(points), GI.y(points))], nodes, edges; kw...))
 end
 
+
+using PolygonInbounds: vertex, edgecount, flipio!, edgeindex, searchfirst
+
 # Copied from PolygonInbounds, to add extra keyword arguments.
 # PR to include these when this has solidified
 function inpoly2(vert, node, edge=zeros(Int);
     atol::T=0.0, rtol::T=NaN, iyperm=nothing,
     vmin=nothing, vmax=nothing, pmin=nothing, pmax=nothing
+
 ) where T<:AbstractFloat
     rtol = !isnan(rtol) ? rtol : iszero(atol) ? eps(T)^0.85 : zero(T)
     poly = PolygonInbounds.PolygonMesh(node, edge)
@@ -70,7 +74,8 @@ function inpoly2(vert, node, edge=zeros(Int);
     tol = max(abs(rtol * lbar), abs(atol))
 
     ac = PolygonInbounds.areacount(poly)
-    stat = ac > 1 ? falses(length(points), 2, ac) : falses(length(points), 2)
+    # stat = ac > 1 ? fill(false, length(points), 1, ac) : 
+    stat = fill(false, length(points), 2)
     # flip coordinates so expected effort is minimal
     dvert = vmax .- vmin
     if isnothing(iyperm)
@@ -82,4 +87,81 @@ function inpoly2(vert, node, edge=zeros(Int);
 
     PolygonInbounds.inpoly2!(points, iyperm, poly, ix, tol, stat)
     return stat
+end
+
+function inpoly2!(points, iyperm, poly, ix::Integer, veps::T, stat::S) where {N,T<:AbstractFloat,S<:AbstractArray{Bool,N}}
+    nvrt = length(points)   # number of points to be checked
+    nedg = edgecount(poly)  # number of edges of the polygon mesh
+    vepsx = vepsy = veps
+    iy = 3 - ix
+
+    #----------------------------------- loop over polygon edges
+    for epos = 1:nedg
+
+        inod = edgeindex(poly, epos, 1)  # from
+        jnod = edgeindex(poly, epos, 2)  # to
+        # swap order of vertices
+        if vertex(poly, inod, iy) > vertex(poly, jnod, iy)
+            inod, jnod = jnod, inod
+        end
+
+        #------------------------------- calc. edge bounding-box
+        xone = vertex(poly, inod, ix)
+        yone = vertex(poly, inod, iy)
+        xtwo = vertex(poly, jnod, ix)
+        ytwo = vertex(poly, jnod, iy)
+
+        xmin0 = min(xone, xtwo)
+        xmax0 = max(xone, xtwo)
+        xmin = xmin0 - vepsx
+        xmax = xmax0 + vepsx
+        ymin = yone - vepsy
+        ymax = ytwo + vepsy
+
+        ydel = ytwo - yone
+        xdel = xtwo - xone
+        xysq = xdel^2 + ydel^2
+        feps = sqrt(xysq) * veps
+
+        # find top points[:,iy] < ymin by binary search
+        ilow = searchfirst(points, iy, iyperm, ymin)
+        #------------------------------- calc. edge-intersection
+        # loop over all points with y ∈ [ymin,ymax)
+        for jpos = ilow:nvrt
+            jorig = iyperm[jpos]
+            ypos = vertex(points, jorig, iy)
+            ypos > ymax && break 
+            xpos = vertex(points, jorig, ix)
+
+            if xpos >= xmin
+                if xpos <= xmax
+                    #--------- inside extended bounding box of edge
+                    mul1 = ydel * (xpos - xone)
+                    mul2 = xdel * (ypos - yone)
+                    # if abs(mul2 - mul1) <= feps
+                        #------- distance from line through edge less veps
+                        # mul3 = xdel * (2xpos-xone-xtwo) + ydel * (2ypos-yone-ytwo)
+                        # if abs(mul3) <= xysq ||
+                        #    hypot(xpos- xone, ypos - yone) <= veps ||
+                        #    hypot(xpos- xtwo, ypos - ytwo) <= veps
+                        #     # ---- round boundaries around endpoints of edge
+                        #     setonbounds!(poly, stat, jorig, epos)
+                        # end
+                            #----- left of line && ypos exact to avoid multiple counting
+                    # end
+                    if mul1 < mul2 && yone <= ypos < ytwo
+                    elseif mul1 < mul2 && yone <= ypos < ytwo
+                        #----- left of line && ypos exact to avoid multiple counting
+                        flipio!(poly, stat, jorig, epos)
+                    end
+                end
+            else # xpos < xmin - left of bounding box
+                if yone <= ypos <  ytwo
+                    #----- ypos exact to avoid multiple counting
+                    flipio!(poly, stat, jorig, epos)
+                end
+            end
+        end
+    end
+    stat
 end

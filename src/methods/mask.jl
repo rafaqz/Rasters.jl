@@ -257,7 +257,7 @@ function boolmask!(dest::AbstractRaster, src::AbstractRaster;
     broadcast!(a -> !isequal(a, missingval), dest, src)
 end
 function boolmask!(dest::AbstractRaster, geom; kw...)
-    _fill_geometry!(dest, geom; fill=true, kw...)
+    fill_geometry!(dest, geom; fill=true, kw...)
     return dest
 end
 

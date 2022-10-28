@@ -29,10 +29,10 @@ Here we cut out australia and africa from a stack, and join them with `mosaic`.
 using Rasters, Plots
 st = RasterStack(WorldClim{Climate}; month=1);
 
-africa = st[X(Between(-20.0, 60.0)), Y(Between(35.0, -40.0))]
+africa = st[X=-20.0..60.0, Y=35.0..(-40.0)]
 a = plot(africa)
 
-aus = st[X(Between(100.0, 160.0)), Y(Between(-10.0, -50.0))]
+aus = st[X=100.0..160.0), Y=-10.0..(-50.0)]
 b = plot(aus)
 
 # Combine with mosaic
@@ -118,8 +118,8 @@ into a single stack.
 ```jldoctest
 using Rasters, Statistics, Plots
 st = read(RasterStack(WorldClim{Climate}; month=1))
-aus = st[X(Between(100.0, 160.0)), Y(Between(-10.0, -50.0))]
-africa = st[X(Between(-20.0, 60.0)), Y(Between(35.0, -40.0))]
+aus = st[X=100.0..160.0, Y=-10.0..(-50.0)]
+africa = st[X=-20.0..60.0, Y=35.0..(-40.0)]
 mosaic!(first, st, aus, africa)
 plot(st)
 savefig("build/mosaic_bang_example.png")
