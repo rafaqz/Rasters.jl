@@ -80,17 +80,6 @@ end
 function _rasterize(to::AbstractRasterStack, data; fill, name=keys(to), kw...)
     _rasterize(dims(to), data; fill, name=_filter_name(name, fill), kw...)
 end
-function _rasterize(to::DimTuple, data;
-    fill, name=_filter_name(nothing, fill), kw...
-)
-    _rasterize(to, GeoInterface.trait(data), data; fill, name, kw...)
-end
-function _rasterize(to::DimTuple, ::GI.AbstractFeatureTrait, feature; fill, name, kw...)
-    fillval = _featurefillval(feature, fill)
-    name = _filter_name(name, fill)
-    dest = _create_rasterize_dest(fillval, to; name, kw...)
-    return rasterize!(dest, feature; fill, kw...)
-end
 function _rasterize(to::Nothing, data; fill, kw...)
     to = _extent(data)
     _rasterize(to, data; fill, name, kw...)
@@ -110,11 +99,17 @@ function _rasterize(to::Extents.Extent{K}, data;
     end
     lookups = map(ranges) do range
         Projected(range;
-            order=ForwardOrdered(), sampling=Intervals(Start()), span=Regular(step(range)), crs,
+            order=ForwardOrdered(), 
+            sampling=Intervals(Start()),
+            span=Regular(step(range)), 
+            crs,
         )
     end
     to = map(rebuild, emptydims, lookups)
-    _rasterize(to, data; fill, name, kw...)
+    return _rasterize(to, data; fill, name, kw...)
+end
+function _rasterize(to::DimTuple, data; fill, name=_filter_name(nothing, fill), kw...)
+    _rasterize(to, GeoInterface.trait(data), data; fill, name, kw...)
 end
 function _rasterize(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name, fill, kw...)
     # TODO: how to handle when there are fillvals with different types
@@ -122,6 +117,13 @@ function _rasterize(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name,
     name = _filter_name(name, fill)
     return _create_rasterize_dest(fillval, to; name, kw...) do dest
         rasterize!(dest, fc; fill, kw...)
+    end
+end
+function _rasterize(to::DimTuple, ::GI.AbstractFeatureTrait, feature; fill, name, kw...)
+    fillval = _featurefillval(feature, fill)
+    name = _filter_name(name, fill)
+    return _create_rasterize_dest(fillval, to; name, kw...) do dest
+        rasterize!(dest, feature; fill, kw...)
     end
 end
 function _rasterize(to::DimTuple, ::GI.AbstractGeometryTrait, geom; fill, kw...)
@@ -141,6 +143,13 @@ function _rasterize(to::DimTuple, ::Nothing, data; fill, name, kw...)
             map(n -> zero(Tables.columntype(schema, n)), fill)
         else
             fill
+        end
+        return _create_rasterize_dest(fillval, to; name, kw...) do dest
+            rasterize!(dest, data; fill, kw...)
+        end
+    else
+        return _create_rasterize_dest(fill, to; name, kw...) do dest
+            rasterize!(dest, data; fill, kw...)
         end
     end
 end
@@ -222,6 +231,7 @@ $EXPERIMENTAL
 """
 rasterize!(x::RasterStackOrArray, data; fill, kw...) =
     _rasterize!(x, GI.trait(data), data; fill, kw...)
+
 function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
     function _rasterize_feature_inner(x, fc, fillkey; kw...)
         for feature in GI.getfeature(fc)
@@ -353,7 +363,9 @@ function _create_rasterize_dest(f, fill::Union{Tuple,NamedTuple}, keys::Union{Tu
             a .= missingval
         end
     end
-    return open(f, RasterStack(layers, dims; keys, metadata))
+    st = RasterStack(layers, dims; keys, metadata)
+    open(f, RasterStack(layers, dims; keys, metadata))
+    return st
 end
 function _create_rasterize_dest(f, fill, name, dims;
     filename=nothing, missingval=nothing, metadata=NoMetadata(), suffix=nothing, kw...

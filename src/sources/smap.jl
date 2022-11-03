@@ -130,7 +130,7 @@ function OpenStack(fs::FileStack{SMAPfile,K}; kw...) where K
     ds = h5open(filename(fs); kw...)
     OpenStack{SMAPfile,K}(SMAPhdf5(ds))
 end
-Base.close(os::OpenStack{SMAPfile}) = close(dataset(os))
+Base.close(os::OpenStack{SMAPfile}) = nothing # HDF5 handles this apparently?
 
 # Series #######################################################################
 

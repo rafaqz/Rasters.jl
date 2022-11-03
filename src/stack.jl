@@ -319,10 +319,10 @@ end
 
 # Open a single file stack
 function Base.open(f::Function, st::AbstractRasterStack{<:FileStack}; kw...)
-    ost = OpenStack(parent(s))
+    ost = OpenStack(parent(st))
     out = f(rebuild(st; data=ost))
     close(ost)
-    return out
+    return out 
 end
 # Open a multi-file stack or just apply f to a memory backed stack
 function Base.open(f::Function, st::AbstractRasterStack{<:NamedTuple}; kw...)
@@ -332,11 +332,13 @@ end
 # Open all layers through nested closures, applying `f` to the rebuilt open stack
 _open_layers(f, st) = _open_layers(f, st, layers(f), NamedTuple()) 
 function _open_layers(f, st, unopened::NamedTuple{K}, opened::NamedTuple) where K
-    open(first(layers)) do open_layer
-        _open_layers(f, st, Base.tail(layers), merge(opened, NamedTuple{(first(K))}(open_layer)))
+    open(first(unopened)) do open_layer
+        _open_layers(f, st, Base.tail(unopened), merge(opened, NamedTuple{(first(K))}(open_layer)))
     end
 end
-_open_layers(f, st, unopened::NamedTuple{()}, opened) = f(rebuild(st; data=opened))
+function _open_layers(f, st, unopened::NamedTuple{()}, opened)
+    f(rebuild(st; data=opened))
+end
 
 function _layerkeysfromdim(A, dim)
     map(index(A, dim)) do x
