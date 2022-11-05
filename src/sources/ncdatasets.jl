@@ -208,8 +208,6 @@ function OpenStack(fs::FileStack{NCDfile,K}) where K
 end
 Base.close(os::OpenStack{NCDfile}) = NCD.close(dataset(os))
 
-# Utils ########################################################################
-
 function _open(f, ::Type{NCDfile}, filename::AbstractString; write=false, kw...)
     isfile(filename) || _filenotfound_error(filename)
     mode = write ? "a" : "r"
@@ -218,9 +216,13 @@ function _open(f, ::Type{NCDfile}, filename::AbstractString; write=false, kw...)
     end
 end
 function _open(f, ::Type{NCDfile}, ds::NCD.Dataset; key=nothing, kw...)
-    cleanreturn(f(key isa Nothing ? ds : ds[_firstkey(ds, key)]))
+    x = key isa Nothing ? ds : ds[_firstkey(ds, key)]
+    cleanreturn(f(x))
 end
 _open(f, ::Type{NCDfile}, var::NCD.CFVariable; kw...) = cleanreturn(f(var))
+
+
+# Utils ########################################################################
 
 cleanreturn(A::NCD.CFVariable) = Array(A)
 
@@ -493,3 +495,4 @@ function _precompile(::Type{NCDfile})
 end
 
 _precompile(NCDfile)
+

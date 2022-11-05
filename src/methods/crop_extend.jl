@@ -27,7 +27,7 @@ evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 rnge = Raster(EarthEnv{HabitatHeterogeneity}, :range)
 
 # Roughly cut out New Zealand from the evenness raster
-nz_bounds = X(Between(165, 180)), Y(Between(-32, -50))
+nz_bounds = X(165..180), Y(-32..-50)
 nz_evenness = evenness[nz_bounds...]
 
 # Crop range to match evenness
@@ -125,7 +125,7 @@ evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 rnge = Raster(EarthEnv{HabitatHeterogeneity}, :range)
 
 # Roughly cut out South America
-sa_bounds = X(Between(-88, -32)), Y(Between(-57, 13))
+sa_bounds = X(-88..-32), Y(-57..13)
 sa_evenness = evenness[sa_bounds...]
 
 # Extend range to match the whole-world raster

@@ -6,7 +6,7 @@ struct _Defined end
 
 Rasterize the a GeoInterface.jl compatable geometry or feature,
 or a Tables.jl table with a :geometry column of GeoInterface.jl objects,
-or `X`, `Y` points columns. 
+or `X`, `Y` points columns.
 
 # Arguments
 
@@ -55,8 +55,6 @@ dms = Y(Projected(15.0:0.1:55.0; order=ForwardOrdered(), span=Regular(0.1), samp
 
 # Rasterize the border polygon
 china = rasterize(china_border; to=dms, shape=:line, missingval=0, fill=1, boundary=:touches)
-rebuild(lookup(china, 1); data=lookup(china, 1) .* 3)
-rebuild(lookup(china, 1); data=lookup(china, 1) .* 3)
 
 # And plot
 p = plot(china; color=:spring)
@@ -71,7 +69,7 @@ savefig("build/china_rasterized.png")
 
 $EXPERIMENTAL
 """
-function rasterize(data; to, fill, kw...)
+function rasterize(data; to=nothing, fill, kw...)
     return _rasterize(to, data; fill, kw...)
 end
 function _rasterize(to::AbstractRaster, data;
@@ -82,31 +80,60 @@ end
 function _rasterize(to::AbstractRasterStack, data; fill, name=keys(to), kw...)
     _rasterize(dims(to), data; fill, name=_filter_name(name, fill), kw...)
 end
-function _rasterize(to::DimTuple, data;
-    fill, name=_filter_name(nothing, fill), kw...
-)
-    _rasterize(to, GeoInterface.trait(data), data; fill, name, kw...)
+function _rasterize(to::Nothing, data; fill, kw...)
+    to = _extent(data)
+    _rasterize(to, data; fill, name, kw...)
 end
-function _rasterize(to::DimTuple, ::GI.AbstractFeatureTrait, feature; fill, name, kw...)
-    fillval = _featurefillval(feature, fill)
-    name = _filter_name(name, fill)
-    dest = _create_rasterize_dest(fillval, to; name, kw...)
-    return rasterize!(dest, feature; fill, kw...)
+function _rasterize(to::Extents.Extent{K}, data;
+    fill, name=_filter_name(nothing, fill),
+    size::Union{Int,NTuple{<:Any,Int}}, crs=nothing, kw...
+) where K
+    emptydims = map(key2dim, K)
+    if size isa Int
+        size = ntuple(_ -> size, length(K))
+    end
+    ranges = map(values(to), size) do bounds, length
+        start, outer = bounds
+        step = (outer - start) / length
+        range(; start, step, length)
+    end
+    lookups = map(ranges) do range
+        Projected(range;
+            order=ForwardOrdered(), 
+            sampling=Intervals(Start()),
+            span=Regular(step(range)), 
+            crs,
+        )
+    end
+    to = map(rebuild, emptydims, lookups)
+    return _rasterize(to, data; fill, name, kw...)
+end
+function _rasterize(to::DimTuple, data; fill, name=_filter_name(nothing, fill), kw...)
+    _rasterize(to, GeoInterface.trait(data), data; fill, name, kw...)
 end
 function _rasterize(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name, fill, kw...)
     # TODO: how to handle when there are fillvals with different types
     fillval = _featurefillval(GI.getfeature(fc, 1), fill)
     name = _filter_name(name, fill)
-    dest = _create_rasterize_dest(fillval, to; name, kw...)
-    return rasterize!(dest, fc; fill, kw...)
+    return _create_rasterize_dest(fillval, to; name, kw...) do dest
+        rasterize!(dest, fc; fill, kw...)
+    end
+end
+function _rasterize(to::DimTuple, ::GI.AbstractFeatureTrait, feature; fill, name, kw...)
+    fillval = _featurefillval(feature, fill)
+    name = _filter_name(name, fill)
+    return _create_rasterize_dest(fillval, to; name, kw...) do dest
+        rasterize!(dest, feature; fill, kw...)
+    end
 end
 function _rasterize(to::DimTuple, ::GI.AbstractGeometryTrait, geom; fill, kw...)
-    dest = _create_rasterize_dest(fill, to; kw...)
-    return rasterize!(dest, geom; fill, kw...)
+    return _create_rasterize_dest(fill, to; kw...) do dest
+        rasterize!(dest, geom; fill, kw...)
+    end
 end
 function _rasterize(to::DimTuple, ::Nothing, data; fill, name, kw...)
     name = _filter_name(name, fill)
-    dest = if Tables.istable(data)
+    if Tables.istable(data)
         schema = Tables.schema(data)
         fillval = if isnothing(fill)
             throw(ArgumentError("`fill` must be a value or table column name or names"))
@@ -117,40 +144,14 @@ function _rasterize(to::DimTuple, ::Nothing, data; fill, name, kw...)
         else
             fill
         end
-        _create_rasterize_dest(fillval, to; name, kw...)
-    else
-        _create_rasterize_dest(fill, to; name, kw...)
-    end
-    return rasterize!(dest, data; fill, kw...)
-end
-
-# Create a destination raster to fill into using `rasterize!`
-function _create_rasterize_dest(fill, dims; name=nothing, kw...)
-    _create_rasterize_dest(fill, name, dims; kw...)
-end
-function _create_rasterize_dest(fill::Union{Tuple,NamedTuple}, keys, dims; kw...)
-    _create_rasterize_dest(fill, DD.uniquekeys(fill), dims; kw...)
-end
-function _create_rasterize_dest(fill::Union{Tuple,NamedTuple}, keys::Union{Tuple,NamedTuple}, dims;
-    filename=nothing, missingval=nothing, metadata=NoMetadata(), suffix=nothing, kw...
-)
-    layers = map(keys, values(fill)) do key, val
-        missingval = isnothing(missingval) ? _writeable_missing(filename, typeof(val)) : missingval
-        T = val isa AbstractArray ? eltype(val) : typeof(val)
-        _alloc_rasterize(filename, T, dims; name, metadata, missingval, suffix=key) do a
-            a .= missingval
+        return _create_rasterize_dest(fillval, to; name, kw...) do dest
+            rasterize!(dest, data; fill, kw...)
         end
-    end |> NamedTuple{keys}
-    return RasterStack(layers, dims; metadata)
-end
-function _create_rasterize_dest(fill, name, dims;
-    filename=nothing, missingval=nothing, metadata=NoMetadata(), suffix=nothing, kw...
-)
-    missingval = isnothing(missingval) ? _writeable_missing(filename, typeof(fill)) : missingval
-    A = _alloc_rasterize(filename, typeof(fill), dims; name, metadata, missingval, suffix) do a
-        a .= missingval
+    else
+        return _create_rasterize_dest(fill, to; name, kw...) do dest
+            rasterize!(dest, data; fill, kw...)
+        end
     end
-    return Raster(A, dims; name, missingval, metadata)
 end
 
 """
@@ -163,7 +164,7 @@ using the values specified by `fill`.
 
 - `dest`: a `Raster` or `RasterStack` to rasterize into.
 - `data`: an GeoInterface.jl compatible object or `AbstractVector` of such objects,
-    or a Tables.jl compatible table containing GeoInterface compatible objects or 
+    or a Tables.jl compatible table containing GeoInterface compatible objects or
     columns with point names `X` and `Y`.
 - `fill`: the value to fill a polygon with. A `Symbol` or tuple of `Symbol` will
     be used to retrieve properties from features or column values from table rows.
@@ -230,6 +231,7 @@ $EXPERIMENTAL
 """
 rasterize!(x::RasterStackOrArray, data; fill, kw...) =
     _rasterize!(x, GI.trait(data), data; fill, kw...)
+
 function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
     function _rasterize_feature_inner(x, fc, fillkey; kw...)
         for feature in GI.getfeature(fc)
@@ -256,7 +258,7 @@ function _rasterize!(x, ::GI.AbstractFeatureTrait, feature; fill, kw...)
 end
 function _rasterize!(x, ::GI.AbstractGeometryTrait, geom; fill, _buffer=nothing, kw...)
     # TODO fix DimensionalData selectors so this works without _pad
-    ranges = _pad(size(x), DD.dims2indices(x, _extent(geom)))
+    ranges = _pad(size(x), Base.to_indices(x, DD.dims2indices(x, _extent(geom))))
     x1 = view(x, ranges...)
     length(x1) > 0 || return x
     _buffer = if isnothing(_buffer)
@@ -346,30 +348,47 @@ function _pad(size, ranges)
     end
 end
 
-function _alloc_rasterize(f, filename, T, to; missingval=typemin(T), suffix=nothing, kw...)
+function _create_rasterize_dest(f, fill, dims; name=nothing, kw...)
+    _create_rasterize_dest(f, fill, name, dims; kw...)
+end
+function _create_rasterize_dest(f, fill::Union{Tuple,NamedTuple}, keys, dims; kw...)
+    _create_rasterize_dest(f, fill, DD.uniquekeys(fill), dims; kw...)
+end
+function _create_rasterize_dest(f, fill::Union{Tuple,NamedTuple}, keys::Union{Tuple,NamedTuple}, dims;
+    filename=nothing, missingval=nothing, metadata=NoMetadata(), suffix=nothing, kw...
+)
+    layers = map(keys, values(fill)) do key, val
+        missingval = isnothing(missingval) ? _writeable_missing(filename, typeof(val)) : missingval
+        _alloc_rasterize(filename, val, dims; name, metadata, missingval, suffix=key) do a
+            a .= missingval
+        end
+    end
+    st = RasterStack(layers, dims; keys, metadata)
+    open(f, RasterStack(layers, dims; keys, metadata))
+    return st
+end
+function _create_rasterize_dest(f, fill, name, dims;
+    filename=nothing, missingval=nothing, metadata=NoMetadata(), suffix=nothing, kw...
+)
+    missingval = isnothing(missingval) ? _writeable_missing(filename, typeof(val)) : missingval
+    A = _alloc_rasterize(filename, fill, dims; name, metadata, missingval, suffix) do a
+        a .= missingval
+        f(a)
+    end
+    return Raster(A, dims; name, missingval, metadata)
+end
+
+function _alloc_rasterize(f, filename, fill, to; missingval, kw...)
+    T = fill isa AbstractArray ? eltype(fill) : typeof(fill)
     T1 = promote_type(typeof(missingval), T)
-    A = create(filename, T1, to; suffix, missingval, kw...)
+    A = create(filename, T1, to; missingval, kw...)
+    # TODO f should apply to the file when it is initially created
+    # instead of reopening but we need a `create(f, filename, ...)` method
     open(A; write=true) do A
         A .= missingval
         f(A)
     end
     return A
-end
-function _alloc_rasterize(f, filename, to::AbstractRasterStack; kw...)
-    _alloc_rasterize(f, filename, to, values(to), (); kw...)
-end
-function _alloc_rasterize(f, filename, to::AbstractRasterStack, layers::Tuple{<:AbstractRaster,Vararg}, allocated;
-    fill, suffix=nothing, kw...
-)
-    eltype = typeof(first(fill))
-    missingval = _writeable_missing(filename, eltype)
-    A = create(filename, eltype, first(to); suffix, missingval, kw...)
-    open(A; write=true) do A
-        _alloc_rasterize(f, filename, to, Base.tail(layers), (allocated..., A); fill=Base.tail(fill), suffix, kw...)
-    end
-end
-function _alloc_rasterize(f, filename, to::AbstractRasterStack, layers::Tuple{}, allocated; kw...)
-    f(DD.rebuild_from_arrays(to, allocated))
 end
 
 function _fill!(st::AbstractRasterStack, B, fill, args...)

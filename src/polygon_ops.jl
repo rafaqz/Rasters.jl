@@ -6,6 +6,11 @@ const DEFAULT_TABLE_DIM_KEYS = (:X, :Y, :Z)
 
 # _fill_geometry!
 # Fill a raster with `fill` where it interacts with a geometry.
+function fill_geometry!(B::AbstractRaster, geom; kw...)
+    # preallocs = _maybe_prealloc(B; kw...)
+    _fill_geometry!(B, geom; kw...)
+end
+
 function _fill_geometry!(B::AbstractRaster, geom; kw...)
     _fill_geometry!(B, GI.trait(geom), geom; kw...)
 end
@@ -54,7 +59,9 @@ end
 # _fill_polygon!
 # Fill a raster with `fill` where pixels are inside a polygon
 # `boundary` determines how edges are handled
-function _fill_polygon!(B::AbstractRaster, geom; geomextent, fill=true, boundary=:center, kw...)
+function _fill_polygon!(B::AbstractRaster, geom;
+    fill=true, boundary=:center, geomextent , kw...
+)
     # Subset to the area the geom covers
     # TODO take a view of B for the polygon
     # We need a tuple of all the dims in `order`
@@ -65,10 +72,9 @@ function _fill_polygon!(B::AbstractRaster, geom; geomextent, fill=true, boundary
         # DimPoints are faster if we materialise the dims
         modify(Array, d)
     end
-    pts = DimPoints(shifted_dims)
-    points = GI.getpoint(geom)
+    pts = vec((DimPoints(shifted_dims)))
     inpoly = if any(map(d -> DD.order(d) isa Unordered, shifted_dims))
-        inpolygon(vec(pts), geom)
+        inpolygon(pts, geom)
     else
         pointbounds = map(shifted_dims) do d
             f = first(d)
@@ -81,17 +87,16 @@ function _fill_polygon!(B::AbstractRaster, geom; geomextent, fill=true, boundary
         vmax = [map(last, pointbounds)...]'
         pmin = [map(first, geomextent)...]'
         pmax = [map(last, geomextent)...]'
-        pts = DimPoints(shifted_dims)
         iyperm = _iyperm(shifted_dims)
-        inpolygon(vec(pts), geom; vmin, vmax, pmin, pmax, iyperm)
+        inpolygon(pts, geom; vmin, vmax, pmin, pmax, iyperm)
     end
     inpolydims = dims(B, DEFAULT_POINT_ORDER)
-    reshaped = Raster(reshape(inpoly, size(inpolydims)), inpolydims)
-    return _inner_fill_polygon!(B, geom, inpoly, reshaped; fill, boundary)
+    reshaped = Raster(Base.ReshapedArray(inpoly, size(inpolydims), ()), inpolydims)
+    return _inner_fill_polygon!(B, geom, inpoly, reshaped, shifted_dims; fill, boundary)
 end
 
 # split to make a type stability function barrier
-function _inner_fill_polygon!(B::AbstractRaster, geom, inpoly, reshaped; fill=true, boundary=:center, kw...)
+function _inner_fill_polygon!(B::AbstractRaster, geom, inpoly, reshaped, shifted_dims; fill=true, boundary=:center, kw...)
     # Get the array as points
     # Use the first column of the output - the points in the polygon,
     # and reshape to match `A`
@@ -101,11 +106,13 @@ function _inner_fill_polygon!(B::AbstractRaster, geom, inpoly, reshaped; fill=tr
         end
     end
     if boundary === :touches
+        B1 = setdims(B, shifted_dims)
         # Add the line pixels
-        _fill_linestring!(B, geom; fill)
+        _fill_linestring!(B1, geom; fill)
     elseif boundary === :inside
+        B1 = setdims(B, shifted_dims)
         # Remove the line pixels
-        _fill_linestring!(B, geom; fill=!fill)
+        _fill_linestring!(B1, geom; fill=!fill)
     elseif boundary !== :center
         _boundary_error(boundary)
     end
@@ -118,9 +125,10 @@ function _iyperm(dims::Tuple{<:Dimension,<:Dimension})
         LA.ordered_firstindex(l):_order_step(l):LA.ordered_lastindex(l)
     end
     iyperm = Array{Int}(undef, length(a1) * length(a2))
-    lis = (LinearIndices(size(dims))[i, j] for j in a2 for i in a1)
-    for (i, li) in enumerate(lis)
-        iyperm[i] = li
+    k = 1
+    for j in a2, i in a1
+        iyperm[k] = LinearIndices(size(dims))[i, j]
+        k += 1
     end
     return iyperm
 end
@@ -190,8 +198,13 @@ end
 # Fill a raster with `fill` where pixels touch lines in a linestring
 # Separated for a type stability function barrier
 function _fill_linestring!(B::AbstractRaster, linestring; fill=true, kw...)
+    # Make sure dims have `Center` locus
+    centered_dims = map(dims(B, DEFAULT_POINT_ORDER)) do d
+        d = DD.maybeshiftlocus(Center(), d)
+    end
+    centered_B = setdims(B, centered_dims)
     # Flip the order with a view to keep our alg simple
-    forward_ordered_B = reduce(dims(B); init=B) do A, d
+    forward_ordered_B = reduce(dims(centered_B); init=centered_B) do A, d
         if DD.order(d) isa ReverseOrdered
             A = view(A, rebuild(d, lastindex(d):-1:firstindex(d)))
             set(A, d => reverse(d))
@@ -243,11 +256,11 @@ function _fill_line!(A::AbstractRaster, line, fill)
 
     x_scale = abs(step(span(A, X)))
     y_scale = abs(step(span(A, Y)))
-    raw_x_offset = bounds(A, xd)[1]
-    raw_y_offset = bounds(A, yd)[1]
-    raw_start, raw_stop = line.start, line.stop # Float
-    start = (; x=(raw_start.x - raw_x_offset)/x_scale, y=(raw_start.y - raw_y_offset)/y_scale)
-    stop = (; x=(raw_stop.x - raw_x_offset)/x_scale, y=(raw_stop.y - raw_y_offset)/y_scale)
+    raw_x_offset = xd[1] - x_scale / 2
+    raw_y_offset = yd[1] - x_scale / 2
+    # Converted lookup to array axis values
+    start = (; x=(line.start.x - raw_x_offset)/x_scale, y=(line.start.y - raw_y_offset)/y_scale)
+    stop = (; x=(line.stop.x - raw_x_offset)/x_scale, y=(line.stop.y - raw_y_offset)/y_scale)
     x, y = floor(Int, start.x) + 1, floor(Int, start.y) + 1 # Int
 
     diff_x = stop.x - start.x
@@ -259,17 +272,19 @@ function _fill_line!(A::AbstractRaster, line, fill)
     xoffset = stop.x > start.x ? (ceil(start.x) - start.x) : (start.x - floor(start.x))
     yoffset = stop.y > start.y ? (ceil(start.y) - start.y) : (start.y - floor(start.y))
     # Angle of ray/slope.
-    angle = @fastmath atan(-diff_y, diff_x)
     # max: How far to move along the ray to cross the first cell boundary.
     # delta: How far to move along the ray to move 1 grid cell.
-    cs = cos(angle)
-    si = sin(angle)
-    max_x, delta_x = if isapprox(cs, zero(cs); atol=1e-10)
+    # Our precision requirements are very low given pixels per
+    # axis is usually some number of thousands
+    ang = @fastmath atan(-diff_y, diff_x)
+    cs = @fastmath cos(ang)
+    si = @fastmath sin(ang)
+    delta_x, max_x = if isapprox(cs, zero(cs); atol=1e-10)
         -Inf, Inf
     else
         1.0 / cs, xoffset / cs
     end
-    max_y, delta_y = if isapprox(si, zero(si); atol=1e-10)
+    delta_y, max_y = if isapprox(si, zero(si); atol=1e-10)
         -Inf, Inf
     else
         1.0 / si, yoffset / si
@@ -278,7 +293,7 @@ function _fill_line!(A::AbstractRaster, line, fill)
     manhattan_distance = floor(Int, abs(floor(start.x) - floor(stop.x)) + abs(floor(start.y) - floor(stop.y)))
     # For arbitrary dimension indexing
     dimconstructors = map(DD.basetypeof, (xd, yd))
-    for t in 0:manhattan_distance
+    for _ in 0:manhattan_distance
         D = map((d, o) -> d(o), dimconstructors, (x, y))
         if checkbounds(Bool, A, D...)
             if fill isa Function
@@ -288,7 +303,7 @@ function _fill_line!(A::AbstractRaster, line, fill)
             end
         end
         # Only move in either X or Y coordinates, not both.
-        if abs(max_x) <= abs(max_y)
+        if abs(max_x) < abs(max_y)
             max_x += delta_x
             x += step_x
         else

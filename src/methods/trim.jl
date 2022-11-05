@@ -28,7 +28,7 @@ st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers)
 plot(st)
 
 # Roughly cut out australia
-ausbounds = X(Between(100, 160)), Y(Between(-10, -50))
+ausbounds = X(100..160), Y(-10..(-50))
 aus = st[ausbounds...]
 a = plot(aus)
 
