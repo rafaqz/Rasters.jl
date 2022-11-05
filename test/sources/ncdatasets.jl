@@ -8,6 +8,14 @@ ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = maybedownload(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
 ncmulti = maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
 
+using NCDatasets
+f = "/home/raf/Downloads/test.nc"
+NCDatasets.Dataset(f)
+NCDatasets.Dataset(ncsingle)
+r = Raster(f)
+write("test2.nc", r)
+NCDatasets.Dataset("test2.nc")
+
 stackkeys = (
     :abso4, :aclcac, :aclcov, :ahfcon, :ahfice, :ahfl, :ahfliac, :ahfllac,
     :ahflwac, :ahfres, :ahfs, :ahfsiac, :ahfslac, :ahfswac, :albedo, :albedo_nir,
@@ -211,6 +219,11 @@ stackkeys = (
             @test size(geoA) == size(ncarray)
             filename = tempname() * ".nc"
             write(filename, geoA)
+            @testset "CF" attributes
+                @test NCDatasets.Dataset(filename)[:x].attrib["axis"] == "X"
+                @test NCDatasets.Dataset(filename)[:x].attrib["bounds"] == "x_bnds"
+                # TODO  better units and standard name handling
+            end
             saved = read(Raster(filename))
             @test size(saved) == size(geoA)
             @test refdims(saved) == refdims(geoA)

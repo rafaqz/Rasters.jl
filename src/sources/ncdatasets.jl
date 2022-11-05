@@ -6,7 +6,7 @@ const NCDAllowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,F
 
 # CF standards don't enforce dimension names.
 # But these are common, and should take care of most dims.
-const NCD_DIMMAP = Dict(
+const NCD_DIM_MAP = Dict(
     "lat" => Y,
     "latitude" => Y,
     "lon" => X,
@@ -21,6 +21,13 @@ const NCD_DIMMAP = Dict(
     "y" => Y,
     "z" => Z,
     "band" => Band,
+)
+
+const NCD_AXIS_MAP = Dict(
+    "X" => X,
+    "Y" => Y,
+    "Z" => Z,
+    "T" => Ti,
 )
 
 haslayers(::Type{NCDfile}) = true
@@ -60,7 +67,7 @@ Write an NCDarray to a NetCDF file using NCDatasets.jl
 
 Returns `filename`.
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster; append = false, kw...)
+function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster; append=false, kw...)
     mode  = !isfile(filename) || !append ? "c" : "a";
     ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(A)))
     try
@@ -228,7 +235,8 @@ cleanreturn(A::NCD.CFVariable) = Array(A)
 
 function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
     if haskey(ds, dimname)
-        D = _ncddimtype(dimname)
+        var = NCD.variable(ds, dimname)
+        D = _ncddimtype(var.attrib, dimname)
         lookup = _ncdlookup(ds, dimname, D, crs, mappedcrs)
         return D(lookup)
     else
@@ -236,7 +244,8 @@ function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
         # so make it a custom `Dim` with `NoLookup`
         len = _ncfinddimlen(ds, dimname)
         len === nothing && _unuseddimerror()
-        return Dim{Symbol(dimname)}(NoLookup(Base.OneTo(len)))
+        lookup = NoLookup(Base.OneTo(len))
+        return Dim{Symbol(dimname)}(lookup)
     end
 end
 
@@ -253,25 +262,33 @@ end
 
 # Find the matching dimension constructor. If its an unknown name
 # use the generic Dim with the dim name as type parameter
-_ncddimtype(dimname) = haskey(NCD_DIMMAP, dimname) ? NCD_DIMMAP[dimname] : DD.basetypeof(DD.key2dim(Symbol(dimname)))
+function _ncddimtype(attrib, dimname)
+    if haskey(attrib, "axis")
+        NCD_AXIS_MAP[attrib["axis"]] 
+    elseif haskey(NCD_DIM_MAP, dimname) 
+        NCD_DIM_MAP[dimname] 
+    else
+        DD.basetypeof(DD.key2dim(Symbol(dimname)))
+    end
+end
 
 # _ncdlookup
 # Generate a `LookupArray` from a netcdf dim.
-function _ncdlookup(ds::NCD.Dataset, dimname, D, crs, mappedcrs)
+function _ncdlookup(ds::NCD.Dataset, dimname, D::Type, crs, mappedcrs)
     dvar = ds[dimname]
     index = dvar[:]
     metadata = _metadatadict(NCDfile, dvar.attrib)
     return _ncdlookup(ds, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For unknown types we just make a Categorical lookup
-function _ncdlookup(ds::NCD.Dataset, dimname, D, index::AbstractArray, metadata, crs, mappedcrs)
+function _ncdlookup(ds::NCD.Dataset, dimname, D::Type, index::AbstractArray, metadata, crs, mappedcrs)
     Categorical(index; order=Unordered(), metadata=metadata)
 end
 # For Number and AbstractTime we generate order/span/sampling
 # We need to include `Missing` in unions in case `_FillValue` is used
 # on coordinate variables in a file and propagates here.
 function _ncdlookup(
-    ds::NCD.Dataset, dimname, D, index::AbstractArray{<:Union{Missing,Number,Dates.AbstractTime}},
+    ds::NCD.Dataset, dimname, D::Type, index::AbstractArray{<:Union{Missing,Number,Dates.AbstractTime}},
     metadata, crs, mappedcrs
 )
     # Assume the locus is at the center of the cell if boundaries aren't provided.
@@ -426,16 +443,29 @@ function _def_dim_var!(ds::NCD.Dataset, dim::Dimension)
     if dim isa Y || dim isa X
         dim = convertlookup(Mapped, dim)
     end
+    # Attributes
     attrib = _attribdict(metadata(dim))
+    # Bounds variables
     if span(dim) isa Explicit
         bounds = val(span(dim))
         boundskey = get(metadata(dim), :bounds, string(dimkey, "_bnds"))
         push!(attrib, "bounds" => boundskey)
         NCD.defVar(ds, boundskey, bounds, ("bnds", dimkey))
     end
+
+    _ncd_set_axis_attrib!(attrib, dim)
     NCD.defVar(ds, dimkey, Vector(index(dim)), (dimkey,); attrib=attrib)
     return nothing
 end
+
+# Add axis and standard name attributes to dimension variabls
+# We need to get better at guaranteeing if X/Y is actually measured in `longitude/latitude`
+# CF standards requires that we specify "units" if we use these standard names
+_ncd_set_axis_attrib!(at, dim::X) = at["axis"] = "X" # at["standard_name"] = "longitude";
+_ncd_set_axis_attrib!(at, dim::Y) = at["axis"] = "Y" # at["standard_name"] = "latitude"; 
+_ncd_set_axis_attrib!(at, dim::Z) = (at["axis"] = "Z"; at["standard_name"] = "depth")
+_ncd_set_axis_attrib!(at, dim::Ti) = (at["axis"] = "Ti"; at["standard_name"] = "time")
+_ncd_set_axis_attrib!(at, dim) = nothing
 
 _ncdshiftlocus(dim::Dimension) = _ncdshiftlocus(lookup(dim), dim)
 _ncdshiftlocus(::LookupArray, dim::Dimension) = dim
