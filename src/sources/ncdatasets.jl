@@ -30,6 +30,13 @@ const NCD_AXIS_MAP = Dict(
     "T" => Ti,
 )
 
+const NCD_STANDARD_NAME_MAP = Dict(
+    "longitude" => X,
+    "latitude" => Y,
+    "depth" => Z,
+    "time" => Ti,
+)
+
 haslayers(::Type{NCDfile}) = true
 defaultcrs(::Type{NCDfile}) = EPSG(4326)
 defaultmappedcrs(::Type{NCDfile}) = EPSG(4326)
@@ -168,7 +175,7 @@ function DD.layerdims(ds::NCD.Dataset)
 end
 function DD.layerdims(var::NCD.Variable)
     map(NCD.dimnames(var)) do dimname
-        _ncddimtype(dimname)()
+        _ncddimtype(var.attrib, dimname)()
     end
 end
 
@@ -263,13 +270,14 @@ end
 # Find the matching dimension constructor. If its an unknown name
 # use the generic Dim with the dim name as type parameter
 function _ncddimtype(attrib, dimname)
-    if haskey(attrib, "axis")
-        NCD_AXIS_MAP[attrib["axis"]] 
-    elseif haskey(NCD_DIM_MAP, dimname) 
-        NCD_DIM_MAP[dimname] 
-    else
-        DD.basetypeof(DD.key2dim(Symbol(dimname)))
+    haskey(attrib, "axis") && return NCD_AXIS_MAP[attrib["axis"]] 
+    @show attrib
+    if haskey(attrib, "standard_name")
+        T = get(NCD_STANDARD_NAME_MAP, attrib["standard_name"], nothing) 
+        isnothing(T) || return T
     end
+    haskey(NCD_DIM_MAP, dimname) && return NCD_DIM_MAP[dimname] 
+    return DD.basetypeof(DD.key2dim(Symbol(dimname)))
 end
 
 # _ncdlookup
@@ -445,6 +453,7 @@ function _def_dim_var!(ds::NCD.Dataset, dim::Dimension)
     end
     # Attributes
     attrib = _attribdict(metadata(dim))
+    _ncd_set_axis_attrib!(attrib, dim)
     # Bounds variables
     if span(dim) isa Explicit
         bounds = val(span(dim))
@@ -452,8 +461,6 @@ function _def_dim_var!(ds::NCD.Dataset, dim::Dimension)
         push!(attrib, "bounds" => boundskey)
         NCD.defVar(ds, boundskey, bounds, ("bnds", dimkey))
     end
-
-    _ncd_set_axis_attrib!(attrib, dim)
     NCD.defVar(ds, dimkey, Vector(index(dim)), (dimkey,); attrib=attrib)
     return nothing
 end
