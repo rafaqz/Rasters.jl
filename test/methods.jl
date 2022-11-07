@@ -385,12 +385,13 @@ end
 
     @testset "from geometries, tables and features of points" begin
         A = A1
+        data = pointfc
 
         for data in (pointfc, DataFrame(pointfc), multi_point, pointvec, reverse(pointvec))
             @test sum(skipmissing(rasterize(data; to=A, fill=1))) == 4
 
             @testset "to and fill Keywords are required" begin
-                @test_throws UndefKeywordError R = rasterize(data; fill=1) 
+                @test_throws ArgumentError R = rasterize(data; fill=1) 
                 @test_throws UndefKeywordError R = rasterize(data; to=A) 
             end
             @testset "NamedTuple of value fill makes a stack" begin
