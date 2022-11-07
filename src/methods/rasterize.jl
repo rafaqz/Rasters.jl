@@ -17,9 +17,14 @@ or `X`, `Y` points columns.
 
 These are detected automatically from `A` and `data` where possible.
 
-- `to`: a `Raster`, `RasterStack` of `Tuple` of `Dimension` to use as a to.
+- `to`: a `Raster`, `RasterStack` of `Tuple`, `Dimension` or `Extents.Extent`.
+    If no `to` object is provided the extent will be calculated, an in this case o
+    when an `Extent` is passed, the `size` keyword must also be used.
 - `fill`: the value to fill a polygon with. A `Symbol` or tuple of `Symbol` will
     be used to retrieve properties from features or column values from table rows.
+- `size`: the size of the output array, as a `Tuple{Int,Int}` or single `Int` for a square.
+    Only required when `to is not used or is an `Extents.Extent`, otherwise `size`.
+- `res`: the resolution of the dimensions as a `Real` or `Tuple{<:Real,<:Real}`.
 - `atol`: an absolute tolerance for rasterizing to dimensions with `Points` sampling.
 - `filename`: a filename to write to directly, useful for large files.
 - `suffix`: a string or value to append to the filename.
@@ -49,12 +54,8 @@ isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 # Loade the shapes for china
 china_border = Shapefile.Handle(shapefile_name).shapes[10]
 
-# Define dims for the china area
-dms = Y(Projected(15.0:0.1:55.0; order=ForwardOrdered(), span=Regular(0.1), sampling=Intervals(Start()), crs=EPSG(4326))),
-      X(Projected(70.0:0.1:140; order=ForwardOrdered(), span=Regular(0.1), sampling=Intervals(Start()), crs=EPSG(4326)))
-
 # Rasterize the border polygon
-china = rasterize(china_border; to=dms, shape=:line, missingval=0, fill=1, boundary=:touches)
+china = rasterize(china_border; res=0.1, missingval=0, fill=1, boundary=:touches)
 
 # And plot
 p = plot(china; color=:spring)
@@ -86,16 +87,32 @@ function _rasterize(to::Nothing, data; fill, kw...)
 end
 function _rasterize(to::Extents.Extent{K}, data;
     fill, name=_filter_name(nothing, fill),
-    size::Union{Int,NTuple{<:Any,Int}}, crs=nothing, kw...
+    res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing, 
+    size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing, 
+    crs=nothing, kw...
 ) where K
     emptydims = map(key2dim, K)
-    if size isa Int
-        size = ntuple(_ -> size, length(K))
-    end
-    ranges = map(values(to), size) do bounds, length
-        start, outer = bounds
-        step = (outer - start) / length
-        range(; start, step, length)
+    if isnothing(size)
+        isnothing(res) && throw(ArgumentError("Pass either `to`, `size` or `res` keywords for `rasterize`."))
+        if res isa Real
+            res = ntuple(_ -> res, length(K))
+        end
+        ranges = map(values(to), res) do bounds, r
+            start, outer = bounds
+            length = ceil(Int, (outer - start) / r)
+            step = (outer - start) / length
+            range(; start, step, length)
+        end
+    else
+        isnothing(res) || throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
+        if size isa Int
+            size = ntuple(_ -> size, length(K))
+        end
+        ranges = map(values(to), size) do bounds, length
+            start, outer = bounds
+            step = (outer - start) / length
+            range(; start, step, length)
+        end
     end
     lookups = map(ranges) do range
         Projected(range;

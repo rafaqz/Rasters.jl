@@ -354,7 +354,8 @@ end
         poly = polygon
         for A in (A1, A2), poly in (polygon, multi_polygon)
             ra = rasterize(poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center)
-            @test sum(ra) === 20 * 20
+            ra_res = rasterize(poly; res=map(step, span(A)), missingval=0, shape=:polygon, fill=1, boundary=:center)
+            @test sum(ra) == sum(ra_res) === 20 * 20
             ra = rasterize(poly; to=A, shape=:polygon, fill=1, boundary=:touches)
             @test sum(skipmissing(ra)) === 21 * 21
             rasterize!(A, poly; shape=:polygon, fill=1, boundary=:inside)
@@ -372,6 +373,13 @@ end
             st = rasterize(poly; fill=(layer1=1, layer2=2), to=st)
             @test sum(skipmissing(st[:layer1])) == 400 # The last value overwrites the first
             @test sum(skipmissing(st[:layer2])) == 800
+            # Missing size / res
+            @test_throws ArgumentError rasterize(poly; fill=1)
+            # Both size + res
+            @test_throws ArgumentError rasterize(poly; res=0.1, size=200, fill=1)
+            @test_throws ArgumentError rasterize(poly; res=(0.1, 0.2), size=200, fill=1)
+            @test_throws ArgumentError rasterize(poly; res=0.1, size=(200, 200), fill=1)
+            @test_throws ArgumentError rasterize(poly; res=(0.1, 0.2), size=(200, 200), fill=1)
         end
     end
 
