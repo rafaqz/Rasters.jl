@@ -58,6 +58,7 @@ end
     @test boolmask(ga99) == [false true; true false]
     @test boolmask(gaNaN) == [false true; true false]
     @test dims(boolmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
+    @test boolmask(polygon; res=1.0) == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
 end
 
 @testset "missingmask" begin
@@ -65,6 +66,7 @@ end
     @test all(missingmask(ga99) .=== [missing true; true missing])
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
     @test dims(missingmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
+    @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
 end
 
 @testset "mask" begin
@@ -85,6 +87,7 @@ end
     @test Rasters.isdisk(stmask)
     rm("mask_a.tif")
     rm("mask_b.tif")
+    poly = polygon
     @testset "to polygon" begin
         for poly in (polygon, multi_polygon) 
             a1 = Raster(ones(X(-20:5), Y(0:30)))

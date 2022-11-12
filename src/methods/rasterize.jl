@@ -17,14 +17,15 @@ or `X`, `Y` points columns.
 
 These are detected automatically from `A` and `data` where possible.
 
-- `to`: a `Raster`, `RasterStack` of `Tuple`, `Dimension` or `Extents.Extent`.
-    If no `to` object is provided the extent will be calculated, an in this case o
-    when an `Extent` is passed, the `size` keyword must also be used.
-- `fill`: the value to fill a polygon with. A `Symbol` or tuple of `Symbol` will
-    be used to retrieve properties from features or column values from table rows.
+- `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
+    If no `to` object is provided the extent will be calculated from the geometries, 
+    Additionally, when no `to` object or an `Extent` is passed for `to`, the `size`
+    or `res` keyword must also be used.
 - `size`: the size of the output array, as a `Tuple{Int,Int}` or single `Int` for a square.
     Only required when `to is not used or is an `Extents.Extent`, otherwise `size`.
-- `res`: the resolution of the dimensions as a `Real` or `Tuple{<:Real,<:Real}`.
+- `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
+- `fill`: the value to fill a polygon with. A `Symbol` or tuple of `Symbol` will
+    be used to retrieve properties from features or column values from table rows.
 - `atol`: an absolute tolerance for rasterizing to dimensions with `Points` sampling.
 - `filename`: a filename to write to directly, useful for large files.
 - `suffix`: a string or value to append to the filename.
@@ -89,41 +90,10 @@ function _rasterize(to::Extents.Extent{K}, data;
     fill, name=_filter_name(nothing, fill),
     res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing, 
     size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing, 
-    crs=nothing, kw...
+    kw...
 ) where K
-    emptydims = map(key2dim, K)
-    if isnothing(size)
-        isnothing(res) && throw(ArgumentError("Pass either `to`, `size` or `res` keywords for `rasterize`."))
-        if res isa Real
-            res = ntuple(_ -> res, length(K))
-        end
-        ranges = map(values(to), res) do bounds, r
-            start, outer = bounds
-            length = ceil(Int, (outer - start) / r)
-            step = (outer - start) / length
-            range(; start, step, length)
-        end
-    else
-        isnothing(res) || throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
-        if size isa Int
-            size = ntuple(_ -> size, length(K))
-        end
-        ranges = map(values(to), size) do bounds, length
-            start, outer = bounds
-            step = (outer - start) / length
-            range(; start, step, length)
-        end
-    end
-    lookups = map(ranges) do range
-        Projected(range;
-            order=ForwardOrdered(), 
-            sampling=Intervals(Start()),
-            span=Regular(step(range)), 
-            crs,
-        )
-    end
-    to = map(rebuild, emptydims, lookups)
-    return _rasterize(to, data; fill, name, kw...)
+    to_dims = _extent2dims(to; size, res, kw...)
+    return _rasterize(to_dims, data; fill, name, kw...)
 end
 function _rasterize(to::DimTuple, data; fill, name=_filter_name(nothing, fill), kw...)
     _rasterize(to, GeoInterface.trait(data), data; fill, name, kw...)
@@ -256,7 +226,7 @@ function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
             rasterize!(x, geom; fill=_featurefillval(feature, fillkey), kw...)
         end
     end
-    buffer = Raster(falses(commondims(x, (XDim, YDim))))
+    buffer = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
     if fill isa Union{Symbol,NTuple{<:Any,Symbol}}
         # Rasterize features separately: the fill may change per feature
         # Lift key Symbol to a type to avoid runtime lookups for every point.
@@ -279,7 +249,7 @@ function _rasterize!(x, ::GI.AbstractGeometryTrait, geom; fill, _buffer=nothing,
     x1 = view(x, ranges...)
     length(x1) > 0 || return x
     _buffer = if isnothing(_buffer)
-        Raster(falses(commondims(x1, (XDim, YDim))))
+        _fillraster(commondims(x1, (XDim, YDim)), Bool; missingval=false)
     else
         view(_buffer, ranges...)
     end
@@ -292,7 +262,7 @@ function _rasterize!(x, trait::GI.AbstractPointTrait, point; fill, kw...)
     return x
 end
 function _rasterize!(x, trait::Nothing, data; fill, kw...)
-    _buffer = Raster(falses(commondims(x, (XDim, YDim))))
+    _buffer = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
 
     if Tables.istable(data)
         schema = Tables.schema(data)
