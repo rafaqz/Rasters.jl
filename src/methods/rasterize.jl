@@ -2,7 +2,7 @@ struct _Undefined end
 struct _Defined end
 
 """
-    rasterize(data; to, fill, kw...)
+    rasterize(obj; to, fill, kw...)
 
 Rasterize the a GeoInterface.jl compatable geometry or feature,
 or a Tables.jl table with a :geometry column of GeoInterface.jl objects,
@@ -10,14 +10,13 @@ or `X`, `Y` points columns.
 
 # Arguments
 
-- `data`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
+- `obj`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
     or a Tables.jl compatible object containing points and values columns.
 
 # Keywords
 
-These are detected automatically from `A` and `data` where possible.
+These are detected automatically from `obj` where possible.
 
-- `to`: a `Raster`, `RasterStack` of `Tuple` of `Dimension` to use as a to.
 - `fill`: the value to fill a polygon with. A `Symbol` or tuple of `Symbol` will
     be used to retrieve properties from features or column values from table rows.
 - `atol`: an absolute tolerance for rasterizing to dimensions with `Points` sampling.
@@ -29,9 +28,7 @@ These are detected automatically from `A` and `data` where possible.
 
 These can be used when a `GeoInterface.AbstractGeometry` is passed in.
 
-- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`.
-- `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
-    where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
+$GEOM_KEYWORDS
 
 # Example
 
@@ -49,12 +46,8 @@ isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 # Loade the shapes for china
 china_border = Shapefile.Handle(shapefile_name).shapes[10]
 
-# Define dims for the china area
-dms = Y(Projected(15.0:0.1:55.0; order=ForwardOrdered(), span=Regular(0.1), sampling=Intervals(Start()), crs=EPSG(4326))),
-      X(Projected(70.0:0.1:140; order=ForwardOrdered(), span=Regular(0.1), sampling=Intervals(Start()), crs=EPSG(4326)))
-
 # Rasterize the border polygon
-china = rasterize(china_border; to=dms, shape=:line, missingval=0, fill=1, boundary=:touches)
+china = rasterize(china_border; res=0.1, missingval=0, fill=1, boundary=:touches)
 
 # And plot
 p = plot(china; color=:spring)
@@ -86,27 +79,12 @@ function _rasterize(to::Nothing, data; fill, kw...)
 end
 function _rasterize(to::Extents.Extent{K}, data;
     fill, name=_filter_name(nothing, fill),
-    size::Union{Int,NTuple{<:Any,Int}}, crs=nothing, kw...
+    res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing, 
+    size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing, 
+    kw...
 ) where K
-    emptydims = map(key2dim, K)
-    if size isa Int
-        size = ntuple(_ -> size, length(K))
-    end
-    ranges = map(values(to), size) do bounds, length
-        start, outer = bounds
-        step = (outer - start) / length
-        range(; start, step, length)
-    end
-    lookups = map(ranges) do range
-        Projected(range;
-            order=ForwardOrdered(), 
-            sampling=Intervals(Start()),
-            span=Regular(step(range)), 
-            crs,
-        )
-    end
-    to = map(rebuild, emptydims, lookups)
-    return _rasterize(to, data; fill, name, kw...)
+    to_dims = _extent2dims(to; size, res, kw...)
+    return _rasterize(to_dims, data; fill, name, kw...)
 end
 function _rasterize(to::DimTuple, data; fill, name=_filter_name(nothing, fill), kw...)
     _rasterize(to, GeoInterface.trait(data), data; fill, name, kw...)
@@ -239,7 +217,7 @@ function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
             rasterize!(x, geom; fill=_featurefillval(feature, fillkey), kw...)
         end
     end
-    buffer = Raster(falses(commondims(x, (XDim, YDim))))
+    buffer = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
     if fill isa Union{Symbol,NTuple{<:Any,Symbol}}
         # Rasterize features separately: the fill may change per feature
         # Lift key Symbol to a type to avoid runtime lookups for every point.
@@ -262,7 +240,7 @@ function _rasterize!(x, ::GI.AbstractGeometryTrait, geom; fill, _buffer=nothing,
     x1 = view(x, ranges...)
     length(x1) > 0 || return x
     _buffer = if isnothing(_buffer)
-        Raster(falses(commondims(x1, (XDim, YDim))))
+        _fillraster(commondims(x1, (XDim, YDim)), Bool; missingval=false)
     else
         view(_buffer, ranges...)
     end
@@ -275,7 +253,7 @@ function _rasterize!(x, trait::GI.AbstractPointTrait, point; fill, kw...)
     return x
 end
 function _rasterize!(x, trait::Nothing, data; fill, kw...)
-    _buffer = Raster(falses(commondims(x, (XDim, YDim))))
+    _buffer = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
 
     if Tables.istable(data)
         schema = Tables.schema(data)

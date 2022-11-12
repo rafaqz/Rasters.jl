@@ -58,6 +58,7 @@ end
     @test boolmask(ga99) == [false true; true false]
     @test boolmask(gaNaN) == [false true; true false]
     @test dims(boolmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
+    @test boolmask(polygon; res=1.0) == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
 end
 
 @testset "missingmask" begin
@@ -65,6 +66,7 @@ end
     @test all(missingmask(ga99) .=== [missing true; true missing])
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
     @test dims(missingmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
+    @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
 end
 
 @testset "mask" begin
@@ -85,6 +87,7 @@ end
     @test Rasters.isdisk(stmask)
     rm("mask_a.tif")
     rm("mask_b.tif")
+    poly = polygon
     @testset "to polygon" begin
         for poly in (polygon, multi_polygon) 
             a1 = Raster(ones(X(-20:5), Y(0:30)))
@@ -354,7 +357,8 @@ end
         poly = polygon
         for A in (A1, A2), poly in (polygon, multi_polygon)
             ra = rasterize(poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center)
-            @test sum(ra) === 20 * 20
+            ra_res = rasterize(poly; res=map(step, span(A)), missingval=0, shape=:polygon, fill=1, boundary=:center)
+            @test sum(ra) == sum(ra_res) === 20 * 20
             ra = rasterize(poly; to=A, shape=:polygon, fill=1, boundary=:touches)
             @test sum(skipmissing(ra)) === 21 * 21
             rasterize!(A, poly; shape=:polygon, fill=1, boundary=:inside)
@@ -372,17 +376,25 @@ end
             st = rasterize(poly; fill=(layer1=1, layer2=2), to=st)
             @test sum(skipmissing(st[:layer1])) == 400 # The last value overwrites the first
             @test sum(skipmissing(st[:layer2])) == 800
+            # Missing size / res
+            @test_throws ArgumentError rasterize(poly; fill=1)
+            # Both size + res
+            @test_throws ArgumentError rasterize(poly; res=0.1, size=200, fill=1)
+            @test_throws ArgumentError rasterize(poly; res=(0.1, 0.2), size=200, fill=1)
+            @test_throws ArgumentError rasterize(poly; res=0.1, size=(200, 200), fill=1)
+            @test_throws ArgumentError rasterize(poly; res=(0.1, 0.2), size=(200, 200), fill=1)
         end
     end
 
     @testset "from geometries, tables and features of points" begin
         A = A1
+        data = pointfc
 
         for data in (pointfc, DataFrame(pointfc), multi_point, pointvec, reverse(pointvec))
             @test sum(skipmissing(rasterize(data; to=A, fill=1))) == 4
 
             @testset "to and fill Keywords are required" begin
-                @test_throws UndefKeywordError R = rasterize(data; fill=1) 
+                @test_throws ArgumentError R = rasterize(data; fill=1) 
                 @test_throws UndefKeywordError R = rasterize(data; to=A) 
             end
             @testset "NamedTuple of value fill makes a stack" begin

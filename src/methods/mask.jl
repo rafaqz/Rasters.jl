@@ -1,3 +1,34 @@
+
+const TO_KEYWORD = """
+- `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
+    If no `to` object is provided the extent will be calculated from the geometries,
+    Additionally, when no `to` object or an `Extent` is passed for `to`, the `size`
+    or `res` keyword must also be used.
+"""
+const SIZE_KEYWORD = """
+- `size`: the size of the output array, as a `Tuple{Int,Int}` or single `Int` for a square.
+    Only required when `to is not used or is an `Extents.Extent`, otherwise `size`.
+"""
+const RES_KEYWORD = """
+- `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
+"""
+
+const SHAPE_KEYWORDS = """
+- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point` geometries.
+    using points or lines as polygons may have unexpected results.
+- `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
+    where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
+    The default is `:center`.
+"""
+
+const GEOM_KEYWORDS = """
+$TO_KEYWORD
+$RES_KEYWORD
+$SIZE_KEYWORD
+$SHAPE_KEYWORDS
+"""
+
+
 """
     mask(A:AbstractRaster; with, missingval=missingval(A))
     mask(x; with)
@@ -22,10 +53,7 @@ or by the shape of `with`, if `with` is a geometric object.
 
 These can be used when `with` is a GeoInterface.jl compatible object:
 
-- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`, where possible.
-- `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
-    where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
-    The default is `:center`.
+$SHAPE_KEYWORDS
 
 # Example
 
@@ -75,7 +103,7 @@ function _mask(x::RasterStackOrArray, with; kw...)
     return _mask(x, B)
 end
 # Array mask
-function _mask(A::AbstractRaster, with::AbstractRaster; 
+function _mask(A::AbstractRaster, with::AbstractRaster;
     filename=nothing, suffix=nothing, missingval=_missingval_or_missing(A), kw...
 )
     A1 = create(filename, A; suffix, missingval)
@@ -85,10 +113,10 @@ function _mask(A::AbstractRaster, with::AbstractRaster;
     end
     return A1
 end
-function _mask(xs::AbstractRasterStack, with::AbstractRaster; suffix=keys(xs), kw...) 
+function _mask(xs::AbstractRasterStack, with::AbstractRaster; suffix=keys(xs), kw...)
     mapargs((x, s) -> mask(x; with, suffix=s, kw...), xs, suffix)
 end
-function _mask(xs::AbstractRasterSeries, with::AbstractRaster; kw...) 
+function _mask(xs::AbstractRasterSeries, with::AbstractRaster; kw...)
     map(x -> mask(x; with, kw...), xs)
 end
 
@@ -127,12 +155,12 @@ using Rasters, Plots, Dates
 awap = read(RasterStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
 a = plot(awap; clims=(10, 45))
 
-# Create a mask my resampling a worldclim file 
+# Create a mask my resampling a worldclim file
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 wc_mask = resample(wc; to=awap)
 
-# Mask 
-mask!(awap; with=wc_mask) 
+# Mask
+mask!(awap; with=wc_mask)
 b = plot(awap; clims=(10, 45))
 
 savefig(a, "build/mask_bang_example_before.png")
@@ -184,11 +212,11 @@ _nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `miss
 
 """
     boolmask(obj; [missingval])
-    boolmask(obj; to)
+    boolmask(obj; [to, res, size])
 
-Create a mask array of `Bool` values, from any `AbstractArray`. An 
+Create a mask array of `Bool` values, from any `AbstractArray`. An
 `AbstractRasterStack` or `AbstractRasterSeries` are also accepted, but a mask
-is taken of the first layer or object *not* all of them. 
+is taken of the first layer or object *not* all of them.
 
 The array returned from calling `boolmask` on a `AbstractRaster` is a
 [`Raster`](@ref) with the same size and fields as the original array.
@@ -198,16 +226,13 @@ The array returned from calling `boolmask` on a `AbstractRaster` is a
 - `obj`: a [`Raster`](@ref) or [`RasterStack`](@ref), or
     a GeoInterface.jl geometry, or a vector or table of geometries.
 
-# Array Keywords
+# `Raster` / `RasterStack` Keywords
 
 - `missingval`: The missing value of the source array, with default `missingval(raster)`.
 
 # Geometry keywords
 
-- `to`: an `AbstractRaster`, `AbstractRasterStack` that defines extent and resolution
-    of the output.
-- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point` geometries.
-    using points or lines as polygons may have unexpected results.
+$GEOM_KEYWORDS
 
 And specifically for `shape=:polygon`:
 
@@ -231,27 +256,12 @@ savefig("build/boolmask_example.png")
 $EXPERIMENTAL
 """
 function boolmask end
-boolmask(x::Union{AbstractRasterSeries,AbstractRasterStack,AbstractRaster}; kw...) =
-    boolmask!(_bools(x, dims(x)), x; kw...)
-boolmask(x; to, kw...) = boolmask!(_bools(to, commondims(to, (XDim, YDim))), x; kw...)
-
-_bools(x) = _bools(x, dims(x))
-_bools(x::AbstractRasterSeries, dims) = _bools(first(x), dims)
-_bools(x::AbstractRasterStack, dims) = _bools(first(x), dims)
-_bools(x, dims) = Raster(falses(dims); missingval=false)
-function _bools(A::AbstractRaster, dims)
-    # TODO: improve this so that only e.g. CuArray uses `similar`
-    # This is a little annoying to lock down for all wrapper types,
-    # maybe ArrayInterface has tools for this.
-    da = if parent(A) isa Union{Array,DA.AbstractDiskArray}
-        falses(dims) # Use a BitArray
-    else
-        fill!(similar(A, Bool, dims), false) # Fill some other array type
-    end
-    return Raster(da; missingval=false)
+function boolmask(x; kw...)
+    A = _fillraster(x, Bool; missingval=false, kw...)
+    return boolmask!(A, x; kw...)
 end
 
-function boolmask!(dest::AbstractRaster, src::AbstractRaster; 
+function boolmask!(dest::AbstractRaster, src::AbstractRaster;
     missingval=_missingval_or_missing(src)
 )
     broadcast!(a -> !isequal(a, missingval), dest, src)
@@ -271,6 +281,10 @@ for all other `AbstractArray`s it is `missing`.
 The array returned from calling `missingmask` on a `AbstractRaster` is a
 [`Raster`](@ref) with the same size and fields as the original array.
 
+# Keywords
+
+$GEOM_KEYWORDS
+
 # Example
 
 ```jldoctest
@@ -286,9 +300,18 @@ savefig("build/missingmask_example.png")
 
 $EXPERIMENTAL
 """
-function missingmask(x::AbstractRaster; missingval=missingval(x))
-    B = Raster(zeros(Union{Bool,Missing}, dims(x)); missingval=missing)
-    B .= missing
-    boolmask!(B, x; missingval)
-    return broadcast(x -> x ? true : missing, B)
+function missingmask(x; missingval=missingval(x), kw...)
+    A = _fillraster(x, Union{Missing,Bool}; missingval=missing, kw...)
+    return _missingmask!(A, x; missingval)
+end
+
+function _missingmask!(dest::AbstractRaster, src::AbstractRaster;
+    missingval=_missingval_or_missing(src)
+)
+    broadcast!(x -> isequal(x, missingval) ? missing : true, dest, src)
+end
+function _missingmask!(dest::AbstractRaster, geom; missingval, kw...)
+    B = fill_geometry!(dest, geom; fill=true, kw...)
+    broadcast!(b -> b ? true : missing, dest, B)
+    return dest
 end

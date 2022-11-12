@@ -1,5 +1,5 @@
 filter_ext(path, ext::AbstractString) = filter(fn -> splitext(fn)[2] == ext, readdir(path))
-filter_ext(path, exts::Union{Tuple,AbstractArray}) = 
+filter_ext(path, exts::Union{Tuple,AbstractArray}) =
     filter(fn -> splitext(fn)[2] in exts, readdir(path))
 filter_ext(path, ext::Nothing) = readdir(path)
 
@@ -25,13 +25,13 @@ end
 
 function maybe_typemin_as_missingval(filename::String, A::AbstractRaster{T}) where T
     if ismissing(missingval(A))
-        newmissingval = typemin(Missings.nonmissingtype(T)) 
+        newmissingval = typemin(Missings.nonmissingtype(T))
         base, ext = splitext(filename)
         A1 = replace_missing(A, newmissingval)
         if missing isa eltype(A1)
             A1 = replace_missing(A, missing)
         end
-        @warn "`missing` cant be written to $ext, typemin for `$(eltype(A1))` of `$newmissingval` used instead" 
+        @warn "`missing` cant be written to $ext, typemin for `$(eltype(A1))` of `$newmissingval` used instead"
         return A1
     elseif missing isa eltype(A)
         A1 = replace_missing(A, missingval)
@@ -59,27 +59,27 @@ end
 
 # _convert(::Type{M1}, ::Type{L1}, lookup::M2, l2::L2, span, dim) where {M1,M2<:M1,L1,L2<:L1} = dim
 # _convert(::Type{M1}, ::Type{L1}, lookup::M2, l2::L2, span, dim) where {M1,M2<:M1,L1,L2} = shiftlocus(L1(), dim)
-# _convert(::Type{M1}, ::Type{L1}, lookup::M2, l2::L2, span, dim) where {M1,M2<:M1,L1,L2} = 
+# _convert(::Type{M1}, ::Type{L1}, lookup::M2, l2::L2, span, dim) where {M1,M2<:M1,L1,L2} =
 #     _convert_by_locus(M1, L1, lookup, l2, span, dim)
 
-# _convert_by_locus(M1, ::Type{Center}, lookup, l2::Union{Start,End}, span, dim) = 
+# _convert_by_locus(M1, ::Type{Center}, lookup, l2::Union{Start,End}, span, dim) =
 #     _convert_by_lookup(M1, dim)
-# _convert_by_locus(M1, L1::Type{Union{Start,End}}, lookup, l2::Center, span, dim) = 
+# _convert_by_locus(M1, L1::Type{Union{Start,End}}, lookup, l2::Center, span, dim) =
 #     _convert_by_lookup(M1, L1, dim)
-# _convert_by_locus(M1, L1::Type{Start}, lookup, l2::End, span, dim) = 
+# _convert_by_locus(M1, L1::Type{Start}, lookup, l2::End, span, dim) =
 #     convertlookup(M1, shiftlocus(L1, dim))
-# _convert_by_locus(M1, L1::Type{End}, lookup, l2::Start, span, dim) = 
+# _convert_by_locus(M1, L1::Type{End}, lookup, l2::Start, span, dim) =
 #     convertlookup(M1, shiftlocus(L1, dim))
-# _convert_by_locus(M1, ::Type{L1}, lookup, l2::L2, span, dim) where {L1,L2<:L1} = 
+# _convert_by_locus(M1, ::Type{L1}, lookup, l2::L2, span, dim) where {L1,L2<:L1} =
 #     convertlookup(M1, dim)
 
-# # Projected will have an accurate center point on an equal scale, but Mapped may not. 
+# # Projected will have an accurate center point on an equal scale, but Mapped may not.
 # # So we always shift the locus while in Projected lookup to avoid errors.
 # _convert_by_lookup(::Type{Mapped}, dim) = convertlookup(Mapped, shiftlocus(Center(), dim))
 # _convert_by_lookup(::Type{Projected}, dim) = shiftlocus(Center(), convertlookup(Projected, dim))
 
 
-_unwrap(::Val{X}) where X = X 
+_unwrap(::Val{X}) where X = X
 _unwrap(x) = x
 
 _missingval_or_missing(x) = missingval(x) isa Nothing ? missing : missingval(x)
@@ -92,7 +92,7 @@ maybe_eps(T::Type{<:AbstractFloat}) = _default_atol(T)
 _writeable_missing(filename::Nothing, T) = missing
 _writeable_missing(filename::AbstractString, T) = _writeable_missing(T)
 function _writeable_missing(T)
-    missingval = typemin(Missings.nonmissingtype(T)) 
+    missingval = typemin(Missings.nonmissingtype(T))
     @info "`missingval` set to typemin of $missingval"
     return missingval
 end
@@ -123,7 +123,7 @@ function _without_mapped_crs(f, A::AbstractRaster, mappedcrs::GeoFormat)
     end
     return x
 end
-function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat) 
+function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
     st1 = map(A -> setmappedcrs(A, nothing), st)
     x = f(st1)
     if x isa AbstractRasterStack
@@ -131,6 +131,89 @@ function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
     end
     return x
 end
+
+function _extent2dims(to::Extents.Extent{K};
+    size=nothing, res=nothing, crs=nothing, kw...
+) where K
+    emptydims = map(key2dim, K)
+    if isnothing(size)
+        isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
+        if res isa Real
+            res = ntuple(_ -> res, length(K))
+        end
+        ranges = map(values(to), res) do bounds, r
+            start, outer = bounds
+            length = ceil(Int, (outer - start) / r)
+            step = (outer - start) / length
+            range(; start, step, length)
+        end
+    else
+        isnothing(res) || throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
+        if size isa Int
+            size = ntuple(_ -> size, length(K))
+        end
+        ranges = map(values(to), size) do bounds, length
+            start, outer = bounds
+            step = (outer - start) / length
+            range(; start, step, length)
+        end
+    end
+    lookups = map(ranges) do range
+        Projected(range;
+            order=ForwardOrdered(),
+            sampling=Intervals(Start()),
+            span=Regular(step(range)),
+            crs,
+        )
+    end
+    d = map(rebuild, emptydims, lookups)
+    return d
+end
+
+
+# Like `create` but without disk writds, mostly for Bool/Union{Missing,Boo},
+# and uses `similar` where possible
+# TODO merge this with `create` somehow
+_fillraster(x::AbstractRasterSeries, T::Type; kw...) = _fillraster(first(x), T; kw...)
+_fillraster(x::AbstractRasterStack, T::Type; kw...) = _fillraster(first(x), T; kw...)
+
+function _fillraster(dims::Tuple, ::Type{T}; missingval, kw...) where T
+    data = if T === Bool
+        falses(dims) # Use a BitArray
+    else
+        fill!(Raster{T}(undef, dims), missingval) # Use an Array
+    end
+    return Raster(data, dims; missingval)
+end
+function _fillraster(x::Extents.Extent, T::Type; to=nothing, kw...)
+    if isnothing(to)
+        _fillraster(_extent2dims(x; kw...), T; kw...)
+    else
+        _fillraster(to, T; kw...)
+    end
+end
+_fillraster(x, T::Type; kw...) = _fillraster(x, dims(x), T; kw...)
+function _fillraster(x, dims::Nothing, T::Type; to=nothing, kw...)
+    if isnothing(to)
+        ext = _extent(x)
+        isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
+        _fillraster(ext, T; kw...)
+    else
+        _fillraster(to, T; kw...)
+    end
+end
+function _fillraster(A::AbstractRaster, dims::Tuple, ::Type{T}; missingval, kw...) where T
+    # TODO: improve this so that only e.g. CuArray uses `similar`
+    # This is a little annoying to lock down for all wrapper types,
+    # maybe ArrayInterface has tools for this.
+    data = if parent(A) isa Union{Array,DA.AbstractDiskArray} && T === Bool
+        falses(dims) # Use a BitArray
+    else
+        fill!(similar(A, T, dims), missingval) # Fill some other array type
+    end
+    return Raster(data, dims; missingval)
+end
+
 
 _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
 
