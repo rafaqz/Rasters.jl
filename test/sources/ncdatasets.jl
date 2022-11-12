@@ -83,8 +83,6 @@ stackkeys = (
         @test typeof(lookup(ncarray)) <: Tuple{<:Mapped,<:Mapped,<:Sampled}
         @test bounds(ncarray) == ((0.0, 360.0), (-80.0, 90.0), (DateTime360Day(2001, 1, 1), DateTime360Day(2003, 1, 1)))
     end
-    tempfile = tempname() * ".nc"
-
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
@@ -211,6 +209,11 @@ stackkeys = (
             @test size(geoA) == size(ncarray)
             filename = tempname() * ".nc"
             write(filename, geoA)
+            @testset "CF attributes" begin
+                @test NCDatasets.Dataset(filename)[:x].attrib["axis"] == "X"
+                @test NCDatasets.Dataset(filename)[:x].attrib["bounds"] == "x_bnds"
+                # TODO  better units and standard name handling
+            end
             saved = read(Raster(filename))
             @test size(saved) == size(geoA)
             @test refdims(saved) == refdims(geoA)
