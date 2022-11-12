@@ -270,13 +270,21 @@ end
 # Find the matching dimension constructor. If its an unknown name
 # use the generic Dim with the dim name as type parameter
 function _ncddimtype(attrib, dimname)
-    haskey(attrib, "axis") && return NCD_AXIS_MAP[attrib["axis"]] 
-    @show attrib
-    if haskey(attrib, "standard_name")
-        T = get(NCD_STANDARD_NAME_MAP, attrib["standard_name"], nothing) 
-        isnothing(T) || return T
+    if haskey(attrib, "axis") 
+        k = attrib["axis"] 
+        if haskey(attrib, k) 
+            return NCD_AXIS_MAP[k] 
+        end
     end
-    haskey(NCD_DIM_MAP, dimname) && return NCD_DIM_MAP[dimname] 
+    if haskey(attrib, "standard_name")
+        k = attrib["standard_name"]
+        if haskey(NCD_STANDARD_NAME_MAP, k) 
+            return NCD_STANDARD_NAME_MAP[k]
+        end
+    end
+    if haskey(NCD_DIM_MAP, dimname) 
+        return NCD_DIM_MAP[dimname] 
+    end
     return DD.basetypeof(DD.key2dim(Symbol(dimname)))
 end
 
@@ -468,11 +476,11 @@ end
 # Add axis and standard name attributes to dimension variabls
 # We need to get better at guaranteeing if X/Y is actually measured in `longitude/latitude`
 # CF standards requires that we specify "units" if we use these standard names
-_ncd_set_axis_attrib!(at, dim::X) = at["axis"] = "X" # at["standard_name"] = "longitude";
-_ncd_set_axis_attrib!(at, dim::Y) = at["axis"] = "Y" # at["standard_name"] = "latitude"; 
-_ncd_set_axis_attrib!(at, dim::Z) = (at["axis"] = "Z"; at["standard_name"] = "depth")
-_ncd_set_axis_attrib!(at, dim::Ti) = (at["axis"] = "Ti"; at["standard_name"] = "time")
-_ncd_set_axis_attrib!(at, dim) = nothing
+_ncd_set_axis_attrib!(atr, dim::X) = atr["axis"] = "X" # at["standard_name"] = "longitude";
+_ncd_set_axis_attrib!(atr, dim::Y) = atr["axis"] = "Y" # at["standard_name"] = "latitude"; 
+_ncd_set_axis_attrib!(atr, dim::Z) = (atr["axis"] = "Z"; atr["standard_name"] = "depth")
+_ncd_set_axis_attrib!(atr, dim::Ti) = (atr["axis"] = "T"; atr["standard_name"] = "time")
+_ncd_set_axis_attrib!(atr, dim) = nothing
 
 _ncdshiftlocus(dim::Dimension) = _ncdshiftlocus(lookup(dim), dim)
 _ncdshiftlocus(::LookupArray, dim::Dimension) = dim
