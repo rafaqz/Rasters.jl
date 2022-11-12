@@ -1,15 +1,33 @@
 
-const GEOM_KEYWORDS = """
+const TO_KEYWORD = """
 - `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
     If no `to` object is provided the extent will be calculated from the geometries,
     Additionally, when no `to` object or an `Extent` is passed for `to`, the `size`
     or `res` keyword must also be used.
+"""
+const SIZE_KEYWORD = """
 - `size`: the size of the output array, as a `Tuple{Int,Int}` or single `Int` for a square.
     Only required when `to is not used or is an `Extents.Extent`, otherwise `size`.
+"""
+const RES_KEYWORD = """
 - `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
+"""
+
+const SHAPE_KEYWORDS = """
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point` geometries.
     using points or lines as polygons may have unexpected results.
+- `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
+    where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
+    The default is `:center`.
 """
+
+const GEOM_KEYWORDS = """
+$TO_KEYWORD
+$RES_KEYWORD
+$SIZE_KEYWORD
+$SHAPE_KEYWORDS
+"""
+
 
 """
     mask(A:AbstractRaster; with, missingval=missingval(A))
@@ -33,14 +51,9 @@ or by the shape of `with`, if `with` is a geometric object.
 
 # Geometry keywords
 
-$GEOM_KEYWORDS
-
 These can be used when `with` is a GeoInterface.jl compatible object:
 
-- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`, where possible.
-- `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
-    where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
-    The default is `:center`.
+$SHAPE_KEYWORDS
 
 # Example
 
@@ -215,7 +228,7 @@ The array returned from calling `boolmask` on a `AbstractRaster` is a
 
 # `Raster` / `RasterStack` Keywords
 
-- `misesingval`: The missing value of the source array, with default `missingval(raster)`.
+- `missingval`: The missing value of the source array, with default `missingval(raster)`.
 
 # Geometry keywords
 

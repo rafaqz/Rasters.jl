@@ -2,7 +2,7 @@ struct _Undefined end
 struct _Defined end
 
 """
-    rasterize(data; to, fill, kw...)
+    rasterize(obj; to, fill, kw...)
 
 Rasterize the a GeoInterface.jl compatable geometry or feature,
 or a Tables.jl table with a :geometry column of GeoInterface.jl objects,
@@ -10,20 +10,13 @@ or `X`, `Y` points columns.
 
 # Arguments
 
-- `data`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
+- `obj`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
     or a Tables.jl compatible object containing points and values columns.
 
 # Keywords
 
-These are detected automatically from `A` and `data` where possible.
+These are detected automatically from `obj` where possible.
 
-- `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
-    If no `to` object is provided the extent will be calculated from the geometries, 
-    Additionally, when no `to` object or an `Extent` is passed for `to`, the `size`
-    or `res` keyword must also be used.
-- `size`: the size of the output array, as a `Tuple{Int,Int}` or single `Int` for a square.
-    Only required when `to is not used or is an `Extents.Extent`, otherwise `size`.
-- `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
 - `fill`: the value to fill a polygon with. A `Symbol` or tuple of `Symbol` will
     be used to retrieve properties from features or column values from table rows.
 - `atol`: an absolute tolerance for rasterizing to dimensions with `Points` sampling.
@@ -35,9 +28,7 @@ These are detected automatically from `A` and `data` where possible.
 
 These can be used when a `GeoInterface.AbstractGeometry` is passed in.
 
-- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`.
-- `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
-    where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
+$GEOM_KEYWORDS
 
 # Example
 
