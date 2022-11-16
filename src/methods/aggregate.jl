@@ -8,7 +8,7 @@ struct DisAg end
 """
     aggregate(method, object, scale; filename, progress, skipmissing)
 
-Aggregate a Raster, or all arrays in a RasterStack or RasterSeries, by `scale` using
+Aggregate a `Raster`, or all arrays in a `RasterStack` or `RasterSeries`, by `scale` using
 `method`.
 
 # Arguments
@@ -28,7 +28,7 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 # Keywords
 
 - `progress`: show a progress bar.
-- `skipmissingval`: if `true`, any `missingval` will be skipped during aggregation, so that 
+- `skipmissingval`: if `true`, any `missingval` will be skipped during aggregation, so that
     only areas of all missing values will be aggregated to `missingval`. If `false`, any
     aggegrated area containing a `missingval` will be assigned `missingval`.
 - `filename`: a filename to write to directly, useful for large files.
@@ -39,18 +39,18 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 
 ```jldoctest
 using Rasters, Statistics, Plots
-using Rasters: Center 
+using Rasters: Center
 st = read(RasterStack(WorldClim{Climate}; month=1))
 ag = aggregate(Center(), st, (Y(20), X(20)); skipmissingval=true, progress=false)
 plot(ag)
-savefig("build/aggregate_example.png") 
+savefig("build/aggregate_example.png")
 # output
 
 ```
 
 ![aggregate](aggregate_example.png)
 
-Note: currently it is faster to aggregate over memory-backed arrays. 
+Note: currently it is faster to aggregate over memory-backed arrays.
 Use [`read`](@ref) on `src` before use where required.
 """
 function aggregate end
@@ -120,11 +120,11 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 # Keywords
 
 - `progress`: show a progress bar.
-- `skipmissingval`: if `true`, any `missingval` will be skipped during aggregation, so that 
+- `skipmissingval`: if `true`, any `missingval` will be skipped during aggregation, so that
     only areas of all missing values will be aggregated to `missingval`. If `false`, any
     aggegrated area containing a `missingval` will be assigned `missingval`.
 
-Note: currently it is _much_ faster to aggregate over memory-backed arrays. 
+Note: currently it is _much_ faster to aggregate over memory-backed arrays.
 Use [`read`](@ref) on `src` before use where required.
 """
 function aggregate!(locus::Locus, dst::AbstractRaster, src, scale; kw...)
@@ -190,7 +190,7 @@ Disaggregate array, or all arrays in a stack or series, by some scale.
 
 - `progress`: show a progress bar.
 
-Note: currently it is faster to aggregate over memory-backed arrays. 
+Note: currently it is faster to aggregate over memory-backed arrays.
 Use [`read`](@ref) on `src` before use where required.
 
 """
@@ -257,7 +257,7 @@ Disaggregate array `src` to array `dst` by some scale, using `method`.
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index in the `src` array.
 
-Note: currently it is faster to aggregate over memory-backed arrays. 
+Note: currently it is faster to aggregate over memory-backed arrays.
 Use [`read`](@ref) on `src` before use where required.
 """
 function disaggregate!(locus::Locus, dst::AbstractRaster, src, scale)
@@ -310,7 +310,7 @@ end
 
 # Handle how methods like `mean` can change the type
 ag_eltype(method::Tuple{<:Locus,Vararg}, A) = eltype(A)
-function ag_eltype(method::Tuple{<:Any}, A) 
+function ag_eltype(method::Tuple{<:Any}, A)
     method_returntype = typeof(method[1](zero(eltype(A))))
     promote_type(eltype(A), method_returntype)
 end

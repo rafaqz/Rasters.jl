@@ -9,7 +9,7 @@ rasters or stacks of rasters spread over dimensions like time and elevation.
 As much as possible, implementations should facilitate loading entire
 directories and detecting the dimensions from metadata.
 
-This allows syntax like for a series of stacks of arrays:
+This allows syntax like below for a series of stacks of arrays:
 
 ```julia
 RasterSeries[Time(Near(DateTime(2001, 1))][:temp][Y(Between(70, 150)), X(Between(-20,20))] |> plot`
@@ -52,7 +52,7 @@ DD.modify(f, A::AbstractRasterSeries) = map(child -> modify(f, child), values(A)
     RasterSeries(dirpath:::AbstractString, dims; ext, child, duplicate_first, kw...)
 
 Concrete implementation of [`AbstractRasterSeries`](@ref).
-`RasterSeries` are an array of `Raster` or `RasterStack`, along some dimension(s).
+A `RasterSeries` is an array of `Raster`s or `RasterStack`s, along some dimension(s).
 
 # Arguments
 
@@ -61,14 +61,14 @@ Concrete implementation of [`AbstractRasterSeries`](@ref).
 # Keywords
 
 - `refdims`: existing reference dimension/s.
-- `child`: constructor of child objects for use with filenames are passed in,
+- `child`: constructor of child objects for use when filenames are passed in,
     can be `Raster` or `RasterStack`. Defaults to `Raster`.
 - `lazy`: load files lazily. This is `true` by default for series, as it is common to
     load many files to openare over lazily.
 - `duplicate_first::Bool`: wether to duplicate the dimensions and metadata of the
     first file with all other files. This can save load time with a large
     series where dimensions are essentially identical. `false` by default.
-- `ext`: filename extension such as ".tiff" to find when only a directory path is passed in. 
+- `ext`: filename extension such as ".tiff" or ".nc". Use if only a directory path is passed in.
 - `kw`: keywords passed to the child constructor [`Raster`](@ref) or [`RasterStack`](@ref)
     if only file names are passed in.
 """
@@ -77,15 +77,15 @@ struct RasterSeries{T,N,D,R,A<:AbstractArray{T,N}} <: AbstractRasterSeries{T,N,D
     dims::D
     refdims::R
 end
-function RasterSeries(data::AbstractArray{<:Union{AbstractRasterStack,AbstractRaster}}, dims; 
+function RasterSeries(data::AbstractArray{<:Union{AbstractRasterStack,AbstractRaster}}, dims;
     refdims=()
 )
     RasterSeries(data, DD.format(dims, data), refdims)
 end
 function RasterSeries(filenames::NamedTuple{K}, dims; kw...) where K
-    RasterSeries(map((fns...) -> NamedTuple{K}(fns), values(filenames)...), dims; kw...) 
+    RasterSeries(map((fns...) -> NamedTuple{K}(fns), values(filenames)...), dims; kw...)
 end
-function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims; 
+function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims;
     refdims=(), lazy=false, duplicate_first=false, child=nothing, resize=nothing, kw...
 )
     childtype = if isnothing(child)
@@ -125,7 +125,7 @@ end
     RasterSeries(data, dims, refdims)
 end
 @inline function DD.rebuild(
-    A::RasterSeries; 
+    A::RasterSeries;
     data=parent(A), dims=dims(A), refdims=refdims(A), name=nothing, metadata=nothing,
 )
     RasterSeries(data, dims, refdims)

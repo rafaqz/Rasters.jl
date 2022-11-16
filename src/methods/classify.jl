@@ -8,7 +8,7 @@ Create a new array with values in `x` classified by the values in `pairs`.
 of `Fix2` e.g. `(>=(4), <(7))`, or an IntervalSets.jl interval, e.g. `3..9` or `OpenInterval(10, 12)`.
 `pairs` can also be a `n * 3` matrix where each row is lower bounds, upper bounds, replacement.
 
-If if tuples or a `Matrix` are used, the `lower` and `upper` keywords define
+If tuples or a `Matrix` are used, the `lower` and `upper` keywords define
 how the lower and upper boundaries are chosen.
 
 If `others` is set other values not covered in `pairs` will be set to that values.
@@ -137,7 +137,7 @@ savefig("build/classify_bang_example.png")
 
 $EXPERIMENTAL
 """
-classify!(A::AbstractRaster, p1::Pair, pairs::Pair...; kw...) = 
+classify!(A::AbstractRaster, p1::Pair, pairs::Pair...; kw...) =
     classify!(A, (p1, pairs...); kw...)
 function classify!(A::AbstractRaster, pairs;
     lower=(>=), upper=(<), others=nothing, missingval=missingval(A)
@@ -211,5 +211,3 @@ _compare(find::Base.Fix2, x, lower, upper) = find(x)
 _compare((l, u)::Tuple, x, lower, upper) = lower(x, l) && upper(x, u)
 _compare((l, u)::Tuple{<:Base.Fix2,<:Base.Fix2}, x, lower, upper) = l(x) && u(x)
 _compare(interval::LA.IntervalSets.Interval, x, lower, upper) = x in interval
-
-

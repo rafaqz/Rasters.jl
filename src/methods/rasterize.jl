@@ -5,7 +5,7 @@ struct _Defined end
     rasterize(obj; to, fill, kw...)
 
 Rasterize the a GeoInterface.jl compatable geometry or feature,
-or a Tables.jl table with a :geometry column of GeoInterface.jl objects,
+or a Tables.jl table with a `:geometry` column of GeoInterface.jl objects,
 or `X`, `Y` points columns.
 
 # Arguments
@@ -79,8 +79,8 @@ function _rasterize(to::Nothing, data; fill, kw...)
 end
 function _rasterize(to::Extents.Extent{K}, data;
     fill, name=_filter_name(nothing, fill),
-    res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing, 
-    size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing, 
+    res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing,
+    size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing,
     kw...
 ) where K
     to_dims = _extent2dims(to; size, res, kw...)

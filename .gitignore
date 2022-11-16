@@ -4,3 +4,4 @@
 docs/build
 test/data
 Manifest.toml
+.vscode

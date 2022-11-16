@@ -4,25 +4,25 @@ const Key = Union{Symbol,AbstractString}
 """
     AbstractRasterStack
 
-Abstract supertype for objects that hold multiple [`AbstractRaster`](@ref)
+Abstract supertype for objects that hold multiple [`AbstractRaster`](@ref)s
 that share spatial dimensions.
 
 They are `NamedTuple`-like structures that may either contain `NamedTuple`
-of [`AbstractRaster`](@ref), string paths that will load [`AbstractRaster`](@ref),
-or a single path that points to as a file itself containing multiple layers, like
+of [`AbstractRaster`](@ref)s, string paths that will load [`AbstractRaster`](@ref)s,
+or a single path that points to a file containing multiple layers, like
 NetCDF or HDF5. Use and syntax is similar or identical for all cases.
 
 `AbstractRasterStack` can hold layers that share some or all of their dimensions.
-They cannot have the same dimension with t different length or spatial extent as
+They cannot have the same dimension with different length or spatial extent as
 another layer.
 
-`getindex` on a `AbstractRasterStack` generally returns a memory backed standard
+`getindex` on an `AbstractRasterStack` generally returns a memory backed standard
 [`Raster`](@ref). `raster[:somelayer] |> plot` plots the layers array,
 while `raster[:somelayer, X(1:100), Band(2)] |> plot` will plot the
 subset without loading the whole array.
 
-`getindex` on a `AbstractRasterStack` with a key returns another stack with
-getindex applied to all the arrays in the stack.
+`getindex` on an `AbstractRasterStack` with a key returns another stack with
+`getindex` applied to all the arrays in the stack.
 """
 abstract type AbstractRasterStack{L} <: AbstractDimStack{L} end
 
@@ -65,9 +65,9 @@ function DD.layers(s::AbstractRasterStack{<:OpenStack{<:Any,Keys}}) where Keys
 end
 
 function DD.rebuild(
-    s::AbstractRasterStack, data, dims=dims(s), refdims=refdims(s), 
+    s::AbstractRasterStack, data, dims=dims(s), refdims=refdims(s),
     layerdims=DD.layerdims(s), metadata=metadata(s), layermetadata=DD.layermetadata(s),
-    missingval=missingval(s), 
+    missingval=missingval(s),
 )
     DD.basetypeof(s)(data, dims, refdims, layerdims, metadata, layermetadata, missingval)
 end
@@ -82,11 +82,11 @@ function DD.rebuild(s::AbstractRasterStack;
 end
 
 function DD.rebuild_from_arrays(
-    s::AbstractRasterStack, das::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractDimArray}}}; 
-    refdims=DD.refdims(s), 
-    metadata=DD.metadata(s), 
-    data=map(parent, das), 
-    dims=DD.combinedims(das...), 
+    s::AbstractRasterStack, das::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractDimArray}}};
+    refdims=DD.refdims(s),
+    metadata=DD.metadata(s),
+    data=map(parent, das),
+    dims=DD.combinedims(das...),
     layerdims=map(DD.basedims, das),
     layermetadata=map(DD.metadata, das),
     missingval=map(missingval, das),
@@ -126,12 +126,12 @@ end
     RasterStack(s::AbstractRaster; layersfrom=Band, kw...)
     RasterStack(filename::AbstractString; kw...)
 
-Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert arguments, a 
-`Vector` or `NamedTuple` of `Raster` to `RasterStack`.
+Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert arguments, a
+`Vector` or `NamedTuple` of `Raster`s to `RasterStack`.
 
 # Arguments
 
-- `data`: A `NamedTuple` of [`Raster`](@ref), or a `Vector`, `Tuple` or splatted arguments
+- `data`: A `NamedTuple` of [`Raster`](@ref)s, or a `Vector`, `Tuple` or splatted arguments
     of [`Raster`](@ref). The latter options must pass a `name` keyword argument.
 - `filename`: A file (such as netcdf or tif) to be loaded as a stack, or a directory path
     containing multiple files.
@@ -144,7 +144,7 @@ Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert argum
 - `layersfrom`: `Dimension` to source stack layers from if the file is not already multi-layered.
     `nothing` is default, so that a single `RasterStack(raster)` is a single layered stack.
     `RasterStack(raster; layersfrom=Band)` will use the bands as layers.
-- `lazy`: A `Bool` specifying if to load the stack lazily from disk. `false` by default.
+- `lazy`: A `Bool` specifying whether to load the stack lazily from disk. `false` by default.
 
 ```julia
 files = (temp="temp.tif", pressure="pressure.tif", relhum="relhum.tif")
@@ -205,7 +205,7 @@ end
 # Multi Raster stack from AbstractDimArray splat
 RasterStack(layers::AbstractDimArray...; kw...) = RasterStack(layers; kw...)
 # Multi Raster stack from tuple with `keys` keyword
-function RasterStack(layers::Tuple{Vararg{<:AbstractRaster}}; 
+function RasterStack(layers::Tuple{Vararg{<:AbstractRaster}};
     name=map(name, layers), keys=name, kw...
 )
     RasterStack(NamedTuple{cleankeys(keys)}(layers); kw...)
@@ -275,14 +275,14 @@ function RasterStack(filename::AbstractString;
     end
     return lazy ? st : read(st)
 end
-function RasterStack(A::Raster; 
+function RasterStack(A::Raster;
     layersfrom=nothing, name=nothing, keys=name, metadata=metadata(A), refdims=refdims(A), kw...
 )
 
     keys = keys isa Union{AbstractString,Symbol,Name} ? (keys,) : keys
     layers = if isnothing(layersfrom)
         keys = if keys isa Nothing
-            keys = DD.name(A) in (NoName(), Symbol(""), Name(Symbol(""))) ? ("layer1",) : DD.name(A) 
+            keys = DD.name(A) in (NoName(), Symbol(""), Name(Symbol(""))) ? ("layer1",) : DD.name(A)
         else
             keys
         end
@@ -312,7 +312,7 @@ function RasterStack(table, dims::Tuple; name=_not_a_dimcol(table, dims), keys=n
 end
 
 function DD.modify(f, s::AbstractRasterStack{<:FileStack})
-    open(s) do o 
+    open(s) do o
         map(a -> modify(f, a), o)
     end
 end
@@ -322,7 +322,7 @@ function Base.open(f::Function, st::AbstractRasterStack{<:FileStack}; kw...)
     ost = OpenStack(parent(st))
     out = f(rebuild(st; data=ost))
     close(ost)
-    return out 
+    return out
 end
 # Open a multi-file stack or just apply f to a memory backed stack
 function Base.open(f::Function, st::AbstractRasterStack{<:NamedTuple}; kw...)
@@ -330,7 +330,7 @@ function Base.open(f::Function, st::AbstractRasterStack{<:NamedTuple}; kw...)
 end
 
 # Open all layers through nested closures, applying `f` to the rebuilt open stack
-_open_layers(f, st) = _open_layers(f, st, layers(f), NamedTuple()) 
+_open_layers(f, st) = _open_layers(f, st, layers(f), NamedTuple())
 function _open_layers(f, st, unopened::NamedTuple{K}, opened::NamedTuple) where K
     open(first(unopened)) do open_layer
         _open_layers(f, st, Base.tail(unopened), merge(opened, NamedTuple{(first(K))}(open_layer)))
@@ -353,7 +353,7 @@ end
 # Rebuild from internals
 function RasterStack(
     data::Union{FileStack,OpenStack,NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}};
-    dims, refdims=(), layerdims, metadata=NoMetadata(), layermetadata, missingval) 
+    dims, refdims=(), layerdims, metadata=NoMetadata(), layermetadata, missingval)
     st = RasterStack(
         data, dims, refdims, layerdims, metadata, layermetadata, missingval
     )
@@ -369,7 +369,7 @@ function RasterStack(s::AbstractDimStack; name=cleankeys(Base.keys(s)), keys=nam
         data, DD.dims(s), refdims, layerdims, metadata, layermetadata, missingval
     )
 
-    # TODO This is a bit of a hack, it should use `formatdims`. 
+    # TODO This is a bit of a hack, it should use `formatdims`.
     return set(st, dims...)
 end
 

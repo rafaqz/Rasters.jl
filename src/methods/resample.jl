@@ -15,7 +15,7 @@ or to snap to the bounds, resolution and crs of the object `to`.
 
 # Keywords
 
-- `to`: an `AbstractRaster` whos resolution, crs and bounds will be snapped to.
+- `to`: an `AbstractRaster` whose resolution, crs and bounds will be snapped to.
     For best results it should roughly cover the same extent, or a subset of `A`.
 - `crs`: A `GeoFormatTypes.GeoFormat` such as `EPSG(x)` or `WellKnownText(string)` specifying an
     output crs (`A` will be reprojected to `crs` in addition to being resampled). Defaults to `crs(A)`
@@ -38,8 +38,8 @@ or to snap to the bounds, resolution and crs of the object `to`.
 
     Where NODATA values are set to `missingval`.
 
-Note: `missingval` of `missing` does not work with GDAL. Use `replace_missing(A, newmissingval)` to 
-assign a missing value before using `resample` if the current value is `missing`. This will be 
+Note: `missingval` of `missing` does not work with GDAL. Use `replace_missing(A, newmissingval)` to
+assign a missing value before using `resample` if the current value is `missing`. This will be
 automated in future versions.
 
 # Example
@@ -91,7 +91,7 @@ function resample(A::RasterStackOrArray, resdims::DimTuple;
     res = map(val, dims(resdims, (YDim, XDim)))
     flags = Dict(
         :t_srs => wkt,
-        :tr => res, 
+        :tr => res,
         :r => method,
     )
     return warp(A, flags; kw...)
