@@ -91,7 +91,7 @@ function _fill_polygon!(B::AbstractRaster, geom;
         inpolygon(pts, geom; vmin, vmax, pmin, pmax, iyperm)
     end
     inpolydims = dims(B, DEFAULT_POINT_ORDER)
-    reshaped = Raster(Base.ReshapedArray(inpoly, size(inpolydims), ()), inpolydims)
+    reshaped = Raster(reshape(inpoly, size(inpolydims)), inpolydims)
     return _inner_fill_polygon!(B, geom, inpoly, reshaped, shifted_dims; fill, boundary)
 end
 
@@ -100,6 +100,10 @@ function _inner_fill_polygon!(B::AbstractRaster, geom, inpoly, reshaped, shifted
     # Get the array as points
     # Use the first column of the output - the points in the polygon,
     # and reshape to match `A`
+    
+    # TODO: This takes a while, it could be faster to use
+    # modified PolygonInbounds output directly rather than 
+    # a reshaped view of the first column?
     for D in DimIndices(B)
         @inbounds if reshaped[D...]
             @inbounds B[D...] = fill
@@ -119,36 +123,31 @@ function _inner_fill_polygon!(B::AbstractRaster, geom, inpoly, reshaped, shifted
     return B
 end
 
-function _iyperm(dims::Tuple{<:Dimension,<:Dimension})
-    a1, a2 = map(dims) do d
+struct IYPerm{D<:Tuple,R} <: AbstractVector{Int}
+    dims::D
+    ranges::R
+end
+function IYPerm(dims::D) where D
+    ranges = map(dims) do d
         l = parent(d)
         LA.ordered_firstindex(l):_order_step(l):LA.ordered_lastindex(l)
     end
-    iyperm = Array{Int}(undef, length(a1) * length(a2))
-    k = 1
-    for j in a2, i in a1
-        iyperm[k] = LinearIndices(size(dims))[i, j]
-        k += 1
-    end
-    return iyperm
+    IYPerm{D,typeof(ranges)}(dims, ranges)
 end
-function _iyperm(dims::Tuple{<:Dimension,<:Dimension,<:Dimension})
-    # TODO: test this 3d case
-    a1, a2, a3 = map(dims) do d
-        l = parent(d)
-        LA.ordered_firstindex(l):_order_step(l):LA.ordered_lastindex(l)
-    end
-    iyperm = Array{Int}(undef, length(a1) * length(a2) * length(a3))
-    lis = (LinearIndices(size(dims))[i, j, k] for k in a3 for j in a2 for i in a1)
-    for (i, li) in enumerate(lis)
-        iyperm[i] = li
-    end
-    return iyperm
-end
+DD.dims(yp::IYPerm) = yp.dims
 
 _order_step(x) = _order_step(order(x))
 _order_step(::ReverseOrdered) = -1
 _order_step(::ForwardOrdered) = 1
+
+Base.@propagate_inbounds function Base.getindex(yp::IYPerm, i::Int)
+    ci = Tuple(CartesianIndices(size(dims(yp)))[i])
+    I = map(getindex, yp.ranges, ci)
+    return LinearIndices(size(dims(yp)))[I...]
+end
+Base.size(yp::IYPerm) = (prod(map(length, dims(yp))),)
+
+_iyperm(dims::Tuple) = IYPerm(dims)
 
 # _fill_point!
 # Fill a raster with `fill` where points are inside raster pixels

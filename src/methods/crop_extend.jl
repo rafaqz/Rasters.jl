@@ -105,7 +105,7 @@ function _crop_to(x, to::Extents.Extent)
     ds = dims(x, map(key2dim, keys(to)))
     # Take a view over the bounds
     _without_mapped_crs(x) do x1
-        view(x1, to)
+        view(x1, Touches(to))
     end
 end
 
@@ -176,7 +176,7 @@ function _extend_to(A::AbstractRaster, to::DimTuple;
     ranges = _without_mapped_crs(A) do A
         _without_mapped_crs(to) do to
             map(dims(A), to) do d, t
-                range = DD.selectindices(t, LA.ClosedInterval(bounds(d)...))
+                range = DD.selectindices(t, LA.Touches(bounds(d)))
                 rebuild(d, range)
             end
         end
