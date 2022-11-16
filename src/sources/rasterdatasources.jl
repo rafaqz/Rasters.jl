@@ -7,7 +7,7 @@ const RDS = RasterDataSources
 """
     Raster(T::Type{<:RasterDataSource}, [layer]; kw...) => Raster
 
-Load a `RasterDataSource` as an `Raster`. `T` and `layers` are are passed to
+Load a `RasterDataSource` as a `Raster`. `T` and `layers` are passed to
 `RasterDataSources.getraster`, while `kw` args are for both `getraster` and `Raster`.
 
 # Keywords
@@ -18,7 +18,7 @@ Load a `RasterDataSource` as an `Raster`. `T` and `layers` are are passed to
 
 Other `Raster` keywords are passed to the `Raster` constructor.
 
-See the docs for 
+See the docs for
 [`RasterDatasources.getraster`](http://docs.ecojulia.org/RasterDataSources.jl/stable/#getraster)
 for more specific details about data sources, layers and keyword arguments.
 """
@@ -31,7 +31,7 @@ end
 """
     RasterStack(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => RasterStack
 
-Load a `RasterDataSource` as an `RasterStack`. `T` and `layers` are passed to
+Load a `RasterDataSource` as a `RasterStack`. `T` and `layers` are passed to
 `RasterDataSources.getraster`, while `kw` args are for both `getraster` and `RasterStack`.
 
 # Keywords
@@ -42,12 +42,12 @@ Load a `RasterDataSource` as an `RasterStack`. `T` and `layers` are passed to
 
 Other `RasterStack` keywords are passed to the `RasterStack` constructor.
 
-See the docs for 
+See the docs for
 [`RasterDatasources.getraster`](http://docs.ecojulia.org/RasterDataSources.jl/stable/#getraster)
 for more specific details about data sources, layers and keyword arguments.
 """
-RasterStack(T::Type{<:RasterDataSource}; kw...) = RasterStack(T, RDS.layers(T); kw...) 
-RasterStack(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = RasterStack(T, (layer,); kw...) 
+RasterStack(T::Type{<:RasterDataSource}; kw...) = RasterStack(T, RDS.layers(T); kw...)
+RasterStack(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = RasterStack(T, (layer,); kw...)
 function RasterStack(T::Type{<:RasterDataSource}, layers::Tuple; crs=_source_crs(T), kw...)
     rds_kw, gd_kw = _filterkw(kw)
     filenames = map(l -> getraster(T, l; rds_kw...), layers)
@@ -57,7 +57,7 @@ end
 """
     RasterSeries(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => AbstractRasterSeries
 
-Load a `RasterDataSource` as an `AbstractRasterSeries`. `T`, `args` are are passed to
+Load a `RasterDataSource` as an `AbstractRasterSeries`. `T`, `args` are passed to
 `RasterDataSource.getraster`, while `kw` args are for both `getraster` and `RasterSeries`.
 
 # Keywords
@@ -68,13 +68,13 @@ Load a `RasterDataSource` as an `AbstractRasterSeries`. `T`, `args` are are pass
 
 Other `RasterSeries` keywords are passed to the `RasterSeries` constructor.
 
-See the docs for 
+See the docs for
 [`RasterDatasources.getraster`](http://docs.ecojulia.org/RasterDataSources.jl/stable/#getraster)
 for more specific details about data sources, layers and keyword arguments.
 """
-RasterSeries(T::Type{<:RasterDataSource}; kw...) = RasterSeries(T, RDS.layers(T); kw...) 
+RasterSeries(T::Type{<:RasterDataSource}; kw...) = RasterSeries(T, RDS.layers(T); kw...)
 # DateTime time-series
-function RasterSeries(T::Type{<:RasterDataSource}, layers; 
+function RasterSeries(T::Type{<:RasterDataSource}, layers;
     resize=_mayberesize(T), crs=_source_crs(T), mappedcrs=nothing, kw...
 )
     monthdim = if haskey(values(kw), :month) values(kw)[:month] isa AbstractArray

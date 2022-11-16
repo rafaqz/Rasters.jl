@@ -16,11 +16,11 @@ e.g. certain X/Y coordinates. The available selectors are listed here:
 
 |                        |                                                                    |
 | :--------------------- | :----------------------------------------------------------------- |
-| `At(x)`                | get the index exactly matching the passed in value(s)              |
-| `Near(x)`              | get the closest index to the passed in value(s)                    |
+| `At(x)`                | get the index exactly matching the passed in value(s).             |
+| `Near(x)`              | get the closest index to the passed in value(s).                   |
 | `Where(f::Function)`   | filter the array axis by a function of the dimension index values. |
 | `a..b`/`Between(a, b)` | get all indices between two values, excluding the high value.      |
-| `Contains(x)`          | get indices where the value x falls within an interval             |
+| `Contains(x)`          | get indices where the value x falls within an interval.            |
 
 
 Use the `..` selector to take a `view` of madagascar:
@@ -56,7 +56,7 @@ Note that most regular Julia methods, such as `replace`, work as for a standard
 |                           |                                                                              |
 | :------------------------ | :--------------------------------------------------------------------------- |
 | [`classify`](@ref)        | classify values into categories.                                             |
-| [`mask`](@ref)            | mask and object by a polygon or `Raster` along `X/Y`, or other dimensions. |
+| [`mask`](@ref)            | mask an object by a polygon or `Raster` along `X/Y`, or other dimensions.    |
 | [`replace_missing`](@ref) | replace all missing values in an object and update `missingval`.             |
 
 
@@ -158,7 +158,7 @@ We can also reassign dimensions, here `X` becomes `Z`:
 set(A, X => Z)
 ```
 
-`setcrs(A, crs)` and `setmappedcrs(A, crs)` will set the crs value/s of and
+`setcrs(A, crs)` and `setmappedcrs(A, crs)` will set the crs value/s of an
 object to any `GeoFormat` from GeoFormatTypes.jl.
 
 
@@ -202,9 +202,9 @@ Here we plot every third month in the first year, just using the regular index:
 A[Ti=1:3:12] |> plot
 ```
 
-Now plot the ocean temperatures areound the Americas in the first month of 2001.
+Now plot the ocean temperatures around the Americas in the first month of 2001.
 Notice we are using lat/lon coordinates and date/time instead of regular
-indexes: The time dimension uses `DateTime360Day`, so we need to load CFTime.jl
+indexes. The time dimension uses `DateTime360Day`, so we need to load CFTime.jl
 to index it with `Near`.
 
 ```@example nc
@@ -269,14 +269,14 @@ Extract the longitude/latitude value to a Vector of Tuple:
 coords = [(r.longitude, r.latitude) for r in records if !ismissing(r.longitude)]
 ```
 
-Get BioClim layers and subset to south-east australia
+Get BioClim layers and subset to south-east Australia
 
 ```@example sdm
 A = RasterStack(WorldClim{BioClim}, (1, 3, 7, 12))
 SE_aus = A[X=138..155, Y=-40..(-25), Band=1]
 ```
 
-And plot BioClim predictors and scatter occurrence points on all subplots
+Plot BioClim predictors and scatter occurrence points on all subplots
 
 ```@example sdm
 p = plot(SE_aus);
@@ -302,7 +302,7 @@ df[1:5, :]
 
 ## Polygon masking, mosaic and plot
 
-In this example we wil l `mask` the scandinavian countries with border polygons,
+In this example we will `mask` the Scandinavian countries with border polygons,
 then `mosaic` together to make a single plot. 
 
 First, get the country boundary shape files using GADM.jl.
@@ -322,14 +322,14 @@ norway_border = shapes.shapes[53]
 sweden_border = shapes.shapes[54]
 ```
 
-Then load raster data. We load some worldclim layers using RasterDataSources via
+Then load raster data. We load some worldclim layers using `RasterDataSources` via
 Rasters.jl, and drop the Band dimension.
 
 ```@example mask
 climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)[Band(1)]
 ```
 
-`mask` denmark, norway and sweden from the global dataset using their border polygon,
+`mask` Denmark, Norway and Sweden from the global dataset using their border polygon,
 then trim the missing values. We pad `trim` with a 10 pixel margin.
 
 ```@example mask
@@ -419,7 +419,7 @@ arrays of common raster file types. These methods also work for entire
 
 Spatial raster data is essentially just an `Array`. But `Raster` wrappers
 allow treating them as an array that maintains its spatial index, crs and other
-metadata through all transformations. This means the can always be plotted and
+metadata through all transformations. This means they can always be plotted and
 written to disk after applying most base Julia methods, and most `broadcast`s.
 
 ```@docs
@@ -441,7 +441,7 @@ RasterStack(T::Type{<:RasterDataSources.RasterDataSource})
 
 ### RasterSeries
 
-A series is an meta-array that holds other files/data that is distributed over
+A series is a meta-array that holds other files/data that is distributed over
 some dimension, often time. These files/data can be `Raster`s or `RasterStack`s.
 
 ```@docs
@@ -529,7 +529,7 @@ smapseries
 
 Files can be written to disk in all formats other than SMAP HDF5 using
 `write("filename.ext", A)`. See the docs for [`write`](@ref). They can (with
-some caveats) be written to different formats than they were loaded in,
+some caveats) be written to different formats than they were loaded in as,
 providing file-type conversion for spatial data.
 
 Some metadata may be lost in formats that store little metadata, or where
@@ -603,7 +603,7 @@ zonal
 
 ### File operations
 
-These Base and DimensionalData methods have specific Rasters.jl versions:
+These `Base` and `DimensionalData` methods have specific Rasters.jl versions:
 
 ```@docs
 modify

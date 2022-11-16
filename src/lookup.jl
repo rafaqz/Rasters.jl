@@ -101,7 +101,7 @@ end
     Mapped(; order=AutoOrder(), span=AutoSpan(), sampling=AutoSampling(), crs=nothing, mappedcrs)
 
 An [`AbstractSampled`]($DDabssampleddocs) `LookupArray`, where the dimension index has
-been mapped to another projection, usually lat/lon or `EPSG(4326)`. 
+been mapped to another projection, usually lat/lon or `EPSG(4326)`.
 `Mapped` matches the dimension format commonly used in netcdf files.
 
 Fields and behaviours are identical to [`Sampled`]($DDsampleddocs) with the addition of
@@ -144,7 +144,7 @@ struct AffineProjected{T,F,A<:AbstractVector{T},M,C,MC} <: LA.Unaligned{T,1}
     crs::C
     mappedcrs::MC
 end
-function AffineProjected(f; 
+function AffineProjected(f;
     data=AutoIndex(), metadata=NoMetadata(), crs=nothing, mappedcrs=nothing, dim=AutoDim()
 )
     AffineProjected(f, data, metadata, crs, mappedcrs)
@@ -154,7 +154,7 @@ crs(lookup::AffineProjected) = lookup.crs
 mappedcrs(lookup::AffineProjected) = lookup.mappedcrs
 
 DD.metadata(lookup::AffineProjected) = lookup.metadata
-function DD.rebuild(l::AffineProjected; 
+function DD.rebuild(l::AffineProjected;
     affinemap=l.affinemap, data=l.data, metadata=metadata(l),
     crs=crs(l), mappedcrs=mappedcrs(l), dim=dims(l), args...
 )
@@ -174,12 +174,12 @@ function Dimensions.sliceunalligneddims(
     I = map((ud1, ud2), I) do d, i
         i isa Colon ? parent(lookup(d)) : i
     end
-    
+
     af = lookup(ud1).affinemap
     # New resolution for step size changes
     M = af.linear * [step(I[1]) 0; 0 step(I[2])]
     # New of origin for slice
-    v = af(collect(first.(I) .- 1))  
+    v = af(collect(first.(I) .- 1))
     # Create a new affine map
     affinemap = CoordinateTransformations.AffineMap(M, v)
     # Build new lookups with the affine map. Probably should define `set` to do this.
@@ -204,7 +204,7 @@ Other dimension lookups pass through unchanged.
 
 This is used to e.g. save a netcdf file to GeoTiff.
 """
-convertlookup(T::Type{<:LookupArray}, A::AbstractDimArray) = 
+convertlookup(T::Type{<:LookupArray}, A::AbstractDimArray) =
     rebuild(A; dims=convertlookup(T, dims(A)))
 convertlookup(T::Type{<:LookupArray}, dims::Tuple) = map(d -> convertlookup(T, d), dims)
 convertlookup(T::Type{<:LookupArray}, d::Dimension) = rebuild(d, convertlookup(T, lookup(d)))
@@ -257,7 +257,7 @@ end
 """
     setcrs(x, crs)
 
-Set the crs of a `Raster`, `RasterStack`, `Tuple` of `Dimension`,or a `Dimension`.
+Set the crs of a `Raster`, `RasterStack`, `Tuple` of `Dimension`, or a `Dimension`.
 """
 setcrs(dims::DimTuple, crs) = map(d -> setcrs(d, crs), dims)
 function setcrs(dim::Dimension, crs)

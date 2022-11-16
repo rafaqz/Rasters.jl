@@ -19,7 +19,7 @@ As `crop` is lazy, `filename` and `suffix` keywords don't apply.
 
 # Example
 
-Cropt to another raster:
+Crop to another raster:
 
 ```jldoctest
 using Rasters, Plots
@@ -34,7 +34,7 @@ nz_evenness = evenness[nz_bounds...]
 nz_range = crop(rnge; to=nz_evenness)
 plot(nz_range)
 
-savefig("build/crop_example.png")
+savefig("build/nz_crop_example.png")
 # output
 ```
 
@@ -77,8 +77,8 @@ crop(x::RasterStackOrArray; to, kw...) = _crop_to(x, to; kw...)
 # crop `A` to values of dims of `to`
 function _crop_to(x, to; kw...)
     ext = _extent(to)
-    if isnothing(ext) 
-        if isnothing(dims(to)) 
+    if isnothing(ext)
+        if isnothing(dims(to))
             throw(ArgumentError("No dims or extent available on `to` object of type $(typeof(to))"))
         else
             return _crop_to(x, dims(to); kw...)
@@ -90,7 +90,7 @@ end
 _crop_to(A, to::RasterStackOrArray; kw...) = _crop_to(A, dims(to); kw...)
 function _crop_to(x, to::DimTuple; atol=maybe_eps(to))
     # We can only crop to sampled dims (e.g. not categorical dims like Band)
-    sampled = reduce(to; init=()) do acc, d 
+    sampled = reduce(to; init=()) do acc, d
         lookup(d) isa AbstractSampled ? (acc..., d) : acc
     end
     return _crop_to(x, Extents.extent(to))
@@ -247,7 +247,7 @@ _choosebounds((f1, f2), (a,)::Tuple{<:Dimension}, b::Tuple{<:Dimension}) = _choo
 _choosebounds((f1, f2), ::Tuple{}, ::Tuple{}) = ()
 _choosebounds((f1, f2), ::Tuple{}, (b,)::DimTuple) = bounds(b)
 _choosebounds((f1, f2), a::Tuple, ::Tuple{}) = a
-function _choosebounds((f1, f2), (a1, a2)::Tuple{<:Any,<:Any}, (b,)::Tuple{<:Dimension}) 
+function _choosebounds((f1, f2), (a1, a2)::Tuple{<:Any,<:Any}, (b,)::Tuple{<:Dimension})
     b1, b2 = bounds(b)
     return f1(a1, b1), f2(a2, b2)
 end

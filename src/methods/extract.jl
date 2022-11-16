@@ -1,8 +1,8 @@
 """
-   extract(x, geoms; atol)
+    extract(x, geoms; atol)
 
 Extracts the value of `Raster` or `RasterStack` at given points, returning
-an iterable of `NamedTuple` with properties for `:geometry` and raster or 
+an iterable of `NamedTuple` with properties for `:geometry` and raster or
 stack layer values.
 
 Note that if objects have more dimensions than the length of the point tuples,
@@ -46,16 +46,17 @@ vals = collect(extract(st, points))
  (geometry = (148.451335, -35.999862), bio1 = 8.269542, bio3 = 41.030262, bio5 = 21.4485, bio7 = 23.858, bio12 = 1440.0)
 ```
 """
-function extract(x::RasterStackOrArray, data; 
+function extract end
+function extract(x::RasterStackOrArray, data;
     dims=DD.dims(x, DEFAULT_POINT_ORDER), kw...
 )
     _extract(x, data; dims, names=_names(x), kw...)
 end
 _extract(A::RasterStackOrArray, point::Missing; kw...) = missing
-function _extract(A::RasterStackOrArray, geom; kw...) 
-    _extract(A, GI.geomtrait(geom), geom; kw...) 
+function _extract(A::RasterStackOrArray, geom; kw...)
+    _extract(A, GI.geomtrait(geom), geom; kw...)
 end
-function _extract(A::RasterStackOrArray, ::Nothing, geoms; kw...) 
+function _extract(A::RasterStackOrArray, ::Nothing, geoms; kw...)
     geom1 = first(skipmissing(geoms))
     if GI.isgeometry(geom1) || GI.isfeature(geom1) || GI.isfeaturecollection(geom1)
         (_extract(A, g; kw...) for g in geoms)
@@ -63,19 +64,19 @@ function _extract(A::RasterStackOrArray, ::Nothing, geoms; kw...)
         throw(ArgumentError("`data` does not contain geomety objects"))
     end
 end
-function _extract(A::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...) 
-    _extract(A, GI.geometry(feature); kw...) 
+function _extract(A::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...)
+    _extract(A, GI.geometry(feature); kw...)
 end
-function _extract(A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom; kw...) 
+function _extract(A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom; kw...)
     (_extract(A, p; kw...) for p in GI.getpoint(geom))
 end
-function _extract(A::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom; names, kw...) 
+function _extract(A::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom; names, kw...)
     B = boolmask(geom; to=dims(A, DEFAULT_POINT_ORDER), kw...)
     pts = DimPoints(B)
     dis = DimIndices(B)
-    ((; geometry=_geom_nt(dims(B), pts[I]), _prop_nt(A, I, names)...) for I in CartesianIndices(B) if B[I])  
+    ((; geometry=_geom_nt(dims(B), pts[I]), _prop_nt(A, I, names)...) for I in CartesianIndices(B) if B[I])
 end
-_geom_nt(dims::DimTuple, pts) = NamedTuple{map(dim2key, dims)}(pts) 
+_geom_nt(dims::DimTuple, pts) = NamedTuple{map(dim2key, dims)}(pts)
 _prop_nt(st::AbstractRasterStack, I, names::NamedTuple{K}) where K = NamedTuple{K}(values(st[I]))
 _prop_nt(A::AbstractRaster, I, names::NamedTuple{K}) where K = NamedTuple{K}((A[I],))
 
@@ -86,7 +87,7 @@ function _extract(x::RasterStackOrArray, ::GI.PointTrait, point; dims, names, at
     end
 
     # Extract the values
-    if any(map(ismissing, coords)) 
+    if any(map(ismissing, coords))
         # TODO test this branch somehow
         geometry = map(_ -> missing, coords)
         layer_vals = map(_ -> missing, names)

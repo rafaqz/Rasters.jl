@@ -23,7 +23,7 @@ If your mosaic has has apparent line errors, increase the `atol` value.
 
 # Example
 
-Here we cut out australia and africa from a stack, and join them with `mosaic`.
+Here we cut out Australia and Africa from a stack, and join them with `mosaic`.
 
 ```jldoctest
 using Rasters, Plots
@@ -96,7 +96,7 @@ Combine `regions`s in `x` using the function `f`.
     values where `regions` overlap.
 - `x`: A `Raster` or `RasterStack`. May be a an opened disk-based `Raster`,
     the result will be written to disk.
-    slow read speed with the current algorithm
+    With the current algorithm, the read speed is slow.
 - `regions`: source objects to be joined. These should be memory-backed
     (use `read` first), or may experience poor performance. If all objects have
     the same extent, `mosaic` is simply a merge.
@@ -234,4 +234,3 @@ _default_atol(T::Type{<:Float32}) = 100eps(T)
 _default_atol(T::Type{<:Float64}) = 1000eps(T)
 _default_atol(T::Type{<:Integer}) = T(1)
 _default_atol(::Type) = nothing
-
