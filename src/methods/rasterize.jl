@@ -285,7 +285,7 @@ function _rasterize_feature_collection_inner!(reducefunc, x, fc, property; kw...
     geoms = (GI.geometry(feature) for feature in GI.getfeature(fc))
     # TODO handle property Tuple
     values = [getproperty(GI.properties(f), _unwrap(property)) for f in GI.getfeature(fc)]
-    _reduce_geoms!(redcefunc, x, geoms, fill, n; kw...)
+    _reduce_geoms!(reducefunc, x, geoms, fill, n; kw...)
 end
 
 function _rasterize_geom_table_inner!(reducefunc, x, geoms, fill; kw...)
