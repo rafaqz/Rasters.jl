@@ -1,9 +1,20 @@
 
 function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractRaster)
 
+    printstyled(io, "extent: "; color=:light_black)
+    show(io, mime, Extents.extent(A))
+    println()
     if missingval(A) !== nothing
-        printstyled(io, "with missingval: "; color=:light_black)
+        printstyled(io, "missingval: "; color=:light_black)
         print(io, string(missingval(A)), "\n")
+    end
+    if crs(A) !== nothing
+        printstyled(io, "crs: "; color=:light_black)
+        print(io, convert(String, crs(A)), "\n")
+    end
+    if mappedcrs(A) !== nothing
+        printstyled(io, "mappedcrs: "; color=:light_black)
+        print(io, convert(String, mappedcrs(A)), "\n")
     end
     if parent(A) isa DiskArrays.AbstractDiskArray 
         if parent(A) isa FileArray 
@@ -11,13 +22,14 @@ function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractRaster)
             print(io, filename(parent(A)))
         end
     else
+        printstyled(io, "values: "; color=:light_black)
         DD.print_array(io, mime, A)
     end
 end
 
 function DD.show_after(io, mime, stack::AbstractRasterStack) 
     if parent(stack) isa FileStack 
-        printstyled(io, "\nfrom file:\n"; color=:light_black)
+        printstyled(io, "from file:\n"; color=:light_black)
         println(io, filename(stack))
     end
 end
