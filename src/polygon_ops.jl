@@ -7,13 +7,11 @@ const DEFAULT_TABLE_DIM_KEYS = (:X, :Y, :Z)
 # _fill_geometry!
 # Fill a raster with `fill` where it interacts with a geometry.
 function fill_geometry!(B::AbstractRaster, geom; kw...)
-    # preallocs = _maybe_prealloc(B; kw...)
-    _fill_geometry!(B, geom; kw...)
-end
-
-function _fill_geometry!(B::AbstractRaster, geom; kw...)
     _fill_geometry!(B, GI.trait(geom), geom; kw...)
 end
+
+# This feature filling is simplistic in that it does not use any feature properties.
+# This is suitable for masking. See `rasterize` for a version using properties.
 function _fill_geometry!(B::AbstractRaster, ::GI.AbstractFeatureTrait, feature; kw...)
     return _fill_geometry!(B, GI.geometry(feature); kw...)
 end
@@ -22,7 +20,7 @@ function _fill_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait,
         _fill_geometry!(B, GI.geometry(feature); kw...)
     end
 end
-function _fill_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; shape=nothing, kw...)
+function _fill_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; shape=nothing, verbose=true, kw...)
     shape = shape isa Symbol ? shape : _geom_shape(geom)
     if shape === :point
         _fill_point!(B, geom; shape, kw...)
@@ -32,7 +30,12 @@ function _fill_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; sh
         geomextent = _extent(geom)
         arrayextent = Extents.extent(B, DEFAULT_POINT_ORDER)
         # Only fill if the gemoetry bounding box overlaps the array bounding box
-        Extents.intersects(geomextent, arrayextent) || return B
+        if !Extents.intersects(geomextent, arrayextent) 
+            if verbose
+                @info "A geometry was ignored at $geomextent as it was outside of the supplied extent $arrayextent"
+            end
+            return B
+        end
         _fill_polygon!(B, geom; shape, geomextent, kw...)
     else
         throw(ArgumentError("`shape` is $shape, must be `:point`, `:line`, `:polygon` or `nothing`"))
@@ -92,34 +95,41 @@ function _fill_polygon!(B::AbstractRaster, geom;
     end
     inpolydims = dims(B, DEFAULT_POINT_ORDER)
     reshaped = Raster(reshape(inpoly, size(inpolydims)), inpolydims)
-    return _inner_fill_polygon!(B, geom, inpoly, reshaped, shifted_dims; fill, boundary)
+    return _inner_fill_polygon!(B, geom, reshaped, shifted_dims; fill, boundary)
 end
 
 # split to make a type stability function barrier
-function _inner_fill_polygon!(B::AbstractRaster, geom, inpoly, reshaped, shifted_dims; fill=true, boundary=:center, kw...)
+function _inner_fill_polygon!(B::AbstractRaster, geom, reshaped, shifted_dims; fill=true, boundary=:center, kw...)
     # Get the array as points
     # Use the first column of the output - the points in the polygon,
     # and reshape to match `A`
     
+    # Used to warn if no fill is written for this polygon
+    any_in_polygon = false
+    any_on_line = false
+
     # TODO: This takes a while, it could be faster to use
     # modified PolygonInbounds output directly rather than 
     # a reshaped view of the first column?
     for D in DimIndices(B)
-        @inbounds if reshaped[D...]
+        @inbounds is_in_polygon = reshaped[D...]
+        if is_in_polygon 
+            any_in_polygon = true
             @inbounds B[D...] = fill
         end
     end
     if boundary === :touches
         B1 = setdims(B, shifted_dims)
         # Add the line pixels
-        _fill_linestring!(B1, geom; fill)
+        any_on_line = _fill_linestring!(B1, geom; fill)
     elseif boundary === :inside
         B1 = setdims(B, shifted_dims)
         # Remove the line pixels
-        _fill_linestring!(B1, geom; fill=!fill)
+        any_on_line = _fill_linestring!(B1, geom; fill=!fill)
     elseif boundary !== :center
-        _boundary_error(boundary)
+        throw(ArgumentError("`boundary` can be :touches, :inside, or :center, got $boundary"))
     end
+    (any_in_polygon | any_on_line) || @warn "In-bounds polygon was not filled as it did not cross a pixel center. Consider using `boundary=:touches`, or `varbose=false` to hide thise warning"
     return B
 end
 
@@ -211,14 +221,16 @@ function _fill_linestring!(B::AbstractRaster, linestring; fill=true, kw...)
             A
         end
     end
+    any_on_segment = false
     # For each line segment, burn the line into B with `fill` values
-    _fill_line_segments!(forward_ordered_B, linestring, fill)
-    return B
+    any_on_segment |= _fill_line_segments!(forward_ordered_B, linestring, fill)
+    return any_on_segment
 end
 
 function _fill_line_segments!(B::AbstractArray, linestring, fill)
     isfirst = true
     local firstpoint, lastpoint
+    any_on_segment = false
     for point in GI.getpoint(linestring)
         if isfirst
             isfirst = false
@@ -233,9 +245,10 @@ function _fill_line_segments!(B::AbstractArray, linestring, fill)
             start=(x=GI.x(lastpoint), y=GI.y(lastpoint)),
             stop=(x=GI.x(point), y=GI.y(point)),
         )
-        _fill_line!(B, line, fill)
+        any_on_segment |= _fill_line!(B, line, fill)
         lastpoint = point
     end
+    return any_on_segment
 end
 
 # fill_line!
@@ -292,9 +305,11 @@ function _fill_line!(A::AbstractRaster, line, fill)
     manhattan_distance = floor(Int, abs(floor(start.x) - floor(stop.x)) + abs(floor(start.y) - floor(stop.y)))
     # For arbitrary dimension indexing
     dimconstructors = map(DD.basetypeof, (xd, yd))
+    any_on_segment = false
     for _ in 0:manhattan_distance
         D = map((d, o) -> d(o), dimconstructors, (x, y))
         if checkbounds(Bool, A, D...)
+            any_on_segment = true
             if fill isa Function
                 @inbounds A[D...] = fill(A[D...])
             else
@@ -310,7 +325,7 @@ function _fill_line!(A::AbstractRaster, line, fill)
             y += step_y
         end
     end
-    return A
+    return any_on_segment
 end
 function _fill_line!(A::AbstractRaster, line, fill, order::Tuple{Vararg{<:Dimension}})
     msg = """"
@@ -442,7 +457,3 @@ _dimcoord(::ZDim, point) = GI.z(point)
 @inline _geom_shape(geom::Union{<:GI.PointTrait,<:GI.MultiPointTrait}) = :point
 @inline _geom_shape(geom::Union{<:GI.LineStringTrait,<:GI.MultiLineStringTrait}) = :line
 @inline _geom_shape(geom::Union{<:GI.LinearRingTrait,<:GI.PolygonTrait,<:GI.MultiPolygonTrait}) = :polygon
-# _geom_shape(trait, geom) = throw(ArgumentError("Geometry trait $trait not handled by Rasters.jl"))
-
-_shape_error(shape) = throw(ArgumentError("`shape` must be :point, :line or :polygon, got $shape"))
-_boundary_error(boundary) = throw(ArgumentError("`boundary` can be :touches, :inside, or :center, got $boundary"))
