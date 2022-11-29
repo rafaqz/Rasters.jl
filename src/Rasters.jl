@@ -20,6 +20,7 @@ import Adapt,
        Flatten,
        GeoInterface,
        HDF5,
+       ImageCore,
        PolygonInbounds,
        ProgressMeter,
        Missings,
@@ -27,7 +28,8 @@ import Adapt,
        NCDatasets,
        RecipesBase,
        Reexport,
-       Setfield
+       Setfield,
+       Statistics
 
 Reexport.@reexport using DimensionalData, GeoFormatTypes, RasterDataSources
 
@@ -40,7 +42,8 @@ using DimensionalData: Name, NoName
 using .Dimensions: StandardIndices, DimTuple
 using .LookupArrays: LookupArrayTuple 
 
-using RecipesBase: @recipe, @series
+using RecipesBase: @recipe, @series, @userplot
+using Statistics: quantile
 using Base: tail, @propagate_inbounds
 
 using Setfield: @set, @set!
