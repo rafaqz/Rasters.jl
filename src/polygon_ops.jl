@@ -6,8 +6,16 @@ const DEFAULT_TABLE_DIM_KEYS = (:X, :Y, :Z)
 
 # _fill_geometry!
 # Fill a raster with `fill` where it interacts with a geometry.
-function fill_geometry!(B::AbstractRaster, geom; kw...)
-    _fill_geometry!(B, GI.trait(geom), geom; kw...)
+function fill_geometry!(B::AbstractRaster, data; kw...)
+    if Tables.istable(data)
+        geomcolname = first(GI.geometrycolumns(data))
+        for row in Tables.rows(data)
+            geom = Tables.getcolumn(row, geomcolname)
+            _fill_geometry!(B, GI.trait(geom), geom; kw...)
+        end
+    else
+        _fill_geometry!(B, GI.trait(data), data; kw...)
+    end
 end
 
 # This feature filling is simplistic in that it does not use any feature properties.
@@ -17,7 +25,7 @@ function _fill_geometry!(B::AbstractRaster, ::GI.AbstractFeatureTrait, feature; 
 end
 function _fill_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait, fc; kw...)
     for feature in GI.getfeature(fc)
-        _fill_geometry!(B, GI.geometry(feature); kw...)
+        fill_geometry!(B, GI.geometry(feature); kw...)
     end
 end
 function _fill_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; shape=nothing, verbose=true, kw...)
@@ -48,15 +56,7 @@ function _fill_geometry!(B::AbstractRaster, trait::Nothing, geoms::AbstractVecto
     end
 end
 function _fill_geometry!(B::AbstractRaster, trait::Nothing, data; kw...)
-    if Tables.istable(data)
-        geomcolname = first(GI.geometrycolumns(data))
-        for row in Tables.rows(data)
-            geom = Tables.getcolumn(row, geomcolname)
-            _fill_geometry!(B, geom; kw...)
-        end
-    else
-        throw(ArgumentError("Unknown geometry object $(typeof(data))"))
-    end
+    throw(ArgumentError("Unknown geometry object $(typeof(data))"))
 end
 
 # _fill_polygon!

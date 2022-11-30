@@ -75,23 +75,45 @@ function _rasterize(to::AbstractRaster, data;
     _rasterize(dims(to), data; missingval, name, kw...)
 end
 function _rasterize(to::AbstractRasterStack, data; fill, name=keys(to), kw...)
-    _rasterize(dims(to), data; fill, name=_filter_name(name, fill), kw...)
+    _rasterize(dims(to), data; fill, name, kw...)
 end
 function _rasterize(to::Nothing, data; fill, kw...)
     to = _extent(data)
     _rasterize(to, data; fill, name, kw...)
 end
 function _rasterize(to::Extents.Extent{K}, data;
-    fill, name=_filter_name(nothing, fill),
+    fill, 
     res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing,
     size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing,
     kw...
 ) where K
     to_dims = _extent2dims(to; size, res, kw...)
-    return _rasterize(to_dims, data; fill, name, kw...)
+    return _rasterize(to_dims, data; fill, kw...)
 end
-function _rasterize(to::DimTuple, data; fill, name=_filter_name(nothing, fill), kw...)
-    _rasterize(to, GeoInterface.trait(data), data; fill, name, kw...)
+function _rasterize(to::DimTuple, data; fill, name=nothing, kw...)
+    if Tables.istable(data)
+        schema = Tables.schema(data)
+        colnames = Tables.columnnames(Tables.columns(data))
+        # TODO integrate this with _fillorcol
+        fillval = if fill isa Symbol
+            fill in colnames || _fill_key_error(colnames, f)
+            zero(Tables.columntype(schema, fill))
+        elseif fill isa Tuple{Symbol,Vararg}
+            map(fill) do f
+                f in colnames || _fill_key_error(colnames, f)
+                zero(Tables.columntype(schema, f)) 
+            end
+        else
+            fill
+        end
+        name = _filter_name(name, fill)
+        @show fill name
+        return _create_rasterize_dest(fillval, to; name, kw...) do dest
+            rasterize!(dest, data; fill, kw...)
+        end
+    else
+        _rasterize(to, GeoInterface.trait(data), data; fill, name, kw...)
+    end
 end
 function _rasterize(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name, fill, kw...)
     # TODO: how to handle when there are fillvals with different types
@@ -114,27 +136,11 @@ function _rasterize(to::DimTuple, ::GI.AbstractGeometryTrait, geom; fill, kw...)
     end
 end
 function _rasterize(to::DimTuple, ::Nothing, data; fill, name, kw...)
-    name = _filter_name(name, fill)
-    if Tables.istable(data)
-        schema = Tables.schema(data)
-        fillval = if isnothing(fill)
-            throw(ArgumentError("`fill` must be a value or table column name or names"))
-        elseif fill isa Symbol
-            zero(Tables.columntype(schema, fill))
-        elseif fill isa NTuple{<:Any,Symbol}
-            map(n -> zero(Tables.columntype(schema, n)), fill)
-        else
-            fill
-        end
-        return _create_rasterize_dest(fillval, to; name, kw...) do dest
-            rasterize!(dest, data; fill, kw...)
-        end
-    else
-        return _create_rasterize_dest(fill, to; name, kw...) do dest
-            rasterize!(dest, data; fill, kw...)
-        end
-    end
+    throw(ArgumentError("Can't rasterise object: $(typeof(data))"))
 end
+
+
+_fill_key_error(names, fill) = throw(ArgumentError("fill key $fill not found in table, use one of: $(Tuple(names))"))
 
 """
     rasterize!(dest, data; fill, atol)
@@ -212,18 +218,35 @@ savefig("build/indonesia_rasterized.png"); nothing
 
 $EXPERIMENTAL
 """
-rasterize!(x::RasterStackOrArray, data; fill, kw...) =
-    _rasterize!(x, GI.trait(data), data; fill, kw...)
+function rasterize!(x::RasterStackOrArray, data; reduce=last, fill, kw...)
+    if Tables.istable(data)
+        schema = Tables.schema(data)
+        geomcolname = first(GI.geometrycolumns(data))
+        cols = Tables.columns(data)
+        fillcol = _fillorcol(cols, fill)
+        if geomcolname in Tables.columnnames(cols)
+            geomcol = Tables.getcolumn(cols, geomcolname)
+            _rasterize_geom_table_inner!(reduce, x, geomcol, fillcol; kw...)
+        else
+            _buffer = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
+            dimscols = _auto_dim_columns(data, dims(x))
+            pointcols = map(k -> Tables.getcolumn(data, k), map(DD.dim2key, dimscols))
+            _rasterize_point_table_inner!(x, pointcols, fillcol; _buffer, kw...)
+        end
+    else
+        _rasterize!(x, GI.trait(data), data; fill, kw...)
+    end
+end
 
-function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
-    if fill isa Union{Symbol,NTuple{<:Any,Symbol}}
+function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; fill, reduce=last, kw...)
+    if fill isa Union{Symbol,Tuple{Symbol,Vararg}}
         # Rasterize features separately: the fill may change per feature
         # Lift key Symbol to a type to avoid runtime lookups for every point.
         propertykey = Val{fill}()
         # Use a function barrier
-        _rasterize_feature_inner!(x, fc, propertykey; kw...)
+        _rasterize_feature_collection_inner!(reduce, x, fc, propertykey; kw...)
     else
-        # Rasterize all features into a single bitarray. 
+        # Rasterize all features into a single bitarray.
         # The fill is the same so we can flatten the geometries together.
         bools = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
         boolmask!(bools, fc; kw...)
@@ -253,29 +276,12 @@ function _rasterize!(x, trait::GI.AbstractPointTrait, point; fill, kw...)
     return x
 end
 # rasterize tables and iterables of features or gemoemtries
-function _rasterize!(x, trait::Nothing, data; fill, reduce=last, kw...)
-    if Tables.istable(data)
-        schema = Tables.schema(data)
-        geomcolname = first(GI.geometrycolumns(data))
-        cols = Tables.columns(data)
-        fillcol = _fillorcol(cols, fill)
-        if geomcolname in Tables.columnnames(cols)
-            geomcol = Tables.getcolumn(cols, geomcolname)
-            _rasterize_geom_table_inner!(reduce, x, geomcol, fillcol; kw...)
-        else
-            _buffer = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
-            pointkeys = reduce(DEFAULT_TABLE_DIM_KEYS; init=()) do acc, key
-                key in schema.names ? (acc..., key) : acc
-            end
-            pointcols = map(k -> Tables.getcolumn(data, k), pointkeys)
-            _rasterize_point_table_inner!(x, pointcols, fillcol; _buffer, kw...)
-        end
-    else # Treat data as an iterable. TODO: try to error nicely if it isn't
-        _buffer = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
-        for (i, geom) in enumerate(data)
-            fillval = fill isa AbstractArray ? fill[i] : fill
-            rasterize!(x, geom; fill=fillval, _buffer, kw...)
-        end
+function _rasterize!(x, trait::Nothing, data; fill, reduce=last, dis=nothing, kw...)
+    # Treat data as an iterable. TODO: try to error nicely if it isn't
+    _buffer = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
+    for (i, geom) in enumerate(data)
+        fillval = fill isa AbstractArray ? fill[i] : fill
+        rasterize!(x, geom; fill=fillval, _buffer, kw...)
     end
     return x
 end
@@ -283,9 +289,21 @@ end
 function _rasterize_feature_collection_inner!(reducefunc, x, fc, property; kw...)
     n = GI.nfeature(fc)
     geoms = (GI.geometry(feature) for feature in GI.getfeature(fc))
-    # TODO handle property Tuple
-    values = [getproperty(GI.properties(f), _unwrap(property)) for f in GI.getfeature(fc)]
+    # TODO this doesn't have to allocate, its just easier
+    fill = if _unwrap(property) isa Tuple
+        [NamedTuple{_unwrap(property)}(map(p -> getproperty(GI.properties(f), p), _unwrap(property))) for f in GI.getfeature(fc)]
+    else
+        [getproperty(GI.properties(f), _unwrap(property)) for f in GI.getfeature(fc)]
+    end
     _reduce_geoms!(reducefunc, x, geoms, fill, n; kw...)
+end
+
+function _rasterize_point_table_inner!(x, pointcols, fill; kw...)
+    for i in eachindex(first(pointcols))
+        fill = _fillval(fill, i)
+        point = map(col -> col[i], pointcols)
+        _fill_point!(x, point; fill, kw...)
+    end
 end
 
 function _rasterize_geom_table_inner!(reducefunc, x, geoms, fill; kw...)
@@ -299,8 +317,8 @@ function _reduce_geoms!(reducefunc, x, geoms, fill, n; kw...)
 end
 
 # Mask all polygons into the 3d BitArray
-function _boolmaskall(x, geoms, n; kw...) 
-    # Define mask dimensions, the same size as the spatial dims of x 
+function _boolmaskall(x, geoms, n; kw...)
+    # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(x, (XDim, YDim))
     geomdim = Dim{:geom}(1:n)
     # Create a BitArray Raster with a dimension for the number of features to rasterize
@@ -351,17 +369,13 @@ function _do_reduction!(reducefunc::typeof(first), x, ds, fill, pixel_geom_list)
     return nothing
 end
 
-function _rasterize_point_table_inner(x, pointcols, source; kw...)
-    for i in eachindex(first(pointcols))
-        fill = _fillval(source, i)
-        point = map(col -> col[i], pointcols)
-        _fill_point!(x, point; fill, kw...)
-    end
-end
-
 # Utils
-_fillorcol(data, fill::NTuple{<:Any,Symbol}) = map(f -> _fillorcol(data, nothing, s), source)
-_fillorcol(data, fill::Symbol) = Tables.getcolumn(data, fill)
+_fillorcol(data, fill::Tuple{Symbol,Vararg}) = map(f -> _fillorcol(data, f), fill)
+function _fillorcol(data, fill::Symbol) 
+    names = Tables.columnnames(Tables.columns(data))
+    fill in names || _fill_key_error(names, fill)
+    Tables.getcolumn(data, fill)
+end
 _fillorcol(data, fill) = fill
 
 # _fillval
@@ -459,7 +473,7 @@ end
 _filter_name(name, fill::NamedTuple) = keys(fill)
 _filter_name(name::NamedTuple, fill::NamedTuple) = keys(fill)
 _filter_name(name::Nothing, fill::Nothing) = nothing
-_filter_name(name::DimensionalData.NoName, fill::Nothing) = nothing
+_filter_name(name::DimensionalData.NoName, fill::Union{Symbol,NTuple{<:Any,Symbol}}) = fill
 _filter_name(name::Union{NamedTuple,Tuple,Array}, fill::NTuple{<:Any,Symbol}) = fill
 function _filter_name(name::Union{NamedTuple,Tuple,Array}, fill::Union{Tuple,Array})
     length(name) == length(fill) || throw(ArgumentError("`name` keyword (possibly from `to` object) does not match length of fill. A fix is to use a `NamedTuple` for `fill`."))
@@ -467,4 +481,10 @@ function _filter_name(name::Union{NamedTuple,Tuple,Array}, fill::Union{Tuple,Arr
 end
 function _filter_name(name, fill)
     fill isa Union{Symbol,NTuple{<:Any,Symbol}} ? fill : name
+end
+
+function _dimkeys(table)
+    Base.reduce(DEFAULT_TABLE_DIM_KEYS; init=()) do acc, key
+        key in schema.names ? (acc..., key) : acc
+    end
 end

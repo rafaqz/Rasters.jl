@@ -57,43 +57,23 @@ function _table_point_order(dims::DimTuple, table, order::Nothing)
     return order
 end
 
-function _table_points(table, order)
-    isdisk(table) && _warn_disk()
-    dimnames = map(last, order)
-    points = (map(n -> r[n], dimnames) for r in Tables.rows(table))
-    return points
-end
-
-function _table_bounds(table, order)
-    points = _table_points(table, order)
-    bounds = map(ntuple(x -> x, length(order))) do i
-        extrema(x -> x[i], points)
-    end
-    return bounds
-end
-
-function _wrapped_table_bounds(dims::DimTuple, table, order::Tuple)
-    ds = DD.dims(dims,  map(first, order))
-    map(rebuild, ds, _table_bounds(table, order))
-end
-
-function _auto_dim_columns(dims::DimTuple, table)
+function _auto_dim_columns(table, dims::Tuple)
     names = Tables.columnnames(table)
     if isempty(names)
         names = keys(first(Tables.rows(table)))
     end
     ds = DD.commondims(dims, (XDim, YDim, ZDim))
-    return Tuple(DD.basetypeof(d)() => DD.dim2key(d) for d in ds if DD.dim2key(d) in names)
+    return Tuple(DD.basetypeof(d)() for d in ds if DD.dim2key(d) in names)
 end
 
-_not_a_dimcol(data, dimcols::DimTuple) = _not_a_dimcol(data, map(DD.dim2key, dimcols))
-_not_a_dimcol(data, dimcols::Tuple{Vararg{<:Pair}}) = _not_a_dimcol(data, map(last, dimcols))
-_not_a_dimcol(data, dimcols::Tuple{}) = ()
-function _not_a_dimcol(data, dimcols::Tuple{Vararg{Symbol}})
-    dimcols = (dimcols..., :Band) 
-    names = Tables.columnnames(data)
+_not_a_dimcol(table, dimcols::DimTuple) = _not_a_dimcol(table, map(DD.dim2key, dimcols))
+_not_a_dimcol(table, dimcols::Tuple{Vararg{<:Pair}}) = _not_a_dimcol(table, map(last, dimcols))
+_not_a_dimcol(table, dimcols::Tuple{}) = ()
+function _not_a_dimcol(table, dimcols::Tuple{Vararg{Symbol}})
+    dimcols = (dimcols..., :Band) # TODO deal with how annoying `Band` is 
+    names = Tables.columnnames(table)
     if length(names) == 0
-        names = keys(first(Tables.rows(data)))
+        names = keys(first(Tables.rows(table)))
     end
     not_dim_keys = Tuple(k for k in names if !(k in dimcols))
     return not_dim_keys

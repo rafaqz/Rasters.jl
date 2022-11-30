@@ -114,7 +114,7 @@ end
         zonal(sum, a; of=(geometry=polygon, x=:a, y=:b)) ==
         zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1]
         zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
-        sum(skipmissing(mask(a; with=polygon)))  
+        sum(skipmissing(mask(a; with=polygon)))
     @test zonal(sum, a; of=a) == 
         zonal(sum, a; of=dims(a)) == 
         zonal(sum, a; of=Extents.extent(a)) == 
@@ -123,7 +123,7 @@ end
     b = a .* 2
     c = cat(a .* 3, a .* 3; dims=:newdim)
     st = RasterStack((; a, b, c))
-    zonal(sum, st; of=polygon) == zonal(sum, st; of=[polygon])[1] ==
+    @test zonal(sum, st; of=polygon) == zonal(sum, st; of=[polygon])[1] ==
         zonal(sum, st; of=(geometry=polygon, x=:a, y=:b)) ==
         zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
         zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
@@ -435,15 +435,16 @@ end
         @testset "feature collection, table from fill of Symbol keys" begin
             for data in (pointfc, DataFrame(pointfc))
                 @testset "NTuple of Symbol fill makes an stack" begin
-                    rst = rasterize(data; to=A, fill=(:val1, :val2))
-                    @test keys(rst) == (:val1, :val2)
-                    @test dims(rst) == dims(A)
+                    rst = rasterize(data; to=A, fill=(:val1, :val3))
+                    @test keys(rst) == keys(rst_auto) == (:val1, :val2)
                     @test map(sum ∘ skipmissing, rst) === (val1=14, val2=28.0f0)
+                    @test_throws ArgumentError rasterize(data; to=A, fill=(:val1, :not_a_column))
                 end
                 @testset "Symbol fill makes an array" begin
                     ra = rasterize(data; to=A, fill=:val1)
                     @test ra isa Raster
                     @test name(ra) == :val1
+                    @test_throws ArgumentError rasterize(data; to=A, fill=:not_a_column)
                 end
             end
         end
