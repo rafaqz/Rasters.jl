@@ -116,6 +116,7 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
         @test ncarray[Ti(1)] isa Raster{<:Any,4}
         @test ncarray[Y(1), Ti(1)] isa Raster{<:Any,3}
         @test ncarray[X(1), Ti(1)] isa Raster{<:Any,3}
+        @test ncarray[X = 2:4, Y = 10:15, Ti = 1, Z = 2, number = 2:4] isa Raster{<:Any,3}
         # @test ncarray[X(1), Y(1), Ti(1)] isa Missing
         @test ncarray[X(30), Y(30), Ti(1), Z(1), number = 2] isa Float64
         # Russia

@@ -1,4 +1,4 @@
-const GRIB_DIMMAP = Dict(
+const GRIB_DIM_MAP = Dict(
     "latitude" => Y,
     "longitude" => X,
     "valid_time" => Ti,
@@ -57,8 +57,8 @@ function DD.dims(var::GDS.Variable, crs=nothing, mappedcrs=nothing)
     end |> Tuple
 end
 
-DD.metadata(ds::GDS.Dataset) = Metadata{GRIBfile}(LA.metadatadict(ds.attrib))
-DD.metadata(var::GDS.Variable) = Metadata{GRIBfile}(LA.metadatadict(var.attrib))
+DD.metadata(ds::GDS.Dataset) = _metadatadict(GRIBfile, ds.attrib)
+DD.metadata(var::GDS.Variable) = _metadatadict(GRIBfile, var.attrib)
 
 function DD.layerdims(ds::GDS.Dataset)
     keys = Tuple(layerkeys(ds))
@@ -118,10 +118,48 @@ _open(f, ::Type{GRIBfile}, var::GDS.Variable; kw...) = cleanreturn(f(var))
 
 cleanreturn(A::GDS.Variable) = Array(A.values)
 
+function _dsdim(ds::GDS.Dataset, dimname::Key, crs=nothing, mappedcrs=nothing)
+    D = _gdsdimtype(dimname)
+    lookup = _dslookup(ds, dimname, D, crs, mappedcrs)
+    return D(lookup)
+end
+
+function _dslookup(ds::GDS.Dataset, dimname, D::Type, crs, mappedcrs)
+    dvar = ds[dimname]
+    index = dvar[:]
+    metadata = _metadatadict(GRIBfile, dvar.attrib)
+    return _dslookup(ds, dimname, D, index, metadata, crs, mappedcrs)
+end
+
+function _dslookup(
+    ds::GDS.Dataset, dimname, D, index::AbstractArray{<:Union{Number,Dates.AbstractTime}},
+    metadata, crs, mappedcrs
+)
+    # Assume the locus is at the center of the cell if boundaries aren't provided.
+    # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
+    order = LA.orderof(index)
+    # var = NCD.variable(ds, dimname)
+    if dimname in ["time", "valid_time"]
+        # We consider the epoch 1970-01-01T00:00:00, as it appears to be in gribs files
+        # dates = Dates.unix2datetime.(index)
+        dates = Second.(index) .+ GDS.DEFAULT_EPOCH
+        steps = unique(dates[2:end] .- dates[1:end-1])
+        if length(steps) == 1
+            span, sampling = Regular(steps[1]), Points()
+        else
+            span, sampling = Irregular((extrema(dates)...)), Points()
+        end
+        index = dates
+        return _dslookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
+    else
+        span, sampling = _dsspan(index, order), Points()
+        return _dslookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
+    end
+end
 
 # Find the matching dimension constructor. If its an unknown name
 # use the generic Dim with the dim name as type parameter
-_gdsdimtype(dimname) = haskey(GRIB_DIMMAP, dimname) ? GRIB_DIMMAP[dimname] : DD.basetypeof(DD.key2dim(Symbol(dimname)))
+_gdsdimtype(dimname) = haskey(GRIB_DIM_MAP, dimname) ? GRIB_DIM_MAP[dimname] : DD.basetypeof(DD.key2dim(Symbol(dimname)))
 
 _gds_eachchunk(var) = DA.eachchunk(var.values)
 _gds_haschunks(var) = DA.haschunks(var.values)

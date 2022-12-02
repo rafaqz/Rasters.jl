@@ -242,13 +242,11 @@ _open(f, ::Type{NCDfile}, var::NCD.CFVariable; kw...) = cleanreturn(f(var))
 
 cleanreturn(A::NCD.CFVariable) = Array(A)
 
-# Utils ########################################################################
-
-function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
+function _dsdim(ds::NCD.Dataset, dimname::Key, crs=nothing, mappedcrs=nothing)
     if haskey(ds, dimname)
         var = NCD.variable(ds, dimname)
         D = _ncddimtype(var.attrib, dimname)
-        lookup = _ncdlookup(ds, dimname, D, crs, mappedcrs)
+        lookup = _dslookup(ds, dimname, D, crs, mappedcrs)
         return D(lookup)
     else
         # The var doesn't exist. Maybe its `complex` or some other marker,
@@ -292,22 +290,18 @@ function _ncddimtype(attrib, dimname)
     return DD.basetypeof(DD.key2dim(Symbol(dimname)))
 end
 
-# _ncdlookup
+# _dslookup
 # Generate a `LookupArray` from a netcdf dim.
-function _ncdlookup(ds::NCD.Dataset, dimname, D::Type, crs, mappedcrs)
+function _dslookup(ds::NCD.Dataset, dimname, D::Type, crs, mappedcrs)
     dvar = ds[dimname]
     index = dvar[:]
     metadata = _metadatadict(NCDfile, dvar.attrib)
-    return _ncdlookup(ds, dimname, D, index, metadata, crs, mappedcrs)
-end
-# For unknown types we just make a Categorical lookup
-function _ncdlookup(ds::NCD.Dataset, dimname, D::Type, index::AbstractArray, metadata, crs, mappedcrs)
-    Categorical(index; order=Unordered(), metadata=metadata)
+    return _dslookup(ds, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For Number and AbstractTime we generate order/span/sampling
 # We need to include `Missing` in unions in case `_FillValue` is used
 # on coordinate variables in a file and propagates here.
-function _ncdlookup(
+function _dslookup(
     ds::NCD.Dataset, dimname, D::Type, index::AbstractArray{<:Union{Missing,Number,Dates.AbstractTime}},
     metadata, crs, mappedcrs
 )
@@ -319,61 +313,14 @@ function _ncdlookup(
         boundskey = var.attrib["bounds"]
         boundsmatrix = Array(ds[boundskey])
         span, sampling = Explicit(boundsmatrix), Intervals(Center())
-        return _ncdlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
+        return _dslookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     elseif eltype(index) <: Union{Missing,Dates.AbstractTime}
         span, sampling = _ncdperiod(index, metadata)
-        return _ncdlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
+        return _dslookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     else
-        span, sampling = _ncdspan(index, order), Points()
-        return _ncdlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
+        span, sampling = _dsspan(index, order), Points()
+        return _dslookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     end
-end
-# For X and Y use a Mapped <: AbstractSampled lookup
-function _ncdlookup(
-    D::Type{<:Union{<:XDim,<:YDim}}, index, order::Order, span, sampling, metadata, crs, mappedcrs
-)
-    # If the index is regularly spaced and there is no crs
-    # then there is probably just one crs - the mappedcrs
-    crs = if crs isa Nothing && span isa Regular
-        mappedcrs
-    else
-        crs
-    end
-    dim = DD.basetypeof(D)()
-    return Mapped(index, order, span, sampling, metadata, crs, mappedcrs, dim)
-end
-# Band dims have a Categorical lookup, with order
-function _ncdlookup(D::Type{<:Band}, index, order::Order, span, sampling, metadata, crs, mappedcrs)
-    Categorical(index, order, metadata)
-end
-# Otherwise use a regular Sampled lookup
-function _ncdlookup(D::Type, index, order::Order, span, sampling, metadata, crs, mappedcrs)
-    Sampled(index, order, span, sampling, metadata)
-end
-
-function _ncdspan(index, order)
-    # Handle a length 1 index
-    length(index) == 1 && return Regular(zero(eltype(index)))
-    step = index[2] - index[1]
-    for i in 2:length(index)-1
-        # If any step sizes don't match, its Irregular
-        if !(index[i+1] - index[i] ≈ step)
-            bounds = if length(index) > 1
-                beginhalfcell = abs((index[2] - index[1]) * 0.5)
-                endhalfcell = abs((index[end] - index[end-1]) * 0.5)
-                if LA.isrev(order)
-                    index[end] - endhalfcell, index[1] + beginhalfcell
-                else
-                    index[1] - beginhalfcell, index[end] + endhalfcell
-                end
-            else
-                index[1], index[1]
-            end
-            return Irregular(bounds)
-        end
-    end
-    # Otherwise regular
-    return Regular(step)
 end
 
 # delta_t and ave_period are not CF standards, but CDC
