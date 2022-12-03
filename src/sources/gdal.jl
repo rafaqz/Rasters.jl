@@ -342,7 +342,7 @@ function _gdalwrite(filename, A::AbstractRaster, nbands;
 )
     A = maybe_typemin_as_missingval(filename, A)
     create_kw = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
-    _gdal_with_driver(filename, driver, create_kw; _block_template=A) do dataset
+    _gdal_with_driver(filename, driver, create_kw; _block_template=A, kw...) do dataset
         _gdalsetproperties!(dataset, A)
         rds = AG.RasterDataset(dataset)
         open(A; write=true) do O
@@ -390,7 +390,7 @@ function _gdal_process_options(driver::AbstractString, options::Dict;
     # creation options are driver dependent
 
     if !isnothing(_block_template) && DA.haschunks(_block_template) == DA.Chunked()
-        block_x, block_y = string.(DA.max_chunksize(DA.eachchunk(A)))
+        block_x, block_y = string.(DA.max_chunksize(DA.eachchunk(_block_template)))
         if driver == "GTiff"
             # dont overwrite user specified values
             if !("BLOCKXSIZE" in keys(options))
