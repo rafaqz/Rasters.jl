@@ -289,6 +289,9 @@ stackkeys = (
 
     @testset "no missing value" begin
         write("nomissing.nc", boolmask(ncarray) .* 1)
+        boolmask(ncarray)
+.* 1
+ncarray
         nomissing = Raster("nomissing.nc")
         @test missingval(nomissing) == nothing
         rm("nomissing.nc")

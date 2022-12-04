@@ -203,7 +203,6 @@ function _fillraster(x, dims::Nothing, T::Type; to=nothing, kw...)
     end
 end
 function _fillraster(A::AbstractRaster, dims::Tuple, ::Type{T}; missingval, kw...) where T
-    dims = commondims(dims, DEFAULT_POINT_ORDER)
     # TODO: improve this so that only e.g. CuArray uses `similar`
     # This is a little annoying to lock down for all wrapper types,
     # maybe ArrayInterface has tools for this.

@@ -81,10 +81,10 @@ function _crop_to(x, to; kw...)
         if isnothing(dims(to))
             throw(ArgumentError("No dims or extent available on `to` object of type $(typeof(to))"))
         else
-            return _crop_to(x, dims(to); kw...)
+            return _crop_to(x, dims(x, dims(to)); kw...)
         end
     else
-        return _crop_to(x, _extent(to); kw...)
+        return _crop_to(x, ext; kw...)
     end
 end
 _crop_to(A, to::RasterStackOrArray; kw...) = _crop_to(A, dims(to); kw...)
@@ -96,6 +96,7 @@ function _crop_to(x, to::DimTuple; atol=maybe_eps(to))
     return _crop_to(x, Extents.extent(to))
 end
 function _crop_to(x, to::Extents.Extent)
+    ds = dims(x, map(key2dim, keys(to)))
     # Take a view over the bounds
     _without_mapped_crs(x) do x1
         view(x1, to)

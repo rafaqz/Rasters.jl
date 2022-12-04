@@ -333,6 +333,7 @@ end
             @test sum(st[:layer1]) == 4
             @test sum(st[:layer2]) == 8
             st[:layer1] .= st[:layer2] .= 0
+            @test_nowarn rasterize!(A, geom; shape=:point, fill=1)
         end
     end
 
