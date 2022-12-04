@@ -95,11 +95,12 @@ mask(x; with, kw...) = _mask(x, with; kw...)
 
 # Geometry mask
 function _mask(s::AbstractRasterSeries, with; kw...)
-    B = boolmask(with; to=first(s), kw...)
+    B = boolmask(with; to=dims(first(s), DEFAULT_POINT_ORDER), kw...)
     return _mask(s, B)
 end
 function _mask(x::RasterStackOrArray, with; kw...)
-    B = boolmask(with; to=x, kw...)
+    # Geometries can only have `X`/`Y`/`Z` dims so limit them here
+    B = boolmask(with; to=dims(x, DEFAULT_POINT_ORDER), kw...)
     return _mask(x, B)
 end
 # Array mask
@@ -211,7 +212,7 @@ end
 _nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `missingval` keyword compatible with the type, or use `rebuild(A; missingval=somemissingval)` to set it."))
 
 """
-    boolmask(obj; [missingval])
+    boolmask(obj::Raster; [missingval])
     boolmask(obj; [to, res, size])
 
 Create a mask array of `Bool` values, from any `AbstractArray`. An
@@ -219,12 +220,11 @@ Create a mask array of `Bool` values, from any `AbstractArray`. An
 is taken of the first layer or object *not* all of them.
 
 The array returned from calling `boolmask` on a `AbstractRaster` is a
-[`Raster`](@ref) with the same size and fields as the original array.
+[`Raster`](@ref) with the same dimensions as the original array.
 
 # Arguments
 
-- `obj`: a [`Raster`](@ref) or [`RasterStack`](@ref), or
-    a GeoInterface.jl geometry, or a vector or table of geometries.
+- `obj`: a [`Raster`](@ref), a GeoInterface.jl geometry, or a vector or table of geometries.
 
 # `Raster` / `RasterStack` Keywords
 
@@ -256,8 +256,19 @@ savefig("build/boolmask_example.png")
 $EXPERIMENTAL
 """
 function boolmask end
-function boolmask(x; kw...)
-    A = _fillraster(x, Bool; missingval=false, kw...)
+boolmask(series::AbstractRasterSeries; kw...) = boolmask(first(series); kw...)
+boolmask(stack::AbstractRasterStack; kw...) = boolmask(first(stack); kw...)
+function boolmask(source::AbstractRaster; kw...) 
+    dest = _fillraster(source, Bool; missingval=false, kw...)
+    return boolmask!(dest, source; kw...)
+end
+function boolmask(x; to=nothing, kw...)
+    # Don't try to fill more than X/Y/Z dimensions with geometries
+    # TODO: do we need to call `GeoInterface.is3d` here?
+    if to isa Union{AbstractDimArray,AbstractDimStack,DimTuple}
+        to = dims(to, DEFAULT_POINT_ORDER)
+    end
+    A = _fillraster(x, Bool; to, missingval=false, kw...)
     return boolmask!(A, x; kw...)
 end
 
@@ -272,7 +283,8 @@ function boolmask!(dest::AbstractRaster, geom; kw...)
 end
 
 """
-    missingmask(x; kw...)
+    missingmask(obj::Raster; kw...)
+    missingmask(obj; [to, res, size])
 
 Create a mask array of `missing` or `true` values, from any `AbstractArray`.
 For [`AbstractRaster`](@ref) the default `missingval` is `missingval(A)`,

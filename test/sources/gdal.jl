@@ -7,7 +7,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 gdalpath = maybedownload(url)
 
-@testset "array" begin
+@testset "Raster" begin
     @test_throws ArgumentError Raster("notafile.tif")
 
     @time gdalarray = Raster(gdalpath; name=:test)
@@ -413,7 +413,7 @@ gdalpath = maybedownload(url)
 
 end
 
-@testset "stack" begin
+@testset "RasterStack" begin
     @time gdalstack = RasterStack((a=gdalpath, b=gdalpath))
 
     @test length(gdalstack) == 2
