@@ -295,7 +295,6 @@ stackkeys = (
         @test name(ncarray) == :tos
     end
 
-
     @testset "show" begin
         sh = sprint(show, MIME("text/plain"), ncarray)
         # Test but don't lock this down too much

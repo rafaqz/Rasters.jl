@@ -6,6 +6,9 @@ const GDAL_Y_ORDER = ReverseOrdered()
 const GDAL_X_LOCUS = Start()
 const GDAL_Y_LOCUS = Start()
 
+# drivers supporting the gdal Create() method to directly write to disk
+const GDAL_DRIVERS_SUPPORTING_CREATE = ("GTiff", "HDF4", "KEA", "netCDF", "PCIDSK", "Zarr", "MEM"#=...=#) 
+
 # Array ########################################################################
 
 function FileArray(raster::AG.RasterDataset{T}, filename; kw...) where {T}
@@ -65,28 +68,20 @@ end
 
 function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
     missingval=nothing, metadata=nothing, name=nothing, keys=(name,),
-    driver=AG.extensiondriver(filename), compress="DEFLATE", chunk=nothing,
-    parent=nothing, lazy=true, 
+    driver=AG.extensiondriver(filename), 
+    lazy=true, options=Dict{String,String}(),
+    _block_template=nothing
 )
     if !(keys isa Nothing || keys isa Symbol) && length(keys) > 1
         throw(ArgumentError("GDAL cant write more than one layer per file, but keys $keys have $(length(keys))"))
     end
-    x, y = map(DD.dims(dims, (XDim, YDim))) do d
-        lookup(d) isa NoLookup ? set(d, Sampled) : d
+    x, y = map(DD.dims(dims, (XDim, YDim)), (GDAL_X_ORDER, GDAL_Y_ORDER)) do d, o
+        reorder(lookup(d) isa NoLookup ? set(d, Sampled) : d, o)
     end
-    x = reorder(x, GDAL_X_ORDER)
-    y = reorder(y, GDAL_Y_ORDER)
     T = Missings.nonmissingtype(T)
 
     if ismissing(missingval)
         missingval = _writeable_missing(T)
-    end
-    if T === Int64
-        @info "GDAL cannot create `Int64` files, using `Int32` instead"
-        T = Int32
-    end
-    if missingval isa Int64
-        missingval = Int32(missingval)
     end
 
     if hasdim(dims, Band)
@@ -97,20 +92,21 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
         nbands = 1
         newdims = (x, y)
     end
+
     kw = (width=length(x), height=length(y), nbands=nbands, dtype=T)
-    gdaldriver = AG.getdriver(driver)
-    if driver == "GTiff"
-        # TODO implement chunking
-        options = ["COMPRESS=$compress", "TILED=NO"]
-        AG.create(filename; driver=gdaldriver, options=options, kw...) do ds
+    options_vec = _gdal_process_options(driver, options; _block_template)
+    gdaldriver = driver isa String ? AG.getdriver(driver) : driver
+    if driver in GDAL_DRIVERS_SUPPORTING_CREATE
+        AG.create(filename; driver=gdaldriver, options=options_vec, kw...) do ds
             _gdalsetproperties!(ds, newdims, missingval)
         end
     else
+        tif_options_vec = _gdal_process_options("GTiff", Dict{String,String}(); _block_template)
         # Create a tif and copy it to `filename`, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
-        ArchGDAL.create(tempname() * ".tif"; driver=AG.getdriver("GTiff"), kw...) do ds
+        ArchGDAL.create(tempname() * ".tif"; driver=AG.getdriver("GTiff"), options=options_vec, kw...) do ds
             _gdalsetproperties!(ds, newdims, missingval)
-            AG.copy(ds; filename=filename, driver=gdaldriver) |> AG.destroy
+            AG.copy(ds; filename=filename, driver=gdaldriver, options=options_vec) |> AG.destroy
         end
     end
     if hasdim(dims, Band)
@@ -119,6 +115,25 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
         return view(Raster(filename; source=GDALfile, lazy), Band(1))
     end
 end
+
+function _open(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...)
+    # Handle url filenames
+    # /vsicurl/ is added to urls for GDAL, /vsimem/ for in memory
+    if length(filename) >= 8 
+        if (filename[1:7] == "http://" || filename[1:8] == "https://")
+           filename = "/vsicurl/" * filename
+        elseif !(filename[1:8] in ("/vsicurl", "/vsimem/"))
+            # check the file actually exists because GDALs error is unhelpful
+            isfile(filename) || _filenotfound_error(filename)
+        end
+    else
+        isfile(filename) || _filenotfound_error(filename)
+    end
+    flags = write ? (; flags=AG.OF_UPDATE) : ()
+    AG.readraster(cleanreturn ∘ f, filename; flags...)
+end
+_open(f, ::Type{GDALfile}, ds::AG.RasterDataset; kw...) = cleanreturn(f(ds))
+
 
 # DimensionalData methods for ArchGDAL types ###############################
 
@@ -263,7 +278,9 @@ function AG.Dataset(f::Function, A::AbstractRaster; kw...)
         f(rds.ds)
     end
 end
-function AG.RasterDataset(f::Function, A::AbstractRaster; filename=nothing)
+function AG.RasterDataset(f::Function, A::AbstractRaster; 
+    filename=nothing
+)
     all(hasdim(A, (XDim, YDim))) || throw(ArgumentError("`AbstractRaster` must have both an `XDim` and `YDim` to use be converted to an ArchGDAL `Dataset`"))
     if ndims(A) === 3
         thirddim = otherdims(A, (X, Y))[1]
@@ -272,42 +289,34 @@ function AG.RasterDataset(f::Function, A::AbstractRaster; filename=nothing)
         throw(ArgumentError("ArchGDAL can only accept 2 or 3 dimensional arrays"))
     end
 
-    # block_x, block_y = DA.max_chunksize(DA.eachchunk(A))
+    driver = _extensiondriver(filename)
     A_p = _maybe_permute_to_gdal(A)
-    dataset = _unsafe_gdal_ds(A_p; filename)
-    try
+    # # Cant write with COG directly and this function is mostly useful for writing directly
+    if driver == "COG"
+        driver = "GTiff"
+    end
+    kw = (;
+        width=length(DD.dims(A_p, X)),
+        height=length(DD.dims(A_p, Y)),
+        nbands=hasdim(A_p, Band) ? 1 : size(A_p, Band()),
+        dtype=eltype(A_p),
+    )
+    if filename == nothing 
+        filename = ""
+    end
+    _gdal_with_driver(filename, driver, kw; _block_template=A_p) do dataset
+        _gdalsetproperties!(dataset, dims(A_p), missingval(A_p))
         rds = AG.RasterDataset(dataset)
         open(A_p) do a
             rds .= parent(a)
         end
         f(rds)
-    finally
-        AG.destroy(dataset)
     end
 end
-
 
 # Utils ########################################################################
 
-function _open(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...)
-    # Handle url filenames
-    # /vsicurl/ is added to urls for GDAL, /vsimem/ for in memory
-    if length(filename) >= 8 
-        if (filename[1:7] == "http://" || filename[1:8] == "https://")
-           filename = "/vsicurl/" * filename
-        elseif !(filename[1:8] in ("/vsicurl", "/vsimem/"))
-            # check the file actually exists because GDALs error is unhelpful
-            isfile(filename) || _filenotfound_error(filename)
-        end
-    else
-        isfile(filename) || _filenotfound_error(filename)
-    end
-    flags = write ? (; flags=AG.OF_UPDATE) : ()
-    AG.readraster(cleanreturn ∘ f, filename; flags...)
-end
-_open(f, ::Type{GDALfile}, ds::AG.RasterDataset; kw...) = cleanreturn(f(ds))
-
-
+# Convert missing value to something gdal understands
 _gdalconvertmissing(T::Type{<:AbstractFloat}, x::Real) = convert(T, x)
 function _gdalconvertmissing(T::Type{<:Integer}, x::AbstractFloat)
     if trunc(x) === x
@@ -327,26 +336,61 @@ function _gdalconvertmissing(T::Type{<:Integer}, x::Integer)
 end
 _gdalconvertmissing(T, x) = x
 
+# Write a Raster to disk using GDAL
 function _gdalwrite(filename, A::AbstractRaster, nbands;
-    driver=AG.extensiondriver(filename), options=Dict{String, String}()
+    driver=AG.extensiondriver(filename), kw... 
 )
     A = maybe_typemin_as_missingval(filename, A)
-    properties = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
-    gdaldriver = driver isa String ? AG.getdriver(driver) : driver
+    create_kw = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
+    _gdal_with_driver(filename, driver, create_kw; _block_template=A, kw...) do dataset
+        _gdalsetproperties!(dataset, A)
+        rds = AG.RasterDataset(dataset)
+        open(A; write=true) do O
+            rds .= parent(O)
+        end
+    end
 
+    return filename
+end
+
+# Handle working with any driver 
+function _gdal_with_driver(f, filename, driver, create_kw;
+    options=Dict{String,String}(), _block_template=nothing
+)
+    gdaldriver = driver isa String ? AG.getdriver(driver) : driver
+    options_vec = _gdal_process_options(driver, options; _block_template)
+    if AG.shortname(gdaldriver) in GDAL_DRIVERS_SUPPORTING_CREATE
+        AG.create(filename; driver=gdaldriver, create_kw..., options=options_vec) do dataset
+            f(dataset)
+        end
+    else
+        # Create a memory object and copy it to disk, as ArchGDAL.create
+        # does not support direct creation of ASCII etc. rasters
+        ArchGDAL.create(""; driver=AG.getdriver("MEM"), create_kw...) do dataset
+            result = f(dataset)
+            # This `copy` copies _to disk_
+            AG.copy(dataset; filename=filename, driver=gdaldriver, options=options_vec) |> AG.destroy
+            result
+        end
+    end
+end
+
+# _gdal_process_options
+# Convert a Dict of options to a Vector{String} for gdal
+function _gdal_process_options(driver::AbstractString, options::Dict;
+    _block_template=nothing
+)
+    gdaldriver = AG.getdriver(driver)
     # set default compression
     if !("COMPRESS" in keys(options)) && AG.validate(gdaldriver, ["COMPRESS=ZSTD"])
         options["COMPRESS"] = "ZSTD"
     end
-        
-    # drivers supporting the gdal Create() method to directly write to disk
-    drivers_supporting_create = ["GTiff", "HDF4", "KEA", "netCDF", "PCIDSK", "Zarr" #=...=#]  # this should only be a temporary place to put this
 
     # the goal is to set write block sizes that correspond to eventually blocked reads
     # creation options are driver dependent
-    if DA.haschunks(A) == DA.Chunked()
-        block_x, block_y = string.(DA.max_chunksize(DA.eachchunk(A)))
 
+    if !isnothing(_block_template) && DA.haschunks(_block_template) == DA.Chunked()
+        block_x, block_y = string.(DA.max_chunksize(DA.eachchunk(_block_template)))
         if driver == "GTiff"
             # dont overwrite user specified values
             if !("BLOCKXSIZE" in keys(options))
@@ -365,7 +409,6 @@ function _gdalwrite(filename, A::AbstractRaster, nbands;
         end
     end
     # if the input is unchunked we just use the driver defaults
-
     options_vec = ["$(uppercase(k))=$(uppercase(string(v)))" for (k,v) in options]
 
     invalid_options = String[]
@@ -381,27 +424,7 @@ function _gdalwrite(filename, A::AbstractRaster, nbands;
         $invalid_options"))
     end
 
-    if AG.shortname(gdaldriver) in drivers_supporting_create
-        AG.create(filename; driver=gdaldriver, properties..., options=options_vec) do dataset
-            _gdalsetproperties!(dataset, A)
-            rds = AG.RasterDataset(dataset)
-            open(A; write=true) do O
-                rds .= parent(O)
-            end
-        end
-    else
-        # Create a memory object and copy it to disk, as ArchGDAL.create
-        # does not support direct creation of ASCII etc. rasters
-        ArchGDAL.create(""; driver=AG.getdriver("MEM"), properties...) do dataset
-            _gdalsetproperties!(dataset, A)
-            rds = AG.RasterDataset(dataset)
-            open(A; write=true) do O
-                rds .= parent(O)
-            end
-            AG.copy(dataset; filename=filename, driver=gdaldriver, options=options_vec) |> AG.destroy
-        end
-    end
-    return filename
+    return options_vec
 end
 
 function _gdal_bandnames(raster::AG.RasterDataset, nbands = AG.nraster(raster))
@@ -423,8 +446,8 @@ function _gdalmetadata(dataset::AG.Dataset, key)
     end
 end
 
-_gdalsetproperties!(ds, A) = _gdalsetproperties!(ds, dims(A), missingval(A))
-function _gdalsetproperties!(dataset, dims, missingval)
+_gdalsetproperties!(ds::AG.Dataset, A) = _gdalsetproperties!(ds, dims(A), missingval(A))
+function _gdalsetproperties!(dataset::AG.Dataset, dims::Tuple, missingval)
     # Convert the dimensions to `Projected` if they are `Converted`
     # This allows saving NetCDF to Tiff
     # Set the index loci to the start of the cell for the lat and lon dimensions.
@@ -466,40 +489,6 @@ function _gdalsetproperties!(dataset, dims, missingval)
     return dataset
 end
 
-# Create a GDAL dataset from any AbstractRaster or dims
-function _unsafe_gdal_ds(A::AbstractRaster; missingval=missingval(A), eltype=eltype(A), kw...)
-    _unsafe_gdal_ds(dims(A); missingval, eltype, kw...)
-end
-function _unsafe_gdal_ds(dims::DimTuple; kw...)
-    nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band)) : 1
-    _unsafe_gdal_ds(dims, nbands; kw...)
-end
-function _unsafe_gdal_ds(dims::DimTuple, nbands; filename=nothing, suffix=nothing,
-    missingval=nothing, metadata=nothing, name=nothing, keys=(name,),
-    eltype, driver=_extensiondriver(filename), compress="DEFLATE", chunk=nothing,
-)
-    gdaldriver = AG.getdriver(driver)
-    kw = (
-        width=length(DD.dims(dims, X)),
-        height=length(DD.dims(dims, Y)),
-        nbands=nbands,
-        dtype=eltype,
-    )
-    dataset = if driver == "MEM"
-        AG.unsafe_create("tmp"; driver=gdaldriver, kw...)
-    elseif driver == "GTiff"
-        tileoptions = if isnothing(chunk)
-            ["TILED=NO"]
-        else
-            block_x, block_y = chunk
-            ["TILED=YES", "BLOCKXSIZE=$block_x", "BLOCKYSIZE=$block_y"]
-        end
-        options = ["COMPRESS=$compress", tileoptions...]
-        AG.unsafe_create(filename; driver=gdaldriver, options=options, kw...)
-    end
-    _gdalsetproperties!(dataset, dims, missingval)
-    return dataset
-end
 
 _extensiondriver(filename::Nothing) = "MEM"
 function _extensiondriver(filename::AbstractString)
@@ -508,7 +497,7 @@ function _extensiondriver(filename::AbstractString)
 end
 
 # _maybe_permute_gdal
-# Permute dims unless the match the GDAL dimension order
+# Permute dims unless the match the normal GDAL dimension order
 _maybe_permute_to_gdal(A) = _maybe_permute_to_gdal(A, DD.dims(A, (X, Y, Band)))
 _maybe_permute_to_gdal(A, dims::Tuple) = A
 _maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim,<:Band}) = permutedims(A, dims)
