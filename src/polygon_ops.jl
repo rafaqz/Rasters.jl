@@ -33,7 +33,7 @@ function _fill_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; sh
     if shape === :point
         _fill_point!(B, geom; shape, kw...)
     elseif shape === :line
-        _fill_linestring!(B, geom; shape, kw...)
+        _fill_lines!(B, geom; shape, kw...)
     elseif shape === :polygon
         geomextent = _extent(geom)
         arrayextent = Extents.extent(B, DEFAULT_POINT_ORDER)
@@ -99,14 +99,14 @@ function _fill_polygon!(B::AbstractRaster, geom;
 end
 
 # split to make a type stability function barrier
-function _inner_fill_polygon!(B::AbstractRaster, geom, reshaped, shifted_dims; fill=true, boundary=:center, kw...)
+function _inner_fill_polygon!(B::AbstractRaster, geom, reshaped, shifted_dims; fill=true, boundary=:center, verbose=true, kw...)
     # Get the array as points
     # Use the first column of the output - the points in the polygon,
     # and reshape to match `A`
     
     # Used to warn if no fill is written for this polygon
     any_in_polygon = false
-    any_on_line = false
+    n_on_line = false
 
     # TODO: This takes a while, it could be faster to use
     # modified PolygonInbounds output directly rather than 
@@ -121,15 +121,17 @@ function _inner_fill_polygon!(B::AbstractRaster, geom, reshaped, shifted_dims; f
     if boundary === :touches
         B1 = setdims(B, shifted_dims)
         # Add the line pixels
-        any_on_line = _fill_linestring!(B1, geom; fill)
+        n_on_line = _fill_lines!(B1, geom; fill)
     elseif boundary === :inside
         B1 = setdims(B, shifted_dims)
         # Remove the line pixels
-        any_on_line = _fill_linestring!(B1, geom; fill=!fill)
+        n_on_line = _fill_lines!(B1, geom; fill)
     elseif boundary !== :center
         throw(ArgumentError("`boundary` can be :touches, :inside, or :center, got $boundary"))
     end
-    (any_in_polygon | any_on_line) || @warn "In-bounds polygon was not filled as it did not cross a pixel center. Consider using `boundary=:touches`, or `varbose=false` to hide thise warning"
+    if verbose
+        (any_in_polygon | n_on_line > 0) || @warn "$n polygons were not filled as they did not cross a pixel center. Consider using `boundary=:touches`, or `verbose=false` to hide these warning"
+    end
     return B
 end
 
@@ -203,10 +205,10 @@ function _fill_index!(A::AbstractRaster, fill, I)
     end
 end
 
-# _fill_linestring!
-# Fill a raster with `fill` where pixels touch lines in a linestring
+# _fill_lines!
+# Fill a raster with `fill` where pixels touch lines in a geom
 # Separated for a type stability function barrier
-function _fill_linestring!(B::AbstractRaster, linestring; fill=true, kw...)
+function _fill_lines!(B::AbstractRaster, geom; fill=true, kw...)
     # Make sure dims have `Center` locus
     centered_dims = map(dims(B, DEFAULT_POINT_ORDER)) do d
         d = DD.maybeshiftlocus(Center(), d)
@@ -221,16 +223,33 @@ function _fill_linestring!(B::AbstractRaster, linestring; fill=true, kw...)
             A
         end
     end
-    any_on_segment = false
-    # For each line segment, burn the line into B with `fill` values
-    any_on_segment |= _fill_line_segments!(forward_ordered_B, linestring, fill)
-    return any_on_segment
+    return _fill_lines!(forward_ordered_B, geom, fill)
 end
 
-function _fill_line_segments!(B::AbstractArray, linestring, fill)
+_fill_lines!(forward_ordered_B, geom, fill) =
+    _fill_lines!(forward_ordered_B, GI.geomtrait(geom), geom, fill)
+function _fill_lines!(B::AbstractArray, ::Union{GI.MultiLineStringTrait}, geom, fill)
+    n_on_line = 0
+    for linestring in GI.getlinestring(geom)
+        n_on_line += _fill_lines!(B, linestring, fill)
+    end
+    return n_on_line
+end
+function _fill_lines!(
+    B::AbstractArray, ::Union{GI.MultiPolygonTrait,GI.PolygonTrait}, geom, fill
+)
+    n_on_line = 0
+    for ring in GI.getring(geom)
+        n_on_line += _fill_lines!(B, ring, fill)
+    end
+    return n_on_line
+end
+function _fill_lines!(
+    B::AbstractArray, ::Union{GI.LineStringTrait,GI.LinearRingTrait}, linestring, fill
+)
     isfirst = true
     local firstpoint, lastpoint
-    any_on_segment = false
+    n_on_line = 0
     for point in GI.getpoint(linestring)
         if isfirst
             isfirst = false
@@ -245,16 +264,19 @@ function _fill_line_segments!(B::AbstractArray, linestring, fill)
             start=(x=GI.x(lastpoint), y=GI.y(lastpoint)),
             stop=(x=GI.x(point), y=GI.y(point)),
         )
-        any_on_segment |= _fill_line!(B, line, fill)
+        n_on_line += _burn_line!(B, line, fill)
         lastpoint = point
     end
-    return any_on_segment
+    return n_on_line
 end
 
-# fill_line!
-# Fill a raster with `fill` where pixels touch a line
+# _burn_line!
+#
+# Line-burning algorithm
+# Burns a line into a raster with `fill` values where pixels touch a line
+#
 # TODO: generalise to Irregular spans?
-function _fill_line!(A::AbstractRaster, line, fill)
+function _burn_line!(A::AbstractRaster, line, fill)
     xd, yd = dims(A, DEFAULT_POINT_ORDER)
     regular = map((xd, yd)) do d
         lookup(d) isa AbstractSampled && span(d) isa Regular
@@ -305,11 +327,11 @@ function _fill_line!(A::AbstractRaster, line, fill)
     manhattan_distance = floor(Int, abs(floor(start.x) - floor(stop.x)) + abs(floor(start.y) - floor(stop.y)))
     # For arbitrary dimension indexing
     dimconstructors = map(DD.basetypeof, (xd, yd))
-    any_on_segment = false
+    n_on_line = 0
     for _ in 0:manhattan_distance
         D = map((d, o) -> d(o), dimconstructors, (x, y))
         if checkbounds(Bool, A, D...)
-            any_on_segment = true
+            n_on_line += 1
             if fill isa Function
                 @inbounds A[D...] = fill(A[D...])
             else
@@ -325,7 +347,7 @@ function _fill_line!(A::AbstractRaster, line, fill)
             y += step_y
         end
     end
-    return any_on_segment
+    return n_on_line
 end
 function _fill_line!(A::AbstractRaster, line, fill, order::Tuple{Vararg{<:Dimension}})
     msg = """"

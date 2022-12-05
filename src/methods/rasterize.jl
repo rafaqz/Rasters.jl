@@ -65,10 +65,12 @@ savefig("build/china_rasterized.png"); nothing
 
 $EXPERIMENTAL
 """
+function rasterize end
+rasterize(reduce::Function, data; kw...) = rasterize(data; reduce, kw...)
 function rasterize(data; to=nothing, fill, kw...)
     return _rasterize(to, data; fill, kw...)
 end
-rasterize(reduce::Function, data; kw...) = rasterize(data; reduce, kw...)
+
 function _rasterize(to::AbstractRaster, data;
     missingval=missingval(to), name=name(to), kw...
 )
@@ -94,7 +96,7 @@ function _rasterize(to::DimTuple, data; fill, name=nothing, kw...)
     if Tables.istable(data)
         schema = Tables.schema(data)
         colnames = Tables.columnnames(Tables.columns(data))
-        # TODO integrate this with _fillorcol
+        # TODO integrate this with _iterable_fill
         fillval = if fill isa Symbol
             fill in colnames || _fill_key_error(colnames, f)
             zero(Tables.columntype(schema, fill))
@@ -136,7 +138,10 @@ function _rasterize(to::DimTuple, ::GI.AbstractGeometryTrait, geom; fill, kw...)
     end
 end
 function _rasterize(to::DimTuple, ::Nothing, data; fill, name, kw...)
-    throw(ArgumentError("Can't rasterise object: $(typeof(data))"))
+    # treat data as some kind of interable of geometries
+    return _create_rasterize_dest(fill, to; name, kw...) do dest
+        rasterize!(dest, data; fill, kw...)
+    end
 end
 
 
@@ -218,33 +223,37 @@ savefig("build/indonesia_rasterized.png"); nothing
 
 $EXPERIMENTAL
 """
-function rasterize!(x::RasterStackOrArray, data; reduce=last, fill, kw...)
+function rasterize! end
+rasterize!(reduce::Function, x::RasterStackOrArray, data; kw...) =
+    rasterize!(x::RasterStackOrArray, data; reduce, kw...)
+function rasterize!(x::RasterStackOrArray, data; fill, kw...)
     if Tables.istable(data)
         schema = Tables.schema(data)
         geomcolname = first(GI.geometrycolumns(data))
         cols = Tables.columns(data)
-        fillcol = _fillorcol(cols, fill)
+        fill_itr = _iterable_fill(cols, fill)
         if geomcolname in Tables.columnnames(cols)
             geomcol = Tables.getcolumn(cols, geomcolname)
-            _rasterize_geom_table_inner!(reduce, x, geomcol, fillcol; kw...)
+            _rasterize_geom_table_inner!(x, geomcol, fill_itr; kw...)
         else
             _buffer = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
             dimscols = _auto_dim_columns(data, dims(x))
             pointcols = map(k -> Tables.getcolumn(data, k), map(DD.dim2key, dimscols))
-            _rasterize_point_table_inner!(x, pointcols, fillcol; _buffer, kw...)
+            # Reduce is not passed as we don't yet reduce a point table
+            _rasterize_point_table_inner!(x, pointcols, fill_itr; _buffer, kw...)
         end
     else
-        _rasterize!(x, GI.trait(data), data; fill, kw...)
+        _rasterize!(x, GI.trait(data), data; reduce, fill, kw...)
     end
 end
 
-function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; fill, reduce=last, kw...)
+function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
     if fill isa Union{Symbol,Tuple{Symbol,Vararg}}
         # Rasterize features separately: the fill may change per feature
         # Lift key Symbol to a type to avoid runtime lookups for every point.
-        propertykey = Val{fill}()
+        keyorfill = _iscolumnfill(fill) ? Val{fill}() : fill
         # Use a function barrier
-        _rasterize_feature_collection_inner!(reduce, x, fc, propertykey; kw...)
+        _rasterize_feature_collection_inner!(x, fc, keyorfill; kw...)
     else
         # Rasterize all features into a single bitarray.
         # The fill is the same so we can flatten the geometries together.
@@ -275,49 +284,59 @@ function _rasterize!(x, trait::GI.AbstractPointTrait, point; fill, kw...)
     _fill_point!(x, trait, point; fill, kw...)
     return x
 end
-# rasterize tables and iterables of features or gemoemtries
-function _rasterize!(x, trait::Nothing, data; fill, reduce=last, dis=nothing, kw...)
-    # Treat data as an iterable. TODO: try to error nicely if it isn't
-    _buffer = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
-    for (i, geom) in enumerate(data)
-        fillval = fill isa AbstractArray ? fill[i] : fill
-        rasterize!(x, geom; fill=fillval, _buffer, kw...)
-    end
-    return x
+# rasterize other iterables of features or gemoemtries
+function _rasterize!(x, trait::Nothing, data; fill, reduce=last, kw...)
+    n = count(x -> true, data)
+    fill_itr = Iterators.cycle(fill)
+    return _reduce_geoms!(reduce, x, data, fill_itr, n; kw...)
+end
+function _rasterize!(x, trait::Nothing, data::AbstractArray; fill, reduce=last, kw...)
+    n = length(data)
+    fill_itr = Iterators.cycle(fill)
+    return _reduce_geoms!(reduce, x, data, fill_itr, n; kw...)
 end
 
-function _rasterize_feature_collection_inner!(reducefunc, x, fc, property; kw...)
-    n = GI.nfeature(fc)
-    geoms = (GI.geometry(feature) for feature in GI.getfeature(fc))
-    # TODO this doesn't have to allocate, its just easier
-    fill = if _unwrap(property) isa Tuple
-        [NamedTuple{_unwrap(property)}(map(p -> getproperty(GI.properties(f), p), _unwrap(property))) for f in GI.getfeature(fc)]
-    else
-        [getproperty(GI.properties(f), _unwrap(property)) for f in GI.getfeature(fc)]
-    end
-    _reduce_geoms!(reducefunc, x, geoms, fill, n; kw...)
-end
-
-function _rasterize_point_table_inner!(x, pointcols, fill; kw...)
-    for i in eachindex(first(pointcols))
-        fill = _fillval(fill, i)
-        point = map(col -> col[i], pointcols)
+function _rasterize_point_table_inner!(x, pointcols, fill_itr; kw...)
+    for (point, fill) in  zip(zip(pointcols...), fill_itr)
         _fill_point!(x, point; fill, kw...)
     end
 end
 
-function _rasterize_geom_table_inner!(reducefunc, x, geoms, fill; kw...)
+# Inner rasterize methods for type stability
+
+function _rasterize_feature_collection_inner!(x, fc, keyorfill; reduce=last, kw...)
+    n = GI.nfeature(fc)
+    geoms = (GI.geometry(feature) for feature in GI.getfeature(fc))
+    # TODO this doesn't have to allocate, its just easier
+    fill = if keyorfill isa Val
+        if _unwrap(keyorfill) isa Tuple
+            (NamedTuple{_unwrap(property)}(map(p -> getproperty(GI.properties(f), p), _unwrap(property))) for f in GI.getfeature(fc))
+        else
+            (getproperty(GI.properties(f), _unwrap(property)) for f in GI.getfeature(fc))
+        end
+    else
+        Iterators.cycle(fillorkey)
+    end
+    _reduce_geoms!(reduce, x, geoms, fill, n; kw...)
+end
+
+function _rasterize_geom_table_inner!(x, geoms, fill_itr; reduce=last, kw...)
     n = length(geoms)
-    _reduce_geoms!(reducefunc, x, geoms, fill, n; kw...)
+    _reduce_geoms!(reduce, x, geoms, fill_itr, n; kw...)
 end
 
-function _reduce_geoms!(reducefunc, x, geoms, fill, n; kw...)
-    masks = _boolmaskall(x, geoms, n; kw...)
-    _fillall!(reducefunc, x, masks, fill)
-end
-
-# Mask all polygons into the 3d BitArray
-function _boolmaskall(x, geoms, n; kw...)
+# _reduce_geoms!
+#
+# Mask `geoms` into each slice of a BitArray with the combined 
+# dimensions of `x` and `geoms`, then apply the supplied reducing 
+# function to each cell along the `:geoms` dimension. This uses a 
+# conditional iterator over the fill values and the corresponding
+# rasterized Bool - true included the fill value in the iterator, false excludes it.
+#
+# We get 64 Bool values to a regular `Int` meaning this doesn't scale too
+# badly for large tables of geometries. 64k geometries and a 1000 * 1000
+# raster needs 1GB of memory just for the `BitArray`.
+function _reduce_geoms!(f, x, geoms, fill_itr, n; kw...)
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(x, (XDim, YDim))
     geomdim = Dim{:geom}(1:n)
@@ -326,30 +345,31 @@ function _boolmaskall(x, geoms, n; kw...)
     for (i, geom) in enumerate(geoms)
         boolmask!(view(masks; geom=i), geom; kw...)
     end
-    return masks
-end
 
-# Apply `reduce` over all columns
-function _fillall!(reducefunc, x, masks, fill)
     spatialdims = commondims(x, (XDim, YDim))
     for ds in DimIndices(spatialdims)
         pixel_geom_list = view(masks, ds...)
-        _do_reduction!(reducefunc, x, ds, fill, pixel_geom_list)
+        _apply_reduction!(f, x, ds, fill_itr, pixel_geom_list)
     end
     return x
 end
 
-function _do_reduction!(reducefunc, x, ds, fill, pixel_geom_list)
-    if any(pixel_geom_list)
-        # TODO broadcast here for ndims?
-        iterator = (v for (v, b) in zip(fill, pixel_geom_list) if b)
-        x[ds...] = reducefunc(iterator) # reduce is a custom reducing funcion
-    end
+# _apply_reduction!
+#
+# Apply a reducing functin over an iterable
+# with performance optimisations where possible
+function _apply_reduction!(f, x, ds, fill_itr, pixel_geom_list)
+    any(pixel_geom_list) || return nothing
+    # reduce is a custom reducing funcion
+    iterator = (f for (f, b) in zip(fill_itr, pixel_geom_list) if b)
+    pixel_value = f(iterator)
+    x[ds...] = pixel_value
     return nothing
 end
-function _do_reduction!(reducefunc::typeof(last), x, ds, fill, pixel_geom_list)
+# last
+function _apply_reduction!(f::typeof(last), x, ds, fill_itr, pixel_geom_list)
     local l = nothing
-    for (v, b) in zip(fill, pixel_geom_list)
+    for (v, b) in zip(fill_itr, pixel_geom_list)
         if b
             l = v
         end
@@ -359,8 +379,9 @@ function _do_reduction!(reducefunc::typeof(last), x, ds, fill, pixel_geom_list)
     end
     return nothing
 end
-function _do_reduction!(reducefunc::typeof(first), x, ds, fill, pixel_geom_list)
-    for (v, b) in zip(fill, pixel_geom_list)
+# first
+function _apply_reduction!(f::typeof(first), x, ds, fill_itr, pixel_geom_list)
+    for (v, b) in zip(fill_itr, pixel_geom_list)
         if b
             x[ds...] = v
             break
@@ -368,21 +389,24 @@ function _do_reduction!(reducefunc::typeof(first), x, ds, fill, pixel_geom_list)
     end
     return nothing
 end
+for f in (:count, :any, :all)
+    @eval function _apply_reduction!(f::typeof($f), x, ds, fill_itr, pixel_geom_list)
+        x[ds...] = f(pixel_geom_list)
+        return nothing
+    end
+end
+
+_iscolumnfill(fill::Union{Symbol,Tuple{Symbol,Vararg}}) = true
+_iscolumnfill(fill) = false
 
 # Utils
-_fillorcol(data, fill::Tuple{Symbol,Vararg}) = map(f -> _fillorcol(data, f), fill)
-function _fillorcol(data, fill::Symbol) 
+_iterable_fill(data, fill::Tuple{Symbol,Vararg}) = map(f -> _iterable_fill(data, f), fill)
+function _iterable_fill(data, fill::Symbol) 
     names = Tables.columnnames(Tables.columns(data))
     fill in names || _fill_key_error(names, fill)
     Tables.getcolumn(data, fill)
 end
-_fillorcol(data, fill) = fill
-
-# _fillval
-# Get fill value from a table row, or use fill itself
-_fillval(fill::Tuple, i) = map(f -> _fillval(f, i), fill)
-_fillval(fillcol::AbstractArray, i) = fillcol[i]
-_fillval(fill, i) = fill
+_iterable_fill(data, fill) = Iterators.cycle(fill)
 
 # _featurefillval
 # Get fill value from a feature, or use fill itself
@@ -395,12 +419,6 @@ function _featurefillval(feature, fill::NTuple{<:Any,Symbol})
     end
 end
 _featurefillval(feature, fill) = fill
-
-function _pad(size, ranges)
-    map(ranges, size) do range, s
-        max(1, first(range) - 1):min(s, last(range) + 1)
-    end
-end
 
 function _create_rasterize_dest(f, fill, dims; name=nothing, kw...)
     _create_rasterize_dest(f, fill, name, dims; kw...)
