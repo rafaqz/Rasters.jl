@@ -286,13 +286,21 @@ function _rasterize!(x, trait::GI.AbstractPointTrait, point; fill, kw...)
 end
 # rasterize other iterables of features or gemoemtries
 function _rasterize!(x, trait::Nothing, data; fill, reduce=last, kw...)
-    n = count(x -> true, data)
-    fill_itr = Iterators.cycle(fill)
-    return _reduce_geoms!(reduce, x, data, fill_itr, n; kw...)
-end
-function _rasterize!(x, trait::Nothing, data::AbstractArray; fill, reduce=last, kw...)
-    n = length(data)
-    fill_itr = Iterators.cycle(fill)
+    n = if Base.IteratorSize(data) isa Base.HasShape
+        length(data)
+    else
+        count(x -> true, data)
+    end
+    fill_itr = if Base.IteratorSize(fill) isa Base.HasShape
+        l = length(fill)
+        if l == 1
+            Iterators.cycle(fill)
+        elseif l == n 
+            fill
+        else
+            throw(ArgumentError("Length of fill $l does not match length of iterator $n"))
+        end
+    end
     return _reduce_geoms!(reduce, x, data, fill_itr, n; kw...)
 end
 
