@@ -137,9 +137,9 @@ function _rasterize(to::DimTuple, ::GI.AbstractGeometryTrait, geom; fill, kw...)
         rasterize!(dest, geom; fill, kw...)
     end
 end
-function _rasterize(to::DimTuple, ::Nothing, data; fill, name, kw...)
+function _rasterize(to::DimTuple, ::Nothing, data; fill, kw...)
     # treat data as some kind of interable of geometries
-    return _create_rasterize_dest(fill, to; name, kw...) do dest
+    return _create_rasterize_dest(fill, to; kw...) do dest
         rasterize!(dest, data; fill, kw...)
     end
 end
@@ -243,7 +243,7 @@ function rasterize!(x::RasterStackOrArray, data; fill, kw...)
             _rasterize_point_table_inner!(x, pointcols, fill_itr; _buffer, kw...)
         end
     else
-        _rasterize!(x, GI.trait(data), data; reduce, fill, kw...)
+        _rasterize!(x, GI.trait(data), data; fill, kw...)
     end
 end
 
@@ -345,6 +345,7 @@ end
 # badly for large tables of geometries. 64k geometries and a 1000 * 1000
 # raster needs 1GB of memory just for the `BitArray`.
 function _reduce_geoms!(f, x, geoms, fill_itr, n; kw...)
+    @show f
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(x, (XDim, YDim))
     geomdim = Dim{:geom}(1:n)

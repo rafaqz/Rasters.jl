@@ -501,6 +501,34 @@ end
         @test sum(rasters_raster) - sum(gdal_raster) == 2
     end
     # GDAL doesnt do inside / not touching rasterization, so we have no test against GDAL
+    @testset "line touches rasterization" begin
+        gdal_raster = gdal_read_rasterize(shp, "-at")
+        rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes; 
+            size=(250, 250), fill=UInt8(1), missingval=UInt8(0), boundary=:inside
+        )
+    end
+
+    @testset "reducing rasterization" begin
+        pointvec2 = map(p -> (p[1] + 10, p[2] + 10), pointvec)
+        pointvec3 = map(p -> (p[1] + 20, p[2] + 20), pointvec)
+        pointvec4 = map(p -> (p[1] + 30, p[2] + 30), pointvec)
+        polygon = ArchGDAL.createpolygon(pointvec)
+        polygons = ArchGDAL.createpolygon.([[pointvec], [pointvec2], [pointvec3], [pointvec4]])
+        reduced_raster = rasterize(sum, polygons; res=5, fill=1, boundary=:inside)
+        plot(reduced_raster; clims=(0, 3))
+        plot!(polygons; opacity=0.3, fillcolor=:black)
+        reduced_raster = rasterize(sum, polygons; res=5, fill=1, boundary=:center)
+        plot(reduced_raster; clims=(0, 3))
+        plot!(polygons; opacity=0.3, fillcolor=:black)
+        reduced_raster = rasterize(sum, polygons; res=5, fill=1, boundary=:touches)
+        plot(reduced_raster; clims=(0, 3))
+        plot!(polygons; opacity=0.3, fillcolor=:black)
+        pointvec
+        reduced_raster = rasterize(pointvec; res=5, fill=1, boundary=:touches)
+        plot(reduced_raster; clims=(0, 3))
+        plot!(polygons; opacity=0.3, fillcolor=nothing)
+
+    end
 end
 
 @testset "resample" begin
