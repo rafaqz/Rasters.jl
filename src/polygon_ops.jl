@@ -20,6 +20,7 @@ end
 
 # This feature filling is simplistic in that it does not use any feature properties.
 # This is suitable for masking. See `rasterize` for a version using properties.
+_fill_geometry!(B, obj; kw...) = _fill_geometry!(B, GI.trait(obj), obj; kw...)
 function _fill_geometry!(B::AbstractRaster, ::GI.AbstractFeatureTrait, feature; kw...)
     return _fill_geometry!(B, GI.geometry(feature); kw...)
 end
@@ -99,7 +100,7 @@ function _fill_polygon!(B::AbstractRaster, geom;
 end
 
 # split to make a type stability function barrier
-function _inner_fill_polygon!(B::AbstractRaster, geom, reshaped, shifted_dims; fill=true, boundary=:center, verbose=true, kw...)
+function _inner_fill_polygon!(B::AbstractRaster, geom, reshaped, shifted_dims; fill::Bool=true, boundary=:center, verbose=true, kw...)
     # Get the array as points
     # Use the first column of the output - the points in the polygon,
     # and reshape to match `A`
@@ -125,7 +126,7 @@ function _inner_fill_polygon!(B::AbstractRaster, geom, reshaped, shifted_dims; f
     elseif boundary === :inside
         B1 = setdims(B, shifted_dims)
         # Remove the line pixels
-        n_on_line = _fill_lines!(B1, geom; fill)
+        n_on_line = _fill_lines!(B1, geom; fill=!fill)
     elseif boundary !== :center
         throw(ArgumentError("`boundary` can be :touches, :inside, or :center, got $boundary"))
     end
