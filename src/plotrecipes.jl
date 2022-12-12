@@ -6,12 +6,12 @@ struct RasterZPlot end
 @recipe function f(A::AbstractRaster)
     ddplot(A) = DimArray(A; dims=_maybe_mapped(dims(A)))
     # Resample AffineProjected
+    max_res = get(plotattributes, :max_res, 1000)
     if all(hasdim(A, (X, Y))) && first(lookup(A, (X, Y))) isa AffineProjected
         l = first(lookup(A, (X, Y)))
-        res = Y(l.affinemap.linear[1, 1]), X(l.affinemap.linear[2, 2])
+        res = Y(abs(l.affinemap.linear[1, 1])), X(abs(l.affinemap.linear[2, 2]))
         A = resample(A, res)
     end
-    max_res = get(plotattributes, :max_res, 1000)
     if !(get(plotattributes, :seriestype, :none) in (:none, :heatmap, :contourf))
         DD.DimensionalPlot(), ddplot(A)
     elseif all(hasdim(A, (SpatialDim, SpatialDim)))

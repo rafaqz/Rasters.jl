@@ -215,8 +215,8 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
         DD.format((x, y, band), map(Base.OneTo, (xsize, ysize, nbands)))
     else
         affinemap = _geotransform2affine(gt)
-        x = X(AffineProjected(affinemap; crs, mappedcrs, metadata=xy_metadata, dim=X()))
-        y = Y(AffineProjected(affinemap; crs, mappedcrs, metadata=xy_metadata, dim=Y()))
+        x = X(AffineProjected(affinemap; crs, mappedcrs, metadata=xy_metadata, dim=X(), paired_lookup=Base.OneTo(ysize)))
+        y = Y(AffineProjected(affinemap; crs, mappedcrs, metadata=xy_metadata, dim=Y(), paired_lookup=Base.OneTo(xsize)))
 
         DD.format((x, y, band), map(Base.OneTo, (xsize, ysize, nbands)))
     end
@@ -298,7 +298,7 @@ function AG.RasterDataset(f::Function, A::AbstractRaster;
     kw = (;
         width=length(DD.dims(A_p, X)),
         height=length(DD.dims(A_p, Y)),
-        nbands=hasdim(A_p, Band) ? 1 : size(A_p, Band()),
+        nbands=hasdim(A_p, Band) ? size(A_p, Band()) : 1,
         dtype=eltype(A_p),
     )
     if filename == nothing 
