@@ -1,4 +1,4 @@
-using Rasters, Test, Statistics, Dates, Plots, DiskArrays, RasterDataSources, CoordinateTransformations
+using Rasters, Test, Statistics, Dates, Plots, DiskArrays, RasterDataSources, CoordinateTransformations, Extents
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
 using Rasters: FileArray, GDALfile, crs, bounds
@@ -384,17 +384,35 @@ gdalpath = maybedownload(url)
 
     @testset "rotations" begin
         am = AffineMap([60.0 20; 40 60], [first.(bounds(gdalarray, (X, Y)))...])
-        ap = Rasters.AffineProjected(am; crs=crs(gdalarray))
-        affine_dims = DimensionalData.format((X(ap), Y(ap), Band(1:1)), gdalarray)
-        rotated = rebuild(gdalarray; dims=affine_dims)
+        xap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, X)))
+        yap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, Y)))
+        twoband = cat(gdalarray, gdalarray; dims=Band)
+        affine_dims = DimensionalData.format((X(xap), Y(yap), Band(1:2)), twoband)
+        rotated = rebuild(twoband; dims=affine_dims);
+        @test occursin("Extent", sprint(show, MIME"text/plain"(), rotated))
         @test rotated[X=At(-1e4; atol=0.5), Y=Near(4.24e6), Band=1] == 0x8c
         plot(rotated)
-        write("rotated.tif", rotated)
-        newrotated = Raster("rotated.tif")
-        plot(newrotated)
-        @test rotated == newrotated
-        @test lookup(rotated, X).affinemap.linear == lookup(newrotated, X).affinemap.linear
-        @test lookup(rotated, X).affinemap.translation == lookup(newrotated, X).affinemap.translation
+
+        @testset "write rotated" begin
+            write("rotated.tif", rotated)
+            newrotated = Raster("rotated.tif")
+            plot(newrotated)
+            @test rotated == newrotated
+            @test lookup(rotated, X).affinemap.linear == lookup(newrotated, X).affinemap.linear
+            @test lookup(rotated, X).affinemap.translation == lookup(newrotated, X).affinemap.translation
+        end
+
+        @test "Non-rotated as affine has the same extent" begin
+            am = Rasters._geotransform2affine(Rasters._dims2geotransform(dims(gdalarray, (X, Y))...))
+            xap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, X)))
+            yap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, Y)))
+            affine_dims = DimensionalData.format((X(xap), Y(yap), Band(1:1)), gdalarray)
+            gdalarray_affine = rebuild(gdalarray; dims=affine_dims)
+            @test Extents.extent(gdalarray_affine, :X).X[1] ≈ Extents.extent(gdalarray, :X).X[1]
+            @test Extents.extent(gdalarray_affine, :X).X[2] ≈ Extents.extent(gdalarray, :X).X[2]
+            @test Extents.extent(gdalarray_affine, :Y).Y[1] ≈ Extents.extent(gdalarray, :Y).Y[1]
+            @test Extents.extent(gdalarray_affine, :Y).Y[2] ≈ Extents.extent(gdalarray, :Y).Y[2]
+        end
     end
 
     @testset "South up/ForwardOrdered Y rasters still work" begin
