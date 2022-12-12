@@ -145,13 +145,15 @@ Base.collect(A::AbstractRaster) = open(O -> collect(parent(O)), A)
 """
     open(f, A::AbstractRaster; write=false)
 
-`open` is used to open any `AbstractRaster` and do multiple operations
+`open` is used to open any `lazy=true` `AbstractRaster` and do multiple operations
 on it in a safe way. The `write` keyword opens the file in write lookup so that it
 can be altered on disk using e.g. a broadcast.
 
 `f` is a method that accepts a single argument - an `Raster` object
 which is just an `AbstractRaster` that holds an open disk-based object.
 Often it will be a `do` block:
+
+`lazy=false` (in-memory) rasters will ignore `open` and pass themselves to `f`.
 
 ```julia
 # A is an `Raster` wrapping the opened disk-based object.
@@ -198,11 +200,10 @@ methods _do not_ load data from disk: they are applied later, lazily.
 
 # Keywords
 
-- `data`: can replace the data in an `AbstractRaster`
 - `dims`: `Tuple` of `Dimension`s for the array.
-- `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
-- `key`: `Symbol` key to desired layer in a multi-layer dataset, when a `filpath` is used.
-- `name`: `Symbol` name for the array. `key` is used by default when a filepath `String` is pased in.
+- `lazy`: A `Bool` specifying if to load the stack lazily from disk. `false` by default.
+- `name`: `Symbol` name for the array, which will also retreive named layers if `Raster`
+    is used on a multi-layered file like a NetCDF.
 - `missingval`: value reprsenting missing data, normally detected form the file. Set manually
     when you know the value is not specified or is incorrect. This will *not* change any
     values in the raster, it simply assigns which value is treated as missing. To replace all of
@@ -216,7 +217,13 @@ methods _do not_ load data from disk: they are applied later, lazily.
     this can be used to index in eg. `EPSG(4326)` lat/lon values, having it converted automatically.
     Only set this if the detected `mappedcrs` in incorrect, or the file does not have a `mappedcrs`,
     e.g. a tiff.
-- `lazy`: A `Bool` specifying if to load the stack lazily from disk. `false` by default.
+
+# Internal Keywords
+
+In some cases it is possible to set these keywords as well.
+
+- `data`: can replace the data in an `AbstractRaster`
+- `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
 """
 struct Raster{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: AbstractRaster{T,N,D,A}
     data::A

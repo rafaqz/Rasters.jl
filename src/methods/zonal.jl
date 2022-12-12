@@ -6,7 +6,7 @@ covered by the `of` object/s.
 
 # Arguments
 
-- `f`: any function that reduces an iterable to a single value, such as `Base.sum` or `Statistic.mean`
+- `f`: any function that reduces an iterable to a single value, such as `sum` or `Statistics.mean`
 - `x`: A `Raster` or `RasterStack`
 - `of`: A `Raster`, `RasterStack`, dim tuple, extent, GeoInterface.jl compatible geometry,
     Tables.jl compatible table of a `:geometry` column, or an `AbstractVector` of
@@ -38,8 +38,10 @@ st = RasterStack(WorldClim{Climate}; month=Jan, lazy=false)
 
 # Load the shapes for world countries
 countries = Shapefile.Table(shp_name) |> DataFrame
+
 # Calculate the january mean of all climate variables for all countries
 january_stats = zonal(mean, st; of=countries, boundary=:touches) |> DataFrame
+
 # Add the country name column (natural earth has some string errors it seems)
 insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Za-z ]")))
 

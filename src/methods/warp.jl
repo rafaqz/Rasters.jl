@@ -18,15 +18,16 @@ flags, giving us a pixelated version:
 ```jldoctest
 using Rasters, RasterDataSources, Plots
 A = Raster(WorldClim{Climate}, :prec; month=1)
-plot(A)
-savefig("build/warp_example_before.png")
+a = plot(A)
+
 flags = Dict(
     :tr => [2.0, 2.0],
     :r => :near,
 )
-warp(A, flags) |> plot
+b = plot(warp(A, flags))
 
-savefig("build/warp_example_after.png")
+savefig(a, "build/warp_example_before.png")
+savefig(b, "build/warp_example_after.png")
 # output
 ```
 

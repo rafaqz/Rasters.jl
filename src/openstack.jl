@@ -1,17 +1,16 @@
 """
     OpenStack{X,K}
 
-    OpenStack{X,K}(filename, types, sizes, eachchunk, haschunks, write)
+    OpenStack{X,K}(dataset)
 
 A wrapper for any stack-like opened dataSet that can be indexed
 with `Symbol` keys to retrieve `AbstractArray` layers.
 
-It is usually hidden from users, wrapped in a regular `RasterStack`
+`OpenStack` is usually hidden from users, wrapped in a regular `RasterStack`
 passed as the function argument in `open(stack)` when the stack is
-contained in a single file..
+contained in a single file.
 
-`X` is a backend singleton like `NCDfile`, and `K` is a tuple
-of `Symbol` keys.
+`X` is a backend type like `NCDfile`, and `K` is a tuple of `Symbol` keys.
 """
 struct OpenStack{X,K,DS}
     dataset::DS
