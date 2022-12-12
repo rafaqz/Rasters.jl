@@ -402,7 +402,7 @@ gdalpath = maybedownload(url)
             @test lookup(rotated, X).affinemap.translation == lookup(newrotated, X).affinemap.translation
         end
 
-        @test "Non-rotated as affine has the same extent" begin
+        @testset "Non-rotated as affine has the same extent" begin
             am = Rasters._geotransform2affine(Rasters._dims2geotransform(dims(gdalarray, (X, Y))...))
             xap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, X)))
             yap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, Y)))
@@ -413,6 +413,7 @@ gdalpath = maybedownload(url)
             @test Extents.extent(gdalarray_affine, :Y).Y[1] ≈ Extents.extent(gdalarray, :Y).Y[1]
             @test Extents.extent(gdalarray_affine, :Y).Y[2] ≈ Extents.extent(gdalarray, :Y).Y[2]
         end
+
     end
 
     @testset "South up/ForwardOrdered Y rasters still work" begin
