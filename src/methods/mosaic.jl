@@ -2,17 +2,18 @@
     mosaic(f, regions...; missingval, atol)
     mosaic(f, regions; missingval, atol)
 
-Combine `regions`s into a single raster.
+Combine `regions` into a single raster.
 
 # Arguments
 
-- `f`: A reducing function (e.g. `mean`, `sum`, `first` or `last`) for values where `regions` overlap.
+- `f`: A reducing function (`mean`, `sum`, `first`, `last` etc.)
+    for values where `regions` overlap.
 - `regions`: Iterable or splatted `Raster` or `RasterStack`.
 
 # Keywords
 
 - `missingval`: Fills empty areas, and defualts to the
-    `missingval` of the first layer.
+    `missingval` of the first region.
 - `atol`: Absolute tolerance for comparison between index values.
     This is often required due to minor differences in range values
     due to floating point error. It is not applied to non-float dimensions.
@@ -88,7 +89,7 @@ end
     mosaic!(f, x, regions...; missingval, atol)
     mosaic!(f, x, regions::Tuple; missingval, atol)
 
-Combine `regions`s in `x` using the function `f`.
+Combine `regions` in `x` using the function `f`.
 
 # Arguments
 

@@ -25,7 +25,6 @@ Create trimmed layers of Australian habitat heterogeneity.
 using Rasters, Plots
 layers = (:evenness, :range, :contrast, :correlation)
 st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers)
-plot(st)
 
 # Roughly cut out australia
 ausbounds = X(100..160), Y(-10..(-50))

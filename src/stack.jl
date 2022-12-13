@@ -40,6 +40,16 @@ setmappedcrs(x::AbstractRasterStack, mappedcrs) = set(x, setmappedcrs(dims(x), m
 
 Subset a stack to hold only the layers in `keys`, where `keys` is a `Tuple`
 or `Array` of `String` or `Symbol`, or a `Tuple` or `Array` of `Int`
+
+*Depreciated*: As it is now possible to subset `NamedTuple` by indexing
+with a `Tuple` of `Symbol` in `getindex`, that is also possible for any
+`AbstractDimStack` like `RasterStack`. So `subset` is obsolete and will be
+remove in future versions.
+
+Use:
+
+```julia
+s[(:key1, :key2)]
 """
 subset(s::AbstractRasterStack, keys) = subset(s, Tuple(keys))
 function subset(s::AbstractRasterStack, keys::NTuple{<:Any,<:Key})

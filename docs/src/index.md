@@ -4,9 +4,9 @@
 Rasters
 ```
 
-## Common Applications
+# Common Applications
 
-### Subsetting an object
+## Subsetting an object
 
 Regular `getindex` (e.g. `A[1:100, :]`) and `view` work on all objects just as
 with an `Array`. `view` is always lazy, and reads from disk are deferred until
@@ -28,11 +28,12 @@ Use the `..` selector to take a `view` of madagascar:
 ```@example
 using Rasters, Plots
 A = Raster(WorldClim{BioClim}, 5)
-madagascar = view(A, X(43.25..50.48), Y((-25.61)..(-12.04))) 
+madagascar = view(A, X(43.25 .. 50.48), Y(-25.61 .. -12.04)) # Note the space between .. -12
 plot(madagascar)
 ```
 
-Methods that change the reslolution or extent of an object are listed here.
+## Methods that change the reslolution or extent of an object
+
 Click through to the function documentation for more in-depth descriptions and
 examples.
 
@@ -48,7 +49,7 @@ examples.
 | [`warp`](@ref)            | use `gdalwarp` on any object, e.g. a multidimensional NetCDF stack.          |
 
 
-### Methods that change an objects values: 
+## Methods that change an objects values: 
 
 Note that most regular Julia methods, such as `replace`, work as for a standard
 `Array`. These additional methods are commonly required in GIS applications.
@@ -60,17 +61,17 @@ Note that most regular Julia methods, such as `replace`, work as for a standard
 | [`replace_missing`](@ref) | replace all missing values in an object and update `missingval`.             |
 
 
-### Point, polygon and table operation
+## Point, polygon and table operation
 
 |                           |                                                                              |
 | :------------------------ | :--------------------------------------------------------------------------- |
-| [`rasterize`](@ref)       | rasterize point and tabular data, or polygons.                               |
-| [`extract`](@ref)         | extract values using points or tables.                                       |
+| [`rasterize`](@ref)       | rasterize points and geometries.                                             |
+| [`extract`](@ref)         | extract values from points or geometries.                                    |
 | [`inpolygon`](@ref)       | find if a point or points are in a polygon.                                  |
-| [`zonal`](@ref)           | calculate zonal statistics for an object masked by polygons.                 |
+| [`zonal`](@ref)           | calculate zonal statistics for an object masked by geometries.               |
 
 
-### Methods to load, write and modify data sources:
+## Methods to load, write and modify data sources:
 
 |                           |                                                                         |
 | :------------------------ | :---------------------------------------------------------------------- |
@@ -81,7 +82,7 @@ Note that most regular Julia methods, such as `replace`, work as for a standard
 | [`write`](@ref)           | write objects to file.                                                  |
 
 
-### Altering and summarising arrays and stacks with regular julia methods
+## Altering and summarising arrays and stacks with regular julia methods
 
 Most base methods work as for regular julia `Array`s, such as `reverse` and
 rotations like `rotl90`. Base, statistics and linear algebra methods like `mean`
@@ -92,10 +93,11 @@ over the time dimension:
 mean(A, dims=Ti)
 ```
 
-`broadcast` works lazily from disk, and is only applied when data is directly
-indexed. Adding a dot to any function will use broadcast over a `Raster`. 
+`broadcast` works lazily from disk when `lazy=true`, and is only applied when data
+is directly indexed. Adding a dot to any function will use broadcast over a `Raster`
+just like an `Array`. 
 
-### Broadcasting
+## Broadcasting
 
 For a disk-based array `A`, this will only be applied when indexing occurs or
 when we [`read`](@ref) the array.
@@ -112,16 +114,16 @@ open(Raster(filename); write=true) do O
 end
 ```
 
-To broadcast over a `RasterStack` use `map`, which applies a function to the layers
-of the stack - here `A`.
+To broadcast over a `RasterStack` use `map`, which applies a function to
+the raster layers of the stack.
 
 ```julia
-newstack = map(stack) do A
-    A .* 2
+newstack = map(stack) do raster
+    raster .* 2
 end
 ```
 
-### Modifying object properties
+## Modifying object properties
 
 `rebuild` can be used to modify the fields of an object, generating a new object
 (but possibly holding the same arrays or files).
@@ -162,8 +164,7 @@ set(A, X => Z)
 object to any `GeoFormat` from GeoFormatTypes.jl.
 
 
-
-## Examples and Plotting
+# Examples and Plotting
 
 [Plots.jl](https://github.com/JuliaPlots/Plots.jl) is fully supported by
 Rasters.jl, with recipes for plotting `Raster` and `RasterStack` provided. `plot`
@@ -195,8 +196,8 @@ filename = download(url, "tos_O1_2001-2002.nc");
 A = Raster(filename)
 ```
 
-Objects with Dimensions other than `X` an `Y` will produce multi-pane plots.
-Here we plot every third month in the first year, just using the regular index:
+Objects with Dimensions other than `X` and `Y` will produce multi-pane plots.
+Here we plot every third month in the first year in one plot:
 
 ```@example nc
 A[Ti=1:3:12] |> plot
@@ -204,12 +205,12 @@ A[Ti=1:3:12] |> plot
 
 Now plot the ocean temperatures around the Americas in the first month of 2001.
 Notice we are using lat/lon coordinates and date/time instead of regular
-indexes. The time dimension uses `DateTime360Day`, so we need to load CFTime.jl
+indices. The time dimension uses `DateTime360Day`, so we need to load CFTime.jl
 to index it with `Near`.
 
 ```@example nc
 using CFTime
-A[Ti=Near(DateTime360Day(2001, 01, 17)), Y=-60.0..90.0), X=190.0..45.0)] |> plot 
+A[Ti(Near(DateTime360Day(2001, 01, 17))), Y(-60.0 .. 90.0), X(190.0 .. 45.0)] |> plot 
 ```
 
 Now get the mean over the timespan, then save it to disk, and plot it as a
@@ -225,7 +226,7 @@ using Statistics
 mean_tos = mean(A; dims=Ti)
 ```
 
-### Plot a contour plot
+## Plot a contour plot
 
 ```@example nc
 contourf(mean_tos; dpi=300, size=(800, 400))
@@ -245,7 +246,6 @@ temperature at 20 degree latitude :
 ```@example nc
 A[Y(Near(20.0)), Ti(1)] |> plot
 ```
-
 
 ## A basic species distribution modelling workflow
 
@@ -273,7 +273,7 @@ Get BioClim layers and subset to south-east Australia
 
 ```@example sdm
 A = RasterStack(WorldClim{BioClim}, (1, 3, 7, 12))
-SE_aus = A[X=138..155, Y=-40..(-25), Band=1]
+SE_aus = A[X(138 .. 155), Y(-40 .. -25), Band(1)]
 ```
 
 Plot BioClim predictors and scatter occurrence points on all subplots
@@ -281,7 +281,7 @@ Plot BioClim predictors and scatter occurrence points on all subplots
 ```@example sdm
 p = plot(SE_aus);
 foreach(i -> scatter!(p, coords; subplot=i, legend=:none), 1:4)
-p
+display(p)
 ```
 
 Then extract predictor variables and write to CSV.
@@ -340,7 +340,7 @@ norway = mask_trim(climate, norway_border)
 sweden = mask_trim(climate, sweden_border)
 ```
 
-### Plotting
+## Plotting
 
 First define a function to add borders to all subplots.
 
@@ -373,7 +373,7 @@ borders!(np, norway_border)
 The Norway shape includes a lot of islands. Lets crop them out using `..` intervals:
 
 ```@example mask
-norway_region = climate[X=0..40, Y=55..73]
+norway_region = climate[X(0..40), Y(55..73)]
 plot(norway_region)
 ```
 
@@ -413,9 +413,9 @@ Where applicable these methods read and write lazily to and from disk-based
 arrays of common raster file types. These methods also work for entire
 `RasterStacks` and `RasterSeries` using the same syntax.
 
-## Objects
+# Objects
 
-### Raster
+## Raster
 
 Spatial raster data is essentially just an `Array`. But `Raster` wrappers
 allow treating them as an array that maintains its spatial index, crs and other
@@ -428,7 +428,7 @@ Raster
 Raster(T::Type{<:RasterDataSources.RasterDataSource}, layer)
 ```
 
-### RasterStack
+## RasterStack
 
 Spatial data often comes as a bundle of multiple named arrays, as in netcdf.
 `RasterStack` can represent this, or multiple files organised in a similar way.
@@ -439,7 +439,7 @@ RasterStack
 RasterStack(T::Type{<:RasterDataSources.RasterDataSource})
 ```
 
-### RasterSeries
+## RasterSeries
 
 A series is a meta-array that holds other files/data that is distributed over
 some dimension, often time. These files/data can be `Raster`s or `RasterStack`s.
@@ -450,7 +450,7 @@ RasterSeries
 RasterSeries(T::Type{<:RasterDataSources.RasterDataSource})
 ```
 
-### Dimensions
+## Dimensions
 
 Rasters uses `X`, `Y`, and `Z` dimensions from DimensionalData.jl to represent
 spatial directions like longitude, latitude and the vertical dimension, and
@@ -463,7 +463,7 @@ details on how they work.
 Band
 ```
 
-### Lookup Arrays
+## Lookup Arrays
 
 These specify properties of the index associated with e.g. the X and Y
 dimension. Rasters.jl defines additional lookup arrays: [`Projected`](@ref) to handle
@@ -477,18 +477,18 @@ Projected
 Mapped
 ```
 
-## Data sources
+# Data sources
 
 Rasters.jl uses a number of backends to load raster data. `Raster`, `RasterStack`
 and `RasterSeries` will detect which backend to use for you, automatically.
 
-### GRD
+## GRD
 
 R GRD files can be loaded natively, using Julias `MMap` - which means they are
 very fast, but are not compressed. They are always 3 dimensional, and have `Y`,
 `X` and [`Band`](@ref) dimensions.
 
-### NetCDF
+## NetCDF
 
 NetCDF `.nc` files are loaded using
 [NCDatasets.jl](https://github.com/Alexander-Barth/NCDatasets.jl). Layers from
@@ -503,7 +503,7 @@ in the same file may also have different dimensions.
 NetCDF files still have issues loading directly from disk for some operations.
 Using `read(ncstack)` may help.
 
-### GDAL
+## GDAL
 
 All files GDAL can access, such as `.tiff` and `.asc` files, can be loaded,
 using [ArchGDAL.jl](https://github.com/yeesian/ArchGDAL.jl/issues). These are
@@ -511,7 +511,7 @@ generally best loaded as `Raster("filename.tif")`, but can be loaded as
 `RasterStack("filename.tif"; layersfrom=Band)`, taking layers from the `Band`
 dimension, which is also the default.
 
-### SMAP
+## SMAP
 
 The [Soil Moisture Active-Passive](https://smap.jpl.nasa.gov/) dataset provides
 global layers of soil moisture, temperature and other related data, in a custom
@@ -525,7 +525,7 @@ the first layer is used.
 smapseries
 ```
 
-### Writing file formats to disk
+## Writing file formats to disk
 
 Files can be written to disk in all formats other than SMAP HDF5 using
 `write("filename.ext", A)`. See the docs for [`write`](@ref). They can (with
@@ -535,7 +535,7 @@ providing file-type conversion for spatial data.
 Some metadata may be lost in formats that store little metadata, or where
 metadata conversion has not been completely implemented.
 
-## RasterDataSources.jl integration
+# RasterDataSources.jl integration
 
 [RasterDataSources.jl](https://github.com/EcoJulia/RasterDataSources.jl)
 standardises the download of common raster data sources, with a focus on
@@ -553,7 +553,7 @@ See the docs for [`Raster`](@ref), [`RasterStack`](@ref) and [`RasterSeries`](@r
 and the docs for `RasterDataSources.getraster` for syntax to specify various
 data sources.
 
-## Exported functions
+# Exported functions
 
 Rasters.jl is a direct extension of DimensionalData.jl. See [DimensionalData.jl
 docs](https://rafaqz.github.io/DimensionalData.jl/stable/) for the majority of
@@ -601,7 +601,7 @@ warp
 zonal
 ```
 
-### File operations
+## File operations
 
 These `Base` and `DimensionalData` methods have specific Rasters.jl versions:
 

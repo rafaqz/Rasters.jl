@@ -215,12 +215,13 @@ _nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `miss
     boolmask(obj::Raster; [missingval])
     boolmask(obj; [to, res, size])
 
-Create a mask array of `Bool` values, from any `AbstractArray`. An
+Create a mask array of `Bool` values, from another `Raster`. An
 `AbstractRasterStack` or `AbstractRasterSeries` are also accepted, but a mask
 is taken of the first layer or object *not* all of them.
 
 The array returned from calling `boolmask` on a `AbstractRaster` is a
-[`Raster`](@ref) with the same dimensions as the original array.
+[`Raster`](@ref) with the same dimensions as the original array and a
+`missingval` of `false`.
 
 # Arguments
 
@@ -286,9 +287,12 @@ end
     missingmask(obj::Raster; kw...)
     missingmask(obj; [to, res, size])
 
-Create a mask array of `missing` or `true` values, from any `AbstractArray`.
-For [`AbstractRaster`](@ref) the default `missingval` is `missingval(A)`,
-for all other `AbstractArray`s it is `missing`.
+Create a mask array of `missing` and `true` values, from another `Raster`.
+`AbstractRasterStack` or `AbstractRasterSeries` are also accepted, but a mask
+is taken of the first layer or object *not* all of them.
+
+For [`AbstractRaster`](@ref) the default `missingval` is `missingval(A)`, 
+but others can be chosen manually.
 
 The array returned from calling `missingmask` on a `AbstractRaster` is a
 [`Raster`](@ref) with the same size and fields as the original array.
