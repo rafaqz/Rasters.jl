@@ -137,34 +137,60 @@ crs(lookup::Mapped) = lookup.crs
 mappedcrs(lookup::Mapped) = lookup.mappedcrs
 dim(lookup::Mapped) = lookup.dim
 
-struct AffineProjected{T,F,A<:AbstractVector{T},M,C,MC} <: LA.Unaligned{T,1}
+struct AffineProjected{T,F,A<:AbstractVector{T},M,C,MC,P,D} <: LA.Unaligned{T,1}
     affinemap::F
     data::A
     metadata::M
     crs::C
     mappedcrs::MC
+    paired_lookup::P
+    dim::D
 end
 function AffineProjected(f;
-    data=AutoIndex(), metadata=NoMetadata(), crs=nothing, mappedcrs=nothing, dim=AutoDim()
+    data=AutoIndex(), metadata=NoMetadata(), crs=nothing, mappedcrs=nothing, paired_lookup, dim=AutoDim()
 )
-    AffineProjected(f, data, metadata, crs, mappedcrs)
+    AffineProjected(f, data, metadata, crs, mappedcrs, paired_lookup, dim)
 end
 
+dim(lookup::AffineProjected) = lookup.dim
 crs(lookup::AffineProjected) = lookup.crs
 mappedcrs(lookup::AffineProjected) = lookup.mappedcrs
+paired_lookup(lookup::AffineProjected) = lookup.paired_lookup
 
 DD.metadata(lookup::AffineProjected) = lookup.metadata
 function DD.rebuild(l::AffineProjected;
     affinemap=l.affinemap, data=l.data, metadata=metadata(l),
-    crs=crs(l), mappedcrs=mappedcrs(l), dim=dims(l), args...
+    crs=crs(l), mappedcrs=mappedcrs(l), paired_lookup=paired_lookup(l), dim=dim(l), args...
 )
-    AffineProjected(affinemap, data, metadata, crs, mappedcrs)
+    AffineProjected(affinemap, data, metadata, crs, mappedcrs, paired_lookup, dim)
 end
 function Dimensions.format(l::AffineProjected, D::Type, index, axis::AbstractRange)
-    return rebuild(l; data=axis)
+    return rebuild(l; data=axis, dim=basetypeof(D)())
 end
 LA.transformfunc(lookup::AffineProjected) = CoordinateTransformations.inv(lookup.affinemap)
-# DD.bounds(lookup::AffineProjected) = lookup.metadata
+DD.bounds(lookup::AffineProjected) = _bounds(dim(lookup), lookup)
+
+function _bounds(::XDim, lookup::AffineProjected)
+    am = lookup.affinemap
+    extrema = _affine_extrema(am, lookup, lookup.paired_lookup)
+    xbounds = min(map(first, extrema)...), max(map(first, extrema)...)
+    return xbounds
+end
+function _bounds(::YDim, lookup::AffineProjected)
+    am = lookup.affinemap
+    extrema = _affine_extrema(am, lookup.paired_lookup, lookup)
+    ybounds = min(map(last, extrema)...), max(map(last, extrema)...)
+    return ybounds
+end
+
+function _affine_extrema(am::CoordinateTransformations.AffineMap, lookup_x, lookup_y)
+    # Not 100% sure this holds in all cases
+    minx = first(lookup_x) - 1
+    maxx = last(lookup_x)
+    miny = first(lookup_y) - 1
+    maxy = last(lookup_y)
+    extrema = am((minx, miny)), am((maxx, maxy)), am((minx, maxy)), am((maxx, miny))
+end
 
 function Dimensions.sliceunalligneddims(
     _, I::NTuple{2,<:Union{Colon,AbstractArray}},
@@ -183,12 +209,14 @@ function Dimensions.sliceunalligneddims(
     # Create a new affine map
     affinemap = CoordinateTransformations.AffineMap(M, v)
     # Build new lookups with the affine map. Probably should define `set` to do this.
-    dims = map((ud1, ud2), I) do d, i
-        newlookup = rebuild(lookup(d); data=Base.OneTo(length(i)), affinemap)
-        rebuild(d, newlookup)
+    newlookups = map((ud1, ud2), I) do d, i
+        rebuild(lookup(d); data=Base.OneTo(length(i)), affinemap)
     end
-    refdims = ()
-    return dims, refdims
+    newdims = map((ud1, ud2), newlookups, map(parent, reverse(newlookups))) do d, lookup, paired_lookup
+        rebuild(d, rebuild(lookup; paired_lookup))
+    end
+    newrefdims = ()
+    return newdims, newrefdims
 end
 
 function Base.reverse(lookup::AffineProjected)
