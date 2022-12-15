@@ -360,6 +360,33 @@ gdalpath = maybedownload(url)
             rm(filename)
         end
 
+        @testset "write other eltypes" begin
+            tests = (
+                UInt8.(gdalarray),
+                UInt16.(gdalarray),
+                UInt32.(gdalarray),
+                UInt64.(gdalarray),
+                # Int8.(gdalarray .÷ 2) gdal wont write Int8
+                Int16.(gdalarray),
+                Int32.(gdalarray),
+                Int64.(gdalarray),
+                Float32.(gdalarray),
+                Float64.(gdalarray),
+                gdalarray .+ Int16(0)im,
+                gdalarray .+ Int32(0)im,
+                # gdalarray .+ Int64(0)im, ArachGDAL/gdal wont write Complex{Int64}
+                gdalarray .+ 0.0f0im,
+                gdalarray .+ 0.0im,
+            )
+
+            for test in tests
+                filename = tempname() * ".tif"
+                write(filename, test)
+                @test Raster(filename) == test
+                rm(filename)
+            end
+        end
+
     end
 
     @testset "show" begin
