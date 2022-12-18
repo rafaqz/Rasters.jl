@@ -262,8 +262,8 @@ $EXPERIMENTAL
 function boolmask end
 boolmask(series::AbstractRasterSeries; kw...) = boolmask(first(series); kw...)
 boolmask(stack::AbstractRasterStack; kw...) = boolmask(first(stack); kw...)
-function boolmask(source::AbstractRaster; kw...) 
-    dest = _fillraster(source, Bool; missingval=false, kw...)
+function boolmask(source::AbstractRaster; kw...)
+    dest = _init_raster(source, Bool; missingval=false, kw...)
     return boolmask!(dest, source; kw...)
 end
 function boolmask(x; to=nothing, kw...)
@@ -272,7 +272,7 @@ function boolmask(x; to=nothing, kw...)
     if to isa Union{AbstractDimArray,AbstractDimStack,DimTuple}
         to = dims(to, DEFAULT_POINT_ORDER)
     end
-    A = _fillraster(x, Bool; to, missingval=false, kw...)
+    A = _init_raster(x, Bool; to, missingval=false, kw...)
     return boolmask!(A, x; kw...)
 end
 
@@ -294,7 +294,7 @@ Create a mask array of `missing` and `true` values, from another `Raster`.
 `AbstractRasterStack` or `AbstractRasterSeries` are also accepted, but a mask
 is taken of the first layer or object *not* all of them.
 
-For [`AbstractRaster`](@ref) the default `missingval` is `missingval(A)`, 
+For [`AbstractRaster`](@ref) the default `missingval` is `missingval(A)`,
 but others can be chosen manually.
 
 The array returned from calling `missingmask` on a `AbstractRaster` is a
@@ -321,7 +321,7 @@ savefig("build/missingmask_example.png"); nothing
 $EXPERIMENTAL
 """
 function missingmask(x; missingval=missingval(x), kw...)
-    A = _fillraster(x, Union{Missing,Bool}; missingval=missing, kw...)
+    A = _init_raster(x, Union{Missing,Bool}; missingval=missing, kw...)
     return _missingmask!(A, x; missingval)
 end
 
@@ -334,4 +334,49 @@ function _missingmask!(dest::AbstractRaster, geom; missingval, kw...)
     B = fill_geometry!(dest, geom; fill=true, kw...)
     broadcast!(b -> b ? true : missing, dest, B)
     return dest
+end
+
+
+# Like `create` but without disk writds, mostly for Bool/Union{Missing,Boo},
+# and uses `similar` where possible
+# TODO merge this with `create` somehow
+_init_raster(x::AbstractRasterSeries, T::Type; kw...) = _init_raster(first(x), T; kw...)
+_init_raster(x::AbstractRasterStack, T::Type; kw...) = _init_raster(first(x), T; kw...)
+
+function _init_raster(dims::Tuple, ::Type{T}; missingval, kw...) where T
+    data = if T === Bool
+        falses(dims) # Use a BitArray
+    else
+        fill!(Raster{T}(undef, dims), missingval) # Use an Array
+    end
+    return Raster(data, dims; missingval)
+end
+function _init_raster(x::Extents.Extent, T::Type; to=nothing, kw...)
+    if isnothing(to)
+        _init_raster(_extent2dims(x; kw...), T; kw...)
+    else
+        _init_raster(to, T; kw...)
+    end
+end
+_init_raster(x, T::Type; kw...) = _init_raster(x, dims(x), T; kw...)
+function _init_raster(x, dims::Nothing, T::Type; to=nothing, kw...)
+    if isnothing(to)
+        ext = _extent(x)
+        isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
+        _init_raster(ext, T; kw...)
+    else
+        _init_raster(to, T; kw...)
+    end
+end
+function _init_raster(A::AbstractRaster, dims::Tuple, ::Type{T}; missingval, kw...) where T
+    dims = commondims(dims, DEFAULT_POINT_ORDER)
+    # TODO: improve this so that only e.g. CuArray uses `similar`
+    # This is a little annoying to lock down for all wrapper types,
+    # maybe ArrayInterface has tools for this.
+    data = if parent(A) isa Union{Array,DA.AbstractDiskArray} && T === Bool
+        falses(dims) # Use a BitArray
+    else
+        fill!(similar(A, T, dims), missingval) # Fill some other array type
+    end
+    return Raster(data, dims; missingval)
 end

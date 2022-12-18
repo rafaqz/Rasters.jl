@@ -171,51 +171,6 @@ function _extent2dims(to::Extents.Extent{K};
 end
 
 
-# Like `create` but without disk writds, mostly for Bool/Union{Missing,Boo},
-# and uses `similar` where possible
-# TODO merge this with `create` somehow
-_fillraster(x::AbstractRasterSeries, T::Type; kw...) = _fillraster(first(x), T; kw...)
-_fillraster(x::AbstractRasterStack, T::Type; kw...) = _fillraster(first(x), T; kw...)
-
-function _fillraster(dims::Tuple, ::Type{T}; missingval, kw...) where T
-    data = if T === Bool
-        falses(dims) # Use a BitArray
-    else
-        fill!(Raster{T}(undef, dims), missingval) # Use an Array
-    end
-    return Raster(data, dims; missingval)
-end
-function _fillraster(x::Extents.Extent, T::Type; to=nothing, kw...)
-    if isnothing(to)
-        _fillraster(_extent2dims(x; kw...), T; kw...)
-    else
-        _fillraster(to, T; kw...)
-    end
-end
-_fillraster(x, T::Type; kw...) = _fillraster(x, dims(x), T; kw...)
-function _fillraster(x, dims::Nothing, T::Type; to=nothing, kw...)
-    if isnothing(to)
-        ext = _extent(x)
-        isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
-        _fillraster(ext, T; kw...)
-    else
-        _fillraster(to, T; kw...)
-    end
-end
-function _fillraster(A::AbstractRaster, dims::Tuple, ::Type{T}; missingval, kw...) where T
-    dims = commondims(dims, DEFAULT_POINT_ORDER)
-    # TODO: improve this so that only e.g. CuArray uses `similar`
-    # This is a little annoying to lock down for all wrapper types,
-    # maybe ArrayInterface has tools for this.
-    data = if parent(A) isa Union{Array,DA.AbstractDiskArray} && T === Bool
-        falses(dims) # Use a BitArray
-    else
-        fill!(similar(A, T, dims), missingval) # Fill some other array type
-    end
-    return Raster(data, dims; missingval)
-end
-
-
 _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
 
 _filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not found"))

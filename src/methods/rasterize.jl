@@ -234,9 +234,10 @@ function rasterize!(x::RasterStackOrArray, data; fill, kw...)
         fill_itr = _iterable_fill(cols, fill)
         if geomcolname in Tables.columnnames(cols)
             geomcol = Tables.getcolumn(cols, geomcolname)
-            _rasterize_geom_table_inner!(x, geomcol, fill_itr; kw...)
+            n = length(geoms)
+            _reduce_geoms!(reduce, x, geoms, fill_itr, n; kw...)
         else
-            _buffer = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
+            _buffer = _init_raster(commondims(x, (XDim, YDim)), Bool; missingval=false)
             dimscols = _auto_dim_columns(data, dims(x))
             pointcols = map(k -> Tables.getcolumn(data, k), map(DD.dim2key, dimscols))
             # Reduce is not passed as we don't yet reduce a point table
@@ -244,6 +245,12 @@ function rasterize!(x::RasterStackOrArray, data; fill, kw...)
         end
     else
         _rasterize!(x, GI.trait(data), data; fill, kw...)
+    end
+end
+
+function _rasterize_point_table_inner!(x, pointcols, fill_itr; kw...)
+    for (point, fill) in  zip(zip(pointcols...), fill_itr)
+        _fill_point!(x, point; fill, kw...)
     end
 end
 
@@ -257,13 +264,30 @@ function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
     else
         # Rasterize all features into a single bitarray.
         # The fill is the same so we can flatten the geometries together.
-        bools = _fillraster(commondims(x, (XDim, YDim)), Bool; missingval=false)
+        bools = _init_raster(commondims(x, (XDim, YDim)), Bool; missingval=false)
         boolmask!(bools, fc; kw...)
         # The fill `x` to match the masked values
         _fill!(x, bools, fill, _Defined())
     end
     return x
 end
+
+function _rasterize_feature_collection_inner!(x, fc, keyorfill; reduce=last, kw...)
+    n = GI.nfeature(fc)
+    geoms = (GI.geometry(feature) for feature in GI.getfeature(fc))
+    # TODO this doesn't have to allocate, its just easier
+    fill = if keyorfill isa Val
+        if _unwrap(keyorfill) isa Tuple
+            (NamedTuple{_unwrap(property)}(map(p -> getproperty(GI.properties(f), p), _unwrap(property))) for f in GI.getfeature(fc))
+        else
+            (getproperty(GI.properties(f), _unwrap(property)) for f in GI.getfeature(fc))
+        end
+    else
+        Iterators.cycle(fillorkey)
+    end
+    _reduce_geoms!(reduce, x, geoms, fill, n; kw...)
+end
+
 function _rasterize!(x, ::GI.AbstractFeatureTrait, feature; fill, kw...)
     rasterize!(x, GI.geometry(feature); fill=_featurefillval(feature, fill), kw...)
 end
@@ -272,7 +296,7 @@ function _rasterize!(x, ::GI.AbstractGeometryTrait, geom; fill, _buffer=nothing,
     x1 = view(x, Touches(ext))
     length(x1) > 0 || return x
     bools = if isnothing(_buffer)
-        _fillraster(commondims(x1, (XDim, YDim)), Bool; missingval=false)
+        _init_raster(commondims(x1, (XDim, YDim)), Bool; missingval=false)
     else
         view(_buffer, Touches(ext))
     end
@@ -304,35 +328,6 @@ function _rasterize!(x, trait::Nothing, data; fill, reduce=last, kw...)
     return _reduce_geoms!(reduce, x, data, fill_itr, n; kw...)
 end
 
-function _rasterize_point_table_inner!(x, pointcols, fill_itr; kw...)
-    for (point, fill) in  zip(zip(pointcols...), fill_itr)
-        _fill_point!(x, point; fill, kw...)
-    end
-end
-
-# Inner rasterize methods for type stability
-
-function _rasterize_feature_collection_inner!(x, fc, keyorfill; reduce=last, kw...)
-    n = GI.nfeature(fc)
-    geoms = (GI.geometry(feature) for feature in GI.getfeature(fc))
-    # TODO this doesn't have to allocate, its just easier
-    fill = if keyorfill isa Val
-        if _unwrap(keyorfill) isa Tuple
-            (NamedTuple{_unwrap(property)}(map(p -> getproperty(GI.properties(f), p), _unwrap(property))) for f in GI.getfeature(fc))
-        else
-            (getproperty(GI.properties(f), _unwrap(property)) for f in GI.getfeature(fc))
-        end
-    else
-        Iterators.cycle(fillorkey)
-    end
-    _reduce_geoms!(reduce, x, geoms, fill, n; kw...)
-end
-
-function _rasterize_geom_table_inner!(x, geoms, fill_itr; reduce=last, kw...)
-    n = length(geoms)
-    _reduce_geoms!(reduce, x, geoms, fill_itr, n; kw...)
-end
-
 # _reduce_geoms!
 #
 # Mask `geoms` into each slice of a BitArray with the combined 
@@ -345,12 +340,11 @@ end
 # badly for large tables of geometries. 64k geometries and a 1000 * 1000
 # raster needs 1GB of memory just for the `BitArray`.
 function _reduce_geoms!(f, x, geoms, fill_itr, n; kw...)
-    @show f
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(x, (XDim, YDim))
     geomdim = Dim{:geom}(1:n)
     # Create a BitArray Raster with a dimension for the number of features to rasterize
-    masks = _fillraster((spatialdims..., geomdim), Bool; missingval=false)
+    masks = _init_raster((spatialdims..., geomdim), Bool; missingval=false)
     for (i, geom) in enumerate(geoms)
         boolmask!(view(masks; geom=i), geom; kw...)
     end

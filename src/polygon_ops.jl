@@ -6,6 +6,7 @@ const DEFAULT_TABLE_DIM_KEYS = (:X, :Y, :Z)
 
 # _fill_geometry!
 # Fill a raster with `fill` where it interacts with a geometry.
+# This is used in `boolmask` TODO move to mask.jl ?
 function fill_geometry!(B::AbstractRaster, data; kw...)
     if Tables.istable(data)
         geomcolname = first(GI.geometrycolumns(data))
