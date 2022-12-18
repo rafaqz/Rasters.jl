@@ -279,7 +279,7 @@ function AG.Dataset(f::Function, A::AbstractRaster; kw...)
     end
 end
 function AG.RasterDataset(f::Function, A::AbstractRaster; 
-    filename=nothing
+    filename=nothing, driver = _extensiondriver(filename),
 )
     all(hasdim(A, (XDim, YDim))) || throw(ArgumentError("`AbstractRaster` must have both an `XDim` and `YDim` to use be converted to an ArchGDAL `Dataset`"))
     if ndims(A) === 3
@@ -289,12 +289,8 @@ function AG.RasterDataset(f::Function, A::AbstractRaster;
         throw(ArgumentError("ArchGDAL can only accept 2 or 3 dimensional arrays"))
     end
 
-    driver = _extensiondriver(filename)
     A_p = _maybe_permute_to_gdal(A)
-    # # Cant write with COG directly and this function is mostly useful for writing directly
-    if driver == "COG"
-        driver = "GTiff"
-    end
+    # Cant write with COG directly and this function is mostly useful for writing directly
     kw = (;
         width=length(DD.dims(A_p, X)),
         height=length(DD.dims(A_p, Y)),
@@ -357,8 +353,12 @@ end
 function _gdal_with_driver(f, filename, driver, create_kw;
     options=Dict{String,String}(), _block_template=nothing
 )
-    gdaldriver = driver isa String ? AG.getdriver(driver) : driver
     options_vec = _gdal_process_options(driver, options; _block_template)
+    if driver == "COG"
+        driver = "GTiff"
+    end
+    gdaldriver = driver isa String ? AG.getdriver(driver) : driver
+    @show AG.shortname(gdaldriver)
     if AG.shortname(gdaldriver) in GDAL_DRIVERS_SUPPORTING_CREATE
         AG.create(filename; driver=gdaldriver, create_kw..., options=options_vec) do dataset
             f(dataset)
@@ -493,7 +493,14 @@ end
 _extensiondriver(filename::Nothing) = "MEM"
 function _extensiondriver(filename::AbstractString)
     # TODO move this check to ArchGDAL
-    filename === "/vsimem/tmp" ? "MEM" : AG.extensiondriver(filename)
+    if filename === "/vsimem/tmp" 
+        "MEM" 
+    elseif splitext(filename)[2] == ".tif"
+        # Force GTiff as the default for .tif because COG cannot do `create` yet
+        "GTiff"
+    else
+        AG.extensiondriver(filename)
+    end
 end
 
 # _maybe_permute_gdal
