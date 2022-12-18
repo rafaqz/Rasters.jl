@@ -295,8 +295,8 @@ end
     @testset "read" begin
         st = read(grdstack)
         @test st isa RasterStack
-        @test st.data isa NamedTuple
-        @test first(st.data) isa Array
+        @test parent(st) isa NamedTuple
+        @test first(parent(st)) isa Array
     end
 
     @testset "indexing" begin
@@ -362,8 +362,8 @@ end
     @testset "read" begin
         st = read(grdstack)
         @test st isa RasterStack
-        @test st.data isa NamedTuple
-        @test first(st.data) isa Array
+        @test parent(st) isa NamedTuple
+        @test first(parent(st)) isa Array
     end
 
     @testset "indexing" begin
@@ -437,9 +437,9 @@ end
     @testset "read" begin
         geoseries = read(grdseries2)
         @test geoseries isa RasterSeries{<:RasterStack}
-        @test geoseries.data isa Vector{<:RasterStack}
-        @test geoseries.data isa Vector{<:RasterStack}
-        @test first(geoseries.data[1].data) isa Array 
+        @test parent(geoseries) isa Vector{<:RasterStack}
+        @test parent(geoseries) isa Vector{<:RasterStack}
+        @test first(parent(first(parent(geoseries)))) isa Array 
     end
 end
 

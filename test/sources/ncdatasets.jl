@@ -389,8 +389,8 @@ end
     @testset "read and write" begin
         @time st = read(ncstack)
         @test st isa RasterStack
-        @test st.data isa NamedTuple
-        @test first(st.data) isa Array
+        @test parent(st) isa NamedTuple
+        @test first(parent(st)) isa Array
         length(dims(st[:aclcac]))
         filename = tempname() * ".nc"
         write(filename, st);
@@ -422,7 +422,7 @@ end
     @testset "read" begin
         @time geoseries = read(ncseries)
         @test geoseries isa RasterSeries{<:RasterStack}
-        @test geoseries.data isa Vector{<:RasterStack}
+        @test parent(geoseries) isa Vector{<:RasterStack}
     end
     geoA = Raster(ncsingle; key=:tos)
     @test all(read(ncseries[Ti(1)][:tos]) .=== read(geoA))

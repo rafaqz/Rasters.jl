@@ -26,7 +26,7 @@ subset without loading the whole array.
 """
 abstract type AbstractRasterStack{L} <: AbstractDimStack{L} end
 
-missingval(stack::AbstractRasterStack) = stack.missingval
+missingval(stack::AbstractRasterStack) = getfield(stack, :missingval)
 filename(stack::AbstractRasterStack) = filename(parent(stack))
 missingval(s::AbstractRasterStack, key::Symbol) = _singlemissingval(missingval(s), key)
 

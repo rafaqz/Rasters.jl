@@ -3,7 +3,7 @@
 
     OpenStack{X,K}(dataset)
 
-A wrapper for any stack-like opened dataSet that can be indexed
+A wrapper for any stack-like opened dataset that can be indexed
 with `Symbol` keys to retrieve `AbstractArray` layers.
 
 `OpenStack` is usually hidden from users, wrapped in a regular `RasterStack`
