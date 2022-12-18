@@ -41,7 +41,7 @@ st = RasterStack((ga1, ga2); name=(:ga1, :ga2))
     @test first(st) == ga1
     @test last(st) == ga2
     @test DimensionalData.layers(st) isa NamedTuple
-    @test st[:ga1] == ga1
+    @test st.ga1 == ga1
     @test st[:ga2] == ga2
     @test parent(st[:ga1]) == data1
     @test parent(st[:ga1]) isa Array{Float64,2}
@@ -80,7 +80,7 @@ end
     @testset "select new arrays for the whole st" begin
         s = st[Y=Between(-10, 10.0), Ti=At(DateTime(2019))]
         @test s isa RasterStack
-        @test s[:ga1] isa Raster
+        @test s.ga1 isa Raster
         @test parent(s[:ga1]) isa Array
         @test s[:ga1] == data1[:, 5:7]
         @test s[:ga2] == data2[:, 5:7, 1]
@@ -93,12 +93,12 @@ end
     @testset "select views of arrays for the whole st" begin
         sv = view(st, Y=Between(-4.0, 27.0), Ti=At(DateTime(2019)))
         @test sv isa RasterStack
-        @test sv[:ga1] isa Raster
-        @test parent(sv[:ga1]) isa SubArray
+        @test sv.ga1 isa Raster
+        @test parent(sv.ga1) isa SubArray
         @test sv[:ga1] == data1[:, 6:8]
         @test sv[:ga2] == data2[:, 6:8, 1]
-        @test dims(sv[:ga2]) == (X(Sampled(10.0:10:100.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
-                                 Y(Sampled(0.0:10:20.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())))
+        @test dims(sv.ga2) == (X(Sampled(10.0:10:100.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
+                               Y(Sampled(0.0:10:20.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())))
         @test refdims(sv[:ga2])[1] == Ti(Sampled(view([DateTime(2019)], 1:1), ForwardOrdered(), Irregular((nothing, nothing)), Points(), NoMetadata()))
         # Stack of view-based Rasters
         v = view(st, X(2:4), Y(5:6))
