@@ -48,7 +48,7 @@ function Raster(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw...)
         # Find the first valid variable
         for key in layerkeys(ds)
             if ndims(NCD.variable(ds, key)) > 0 
-                @info "No `key` keyword provided, using first valid key `:$key`"
+                @info "No `name` or `key` keyword provided, using first valid layer with name `:$key`"
                 return Raster(ds[key], filename, key; kw...)
             end
         end

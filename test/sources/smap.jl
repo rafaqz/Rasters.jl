@@ -214,8 +214,8 @@ if isfile(path1) && isfile(path2)
         @testset "read" begin
             @time st = read(smapstack);
             @test st isa RasterStack
-            @test st.data isa NamedTuple
-            @test first(st.data) isa Array
+            @test parent(st) isa NamedTuple
+            @test first(parent(st)) isa Array
             st2 = map(a -> a .* 0, st)
             @time read!(smapstack, st2);
             st3 = map(a -> a .* 0, st)

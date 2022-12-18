@@ -442,8 +442,8 @@ end
         st = read(gdalstack)
         read!((a=gdalpath, b=gdalpath), st)
         @test st isa RasterStack
-        @test st.data isa NamedTuple
-        @test first(st.data) isa Array
+        @test parent(st) isa NamedTuple
+        @test first(parent(st)) isa Array
         @test all(st[:a] .=== gdalstack[:a])
     end
 
@@ -675,8 +675,8 @@ end
     @testset "read" begin
         ser1 = read(stackser)
         @test ser1 isa RasterSeries{<:RasterStack}
-        @test ser1.data isa Vector{<:RasterStack}
-        @test first(ser1.data[1].data) isa Array
+        @test parent(ser1) isa Vector{<:RasterStack}
+        @test first(parent(parent(ser1)[1])) isa Array
         ser2 = modify(A -> A .* 0, ser1)
         ser3 = modify(A -> A .* 0, ser1)
         read!([(a=gdalpath, b=gdalpath), (a=gdalpath, b=gdalpath)], ser2)
