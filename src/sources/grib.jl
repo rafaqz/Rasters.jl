@@ -135,6 +135,9 @@ function _dslookup(
     ds::GDS.Dataset, dimname, D, index::AbstractArray{<:Union{Number,Dates.AbstractTime}},
     metadata, crs, mappedcrs
 )
+    # Assume the locus is at the center of the cell if boundaries aren't provided.
+    # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
+    order = LA.orderof(index)
     if dimname in ["time", "valid_time"]
         # We consider the epoch 1970-01-01T00:00:00, as it appears to be in gribs files
         # dates = Dates.unix2datetime.(index)
