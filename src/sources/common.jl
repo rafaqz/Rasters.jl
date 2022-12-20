@@ -2,7 +2,7 @@
 const NCD = NCDatasets
 const GDS = GRIBDatasets
 
-_unuseddimerror(dimname) = error("Netcdf contains unused dimension $dimname")
+_unuseddimerror(dimname) = error("Dataset contains unused dimension $dimname")
 
 function _dsfinddimlen(ds, dimname)
     for key in keys(ds)

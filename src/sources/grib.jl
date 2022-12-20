@@ -10,8 +10,8 @@ const GRIB_DIM_MAP = Dict(
 )
 
 haslayers(::Type{GRIBfile}) = true
-defaultcrs(::Type{GRIBfile}) = EPSG(4326)
-defaultmappedcrs(::Type{GRIBfile}) = EPSG(4326)
+defaultcrs(::Type{GRIBfile}) = nothing
+defaultmappedcrs(::Type{GRIBfile}) = nothing
 
 # Implement some methods on Dataset and Variable that are needed for conversion to Raster
 Base.Array(var::GDS.Variable) = Array(var.values)
@@ -135,10 +135,6 @@ function _dslookup(
     ds::GDS.Dataset, dimname, D, index::AbstractArray{<:Union{Number,Dates.AbstractTime}},
     metadata, crs, mappedcrs
 )
-    # Assume the locus is at the center of the cell if boundaries aren't provided.
-    # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
-    order = LA.orderof(index)
-    # var = NCD.variable(ds, dimname)
     if dimname in ["time", "valid_time"]
         # We consider the epoch 1970-01-01T00:00:00, as it appears to be in gribs files
         # dates = Dates.unix2datetime.(index)
