@@ -23,12 +23,10 @@ end
 # This is suitable for masking. See `rasterize` for a version using properties.
 _fill_geometry!(B, obj; kw...) = _fill_geometry!(B, GI.trait(obj), obj; kw...)
 function _fill_geometry!(B::AbstractRaster, ::GI.AbstractFeatureTrait, feature; kw...)
-    return _fill_geometry!(B, GI.geometry(feature); kw...)
+    _fill_geometry!(B, GI.geometry(feature); kw...)
 end
 function _fill_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait, fc; kw...)
-    for feature in GI.getfeature(fc)
-        fill_geometry!(B, GI.geometry(feature); kw...)
-    end
+    _fill_geometry!(B, (GI.geometry(f) for f in GI.getfeature(fc)); kw...)
 end
 function _fill_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; shape=nothing, verbose=true, kw...)
     shape = shape isa Symbol ? shape : _geom_shape(geom)
@@ -52,13 +50,18 @@ function _fill_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; sh
     end
     return B
 end
-function _fill_geometry!(B::AbstractRaster, trait::Nothing, geoms::AbstractVector; kw...)
-    for geom in geoms
-        _fill_geometry!(B, geom; kw...)
+# Treat geoms as an iterator
+function _fill_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine=true, kw...)
+    if combine
+        for geom in geoms
+            _fill_geometry!(B, geom; kw...)
+        end
+    else
+        for (i, geom) in enumerate(geoms)
+            B1 = view(B, Dim{:geometry}(i))
+            _fill_geometry!(B1, geom; kw...)
+        end
     end
-end
-function _fill_geometry!(B::AbstractRaster, trait::Nothing, data; kw...)
-    throw(ArgumentError("Unknown geometry object $(typeof(data))"))
 end
 
 # _fill_polygon!
@@ -275,7 +278,7 @@ end
 # _burn_line!
 #
 # Line-burning algorithm
-# Burns a line into a raster with `fill` values where pixels touch a line
+# Burns a line into a raster with `fill` value where pixels touch a line
 #
 # TODO: generalise to Irregular spans?
 function _burn_line!(A::AbstractRaster, line, fill)
@@ -285,7 +288,7 @@ function _burn_line!(A::AbstractRaster, line, fill)
     end
     msg = """
         Can only fill lines where dimensions have `Regular` lookups.
-        Consider using `boundary=center`, reprojecting the crs,
+        Consider using `boundary=:center`, reprojecting the crs,
         or make an issue in Rasters.jl on github if you need this to work.
         """
     all(regular) || throw(ArgumentError(msg))
@@ -334,11 +337,8 @@ function _burn_line!(A::AbstractRaster, line, fill)
         D = map((d, o) -> d(o), dimconstructors, (x, y))
         if checkbounds(Bool, A, D...)
             n_on_line += 1
-            if fill isa Function
-                @inbounds A[D...] = fill(A[D...])
-            else
-                @inbounds A[D...] = fill
-            end
+            x = fill isa Function ? fill(A[D...]) : fill
+            @inbounds A[D...] = x
         end
         # Only move in either X or Y coordinates, not both.
         if abs(max_x) < abs(max_y)

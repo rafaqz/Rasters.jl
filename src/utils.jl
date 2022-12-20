@@ -171,6 +171,67 @@ function _extent2dims(to::Extents.Extent{K};
 end
 
 
+# Like `create` but without disk writds, mostly for Bool/Union{Missing,Boo},
+# and uses `similar` where possible
+# TODO merge this with `create` somehow
+_init_bools(x::AbstractRasterSeries, T::Type, data; kw...) = _init_bools(first(x), T, data; kw...)
+_init_bools(x::AbstractRasterStack, T::Type, data; kw...) = _init_bools(first(x), T, data; kw...)
+
+function _init_bools(dims::Tuple, ::Type{T}, data; missingval, kw...) where T
+    data = if T === Bool
+        falses(dims) # Use a BitArray
+    else
+        fill!(Raster{T}(undef, dims), missingval) # Use an `Array`
+    end
+    return Raster(data, dims; missingval)
+end
+function _init_bools(x::Extents.Extent, T::Type, data; to=nothing, kw...)
+    if isnothing(to)
+        _init_bools(_extent2dims(x; kw...), T; kw...)
+    else
+        _init_bools(to, T; kw...)
+    end
+end
+_init_bools(x, T::Type; kw...) = _init_bools(dims(x), T; kw...)
+function _init_bools(x, dims::Nothing, T::Type, data; combine=true, to=nothing, kw...)
+    if combine
+        ds = if isnothing(to)
+            ext = _extent(x)
+            isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
+            _extent2dims(ext)
+        else
+            dims(to)
+        end
+        _init_bools(ds, T; kw...)
+    else
+        n = if Base.IteratorSize(data) isa Base.HasShape
+            length(data)
+        else
+            count(x -> true, data)
+        end
+        geomdim = Dim{:geom}(1:n)
+        ds = if isnothing(to)
+            ext = _extent(x)
+            isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
+            _extent2dims(ext; kw...)
+        else
+            dims(to, DEFAULT_POINT_ORDER)
+        end
+        _init_bools((ds..., geomdim), T; kw...)
+    end
+end
+function _init_bools(A, dims::Tuple, ::Type{T}; missingval, kw...) where T
+    dims = commondims(dims, DEFAULT_POINT_ORDER)
+    # TODO: improve this so that only e.g. CuArray uses `similar`
+    # This is a little annoying to lock down for all wrapper types,
+    # maybe ArrayInterface has tools for this.
+    data = if parent(A) isa Union{Array,DA.AbstractDiskArray} && T === Bool
+        falses(dims) # Use a BitArray
+    else
+        fill!(similar(A, T, dims), missingval) # Fill some other array type
+    end
+    return Raster(data, dims; missingval)
+end
 _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
 
 _filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not found"))
