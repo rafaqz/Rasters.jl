@@ -192,7 +192,7 @@ function _init_bools(x::Extents.Extent, T::Type, data; to=nothing, kw...)
         _init_bools(to, T; kw...)
     end
 end
-_init_bools(x, T::Type; kw...) = _init_bools(dims(x), T; kw...)
+_init_bools(x, T::Type; kw...) = _init_bools(x, dims(x), T; kw...)
 function _init_bools(x, dims::Nothing, T::Type, data; combine=true, to=nothing, kw...)
     if combine
         ds = if isnothing(to)
@@ -220,7 +220,10 @@ function _init_bools(x, dims::Nothing, T::Type, data; combine=true, to=nothing, 
         _init_bools((ds..., geomdim), T; kw...)
     end
 end
-function _init_bools(A, dims::Tuple, ::Type{T}; missingval, kw...) where T
+_init_bools(x, dims::Tuple, T::Type; kw...) = _init_bools(dims, T; kw...)
+_init_bools(st::AbstractRasterStack, dims::Tuple, T::Type; kw...) =
+    _init_bools(first(st), dims, T; kw...)
+function _init_bools(A::AbstractArray, dims::Tuple, ::Type{T}; missingval, kw...) where T
     dims = commondims(dims, DEFAULT_POINT_ORDER)
     # TODO: improve this so that only e.g. CuArray uses `similar`
     # This is a little annoying to lock down for all wrapper types,
