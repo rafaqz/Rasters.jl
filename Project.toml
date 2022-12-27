@@ -58,6 +58,7 @@ julia = "1"
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 CFTime = "179af706-886a-5703-950a-314cd64e0468"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+GBIF2 = "dedd4f52-e074-43bf-924d-d6bce14ad628"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Shapefile = "8e980c4a-a4fe-5da2-b3a7-4b4b0353a2f4"
@@ -65,4 +66,4 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "CFTime", "DataFrames", "Plots", "SafeTestsets", "Shapefile", "Statistics", "Test"]
+test = ["Aqua", "CFTime", "DataFrames", "GBIF2", "Plots", "SafeTestsets", "Shapefile", "Statistics", "Test"]

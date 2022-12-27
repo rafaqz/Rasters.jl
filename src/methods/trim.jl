@@ -27,15 +27,16 @@ layers = (:evenness, :range, :contrast, :correlation)
 st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers)
 
 # Roughly cut out australia
-ausbounds = X(100..160), Y(-10..(-50))
+ausbounds = X(100 .. 160), Y(-50 .. -10)
 aus = st[ausbounds...]
 a = plot(aus)
 
 # Trim missing values and plot
 b = plot(trim(aus))
 
-savefig(a, "build/trim_example_before.png")
-savefig(b, "build/trim_example_after.png")
+savefig(a, "build/trim_example_before.png");
+savefig(b, "build/trim_example_after.png");
+
 # output
 ```
 

@@ -27,14 +27,14 @@ evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 rnge = Raster(EarthEnv{HabitatHeterogeneity}, :range)
 
 # Roughly cut out New Zealand from the evenness raster
-nz_bounds = X(165..180), Y(-32..-50)
+nz_bounds = X(165 .. 180), Y(-50 .. -32)
 nz_evenness = evenness[nz_bounds...]
 
 # Crop range to match evenness
 nz_range = crop(rnge; to=nz_evenness)
 plot(nz_range)
 
-savefig("build/nz_crop_example.png")
+savefig("build/nz_crop_example.png");
 # output
 ```
 
@@ -134,6 +134,10 @@ sa_range = extend(sa_evenness; to=rnge)
 plot(sa_range)
 
 savefig("build/extend_example.png")
+ERROR: syntax: invalid operator "..-" near column 20
+Stacktrace:
+ [1] top-level scope
+   @ none:1
 # output
 ```
 

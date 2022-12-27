@@ -24,26 +24,22 @@ Here we extact points matching the occurrence of the Mountain Pygmy Possum,
 _Burramis parvus_. This could be used to fit a species distribution model.
 
 ```jldoctest
-using Rasters, GBIF, CSV
+using Rasters, GBIF2, CSV
 
 # Get a stack of BioClim layers, and replace missing values with `missing`
 st = RasterStack(WorldClim{BioClim}, (1, 3, 5, 7, 12))[Band(1)] |> replace_missing
 
 # Download some occurrence data
-obs = GBIF.occurrences("scientificName" => "Burramys parvus", "limit" => 5)
+obs = GBIF2.occurrence_search("Burramys parvus"; limit = 10)
 
 # Convert observations to points
-points = ((o.longitude, o.latitude) for o in obs if !ismissing(o.longitude))
+points = collect((o.decimalLongitude, o.decimalLatitude) for o in obs if !ismissing(o.decimalLongitude))
 
 # use `extract` to get values for all layers at each observation point.
-vals = collect(extract(st, points))
+# We `collect` to get a `Vector` from the lazy iterator.
+collect(extract(st, points))
 
 # output
-4-element Vector{NamedTuple{(:geometry, :bio1, :bio3, :bio5, :bio7, :bio12), Tuple{Tuple{Float64, Float64}, Float32, Float32, Float32, Float32, Float32}}}:
- (geometry = (148.450743, -35.999643), bio1 = 8.269542, bio3 = 41.030262, bio5 = 21.4485, bio7 = 23.858, bio12 = 1440.0)
- (geometry = (148.450743, -35.999643), bio1 = 8.269542, bio3 = 41.030262, bio5 = 21.4485, bio7 = 23.858, bio12 = 1440.0)
- (geometry = (148.451335, -35.999862), bio1 = 8.269542, bio3 = 41.030262, bio5 = 21.4485, bio7 = 23.858, bio12 = 1440.0)
- (geometry = (148.451335, -35.999862), bio1 = 8.269542, bio3 = 41.030262, bio5 = 21.4485, bio7 = 23.858, bio12 = 1440.0)
 ```
 """
 function extract end

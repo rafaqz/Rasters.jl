@@ -54,8 +54,8 @@ B = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 a = plot(A)
 b = plot(resample(A; to=B))
 
-savefig(a, "build/resample_example_before.png")
-savefig(b, "build/resample_example_after.png")
+savefig(a, "build/resample_example_before.png");
+savefig(b, "build/resample_example_after.png");
 # output
 ```
 

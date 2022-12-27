@@ -47,25 +47,25 @@ insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Z
 
 # output
 258×8 DataFrame
- Row │ country                       tmin           tmax           tavg        ⋯
-     │ SubStrin…                     Float32?       Float32?       Float32?    ⋯
+ Row │ country                       tmin           tmax          tavg         ⋯
+     │ SubStrin…                     Float32?       Float32?      Float32?     ⋯
 ─────┼──────────────────────────────────────────────────────────────────────────
-   1 │ Indonesia                          21.5472        29.1787        25.363 ⋯
-   2 │ Malaysia                           21.287         28.4143        24.850
-   3 │ Chile                               7.19998       17.8956        12.547
-   4 │ Bolivia                            17.2376        27.7764        22.506
-   5 │ Peru                               15.0198        25.5402        20.28  ⋯
-   6 │ Argentina                          13.6718        27.6623        20.666
-   7 │ Dhekelia Sovereign Base Area  missing        missing        missing
-   8 │ Cyprus                              5.03622       14.2194         9.627
-  ⋮  │              ⋮                      ⋮              ⋮              ⋮     ⋱
- 252 │ Spratly Islands                    25.1           29.4           27.2   ⋯
- 253 │ Clipperton Island             missing        missing        missing
- 254 │ Macao S                       missing        missing        missing
- 255 │ Ashmore and Cartier Islands   missing        missing        missing
- 256 │ Bajo Nuevo Bank               missing        missing        missing     ⋯
- 257 │ Serranilla Bank               missing        missing        missing
- 258 │ Scarborough Reef              missing        missing        missing
+   1 │ Indonesia                          21.539         29.1784       25.3587 ⋯
+   2 │ Malaysia                           21.2955        28.4185       24.8569
+   3 │ Chile                               7.24828       17.9385       12.5933
+   4 │ Bolivia                            17.233         27.7662       22.4995
+   5 │ Peru                               15.0116        25.5386       20.2751 ⋯
+   6 │ Argentina                          13.683         27.6834       20.6831
+   7 │ Dhekelia Sovereign Base Area  missing        missing       missing
+   8 │ Cyprus                              5.03622       14.2194        9.6276
+  ⋮  │              ⋮                      ⋮             ⋮              ⋮      ⋱
+ 252 │ Spratly Islands                    25.1           29.4          27.2    ⋯
+ 253 │ Clipperton Island             missing        missing       missing
+ 254 │ Macao S                       missing        missing       missing
+ 255 │ Ashmore and Cartier Islands   missing        missing       missing
+ 256 │ Bajo Nuevo Bank               missing        missing       missing      ⋯
+ 257 │ Serranilla Bank               missing        missing       missing
+ 258 │ Scarborough Reef              missing        missing       missing
                                                   5 columns and 243 rows omitted
 ```
 """
