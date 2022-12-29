@@ -17,5 +17,6 @@ _sourcetype(filenames::NamedTuple) = _sourcetype(first(filenames))
 
 # Internal read method
 function _open(f, filename::AbstractString; kw...)
-    _open(f, _sourcetype(filename), filename; kw...)
+    source=get(kw,:source,_sourcetype(filename))
+    _open(f, source, filename; kw...)
 end

@@ -10,7 +10,8 @@ function create(filename::AbstractString, T::Type, dims::Tuple;
     lazy=true, parent=nothing, suffix=nothing, kw...
 )
     filename = _maybe_add_suffix(filename, suffix)
-    create(filename, _sourcetype(filename), T, dims; lazy, kw...)
+    source=get(kw,:source,_sourcetype(filename))
+    create(filename, source, T, dims; lazy, kw...)
 end
 function create(filename::Nothing, T::Type, dims::Tuple;
     parent=nothing, suffix=nothing, missingval, kw...
