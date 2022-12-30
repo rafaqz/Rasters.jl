@@ -70,12 +70,17 @@ end
         :aspect_ratio --> square_pixels
     end
 
-    if get(plotattributes, :seriestype, :none) == :contourf
+
+    if eltype(A) <: ColorTypes.Colorant
+        index(x), index(y), parent(A)
+    elseif get(plotattributes, :seriestype, :none) == :contourf
+        A = replace_missing(A, missing)
         clims = extrema(skipmissing(A))
         :levels --> range(clims[1], clims[2], length=20)
         index(x), index(y), clamp.(A, clims[1], clims[2])
     else
         :seriestype --> :heatmap
+        A = replace_missing(A, missing)
         index(x), index(y), parent(A)
     end
 end
@@ -193,8 +198,7 @@ _prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
 # Convert arrays to a consistent missing value and Forward array order
 function _prepare(A::AbstractRaster)
     reorder(A, DD.ForwardOrdered) |>
-    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A))) |>
-    a -> replace_missing(a, missing)
+    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A)))# |>
 end
 
 function _subsample(A, max_res)
