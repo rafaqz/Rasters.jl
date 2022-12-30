@@ -126,7 +126,7 @@ evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 rnge = Raster(EarthEnv{HabitatHeterogeneity}, :range)
 
 # Roughly cut out South America
-sa_bounds = X(-88..-32), Y(-57..13)
+sa_bounds = X(-88 .. -32), Y(-57 .. 13)
 sa_evenness = evenness[sa_bounds...]
 
 # Extend range to match the whole-world raster
@@ -134,10 +134,6 @@ sa_range = extend(sa_evenness; to=rnge)
 plot(sa_range)
 
 savefig("build/extend_example.png")
-ERROR: syntax: invalid operator "..-" near column 20
-Stacktrace:
- [1] top-level scope
-   @ none:1
 # output
 ```
 
