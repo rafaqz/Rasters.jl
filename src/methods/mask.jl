@@ -75,8 +75,8 @@ wc_mask = resample(wc; to=awap)
 awap_masked = mask(awap; with=wc_mask)
 b = plot(awap_masked; clims=(10, 45))
 
-savefig(a, "build/mask_example_before.png")
-savefig(b, "build/mask_example_after.png")
+savefig(a, "build/mask_example_before.png");
+savefig(b, "build/mask_example_after.png");
 # output
 
 ```
@@ -154,7 +154,7 @@ using Rasters, Plots, Dates
 
 # Load and plot the file
 awap = read(RasterStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
-a = plot(awap; clims=(10, 45))
+a = plot(awap; clims=(10, 45), c=:imola)
 
 # Create a mask my resampling a worldclim file
 wc = Raster(WorldClim{Climate}, :prec; month=1)
@@ -166,6 +166,8 @@ b = plot(awap; clims=(10, 45))
 
 savefig(a, "build/mask_bang_example_before.png")
 savefig(b, "build/mask_bang_example_after.png")
+AG.shortname(gdaldriver) = "MEM"
+"/tmp/jl_sha7SB/build/mask_bang_example_after.png"
 # output
 ```
 
@@ -249,6 +251,7 @@ wc = Raster(WorldClim{Climate}, :prec; month=1)
 boolmask(wc) |> plot
 
 savefig("build/boolmask_example.png")
+"/tmp/jl_sha7SB/build/boolmask_example.png"
 # output
 ```
 
@@ -309,6 +312,7 @@ wc = Raster(WorldClim{Climate}, :prec; month=1)
 missingmask(wc) |> plot
 
 savefig("build/missingmask_example.png")
+"/tmp/jl_sha7SB/build/missingmask_example.png"
 # output
 ```
 

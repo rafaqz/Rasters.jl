@@ -43,7 +43,7 @@ using Rasters: Center
 st = read(RasterStack(WorldClim{Climate}; month=1))
 ag = aggregate(Center(), st, (Y(20), X(20)); skipmissingval=true, progress=false)
 plot(ag)
-savefig("build/aggregate_example.png")
+savefig("build/aggregate_example.png");
 # output
 
 ```
