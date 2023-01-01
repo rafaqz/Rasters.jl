@@ -5,3 +5,4 @@ docs/build
 test/data
 Manifest.toml
 .vscode
+.DS_Store
