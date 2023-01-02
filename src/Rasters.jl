@@ -18,6 +18,7 @@ import Adapt,
        Extents,
        FillArrays,
        Flatten,
+       GibbsSeaWater,
        GeoInterface,
        HDF5,
        PolygonInbounds,
@@ -38,7 +39,7 @@ using DimensionalData.Tables,
 
 using DimensionalData: Name, NoName
 using .Dimensions: StandardIndices, DimTuple
-using .LookupArrays: LookupArrayTuple 
+using .LookupArrays: LookupArrayTuple
 
 using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
@@ -52,10 +53,11 @@ export AbstractRasterSeries, RasterSeries
 export Projected, Mapped
 export Band
 export missingval, boolmask, missingmask, replace_missing, replace_missing!,
-       aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!, 
+       aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!,
        resample, warp, zonal, crop, extend, trim, slice, points, subset, inpolygon,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
        setcrs, setmappedcrs
+export convert_z_to_p, convert_Sₚ_to_Sₐ, convert_θ_to_Θ
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertlookup
 
@@ -117,6 +119,7 @@ include("methods/extract.jl")
 include("methods/inpolygon.jl")
 include("methods/mask.jl")
 include("methods/mosaic.jl")
+include("methods/oceanconversions.jl")
 include("methods/points.jl")
 include("methods/rasterize.jl")
 include("methods/replace_missing.jl")
