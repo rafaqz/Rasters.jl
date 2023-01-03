@@ -17,8 +17,13 @@ The name of the variables for potential temperature and salinity
 `(sp = :salt_name, pt = :potential_temp_name)` where `:potential_temp_name` and `:salt_name`
 are the name of the potential temperature and salinity in the `Raster`.
 
-Currently this is only available for `Raster`s with `X`, `Y`, `Z` or `X`, `Y`, `Z` and `Ti`
-`dims`. If more methods are needed for different configurations of `dims` raise an issue on
+**NOTE**
+Currently this is only available for `RasterStacks`s or `RasterSeries`s with `X`, `Y`, `Z`
+or `X`, `Y`, `Z`, `Ti` `dims`. If the `RasterStack/Series` has different dimensions e.g.
+`X`, `Y`, `Ti` `convert_ocean_vars` will assume that the `Ti` dimension is depth (`Z`) and
+compute incorrect variables. Though for pressure we require _at least_ `Y` (latitude) and
+`Z` depth so it would not make sense to use this function if there is no depth `dim`.
+If more methods are needed for different configurations of `dims` raise an issue on
 GitHub.
 """
 function convert_ocean_vars(raster::RasterStack, var_names::NamedTuple; p_ref = nothing)
@@ -37,7 +42,7 @@ function convert_ocean_vars(raster::RasterStack, var_names::NamedTuple; p_ref = 
     return RasterStack(converted_vars, rs_dims)
 
 end
-function convert_ocean_vars(raster_series::Rasterseries, var_names::NamedTuple; p_ref = nothing)
+function convert_ocean_vars(raster_series::RasterSeries, var_names::NamedTuple; p_ref = nothing)
 
     rs_array = Array{RasterStack}(undef, length(raster_series))
     for i ∈ eachindex(raster_series)
@@ -174,8 +179,8 @@ function in_situ_density(Sₐ::Raster, Θ::Raster, p::Raster, rs_dims::Tuple)
 
                 Sₐ_profile = Sₐ[X(At(lon)), Y(At(lat)), Ti(t)]
                 find_nm = findall(.!ismissing.(Sₐ_profile))
-                Θ_profile = Θ[X(At(lon)), Y(At(lat)), Z(find_nm)]
-                p_profile = p[X(At(lon)), Y(At(lat)), Z(find_nm)]
+                Θ_profile = Θ[X(At(lon)), Y(At(lat)), Z(find_nm), Ti(t)]
+                p_profile = p[X(At(lon)), Y(At(lat)), Z(find_nm), Ti(t)]
                 ρ[i, j, find_nm, t] = GibbsSeaWater.gsw_rho.(Sₐ_profile[find_nm], Θ_profile, p_profile)
 
             end
@@ -211,7 +216,7 @@ function potential_density(Sₐ::Raster, Θ::Raster, p::Float64, rs_dims::Tuple)
 
                 Sₐ_profile = Sₐ[X(At(lon)), Y(At(lat)), Ti(t)]
                 find_nm = findall(.!ismissing.(Sₐ_profile))
-                Θ_profile = Θ[X(At(lon)), Y(At(lat)), Z(find_nm)]
+                Θ_profile = Θ[X(At(lon)), Y(At(lat)), Z(find_nm), Ti(t)]
                 ρ[i, j, find_nm, t] = GibbsSeaWater.gsw_rho.(Sₐ_profile[find_nm], Θ_profile, p)
 
             end

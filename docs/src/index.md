@@ -580,6 +580,7 @@ missingval
 missingmask
 mosaic
 mosaic!
+oceanconversions
 points
 rasterize
 rasterize!
