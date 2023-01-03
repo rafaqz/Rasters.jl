@@ -9,8 +9,7 @@ by conservative temperature and absolute salinity. As pressure depends
 on latitude and depth, it is added as a new variable --- that is, each longitude, latitude,
 depth has a variable for pressure. A density variable is also computed which, by default, is
 _in-situ_ density. Potential density can be computed instead by passing a the keyword
-argument `p_ref`. If neutral density is preferred pass the keyword argument
-`denisty = :neutral`.
+argument `p_ref`.
 
 The name of the variables for potential temperature and salinity
 (either practical or absolute) must be passed in as a named tuple of the form
