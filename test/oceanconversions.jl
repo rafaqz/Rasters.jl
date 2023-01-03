@@ -1,7 +1,7 @@
 using Rasters, Test
 import GibbsSeaWater
 
-lons, lats, z, time = -180:1.0:180, -90:2.0:90, -0:-10.0:-4000, 1:2
+lons, lats, z, time = -180:4.0:180, -90:2.0:90, -0:-10.0:-2000, 1:2
 rs_dims = (lons, lats, z, time)
 N = 500
 Sₚ_vals = range(33, 38, length = N)
