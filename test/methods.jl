@@ -1,5 +1,5 @@
 using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, GeoInterface, DataFrames, Extents, Shapefile
-using Rasters.LookupArrays, Rasters.Dimensions 
+using Rasters.LookupArrays, Rasters.Dimensions
 using Rasters: bounds
 
 
@@ -89,7 +89,7 @@ end
     rm("mask_b.tif")
     poly = polygon
     @testset "to polygon" begin
-        for poly in (polygon, multi_polygon) 
+        for poly in (polygon, multi_polygon)
             a1 = Raster(ones(X(-20:5), Y(0:30)))
             st1 = RasterStack(a1, a1)
             ser1 = RasterSeries([a1, a1], Ti(1:2))
@@ -114,10 +114,10 @@ end
         zonal(sum, a; of=(geometry=polygon, x=:a, y=:b)) ==
         zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1]
         zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
-        sum(skipmissing(mask(a; with=polygon)))  
-    @test zonal(sum, a; of=a) == 
-        zonal(sum, a; of=dims(a)) == 
-        zonal(sum, a; of=Extents.extent(a)) == 
+        sum(skipmissing(mask(a; with=polygon)))
+    @test zonal(sum, a; of=a) ==
+        zonal(sum, a; of=dims(a)) ==
+        zonal(sum, a; of=Extents.extent(a)) ==
         sum(a)
 
     b = a .* 2
@@ -127,10 +127,10 @@ end
         zonal(sum, st; of=(geometry=polygon, x=:a, y=:b)) ==
         zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
         zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
-        map(sum ∘ skipmissing, mask(st; with=polygon))  
-    @test zonal(sum, st; of=st) == 
-        zonal(sum, st; of=dims(st)) == 
-        zonal(sum, st; of=Extents.extent(st)) == 
+        map(sum ∘ skipmissing, mask(st; with=polygon))
+    @test zonal(sum, st; of=st) ==
+        zonal(sum, st; of=dims(st)) ==
+        zonal(sum, st; of=Extents.extent(st)) ==
         sum(st)
 end
 
@@ -176,10 +176,10 @@ createfeature(::Missing) = missing
     st = RasterStack(ga, ga2)
     @testset "from Raster" begin
         # Tuple points
-        @test all(extract(ga, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]) .=== 
+        @test all(extract(ga, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]) .===
                   createfeature.([missing, ((9.0, 0.1), 1), ((9.0, 0.2), 2), ((10.0, 0.3), missing)]))
         # NamedTuple (reversed) points
-        @test all(extract(ga, [missing, (Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) |> collect .=== 
+        @test all(extract(ga, [missing, (Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) |> collect .===
                   createfeature.([missing, ((Y=0.1, X=9.0), 1), ((Y=0.2, X=10.0), 4), ((Y=0.3, X=10.0), missing)]))
         # Vector points
         @test all(extract(ga, [[9.0, 0.1], [10.0, 0.2]]) .== createfeature.([([9.0, 0.1], 1), ([10.0, 0.2], 4)]))
@@ -188,7 +188,7 @@ createfeature(::Missing) = missing
                   # createfeature.([(createpoint(0.1, 9.0), 1), (createpoint(0.2, 10.0), 4), (createpoint(0.3, 10.0), missing)]))
         # Extract a polygon
         p = ArchGDAL.createpolygon([[[8.0, 0.0], [11.0, 0.0], [11.0, 0.4], [8.0, 0.0]]])
-        @test all(extract(ga, p) .=== 
+        @test all(extract(ga, p) .===
             createfeature.([((X=9.0, Y=0.1), 1), ((X=10.0, Y=0.1), 3), ((X=10.0, Y=0.2), 4)]))
     end
     @testset "from stack" begin
@@ -225,7 +225,7 @@ end
         extended = extend(cropped, ga)[1]
         extended_r = extend(cropped_r; to=ga_r)
         extended_d = extend(cropped; to=ga, filename="extended.tif")
-        @test all(extended .=== ga) 
+        @test all(extended .=== ga)
         @test all(extended_r .=== ga_r)
 
         @testset "to polygons" begin
@@ -268,37 +268,37 @@ end
     exp1 = Raster([0.1 0.2; 0.3 0.4], (X(Sampled([2.0, 3.0]; span=span_x1)), Y([5.0, 6.0])))
     exp2 = Raster([1.1 1.2; 1.3 1.4], (X(Sampled([3.0, 4.0]; span=span_x2)), Y([6.0, 7.0])))
     @test val(span(mosaic(first, exp1, exp2), X)) == [1.5 2.5 3.5; 2.5 3.5 4.5]
-    @test all(mosaic(first, [reg1, reg2]) .=== 
+    @test all(mosaic(first, [reg1, reg2]) .===
               mosaic(first, irreg1, irreg2) .===
-              mosaic(first, (irreg1, irreg2)) .=== 
-              [0.1 0.2 missing; 
-               0.3 0.4 1.2; 
+              mosaic(first, (irreg1, irreg2)) .===
+              [0.1 0.2 missing;
+               0.3 0.4 1.2;
                missing 1.3 1.4])
     @test all(mosaic(last, reg1, reg2) .===
               mosaic(last, irreg1, irreg2) .===
-              mosaic(last, exp1, exp2) .=== [0.1 0.2 missing; 
-                                             0.3 1.1 1.2; 
+              mosaic(last, exp1, exp2) .=== [0.1 0.2 missing;
+                                             0.3 1.1 1.2;
                                              missing 1.3 1.4])
 
-    @test all(mosaic(first, [reverse(reg2; dims=Y), reverse(reg1; dims=Y)]) .=== 
-              [missing 0.2 0.1; 
-               1.2 1.1 0.3; 
+    @test all(mosaic(first, [reverse(reg2; dims=Y), reverse(reg1; dims=Y)]) .===
+              [missing 0.2 0.1;
+               1.2 1.1 0.3;
                1.4 1.3 missing]
              )
 
     # 3 dimensions
     A1 = Raster(ones(2, 2, 2), (X(2.0:-1.0:1.0), Y(5.0:1.0:6.0), Ti(DateTime(2001):Year(1):DateTime(2002))))
     A2 = Raster(zeros(2, 2, 2), (X(3.0:-1.0:2.0), Y(4.0:1.0:5.0), Ti(DateTime(2002):Year(1):DateTime(2003))))
-    @test all(mosaic(mean, A1, A2) |> parent .=== 
+    @test all(mosaic(mean, A1, A2) |> parent .===
               first(mosaic(mean, RasterStack(A1), RasterStack(A2))) .===
               cat([missing missing missing
                    missing 1.0     1.0
                    missing 1.0     1.0    ],
                    [0.0     0.0 missing
-                   0.0     0.5     1.0   
+                   0.0     0.5     1.0
                    missing 1.0     1.0    ],
                    [0.0     0.0     missing
-                   0.0     0.0     missing    
+                   0.0     0.0     missing
                    missing missing missing], dims=3))
 end
 
@@ -395,8 +395,8 @@ end
             @test sum(skipmissing(rasterize(data; to=A, fill=1))) == 4
 
             @testset "to and fill Keywords are required" begin
-                @test_throws ArgumentError R = rasterize(data; fill=1) 
-                @test_throws UndefKeywordError R = rasterize(data; to=A) 
+                @test_throws ArgumentError R = rasterize(data; fill=1)
+                @test_throws UndefKeywordError R = rasterize(data; to=A)
             end
             @testset "NamedTuple of value fill makes a stack" begin
                 rst = rasterize(data; to=A, fill=(fill1=3, fill2=6.0f0))
@@ -480,7 +480,7 @@ end
 
     @testset "center in polygon rasterization" begin
         gdal_raster = gdal_read_rasterize(shp)
-        rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes; 
+        rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes;
             size=250, fill=UInt8(1), missingval=UInt8(0)
         )
         # Same results as GDAL
@@ -490,7 +490,7 @@ end
 
     @testset "line touches rasterization" begin
         gdal_raster = gdal_read_rasterize(shp, "-at")
-        rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes; 
+        rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes;
             size=(250, 250), fill=UInt8(1), missingval=UInt8(0), boundary=:touches
         )
 
@@ -527,14 +527,14 @@ end
     cea_permuted = permutedims(Raster(raster_path), (Y, X, Band))
     permuted_output = resample(cea_permuted, output_res; crs=output_crs, method=resample_method)
 
-    # Compare ArchGDAL, resample and permuted resample 
+    # Compare ArchGDAL, resample and permuted resample
     @test AG_output ==
         raster_output[Band(1)] ==
         disk_output[Band(1)] ==
         permutedims(permuted_output, (X, Y, Band))[Band(1)]
     @test abs(step(dims(raster_output, Y))) ≈
-        abs(step(dims(raster_output, X))) ≈ 
-        abs(step(dims(disk_output, X))) ≈ 
+        abs(step(dims(raster_output, X))) ≈
+        abs(step(dims(disk_output, X))) ≈
         abs(step(dims(permuted_output, X))) ≈ output_res
 
     rm("resample.tif")

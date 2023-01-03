@@ -39,7 +39,7 @@ end
 vars_in_situ = (p, Sₐ, Θ, ρ)
 vars_pd = (p, Sₐ, Θ, ρ_ref)
 
-@testset "oceanconversions" begin
+@testset "conversions" begin
     ## In situ density stack tests
     for (i, var) ∈ enumerate(test_vars)
         @test rs_stack_res_in_situ[var] == vars_in_situ[i]
