@@ -6,9 +6,8 @@ Write an [`AbstractRaster`](@ref) to file, guessing the backend from the file ex
 Keyword arguments are passed to the `write` method for the backend.
 """
 function Base.write(
-    filename::AbstractString, A::AbstractRaster; kw...
+    filename::AbstractString, A::AbstractRaster; source=_sourcetype(filename), kw...
 )
-    source=get(kw,:source,_sourcetype(filename))
     write(filename, source, A; kw...)
 end
 Base.write(A::AbstractRaster) = write(filename(A), A)
@@ -26,13 +25,13 @@ Other keyword arguments are passed to the `write` method for the backend.
 
 If the source can't be saved as a stack-like object, individual array layers will be saved.
 """
-function Base.write(filename::AbstractString, s::AbstractRasterStack; suffix=nothing, ext=nothing, kw...)
+function Base.write(filename::AbstractString, s::AbstractRasterStack; suffix=nothing, ext=nothing,
+	 	    source=_sourcetype(filename), kw...)
     if isnothing(ext)
         base, ext = splitext(filename)
     else
         base = filename
     end
-    source = get(kw,:source,_sourcetype(filename))
     if haslayers(source)
         write(filename, source, s; kw...)
     else

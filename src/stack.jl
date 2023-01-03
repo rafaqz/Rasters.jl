@@ -261,7 +261,7 @@ function RasterStack(filename::AbstractString;
         st = if haslayers(source)
             crs = defaultcrs(source, crs)
             mappedcrs = defaultmappedcrs(source, mappedcrs)
-            data, field_kw = _open(filename, source=source) do ds
+            data, field_kw = _open(filename; source) do ds
                 dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
                 refdims = refdims == () || refdims isa Nothing ? () : refdims
                 layerdims = layerdims isa Nothing ? DD.layerdims(ds) : layerdims

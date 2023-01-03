@@ -16,7 +16,6 @@ _sourcetype(filename::AbstractString) = get(REV_EXT, splitext(filename)[2], GDAL
 _sourcetype(filenames::NamedTuple) = _sourcetype(first(filenames))
 
 # Internal read method
-function _open(f, filename::AbstractString; kw...)
-    source=get(kw,:source,_sourcetype(filename))
+function _open(f, filename::AbstractString; source=_sourcetype(filename), kw...)
     _open(f, source, filename; kw...)
 end
