@@ -8,6 +8,7 @@ Sₚ_vals = range(33, 38, length = N)
 θ_vals = range(-2, 20, length = N)
 Sₚ = rand(Sₚ_vals, X(lons), Y(lats), Z(z), Ti(time))
 θ = rand(θ_vals, X(lons), Y(lats), Z(z), Ti(time))
+p_ref = 1000.0
 test_vars = (Sₚ = Sₚ, θ = θ)
 rs_stack = RasterStack(test_vars, (X(lons), Y(lats), Z(z), Ti(time)))
 rs_series = RasterSeries([rs_stack[Ti(t)] for t ∈ time], Ti)
@@ -33,7 +34,6 @@ for t ∈ time
 end
 
 ρ = GibbsSeaWater.gsw_rho.(Sₐ, Θ, p)
-p_ref = 1000.0
 ρ_ref = GibbsSeaWater.gsw_rho.(Sₐ, Θ, p_ref)
 
 vars_in_situ = (p, Sₐ, Θ, ρ)
