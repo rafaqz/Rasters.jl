@@ -20,6 +20,7 @@ end
 @time @safetestset "methods" begin include("methods.jl") end
 @time @safetestset "adapt" begin include("adapt.jl") end
 @time @safetestset "plot recipes" begin include("plotrecipes.jl") end
+@time @safetestset "oceanconversions" begin include("oceanconversions.jl") end
 # Only test SMAP locally for now, also RasterDataSources because CI dowloads keep breaking
 if !haskey(ENV, "CI")
     @time @safetestset "smap" begin include("sources/smap.jl") end
