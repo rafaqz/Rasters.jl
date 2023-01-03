@@ -57,7 +57,7 @@ export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        resample, warp, zonal, crop, extend, trim, slice, points, subset, inpolygon,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
        setcrs, setmappedcrs
-export convert_z_to_p, convert_Sₚ_to_Sₐ, convert_θ_to_Θ
+export convert_ocean_vars
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertlookup
 
