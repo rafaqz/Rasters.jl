@@ -54,7 +54,7 @@ end
     :framestyle --> :box
     :foreground_color_axis --> RGB(0.3)
     :foreground_color_border --> RGB(0.3)
-    :seriescolor --> :curl
+    :seriescolor --> :batlow
 
     if all(d -> lookup(d) isa Mapped, (x, y))
         :xlims --> mappedbounds(x)
@@ -102,6 +102,7 @@ end
 # Plot 3d arrays as multiple tiled plots
 @recipe function f(::RasterPlot, A::Raster{T,3,<:Tuple{<:SpatialDim,<:SpatialDim,D}}) where {T,D}
     nplots = size(A, 3)
+    :plot_title --> name(A)
     if nplots > 1
         ncols, nrows = _balance_grid(nplots)
         :layout --> (ncols, nrows)
