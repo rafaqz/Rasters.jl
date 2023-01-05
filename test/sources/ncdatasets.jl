@@ -265,7 +265,7 @@ stackkeys = (
             isfile(f) && rm(f)
 
             @testset "non allowed values" begin
-                @test_throws ArgumentError write(filename, convert.(Union{Missing,Float16}, geoA))
+                @test_throws NCDatasets.NetCDFError write(filename, convert.(Union{Missing,Float16}, geoA))
             end
         end
         @testset "to gdal" begin
