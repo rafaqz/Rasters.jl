@@ -102,8 +102,8 @@ end
 # Plot 3d arrays as multiple tiled plots
 @recipe function f(::RasterPlot, A::Raster{T,3,<:Tuple{<:SpatialDim,<:SpatialDim,D}}) where {T,D}
     nplots = size(A, 3)
-    :plot_title --> name(A)
     if nplots > 1
+        :plot_title --> name(A)
         ncols, nrows = _balance_grid(nplots)
         :layout --> (ncols, nrows)
         # link --> :both
