@@ -130,7 +130,8 @@ end
 # Open it again to plot the changes
 plot(Raster(tempfile); c=:magma)
 
-savefig("build/classify_bang_example.png");
+savefig("build/classify_bang_example.png"); nothing
+
 # output
 ```
 

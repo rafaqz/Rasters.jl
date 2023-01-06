@@ -40,7 +40,7 @@ nothing
 # output
 ```
 
-![new zealand evennes cropped](nz_crop_example.png)
+![new zealand evenness cropped](nz_crop_example.png)
 
 Crop to a polygon:
 
