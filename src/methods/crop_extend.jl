@@ -42,9 +42,8 @@ savefig("build/nz_crop_example.png");
 
 Crop to a polygon:
 
-```julia
+```jldoctest
 using Rasters, Plots, Dates, Shapefile, Downloads
-using Rasters.LookupArrays
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -53,7 +52,7 @@ isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 shp = Shapefile.Handle(shapefile_name).shapes[6]
 argentina_range = crop(evenness; to=shp)
 plot(argentina_range)
-savefig("build/argentina_crop_example.png")
+savefig("build/argentina_crop_example.png");
 ```
 
 ![argentina evenness cropped](argentina_crop_example.png)
@@ -133,7 +132,7 @@ sa_evenness = evenness[sa_bounds...]
 sa_range = extend(sa_evenness; to=rnge)
 plot(sa_range)
 
-savefig("build/extend_example.png")
+savefig("build/extend_example.png");
 # output
 ```
 

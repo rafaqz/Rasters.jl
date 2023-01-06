@@ -180,7 +180,7 @@ shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_
 shapefile_name = "country_borders.shp"
 isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 
-# Load the shapes for denmark
+# Load the shapes for indonesia
 indonesia_border = Shapefile.Handle(shapefile_name).shapes[1]
 
 # Make an empty EPSG 4326 projected Raster of the area of Indonesia
