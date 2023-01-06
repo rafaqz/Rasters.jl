@@ -250,8 +250,8 @@ using Rasters, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 boolmask(wc) |> plot
 
-savefig("build/boolmask_example.png")
-"/tmp/jl_sha7SB/build/boolmask_example.png"
+savefig("build/boolmask_example.png"); nothing
+
 # output
 ```
 
@@ -311,8 +311,8 @@ using Rasters, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 missingmask(wc) |> plot
 
-savefig("build/missingmask_example.png")
-"/tmp/jl_sha7SB/build/missingmask_example.png"
+savefig("build/missingmask_example.png"); nothing
+
 # output
 ```
 

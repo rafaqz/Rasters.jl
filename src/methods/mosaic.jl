@@ -40,9 +40,10 @@ b = plot(aus)
 mos = mosaic(first, aus, africa)
 c = plot(mos)
 
-savefig(a, "build/mosaic_example_africa.png");
-savefig(b, "build/mosaic_example_aus.png");
-savefig(c, "build/mosaic_example_combined.png");
+savefig(a, "build/mosaic_example_africa.png")
+savefig(b, "build/mosaic_example_aus.png")
+savefig(c, "build/mosaic_example_combined.png")
+nothing
 # output
 
 ```
@@ -123,7 +124,8 @@ aus = st[X=100.0 .. 160.0, Y=-50.0 .. -10.0]
 africa = st[X=-20.0 .. 60.0, Y=-40.0 .. 35.0]
 mosaic!(first, st, aus, africa)
 plot(st)
-savefig("build/mosaic_bang_example.png");
+savefig("build/mosaic_bang_example.png")
+nothing
 # output
 
 ```
