@@ -34,7 +34,7 @@ nz_evenness = evenness[nz_bounds...]
 nz_range = crop(rnge; to=nz_evenness)
 plot(nz_range)
 
-savefig("build/nz_crop_example.png");
+savefig("build/nz_crop_example.png"); nothing
 # output
 ```
 
@@ -52,7 +52,7 @@ isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 shp = Shapefile.Handle(shapefile_name).shapes[6]
 argentina_range = crop(evenness; to=shp)
 plot(argentina_range)
-savefig("build/argentina_crop_example.png");
+savefig("build/argentina_crop_example.png"); nothing
 ```
 
 ![argentina evenness cropped](argentina_crop_example.png)

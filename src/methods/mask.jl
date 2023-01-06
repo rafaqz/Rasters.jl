@@ -60,7 +60,7 @@ $SHAPE_KEYWORDS
 Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask.
 
-```jldoctest
+```julia
 using Rasters, Plots, Dates
 
 # Load and plot the file
@@ -76,7 +76,7 @@ awap_masked = mask(awap; with=wc_mask)
 b = plot(awap_masked; clims=(10, 45))
 
 savefig(a, "build/mask_example_before.png");
-savefig(b, "build/mask_example_after.png");
+savefig(b, "build/mask_example_after.png"); nothing
 # output
 
 ```
@@ -149,7 +149,7 @@ or by a polygon.
 Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask to match the size and projection.
 
-```jldoctest
+```julia
 using Rasters, Plots, Dates
 
 # Load and plot the file
@@ -164,11 +164,11 @@ wc_mask = resample(wc; to=awap)
 mask!(awap; with=wc_mask)
 b = plot(awap; clims=(10, 45))
 
-savefig(a, "build/mask_bang_example_before.png")
-savefig(b, "build/mask_bang_example_after.png")
-AG.shortname(gdaldriver) = "MEM"
-"/tmp/jl_sha7SB/build/mask_bang_example_after.png"
+savefig(a, "build/mask_bang_example_before.png");
+savefig(b, "build/mask_bang_example_after.png"); nothing
+
 # output
+
 ```
 
 ### Before `mask!`:

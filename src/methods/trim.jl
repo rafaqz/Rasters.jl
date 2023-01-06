@@ -35,9 +35,10 @@ a = plot(aus)
 b = plot(trim(aus))
 
 savefig(a, "build/trim_example_before.png");
-savefig(b, "build/trim_example_after.png");
+savefig(b, "build/trim_example_after.png"); nothing
 
 # output
+
 ```
 
 ### Before `trim`:

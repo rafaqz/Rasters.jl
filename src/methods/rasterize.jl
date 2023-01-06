@@ -53,9 +53,10 @@ china = rasterize(china_border; res=0.1, missingval=0, fill=1, boundary=:touches
 p = plot(china; color=:spring)
 plot!(p, china_border; fillalpha=0, linewidth=0.6)
 
-savefig("build/china_rasterized.png");
+savefig("build/china_rasterized.png"); nothing
 
 # output
+
 ```
 
 ![rasterize](china_rasterized.png)
@@ -197,8 +198,8 @@ end
 # And plot
 p = plot(Rasters.trim(A); color=:spring)
 plot!(p, indonesia_border; fillalpha=0, linewidth=0.7)
-savefig("build/indonesia_rasterized.png")
-"/tmp/jl_sha7SB/build/indonesia_rasterized.png"
+
+savefig("build/indonesia_rasterized.png"); nothing
 
 # output
 
