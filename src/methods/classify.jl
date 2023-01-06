@@ -39,6 +39,7 @@ classified = classify(A, classes; others=0, missingval=0)
 plot(classified; c=:magma)
 
 savefig("build/classify_example.png"); nothing
+
 # output
 ```
 

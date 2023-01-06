@@ -52,10 +52,12 @@ shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_
 shapefile_name = "boundary.shp"
 isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 shp = Shapefile.Handle(shapefile_name).shapes[6]
-argentina_range = crop(evenness; to=shp)
-plot(argentina_range)
-savefig("build/argentina_crop_example.png")
-nothing
+
+evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
+argentina_evenness = crop(evenness; to=shp)
+plot(argentina_evenness)
+
+savefig("build/argentina_crop_example.png"); nothing
 
 # output
 ```
