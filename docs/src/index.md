@@ -210,7 +210,7 @@ to index it with `Near`.
 
 ```@example nc
 using CFTime
-A[Ti(Near(DateTime360Day(2001, 01, 17))), Y(-60.0 .. 90.0), X(190.0 .. 45.0)] |> plot 
+A[Ti(Near(DateTime360Day(2001, 01, 17))), Y(-60.0 .. 90.0), X(45.0 .. 190.0)] |> plot 
 ```
 
 Now get the mean over the timespan, then save it to disk, and plot it as a
