@@ -19,6 +19,10 @@ gdalpath = maybedownload(url)
         @test parent(gdalarray) isa Array
         @test parent(lazyarray) isa FileArray
         @test parent(eagerarray) isa Array
+        @testset "lazy broadcast" begin
+            @test read(lazyarray .* 2) == eagerarray .* 2
+            @test read(lazyarray .* 2 .* lazyarray) == eagerarray .* 2 .* eagerarray 
+        end
     end
     
     @testset "load from url" begin
