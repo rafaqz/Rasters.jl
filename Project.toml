@@ -31,7 +31,7 @@ Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 
 [compat]
 Adapt = "2, 3.0"
-ArchGDAL = "0.9"
+ArchGDAL = "0.9, 0.10"
 ColorTypes = "0.10, 0.11"
 ConstructionBase = "1"
 CoordinateTransformations = "0.6.2"
