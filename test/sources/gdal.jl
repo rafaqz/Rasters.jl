@@ -423,6 +423,10 @@ gdalpath = maybedownload(url)
         @test occursin("Extent", sprint(show, MIME"text/plain"(), rotated))
         @test rotated[X=At(-1e4; atol=0.5), Y=Near(4.24e6), Band=1] == 0x8c
         plot(rotated)
+        @testset "plotting subsetted" begin
+            subsetted = rotated[X=1:100, Y=1:100]
+            plot(subsetted)
+        end
 
         @testset "write rotated" begin
             write("rotated.tif", rotated)
