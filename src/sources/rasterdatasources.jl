@@ -15,7 +15,11 @@ Load a `RasterDataSource` as a `Raster`. `T` and `layers` are passed to
 - `month`: an `Int` between `1` and `12`, usually for `Climate` datasets
 - `date`: a `DateTime` object, usually for `Weather` datasets.
 - `res`: a `String` resolution, for datasets with multiple resolutions.
-- `MODIS` datasets require a specific set of keyword arguments: `lat`, `lon` (coordinates of the center of the raster, as latitude and longitude), `km_ab` and `km_lr` (set how many kilometers above/below and left/right of the center coordinates)
+
+`MODIS` datasets require a specific set of keyword arguments:
+
+- `lat` and `lon`: Coordinates in decimal degrees (`Float`s ) of the center of the raster
+- `km_ab` and `km_lr`: Kilometers above/below and left/right (`Integer`s up to 100) of the center of the raster
 
 Other `Raster` keywords are passed to the `Raster` constructor.
 
@@ -40,7 +44,11 @@ Load a `RasterDataSource` as a `RasterStack`. `T` and `layers` are passed to
 - `month`: an `Int` between `1` and `12`, usually for `Climate` datasets.
 - `date`: a `DateTime` object, usually for `Weather` datasets.
 - `res`: a `String` resolution, for datasets with multiple resolutions.
-- `MODIS` datasets require a specific set of keyword arguments: `lat`, `lon` (coordinates of the center of the raster, as latitude and longitude), `km_ab` and `km_lr` (set how many kilometers above/below and left/right of the center coordinates)
+
+`MODIS` datasets require a specific set of keyword arguments:
+
+- `lat` and `lon`: Coordinates in decimal degrees (`Float`s ) of the center of the raster
+- `km_ab` and `km_lr`: Kilometers above/below and left/right (`Integer`s up to 100) of the center of the raster
 
 Other `RasterStack` keywords are passed to the `RasterStack` constructor.
 
@@ -67,7 +75,11 @@ Load a `RasterDataSource` as an `AbstractRasterSeries`. `T`, `args` are passed t
 - `month`: a `Vector` or range of `Int` between `1` and `12`, usually for `Climate` datasets.
 - `date`: a `Vector` of `DateTime` objects, usually for `Weather` datasets.
 - `res`: a `String` resolution, for datasets with multiple resolutions.
-- `MODIS` datasets require a specific set of keyword arguments: `lat`, `lon` (coordinates of the center of the raster, as latitude and longitude), `km_ab` and `km_lr` (set how many kilometers above/below and left/right of the center coordinates)
+
+`MODIS` datasets require a specific set of keyword arguments:
+
+- `lat` and `lon`: Coordinates in decimal degrees (`Float`s ) of the center of the raster
+- `km_ab` and `km_lr`: Kilometers above/below and left/right (`Integer`s up to 100) of the center of the raster
 
 Other `RasterSeries` keywords are passed to the `RasterSeries` constructor.
 
