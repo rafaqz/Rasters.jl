@@ -15,7 +15,7 @@ Load a `RasterDataSource` as a `Raster`. `T` and `layers` are passed to
 - `month`: an `Int` between `1` and `12`, usually for `Climate` datasets
 - `date`: a `DateTime` object, usually for `Weather` datasets.
 - `res`: a `String` resolution, for datasets with multiple resolutions.
-- `MODIS` datasets require a specific set of keyword arguments: `lat`, `lon`, `km_ab` and `km_lr`
+- `MODIS` datasets require a specific set of keyword arguments: `lat`, `lon` (coordinates of the center of the raster, as latitude and longitude), `km_ab` and `km_lr` (set how many kilometers above/below and left/right of the center coordinates)
 
 Other `Raster` keywords are passed to the `Raster` constructor.
 
@@ -40,7 +40,7 @@ Load a `RasterDataSource` as a `RasterStack`. `T` and `layers` are passed to
 - `month`: an `Int` between `1` and `12`, usually for `Climate` datasets.
 - `date`: a `DateTime` object, usually for `Weather` datasets.
 - `res`: a `String` resolution, for datasets with multiple resolutions.
-- `MODIS` datasets require a specific set of keyword arguments: `lat`, `lon`, `km_ab` and `km_lr`
+- `MODIS` datasets require a specific set of keyword arguments: `lat`, `lon` (coordinates of the center of the raster, as latitude and longitude), `km_ab` and `km_lr` (set how many kilometers above/below and left/right of the center coordinates)
 
 Other `RasterStack` keywords are passed to the `RasterStack` constructor.
 
@@ -67,7 +67,7 @@ Load a `RasterDataSource` as an `AbstractRasterSeries`. `T`, `args` are passed t
 - `month`: a `Vector` or range of `Int` between `1` and `12`, usually for `Climate` datasets.
 - `date`: a `Vector` of `DateTime` objects, usually for `Weather` datasets.
 - `res`: a `String` resolution, for datasets with multiple resolutions.
-- `MODIS` datasets require a specific set of keyword arguments: `lat`, `lon`, `km_ab` and `km_lr`
+- `MODIS` datasets require a specific set of keyword arguments: `lat`, `lon` (coordinates of the center of the raster, as latitude and longitude), `km_ab` and `km_lr` (set how many kilometers above/below and left/right of the center coordinates)
 
 Other `RasterSeries` keywords are passed to the `RasterSeries` constructor.
 
