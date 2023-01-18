@@ -298,9 +298,10 @@ function _burn_line!(A::AbstractRaster, line, fill)
     raw_x_offset = xd[1] - x_scale / 2
     raw_y_offset = yd[1] - x_scale / 2
     # Converted lookup to array axis values
-    start = (; x=(line.start.x - raw_x_offset)/x_scale, y=(line.start.y - raw_y_offset)/y_scale)
-    stop = (; x=(line.stop.x - raw_x_offset)/x_scale, y=(line.stop.y - raw_y_offset)/y_scale)
-    x, y = floor(Int, start.x) + 1, floor(Int, start.y) + 1 # Int
+    start = (x=(line.start.x - raw_x_offset)/x_scale, y=(line.start.y - raw_y_offset)/y_scale)
+    stop = (x=(line.stop.x - raw_x_offset)/x_scale, y=(line.stop.y - raw_y_offset)/y_scale)
+    x, y = ceil(Int, start.x), ceil(Int, start.y) # Int
+    @show x, y
 
     diff_x = stop.x - start.x
     diff_y = stop.y - start.y
@@ -310,6 +311,7 @@ function _burn_line!(A::AbstractRaster, line, fill)
     # Straight distance to the first vertical/horizontal grid boundaries
     xoffset = stop.x > start.x ? (ceil(start.x) - start.x) : (start.x - floor(start.x))
     yoffset = stop.y > start.y ? (ceil(start.y) - start.y) : (start.y - floor(start.y))
+    @show xoffset yoffset
     # Angle of ray/slope.
     # max: How far to move along the ray to cross the first cell boundary.
     # delta: How far to move along the ray to move 1 grid cell.
@@ -319,26 +321,30 @@ function _burn_line!(A::AbstractRaster, line, fill)
     cs = @fastmath cos(ang)
     si = @fastmath sin(ang)
     delta_x, max_x = if isapprox(cs, zero(cs); atol=1e-10)
+        @show Inf
         -Inf, Inf
     else
         1.0 / cs, xoffset / cs
     end
     delta_y, max_y = if isapprox(si, zero(si); atol=1e-10)
+        @show Inf
         -Inf, Inf
     else
         1.0 / si, yoffset / si
     end
-    # Travel one grid cell at a time.
-    manhattan_distance = floor(Int, abs(floor(start.x) - floor(stop.x)) + abs(floor(start.y) - floor(stop.y)))
     # For arbitrary dimension indexing
     dimconstructors = map(DD.basetypeof, (xd, yd))
+    # Count how many exactly hit lines
     n_on_line = 0
+    # Travel one grid cell at a time.
+    manhattan_distance = floor(Int, abs(ceil(start.x) - floor(stop.x)) + abs(ceil(start.y) - floor(stop.y)))
+    @show manhattan_distance
     for _ in 0:manhattan_distance
         D = map((d, o) -> d(o), dimconstructors, (x, y))
         if checkbounds(Bool, A, D...)
             n_on_line += 1
-            x = fill isa Function ? fill(A[D...]) : fill
-            @inbounds A[D...] = x
+            val = fill isa Function ? fill(A[D...]) : fill
+            @inbounds A[D...] = val
         end
         # Only move in either X or Y coordinates, not both.
         if abs(max_x) < abs(max_y)
