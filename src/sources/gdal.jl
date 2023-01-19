@@ -358,7 +358,6 @@ function _gdal_with_driver(f, filename, driver, create_kw;
         driver = "GTiff"
     end
     gdaldriver = driver isa String ? AG.getdriver(driver) : driver
-    @show AG.shortname(gdaldriver)
     if AG.shortname(gdaldriver) in GDAL_DRIVERS_SUPPORTING_CREATE
         AG.create(filename; driver=gdaldriver, create_kw..., options=options_vec) do dataset
             f(dataset)

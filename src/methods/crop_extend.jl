@@ -27,7 +27,7 @@ evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 rnge = Raster(EarthEnv{HabitatHeterogeneity}, :range)
 
 # Roughly cut out New Zealand from the evenness raster
-nz_bounds = X(165..180), Y(-32..-50)
+nz_bounds = X(165 .. 180), Y(-50 .. -32)
 nz_evenness = evenness[nz_bounds...]
 
 # Crop range to match evenness
@@ -35,25 +35,31 @@ nz_range = crop(rnge; to=nz_evenness)
 plot(nz_range)
 
 savefig("build/nz_crop_example.png")
+nothing
+
 # output
 ```
 
-![new zealand evennes cropped](nz_crop_example.png)
+![new zealand evenness cropped](nz_crop_example.png)
 
 Crop to a polygon:
 
-```julia
+```jldoctest
 using Rasters, Plots, Dates, Shapefile, Downloads
-using Rasters.LookupArrays
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
 shapefile_name = "boundary.shp"
 isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 shp = Shapefile.Handle(shapefile_name).shapes[6]
-argentina_range = crop(evenness; to=shp)
-plot(argentina_range)
-savefig("build/argentina_crop_example.png")
+
+evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
+argentina_evenness = crop(evenness; to=shp)
+plot(argentina_evenness)
+
+savefig("build/argentina_crop_example.png"); nothing
+
+# output
 ```
 
 ![argentina evenness cropped](argentina_crop_example.png)
@@ -126,7 +132,7 @@ evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 rnge = Raster(EarthEnv{HabitatHeterogeneity}, :range)
 
 # Roughly cut out South America
-sa_bounds = X(-88..-32), Y(-57..13)
+sa_bounds = X(-88 .. -32), Y(-57 .. 13)
 sa_evenness = evenness[sa_bounds...]
 
 # Extend range to match the whole-world raster
@@ -134,6 +140,7 @@ sa_range = extend(sa_evenness; to=rnge)
 plot(sa_range)
 
 savefig("build/extend_example.png")
+nothing
 # output
 ```
 

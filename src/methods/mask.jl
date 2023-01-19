@@ -60,7 +60,7 @@ $SHAPE_KEYWORDS
 Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask.
 
-```jldoctest
+```julia
 using Rasters, Plots, Dates
 
 # Load and plot the file
@@ -75,8 +75,8 @@ wc_mask = resample(wc; to=awap)
 awap_masked = mask(awap; with=wc_mask)
 b = plot(awap_masked; clims=(10, 45))
 
-savefig(a, "build/mask_example_before.png")
-savefig(b, "build/mask_example_after.png")
+savefig(a, "build/mask_example_before.png");
+savefig(b, "build/mask_example_after.png"); nothing
 # output
 
 ```
@@ -149,12 +149,12 @@ or by a polygon.
 Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask to match the size and projection.
 
-```jldoctest
+```julia
 using Rasters, Plots, Dates
 
 # Load and plot the file
 awap = read(RasterStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
-a = plot(awap; clims=(10, 45))
+a = plot(awap; clims=(10, 45), c=:imola)
 
 # Create a mask my resampling a worldclim file
 wc = Raster(WorldClim{Climate}, :prec; month=1)
@@ -164,9 +164,11 @@ wc_mask = resample(wc; to=awap)
 mask!(awap; with=wc_mask)
 b = plot(awap; clims=(10, 45))
 
-savefig(a, "build/mask_bang_example_before.png")
-savefig(b, "build/mask_bang_example_after.png")
+savefig(a, "build/mask_bang_example_before.png");
+savefig(b, "build/mask_bang_example_after.png"); nothing
+
 # output
+
 ```
 
 ### Before `mask!`:
@@ -248,7 +250,8 @@ using Rasters, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 boolmask(wc) |> plot
 
-savefig("build/boolmask_example.png")
+savefig("build/boolmask_example.png"); nothing
+
 # output
 ```
 
@@ -308,7 +311,8 @@ using Rasters, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 missingmask(wc) |> plot
 
-savefig("build/missingmask_example.png")
+savefig("build/missingmask_example.png"); nothing
+
 # output
 ```
 

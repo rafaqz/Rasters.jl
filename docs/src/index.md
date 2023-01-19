@@ -210,7 +210,7 @@ to index it with `Near`.
 
 ```@example nc
 using CFTime
-A[Ti(Near(DateTime360Day(2001, 01, 17))), Y(-60.0 .. 90.0), X(190.0 .. 45.0)] |> plot 
+A[Ti(Near(DateTime360Day(2001, 01, 17))), Y(-60.0 .. 90.0), X(45.0 .. 190.0)] |> plot 
 ```
 
 Now get the mean over the timespan, then save it to disk, and plot it as a
@@ -252,35 +252,30 @@ A[Y(Near(20.0)), Ti(1)] |> plot
 Load occurrences for the Mountain Pygmy Possum using GBIF.jl
 
 ```@example sdm
-using Rasters, GBIF, Plots 
-records = GBIF.occurrences("scientificName" => "Burramys parvus", "limit" => 300)
-
-# Get the rest of the occurrences, we need to do this manually with a loop.
-# Note: GBIF.jl uses non-standard semantics for `size`. This is comparing 
-# the occurrances already downloaded with the total occurrances.
-while length(records) < size(records)
-    occurrences!(records)
-end
+using Rasters, GBIF2, Plots 
+records = GBIF2.occurrence_search("Burramys parvus"; limit=300)
 ```
 
-Extract the longitude/latitude value to a Vector of Tuple:
+Extract the longitude/latitude value to a `Vector` of points
+(a `Tuple` counts as a `(x, y)` point in GeoInterface.jl):
 
 ```@example sdm
-coords = [(r.longitude, r.latitude) for r in records if !ismissing(r.longitude)]
+coords = [(r.decimalLongitude, r.decimalLatitude) for r in records if !ismissing(r.decimalLatitude)]
 ```
 
 Get BioClim layers and subset to south-east Australia
 
 ```@example sdm
 A = RasterStack(WorldClim{BioClim}, (1, 3, 7, 12))
-SE_aus = A[X(138 .. 155), Y(-40 .. -25), Band(1)]
+se_aus = A[X(138 .. 155), Y(-40 .. -25), Band(1)]
 ```
 
 Plot BioClim predictors and scatter occurrence points on all subplots
 
 ```@example sdm
-p = plot(SE_aus);
-foreach(i -> scatter!(p, coords; subplot=i, legend=:none), 1:4)
+p = plot(se_aus);
+kw = (legend=:none, opacity=0.5, markershape=:cross, markercolor=:black)
+foreach(i -> scatter!(p, coords; subplot=i, kw...), 1:4)
 display(p)
 ```
 
@@ -288,7 +283,7 @@ Then extract predictor variables and write to CSV.
 
 ```@example sdm
 using CSV
-predictors = extract(SE_aus, coords)
+predictors = collect(extract(se_aus, coords))
 CSV.write("burramys_parvus_predictors.csv", predictors)
 ```
 

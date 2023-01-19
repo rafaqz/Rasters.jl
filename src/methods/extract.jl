@@ -24,26 +24,28 @@ Here we extact points matching the occurrence of the Mountain Pygmy Possum,
 _Burramis parvus_. This could be used to fit a species distribution model.
 
 ```jldoctest
-using Rasters, GBIF, CSV
+using Rasters, GBIF2, CSV
 
 # Get a stack of BioClim layers, and replace missing values with `missing`
 st = RasterStack(WorldClim{BioClim}, (1, 3, 5, 7, 12))[Band(1)] |> replace_missing
 
 # Download some occurrence data
-obs = GBIF.occurrences("scientificName" => "Burramys parvus", "limit" => 5)
+obs = GBIF2.occurrence_search("Burramys parvus"; limit = 10)
 
 # Convert observations to points
-points = ((o.longitude, o.latitude) for o in obs if !ismissing(o.longitude))
+pnts = collect((o.decimalLongitude, o.decimalLatitude) for o in obs if !ismissing(o.decimalLongitude))
 
 # use `extract` to get values for all layers at each observation point.
-vals = collect(extract(st, points))
+# We `collect` to get a `Vector` from the lazy iterator.
+collect(extract(st, pnts))
 
 # output
-4-element Vector{NamedTuple{(:geometry, :bio1, :bio3, :bio5, :bio7, :bio12), Tuple{Tuple{Float64, Float64}, Float32, Float32, Float32, Float32, Float32}}}:
- (geometry = (148.450743, -35.999643), bio1 = 8.269542, bio3 = 41.030262, bio5 = 21.4485, bio7 = 23.858, bio12 = 1440.0)
- (geometry = (148.450743, -35.999643), bio1 = 8.269542, bio3 = 41.030262, bio5 = 21.4485, bio7 = 23.858, bio12 = 1440.0)
- (geometry = (148.451335, -35.999862), bio1 = 8.269542, bio3 = 41.030262, bio5 = 21.4485, bio7 = 23.858, bio12 = 1440.0)
- (geometry = (148.451335, -35.999862), bio1 = 8.269542, bio3 = 41.030262, bio5 = 21.4485, bio7 = 23.858, bio12 = 1440.0)
+5-element Vector{NamedTuple{(:geometry, :bio1, :bio3, :bio5, :bio7, :bio12), Tuple{Tuple{Float64, Float64}, Float32, Float32, Float32, Float32, Float32}}}:
+ (geometry = (148.326515, -36.260389), bio1 = 8.8584585, bio3 = 41.039413, bio5 = 21.6955, bio7 = 23.47875, bio12 = 1389.0)
+ (geometry = (148.2198, -36.351113), bio1 = 7.8357186, bio3 = 41.597527, bio5 = 20.51325, bio7 = 23.50275, bio12 = 1500.0)
+ (geometry = (148.214924, -36.421454), bio1 = 7.8357186, bio3 = 41.597527, bio5 = 20.51325, bio7 = 23.50275, bio12 = 1500.0)
+ (geometry = (147.096394, -36.935687), bio1 = 9.408354, bio3 = 40.790546, bio5 = 22.39425, bio7 = 23.0895, bio12 = 1292.0)
+ (geometry = (148.347186, -36.504673), bio1 = 8.420698, bio3 = 43.542496, bio5 = 21.20175, bio7 = 23.142, bio12 = 1223.0)
 ```
 """
 function extract end

@@ -1,3 +1,6 @@
+const FLATTEN_SELECT = FileArray
+const FLATTEN_IGNORE = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
+
 
 """
     AbstractRaster <: DimensionalData.AbstractDimArray
@@ -169,18 +172,37 @@ after we finish working with them.
 """
 function Base.open(f::Function, A::AbstractRaster; kw...)
     # Open FileArray to expose the actual dataset object, even inside nested wrappers
-    select = FileArray
-    ignore = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
-    fa = Flatten.flatten(parent(A), select, ignore)
-    if fa == ()
+    fas = Flatten.flatten(parent(A), FLATTEN_SELECT, FLATTEN_IGNORE)
+    if fas == ()
         f(Raster(parent(A), dims(A), refdims(A), name(A), metadata(A), missingval(A)))
     else
-        open(fa[1]; kw...) do x
-            # Rewrap the opened object where the FileArray was
-            d = Flatten.reconstruct(parent(A), (x,), select, ignore) 
-            f(Raster(d, dims(A), refdims(A), name(A), metadata(A), missingval(A)))
+        if length(fas) == 1
+            _open_one(f, A, fas[1]; kw...)
+        else
+            _open_many(f, A, fas; kw...)
         end
     end
+end
+
+function _open_one(f, A::AbstractRaster, fa::FileArray; kw...)
+    open(fa; kw...) do x
+        # Rewrap the opened object where the FileArray was nested in the parent array
+        data = Flatten.reconstruct(parent(A), (x,), FLATTEN_SELECT, FLATTEN_IGNORE)
+        openraster = Raster(data, dims(A), refdims(A), name(A), metadata(A), missingval(A))
+        f(openraster)
+    end
+end
+
+_open_many(f, A::AbstractRaster, fas::Tuple; kw...) = _open_many(f, A, fas, (); kw...)
+function _open_many(f, A::AbstractRaster, fas::Tuple, oas::Tuple; kw...)
+    open(fas[1]; kw...) do oa
+        _open_many(f, A, Base.tail(fas), (oas..., oa); kw...)
+    end
+end
+function _open_many(f, A::AbstractRaster, fas::Tuple{}, oas::Tuple; kw...)
+    data = Flatten.reconstruct(parent(A), oas, FLATTEN_SELECT, FLATTEN_IGNORE) 
+    openraster = Raster(data, dims(A), refdims(A), name(A), metadata(A), missingval(A))
+    f(openraster)
 end
 
 # Concrete implementation ######################################################

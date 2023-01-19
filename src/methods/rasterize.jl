@@ -53,9 +53,10 @@ china = rasterize(china_border; res=0.1, missingval=0, fill=1, boundary=:touches
 p = plot(china; color=:spring)
 plot!(p, china_border; fillalpha=0, linewidth=0.6)
 
-savefig("build/china_rasterized.png")
+savefig("build/china_rasterized.png"); nothing
 
 # output
+
 ```
 
 ![rasterize](china_rasterized.png)
@@ -180,7 +181,7 @@ shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_
 shapefile_name = "country_borders.shp"
 isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 
-# Load the shapes for denmark
+# Load the shapes for indonesia
 indonesia_border = Shapefile.Handle(shapefile_name).shapes[1]
 
 # Make an empty EPSG 4326 projected Raster of the area of Indonesia
@@ -197,7 +198,8 @@ end
 # And plot
 p = plot(Rasters.trim(A); color=:spring)
 plot!(p, indonesia_border; fillalpha=0, linewidth=0.7)
-savefig("build/indonesia_rasterized.png")
+
+savefig("build/indonesia_rasterized.png"); nothing
 
 # output
 

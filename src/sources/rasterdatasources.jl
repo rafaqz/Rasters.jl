@@ -16,6 +16,11 @@ Load a `RasterDataSource` as a `Raster`. `T` and `layers` are passed to
 - `date`: a `DateTime` object, usually for `Weather` datasets.
 - `res`: a `String` resolution, for datasets with multiple resolutions.
 
+`MODIS` datasets require a specific set of keyword arguments:
+
+- `lat` and `lon`: Coordinates in decimal degrees (`Float`s ) of the center of the raster
+- `km_ab` and `km_lr`: Kilometers above/below and left/right (`Integer`s up to 100) of the center of the raster
+
 Other `Raster` keywords are passed to the `Raster` constructor.
 
 See the docs for
@@ -39,6 +44,11 @@ Load a `RasterDataSource` as a `RasterStack`. `T` and `layers` are passed to
 - `month`: an `Int` between `1` and `12`, usually for `Climate` datasets.
 - `date`: a `DateTime` object, usually for `Weather` datasets.
 - `res`: a `String` resolution, for datasets with multiple resolutions.
+
+`MODIS` datasets require a specific set of keyword arguments:
+
+- `lat` and `lon`: Coordinates in decimal degrees (`Float`s ) of the center of the raster
+- `km_ab` and `km_lr`: Kilometers above/below and left/right (`Integer`s up to 100) of the center of the raster
 
 Other `RasterStack` keywords are passed to the `RasterStack` constructor.
 
@@ -66,6 +76,11 @@ Load a `RasterDataSource` as an `AbstractRasterSeries`. `T`, `args` are passed t
 - `date`: a `Vector` of `DateTime` objects, usually for `Weather` datasets.
 - `res`: a `String` resolution, for datasets with multiple resolutions.
 
+`MODIS` datasets require a specific set of keyword arguments:
+
+- `lat` and `lon`: Coordinates in decimal degrees (`Float`s ) of the center of the raster
+- `km_ab` and `km_lr`: Kilometers above/below and left/right (`Integer`s up to 100) of the center of the raster
+
 Other `RasterSeries` keywords are passed to the `RasterSeries` constructor.
 
 See the docs for
@@ -84,7 +99,7 @@ function RasterSeries(T::Type{<:RasterDataSource}, layers;
     end
     datedim = if haskey(values(kw), :date)
         if values(kw)[:date] isa Tuple
-            dates = RasterDataSources.date_sequence(T, values(kw)[:date])
+            dates = RasterDataSources.date_sequence(T, values(kw)[:date]; kw...)
             Ti(dates; lookup=Sampled(; sampling=Intervals(Start())))
         elseif values(kw)[:date] isa AbstractArray
             dates = values(kw)[:date]
@@ -120,7 +135,7 @@ _source_crs(T::Type{ALWB}) = crs=EPSG(4326)
 function _filterkw(kw)
     rds = []; gd = []
     for p in kw
-        dest = first(p) in (:date, :month, :res) ? rds : gd
+        dest = first(p) in (:date, :month, :res, :lat, :lon, :km_ab, :km_lr) ? rds : gd
         push!(dest, p)
     end
     rds, gd
