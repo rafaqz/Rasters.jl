@@ -4,14 +4,14 @@ struct _Defined end
 """
     rasterize(obj; to, fill, kw...)
 
-Rasterize the a GeoInterface.jl compatable geometry or feature,
+Rasterize a GeoInterface.jl compatable geometry or feature,
 or a Tables.jl table with a `:geometry` column of GeoInterface.jl objects,
 or `X`, `Y` points columns.
 
 # Arguments
 
 - `obj`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
-    or a Tables.jl compatible object containing points and values columns.
+    or a Tables.jl compatible object containing points and values columns or an `:geometry`.
 
 # Keywords
 
@@ -136,14 +136,14 @@ end
 """
     rasterize!(dest, data; fill, atol)
 
-Rasterize the geometries in `data` into the [`Raster`](@ref) or [`RasterStack`](@ref) `x`,
+Rasterize the geometries in `data` into the [`Raster`](@ref) or [`RasterStack`](@ref) `dest`,
 using the values specified by `fill`.
 
 # Arguments
 
 - `dest`: a `Raster` or `RasterStack` to rasterize into.
-- `data`: an GeoInterface.jl compatible object or `AbstractVector` of such objects,
-    or a Tables.jl compatible table containing GeoInterface compatible objects or
+- `data`: a GeoInterface.jl compatible object or an `AbstractVector` of such objects,
+    or a Tables.jl compatible table containing `:geometry` column of GeoInterface compatible objects or
     columns with point names `X` and `Y`.
 - `fill`: the value to fill a polygon with. A `Symbol` or tuple of `Symbol` will
     be used to retrieve properties from features or column values from table rows.
@@ -163,7 +163,7 @@ These can be used when a `GeoInterface.AbstractGeometry` is passed in.
 And specifically for `shape=:polygon`:
 
 - `boundary`: include pixels where the `:center` is inside the polygon, where
-    the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
+    the polygon `:touches` the pixel, or that are completely `:inside` the polygon.
 
 ## Table keywords
 

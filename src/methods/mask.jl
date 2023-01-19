@@ -7,7 +7,7 @@ const TO_KEYWORD = """
 """
 const SIZE_KEYWORD = """
 - `size`: the size of the output array, as a `Tuple{Int,Int}` or single `Int` for a square.
-    Only required when `to is not used or is an `Extents.Extent`, otherwise `size`.
+    Only required when `to` is not used or is an `Extents.Extent`, otherwise `size`.
 """
 const RES_KEYWORD = """
 - `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
@@ -17,7 +17,7 @@ const SHAPE_KEYWORDS = """
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point` geometries.
     using points or lines as polygons may have unexpected results.
 - `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
-    where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
+    where the polygon `:touches` the pixel, or that are completely `:inside` the polygon.
     The default is `:center`.
 """
 
