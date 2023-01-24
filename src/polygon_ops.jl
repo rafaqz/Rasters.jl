@@ -1,39 +1,45 @@
 
 const Poly = AbstractVector{<:Union{NTuple{<:Any,<:Real},AbstractVector{<:Real}}}
 
-const DEFAULT_POINT_ORDER = (XDim, YDim, ZDim)
+const DEFAULT_POINT_ORDER = (X(), Y(), Z())
 const DEFAULT_TABLE_DIM_KEYS = (:X, :Y, :Z)
 
-# _fill_geometry!
+# _burn_geometry!
 # Fill a raster with `fill` where it interacts with a geometry.
 # This is used in `boolmask` TODO move to mask.jl ?
-function fill_geometry!(B::AbstractRaster, data; kw...)
-    if Tables.istable(data)
+# 
+# _istable keyword is a hack so we know not to pay the
+# price of calling `istable` which calls `hasmethod`
+function burn_geometry!(B::AbstractRaster, data; kw...)
+    if GI.isgeometry(data) || GI.isfeature(data) 
+        _burn_geometry!(B, GI.trait(data), data; kw...)
+    elseif Tables.istable(data)
         geomcolname = first(GI.geometrycolumns(data))
         for row in Tables.rows(data)
             geom = Tables.getcolumn(row, geomcolname)
-            _fill_geometry!(B, GI.trait(geom), geom; kw...)
+            _burn_geometry!(B, GI.trait(geom), geom; kw...)
         end
     else
-        _fill_geometry!(B, GI.trait(data), data; kw...)
+        _burn_geometry!(B, GI.trait(data), data; kw...)
     end
+    return B
 end
 
 # This feature filling is simplistic in that it does not use any feature properties.
 # This is suitable for masking. See `rasterize` for a version using properties.
-_fill_geometry!(B, obj; kw...) = _fill_geometry!(B, GI.trait(obj), obj; kw...)
-function _fill_geometry!(B::AbstractRaster, ::GI.AbstractFeatureTrait, feature; kw...)
-    _fill_geometry!(B, GI.geometry(feature); kw...)
+_burn_geometry!(B, obj; kw...) = _burn_geometry!(B, GI.trait(obj), obj; kw...)
+function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureTrait, feature; kw...)
+    _burn_geometry!(B, GI.geometry(feature); kw...)
 end
-function _fill_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait, fc; kw...)
-    _fill_geometry!(B, (GI.geometry(f) for f in GI.getfeature(fc)); kw...)
+function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait, fc; kw...)
+    _burn_geometry!(B, (GI.geometry(f) for f in GI.getfeature(fc)); kw...)
 end
-function _fill_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; shape=nothing, verbose=true, kw...)
+function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; shape=nothing, verbose=true, kw...)
     shape = shape isa Symbol ? shape : _geom_shape(geom)
     if shape === :point
-        _fill_point!(B, geom; shape, kw...)
+        _burn_point!(B, geom; shape, kw...)
     elseif shape === :line
-        _fill_lines!(B, geom; shape, kw...)
+        _burn_lines!(B, geom; shape, kw...)
     elseif shape === :polygon
         geomextent = _extent(geom)
         arrayextent = Extents.extent(B, DEFAULT_POINT_ORDER)
@@ -44,30 +50,31 @@ function _fill_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; sh
             end
             return B
         end
-        _fill_polygon!(B, geom; shape, geomextent, kw...)
+        _burn_polygon!(B, geom; shape, geomextent, kw...)
     else
         throw(ArgumentError("`shape` is $shape, must be `:point`, `:line`, `:polygon` or `nothing`"))
     end
     return B
 end
 # Treat geoms as an iterator
-function _fill_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine=true, kw...)
+function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine=true, kw...)
     if combine
         for geom in geoms
-            _fill_geometry!(B, geom; kw...)
+            _burn_geometry!(B, geom; kw...)
         end
     else
         for (i, geom) in enumerate(geoms)
             B1 = view(B, Dim{:geometry}(i))
-            _fill_geometry!(B1, geom; kw...)
+            _burn_geometry!(B1, geom; kw...)
         end
     end
+    return B
 end
 
-# _fill_polygon!
+# _burn_polygon!
 # Fill a raster with `fill` where pixels are inside a polygon
 # `boundary` determines how edges are handled
-function _fill_polygon!(B::AbstractRaster, geom;
+function _burn_polygon!(B::AbstractRaster, geom;
     fill=true, boundary=:center, geomextent , kw...
 )
     # Subset to the area the geom covers
@@ -100,11 +107,11 @@ function _fill_polygon!(B::AbstractRaster, geom;
     end
     inpolydims = dims(B, DEFAULT_POINT_ORDER)
     reshaped = Raster(reshape(inpoly, size(inpolydims)), inpolydims)
-    return _inner_fill_polygon!(B, geom, reshaped, shifted_dims; fill, boundary)
+    return _inner_burn_polygon!(B, geom, reshaped, shifted_dims; fill, boundary)
 end
 
 # split to make a type stability function barrier
-function _inner_fill_polygon!(B::AbstractRaster, geom, reshaped, shifted_dims; fill::Bool=true, boundary=:center, verbose=true, kw...)
+function _inner_burn_polygon!(B::AbstractRaster, geom, reshaped, shifted_dims; fill::Bool=true, boundary=:center, verbose=true, kw...)
     # Get the array as points
     # Use the first column of the output - the points in the polygon,
     # and reshape to match `A`
@@ -126,11 +133,11 @@ function _inner_fill_polygon!(B::AbstractRaster, geom, reshaped, shifted_dims; f
     if boundary === :touches
         B1 = setdims(B, shifted_dims)
         # Add the line pixels
-        n_on_line = _fill_lines!(B1, geom; fill)
+        n_on_line = _burn_lines!(B1, geom; fill)
     elseif boundary === :inside
         B1 = setdims(B, shifted_dims)
         # Remove the line pixels
-        n_on_line = _fill_lines!(B1, geom; fill=!fill)
+        n_on_line = _burn_lines!(B1, geom; fill=!fill)
     elseif boundary !== :center
         throw(ArgumentError("`boundary` can be :touches, :inside, or :center, got $boundary"))
     end
@@ -166,19 +173,19 @@ Base.size(yp::IYPerm) = (prod(map(length, dims(yp))),)
 
 _iyperm(dims::Tuple) = IYPerm(dims)
 
-# _fill_point!
+# _burn_point!
 # Fill a raster with `fill` where points are inside raster pixels
-@noinline _fill_point!(x::RasterStackOrArray, geom; kw...) = _fill_point!(x, GI.geomtrait(geom), geom; kw...)
-@noinline function _fill_point!(x::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom; kw...)
+@noinline _burn_point!(x::RasterStackOrArray, geom; kw...) = _burn_point!(x, GI.geomtrait(geom), geom; kw...)
+@noinline function _burn_point!(x::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom; kw...)
     # Just find which pixels contain the points, and set them to true
     _without_mapped_crs(x) do x1
         for point in GI.getpoint(geom)
-            _fill_point!(x, point; kw...)
+            _burn_point!(x, point; kw...)
         end
     end
     return x
 end
-@noinline function _fill_point!(x::RasterStackOrArray, ::GI.AbstractPointTrait, point;
+@noinline function _burn_point!(x::RasterStackOrArray, ::GI.AbstractPointTrait, point;
     fill=true, atol=nothing, kw...
 )
     selectors = map(dims(x, DEFAULT_POINT_ORDER)) do d
@@ -187,22 +194,22 @@ end
     # TODO make a check in dimensionaldata that returns the index if it is inbounds
     if hasselection(x, selectors)
         I = dims2indices(x, selectors)
-        _fill_index!(x, fill, I)
+        _burn_index!(x, fill, I)
     end
     return x
 end
 
 # Fill Int indices directly
-function _fill_index!(st::AbstractRasterStack, fill, I)
+function _burn_index!(st::AbstractRasterStack, fill, I)
     foreach(st, fill) do A, f
-        _fill_index!(A, f, I)
+        _burn_index!(A, f, I)
     end
 end
-_fill_index!(A::AbstractRaster, fill, I::NTuple{<:Any,Int}) = A[I...] = fill
-_fill_index!(A::AbstractRaster, fill::Function, I::NTuple{<:Any,Int}) =
+_burn_index!(A::AbstractRaster, fill, I::NTuple{<:Any,Int}) = A[I...] = fill
+_burn_index!(A::AbstractRaster, fill::Function, I::NTuple{<:Any,Int}) =
     A[I...] = fill(A[I...])
 # Handle filling over arbitrary dimensions.
-function _fill_index!(A::AbstractRaster, fill, I)
+function _burn_index!(A::AbstractRaster, fill, I)
     v = view(A, I...)
     for i in eachindex(v)
         val = fill isa Function ? fill(v[i]) : fill
@@ -210,10 +217,10 @@ function _fill_index!(A::AbstractRaster, fill, I)
     end
 end
 
-# _fill_lines!
+# _burn_lines!
 # Fill a raster with `fill` where pixels touch lines in a geom
 # Separated for a type stability function barrier
-function _fill_lines!(B::AbstractRaster, geom; fill=true, kw...)
+function _burn_lines!(B::AbstractRaster, geom; fill=true, kw...)
     # Make sure dims have `Center` locus
     centered_dims = map(dims(B, DEFAULT_POINT_ORDER)) do d
         d = DD.maybeshiftlocus(Center(), d)
@@ -228,57 +235,67 @@ function _fill_lines!(B::AbstractRaster, geom; fill=true, kw...)
             A
         end
     end
-    return _fill_lines!(forward_ordered_B, geom, fill)
+    return _burn_lines!(forward_ordered_B, geom, fill)
 end
 
-_fill_lines!(forward_ordered_B, geom, fill) =
-    _fill_lines!(forward_ordered_B, GI.geomtrait(geom), geom, fill)
-function _fill_lines!(B::AbstractArray, ::Union{GI.MultiLineStringTrait}, geom, fill)
+_burn_lines!(forward_ordered_B, geom, fill) =
+    _burn_lines!(forward_ordered_B, GI.geomtrait(geom), geom, fill)
+function _burn_lines!(B::AbstractArray, ::Union{GI.MultiLineStringTrait}, geom, fill)
     n_on_line = 0
     for linestring in GI.getlinestring(geom)
-        n_on_line += _fill_lines!(B, linestring, fill)
+        n_on_line += _burn_lines!(B, linestring, fill)
     end
     return n_on_line
 end
-function _fill_lines!(
+function _burn_lines!(
     B::AbstractArray, ::Union{GI.MultiPolygonTrait,GI.PolygonTrait}, geom, fill
 )
     n_on_line = 0
     for ring in GI.getring(geom)
-        n_on_line += _fill_lines!(B, ring, fill)
+        n_on_line += _burn_lines!(B, ring, fill)
     end
     return n_on_line
 end
-function _fill_lines!(
+function _burn_lines!(
     B::AbstractArray, ::Union{GI.LineStringTrait,GI.LinearRingTrait}, linestring, fill
 )
     isfirst = true
-    local firstpoint, lastpoint
+    local firstpoint, laststop
     n_on_line = 0
     for point in GI.getpoint(linestring)
         if isfirst
             isfirst = false
             firstpoint = point
-            lastpoint = point
+            laststop = (x=GI.x(point), y=GI.y(point))
             continue
         end
         if point == firstpoint
             isfirst = true
         end
         line = (
-            start=(x=GI.x(lastpoint), y=GI.y(lastpoint)),
+            start=laststop,
             stop=(x=GI.x(point), y=GI.y(point)),
         )
+        laststop = line.stop
         n_on_line += _burn_line!(B, line, fill)
-        lastpoint = point
     end
     return n_on_line
+end
+function _burn_lines!(
+    B::AbstractArray, t::GI.LineTrait, line, fill
+)
+    p1, p2 = GI.getpoint(t, line)
+    line1 = (
+        start=(x=GI.x(p1), y=GI.y(p1)),
+        stop=(x=GI.x(p2), y=GI.y(p2)),
+    )
+    return _burn_line!(B, line1, fill)
 end
 
 # _burn_line!
 #
 # Line-burning algorithm
-# Burns a line into a raster with `fill` value where pixels touch a line
+# Burns a single line into a raster with value where pixels touch a line
 #
 # TODO: generalise to Irregular spans?
 function _burn_line!(A::AbstractRaster, line, fill)
@@ -301,7 +318,6 @@ function _burn_line!(A::AbstractRaster, line, fill)
     start = (x=(line.start.x - raw_x_offset)/x_scale, y=(line.start.y - raw_y_offset)/y_scale)
     stop = (x=(line.stop.x - raw_x_offset)/x_scale, y=(line.stop.y - raw_y_offset)/y_scale)
     x, y = ceil(Int, start.x), ceil(Int, start.y) # Int
-    @show x, y
 
     diff_x = stop.x - start.x
     diff_y = stop.y - start.y
@@ -311,7 +327,6 @@ function _burn_line!(A::AbstractRaster, line, fill)
     # Straight distance to the first vertical/horizontal grid boundaries
     xoffset = stop.x > start.x ? (ceil(start.x) - start.x) : (start.x - floor(start.x))
     yoffset = stop.y > start.y ? (ceil(start.y) - start.y) : (start.y - floor(start.y))
-    @show xoffset yoffset
     # Angle of ray/slope.
     # max: How far to move along the ray to cross the first cell boundary.
     # delta: How far to move along the ray to move 1 grid cell.
@@ -321,13 +336,11 @@ function _burn_line!(A::AbstractRaster, line, fill)
     cs = @fastmath cos(ang)
     si = @fastmath sin(ang)
     delta_x, max_x = if isapprox(cs, zero(cs); atol=1e-10)
-        @show Inf
         -Inf, Inf
     else
         1.0 / cs, xoffset / cs
     end
     delta_y, max_y = if isapprox(si, zero(si); atol=1e-10)
-        @show Inf
         -Inf, Inf
     else
         1.0 / si, yoffset / si
@@ -338,7 +351,6 @@ function _burn_line!(A::AbstractRaster, line, fill)
     n_on_line = 0
     # Travel one grid cell at a time.
     manhattan_distance = floor(Int, abs(ceil(start.x) - floor(stop.x)) + abs(ceil(start.y) - floor(stop.y)))
-    @show manhattan_distance
     for _ in 0:manhattan_distance
         D = map((d, o) -> d(o), dimconstructors, (x, y))
         if checkbounds(Bool, A, D...)
@@ -357,7 +369,7 @@ function _burn_line!(A::AbstractRaster, line, fill)
     end
     return n_on_line
 end
-function _fill_line!(A::AbstractRaster, line, fill, order::Tuple{Vararg{<:Dimension}})
+function _burn_line!(A::AbstractRaster, line, fill, order::Tuple{Vararg{<:Dimension}})
     msg = """"
         Converting a `:line` geometry to raster is currently only implemented for 2d lines.
         Make a Rasters.jl github issue if you need this for more dimensions.
@@ -483,7 +495,9 @@ _dimcoord(::ZDim, point) = GI.z(point)
 
 # _geom_shape
 # Get the shape category for a geometry
-@inline _geom_shape(geom) = _geom_shape(GI.geomtrait(geom))
-@inline _geom_shape(geom::Union{<:GI.PointTrait,<:GI.MultiPointTrait}) = :point
-@inline _geom_shape(geom::Union{<:GI.LineStringTrait,<:GI.MultiLineStringTrait}) = :line
-@inline _geom_shape(geom::Union{<:GI.LinearRingTrait,<:GI.PolygonTrait,<:GI.MultiPolygonTrait}) = :polygon
+@inline _geom_shape(geom) = _geom_shape(GI.geomtrait(geom), geom)
+@inline _geom_shape(::Union{<:GI.PointTrait,<:GI.MultiPointTrait}, geom) = :point
+@inline _geom_shape(::Union{<:GI.LineTrait,<:GI.LineStringTrait,<:GI.MultiLineStringTrait}, geom) = :line
+@inline _geom_shape(::Union{<:GI.LinearRingTrait,<:GI.PolygonTrait,<:GI.MultiPolygonTrait}, geom) = :polygon
+@inline _geom_shape(x, geom) = throw(ArgumentError("Geometry trait $x cannot be rasterized"))
+@inline _geom_shape(::Nothing, geom) = throw(ArgumentError("Object is not a GeoInterface.jl compatible geometry: $geom"))

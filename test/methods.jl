@@ -1,4 +1,5 @@
-using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, GeoInterface, DataFrames, Extents, Shapefile
+using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
+import GeoInterface
 using Rasters.LookupArrays, Rasters.Dimensions 
 using Rasters: bounds
 
@@ -59,6 +60,14 @@ end
     @test boolmask(gaNaN) == [false true; true false]
     @test dims(boolmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
     @test boolmask(polygon; res=1.0) == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
+    # With a :geometry axis
+    x = boolmask([polygon, polygon]; combine=false, res=1.0)
+    @test eltype(x) == Bool
+    @test size(x) == (20, 20, 2)
+    @test sum(x) == 800
+    x = boolmask([polygon, polygon]; combine=true, res=1.0)
+    @test size(x) == (20, 20)
+    @test sum(x) == 400
 end
 
 @testset "missingmask" begin
@@ -66,7 +75,14 @@ end
     @test all(missingmask(ga99) .=== [missing true; true missing])
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
     @test dims(missingmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
-    @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
+    @atest missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
+    x = missingmask([polygon, polygon]; combine=false, res=1.0)
+    @test eltype(x) == Union{Bool,Missing}
+    @test size(x) == (20, 20, 2)
+    @test sum(x) == 800
+    x = missingmask([polygon, polygon]; combine=true, res=1.0)
+    @test size(x) == (20, 20)
+    @test sum(x) == 400
 end
 
 @testset "mask" begin
@@ -326,10 +342,12 @@ end
         geom = pointvec
         for A in (A1, A2), geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon)
             A .= 0
+            using Plots
+            plot(A)
             rasterize!(A, geom; shape=:point, fill=1)
-            @test sum(A) == 4
-            st[:layer1] .= st[:layer2] .= 0
-            rasterize!(st, geom; shape=:point, fill=(1, 2))
+            st.layer1 .= st.layer2 .= 0
+            rasterize!(st, geom; shape=:point, fill=(layer1=1, layer2=2))
+            plot(st)
             @test sum(st[:layer1]) == 4
             @test sum(st[:layer2]) == 8
             st[:layer1] .= st[:layer2] .= 0
@@ -499,14 +517,57 @@ end
         @test_broken sum(gdal_raster) == sum(rasters_raster)
         @test_broken gdal_raster == rasters_raster
         @test sum(rasters_raster) - sum(gdal_raster) == 2
+        plot(rasters_raster; resolution=(2000, 2000))
+        plot(rebuild(rasters_raster, reverse(gdal_raster[:, :, 1]; dims=2)), resolution=(2000, 2000))
+        plot!(Shapefile.Handle(shp, shx).shapes)
+
+        line = Line(Point(1.00, 4.50), Point(4.75, 0.75))
+        r1 = Raster(zeros(Bool, X(0.5:1.0:6.5), Y(0.5:1.0:6.5)));
+        Rasters.rasterize!(r1, line; fill=true)
+        r2 = Raster(zeros(Bool, X(0.5:1.00001:6.5), Y(0.5:1.00001:6.5)))
+        Rasters.rasterize!(r2, line; fill=true)
+        r3 = Raster(zeros(Bool, X(0.5:0.99999:6.5), Y(0.5:0.99999:6.5)))
+        Rasters.rasterize!(r3, line; fill=true)
+
+        @test sum(r1) == 7
+        @test sum(r2) == 6 # The line doesn't reach the last pixel
+        @test sum(r3) == 7
+
+        @test r1 == [
+         0 0 0 0 0 0 0
+         0 0 0 1 1 0 0
+         0 0 1 1 0 0 0
+         0 1 1 0 0 0 0
+         0 1 0 0 0 0 0
+         0 0 0 0 0 0 0
+         0 0 0 0 0 0 0]
+
+        @test r2 == [
+         0 0 0 0 0 0
+         0 0 0 1 0 0
+         0 0 1 1 0 0
+         0 1 1 0 0 0
+         0 1 0 0 0 0
+         0 0 0 0 0 0
+         0 0 0 0 0 0]
+
+        @test r3 == [
+         0 0 0 0 0 0 0
+         0 0 0 1 1 0 0
+         0 0 1 1 0 0 0
+         0 1 1 0 0 0 0
+         0 1 0 0 0 0 0
+         0 0 0 0 0 0 0
+         0 0 0 0 0 0 0]
     end
     # GDAL doesnt do inside / not touching rasterization, so we have no test against GDAL
-    @testset "line touches rasterization" begin
+    @testset "line inside rasterization" begin
         gdal_raster = gdal_read_rasterize(shp, "-at")
         rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes; 
             size=(250, 250), fill=UInt8(1), missingval=UInt8(0), boundary=:inside
         )
     end
+
 
     @testset "reducing rasterization" begin
         pointvec2 = map(p -> (p[1] + 10, p[2] + 10), pointvec)
@@ -514,20 +575,31 @@ end
         pointvec4 = map(p -> (p[1] + 30, p[2] + 30), pointvec)
         polygon = ArchGDAL.createpolygon(pointvec)
         polygons = ArchGDAL.createpolygon.([[pointvec], [pointvec2], [pointvec3], [pointvec4]])
-        reduced_raster = rasterize(sum, polygons; res=5, fill=1, boundary=:inside)
-        plot(reduced_raster; clims=(0, 3))
-        plot!(polygons; opacity=0.3, fillcolor=:black)
-        reduced_raster = rasterize(sum, polygons; res=5, fill=1, boundary=:center)
-        plot(reduced_raster; clims=(0, 3))
-        plot!(polygons; opacity=0.3, fillcolor=:black)
+        raster = rasterize(polygons; res=5, fill=1, boundary=:center)
+        @test sum(skipmissing(raster)) == 16 * 4 - 12
+        # The outlines of these plots should exactly mactch,  
+        # Plots.plot(raster; clims=(0, 3))
+        # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
+        
+        using ProfileView
+        using BenchmarkTools
+        
+        @profview for i in 1:1000 rasterize(sum, polygons; res=5, fill=1, boundary=:center) end
+        @benchmark rasterize(sum, $polygons; res=5, fill=1, boundary=:center)
+        rasterize(sum, polygons; res=5, fill=1, boundary=:center)
+        @test sum(skipmissing(reduced_raster)) == 16 * 4
+        # The outlines of these plots should exactly mactch, 
+        # with three values of 2 on the diagonal
+        # Plots.plot(reduced_raster; clims=(0, 3))
+        # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
         reduced_raster = rasterize(sum, polygons; res=5, fill=1, boundary=:touches)
-        plot(reduced_raster; clims=(0, 3))
-        plot!(polygons; opacity=0.3, fillcolor=:black)
-        pointvec
-        reduced_raster = rasterize(pointvec; res=5, fill=1, boundary=:touches)
-        plot(reduced_raster; clims=(0, 3))
-        plot!(polygons; opacity=0.3, fillcolor=nothing)
-
+        reduced_raster = rasterize(sum, polygons; res=5, fill=1, combine=false, boundary=:inside)
+        # Plots.plot(reduced_raster; clims=(0, 3))
+        # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
+        # Its not clear what the results here should be - there 
+        # are differences between different implementations.
+        # Soon we will define the pixel intervals so we don't need
+        # arbitrary choices of which lines are touched for :touches
     end
 end
 

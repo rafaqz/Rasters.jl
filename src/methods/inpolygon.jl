@@ -18,7 +18,8 @@ inpolygon(points, poly; kw...) = _inpolygon(points, poly; kw...)
 _inpolygon(points, geom; kw...) = _inpolygon(GI.trait(points), points, geom; kw...)
 function _inpolygon(::Nothing, points::AbstractVector, geom; kw...)
     edges, nodes = to_edges_and_nodes(geom)
-    return inpoly2(points, nodes, edges; kw...)
+    inpoly_matrix = inpoly2(points, nodes, edges; kw...)
+    return view(inpoly_matrix, :, 1)
 end
 function _inpolygon(::Nothing, points, geom; kw...)
     throw(ArgumentError("object is not an GeoInterface geometry or feature."))
@@ -42,7 +43,8 @@ end
 function _inpolygon(::GI.AbstractGeometryTrait, points, ::GI.AbstractGeometryTrait, geom; kw...)
     edges, nodes = to_edges_and_nodes(geom)
     tuplepoints = [(GI.x(p), GI.y(p)) for p in GI.getpoint(points)]
-    return all(inpoly2(tuplepoints, nodes, edges; kw...))
+    inpoly_matrix = inpoly2(tuplepoints, nodes, edges; kw...)
+    return all(view(inpoly_matrix, :, 1))
 end
 function _inpolygon(::GI.AbstractPointTrait, points, ::GI.AbstractGeometryTrait, geom; kw...)
     edges, nodes = to_edges_and_nodes(geom)
@@ -56,8 +58,8 @@ using PolygonInbounds: vertex, edgecount, flipio!, edgeindex, searchfirst
 # PR to include these when this has solidified
 function inpoly2(vert, node, edge=zeros(Int);
     atol::T=0.0, rtol::T=NaN, iyperm=nothing,
-    vmin=nothing, vmax=nothing, pmin=nothing, pmax=nothing,
-    stat=fill(false, length(vert), 1),
+    vmin=nothing, vmax=nothing, pmin=nothing, pmax=nothing
+
 ) where T<:AbstractFloat
     rtol = !isnan(rtol) ? rtol : iszero(atol) ? eps(T)^0.85 : zero(T)
     poly = PolygonInbounds.PolygonMesh(node, edge)
@@ -71,8 +73,9 @@ function inpoly2(vert, node, edge=zeros(Int);
     lbar = sum(pmax - pmin)
     tol = max(abs(rtol * lbar), abs(atol))
 
-    # ac = PolygonInbounds.areacount(poly)
+    ac = PolygonInbounds.areacount(poly)
     # stat = ac > 1 ? fill(false, length(points), 1, ac) : 
+    stat = fill(false, length(points), 2)
     # flip coordinates so expected effort is minimal
     dvert = vmax .- vmin
     if isnothing(iyperm)

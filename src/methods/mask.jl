@@ -269,7 +269,7 @@ function boolmask end
 boolmask(series::AbstractRasterSeries; kw...) = boolmask(first(series); kw...)
 boolmask(stack::AbstractRasterStack; kw...) = boolmask(first(stack); kw...)
 function boolmask(source::AbstractRaster; kw...)
-    dest = _init_bools(source, Bool; missingval=false, kw...)
+    dest = _init_bools(source, Bool, nothing; missingval=false, kw...)
     return boolmask!(dest, source; kw...)
 end
 function boolmask(x; to=nothing, kw...)
@@ -278,7 +278,7 @@ function boolmask(x; to=nothing, kw...)
     if to isa Union{AbstractDimArray,AbstractDimStack,DimTuple}
         to = dims(to, DEFAULT_POINT_ORDER)
     end
-    A = _init_bools(x, Bool; to, missingval=false, kw...)
+    A = _init_bools(to, Bool, x; missingval=false, kw...)
     return boolmask!(A, x; kw...)
 end
 
@@ -288,7 +288,13 @@ function boolmask!(dest::AbstractRaster, src::AbstractRaster;
     broadcast!(a -> !isequal(a, missingval), dest, src)
 end
 function boolmask!(dest::AbstractRaster, geom; kw...)
-    fill_geometry!(dest, geom; fill=true, kw...)
+    if hasdim(dest, :geometry)
+        for (slice, g) in zip(eachslice(dest; dims=Dim{:geometry}()), geom) 
+            burn_geometry!(slice, g; fill=true, kw...)
+        end
+    else
+        burn_geometry!(dest, geom; fill=true, kw...)
+    end
     return dest
 end
 
@@ -326,18 +332,24 @@ savefig("build/missingmask_example.png"); nothing
 
 $EXPERIMENTAL
 """
-function missingmask(x; missingval=missingval(x), kw...)
-    A = _init_bools(x, Union{Missing,Bool}; missingval=missing, kw...)
-    return _missingmask!(A, x; missingval)
+missingmask(series::AbstractRasterSeries; kw...) = missingmask(first(series); kw...)
+missingmask(stack::AbstractRasterStack; kw...) = missingmask(first(stack); kw...)
+function missingmask(source::AbstractRaster; kw...)
+    dest = _init_bools(source, Union{Missing,Bool}, nothing; missingval=missing, kw...)
+    return missingmask!(dest, source; kw...)
+end
+function missingmask(x; to=nothing, kw...)
+    B = _init_bools(to, Union{Missing,Bool}, x; missingval=missing, kw...)
+    return missingmask!(B, x; kw...)
 end
 
-function _missingmask!(dest::AbstractRaster, src::AbstractRaster;
+function missingmask!(dest::AbstractRaster, src::AbstractRaster;
     missingval=_missingval_or_missing(src)
 )
     broadcast!(x -> isequal(x, missingval) ? missing : true, dest, src)
 end
-function _missingmask!(dest::AbstractRaster, geom; missingval, kw...)
-    B = fill_geometry!(dest, geom; fill=true, kw...)
+function missingmask!(dest::AbstractRaster, geom; kw...)
+    B = burn_geometry!(dest, geom; fill=true, kw...)
     broadcast!(b -> b ? true : missing, dest, B)
     return dest
 end

@@ -232,25 +232,28 @@ function rasterize!(x::RasterStackOrArray, data; fill, reduce=last, kw...)
         map(f -> _iterable_fill(data, f), fill)
     _iterable_fill(data, fill) = Iterators.cycle(fill)
 
-    # Check if `data` is a Tables.jl compatible object
-    if Tables.istable(data)
+    # Check if data is a GeoInterface compatible geometry
+    if GI.isgeometry(data) || GI.isfeature(data)
+        _rasterize!(x, GI.trait(data), data; fill, reduce, kw...)
+    # Otherwise check if it's a Tables.jl compatible object
+    elseif Tables.istable(data)
         schema = Tables.schema(data)
         geomcolname = first(GI.geometrycolumns(data))
         cols = Tables.columns(data)
         fill_itr = _iterable_fill(cols, fill)
         if geomcolname in Tables.columnnames(cols)
             geomcol = Tables.getcolumn(cols, geomcolname)
-            _reduce_fill!(reduce, x, geoms, fill_itr; kw...)
+            _reduce_fill!(reduce, x, data, fill_itr; kw...)
         else
             dimscols = _auto_dim_columns(data, dims(x))
             pointcols = map(k -> Tables.getcolumn(data, k), map(DD.dim2key, dimscols))
-            reduce == last || throw(ArgumentError("Can only reduce with `last` on point tables. Make a github issue at the Rasters.jl repository if you need this."))
-            _buffer = _init_bools(commondims(x, (XDim, YDim)), Bool; missingval=false)
-            _rasterize_point_table_inner!(x, pointcols, fill_itr; _buffer, kw...)
+            reduce == last || throw(ArgumentError("Can only reduce with `last` on point tables. Make a github issue at the Rasters.jl repository if you need something else."))
+            _buffer = _init_bools(commondims(x, (XDim, YDim)), Bool, geom; missingval=false, kw...)
+            _rasterize_point_table_inner!(x, pointcols, fill_itr; _buffer, reduce, kw...)
         end
+    # Otherwise maybe a FeatureCollection or some iterator
     else
-        # Otherwise treat as a GeoInterface compatible geometry
-        _rasterize!(x, GI.trait(data), data; fill, kw...)
+        _rasterize!(x, GI.trait(data), data; fill, reduce, kw...)
     end
 end
 
@@ -294,7 +297,7 @@ function _rasterize!(x, ::GI.AbstractGeometryTrait, geom; fill, _buffer=nothing,
     x1 = view(x, Touches(ext))
     length(x1) > 0 || return x
     bools = if isnothing(_buffer)
-        _init_bools(commondims(x1, (XDim, YDim)), Bool; missingval=false)
+        _init_bools(commondims(x1, (XDim, YDim)), Bool, geom; missingval=false, kw...)
     else
         view(_buffer, Touches(ext))
     end
@@ -314,10 +317,15 @@ function _rasterize!(x, trait::Nothing, data; fill, reduce=last, kw...)
         l = length(fill)
         if l == 1
             Iterators.cycle(fill)
-        elseif l == n 
-            fill
+        elseif Base.IteratorSize(data) isa Base.HasShape
+            n = length(data)
+            if l == n
+                fill
+            else
+                throw(ArgumentError("Length of fill $l does not match length of iterator $n"))
+            end
         else
-            throw(ArgumentError("Length of fill $l does not match length of iterator $n"))
+            fill
         end
     else
         fill
@@ -329,7 +337,7 @@ end
 #
 # Mask `geoms` into each slice of a BitArray with the combined 
 # dimensions of `x` and `geoms`, then apply the supplied reducing 
-# function to each cell along the `:geoms` dimension. This uses a 
+# function to each cell along the `:geometry` dimension. This uses a 
 # conditional iterator over the fill values and the corresponding
 # rasterized Bool - true included the fill value in the iterator, false excludes it.
 #
@@ -339,12 +347,13 @@ end
 function _reduce_fill!(f, x, geoms, fill_itr; kw...)
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(x, (XDim, YDim))
-    # Create a BitArray Raster with a dimension for the number of features to rasterize
-    masks = boolmask(geoms; flat=false, kw...)
-    spatialdims = commondims(x, (XDim, YDim))
-    for ds in DimIndices(spatialdims)
-        pixel_geom_list = view(masks, ds...)
-        _apply_reduction!(f, x, ds, fill_itr, pixel_geom_list)
+    # Mask geoms as separate bool layers
+    masks = boolmask(geoms; to=x, combine=false, _istable=false, kw...)
+    # Loop over spatial dimensions reduceing the other dimension
+    spatialdims = commondims(masks, (XDim, YDim))
+    broadcast!(x, x, DimIndices(spatialdims)) do val, ds
+        newval = _apply_reduction!(f, fill_itr, view(masks, ds...))
+        isnothing(newval) ? val : newval
     end
     return x
 end
@@ -353,42 +362,27 @@ end
 #
 # Apply a reducing functin over an iterable
 # with performance optimisations where possible
-function _apply_reduction!(f, x, ds, fill_itr, pixel_geom_list)
+@inline function _apply_reduction!(f, fill_itr, pixel_geom_list)
     any(pixel_geom_list) || return nothing
-    # reduce is a custom reducing funcion
     iterator = (f for (f, b) in zip(fill_itr, pixel_geom_list) if b)
-    pixel_value = f(iterator)
-    x[ds...] = pixel_value
-    return nothing
+    return f(iterator)
 end
 # last
-function _apply_reduction!(f::typeof(last), x, ds, fill_itr, pixel_geom_list)
+@inline function _apply_reduction!(f::typeof(last), fill_itr, pixel_geom_list)
     local l = nothing
     for (v, b) in zip(fill_itr, pixel_geom_list)
         if b
             l = v
         end
     end
-    if !isnothing(l)
-        x[ds...] = l
-    end
-    return nothing
+    return l
 end
 # first
-function _apply_reduction!(f::typeof(first), x, ds, fill_itr, pixel_geom_list)
+@inline function _apply_reduction!(f::typeof(first), fill_itr, pixel_geom_list)
     for (v, b) in zip(fill_itr, pixel_geom_list)
         if b
-            x[ds...] = v
-            break
+            return v
         end
-    end
-    return nothing
-end
-# count any all
-for f in (:count, :any, :all)
-    @eval function _apply_reduction!(f::typeof($f), x, ds, fill_itr, pixel_geom_list)
-        x[ds...] = f(pixel_geom_list)
-        return nothing
     end
 end
 
