@@ -1,20 +1,38 @@
 name: Documenter
 on:
   push:
-    branches: [main]
-    tags: [v*]
+    branches:
+      - main
+    tags: '*'
   pull_request:
-    branches: [main]
+
+concurrency:
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 jobs:
-  Documenter:
-    name: Documentation
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-20.04
+    env:
+      DISPLAY: ':0'
     steps:
       - uses: actions/checkout@v2
-      - uses: julia-actions/julia-buildpkg@latest
-      - uses: julia-actions/julia-docdeploy@latest
+      - uses: julia-actions/setup-julia@v1
+      - uses: julia-actions/cache@v1
+        with:
+          cache-registries: "true"
+      - name: Install documentation dependencies
+        run: sudo apt-get update && sudo apt-get install -y xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev
+      - name: Install pkgs dependencies
+        run: xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+      - name: Build and deploy
         env:
-          RASTERDATASOURCES_PATH: ".."
-          GKSwstype: "100"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # For authentication with SSH deploy key
+          GKSwstype: "100" # https://discourse.julialang.org/t/generation-of-documentation-fails-qt-qpa-xcb-could-not-connect-to-display/60988
+          JULIA_DEBUG: "Documenter"
+          DATADEPS_ALWAYS_ACCEPT: true
+        run: |
+          xvfb-run -s '-screen 0 1024x768x24' julia --code-coverage=user --project=docs/ --color=yes docs/genfiles.jl
+          xvfb-run -s '-screen 0 1024x768x24' julia --code-coverage=user --project=docs/ --color=yes docs/make.jl

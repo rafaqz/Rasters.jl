@@ -1,0 +1,108 @@
+theme:
+  name: material
+  #logo: assets/icons8-green-earth-48.png
+  features:
+    # - announce.dismiss
+    #- content.code.annotate
+    # - content.tabs.link
+    #- content.tooltips
+    # - header.autohide
+    # - navigation.expand
+    #- navigation.indexes
+    # - navigation.instant
+    # - navigation.prune
+    #- navigation.sections
+    #- navigation.tabs
+    # - navigation.tabs.sticky
+    - navigation.top
+    #- navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+    #- toc.integrate # Table of contents is integrated on the left; does not appear separately on the right.
+    - header.autohide # header disappears as you scroll
+  palette:
+    # Light mode / dark mode
+    # We deliberately don't automatically use `media` to check a user's preferences. We default to light mode as
+    # (a) it looks more professional, and (b) is more obvious about the fact that it offers a (dark mode) toggle.
+    - scheme: default
+      primary: brown
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - scheme: slate
+      primary: red
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+  font:
+    text: Lato
+  icon:
+    repo: fontawesome/brands/github # GitHub logo in top right
+    #logo: "material/gridoff" # Equinox logo in top left
+  #  favicon: "_static/icon_transparent.svg"
+  custom_dir: "_overrides" # Overriding part of the HTML
+
+  # These additions are my own custom ones, having overridden a partial.
+  #twitter_name: "@lazarusAlon"
+  #twitter_url: "https://twitter.com/lazarusAlon"
+site_name: Rasters
+site_description: Rasters
+site_author: Lazaro Alonso
+site_url: ""
+
+repo_url: https://github.com/rafaqz/Rasters.jl
+repo_name: Rasters
+edit_uri: "" # No edit button, as some of our pages are in /docs and some in /examples via symlink, so it's impossible for them all to be accurate
+
+strict: true # Don't allow warnings during the build process
+extra_javascript:
+  # The below three make MathJax work, see https://squidfunk.github.io/mkdocs-material/reference/mathjax/
+  - _static/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+extra_css:
+  - stylesheets/custom.css
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: "¤" # Adds a clickable permalink to each section heading
+      toc_depth: 4
+  - pymdownx.arithmatex: # Render LaTeX via MathJax
+      generic: true
+  - pymdownx.details # Allowing hidden expandable regions denoted by ???
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences # Seems to enable syntax highlighting when used with the Material theme.
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - def_list
+  - pymdownx.tabbed:
+      alternate_style: true 
+  - attr_list
+  - md_in_html
+plugins:
+  - search # default search plugin; needs manually re-enabling when using any other plugins
+  - autorefs # Cross-links to headings
+  - include_exclude_files:
+      exclude:
+        - "_overrides"
+#  - mknotebooks # Jupyter notebooks
+  - mkdocs-video
+nav:
+  - "Home": "index.md"
+  - "Rasters.jl" : "scripts/generated/basics/first_raster.md"
+  - "Methods" : "scripts/generated/basics/methods.md"
+  - "Arrays operations" : "scripts/generated/basics/arrays_operations.md"
+  - "Plotting" : "scripts/generated/basics/plotting.md"
+  - "A basic species distribution modelling workflow" : "scripts/generated/basics/gbif_wflow.md"

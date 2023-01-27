@@ -5,3 +5,14 @@ docs/build
 test/data
 Manifest.toml
 .vscode
+
+/Manifest.toml
+tmp
+generated
+build
+.DS_Store
+
+docs/docs
+docs/site
+docs/var
+deps/build.jl
