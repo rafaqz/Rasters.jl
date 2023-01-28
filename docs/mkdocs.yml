@@ -106,3 +106,5 @@ nav:
   - "Arrays operations" : "scripts/generated/basics/arrays_operations.md"
   - "Plotting" : "scripts/generated/basics/plotting.md"
   - "A basic species distribution modelling workflow" : "scripts/generated/basics/gbif_wflow.md"
+  - "Data Sources" : "scripts/generated/basics/Data_sources.md"
+  - "API Reference" : "API.md"
