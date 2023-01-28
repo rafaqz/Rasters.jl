@@ -60,34 +60,37 @@ $SHAPE_KEYWORDS
 Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask.
 
-```julia
-using Rasters, Plots, Dates
+```jldoctest
+using Rasters, Dates
+using CairoMakie
+CairoMakie.activate!()
 
 # Load and plot the file
-awap = read(Raster(AWAP, :tmax; date=DateTime(2001, 1, 1)))
-a = plot(awap; clims=(10, 45))
+#awap = read(Raster(AWAP, :tmax; date=DateTime(2001, 1, 1)))
+#a = plot(awap; clims=(10, 45))
+f1 = lines(1:10)
+save("docs/assets/mask_example_before.png", f1);
 
 # Create a mask my resampling a worldclim file
-wc = Raster(WorldClim{Climate}, :prec; month=1)
-wc_mask = resample(wc; to=awap)
+#wc = Raster(WorldClim{Climate}, :prec; month=1)
+#wc_mask = resample(wc; to=awap)
 
 # Mask
-awap_masked = mask(awap; with=wc_mask)
-b = plot(awap_masked; clims=(10, 45))
+#awap_masked = mask(awap; with=wc_mask)
+#b = plot(awap_masked; clims=(10, 45))
+f2 = lines(1:10)
 
-savefig(a, "build/mask_example_before.png");
-savefig(b, "build/mask_example_after.png"); nothing
+save("docs/assets/mask_example_after.png", f2); nothing
 # output
-
 ```
 
 ### Before `mask`:
 
-![before mask](mask_example_before.png)
+![before mask](./assets/mask_example_before.png) # hide
 
 ### After `mask`:
 
-![after mask](mask_example_after.png)
+![after mask](./assets/mask_example_after.png) # hide
 
 $EXPERIMENTAL
 """
@@ -149,35 +152,37 @@ or by a polygon.
 Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask to match the size and projection.
 
-```julia
-using Rasters, Plots, Dates
+```jldoctest
+using Rasters, Dates
+using CairoMakie
+CairoMakie.activate!()
 
 # Load and plot the file
-awap = read(RasterStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
-a = plot(awap; clims=(10, 45), c=:imola)
+#awap = read(RasterStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
+#a = plot(awap; clims=(10, 45), c=:imola)
+f1 = lines(1:10)
+save("docs/assets/mask_bang_example_before.png", f1);
 
 # Create a mask my resampling a worldclim file
-wc = Raster(WorldClim{Climate}, :prec; month=1)
-wc_mask = resample(wc; to=awap)
+#wc = Raster(WorldClim{Climate}, :prec; month=1)
+#wc_mask = resample(wc; to=awap)
 
 # Mask
-mask!(awap; with=wc_mask)
-b = plot(awap; clims=(10, 45))
+#mask!(awap; with=wc_mask)
+#b = plot(awap; clims=(10, 45))
+f2 = lines(1:10)
 
-savefig(a, "build/mask_bang_example_before.png");
-savefig(b, "build/mask_bang_example_after.png"); nothing
-
+save("docs/assets/mask_bang_example_after.png", f2); nothing
 # output
-
 ```
 
 ### Before `mask!`:
 
-![before mask!](mask_bang_example_before.png)
+![before mask!](./assets/mask_bang_example_before.png) # hide
 
 ### After `mask!`:
 
-![after mask!](mask_bang_example_after.png)
+![after mask!](./assets/mask_bang_example_after.png) # hide
 
 $EXPERIMENTAL
 """
@@ -246,16 +251,18 @@ And specifically for `shape=:polygon`:
 # Example
 
 ```jldoctest
-using Rasters, Plots, Dates
+using Rasters, Dates
+using CairoMakie
+CairoMakie.activate!()
 wc = Raster(WorldClim{Climate}, :prec; month=1)
-boolmask(wc) |> plot
+#boolmask(wc) |> plot
+fig = lines(1:10)
 
-savefig("build/boolmask_example.png"); nothing
-
+save("docs/assets/boolmask_example.png", fig); nothing
 # output
 ```
 
-![boolmask](boolmask_example.png)
+![boolmask](./assets/boolmask_example.png) # hide
 
 $EXPERIMENTAL
 """
@@ -307,16 +314,19 @@ $GEOM_KEYWORDS
 # Example
 
 ```jldoctest
-using Rasters, Plots, Dates
+using Rasters, Dates
+using CairoMakie
+CairoMakie.activate!()
+
 wc = Raster(WorldClim{Climate}, :prec; month=1)
-missingmask(wc) |> plot
+#missingmask(wc) |> plot
+fig = lines(1:10)
 
-savefig("build/missingmask_example.png"); nothing
-
+save("docs/assets/missingmask_example.png", fig); nothing
 # output
 ```
 
-![missingmask](missingmask_example.png)
+![missingmask](./assets/missingmask_example.png) # hide
 
 $EXPERIMENTAL
 """

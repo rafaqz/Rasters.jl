@@ -35,23 +35,24 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 - `suffix`: a string or value to append to the filename.
     A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
 
-# Example
+!!! note
+    Currently it is faster to aggregate over memory-backed arrays.
+    Use [`read`](@ref) on `src` before use where required.
 
+# Example
 ```jldoctest
-using Rasters, Statistics, Plots
+using Rasters, Statistics
 using Rasters: Center
+using CairoMakie
+CairoMakie.activate!()
 st = read(RasterStack(WorldClim{Climate}; month=1))
 ag = aggregate(Center(), st, (Y(20), X(20)); skipmissingval=true, progress=false)
-plot(ag)
-savefig("build/aggregate_example.png"); nothing
+fig = lines(1:10)
+save("docs/assets/aggregate_example.png", fig); nothing
 # output
-
 ```
+![aggregate](./assets/aggregate_example.png) # hide
 
-![aggregate](aggregate_example.png)
-
-Note: currently it is faster to aggregate over memory-backed arrays.
-Use [`read`](@ref) on `src` before use where required.
 """
 function aggregate end
 function aggregate(method, series::AbstractRasterSeries, scale, args...;
@@ -124,8 +125,9 @@ When the aggregation `scale` of is larger than the array axis, the length of the
     only areas of all missing values will be aggregated to `missingval`. If `false`, any
     aggegrated area containing a `missingval` will be assigned `missingval`.
 
-Note: currently it is _much_ faster to aggregate over memory-backed arrays.
-Use [`read`](@ref) on `src` before use where required.
+!!! note
+    Currently it is _much_ faster to aggregate over memory-backed arrays.
+    Use [`read`](@ref) on `src` before use where required.
 """
 function aggregate!(locus::Locus, dst::AbstractRaster, src, scale; kw...)
     aggregate!((locus,), dst, src, scale)
@@ -190,9 +192,9 @@ Disaggregate array, or all arrays in a stack or series, by some scale.
 
 - `progress`: show a progress bar.
 
-Note: currently it is faster to aggregate over memory-backed arrays.
-Use [`read`](@ref) on `src` before use where required.
-
+!!! note
+    Currently it is faster to aggregate over memory-backed arrays.
+    Use [`read`](@ref) on `src` before use where required.
 """
 function disaggregate end
 function disaggregate(method, series::AbstractRasterSeries, scale; progress=true, kw...)
@@ -257,8 +259,9 @@ Disaggregate array `src` to array `dst` by some scale, using `method`.
   usually use in `getindex`. Using a `Selector` will determine the scale by the
   distance from the start of the index in the `src` array.
 
-Note: currently it is faster to aggregate over memory-backed arrays.
-Use [`read`](@ref) on `src` before use where required.
+!!! note
+    Currently it is faster to aggregate over memory-backed arrays.
+    Use [`read`](@ref) on `src` before use where required.
 """
 function disaggregate!(locus::Locus, dst::AbstractRaster, src, scale)
     disaggregate!((locus,), dst, src, scale)

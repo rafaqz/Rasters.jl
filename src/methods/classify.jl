@@ -29,21 +29,24 @@ If `others` is set other values not covered in `pairs` will be set to that value
 # Example
 
 ```jldoctest
-using Rasters, Plots
+using Rasters
+using CairoMakie
+CairoMakie.activate!()
+
 A = Raster(WorldClim{Climate}, :tavg; month=1)
 classes = <=(15) => 10,
           15..25 => 20,
           25..35 => 30,
           >(35) => 40
 classified = classify(A, classes; others=0, missingval=0)
-plot(classified; c=:magma)
+# plot(classified; c=:magma)
+fig = lines(1:20)
 
-savefig("build/classify_example.png"); nothing
-
+save("docs/assets/classify_example.png", fig); nothing
 # output
 ```
 
-![classify](classify_example.png)
+![classify](./assets/classify_example.png) # hide
 
 $EXPERIMENTAL
 """
@@ -113,7 +116,10 @@ If `others` is set other values not covered in `pairs` will be set to that value
     the file is stored as `Float32`. Attempting to write some other type will fail.
 
 ```jldoctest
-using Rasters, Plots, RasterDataSources
+using Rasters, RasterDataSources
+using CairoMakie
+CairoMakie.activate!()
+
 # Download and copy the file
 filename = getraster(WorldClim{Climate}, :tavg; month=6)
 tempfile = tempname() * ".tif"
@@ -128,14 +134,14 @@ open(Raster(tempfile); write=true) do A
     classify!(A, classes; others=0)
 end
 # Open it again to plot the changes
-plot(Raster(tempfile); c=:magma)
+# plot(Raster(tempfile); c=:magma)
+fig = lines(1:20)
 
-savefig("build/classify_bang_example.png"); nothing
-
+save("docs/assets/classify_bang_example.png", fig); nothing
 # output
 ```
 
-![classify!](classify_bang_example.png)
+![classify!](./assets/classify_bang_example.png) # hide
 
 $EXPERIMENTAL
 """

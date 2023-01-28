@@ -42,9 +42,9 @@
 # layers can be loaded as `Raster("filename.h5"; key=:layerkey)`, without `key`
 # the first layer is used.
 
-```@docs
-smapseries
-```
+#md # ```@docs
+#md # smapseries
+#md # ```
 
 # ## Writing file formats to disk
 

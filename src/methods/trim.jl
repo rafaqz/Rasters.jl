@@ -22,32 +22,33 @@ Trim `missingval(x)` from `x` for axes in `dims`, returning a view of `x`.
 Create trimmed layers of Australian habitat heterogeneity.
 
 ```jldoctest
-using Rasters, Plots
+using Rasters
+using CairoMakie
+CairoMakie.activate!()
+
 layers = (:evenness, :range, :contrast, :correlation)
 st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers)
 
 # Roughly cut out australia
 ausbounds = X(100 .. 160), Y(-50 .. -10)
 aus = st[ausbounds...]
-a = plot(aus)
-
+#a = plot(aus)
+a = lines(1:10)
 # Trim missing values and plot
-b = plot(trim(aus))
-
-savefig(a, "build/trim_example_before.png");
-savefig(b, "build/trim_example_after.png"); nothing
-
+#b = plot(trim(aus))
+b = lines(1:10)
+save("docs/assets/trim_example_before.png", a); # hide
+save("docs/assets/trim_example_after.png", b); nothing
 # output
-
 ```
 
 ### Before `trim`:
 
-![before trim](trim_example_before.png)
+![before trim](./assets/trim_example_before.png) # hide
 
 ### After `trim`:
 
-![after trim](trim_example_after.png)
+![after trim](./assets/trim_example_after.png) # hide
 
 $EXPERIMENTAL
 """

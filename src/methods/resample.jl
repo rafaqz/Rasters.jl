@@ -47,25 +47,29 @@ automated in future versions.
 Resample a WorldClim layer to match an EarthEnv layer:
 
 ```jldoctest
-using Rasters, Plots
+using Rasters
+using CairoMakie
+CairoMakie.activate!()
+
 A = Raster(WorldClim{Climate}, :prec; month=1)
 B = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 
-a = plot(A)
-b = plot(resample(A; to=B))
-
-savefig(a, "build/resample_example_before.png");
-savefig(b, "build/resample_example_after.png"); nothing
+#a = plot(A)
+a = lines(1:10)
+#b = plot(resample(A; to=B))
+b = lines(1:10)
+save("docs/assets/resample_example_before.png", a); # hide
+save("docs/assets/resample_example_after.png", b); nothing
 # output
 ```
 
 ### Before `resample`:
 
-![before resample](resample_example_before.png)
+![before resample](./assets/resample_example_before.png) # hide
 
 ### After `resample`:
 
-![after resample](resample_example_after.png)
+![after resample](./assets/resample_example_after.png) # hide
 
 $EXPERIMENTAL
 """

@@ -18,7 +18,6 @@ x, y = lookup(aband, X), lookup(aband, Y)
 
 heatmap(x, y, aband.data;
     axis = (; aspect = DataAspect()),
-    figure = (; resolution=(600,400))
     )
 
 # ## Loading and plotting data
@@ -73,7 +72,6 @@ x, y = lookup(tband, X), lookup(tband, Y)
 
 heatmap(x, y, tband.data;
     axis = (; aspect = DataAspect()),
-    figure = (; resolution=(600,400))
     )
 
 # Other plot functions and sliced objects that have only one `X`/`Y`/`Z` dimension
@@ -90,7 +88,6 @@ x, y = lookup(mean_tos, X), lookup(mean_tos, Y)
 
 contourf(x, y, mean_tos.data;
     axis = (; aspect = DataAspect()),
-    figure = (; resolution=(600,400))
     )
 
 # Write the mean values to disk
@@ -106,5 +103,4 @@ contourf(x, y, mean_tos.data;
 
 dnear = A[Y(Near(20.0)), Ti(1)]
 x = lookup(dnear, X)
-lines(x, dnear.data;
-    figure = (; resolution = (600,400)))
+lines(x, dnear.data)

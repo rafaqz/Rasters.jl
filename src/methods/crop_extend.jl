@@ -22,7 +22,10 @@ As `crop` is lazy, `filename` and `suffix` keywords don't apply.
 Crop to another raster:
 
 ```jldoctest
-using Rasters, Plots
+using Rasters
+using CairoMakie
+CairoMakie.activate!()
+
 evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 rnge = Raster(EarthEnv{HabitatHeterogeneity}, :range)
 
@@ -32,20 +35,21 @@ nz_evenness = evenness[nz_bounds...]
 
 # Crop range to match evenness
 nz_range = crop(rnge; to=nz_evenness)
-plot(nz_range)
+#plot(nz_range)
+fig = lines(1:10)
 
-savefig("build/nz_crop_example.png")
-nothing
-
+save("docs/assets/nz_crop_example.png", fig); nothing
 # output
 ```
 
-![new zealand evenness cropped](nz_crop_example.png)
+![new zealand evenness cropped](./assets/nz_crop_example.png) # hide
 
 Crop to a polygon:
 
 ```jldoctest
-using Rasters, Plots, Dates, Shapefile, Downloads
+using Rasters, Dates, Shapefile, Downloads
+using CairoMakie
+CairoMakie.activate!()
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -55,14 +59,14 @@ shp = Shapefile.Handle(shapefile_name).shapes[6]
 
 evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 argentina_evenness = crop(evenness; to=shp)
-plot(argentina_evenness)
+#plot(argentina_evenness)
+fig = lines(1:20)
 
-savefig("build/argentina_crop_example.png"); nothing
-
+save("docs/assets/argentina_crop_example.png", fig); nothing
 # output
 ```
 
-![argentina evenness cropped](argentina_crop_example.png)
+![argentina evenness cropped](./assets/argentina_crop_example.png) # hide
 
 $EXPERIMENTAL
 """
@@ -127,7 +131,10 @@ covered by all `xs`, or by the keyword argument `to`.
     A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
 
 ```jldoctest
-using Rasters, Plots
+using Rasters
+using CairoMakie
+CairoMakie.activate!()
+
 evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 rnge = Raster(EarthEnv{HabitatHeterogeneity}, :range)
 
@@ -137,14 +144,14 @@ sa_evenness = evenness[sa_bounds...]
 
 # Extend range to match the whole-world raster
 sa_range = extend(sa_evenness; to=rnge)
-plot(sa_range)
+#plot(sa_range)
+fig = lines(1:20)
 
-savefig("build/extend_example.png")
-nothing
+save("docs/assets/extend_example.png", fig); nothing
 # output
 ```
 
-![extend](extend_example.png)
+![extend](./assets/extend_example.png) # hide
 
 $EXPERIMENTAL
 """

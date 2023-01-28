@@ -76,8 +76,9 @@ const DDselectordocs = joinpath(DDdocs, "#DimensionalData.Selector")
 const DDtidocs = joinpath(DDdocs, "#DimensionalData.Ti")
 
 const EXPERIMENTAL = """
-    WARNING: This feature is experimental. It may change in future versions, and may
-    not be 100% reliable in all cases. Please file github issues if problems occur.
+    !!! warning
+        This feature is experimental. It may change in future versions, and may
+        not be 100% reliable in all cases. Please file github issues if problems occur.
     """
 
 # Source dispatch singletons

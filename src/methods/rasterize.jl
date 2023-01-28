@@ -35,8 +35,10 @@ $GEOM_KEYWORDS
 Rasterize a shapefile for China and plot, with a border.
 
 ```jldoctest
-using Rasters, Plots, Dates, Shapefile, Downloads
+using Rasters, Dates, Shapefile, Downloads
 using Rasters.LookupArrays
+using CairoMakie
+CairoMakie.activate!()
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -50,16 +52,14 @@ china_border = Shapefile.Handle(shapefile_name).shapes[10]
 china = rasterize(china_border; res=0.1, missingval=0, fill=1, boundary=:touches)
 
 # And plot
-p = plot(china; color=:spring)
-plot!(p, china_border; fillalpha=0, linewidth=0.6)
-
-savefig("build/china_rasterized.png"); nothing
-
+#p = plot(china; color=:spring)
+#plot!(p, china_border; fillalpha=0, linewidth=0.6)
+fig = lines(1:10)
+save("docs/assets/china_rasterized.png", fig); nothing
 # output
-
 ```
 
-![rasterize](china_rasterized.png)
+![rasterize](./assets/china_rasterized.png) # hide
 
 $EXPERIMENTAL
 """
@@ -173,8 +173,11 @@ And specifically for `shape=:polygon`:
 # Example
 
 ```jldoctest
-using Rasters, Plots, Dates, Shapefile, GeoInterface, Downloads
+using Rasters, Dates, Shapefile, GeoInterface, Downloads
 using Rasters.LookupArrays
+using CairoMakie
+CairoMakie.activate!()
+
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -182,30 +185,29 @@ shapefile_name = "country_borders.shp"
 isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 
 # Load the shapes for indonesia
-indonesia_border = Shapefile.Handle(shapefile_name).shapes[1]
+#indonesia_border = Shapefile.Handle(shapefile_name).shapes[1]
 
 # Make an empty EPSG 4326 projected Raster of the area of Indonesia
-dimz = X(90.0:0.1:145; mode=Projected(; sampling=Points(), crs=EPSG(4326))),
-       Y(-15.0:0.1:10.9; mode=Projected(; sampling=Points(), crs=EPSG(4326)))
+#dimz = X(90.0:0.1:145; mode=Projected(; sampling=Points(), crs=EPSG(4326))),
+#       Y(-15.0:0.1:10.9; mode=Projected(; sampling=Points(), crs=EPSG(4326)))
 
-A = Raster(zeros(UInt32, dimz); missingval=UInt32(0))
+#A = Raster(zeros(UInt32, dimz); missingval=UInt32(0))
 
 # Rasterize each island with a different number
-for (i, shp) in enumerate(GeoInterface.getring(indonesia_border))
-    rasterize!(A, shp; fill=i)
-end
+#for (i, shp) in enumerate(GeoInterface.getring(indonesia_border))
+#    rasterize!(A, shp; fill=i)
+#end
 
 # And plot
-p = plot(Rasters.trim(A); color=:spring)
-plot!(p, indonesia_border; fillalpha=0, linewidth=0.7)
+#p = plot(Rasters.trim(A); color=:spring)
+#plot!(p, indonesia_border; fillalpha=0, linewidth=0.7)
+fig = lines(1:10)
 
-savefig("build/indonesia_rasterized.png"); nothing
-
+save("docs/assets/indonesia_rasterized.png", fig); nothing
 # output
-
 ```
 
-![rasterize](indonesia_rasterized.png)
+![rasterize](./assets/indonesia_rasterized.png) # hide
 
 $EXPERIMENTAL
 """

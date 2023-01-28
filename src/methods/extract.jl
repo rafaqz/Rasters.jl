@@ -37,16 +37,10 @@ pnts = collect((o.decimalLongitude, o.decimalLatitude) for o in obs if !ismissin
 
 # use `extract` to get values for all layers at each observation point.
 # We `collect` to get a `Vector` from the lazy iterator.
-collect(extract(st, pnts))
+collect(extract(st, pnts)); nothing
 
 # output
-5-element Vector{NamedTuple{(:geometry, :bio1, :bio3, :bio5, :bio7, :bio12), Tuple{Tuple{Float64, Float64}, Float32, Float32, Float32, Float32, Float32}}}:
- (geometry = (148.326515, -36.260389), bio1 = 8.8584585, bio3 = 41.039413, bio5 = 21.6955, bio7 = 23.47875, bio12 = 1389.0)
- (geometry = (148.2198, -36.351113), bio1 = 7.8357186, bio3 = 41.597527, bio5 = 20.51325, bio7 = 23.50275, bio12 = 1500.0)
- (geometry = (148.214924, -36.421454), bio1 = 7.8357186, bio3 = 41.597527, bio5 = 20.51325, bio7 = 23.50275, bio12 = 1500.0)
- (geometry = (147.096394, -36.935687), bio1 = 9.408354, bio3 = 40.790546, bio5 = 22.39425, bio7 = 23.0895, bio12 = 1292.0)
- (geometry = (148.347186, -36.504673), bio1 = 8.420698, bio3 = 43.542496, bio5 = 21.20175, bio7 = 23.142, bio12 = 1223.0)
-```
+
 """
 function extract end
 function extract(x::RasterStackOrArray, data;

@@ -34,7 +34,6 @@ mad = replace_missing(madagascar[RS.Band(1)], missingval=NaN)
 x, y = lookup(mad, X), lookup(mad, Y)
 
 heatmap(x, y, mad.data;
-    axis = (; aspect = DataAspect()),
-    figure = (; resolution=(600,400))
+    axis = (; aspect = DataAspect())
     )
 #current_figure()

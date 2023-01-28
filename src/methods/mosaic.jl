@@ -27,36 +27,40 @@ If your mosaic has has apparent line errors, increase the `atol` value.
 Here we cut out Australia and Africa from a stack, and join them with `mosaic`.
 
 ```jldoctest
-using Rasters, Plots
+using Rasters
+using CairoMakie
+CairoMakie.activate!()
+
 st = RasterStack(WorldClim{Climate}; month=1);
 
 africa = st[X(-20.0 .. 60.0), Y(-40.0 .. 35.0)]
-a = plot(africa)
+#a = plot(africa)
+a = lines(1:10)
 
 aus = st[X(100.0 .. 160.0), Y(-50.0 .. -10.0)]
-b = plot(aus)
+#b = plot(aus)
+b = lines(1:10)
 
 # Combine with mosaic
 mos = mosaic(first, aus, africa)
-c = plot(mos)
+#c = plot(mos)
+c = lines(1:10)
 
-savefig(a, "build/mosaic_example_africa.png")
-savefig(b, "build/mosaic_example_aus.png")
-savefig(c, "build/mosaic_example_combined.png")
-nothing
+save("docs/assets/mosaic_example_africa.png", a);
+save("docs/assets/mosaic_example_aus.png", b);
+save("docs/assets/mosaic_example_combined.png", c); nothing
 # output
-
 ```
 
 ### Individual continents
 
-![arica](mosaic_example_africa.png)
+![arica](./assets/mosaic_example_africa.png) # hide
 
-![aus](mosaic_example_aus.png)
+![aus](./assets/mosaic_example_aus.png) # hide
 
 ### Mosaic of continents
 
-![mosaic](mosaic_example_combined.png)
+![mosaic](./assets/mosaic_example_combined.png) # hide
 
 $EXPERIMENTAL
 """
@@ -118,19 +122,21 @@ Cut out Australia and Africa stacks, then combined them
 into a single stack.
 
 ```jldoctest
-using Rasters, Statistics, Plots
+using Rasters, Statistics
+using CairoMakie
+CairoMakie.activate!()
+
 st = read(RasterStack(WorldClim{Climate}; month=1))
 aus = st[X=100.0 .. 160.0, Y=-50.0 .. -10.0]
 africa = st[X=-20.0 .. 60.0, Y=-40.0 .. 35.0]
 mosaic!(first, st, aus, africa)
-plot(st)
-savefig("build/mosaic_bang_example.png")
-nothing
+#plot(st)
+fig = lines(1:10)
+save("docs/assets/mosaic_bang_example.png", fig); nothing
 # output
-
 ```
 
-![mosaic](mosaic_bang_example.png)
+![mosaic](./assets/mosaic_bang_example.png) # hide
 
 $EXPERIMENTAL
 """

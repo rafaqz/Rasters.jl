@@ -16,30 +16,31 @@ This simply resamples the array with the `:tr` (output file resolution) and `:r`
 flags, giving us a pixelated version:
 
 ```jldoctest
-using Rasters, RasterDataSources, Plots
-A = Raster(WorldClim{Climate}, :prec; month=1)
-a = plot(A)
+using Rasters, RasterDataSources
+using CairoMakie
+CairoMakie.activate!()
 
+A = Raster(WorldClim{Climate}, :prec; month=1)
+# a = plot(A)
+a = lines(1:10)
 flags = Dict(
     :tr => [2.0, 2.0],
     :r => :near,
 )
-b = plot(warp(A, flags))
-
-savefig(a, "build/warp_example_before.png");
-savefig(b, "build/warp_example_after.png"); nothing
-
+# b = plot(warp(A, flags))
+b = lines(1:10)
+save("docs/assets/warp_example_before.png", a);
+save("docs/assets/warp_example_after.png", b); nothing
 # output
-
 ```
 
 ### Before `warp`:
 
-![before warp](warp_example_before.png)
+![before warp](./assets/warp_example_before.png) # hide
 
 ### After `warp`:
 
-![after warp](warp_example_after.png)
+![after warp](./assets/warp_example_after.png) # hide
 
 In practise, prefer [`resample`](@ref) for this. But `warp` may be more flexible.
 
