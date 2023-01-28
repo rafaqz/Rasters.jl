@@ -11,7 +11,7 @@ or `X`, `Y` points columns.
 # Arguments
 
 - `obj`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
-    or a Tables.jl compatible object containing points and values columns or an `:geometry`.
+    or a Tables.jl compatible object containing a `:geometry` column or points and values columns.
 
 # Keywords
 
