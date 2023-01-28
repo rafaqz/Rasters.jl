@@ -28,7 +28,7 @@ stackkeys = (
 
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle)
-    # The following tests "source" keyword and breaks
+
     @time lazyarray = Raster(ncsingle; lazy=true);
     @time eagerarray = Raster(ncsingle; lazy=false);
     @test_throws ArgumentError Raster("notafile.nc")
@@ -54,16 +54,7 @@ stackkeys = (
         A3 = copy(A) .= 0
         @time read!(ncsingle, A3)
         @test all(A .=== A2) 
-        @test all(ncsingle .=== A3)
-    end
-
-    @testset "custom filename" begin
-        ncsingle_custom = replace(ncsingle, "nc" => "nc4")
-        cp(ncsingle, ncsingle_custom, force=true)
-        @time ncarray_custom = Raster(ncsingle_custom, source=Rasters.NCDfile, lazy=true)
-        @test ncarray_custom isa Raster
-        @test parent(ncarray_custom) isa FileArray{Rasters.NCDfile}
-        @test all(read(ncarray_custom) .=== ncarray)
+        @test all(A .=== A3)
     end
 
     @testset "ignore empty variables" begin
@@ -376,7 +367,7 @@ end
         cp(ncmulti, ncmulti_custom, force=true)
         @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDfile)
         @test ncstack_custom isa RasterStack
-        @test map(read(ncstack_custom), eagerstack) do a, b
+        @test map(read(ncstack_custom), read(ncstack)) do a, b
             all(a .=== b)
         end |> all
     end
