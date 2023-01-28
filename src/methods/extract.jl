@@ -30,7 +30,7 @@ using Rasters, GBIF2, CSV
 st = RasterStack(WorldClim{BioClim}, (1, 3, 5, 7, 12))[Band(1)] |> replace_missing
 
 # Download some occurrence data
-obs = GBIF2.occurrence_search("Burramys parvus"; limit = 10)
+obs = GBIF2.occurrence_search("Burramys parvus"; limit=5, year="2009")
 
 # Convert observations to points
 pnts = collect((o.decimalLongitude, o.decimalLatitude) for o in obs if !ismissing(o.decimalLongitude))
@@ -41,11 +41,11 @@ collect(extract(st, pnts))
 
 # output
 5-element Vector{NamedTuple{(:geometry, :bio1, :bio3, :bio5, :bio7, :bio12), Tuple{Tuple{Float64, Float64}, Float32, Float32, Float32, Float32, Float32}}}:
- (geometry = (148.326515, -36.260389), bio1 = 8.8584585, bio3 = 41.039413, bio5 = 21.6955, bio7 = 23.47875, bio12 = 1389.0)
- (geometry = (148.2198, -36.351113), bio1 = 7.8357186, bio3 = 41.597527, bio5 = 20.51325, bio7 = 23.50275, bio12 = 1500.0)
- (geometry = (148.214924, -36.421454), bio1 = 7.8357186, bio3 = 41.597527, bio5 = 20.51325, bio7 = 23.50275, bio12 = 1500.0)
- (geometry = (147.096394, -36.935687), bio1 = 9.408354, bio3 = 40.790546, bio5 = 22.39425, bio7 = 23.0895, bio12 = 1292.0)
- (geometry = (148.347186, -36.504673), bio1 = 8.420698, bio3 = 43.542496, bio5 = 21.20175, bio7 = 23.142, bio12 = 1223.0)
+ (geometry = (0.21, 40.07), bio1 = 17.077084f0, bio3 = 41.20417f0, bio5 = 30.1f0, bio7 = 24.775f0, bio12 = 446.0f0)
+ (geometry = (0.03, 39.97), bio1 = 17.076923f0, bio3 = 39.7983f0, bio5 = 29.638462f0, bio7 = 24.153847f0, bio12 = 441.0f0)
+ (geometry = (0.03, 39.97), bio1 = 17.076923f0, bio3 = 39.7983f0, bio5 = 29.638462f0, bio7 = 24.153847f0, bio12 = 441.0f0)
+ (geometry = (0.52, 40.37), bio1 = missing, bio3 = missing, bio5 = missing, bio7 = missing, bio12 = missing)
+ (geometry = (0.32, 40.24), bio1 = 16.321388f0, bio3 = 41.659454f0, bio5 = 30.029825f0, bio7 = 25.544561f0, bio12 = 480.0f0)
 ```
 """
 function extract end
