@@ -55,6 +55,16 @@ gdalpath = maybedownload(url)
         @test A == A2 == A3
     end
 
+
+    @testset "custom filename" begin
+        gdal_custom = replace(gdalpath, "tif" => "foo")
+        cp(gdalpath, gdal_custom, force=true)
+        @time gdalarray_custom = Raster(gdal_custom, source=Rasters.GDALfile, lazy=true)
+        @test gdalarray_custom isa Raster
+        @test parent(gdalarray_custom) isa FileArray{Rasters.GDALfile}
+        @test all(read(gdalarray_custom) .=== gdalarray)
+    end
+
     @testset "read and write band names" begin
         A = set(cat(gdalarray, gdalarray; dims=Band), Band=>1:2)
         named = set(A, Band => string.(Ref("layer_"), dims(A, Band)))

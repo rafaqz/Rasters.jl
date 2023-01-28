@@ -237,7 +237,7 @@ end
 # Rasters methods for ArchGDAL types ##############################
 
 # Create a Raster from a memory-backed dataset
-Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
+Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); source=GDALfile, kw...)
 function Raster(ds::AG.RasterDataset;
     crs=crs(ds), mappedcrs=nothing,
     dims=dims(ds, crs, mappedcrs),

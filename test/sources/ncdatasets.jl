@@ -6,11 +6,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = maybedownload(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
-ncsingle_custom = replace(ncsingle, "nc" => "nc4")
-cp(ncsingle, ncsingle_custom, force=true)
 ncmulti = maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
-ncmulti_custom = replace(ncmulti, "nc" => "nc4")
-cp(ncmulti, ncmulti_custom, force=true)
 
 stackkeys = (
     :abso4, :aclcac, :aclcov, :ahfcon, :ahfice, :ahfl, :ahfliac, :ahfllac,
@@ -33,8 +29,6 @@ stackkeys = (
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle)
     # The following tests "source" keyword and breaks
-    @test ncarray_custom = Raster(ncsingle_custom, source=Rasters.NCDfile) broken=true
-    @time ncarray_custom = Raster(ncsingle_custom)
     @time lazyarray = Raster(ncsingle; lazy=true);
     @time eagerarray = Raster(ncsingle; lazy=false);
     @test_throws ArgumentError Raster("notafile.nc")
@@ -60,11 +54,16 @@ stackkeys = (
         A3 = copy(A) .= 0
         @time read!(ncsingle, A3)
         @test all(A .=== A2) 
-        @test all(A .=== A3)
-	@time A4 = read(ncarray_custom)
-	@test A4 isa Raster
-        @test parent(A4) isa Array
-	@test A4 == A 
+        @test all(ncsingle .=== A3)
+    end
+
+    @testset "custom filename" begin
+        ncsingle_custom = replace(ncsingle, "nc" => "nc4")
+        cp(ncsingle, ncsingle_custom, force=true)
+        @time ncarray_custom = Raster(ncsingle_custom, source=Rasters.NCDfile, lazy=true)
+        @test ncarray_custom isa Raster
+        @test parent(ncarray_custom) isa FileArray{Rasters.NCDfile}
+        @test all(read(ncarray_custom) .=== ncarray)
     end
 
     @testset "ignore empty variables" begin
@@ -334,7 +333,6 @@ end
 
 @testset "Single file stack" begin
     @time ncstack = RasterStack(ncmulti)
-    @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDfile)
 
     @testset "lazyness" begin
         @time read(RasterStack(ncmulti));
@@ -348,8 +346,6 @@ end
 
     @testset "load ncstack" begin
         @test ncstack isa RasterStack
-	@test ncstack_custom isa RasterStack
-	@test ncstack_custom == ncstack
         @test ismissing(missingval(ncstack))
         @test dims(ncstack[:abso4]) == dims(ncstack, (X, Y, Ti)) 
         @test refdims(ncstack) == ()
@@ -373,6 +369,16 @@ end
         geoA = ncstack[:albedo][Ti(4:6), X(1), Y(2)]
         @test geoA == ncstack[:albedo, Ti(4:6), X(1), Y(2)]
         @test size(geoA) == (3,)
+    end
+
+    @testset "custom filename" begin
+        ncmulti_custom = replace(ncmulti, "nc" => "nc4")
+        cp(ncmulti, ncmulti_custom, force=true)
+        @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDfile)
+        @test ncstack_custom isa RasterStack
+        @test map(read(ncstack_custom), eagerstack) do a, b
+            all(a .=== b)
+        end |> all
     end
 
     if VERSION > v"1.1-"

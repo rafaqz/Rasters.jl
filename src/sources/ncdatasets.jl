@@ -47,9 +47,9 @@ function Raster(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw...)
     if isnothing(key)
         # Find the first valid variable
         for key in layerkeys(ds)
-            if ndims(NCD.variable(ds, key)) > 0 
+            if ndims(NCD.variable(ds, key)) > 0
                 @info "No `name` or `key` keyword provided, using first valid layer with name `:$key`"
-                return Raster(ds[key], filename, key; kw...)
+                return Raster(ds[key], filename, key; source=NCDfile, kw...)
             end
         end
         throw(ArgumentError("dataset at $filename has no array variables"))
