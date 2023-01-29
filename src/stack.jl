@@ -242,7 +242,7 @@ function RasterStack(filename::AbstractString;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, missingval=nothing,
     source=_sourcetype(filename), name=nothing, keys=name, layersfrom=nothing,
-    resize=nothing, lazy=true, ext=nothing
+    resize=nothing, lazy=false, ext=nothing
 )
     st = if isdir(filename)
         # Load a whole directory
