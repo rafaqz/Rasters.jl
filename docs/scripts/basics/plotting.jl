@@ -13,12 +13,7 @@ using CairoMakie
 CairoMakie.activate!()
 
 A = Raster(WorldClim{BioClim}, 5)
-aband = replace_missing(A[RS.Band(1)], NaN)
-x, y = lookup(aband, X), lookup(aband, Y)
-
-heatmap(x, y, aband.data;
-    axis = (; aspect = DataAspect()),
-    )
+rplot(A)
 
 # ## Loading and plotting data
 
@@ -36,29 +31,7 @@ A = Raster(filename)
 
 rasd = A[Ti=1:3:12]
 
-function rplot(raster::Raster; colormap= :seaborn_icefire_gradient)
-    nfacets = 4
-    rows = 2
-    cols = 2
-
-    x = lookup(rasd, X) 
-    y = lookup(rasd, Y)
-    raster = replace_missing(raster, NaN)
-
-    fig = Figure(resolution=(1400,800))
-    gs = [fig[i,j] = GridLayout() for i in 1:rows for j in 1:cols]
-    for k in 1:nfacets
-        ax = Axis(gs[k][1,1], title = "$(k)")
-        obj = heatmap!(ax, x, y, raster.data[:,:,k] .- 273.15; colormap)
-        Colorbar(gs[k][1,2], obj)
-        colgap!(gs[k], 10)
-    end
-    Label(fig[0,:], string(raster.name), fontsize = 24)
-    rowgap!(fig.layout, 10)
-    fig
-end
-
-fig = rplot(rasd)
+rplot(rasd; colormap= :seaborn_icefire_gradient)
 
 # Now plot the ocean temperatures around the Americas in the first month of 2001.
 # Notice we are using lat/lon coordinates and date/time instead of regular
@@ -67,12 +40,7 @@ fig = rplot(rasd)
 
 using CFTime
 tband = A[Ti(Near(DateTime360Day(2001, 01, 17))), Y(-60.0 .. 90.0), X(45.0 .. 190.0)]
-tband = replace_missing(tband, NaN)
-x, y = lookup(tband, X), lookup(tband, Y)
-
-heatmap(x, y, tband.data;
-    axis = (; aspect = DataAspect()),
-    )
+rplot(tband)
 
 # Other plot functions and sliced objects that have only one `X`/`Y`/`Z` dimension
 # fall back to generic DimensionalData.jl plotting, which will still correctly

@@ -3,6 +3,7 @@
 *.jl.mem
 *.shp
 *.dbf
+*.nc
 docs/build
 test/data
 Manifest.toml

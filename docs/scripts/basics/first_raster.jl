@@ -28,12 +28,4 @@ CairoMakie.activate!()
 
 A = Raster(WorldClim{BioClim}, 5)
 madagascar = view(A, X(43.25 .. 50.48), Y(-25.61 .. -12.04)) # Note the space between .. -12
-#plot(madagascar)
-#lookup(madagascar, RS.Band(1))
-mad = replace_missing(madagascar[RS.Band(1)], missingval=NaN)
-x, y = lookup(mad, X), lookup(mad, Y)
-
-heatmap(x, y, mad.data;
-    axis = (; aspect = DataAspect())
-    )
-#current_figure()
+rplot(madagascar)

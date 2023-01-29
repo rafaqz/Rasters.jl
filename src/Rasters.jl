@@ -45,6 +45,20 @@ using Base: tail, @propagate_inbounds
 
 using Setfield: @set, @set!
 using ColorTypes: RGB
+using Makie:
+    Theme,
+    DataAspect,
+    Aspect,
+    set_theme!,
+    Figure,
+    Axis,
+    heatmap!,
+    Colorbar,
+    colsize!,
+    colgap!,
+    rowgap!,
+    GridLayout,
+    Label
 
 export AbstractRaster, Raster
 export AbstractRasterStack, RasterStack
@@ -108,7 +122,8 @@ include("read.jl")
 include("write.jl")
 include("convenience.jl")
 include("show.jl")
-include("plotrecipes.jl")
+#include("plotrecipes.jl")
+include("plot_rasters.jl")
 
 
 include("methods/aggregate.jl")

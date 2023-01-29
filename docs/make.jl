@@ -1,9 +1,7 @@
 using Documenter, DocumenterMarkdown
 using Rasters, Logging, Statistics, Dates
 using Rasters.LookupArrays, Rasters.Dimensions
-import CairoMakie
-CairoMakie.activate!()
-CairoMakie.set_theme!(; resolution = (700,400))
+
 # ENV["GKSwstype"] = "100"
 
 # Plots warnings are brWarn doctests. They dont warn the second time.
