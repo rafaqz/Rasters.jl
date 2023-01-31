@@ -90,7 +90,7 @@ function _rasterize(to::Extents.Extent{K}, data;
     return _rasterize(to_dims, data; fill, kw...)
 end
 function _rasterize(to::DimTuple, data; fill, name=nothing, kw...)
-    if Tables.istable(data)
+    if Tables.istable(typeof(data)) # typeof so we dont check iterable table fallback in Tables.jl
         schema = Tables.schema(data)
         colnames = Tables.columnnames(Tables.columns(data))
         # TODO integrate this with _iterable_fill
@@ -117,24 +117,19 @@ function _rasterize(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name,
     # TODO: how to handle when there are fillvals with different types
     fillval = _featurefillval(GI.getfeature(fc, 1), fill)
     name = _filter_name(name, fill)
-    return _create_rasterize_dest(fillval, to; name, kw...) do dest
+    return _create_rasterize_dest(fillval, to1; name, kw...) do dest
         rasterize!(dest, fc; fill, kw...)
     end
 end
 function _rasterize(to::DimTuple, ::GI.AbstractFeatureTrait, feature; fill, name, kw...)
     fillval = _featurefillval(feature, fill)
     name = _filter_name(name, fill)
-    return _create_rasterize_dest(fillval, to; name, kw...) do dest
+
+    return _create_rasterize_dest(fillval, ; name, kw...) do dest
         rasterize!(dest, feature; fill, kw...)
     end
 end
-function _rasterize(to::DimTuple, ::GI.AbstractGeometryTrait, geom; fill, kw...)
-    return _create_rasterize_dest(fill, to; kw...) do dest
-        rasterize!(dest, geom; fill, kw...)
-    end
-end
-function _rasterize(to::DimTuple, ::Nothing, data; fill, kw...)
-    # treat data as some kind of interable of geometries
+function _rasterize(to::DimTuple, ::Union{Nothing,GI.AbstractGeometryTrait}, data; fill, kw...)
     return _create_rasterize_dest(fill, to; kw...) do dest
         rasterize!(dest, data; fill, kw...)
     end
@@ -222,7 +217,7 @@ $EXPERIMENTAL
 function rasterize! end
 rasterize!(reduce::Function, x::RasterStackOrArray, data; kw...) =
     rasterize!(x::RasterStackOrArray, data; reduce, kw...)
-function rasterize!(x::RasterStackOrArray, data; fill, reduce=last, kw...)
+function rasterize!(x::RasterStackOrArray, data; fill, reduce=nothing, kw...)
     function _iterable_fill(data, fill::Symbol) 
         names = Tables.columnnames(Tables.columns(data))
         fill in names || _fill_key_error(names, fill)
@@ -230,29 +225,35 @@ function rasterize!(x::RasterStackOrArray, data; fill, reduce=last, kw...)
     end
     _iterable_fill(data, fill::Tuple{Symbol,Vararg}) =
         map(f -> _iterable_fill(data, f), fill)
-    _iterable_fill(data, fill) = Iterators.cycle(fill)
+    _iterable_fill(data, fill) = Iteractors.cycle(fill)
 
-    # Check if data is a GeoInterface compatible geometry
-    if GI.isgeometry(data) || GI.isfeature(data)
-        _rasterize!(x, GI.trait(data), data; fill, reduce, kw...)
-    # Otherwise check if it's a Tables.jl compatible object
-    elseif Tables.istable(data)
+    # Check if it's a Tables.jl compatible object
+    if Tables.istable(typeof(data))
         schema = Tables.schema(data)
         geomcolname = first(GI.geometrycolumns(data))
         cols = Tables.columns(data)
-        fill_itr = _iterable_fill(cols, fill)
+
         if geomcolname in Tables.columnnames(cols)
+            # Its a geometry table
             geomcol = Tables.getcolumn(cols, geomcolname)
-            _reduce_fill!(reduce, x, data, fill_itr; kw...)
+            if isnothing(reduce)
+                # We are rasterizing every geometry into one layer
+                _rasterize!(x, GI.trait(geomcol), data; fill, kw...)
+            else
+                # We are running a reducing function over each geometry
+                fill_itr = _iterable_fill(cols, fill)
+                _reduce_fill!(reduce, x, geomcol, fill_itr; kw...)
+            end
         else
+            # Its a point table
             dimscols = _auto_dim_columns(data, dims(x))
             pointcols = map(k -> Tables.getcolumn(data, k), map(DD.dim2key, dimscols))
             reduce == last || throw(ArgumentError("Can only reduce with `last` on point tables. Make a github issue at the Rasters.jl repository if you need something else."))
-            _buffer = _init_bools(commondims(x, (XDim, YDim)), Bool, geom; missingval=false, kw...)
+            _buffer = _init_bools(x, Bool, geom; missingval=false, kw...)
             _rasterize_point_table_inner!(x, pointcols, fill_itr; _buffer, reduce, kw...)
         end
-    # Otherwise maybe a FeatureCollection or some iterator
     else
+        # Otherwise maybe a Geometry, FeatureCollection or some iterator
         _rasterize!(x, GI.trait(data), data; fill, reduce, kw...)
     end
 end
@@ -263,7 +264,8 @@ function _rasterize_point_table_inner!(x, pointcols, fill_itr; kw...)
     end
 end
 
-function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
+
+function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; reduce=nothing, fill, kw...)
     function _iterable_fill(fc, keyorfill::Val)
         if _unwrap(keyorfill) isa Tuple
             (NamedTuple{_unwrap(key)}(map(p -> getproperty(GI.properties(f), p), _unwrap(key))) for f in GI.getfeature(fc))
@@ -296,6 +298,7 @@ function _rasterize!(x, ::GI.AbstractGeometryTrait, geom; fill, _buffer=nothing,
     ext = _extent(geom)
     x1 = view(x, Touches(ext))
     length(x1) > 0 || return x
+
     bools = if isnothing(_buffer)
         _init_bools(commondims(x1, (XDim, YDim)), Bool, geom; missingval=false, kw...)
     else
@@ -311,13 +314,15 @@ function _rasterize!(x, trait::GI.AbstractPointTrait, point; fill, kw...)
     return x
 end
 # rasterize other iterables of features or gemoemtries
-function _rasterize!(x, trait::Nothing, data; fill, reduce=last, kw...)
+function _rasterize!(x, trait::Nothing, data; fill, reduce=nothing, _buffer=nothing, kw...)
     # Check the itr length if we can, cycle if its 1
-    fill_itr = if Base.IteratorSize(fill) isa Base.HasShape
+    fill_itr = if fill isa NamedTuple
+        Iterators.cycle(Ref(fill))
+    elseif Base.IteratorSize(fill) isa Union{Base.HasShape,Base.HasLength}
         l = length(fill)
         if l == 1
             Iterators.cycle(fill)
-        elseif Base.IteratorSize(data) isa Base.HasShape
+        elseif Base.IteratorSize(data) isa Union{Base.HasShape,Base.HasLength}
             n = length(data)
             if l == n
                 fill
@@ -330,7 +335,28 @@ function _rasterize!(x, trait::Nothing, data; fill, reduce=last, kw...)
     else
         fill
     end
-    return _reduce_fill!(reduce, x, data, fill_itr; kw...)
+    if isnothing(reduce)
+        if isnothing(_buffer)
+            _buffer = _init_bools(x, Bool, data; missingval=false, kw...)
+        end
+        foreach(data, fill_itr) do geom, fill
+            _rasterize!(x, GI.trait(geom), geom; fill, _buffer, kw...)
+        end
+    else
+        _reduce_fill!(reduce, x, data, fill_itr; kw...)
+    end
+    return x
+end
+
+function _combine_fill!(f, x, geoms, fill; kw...)
+    masks = boolmask(geoms; to=x, combine=true, _istable=false, kw...)
+    # Loop over spatial dimensions reduceing the other dimension
+    spatialdims = commondims(masks, (XDim, YDim))
+    broadcast!(x, x, DimIndices(spatialdims)) do val, ds
+        newval = _apply_reduction!(f, fill_itr, view(masks, ds...))
+        isnothing(newval) ? val : newval
+    end
+    return x
 end
 
 # _reduce_fill!
@@ -344,18 +370,26 @@ end
 # We get 64 Bool values to a regular `Int` meaning this doesn't scale too
 # badly for large tables of geometries. 64k geometries and a 1000 * 1000
 # raster needs 1GB of memory just for the `BitArray`.
-function _reduce_fill!(f, x, geoms, fill_itr; kw...)
+function _reduce_fill!(f, A, geoms, fill_itr; kw...)
     # Define mask dimensions, the same size as the spatial dims of x
-    spatialdims = commondims(x, (XDim, YDim))
+    spatialdims = commondims(A, (XDim, YDim))
     # Mask geoms as separate bool layers
-    masks = boolmask(geoms; to=x, combine=false, _istable=false, kw...)
-    # Loop over spatial dimensions reduceing the other dimension
-    spatialdims = commondims(masks, (XDim, YDim))
-    broadcast!(x, x, DimIndices(spatialdims)) do val, ds
-        newval = _apply_reduction!(f, fill_itr, view(masks, ds...))
-        isnothing(newval) ? val : newval
+    masks = boolmask(geoms; to=A, combine=false, _istable=false, kw...)
+    _reduce_fill_inner!(f, A, geoms, fill_itr, masks)
+end
+
+function _reduce_fill_inner!(f, A::AbstractArray{T}, geoms, fill_itr, masks) where T
+    Threads.@threads for x in eachindex(lookup(A, X()))
+        for y in eachindex(lookup(A, Y())) 
+            D = (X(x), Y(x))
+            I = DD.dims2indices(masks, D)
+            newval = _apply_reduction!(f, fill_itr, view(parent(parent(masks)), I...))::Union{Nothing,T}
+            if !isnothing(newval) 
+                A[D...] = convert(T, newval)::T
+            end
+        end
     end
-    return x
+    return A
 end
 
 # _apply_reduction!
@@ -410,6 +444,7 @@ end
 function _create_rasterize_dest(f, fill::Union{Tuple,NamedTuple}, keys::Union{Tuple,NamedTuple}, dims;
     filename=nothing, missingval=nothing, metadata=NoMetadata(), suffix=nothing, kw...
 )
+    dims = _as_intervals(dims) # Only makes sense to rasterize to intervals
     layers = map(keys, values(fill)) do key, val
         missingval = isnothing(missingval) ? _writeable_missing(filename, typeof(val)) : missingval
         _alloc_rasterize(filename, val, dims; name, metadata, missingval, suffix=key) do a
@@ -423,6 +458,7 @@ end
 function _create_rasterize_dest(f, fill, name, dims;
     filename=nothing, missingval=nothing, metadata=NoMetadata(), suffix=nothing, kw...
 )
+    dims = _as_intervals(dims) # Only makes sense to rasterize to intervals
     missingval = isnothing(missingval) ? _writeable_missing(filename, typeof(val)) : missingval
     A = _alloc_rasterize(filename, fill, dims; name, metadata, missingval, suffix) do a
         a .= missingval
@@ -455,6 +491,7 @@ function _fill!(A::AbstractRaster{T}, B, fill, missingval=nothing) where T
         convert(T, val) # In case we are writing to disk
     end
 end
+
 
 function _at_or_contains(d, v, atol)
     selector = sampling(d) isa Intervals ? Contains(v) : At(v; atol=atol)

@@ -11,6 +11,12 @@ const SIZE_KEYWORD = """
 const RES_KEYWORD = """
 - `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
 """
+const COMBINE_KEYWORD = """
+- `combine`: combine all geometries in tables/iterables into a single layer, or return
+    a `Raster` with a `:geometry` dimension where each slice is the rasterisation 
+    of a single geometry. This can be useful for reductions. Note the returned object
+    may be quite large when `combine=false`. `true` by default.
+"""
 
 const SHAPE_KEYWORDS = """
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point` geometries.
@@ -25,6 +31,7 @@ $TO_KEYWORD
 $RES_KEYWORD
 $SIZE_KEYWORD
 $SHAPE_KEYWORDS
+$COMBINE_KEYWORD
 """
 
 
@@ -273,8 +280,6 @@ function boolmask(source::AbstractRaster; kw...)
     return boolmask!(dest, source; kw...)
 end
 function boolmask(x; to=nothing, kw...)
-    # Don't try to fill more than X/Y/Z dimensions with geometries
-    # TODO: do we need to call `GeoInterface.is3d` here?
     if to isa Union{AbstractDimArray,AbstractDimStack,DimTuple}
         to = dims(to, DEFAULT_POINT_ORDER)
     end
@@ -288,8 +293,13 @@ function boolmask!(dest::AbstractRaster, src::AbstractRaster;
     broadcast!(a -> !isequal(a, missingval), dest, src)
 end
 function boolmask!(dest::AbstractRaster, geom; kw...)
+    boolmask!(dest, GI.trait(geom), geom; kw...)
+function boolmask!(dest::AbstractRaster, geom; kw...)
     if hasdim(dest, :geometry)
-        for (slice, g) in zip(eachslice(dest; dims=Dim{:geometry}()), geom) 
+        geomvec = collect(geom)
+        Threads.@threads for i in eachindex(geomvec) 
+            g = geomvec[i]
+            slice = view(dest, geometry=i)
             burn_geometry!(slice, g; fill=true, kw...)
         end
     else
@@ -300,7 +310,7 @@ end
 
 """
     missingmask(obj::Raster; kw...)
-    missingmask(obj; [to, res, size])
+    missingmask(obj; [to, res, size, combine])
 
 Create a mask array of `missing` and `true` values, from another `Raster`.
 `AbstractRasterStack` or `AbstractRasterSeries` are also accepted, but a mask

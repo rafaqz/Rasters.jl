@@ -171,7 +171,7 @@ function _extent2dims(to::Extents.Extent{K};
 end
 
 
-# Like `create` but without disk writds, mostly for Bool/Union{Missing,Boo},
+# Like `create` but without disk writes, mostly for Bool/Union{Missing,Boo},
 # and uses `similar` where possible
 # TODO merge this with `create` somehow
 _init_bools(to::AbstractRasterSeries, T::Type, data; kw...) = _init_bools(first(to), T, data; kw...)
@@ -197,7 +197,7 @@ function _init_bools(to, dims::DimTuple, T::Type, data; combine=true, kw...)
             count(_ -> true, data)
         end
         geomdim = Dim{:geometry}(1:n)
-        _alloc_bools(to, (geomdim, dims...), T; kw...)
+        _alloc_bools(to, (dims..., geomdim), T; kw...)
     end
 end
 
@@ -208,7 +208,8 @@ function _alloc_bools(to::AbstractRaster, dims::DimTuple, ::Type{T}; missingval=
     # This is a little annoying to lock down for all wrapper types,
     # maybe ArrayInterface has tools for this.
     data = if T === Bool && parent(to) isa Union{Array,DA.AbstractDiskArray} 
-        falses(dims) # Use a BitArray
+        # falses(dims) # Use a BitArray
+        fill!(similar(to, T, dims), missingval) # Fill some other array type
     else
         fill!(similar(to, T, dims), missingval) # Fill some other array type
     end
@@ -217,11 +218,20 @@ end
 # Otherwise just use an Array or BitArray
 function _alloc_bools(to, dims::DimTuple, ::Type{T}; missingval, kw...) where T
     data = if T === Bool
-        falses(dims) # Use a BitArray
+        # falses(dims) # Use a BitArray
+        fill!(Raster{T}(undef, dims), missingval) # Use an `Array`
     else
         fill!(Raster{T}(undef, dims), missingval) # Use an `Array`
     end
     return Raster(data, dims; missingval)
+end
+
+function _as_intervals(ds::Tuple)
+    # Rasterization onl makes sense on Intervals
+    interval_dims = map(dims(ds, DEFAULT_POINT_ORDER)) do d
+        set(d, Sampled(; sampling=Intervals()))
+    end
+    return setdims(ds, interval_dims)
 end
 
 

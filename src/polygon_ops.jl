@@ -1,8 +1,8 @@
 
 const Poly = AbstractVector{<:Union{NTuple{<:Any,<:Real},AbstractVector{<:Real}}}
 
-const DEFAULT_POINT_ORDER = (X(), Y(), Z())
-const DEFAULT_TABLE_DIM_KEYS = (:X, :Y, :Z)
+const DEFAULT_POINT_ORDER = (X(), Y())
+const DEFAULT_TABLE_DIM_KEYS = (:X, :Y)
 
 # _burn_geometry!
 # Fill a raster with `fill` where it interacts with a geometry.
@@ -11,9 +11,7 @@ const DEFAULT_TABLE_DIM_KEYS = (:X, :Y, :Z)
 # _istable keyword is a hack so we know not to pay the
 # price of calling `istable` which calls `hasmethod`
 function burn_geometry!(B::AbstractRaster, data; kw...)
-    if GI.isgeometry(data) || GI.isfeature(data) 
-        _burn_geometry!(B, GI.trait(data), data; kw...)
-    elseif Tables.istable(data)
+    if Tables.istable(typeof(data))
         geomcolname = first(GI.geometrycolumns(data))
         for row in Tables.rows(data)
             geom = Tables.getcolumn(row, geomcolname)
@@ -34,13 +32,15 @@ end
 function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait, fc; kw...)
     _burn_geometry!(B, (GI.geometry(f) for f in GI.getfeature(fc)); kw...)
 end
-function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; shape=nothing, verbose=true, kw...)
+function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; shape=nothing, _buffer=nothing, verbose=false, kw...)
+    # Use the specified shape or detect it
     shape = shape isa Symbol ? shape : _geom_shape(geom)
     if shape === :point
-        _burn_point!(B, geom; shape, kw...)
+        _fill_point!(B, geom; fill=true, shape, kw...)
     elseif shape === :line
         _burn_lines!(B, geom; shape, kw...)
     elseif shape === :polygon
+        # Get the extents of the geometry and array
         geomextent = _extent(geom)
         arrayextent = Extents.extent(B, DEFAULT_POINT_ORDER)
         # Only fill if the gemoetry bounding box overlaps the array bounding box
@@ -50,7 +50,21 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; sh
             end
             return B
         end
-        _burn_polygon!(B, geom; shape, geomextent, kw...)
+        # Take a view of the geometry extent
+        B1 = view(B, Touches(geomextent))
+        if isnothing(_buffer)
+            # Burn straight into the main array (for one object rasterization)
+            _burn_polygon!(B1, geom; shape, geomextent, kw...)
+        else
+            # Also take a view of the buffer
+            buf1 = view(_buffer, Touches(geomextent))
+            # Reset the buffer for this area
+            buf1 .= false
+            # Burn the polygon into the buffer
+            _burn_polygon!(buf1, geom; shape, geomextent, kw...)
+            # btwise or any burned pixels into the main array
+            B1 .|= buf1
+        end
     else
         throw(ArgumentError("`shape` is $shape, must be `:point`, `:line`, `:polygon` or `nothing`"))
     end
@@ -59,11 +73,16 @@ end
 # Treat geoms as an iterator
 function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine=true, kw...)
     if combine
+        # Define a buffer to write to, we cant burn lines and polygons
+        # into the same buffer - they reverse each other.
+        _buffer = _init_bools(dest, Bool, geom; missingval=false, kw...)
+        # Burn each geometry in a loop. This can be threaded because
+        # we writ to the same arrays (We could allocate more for that maybe)
         for geom in geoms
-            _burn_geometry!(B, geom; kw...)
+            _burn_geometry!(B, geom; _buffer, kw...)
         end
     else
-        for (i, geom) in enumerate(geoms)
+        Threads.@spawn for (i, geom) in enumerate(geoms)
             B1 = view(B, Dim{:geometry}(i))
             _burn_geometry!(B1, geom; kw...)
         end
@@ -71,122 +90,190 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine=true,
     return B
 end
 
+
+using PolygonInbounds: vertex, edgecount, edgeindex, searchfirst
+
 # _burn_polygon!
 # Fill a raster with `fill` where pixels are inside a polygon
 # `boundary` determines how edges are handled
 function _burn_polygon!(B::AbstractRaster, geom;
-    fill=true, boundary=:center, geomextent , kw...
+    fill=true, boundary=:center, geomextent, kw...
 )
-    # Subset to the area the geom covers
-    # TODO take a view of B for the polygon
-    # We need a tuple of all the dims in `order`
-    # We also need the index locus to be the center so we are
-    # only selecting cells more than half inside the polygon
-    shifted_dims = map(dims(B, DEFAULT_POINT_ORDER)) do d
-        d = DD.maybeshiftlocus(Center(), d)
-        # DimPoints are faster if we materialise the dims
-        modify(Array, d)
-    end
-    pts = vec((DimPoints(shifted_dims)))
-    inpoly = if any(map(d -> DD.order(d) isa Unordered, shifted_dims))
-        inpolygon(pts, geom)
-    else
-        pointbounds = map(shifted_dims) do d
-            f = first(d)
-            l = last(d)
-            f < l ? (f, l) : (l, f)
-        end
-        # Precalculate vmin, vmax and iyperm permutation vector
-        # This is much faster than calling `sortperm` in PolygonInbounds.jl
-        vmin = [map(first, pointbounds)...]'
-        vmax = [map(last, pointbounds)...]'
-        pmin = [map(first, geomextent)...]'
-        pmax = [map(last, geomextent)...]'
-        iyperm = _iyperm(shifted_dims)
-        inpolygon(pts, geom; vmin, vmax, pmin, pmax, iyperm)
-    end
-    inpolydims = dims(B, DEFAULT_POINT_ORDER)
-    reshaped = Raster(reshape(inpoly, size(inpolydims)), inpolydims)
-    return _inner_burn_polygon!(B, geom, reshaped, shifted_dims; fill, boundary)
-end
+    # Area
+    edges, nodes = to_edges_and_nodes(geom)
+    B1 = _prepare_for_burning(B, Center())
+    _burn_polygon!(B1, nodes, edges)
 
-# split to make a type stability function barrier
-function _inner_burn_polygon!(B::AbstractRaster, geom, reshaped, shifted_dims; fill::Bool=true, boundary=:center, verbose=true, kw...)
-    # Get the array as points
-    # Use the first column of the output - the points in the polygon,
-    # and reshape to match `A`
-    
-    # Used to warn if no fill is written for this polygon
-    any_in_polygon = false
+    # Lines
     n_on_line = false
-
-    # TODO: This takes a while, it could be faster to use
-    # modified PolygonInbounds output directly rather than 
-    # a reshaped view of the first column?
-    for D in DimIndices(B)
-        @inbounds is_in_polygon = reshaped[D...]
-        if is_in_polygon 
-            any_in_polygon = true
-            @inbounds B[D...] = fill
-        end
-    end
-    if boundary === :touches
-        B1 = setdims(B, shifted_dims)
-        # Add the line pixels
-        n_on_line = _burn_lines!(B1, geom; fill)
-    elseif boundary === :inside
-        B1 = setdims(B, shifted_dims)
-        # Remove the line pixels
-        n_on_line = _burn_lines!(B1, geom; fill=!fill)
+    if boundary === :touches && _check_intervals(B, boundary)
+        # Add line pixels
+        B2 = _prepare_for_burning(B, Center())
+        n_on_line = _burn_lines!(B2, geom; fill)
+    elseif boundary === :inside && _check_intervals(B, boundary)
+        # Remove line pixels
+        B2 = _prepare_for_burning(B, Center())
+        n_on_line = _burn_lines!(B2, geom; fill=!fill)
     elseif boundary !== :center
         throw(ArgumentError("`boundary` can be :touches, :inside, or :center, got $boundary"))
     end
     if verbose
-        (any_in_polygon | n_on_line > 0) || @warn "$n polygons were not filled as they did not cross a pixel center. Consider using `boundary=:touches`, or `verbose=false` to hide these warning"
+        (n_on_line > 0) || @warn "some polygons were not filled as they did not cross a pixel center. Consider using `boundary=:touches`, or `verbose=false` to hide these warning"
     end
     return B
 end
 
-struct IYPerm{D<:Tuple,R} <: AbstractVector{Int}
-    dims::D
-    ranges::R
-end
-function IYPerm(dims::D) where D
-    ranges = map(dims) do d
-        l = parent(d)
-        LA.ordered_firstindex(l):_order_step(l):LA.ordered_lastindex(l)
+# Modified from PolygonInbounds with optimisations for rasters
+# where we know point order and can loop over the array directly
+function _burn_polygon!(A::AbstractDimArray, nodes, edges)
+    poly = PolygonInbounds.PolygonMesh(nodes, edges)
+    nvertices = length(A) # number of points to be checked
+    nedges = edgecount(poly) # number of edges of the polygon mesh
+    xlookup = lookup(A, XDim)
+    ylookup = lookup(A, YDim)
+    ix = 1
+    iy = 2
+
+    # loop over polygon edges
+    for epos = 1:nedges
+        inod = edgeindex(poly, epos, 1)  # from
+        jnod = edgeindex(poly, epos, 2)  # to
+        # swap order of vertices
+        if vertex(poly, inod, iy) > vertex(poly, jnod, iy)
+            inod, jnod = jnod, inod
+        end
+
+        # calc. edge bounding-box
+        xone = vertex(poly, inod, ix)
+        xtwo = vertex(poly, jnod, ix)
+        yone = vertex(poly, inod, iy)
+        ytwo = vertex(poly, jnod, iy)
+
+        ymin = yone
+        ymax = ytwo
+
+        xmin = min(xone, xtwo)
+        xmax = max(xone, xtwo)
+
+        ydel = ytwo - yone
+        xdel = xtwo - xone
+
+        # Find Y index 
+        ystart = searchsortedfirst(ylookup, ymin)
+        # calc. edge-intersection
+        # loop over all points with y ∈ [ymin, ymax)
+        for y in ystart:LA.ordered_step(ylookup):LA.ordered_lastindex(ylookup)
+            @inbounds ypos = ylookup[y]
+            ypos > ymax && break 
+            for x in eachindex(xlookup)
+                @inbounds xpos = xlookup[x]
+                xpos > xmax && break 
+                if xpos >= xmin
+                    # inside extended bounding box of edge
+                    mul1 = ydel * (xpos - xone)
+                    mul2 = xdel * (ypos - yone)
+                    if mul1 < mul2 && yone <= ypos < ytwo
+                        # left of line && ypos exact to avoid multiple counting
+                        @inbounds A[Y(y), X(x)] = !A[Y(y), X(x)]
+                    end
+                else # xpos < xmin - left of bounding box
+                    if yone <= ypos < ytwo
+                        # ypos exact to avoid multiple counting
+                        @inbounds A[Y(y), X(x)] = !A[Y(y), X(x)]
+                    end
+                end
+            end
+        end
     end
-    IYPerm{D,typeof(ranges)}(dims, ranges)
+    return A
 end
-DD.dims(yp::IYPerm) = yp.dims
 
-_order_step(x) = _order_step(order(x))
-_order_step(::ReverseOrdered) = -1
-_order_step(::ForwardOrdered) = 1
+# PolygonInbounds.jl setup
 
-Base.@propagate_inbounds function Base.getindex(yp::IYPerm, i::Int)
-    ci = Tuple(CartesianIndices(size(dims(yp)))[i])
-    I = map(getindex, yp.ranges, ci)
-    return LinearIndices(size(dims(yp)))[I...]
+# _to_edges
+# Convert a polygon to the `edges` needed by PolygonInbounds
+to_edges_and_nodes(geom) = to_edges_and_nodes(GI.geomtrait(geom), geom)
+function to_edges_and_nodes(
+    tr::Union{GI.LinearRingTrait,GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, geom
+)
+    n = GI.npoint(geom)
+    edges = Matrix{Int}(undef, n, 2)
+    nodes = Matrix{Float64}(undef, n, 2)
+    nodenum = 0
+    if tr isa GI.LinearRingTrait
+        to_edges_and_nodes!(edges, nodes, nodenum, geom)
+    else
+        for ring in GI.getring(geom)
+            nodenum = to_edges_and_nodes!(edges, nodes, nodenum, ring)
+        end
+    end
+    return edges, nodes
 end
-Base.size(yp::IYPerm) = (prod(map(length, dims(yp))),)
+# _to_edges!(edges, edgenum, geom)
+# Analyse a single geometry
+function to_edges_and_nodes!(edges, nodes, lastnode, geom)
+    npoints = GI.npoint(geom)
+    for (n, point) in enumerate(GI.getpoint(geom))
+        i = lastnode + n
+        if n == npoints
+            # The closing edge of a sub-polygon
+            edges[i, 1] = i
+            edges[i, 2] = lastnode + 1
+        else
+            # A regular edge somewhere in a sub-polygon
+            edges[i, 1] = i
+            edges[i, 2] = i + 1
+        end
+        nodes[i, 1] = GI.x(point)
+        nodes[i, 2] = GI.y(point)
+    end
+    return lastnode + npoints
+end
 
-_iyperm(dims::Tuple) = IYPerm(dims)
+@noinline function _check_intervals(B, boundary)
+    if all(map(s -> s isa Intervals, sampling(dims(B)))) 
+        return true
+    else
+        @info "`boundary=:$boundary` only applies to intervals. Line burning skipped"
+        return false
+    end
+end
 
-# _burn_point!
+function _prepare_for_burning(B, locus)
+    B1 = _forward_ordered(B)
+    start_dims = map(dims(B1, DEFAULT_POINT_ORDER)) do d
+        d = DD.maybeshiftlocus(locus, d)
+        modify(Array, d)
+    end
+    return setdims(B1, start_dims)
+end
+
+function _forward_ordered(B)
+    reduce(dims(B1); init=B1) do A, d
+        if DD.order(d) isa ReverseOrdered
+            A = view(A, rebuild(d, lastindex(d):-1:firstindex(d)))
+            set(A, d => reverse(d))
+        else
+            A
+        end
+    end
+end
+
+
+# _fill_point!
 # Fill a raster with `fill` where points are inside raster pixels
-@noinline _burn_point!(x::RasterStackOrArray, geom; kw...) = _burn_point!(x, GI.geomtrait(geom), geom; kw...)
-@noinline function _burn_point!(x::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom; kw...)
+@noinline _fill_point!(x::RasterStackOrArray, geom; kw...) = _fill_point!(x, GI.geomtrait(geom), geom; kw...)
+@noinline function _fill_point!(x::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom; kw...)
     # Just find which pixels contain the points, and set them to true
     _without_mapped_crs(x) do x1
         for point in GI.getpoint(geom)
-            _burn_point!(x, point; kw...)
+            _fill_point!(x, point; kw...)
         end
     end
     return x
 end
-@noinline function _burn_point!(x::RasterStackOrArray, ::GI.AbstractPointTrait, point;
-    fill=true, atol=nothing, kw...
+@noinline function _fill_point!(x::RasterStackOrArray, ::GI.AbstractPointTrait, point;
+    fill, atol=nothing, kw...
 )
     selectors = map(dims(x, DEFAULT_POINT_ORDER)) do d
         _at_or_contains(d, _dimcoord(d, point), atol)
@@ -221,20 +308,12 @@ end
 # Fill a raster with `fill` where pixels touch lines in a geom
 # Separated for a type stability function barrier
 function _burn_lines!(B::AbstractRaster, geom; fill=true, kw...)
-    # Make sure dims have `Center` locus
-    centered_dims = map(dims(B, DEFAULT_POINT_ORDER)) do d
-        d = DD.maybeshiftlocus(Center(), d)
+    # Make sure dims are `Intervals` with `Start` locus
+    start_dims = map(dims(B, DEFAULT_POINT_ORDER)) do d
+        DD.maybeshiftlocus(Start(), d)
     end
-    centered_B = setdims(B, centered_dims)
+    _prepare_for_burning(B, Start())
     # Flip the order with a view to keep our alg simple
-    forward_ordered_B = reduce(dims(centered_B); init=centered_B) do A, d
-        if DD.order(d) isa ReverseOrdered
-            A = view(A, rebuild(d, lastindex(d):-1:firstindex(d)))
-            set(A, d => reverse(d))
-        else
-            A
-        end
-    end
     return _burn_lines!(forward_ordered_B, geom, fill)
 end
 
@@ -299,8 +378,8 @@ end
 #
 # TODO: generalise to Irregular spans?
 function _burn_line!(A::AbstractRaster, line, fill)
-    xd, yd = dims(A, DEFAULT_POINT_ORDER)
-    regular = map((xd, yd)) do d
+    xdim, ydim = dims(A, DEFAULT_POINT_ORDER)
+    regular = map((xdim, ydim)) do d
         lookup(d) isa AbstractSampled && span(d) isa Regular
     end
     msg = """
@@ -310,31 +389,45 @@ function _burn_line!(A::AbstractRaster, line, fill)
         """
     all(regular) || throw(ArgumentError(msg))
 
-    x_scale = abs(step(span(A, X)))
-    y_scale = abs(step(span(A, Y)))
-    raw_x_offset = xd[1] - x_scale / 2
-    raw_y_offset = yd[1] - x_scale / 2
-    # Converted lookup to array axis values
-    start = (x=(line.start.x - raw_x_offset)/x_scale, y=(line.start.y - raw_y_offset)/y_scale)
-    stop = (x=(line.stop.x - raw_x_offset)/x_scale, y=(line.stop.y - raw_y_offset)/y_scale)
-    x, y = ceil(Int, start.x), ceil(Int, start.y) # Int
+    @assert order(xdim) == order(ydim) == LookupArrays.ForwardOrdered()
+    @assert locus(xdim) == locus(ydim) == LookupArrays.Start()
 
-    diff_x = stop.x - start.x
-    diff_y = stop.y - start.y
-    step_x = signbit(diff_x) * -2 + 1
-    step_y = signbit(diff_y) * -2 + 1
+    raster_x_scale = abs(step(span(A, X)))
+    raster_y_scale = abs(step(span(A, Y)))
+    raster_x_offset = xdim[1]
+    raster_y_offset = ydim[1]
+    # Converted lookup to array axis values (still floating)
+    relstart = (x=(line.start.x - raster_x_offset) / raster_x_scale, 
+             y=(line.start.y - raster_y_offset) / raster_y_scale)
+    relstop = (x=(line.stop.x - raster_x_offset) / raster_x_scale, 
+            y=(line.stop.y - raster_y_offset) / raster_y_scale)
+    diff_x = relstop.x - relstart.x
+    diff_y = relstop.y - relstart.y
+
     # Ray/Slope calculations
     # Straight distance to the first vertical/horizontal grid boundaries
-    xoffset = stop.x > start.x ? (ceil(start.x) - start.x) : (start.x - floor(start.x))
-    yoffset = stop.y > start.y ? (ceil(start.y) - start.y) : (start.y - floor(start.y))
+    if relstop.x > relstart.x
+        xoffset = floor(relstart.x) - relstart.x + 1 
+        xmoves = floor(relstop.x) - floor(relstart.x)
+    else
+        xoffset = relstart.x - floor(relstart.x)
+        xmoves = floor(relstart.x) - floor(relstop.x)
+    end
+    if relstop.y > relstart.y
+        yoffset = floor(relstart.y) - relstart.y + 1
+        ymoves = floor(relstop.y) - floor(relstart.y)
+    else
+        yoffset = relstart.y - floor(relstart.y)
+        ymoves = floor(relstart.y) - floor(relstop.y)
+    end
+    manhattan_distance = xmoves + ymoves
     # Angle of ray/slope.
     # max: How far to move along the ray to cross the first cell boundary.
     # delta: How far to move along the ray to move 1 grid cell.
-    # Our precision requirements are very low given pixels per
-    # axis is usually some number of thousands
-    ang = @fastmath atan(-diff_y, diff_x)
-    cs = @fastmath cos(ang)
-    si = @fastmath sin(ang)
+    hyp = @fastmath sqrt(diff_y^2 + diff_x^2)
+    cs = diff_x / hyp
+    si = -diff_y / hyp
+
     delta_x, max_x = if isapprox(cs, zero(cs); atol=1e-10)
         -Inf, Inf
     else
@@ -346,25 +439,36 @@ function _burn_line!(A::AbstractRaster, line, fill)
         1.0 / si, yoffset / si
     end
     # For arbitrary dimension indexing
-    dimconstructors = map(DD.basetypeof, (xd, yd))
+    dimconstructors = map(DD.basetypeof, (xdim, ydim))
     # Count how many exactly hit lines
     n_on_line = 0
-    # Travel one grid cell at a time.
-    manhattan_distance = floor(Int, abs(ceil(start.x) - floor(stop.x)) + abs(ceil(start.y) - floor(stop.y)))
+    countx = county = 0
+
+    # Int starting points for the lin. +1 converts to julia indexing
+    j, i = floor(Int, relstart.x) + 1, floor(Int, relstart.y) + 1 # Int
+
+    # Int steps to move allong the line
+    step_j = signbit(diff_x) * -2 + 1
+    step_i = signbit(diff_y) * -2 + 1
+
+    # Travel one grid cell at a time. Start at zero for the current cell
     for _ in 0:manhattan_distance
-        D = map((d, o) -> d(o), dimconstructors, (x, y))
+        D = map((d, o) -> d(o), dimconstructors, (j, i))
         if checkbounds(Bool, A, D...)
             n_on_line += 1
             val = fill isa Function ? fill(A[D...]) : fill
             @inbounds A[D...] = val
         end
+
         # Only move in either X or Y coordinates, not both.
         if abs(max_x) < abs(max_y)
             max_x += delta_x
-            x += step_x
+            j += step_j
+            countx +=1
         else
             max_y += delta_y
-            y += step_y
+            i += step_i
+            county +=1
         end
     end
     return n_on_line
@@ -375,48 +479,6 @@ function _burn_line!(A::AbstractRaster, line, fill, order::Tuple{Vararg{<:Dimens
         Make a Rasters.jl github issue if you need this for more dimensions.
         """
     throw(ArgumentError(msg))
-end
-
-# PolygonInbounds.jl setup
-
-# _to_edges
-# Convert a polygon to the `edges` needed by PolygonInbounds
-to_edges_and_nodes(geom) = to_edges_and_nodes(GI.geomtrait(geom), geom)
-function to_edges_and_nodes(
-    tr::Union{GI.LinearRingTrait,GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, geom
-)
-    n = GI.npoint(geom)
-    edges = Matrix{Int}(undef, n, 2)
-    nodes = Matrix{Float64}(undef, n, 2)
-    nodenum = 0
-    if tr isa GI.LinearRingTrait
-        to_edges_and_nodes!(edges, nodes, nodenum, geom)
-    else
-        for ring in GI.getring(geom)
-            nodenum = to_edges_and_nodes!(edges, nodes, nodenum, ring)
-        end
-    end
-    return edges, nodes
-end
-# _to_edges!(edges, edgenum, geom)
-# Analyse a single geometry
-function to_edges_and_nodes!(edges, nodes, lastnode, geom)
-    npoints = GI.npoint(geom)
-    for (n, point) in enumerate(GI.getpoint(geom))
-        i = lastnode + n
-        if n == npoints
-            # The closing edge of a sub-polygon
-            edges[i, 1] = i
-            edges[i, 2] = lastnode + 1
-        else
-            # A regular edge somewhere in a sub-polygon
-            edges[i, 1] = i
-            edges[i, 2] = i + 1
-        end
-        nodes[i, 1] = GI.x(point)
-        nodes[i, 2] = GI.y(point)
-    end
-    return lastnode + npoints
 end
 
 # _extent
@@ -501,3 +563,4 @@ _dimcoord(::ZDim, point) = GI.z(point)
 @inline _geom_shape(::Union{<:GI.LinearRingTrait,<:GI.PolygonTrait,<:GI.MultiPolygonTrait}, geom) = :polygon
 @inline _geom_shape(x, geom) = throw(ArgumentError("Geometry trait $x cannot be rasterized"))
 @inline _geom_shape(::Nothing, geom) = throw(ArgumentError("Object is not a GeoInterface.jl compatible geometry: $geom"))
+

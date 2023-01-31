@@ -8,8 +8,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
 A = [missing 7.0f0; 2.0f0 missing]
 B = [1.0 0.4; 2.0 missing]
-ga = Raster(A, (X, Y); missingval=missing)
-ga99 = replace_missing(ga, -9999)
+ga = Raster(A, (X, Y); missingval=missing) ga99 = replace_missing(ga, -9999)
 gaNaN = replace_missing(ga, NaN32)
 gaMi = replace_missing(ga)
 st = RasterStack((a=A, b=B), (X, Y); missingval=(a=missing,b=missing))
@@ -75,7 +74,7 @@ end
     @test all(missingmask(ga99) .=== [missing true; true missing])
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
     @test dims(missingmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
-    @atest missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
+    @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
     x = missingmask([polygon, polygon]; combine=false, res=1.0)
     @test eltype(x) == Union{Bool,Missing}
     @test size(x) == (20, 20, 2)
@@ -119,6 +118,10 @@ end
             @test sum(skipmissing(mask(a1; with=polygon, boundary=:inside))) == 19 * 19
             @test sum(skipmissing(mask(a1; with=polygon, boundary=:center))) == 20 * 20
             @test sum(skipmissing(mask(a1; with=polygon, boundary=:touches))) == 21 * 21
+            mask(a1; with=polygon, boundary=:touches)
+            mask(a1; with=polygon, boundary=:touches, shape=:line)
+            mask(a1; with=polygon, boundary=:inside)
+            mask(a1; with=polygon)
         end
     end
 end
@@ -318,20 +321,6 @@ end
                    missing missing missing], dims=3))
 end
 
-@testset "inpolygon" begin
-    @test inpolygon((-10.0, 20.0), polygon) == true
-    @test inpolygon((-19.0, 29.0), polygon) == true
-    @test inpolygon((-30.0, 20.0), polygon) == false
-    @test inpolygon([(-10.0, 20.0), (-30.0, 40.0)], polygon) == [true, false]
-    @test inpolygon((-20.0, 50.0), polygon) == false
-    @test inpolygon((-20.0, 50.0), (geometry=polygon, test="test",)) == false
-    @test inpolygon(ArchGDAL.createlinestring([[-5.0, 20.0], [-10.0, 10.0]]), polygon) == true
-    @test inpolygon(ArchGDAL.createlinestring([[-10.0, 20.0], [-30.0, 40.0]]), polygon) == false
-    @test inpolygon(ArchGDAL.createpolygon([[[-10.0, 20.0], [-30.0, 40.0]]]), polygon) == false
-    feat = (geometry=ArchGDAL.createlinestring([[-5.0, 20.0], [-10.0, 10.0]]), test=false)
-    @test inpolygon(feat, polygon) == true
-end
-
 @testset "rasterize and rasterize!" begin
     A1 = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
     A2 = Raster(zeros(Y(0:30; sampling=Intervals()), X(-20:5; sampling=Intervals())))
@@ -342,12 +331,9 @@ end
         geom = pointvec
         for A in (A1, A2), geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon)
             A .= 0
-            using Plots
-            plot(A)
             rasterize!(A, geom; shape=:point, fill=1)
             st.layer1 .= st.layer2 .= 0
             rasterize!(st, geom; shape=:point, fill=(layer1=1, layer2=2))
-            plot(st)
             @test sum(st[:layer1]) == 4
             @test sum(st[:layer2]) == 8
             st[:layer1] .= st[:layer2] .= 0
@@ -357,8 +343,11 @@ end
 
     @testset "all line and polygon geoms work as :line" begin
         A = A1
+        geom = linestring
         for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon)
             rasterize!(A, geom; shape=:line, fill=1)
+            using Plots
+            plot(A)
             @test sum(A) == 20 + 20 + 20 + 20
             A .= 0
         end
@@ -493,13 +482,14 @@ end
     shp_paths = filter(x -> occursin("shp", x), readdir(test_shape_dir; join=true))
     shp = shp_paths[1]
     shx = splitext(shp)[1] * ".shx"
+    shphandle = Shapefile.Handle(shp, shx)
 
     xs = LinRange(0.0, 179.28, 250)
     ys = LinRange(169.32, 0.0, 250)
 
     @testset "center in polygon rasterization" begin
         gdal_raster = gdal_read_rasterize(shp)
-        rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes; 
+        rasters_raster = rasterize(shphandle.shapes; 
             size=250, fill=UInt8(1), missingval=UInt8(0)
         )
         # Same results as GDAL
@@ -508,47 +498,69 @@ end
     end
 
     @testset "line touches rasterization" begin
-        gdal_raster = gdal_read_rasterize(shp, "-at")
-        rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes; 
-            size=(250, 250), fill=UInt8(1), missingval=UInt8(0), boundary=:touches
-        )
+        using BenchmarkTools
+        using ProfileView
+        @benchmark gdal_raster = gdal_read_rasterize(shp, "-at")
+        function rasters_read_rasterize(shp)
+            shx = splitext(shp)[1] * ".shx"
+            shphandle = Shapefile.Handle(shp, shx)
+            rasters_raster = rasterize(shphandle.shapes; 
+                size=(250, 250), fill=UInt8(1), missingval=UInt8(0), boundary=:touches
+            )
+        end
+        @profview for i in 1:1000 rasters_raster = rasterize(sum, shphandle.shapes; 
+            size=(250, 250), fill=UInt64(1), missingval=UInt64(0), boundary=:touches
+           ); end
+        @benchmark rasters_raster = rasterize(sum, shphandle.shapes; 
+            size=(250, 250), fill=UInt64(1), missingval=UInt64(0), #boundary=:touches
+           )
+        @benchmark rasters_read_rasterize(shp)
+        @profview for i in 1:1000 rasters_read_rasterize(shp) end
 
         # We are off by 2 - pixels in the middle of the line dont always agree with gdal
-        @test_broken sum(gdal_raster) == sum(rasters_raster)
-        @test_broken gdal_raster == rasters_raster
-        @test sum(rasters_raster) - sum(gdal_raster) == 2
+        @test sum(gdal_raster) == sum(rasters_raster)
+        @test reverse(gdal_raster[:, :, 1], dims=2) == rasters_raster
         plot(rasters_raster; resolution=(2000, 2000))
         plot(rebuild(rasters_raster, reverse(gdal_raster[:, :, 1]; dims=2)), resolution=(2000, 2000))
-        plot!(Shapefile.Handle(shp, shx).shapes)
 
         line = Line(Point(1.00, 4.50), Point(4.75, 0.75))
         r1 = Raster(zeros(Bool, X(0.5:1.0:6.5), Y(0.5:1.0:6.5)));
+        r1r = reverse(r1; dims=X) 
         Rasters.rasterize!(r1, line; fill=true)
+        Rasters.rasterize!(r1r, line; fill=true)
         r2 = Raster(zeros(Bool, X(0.5:1.00001:6.5), Y(0.5:1.00001:6.5)))
+        r2r = reverse(r2; dims=X) 
         Rasters.rasterize!(r2, line; fill=true)
+        Rasters.rasterize!(r2r, line; fill=true)
         r3 = Raster(zeros(Bool, X(0.5:0.99999:6.5), Y(0.5:0.99999:6.5)))
+        r3r = reverse(r3; dims=X) 
         Rasters.rasterize!(r3, line; fill=true)
+        Rasters.rasterize!(r3r, line; fill=true)
 
-        @test sum(r1) == 7
-        @test sum(r2) == 6 # The line doesn't reach the last pixel
-        @test sum(r3) == 7
+        @test reverse(r1r; dims=X) == r1
+        @test reverse(r2r; dims=X) == r2
+        @test reverse(r3r; dims=X) == r3
 
-        @test r1 == [
+        @test sum(r1) == 8
+        @test sum(r2) == 9 # The first pixel is larger so the line touches it
+        @test sum(r3) == 8
+
+        @test 
+        r1 == [
          0 0 0 0 0 0 0
          0 0 0 1 1 0 0
          0 0 1 1 0 0 0
          0 1 1 0 0 0 0
-         0 1 0 0 0 0 0
+         1 1 0 0 0 0 0
          0 0 0 0 0 0 0
          0 0 0 0 0 0 0]
 
-        @test r2 == [
-         0 0 0 0 0 0
-         0 0 0 1 0 0
+        @test parent(r2) == [
+         0 0 0 0 1 0
+         0 0 0 1 1 0
          0 0 1 1 0 0
          0 1 1 0 0 0
-         0 1 0 0 0 0
-         0 0 0 0 0 0
+         1 1 0 0 0 0
          0 0 0 0 0 0]
 
         @test r3 == [
@@ -556,7 +568,7 @@ end
          0 0 0 1 1 0 0
          0 0 1 1 0 0 0
          0 1 1 0 0 0 0
-         0 1 0 0 0 0 0
+         1 1 0 0 0 0 0
          0 0 0 0 0 0 0
          0 0 0 0 0 0 0]
     end
