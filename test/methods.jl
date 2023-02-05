@@ -595,11 +595,22 @@ end
     end
 
     # Rasters vs GDAL performance
-    # using Rasters
-    # using BenchmarkTools
-    # using ProfileView
-    # using Shapefile
-    # using Plots
+    using Rasters
+    using BenchmarkTools
+    using ProfileView
+    using Shapefile
+    using Plots
+    shppath = "/home/raf/PhD/Mascarenes/Data/Distributions/MAMMALS_TERRESTRIAL_ONLY/MAMMALS_TERRESTRIAL_ONLY.shp"
+    shptable = Shapefile.Table(shppath)
+    @time mammal_count = rasterize(count, shptable; res=1/6, boundary=:center);
+    plot(mammal_count)
+    savefig("mammal_count.png")
+
+    @time mammal_count_touches = rasterize(count, shptable; res=1/6, boundary=:touches);
+    plot(mammal_count_touches)
+
+    @time mammal_count = rasterize(miminum, shptable; fill=:SHAPE_Area, res=1/6, boundary=:center);
+
     # function rasters_read_rasterize(shp; boundary=:touches)
     #     shx = splitext(shp)[1] * ".shx"
     #     shphandle = Shapefile.Handle(shp, shx)
@@ -614,7 +625,6 @@ end
     #         size=(250, 250), fill, missingval=0, boundary
     #     )
     # end
-    # shp = "/home/raf/PhD/Mascarenes/Data/Distributions/MAMMALS_TERRESTRIAL_ONLY/MAMMALS_TERRESTRIAL_ONLY.shp"
     # shp = "/home/raf/PhD/Mascarenes/Data/Distributions/REPTILES/REPTILES.shp"
     # shp = "/home/raf/PhD/Mascarenes/Data/Distributions/AMPHIBIANS/AMPHIBIANS.shp"
     # @profview 

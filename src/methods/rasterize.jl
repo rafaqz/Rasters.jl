@@ -364,7 +364,6 @@ function _rasterize!(x, trait::Nothing, geoms::AbstractVector;
             Threads.@threads for i in eachindex(geoms)
                 geom = geoms[i]
                 fill = _getfill(fill_itr, i)
-                @show fill
                 _rasterize!(x, GI.trait(geom), geom; kw..., fill, op, init)
             end
         end
