@@ -185,10 +185,10 @@ function _init_bools(to::Nothing, T::Type, data; kw...)
     isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
     # Convert the extent to dims (there must be `res` or `size` in `kw`)
     dims = _extent2dims(ext; kw...)
-    _init_bools(to, dims, T, data; kw...)
+    return _init_bools(to, dims, T, data; kw...)
 end
 function _init_bools(to, dims::DimTuple, T::Type, data; combine=true, kw...)
-    if combine
+    if isnothing(data) || combine
         _alloc_bools(to, dims, T; kw...)
     else
         n = if Base.IteratorSize(data) isa Base.HasShape
@@ -201,15 +201,18 @@ function _init_bools(to, dims::DimTuple, T::Type, data; combine=true, kw...)
     end
 end
 
+# TODO make this a preference
+# 2 GB
+const MAX_SIZE = 4_000_000_000
+
 # When `to` is a Raster we can try to use the same parent array type
-function _alloc_bools(to::AbstractRaster, dims::DimTuple, ::Type{T}; missingval=nothing, kw...) where T
+function _alloc_bools(to::AbstractRaster, dims::DimTuple, ::Type{T}; missingval, kw...) where T
     dims = commondims(dims, DEFAULT_POINT_ORDER)
     # TODO: improve this so that only e.g. CuArray uses `similar`
     # This is a little annoying to lock down for all wrapper types,
     # maybe ArrayInterface has tools for this.
-    data = if T === Bool && parent(to) isa Union{Array,DA.AbstractDiskArray} 
-        # falses(dims) # Use a BitArray
-        fill!(similar(to, T, dims), missingval) # Fill some other array type
+    data = if T === Bool && parent(to) isa Union{Array,DA.AbstractDiskArray} && prod(size(dims)) > MAX_SIZE 
+        falses(dims) # Use a BitArray
     else
         fill!(similar(to, T, dims), missingval) # Fill some other array type
     end
@@ -217,9 +220,8 @@ function _alloc_bools(to::AbstractRaster, dims::DimTuple, ::Type{T}; missingval=
 end
 # Otherwise just use an Array or BitArray
 function _alloc_bools(to, dims::DimTuple, ::Type{T}; missingval, kw...) where T
-    data = if T === Bool
-        # falses(dims) # Use a BitArray
-        fill!(Raster{T}(undef, dims), missingval) # Use an `Array`
+    data = if T === Bool && prod(size(dims)) > MAX_SIZE
+        falses(dims) # Use a BitArray
     else
         fill!(Raster{T}(undef, dims), missingval) # Use an `Array`
     end
