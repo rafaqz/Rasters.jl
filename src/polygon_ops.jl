@@ -58,6 +58,7 @@ end
 # price of calling `istable` which calls `hasmethod`
 function burn_geometry!(B::AbstractRaster, data; kw...)
     if Tables.istable(typeof(data))
+        geomcolname = first(GI.geometrycolumns(data))
         geoms = Tables.getcolumn(data, geomcolname)
         _burn_geometry!(B, nothing, geoms; kw...)
     else
@@ -209,7 +210,7 @@ function _burn_polygon!(A::AbstractDimArray, mesh::PolygonMesh)
         ystart = searchsortedfirst(ylookup, ymin)
         # calc. edge-intersection
         # loop over all points with y ∈ [ymin, ymax)
-        for y in ystart:LA.ordered_step(ylookup):LA.ordered_lastindex(ylookup)
+        for y in ystart:lastindex(ylookup)
             @inbounds ypos = ylookup[y]
             ypos > ymax && break 
             for x in eachindex(xlookup)
