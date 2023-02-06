@@ -266,6 +266,12 @@ struct Raster{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: AbstractR
     name::Na
     metadata::Me
     missingval::Mi
+    function Raster(
+        data::A, dims::D, refdims::R, name::Na, metadata::Me, missingval::Mi
+   ) where {D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} where {T,N}
+        DimensionalData.checkdims(A, dims)
+        new{T,N,D,R,A,Na,Me,Mi}(data, dims, refdims, name, metadata, missingval)
+    end
 end
 function Raster(A::AbstractArray, dims::Tuple;
     refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing,
