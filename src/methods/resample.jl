@@ -16,7 +16,7 @@ or to snap to the bounds, resolution and crs of the object `to`.
 # Keywords
 
 - `to`: an `AbstractRaster` whose resolution, crs and bounds will be snapped to.
-    For best results it should roughly cover the same extent, or a subset of `A`.
+    For best results it should roughly cover the same extent, or be a subset of `A`.
 - `crs`: A `GeoFormatTypes.GeoFormat` such as `EPSG(x)` or `WellKnownText(string)` specifying an
     output crs (`A` will be reprojected to `crs` in addition to being resampled). Defaults to `crs(A)`
 - `method`: A `Symbol` or `String` specifying the method to use for resampling.
@@ -38,9 +38,12 @@ or to snap to the bounds, resolution and crs of the object `to`.
 
     Where NODATA values are set to `missingval`.
 
-Note: `missingval` of `missing` does not work with GDAL. Use `replace_missing(A, newmissingval)` to
-assign a missing value before using `resample` if the current value is `missing`. This will be
-automated in future versions.
+Notes:
+- `missingval` of `missing` does not work with GDAL. Use `replace_missing(A, newmissingval)` to
+  assign a missing value before using `resample` if the current value is `missing`. This will be
+  automated in future versions.
+- GDAL may cause some unexpected changes in the data, such as returning a reversed dimension or
+  changing the `crs` datatype from `EPSG` to `WellKnownText`.
 
 # Example
 
