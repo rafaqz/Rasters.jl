@@ -1,4 +1,6 @@
 
+const BaseReduceFunc = Union{typeof(sum),typeof(prod),typeof(maximum),typeof(minimum),typeof(extrema)}
+
 _reduce_op(::typeof(sum)) = Base.add_sum
 _reduce_op(::typeof(prod)) = Base.mul_prod
 _reduce_op(::typeof(minimum)) = min
@@ -19,8 +21,6 @@ _reduce_init(::typeof(extrema), ::Type{T}) where T<:Tuple{T1,T2} where {T1,T2} =
     (typemax(nonmissingtype(T1)), typemin(nonmissingtype(T2))) 
 _reduce_init(::typeof(extrema), ::Type{T}) where T<:Number =
     (typemax(nonmissingtype(T)), typemin(nonmissingtype(T)))
-
-const BaseReduceFunc = Union{typeof(sum),typeof(prod),typeof(maximum),typeof(minimum),typeof(extrema)}
 
 """
     rasterize(obj; to, fill, kw...)
@@ -91,12 +91,14 @@ function rasterize(reduce::Function, data; kw...)
     rasterize(data; reduce, name=Symbol(string(reduce)), kw...)
 end
 
+const COUNT_NO_FILL = "`rasterize` with `count` does not use the `fill` keyword"
+_count_fill(x) = x + 1
 # Catch some functione early
 #
 # count is faster with an incrementing function as `fill`
 function rasterize(reduce::typeof(count), data; fill=nothing, kw...)
-    isnothing(fill) || @info "`rasterize` with `count` does not use the `fill` keyword"
-    rasterize(data; name=:count, init=0, reduce=nothing, fill=x->x+1, kw...)
+    isnothing(fill) || @info COUNT_NO_FILL
+    rasterize(data; name=:count, init=0, reduce=nothing, fill=_count_fill, kw...)
 end
 # `mean` is sum / count
 # We can do better than this, but its easy for now
@@ -275,6 +277,10 @@ $EXPERIMENTAL
 function rasterize! end
 rasterize!(reduce::Function, x::RasterStackOrArray, data; kw...) =
     rasterize!(x::RasterStackOrArray, data; reduce, kw...)
+function rasterize!(reduce::typeof(count), x::RasterStackOrArray, data; fill=nothing, kw...) =
+    isnothing(fill) || @info COUNT_NO_FILL
+    rasterize!(x::RasterStackOrArray, data; kw..., reduce=nothing, op=nothing, fill=_count_fill)
+end
 function rasterize!(x::RasterStackOrArray, data; fill, reduce=nothing, kw...)
     function _rasterize_point_table_inner!(x, pointcols, fill_itr; kw...)
         for (point, fill) in  zip(zip(pointcols...), fill_itr)
