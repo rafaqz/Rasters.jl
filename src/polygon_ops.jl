@@ -2,12 +2,13 @@
 const DEFAULT_POINT_ORDER = (X(), Y())
 const DEFAULT_TABLE_DIM_KEYS = (:X, :Y)
 
-# Moved here form PolygonInbounds to remove slow checks
+# Moved here form PolygonInbounds for optimisation
+# Thanks to Klaus Crusius for the code here and in _burn_polygon
 struct PolygonMesh{U,E}
     nodes::U
     edges::E
 end
-PolygonMesh(geom) = PolygonMesh(to_nodes_and_edges(geom)...)
+PolygonMesh(geom) = PolygonMesh(_to_nodes_and_edges(geom)...)
 
 nodecount(poly::PolygonMesh) = size(poly.nodes, 1)
 Base.length(poly::PolygonMesh) = nodecount(poly)
@@ -16,8 +17,8 @@ edgeindex(poly::PolygonMesh, i::Integer, n::Integer) = poly.edges[i][n]
 
 vertex(poly::PolygonMesh, v::Integer, xy::Integer) = poly.nodes[v][xy]
 
-to_nodes_and_edges(geom) = to_nodes_and_edges(GI.geomtrait(geom), geom)
-function to_nodes_and_edges(
+_to_nodes_and_edges(geom) = _to_nodes_and_edges(GI.geomtrait(geom), geom)
+function _to_nodes_and_edges(
     tr::Union{GI.LinearRingTrait,GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, geom
 )
     n = GI.npoint(geom)
@@ -25,15 +26,15 @@ function to_nodes_and_edges(
     nodes = Vector{Tuple{Float64,Float64}}(undef, n)
     nodenum = 0
     if tr isa GI.LinearRingTrait
-        to_edges_and_nodes!(edges, nodes, nodenum, geom)
+        _to_edges_and_nodes!(edges, nodes, nodenum, geom)
     else
         for ring in GI.getring(geom)
-            nodenum = to_nodes_and_edges!(edges, nodes, nodenum, ring)
+            nodenum = _to_nodes_and_edges!(edges, nodes, nodenum, ring)
         end
     end
     return nodes, edges 
 end
-function to_nodes_and_edges!(edges, nodes, lastnode, geom)
+function _to_nodes_and_edges!(edges, nodes, lastnode, geom)
     npoints = GI.npoint(geom)
     for (n, point) in enumerate(GI.getpoint(geom))
         i = lastnode + n
@@ -47,6 +48,58 @@ function to_nodes_and_edges!(edges, nodes, lastnode, geom)
         nodes[i] = (GI.x(point), GI.y(point))
     end
     return lastnode + npoints
+end
+
+
+struct Edge{Float64}
+    start::Tuple{T,T}
+    stop::Tuple{T,T}
+    istart::Tuple{Int,Int}
+    istop::Tuple{Int,Int}
+    closing::Bool
+end
+
+_to_edges(geom, dims) = _to_edges(GI.geomtrait(geom), geom, dims)
+function _to_edges(
+    tr::Union{GI.LinearRingTrait,GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, geom, dims
+)
+    edges = Vector{Tuple{Int,Int}}(undef, GI.npoint(geom))
+    if tr isa GI.LinearRingTrait
+        _to_edges!(edges, geom)
+    else
+        for ring in GI.getring(geom)
+             _to_edges!(edges, ring)
+        end
+    end
+    return edges 
+end
+function _to_edges!(edges, geom, dims)
+    xlookup, ylookup = lookup(dims, (XDim, YDim)) 
+    xstart, ystart = first(xlookup), first(ylookup)
+    xstep, ystep = step(xlookup), step(ylookup)
+
+    npoints = GI.npoint(geom)
+    first = true
+    for (n, point) in enumerate(GI.getpoint(geom))
+        if first
+            firstpoint = lastpoint = x, y = (GI.x(point), GI.y(point))
+            firstind = lastind = floor(Int, (x - xstart) / xstep), floor(Int, (y - ystart) / ystep) 
+            first = false
+            continue
+        end
+        # A regular edge somewhere in a sub-polygon
+        nextpoint = x, y = (GI.x(point), GI.y(point))
+        nextind = floor(Int, (x - xstart) / xstep), floor(Int, (y - ystart) / ystep) 
+        edges[i - 1] = Edge(lastpoint, nextpoint, lastind, nextind, false)
+        if n == npoints
+            edges[i] = Edge(nextpoint, firstpoint, nextind, firstind, false)
+            firstpoint = x, y = (GI.x(point), GI.y(point))
+            nextind = floor(Int, (x - xstart) / xstep), floor(Int, (y - ystart) / ystep) 
+        end
+        lastpoint = nextpoint
+        lastind = nextind
+    end
+    return nothing
 end
 
 
@@ -181,6 +234,7 @@ function _burn_polygon!(A::AbstractDimArray, mesh::PolygonMesh)
     ylookup = lookup(A, YDim)
     ix = 1
     iy = 2
+    sort(
 
     # loop over polygon edges
     for epos = 1:nedges
