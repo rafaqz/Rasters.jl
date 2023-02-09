@@ -277,7 +277,7 @@ $EXPERIMENTAL
 function rasterize! end
 rasterize!(reduce::Function, x::RasterStackOrArray, data; kw...) =
     rasterize!(x::RasterStackOrArray, data; reduce, kw...)
-function rasterize!(reduce::typeof(count), x::RasterStackOrArray, data; fill=nothing, kw...) =
+function rasterize!(reduce::typeof(count), x::RasterStackOrArray, data; fill=nothing, kw...)
     isnothing(fill) || @info COUNT_NO_FILL
     rasterize!(x::RasterStackOrArray, data; kw..., reduce=nothing, op=nothing, fill=_count_fill)
 end
