@@ -37,7 +37,7 @@ and e.g. spatial coordinates.
 ```julia
 using Rasters, Dates
 lon, lat = X(25:1:30), Y(25:1:30)
-ti = Ti(DateTime(2001):Month(1):DateTime(2001))
+ti = Ti(DateTime(2001):Month(1):DateTime(2002))
 ras = Raster(rand(lon, lat, ti)) # this generates random numbers with the dimensions given
 ```
 ```
