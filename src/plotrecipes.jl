@@ -248,3 +248,53 @@ function DD.refdims_title(refdim::Band; issingle=false)
     end
 end
 
+
+# Makie.jl recipes
+
+# For now, these are just basic conversions from 2D rasters to surface-like (surface, heatmap) plot types.
+# Once Makie supports figure level recipes, we should integrate those.
+    
+# First, define default plot types for Rasters
+MakieCore.plottype(::AbstractRaster{<: Real, 1}) = MakieCore.Lines
+MakieCore.plottype(::AbstractRaster{<: Real, 2}) = MakieCore.Heatmap
+    
+# then, define how they are to be converted to plottable data
+function MakieCore.convert_arguments(::MakieCore.PointBased, raw_raster::AbstractRaster{<: Real, 1})
+    z = map(_prepare, dims(A))
+    return (parent(A), index(z))
+end
+    
+function MakieCore.convert_arguments(::MakieCore.ContinuousSurface, raw_raster::AbstractRaster{<: Real, 2})
+    ds = DD._fwdorderdims(raw_raster)
+    A = permutedims(raw_raster, ds)
+    x, y = dims(A)
+    xs, ys, zs = DD._withaxes(x, y, (A))
+    return (xs, ys, collect(zs))
+end
+
+function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::AbstractRaster{<: Real, 2})
+    ds = DD._fwdorderdims(raw_raster)
+    A = permutedims(raw_raster, ds)
+    x, y = dims(A)
+    xs, ys, zs = DD._withaxes(x, y, (A))
+    return (xs, ys, collect(zs))
+end
+
+            
+# fallbacks with descriptive error messages
+MakieCore.convert_arguments(::MakieCore.SurfaceLike, ::AbstractRaster{<: Real, Dim}) = @error """
+            We don't currently support plotting Rasters of dimension $Dim in Makie.jl. in surface/heatmap-like plots.
+            
+            In order to plot, please provide a 2-dimensional slice of your raster.
+            For example, in a 3-dimensional raster, this would look like:
+            ```julia
+            myraster = Raster(...)
+            heatmap(myraster)          # errors
+            heatmap(myraster[:, :, 1]) # use some index to subset, this works!
+            ```
+            """
+            
+MakieCore.convert_arguments(::Type{PlotType}, ::AbstractRaster{<: Real, Dim}) where {PlotType, Dim} = @error """
+            We don't currently support plotting Rasters of dimension $Dim with plot type $PlotType in Makie.jl.
+            Please manually decompose your data, or slice it to a lower dimension, and try again.
+            """
