@@ -112,8 +112,8 @@ function rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tuple{D1,D2}
     return Makie.AxisPlot(axis, plot)
 end
 
-function rplot(raster::AbstractRaster{T,2,<:Tuple{D1,D2}}; kwargs...)
-    figure = with_theme(Figure, kwargs)
+function rplot(raster::AbstractRaster{T,2}; kwargs...) where T
+    figure = isempty(kwargs) ? Figure() : with_theme(Figure, kwargs)
     axis, plot = rplot(figure[1, 1], raster; kwargs...)
     return Makie.FigureAxisPlot(figure, axis, plot)
 end
