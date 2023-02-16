@@ -30,6 +30,11 @@ import Adapt,
        Reexport,
        Setfield
 
+# This symbol is only defined on Julia versions that support extensions.
+@static if !isdefined(Base, :get_extension)
+    using Requires
+end
+
 Reexport.@reexport using DimensionalData, GeoFormatTypes, RasterDataSources
 
 using DimensionalData.Tables,
@@ -134,4 +139,13 @@ include("sources/ncdatasets.jl")
 include("sources/gdal.jl")
 include("sources/rasterdatasources.jl")
 
+# extensions
+
+# Makie.jl integration
+
+function __init__()
+    @static if !isdefined(Base, :get_extension)
+        @require Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" include("../ext/RastersMakie.jl")
+    end
 end
+
