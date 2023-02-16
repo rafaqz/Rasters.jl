@@ -478,15 +478,16 @@ end
     shp = shp_paths[1]
     shx = splitext(shp)[1] * ".shx"
     shphandle = Shapefile.Handle(shp, shx)
-
-    xs = LinRange(0.0, 179.28, 250)
-    ys = LinRange(169.32, 0.0, 250)
+    poly = shphandle.shapes[1]
 
     @testset "center in polygon rasterization" begin
-        gdal_raster = gdal_read_rasterize(shp)
-        rasters_raster = rasterize(shphandle.shapes; 
+        @time gdal_raster = gdal_read_rasterize(shp);
+        @time rasters_raster = rasterize(shphandle.shapes; 
              size=(250, 250), fill=UInt8(1), missingval=UInt8(0)
-        )
+        );
+        using Plots
+        heatmap(parent(parent(rasters_raster)))
+        heatmap(reverse(gdal_raster[:, :, 1]; dims=2))
         # Same results as GDAL
         @test sum(gdal_raster) == sum(rasters_raster)
         @test reverse(gdal_raster[:, :, 1]; dims=2) == rasters_raster
@@ -595,21 +596,6 @@ end
     end
 
     # Rasters vs GDAL performance
-    using Rasters
-    using BenchmarkTools
-    using ProfileView
-    using Shapefile
-    using Plots
-    shppath = "/home/raf/PhD/Mascarenes/Data/Distributions/MAMMALS_TERRESTRIAL_ONLY/MAMMALS_TERRESTRIAL_ONLY.shp"
-    shptable = Shapefile.Table(shppath)
-    @time mammal_count = rasterize(count, shptable; res=1/6, boundary=:center);
-    plot(mammal_count)
-    savefig("mammal_count.png")
-
-    @time mammal_count_touches = rasterize(count, shptable; res=1/6, boundary=:touches);
-    plot(mammal_count_touches)
-
-    @time mammal_count = rasterize(miminum, shptable; fill=:SHAPE_Area, res=1/6, boundary=:center);
 
     # function rasters_read_rasterize(shp; boundary=:touches)
     #     shx = splitext(shp)[1] * ".shx"
@@ -726,5 +712,81 @@ end
         @test isapprox(index(snaptarget, Y), index(disk_snapped, Y))
         @test isapprox(index(snaptarget, X), index(disk_snapped, X))
     end
-
 end
+
+
+
+using SnoopCompileCore
+invalidations = @snoopr using Rasters
+using SnoopCompile
+trees = invalidation_trees(invalidations)
+
+invalidations = @snoopr using Rasters
+using PkgDependency
+PkgDependency.tree("Rasters")
+
+using GDAL, ArchGDAL
+using SnoopCompile
+
+using BenchmarkTools
+using ProfileView
+using Profile
+using PProf
+using Cthulhu
+
+using Rasters
+using Shapefile
+shppath = "/home/raf/PhD/Mascarenes/Data/Distributions/MAMMALS_TERRESTRIAL_ONLY/MAMMALS_TERRESTRIAL_ONLY.shp"
+shptable = Shapefile.Handle(shppath).shapes
+
+@time r = rasterize(count, shptable; res=1/2, boundary=:center, missingval=typemin(Int))
+using Plots
+plot(r)
+@profview 
+@time cov = Rasters.coverage(shptable; res=1);
+plot(cov)
+# using GeoDataFrames
+# @time shptable = GeoDataFrames.read(shppath)
+polygon = Shapefile.Handle(shppath).shapes[1]
+
+# @profview Rasters._to_edges(shptable.shapes[1], dims(mammal_count))
+tinf = @snoopi_deep rasterize(count, shptable[1:10]; res=1/6, boundary=:center);
+fg = flamegraph(tinf)
+ProfileView.view(fg)
+
+using Plots
+plot(r)
+@profview 
+r = rasterize(count, shptable; res=1/6, boundary=:center, missingval=typemin(Int))
+using Plots
+plot(r)
+@profview 
+plot(cov)
+plot(r)
+Profile.Allocs.clear()
+Profile.Allocs.@profile rasterize(count, shptable; res=1/6, boundary=:center, missingval=typemin(Int));
+PProf.Allocs.pprof()
+
+@profview mammal_count = rasterize(count, shptable.shapes; res=1/6, boundary=:center, missingval=typemin(Int));
+Profile.Allocs.@profile rasterize(count, shptable.shapes; res=1/6, boundary=:center);
+results = Profile.Allocs.fetch()
+Cthulhu.@descend rasterize(count, shptable.shapes; res=1/6, boundary=:center);
+pprof()
+prof
+write("test.tif", mammal_count)
+plot(mammal_count)
+plot!(shptable.shapes[79])
+plot(shptable.shapes[79])
+savefig("mammal_count.png")
+using Cthulhu
+@profview for i in 1:1000 Rasters._to_edges(shptable.shapes[1], dims(mammal_count)) end
+length(edges)
+r = rand(UInt32, length(edges)) .=> r
+@btime sort($edges)
+@btime sort($r)
+
+@time mammal_count_touches = rasterize(count, shptable; res=1/6, boundary=:touches);
+plot(mammal_count_touches)
+
+@time mammal_count = rasterize(miminum, shptable; fill=:SHAPE_Area, res=1/6, boundary=:center);
+

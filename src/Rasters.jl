@@ -9,10 +9,13 @@ end Rasters
 
 using Dates
 
+# Load first to fix StaticArrays invalidations
+import CoordinateTransformations
+import DimensionalData
+
 import Adapt,
        ArchGDAL,
        ColorTypes,
-       CoordinateTransformations,
        ConstructionBase,
        DiskArrays,
        Extents,
@@ -20,6 +23,7 @@ import Adapt,
        Flatten,
        GeoInterface,
        HDF5,
+       OffsetArrays,
        ProgressMeter,
        MakieCore,
        Missings,
@@ -118,6 +122,7 @@ include("plotrecipes.jl")
 include("methods/aggregate.jl")
 include("methods/classify.jl")
 include("methods/crop_extend.jl")
+include("methods/coverage.jl")
 include("methods/extract.jl")
 include("methods/inpolygon.jl")
 include("methods/mask.jl")

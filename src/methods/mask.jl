@@ -296,16 +296,18 @@ function boolmask!(dest::AbstractRaster, src::AbstractRaster;
 )
     broadcast!(a -> !isequal(a, missingval), dest, src)
 end
-function boolmask!(dest::AbstractRaster, geom; kw...)
+function boolmask!(dest::AbstractRaster, geom; allocs=_edge_allocs(), kw...)
     if hasdim(dest, :geometry)
         geomvec = collect(geom)
         Threads.@threads for i in eachindex(geomvec) 
-            g = geomvec[i]
+            geom = geomvec[i]
+            allocs1 = _getalloc(allocs; sizehint=geom)
+            ismissing(geom) && continue
             slice = view(dest, Dim{:geometry}(i))
-            burn_geometry!(slice, g; kw..., fill=true)
+            burn_geometry!(slice, geom; kw..., fill=true, allocs=allocs1)
         end
     else
-        burn_geometry!(dest, geom; kw..., fill=true)
+        burn_geometry!(dest, geom; kw..., allocs, fill=true)
     end
     return dest
 end

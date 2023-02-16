@@ -132,32 +132,41 @@ function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
     return x
 end
 
-function _extent2dims(to::Extents.Extent{K};
-    size=nothing, res=nothing, crs=nothing, kw...
-) where K
-    emptydims = map(key2dim, K)
-    if isnothing(size)
-        isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
-        if res isa Real
-            res = ntuple(_ -> res, length(K))
-        end
-        ranges = map(values(to), res) do bounds, r
-            start, outer = bounds
-            length = ceil(Int, (outer - start) / r)
-            step = (outer - start) / length
-            range(; start, step, length)
-        end
-    else
-        isnothing(res) || throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
-        if size isa Int
-            size = ntuple(_ -> size, length(K))
-        end
-        ranges = map(values(to), size) do bounds, length
-            start, outer = bounds
-            step = (outer - start) / length
-            range(; start, step, length)
-        end
+function _extent2dims(to; size=nothing, res=nothing, crs=nothing, kw...) 
+    _extent2dims(to, size, res, crs)
+end
+function _extent2dims(to::Extents.Extent, size::Nothing, res::Nothing, crs, emptydims)
+    isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
+end
+function _extent2dims(to::Extents.Extent, size, res, crs, emptydims)
+    isnothing(res) || throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
+end
+function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) where K
+    tuple_res = ntuple(_ -> res, length(K))
+    _extent2dims(to, size, tuple_res, crs)
+end
+function _extent2dims(to::Extents.Extent, size::Nothing, res, crs)
+    ranges = map(values(to), res) do bounds, r
+        start, outer = bounds
+        length = ceil(Int, (outer - start) / r)
+        step = (outer - start) / length
+        range(; start, step, length)
     end
+    return _extent2dims(to, ranges, crs)
+end
+function _extent2dims(to::Extents.Extent, size, res::Nothing, crs)
+    if size isa Int
+        size = ntuple(_ -> size, length(K))
+    end
+    ranges = map(values(to), size) do bounds, length
+        start, outer = bounds
+        step = (outer - start) / length
+        range(; start, step, length)
+    end
+    return _extent2dims(to, ranges, crs)
+end
+function _extent2dims(to::Extents.Extent{K}, ranges, crs) where K
+    emptydims = map(key2dim, K)
     lookups = map(ranges) do range
         Projected(range;
             order=ForwardOrdered(),
@@ -170,68 +179,13 @@ function _extent2dims(to::Extents.Extent{K};
     return d
 end
 
-
-# Like `create` but without disk writes, mostly for Bool/Union{Missing,Boo},
-# and uses `similar` where possible
-# TODO merge this with `create` somehow
-_init_bools(to::AbstractRasterSeries, T::Type, data; kw...) = _init_bools(first(to), T, data; kw...)
-_init_bools(to::AbstractRasterStack, T::Type, data; kw...) = _init_bools(first(to), T, data; kw...)
-_init_bools(to::AbstractRaster, T::Type, data; kw...) = _init_bools(to, dims(to), T, data; kw...)
-_init_bools(to::Extents.Extent, T::Type, data; kw...) = _init_bools(to, _extent2dims(to; kw...), T, data; kw...)
-_init_bools(to::DimTuple, T::Type, data; kw...) = _init_bools(to, to, T, data; kw...)
-function _init_bools(to::Nothing, T::Type, data; kw...)
-    # Get the extent of the geometries
-    ext = _extent(data)
-    isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
-    # Convert the extent to dims (there must be `res` or `size` in `kw`)
-    dims = _extent2dims(ext; kw...)
-    return _init_bools(to, dims, T, data; kw...)
-end
-function _init_bools(to, dims::DimTuple, T::Type, data; combine=true, kw...)
-    if isnothing(data) || combine
-        _alloc_bools(to, dims, T; kw...)
-    else
-        n = if Base.IteratorSize(data) isa Base.HasShape
-            length(data)
-        else
-            count(_ -> true, data)
-        end
-        geomdim = Dim{:geometry}(1:n)
-        _alloc_bools(to, (dims..., geomdim), T; kw...)
-    end
-end
-
-# TODO make this a preference
-# 2 GB
-const MAX_SIZE = 4_000_000_000
-
-# When `to` is a Raster we can try to use the same parent array type
-function _alloc_bools(to::AbstractRaster, dims::DimTuple, ::Type{T}; missingval, kw...) where T
-    dims = commondims(dims, DEFAULT_POINT_ORDER)
-    # TODO: improve this so that only e.g. CuArray uses `similar`
-    # This is a little annoying to lock down for all wrapper types,
-    # maybe ArrayInterface has tools for this.
-    data = if T === Bool && parent(to) isa Union{Array,DA.AbstractDiskArray} && prod(size(dims)) > MAX_SIZE 
-        falses(dims) # Use a BitArray
-    else
-        fill!(similar(to, T, dims), missingval) # Fill some other array type
-    end
-    return Raster(data, dims; missingval)
-end
-# Otherwise just use an Array or BitArray
-function _alloc_bools(to, dims::DimTuple, ::Type{T}; missingval, kw...) where T
-    data = if T === Bool && prod(size(dims)) > MAX_SIZE
-        falses(dims) # Use a BitArray
-    else
-        fill!(Raster{T}(undef, dims), missingval) # Use an `Array`
-    end
-    return Raster(data, dims; missingval)
-end
-
 function _as_intervals(ds::Tuple)
-    # Rasterization onl makes sense on Intervals
+    # Rasterization only makes sense on Sampled Intervals
     interval_dims = map(dims(ds, DEFAULT_POINT_ORDER)) do d
-        set(d, Sampled(; sampling=Intervals()))
+        l = parent(d)
+        rebuild(d, Sampled(parent(l); 
+            order=order(l), span=span(l), sampling=Intervals(locus(l)), metadata=metadata(l))
+        )
     end
     return setdims(ds, interval_dims)
 end

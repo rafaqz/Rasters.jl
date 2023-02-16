@@ -1,107 +1,149 @@
-
 const DEFAULT_POINT_ORDER = (X(), Y())
 const DEFAULT_TABLE_DIM_KEYS = (:X, :Y)
 
-# Moved here form PolygonInbounds for optimisation
-# Thanks to Klaus Crusius for the code here and in _burn_polygon
-struct PolygonMesh{U,E}
-    nodes::U
-    edges::E
+# Simple point positions offset relative to the raster
+struct Position
+    offset::Tuple{Float64,Float64}
+    ind::Int
 end
-PolygonMesh(geom) = PolygonMesh(_to_nodes_and_edges(geom)...)
+function Position(point::Tuple, start::Tuple, step::Tuple)
+    (x, y) = point
+    xoff, yoff = (x - start[1]), (y - start[2])
+    offset = (xoff / step[1] + 1, yoff / step[2] + 1)
+    yind = trunc(Int, offset[2])
+    return Position(offset, yind)
+end
 
-nodecount(poly::PolygonMesh) = size(poly.nodes, 1)
-Base.length(poly::PolygonMesh) = nodecount(poly)
-edgecount(poly::PolygonMesh) = length(poly.edges)
-edgeindex(poly::PolygonMesh, i::Integer, n::Integer) = poly.edges[i][n]
-
-vertex(poly::PolygonMesh, v::Integer, xy::Integer) = poly.nodes[v][xy]
-
-_to_nodes_and_edges(geom) = _to_nodes_and_edges(GI.geomtrait(geom), geom)
-function _to_nodes_and_edges(
-    tr::Union{GI.LinearRingTrait,GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, geom
-)
-    n = GI.npoint(geom)
-    edges = Vector{Tuple{Int,Int}}(undef, n)
-    nodes = Vector{Tuple{Float64,Float64}}(undef, n)
-    nodenum = 0
-    if tr isa GI.LinearRingTrait
-        _to_edges_and_nodes!(edges, nodes, nodenum, geom)
-    else
-        for ring in GI.getring(geom)
-            nodenum = _to_nodes_and_edges!(edges, nodes, nodenum, ring)
+# Simple edge offset with (x, y) start relative to the raster
+# gradient of line and integer start/stop for y
+struct Edge
+    start::Tuple{Float64,Float64}
+    gradient::Float64
+    iystart::Int32
+    iystop::Int32
+    function Edge(start::Position, stop::Position)
+        if start.offset[2] > stop.offset[2]
+            stop, start = start, stop
         end
+        gradient = (stop.offset[1] - start.offset[1]) / (stop.offset[2] - start.offset[2])
+        new(start.offset, gradient, start.ind + 1, stop.ind)
     end
-    return nodes, edges 
 end
-function _to_nodes_and_edges!(edges, nodes, lastnode, geom)
-    npoints = GI.npoint(geom)
-    for (n, point) in enumerate(GI.getpoint(geom))
-        i = lastnode + n
-        if n == npoints
-            # The closing edge of a sub-polygon
-            edges[i] = (i, lastnode + 1)
-        else
-            # A regular edge somewhere in a sub-polygon
-            edges[i] = (i, i + 1)
-        end
-        nodes[i] = (GI.x(point), GI.y(point))
+
+function can_skip_edge(prevpos::Position, nextpos::Position, xlookup, ylookup)
+    # ignore horizonta
+    (prevpos.offset[2] == nextpos.offset[2]) && return true
+    # ignore edges between grid lines on y axis
+    (nextpos.ind == prevpos.ind) && 
+        (prevpos.offset[2] != prevpos.ind) && 
+        (nextpos.offset[2] != nextpos.ind) && return true
+    # ignore edges outside the grid
+    (prevpos.offset[2] < 0) && (nextpos.offset[2] < 0) && return true
+    (prevpos.offset[1] < 0) && (nextpos.offset[1] < 0) && return true
+    (prevpos.offset[2] > lastindex(ylookup)) && (nextpos.offset[2] > lastindex(ylookup)) && return true
+    return false
+end
+
+# function subset(edges::Vector{Edge}, x, y)
+#     filter(edges) do edge
+#         map(<, edge.start, I)
+#     end
+# end
+
+struct Allocs
+    edges::Vector{Edge}
+    crossings::Vector{Float64}
+    spinlock::Threads.SpinLock
+end
+Allocs() = Allocs(Vector{Edge}(undef, 0), Vector{Float64}(undef, 0), Threads.SpinLock())
+function Base.sizehint!(alloc::Allocs, sizehint)
+    sizehint!(alloc.edges, sizehint)
+    sizehint!(alloc.crossings, sizehint)
+end
+
+_edge_allocs() = _edge_allocs(Threads.nthreads())
+_edge_allocs(n::Int) = [Allocs() for _ in 1:n]
+
+_get_alloc(thread_allocs::Vector{Allocs}; sizehint) =
+    _get_alloc(thread_allocs[Threads.threadid()]; sizehint)
+function _get_alloc(allocs::Allocs; sizehint)
+    sizehint1 = GI.isgeometry(sizehint) ? GI.npoint(sizehint) ÷ 8 : sizehint
+    if length(allocs.edges) == 0
+        sizehint!(allocs, sizehint1)
     end
-    return lastnode + npoints
+    return allocs
 end
 
+x_at_y(e::Edge, y) = (y - e.start[2]) * e.gradient + e.start[1]
 
-struct Edge{Float64}
-    start::Tuple{T,T}
-    stop::Tuple{T,T}
-    istart::Tuple{Int,Int}
-    istop::Tuple{Int,Int}
-    closing::Bool
-end
+Base.isless(e1::Edge, e2::Edge) = isless(e1.iystart, e2.iystart)
 
-_to_edges(geom, dims) = _to_edges(GI.geomtrait(geom), geom, dims)
+
+_to_edges(geom, dims; kw...) = _to_edges(GI.geomtrait(geom), geom, dims; kw...)
 function _to_edges(
-    tr::Union{GI.LinearRingTrait,GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, geom, dims
+    tr::Union{GI.LinearRingTrait,GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, geom, dims;
+    allocs::Union{Allocs,Vector{Allocs}}, kw...
 )
-    edges = Vector{Tuple{Int,Int}}(undef, GI.npoint(geom))
+    edges = _get_alloc(allocs; sizehint=geom).edges
+    local edge_count = 0
     if tr isa GI.LinearRingTrait
-        _to_edges!(edges, geom)
+        edge_count = _to_edges!(edges, geom, dims, edge_count)
     else
         for ring in GI.getring(geom)
-             _to_edges!(edges, ring)
+             edge_count = _to_edges!(edges, ring, dims, edge_count)
         end
     end
-    return edges 
-end
-function _to_edges!(edges, geom, dims)
-    xlookup, ylookup = lookup(dims, (XDim, YDim)) 
-    xstart, ystart = first(xlookup), first(ylookup)
-    xstep, ystep = step(xlookup), step(ylookup)
 
-    npoints = GI.npoint(geom)
-    first = true
-    for (n, point) in enumerate(GI.getpoint(geom))
-        if first
-            firstpoint = lastpoint = x, y = (GI.x(point), GI.y(point))
-            firstind = lastind = floor(Int, (x - xstart) / xstep), floor(Int, (y - ystart) / ystep) 
-            first = false
+    # We may have allocated too much
+    return view(edges, 1:edge_count)
+end
+function _to_edges!(edges, geom, dims, edge_count)
+    GI.npoint(geom) > 0 || return edge_count
+
+    # Dummy Initialisation
+    local firstpos = prevpos = nextpos = Position((0.0, 0.0), 0)
+
+    firstpoint = true
+
+    # Raster properties
+    xlookup, ylookup = lookup(dims, (X(), Y())) 
+    starts = (first(xlookup), first(ylookup))
+    steps = (Base.step(xlookup), Base.step(ylookup))
+
+    # Loop over points to generate edges
+    for point in GI.getpoint(geom)
+        p = (Float64(GI.x(point)), Float64(GI.y(point)))
+       
+        # For the first point just set variables
+        if firstpoint
+            prevpos = firstpos = Position(p, starts, steps)
+            firstpoint = false
             continue
         end
-        # A regular edge somewhere in a sub-polygon
-        nextpoint = x, y = (GI.x(point), GI.y(point))
-        nextind = floor(Int, (x - xstart) / xstep), floor(Int, (y - ystart) / ystep) 
-        edges[i - 1] = Edge(lastpoint, nextpoint, lastind, nextind, false)
-        if n == npoints
-            edges[i] = Edge(nextpoint, firstpoint, nextind, firstind, false)
-            firstpoint = x, y = (GI.x(point), GI.y(point))
-            nextind = floor(Int, (x - xstart) / xstep), floor(Int, (y - ystart) / ystep) 
-        end
-        lastpoint = nextpoint
-        lastind = nextind
-    end
-    return nothing
-end
 
+        # Get the next offsets and indices
+        nextpos = Position(p, starts, steps)
+
+        # Check if we need an edge between these offsets
+        # This is the performance-critical step that reduces the size of the edge list
+        if can_skip_edge(prevpos, nextpos, xlookup, ylookup)
+            prevpos = nextpos
+            continue
+        end
+
+        # Add the edge to our `edges` vector
+        edge_count += 1
+        edge = Edge(prevpos, nextpos)
+        if edge_count <= lastindex(edges)
+            edges[edge_count] = edge
+        else
+            push!(edges, edge)
+        end
+        prevpos = nextpos
+    end
+
+    return edge_count
+end
 
 # _burn_geometry!
 # Fill a raster with `fill` where it interacts with a geometry.
@@ -109,9 +151,9 @@ end
 # 
 # _istable keyword is a hack so we know not to pay the
 # price of calling `istable` which calls `hasmethod`
-function burn_geometry!(B::AbstractRaster, data; kw...)
-    if Tables.istable(typeof(data))
-        geomcolname = first(GI.geometrycolumns(data))
+function burn_geometry!(B::AbstractRaster, data::T; kw...) where T
+    if Tables.istable(T)
+        geomcolname = first(GI.geometrycolumns(data))::Symbol
         geoms = Tables.getcolumn(data, geomcolname)
         _burn_geometry!(B, nothing, geoms; kw...)
     else
@@ -131,8 +173,9 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait,
     _burn_geometry!(B, nothing, geoms; kw...)
 end
 function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; 
-    shape=nothing, _buffer=nothing, verbose=false, kw...
+    shape=nothing, _buffer=nothing, verbose=false, allocs, kw...
 )
+    allocs = _get_alloc(allocs; sizehint=geom)
     # Use the specified shape or detect it
     shape = shape isa Symbol ? shape : _geom_shape(geom)
     if shape === :point
@@ -145,44 +188,48 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
         arrayextent = Extents.extent(B, DEFAULT_POINT_ORDER)
         # Only fill if the gemoetry bounding box overlaps the array bounding box
         if !Extents.intersects(geomextent, arrayextent) 
-            if verbose
-                @info "A geometry was ignored at $geomextent as it was outside of the supplied extent $arrayextent"
-            end
+            verbose && _verbose_extent_info(geomextent, arrayextent)
             return B
         end
         # Take a view of the geometry extent
         B1 = view(B, Touches(geomextent))
-        if isnothing(_buffer)
-            buf1 = _init_bools(B1, Bool, nothing; kw..., missingval=false)
-            _burn_polygon!(buf1, geom; shape, geomextent, kw...)
-            for i in eachindex(B1)
-                if buf1[i] 
-                    B1[i] = true # Only writing true is immune to race conditions
-                end
-            end
+        buf1 = if isnothing(_buffer)
+            _init_bools(B1, Bool; kw..., missingval=false)
         else
-            # Also take a view of the buffer
             buf1 = view(_buffer, Touches(geomextent))
-            # Reset the buffer for this area
-            buf1 .= false
-            # Burn the polygon into the buffer
-            _burn_polygon!(buf1, geom; shape, geomextent, kw...)
-            for i in eachindex(B1)
-                if buf1[i] 
-                    B1[i] = true # Only writing true is immune to race conditions
-                end
+        end
+        # Also take a view of the buffer
+        # Reset the buffer for this area
+        buf1 .= false
+        # Burn the polygon into the buffer
+        _burn_polygon!(buf1, geom; shape, geomextent, allocs, kw...)
+
+        # We are writing to the same array with all threads
+        lock(allocs.spinlock)
+        for i in eachindex(B1)
+            if buf1[i] 
+                B1[i] = true
             end
         end
+        unlock(allocs.spinlock)
     else
-        throw(ArgumentError("`shape` is $shape, must be `:point`, `:line`, `:polygon` or `nothing`"))
+        _shape_error(shape) 
     end
     return B
 end
+
+@noinline _shape_error(shape) = 
+    throw(ArgumentError("`shape` is $shape, must be `:point`, `:line`, `:polygon` or `nothing`"))
+
+@noinline _verbose_extent_info(geomextent, arrayextent) =
+    @info "A geometry was ignored at $geomextent as it was outside of the supplied extent $arrayextent"
 # Treat geoms as an iterator
-function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine=true, kw...)
-    task = if combine
+function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine::Union{Bool,Nothing}=nothing, kw...)
+    allocs = _edge_allocs()
+    if isnothing(combine) || combine
         Threads.@threads for geom in geoms
-            _burn_geometry!(B, geom; kw...)
+            ismissing(geom) && continue
+            _burn_geometry!(B, geom; allocs, kw...)
         end
     else
         Threads.@threads for (i, geom) in enumerate(geoms)
@@ -195,15 +242,18 @@ end
 
 
 # _burn_polygon!
-# Fill a raster with `fill` where pixels are inside a polygon
-# `boundary` determines how edges are handled
-function _burn_polygon!(B::AbstractDimArray, geom;
-    fill=true, boundary=:center, geomextent, verbose=false, kw...
-)
-    # Area
+# Burn `true` values into a raster
+# `boundary` determines how edges are handled 
+function _burn_polygon!(B::AbstractDimArray, geom; kw...)
     B1 = _prepare_for_burning(B)
-    mesh = PolygonMesh(geom)
-    _burn_polygon!(B1, mesh)
+    _burn_polygon!(B1::AbstractDimArray, GI.geomtrait(geom), geom; kw...)
+end
+function _burn_polygon!(B::AbstractDimArray, trait, geom;
+    fill=true, boundary=:center, geomextent, verbose=false, allocs, kw...
+)
+    allocs = _get_alloc(allocs; sizehint=geom)
+    filtered_edges = _to_edges(geom, dims(B); allocs) |> sort!
+    _burn_polygon!(B, filtered_edges, allocs.crossings)
 
     # Lines
     n_on_line = false
@@ -211,10 +261,10 @@ function _burn_polygon!(B::AbstractDimArray, geom;
         _check_intervals(B, boundary)
         if boundary === :touches && _check_intervals(B, boundary)
             # Add line pixels
-            n_on_line = _burn_lines!(B1, geom; fill)
+            n_on_line = _burn_lines!(B, geom; fill)
         elseif boundary === :inside && _check_intervals(B, boundary)
             # Remove line pixels
-            n_on_line = _burn_lines!(B1, geom; fill=!fill)
+            n_on_line = _burn_lines!(B, geom; fill=!fill)
         else
             throw(ArgumentError("`boundary` can be :touches, :inside, or :center, got :$boundary"))
         end
@@ -225,69 +275,79 @@ function _burn_polygon!(B::AbstractDimArray, geom;
     return B
 end
 
-# Modified from PolygonInbounds with optimisations for rasters
-# where we know point order and can loop over the array directly
-function _burn_polygon!(A::AbstractDimArray, mesh::PolygonMesh)
-    nvertices = length(A) # number of points to be checked
-    nedges = edgecount(mesh) # number of edges of the polygon mesh
-    xlookup = lookup(A, XDim)
-    ylookup = lookup(A, YDim)
-    ix = 1
-    iy = 2
-    sort(
+function _burn_polygon!(A::AbstractDimArray, edges::AbstractArray{Edge}, crossings;
+    offset= nothing
+)
+    local edgestart = 1
+    # Loop over each index of the y axis
+    for iy in axes(A, YDim)
+        edgestart, ncrossings = _set_crossings!(crossings, A, edges, edgestart, iy)
+        _burn_crossings!(A, crossings, ncrossings, iy)
+    end
+    return A
+end
 
-    # loop over polygon edges
-    for epos = 1:nedges
-        inod = edgeindex(mesh, epos, 1)  # from
-        jnod = edgeindex(mesh, epos, 2)  # to
-        # swap order of vertices
-        if vertex(mesh, inod, iy) > vertex(mesh, jnod, iy)
-            inod, jnod = jnod, inod
-        end
-
-        # calc. edge bounding-box
-        xone = vertex(mesh, inod, ix)
-        xtwo = vertex(mesh, jnod, ix)
-        yone = vertex(mesh, inod, iy)
-        ytwo = vertex(mesh, jnod, iy)
-
-        ymin = yone
-        ymax = ytwo
-
-        xmin = min(xone, xtwo)
-        xmax = max(xone, xtwo)
-
-        ydel = ytwo - yone
-        xdel = xtwo - xone
-
-        # Find Y index 
-        ystart = searchsortedfirst(ylookup, ymin)
-        # calc. edge-intersection
-        # loop over all points with y ∈ [ymin, ymax)
-        for y in ystart:lastindex(ylookup)
-            @inbounds ypos = ylookup[y]
-            ypos > ymax && break 
-            for x in eachindex(xlookup)
-                @inbounds xpos = xlookup[x]
-                xpos > xmax && break 
-                if xpos >= xmin
-                    # inside extended bounding box of edge
-                    mul1 = ydel * (xpos - xone)
-                    mul2 = xdel * (ypos - yone)
-                    if mul1 < mul2 && yone <= ypos < ytwo
-                        # left of line && ypos exact to avoid multiple counting
-                        @inbounds A[Y(y), X(x)] = !A[Y(y), X(x)]
-                    end
-                else # xpos < xmin - left of bounding box
-                    if yone <= ypos < ytwo
-                        # ypos exact to avoid multiple counting
-                        @inbounds A[Y(y), X(x)] = !A[Y(y), X(x)]
-                    end
-                end
+function _set_crossings!(crossings, A, edges, edgestart, iy)
+    ncrossings = 0
+    found = false
+    # Edges are sorted on y, so we can skip
+    # some at the start we have already done
+    for i in edgestart:lastindex(edges)
+        y = iy + first(lookup(A, YDim)) - 1
+        e = edges[i]
+        iy >= e.iystart || continue
+        if iy <= e.iystop 
+            if !found
+                edgestart = i
+                found = true
+            end
+            ncrossings += 1
+            if length(crossings) >= ncrossings
+                crossings[ncrossings] = Rasters.x_at_y(e, iy)
+            else
+                push!(crossings, Rasters.x_at_y(e, iy))
             end
         end
     end
-    return A
+    sort!(view(crossings, 1:ncrossings))
+    return edgestart, ncrossings
+end
+
+function _burn_crossings!(A, crossings, ncrossings, iy; 
+    status::Tuple{Int,Bool}=(1, false), 
+)
+    stop = false
+    # Start burning loop from outside any rings
+    ic, burn = status
+    ix = firstindex(A, X())
+    while ic <= ncrossings
+        crossing = crossings[ic]
+        # Burn/skip until we hit the next edge crossing
+        while ix < crossing
+            if ix > lastindex(A, X()) 
+                stop = true
+                break
+            end
+            if burn
+                A[X(ix), Y(iy)] = true
+            end
+            ix += 1
+        end
+        if stop
+            break
+        else
+            # Alternate burning/skipping with each edge crossing
+            burn = !burn
+            ic += 1
+        end
+    end
+    # Maybe fill in the end of the row
+    if burn
+        for x in ix:lastindex(A, X())
+            A[X(ix), Y(iy)] = true
+        end
+    end
+    return ic, burn
 end
 
 const INTERVALS_INFO = "makes more sense on `Intervals` than `Points` and will have more correct results. You can construct dimensions with a `X(values; sampling=Intervals(Center()))` to acheive this"
@@ -536,17 +596,20 @@ function _burn_line!(A::AbstractRaster, line, fill, order::Tuple{Vararg{<:Dimens
     throw(ArgumentError(msg))
 end
 
+const XYExtent = Extents.Extent{(:X,:Y),Tuple{Tuple{Float64,Float64},Tuple{Float64,Float64}}}
+
 # _extent
 # Get the bounds of a geometry
-_extent(geom) = _extent(GI.trait(geom), geom)
-function _extent(::Nothing, data::AbstractVector)
-    reduce(data; init=_extent(first(data))) do ext, geom
+_extent(geom)::XYExtent = _extent(GI.trait(geom), geom)
+function _extent(::Nothing, data::AbstractVector)::XYExtent
+    ext = reduce(data; init=_extent(first(data))) do ext, geom
         Extents.union(ext, _extent(geom))
     end
+    return _float64_xy_extent(ext)
 end
-_extent(::Nothing, data::RasterStackOrArray) = Extents.extent(data)
-function _extent(::Nothing, data)
-    if Tables.istable(data)
+_extent(::Nothing, data::RasterStackOrArray)::XYExtent = _float64_xy_extent(Extents.extent(data))
+function _extent(::Nothing, data::T)::XYExtent where T
+    if Tables.istable(T)
         geomcolname = first(GI.geometrycolumns(data))
         cols = Tables.columns(data)
         if geomcolname in Tables.columnnames(cols)
@@ -558,37 +621,47 @@ function _extent(::Nothing, data)
         else
             # TODO: test this branch
             # Table of points with dimension columns
-            data = reduce(DEFAULT_TABLE_DIM_KEYS; init=(;)) do acc, key
+            bounds = reduce(DEFAULT_TABLE_DIM_KEYS; init=(;)) do acc, key
                 if key in Tables.columnnames(cols)
                     merge(acc, (; key=extrema(cols[key])))
                 else
                     acc
                 end
             end
-            return Extent(data)
+            return _float64_xy_extent(Extent(bounds))
         end
     else
-        return Extents.extent(data)
+        ext = Extents.extent(data)
+        ext isa Extent || throw(ArgumentError("object returns `nothing` from `Extents.extent`."))
+        return _float64_xy_extent(ext)
     end
 end
-_extent(::GI.AbstractPointTrait, geom) = Extents.Extent(X=GI.x(geom), Y=GI.y(geom))
-function _extent(::GI.AbstractTrait, geom)
-    geomextent = GI.extent(geom; )
+_extent(::GI.AbstractPointTrait, geom)::XYExtent = Extents.Extent(X=GI.x(geom), Y=GI.y(geom))
+function _extent(::GI.AbstractGeometryTrait, geom)::XYExtent
+    geomextent = GI.extent(geom)
     if isnothing(geomextent)
         points = GI.getpoint(geom)
         xbounds = extrema(GI.x(p) for p in points)
         ybounds = extrema(GI.y(p) for p in points)
-        return Extents.Extent(X=xbounds, Y=ybounds)
+        return _float64_xy_extent(Extents.Extent(X=xbounds, Y=ybounds))
     else
-        return geomextent
+        return _float64_xy_extent(geomextent)
     end
 end
-_extent(::GI.AbstractFeatureTrait, feature) = _extent(GI.geometry(feature))
-function _extent(::GI.AbstractFeatureCollectionTrait, features)
+_extent(::GI.AbstractFeatureTrait, feature)::XYExtent = _extent(GI.geometry(feature))
+function _extent(::GI.AbstractFeatureCollectionTrait, features)::XYExtent
     features = GI.getfeature(features)
-    reduce(features; init=_extent(first(features))) do acc, f
+    init = _float64_xy_extent(_extent(first(features)))
+    ext = reduce(features; init) do acc, f
         Extents.union(acc, _extent(f))
     end
+    return _float64_xy_extent(ext)
+end
+
+function _float64_xy_extent(ext::Extents.Extent)
+    xbounds = map(Float64, ext.X)
+    ybounds = map(Float64, ext.Y)
+    return Extents.Extent(X=xbounds, Y=ybounds)
 end
 
 # _dimcoord
@@ -606,3 +679,62 @@ _dimcoord(::ZDim, point) = GI.z(point)
 @inline _geom_shape(x, geom) = throw(ArgumentError("Geometry trait $x cannot be rasterized"))
 @inline _geom_shape(::Nothing, geom) = throw(ArgumentError("Object is not a GeoInterface.jl compatible geometry: $geom"))
 
+
+# Like `create` but without disk writes, mostly for Bool/Union{Missing,Boo},
+# and uses `similar` where possible
+# TODO merge this with `create` somehow
+_init_bools(to, T::Type; kw...) = _init_bools(to, T, nothing; kw...)
+_init_bools(to::AbstractRasterSeries, T::Type, data; kw...) = _init_bools(first(to), T, data; kw...)
+_init_bools(to::AbstractRasterStack, T::Type, data; kw...) = _init_bools(first(to), T, data; kw...)
+_init_bools(to::AbstractRaster, T::Type, data; kw...) = _init_bools(to, dims(to), T, data; kw...)
+_init_bools(to::Extents.Extent, T::Type, data; kw...) = _init_bools(to, _extent2dims(to; kw...), T, data; kw...)
+_init_bools(to::DimTuple, T::Type, data; kw...) = _init_bools(to, to, T, data; kw...)
+function _init_bools(to::Nothing, T::Type, data; kw...)
+    # Get the extent of the geometries
+    ext = _extent(data)
+    isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
+    # Convert the extent to dims (there must be `res` or `size` in `kw`)
+    dims = _extent2dims(ext; kw...)
+    return _init_bools(to, dims, T, data; kw...)
+end
+function _init_bools(to, dims::DimTuple, T::Type, data; combine::Union{Bool,Nothing}=nothing, kw...)
+    if isnothing(data) || isnothing(combine) || combine
+        _alloc_bools(to, dims, T; kw...)
+    else
+        n = if Base.IteratorSize(data) isa Base.HasShape
+            length(data)
+        else
+            count(_ -> true, data)
+        end
+        geomdim = Dim{:geometry}(1:n)
+        _alloc_bools(to, (dims..., geomdim), T; kw...)
+    end
+end
+
+# TODO make this a preference
+# 2 GB
+const MAX_SIZE = 4_000_000_000
+
+# When `to` is a Raster we can try to use the same parent array type
+function _alloc_bools(to::AbstractRaster, dims::DimTuple, ::Type{Bool}; missingval, kw...)
+    # TODO: improve this so that only e.g. CuArray uses `similar`
+    # This is a little annoying to lock down for all wrapper types,
+    # maybe ArrayInterface has tools for this.
+    # data = if parent(to) isa Union{Array,DA.AbstractDiskArray} && prod(size(dims)) > MAX_SIZE 
+    return Raster(falses(size(dims)), dims, (), Symbol(""), NoMetadata(), missingval) # Use a BitArray
+    # else
+        # return fill!(similar(to, T, dims), missingval) # Fill some other array type
+    # end
+end
+# Otherwise just use an Array or BitArray
+function _alloc_bools(to, dims::DimTuple, ::Type{Bool}; missingval, kw...)
+    # data = if prod(size(dims)) > MAX_SIZE
+    return Raster(falses(size(dims)), dims, (), Symbol(""), NoMetadata(), missingval) # Use a BitArray
+    # else
+        # return fill!(Raster{T}(undef, dims), missingval) # Use an `Array`
+    # end
+end
+function _alloc_bools(to, dims::DimTuple, ::Type{T}; missingval, kw...) where T
+    data = fill!(Raster{T}(undef, dims), missingval) # Use an `Array`
+    return Raster(data, dims, (), NoMetadata(), missingval)
+end

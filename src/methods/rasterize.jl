@@ -110,7 +110,7 @@ end
 # `any` is just boolmask
 function rasterize(reduce::typeof(any), data; fill=nothing, kw...)
     isnothing(fill) || @info "`rasterize` with `any` does use the `fill` keyword"
-    boolmask(data; kw..., name=:any, combine=true)
+    boolmask(data; kw..., name=:any)
 end
 # `last` is the same as not reducing at all
 function rasterize(reduce::typeof(last), data; fill, kw...)
@@ -320,61 +320,81 @@ function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; reduce=nothing,
 end
 
 # We rasterize all iterables here
-function _rasterize!(x, trait::Nothing, geoms::AbstractVector;
-    fill, reduce=nothing, op=nothing, _buffer=nothing, kw...
-)
-    # Check the itr length if we can, cycle if its 1
+function _rasterize!(x, trait::Nothing, geoms::AbstractVector; fill, reduce=nothing, op=nothing, kw...)
     fill_itr = _iterable_fill(geoms, fill)
+    x1 = _prepare_for_burning(x)
+    thread_allocs = _edge_allocs()
+    _rasterize_iterable!(x1, geoms, reduce, op, fill, fill_itr, thread_allocs; kw...)
+    return x
+end
 
-    # Special-casing for performance
-    if isnothing(reduce) && isnothing(op)
-        if fill_itr isa Iterators.Cycle
-            # We dont need to iterate the fill, so just mask
-            mask = boolmask(geoms; to=x, combine=true, kw...)
-            # And broadcast the fill
-            broadcast_dims!(x, x, mask) do v, m
-                m ? fill_itr.xs : v
-            end
-        elseif fill_itr isa NamedTuple
-            if all(f -> f isa Iterators.Cycle, fill_itr)
-                # We dont need to iterate the fill, so just mask
-                mask = boolmask(geoms; to=x, combine=true, kw...)
-                foreach(x, fill_itr) do A, f 
-                    # And broadcast the fill
-                    broadcast_dims!(A, A, mask) do v, m
-                        m ? f.xs : v
-                    end
-                end
-            else
-                Threads.@threads for i in eachindex(geoms)
-                    geom = geoms[i]
-                    fill = NamedTuple{keys(fill_itr)}(map(f -> _getfill(f, i), fill_itr))
-                    _rasterize!(x, GI.trait(geom), geom; fill, kw...)
-                end
-            end
-        else
-            Threads.@threads for i in eachindex(geoms)
-                geom = geoms[i]
-                fill = _getfill(fill_itr, i)
-                _rasterize!(x, GI.trait(geom), geom; kw..., fill)
-            end
-        end
-    else 
-        # See if there is a reducing operator passed in, or matching `reduce`
-        op = isnothing(op) ? _reduce_op(reduce) : op
-        init = _reduce_init(reduce, x)
-        if isnothing(op)
-            # If there still isn't any `op`, reduce over all the values later rather than iteratively
-            _reduce_fill!(reduce, x, geoms, fill_itr; kw..., init)
-        else # But if we can, use op in a fast iterative reduction
-            Threads.@threads for i in eachindex(geoms)
-                geom = geoms[i]
-                fill = _getfill(fill_itr, i)
-                _rasterize!(x, GI.trait(geom), geom; kw..., fill, op, init)
-            end
+function _rasterize_iterable!(
+    x1, geoms::AbstractVector, reduce::Nothing, op::Nothing, fill, fill_itr::Iterators.Cycle, thread_allocs; 
+    kw...
+)
+    # We dont need to iterate the fill, so just mask
+    mask = boolmask(geoms; to=x1, combine=true, allocs=thread_allocs, kw...)
+    # And broadcast the fill
+    broadcast_dims!(x1, x1, mask) do v, m
+        m ? fill_itr.xs : v
+    end
+end
+function _rasterize_iterable!(
+    x1, geoms::AbstractVector, reduce::Nothing, op::Nothing, fill, 
+    fill_itr::NamedTuple{<:Any,Tuple{<:Iterators.Cycle,Vararg}}, thread_allocs; 
+    kw...
+)
+    # We dont need to iterate the fill, so just mask
+    mask = boolmask(geoms; to=x1, combine=true, allocs=thread_allocs, kw...)
+    foreach(x1, fill_itr) do A, f 
+        # And broadcast the fill
+        broadcast_dims!(A, A, mask) do v, m
+            m ? f.xs : v
         end
     end
-    return x
+end
+function _rasterize_iterable!(
+    x1, geoms::AbstractVector, reduce::Nothing, op::Nothing, fill, fill_itr::NamedTuple, thread_allocs; 
+    kw...
+)
+    Threads.@threads for i in eachindex(geoms)
+        allocs = _get_alloc(thread_allocs; sizehint=geom)
+        geom = geoms[i]
+        ismissing(geom) && continue
+        fill = NamedTuple{keys(fill_itr)}(map(f -> _getfill(f, i), fill_itr))
+        _rasterize!(x1, GI.trait(geom), geom; kw..., fill, allocs)
+    end
+end
+function _rasterize_iterable!(
+    x1, geoms::AbstractVector, reduce::Nothing, op::Nothing, fill, fill_itr, thread_allocs; 
+    kw...
+)
+    Threads.@threads for i in eachindex(geoms)
+        geom = geoms[i]
+        ismissing(geom) && continue
+        allocs = _get_alloc(thread_allocs; sizehint=geom)
+        fill = _getfill(fill_itr, i)
+        _rasterize!(x1, GI.trait(geom), geom; kw..., allocs, fill)
+    end
+end
+function _rasterize_iterable!(
+    x, trait::Nothing, geoms::AbstractVector, reduce, op, fill, fill_itr, thread_allocs; kw...
+)
+    # See if there is a reducing operator passed in, or matching `reduce`
+    op1 = isnothing(op) ? _reduce_op(reduce) : op
+    init = _reduce_init(reduce, x1)
+    if isnothing(op1)
+        # If there still isn't any `op`, reduce over all the values later rather than iteratively
+        _reduce_fill!(reduce, x1, geoms, fill_itr; kw..., init, allocs=thread_allocs)
+    else # But if we can, use op in a fast iterative reduction
+        Threads.@threads for i in eachindex(geoms)
+            geom = geoms[i]
+            ismissing(geom) && continue
+            allocs = _get_alloc(thread_allocs; sizehint=geom)
+            fill = _getfill(fill_itr, i)
+            _rasterize!(x1, GI.trait(geom), geom; kw..., fill, op=op1, allocs, init)
+        end
+    end
 end
 
 function _rasterize!(x, ::GI.AbstractFeatureTrait, feature; fill, kw...)
