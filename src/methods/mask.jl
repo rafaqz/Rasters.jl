@@ -298,13 +298,13 @@ function boolmask!(dest::AbstractRaster, src::AbstractRaster;
 end
 function boolmask!(dest::AbstractRaster, geom; allocs=_edge_allocs(), kw...)
     if hasdim(dest, :geometry)
-        geomvec = collect(geom)
-        Threads.@threads for i in eachindex(geomvec) 
-            geom = geomvec[i]
-            allocs1 = _getalloc(allocs; sizehint=geom)
+        p = _progress(length(geomvec); desc="Masking each geometry to a BitArray slice...")
+        Threads.@threads :static for i in _geomindices(geom) 
+            geom = _getgeom(geoms, i)
             ismissing(geom) && continue
             slice = view(dest, Dim{:geometry}(i))
-            burn_geometry!(slice, geom; kw..., fill=true, allocs=allocs1)
+            burn_geometry!(slice, geom; kw..., fill=true, allocs=_get_alloc(allocs))
+            ProgressMeter.next!(p)
         end
     else
         burn_geometry!(dest, geom; kw..., allocs, fill=true)

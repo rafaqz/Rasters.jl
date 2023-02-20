@@ -1,102 +1,222 @@
-"""
-    coverage(geoms; to, kw...)
-   
-Calculate the area of a raster covered by geometries, as a fraction.
 
-If `geoms` is an `AbstractVector` or table, coverage will be summed,
-giving results more than 1.
+const COVERAGE_DOC = """
+Calculate the area of a raster covered by GeoInterface.jl compatible geomtry `geom`,
+as a fraction.
+
+Each pixel is assigned a grid of points (by default 10 x 10) that are each checked
+to be inside the geometry. The sum divided by the number of points to give coverage.
+
+In pracice, most pixel coverage is not calculated this way - shortcuts that 
+produce the same result are taken whereever possible.
+
+If `geom` is an `AbstractVector` or table, the `mode` keyword will determine how coverage is combined.
 """
-coverage(data; to=nothing, kw...) = _coverage(to, data; kw...)
+
+const COVERAGE_KEYWORDS = """
+- `mode`: method for combining multiple geometries - `:union` or `:sum`. 
+    * `:union` (the default) gives the areas covered by all geometries. Usefull in
+      spatial coverage where overlapping regions should not be counted twice.
+      The returned raster will contain `Float64` values between `0.0` and `1.0`.
+    * `:sum` gives the summed total of the areas covered by all geometries,
+      as in taking the sum of running `coverage` separately on all geometries.
+      The returned values are positive `Float64`.
+    For a single geometry, the `mode` keyword has not effect - the result would be the same.
+- `scale`: `Integer` scale of pixel subdivision. The default of `10` means each pixel has 
+    10 x 10 or 100 points that contribute to coverage. Using `100` means 10,000 points
+    contribute. Performance will decline as `scale` increases. Memory use will grow 
+    by `scale^2` when `mode=:union`.
+"""
+
+"""
+    coverage(geom; to, mode, scale, kw...)
+
+$COVERAGE_DOC
+
+# Keywords
+
+$COVERAGE_KEYWORDS
+$TO_KEYWORD
+$SIZE_KEYWORD
+$RES_KEYWORD
+"""
+coverage(data; to=nothing, mode=:union, scale=10, res=nothing, size=nothing, verbose=true) = 
+    _coverage(to, data; mode=Symbol(mode), scale, res, size, verbose)
 
 _coverage(to::Extents.Extent, data; res=nothing, size=nothing, kw...) =
     _coverage(_extent2dims(to; res, size, kw...), data; kw...)
 _coverage(to::Nothing, data; kw...) = _coverage(_extent(data), data; kw...)
-function _coverage(to, data; kw...)
-    dest = _create_rasterize_dest(dims(to); fill=0.0, init=0.0, name=:coverage, missingval=0.0, kw...) do dest
-        coverage!(dest, data; kw...)
+function _coverage(to, data; mode, kw...)
+    name = if GI.isgeometry(data) || GI.isfeature(data)
+        Symbol(:coverage)
+    else
+        Symbol(:coverage_, mode)
+    end
+    dest = _create_rasterize_dest(dims(to); fill=0.0, init=0.0, name, missingval=0.0, kw...) do A
+        coverage!(A, data; mode, kw...)
     end
     return dest
 end
 
-coverage!(A::AbstractRaster, data; kw...) = coverage!(A, GI.trait(data), data; kw...)
-function coverage!(dest, ::Nothing, data::AbstractVector; kw...)
+"""
+    coverage!(A, geom; [mode, scale])
+
+$COVERAGE_DOC
+
+# Keywords
+
+$COVERAGE_KEYWORDS
+"""
+coverage!(A::AbstractRaster, data; scale::Integer=10, mode=:union, verbose=true) = 
+    _coverage!(A, GI.trait(data), data; scale, mode=Symbol(mode), verbose)
+
+_coverage!(A::AbstractRaster, ::GI.FeatureTrait, feature; kw...) =
+    _coverage!(A, GI.geometry(feature); kw...)
+_coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom; mode, kw...) =
+    _sum_coverage!(A, geom; kw...)
+# Collect iterators so threading is easier.
+function _coverage!(A::AbstractRaster, ::Union{Nothing,GI.FeatureCollectionTrait}, geoms; 
+    mode, scale, verbose
+)
     n = Threads.nthreads()
-    thread_allocs = _edge_allocs() 
-    linebuffers = [_init_bools(dest, Bool; missingval=false) for _ in 1:n]
-    centerbuffers = [_init_bools(dest, Bool; missingval=false) for _ in 1:n]
-    coveragebuffers = [fill!(similar(dest), 0.0) for _ in 1:n]
-    subbuffers = [fill!(Array{Bool}(undef, 10, 10), false) for _ in 1:n]
-    Threads.@threads for geom in data
-        idx = Threads.threadid()
-        coveragebuffer = coveragebuffers[idx]
-        linebuffer = linebuffers[idx]
-        centerbuffer = centerbuffers[idx]
-        subbuffer = subbuffers[idx]
-        allocs = thread_allocs[idx]
-        coverage!(coveragebuffer, geom; allocs, linebuffer, centerbuffer, subbuffer)
-        fill!(linebuffer, false)
-        fill!(centerbuffer, false)
+    buffers = (
+        allocs = _edge_allocs(),
+        linebuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
+        centerbuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
+        block_crossings = [[Vector{Float64}(undef, 0) for _ in 1:scale] for _ in 1:n],
+        burnstatus = [fill((1, false), scale) for _ in 1:n],
+        subbuffer = [fill!(Array{Bool}(undef, scale, scale), false) for _ in 1:n],
+        ncrossings = [fill(0, scale) for _ in 1:n],
+    )
+    subpixel_dims = _subpixel_dims(A, scale)
+    missed_pixels = if mode == :union
+        _union_coverage!(A, geoms, buffers; scale, subpixel_dims)
+    elseif mode == :sum
+        _sum_coverage!(A, geoms, buffers; scale, subpixel_dims)
+    else
+        throw(ArgumentError("Coverage `mode` can be `:union` or `:sum`. Got $mode"))
     end
-    dest .= .+(coveragebuffers...)
-    return dest
+    verbose && _check_missed_pixels(missed_pixels, scale)
+    return A
 end
-function coverage!(A::AbstractRaster, ::Union{GI.PolygonTrait,GI.MultiPolygonTrait}, data;
+
+# Combines coverage at the sub-pixel level for a final value 0-1
+function _union_coverage!(A::AbstractRaster, geoms, buffers; 
+    scale, subpixel_dims
+)
+    n = Threads.nthreads()
+    centeracc = [_init_bools(A, Bool; missingval=false) for _ in 1:n]
+    lineacc = [_init_bools(A, Bool; missingval=false) for _ in 1:n]
+    subpixel_buffer = [falses(size(A) .* scale) for _ in 1:n]
+
+    allbuffers = merge(buffers, (; centeracc, lineacc, subpixel_buffer))
+
+    p = _progress(length(geoms) + size(A, Y()); desc="Calculating union coverage...")
+
+    Threads.@threads :static for i in _geomindices(geoms)
+        geom = _getgeom(geoms, i)
+        idx = Threads.threadid()
+        thread_buffers = map(b -> b[idx], allbuffers)
+        _union_coverage!(A, geom; scale, subpixel_buffer, thread_buffers...)
+        fill!(thread_buffers.linebuffer, false)
+        fill!(thread_buffers.centerbuffer, false) # Is this necessary?
+        ProgressMeter.next!(p)
+    end
+    # Merge downscaled BitArray (with a function barrier)
+    subpixel_union = _do_broadcast!(|, subpixel_buffer[1], subpixel_buffer...)
+    subpixel_raster = Raster(subpixel_union, subpixel_dims)
+    # Merge main BitArray (with a function barrier)
+    center_covered = _do_broadcast!(|, centeracc[1], centeracc...)
+    line_covered = _do_broadcast!(|, lineacc[1], lineacc...)
+
+    missed_pixels = fill(0, n)
+    Threads.@threads :static for y in axes(A, Y())
+        for x in axes(A, X())
+            D = (X(x), Y(y))
+            if center_covered[D...]
+                pixel_coverage = 1.0
+                A[D...] = pixel_coverage
+            else
+                subxs, subys = map((x, y)) do i
+                    i1 = (i - 1) * scale
+                    sub_indices = i1 + 1:i1 + scale
+                end
+                pixel_coverage = sum(view(subpixel_raster, X(subxs), Y(subys))) / scale^2
+                if pixel_coverage == 0.0
+                    # Check if this line should be covered
+                    if line_covered[D...]
+                        idx = Threads.threadid()
+                        missed_pixels[idx] += 1
+                    end
+                end
+                A[D...] = pixel_coverage
+            end
+        end
+        ProgressMeter.next!(p)
+    end
+    return sum(missed_pixels)
+end
+function _union_coverage!(A::AbstractRaster, geom;
+    scale,
     allocs=Allocs(),
     linebuffer=_init_bools(A, Bool; missingval=false),
     centerbuffer=_init_bools(A, Bool; missingval=false),
-    subbuffer=falses(10, 10),
+    subpixel_buffer=falses(size(A) .* scale),
+    centeracc=_init_bools(A, Bool; missingval=false),
+    lineacc=_init_bools(A, Bool; missingval=false),
+    burnstatus=[(1, false) for _ in 1:scale],
+    block_crossings=[Vector{Float64}(undef, 0) for _ in 1:scale],
+    subbuffer=falses(scale, scale),
+    subpixel_dims=_subpixel_dims(A, scale),
+    ncrossings=fill(0, scale),
 )
+    GI.isgeometry(geom) || error("not a geometry")
     crossings = allocs.crossings
-    lines = boolmask!(linebuffer, data; shape=:line, allocs)
-    centers = boolmask!(centerbuffer, data; boundary=:center, allocs)
-    shifted = map(d -> DD.maybeshiftlocus(Start(), d), dims(A, DEFAULT_TABLE_DIM_KEYS))
-    disag_dims = map(shifted) do d
-        l = lookup(d)
-        substep = step(l) / 10
-        substart = substep / 2 + first(l)
-        range = substart:substep:last(l) + 10 * substep
-        sublookup = Sampled(range, ForwardOrdered(), Regular(substep), Intervals(Start()), NoMetadata())
-        rebuild(d, sublookup)
-    end
-    filtered_edges = _to_edges(data, disag_dims; allocs) |> sort!
-
-
-    # Brodcase over the rasterizations and indices
+    boolmask!(linebuffer, geom; shape=:line, allocs)
+    boolmask!(centerbuffer, geom; boundary=:center, allocs)
+    # Update the cumulative state for completely covered cells
+    # This allows us to skip them later.
+    # We don't just use `boundary=:inside` because we need the line burns separately anyway
+    centeracc .|= (centerbuffer .& .!(linebuffer))
+    lineacc .|= linebuffer
+    filtered_edges = _to_edges(geom, subpixel_dims; allocs) |> sort!
+    # Brodcast over the rasterizations and indices
     # to calculate coverage of each pixel
     edgestart = 1
-    block_crossings = [Vector{Float64}(undef, 0) for _ in 1:10]
-    status = [(1, false) for _ in 1:10]
 
     # Loop over y in A
     for y in axes(A, Y())
-        # If the center is in a polygon, and the pixel is
-        # not on a line, then coverage is 1.0
+        # If no lines touched this column skip it
+        found = false
         for x in axes(A, X())
-            if centers[X(x), Y(y)] && !lines[X(x), Y(y)] 
-                A[X(x), Y(y)] += 1.0
+            if linebuffer[X(x), Y(y)] && !centeracc[X(x), Y(y)]
+                found = true
+                break
             end
         end
+        found || continue
 
-        # If no lines touched this column skip it
-        any(view(lines, Y(y))) || continue
-
-        y1 = (y - 1) * 10
-        sub_yaxis = y1 + 1:y1 + 10
+        y1 = (y - 1) * scale
+        sub_yaxis = y1 + 1:y1 + scale
 
         # Generate all of the x crossings beforehand so we don't do it for every pixel
         for (i, sub_y) in enumerate(sub_yaxis)
-            edgestart, ncrossings = _set_crossings!(crossings, A, filtered_edges, edgestart, sub_y)
-            block_crossings[i] = crossings[1:ncrossings] # Allocation :(
+            ncrossings[i] = _set_crossings!(block_crossings[i], A, filtered_edges, sub_y)
         end
-        status .= Ref((1, false)) 
+
+        # Reset burn burnstatus
+        burnstatus .= Ref((1, false))
+        subpixel_raster = Raster(subpixel_buffer, subpixel_dims)
 
         # Loop over x in A
         for x in axes(A, X())
-            lines[X(x), Y(y)] || continue
-            x1 = (x - 1) * 10
-            sub_xaxis = x1 + 1:x1 + 10
+            # Checkt that the cell is not already 100% filled
+            centeracc[X(x), Y(y)] && continue
+            # CHeck that a line touched the cell
+            linebuffer[X(x), Y(y)] || continue
+            x1 = (x - 1) * scale
+            sub_xaxis = x1 + 1:x1 + scale
             offset_subbuffer = OffsetArrays.OffsetArray(subbuffer, (sub_xaxis, sub_yaxis))
-            subdims = map(disag_dims, axes(offset_subbuffer)) do d, a
+            subdims = map(subpixel_dims, axes(offset_subbuffer)) do d, a
                 rebuild(d, NoLookup(a)) # Don't need a lookup for _burn_polygon
             end
 
@@ -106,15 +226,133 @@ function coverage!(A::AbstractRaster, ::Union{GI.PolygonTrait,GI.MultiPolygonTra
             fill!(subraster, false)
             # Loop over y in the subraster
             for (i, sub_y) in enumerate(sub_yaxis)
-                cross = block_crossings[i]
-                ncrossings = length(cross)
-                ncrossings > 0 || continue
+                ncrossings[i] > 0 || continue
                 # Burn along x for each y, tracking burn status and crossing number
-                status[i] = _burn_crossings!(subraster, cross, ncrossings, sub_y; status=status[i])
+                burnstatus[i] = _burn_crossings!(subraster, block_crossings[i], ncrossings[i], sub_y; status=burnstatus[i])
             end
-            # Sum the raster and divide by 100 for fractional coverage
-            pixel_coverage = sum(subraster) / 100.0
+            v = view(subpixel_raster, X(sub_xaxis), Y(sub_yaxis))
+            parent(v) .|= parent(parent(subraster))
+        end
+    end
+end
+
+# Sums all coverage 
+function _sum_coverage!(A::AbstractRaster, geoms::AbstractVector, buffers; scale, subpixel_dims)
+    n = Threads.nthreads()
+    coveragebuffers = [fill!(similar(A), 0.0) for _ in 1:n]
+    p = _progress(length(geoms); desc="Calculating coverage...")
+    missed_pixels = fill(0, n)
+    Threads.@threads :static for geom in geoms
+        idx = Threads.threadid()
+        thread_buffers = map(b -> b[idx], buffers)
+        coveragebuffer = coveragebuffers[idx]
+        missed_pixels[idx] += _sum_coverage!(coveragebuffer, geom; scale, thread_buffers...)
+        fill!(thread_buffers.linebuffer, false)
+        fill!(thread_buffers.centerbuffer, false)
+        ProgressMeter.next!(p)
+    end
+    _do_broadcast!(+, A, coveragebuffers...)
+    return sum(missed_pixels)
+end
+function _sum_coverage!(A::AbstractRaster, geom;
+    scale,
+    allocs=Allocs(),
+    linebuffer=_init_bools(A, Bool; missingval=false),
+    centerbuffer=_init_bools(A, Bool; missingval=false),
+    block_crossings=[Vector{Float64}(undef, 0) for _ in 1:scale],
+    subbuffer=falses(scale, scale),
+    burnstatus=[(1, false) for _ in 1:scale],
+    subpixel_dims=_subpixel_dims(A, scale),
+    ncrossings=fill(0, scale),
+)
+    GI.isgeometry(geom) || error("Object is not a geometry")
+    crossings = allocs.crossings
+    boolmask!(linebuffer, geom; shape=:line, allocs)
+    boolmask!(centerbuffer, geom; boundary=:center, allocs)
+    filtered_edges = _to_edges(geom, subpixel_dims; allocs)
+    # Brodcast over the rasterizations and indices
+    # to calculate coverage of each pixel
+    edgestart = 1
+
+    # Loop over y in A
+    for y in axes(A, Y())
+        found = false
+        for x in axes(A, X())
+            if linebuffer[X(x), Y(y)]
+                found = true
+            elseif centerbuffer[X(x), Y(y)]
+                # If the center is inside a polygon but the pixel is
+                # not on a line, then coverage is 1.0
+                pixel_coverage = 1.0
+                A[X(x), Y(y)] += pixel_coverage
+            end
+        end
+        # If no lines touched this column, skip it
+        found || continue
+
+        y1 = (y - 1) * scale
+        sub_yaxis = y1 + 1:y1 + scale
+
+        # Generate all of the x crossings beforehand so we don't do it for every pixel
+        for (i, sub_y) in enumerate(sub_yaxis)
+            ncrossings[i] = _set_crossings!(block_crossings[i], A, filtered_edges, sub_y)
+        end
+        # Set the burn/skip status to false (skip) for each starting position
+        burnstatus .= Ref((1, false))
+
+        missed_pixels = 0
+        # Loop over x in A
+        for x in axes(A, X())
+            linebuffer[X(x), Y(y)] || continue
+
+            x1 = (x - 1) * scale
+            sub_xaxis = x1 + 1:x1 + scale
+            offset_subbuffer = OffsetArrays.OffsetArray(subbuffer, (sub_xaxis, sub_yaxis))
+            subdims = map(subpixel_dims, axes(offset_subbuffer)) do d, a
+                # Don't need a real lookup for _burn_polygon
+                rebuild(d, NoLookup(a)) 
+            end
+
+            # Rebuild the buffer for this pixels dims
+            subraster = Raster(offset_subbuffer, subdims, (), NoName(), NoMetadata(), false)
+            # And initialise it
+            fill!(subraster, false)
+
+            # Loop over y in the subraster
+            for (i, sub_y) in enumerate(sub_yaxis)
+                ncrossings[i] > 0 || continue
+                # Burn along x for each y, tracking burn status and crossing number
+                burnstatus[i] = _burn_crossings!(subraster, block_crossings[i], ncrossings[i], sub_y; status=burnstatus[i])
+            end
+
+            # Finally, sum the pixel sub-raster and divide by scale^2 for the fractional coverage
+            pixel_coverage = sum(subraster) / scale^2
+            if pixel_coverage == 0
+                missed_pixels += 1
+            end
             A[X(x), Y(y)] += pixel_coverage
         end
+    end
+    return missed_pixels
+end
+
+# Function barrier for splatted vector broadcast
+@noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
+
+function _subpixel_dims(A, scale)
+    shifted = map(d -> DD.maybeshiftlocus(Start(), d), commondims(A, DEFAULT_TABLE_DIM_KEYS))
+    map(shifted) do d
+        l = lookup(d)
+        substep = step(l) / scale
+        substart = substep / 2 + first(l)
+        range = substart:substep:last(l) + scale * substep
+        sublookup = Sampled(range, ForwardOrdered(), Regular(substep), Intervals(Start()), NoMetadata())
+        rebuild(d, sublookup)
+    end
+end
+
+function _check_missed_pixels(missed_pixels::Int, scale::Int)
+    if missed_pixels > 0
+        @info "There were $missed_pixels times that pixels were touched by geometries but did not produce coverage, meaning the area was too small to be detected by the $(scale * scale) points at `scale=$scale`."
     end
 end

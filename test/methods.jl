@@ -129,13 +129,13 @@ end
 @testset "zonal" begin
     a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
     zonal(sum, a; of=polygon) ==
-        zonal(sum, a; of=[polygon])[1] ==
+        zonal(sum, a; of=[polygon, polygon])[1] ==
         zonal(sum, a; of=(geometry=polygon, x=:a, y=:b)) ==
         zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1]
         zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
         sum(skipmissing(mask(a; with=polygon)))
     @test zonal(sum, a; of=a) == 
-        zonal(sum, a; of=dims(a)) == 
+        zonal(sum, a; of=dims(a)) ==
         zonal(sum, a; of=Extents.extent(a)) == 
         sum(a)
 
@@ -479,11 +479,13 @@ end
     shx = splitext(shp)[1] * ".shx"
     shphandle = Shapefile.Handle(shp, shx)
     poly = shphandle.shapes[1]
+    using GeoInterface
+    collect(GeoInterface.getpoint(poly))
 
     @testset "center in polygon rasterization" begin
         @time gdal_raster = gdal_read_rasterize(shp);
         @time rasters_raster = rasterize(shphandle.shapes; 
-             size=(250, 250), fill=UInt8(1), missingval=UInt8(0)
+             size=(250, 250), fill=UInt8(1), missingval=UInt8(0), shape=:line
         );
         using Plots
         heatmap(parent(parent(rasters_raster)))
@@ -739,12 +741,23 @@ using Shapefile
 shppath = "/home/raf/PhD/Mascarenes/Data/Distributions/MAMMALS_TERRESTRIAL_ONLY/MAMMALS_TERRESTRIAL_ONLY.shp"
 shptable = Shapefile.Handle(shppath).shapes
 
-@time r = rasterize(count, shptable; res=1/2, boundary=:center, missingval=typemin(Int))
+using Statistics
+@time r = rasterize(std, shptable; fill=1, res=1, boundary=:touches, missingval=typemin(Int))
+plot(r)
+@time r = rasterize(count, shptable; res=1/24, boundary=:center, missingval=typemin(Int))
+@time r = rasterize(count, shptable; res=1/6, shape=:line, missingval=typemin(Int))
+@descend rasterize(count, shptable; res=1/2, boundary=:center, missingval=typemin(Int))
+@profview 
+using Statistics
+@time r = rasterize(mean, shptable; res=1/6, fill=1, boundary=:center, missingval=typemin(Int))
 using Plots
 plot(r)
 @profview 
-@time cov = Rasters.coverage(shptable; res=1);
+@time cov = Rasters.coverage(shptable; mode=:union, res=1);
 plot(cov)
+@profview co = Rasters.coverage(shptable[1:5000]; res=1/2);
+@time co = Rasters.coverage(shptable; mode=:sum, res=1/2, scale=100);
+permutedims(co)
 # using GeoDataFrames
 # @time shptable = GeoDataFrames.read(shppath)
 polygon = Shapefile.Handle(shppath).shapes[1]
@@ -754,17 +767,13 @@ tinf = @snoopi_deep rasterize(count, shptable[1:10]; res=1/6, boundary=:center);
 fg = flamegraph(tinf)
 ProfileView.view(fg)
 
-using Plots
-plot(r)
-@profview 
-r = rasterize(count, shptable; res=1/6, boundary=:center, missingval=typemin(Int))
-using Plots
 plot(r)
 @profview 
 plot(cov)
 plot(r)
+using Profile, PProf
 Profile.Allocs.clear()
-Profile.Allocs.@profile rasterize(count, shptable; res=1/6, boundary=:center, missingval=typemin(Int));
+Profile.Allocs.@profile cov = Rasters.coverage(shptable; mode=:sum, res=1/2);
 PProf.Allocs.pprof()
 
 @profview mammal_count = rasterize(count, shptable.shapes; res=1/6, boundary=:center, missingval=typemin(Int));

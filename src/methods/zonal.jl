@@ -83,9 +83,26 @@ function _zonal(f, x::RasterStack, ext::Extents.Extent)
     end
 end
 # Otherwise of is a geom, table or vector
-_zonal(f, x::RasterStackOrArray, of; kw...) = _zonal(f, x, GI.trait(of), of; kw...)
+function _zonal(f, x::RasterStackOrArray, of::T; kw...) where T
+    if Tables.istable(T)
+        ctbl = Tables.columntable(of)
+        geoms = Tables.getcolumn(ctbl, first(GI.geometrycolumns(of)))
+        _zonal(f, x, nothing, geoms; kw...)
+    else
+        _zonal(f, x, GI.trait(of), of; kw...)
+    end
+end
 function _zonal(f, x, ::GI.AbstractFeatureCollectionTrait, fc; kw...)
-    [_zonal(f, x, feature; kw...) for feature in GI.getfeature(fc)]
+    n = GI.nfeature(fc)
+    n == 0 && return []
+    geom1 = GI.geometry(GI.getfeature(fc, 1))
+    zs = _alloc_zonal(f, x, geom1, n; kw...)
+    p = _progress(n; desc="Applying $f to each geometry...")
+    Threads.@threads for i in 2:n
+        geom = GI.geometry(GI.getfeature(fc, i))
+        zs[i] = _zonal(f, x, geom; kw...)
+        ProgressMeter.next!(p)
+    end
 end
 _zonal(f, x::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...) =
     _zonal(f, x, GI.geometry(feature); kw...)
@@ -104,13 +121,24 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; kw
         f(skipmissing(A))
     end
 end
-function _zonal(f, x::RasterStackOrArray, ::Nothing, obj; kw...)
-    if Tables.istable(obj)
-        geoms = Tables.getcolumn(obj, first(GI.geometrycolumns(obj)))
-        return [_zonal(f, x, geom; kw...) for geom in geoms]
-    elseif obj isa AbstractVector
-        return [_zonal(f, x, geom; kw...) for geom in obj]
-    else
-        throw(ArgumentError("Cannot calculate zonal statistics for objects of type $(typeof(obj))"))
+function _zonal(f, x::RasterStackOrArray, ::Nothing, geoms::AbstractVector; kw...)
+    # TODO offset arrays
+    n = length(geoms)
+    n == 0 && return []
+    zs = _alloc_zonal(f, x, first(geoms), length(geoms); kw...)
+    p = _progress(length(geoms); desc="Applying $f to each geometry...")
+    Threads.@threads for i in eachindex(zs)
+        zs[i] = _zonal(f, x, geoms[i]; kw...)
+        ProgressMeter.next!(p)
     end
+    return zs
+end
+_zonal(f, x::RasterStackOrArray, ::Nothing, geoms; kw...) =
+    _zonal(f, x, nothing, collect(geoms); kw...)
+
+function _alloc_zonal(f, x, geom, n; kw...)
+    z1 = _zonal(f, x, geom; kw...)
+    zs = Vector{typeof(z1)}(undef, n)
+    zs[1] = z1
+    return zs
 end

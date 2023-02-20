@@ -190,8 +190,14 @@ function _as_intervals(ds::Tuple)
     return setdims(ds, interval_dims)
 end
 
+_geomindices(geoms) = GI.isfeaturecollection(geoms) ? (1:GI.nfeature(geoms)) : eachindex(geoms)
+_getgeom(geoms, i::Integer) = GI.isfeaturecollection(geoms) ? GI.getfeature(geoms, i) : geoms[i]
+
 
 _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
 
 _filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not found"))
+
+_progress(args...; kw...) = ProgressMeter.Progress(args...; color=:blue, barlen=50, kw...)
+
 

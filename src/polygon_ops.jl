@@ -4,13 +4,13 @@ const DEFAULT_TABLE_DIM_KEYS = (:X, :Y)
 # Simple point positions offset relative to the raster
 struct Position
     offset::Tuple{Float64,Float64}
-    ind::Int
+    ind::Int32
 end
 function Position(point::Tuple, start::Tuple, step::Tuple)
     (x, y) = point
     xoff, yoff = (x - start[1]), (y - start[2])
-    offset = (xoff / step[1] + 1, yoff / step[2] + 1)
-    yind = trunc(Int, offset[2])
+    offset = (xoff / step[1] + 1.0, yoff / step[2] + 1.0)
+    yind = trunc(Int32, offset[2])
     return Position(offset, yind)
 end
 
@@ -31,48 +31,33 @@ struct Edge
 end
 
 function can_skip_edge(prevpos::Position, nextpos::Position, xlookup, ylookup)
-    # ignore horizonta
+    # ignore horizontal edges
     (prevpos.offset[2] == nextpos.offset[2]) && return true
     # ignore edges between grid lines on y axis
     (nextpos.ind == prevpos.ind) && 
         (prevpos.offset[2] != prevpos.ind) && 
         (nextpos.offset[2] != nextpos.ind) && return true
-    # ignore edges outside the grid
+    # ignore edges outside the grid on the y axis
     (prevpos.offset[2] < 0) && (nextpos.offset[2] < 0) && return true
-    (prevpos.offset[1] < 0) && (nextpos.offset[1] < 0) && return true
     (prevpos.offset[2] > lastindex(ylookup)) && (nextpos.offset[2] > lastindex(ylookup)) && return true
     return false
 end
 
-# function subset(edges::Vector{Edge}, x, y)
-#     filter(edges) do edge
-#         map(<, edge.start, I)
-#     end
-# end
-
 struct Allocs
     edges::Vector{Edge}
+    scratch::Vector{Edge}
     crossings::Vector{Float64}
     spinlock::Threads.SpinLock
 end
-Allocs() = Allocs(Vector{Edge}(undef, 0), Vector{Float64}(undef, 0), Threads.SpinLock())
-function Base.sizehint!(alloc::Allocs, sizehint)
-    sizehint!(alloc.edges, sizehint)
-    sizehint!(alloc.crossings, sizehint)
-end
+Allocs() = Allocs(0)
+Allocs(n::Int) = Allocs(Vector{Edge}(undef, n), Vector{Edge}(undef, n), Vector{Float64}(undef, n), Threads.SpinLock())
 
 _edge_allocs() = _edge_allocs(Threads.nthreads())
 _edge_allocs(n::Int) = [Allocs() for _ in 1:n]
 
-_get_alloc(thread_allocs::Vector{Allocs}; sizehint) =
-    _get_alloc(thread_allocs[Threads.threadid()]; sizehint)
-function _get_alloc(allocs::Allocs; sizehint)
-    sizehint1 = GI.isgeometry(sizehint) ? GI.npoint(sizehint) ÷ 8 : sizehint
-    if length(allocs.edges) == 0
-        sizehint!(allocs, sizehint1)
-    end
-    return allocs
-end
+_get_alloc(thread_allocs::Vector{Allocs}; kw...) =
+    _get_alloc(thread_allocs[Threads.threadid()])
+_get_alloc(allocs::Allocs; kw...) = allocs
 
 x_at_y(e::Edge, y) = (y - e.start[2]) * e.gradient + e.start[1]
 
@@ -84,7 +69,7 @@ function _to_edges(
     tr::Union{GI.LinearRingTrait,GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, geom, dims;
     allocs::Union{Allocs,Vector{Allocs}}, kw...
 )
-    edges = _get_alloc(allocs; sizehint=geom).edges
+    (; edges, scratch) = _get_alloc(allocs)
     local edge_count = 0
     if tr isa GI.LinearRingTrait
         edge_count = _to_edges!(edges, geom, dims, edge_count)
@@ -95,7 +80,9 @@ function _to_edges(
     end
 
     # We may have allocated too much
-    return view(edges, 1:edge_count)
+    edges1 = view(edges, 1:edge_count)
+    sort!(edges1; scratch)
+    return edges1
 end
 function _to_edges!(edges, geom, dims, edge_count)
     GI.npoint(geom) > 0 || return edge_count
@@ -107,8 +94,9 @@ function _to_edges!(edges, geom, dims, edge_count)
 
     # Raster properties
     xlookup, ylookup = lookup(dims, (X(), Y())) 
-    starts = (first(xlookup), first(ylookup))
-    steps = (Base.step(xlookup), Base.step(ylookup))
+    starts = (Float64(first(xlookup)), Float64(first(ylookup)))
+    steps = (Float64(Base.step(xlookup)), Float64(Base.step(ylookup)))
+    local prevpoint = (0.0, 0.0)
 
     # Loop over points to generate edges
     for point in GI.getpoint(geom)
@@ -117,6 +105,7 @@ function _to_edges!(edges, geom, dims, edge_count)
         # For the first point just set variables
         if firstpoint
             prevpos = firstpos = Position(p, starts, steps)
+            prevpoint = p
             firstpoint = false
             continue
         end
@@ -140,6 +129,7 @@ function _to_edges!(edges, geom, dims, edge_count)
             push!(edges, edge)
         end
         prevpos = nextpos
+        prevpoint = p
     end
 
     return edge_count
@@ -175,7 +165,7 @@ end
 function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; 
     shape=nothing, _buffer=nothing, verbose=false, allocs, kw...
 )
-    allocs = _get_alloc(allocs; sizehint=geom)
+    allocs = _get_alloc(allocs)
     # Use the specified shape or detect it
     shape = shape isa Symbol ? shape : _geom_shape(geom)
     if shape === :point
@@ -200,7 +190,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
         end
         # Also take a view of the buffer
         # Reset the buffer for this area
-        buf1 .= false
+        fill!(buf1, false)
         # Burn the polygon into the buffer
         _burn_polygon!(buf1, geom; shape, geomextent, allocs, kw...)
 
@@ -227,14 +217,21 @@ end
 function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine::Union{Bool,Nothing}=nothing, kw...)
     allocs = _edge_allocs()
     if isnothing(combine) || combine
-        Threads.@threads for geom in geoms
+        p = _progress(length(geoms))
+        Threads.@threads :static for i in _geomindices(geoms)
+            geom = _getgeom(geoms, i)
             ismissing(geom) && continue
             _burn_geometry!(B, geom; allocs, kw...)
+            ProgressMeter.next!(p)
         end
     else
-        Threads.@threads for (i, geom) in enumerate(geoms)
+        p = _progress(length(geoms))
+        Threads.@threads :static for i in _geomindices(geoms)
+            geom = _getgeom(geoms, i)
+            ismissing(geom) && continue
             B1 = view(B, Dim{:geometry}(i))
             _burn_geometry!(B1, geom; kw...)
+            ProgressMeter.next!(p)
         end
     end
     return B
@@ -251,8 +248,9 @@ end
 function _burn_polygon!(B::AbstractDimArray, trait, geom;
     fill=true, boundary=:center, geomextent, verbose=false, allocs, kw...
 )
-    allocs = _get_alloc(allocs; sizehint=geom)
-    filtered_edges = _to_edges(geom, dims(B); allocs) |> sort!
+    allocs = _get_alloc(allocs)
+    filtered_edges = _to_edges(geom, dims(B); allocs)
+    
     _burn_polygon!(B, filtered_edges, allocs.crossings)
 
     # Lines
@@ -278,29 +276,23 @@ end
 function _burn_polygon!(A::AbstractDimArray, edges::AbstractArray{Edge}, crossings;
     offset= nothing
 )
-    local edgestart = 1
     # Loop over each index of the y axis
     for iy in axes(A, YDim)
-        edgestart, ncrossings = _set_crossings!(crossings, A, edges, edgestart, iy)
+        ncrossings = _set_crossings!(crossings, A, edges, iy)
         _burn_crossings!(A, crossings, ncrossings, iy)
     end
     return A
 end
 
-function _set_crossings!(crossings, A, edges, edgestart, iy)
+function _set_crossings!(crossings, A, edges, iy)
     ncrossings = 0
-    found = false
     # Edges are sorted on y, so we can skip
     # some at the start we have already done
-    for i in edgestart:lastindex(edges)
+    for i in 1:lastindex(edges)
         y = iy + first(lookup(A, YDim)) - 1
         e = edges[i]
-        iy >= e.iystart || continue
+        iy >= e.iystart || break
         if iy <= e.iystop 
-            if !found
-                edgestart = i
-                found = true
-            end
             ncrossings += 1
             if length(crossings) >= ncrossings
                 crossings[ncrossings] = Rasters.x_at_y(e, iy)
@@ -309,8 +301,8 @@ function _set_crossings!(crossings, A, edges, edgestart, iy)
             end
         end
     end
-    sort!(view(crossings, 1:ncrossings))
-    return edgestart, ncrossings
+    sort!(view(crossings, 1:ncrossings), )
+    return ncrossings
 end
 
 function _burn_crossings!(A, crossings, ncrossings, iy; 
@@ -364,11 +356,13 @@ function _prepare_for_burning(B, locus=Center())
     start_dims = map(dims(B1, DEFAULT_POINT_ORDER)) do d
         # Shift lookup values to center of pixels
         d = DD.maybeshiftlocus(locus, d)
-        # Convert to Array if its not one already
-        parent(lookup(d)) isa Array ? d : modify(Array, d) 
+        _lookup_as_array(d)
     end
     return setdims(B1, start_dims)
 end
+
+# Convert to Array if its not one already
+_lookup_as_array(d::Dimension) = parent(lookup(d)) isa Array ? d : modify(Array, d) 
 
 function _forward_ordered(B)
     reduce(dims(B); init=B) do A, d
@@ -513,31 +507,50 @@ function _burn_line!(A::AbstractRaster, line, fill)
     raster_y_step = abs(step(span(A, Y)))
     raster_x_offset = @inbounds xdim[1] - raster_x_step / 2 # Shift from center to start of pixel
     raster_y_offset = @inbounds ydim[1] - raster_y_step / 2
+
+    # TODO merge this with Edge generation
     # Converted lookup to array axis values (still floating)
     relstart = (x=(line.start.x - raster_x_offset) / raster_x_step, 
              y=(line.start.y - raster_y_offset) / raster_y_step)
     relstop = (x=(line.stop.x - raster_x_offset) / raster_x_step, 
             y=(line.stop.y - raster_y_offset) / raster_y_step)
-    diff_x = relstop.x - relstart.x
-    diff_y = relstop.y - relstart.y
 
     # Ray/Slope calculations
     # Straight distance to the first vertical/horizontal grid boundaries
     if relstop.x > relstart.x
-        xoffset = floor(relstart.x) - relstart.x + 1 
-        xmoves = floor(Int, relstop.x) - floor(Int, relstart.x)
+        xoffset = trunc(relstart.x) - relstart.x + 1 
+        xmoves = trunc(Int, relstop.x) - trunc(Int, relstart.x)
     else
-        xoffset = relstart.x - floor(relstart.x)
-        xmoves = floor(Int, relstart.x) - floor(Int, relstop.x)
+        xoffset = relstart.x - trunc(relstart.x)
+        xmoves = trunc(Int, relstart.x) - trunc(Int, relstop.x)
     end
     if relstop.y > relstart.y
-        yoffset = floor(relstart.y) - relstart.y + 1
-        ymoves = floor(Int, relstop.y) - floor(Int, relstart.y)
+        yoffset = trunc(relstart.y) - relstart.y + 1
+        ymoves = trunc(Int, relstop.y) - trunc(Int, relstart.y)
     else
-        yoffset = relstart.y - floor(relstart.y)
-        ymoves = floor(Int, relstart.y) - floor(Int, relstop.y)
+        yoffset = relstart.y - trunc(relstart.y)
+        ymoves = trunc(Int, relstart.y) - trunc(Int, relstop.y)
     end
     manhattan_distance = xmoves + ymoves
+
+    # Int starting points for the line. +1 converts to julia indexing
+    j, i = trunc(Int, relstart.x) + 1, trunc(Int, relstart.y) + 1 # Int
+
+    # For arbitrary dimension indexing
+    dimconstructors = map(DD.basetypeof, (xdim, ydim))
+
+    if manhattan_distance == 0
+        D = map((d, o) -> d(o), dimconstructors, (j, i))
+        if checkbounds(Bool, A, D...)
+            @inbounds A[D...] = fill
+        end
+        n_on_line = 1
+        return n_on_line
+    end
+
+    diff_x = relstop.x - relstart.x
+    diff_y = relstop.y - relstart.y
+
     # Angle of ray/slope.
     # max: How far to move along the ray to cross the first cell boundary.
     # delta: How far to move along the ray to move 1 grid cell.
@@ -555,14 +568,10 @@ function _burn_line!(A::AbstractRaster, line, fill)
     # else
         1.0 / si, yoffset / si
     # end
-    # For arbitrary dimension indexing
-    dimconstructors = map(DD.basetypeof, (xdim, ydim))
     # Count how many exactly hit lines
     n_on_line = 0
     countx = county = 0
 
-    # Int starting points for the lin. +1 converts to julia indexing
-    j, i = floor(Int, relstart.x) + 1, floor(Int, relstart.y) + 1 # Int
 
     # Int steps to move allong the line
     step_j = signbit(diff_x) * -2 + 1
@@ -711,30 +720,12 @@ function _init_bools(to, dims::DimTuple, T::Type, data; combine::Union{Bool,Noth
     end
 end
 
-# TODO make this a preference
-# 2 GB
-const MAX_SIZE = 4_000_000_000
-
-# When `to` is a Raster we can try to use the same parent array type
-function _alloc_bools(to::AbstractRaster, dims::DimTuple, ::Type{Bool}; missingval, kw...)
-    # TODO: improve this so that only e.g. CuArray uses `similar`
-    # This is a little annoying to lock down for all wrapper types,
-    # maybe ArrayInterface has tools for this.
-    # data = if parent(to) isa Union{Array,DA.AbstractDiskArray} && prod(size(dims)) > MAX_SIZE 
-    return Raster(falses(size(dims)), dims, (), Symbol(""), NoMetadata(), missingval) # Use a BitArray
-    # else
-        # return fill!(similar(to, T, dims), missingval) # Fill some other array type
-    # end
-end
-# Otherwise just use an Array or BitArray
 function _alloc_bools(to, dims::DimTuple, ::Type{Bool}; missingval, kw...)
-    # data = if prod(size(dims)) > MAX_SIZE
-    return Raster(falses(size(dims)), dims, (), Symbol(""), NoMetadata(), missingval) # Use a BitArray
-    # else
-        # return fill!(Raster{T}(undef, dims), missingval) # Use an `Array`
-    # end
+    # Use a BitArray
+    return Raster(falses(size(dims)), dims; missingval) # Use a BitArray
 end
 function _alloc_bools(to, dims::DimTuple, ::Type{T}; missingval, kw...) where T
-    data = fill!(Raster{T}(undef, dims), missingval) # Use an `Array`
-    return Raster(data, dims, (), NoMetadata(), missingval)
+    # Use an `Array`
+    data = fill!(Raster{T}(undef, dims), missingval) 
+    return Raster(data, dims; missingval)
 end
