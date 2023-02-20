@@ -104,35 +104,10 @@ end
     nplots = size(A, 3)
     if nplots > 1
         :plot_title --> name(A)
-        ncols, nrows = _balance_grid(nplots)
-        :layout --> (ncols, nrows)
-        # link --> :both
-        # :colorbar := false
-        titles = string.(index(A, D))
-        for r in 1:nrows, c in 1:ncols
-            i = (r + (c - 1) * nrows)
-            @series begin
-                :titlefontsize := 9
-                :tickfontsize := 7
-                subplot := i
-                if c != ncols || r != 1
-                    :xformatter := _ -> ""
-                    :yformatter := _ -> ""
-                    :xguide := ""
-                    :yguide := ""
-                end
-                if i <= nplots
-                    title := titles[i]
-                    RasterPlot(), A[:, :, i]
-                else
-                    :framestyle := :none
-                    :legend := :none
-                    []
-                end
-            end
-        end
+        # Plot as a RasterSeries
+        slice(A, dims(A, 3)) 
     else
-        RasterPlot(), A[:, :, 1]
+        RasterPlot(), view(A, :, :, 1)
     end
 end
 
@@ -153,6 +128,99 @@ end
         max_res = get(plotattributes, :max_res, 1000/(max(nrows, ncols)))
 
         l = DD.layers(st)
+        if haskey(plotattributes, :layout)
+            first = true
+            i = 1
+            for raster in values(st)
+                @series begin
+                    :titlefontsize := 9
+                    :tickfontsize := 7
+                    subplot := i
+                    if !first
+                        :xformatter := _ -> ""
+                        :yformatter := _ -> ""
+                        :xguide := ""
+                        :yguide := ""
+                    end
+                    raster
+                end
+                i += 1
+                first = false
+            end
+        else
+            for r in 1:nrows, c in 1:ncols
+                i = (r + (c - 1) * nrows)
+                @series begin
+                    :titlefontsize := 9
+                    :tickfontsize := 7
+                    subplot := i
+                    if c != ncols || r != 1
+                        :xformatter := _ -> ""
+                        :yformatter := _ -> ""
+                        :xguide := ""
+                        :yguide := ""
+                    end
+                    if i <= nplots
+                        A = l[i]
+                        title := string(keys(st)[i])
+                        if length(dims(A, (XDim, YDim))) > 0
+                            # Get a view of the first slice of the X/Y dimension
+                            ods = otherdims(A, (X, Y))
+                            if length(ods) > 0
+                                od1s = map(d -> DD.basetypeof(d)(firstindex(d)), ods)
+                                A = view(A, od1s...)
+                            end
+                            RasterPlot(), _prepare(_subsample(A, max_res))
+                        else
+                            framestyle := :none
+                            legend := :none
+                            []
+                        end
+                    else
+                        framestyle := :none
+                        legend := :none
+                        []
+                    end
+                end
+            end
+        end
+    else
+        first(st)
+    end
+end
+
+# Plot a vertical 1d line
+@recipe function f(A::RasterSeries{<:Any,1})
+    nplots = length(A)
+    if nplots > 16 
+        plotstep = (nplots - 1) ÷ 16 + 1
+        @info "Too many raster heatmaps: plotting 1 in $plotstep slices"
+        A = @views A[begin:plotstep:end]
+        nplots = length(A)
+    end
+    # link --> :both
+    # :colorbar := false
+    titles = string.(index(A, dims(A, 1)))
+    if haskey(plotattributes, :layout)
+        first = true
+        for raster in A
+            @series begin
+                :titlefontsize := 9
+                :tickfontsize := 7
+                subplot := i
+                if !first
+                    :xformatter := _ -> ""
+                    :yformatter := _ -> ""
+                    :xguide := ""
+                    :yguide := ""
+                end
+                raster
+            end
+            first = false
+        end
+    else
+        ncols, nrows = _balance_grid(nplots)
+        :layout --> (ncols, nrows)
         for r in 1:nrows, c in 1:ncols
             i = (r + (c - 1) * nrows)
             @series begin
@@ -166,30 +234,15 @@ end
                     :yguide := ""
                 end
                 if i <= nplots
-                    A = l[i]
-                    title := string(keys(st)[i])
-                    if length(dims(A, (XDim, YDim))) > 0
-                        # Get a view of the first slice of the X/Y dimension
-                        ods = otherdims(A, (X, Y))
-                        if length(ods) > 0
-                            od1s = map(d -> DD.basetypeof(d)(firstindex(d)), ods)
-                            A = view(A, od1s...)
-                        end
-                        RasterPlot(), _prepare(_subsample(A, max_res))
-                    else
-                        framestyle := :none
-                        legend := :none
-                        []
-                    end
+                    title := titles[i]
+                    A[i]
                 else
-                    framestyle := :none
-                    legend := :none
+                    :framestyle := :none
+                    :legend := :none
                     []
                 end
             end
         end
-    else
-        first(st)
     end
 end
 
@@ -248,6 +301,7 @@ function DD.refdims_title(refdim::Band; issingle=false)
     end
 end
 
+<<<<<<< HEAD
 
 # Makie.jl recipes
 
