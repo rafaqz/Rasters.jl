@@ -28,6 +28,7 @@ stackkeys = (
 
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle)
+
     @time lazyarray = Raster(ncsingle; lazy=true);
     @time eagerarray = Raster(ncsingle; lazy=false);
     @test_throws ArgumentError Raster("notafile.nc")
@@ -359,6 +360,16 @@ end
         geoA = ncstack[:albedo][Ti(4:6), X(1), Y(2)]
         @test geoA == ncstack[:albedo, Ti(4:6), X(1), Y(2)]
         @test size(geoA) == (3,)
+    end
+
+    @testset "custom filename" begin
+        ncmulti_custom = replace(ncmulti, "nc" => "nc4")
+        cp(ncmulti, ncmulti_custom, force=true)
+        @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDfile)
+        @test ncstack_custom isa RasterStack
+        @test map(read(ncstack_custom), read(ncstack)) do a, b
+            all(a .=== b)
+        end |> all
     end
 
     if VERSION > v"1.1-"

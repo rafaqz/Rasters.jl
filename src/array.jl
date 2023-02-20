@@ -284,8 +284,10 @@ end
 function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Vararg}; kw...)
     Raster(filename; dims, kw...)
 end
-function Raster(filename::AbstractString; name=nothing, key=name, kw...)
-    _open(filename) do ds
+function Raster(filename::AbstractString;
+    name=nothing, key=name, source=_sourcetype(filename), kw...
+)
+    _open(filename; source) do ds
         key = filekey(ds, key)
         Raster(ds, filename, key; kw...)
     end
