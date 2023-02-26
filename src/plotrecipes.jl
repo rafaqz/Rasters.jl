@@ -298,3 +298,8 @@ MakieCore.convert_arguments(::MakieCore.SurfaceLike, ::AbstractRaster{<: Real, D
 # initial definitions of `rplot`, to get around the extension package availability question
 
 function rplot() 
+    @error("Please load `Makie.jl` and then call this function.  If Makie is loaded, then you can't call `rplot` with no arguments!")
+end
+function rplot!() 
+    @error("Please load `Makie.jl` and then call this function.  If Makie is loaded, then you can't call `rplot!` with no arguments!")
+end
