@@ -9,10 +9,15 @@ macro _using(args...)
     end
 end
 
-@_using Makie
-@_using Rasters
+@static if isdefined(Base, :get_extension) # julia < 1.9
+    using Makie, Rasters
+else    
+    using ..Makie
+    using ..Rasters
+end
 
 using Rasters.DimensionalData
+using Rasters.MakieCore
 
 # first, some Makie utils which require Makie types
 MakieCore.plottype(::AbstractRaster{<: Makie.Colors.Colorant, 2}) = MakieCore.Image
@@ -34,19 +39,19 @@ Returns a tuple `(ncols, nrows)`, defining a grid which can hold `nplots` items.
 function _balance_grid(nplots)
     ncols = (nplots - 1) ÷ ceil(Int, sqrt(nplots)) + 1
     nrows = (nplots - 1) ÷ ncols + 1
-    return ncols, nrows
+    return nrows, ncols
 end
 
 
 # The all-inclusive plotting function for a 2D raster
 
-function rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tuple{D1,D2}};
+function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tuple{D1,D2}};
     plottype = Makie.Heatmap,
     axistype = Makie.Axis,
     X=X, Y=Y,
-    draw_colorbar = false,
+    draw_colorbar = true,
     colorbar_position = Makie.Right(),
-    colorbar_padding = 15,
+    colorbar_padding = Makie.automatic,
     title = Makie.automatic,
     xlabel = Makie.automatic,
     ylabel = Makie.automatic,
@@ -67,11 +72,11 @@ function rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tuple{D1,D2}
 
     # x and y labels
     ylabel_str, xlabel_str = Rasters.label(DimensionalData.dims(raster))
-    xlabel == Makie.automatic && (xlabel = xlabel_str)
-    ylabel == Makie.automatic && (ylabel = ylabel_str)
+    xlabel isa Makie.Automatic && (xlabel = xlabel_str)
+    ylabel isa Makie.Automatic && (ylabel = ylabel_str)
 
     # colorbar label
-    colorbarlabel == Makie.automatic && (colorbarlabel = string(DimensionalData.name(raster)))
+    colorbarlabel isa Makie.Automatic && (colorbarlabel = string(DimensionalData.name(raster)))
     
     # title
     if title == Makie.automatic
@@ -82,40 +87,79 @@ function rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tuple{D1,D2}
     local axis, plot
     # actually plot
     with_theme(attributes) do
-        layout = GridLayout(position)
-        axis = axistype(layout[1, 1]; 
+        axis = axistype(position; 
             title, xlabel, ylabel 
         )
         # plot to the axis with the specified plot type
         plot = plot!(plottype, axis, raster; nan_color)
 
         if draw_colorbar
-            current_colorbar_theme = get(Makie.current_default_theme(), :Colorbar, nothing)
-            correct_layout_cell = if colorbar_position == Makie.Top()
-                layout[0, 1]
+
+            colorbar = Colorbar(
+                position.layout[position.span.rows, position.span.cols, colorbar_position],
+                plot;
+                label = colorbarlabel,
+            )
+
+            colorbar_padding = if colorbar_padding isa Makie.Automatic
+                    if colorbar_position in (Makie.Top(), Makie.Bottom())
+                        to_value(colorbar.layoutobservables.computedbbox[].widths[2])
+                    else
+                        to_value(colorbar.layoutobservables.computedbbox[].widths[1])
+                    end
+                else
+                    to_value(colorbar_padding)
+                end
+
+            colorbar.alignmode[] = if colorbar_position == Makie.Top()
+                Makie.Outside(0, 0, colorbar_padding, 0)
             elseif colorbar_position == Makie.Left()
-                layout[1, 0]
+                Makie.Outside(0, colorbar_padding, 0, 0)
             elseif colorbar_position == Makie.Bottom()
-                layout[2, 1]
+                Makie.Outside(0, 0, 0, colorbar_padding)
             elseif colorbar_position == Makie.Right()
-                layout[1, 2]
+                Makie.Outside(colorbar_padding, 0, 0, 0)
             else
                 @error "The colorbar position `$(colorbar_position)` was not recognized.  Please pass one of `Makie.Top(), Makie.Bottom(), Makie.Right(), Makie.Left()`."
             end
-                colorbar = Colorbar(
-                #=position.layout[position.span.rows, position.span.cols, colorbar_position]=#
-                correct_layout_cell, plot;
-                label = colorbarlabel,
-            )
         end
     end
     return Makie.AxisPlot(axis, plot)
 end
 
-function rplot(raster::AbstractRaster{T,2}; kwargs...) where T
-    figure = isempty(kwargs) ? Figure() : with_theme(Figure, kwargs)
-    axis, plot = rplot(figure[1, 1], raster; kwargs...)
+function Rasters.rplot(raster::AbstractRaster{T, 2}; kwargs...) where T
+    figure = isempty(kwargs) ? Figure() : with_theme(Figure, Attributes(kwargs))
+    axis, plot = Rasters.rplot(figure[1, 1], raster; kwargs...)
     return Makie.FigureAxisPlot(figure, axis, plot)
+end
+
+function Rasters.rplot(gp::GridPosition, raster::AbstractRaster{T, 3}; ncols = Makie.automatic, nrows = Makie.automatic, kwargs...) where T
+
+    nrows, ncols = if ncols isa Makie.Automatic && nrows isa Makie.Automatic
+        _balance_grid(size(raster, 3))
+    elseif ncols isa Int && nrows isa Int
+        @assert ncols * nrows ≥ size(raster, 3)
+        nrows, ncols
+    else
+        @error("The provided combination of `ncols::$(typeof(ncols)) and nrows::$(typeof(nrows)) is unsupported.  Please either set both to `Makie.automatic` or provide integer values.")
+    end
+
+    layout = GridLayout(gp, nrows, ncols)
+
+    for (i, band) in enumerate(axes(raster, 3))
+        Rasters.rplot(layout[fldmod1(i, ncols)...], view(raster, :, :, band); kwargs...)
+    end
+
+    return layout
+end
+
+function Rasters.rplot(raster::AbstractRaster{T, 3}; kwargs...) where T
+    figure = isempty(kwargs) ? Figure() : with_theme(Figure, Attributes(kwargs))
+    layout = Rasters.rplot(figure[1, 1], raster; kwargs...)
+    # if draw_title
+    #     Label(layout[0, 1:Makie.ncols(layout)], raster_title; fontsize = get(figure.scene.attributes, (:Axis :titlesize), 16), font = get(figure.scene.attributes, (:Axis, :titlefont), :bold))
+    # end
+    return figure
 end
 
 end
