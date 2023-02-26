@@ -58,7 +58,7 @@ values: [:, :, 1]
 [and 12 more slices...]
 ```
 
-## Getting the `loopkup` array from dimensions
+## Getting the `lookup` array from dimensions
 
 ```julia
 lon = lookup(ras, X) # if X is longitude
