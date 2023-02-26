@@ -257,7 +257,7 @@ end
 # First, define default plot types for Rasters
 MakieCore.plottype(::AbstractRaster{<: Real, 1}) = MakieCore.Lines
 MakieCore.plottype(::AbstractRaster{<: Real, 2}) = MakieCore.Heatmap
-    
+
 # then, define how they are to be converted to plottable data
 function MakieCore.convert_arguments(::MakieCore.PointBased, raw_raster::AbstractRaster{<: Real, 1})
     z = map(_prepare, dims(A))
@@ -294,7 +294,7 @@ MakieCore.convert_arguments(::MakieCore.SurfaceLike, ::AbstractRaster{<: Real, D
             ```
             """
             
-MakieCore.convert_arguments(::Type{PlotType}, ::AbstractRaster{<: Real, Dim}) where {PlotType, Dim} = @error """
-            We don't currently support plotting Rasters of dimension $Dim with plot type $PlotType in Makie.jl.
-            Please manually decompose your data, or slice it to a lower dimension, and try again.
-            """
+
+# initial definitions of `rplot`, to get around the extension package availability question
+
+function rplot() 
