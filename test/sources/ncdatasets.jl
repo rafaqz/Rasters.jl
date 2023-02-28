@@ -330,14 +330,14 @@ end
         @time lazystack = RasterStack(ncmulti; lazy=true)
         @time eagerstack = RasterStack(ncmulti; lazy=false);
         # Lazy is the default
-        @test parent(ncstack[:xi]) isa FileArray
+        @test parent(ncstack[:xi]) isa Array
         @test parent(lazystack[:xi]) isa FileArray
         @test parent(eagerstack[:xi]) isa Array
     end
 
     @testset "load ncstack" begin
         @test ncstack isa RasterStack
-        @test ismissing(missingval(ncstack))
+        @test all(ismissing, missingval(ncstack))
         @test dims(ncstack[:abso4]) == dims(ncstack, (X, Y, Ti)) 
         @test refdims(ncstack) == ()
         # Loads child as a regular Raster
