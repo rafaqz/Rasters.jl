@@ -260,8 +260,8 @@ MakieCore.plottype(::AbstractRaster{<: Real, 2}) = MakieCore.Heatmap
 
 # then, define how they are to be converted to plottable data
 function MakieCore.convert_arguments(::MakieCore.PointBased, raw_raster::AbstractRaster{<: Real, 1})
-    z = map(_prepare, dims(A))
-    return (parent(A), index(z))
+    z = map(Rasters._prepare, dims(raw_raster))
+    return (parent(raw_raster), index(z))
 end
     
 function MakieCore.convert_arguments(::MakieCore.ContinuousSurface, raw_raster::AbstractRaster{<: Real, 2})
@@ -269,7 +269,7 @@ function MakieCore.convert_arguments(::MakieCore.ContinuousSurface, raw_raster::
     A = permutedims(raw_raster, ds)
     x, y = dims(A)
     xs, ys, zs = DD._withaxes(x, y, (A))
-    return (xs, ys, collect(zs))
+    return (xs, ys, Float32.(collect(zs)))
 end
 
 function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::AbstractRaster{<: Real, 2})
@@ -277,9 +277,18 @@ function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::Ab
     A = permutedims(raw_raster, ds)
     x, y = dims(A)
     xs, ys, zs = DD._withaxes(x, y, (A))
-    return (xs, ys, collect(zs))
+    return (xs, ys, Float32.(collect(zs)))
 end
 
+# overloads for rasters with `missing` - convert to NaN
+# since we are converting to NaN here, also just make everything Float64.
+function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 2})
+    return (Float32.(replace_missing(raw_raster_with_missings, missingval = NaN32)),)
+end
+
+function MakieCore.convert_arguments(::MakieCore.PointBased, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 1})
+    return (Float32.(replace_missing(raw_raster_with_missings, missingval = NaN32)),)
+end
             
 # fallbacks with descriptive error messages
 MakieCore.convert_arguments(::MakieCore.SurfaceLike, ::AbstractRaster{<: Real, Dim}) = @error """
