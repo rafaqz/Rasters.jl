@@ -19,6 +19,15 @@ end
 using Rasters.DimensionalData
 using Rasters.MakieCore
 
+function Rasters.style_rasters()
+    return merge(
+        Rasters.style_rasters(),
+        Attributes(
+            Axis = (; aspect = DataAspect()),
+        )
+    )
+end
+
 # first, some Makie utils which require Makie types
 MakieCore.plottype(::AbstractRaster{<: Makie.Colors.Colorant, 2}) = MakieCore.Image
 function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::AbstractRaster{<: Makie.Colors.Colorant, 2})

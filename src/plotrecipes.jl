@@ -321,7 +321,9 @@ function rplot!()
 end
 
 # define the theme
-function style_rasters()
+
+# this function is defined so that we can override style_rasters in RastersMakie.jl
+function __style_rasters()
     return MakieCore.Attributes(
         Axis = (
             xtickalign = 1.0,
@@ -338,6 +340,8 @@ function style_rasters()
         ),
     )
 end
+
+style_rasters() = __style_rasters()
 
 function color_rasters()
     return MakieCore.Attributes(
