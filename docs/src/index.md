@@ -166,7 +166,7 @@ object to any `GeoFormat` from GeoFormatTypes.jl.
 
 # Examples and Plotting
 
-[Plots.jl](https://github.com/JuliaPlots/Plots.jl) is fully supported by
+[Plots.jl](https://github.com/JuliaPlots/Plots.jl) and [Makie.jl](https://github.com/MakieOrg/Plots.jl) are fully supported by
 Rasters.jl, with recipes for plotting `Raster` and `RasterStack` provided. `plot`
 will plot a heatmap with axes matching dimension values. If `mappedcrs` is used,
 converted values will be shown on axes instead of the underlying `crs` values.
@@ -180,6 +180,21 @@ It can be set manually to change the resolution (e.g. for large or high-quality 
 using Rasters, Plots
 A = Raster(WorldClim{BioClim}, 5)
 plot(A; max_res=3000)
+```
+
+For Makie, `plot` functions in a similar way.  `plot` will only accept two-dimensional rasters.  You can invoke `contour`, `contourf`, `heatmap`, `surface` or any Makie plotting function which supports surface-like data on a **2D raster**.
+
+
+To obtain tiled plots for 3D rasters and RasterStacks, use the function `Rasters.rplot([gridposition], raster; kw_args...)`.  This is an unexported function, since we're not sure how the API will change going forward.
+
+You can use `Rasters.rplot` as follows:
+
+```@example makie
+using CairoMakie # hide
+CairoMakie.activate!(px_per_unit = 2) # hide
+using Rasters, CairoMakie
+stack = RasterStack(WorldClim{Climate}; month = 1)
+Rasters.rplot(stack)
 ```
 
 ## Loading and plotting data
@@ -407,6 +422,55 @@ Rasters.jl provides a range of other methods that are being added to over time.
 Where applicable these methods read and write lazily to and from disk-based
 arrays of common raster file types. These methods also work for entire
 `RasterStacks` and `RasterSeries` using the same syntax.
+
+## Plotting in Makie
+
+### 2-D rasters in Makie
+
+Plotting in Makie works somewhat differently than Plots, since the recipe system is different.  You can pass a 2-D raster to any surface-like function (`heatmap`, `contour`, `contourf`, or even `surface` for a 3D plot) with ease.
+
+```@example makie
+using CairoMakie # hide
+CairoMakie.activate!(px_per_unit = 2) # hide
+using Rasters, CairoMakie
+A = Raster(WorldClim{BioClim}, 5) # this is a 3D raster, so is not accepted.
+B = A[:, :, 1] # this converts to a 2D raster which Makie accepts!
+figure = Figure()
+plot(figure[1, 1], B)
+contour(figure[1, 2], B)
+ax = Axis(figure[2, 1]; aspect = DataAspect())
+contourf!(ax, B)
+surface(figure[2, 2], B) # even a 3D plot works!
+figure
+```
+
+### 3-D rasters and RasterStacks in Makie
+
+!!! warning
+    This interface is experimental, and unexported for that reason.  It may break at any time!
+
+Just as in Plots, 3D rasters are treated as a series of 2D rasters, which are tiled and plotted.  
+
+You can use `Rasters.rplot` to visualize 3D rasters or RasterStacks in this way.  An example is below:
+
+```@example makie
+stack = RasterStack(WorldClim{Climate}; month = 1)
+Rasters.rplot(stack; Axis = (aspect = DataAspect()))
+```
+
+You can pass any theming keywords in, which are interpreted by Makie appropriately.
+
+The plots seem a little squished here.  We provide a Makie theme which makes text a little smaller and has some other space-efficient attributes:
+
+
+```@example makie
+Makie.set_theme!(Rasters.theme_rasters())
+Rasters.rplot(stack)
+```
+```@eval
+Makie.set_theme!(Makie.MINIMAL_DEFAULT)
+```
+
 
 # Objects
 

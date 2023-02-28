@@ -74,7 +74,7 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
     isnothing(colormap) && (colormap = get(attributes, :colormap, :viridis))
 
     # x and y labels
-    ylabel_str, xlabel_str = Rasters.label(DimensionalData.dims(raster))
+    xlabel_str, ylabel_str = Rasters.label(DimensionalData.dims(raster))
     xlabel isa Makie.Automatic && (xlabel = xlabel_str)
     ylabel isa Makie.Automatic && (ylabel = ylabel_str)
 
