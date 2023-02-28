@@ -57,7 +57,8 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
     ylabel = Makie.automatic,
     colorbarlabel = Makie.automatic,
     nan_color = (:brown, 0.02),
-    replace_missing = false,
+    colormap = nothing,
+    colorrange = Makie.automatic,
     kw_attributes...
     ) where {T,D1<:Rasters.SpatialDim,D2<:Rasters.SpatialDim}
 
@@ -70,13 +71,15 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
         )
     )
 
+    isnothing(colormap) && (colormap = get(attributes, :colormap, :viridis))
+
     # x and y labels
     ylabel_str, xlabel_str = Rasters.label(DimensionalData.dims(raster))
     xlabel isa Makie.Automatic && (xlabel = xlabel_str)
     ylabel isa Makie.Automatic && (ylabel = ylabel_str)
 
     # colorbar label
-    colorbarlabel isa Makie.Automatic && (colorbarlabel = string(DimensionalData.name(raster)))
+    colorbarlabel isa Makie.Automatic && (colorbarlabel = ""#=string(DimensionalData.name(raster))=#)
     
     # title
     if title == Makie.automatic
@@ -91,7 +94,7 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
             title, xlabel, ylabel 
         )
         # plot to the axis with the specified plot type
-        plot = plot!(plottype, axis, raster; nan_color)
+        plot = plot!(plottype, axis, raster; colormap, colorrange, nan_color)
 
         if draw_colorbar
 
@@ -112,13 +115,13 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
                 end
 
             colorbar.alignmode[] = if colorbar_position == Makie.Top()
-                Makie.Outside(0, 0, colorbar_padding, 0)
+                Makie.Mixed(Makie.GridLayoutBase.RectSides{Union{Nothing, Float32, Makie.GridLayoutBase.Protrusion}}(nothing, nothing, colorbar_padding, 0f0))
             elseif colorbar_position == Makie.Left()
-                Makie.Outside(0, colorbar_padding, 0, 0)
+                Makie.Mixed(Makie.GridLayoutBase.RectSides{Union{Nothing, Float32, Makie.GridLayoutBase.Protrusion}}(0f0, colorbar_padding, nothing, nothing))
             elseif colorbar_position == Makie.Bottom()
-                Makie.Outside(0, 0, 0, colorbar_padding)
+                Makie.Mixed(Makie.GridLayoutBase.RectSides{Union{Nothing, Float32, Makie.GridLayoutBase.Protrusion}}(nothing, nothing, 0f0, colorbar_padding))
             elseif colorbar_position == Makie.Right()
-                Makie.Outside(colorbar_padding, 0, 0, 0)
+                Makie.Mixed(Makie.GridLayoutBase.RectSides{Union{Nothing, Float32, Makie.GridLayoutBase.Protrusion}}(colorbar_padding, 0f0, nothing, nothing))
             else
                 @error "The colorbar position `$(colorbar_position)` was not recognized.  Please pass one of `Makie.Top(), Makie.Bottom(), Makie.Right(), Makie.Left()`."
             end
@@ -147,13 +150,88 @@ function Rasters.rplot(gp::GridPosition, raster::AbstractRaster{T, 3}; ncols = M
     layout = GridLayout(gp, nrows, ncols)
 
     for (i, band) in enumerate(axes(raster, 3))
-        Rasters.rplot(layout[fldmod1(i, ncols)...], view(raster, :, :, band); kwargs...)
+        ax, plt = Rasters.rplot(layout[fldmod1(i, ncols)...], view(raster, :, :, band); kwargs...)
+        if fldmod1(i, ncols)[2] != 1
+            hideydecorations!(ax, label = true, ticklabels = true, ticks = false, grid = false, minorgrid = false, minorticks = false)
+        end
+        if fldmod1(i, ncols)[1] != nrows
+            hidexdecorations!(ax, label = true, ticklabels = true, ticks = false, grid = false, minorgrid = false, minorticks = false)
+        end
     end
 
     return layout
 end
 
-function Rasters.rplot(raster::AbstractRaster{T, 3}; kwargs...) where T
+function Rasters.rplot(gp::GridPosition, stack::RasterStack; ncols = Makie.automatic, nrows = Makie.automatic, colormap = nothing, colorrange = Makie.automatic, link_colorrange = false, link_axes = true, kwargs...) where T
+
+    @assert (length(size(stack)) == 2 || size(stack, 3) == 1)
+
+    nrows, ncols = if ncols isa Makie.Automatic && nrows isa Makie.Automatic
+        _balance_grid(length(propertynames(stack)))
+    elseif ncols isa Int && nrows isa Int
+        @assert ncols * nrows ≥ length(propertynames(stack))
+        nrows, ncols
+    else
+        @error("The provided combination of `ncols::$(typeof(ncols)) and nrows::$(typeof(nrows)) is unsupported.  Please either set both to `Makie.automatic` or provide integer values.")
+    end
+
+    layout = GridLayout(gp, nrows, ncols)
+
+    axs = [] # avoid ambiguity with Base.axes
+    plots = []
+
+    Makie.broadcast_foreach(collect(enumerate(propertynames(stack))), colormap, colorrange) do (i, band), cmap, crange
+        raster = getproperty(stack, band)
+        if length(size(raster)) == 2
+            raster = raster
+        elseif length(size(raster)) == 3
+            if size(raster, 3) == 1
+                raster = view(raster, :, :, 1)
+            else
+                @error "You can't plot a RasterStack of 3-D rasters using `rplot`.  Please provide a stack of 2D rasters instead, or 3D rasters with a singleton third dimension."
+            end
+        else
+            @error "`rplot` cannot plot a Raster of dimension $(size(raster)).  Please provide a stack of 2D rasters instead."
+        end
+
+        ax, plt = Rasters.rplot(layout[fldmod1(i, ncols)...], raster; colormap = cmap, colorrange = crange, kwargs...)
+
+        if fldmod1(i, ncols)[2] != 1
+            hideydecorations!(ax, label = true, ticklabels = true, ticks = false, grid = false, minorgrid = false, minorticks = false)
+        end
+        if fldmod1(i, ncols)[1] != nrows
+            hidexdecorations!(ax, label = true, ticklabels = true, ticks = false, grid = false, minorgrid = false, minorticks = false)
+        end
+
+        push!(axs, ax)
+        push!(plots, plt)
+    end
+
+    if link_axes
+        linkaxes!(axs...)
+    end
+
+    if link_colorrange
+        lift(getproperty.(plots, :colorrange)...; ignore_equal_values = true) do cranges...
+            new_colorrange = (minimum(first.(cranges)), maximum(last.(cranges)))
+            setproperty!.(plots, :colorrange, (new_colorrange,))
+        end
+    end
+
+    return layout
+end
+
+function Rasters.rplot(raster::AbstractRaster{T, 3}; colormap = nothing, colorrange = Makie.automatic, kwargs...) where T
+    figure = isempty(kwargs) ? Figure() : with_theme(Figure, Attributes(kwargs))
+    layout = Rasters.rplot(figure[1, 1], raster; colormap, colorrange, kwargs...)
+    # if draw_title
+    #     Label(layout[0, 1:Makie.ncols(layout)], raster_title; fontsize = get(figure.scene.attributes, (:Axis :titlesize), 16), font = get(figure.scene.attributes, (:Axis, :titlefont), :bold))
+    # end
+    return figure
+end
+
+
+function Rasters.rplot(raster::RasterStack; kwargs...)
     figure = isempty(kwargs) ? Figure() : with_theme(Figure, Attributes(kwargs))
     layout = Rasters.rplot(figure[1, 1], raster; kwargs...)
     # if draw_title
@@ -163,3 +241,7 @@ function Rasters.rplot(raster::AbstractRaster{T, 3}; kwargs...) where T
 end
 
 end
+
+# fig, ax1, plt1 = rplot(clamp.(raster_2012, 0, 20))
+# ax2, plt2 = rplot(fig[1, 2], clamp.(raster_2012, 0, 20); draw_colorbar = true, Axis = (; aspect = DataAspect()))
+# fig
