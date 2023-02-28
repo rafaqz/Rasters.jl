@@ -6,7 +6,8 @@ function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractRaster)
     println()
     if missingval(A) !== nothing
         printstyled(io, "missingval: "; color=:light_black)
-        print(io, string(missingval(A)), "\n")
+        show(io, mime, missingval(A))
+        println()
     end
     if crs(A) !== nothing
         printstyled(io, "crs: "; color=:light_black)
