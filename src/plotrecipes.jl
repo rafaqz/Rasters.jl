@@ -312,3 +312,32 @@ end
 function rplot!() 
     @error("Please load `Makie.jl` and then call this function.  If Makie is loaded, then you can't call `rplot!` with no arguments!")
 end
+
+# define the theme
+function style_rasters()
+    return MakieCore.Attributes(
+        Axis = (
+            xtickalign = 1.0,
+            ytickalign = 1.0,
+            xticklabelrotation = -π/4,
+            xticklabelsize = 14,
+            yticklabelsize = 14,
+            # aspect = DataAspect(),
+        ),
+
+        Colorbar = (
+            ticklabelsize = 11,
+            tickalign = 1.0,
+        ),
+    )
+end
+
+function color_rasters()
+    return MakieCore.Attributes(
+        colormap = :plasma,
+    )
+end
+
+function theme_rasters()
+    return merge(style_rasters(), color_rasters())
+end

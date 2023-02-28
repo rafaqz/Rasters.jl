@@ -130,12 +130,6 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
     return Makie.AxisPlot(axis, plot)
 end
 
-function Rasters.rplot(raster::AbstractRaster{T, 2}; kwargs...) where T
-    figure = isempty(kwargs) ? Figure() : with_theme(Figure, Attributes(kwargs))
-    axis, plot = Rasters.rplot(figure[1, 1], raster; kwargs...)
-    return Makie.FigureAxisPlot(figure, axis, plot)
-end
-
 function Rasters.rplot(gp::GridPosition, raster::AbstractRaster{T, 3}; ncols = Makie.automatic, nrows = Makie.automatic, kwargs...) where T
 
     nrows, ncols = if ncols isa Makie.Automatic && nrows isa Makie.Automatic
@@ -221,8 +215,15 @@ function Rasters.rplot(gp::GridPosition, stack::RasterStack; ncols = Makie.autom
     return layout
 end
 
+
+function Rasters.rplot(raster::AbstractRaster{T, 2}; kwargs...) where T
+    figure = isempty(kwargs) ? Figure() : with_theme(Figure, merge(Makie.current_default_theme(), Attributes(kwargs)))
+    axis, plot = Rasters.rplot(figure[1, 1], raster; kwargs...)
+    return Makie.FigureAxisPlot(figure, axis, plot)
+end
+
 function Rasters.rplot(raster::AbstractRaster{T, 3}; colormap = nothing, colorrange = Makie.automatic, kwargs...) where T
-    figure = isempty(kwargs) ? Figure() : with_theme(Figure, Attributes(kwargs))
+    figure = isempty(kwargs) ? Figure() : with_theme(Figure, merge(Makie.current_default_theme(), Attributes(kwargs)))
     layout = Rasters.rplot(figure[1, 1], raster; colormap, colorrange, kwargs...)
     # if draw_title
     #     Label(layout[0, 1:Makie.ncols(layout)], raster_title; fontsize = get(figure.scene.attributes, (:Axis :titlesize), 16), font = get(figure.scene.attributes, (:Axis, :titlefont), :bold))
@@ -232,7 +233,7 @@ end
 
 
 function Rasters.rplot(raster::RasterStack; kwargs...)
-    figure = isempty(kwargs) ? Figure() : with_theme(Figure, Attributes(kwargs))
+    figure = isempty(kwargs) ? Figure() : with_theme(Figure, merge(Makie.current_default_theme(), Attributes(kwargs)))
     layout = Rasters.rplot(figure[1, 1], raster; kwargs...)
     # if draw_title
     #     Label(layout[0, 1:Makie.ncols(layout)], raster_title; fontsize = get(figure.scene.attributes, (:Axis :titlesize), 16), font = get(figure.scene.attributes, (:Axis, :titlefont), :bold))
