@@ -187,14 +187,12 @@ For Makie, `plot` functions in a similar way.  `plot` will only accept two-dimen
 
 To obtain tiled plots for 3D rasters and RasterStacks, use the function `Rasters.rplot([gridposition], raster; kw_args...)`.  This is an unexported function, since we're not sure how the API will change going forward.
 
-You can use `Rasters.rplot` as follows:
-
 ```@example makie
 using CairoMakie # hide
 CairoMakie.activate!(px_per_unit = 2) # hide
 using Rasters, CairoMakie
-stack = RasterStack(WorldClim{Climate}; month = 1)
-Rasters.rplot(stack)
+A = Raster(WorldClim{BioClim}, 5)
+Makie.plot(A)
 ```
 
 ## Loading and plotting data

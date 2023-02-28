@@ -45,6 +45,25 @@ end
 
 # The all-inclusive plotting function for a 2D raster
 
+"""
+    Rasters.rplot([position::GridPosition], raster; kw_args...)
+
+## Keyword arguments
+- `plottype = Makie.Heatmap`: The type of plot.  Can be any Makie plot type which accepts a `Raster`; in practice, `Heatmap`, `Contour`, `Contourf` and `Surface` are the best bets.
+- `axistype = Makie.Axis`: The type of axis.  This can be an `Axis`, `Axis3`, `LScene`, or even a `GeoAxis` from GeoMakie.jl.
+- `X=X`: The X dimension of the raster.
+- `Y=Y`: The Y dimension of the raster.
+- `draw_colorbar = true`: Whether to draw a colorbar for the axis or not.
+- `colorbar_position = Makie.Right()`: Indicates which side of the axis the colorbar should be placed on.  Can be `Makie.Top()`, `Makie.Bottom()`, `Makie.Left()`, or `Makie.Right()`.
+- `colorbar_padding = Makie.automatic`: The amound of padding between the colorbar and its axis.  If `automatic`, then this is set to the width of the colorbar.
+- `title = Makie.automatic`: The titles of each plot.  If `automatic`, these are set to the name of the band.
+- `xlabel = Makie.automatic`: The x-label for the axis.  If `automatic`, set to the dimension name of the X-dimension of the raster.
+- `ylabel = Makie.automatic`: The y-label for the axis.  If `automatic`, set to the dimension name of the Y-dimension of the raster.
+- `colorbarlabel = ""`: Usually nothing, but here if you need it.  Sets the label on the colorbar.
+- `colormap = nothing`: The colormap for the heatmap.  This can be set to a vector of colormaps (symbols, strings, `cgrad`s) if plotting a 3D raster or RasterStack.
+- `colorrange = Makie.automatic`: The colormap for the heatmap.  This can be set to a vector of `(low, high)` if plotting a 3D raster or RasterStack.
+- `nancolor = :transparent`: The color which `NaN` values should take.  Default to transparent.
+"""
 function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tuple{D1,D2}};
     plottype = Makie.Heatmap,
     axistype = Makie.Axis,
@@ -56,7 +75,7 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
     xlabel = Makie.automatic,
     ylabel = Makie.automatic,
     colorbarlabel = Makie.automatic,
-    nan_color = (:brown, 0.02),
+    nancolor = :transparent,
     colormap = nothing,
     colorrange = Makie.automatic,
     kw_attributes...
@@ -67,7 +86,7 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
         Attributes(kw_attributes),
         Attributes(;
             Colorbar = (; label = colorbarlabel,),
-            nan_color,
+            nancolor,
         )
     )
 
@@ -94,7 +113,7 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
             title, xlabel, ylabel 
         )
         # plot to the axis with the specified plot type
-        plot = plot!(plottype, axis, raster; colormap, colorrange, nan_color)
+        plot = plot!(plottype, axis, raster; colormap, colorrange, nancolor)
 
         if draw_colorbar
 
