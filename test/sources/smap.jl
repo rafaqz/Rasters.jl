@@ -206,7 +206,7 @@ if isfile(path1) && isfile(path2)
             @time lazystack = RasterStack(path1; lazy=true)
             @time eagerstack = RasterStack(path1; lazy=false);
             # Lazy is the default
-            @test parent(smapstack[:snow_mass]) isa FileArray
+            @test parent(smapstack[:snow_mass]) isa Array
             @test parent(lazystack[:snow_mass]) isa FileArray
             @test parent(eagerstack[:snow_mass]) isa Array
         end

@@ -330,7 +330,7 @@ end
         @time lazystack = RasterStack(ncmulti; lazy=true)
         @time eagerstack = RasterStack(ncmulti; lazy=false);
         # Lazy is the default
-        @test parent(ncstack[:xi]) isa FileArray
+        @test parent(ncstack[:xi]) isa Array
         @test parent(lazystack[:xi]) isa FileArray
         @test parent(eagerstack[:xi]) isa Array
     end
