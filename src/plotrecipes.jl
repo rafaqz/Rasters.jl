@@ -258,26 +258,33 @@ end
 MakieCore.plottype(::AbstractRaster{<: Real, 1}) = MakieCore.Lines
 MakieCore.plottype(::AbstractRaster{<: Real, 2}) = MakieCore.Heatmap
 
+
+missing_or_float32(num::Number) = Float32(num)
+missing_or_float32(::Missing) = missing
+
 # then, define how they are to be converted to plottable data
-function MakieCore.convert_arguments(::MakieCore.PointBased, raw_raster::AbstractRaster{<: Real, 1})
+function MakieCore.convert_arguments(::MakieCore.PointBased, raw_raster::AbstractRaster{<: Union{Missing, Real}, 1})
     z = map(Rasters._prepare, dims(raw_raster))
-    return (parent(raw_raster), index(z))
+    return (parent(Float32.(replace_missing(missing_or_float32.(raw_raster), missingval = NaN32))), index(z))
 end
     
-function MakieCore.convert_arguments(::MakieCore.ContinuousSurface, raw_raster::AbstractRaster{<: Real, 2})
-    ds = DD._fwdorderdims(raw_raster)
-    A = permutedims(raw_raster, ds)
+
+function MakieCore.convert_arguments(::MakieCore.ContinuousSurface, raw_raster::AbstractRaster{<: Union{Missing, Real}, 2})
+    raster = replace_missing(missing_or_float32.(raw_raster), missingval = NaN32)
+    ds = DD._fwdorderdims(raster)
+    A = permutedims(raster, ds)
     x, y = dims(A)
     xs, ys, zs = DD._withaxes(x, y, (A))
-    return (xs, ys, Float32.(collect(zs)))
+    return (xs, ys, zs)
 end
 
-function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::AbstractRaster{<: Real, 2})
-    ds = DD._fwdorderdims(raw_raster)
-    A = permutedims(raw_raster, ds)
+function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::AbstractRaster{<: Union{Missing, Real}, 2})
+    raster = replace_missing(missing_or_float32.(raw_raster), missingval = NaN32)
+    ds = DD._fwdorderdims(raster)
+    A = permutedims(raster, ds)
     x, y = dims(A)
     xs, ys, zs = DD._withaxes(x, y, (A))
-    return (xs, ys, Float32.(collect(zs)))
+    return (xs, ys, zs)
 end
 
 # overloads for rasters with `missing` - convert to NaN
