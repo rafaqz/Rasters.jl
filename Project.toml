@@ -56,24 +56,21 @@ Requires = "0.5, 1"
 Setfield = "0.6, 0.7, 0.8, 1"
 julia = "1"
 
+[extensions]
+RastersMakie = "Makie"
+
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
-CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 CFTime = "179af706-886a-5703-950a-314cd64e0468"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
-Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Shapefile = "8e980c4a-a4fe-5da2-b3a7-4b4b0353a2f4"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "CFTime", "CairoMakie", "DataFrames", "Plots", "Makie", "SafeTestsets", "Shapefile", "Statistics", "Test"]
+test = ["Aqua", "CFTime", "DataFrames", "Plots", "SafeTestsets", "Shapefile", "Statistics", "Test"]
 
 [weakdeps]
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
-
-[extensions]
-RastersMakie = "Makie"
-
