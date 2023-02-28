@@ -30,6 +30,11 @@ pointfc = map(GeoInterface.getpoint(polygon), vals) do geom, v
     (geometry=geom, val1=v, val2=2.0f0v)
 end
 
+test_shape_dir = realpath(joinpath(dirname(pathof(Shapefile)), "..", "test", "shapelib_testcases"))
+shp_paths = filter(x -> occursin("shp", x), readdir(test_shape_dir; join=true))
+shppath = shp_paths[1]
+shphandle = Shapefile.Handle(shppath)
+
 @testset "replace_missing" begin
     @test all(isequal.(ga99, [-9999.0f0 7.0f0; 2.0f0 -9999.0f0]))
     @test missingval(ga99) === -9999.0f0
@@ -379,9 +384,9 @@ end
                 @test_throws ArgumentError rasterize!(A, poly; shape=:polygon, fill=1, boundary=:notaboundary)
             end
 
-            st = rasterize(poly; fill=(layer1=1, layer2=2), to=st)
-            @test sum(skipmissing(st[:layer1])) == 400 # The last value overwrites the first
-            @test sum(skipmissing(st[:layer2])) == 800
+            st1 = rasterize(poly; fill=(layer1=1, layer2=2), to=st)
+            @test sum(skipmissing(st1[:layer1])) == 400 # The last value overwrites the first
+            @test sum(skipmissing(st1[:layer2])) == 800
             # Missing size / res
             @test_throws ArgumentError rasterize(poly; fill=1)
             # Both size + res
@@ -473,40 +478,33 @@ end
         return raster
     end
 
-    test_shape_dir = realpath(joinpath(dirname(pathof(Shapefile)), "..", "test", "shapelib_testcases"))
-    shp_paths = filter(x -> occursin("shp", x), readdir(test_shape_dir; join=true))
-    shp = shp_paths[1]
-    shx = splitext(shp)[1] * ".shx"
-    shphandle = Shapefile.Handle(shp, shx)
-    poly = shphandle.shapes[1]
-    using GeoInterface
-    collect(GeoInterface.getpoint(poly))
 
     @testset "center in polygon rasterization" begin
-        @time gdal_raster = gdal_read_rasterize(shp);
+        @time gdal_raster = gdal_read_rasterize(shppath);
         @time rasters_raster = rasterize(shphandle.shapes; 
-             size=(250, 250), fill=UInt8(1), missingval=UInt8(0), shape=:line
+             size=(250, 250), fill=UInt8(1), missingval=UInt8(0),
         );
-        using Plots
-        heatmap(parent(parent(rasters_raster)))
-        heatmap(reverse(gdal_raster[:, :, 1]; dims=2))
+        # using Plots
+        # heatmap(parent(parent(rasters_raster)))
+        # heatmap(reverse(gdal_raster[:, :, 1]; dims=2))
         # Same results as GDAL
         @test sum(gdal_raster) == sum(rasters_raster)
         @test reverse(gdal_raster[:, :, 1]; dims=2) == rasters_raster
     end
 
     @testset "line touches rasterization" begin
-        gdal_raster = gdal_read_rasterize(shp, "-at")
-        rasters_raster = rasterize(shphandle.shapes; 
+        gdal_touches_raster = gdal_read_rasterize(shppath, "-at")
+        rasters_touches_raster = rasterize(shphandle.shapes; 
             size=(250, 250), fill=UInt64(1), missingval=UInt64(0), boundary=:touches
         )
         # Not quite the same answer as GDAL
-        @test_broken sum(gdal_raster) == sum(rasters_raster)
-        @test_broken reverse(gdal_raster[:, :, 1], dims=2) == rasters_raster
-        @test Int(sum(gdal_raster)) == Int(sum(rasters_raster)) - 2
+        @test_broken sum(gdal_touches_raster) == sum(rasters_touches_raster)
+        @test_broken reverse(gdal_touches_raster[:, :, 1], dims=2) == rasters_touches_raster
+        @test Int(sum(gdal_touches_raster)) == Int(sum(rasters_touches_raster)) - 2
         # Two pixels differ in the angled line, top right
-        # Plots.heatmap(reverse(gdal_raster[:, :, 1], dims=2))
-        # Plots.heatmap(parent(parent(rasters_raster)))
+        # using Plots
+        # Plots.heatmap(reverse(gdal_touches_raster[:, :, 1], dims=2))
+        # Plots.heatmap(parent(parent(rasters_touches_raster)))
 
         line = LineString([Point(1.00, 4.50), Point(4.75, 0.75)])
         r1 = Raster(zeros(Bool, X(0.5:1.0:6.5; sampling=Intervals()), Y(0.5:1.0:6.5; sampling=Intervals())));
@@ -561,10 +559,12 @@ end
     end
     # GDAL doesnt do inside / not touching rasterization, so we have no test against GDAL
     @testset "line inside rasterization" begin
-        @time gdal_raster = gdal_read_rasterize(shp, "-at")
-        rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes; 
+        @time gdal_raster = gdal_read_rasterize(shppath, "-at")
+        rasters_inside_raster = rasterize(shphandle.shapes; 
             size=(250, 250), fill=UInt8(1), missingval=UInt8(0), boundary=:inside
         )
+        # using Plots
+        # heatmap(parent(parent(rasters_inside_raster)))
     end
 
 
@@ -574,97 +574,80 @@ end
         pointvec4 = map(p -> (p[1] + 30, p[2] + 30), pointvec)
         polygon = ArchGDAL.createpolygon(pointvec)
         polygons = ArchGDAL.createpolygon.([[pointvec], [pointvec2], [pointvec3], [pointvec4]])
-        raster = rasterize(polygons; res=5, fill=1, boundary=:center)
-        @test sum(skipmissing(raster)) == 16 * 4 - 12
+        # With fill of these are all the same thing
+        reduced_raster_last_center = rasterize(last, polygons; res=5, fill=1, boundary=:center)
+        reduced_raster_first_center = rasterize(first, polygons; res=5, fill=1, boundary=:center)
+        reduced_raster_mean_center = rasterize(mean, polygons; res=5, fill=1, boundary=:center)
+        reduced_raster_median_center = rasterize(median, polygons; res=5, fill=1, boundary=:center)
+        # using Plots
+        # plot(reduced_raster_mean_center)
+        # plot(reduced_raster_last_center)
+        # plot(reduced_raster_median_center)
+        @test sum(skipmissing(reduced_raster_last_center)) ==
+              sum(skipmissing(reduced_raster_first_center)) ==
+              sum(skipmissing(reduced_raster_median_center)) ==
+              sum(skipmissing(reduced_raster_mean_center)) == 16 * 4 - 12
         # The outlines of these plots should exactly mactch,  
         # Plots.plot(raster; clims=(0, 3))
         # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
         
         
-        reduced_raster = rasterize(sum, polygons; res=5, fill=1, boundary=:center)
-        @test sum(skipmissing(reduced_raster)) == 16 * 4
+        reduced_raster_sum_center = rasterize(sum, polygons; res=5, fill=1, boundary=:center)
+        reduced_raster_count_center = rasterize(count, polygons; res=5, fill=1, boundary=:center)
+        @test name(reduced_raster_sum_center) == :sum
+        @test name(reduced_raster_count_center) == :count
+        @test sum(skipmissing(reduced_raster_sum_center)) == 
+              sum(skipmissing(reduced_raster_count_center)) == 16 * 4
+        reduced_raster_sum_touches = rasterize(sum, polygons; res=5, fill=1, boundary=:touches)
+        reduced_raster_count_touches = rasterize(count, polygons; res=5, fill=1, boundary=:touches)
+        @test name(reduced_raster_sum_touches) == :sum
+        @test name(reduced_raster_count_touches) == :count
+        # plot(reduced_raster_count_touches)
+        # plot(reduced_raster_sum_touches)
+        # This is broken because the raster area isn't big enough
+        @test_broken sum(skipmissing(reduced_raster_sum_touches)) == 
+              sum(skipmissing(reduced_raster_count_touches)) == 25 * 4
+        @test sum(skipmissing(reduced_raster_sum_touches)) == 
+              sum(skipmissing(reduced_raster_count_touches)) == 25 * 4 - 9
         # The outlines of these plots should exactly mactch, 
         # with three values of 2 on the diagonal
+        # using Plots
         # Plots.plot(reduced_raster; clims=(0, 3))
         # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
-        reduced_raster = rasterize(sum, polygons; res=5, fill=1, boundary=:touches)
-        reduced_raster = rasterize(sum, polygons; res=5, fill=1, boundary=:inside)
-        # Plots.plot(reduced_raster; clims=(0, 3))
+        reduced_center = rasterize(sum, polygons; res=5, fill=1, boundary=:center)
+        reduced_touches = rasterize(sum, polygons; res=5, fill=1, boundary=:touches)
+        reduced_inside = rasterize(sum, polygons; res=5, fill=1, boundary=:inside)
+        # Plots.plot(reduced_inside; clims=(0, 3))
+        # Plots.plot(reduced_center; clims=(0, 3))
+        # Plots.plot(reduced_touches; clims=(0, 3))
         # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
         # Its not clear what the results here should be - there 
         # are differences between different implementations.
         # Soon we will define the pixel intervals so we don't need
         # arbitrary choices of which lines are touched for :touches
     end
+end
 
-    # Rasters vs GDAL performance
-
-    # function rasters_read_rasterize(shp; boundary=:touches)
-    #     shx = splitext(shp)[1] * ".shx"
-    #     shphandle = Shapefile.Handle(shp, shx)
-    #     rasters_raster = rasterize(shphandle.shapes; 
-    #         res=1/6, fill=1, missingval=0, boundary
-    #     )
-    # end
-    # function rasters_read_rasterize_sum(shp; boundary=:touches, fill=1)
-    #     shx = splitext(shp)[1] * ".shx"
-    #     shphandle = Shapefile.Handle(shp, shx)
-    #     rasters_raster = rasterize(sum, shphandle.shapes; 
-    #         size=(250, 250), fill, missingval=0, boundary
-    #     )
-    # end
-    # shp = "/home/raf/PhD/Mascarenes/Data/Distributions/REPTILES/REPTILES.shp"
-    # shp = "/home/raf/PhD/Mascarenes/Data/Distributions/AMPHIBIANS/AMPHIBIANS.shp"
-    # @profview 
-    # @time r = rasters_read_rasterize(shp)
-
+@testset "coverage" begin
+    @time covsum = Rasters.coverage(shphandle.shapes; mode=sum, res=1, scale=10);
+    @time covunion = Rasters.coverage(shphandle.shapes; mode=union, res=1, scale=10);
     # using Plots
-    # plot(r)
-
-    # @profview for i in 1:1000 rasters_raster = rasterize(first, shphandle.shapes; 
-    #     size=(250, 250), fill=1, missingval=0, boundary=:touches
-    # ); end
-    # kw = (; size=(250, 250), fill=1, missingval=0) #boundary=:touches
-    # @benchmark rasters_raster = rasterize(first, shphandle.shapes; kw...)
-    # @benchmark rasters_raster = rasterize(last, shphandle.shapes; kw...)
-    # @benchmark rasters_raster = rasterize(sum, shphandle.shapes; kw...)
-    # using Statistics
-    # @benchmark rasters_raster = rasterize(mean, shphandle.shapes; kw...)
-    # @profview for i in 1:100 rasterize(first, shphandle.shapes; kw...) end
-    # @benchmark gdal_read_rasterize(shp, "-at")
-    # @benchmark rasters_read_rasterize(sha)
-    # @profview for i in 1:10000 rasters_read_rasterize(shp) end
-    # @time gdal_read_rasterize(shp, "-at")
-    # @time rasters_read_rasterize(shp; boundary=:touches);
-    # @time r = rasters_read_rasterize(shp; boundary=:center);
-    # plot(r)
-    # @time rasters_read_rasterize_sum(shp, fill=x->x+1);
-    # @profview rasters_read_rasterize(shp; boundary=:center, fill=x->x+1)
-    # @profview rasters_read_rasterize_sum(shp)
-    # shx = splitext(shp)[1] * ".shx"
-
-    # # shphandle = Shapefile.Handle(shp, shx)
-    # shptable = Shapefile.Table(shp)
-    # using Tables
-    # fill = 1:Tables.rowcount(shptable)
-    # @time rasters_sum = rasterize(sum, shptable; 
-    #     res=1/6, missingval=0, fill, boundary=:center
-    # )
-    # @profview rasters_count = rasterize(count, shptable; res=1/6, boundary=:touches)
-    # @profview rasters_count = rasterize(count, shptable; res=1/6, boundary=:center)
-    # @time rasters_count = rasterize(count, shptable; res=1/6, boundary=:touches)
-    # @time rasters_count = rasterize(count, shptable; res=1/6, boundary=:center)
-    # @time rasters_mean = rasterize(mean, shptable; res=1/6, fill=:SHAPE_Area, missingval=0, boundary=:center)
-    # @time rasters_sum = rasterize(sum, shptable; res=1/6, fill=:SHAPE_Area, boundary=:center)
-    # @time rasters_mean = rasterize(xs -> sum(xs), shptable; res=1/2, fill=:SHAPE_Area, boundary=:center)
-    # @time rasters_mean = rasterize(shptable; res=1/6, op=+, init=0.0, missingval=missing, fill=:SHAPE_Area, boundary=:center)
-    # @time rasters_mean = rasterize(prod, shptable; res=1/6, fill=:SHAPE_Area, boundary=:center)
-    # using Statistics
-    # @time rasters_mean = rasterize(std, shptable; res=1/6, init=0.0, fill=:SHAPE_Area, boundary=:center)
-    # @time rasters_mean = rasterize(extrema, shptable; res=1/6, fill=:SHAPE_Area, missingval=(0.0, 0.0), boundary=:center)
-    # plot(rasters_sum)
-    # plot(rasters_count)
-    # plot(rasters_mean)#; clims=(0, 100))
+    # plot(covsum; clims=(0, 2))
+    # plot(covunion; clims=(0, 2))
+    # plot!(shphandle.shapes; opacity=0.2)
+    insidecount = rasterize(count, shphandle.shapes; res=1, scale=10, boundary=:inside);
+    touchescount = rasterize(count, shphandle.shapes; res=1, scale=10, boundary=:touches);
+    # The main polygon should be identical
+    @test all(covsum[X=0..120] .=== covunion[X=0..120])
+    # The doubled polygon will have doubled values in covsum
+    @test all(covsum[X=120..180] .=== covunion[X=120..190] .* 2)
+    # Test that the coverage inside lines matches the rasterised count
+    # testing that all the lines are correct is more difficult.
+    @test all(mask(covsum; with=insidecount) .=== replace_missing(insidecount, 0.0))
+    # And test there is nothing outside of the rasterize touches area
+    @test all(mask(covsum; with=touchescount) .=== covsum)
+    @test !all(mask(covunion; with=insidecount) .=== covunion)
+    # TODO test coverage along all the lines is correct somehow
 end
 
 @testset "resample" begin
@@ -718,84 +701,102 @@ end
 
 
 
-using SnoopCompileCore
-invalidations = @snoopr using Rasters
-using SnoopCompile
-trees = invalidation_trees(invalidations)
+# using SnoopCompileCore
+# invalidations = @snoopr using Rasters
+# using SnoopCompile
+# trees = invalidation_trees(invalidations)
 
-invalidations = @snoopr using Rasters
-using PkgDependency
-PkgDependency.tree("Rasters")
+# invalidations = @snoopr using Rasters
+# using PkgDependency
+# PkgDependency.tree("Rasters")
 
-using GDAL, ArchGDAL
-using SnoopCompile
+# using GDAL, ArchGDAL
+# using SnoopCompile
 
-using BenchmarkTools
-using ProfileView
-using Profile
-using PProf
-using Cthulhu
+# using BenchmarkTools
+# using ProfileView
+# using Profile
+# using PProf
+# using Cthulhu
 
 using Rasters
 using Shapefile
+shppath = "/home/raf/PhD/Mascarenes/Data/Distributions/REPTILES/REPTILES.shp"
+shppath = "/home/raf/PhD/Mascarenes/Data/Distributions/AMPHIBIANS/AMPHIBIANS.shp"
 shppath = "/home/raf/PhD/Mascarenes/Data/Distributions/MAMMALS_TERRESTRIAL_ONLY/MAMMALS_TERRESTRIAL_ONLY.shp"
 shptable = Shapefile.Handle(shppath).shapes
-
-using Statistics
-@time r = rasterize(std, shptable; fill=1, res=1, boundary=:touches, missingval=typemin(Int))
-plot(r)
 @time r = rasterize(count, shptable; res=1/24, boundary=:center, missingval=typemin(Int))
-@time r = rasterize(count, shptable; res=1/6, shape=:line, missingval=typemin(Int))
+
+using Statistics, Plots
+@time r = rasterize(shptable; res=1/6, fill=1, missingval=typemin(Int))
+@profview r = rasterize(shptable; res=1/12, fill=1, missingval=typemin(Int))
+@time r = rasterize(shptable; res=1/12, fill=1, missingval=typemin(Int), boundary=:touches)
+size(r)
+plot(r)
+@profview r = rasterize(count, shptable; res=1/6, boundary=:touches, missingval=typemin(Int))
+@time r = rasterize(count, shptable; res=1/6, missingval=typemin(Int))
+plot(r)
 @descend rasterize(count, shptable; res=1/2, boundary=:center, missingval=typemin(Int))
-@profview 
+using ProfileView
 using Statistics
-@time r = rasterize(mean, shptable; res=1/6, fill=1, boundary=:center, missingval=typemin(Int))
 using Plots
 plot(r)
 @profview 
-@time cov = Rasters.coverage(shptable; mode=:union, res=1);
-plot(cov)
-@profview co = Rasters.coverage(shptable[1:5000]; res=1/2);
-@time co = Rasters.coverage(shptable; mode=:sum, res=1/2, scale=100);
-permutedims(co)
-# using GeoDataFrames
-# @time shptable = GeoDataFrames.read(shppath)
-polygon = Shapefile.Handle(shppath).shapes[1]
-
-# @profview Rasters._to_edges(shptable.shapes[1], dims(mammal_count))
-tinf = @snoopi_deep rasterize(count, shptable[1:10]; res=1/6, boundary=:center);
-fg = flamegraph(tinf)
-ProfileView.view(fg)
-
+# @time cov = Rasters.coverage(shptable; mode=:union, res=1/2, scale=10);
+@time covsum = Rasters.coverage(shptable; mode=:sum, res=1, scale=10);
+@time r = rasterize(count, shptable; res=1, boundary=:touches, missingval=typemin(Int))
+plot(mask(covsum ./ r; with=r); clims=(0.0, 1))
 plot(r)
-@profview 
-plot(cov)
-plot(r)
-using Profile, PProf
-Profile.Allocs.clear()
-Profile.Allocs.@profile cov = Rasters.coverage(shptable; mode=:sum, res=1/2);
-PProf.Allocs.pprof()
+# r
+# plot(covsum)
+# # @profview co = Rasters.coverage(shptable[1:5000]; res=1/6);
+# @time co = Rasters.coverage(shptable; mode=:sum, res=1, scale=10);
+# cohab = replace_missing(co) ./ r
+# using Colors, ColorVectorSpace
+# plot(cohab)
+# blues = (x -> RGB24(0.0, 0.0, x)).(replace_missing(cohab, 0))
+# reds = (x -> RGB24(x, 0.0, 0.0)).(r ./ maximum(replace_missing(r, 0)))
+# plot(blues)
+# RGB(0.0, 0.1, 0.2)
 
-@profview mammal_count = rasterize(count, shptable.shapes; res=1/6, boundary=:center, missingval=typemin(Int));
-Profile.Allocs.@profile rasterize(count, shptable.shapes; res=1/6, boundary=:center);
-results = Profile.Allocs.fetch()
-Cthulhu.@descend rasterize(count, shptable.shapes; res=1/6, boundary=:center);
-pprof()
-prof
-write("test.tif", mammal_count)
-plot(mammal_count)
-plot!(shptable.shapes[79])
-plot(shptable.shapes[79])
-savefig("mammal_count.png")
-using Cthulhu
-@profview for i in 1:1000 Rasters._to_edges(shptable.shapes[1], dims(mammal_count)) end
-length(edges)
-r = rand(UInt32, length(edges)) .=> r
-@btime sort($edges)
-@btime sort($r)
+# # using GeoDataFrames
+# # @time shptable = GeoDataFrames.read(shppath)
+# polygon = Shapefile.Handle(shppath).shapes[1]
 
-@time mammal_count_touches = rasterize(count, shptable; res=1/6, boundary=:touches);
-plot(mammal_count_touches)
+# # @profview Rasters._to_edges(shptable.shapes[1], dims(mammal_count))
+# tinf = @snoopi_deep rasterize(count, shptable[1:10]; res=1/6, boundary=:center);
+# fg = flamegraph(tinf)
+# ProfileView.view(fg)
 
-@time mammal_count = rasterize(miminum, shptable; fill=:SHAPE_Area, res=1/6, boundary=:center);
+# plot(r)
+# @profview 
+# plot(cov)
+# plot(r)
+# using Profile, PProf
+# Profile.Allocs.clear()
+# Profile.Allocs.@profile cov = Rasters.coverage(shptable; mode=:sum, res=1/2);
+# PProf.Allocs.pprof()
+
+# @profview mammal_count = rasterize(count, shptable.shapes; res=1/6, boundary=:center, missingval=typemin(Int));
+# Profile.Allocs.@profile rasterize(count, shptable.shapes; res=1/6, boundary=:center);
+# results = Profile.Allocs.fetch()
+# Cthulhu.@descend rasterize(count, shptable.shapes; res=1/6, boundary=:center);
+# pprof()
+# prof
+# write("test.tif", mammal_count)
+# plot(mammal_count)
+# plot!(shptable.shapes[79])
+# plot(shptable.shapes[79])
+# savefig("mammal_count.png")
+# using Cthulhu
+# @profview for i in 1:1000 Rasters._to_edges(shptable.shapes[1], dims(mammal_count)) end
+# length(edges)
+# r = rand(UInt32, length(edges)) .=> r
+# @btime sort($edges)
+# @btime sort($r)
+
+# @time mammal_count_touches = rasterize(count, shptable; res=1/6, boundary=:touches);
+# plot(mammal_count_touches)
+
+# @time mammal_count = rasterize(miminum, shptable; fill=:SHAPE_Area, res=1/6, boundary=:center);
 

@@ -45,7 +45,7 @@ coverage(data; to=nothing, mode=:union, scale=10, res=nothing, size=nothing, ver
 _coverage(to::Extents.Extent, data; res=nothing, size=nothing, kw...) =
     _coverage(_extent2dims(to; res, size, kw...), data; kw...)
 _coverage(to::Nothing, data; kw...) = _coverage(_extent(data), data; kw...)
-function _coverage(to, data; mode, kw...)
+function _coverage(to, data; mode, res=nothing, size=nothing, kw...)
     name = if GI.isgeometry(data) || GI.isfeature(data)
         Symbol(:coverage)
     else
@@ -178,11 +178,13 @@ function _union_coverage!(A::AbstractRaster, geom;
     # We don't just use `boundary=:inside` because we need the line burns separately anyway
     centeracc .|= (centerbuffer .& .!(linebuffer))
     lineacc .|= linebuffer
-    filtered_edges = _to_edges(geom, subpixel_dims; allocs) |> sort!
+    filtered_edges, max_ylen = _to_edges(geom, subpixel_dims; allocs)
+    sort!(filtered_edges)
     # Brodcast over the rasterizations and indices
     # to calculate coverage of each pixel
     edgestart = 1
 
+    prev_ypos = 0
     # Loop over y in A
     for y in axes(A, Y())
         # If no lines touched this column skip it
@@ -200,7 +202,7 @@ function _union_coverage!(A::AbstractRaster, geom;
 
         # Generate all of the x crossings beforehand so we don't do it for every pixel
         for (i, sub_y) in enumerate(sub_yaxis)
-            ncrossings[i] = _set_crossings!(block_crossings[i], A, filtered_edges, sub_y)
+            ncrossings[i], prev_ypos = _set_crossings!(block_crossings[i], A, filtered_edges, sub_y, prev_ypos, max_ylen)
         end
 
         # Reset burn burnstatus
@@ -264,16 +266,20 @@ function _sum_coverage!(A::AbstractRaster, geom;
     burnstatus=[(1, false) for _ in 1:scale],
     subpixel_dims=_subpixel_dims(A, scale),
     ncrossings=fill(0, scale),
+    verbose=true
 )
     GI.isgeometry(geom) || error("Object is not a geometry")
     crossings = allocs.crossings
     boolmask!(linebuffer, geom; shape=:line, allocs)
     boolmask!(centerbuffer, geom; boundary=:center, allocs)
-    filtered_edges = _to_edges(geom, subpixel_dims; allocs)
+    filtered_edges, max_ylen = _to_edges(geom, subpixel_dims; allocs)
     # Brodcast over the rasterizations and indices
     # to calculate coverage of each pixel
     edgestart = 1
+    local missed_pixels = 0
+    local geom_has_cover = false
 
+    prev_ypos = 0
     # Loop over y in A
     for y in axes(A, Y())
         found = false
@@ -284,6 +290,7 @@ function _sum_coverage!(A::AbstractRaster, geom;
                 # If the center is inside a polygon but the pixel is
                 # not on a line, then coverage is 1.0
                 pixel_coverage = 1.0
+                geom_has_cover = true
                 A[X(x), Y(y)] += pixel_coverage
             end
         end
@@ -295,7 +302,7 @@ function _sum_coverage!(A::AbstractRaster, geom;
 
         # Generate all of the x crossings beforehand so we don't do it for every pixel
         for (i, sub_y) in enumerate(sub_yaxis)
-            ncrossings[i] = _set_crossings!(block_crossings[i], A, filtered_edges, sub_y)
+            ncrossings[i], prev_ypos = _set_crossings!(block_crossings[i], A, filtered_edges, sub_y, prev_ypos, max_ylen)
         end
         # Set the burn/skip status to false (skip) for each starting position
         burnstatus .= Ref((1, false))
@@ -329,15 +336,14 @@ function _sum_coverage!(A::AbstractRaster, geom;
             pixel_coverage = sum(subraster) / scale^2
             if pixel_coverage == 0
                 missed_pixels += 1
+            else
+                geom_has_cover = true
             end
             A[X(x), Y(y)] += pixel_coverage
         end
     end
     return missed_pixels
 end
-
-# Function barrier for splatted vector broadcast
-@noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
 
 function _subpixel_dims(A, scale)
     shifted = map(d -> DD.maybeshiftlocus(Start(), d), commondims(A, DEFAULT_TABLE_DIM_KEYS))

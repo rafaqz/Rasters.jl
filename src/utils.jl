@@ -135,10 +135,10 @@ end
 function _extent2dims(to; size=nothing, res=nothing, crs=nothing, kw...) 
     _extent2dims(to, size, res, crs)
 end
-function _extent2dims(to::Extents.Extent, size::Nothing, res::Nothing, crs, emptydims)
+function _extent2dims(to::Extents.Extent, size::Nothing, res::Nothing, crs)
     isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
 end
-function _extent2dims(to::Extents.Extent, size, res, crs, emptydims)
+function _extent2dims(to::Extents.Extent, size, res, crs)
     isnothing(res) || throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
 end
 function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) where K
@@ -200,4 +200,5 @@ _filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not foun
 
 _progress(args...; kw...) = ProgressMeter.Progress(args...; color=:blue, barlen=50, kw...)
 
-
+# Function barrier for splatted vector broadcast
+@noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
