@@ -470,6 +470,10 @@ using Makie
 Makie.set_theme!(Makie.MINIMAL_DEFAULT)
 ```
 
+```@docs
+rplot
+```
+
 
 # Objects
 

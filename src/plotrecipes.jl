@@ -289,7 +289,7 @@ end
 
 # allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
 function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 3})
-    @assert size(raw_raster, 3) == 1
+    @assert size(raw_raster_with_missings, 3) == 1
     return (raw_raster_with_missings[Band(1)],)
 end
             
