@@ -453,7 +453,7 @@ You can use `Rasters.rplot` to visualize 3D rasters or RasterStacks in this way.
 
 ```@example makie
 stack = RasterStack(WorldClim{Climate}; month = 1)
-Rasters.rplot(stack; Axis = (aspect = DataAspect()))
+Rasters.rplot(stack; Axis = (aspect = DataAspect(),))
 ```
 
 You can pass any theming keywords in, which are interpreted by Makie appropriately.
@@ -466,6 +466,7 @@ Makie.set_theme!(Rasters.theme_rasters())
 Rasters.rplot(stack)
 ```
 ```@eval
+using Makie
 Makie.set_theme!(Makie.MINIMAL_DEFAULT)
 ```
 

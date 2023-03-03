@@ -21,7 +21,7 @@ using Rasters.MakieCore
 
 function Rasters.style_rasters()
     return merge(
-        Rasters.style_rasters(),
+        Rasters.__style_rasters(),
         Attributes(
             Axis = (; aspect = DataAspect()),
         )
