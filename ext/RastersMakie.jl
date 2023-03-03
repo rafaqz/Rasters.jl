@@ -57,6 +57,8 @@ end
 """
     Rasters.rplot([position::GridPosition], raster; kw_args...)
 
+`raster` may be a `Raster` (of 2 or 3 dimensions) or a `RasterStack` whose underlying rasters are 2 dimensional, or 3-dimensional with a singleton (length-1) third dimension.
+
 ## Keyword arguments
 - `plottype = Makie.Heatmap`: The type of plot.  Can be any Makie plot type which accepts a `Raster`; in practice, `Heatmap`, `Contour`, `Contourf` and `Surface` are the best bets.
 - `axistype = Makie.Axis`: The type of axis.  This can be an `Axis`, `Axis3`, `LScene`, or even a `GeoAxis` from GeoMakie.jl.
@@ -143,13 +145,13 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
                 end
 
             colorbar.alignmode[] = if colorbar_position == Makie.Top()
-                Makie.Mixed(Makie.GridLayoutBase.RectSides{Union{Nothing, Float32, Makie.GridLayoutBase.Protrusion}}(nothing, nothing, colorbar_padding, 0f0))
+                Makie.Mixed(bottom = colorbar_padding)
             elseif colorbar_position == Makie.Left()
-                Makie.Mixed(Makie.GridLayoutBase.RectSides{Union{Nothing, Float32, Makie.GridLayoutBase.Protrusion}}(0f0, colorbar_padding, nothing, nothing))
+                Makie.Mixed(right = colorbar_padding)
             elseif colorbar_position == Makie.Bottom()
-                Makie.Mixed(Makie.GridLayoutBase.RectSides{Union{Nothing, Float32, Makie.GridLayoutBase.Protrusion}}(nothing, nothing, 0f0, colorbar_padding))
+                Makie.Mixed(top = colorbar_padding)
             elseif colorbar_position == Makie.Right()
-                Makie.Mixed(Makie.GridLayoutBase.RectSides{Union{Nothing, Float32, Makie.GridLayoutBase.Protrusion}}(colorbar_padding, 0f0, nothing, nothing))
+                Makie.Mixed(left = colorbar_padding)
             else
                 @error "The colorbar position `$(colorbar_position)` was not recognized.  Please pass one of `Makie.Top(), Makie.Bottom(), Makie.Right(), Makie.Left()`."
             end
@@ -171,8 +173,8 @@ function Rasters.rplot(gp::GridPosition, raster::AbstractRaster{T, 3}; ncols = M
 
     layout = GridLayout(gp, nrows, ncols)
 
-    for (i, band) in enumerate(axes(raster, 3))
-        ax, plt = Rasters.rplot(layout[fldmod1(i, ncols)...], view(raster, :, :, band); kwargs...)
+    for (i, layer) in enumerate(axes(raster, 3))
+        ax, plt = Rasters.rplot(layout[fldmod1(i, ncols)...], view(raster, :, :, layer); kwargs...)
         if fldmod1(i, ncols)[2] != 1
             hideydecorations!(ax, label = true, ticklabels = true, ticks = false, grid = false, minorgrid = false, minorticks = false)
         end
@@ -202,8 +204,8 @@ function Rasters.rplot(gp::GridPosition, stack::RasterStack; ncols = Makie.autom
     axs = [] # avoid ambiguity with Base.axes
     plots = []
 
-    Makie.broadcast_foreach(collect(enumerate(propertynames(stack))), colormap, colorrange) do (i, band), cmap, crange
-        raster = getproperty(stack, band)
+    Makie.broadcast_foreach(collect(enumerate(propertynames(stack))), colormap, colorrange) do (i, layer), cmap, crange
+        raster = getproperty(stack, layer)
         if length(size(raster)) == 2
             raster = raster
         elseif length(size(raster)) == 3
@@ -260,9 +262,9 @@ function Rasters.rplot(raster::AbstractRaster{T, 3}; colormap = nothing, colorra
 end
 
 
-function Rasters.rplot(raster::RasterStack; kwargs...)
+function Rasters.rplot(raster::RasterStack; colormap = nothing, colorrange = Makie.automatic, kwargs...)
     figure = isempty(kwargs) ? Figure() : with_theme(Figure, merge(Makie.current_default_theme(), Attributes(kwargs)))
-    layout = Rasters.rplot(figure[1, 1], raster; kwargs...)
+    layout = Rasters.rplot(figure[1, 1], raster; colormap, colorrange, kwargs...)
     # if draw_title
     #     Label(layout[0, 1:Makie.ncols(layout)], raster_title; fontsize = get(figure.scene.attributes, (:Axis :titlesize), 16), font = get(figure.scene.attributes, (:Axis, :titlefont), :bold))
     # end
@@ -270,7 +272,3 @@ function Rasters.rplot(raster::RasterStack; kwargs...)
 end
 
 end
-
-# fig, ax1, plt1 = rplot(clamp.(raster_2012, 0, 20))
-# ax2, plt2 = rplot(fig[1, 2], clamp.(raster_2012, 0, 20); draw_colorbar = true, Axis = (; aspect = DataAspect()))
-# fig

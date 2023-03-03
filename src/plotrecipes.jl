@@ -292,10 +292,6 @@ end
 function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 2})
     return (Float32.(replace_missing(raw_raster_with_missings, missingval = NaN32)),)
 end
-
-function MakieCore.convert_arguments(::MakieCore.PointBased, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 1})
-    return (Float32.(replace_missing(raw_raster_with_missings, missingval = NaN32)),)
-end
             
 # fallbacks with descriptive error messages
 MakieCore.convert_arguments(::MakieCore.SurfaceLike, ::AbstractRaster{<: Real, Dim}) = @error """
