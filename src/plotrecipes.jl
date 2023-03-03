@@ -255,8 +255,16 @@ end
 # Once Makie supports figure level recipes, we should integrate those.
     
 # First, define default plot types for Rasters
-MakieCore.plottype(::AbstractRaster{<: Real, 1}) = MakieCore.Lines
-MakieCore.plottype(::AbstractRaster{<: Real, 2}) = MakieCore.Heatmap
+MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 1}) = MakieCore.Lines
+MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 2}) = MakieCore.Heatmap
+# 3d rasters are a little more complicated - if dim3 is a singleton, then heatmap, otherwise volume
+function MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 2})
+    if size(raw_raster, 3) == 1
+        MakieCore.Heatmap
+    else
+        MakieCore.Volume
+    end
+end
 
 
 missing_or_float32(num::Number) = Float32(num)
@@ -292,6 +300,29 @@ function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster_with_mi
     @assert size(raw_raster_with_missings, 3) == 1
     return (raw_raster_with_missings[Band(1)],)
 end
+
+# allow 3d rasters to be plotted as volumes
+function MakieCore.convert_arguments(::MakieCore.VolumeLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 3})
+    raster = replace_missing(missing_or_float32.(raw_raster), missingval = NaN32)
+    ds = DD._fwdorderdims(raster)
+    A = permutedims(raster, ds)
+    x, y, z = dims(A)
+    xs, ys, zs, vs = DD._withaxes(x, y, z, A)
+    return (xs, ys, zs, vs)
+end
+
+# plot rasters of ColorTypes as images
+# define the correct plottype
+MakieCore.plottype(::AbstractRaster{<: ColorTypes.Colorant, 2}) = MakieCore.Image
+
+function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::AbstractRaster{<: Makie.Colors.Colorant, 2})
+    ds = DD._fwdorderdims(raw_raster)
+    A = permutedims(raw_raster, ds)
+    x, y = dims(A)
+    xs, ys, zs = DD._withaxes(x, y, (A))
+    return (xs, ys, collect(zs))
+end
+
             
 # fallbacks with descriptive error messages
 MakieCore.convert_arguments(::MakieCore.SurfaceLike, ::AbstractRaster{<: Real, Dim}) = @error """

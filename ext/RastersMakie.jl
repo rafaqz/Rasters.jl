@@ -28,16 +28,6 @@ function Rasters.style_rasters()
     )
 end
 
-# first, some Makie utils which require Makie types
-MakieCore.plottype(::AbstractRaster{<: Makie.Colors.Colorant, 2}) = MakieCore.Image
-function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::AbstractRaster{<: Makie.Colors.Colorant, 2})
-    ds = DD._fwdorderdims(raw_raster)
-    A = permutedims(raw_raster, ds)
-    x, y = dims(A)
-    xs, ys, zs = DD._withaxes(x, y, (A))
-    return (xs, ys, collect(zs))
-end
-
 # now, the "full" plot-func
 
 """
