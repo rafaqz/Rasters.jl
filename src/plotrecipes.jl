@@ -287,10 +287,10 @@ function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::Ab
     return (xs, ys, zs)
 end
 
-# overloads for rasters with `missing` - convert to NaN
-# since we are converting to NaN here, also just make everything Float64.
-function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 2})
-    return (Float32.(replace_missing(raw_raster_with_missings, missingval = NaN32)),)
+# allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
+function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 3})
+    @assert size(raw_raster, 3) == 1
+    return (raw_raster_with_missings[Band(1)],)
 end
             
 # fallbacks with descriptive error messages
