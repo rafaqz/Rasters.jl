@@ -315,7 +315,7 @@ end
 # define the correct plottype
 MakieCore.plottype(::AbstractRaster{<: ColorTypes.Colorant, 2}) = MakieCore.Image
 
-function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::AbstractRaster{<: Makie.Colors.Colorant, 2})
+function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::AbstractRaster{<: ColorTypes.Colorant, 2})
     ds = DD._fwdorderdims(raw_raster)
     A = permutedims(raw_raster, ds)
     x, y = dims(A)
