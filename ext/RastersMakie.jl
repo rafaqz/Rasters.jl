@@ -28,6 +28,13 @@ function Rasters.style_rasters()
     )
 end
 
+function lift_layer(r::Observable, inds...)
+    return lift(lift_getindex, r, inds...)
+end
+
+lift_layer(r::Raster, inds...) = getindex(r, inds...)
+lift_layer(rs::RasterStack, ind::Symbol) = getproperty(rs, ind)
+
 # now, the "full" plot-func
 
 """
@@ -65,7 +72,7 @@ end
 - `colorrange = Makie.automatic`: The colormap for the heatmap.  This can be set to a vector of `(low, high)` if plotting a 3D raster or RasterStack.
 - `nancolor = :transparent`: The color which `NaN` values should take.  Default to transparent.
 """
-function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tuple{D1,D2}};
+function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,<:Tuple{D1,D2}}, Observable{<: AbstractRaster{T,2,<:Tuple{D1,D2}}}};
     plottype = Makie.Heatmap,
     axistype = Makie.Axis,
     X=X, Y=Y,
@@ -91,10 +98,12 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
         )
     )
 
+    val_raster = Makie.to_value(raster)
+
     isnothing(colormap) && (colormap = get(attributes, :colormap, :viridis))
 
     # x and y labels
-    xlabel_str, ylabel_str = Rasters.label(DimensionalData.dims(raster))
+    xlabel_str, ylabel_str = Rasters.label(DimensionalData.dims(val_raster))
     xlabel isa Makie.Automatic && (xlabel = xlabel_str)
     ylabel isa Makie.Automatic && (ylabel = ylabel_str)
 
@@ -103,8 +112,8 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
     
     # title
     if title == Makie.automatic
-        _rdt = DimensionalData.refdims_title(raster; issingle = true)
-        title = (_rdt === "" ? Rasters._maybename(raster) : Rasters._maybename(raster) * "\n" * _rdt)
+        _rdt = DimensionalData.refdims_title(val_raster; issingle = true)
+        title = (_rdt === "" ? Rasters._maybename(val_raster) : Rasters._maybename(val_raster) * "\n" * _rdt)
     end
     
     local axis, plot
@@ -150,12 +159,14 @@ function Rasters.rplot(position::GridPosition, raster::AbstractRaster{T,2,<:Tupl
     return Makie.AxisPlot(axis, plot)
 end
 
-function Rasters.rplot(gp::GridPosition, raster::AbstractRaster{T, 3}; ncols = Makie.automatic, nrows = Makie.automatic, kwargs...) where T
+function Rasters.rplot(gp::GridPosition, raster::Union{AbstractRaster{T, 3}, Observable{<: AbstractRaster{T, 3}}}; ncols = Makie.automatic, nrows = Makie.automatic, kwargs...) where T
+
+    val_raster = Makie.to_value(raster)
 
     nrows, ncols = if ncols isa Makie.Automatic && nrows isa Makie.Automatic
-        _balance_grid(size(raster, 3))
+        _balance_grid(size(val_raster, 3))
     elseif ncols isa Int && nrows isa Int
-        @assert ncols * nrows ≥ size(raster, 3)
+        @assert ncols * nrows ≥ size(val_raster, 3)
         nrows, ncols
     else
         @error("The provided combination of `ncols::$(typeof(ncols)) and nrows::$(typeof(nrows)) is unsupported.  Please either set both to `Makie.automatic` or provide integer values.")
@@ -164,7 +175,7 @@ function Rasters.rplot(gp::GridPosition, raster::AbstractRaster{T, 3}; ncols = M
     layout = GridLayout(gp, nrows, ncols)
 
     for (i, layer) in enumerate(axes(raster, 3))
-        ax, plt = Rasters.rplot(layout[fldmod1(i, ncols)...], view(raster, :, :, layer); kwargs...)
+        ax, plt = Rasters.rplot(layout[fldmod1(i, ncols)...], lift_layer(raster, :, :, layer); kwargs...)
         if fldmod1(i, ncols)[2] != 1
             hideydecorations!(ax, label = true, ticklabels = true, ticks = false, grid = false, minorgrid = false, minorticks = false)
         end
@@ -176,14 +187,16 @@ function Rasters.rplot(gp::GridPosition, raster::AbstractRaster{T, 3}; ncols = M
     return layout
 end
 
-function Rasters.rplot(gp::GridPosition, stack::RasterStack; ncols = Makie.automatic, nrows = Makie.automatic, colormap = nothing, colorrange = Makie.automatic, link_colorrange = false, link_axes = true, kwargs...) where T
+function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<: RasterStack}}; ncols = Makie.automatic, nrows = Makie.automatic, colormap = nothing, colorrange = Makie.automatic, link_colorrange = false, link_axes = true, kwargs...) where T
+
+    val_stack = Makie.to_value(stack)
 
     @assert (length(size(stack)) == 2 || size(stack, 3) == 1)
 
     nrows, ncols = if ncols isa Makie.Automatic && nrows isa Makie.Automatic
-        _balance_grid(length(propertynames(stack)))
+        _balance_grid(length(propertynames(val_stack)))
     elseif ncols isa Int && nrows isa Int
-        @assert ncols * nrows ≥ length(propertynames(stack))
+        @assert ncols * nrows ≥ length(propertynames(val_stack))
         nrows, ncols
     else
         @error("The provided combination of `ncols::$(typeof(ncols)) and nrows::$(typeof(nrows)) is unsupported.  Please either set both to `Makie.automatic` or provide integer values.")
@@ -194,13 +207,13 @@ function Rasters.rplot(gp::GridPosition, stack::RasterStack; ncols = Makie.autom
     axs = [] # avoid ambiguity with Base.axes
     plots = []
 
-    Makie.broadcast_foreach(collect(enumerate(propertynames(stack))), colormap, colorrange) do (i, layer), cmap, crange
-        raster = getproperty(stack, layer)
+    Makie.broadcast_foreach(collect(enumerate(propertynames(val_stack))), colormap, colorrange) do (i, layer), cmap, crange
+        raster = lift_layer(stack, layer)
         if length(size(raster)) == 2
             raster = raster
         elseif length(size(raster)) == 3
             if size(raster, 3) == 1
-                raster = view(raster, :, :, 1)
+                raster = lift_layer(raster, Band(1))
             else
                 @error "You can't plot a RasterStack of 3-D rasters using `rplot`.  Please provide a stack of 2D rasters instead, or 3D rasters with a singleton third dimension."
             end
@@ -236,13 +249,13 @@ function Rasters.rplot(gp::GridPosition, stack::RasterStack; ncols = Makie.autom
 end
 
 
-function Rasters.rplot(raster::AbstractRaster{T, 2}; kwargs...) where T
+function Rasters.rplot(raster::Union{AbstractRaster{T, 2}, Observable{<: AbstractRaster{T, 2}}}; kwargs...) where T
     figure = isempty(kwargs) ? Figure() : with_theme(Figure, merge(Makie.current_default_theme(), Attributes(kwargs)))
     axis, plot = Rasters.rplot(figure[1, 1], raster; kwargs...)
     return Makie.FigureAxisPlot(figure, axis, plot)
 end
 
-function Rasters.rplot(raster::AbstractRaster{T, 3}; colormap = nothing, colorrange = Makie.automatic, kwargs...) where T
+function Rasters.rplot(raster::Union{AbstractRaster{T, 3}, Observable{<: AbstractRaster{T, 3}}}; colormap = nothing, colorrange = Makie.automatic, kwargs...) where T
     figure = isempty(kwargs) ? Figure() : with_theme(Figure, merge(Makie.current_default_theme(), Attributes(kwargs)))
     layout = Rasters.rplot(figure[1, 1], raster; colormap, colorrange, kwargs...)
     # if draw_title
@@ -252,7 +265,7 @@ function Rasters.rplot(raster::AbstractRaster{T, 3}; colormap = nothing, colorra
 end
 
 
-function Rasters.rplot(raster::RasterStack; colormap = nothing, colorrange = Makie.automatic, kwargs...)
+function Rasters.rplot(raster::Union{RasterStack, Observable{<: RasterStack}}; colormap = nothing, colorrange = Makie.automatic, kwargs...)
     figure = isempty(kwargs) ? Figure() : with_theme(Figure, merge(Makie.current_default_theme(), Attributes(kwargs)))
     layout = Rasters.rplot(figure[1, 1], raster; colormap, colorrange, kwargs...)
     # if draw_title
