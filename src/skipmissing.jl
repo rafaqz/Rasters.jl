@@ -35,10 +35,13 @@ end
 
 _missing(x, itr) = ismissing(x) || x == missingval(itr)  # mind the order, as comparison with missing returns missing
 function _missing(x::AbstractFloat, itr)
-    if isnan(missingval(itr))
-        return ismissing(x) || isnan(x)
+    # x is an AbstractFloat here and hence cannot be nothing or missing
+    if isnothing(missingval(itr))
+        return false
+    elseif isnan(missingval(itr))
+        return isnan(x)
     else
-        return ismissing(x) || x == missingval(itr)
+        return x == missingval(itr)
     end
 end
 

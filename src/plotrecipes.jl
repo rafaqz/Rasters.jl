@@ -193,6 +193,58 @@ end
     end
 end
 
+# plot multispectral images as rgb
+@userplot RGBPlot
+
+@recipe function f(p::RGBPlot; bands=1:3, low=0.02, high=0.98)
+    r = first(p.args)
+    if !(typeof(r) <: AbstractRaster)
+        error("Plotting RGB images is only implemented for AbstractRasters.")
+    end
+    if !hasdim(r, Band)
+        error("Raster must have a band dimension.")
+    end
+    if !(0 <= low <= 1) || !(0 <= high <= 1)
+        error("'low' and 'high' have to be between 0 and 1 (inclusive).")
+    end
+    img = Float32.(copy(r[Band([bands...])]))
+    normalize!(img, low, high)
+    img = permutedims(img, (Band, X, Y))
+    img = DD.reorder(img, X=>DD.ForwardOrdered, Y=>DD.ForwardOrdered)
+    plot_image = ImageCore.colorview(RGB, img)
+
+    yguide, xguide = DD.label(dims(img, (Y,X)))
+
+    y, x = map(Rasters._prepare, dims(img, (Y,X)))
+
+    rdt = DD.refdims_title(img; issingle=true)
+    :title --> (rdt === "" ? Rasters._maybename(img) : Rasters._maybename(img) * "\n" * rdt)
+    :xguide --> xguide
+    :xrotation --> 45
+    :yguide --> yguide
+    :tick_direction --> :out
+    :framestyle --> :box
+
+    if all(d -> lookup(d) isa Mapped, (x, y))
+        :xlims --> mappedbounds(x)
+        :ylims --> mappedbounds(y)
+        :aspect_ratio --> :equal
+    else
+        :xlims --> bounds(img, x)
+        :ylims --> bounds(img, y)
+        bnds = bounds(img, (X, Y))
+        # # TODO: Rethink this....
+        s1, s2 = map(((l, u),) -> (u - l), bnds) ./ (size(img, X), size(img, Y))
+        square_pixels = s2 / s1
+        :aspect_ratio --> square_pixels
+    end
+
+    :seriestype --> :image
+    :yflip --> false
+    DD.index(x), DD.index(y), plot_image'
+end
+
+
 # Plots.jl heatmaps pixels are centered.
 # So we should center the index, and use the projected value.
 _prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
@@ -248,3 +300,26 @@ function DD.refdims_title(refdim::Band; issingle=false)
     end
 end
 
+function eachband_view(r::Raster)
+    nbands = size(r, Band)
+    return (view(r, Band(n)) for n in 1:nbands)
+end
+
+function normalize!(raster, low=0.1, high=0.9)
+    if !hasdim(raster, Band)
+        l = quantile(skipmissing(raster), low)
+        h = quantile(skipmissing(raster), high)
+        raster .-= l
+        raster ./= h - l + eps(float(eltype(raster)))
+        raster .= clamp.(raster, zero(eltype(raster)), one(eltype(raster)))
+    else
+        for band in eachband_view(raster)
+            l = quantile(skipmissing(band), low)
+            h = quantile(skipmissing(band), high)
+            band .-= l
+            band ./= h - l + eps(float(eltype(raster)))
+            band .= clamp.(band, zero(eltype(raster)), one(eltype(raster)))
+        end
+    end
+    return raster
+end
