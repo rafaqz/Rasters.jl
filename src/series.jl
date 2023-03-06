@@ -113,9 +113,30 @@ function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple
     end
     return RasterSeries(data, DD.format(dims, data); refdims)
 end
-function RasterSeries(dirpath::AbstractString, dims; ext=nothing, kw...)
-    filepaths = filter_ext(dirpath, ext)
-    RasterSeries(filepaths, dims; kw...)
+function RasterSeries(path::AbstractString, dims; ext=nothing, refdims=())
+    if isdir(path)
+        dirpath = path
+        filepaths = filter_ext(dirpath, ext)
+    else
+        dirpath = dirname(path)
+        filename, ext = splitext(basename(path))
+        filepaths = filter(filter_ext(dirpath, ext)) do fp
+            basename(fp)[1:length(filename)] == filename
+        end
+        basenames = map(fp -> basename(splitext(fp)[1]), filepaths)
+        if dims isa Type 
+            dimtype = dims
+            index = map(basenames) do n
+                strip(n[length(filename)+1:end], '_')
+            end
+            # Detect integers and parse them (could try to detect other types too?)
+            if all(s -> all(isnumeric, s), index)
+                index = map(s -> parse(Int, s), index)
+            end
+            dims = (dimtype(index),)
+        end
+    end
+    RasterSeries(filepaths, DD.format(dims, filepaths); refdims)
 end
 
 @inline function DD.rebuild(
