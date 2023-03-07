@@ -310,6 +310,10 @@ function Raster(ds, filename::AbstractString, key=nothing;
     return Raster(data, dims, refdims, name, metadata, missingval)
 end
 
+function Raster{T, N, D, R, A, Na, Me, Mi}(ras::Raster{T, N, D, R, A, Na, Me, Mi}) where {T, N, D, R, A, Na, Me, Mi}
+    return Raster(ras.data, ras.dims, ras.refdims, ras.name, ras.metadata, ras.missingval)
+end
+
 filekey(ds, key) = key
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 

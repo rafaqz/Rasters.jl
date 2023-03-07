@@ -430,6 +430,7 @@ Plotting in Makie works somewhat differently than Plots, since the recipe system
 ```@example makie
 using CairoMakie # hide
 CairoMakie.activate!(px_per_unit = 2) # hide
+using Makie # hide
 using Rasters, CairoMakie
 A = Raster(WorldClim{BioClim}, 5) # this is a 3D raster, so is not accepted.
 B = A[:, :, 1] # this converts to a 2D raster which Makie accepts!
@@ -462,12 +463,12 @@ The plots seem a little squished here.  We provide a Makie theme which makes tex
 
 
 ```@example makie
-Makie.set_theme!(Rasters.theme_rasters())
+CairoMakie.set_theme!(Rasters.theme_rasters())
 Rasters.rplot(stack)
 ```
 ```@eval
 using Makie
-Makie.set_theme!(Makie.MINIMAL_DEFAULT)
+Makie.set_theme!(Makie.minimal_default)
 ```
 
 ```@docs

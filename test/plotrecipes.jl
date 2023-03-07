@@ -39,11 +39,15 @@ c = Raster(rand(RGB, Y(-20.0:1.0:20.0), X(0.0:4.0:360.0)))
 plot(c)
 
 
-@test_throws "MethodError" Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurface(), Raster(rand(X(0.0:4.0:360.0), Y(-20.0:1.0:20.0), Ti(1:10))))
-@test_throws "MethodError" Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurface(), Raster(rand(X(0.0:4.0:360.0), Y(-20.0:1.0:20.0), Ti(1)))) # remove if we want to handle 3d rasters with a singleton dimension
-
 xs = 0.0:4.0:360.0
 ys = -20.0:1.0:20.0
 rast = Raster(rand(X(xs), Y(ys)))
 
 @test Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurface(), rast) == (xs, ys, Float32.(rast.data))
+# test true 3d rasters fail
+true_3d_raster = Raster(rand(X(0.0:4.0:360.0), Y(-20.0:1.0:20.0), Ti(1:10)))
+@test_throws AssertionError Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurface(), )
+# test that singleton 3d dimensions work
+singleton_3d_raster = Raster(rand(X(0.0:4.0:360.0), Y(-20.0:1.0:20.0), Ti(1)))
+@test all(Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurface(), singleton_3d_raster) .== singleton_3d_raster.data[:, :, 1]) # remove if we want to handle 3d rasters with a singleton dimension
+

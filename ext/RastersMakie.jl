@@ -18,6 +18,7 @@ end
 
 using Rasters.DimensionalData
 using Rasters.MakieCore
+using Rasters: band, _balance_grid
 
 function Rasters.style_rasters()
     return merge(
@@ -35,22 +36,7 @@ end
 lift_layer(r::Raster, inds...) = getindex(r, inds...)
 lift_layer(rs::RasterStack, ind::Symbol) = getproperty(rs, ind)
 
-# now, the "full" plot-func
-
-"""
-    _balance_grid(nplots)
-
-Returns a tuple `(ncols, nrows)`, defining a grid which can hold `nplots` items.
-"""
-function _balance_grid(nplots)
-    ncols = (nplots - 1) ÷ ceil(Int, sqrt(nplots)) + 1
-    nrows = (nplots - 1) ÷ ncols + 1
-    return nrows, ncols
-end
-
-
 # The all-inclusive plotting function for a 2D raster
-
 """
     Rasters.rplot([position::GridPosition], raster; kw_args...)
 
@@ -213,7 +199,7 @@ function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<:
             raster = raster
         elseif length(size(raster)) == 3
             if size(raster, 3) == 1
-                raster = lift_layer(raster, Band(1))
+                raster = lift_layer(raster, Rasters.Band(1))
             else
                 @error "You can't plot a RasterStack of 3-D rasters using `rplot`.  Please provide a stack of 2D rasters instead, or 3D rasters with a singleton third dimension."
             end
