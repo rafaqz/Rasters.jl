@@ -28,8 +28,10 @@ Base.getindex(sl::SectorLocks, i::Int) = sl.seclocks[i]
 Base.iterate(sl::SectorLocks, args...) = iterate(sl.seclocks, args...)
 Base.eachindex(sl::SectorLocks) = 1:length(sl)
 
-Base.lock(sl::SectorLocks, sector::SubArray) = 
-    Base.lock(sl, CartesianIndices(sector.indices)) 
+Base.lock(sl::SectorLocks, sector::Raster) = Base.lock(sl, parent(sector))
+Base.lock(sl::SectorLocks, sector::RasterStack) = Base.lock(sl, parent(first(layers(sector))))
+Base.lock(sl::SectorLocks, sector::Array) = Base.lock(sl, CartesianIndices(sector))
+Base.lock(sl::SectorLocks, sector::SubArray) = Base.lock(sl, CartesianIndices(sector.indices)) 
 Base.lock(sl::SectorLocks, sector::Tuple) = Base.lock(sl, CartesianIndices(sector)) 
 function Base.lock(seclocks::SectorLocks, sector::CartesianIndices)
     idx = Threads.threadid()
