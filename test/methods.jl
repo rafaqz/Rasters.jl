@@ -667,7 +667,7 @@ end
         end
     end
 
-    ## Resample cea.tif using resample
+    # Resample cea.tif using resample
     cea = Raster(raster_path)
     raster_output = resample(cea, output_res; crs=output_crs, method=resample_method)
     disk_output = resample(cea, output_res; crs=output_crs, method=resample_method, filename="resample.tif")
@@ -698,105 +698,3 @@ end
         @test isapprox(index(snaptarget, X), index(disk_snapped, X))
     end
 end
-
-
-
-# using SnoopCompileCore
-# invalidations = @snoopr using Rasters
-# using SnoopCompile
-# trees = invalidation_trees(invalidations)
-
-# invalidations = @snoopr using Rasters
-# using PkgDependency
-# PkgDependency.tree("Rasters")
-
-# using GDAL, ArchGDAL
-# using SnoopCompile
-
-# using BenchmarkTools
-# using ProfileView
-# using Profile
-# using PProf
-# using Cthulhu
-
-using Rasters
-using Shapefile
-shppath = "/home/raf/PhD/Mascarenes/Data/Distributions/REPTILES/REPTILES.shp"
-shppath = "/home/raf/PhD/Mascarenes/Data/Distributions/AMPHIBIANS/AMPHIBIANS.shp"
-shppath = "/home/raf/PhD/Mascarenes/Data/Distributions/MAMMALS_TERRESTRIAL_ONLY/MAMMALS_TERRESTRIAL_ONLY.shp"
-shptable = Shapefile.Handle(shppath).shapes
-@time r = rasterize(count, shptable; res=1/24, boundary=:center, missingval=typemin(Int))
-
-using Statistics, Plots
-@time r = rasterize(shptable; res=1/6, fill=1, missingval=typemin(Int))
-@profview r = rasterize(shptable; res=1/12, fill=1, missingval=typemin(Int))
-@time r = rasterize(shptable; res=1/12, fill=1, missingval=typemin(Int), boundary=:touches)
-size(r)
-plot(r)
-@profview r = rasterize(count, shptable; res=1/6, boundary=:touches, missingval=typemin(Int))
-@time r = rasterize(count, shptable; res=1/6, missingval=typemin(Int))
-plot(r)
-@descend rasterize(count, shptable; res=1/2, boundary=:center, missingval=typemin(Int))
-using ProfileView
-using Statistics
-using Plots
-plot(r)
-@profview 
-# @time cov = Rasters.coverage(shptable; mode=:union, res=1/2, scale=10);
-@time covsum = Rasters.coverage(shptable; mode=:sum, res=1, scale=10);
-@time r = rasterize(count, shptable; res=1, boundary=:touches, missingval=typemin(Int))
-plot(mask(covsum ./ r; with=r); clims=(0.0, 1))
-plot(r)
-# r
-# plot(covsum)
-# # @profview co = Rasters.coverage(shptable[1:5000]; res=1/6);
-# @time co = Rasters.coverage(shptable; mode=:sum, res=1, scale=10);
-# cohab = replace_missing(co) ./ r
-# using Colors, ColorVectorSpace
-# plot(cohab)
-# blues = (x -> RGB24(0.0, 0.0, x)).(replace_missing(cohab, 0))
-# reds = (x -> RGB24(x, 0.0, 0.0)).(r ./ maximum(replace_missing(r, 0)))
-# plot(blues)
-# RGB(0.0, 0.1, 0.2)
-
-# # using GeoDataFrames
-# # @time shptable = GeoDataFrames.read(shppath)
-# polygon = Shapefile.Handle(shppath).shapes[1]
-
-# # @profview Rasters._to_edges(shptable.shapes[1], dims(mammal_count))
-# tinf = @snoopi_deep rasterize(count, shptable[1:10]; res=1/6, boundary=:center);
-# fg = flamegraph(tinf)
-# ProfileView.view(fg)
-
-# plot(r)
-# @profview 
-# plot(cov)
-# plot(r)
-# using Profile, PProf
-# Profile.Allocs.clear()
-# Profile.Allocs.@profile cov = Rasters.coverage(shptable; mode=:sum, res=1/2);
-# PProf.Allocs.pprof()
-
-# @profview mammal_count = rasterize(count, shptable.shapes; res=1/6, boundary=:center, missingval=typemin(Int));
-# Profile.Allocs.@profile rasterize(count, shptable.shapes; res=1/6, boundary=:center);
-# results = Profile.Allocs.fetch()
-# Cthulhu.@descend rasterize(count, shptable.shapes; res=1/6, boundary=:center);
-# pprof()
-# prof
-# write("test.tif", mammal_count)
-# plot(mammal_count)
-# plot!(shptable.shapes[79])
-# plot(shptable.shapes[79])
-# savefig("mammal_count.png")
-# using Cthulhu
-# @profview for i in 1:1000 Rasters._to_edges(shptable.shapes[1], dims(mammal_count)) end
-# length(edges)
-# r = rand(UInt32, length(edges)) .=> r
-# @btime sort($edges)
-# @btime sort($r)
-
-# @time mammal_count_touches = rasterize(count, shptable; res=1/6, boundary=:touches);
-# plot(mammal_count_touches)
-
-# @time mammal_count = rasterize(miminum, shptable; fill=:SHAPE_Area, res=1/6, boundary=:center);
-
