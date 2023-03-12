@@ -165,18 +165,18 @@ end
 
 # This feature filling is simplistic in that it does not use any feature properties.
 # This is suitable for masking. See `rasterize` for a version using properties.
-_burn_geometry!(B, obj; kw...) = _burn_geometry!(B, GI.trait(obj), obj; kw...)
-function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureTrait, feature; kw...)
+_burn_geometry!(B, obj; kw...) = _burn_geometry!(B, GI.trait(obj), obj; kw...)::Bool
+function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureTrait, feature; kw...)::Bool
     _burn_geometry!(B, GI.geometry(feature); kw...)
 end
-function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait, fc; kw...)
+function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait, fc; kw...)::Bool
     geoms = (GI.geometry(f) for f in GI.getfeature(gc))
     _burn_geometry!(B, nothing, geoms; kw...)
 end
 # Where geoms is an iterator
 function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; 
     combine::Union{Bool,Nothing}=nothing, lock=SectorLocks(), verbose=true, kw...
-)
+)::Bool
     thread_allocs = _burning_allocs(B) 
     range = _geomindices(geoms)
     checklock = Threads.SpinLock()
@@ -188,7 +188,7 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
             ismissing(geom) && continue
             allocs = _get_alloc(thread_allocs)
             B1 = allocs.buffer
-            burnchecks[i] = hasburned = _burn_geometry!(B1, geom; allocs, lock, kw...)
+            burnchecks[i] = _burn_geometry!(B1, geom; allocs, lock, kw...)
             ProgressMeter.next!(p)
         end
         buffers = map(a -> a.buffer, thread_allocs)
@@ -205,12 +205,12 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
     end
     
     _set_burnchecks(burnchecks, metadata(B), verbose)
-    return B
+    return false
 end
 
 function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; 
     shape=nothing, verbose=true, boundary=:center, allocs=Allocs(B), kw...
-)
+)::Bool
     hasburned = false
     # Use the specified shape or detect it
     shape = shape isa Symbol ? shape : _geom_shape(geom)
@@ -226,7 +226,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
         # Only fill if the gemoetry bounding box overlaps the array bounding box
         if !Extents.intersects(geomextent, arrayextent) 
             verbose && _verbose_extent_info(geomextent, arrayextent)
-            return B
+            return false
         end
         # Take a view of the geometry extent
         B1 = view(B, Touches(geomextent))
@@ -253,13 +253,13 @@ end
 # _burn_polygon!
 # Burn `true` values into a raster
 # `boundary` determines how edges are handled 
-function _burn_polygon!(B::AbstractDimArray, geom; kw...)
+function _burn_polygon!(B::AbstractDimArray, geom; kw...)::Bool
     B1 = _prepare_for_burning(B)
     _burn_polygon!(B1::AbstractDimArray, GI.geomtrait(geom), geom; kw...)
 end
 function _burn_polygon!(B::AbstractDimArray, trait, geom;
     fill=true, boundary=:center, geomextent, verbose=false, allocs=Allocs(B), kw...
-)
+)::Bool
     allocs = _get_alloc(allocs)
     filtered_edges, max_ylen = _to_edges(geom, dims(B); allocs)
     
@@ -287,10 +287,9 @@ function _burn_polygon!(B::AbstractDimArray, trait, geom;
 
     return hasburned
 end
-
 function _burn_polygon!(A::AbstractDimArray, edges::AbstractArray{Edge}, crossings, max_ylen;
     offset=nothing, verbose=true
-)
+)::Bool
     local prev_ypos = 0
     hasburned = false
     # Loop over each index of the y axis
@@ -415,7 +414,7 @@ end
             _fill_point!(x, point; kw...)
         end
     end
-    return x
+    return true
 end
 @noinline function _fill_point!(x::RasterStackOrArray, ::GI.AbstractPointTrait, point;
     fill, atol=nothing, lock=nothing, kw...
@@ -434,8 +433,10 @@ end
             _fill_index!(x, fill, I)
             Base.unlock(lock)
         end
+        return true
+    else
+        return false
     end
-    return x
 end
 
 # Fill Int indices directly

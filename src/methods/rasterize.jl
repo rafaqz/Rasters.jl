@@ -338,10 +338,10 @@ function _rasterize!(x, ::GI.AbstractGeometryTrait, geom;
     return hasburned
 end
 # Fill points
-function _rasterize!(x, trait::GI.AbstractPointTrait, point; fill, lock, kw...)
-    isnothing(lock) || Base.lock(lock) # Avoid race conditions
+function _rasterize!(x, trait::GI.AbstractPointTrait, point; fill, lock=nothing, kw...)
+    isnothing(lock) || Base.lock(lock, x) # Avoid race conditions
     hasburned = _fill_point!(x, trait, point; fill, kw...)
-    isnothing(lock) || Base.unlock(lock)
+    isnothing(lock) || Base.unlock(lock, x)
     return hasburned
 end
 # We rasterize all iterables from here
