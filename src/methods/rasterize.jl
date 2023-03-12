@@ -330,10 +330,10 @@ function _rasterize!(x, ::GI.AbstractGeometryTrait, geom;
     boolmask!(bools, geom; lock, kw...)
     hasburned = any(bools)
     if hasburned 
-        # Avoid race conditions with SectorLock
-        Base.lock(lock, parent(x1)) 
+        # Avoid race conditions with a SectorLock
+        isnothing(lock) || Base.lock(lock, parent(x1)) 
         _fill!(x1, bools, fill, op, init, missingval)
-        Base.unlock(lock)
+        isnothing(lock) || Base.unlock(lock)
     end
     return hasburned
 end
@@ -459,7 +459,7 @@ function _reduce_fill!(f, A::AbstractRaster, geoms, fill_itr; kw...)
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(A, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
-    masks = boolmask(geoms; to=A, combine=false, metadata=metadata(x), kw...)
+    masks = boolmask(geoms; to=A, combine=false, metadata=metadata(A), kw...)
     # Use a generator over the array axis in case the iterator has no length
     geom_axis = parent(axes(masks, Dim{:geometry}()))
     fill = [val for (i, val) in zip(geom_axis, fill_itr)]
