@@ -1,4 +1,3 @@
-
 const COVERAGE_DOC = """
 Calculate the area of a raster covered by GeoInterface.jl compatible geomtry `geom`,
 as a fraction.
@@ -7,7 +6,7 @@ Each pixel is assigned a grid of points (by default 10 x 10) that are each check
 to be inside the geometry. The sum divided by the number of points to give coverage.
 
 In pracice, most pixel coverage is not calculated this way - shortcuts that 
-produce the same result are taken whereever possible.
+produce the same result are taken wherever possible.
 
 If `geom` is an `AbstractVector` or table, the `mode` keyword will determine how coverage is combined.
 """
@@ -20,7 +19,7 @@ const COVERAGE_KEYWORDS = """
     * `:sum` gives the summed total of the areas covered by all geometries,
       as in taking the sum of running `coverage` separately on all geometries.
       The returned values are positive `Float64`.
-    For a single geometry, the `mode` keyword has not effect - the result would be the same.
+    For a single geometry, the `mode` keyword has no effect - the result is the same.
 - `scale`: `Integer` scale of pixel subdivision. The default of `10` means each pixel has 
     10 x 10 or 100 points that contribute to coverage. Using `100` means 10,000 points
     contribute. Performance will decline as `scale` increases. Memory use will grow 
@@ -77,16 +76,19 @@ _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom; mode, kw...) =
 function _coverage!(A::AbstractRaster, ::Union{Nothing,GI.FeatureCollectionTrait}, geoms; 
     mode, scale, verbose
 )
-    n = Threads.nthreads()
+    n = Threads.threadpoolsize()
     buffers = (
-        allocs = _edge_allocs(),
+        allocs = _burning_allocs(A),
         linebuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
         centerbuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
         block_crossings = [[Vector{Float64}(undef, 0) for _ in 1:scale] for _ in 1:n],
-        burnstatus = [fill((1, false), scale) for _ in 1:n],
+        burnstatus=[fill(INIT_BURNSTATUS, scale) for _ in 1:n],
         subbuffer = [fill!(Array{Bool}(undef, scale, scale), false) for _ in 1:n],
         ncrossings = [fill(0, scale) for _ in 1:n],
     )
+    if Tables.istable(geoms)
+        geoms = Tables.getcolumn(geoms, first(GI.geometrycolumns(geoms)))
+    end
     subpixel_dims = _subpixel_dims(A, scale)
     missed_pixels = if mode == :union
         _union_coverage!(A, geoms, buffers; scale, subpixel_dims)
@@ -103,7 +105,7 @@ end
 function _union_coverage!(A::AbstractRaster, geoms, buffers; 
     scale, subpixel_dims
 )
-    n = Threads.nthreads()
+    n = Threads.threadpoolsize()
     centeracc = [_init_bools(A, Bool; missingval=false) for _ in 1:n]
     lineacc = [_init_bools(A, Bool; missingval=false) for _ in 1:n]
     subpixel_buffer = [falses(size(A) .* scale) for _ in 1:n]
@@ -163,7 +165,7 @@ function _union_coverage!(A::AbstractRaster, geom;
     subpixel_buffer=falses(size(A) .* scale),
     centeracc=_init_bools(A, Bool; missingval=false),
     lineacc=_init_bools(A, Bool; missingval=false),
-    burnstatus=[(1, false) for _ in 1:scale],
+    burnstatus=[INIT_BURNSTATUS for _ in 1:scale],
     block_crossings=[Vector{Float64}(undef, 0) for _ in 1:scale],
     subbuffer=falses(scale, scale),
     subpixel_dims=_subpixel_dims(A, scale),
@@ -182,7 +184,6 @@ function _union_coverage!(A::AbstractRaster, geom;
     sort!(filtered_edges)
     # Brodcast over the rasterizations and indices
     # to calculate coverage of each pixel
-    edgestart = 1
 
     prev_ypos = 0
     # Loop over y in A
@@ -206,7 +207,9 @@ function _union_coverage!(A::AbstractRaster, geom;
         end
 
         # Reset burn burnstatus
-        burnstatus .= Ref((1, false))
+        for i in eachindex(burnstatus)
+            burnstatus[i] = INIT_BURNSTATUS
+        end
         subpixel_raster = Raster(subpixel_buffer, subpixel_dims)
 
         # Loop over x in A
@@ -239,21 +242,29 @@ function _union_coverage!(A::AbstractRaster, geom;
 end
 
 # Sums all coverage 
-function _sum_coverage!(A::AbstractRaster, geoms::AbstractVector, buffers; scale, subpixel_dims)
-    n = Threads.nthreads()
+function _sum_coverage!(A::AbstractRaster, geoms, buffers; 
+    scale, subpixel_dims, verbose=true
+)
+    n = Threads.threadpoolsize()
     coveragebuffers = [fill!(similar(A), 0.0) for _ in 1:n]
     p = _progress(length(geoms); desc="Calculating coverage...")
     missed_pixels = fill(0, n)
-    Threads.@threads :static for geom in geoms
+    range = _geomindices(geoms)
+    burnchecks = _alloc_burnchecks(range)
+    Threads.@threads :static for i in range
+        geom = _getgeom(geoms, i)
+        ismissing(geom) && continue
         idx = Threads.threadid()
         thread_buffers = map(b -> b[idx], buffers)
         coveragebuffer = coveragebuffers[idx]
-        missed_pixels[idx] += _sum_coverage!(coveragebuffer, geom; scale, thread_buffers...)
+        nmissed, burnchecks[i] = _sum_coverage!(coveragebuffer, geom; scale, thread_buffers...)
+        missed_pixels[idx] += nmissed
         fill!(thread_buffers.linebuffer, false)
         fill!(thread_buffers.centerbuffer, false)
         ProgressMeter.next!(p)
     end
     _do_broadcast!(+, A, coveragebuffers...)
+    _set_burnchecks(burnchecks, metadata(A), verbose)
     return sum(missed_pixels)
 end
 function _sum_coverage!(A::AbstractRaster, geom;
@@ -263,10 +274,9 @@ function _sum_coverage!(A::AbstractRaster, geom;
     centerbuffer=_init_bools(A, Bool; missingval=false),
     block_crossings=[Vector{Float64}(undef, 0) for _ in 1:scale],
     subbuffer=falses(scale, scale),
-    burnstatus=[(1, false) for _ in 1:scale],
+    burnstatus=[INIT_BURNSTATUS for _ in 1:scale],
     subpixel_dims=_subpixel_dims(A, scale),
     ncrossings=fill(0, scale),
-    verbose=true
 )
     GI.isgeometry(geom) || error("Object is not a geometry")
     crossings = allocs.crossings
@@ -275,9 +285,8 @@ function _sum_coverage!(A::AbstractRaster, geom;
     filtered_edges, max_ylen = _to_edges(geom, subpixel_dims; allocs)
     # Brodcast over the rasterizations and indices
     # to calculate coverage of each pixel
-    edgestart = 1
     local missed_pixels = 0
-    local geom_has_cover = false
+    local hascover = false
 
     prev_ypos = 0
     # Loop over y in A
@@ -290,7 +299,7 @@ function _sum_coverage!(A::AbstractRaster, geom;
                 # If the center is inside a polygon but the pixel is
                 # not on a line, then coverage is 1.0
                 pixel_coverage = 1.0
-                geom_has_cover = true
+                hascover = true
                 A[X(x), Y(y)] += pixel_coverage
             end
         end
@@ -305,12 +314,13 @@ function _sum_coverage!(A::AbstractRaster, geom;
             ncrossings[i], prev_ypos = _set_crossings!(block_crossings[i], A, filtered_edges, sub_y, prev_ypos, max_ylen)
         end
         # Set the burn/skip status to false (skip) for each starting position
-        burnstatus .= Ref((1, false))
+        burnstatus .= Ref(INIT_BURNSTATUS)
 
         missed_pixels = 0
         # Loop over x in A
         for x in axes(A, X())
             linebuffer[X(x), Y(y)] || continue
+            hasburned =
 
             x1 = (x - 1) * scale
             sub_xaxis = x1 + 1:x1 + scale
@@ -337,12 +347,12 @@ function _sum_coverage!(A::AbstractRaster, geom;
             if pixel_coverage == 0
                 missed_pixels += 1
             else
-                geom_has_cover = true
+                hascover = true
             end
             A[X(x), Y(y)] += pixel_coverage
         end
     end
-    return missed_pixels
+    return missed_pixels, hascover 
 end
 
 function _subpixel_dims(A, scale)
@@ -359,6 +369,6 @@ end
 
 function _check_missed_pixels(missed_pixels::Int, scale::Int)
     if missed_pixels > 0
-        @info "There were $missed_pixels times that pixels were touched by geometries but did not produce coverage, meaning the area was too small to be detected by the $(scale * scale) points at `scale=$scale`."
+        @info "There were $missed_pixels times that pixels were touched by geometries but did not produce coverage, meaning the area covered was not detectable at the $(scale * scale) points at `scale=$scale`."
     end
 end

@@ -62,7 +62,7 @@ export Projected, Mapped
 export Band
 export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!, 
-       resample, warp, zonal, crop, extend, trim, slice, points, subset, inpolygon,
+       resample, warp, zonal, crop, extend, trim, slice, points, subset,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
        coverage, coverage!, setcrs, setmappedcrs
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
@@ -125,7 +125,6 @@ include("methods/classify.jl")
 include("methods/crop_extend.jl")
 include("methods/coverage.jl")
 include("methods/extract.jl")
-include("methods/inpolygon.jl")
 include("methods/mosaic.jl")
 include("methods/points.jl")
 include("methods/rasterize.jl")

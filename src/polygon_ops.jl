@@ -1,5 +1,6 @@
 const DEFAULT_POINT_ORDER = (X(), Y())
 const DEFAULT_TABLE_DIM_KEYS = (:X, :Y)
+const INIT_BURNSTATUS = (; ic=1, burn=false, hasburned=false)
 
 # Simple point positions offset relative to the raster
 struct Position
@@ -51,7 +52,7 @@ struct Allocs{B}
 end
 Allocs(buffer) = Allocs(buffer, Vector{Edge}(undef, 0), Vector{Edge}(undef, 0), Vector{Float64}(undef, 0))
 
-function _burning_allocs(x; nthreads=Threads.nthreads(), kw...) 
+function _burning_allocs(x; nthreads=Threads.threadpoolsize(), kw...) 
     return [Allocs(_init_bools(x; metadata=Metadata())) for _ in 1:nthreads]
 end
 
@@ -175,7 +176,7 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine::Unio
     thread_allocs = _burning_allocs(B) 
     range = _geomindices(geoms)
     checklock = Threads.SpinLock()
-    burnchecks = falses(length(range))
+    burnchecks = _alloc_burnchecks(range)
     p = _progress(length(range))
     if isnothing(combine) || combine
         Threads.@threads :static for i in range
@@ -183,12 +184,7 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine::Unio
             ismissing(geom) && continue
             allocs = _get_alloc(thread_allocs)
             B1 = allocs.buffer
-            hasburned = _burn_geometry!(B1, geom; allocs, kw...)
-            if hasburned
-                Base.lock(checklock)
-                burnchecks[i] = true
-                Base.unlock(checklock)
-            end
+            burnchecks[i] = hasburned = _burn_geometry!(B1, geom; allocs, kw...)
             ProgressMeter.next!(p)
         end
         buffers = map(a -> a.buffer, thread_allocs)
@@ -199,18 +195,12 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine::Unio
             ismissing(geom) && continue
             B1 = view(B, Dim{:geometry}(i))
             allocs = _get_alloc(thread_allocs)
-            hasburned = _burn_geometry!(B1, geom; allocs, lock, kw...)
-            if hasburned
-                Base.lock(checklock)
-                burnchecks[i] = true
-                Base.unlock(checklock)
-            end
+            burnchecks[i] = _burn_geometry!(B1, geom; allocs, lock, kw...)
             ProgressMeter.next!(p)
         end
     end
-
-    metadata(B)[:missed_polygons] = burnchecks
-    verbose && _burncheck_info(burnchecks)
+    
+    _set_burnchecks(burnchecks, metadata(B), verbose)
     return B
 end
 
@@ -339,7 +329,7 @@ function _set_crossings!(crossings, A, edges, iy, prev_ypos, max_ylen)
 end
 
 function _burn_crossings!(A, crossings, ncrossings, iy; 
-    status::Tuple{Int,Bool}=(1, false), 
+    status::typeof(INIT_BURNSTATUS)=INIT_BURNSTATUS, 
 )
     stop = false
     # Start burning loop from outside any rings
@@ -758,21 +748,26 @@ function _init_bools(to, dims::DimTuple, T::Type, data; combine::Union{Bool,Noth
 end
 
 function _alloc_bools(to, dims::DimTuple, ::Type{Bool}; missingval=false, metadata=NoMetadata(), kw...)
-    metadata isa Metadata && @show metadata
     # Use a BitArray
     return Raster(falses(size(dims)), dims; missingval, metadata) # Use a BitArray
 end
 function _alloc_bools(to, dims::DimTuple, ::Type{T}; missingval=false, metadata=NoMetadata(), kw...) where T
-    metadata isa Metadata && @show metadata
     # Use an `Array`
     data = fill!(Raster{T}(undef, dims), missingval) 
     return Raster(data, dims; missingval, metadata)
 end
 
+_alloc_burnchecks(n::Int) = fill(false, n)
+_alloc_burnchecks(x::AbstractArray) = _alloc_burnchecks(length(x))
+function _set_burnchecks(burnchecks, metadata::Metadata{<:Any,<:Dict}, verbose)
+    metadata[:missed_geometries] = .!burnchecks
+    verbose && _burncheck_info(burnchecks)
+end
+_set_burnchecks(burnchecks, metadata, verbose) = verbose && _burncheck_info(burnchecks)
 function _burncheck_info(burnchecks)
     nburned = sum(burnchecks)
     nmissed = length(burnchecks) - nburned
-    nmissed > 0 && @info "$nmissed geometries did not affect any pixels. See `metadata(raster)[:missed_polygons]` for the bitvector of misses. Use `boundary=touches` to ensure all polygons are rasterized"
+    nmissed > 0 && @info "$nmissed geometries did not affect any pixels. See `metadata(raster)[:missed_polygons]` for a vector of misses"
 end
 
 ##############################
@@ -799,7 +794,7 @@ struct SectorLocks
     spinlock::Threads.SpinLock
 end
 SectorLocks(n::Int) = SectorLocks([SectorLock() for _ in 1:n], Threads.SpinLock())
-SectorLocks() = SectorLocks(Threads.nthreads())
+SectorLocks() = SectorLocks(Threads.threadpoolsize())
 
 Base.length(sl::SectorLocks) = length(sl.seclocks)
 Base.getindex(sl::SectorLocks, i::Int) = sl.seclocks[i]

@@ -9,7 +9,7 @@ _reduce_op(x) = nothing
 
 _reduce_init(reduce, st::AbstractRasterStack) = map(A -> _reduce_init(reduce, A), st)
 _reduce_init(reduce, ::AbstractRaster{T}) where T = _reduce_init(reduce, T)
-_reduce_init(reduce, nt::NamedTuple) where T = map(x -> _reduce_init(reduce, x), nt)
+_reduce_init(reduce, nt::NamedTuple) = map(x -> _reduce_init(reduce, x), nt)
 _reduce_init(f, x) = _reduce_init(f, typeof(x)) 
 _reduce_init(::Nothing, x::Type{T}) where T = zero(T)
 _reduce_init(f::Function, ::Type{T}) where T = zero(f((zero(nonmissingtype(T)), zero(nonmissingtype(T)))))
@@ -326,22 +326,23 @@ function _rasterize!(x, ::GI.AbstractGeometryTrait, geom;
     x1 = view(x, Touches(ext))
     length(x1) > 0 || return x
 
-    bools = _init_bools(x1)
+    bools = _init_bools(x1; metadata=metadata(x))
     boolmask!(bools, geom; lock, kw...)
-    # TODO Most of our locks are not actually necessary.
-    # We could instead use a "sector lock" that knows what areas of the
-    # main array are being written to and spinlocks only for overlaps. 
-    Base.lock(lock, parent(x1)) # Avoid race conditions
-    _fill!(x1, bools, fill, op, init, missingval)
-    Base.unlock(lock)
-    return x
+    hasburned = any(bools)
+    if hasburned 
+        # Avoid race conditions with SectorLock
+        Base.lock(lock, parent(x1)) 
+        _fill!(x1, bools, fill, op, init, missingval)
+        Base.unlock(lock)
+    end
+    return hasburned
 end
 # Fill points
 function _rasterize!(x, trait::GI.AbstractPointTrait, point; fill, lock, kw...)
     isnothing(lock) || Base.lock(lock) # Avoid race conditions
-    _fill_point!(x, trait, point; fill, kw...)
+    hasburned = _fill_point!(x, trait, point; fill, kw...)
     isnothing(lock) || Base.unlock(lock)
-    return x
+    return hasburned
 end
 # We rasterize all iterables from here
 function _rasterize!(x, trait::Nothing, geoms; fill, reduce=nothing, op=nothing, kw...)
@@ -353,23 +354,23 @@ function _rasterize!(x, trait::Nothing, geoms; fill, reduce=nothing, op=nothing,
 end
 
 function _rasterize_iterable!(
-    x1, geoms::AbstractVector, reduce::Nothing, op::Nothing, fill, fill_itr::Iterators.Cycle, thread_allocs; 
+    x1, geoms, reduce::Nothing, op::Nothing, fill, fill_itr::Iterators.Cycle, thread_allocs; 
     kw...
 )
     # We dont need to iterate the fill, so just mask
-    mask = boolmask(geoms; to=x1, combine=true, allocs=thread_allocs, kw...)
+    mask = boolmask(geoms; to=x1, combine=true, allocs=thread_allocs, metadata=metadata(x1), kw...)
     # And broadcast the fill
     broadcast_dims!(x1, x1, mask) do v, m
         m ? fill_itr.xs : v
     end
 end
 function _rasterize_iterable!(
-    x1, geoms::AbstractVector, reduce::Nothing, op::Nothing, fill, 
+    x1, geoms, reduce::Nothing, op::Nothing, fill, 
     fill_itr::NamedTuple{<:Any,Tuple{<:Iterators.Cycle,Vararg}}, thread_allocs; 
     kw...
 )
     # We dont need to iterate the fill, so just mask
-    mask = boolmask(geoms; to=x1, combine=true, allocs=thread_allocs, kw...)
+    mask = boolmask(geoms; to=x1, combine=true, allocs=thread_allocs, metadata=metadata(x1), kw...)
     foreach(x1, fill_itr) do A, f 
         # And broadcast the fill
         broadcast_dims!(A, A, mask) do v, m
@@ -379,23 +380,27 @@ function _rasterize_iterable!(
 end
 # Simple iterator
 function _rasterize_iterable!(
-    x1, geoms::AbstractVector, reduce::Nothing, op::Nothing, fill, fill_itr, thread_allocs; 
-    lock=SectorLocks(), kw...
+    x1, geoms, reduce::Nothing, op::Nothing, fill, fill_itr, thread_allocs; 
+    lock=SectorLocks(), verbose=true, kw...
 )
+    range = _geomindices(geoms)
+    burnchecks = _alloc_burnchecks(range)
     p = _progress(length(geoms); desc="Rasterizing...")
     Threads.@threads :static for i in _geomindices(geoms)
         geom = _getgeom(geoms, i)
         ismissing(geom) && continue
         allocs = _get_alloc(thread_allocs)
         fill = _getfill(fill_itr, i)
-        _rasterize!(x1, GI.trait(geom), geom; kw..., fill, allocs, lock)
+        burnchecks[i] = _rasterize!(x1, GI.trait(geom), geom; kw..., fill, allocs, lock)
         ProgressMeter.next!(p)
     end
+    _set_burnchecks(burnchecks, metadata(x1), verbose)
 end
+
 # Iterator with `reduce` or `op`
 function _rasterize_iterable!(
-    x1, geoms::AbstractVector, reduce, op, fill, fill_itr, thread_allocs; 
-    lock=SectorLocks(), kw...
+    x1, geoms, reduce, op, fill, fill_itr, thread_allocs; 
+    lock=SectorLocks(), verbose=true, kw...
 )
     # See if there is a reducing operator passed in, or matching `reduce`
     op1 = isnothing(op) ? _reduce_op(reduce) : op
@@ -404,13 +409,15 @@ function _rasterize_iterable!(
         # If there still isn't any `op`, reduce over all the values later rather than iteratively
         _reduce_fill!(reduce, x1, geoms, fill_itr; kw..., init, allocs=thread_allocs, lock)
     else # But if we can, use op in a fast iterative reduction
+        range = _geomindices(geoms)
+        burnchecks = _alloc_burnchecks(range)
         p = _progress(length(geoms); desc="Rasterizing...")
-        if isconcretetype(nonmissingtype(eltype(geoms))) && GI.trait(first(skipmissing(geoms))) isa PolygonTrait
-            for point in geoms
-                ismissing(point) && continue
+        if isconcretetype(nonmissingtype(eltype(geoms))) && GI.trait(first(skipmissing(geoms))) isa GI.PointTrait
+            for geom in geoms
+                ismissing(geom) && continue
                 allocs = _get_alloc(thread_allocs)
                 fill = _getfill(fill_itr, i)
-                _rasterize!(x1, GI.trait(geom), geom; kw..., fill, op=op1, allocs, init, lock)
+                burnchecks[i] = _rasterize!(x1, GI.trait(geom), geom; kw..., fill, op=op1, allocs, init, lock)
                 ProgressMeter.next!(p)
             end
         else
@@ -419,10 +426,11 @@ function _rasterize_iterable!(
                 ismissing(geom) && continue
                 allocs = _get_alloc(thread_allocs)
                 fill = _getfill(fill_itr, i)
-                _rasterize!(x1, GI.trait(geom), geom; kw..., fill, op=op1, allocs, init, lock)
+                burnchecks[i] = _rasterize!(x1, GI.trait(geom), geom; kw..., fill, op=op1, allocs, init, lock)
                 ProgressMeter.next!(p)
             end
         end
+        _set_burnchecks(burnchecks, metadata(x1), verbose)
     end
 end
 
@@ -441,7 +449,7 @@ function _reduce_fill!(f, st::AbstractRasterStack, geoms, fill_itr::NamedTuple{K
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(st, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
-    masks = boolmask(geoms; to=st, combine=false, kw...)
+    masks = boolmask(geoms; to=st, combine=false, metadata=metadata(x), kw...)
     # Use a generator over the array axis in case the iterator has no length
     geom_axis = axes(masks, Dim{:geometry}())
     fill = map(itr -> [v for (_, v) in zip(geom_axis, itr)], fill_itr)
@@ -451,7 +459,7 @@ function _reduce_fill!(f, A::AbstractRaster, geoms, fill_itr; kw...)
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(A, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
-    masks = boolmask(geoms; to=A, combine=false, kw...)
+    masks = boolmask(geoms; to=A, combine=false, metadata=metadata(x), kw...)
     # Use a generator over the array axis in case the iterator has no length
     geom_axis = parent(axes(masks, Dim{:geometry}()))
     fill = [val for (i, val) in zip(geom_axis, fill_itr)]
@@ -496,7 +504,7 @@ function _create_rasterize_dest(f, fill::Union{Tuple,NamedTuple}, init, keys, di
     _create_rasterize_dest(f, fill, init, DD.uniquekeys(fill), dims; kw...)
 end
 function _create_rasterize_dest(f, fill::Union{Tuple,NamedTuple}, init, keys::Union{Tuple,NamedTuple}, dims;
-    filename=nothing, missingval=nothing, metadata=NoMetadata(), suffix=nothing, kw...
+filename=nothing, missingval=nothing, metadata=Metadata(Dict()), suffix=nothing, kw...
 )
     dims = _as_intervals(dims) # Only makes sense to rasterize to intervals
     init1 = isnothing(init) ? map(_ -> nothing, fill) : init
@@ -511,7 +519,7 @@ function _create_rasterize_dest(f, fill::Union{Tuple,NamedTuple}, init, keys::Un
     return st
 end
 function _create_rasterize_dest(f, fill, init, name, dims;
-    filename=nothing, missingval=nothing, metadata=NoMetadata(), suffix=nothing, kw...
+    filename=nothing, missingval=nothing, metadata=Metadata(Dict()), suffix=nothing, kw...
 )
     dims = _as_intervals(dims) # Only makes sense to rasterize to intervals
     missingval = isnothing(missingval) ? _writeable_missing(filename, typeof(val)) : missingval
