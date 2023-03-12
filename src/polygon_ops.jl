@@ -52,7 +52,7 @@ struct Allocs{B}
 end
 Allocs(buffer) = Allocs(buffer, Vector{Edge}(undef, 0), Vector{Edge}(undef, 0), Vector{Float64}(undef, 0))
 
-function _burning_allocs(x; nthreads=Threads.threadpoolsize(), kw...) 
+function _burning_allocs(x; nthreads=_nthreads(), kw...) 
     return [Allocs(_init_bools(x; metadata=Metadata())) for _ in 1:nthreads]
 end
 
@@ -770,66 +770,4 @@ function _burncheck_info(burnchecks)
     nmissed > 0 && @info "$nmissed geometries did not affect any pixels. See `metadata(raster)[:missed_polygons]` for a vector of misses"
 end
 
-##############################
-# SectorLocks
-
-# These lets us lock part of the raster so we can work in parallel
-# without always blocking other threads.
-
-# Usually most polygons cover a small subset of the raster.
-
-mutable struct SectorLock
-    lock::Threads.SpinLock
-    sector::CartesianIndices{2,Tuple{UnitRange{Int},UnitRange{Int}}}
-end
-SectorLock() = SectorLock(Threads.SpinLock(), CartesianIndices((1:0, 1:0)))
-
-Base.lock(sl::SectorLock) = lock(sl.lock)
-Base.unlock(sl::SectorLock) = unlock(sl.lock)
-Base.islocked(sl::SectorLock) = islocked(sl.lock)
-
-# One lock for each thread - this is only for :static threads
-struct SectorLocks
-    seclocks::Vector{SectorLock}
-    spinlock::Threads.SpinLock
-end
-SectorLocks(n::Int) = SectorLocks([SectorLock() for _ in 1:n], Threads.SpinLock())
-SectorLocks() = SectorLocks(Threads.threadpoolsize())
-
-Base.length(sl::SectorLocks) = length(sl.seclocks)
-Base.getindex(sl::SectorLocks, i::Int) = sl.seclocks[i]
-Base.iterate(sl::SectorLocks, args...) = iterate(sl.seclocks, args...)
-Base.eachindex(sl::SectorLocks) = 1:length(sl)
-
-Base.lock(sl::SectorLocks, sector::SubArray) = 
-    Base.lock(sl, CartesianIndices(sector.indices)) 
-Base.lock(sl::SectorLocks, sector::Tuple) = Base.lock(sl, CartesianIndices(sector)) 
-function Base.lock(seclocks::SectorLocks, sector::CartesianIndices)
-    idx = Threads.threadid()
-    thread_lock = seclocks.seclocks[idx]
-    thread_lock.sector = sector
-    # Lock so no other sectors can be added
-    lock(seclocks.spinlock)
-    # Check for any other lock that intersects
-    for i in eachindex(seclocks)
-        i == idx && continue
-        seclock = seclocks[i]
-        if islocked(seclock) && _intersects(seclock, sector)
-            # Unlock the main spinlock so this thread
-            # is not blocking other non-overlapping sectors
-            unlock(seclocks.spinlock)
-            # Lock the sector and wait 
-            lock(seclock)
-            unlock(seclock)
-            lock(seclocks.spinlock)
-        end
-    end
-    # Lock this sector
-    lock(thread_lock)
-    # Unlock the main spinlock
-    unlock(seclocks.spinlock)
-end
-Base.unlock(sl::SectorLocks) = unlock(sl[Threads.threadid()])
-
-_intersects(seclock::SectorLock, sector) = _intersects(seclock.sector, sector) 
-_intersects(sector1, sector2) = length(intersect(sector1, sector2)) > 0
+_nthreads() = Threads.nthreads()

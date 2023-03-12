@@ -76,7 +76,7 @@ _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom; mode, kw...) =
 function _coverage!(A::AbstractRaster, ::Union{Nothing,GI.FeatureCollectionTrait}, geoms; 
     mode, scale, verbose
 )
-    n = Threads.threadpoolsize()
+    n = _nthreads()
     buffers = (
         allocs = _burning_allocs(A),
         linebuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
@@ -105,7 +105,7 @@ end
 function _union_coverage!(A::AbstractRaster, geoms, buffers; 
     scale, subpixel_dims
 )
-    n = Threads.threadpoolsize()
+    n = _nthreads()
     centeracc = [_init_bools(A, Bool; missingval=false) for _ in 1:n]
     lineacc = [_init_bools(A, Bool; missingval=false) for _ in 1:n]
     subpixel_buffer = [falses(size(A) .* scale) for _ in 1:n]
@@ -245,7 +245,7 @@ end
 function _sum_coverage!(A::AbstractRaster, geoms, buffers; 
     scale, subpixel_dims, verbose=true
 )
-    n = Threads.threadpoolsize()
+    n = _nthreads()
     coveragebuffers = [fill!(similar(A), 0.0) for _ in 1:n]
     p = _progress(length(geoms); desc="Calculating coverage...")
     missed_pixels = fill(0, n)

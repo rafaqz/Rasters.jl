@@ -117,6 +117,7 @@ include("write.jl")
 include("convenience.jl")
 include("show.jl")
 include("plotrecipes.jl")
+include("sectorlock.jl")
 
 
 include("methods/mask.jl")
