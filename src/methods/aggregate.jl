@@ -170,12 +170,15 @@ end
 
 
 """
-    disaggregate(object, scale; filename, progress, keys)
+    disaggregate(method, object, scale; filename, progress, keys)
 
 Disaggregate array, or all arrays in a stack or series, by some scale.
 
 # Arguments
 
+- `method`: a function such as `mean` or `sum` that can combine the
+  value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
+  like `Start()` or `Center()` that species where to sample from in the interval.
 - `object`: Object to aggregate, like `AbstractRasterSeries`, `AbstractStack`,
   `AbstractRaster` or a `Dimension`.
 - `scale`: the aggregation factor, which can be an integer, a tuple of integers
@@ -192,7 +195,7 @@ Use [`read`](@ref) on `src` before use where required.
 
 """
 function disaggregate end
-function disaggregate(series::AbstractRasterSeries, scale; progress=true, kw...)
+function disaggregate(method, series::AbstractRasterSeries, scale; progress=true, kw...)
     f = i -> disaggregate(method, series[i], scale; progress=false, kw...)
     return if progress
         ProgressMeter.@showprogress "Disaggregating series..." map(f, eachindex(series))
