@@ -205,7 +205,7 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine::Unio
 end
 
 function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; 
-    shape=nothing, verbose=true, boundary=:center, allocs, kw...
+    shape=nothing, verbose=true, boundary=:center, allocs=Allocs(B), kw...
 )
     hasburned = false
     # Use the specified shape or detect it
@@ -254,7 +254,7 @@ function _burn_polygon!(B::AbstractDimArray, geom; kw...)
     _burn_polygon!(B1::AbstractDimArray, GI.geomtrait(geom), geom; kw...)
 end
 function _burn_polygon!(B::AbstractDimArray, trait, geom;
-    fill=true, boundary=:center, geomextent, verbose=false, allocs, kw...
+    fill=true, boundary=:center, geomextent, verbose=false, allocs=Allocs(B), kw...
 )
     allocs = _get_alloc(allocs)
     filtered_edges, max_ylen = _to_edges(geom, dims(B); allocs)

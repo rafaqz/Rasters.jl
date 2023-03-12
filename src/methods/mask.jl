@@ -296,10 +296,13 @@ function boolmask!(dest::AbstractRaster, src::AbstractRaster;
 )
     broadcast!(a -> !isequal(a, missingval), dest, src)
 end
-function boolmask!(dest::AbstractRaster, geoms; allocs=_burning_allocs(), kw...)
+function boolmask!(dest::AbstractRaster, geoms; allocs=nothing, kw...)
     if hasdim(dest, :geometry)
         range = _geomindices(geoms) 
         p = _progress(length(range); desc="Burning each geometry to a BitArray slice...")
+        if isnothing(allocs) 
+            allocs = _burning_allocs(dest)
+        end
         Threads.@threads :static for i in range
             geom = _getgeom(geoms, i)
             ismissing(geom) && continue
@@ -308,6 +311,9 @@ function boolmask!(dest::AbstractRaster, geoms; allocs=_burning_allocs(), kw...)
             ProgressMeter.next!(p)
         end
     else
+        if isnothing(allocs)
+            allocs = Allocs(dest)
+        end
         burn_geometry!(dest, geoms; kw..., allocs, lock, fill=true)
     end
     return dest
