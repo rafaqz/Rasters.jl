@@ -84,7 +84,11 @@ function _to_edges(
 
     # We may have allocated too much
     edges1 = view(edges, 1:edge_count)
-    sort!(edges1; scratch)
+    @static if VERSION < v"1.9-alpha1"
+        sort!(edges1)
+    else
+        sort!(edges1; scratch)
+    end
 
     return edges1, max_ylen
 end
