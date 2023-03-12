@@ -174,8 +174,8 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait,
     _burn_geometry!(B, nothing, geoms; kw...)
 end
 # Where geoms is an iterator
-function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine::Union{Bool,Nothing}=nothing, 
-    verbose=true, kw...
+function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; 
+    combine::Union{Bool,Nothing}=nothing, lock=SectorLocks(), verbose=true, kw...
 )
     thread_allocs = _burning_allocs(B) 
     range = _geomindices(geoms)
@@ -188,7 +188,7 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; combine::Unio
             ismissing(geom) && continue
             allocs = _get_alloc(thread_allocs)
             B1 = allocs.buffer
-            burnchecks[i] = hasburned = _burn_geometry!(B1, geom; allocs, kw...)
+            burnchecks[i] = hasburned = _burn_geometry!(B1, geom; allocs, lock, kw...)
             ProgressMeter.next!(p)
         end
         buffers = map(a -> a.buffer, thread_allocs)
