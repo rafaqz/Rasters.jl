@@ -258,7 +258,7 @@ end
 MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 1}) = MakieCore.Lines
 MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 2}) = MakieCore.Heatmap
 # 3d rasters are a little more complicated - if dim3 is a singleton, then heatmap, otherwise volume
-function MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 2})
+function MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 3})
     if size(raw_raster, 3) == 1
         MakieCore.Heatmap
     else

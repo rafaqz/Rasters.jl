@@ -1,14 +1,5 @@
 module RastersMakie
 
-# utility macro for backwards compatibility
-macro _using(args...)
-    @static if !isdefined(Base, :get_extension) # julia < 1.9
-        Expr(:using, args)
-    else # julia ≥ 1.9
-        Expr(:using, Expr(:., :., :., args))
-    end
-end
-
 @static if isdefined(Base, :get_extension) # julia < 1.9
     using Makie, Rasters
 else    
@@ -18,7 +9,7 @@ end
 
 using Rasters.DimensionalData
 using Rasters.MakieCore
-using Rasters: band, _balance_grid
+using Rasters: Band, _balance_grid
 
 function Rasters.style_rasters()
     return merge(
@@ -30,7 +21,7 @@ function Rasters.style_rasters()
 end
 
 function lift_layer(r::Observable, inds...)
-    return lift(lift_getindex, r, inds...)
+    return lift(lift_layer, r, inds...)
 end
 
 lift_layer(r::Raster, inds...) = getindex(r, inds...)
