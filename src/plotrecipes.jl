@@ -292,13 +292,13 @@ function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::Ab
     A = permutedims(raster, ds)
     x, y = dims(A)
     xs, ys, zs = DD._withaxes(x, y, (A))
-    return (xs, ys, zs)
+    return (Makie.edges(xs), Makie.edges(ys), zs)
 end
 
 # allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
-function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 3})
+function MakieCore.convert_arguments(sl::MakieCore.SurfaceLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 3})
     @assert size(raw_raster_with_missings, 3) == 1
-    return (raw_raster_with_missings[Band(1)],)
+    return MakieCore.convert_arguments(sl, raw_raster_with_missings[Band(1)])
 end
 
 # allow 3d rasters to be plotted as volumes

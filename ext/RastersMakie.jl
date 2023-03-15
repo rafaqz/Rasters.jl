@@ -164,7 +164,7 @@ function Rasters.rplot(gp::GridPosition, raster::Union{AbstractRaster{T, 3}, Obs
     return layout
 end
 
-function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<: RasterStack}}; ncols = Makie.automatic, nrows = Makie.automatic, colormap = nothing, colorrange = Makie.automatic, link_colorrange = false, link_axes = true, kwargs...) where T
+function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<: RasterStack}}; ncols = Makie.automatic, nrows = Makie.automatic, colormap = nothing, colorrange = Makie.automatic, link_colorrange = false, link_axes = true, axis = (;), kwargs...) where T
 
     val_stack = Makie.to_value(stack)
 
@@ -198,7 +198,7 @@ function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<:
             @error "`rplot` cannot plot a Raster of dimension $(size(raster)).  Please provide a stack of 2D rasters instead."
         end
 
-        ax, plt = Rasters.rplot(layout[fldmod1(i, ncols)...], raster; colormap = cmap, colorrange = crange, kwargs...)
+        ax, plt = Rasters.rplot(layout[fldmod1(i, ncols)...], raster; colormap = cmap, colorrange = crange, axis = axis, kwargs...)
 
         if fldmod1(i, ncols)[2] != 1
             hideydecorations!(ax, label = true, ticklabels = true, ticks = false, grid = false, minorgrid = false, minorticks = false)
@@ -226,14 +226,14 @@ function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<:
 end
 
 
-function Rasters.rplot(raster::Union{AbstractRaster{T, 2}, Observable{<: AbstractRaster{T, 2}}}; kwargs...) where T
-    figure = isempty(kwargs) ? Figure() : with_theme(Figure, merge(Makie.current_default_theme(), Attributes(kwargs)))
+function Rasters.rplot(raster::Union{AbstractRaster{T, 2}, Observable{<: AbstractRaster{T, 2}}}; figure = (;), kwargs...) where T
+    figure = Figure(; figure...)
     axis, plot = Rasters.rplot(figure[1, 1], raster; kwargs...)
     return Makie.FigureAxisPlot(figure, axis, plot)
 end
 
-function Rasters.rplot(raster::Union{AbstractRaster{T, 3}, Observable{<: AbstractRaster{T, 3}}}; colormap = nothing, colorrange = Makie.automatic, kwargs...) where T
-    figure = isempty(kwargs) ? Figure() : with_theme(Figure, merge(Makie.current_default_theme(), Attributes(kwargs)))
+function Rasters.rplot(raster::Union{AbstractRaster{T, 3}, Observable{<: AbstractRaster{T, 3}}}; figure = (;), colormap = nothing, colorrange = Makie.automatic, kwargs...) where T
+    figure = Figure(; figure...)
     layout = Rasters.rplot(figure[1, 1], raster; colormap, colorrange, kwargs...)
     # if draw_title
     #     Label(layout[0, 1:Makie.ncols(layout)], raster_title; fontsize = get(figure.scene.attributes, (:Axis :titlesize), 16), font = get(figure.scene.attributes, (:Axis, :titlefont), :bold))
@@ -242,8 +242,8 @@ function Rasters.rplot(raster::Union{AbstractRaster{T, 3}, Observable{<: Abstrac
 end
 
 
-function Rasters.rplot(raster::Union{RasterStack, Observable{<: RasterStack}}; colormap = nothing, colorrange = Makie.automatic, kwargs...)
-    figure = isempty(kwargs) ? Figure() : with_theme(Figure, merge(Makie.current_default_theme(), Attributes(kwargs)))
+function Rasters.rplot(raster::Union{RasterStack, Observable{<: RasterStack}}; figure = (;), colormap = nothing, colorrange = Makie.automatic, kwargs...)
+    figure = Figure(; figure...)
     layout = Rasters.rplot(figure[1, 1], raster; colormap, colorrange, kwargs...)
     # if draw_title
     #     Label(layout[0, 1:Makie.ncols(layout)], raster_title; fontsize = get(figure.scene.attributes, (:Axis :titlesize), 16), font = get(figure.scene.attributes, (:Axis, :titlefont), :bold))

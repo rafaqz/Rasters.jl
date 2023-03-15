@@ -472,7 +472,7 @@ Makie.set_theme!(Makie.minimal_default)
 ```
 
 ```@docs
-rplot
+Rasters.rplot
 ```
 
 
