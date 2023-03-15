@@ -168,7 +168,7 @@ function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<:
 
     val_stack = Makie.to_value(stack)
 
-    @assert (length(size(stack)) == 2 || size(stack, 3) == 1)
+    @assert (length(size(val_stack)) == 2 || size(val_stack, 3) == 1)
 
     nrows, ncols = if ncols isa Makie.Automatic && nrows isa Makie.Automatic
         _balance_grid(length(propertynames(val_stack)))
