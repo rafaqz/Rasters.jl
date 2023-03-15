@@ -298,7 +298,7 @@ end
 # allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
 function MakieCore.convert_arguments(sl::MakieCore.SurfaceLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 3})
     @assert size(raw_raster_with_missings, 3) == 1
-    return MakieCore.convert_arguments(sl, raw_raster_with_missings[Band(1)])
+    return MakieCore.convert_arguments(sl, raw_raster_with_missings[:, :, begin])
 end
 
 # allow 3d rasters to be plotted as volumes
