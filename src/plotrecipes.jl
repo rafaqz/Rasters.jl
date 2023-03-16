@@ -277,7 +277,7 @@ function MakieCore.convert_arguments(::MakieCore.PointBased, raw_raster::Abstrac
 end
     
 
-function MakieCore.convert_arguments(::MakieCore.ContinuousSurface, raw_raster::AbstractRaster{<: Union{Missing, Real}, 2})
+function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::AbstractRaster{<: Union{Missing, Real}, 2})
     raster = replace_missing(missing_or_float32.(raw_raster), missingval = NaN32)
     ds = DD._fwdorderdims(raster)
     A = permutedims(raster, ds)
@@ -286,13 +286,28 @@ function MakieCore.convert_arguments(::MakieCore.ContinuousSurface, raw_raster::
     return (xs, ys, zs)
 end
 
+function __edges(v::AbstractVector)
+    l = length(v)
+    if l == 1
+        return [v[begin] - 0.5, v[begin] + 0.5]
+    else
+        # Equivalent to
+        # mids = 0.5 .* (v[1:end-1] .+ v[2:end])
+        # borders = [2v[1] - mids[1]; mids; 2v[end] - mids[end]]
+        borders = [0.5 * (v[max(begin, i)] + v[min(end, i+1)]) for i in (firstindex(v) - 1):lastindex(v)]
+        borders[1] = 2borders[1] - borders[2]
+        borders[end] = 2borders[end] - borders[end-1]
+        return borders
+    end
+end
+
 function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::AbstractRaster{<: Union{Missing, Real}, 2})
     raster = replace_missing(missing_or_float32.(raw_raster), missingval = NaN32)
     ds = DD._fwdorderdims(raster)
     A = permutedims(raster, ds)
     x, y = dims(A)
     xs, ys, zs = DD._withaxes(x, y, (A))
-    return (Makie.edges(xs), Makie.edges(ys), zs)
+    return (__edges(xs), __edges(ys), zs)
 end
 
 # allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
@@ -321,6 +336,14 @@ function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::Abstra
     x, y = dims(A)
     xs, ys, zs = DD._withaxes(x, y, (A))
     return (xs, ys, collect(zs))
+end
+
+function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::AbstractRaster{<: ColorTypes.Colorant, 2})
+    ds = DD._fwdorderdims(raw_raster)
+    A = permutedims(raw_raster, ds)
+    x, y = dims(A)
+    xs, ys, zs = DD._withaxes(x, y, (A))
+    return (__edges(xs), __edges(ys), collect(zs))
 end
 
             
