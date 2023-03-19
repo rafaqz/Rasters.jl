@@ -67,7 +67,11 @@ end
     @inferred st[:ga1][X=2:4, Y=5:6]
     # FIXME: This isn't inferred, the constants don't propagate like they
     # do in the above call. Probably due to the anonymous wrapper function.
-    @test_broken @inferred st[:ga1, X(2:4), Y(5:6)] isa Raster
+    if VERSION < v"1.9.0-"
+        @test_broken @inferred st[:ga1, X(2:4), Y(5:6)] isa Raster
+    else
+        @test @inferred st[:ga1, X(2:4), Y(5:6)] isa Raster
+    end
 
     # Getindex for a whole st of new Rasters
     a = st[X=2:4, Y=5:6]

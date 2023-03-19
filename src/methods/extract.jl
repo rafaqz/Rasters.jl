@@ -23,7 +23,7 @@ sliced arrays or stacks will be returned instead of single values.
 Here we extact points matching the occurrence of the Mountain Pygmy Possum,
 _Burramis parvus_. This could be used to fit a species distribution model.
 
-```jldoctest
+```julia
 using Rasters, GBIF2, CSV
 
 # Get a stack of BioClim layers, and replace missing values with `missing`

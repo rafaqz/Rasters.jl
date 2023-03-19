@@ -1,4 +1,5 @@
 using Documenter, Rasters, Plots, Logging, Statistics, Dates
+import Makie, CairoMakie
 
 using Rasters.LookupArrays, Rasters.Dimensions
 

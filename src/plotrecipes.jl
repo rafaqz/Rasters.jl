@@ -248,3 +248,157 @@ function DD.refdims_title(refdim::Band; issingle=false)
     end
 end
 
+
+# Makie.jl recipes
+
+# For now, these are just basic conversions from 2D rasters to surface-like (surface, heatmap) plot types.
+# Once Makie supports figure level recipes, we should integrate those.
+    
+# First, define default plot types for Rasters
+MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 1}) = MakieCore.Lines
+MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 2}) = MakieCore.Heatmap
+# 3d rasters are a little more complicated - if dim3 is a singleton, then heatmap, otherwise volume
+function MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 3})
+    if size(raw_raster, 3) == 1
+        MakieCore.Heatmap
+    else
+        MakieCore.Volume
+    end
+end
+
+
+missing_or_float32(num::Number) = Float32(num)
+missing_or_float32(::Missing) = missing
+
+# then, define how they are to be converted to plottable data
+function MakieCore.convert_arguments(::MakieCore.PointBased, raw_raster::AbstractRaster{<: Union{Missing, Real}, 1})
+    z = map(Rasters._prepare, dims(raw_raster))
+    return (parent(Float32.(replace_missing(missing_or_float32.(raw_raster), missingval = NaN32))), index(z))
+end
+    
+
+function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::AbstractRaster{<: Union{Missing, Real}, 2})
+    raster = replace_missing(missing_or_float32.(raw_raster), missingval = NaN32)
+    ds = DD._fwdorderdims(raster)
+    A = permutedims(raster, ds)
+    x, y = dims(A)
+    xs, ys, zs = DD._withaxes(x, y, (A))
+    return (xs, ys, zs)
+end
+
+function __edges(v::AbstractVector)
+    l = length(v)
+    if l == 1
+        return [v[begin] - 0.5, v[begin] + 0.5]
+    else
+        # Equivalent to
+        # mids = 0.5 .* (v[1:end-1] .+ v[2:end])
+        # borders = [2v[1] - mids[1]; mids; 2v[end] - mids[end]]
+        borders = [0.5 * (v[max(begin, i)] + v[min(end, i+1)]) for i in (firstindex(v) - 1):lastindex(v)]
+        borders[1] = 2borders[1] - borders[2]
+        borders[end] = 2borders[end] - borders[end-1]
+        return borders
+    end
+end
+
+function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::AbstractRaster{<: Union{Missing, Real}, 2})
+    raster = replace_missing(missing_or_float32.(raw_raster), missingval = NaN32)
+    ds = DD._fwdorderdims(raster)
+    A = permutedims(raster, ds)
+    x, y = dims(A)
+    xs, ys, zs = DD._withaxes(x, y, (A))
+    return (__edges(xs), __edges(ys), zs)
+end
+
+# allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
+function MakieCore.convert_arguments(sl::MakieCore.SurfaceLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 3})
+    @assert size(raw_raster_with_missings, 3) == 1
+    return MakieCore.convert_arguments(sl, raw_raster_with_missings[:, :, begin])
+end
+
+# allow 3d rasters to be plotted as volumes
+function MakieCore.convert_arguments(::MakieCore.VolumeLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 3})
+    raster = replace_missing(missing_or_float32.(raw_raster), missingval = NaN32)
+    ds = DD._fwdorderdims(raster)
+    A = permutedims(raster, ds)
+    x, y, z = dims(A)
+    xs, ys, zs, vs = DD._withaxes(x, y, z, A)
+    return (xs, ys, zs, vs)
+end
+
+# plot rasters of ColorTypes as images
+# define the correct plottype
+MakieCore.plottype(::AbstractRaster{<: ColorTypes.Colorant, 2}) = MakieCore.Image
+
+function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::AbstractRaster{<: ColorTypes.Colorant, 2})
+    ds = DD._fwdorderdims(raw_raster)
+    A = permutedims(raw_raster, ds)
+    x, y = dims(A)
+    xs, ys, zs = DD._withaxes(x, y, (A))
+    return (xs, ys, collect(zs))
+end
+
+function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::AbstractRaster{<: ColorTypes.Colorant, 2})
+    ds = DD._fwdorderdims(raw_raster)
+    A = permutedims(raw_raster, ds)
+    x, y = dims(A)
+    xs, ys, zs = DD._withaxes(x, y, (A))
+    return (__edges(xs), __edges(ys), collect(zs))
+end
+
+            
+# fallbacks with descriptive error messages
+MakieCore.convert_arguments(::MakieCore.SurfaceLike, ::AbstractRaster{<: Real, Dim}) = @error """
+            We don't currently support plotting Rasters of dimension $Dim in Makie.jl. in surface/heatmap-like plots.
+            
+            In order to plot, please provide a 2-dimensional slice of your raster.
+            For example, in a 3-dimensional raster, this would look like:
+            ```julia
+            myraster = Raster(...)
+            heatmap(myraster)          # errors
+            heatmap(myraster[:, :, 1]) # use some index to subset, this works!
+            ```
+            """
+            
+
+# initial definitions of `rplot`, to get around the extension package availability question
+
+function rplot() 
+    @error("Please load `Makie.jl` and then call this function.  If Makie is loaded, then you can't call `rplot` with no arguments!")
+end
+function rplot!() 
+    @error("Please load `Makie.jl` and then call this function.  If Makie is loaded, then you can't call `rplot!` with no arguments!")
+end
+
+# define the theme
+
+# this function is defined so that we can override style_rasters in RastersMakie.jl
+function __style_rasters()
+    return MakieCore.Attributes(
+        Axis = (
+            xtickalign = 1.0,
+            ytickalign = 1.0,
+            xticklabelrotation = -π/4,
+            xticklabelsize = 14,
+            yticklabelsize = 14,
+            # aspect = DataAspect(),
+        ),
+
+        Colorbar = (
+            ticklabelsize = 11,
+            tickalign = 1.0,
+        ),
+    )
+end
+
+style_rasters() = __style_rasters()
+
+function color_rasters()
+    return MakieCore.Attributes(
+        colormap = :plasma,
+    )
+end
+
+function theme_rasters()
+    return merge(style_rasters(), color_rasters())
+end
