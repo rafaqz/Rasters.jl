@@ -152,7 +152,7 @@ function _rasterize(to::DimTuple, data::T; fill, name=Symbol(""), reduce=nothing
             map(fill) do f
                 f in colnames || _fill_key_error(colnames, fill)
                 zero(Tables.columntype(schema, f))
-            end
+            end |> NamedTuple{fill}
         elseif fill isa AbstractArray
             zero(eltype(fill))
         else
@@ -160,6 +160,7 @@ function _rasterize(to::DimTuple, data::T; fill, name=Symbol(""), reduce=nothing
             fill
         end
         init = if isnothing(init)
+            @show reduce init fillval
             isnothing(reduce) ? nothing : _reduce_init(reduce, fillval)
         else
             init
@@ -410,7 +411,8 @@ function _rasterize_iterable!(
         burnchecks = _alloc_burnchecks(range)
         p = _progress(length(geoms); desc="Rasterizing...")
         if isconcretetype(nonmissingtype(eltype(geoms))) && GI.trait(first(skipmissing(geoms))) isa GI.PointTrait
-            for geom in geoms
+            for i in _geomindices(geoms)
+                geom = _getgeom(geoms, i)
                 ismissing(geom) && continue
                 allocs = _get_alloc(thread_allocs)
                 fill = _getfill(fill_itr, i)

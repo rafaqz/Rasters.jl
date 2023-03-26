@@ -7,6 +7,7 @@ if VERSION >= v"1.5.0"
     Aqua.test_undefined_exports(Rasters)
     Aqua.test_project_extras(Rasters)
     Aqua.test_deps_compat(Rasters)
+    Aqua.test_piracy(Rasters)
     Aqua.test_project_toml_formatting(Rasters)
 end
 
