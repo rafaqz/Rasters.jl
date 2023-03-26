@@ -303,7 +303,7 @@ function boolmask!(dest::AbstractRaster, geoms; allocs=nothing, lock=nothing, kw
         if isnothing(allocs) 
             allocs = _burning_allocs(dest)
         end
-        Threads.@threads :static for i in range
+        Threads.@threads for i in range
             geom = _getgeom(geoms, i)
             ismissing(geom) && continue
             slice = view(dest, Dim{:geometry}(i))

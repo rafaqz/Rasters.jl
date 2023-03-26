@@ -183,7 +183,7 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
     burnchecks = _alloc_burnchecks(range)
     p = _progress(length(range))
     if isnothing(combine) || combine
-        Threads.@threads :static for i in range
+        Threads.@threads for i in range
             geom = _getgeom(geoms, i)
             ismissing(geom) && continue
             allocs = _get_alloc(thread_allocs)
@@ -194,7 +194,7 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
         buffers = map(a -> a.buffer, thread_allocs)
         _do_broadcast!(|, B, buffers...)
     else
-        Threads.@threads :static for i in range
+        Threads.@threads for i in range
             geom = _getgeom(geoms, i)
             ismissing(geom) && continue
             B1 = view(B, Dim{:geometry}(i))
@@ -440,10 +440,14 @@ end
 end
 
 # Fill Int indices directly
-_fill_index!(st::AbstractRasterStack, fill::Union{Tuple,NamedTuple}, I) = st[I...] = fill
+_fill_index!(st::AbstractRasterStack, fill::NamedTuple, I::NTuple{<:Any,Int}) = st[I...] = fill
 _fill_index!(A::AbstractRaster, fill, I::NTuple{<:Any,Int}) = A[I...] = fill
-_fill_index!(A::AbstractRaster, fill::Function, I::NTuple{<:Any,Int}) =
-    A[I...] = fill(A[I...])
+_fill_index!(A::AbstractRaster, fill::Function, I::NTuple{<:Any,Int}) = A[I...] = fill(A[I...])
+
+_fill_index!(st::AbstractRasterStack, fill::NamedTuple, I) = 
+    map((A, f) -> A[I...] .= Ref(f), st, fill)
+_fill_index!(A::AbstractRaster, fill, I) = A[I...] .= Ref(fill)
+_fill_index!(A::AbstractRaster, fill::Function, I) = A[I...] .= fill.(view(A, I...))
 
 # _burn_lines!
 # Fill a raster with `fill` where pixels touch lines in a geom

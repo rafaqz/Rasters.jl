@@ -114,7 +114,7 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
 
     p = _progress(length(geoms) + size(A, Y()); desc="Calculating union coverage...")
 
-    Threads.@threads :static for i in _geomindices(geoms)
+    Threads.@threads for i in _geomindices(geoms)
         geom = _getgeom(geoms, i)
         idx = Threads.threadid()
         thread_buffers = map(b -> b[idx], allbuffers)
@@ -131,7 +131,7 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
     line_covered = _do_broadcast!(|, lineacc[1], lineacc...)
 
     missed_pixels = fill(0, n)
-    Threads.@threads :static for y in axes(A, Y())
+    Threads.@threads for y in axes(A, Y())
         for x in axes(A, X())
             D = (X(x), Y(y))
             if center_covered[D...]
@@ -251,7 +251,7 @@ function _sum_coverage!(A::AbstractRaster, geoms, buffers;
     missed_pixels = fill(0, n)
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
-    Threads.@threads :static for i in range
+    Threads.@threads for i in range
         geom = _getgeom(geoms, i)
         ismissing(geom) && continue
         idx = Threads.threadid()

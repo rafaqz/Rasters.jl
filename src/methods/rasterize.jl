@@ -17,13 +17,6 @@ _reduce_init(::typeof(sum), ::Type{T}) where T = zero(nonmissingtype(T))
 _reduce_init(::typeof(prod), ::Type{T}) where T = oneunit(nonmissingtype(T))
 _reduce_init(::typeof(minimum), ::Type{T}) where T = typemax(nonmissingtype(T))
 _reduce_init(::typeof(maximum), ::Type{T}) where T = typemin(nonmissingtype(T))
-# TODO
-# _reduce_init(::typeof(extrema), ::Type{Union{Missing,T}}) where T<:Tuple{T1,T2} where {T1,T2} =
-#     (typemax(nonmissingtype(T1)), typemin(nonmissingtype(T2))) 
-# _reduce_init(::typeof(extrema), ::Type{T}) where T<:Tuple{T1,T2} where {T1,T2} =
-#     (typemax(nonmissingtype(T1)), typemin(nonmissingtype(T2))) 
-# _reduce_init(::typeof(extrema), ::Type{T}) where T<:Number =
-#     (typemax(nonmissingtype(T)), typemin(nonmissingtype(T)))
 
 """
     rasterize([reduce], obj; to, fill, kw...)
@@ -282,7 +275,9 @@ function rasterize!(reduce::typeof(count), x::RasterStackOrArray, data; fill=not
 end
 function rasterize!(x::RasterStackOrArray, data::T; fill, reduce=nothing, kw...) where T
     function _rasterize_point_table_inner!(x, pointcols, fill_itr; kw...)
-        for (point, fill) in  zip(zip(pointcols...), fill_itr)
+        for i in eachindex(first(pointcols))
+            point = map(c -> c[i], pointcols)
+            fill = _getfill(fill_itr, i)
             _fill_point!(x, point; fill, kw...)
         end
     end
@@ -292,16 +287,16 @@ function rasterize!(x::RasterStackOrArray, data::T; fill, reduce=nothing, kw...)
         geomcolname = first(GI.geometrycolumns(data))
         cols = Tables.columns(data)
 
+        fill_itr = _iterable_fill(cols, fill)
         if geomcolname in Tables.columnnames(cols)
             # Its a geometry table
             geomcol = Tables.getcolumn(cols, geomcolname)
-            fill_itr = _iterable_fill(cols, fill)
             _rasterize!(x, nothing, geomcol; reduce, fill=fill_itr, kw...)
         else
             # Its a point table
             dimscols = _auto_dim_columns(data, dims(x))
             pointcols = map(k -> Tables.getcolumn(data, k), map(DD.dim2key, dimscols))
-            reduce == last || throw(ArgumentError("Can only reduce with `last` on point tables. Make a github issue at the Rasters.jl repository if you need something else."))
+            reduce in (last, nothing) || throw(ArgumentError("Can only reduce with `last` on point tables. Make a github issue at the Rasters.jl repository if you need something else."))
             _rasterize_point_table_inner!(x, pointcols, fill_itr; reduce, kw...)
         end
     else
@@ -339,7 +334,9 @@ function _rasterize!(x, ::GI.AbstractGeometryTrait, geom;
 end
 # Fill points
 function _rasterize!(x, trait::GI.AbstractPointTrait, point; fill, lock=nothing, kw...)
-    isnothing(lock) || Base.lock(lock, x) # Avoid race conditions
+    # Avoid race conditions whern Point is in a mixed set of Geometries
+    # for all points we avoid parallel rasterization completely
+    isnothing(lock) || Base.lock(lock, x) 
     hasburned = _fill_point!(x, trait, point; fill, kw...)
     isnothing(lock) || Base.unlock(lock)
     return hasburned
@@ -386,7 +383,7 @@ function _rasterize_iterable!(
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
     p = _progress(length(geoms); desc="Rasterizing...")
-    Threads.@threads :static for i in _geomindices(geoms)
+    Threads.@threads for i in _geomindices(geoms)
         geom = _getgeom(geoms, i)
         ismissing(geom) && continue
         allocs = _get_alloc(thread_allocs)
@@ -421,7 +418,7 @@ function _rasterize_iterable!(
                 ProgressMeter.next!(p)
             end
         else
-            Threads.@threads :static for i in _geomindices(geoms)
+            Threads.@threads for i in _geomindices(geoms)
                 geom = _getgeom(geoms, i)
                 ismissing(geom) && continue
                 allocs = _get_alloc(thread_allocs)
@@ -469,7 +466,7 @@ end
 # Separated as a function barrier for type stability
 function _reduce_fill_inner!(f, A::AbstractRaster{T}, geoms, fill::Union{AbstractVector,NamedTuple}, masks) where T
     p = _progress(size(A, Y()); desc="Reducing...")
-    Threads.@threads :static for y in axes(A, Y())
+    Threads.@threads for y in axes(A, Y())
         for x in axes(A, X())
             D = (X(x), Y(y))
             # Do DimensionalData.jl indexing manually to avoid taking a view of the index and TwicePrecision problems
@@ -560,12 +557,10 @@ end
 ######################################
 # Fill
 
-function _fill!(st::AbstractRasterStack, B, fill, op, init, missingval)
-    if fill isa NamedTuple
-        init = isnothing(init) ? map(_ -> nothing, fill) : init
-        foreach(values(st), fill, init) do a, f, i
-            _fill!(a, B, f, op, i, missingval)
-        end
+function _fill!(st::AbstractRasterStack, B, fill::NamedTuple, op, init::Union{Nothing,NamedTuple}, missingval)
+    init = isnothing(init) ? map(_ -> nothing, fill) : init
+    foreach(DimensionalData.layers(st), fill, init) do a, f, i
+        _fill!(a, B, f, op, i, missingval)
     end
     return st
 end

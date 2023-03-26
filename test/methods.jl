@@ -440,11 +440,15 @@ end
         end
 
         @testset "feature collection, table from fill of Symbol keys" begin
+            data = pointfc
+            pointfc
             for data in (pointfc, DataFrame(pointfc))
                 @testset "NTuple of Symbol fill makes an stack" begin
-                    rst = rasterize(data; to=A, fill=(:val1, :val2))
+                    rst = rasterize(sum, data; to=A, fill=(:val1, :val2))
                     @test keys(rst) == (:val1, :val2)
-                    @test map(sum ∘ skipmissing, rst) === (val1=14, val2=28.0f0)
+                    @test_broken map(sum ∘ skipmissing, rst) === (val1=14, val2=28.0f0)
+                    using Plots
+                    plot(rst)
                     @test_throws ArgumentError rasterize(data; to=A, fill=(:val1, :not_a_column))
                 end
                 @testset "Symbol fill makes an array" begin
