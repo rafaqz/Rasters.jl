@@ -100,7 +100,7 @@ function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,
             title, xlabel, ylabel 
         )
         # plot to the axis with the specified plot type
-        plot = plot!(plottype, axis, raster; colormap, colorrange, nancolor)
+        plot = plot!(plottype, axis, raster; colormap, colorrange, nan_color = lift(to_color, convert(Observable, nancolor))
 
         if draw_colorbar
 
