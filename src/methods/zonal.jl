@@ -74,9 +74,9 @@ zonal(f, x::RasterStackOrArray; of, kw...) = _zonal(f, x, of; kw...)
 _zonal(f, x::RasterStackOrArray, of::RasterStackOrArray) = _zonal(f, x, Extents.extent(of))
 _zonal(f, x::RasterStackOrArray, of::DimTuple) = _zonal(f, x, Extents.extent(of))
 # We don't need to `mask` with an extent, it's square so `crop` will do enough.
-_zonal(f, x::Raster, of::Extents.Extent) = f(skipmissing(crop(x; to=of)))
+_zonal(f, x::Raster, of::Extents.Extent) = f(skipmissing(crop(x; to=of, touches=true)))
 function _zonal(f, x::RasterStack, ext::Extents.Extent)
-    cropped = crop(x; to=ext)
+    cropped = crop(x; to=ext, touches=true)
     prod(size(cropped)) > 0 || return missing
     return map(cropped) do A
         f(skipmissing(A))
@@ -92,28 +92,18 @@ function _zonal(f, x::RasterStackOrArray, of::T; kw...) where T
         _zonal(f, x, GI.trait(of), of; kw...)
     end
 end
-function _zonal(f, x, ::GI.AbstractFeatureCollectionTrait, fc; kw...)
-    n = GI.nfeature(fc)
-    n == 0 && return []
-    geom1 = GI.geometry(GI.getfeature(fc, 1))
-    zs = _alloc_zonal(f, x, geom1, n; kw...)
-    p = _progress(n; desc="Applying $f to each geometry...")
-    Threads.@threads for i in 2:n
-        geom = GI.geometry(GI.getfeature(fc, i))
-        zs[i] = _zonal(f, x, geom; kw...)
-        ProgressMeter.next!(p)
-    end
-end
+_zonal(f, x, ::GI.AbstractFeatureCollectionTrait, fc; kw...) =
+    _zonal(f, x, nothing, fc; kw...)
 _zonal(f, x::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...) =
     _zonal(f, x, GI.geometry(feature); kw...)
 function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom; kw...)
-    cropped = crop(x; to=geom)
+    cropped = crop(x; to=geom, touches=true)
     prod(size(cropped)) > 0 || return missing
     masked = mask(cropped; with=geom, kw...)
     return f(skipmissing(masked))
 end
 function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; kw...)
-    cropped = crop(st; to=geom)
+    cropped = crop(st; to=geom, touches=true)
     prod(size(first(cropped))) > 0 || return map(_ -> missing, st)
     masked = mask(cropped; with=geom, kw...)
     return map(masked) do A
@@ -121,20 +111,18 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; kw
         f(skipmissing(A))
     end
 end
-function _zonal(f, x::RasterStackOrArray, ::Nothing, geoms::AbstractVector; kw...)
-    # TODO offset arrays
-    n = length(geoms)
+function _zonal(f, x::RasterStackOrArray, ::Nothing, geoms; kw...)
+    range = _geomindices(geoms)
+    n = length(range)
     n == 0 && return []
-    zs = _alloc_zonal(f, x, first(geoms), length(geoms); kw...)
-    p = _progress(length(geoms); desc="Applying $f to each geometry...")
-    Threads.@threads for i in eachindex(zs)
-        zs[i] = _zonal(f, x, geoms[i]; kw...)
+    zs = _alloc_zonal(f, x, first(geoms), n; kw...)
+    p = _progress(length(range); desc="Applying $f to each geometry...")
+    Threads.@threads for i in range
+        zs[i] = _zonal(f, x, _getgeom(geoms, i); kw...)
         ProgressMeter.next!(p)
     end
     return zs
 end
-_zonal(f, x::RasterStackOrArray, ::Nothing, geoms; kw...) =
-    _zonal(f, x, nothing, collect(geoms); kw...)
 
 function _alloc_zonal(f, x, geom, n; kw...)
     z1 = _zonal(f, x, geom; kw...)
