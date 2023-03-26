@@ -47,7 +47,7 @@ lift_layer(rs::RasterStack, ind::Symbol) = getproperty(rs, ind)
 - `colorbarlabel = ""`: Usually nothing, but here if you need it.  Sets the label on the colorbar.
 - `colormap = nothing`: The colormap for the heatmap.  This can be set to a vector of colormaps (symbols, strings, `cgrad`s) if plotting a 3D raster or RasterStack.
 - `colorrange = Makie.automatic`: The colormap for the heatmap.  This can be set to a vector of `(low, high)` if plotting a 3D raster or RasterStack.
-- `nancolor = :transparent`: The color which `NaN` values should take.  Default to transparent.
+- `nan_color = :transparent`: The color which `NaN` values should take.  Default to transparent.
 """
 function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,<:Tuple{D1,D2}}, Observable{<: AbstractRaster{T,2,<:Tuple{D1,D2}}}};
     plottype = Makie.Heatmap,
@@ -60,7 +60,7 @@ function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,
     xlabel = Makie.automatic,
     ylabel = Makie.automatic,
     colorbarlabel = Makie.automatic,
-    nancolor = :transparent,
+    nan_color = :transparent,
     colormap = nothing,
     colorrange = Makie.automatic,
     kw_attributes...
@@ -71,7 +71,7 @@ function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,
         Attributes(kw_attributes),
         Attributes(;
             Colorbar = (; label = colorbarlabel,),
-            nancolor,
+            nan_color,
         )
     )
 
@@ -100,7 +100,7 @@ function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,
             title, xlabel, ylabel 
         )
         # plot to the axis with the specified plot type
-        plot = plot!(plottype, axis, raster; colormap, colorrange, nan_color = lift(to_color, convert(Observable, nancolor)))
+        plot = plot!(plottype, axis, raster; colormap, colorrange, nan_color)
 
         if draw_colorbar
 
@@ -121,13 +121,13 @@ function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,
                 end
 
             colorbar.alignmode[] = if colorbar_position == Makie.Top()
-                Makie.Mixed(bottom = colorbar_padding)
+                Makie.Mixed(bottom = colorbar_padding, #= top = 0 =#)
             elseif colorbar_position == Makie.Left()
-                Makie.Mixed(right = colorbar_padding)
+                Makie.Mixed(right = colorbar_padding, #= left = 0 =#)
             elseif colorbar_position == Makie.Bottom()
-                Makie.Mixed(top = colorbar_padding)
+                Makie.Mixed(top = colorbar_padding, #= bottom = 0 =#)
             elseif colorbar_position == Makie.Right()
-                Makie.Mixed(left = colorbar_padding)
+                Makie.Mixed(left = colorbar_padding, #= right = 0 =#)
             else
                 @error "The colorbar position `$(colorbar_position)` was not recognized.  Please pass one of `Makie.Top(), Makie.Bottom(), Makie.Right(), Makie.Left()`."
             end
@@ -151,7 +151,7 @@ function Rasters.rplot(gp::GridPosition, raster::Union{AbstractRaster{T, 3}, Obs
 
     layout = GridLayout(gp, nrows, ncols)
 
-    for (i, layer) in enumerate(axes(raster, 3))
+    for (i, layer) in enumerate(axes(val_raster, 3))
         ax, plt = Rasters.rplot(layout[fldmod1(i, ncols)...], lift_layer(raster, :, :, layer); kwargs...)
         if fldmod1(i, ncols)[2] != 1
             hideydecorations!(ax, label = true, ticklabels = true, ticks = false, grid = false, minorgrid = false, minorticks = false)
@@ -164,7 +164,7 @@ function Rasters.rplot(gp::GridPosition, raster::Union{AbstractRaster{T, 3}, Obs
     return layout
 end
 
-function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<: RasterStack}}; ncols = Makie.automatic, nrows = Makie.automatic, colormap = nothing, colorrange = Makie.automatic, link_colorrange = false, link_axes = true, axis = (;), kwargs...) where T
+function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<: RasterStack}}; ncols = Makie.automatic, nrows = Makie.automatic, colormap = nothing, colorrange = Makie.automatic, link_colorrange = false, link_axes = true, axis = (;), kwargs...)
 
     val_stack = Makie.to_value(stack)
 
@@ -186,10 +186,10 @@ function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<:
 
     Makie.broadcast_foreach(collect(enumerate(propertynames(val_stack))), colormap, colorrange) do (i, layer), cmap, crange
         raster = lift_layer(stack, layer)
-        if length(size(raster)) == 2
+        if length(size(to_value(raster))) == 2
             raster = raster
-        elseif length(size(raster)) == 3
-            if size(raster, 3) == 1
+        elseif length(size(to_value(raster))) == 3
+            if size(to_value(raster), 3) == 1
                 raster = lift_layer(raster, Rasters.Band(1))
             else
                 @error "You can't plot a RasterStack of 3-D rasters using `rplot`.  Please provide a stack of 2D rasters instead, or 3D rasters with a singleton third dimension."
