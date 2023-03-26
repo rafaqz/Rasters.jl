@@ -466,6 +466,20 @@ The plots seem a little squished here.  We provide a Makie theme which makes tex
 CairoMakie.set_theme!(Rasters.theme_rasters())
 Rasters.rplot(stack)
 ```
+
+### Plotting with `Observable`s
+
+`Rasters.rplot` should support Observable input out of the box, but the dimensions of that input must remain the same - i.e., the element names of a RasterStack must remain the same.
+
+```@example makie
+stack_obs = Observable(stack)
+fig = Rasters.rplot(stack_obs) # `stack` is the WorldClim climate data for January
+record(fig, "rplot.mp4", 1:12; framerate = 3) do i
+    stack_obs[] = RasterStack(WorldClim{Climate}; month = i)
+end 
+```
+![](rplot.mp4)
+
 ```@eval
 using Makie
 Makie.set_theme!(Makie.minimal_default)
