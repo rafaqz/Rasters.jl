@@ -8,9 +8,6 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 A = [missing 7.0f0; 2.0f0 missing]
 B = [1.0 0.4; 2.0 missing]
 ga = Raster(A, (X, Y); missingval=missing) 
-ga99 = replace_missing(ga, -9999)
-gaNaN = replace_missing(ga, NaN32)
-gaMi = replace_missing(ga)
 st = RasterStack((a=A, b=B), (X, Y); missingval=(a=missing,b=missing))
 
 pointvec = [(-20.0, 30.0),
@@ -35,7 +32,15 @@ shp_paths = filter(x -> occursin("shp", x), readdir(test_shape_dir; join=true))
 shppath = shp_paths[1]
 shphandle = Shapefile.Handle(shppath)
 
+ga99 = replace_missing(ga, -9999)
+gaNaN = replace_missing(ga, NaN32)
+gaMi = replace_missing(ga)
+
 @testset "replace_missing" begin
+    @test eltype(ga99) == Float32
+    @test eltype(gaNaN) == Float32
+    @test eltype(gaMi) == Union{Float32,Missing}
+    @test eltype(replace_missing(ga, 0.0)) == Float64
     @test all(isequal.(ga99, [-9999.0f0 7.0f0; 2.0f0 -9999.0f0]))
     @test missingval(ga99) === -9999.0f0
     @test all(isequal.(gaNaN, [NaN32 7.0f0; 2.0f0 NaN32]))
@@ -631,8 +636,8 @@ end
 end
 
 @testset "coverage" begin
-    @time covsum = Rasters.coverage(shphandle.shapes; mode=sum, res=1, scale=10);
-    @time covunion = Rasters.coverage(shphandle.shapes; mode=union, res=1, scale=10);
+    @time covsum = Rasters.coverage(shphandle.shapes; mode=:sum, res=1, scale=10);
+    @time covunion = Rasters.coverage(shphandle.shapes; mode=:union, res=1, scale=10);
     # using Plots
     # plot(covsum; clims=(0, 2))
     # plot(covunion; clims=(0, 2))
