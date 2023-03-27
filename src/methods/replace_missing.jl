@@ -29,7 +29,7 @@ function replace_missing(A::AbstractRaster{T}, missingval::MV;
     MT = if ismissing(missingval)
         promote_type(T, Missing)
     else
-        promote_type(T, MV)
+        nonmissingtype(T)
     end
     old_missingval = Rasters.missingval(A)
     missingval = convert(MT, missingval)

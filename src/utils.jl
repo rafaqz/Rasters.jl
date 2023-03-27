@@ -28,9 +28,6 @@ function maybe_typemin_as_missingval(filename::String, A::AbstractRaster{T}) whe
         newmissingval = typemin(Missings.nonmissingtype(T))
         base, ext = splitext(filename)
         A1 = replace_missing(A, newmissingval)
-        if missing isa eltype(A1)
-            A1 = replace_missing(A, missing)
-        end
         @warn "`missing` cant be written to $ext, typemin for `$(eltype(A1))` of `$newmissingval` used instead"
         return A1
     elseif missing isa eltype(A)
