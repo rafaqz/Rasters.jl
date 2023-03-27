@@ -160,7 +160,6 @@ function _rasterize(to::DimTuple, data::T; fill, name=Symbol(""), reduce=nothing
             fill
         end
         init = if isnothing(init)
-            @show reduce init fillval
             isnothing(reduce) ? nothing : _reduce_init(reduce, fillval)
         else
             init
