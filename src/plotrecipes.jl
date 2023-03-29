@@ -283,7 +283,7 @@ function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::Abstra
     A = permutedims(raster, ds)
     x, y = dims(A)
     xs, ys, zs = DD._withaxes(x, y, (A))
-    return (xs, ys, zs)
+    return (xs, ys, collect(zs))
 end
 
 function __edges(v::AbstractVector)
@@ -307,7 +307,7 @@ function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::Ab
     A = permutedims(raster, ds)
     x, y = dims(A)
     xs, ys, zs = DD._withaxes(x, y, (A))
-    return (__edges(xs), __edges(ys), zs)
+    return (__edges(xs), __edges(ys), collect(zs))
 end
 
 # allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
@@ -323,7 +323,7 @@ function MakieCore.convert_arguments(::MakieCore.VolumeLike, raw_raster_with_mis
     A = permutedims(raster, ds)
     x, y, z = dims(A)
     xs, ys, zs, vs = DD._withaxes(x, y, z, A)
-    return (xs, ys, zs, vs)
+    return (xs, ys, zs, collect(vs))
 end
 
 # plot rasters of ColorTypes as images
@@ -345,7 +345,6 @@ function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::Ab
     xs, ys, zs = DD._withaxes(x, y, (A))
     return (__edges(xs), __edges(ys), collect(zs))
 end
-
             
 # fallbacks with descriptive error messages
 MakieCore.convert_arguments(::MakieCore.SurfaceLike, ::AbstractRaster{<: Real, Dim}) = @error """
