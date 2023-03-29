@@ -282,8 +282,8 @@ function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::Abstra
     ds = DD._fwdorderdims(raster)
     A = permutedims(raster, ds)
     x, y = dims(A)
-    xs, ys, zs = DD._withaxes(x, y, (A))
-    return (xs, ys, collect(zs))
+    xs, ys, vs = DD._withaxes(x, y, (A))
+    return (xs, ys, collect(vs))
 end
 
 function __edges(v::AbstractVector)
@@ -306,8 +306,8 @@ function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::Ab
     ds = DD._fwdorderdims(raster)
     A = permutedims(raster, ds)
     x, y = dims(A)
-    xs, ys, zs = DD._withaxes(x, y, (A))
-    return (__edges(xs), __edges(ys), collect(zs))
+    xs, ys, vs = DD._withaxes(x, y, (A))
+    return (__edges(xs), __edges(ys), collect(vs))
 end
 
 # allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
@@ -334,16 +334,16 @@ function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::Abstra
     ds = DD._fwdorderdims(raw_raster)
     A = permutedims(raw_raster, ds)
     x, y = dims(A)
-    xs, ys, zs = DD._withaxes(x, y, (A))
-    return (xs, ys, collect(zs))
+    xs, ys, vs = DD._withaxes(x, y, (A))
+    return (xs, ys, collect(vs))
 end
 
 function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::AbstractRaster{<: ColorTypes.Colorant, 2})
     ds = DD._fwdorderdims(raw_raster)
     A = permutedims(raw_raster, ds)
     x, y = dims(A)
-    xs, ys, zs = DD._withaxes(x, y, (A))
-    return (__edges(xs), __edges(ys), collect(zs))
+    xs, ys, vs = DD._withaxes(x, y, (A))
+    return (__edges(xs), __edges(ys), collect(vs))
 end
             
 # fallbacks with descriptive error messages
