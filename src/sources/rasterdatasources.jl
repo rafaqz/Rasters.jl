@@ -28,7 +28,7 @@ See the docs for
 for more specific details about data sources, layers and keyword arguments.
 """
 function Raster(T::Type{<:RasterDataSource}, layer; crs=_source_crs(T), kw...)
-    rds_kw, gd_kw = _filterkw(kw)
+    rds_kw, gd_kw = _filterkw(T, kw)
     filename = getraster(T, layer; rds_kw...)
     Raster(filename; name=RDS.layerkeys(T, layer), crs, gd_kw...)
 end
@@ -59,7 +59,7 @@ for more specific details about data sources, layers and keyword arguments.
 RasterStack(T::Type{<:RasterDataSource}; kw...) = RasterStack(T, RDS.layers(T); kw...)
 RasterStack(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = RasterStack(T, (layer,); kw...)
 function RasterStack(T::Type{<:RasterDataSource}, layers::Tuple; crs=_source_crs(T), kw...)
-    rds_kw, gd_kw = _filterkw(kw)
+    rds_kw, gd_kw = _filterkw(T, kw)
     filenames = map(l -> getraster(T, l; rds_kw...), layers)
     RasterStack(filenames; keys=RDS.layerkeys(T, layers), crs, gd_kw...)
 end
@@ -132,10 +132,10 @@ _source_crs(T) = nothing
 _source_crs(T::Type{AWAP}) = crs=EPSG(4326)
 _source_crs(T::Type{ALWB}) = crs=EPSG(4326)
 
-function _filterkw(kw)
+function _filterkw(T, kw)
     rds = []; gd = []
     for p in kw
-        dest = first(p) in (:date, :month, :res, :lat, :lon, :km_ab, :km_lr) ? rds : gd
+        dest = first(p) in RDS.getraster_kw(T) ? rds : gd
         push!(dest, p)
     end
     rds, gd
