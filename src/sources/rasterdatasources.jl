@@ -135,7 +135,7 @@ _source_crs(T::Type{ALWB}) = crs=EPSG(4326)
 function _filterkw(T, kw)
     rds = []; gd = []
     for p in kw
-        dest = first(p) in RDS.getraster_kw(T) ? rds : gd
+        dest = first(p) in RDS.getraster_keywords(T) ? rds : gd
         push!(dest, p)
     end
     rds, gd
