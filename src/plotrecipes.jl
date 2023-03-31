@@ -189,14 +189,68 @@ end
     end
 end
 
-# Plot a vertical 1d line
+# Plots.jl heatmaps pixels are centered.
+# So we should center the index, and use the projected value.
+_prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
+# Convert arrays to a consistent missing value and Forward array order
+function _prepare(A::AbstractRaster)
+    reorder(A, DD.ForwardOrdered) |>
+    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A)))# |>
+end
+
+function _subsample(A, max_res)
+    ssdims = dims(A, (XDim, YDim, ZDim))[1:2]
+    # Aggregate based on the number of pixels
+    s1, s2 = size(A, ssdims[1]), size(A, ssdims[2])
+    ag = floor(Int, max(s1, s2) / max_res) + 1
+    if ag == 1
+        return read(A)
+    else
+        d1 = rebuild(ssdims[1], 1:ag:s1)
+        d2 = rebuild(ssdims[2], 1:ag:s2)
+        # TODO make this actually load lazily.
+        # DiskArrays.jl does not handle StepRange views
+        return view(read(A), d1, d2)
+    end
+end
+
+_maybename(A) = _maybename(name(A))
+_maybename(n::Name{N}) where N = _maybename(N)
+_maybename(n::NoName) = ""
+_maybename(n::Symbol) = string(n)
+_maybename(n::AbstractString) = n
+
+_maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, eltype(A)(NaN))
+_maybe_replace_missing(A) = A
+
+_maybe_shift(d) = _maybe_shift(sampling(d), d)
+_maybe_shift(::Intervals, d) = DD.maybeshiftlocus(Center(), d)
+_maybe_shift(sampling, d) = d
+
+_maybe_mapped(dims::Tuple) = map(_maybe_mapped, dims)
+_maybe_mapped(dim::Dimension) = _maybe_mapped(lookup(dim), dim)
+_maybe_mapped(lookup::LookupArray, dim::Dimension) = dim
+_maybe_mapped(lookup::Projected, dim::Dimension) = _maybe_mapped(mappedcrs(lookup), dim)
+_maybe_mapped(::Nothing, dim::Dimension) = dim
+_maybe_mapped(::GeoFormat, dim::Dimension) = convertlookup(Mapped, dim)
+
+# We don't show the Band label for a single-band raster,
+# it's just not interesting information.
+function DD.refdims_title(refdim::Band; issingle=false)
+    if issingle
+        ""
+    else
+        string(name(refdim), ": ", DD.refdims_title(lookup(refdim), refdim))
+    end
+end
+
 @recipe function f(A::RasterSeries{<:Any,1})
     nplots = length(A)
     if nplots > 16 
-        plotstep = (nplots - 1) ÷ 16 + 1
-        @info "Too many raster heatmaps: plotting 1 in $plotstep slices"
-        A = @views A[begin:plotstep:end]
-        nplots = length(A)
+        plotinds = round.(Int, 1:nplots//16:nplots)
+        @info "Too many raster reatmaps: plotting 16 slices from $nplots"
+        A = @views A[plotinds]
+        nplots = length(plotinds)
     end
     # link --> :both
     # :colorbar := false
@@ -300,8 +354,6 @@ function DD.refdims_title(refdim::Band; issingle=false)
         string(name(refdim), ": ", DD.refdims_title(lookup(refdim), refdim))
     end
 end
-
-<<<<<<< HEAD
 
 # Makie.jl recipes
 
