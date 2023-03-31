@@ -14,10 +14,12 @@ ga4x = Raster(
 plot(ga2)
 plot(ga3[Y(At(0.0))])
 plot(ga3[X(At(180.0))])
+plot(ga3)
 # Line plot with Z on the vertical axis
 plot(ga3[X(At(0.0)), Y(At(0.0))])
 # DD fallback line plot with Z as key (not great really)
 plot(ga4x[X(At(0.0)), Y(At(0.0))])
+plot(ga4x[X(At(0.0))])
 # DD fallback heatmap with Z on Y axis
 heatmap(ga4x[X(At(0.0)), Y(At(0.0))])
 # Cant plot 4d
@@ -38,6 +40,9 @@ contour(ga2)
 c = Raster(rand(RGB, Y(-20.0:1.0:20.0), X(0.0:4.0:360.0)))
 plot(c)
 
+# Series
+plot(RasterSeries([ga2, ga2], Z))
+plot(RasterSeries([ga2 for _ in 1:100], Ti([DateTime(i) for i in 2001:2100])))
 
 xs = 0.0:4.0:360.0
 ys = -20.0:1.0:20.0
@@ -52,4 +57,3 @@ singleton_3d_raster = Raster(rand(X(0.0:4.0:360.0), Y(-20.0:1.0:20.0), Ti(1)))
 converted = Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurface(), singleton_3d_raster) 
 @test length(converted) == 3
 @test all(collect(converted[end] .== Float32.(singleton_3d_raster.data[:, :, 1]))) # remove if we want to handle 3d rasters with a singleton dimension
-
