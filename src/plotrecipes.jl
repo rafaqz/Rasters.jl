@@ -257,7 +257,7 @@ end
     titles = string.(index(A, dims(A, 1)))
     if haskey(plotattributes, :layout)
         first = true
-        for raster in A
+        for (i, raster) in enumerate(A)
             @series begin
                 :titlefontsize := 9
                 :tickfontsize := 7
