@@ -69,8 +69,10 @@ $COVERAGE_DOC
 
 $COVERAGE_KEYWORDS
 """
+coverage!(mode::Union{typeof(union),typeof(sum)}, A::AbstractRaster, data; kw...) =
+    _coverage!(A, GI.trait(data), data; kw..., mode)
 coverage!(A::AbstractRaster, data; scale::Integer=10, mode=union, verbose=true, progress=true) = 
-    _coverage!(A, GI.trait(data), data; scale, mode=mode, verbose, progress)
+    _coverage!(A, GI.trait(data), data; scale, mode, verbose, progress)
 
 _coverage!(A::AbstractRaster, ::GI.FeatureTrait, feature; kw...) =
     _coverage!(A, GI.geometry(feature); kw...)
