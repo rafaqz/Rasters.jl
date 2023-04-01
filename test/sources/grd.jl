@@ -1,7 +1,7 @@
 using Rasters, Test, Statistics, Dates, Plots
 using Rasters.LookupArrays, Rasters.Dimensions
 import NCDatasets, ArchGDAL
-using Rasters: FileArray, GRDfile, GDALfile
+using Rasters: FileArray, GRDfile, GDALfile, metadata
 
 testpath = joinpath(dirname(pathof(Rasters)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
@@ -227,7 +227,7 @@ grdpath = stem * ".gri"
             write(filename2, grdarray[Band(1)])
             saved = Raster(filename2; crs=crs(grdarray))
             @test size(saved) == size(grdarray[Band(1)])
-            @test replace_missing(saved, missingval(grdarray)) ≈ grdarray[Band(1)]
+            @test all(replace_missing(saved, missingval(grdarray)) .≈ grdarray[Band(1)])
             @test index(saved, X) ≈ index(grdarray, X) .+ 0.5
             @test index(saved, Y) ≈ index(grdarray, Y) .+ 0.5
             @test bounds(saved, Y) == bounds(grdarray, Y)

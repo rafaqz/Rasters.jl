@@ -14,6 +14,8 @@ Otherwise crop to the size of the keyword argument `to`. This can be a
 
 - `to`: the object to crop to. If `to` keyword is passed, the smallest shared
     area of all `xs` is used.
+- `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
+   When lines need to be included in e.g. zonal statistics, `true` shoudle be used.
 
 As `crop` is lazy, `filename` and `suffix` keywords don't apply.
 
@@ -94,18 +96,22 @@ function _crop_to(x, to; kw...)
     end
 end
 _crop_to(A, to::RasterStackOrArray; kw...) = _crop_to(A, dims(to); kw...)
-function _crop_to(x, to::DimTuple; atol=maybe_eps(to))
+function _crop_to(x, to::DimTuple; kw...)
     # We can only crop to sampled dims (e.g. not categorical dims like Band)
     sampled = reduce(to; init=()) do acc, d
         lookup(d) isa AbstractSampled ? (acc..., d) : acc
     end
-    return _crop_to(x, Extents.extent(to))
+    return _crop_to(x, Extents.extent(to); kw...)
 end
-function _crop_to(x, to::Extents.Extent)
+function _crop_to(x, to::Extents.Extent; touches=false)
     ds = dims(x, map(key2dim, keys(to)))
     # Take a view over the bounds
     _without_mapped_crs(x) do x1
-        view(x1, to)
+        if touches 
+            view(x1, Touches(to))
+        else
+            view(x1, to)
+        end
     end
 end
 
@@ -121,7 +127,8 @@ covered by all `xs`, or by the keyword argument `to`.
 
 - `to`: the Raster or dims to extend to. If no `to` keyword is passed, the largest
     shared area of all `xs` is used.
-- `atol`: the absolute tolerance value to use when comparing the index of x and `to`.
+- `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
+   When lines need to be included in e.g. zonal statistics, `true` shoudle be used.
 - `filename`: a filename to write to directly, useful for large files.
 - `suffix`: a string or value to append to the filename.
     A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
@@ -170,13 +177,17 @@ function _extend_to(x::RasterStackOrArray, to; kw...)
 end
 
 function _extend_to(A::AbstractRaster, to::DimTuple;
-    filename=nothing, suffix=nothing
+    filename=nothing, suffix=nothing, touches=false
 )
     # Calculate the range of the old array in the extended array
     ranges = _without_mapped_crs(A) do A
         _without_mapped_crs(to) do to
             map(dims(A), to) do d, t
-                range = DD.selectindices(t, LA.ClosedInterval(bounds(d)...))
+                range = if touches 
+                    DD.selectindices(t, LA.Touches(bounds(d)))
+                else
+                    DD.selectindices(t, LA.ClosedInterval(bounds(d)...))
+                end
                 rebuild(d, range)
             end
         end

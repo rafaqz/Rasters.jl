@@ -1,4 +1,4 @@
-using Rasters, Test, Aqua, SafeTestsets, DiskArrays
+using Rasters, Test, Aqua, SafeTestsets
 
 if VERSION >= v"1.5.0"
     # Aqua.test_ambiguities([Rasters, Base, Core])

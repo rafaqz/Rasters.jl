@@ -9,10 +9,13 @@ end Rasters
 
 using Dates
 
+# Load first to fix StaticArrays invalidations
+import CoordinateTransformations
+import DimensionalData
+
 import Adapt,
        ArchGDAL,
        ColorTypes,
-       CoordinateTransformations,
        ConstructionBase,
        DiskArrays,
        Extents,
@@ -20,7 +23,7 @@ import Adapt,
        Flatten,
        GeoInterface,
        HDF5,
-       PolygonInbounds,
+       OffsetArrays,
        ProgressMeter,
        MakieCore,
        Missings,
@@ -59,9 +62,9 @@ export Projected, Mapped
 export Band
 export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!, 
-       resample, warp, zonal, crop, extend, trim, slice, points, subset, inpolygon,
+       resample, warp, zonal, crop, extend, trim, slice, points, subset,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
-       setcrs, setmappedcrs
+       coverage, coverage!, setcrs, setmappedcrs
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertlookup
 
@@ -114,14 +117,15 @@ include("write.jl")
 include("convenience.jl")
 include("show.jl")
 include("plotrecipes.jl")
+include("sectorlock.jl")
 
 
+include("methods/mask.jl")
 include("methods/aggregate.jl")
 include("methods/classify.jl")
 include("methods/crop_extend.jl")
+include("methods/coverage.jl")
 include("methods/extract.jl")
-include("methods/inpolygon.jl")
-include("methods/mask.jl")
 include("methods/mosaic.jl")
 include("methods/points.jl")
 include("methods/rasterize.jl")

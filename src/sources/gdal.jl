@@ -95,6 +95,10 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
 
     kw = (width=length(x), height=length(y), nbands=nbands, dtype=T)
     options_vec = _gdal_process_options(driver, options; _block_template)
+    # COG doesn't support CREATE but is the default for `tif`.
+    if driver == "COG"
+        driver = "GTiff"
+    end
     gdaldriver = driver isa String ? AG.getdriver(driver) : driver
     if driver in GDAL_DRIVERS_SUPPORTING_CREATE
         AG.create(filename; driver=gdaldriver, options=options_vec, kw...) do ds
@@ -106,7 +110,8 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
         # does not support direct creation of ASCII etc. rasters
         ArchGDAL.create(tempname() * ".tif"; driver=AG.getdriver("GTiff"), options=options_vec, kw...) do ds
             _gdalsetproperties!(ds, newdims, missingval)
-            AG.copy(ds; filename=filename, driver=gdaldriver, options=options_vec) |> AG.destroy
+            target_ds = AG.copy(ds; filename=filename, driver=gdaldriver, options=options_vec)
+            AG.destroy(target_ds)
         end
     end
     if hasdim(dims, Band)
@@ -136,6 +141,8 @@ _open(f, ::Type{GDALfile}, ds::AG.RasterDataset; kw...) = cleanreturn(f(ds))
 
 
 # DimensionalData methods for ArchGDAL types ###############################
+#
+# These methods are type piracy on DimensionalData/ArchGDAL and may have to move some day
 
 # We allow passing in crs and mappedcrs manually
 function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
@@ -236,7 +243,7 @@ end
 
 # Rasters methods for ArchGDAL types ##############################
 
-# Create a Raster from a memory-backed dataset
+# Create a Raster from a dataset
 Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
 function Raster(ds::AG.RasterDataset;
     crs=crs(ds), mappedcrs=nothing,
@@ -255,14 +262,21 @@ function Raster(ds::AG.RasterDataset;
     end
 end
 
-function missingval(raster::AG.RasterDataset, args...)
-    # We can only handle data where all bands have the same missingval
-    band = AG.getband(raster.ds, 1)
-    nodata = AG.getnodatavalue(band)
-    if nodata isa Nothing
-        return nothing
+function missingval(rasterds::AG.RasterDataset, args...)
+    # All bands have the same missingval
+    band = AG.getband(rasterds.ds, 1)
+    hasnodataval = Ref(Cint(0))
+    nodataval = if eltype(rasterds) == Int64
+        AG.GDAL.gdalgetrasternodatavalueasint64(band, hasnodataval)
+    elseif eltype(rasterds) == UInt64
+        AG.GDAL.gdalgetrasternodatavalueasuint64(band, hasnodataval)
     else
-        return _gdalconvertmissing(eltype(band), nodata)
+        AG.GDAL.gdalgetrasternodatavalue(band, hasnodataval)
+    end
+    nodataval = if Bool(hasnodataval[])
+        return _gdalconvertmissing(eltype(band), nodataval)
+    else
+        return nothing
     end
 end
 
@@ -336,7 +350,7 @@ _gdalconvertmissing(T, x) = x
 function _gdalwrite(filename, A::AbstractRaster, nbands;
     driver=AG.extensiondriver(filename), kw... 
 )
-    A = maybe_typemin_as_missingval(filename, A)
+    A = _maybe_use_type_missingval(filename, A)
     create_kw = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
     _gdal_with_driver(filename, driver, create_kw; _block_template=A, kw...) do dataset
         _gdalsetproperties!(dataset, A)
@@ -463,13 +477,20 @@ function _gdalsetproperties!(dataset::AG.Dataset, dims::Tuple, missingval)
     # Set the nodata value. GDAL can't handle missing. We could choose a default,
     # but we would need to do this for all possible types. `nothing` means
     # there is no missing value.
-    # TODO define default nodata values for missing?
-    if (!ismissing(missingval) && !isnothing(missingval))
-        # We use the axis instead of the values because
-        # GDAL has to have values 1:N, not whatever the index holds
+    if !isnothing(missingval)
+        if ismissing(missingval)
+            missingval = _writeable_missing(T)
+        end
         bands = hasdim(dims, Band) ? axes(DD.dims(dims, Band), 1) : 1
         for i in bands
-            AG.setnodatavalue!(AG.getband(dataset, i), missingval)
+            rasterband = AG.getband(dataset, i)
+            if missingval isa Int64
+                AG.GDAL.gdalsetrasternodatavalueasint64(rasterband, missingval)
+            elseif missingval isa UInt64
+                AG.GDAL.gdalsetrasternodatavalueasuint64(rasterband, missingval)
+            else
+                AG.GDAL.gdalsetrasternodatavalue(rasterband, missingval)
+            end
         end
     end
 

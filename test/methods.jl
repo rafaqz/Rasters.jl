@@ -1,23 +1,20 @@
-using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, GeoInterface, DataFrames, Extents, Shapefile
+using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
+import GeoInterface
 using Rasters.LookupArrays, Rasters.Dimensions 
 using Rasters: bounds
-
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
 A = [missing 7.0f0; 2.0f0 missing]
 B = [1.0 0.4; 2.0 missing]
-ga = Raster(A, (X, Y); missingval=missing)
-ga99 = replace_missing(ga, -9999)
-gaNaN = replace_missing(ga, NaN32)
-gaMi = replace_missing(ga)
+ga = Raster(A, (X, Y); missingval=missing) 
 st = RasterStack((a=A, b=B), (X, Y); missingval=(a=missing,b=missing))
 
 pointvec = [(-20.0, 30.0),
-              (-20.0, 10.0),
-              (0.0, 10.0),
-              (0.0, 30.0),
-              (-20.0, 30.0)]
+            (-20.0, 10.0),
+            (0.0, 10.0),
+            (0.0, 30.0),
+            (-20.0, 30.0)]
 vals = [1, 2, 3, 4, 5]
 polygon = ArchGDAL.createpolygon(pointvec)
 multi_polygon = ArchGDAL.createmultipolygon([[pointvec]])
@@ -30,7 +27,20 @@ pointfc = map(GeoInterface.getpoint(polygon), vals) do geom, v
     (geometry=geom, val1=v, val2=2.0f0v)
 end
 
+test_shape_dir = realpath(joinpath(dirname(pathof(Shapefile)), "..", "test", "shapelib_testcases"))
+shp_paths = filter(x -> occursin("shp", x), readdir(test_shape_dir; join=true))
+shppath = shp_paths[1]
+shphandle = Shapefile.Handle(shppath)
+
+ga99 = replace_missing(ga, -9999)
+gaNaN = replace_missing(ga, NaN32)
+gaMi = replace_missing(ga)
+
 @testset "replace_missing" begin
+    @test eltype(ga99) == Float32
+    @test eltype(gaNaN) == Float32
+    @test eltype(gaMi) == Union{Float32,Missing}
+    @test eltype(replace_missing(ga, 0.0)) == Float64
     @test all(isequal.(ga99, [-9999.0f0 7.0f0; 2.0f0 -9999.0f0]))
     @test missingval(ga99) === -9999.0f0
     @test all(isequal.(gaNaN, [NaN32 7.0f0; 2.0f0 NaN32]))
@@ -55,10 +65,23 @@ end
 
 @testset "boolmask" begin
     @test boolmask(ga) == [false true; true false]
+    @test parent(boolmask(ga)) isa BitArray
     @test boolmask(ga99) == [false true; true false]
     @test boolmask(gaNaN) == [false true; true false]
     @test dims(boolmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
-    @test boolmask(polygon; res=1.0) == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
+    x = boolmask(polygon; res=1.0) 
+    @test x == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
+    @test parent(x) isa BitArray{2}
+    # With a :geometry axis
+    x = boolmask([polygon, polygon]; combine=false, res=1.0)
+    @test eltype(x) == Bool
+    @test size(x) == (20, 20, 2)
+    @test sum(x) == 800
+    @test parent(x) isa BitArray{3}
+    x = boolmask([polygon, polygon]; combine=true, res=1.0)
+    @test size(x) == (20, 20)
+    @test sum(x) == 400
+    @test parent(x) isa BitArray{2}
 end
 
 @testset "missingmask" begin
@@ -67,6 +90,14 @@ end
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
     @test dims(missingmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
     @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
+    x = missingmask([polygon, polygon]; combine=false, res=1.0)
+    @test eltype(x) == Union{Bool,Missing}
+    @test size(x) == (20, 20, 2)
+    @test sum(x) == 800
+    @test parent(x) isa Array{Union{Missing,Bool},3}
+    x = missingmask([polygon, polygon]; combine=true, res=1.0)
+    @test size(x) == (20, 20)
+    @test sum(x) == 400
 end
 
 @testset "mask" begin
@@ -90,7 +121,7 @@ end
     poly = polygon
     @testset "to polygon" begin
         for poly in (polygon, multi_polygon) 
-            a1 = Raster(ones(X(-20:5), Y(0:30)))
+            a1 = Raster(ones(X(-20:5; sampling=Intervals(Center())), Y(0:30; sampling=Intervals(Center()))))
             st1 = RasterStack(a1, a1)
             ser1 = RasterSeries([a1, a1], Ti(1:2))
             @test all(
@@ -103,6 +134,10 @@ end
             @test sum(skipmissing(mask(a1; with=polygon, boundary=:inside))) == 19 * 19
             @test sum(skipmissing(mask(a1; with=polygon, boundary=:center))) == 20 * 20
             @test sum(skipmissing(mask(a1; with=polygon, boundary=:touches))) == 21 * 21
+            mask(a1; with=polygon, boundary=:touches)
+            mask(a1; with=polygon, boundary=:touches, shape=:line)
+            mask(a1; with=polygon, boundary=:inside)
+            mask(a1; with=polygon)
         end
     end
 end
@@ -110,20 +145,20 @@ end
 @testset "zonal" begin
     a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
     zonal(sum, a; of=polygon) ==
-        zonal(sum, a; of=[polygon])[1] ==
+        zonal(sum, a; of=[polygon, polygon])[1] ==
         zonal(sum, a; of=(geometry=polygon, x=:a, y=:b)) ==
         zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1]
         zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
-        sum(skipmissing(mask(a; with=polygon)))  
+        sum(skipmissing(mask(a; with=polygon)))
     @test zonal(sum, a; of=a) == 
-        zonal(sum, a; of=dims(a)) == 
+        zonal(sum, a; of=dims(a)) ==
         zonal(sum, a; of=Extents.extent(a)) == 
         sum(a)
 
     b = a .* 2
     c = cat(a .* 3, a .* 3; dims=:newdim)
     st = RasterStack((; a, b, c))
-    zonal(sum, st; of=polygon) == zonal(sum, st; of=[polygon])[1] ==
+    @test zonal(sum, st; of=polygon) == zonal(sum, st; of=[polygon])[1] ==
         zonal(sum, st; of=(geometry=polygon, x=:a, y=:b)) ==
         zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
         zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
@@ -302,20 +337,6 @@ end
                    missing missing missing], dims=3))
 end
 
-@testset "inpolygon" begin
-    @test inpolygon((-10.0, 20.0), polygon) == true
-    @test inpolygon((-19.0, 29.0), polygon) == true
-    @test inpolygon((-30.0, 20.0), polygon) == false
-    @test inpolygon([(-10.0, 20.0), (-30.0, 40.0)], polygon) == [true, false]
-    @test inpolygon((-20.0, 50.0), polygon) == false
-    @test inpolygon((-20.0, 50.0), (geometry=polygon, test="test",)) == false
-    @test inpolygon(ArchGDAL.createlinestring([[-5.0, 20.0], [-10.0, 10.0]]), polygon) == true
-    @test inpolygon(ArchGDAL.createlinestring([[-10.0, 20.0], [-30.0, 40.0]]), polygon) == false
-    @test inpolygon(ArchGDAL.createpolygon([[[-10.0, 20.0], [-30.0, 40.0]]]), polygon) == false
-    feat = (geometry=ArchGDAL.createlinestring([[-5.0, 20.0], [-10.0, 10.0]]), test=false)
-    @test inpolygon(feat, polygon) == true
-end
-
 @testset "rasterize and rasterize!" begin
     A1 = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
     A2 = Raster(zeros(Y(0:30; sampling=Intervals()), X(-20:5; sampling=Intervals())))
@@ -327,11 +348,11 @@ end
         for A in (A1, A2), geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon)
             A .= 0
             rasterize!(A, geom; shape=:point, fill=1)
-            @test sum(A) == 4
-            st[:layer1] .= st[:layer2] .= 0
-            rasterize!(st, geom; shape=:point, fill=(1, 2))
+            st.layer1 .= st.layer2 .= 0
+            rasterize!(st, geom; shape=:point, fill=(layer1=1, layer2=2))
             @test sum(st[:layer1]) == 4
             @test sum(st[:layer2]) == 8
+            @test parent(st[:layer1]) isa Array{Float64,2}
             st[:layer1] .= st[:layer2] .= 0
             @test_nowarn rasterize!(A, geom; shape=:point, fill=1)
         end
@@ -339,6 +360,7 @@ end
 
     @testset "all line and polygon geoms work as :line" begin
         A = A1
+        geom = linestring
         for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon)
             rasterize!(A, geom; shape=:line, fill=1)
             @test sum(A) == 20 + 20 + 20 + 20
@@ -359,8 +381,10 @@ end
         for A in (A1, A2), poly in (polygon, multi_polygon)
             ra = rasterize(poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center)
             ra_res = rasterize(poly; res=map(step, span(A)), missingval=0, shape=:polygon, fill=1, boundary=:center)
+            @test parent(ra) isa Array{Int,2}
             @test sum(ra) == sum(ra_res) === 20 * 20
             ra = rasterize(poly; to=A, shape=:polygon, fill=1, boundary=:touches)
+            @test parent(ra) isa Array{Union{Missing,Int},2}
             @test sum(skipmissing(ra)) === 21 * 21
             rasterize!(A, poly; shape=:polygon, fill=1, boundary=:inside)
             @test sum(A) === 19.0 * 19.0
@@ -369,14 +393,15 @@ end
             @testset "polygon is detected for polygon geometries" begin
                 A = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
                 R = rasterize(poly; to=A, fill=1)
+                @test parent(R) isa Array{}
                 @test sum(skipmissing(R)) == 20 * 20
                 @test_throws ArgumentError rasterize!(A, poly; shape=:notashape, fill=1)
                 @test_throws ArgumentError rasterize!(A, poly; shape=:polygon, fill=1, boundary=:notaboundary)
             end
 
-            st = rasterize(poly; fill=(layer1=1, layer2=2), to=st)
-            @test sum(skipmissing(st[:layer1])) == 400 # The last value overwrites the first
-            @test sum(skipmissing(st[:layer2])) == 800
+            st1 = rasterize(poly; fill=(layer1=1, layer2=2), to=st)
+            @test sum(skipmissing(st1[:layer1])) == 400 # The last value overwrites the first
+            @test sum(skipmissing(st1[:layer2])) == 800
             # Missing size / res
             @test_throws ArgumentError rasterize(poly; fill=1)
             # Both size + res
@@ -389,11 +414,12 @@ end
 
     @testset "from geometries, tables and features of points" begin
         A = A1
+        data = DataFrame(pointfc)
+        data = multi_point
         data = pointfc
 
         for data in (pointfc, DataFrame(pointfc), multi_point, pointvec, reverse(pointvec))
             @test sum(skipmissing(rasterize(data; to=A, fill=1))) == 4
-
             @testset "to and fill Keywords are required" begin
                 @test_throws ArgumentError R = rasterize(data; fill=1) 
                 @test_throws UndefKeywordError R = rasterize(data; to=A) 
@@ -404,46 +430,49 @@ end
                 @test dims(rst) == dims(A)
                 @test map(sum ∘ skipmissing, rst) === (fill1=12, fill2=24.0f0)
             end
-            @testset "Tuple of value fill makes an stack with `:layerN` keys" begin
-                rst = rasterize(data; to=A, fill=(3, 6.0f0))
-                @test keys(rst) == (:layer1, :layer2)
-                @test dims(rst) == dims(A)
-                @test map(sum ∘ skipmissing, rst) === (layer1=12, layer2=24.0f0)
-            end
             @testset "Single value fill makes an array (ignoring table vals)" begin
                 ra = rasterize(data; to=A, fill=0x03, missingval=0x00)
                 @test eltype(ra) == UInt8
                 @test sum(ra) == 12
             end
         end
+
         @testset "a single feature" begin
             feature = pointfc[4]
             GeoInterface.isfeature(feature)
             @testset "NTuple of Symbol fill makes an stack" begin
                 rst = rasterize(feature; to=A, fill=(:val1, :val2))
-                rst = rasterize(feature; to=A, fill=(:val1, :val2))
+                @test parent(rst.val1) isa Array{Union{Missing,Int},2}
+                @test parent(rst.val2) isa Array{Union{Missing,Float32},2}
                 @test keys(rst) == (:val1, :val2)
                 @test dims(rst) == dims(A)
                 @test map(sum ∘ skipmissing, rst) === (val1=4, val2=8.0f0)
             end
             @testset "Symbol fill makes an array" begin
                 ra = rasterize(feature; to=A, fill=:val1)
-                @test ra isa Raster{Union{Missing,Int64}}
+                @test ra isa Raster
+                @test parent(ra) isa Array{Union{Missing,Int},2}
                 @test name(ra) == :val1
             end
         end
+
         @testset "feature collection, table from fill of Symbol keys" begin
+            data = pointfc
             for data in (pointfc, DataFrame(pointfc))
                 @testset "NTuple of Symbol fill makes an stack" begin
-                    rst = rasterize(data; to=A, fill=(:val1, :val2))
+                    rst = rasterize(sum, data; to=A, fill=(:val1, :val2))
+                    @test parent(rst.val1) isa Array{Union{Missing,Int},2}
+                    @test parent(rst.val2) isa Array{Union{Missing,Float32},2}
                     @test keys(rst) == (:val1, :val2)
-                    @test dims(rst) == dims(A)
                     @test map(sum ∘ skipmissing, rst) === (val1=14, val2=28.0f0)
+                    @test_throws ArgumentError rasterize(data; to=A, fill=(:val1, :not_a_column))
                 end
                 @testset "Symbol fill makes an array" begin
                     ra = rasterize(data; to=A, fill=:val1)
+                    @test parent(ra) isa Array{Union{Missing,Int},2}
                     @test ra isa Raster
                     @test name(ra) == :val1
+                    @test_throws ArgumentError rasterize(data; to=A, fill=:not_a_column)
                 end
             end
         end
@@ -470,36 +499,204 @@ end
         return raster
     end
 
-    test_shape_dir = realpath(joinpath(dirname(pathof(Shapefile)), "..", "test", "shapelib_testcases"))
-    shp_paths = filter(x -> occursin("shp", x), readdir(test_shape_dir; join=true))
-    shp = shp_paths[1]
-    shx = splitext(shp)[1] * ".shx"
-
-    xs = LinRange(0.0, 179.28, 250)
-    ys = LinRange(169.32, 0.0, 250)
 
     @testset "center in polygon rasterization" begin
-        gdal_raster = gdal_read_rasterize(shp)
-        rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes; 
-            size=250, fill=UInt8(1), missingval=UInt8(0)
-        )
+        @time gdal_raster = gdal_read_rasterize(shppath);
+        @time rasters_raster = rasterize(shphandle.shapes; 
+             size=(250, 250), fill=UInt8(1), missingval=UInt8(0),
+        );
+        # using Plots
+        # heatmap(parent(parent(rasters_raster)))
+        # heatmap(reverse(gdal_raster[:, :, 1]; dims=2))
         # Same results as GDAL
         @test sum(gdal_raster) == sum(rasters_raster)
         @test reverse(gdal_raster[:, :, 1]; dims=2) == rasters_raster
     end
 
     @testset "line touches rasterization" begin
-        gdal_raster = gdal_read_rasterize(shp, "-at")
-        rasters_raster = rasterize(Shapefile.Handle(shp, shx).shapes; 
-            size=(250, 250), fill=UInt8(1), missingval=UInt8(0), boundary=:touches
+        gdal_touches_raster = gdal_read_rasterize(shppath, "-at")
+        rasters_touches_raster = rasterize(shphandle.shapes; 
+            size=(250, 250), fill=UInt64(1), missingval=UInt64(0), boundary=:touches
         )
+        # Not quite the same answer as GDAL
+        @test_broken sum(gdal_touches_raster) == sum(rasters_touches_raster)
+        @test_broken reverse(gdal_touches_raster[:, :, 1], dims=2) == rasters_touches_raster
+        @test Int(sum(gdal_touches_raster)) == Int(sum(rasters_touches_raster)) - 2
+        # Two pixels differ in the angled line, top right
+        # using Plots
+        # Plots.heatmap(reverse(gdal_touches_raster[:, :, 1], dims=2))
+        # Plots.heatmap(parent(parent(rasters_touches_raster)))
 
-        # We are off by 2 - pixels in the middle of the line dont always agree with gdal
-        @test_broken sum(gdal_raster) == sum(rasters_raster)
-        @test_broken gdal_raster == rasters_raster
-        @test sum(rasters_raster) - sum(gdal_raster) == 2
+        line = LineString([Point(1.00, 4.50), Point(4.75, 0.75)])
+        r1 = Raster(zeros(Bool, X(0.5:1.0:6.5; sampling=Intervals()), Y(0.5:1.0:6.5; sampling=Intervals())));
+        r1r = reverse(r1; dims=X) 
+        Rasters.rasterize!(r1, line; fill=true)
+        Rasters.rasterize!(r1r, line; fill=true)
+        r2 = Raster(zeros(Bool, X(0.5:1.00001:6.5; sampling=Intervals()), Y(0.5:1.00001:6.5; sampling=Intervals())))
+        r2r = reverse(r2; dims=X) 
+        Rasters.rasterize!(r2, line; fill=true)
+        Rasters.rasterize!(r2r, line; fill=true)
+        r3 = Raster(zeros(Bool, X(0.5:0.99999:6.5; sampling=Intervals()), Y(0.5:0.99999:6.5; sampling=Intervals())))
+        r3r = reverse(r3; dims=X) 
+        Rasters.rasterize!(r3, line; fill=true)
+        Rasters.rasterize!(r3r, line; fill=true)
+
+        fill_itr = (x=[1,2,3], y=[4,5,6])
+        fill = [vals for (i, vals...) in zip(1:3, values(fill_itr)...)]
+
+        @test reverse(r1r; dims=X) == r1
+        @test reverse(r2r; dims=X) == r2
+        @test reverse(r3r; dims=X) == r3
+
+        @test sum(r1) == 8
+        @test sum(r2) == 9 # The first pixel is larger so the line touches it
+        @test sum(r3) == 8
+
+        @test r1 == [
+         0 0 0 0 0 0 0
+         0 0 0 1 1 0 0
+         0 0 1 1 0 0 0
+         0 1 1 0 0 0 0
+         1 1 0 0 0 0 0
+         0 0 0 0 0 0 0
+         0 0 0 0 0 0 0]
+
+        @test parent(r2) == [
+         0 0 0 0 1 0
+         0 0 0 1 1 0
+         0 0 1 1 0 0
+         0 1 1 0 0 0
+         1 1 0 0 0 0
+         0 0 0 0 0 0]
+
+        @test r3 == [
+         0 0 0 0 0 0 0
+         0 0 0 1 1 0 0
+         0 0 1 1 0 0 0
+         0 1 1 0 0 0 0
+         1 1 0 0 0 0 0
+         0 0 0 0 0 0 0
+         0 0 0 0 0 0 0]
     end
     # GDAL doesnt do inside / not touching rasterization, so we have no test against GDAL
+    @testset "line inside rasterization" begin
+        @time gdal_raster = gdal_read_rasterize(shppath, "-at")
+        rasters_inside_raster = rasterize(shphandle.shapes; 
+            size=(250, 250), fill=UInt8(1), missingval=UInt8(0), boundary=:inside
+        )
+        # using Plots
+        # heatmap(parent(parent(rasters_inside_raster)))
+    end
+
+
+    @testset "reducing rasterization" begin
+        pointvec1 = [(-20.0, 30.0),
+                    (-20.0, 10.0),
+                    (0.0, 10.0),
+                    (0.0, 30.0),
+                    (-20.0, 30.0)]
+        pointvec2 = map(p -> (p[1] + 10, p[2] + 10), pointvec1)
+        pointvec3 = map(p -> (p[1] + 20, p[2] + 20), pointvec1)
+        pointvec4 = map(p -> (p[1] + 30, p[2] + 30), pointvec1)
+        polygon = ArchGDAL.createpolygon(pointvec)
+        polygons = ArchGDAL.createpolygon.([[pointvec1], [pointvec2], [pointvec3], [pointvec4]])
+        # With fill of 1 these are all the same thing
+        for f in (last, first, mean, median, maximum, minimum)
+            r = rasterize(f, polygons; res=5, fill=1, boundary=:center)
+            r = rasterize(mean, polygons; res=5, fill=1, boundary=:center)
+            @test parent(r) isa Array{<:Union{Missing,<:Real},2}
+            @test sum(skipmissing(r)) == 12 + 12 + 12 + 16
+        end
+        for f in (last, maximum)
+            r = rasterize(last, polygons; res=5, fill=1:4, boundary=:center)
+            @test parent(r) isa Array{Union{Missing,Int},2}
+            @test sum(skipmissing(r)) == 12 * 1 + 12 * 2 + 12 * 3 + 16 * 4
+        end
+        for f in (first, minimum)
+            r = rasterize(f, polygons; res=5, fill=1:4, boundary=:center)
+            @test parent(r) isa Array{Union{Missing,Int},2}
+            @test sum(skipmissing(r)) == 16 * 1 + 12 * 2 + 12 * 3 + 12 * 4
+        end
+        for f in (mean, median)
+            r = rasterize(f, polygons; res=5, fill=1:4, boundary=:center)
+            @test parent(r) isa Array{Union{Missing,Float64},2}
+            @test sum(skipmissing(r)) == 
+                (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1.5 + 4 * 2.5 + 4 * 3.5)
+        end
+        prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename="test.tif")
+        prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center)
+        @test sum(skipmissing(prod_r)) == 
+            (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1 * 2 + 4 * 2 * 3 + 4 * 3 * 4)
+
+        prod_st = rasterize(prod, polygons; res=5, fill=(a=1:4, b=4:-1:1), missingval=missing, boundary=:center)
+        @test all(prod_st.a .=== rot180(prod_st.b))
+        @test all(prod_r .=== prod_st.a)
+        prod_r_m = rasterize(prod, polygons; res=5, fill=1:4, missingval=-1, boundary=:center)
+        prod_st_m = rasterize(prod, polygons; res=5, fill=(a=1:4, b=4.0:-1.0:1.0), missingval=(a=-1, b=-1.0), boundary=:center)
+        @test all(prod_st_m.a .=== prod_r_m)
+        @test all( prod_st_m.b .=== rot180(Float64.(prod_r_m)))
+
+        r = rasterize(last, polygons; res=5, fill=(a=1, b=2), boundary=:center)
+        @test all(r.a .* 2 .=== r.b)
+        
+        reduced_raster_sum_center = rasterize(sum, polygons; res=5, fill=1, boundary=:center)
+        reduced_raster_count_center = rasterize(count, polygons; res=5, fill=1, boundary=:center)
+        @test name(reduced_raster_sum_center) == :sum
+        @test name(reduced_raster_count_center) == :count
+        @test sum(skipmissing(reduced_raster_sum_center)) == 
+              sum(skipmissing(reduced_raster_count_center)) == 16 * 4
+        reduced_raster_sum_touches = rasterize(sum, polygons; res=5, fill=1, boundary=:touches)
+        reduced_raster_count_touches = rasterize(count, polygons; res=5, fill=1, boundary=:touches)
+        @test name(reduced_raster_sum_touches) == :sum
+        @test name(reduced_raster_count_touches) == :count
+        # plot(reduced_raster_count_touches)
+        # plot(reduced_raster_sum_touches)
+        # This is broken because the raster area isn't big enough
+        @test_broken sum(skipmissing(reduced_raster_sum_touches)) == 
+              sum(skipmissing(reduced_raster_count_touches)) == 25 * 4
+        @test sum(skipmissing(reduced_raster_sum_touches)) == 
+              sum(skipmissing(reduced_raster_count_touches)) == 25 * 4 - 9
+        # The outlines of these plots should exactly mactch, 
+        # with three values of 2 on the diagonal
+        # using Plots
+        # Plots.plot(reduced_raster; clims=(0, 3))
+        # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
+        reduced_center = rasterize(sum, polygons; res=5, fill=1, boundary=:center)
+        reduced_touches = rasterize(sum, polygons; res=5, fill=1, boundary=:touches)
+        reduced_inside = rasterize(sum, polygons; res=5, fill=1, boundary=:inside)
+        # Plots.plot(reduced_inside; clims=(0, 3))
+        # Plots.plot(reduced_center; clims=(0, 3))
+        # Plots.plot(reduced_touches; clims=(0, 3))
+        # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
+        # Its not clear what the results here should be - there 
+        # are differences between different implementations.
+        # Soon we will define the pixel intervals so we don't need
+        # arbitrary choices of which lines are touched for :touches
+    end
+end
+
+@testset "coverage" begin
+    @time covsum = coverage(sum, shphandle.shapes; res=1, scale=10);
+    @time covunion = coverage(union, shphandle.shapes; res=1, scale=10);
+    @test parent(covsum) isa Array{Float64,2}
+    @test parent(covunion) isa Array{Float64,2}
+    # using Plots
+    # plot(covsum; clims=(0, 2))
+    # plot(covunion; clims=(0, 2))
+    # plot!(shphandle.shapes; opacity=0.2)
+    insidecount = rasterize(count, shphandle.shapes; res=1, scale=10, boundary=:inside);
+    touchescount = rasterize(count, shphandle.shapes; res=1, scale=10, boundary=:touches);
+    # The main polygon should be identical
+    @test all(covsum[X=0..120] .=== covunion[X=0..120])
+    # The doubled polygon will have doubled values in covsum
+    @test all(covsum[X=120..180] .=== covunion[X=120..190] .* 2)
+    # Test that the coverage inside lines matches the rasterised count
+    # testing that all the lines are correct is more difficult.
+    @test all(mask(covsum; with=insidecount) .=== replace_missing(insidecount, 0.0))
+    # And test there is nothing outside of the rasterize touches area
+    @test all(mask(covsum; with=touchescount) .=== covsum)
+    @test !all(mask(covunion; with=insidecount) .=== covunion)
+    # TODO test coverage along all the lines is correct somehow
 end
 
 @testset "resample" begin
@@ -519,8 +716,8 @@ end
         end
     end
 
-    ## Resample cea.tif using resample
-    cea = Raster(raster_path)
+    # Resample cea.tif using resample
+    cea = Raster(raster_path; missingval=0x00)
     raster_output = resample(cea, output_res; crs=output_crs, method=resample_method)
     disk_output = resample(cea, output_res; crs=output_crs, method=resample_method, filename="resample.tif")
 
@@ -549,5 +746,4 @@ end
         @test isapprox(index(snaptarget, Y), index(disk_snapped, Y))
         @test isapprox(index(snaptarget, X), index(disk_snapped, X))
     end
-
 end

@@ -19,11 +19,11 @@ function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractRaster)
     end
     if parent(A) isa DiskArrays.AbstractDiskArray 
         if parent(A) isa FileArray 
-            printstyled(io, "\nfrom file:\n"; color=:light_black)
+            printstyled(io, "from file:\n"; color=:light_black)
             print(io, filename(parent(A)))
         end
     else
-        printstyled(io, "values: "; color=:light_black)
+        printstyled(io, "parent:\n"; color=:light_black)
         DD.print_array(io, mime, A)
     end
 end

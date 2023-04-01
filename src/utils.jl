@@ -23,15 +23,12 @@ function noindex_to_sampled(dims::DimTuple)
     end
 end
 
-function maybe_typemin_as_missingval(filename::String, A::AbstractRaster{T}) where T
+function _maybe_use_type_missingval(filename::String, A::AbstractRaster{T}) where T
     if ismissing(missingval(A))
-        newmissingval = typemin(Missings.nonmissingtype(T))
+        newmissingval = _type_missingval(Missings.nonmissingtype(T))
         base, ext = splitext(filename)
         A1 = replace_missing(A, newmissingval)
-        if missing isa eltype(A1)
-            A1 = replace_missing(A, missing)
-        end
-        @warn "`missing` cant be written to $ext, typemin for `$(eltype(A1))` of `$newmissingval` used instead"
+        @warn "`missing` cant be written to $ext, missinval for `$(eltype(A1))` of `$newmissingval` used instead"
         return A1
     elseif missing isa eltype(A)
         A1 = replace_missing(A, missingval)
@@ -92,8 +89,8 @@ maybe_eps(T::Type{<:AbstractFloat}) = _default_atol(T)
 _writeable_missing(filename::Nothing, T) = missing
 _writeable_missing(filename::AbstractString, T) = _writeable_missing(T)
 function _writeable_missing(T)
-    missingval = typemin(Missings.nonmissingtype(T))
-    @info "`missingval` set to typemin of $missingval"
+    missingval = _type_missingval(Missings.nonmissingtype(T))
+    @info "`missingval` set to $missingval"
     return missingval
 end
 
@@ -132,32 +129,41 @@ function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
     return x
 end
 
-function _extent2dims(to::Extents.Extent{K};
-    size=nothing, res=nothing, crs=nothing, kw...
-) where K
-    emptydims = map(key2dim, K)
-    if isnothing(size)
-        isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
-        if res isa Real
-            res = ntuple(_ -> res, length(K))
-        end
-        ranges = map(values(to), res) do bounds, r
-            start, outer = bounds
-            length = ceil(Int, (outer - start) / r)
-            step = (outer - start) / length
-            range(; start, step, length)
-        end
-    else
-        isnothing(res) || throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
-        if size isa Int
-            size = ntuple(_ -> size, length(K))
-        end
-        ranges = map(values(to), size) do bounds, length
-            start, outer = bounds
-            step = (outer - start) / length
-            range(; start, step, length)
-        end
+function _extent2dims(to; size=nothing, res=nothing, crs=nothing, kw...) 
+    _extent2dims(to, size, res, crs)
+end
+function _extent2dims(to::Extents.Extent, size::Nothing, res::Nothing, crs)
+    isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
+end
+function _extent2dims(to::Extents.Extent, size, res, crs)
+    isnothing(res) || throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
+end
+function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) where K
+    tuple_res = ntuple(_ -> res, length(K))
+    _extent2dims(to, size, tuple_res, crs)
+end
+function _extent2dims(to::Extents.Extent, size::Nothing, res, crs)
+    ranges = map(values(to), res) do bounds, r
+        start, outer = bounds
+        length = ceil(Int, (outer - start) / r)
+        step = (outer - start) / length
+        range(; start, step, length)
     end
+    return _extent2dims(to, ranges, crs)
+end
+function _extent2dims(to::Extents.Extent, size, res::Nothing, crs)
+    if size isa Int
+        size = ntuple(_ -> size, length(K))
+    end
+    ranges = map(values(to), size) do bounds, length
+        start, outer = bounds
+        step = (outer - start) / length
+        range(; start, step, length)
+    end
+    return _extent2dims(to, ranges, crs)
+end
+function _extent2dims(to::Extents.Extent{K}, ranges, crs) where K
+    emptydims = map(key2dim, K)
     lookups = map(ranges) do range
         Projected(range;
             order=ForwardOrdered(),
@@ -170,52 +176,29 @@ function _extent2dims(to::Extents.Extent{K};
     return d
 end
 
+function _as_intervals(ds::Tuple)
+    # Rasterization only makes sense on Sampled Intervals
+    interval_dims = map(dims(ds, DEFAULT_POINT_ORDER)) do d
+        l = parent(d)
+        rebuild(d, Sampled(parent(l); 
+            order=order(l), span=span(l), sampling=Intervals(locus(l)), metadata=metadata(l))
+        )
+    end
+    return setdims(ds, interval_dims)
+end
 
-# Like `create` but without disk writds, mostly for Bool/Union{Missing,Boo},
-# and uses `similar` where possible
-# TODO merge this with `create` somehow
-_fillraster(x::AbstractRasterSeries, T::Type; kw...) = _fillraster(first(x), T; kw...)
-_fillraster(x::AbstractRasterStack, T::Type; kw...) = _fillraster(first(x), T; kw...)
-
-function _fillraster(dims::Tuple, ::Type{T}; missingval, kw...) where T
-    data = if T === Bool
-        falses(dims) # Use a BitArray
-    else
-        fill!(Raster{T}(undef, dims), missingval) # Use an Array
-    end
-    return Raster(data, dims; missingval)
-end
-function _fillraster(x::Extents.Extent, T::Type; to=nothing, kw...)
-    if isnothing(to)
-        _fillraster(_extent2dims(x; kw...), T; kw...)
-    else
-        _fillraster(to, T; kw...)
-    end
-end
-_fillraster(x, T::Type; kw...) = _fillraster(x, dims(x), T; kw...)
-function _fillraster(x, dims::Nothing, T::Type; to=nothing, kw...)
-    if isnothing(to)
-        ext = _extent(x)
-        isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
-        _fillraster(ext, T; kw...)
-    else
-        _fillraster(to, T; kw...)
-    end
-end
-function _fillraster(A::AbstractRaster, dims::Tuple, ::Type{T}; missingval, kw...) where T
-    # TODO: improve this so that only e.g. CuArray uses `similar`
-    # This is a little annoying to lock down for all wrapper types,
-    # maybe ArrayInterface has tools for this.
-    data = if parent(A) isa Union{Array,DA.AbstractDiskArray} && T === Bool
-        falses(dims) # Use a BitArray
-    else
-        fill!(similar(A, T, dims), missingval) # Fill some other array type
-    end
-    return Raster(data, dims; missingval)
-end
+_geomindices(geoms) = GI.isfeaturecollection(geoms) ? (1:GI.nfeature(geoms)) : eachindex(geoms)
+_getgeom(geoms, i::Integer) = GI.isfeaturecollection(geoms) ? GI.getfeature(geoms, i) : geoms[i]
 
 
 _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
 
 _filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not found"))
 
+_progress(args...; kw...) = ProgressMeter.Progress(args...; color=:blue, barlen=50, kw...)
+
+# Function barrier for splatted vector broadcast
+@noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
+
+_type_missingval(::Type{T}) where T = typemin(T)
+_type_missingval(::Type{T}) where T<:Unsigned = typemax(T) 

@@ -1,4 +1,3 @@
-
 const TO_KEYWORD = """
 - `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
     If no `to` object is provided the extent will be calculated from the geometries,
@@ -11,6 +10,12 @@ const SIZE_KEYWORD = """
 """
 const RES_KEYWORD = """
 - `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
+"""
+const COMBINE_KEYWORD = """
+- `combine`: combine all geometries in tables/iterables into a single layer, or return
+    a `Raster` with a `:geometry` dimension where each slice is the rasterisation 
+    of a single geometry. This can be useful for reductions. Note the returned object
+    may be quite large when `combine=false`. `true` by default.
 """
 
 const SHAPE_KEYWORDS = """
@@ -26,6 +31,7 @@ $TO_KEYWORD
 $RES_KEYWORD
 $SIZE_KEYWORD
 $SHAPE_KEYWORDS
+$COMBINE_KEYWORD
 """
 
 
@@ -205,8 +211,12 @@ function _mask!(A::AbstractRaster, with::AbstractRaster;
     missingval isa Nothing && _nomissingerror()
     missingval = convert(eltype(A), missingval)
 
-    broadcast_dims!(A, values, with) do s, t
-        isequal(t, Rasters.missingval(with)) ? missingval : convert(eltype(A), s)
+    broadcast_dims!(A, values, with) do x, w
+        if isequal(w, Rasters.missingval(with))
+            missingval
+        else
+            convert(eltype(A), x)
+        end
     end
     return A
 end
@@ -243,6 +253,13 @@ And specifically for `shape=:polygon`:
     the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
     The default is `:center`.
 
+For tabular data, feature collections and other iterables
+
+- `combine`: if `true`, combine all objects into a single mask. Otherwise
+    return a Raster with an additional `geometry` dimension, so that each slice
+    along this axis is the mask of the `geometry` opbject of each row of the
+    table, feature in the feature collection, or just each geometry in the iterable.
+
 # Example
 
 ```jldoctest
@@ -262,17 +279,15 @@ $EXPERIMENTAL
 function boolmask end
 boolmask(series::AbstractRasterSeries; kw...) = boolmask(first(series); kw...)
 boolmask(stack::AbstractRasterStack; kw...) = boolmask(first(stack); kw...)
-function boolmask(source::AbstractRaster; kw...) 
-    dest = _fillraster(source, Bool; missingval=false, kw...)
+function boolmask(source::AbstractRaster; kw...)
+    dest = _init_bools(source, Bool, nothing; kw..., missingval=false)
     return boolmask!(dest, source; kw...)
 end
 function boolmask(x; to=nothing, kw...)
-    # Don't try to fill more than X/Y/Z dimensions with geometries
-    # TODO: do we need to call `GeoInterface.is3d` here?
     if to isa Union{AbstractDimArray,AbstractDimStack,DimTuple}
         to = dims(to, DEFAULT_POINT_ORDER)
     end
-    A = _fillraster(x, Bool; to, missingval=false, kw...)
+    A = _init_bools(to, Bool, x; kw..., missingval=false)
     return boolmask!(A, x; kw...)
 end
 
@@ -281,20 +296,39 @@ function boolmask!(dest::AbstractRaster, src::AbstractRaster;
 )
     broadcast!(a -> !isequal(a, missingval), dest, src)
 end
-function boolmask!(dest::AbstractRaster, geom; kw...)
-    fill_geometry!(dest, geom; fill=true, kw...)
+function boolmask!(dest::AbstractRaster, geoms; allocs=nothing, lock=nothing, progress=true, kw...)
+    if hasdim(dest, :geometry)
+        range = _geomindices(geoms) 
+        p = progress ? _progress(length(range); desc="Burning each geometry to a BitArray slice...") : nothing
+        if isnothing(allocs) 
+            allocs = _burning_allocs(dest)
+        end
+        Threads.@threads for i in range
+            geom = _getgeom(geoms, i)
+            ismissing(geom) && continue
+            slice = view(dest, Dim{:geometry}(i))
+            # We don't need locks - these are independent slices
+            burn_geometry!(slice, geom; kw..., fill=true, allocs=_get_alloc(allocs))
+            progress && ProgressMeter.next!(p)
+        end
+    else
+        if isnothing(allocs)
+            allocs = Allocs(dest)
+        end
+        burn_geometry!(dest, geoms; kw..., allocs, lock, fill=true)
+    end
     return dest
 end
 
 """
     missingmask(obj::Raster; kw...)
-    missingmask(obj; [to, res, size])
+    missingmask(obj; [to, res, size, combine])
 
 Create a mask array of `missing` and `true` values, from another `Raster`.
 `AbstractRasterStack` or `AbstractRasterSeries` are also accepted, but a mask
 is taken of the first layer or object *not* all of them.
 
-For [`AbstractRaster`](@ref) the default `missingval` is `missingval(A)`, 
+For [`AbstractRaster`](@ref) the default `missingval` is `missingval(A)`,
 but others can be chosen manually.
 
 The array returned from calling `missingmask` on a `AbstractRaster` is a
@@ -320,18 +354,24 @@ savefig("build/missingmask_example.png"); nothing
 
 $EXPERIMENTAL
 """
-function missingmask(x; missingval=missingval(x), kw...)
-    A = _fillraster(x, Union{Missing,Bool}; missingval=missing, kw...)
-    return _missingmask!(A, x; missingval)
+missingmask(series::AbstractRasterSeries; kw...) = missingmask(first(series); kw...)
+missingmask(stack::AbstractRasterStack; kw...) = missingmask(first(stack); kw...)
+function missingmask(source::AbstractRaster; kw...)
+    dest = _init_bools(source, Union{Missing,Bool}, nothing; kw..., missingval=missing)
+    return missingmask!(dest, source; kw...)
+end
+function missingmask(x; to=nothing, kw...)
+    B = _init_bools(to, Union{Missing,Bool}, x; kw..., missingval=missing)
+    return missingmask!(B, x; kw...)
 end
 
-function _missingmask!(dest::AbstractRaster, src::AbstractRaster;
+function missingmask!(dest::AbstractRaster, src::AbstractRaster;
     missingval=_missingval_or_missing(src)
 )
     broadcast!(x -> isequal(x, missingval) ? missing : true, dest, src)
 end
-function _missingmask!(dest::AbstractRaster, geom; missingval, kw...)
-    B = fill_geometry!(dest, geom; fill=true, kw...)
-    broadcast!(b -> b ? true : missing, dest, B)
+function missingmask!(dest::AbstractRaster, geom; kw...)
+    B = boolmask!(dest, geom; kw...)
+    dest .= (b -> b ? true : missing).(B)
     return dest
 end
