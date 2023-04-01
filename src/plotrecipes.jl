@@ -104,35 +104,10 @@ end
     nplots = size(A, 3)
     if nplots > 1
         :plot_title --> name(A)
-        ncols, nrows = _balance_grid(nplots)
-        :layout --> (ncols, nrows)
-        # link --> :both
-        # :colorbar := false
-        titles = string.(index(A, D))
-        for r in 1:nrows, c in 1:ncols
-            i = (r + (c - 1) * nrows)
-            @series begin
-                :titlefontsize := 9
-                :tickfontsize := 7
-                subplot := i
-                if c != ncols || r != 1
-                    :xformatter := _ -> ""
-                    :yformatter := _ -> ""
-                    :xguide := ""
-                    :yguide := ""
-                end
-                if i <= nplots
-                    title := titles[i]
-                    RasterPlot(), A[:, :, i]
-                else
-                    :framestyle := :none
-                    :legend := :none
-                    []
-                end
-            end
-        end
+        # Plot as a RasterSeries
+        slice(A, dims(A, 3)) 
     else
-        RasterPlot(), A[:, :, 1]
+        RasterPlot(), view(A, :, :, 1)
     end
 end
 
@@ -145,6 +120,10 @@ end
 # We only look at arrays with X, Y, Z dims here.
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(st::AbstractRasterStack)
+    D = map(d -> rebuild(d, 1), otherdims(st, (X(), Y())))
+    if length(D) > 0
+        st = view(st, D...)
+    end
     nplots = length(keys(st))
     if nplots > 1
         ncols, nrows = _balance_grid(nplots)
@@ -153,38 +132,54 @@ end
         max_res = get(plotattributes, :max_res, 1000/(max(nrows, ncols)))
 
         l = DD.layers(st)
-        for r in 1:nrows, c in 1:ncols
-            i = (r + (c - 1) * nrows)
-            @series begin
-                :titlefontsize := 9
-                :tickfontsize := 7
-                subplot := i
-                if c != ncols || r != 1
-                    :xformatter := _ -> ""
-                    :yformatter := _ -> ""
-                    :xguide := ""
-                    :yguide := ""
+        if haskey(plotattributes, :layout)
+            first = true
+            i = 1
+            for raster in values(st)
+                @series begin
+                    :titlefontsize := 9
+                    :tickfontsize := 7
+                    subplot := i
+                    if !first
+                        :xformatter := _ -> ""
+                        :yformatter := _ -> ""
+                        :xguide := ""
+                        :yguide := ""
+                    end
+                    raster
                 end
-                if i <= nplots
-                    A = l[i]
-                    title := string(keys(st)[i])
-                    if length(dims(A, (XDim, YDim))) > 0
-                        # Get a view of the first slice of the X/Y dimension
-                        ods = otherdims(A, (X, Y))
-                        if length(ods) > 0
-                            od1s = map(d -> DD.basetypeof(d)(firstindex(d)), ods)
-                            A = view(A, od1s...)
+                i += 1
+                first = false
+            end
+        else
+            for r in 1:nrows, c in 1:ncols
+                i = (r + (c - 1) * nrows)
+                @series begin
+                    :titlefontsize := 9
+                    :tickfontsize := 7
+                    subplot := i
+                    if c != ncols || r != 1
+                        :xformatter := _ -> ""
+                        :yformatter := _ -> ""
+                        :xguide := ""
+                        :yguide := ""
+                    end
+                    if i <= nplots
+                        A = l[i]
+                        title := string(keys(st)[i])
+                        if length(dims(A, (XDim, YDim))) > 0
+                            # Get a view of the first slice of the X/Y dimension
+                            RasterPlot(), _prepare(_subsample(A, max_res))
+                        else
+                            framestyle := :none
+                            legend := :none
+                            []
                         end
-                        RasterPlot(), _prepare(_subsample(A, max_res))
                     else
                         framestyle := :none
                         legend := :none
                         []
                     end
-                else
-                    framestyle := :none
-                    legend := :none
-                    []
                 end
             end
         end
@@ -248,6 +243,116 @@ function DD.refdims_title(refdim::Band; issingle=false)
     end
 end
 
+@recipe function f(A::RasterSeries{<:Any,1})
+    nplots = length(A)
+    if nplots > 16 
+        plotinds = round.(Int, 1:nplots//16:nplots)
+        @info "Too many raster reatmaps: plotting 16 slices from $nplots"
+        A = @views A[plotinds]
+        nplots = length(plotinds)
+    end
+    # link --> :both
+    # :colorbar := false
+    titles = string.(index(A, dims(A, 1)))
+    if haskey(plotattributes, :layout)
+        first = true
+        for (i, raster) in enumerate(A)
+            @series begin
+                :titlefontsize := 9
+                :tickfontsize := 7
+                subplot := i
+                if !first
+                    :xformatter := _ -> ""
+                    :yformatter := _ -> ""
+                    :xguide := ""
+                    :yguide := ""
+                end
+                raster
+            end
+            first = false
+        end
+    else
+        ncols, nrows = _balance_grid(nplots)
+        :layout --> (ncols, nrows)
+        for r in 1:nrows, c in 1:ncols
+            i = (r + (c - 1) * nrows)
+            @series begin
+                :titlefontsize := 9
+                :tickfontsize := 7
+                subplot := i
+                if c != ncols || r != 1
+                    :xformatter := _ -> ""
+                    :yformatter := _ -> ""
+                    :xguide := ""
+                    :yguide := ""
+                end
+                if i <= nplots
+                    title := titles[i]
+                    A[i]
+                else
+                    :framestyle := :none
+                    :legend := :none
+                    []
+                end
+            end
+        end
+    end
+end
+
+# Plots.jl heatmaps pixels are centered.
+# So we should center the index, and use the projected value.
+_prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
+# Convert arrays to a consistent missing value and Forward array order
+function _prepare(A::AbstractRaster)
+    reorder(A, DD.ForwardOrdered) |>
+    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A)))# |>
+end
+
+function _subsample(A, max_res)
+    ssdims = dims(A, (XDim, YDim, ZDim))[1:2]
+    # Aggregate based on the number of pixels
+    s1, s2 = size(A, ssdims[1]), size(A, ssdims[2])
+    ag = floor(Int, max(s1, s2) / max_res) + 1
+    if ag == 1
+        return read(A)
+    else
+        d1 = rebuild(ssdims[1], 1:ag:s1)
+        d2 = rebuild(ssdims[2], 1:ag:s2)
+        # TODO make this actually load lazily.
+        # DiskArrays.jl does not handle StepRange views
+        return view(read(A), d1, d2)
+    end
+end
+
+_maybename(A) = _maybename(name(A))
+_maybename(n::Name{N}) where N = _maybename(N)
+_maybename(n::NoName) = ""
+_maybename(n::Symbol) = string(n)
+_maybename(n::AbstractString) = n
+
+_maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, eltype(A)(NaN))
+_maybe_replace_missing(A) = A
+
+_maybe_shift(d) = _maybe_shift(sampling(d), d)
+_maybe_shift(::Intervals, d) = DD.maybeshiftlocus(Center(), d)
+_maybe_shift(sampling, d) = d
+
+_maybe_mapped(dims::Tuple) = map(_maybe_mapped, dims)
+_maybe_mapped(dim::Dimension) = _maybe_mapped(lookup(dim), dim)
+_maybe_mapped(lookup::LookupArray, dim::Dimension) = dim
+_maybe_mapped(lookup::Projected, dim::Dimension) = _maybe_mapped(mappedcrs(lookup), dim)
+_maybe_mapped(::Nothing, dim::Dimension) = dim
+_maybe_mapped(::GeoFormat, dim::Dimension) = convertlookup(Mapped, dim)
+
+# We don't show the Band label for a single-band raster,
+# it's just not interesting information.
+function DD.refdims_title(refdim::Band; issingle=false)
+    if issingle
+        ""
+    else
+        string(name(refdim), ": ", DD.refdims_title(lookup(refdim), refdim))
+    end
+end
 
 # Makie.jl recipes
 
