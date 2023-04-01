@@ -9,7 +9,7 @@ ga4ti = Raster(
 ga4x = Raster(
     rand(10, 41, 91, 4), 
     (Z(100:100:1000), Y(-20.0:1.0:20.0), X(0.0:4.0:360.0), X())
-)
+);
 
 plot(ga2)
 plot(ga3[Y(At(0.0))])
@@ -31,7 +31,9 @@ plot(ga4ti[Z(1)])
 # Rasters handles filled contours
 contourf(ga2)
 # RasterStack plot
-plot(RasterStack(ga2, ga3))
+st = RasterStack(ga2, ga3)
+plot(st)
+plot(st; layout=(2, 1))
 
 # DD fallback
 contour(ga2)
