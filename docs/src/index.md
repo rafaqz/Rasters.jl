@@ -66,8 +66,8 @@ Note that most regular Julia methods, such as `replace`, work as for a standard
 |                           |                                                                              |
 | :------------------------ | :--------------------------------------------------------------------------- |
 | [`rasterize`](@ref)       | rasterize points and geometries.                                             |
+| [`coverage`](@ref)        | get the fraction of each pixel covered by geometries.                        |
 | [`extract`](@ref)         | extract values from points or geometries.                                    |
-| [`inpolygon`](@ref)       | find if a point or points are in a polygon.                                  |
 | [`zonal`](@ref)           | calculate zonal statistics for an object masked by geometries.               |
 
 
@@ -631,6 +631,8 @@ aggregate!
 boolmask
 classify 
 classify!
+coverage
+coverage!
 convertlookup
 crop
 crs
@@ -638,7 +640,6 @@ disaggregate
 disaggregate!
 extend
 extract
-inpolygon
 mappedcrs
 mappedbounds
 mappedindex
