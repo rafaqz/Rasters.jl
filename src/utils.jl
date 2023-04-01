@@ -25,7 +25,7 @@ end
 
 function _maybe_use_type_missingval(filename::String, A::AbstractRaster{T}) where T
     if ismissing(missingval(A))
-        newmissingval = _type_missing(Missings.nonmissingtype(T))
+        newmissingval = _type_missingval(Missings.nonmissingtype(T))
         base, ext = splitext(filename)
         A1 = replace_missing(A, newmissingval)
         @warn "`missing` cant be written to $ext, missinval for `$(eltype(A1))` of `$newmissingval` used instead"
