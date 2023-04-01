@@ -175,13 +175,13 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait,
 end
 # Where geoms is an iterator
 function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; 
-    combine::Union{Bool,Nothing}=nothing, lock=SectorLocks(), verbose=true, kw...
+    combine::Union{Bool,Nothing}=nothing, lock=SectorLocks(), verbose=true, progress=true, kw...
 )::Bool
     thread_allocs = _burning_allocs(B) 
     range = _geomindices(geoms)
     checklock = Threads.SpinLock()
     burnchecks = _alloc_burnchecks(range)
-    p = _progress(length(range))
+    p = progress ? _progress(length(range)) : nothing
     if isnothing(combine) || combine
         Threads.@threads for i in range
             geom = _getgeom(geoms, i)
@@ -189,7 +189,7 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
             allocs = _get_alloc(thread_allocs)
             B1 = allocs.buffer
             burnchecks[i] = _burn_geometry!(B1, geom; allocs, lock, kw...)
-            ProgressMeter.next!(p)
+            progress && ProgressMeter.next!(p)
         end
         buffers = map(a -> a.buffer, thread_allocs)
         _do_broadcast!(|, B, buffers...)
@@ -200,7 +200,7 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
             B1 = view(B, Dim{:geometry}(i))
             allocs = _get_alloc(thread_allocs)
             burnchecks[i] = _burn_geometry!(B1, geom; allocs, lock, kw...)
-            ProgressMeter.next!(p)
+            progress && ProgressMeter.next!(p)
         end
     end
     
@@ -269,12 +269,16 @@ function _burn_polygon!(B::AbstractDimArray, trait, geom;
     n_on_line = 0
     if boundary !== :center
         _check_intervals(B, boundary)
-        if boundary === :touches && _check_intervals(B, boundary)
-            # Add line pixels
-            n_on_line = _burn_lines!(B, geom; fill)::Int
-        elseif boundary === :inside && _check_intervals(B, boundary)
-            # Remove line pixels
-            n_on_line = _burn_lines!(B, geom; fill=!fill)::Int
+        if boundary === :touches 
+            if _check_intervals(B, boundary)
+                # Add line pixels
+                n_on_line = _burn_lines!(B, geom; fill)::Int
+            end
+        elseif boundary === :inside 
+            if _check_intervals(B, boundary)
+                # Remove line pixels
+                n_on_line = _burn_lines!(B, geom; fill=!fill)::Int
+            end
         else
             throw(ArgumentError("`boundary` can be :touches, :inside, or :center, got :$boundary"))
         end
@@ -763,20 +767,21 @@ end
 function _alloc_bools(to, dims::DimTuple, ::Type{T}; missingval=false, metadata=NoMetadata(), kw...) where T
     # Use an `Array`
     data = fill!(Raster{T}(undef, dims), missingval) 
-    return Raster(data, dims; missingval, metadata)
+    return rebuild(data; missingval, metadata)
 end
 
 _alloc_burnchecks(n::Int) = fill(false, n)
 _alloc_burnchecks(x::AbstractArray) = _alloc_burnchecks(length(x))
 function _set_burnchecks(burnchecks, metadata::Metadata{<:Any,<:Dict}, verbose)
-    metadata[:missed_geometries] = .!burnchecks
+    metadata["missed_geometries"] = .!burnchecks
     verbose && _burncheck_info(burnchecks)
 end
 _set_burnchecks(burnchecks, metadata, verbose) = verbose && _burncheck_info(burnchecks)
 function _burncheck_info(burnchecks)
     nburned = sum(burnchecks)
     nmissed = length(burnchecks) - nburned
-    nmissed > 0 && @info "$nmissed geometries did not affect any pixels. See `metadata(raster)[:missed_polygons]` for a vector of misses"
+    nmissed > 0 && @info "$nmissed geometries did not affect any pixels. See `metadata(raster)[\"missed_geometries\"]` for a vector of misses"
 end
 
 _nthreads() = Threads.nthreads()
+

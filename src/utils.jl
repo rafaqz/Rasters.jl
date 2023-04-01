@@ -23,12 +23,12 @@ function noindex_to_sampled(dims::DimTuple)
     end
 end
 
-function maybe_typemin_as_missingval(filename::String, A::AbstractRaster{T}) where T
+function _maybe_use_type_missingval(filename::String, A::AbstractRaster{T}) where T
     if ismissing(missingval(A))
-        newmissingval = typemin(Missings.nonmissingtype(T))
+        newmissingval = _type_missing(Missings.nonmissingtype(T))
         base, ext = splitext(filename)
         A1 = replace_missing(A, newmissingval)
-        @warn "`missing` cant be written to $ext, typemin for `$(eltype(A1))` of `$newmissingval` used instead"
+        @warn "`missing` cant be written to $ext, missinval for `$(eltype(A1))` of `$newmissingval` used instead"
         return A1
     elseif missing isa eltype(A)
         A1 = replace_missing(A, missingval)
@@ -89,8 +89,8 @@ maybe_eps(T::Type{<:AbstractFloat}) = _default_atol(T)
 _writeable_missing(filename::Nothing, T) = missing
 _writeable_missing(filename::AbstractString, T) = _writeable_missing(T)
 function _writeable_missing(T)
-    missingval = typemin(Missings.nonmissingtype(T))
-    @info "`missingval` set to typemin of $missingval"
+    missingval = _type_missingval(Missings.nonmissingtype(T))
+    @info "`missingval` set to $missingval"
     return missingval
 end
 
@@ -199,3 +199,6 @@ _progress(args...; kw...) = ProgressMeter.Progress(args...; color=:blue, barlen=
 
 # Function barrier for splatted vector broadcast
 @noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
+
+_type_missingval(::Type{T}) where T = typemin(T)
+_type_missingval(::Type{T}) where T<:Unsigned = typemax(T) 

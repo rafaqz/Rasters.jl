@@ -149,7 +149,7 @@ The extension of `filename` will be ignored.
 Returns `filename`.
 """
 function Base.write(filename::String, ::Type{GRDfile}, A::AbstractRaster)
-    A = maybe_typemin_as_missingval(filename, A)
+    A = _maybe_use_type_missingval(filename, A)
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
             a -> reorder(a, (X(GRD_X_ORDER), Y(GRD_Y_ORDER), Band(GRD_BAND_ORDER)))

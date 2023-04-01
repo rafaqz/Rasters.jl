@@ -11,10 +11,10 @@ ga = Raster(A, (X, Y); missingval=missing)
 st = RasterStack((a=A, b=B), (X, Y); missingval=(a=missing,b=missing))
 
 pointvec = [(-20.0, 30.0),
-              (-20.0, 10.0),
-              (0.0, 10.0),
-              (0.0, 30.0),
-              (-20.0, 30.0)]
+            (-20.0, 10.0),
+            (0.0, 10.0),
+            (0.0, 30.0),
+            (-20.0, 30.0)]
 vals = [1, 2, 3, 4, 5]
 polygon = ArchGDAL.createpolygon(pointvec)
 multi_polygon = ArchGDAL.createmultipolygon([[pointvec]])
@@ -65,18 +65,23 @@ end
 
 @testset "boolmask" begin
     @test boolmask(ga) == [false true; true false]
+    @test parent(boolmask(ga)) isa BitArray
     @test boolmask(ga99) == [false true; true false]
     @test boolmask(gaNaN) == [false true; true false]
     @test dims(boolmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
-    @test boolmask(polygon; res=1.0) == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
+    x = boolmask(polygon; res=1.0) 
+    @test x == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
+    @test parent(x) isa BitArray{2}
     # With a :geometry axis
     x = boolmask([polygon, polygon]; combine=false, res=1.0)
     @test eltype(x) == Bool
     @test size(x) == (20, 20, 2)
     @test sum(x) == 800
+    @test parent(x) isa BitArray{3}
     x = boolmask([polygon, polygon]; combine=true, res=1.0)
     @test size(x) == (20, 20)
     @test sum(x) == 400
+    @test parent(x) isa BitArray{2}
 end
 
 @testset "missingmask" begin
@@ -89,6 +94,7 @@ end
     @test eltype(x) == Union{Bool,Missing}
     @test size(x) == (20, 20, 2)
     @test sum(x) == 800
+    @test parent(x) isa Array{Union{Missing,Bool},3}
     x = missingmask([polygon, polygon]; combine=true, res=1.0)
     @test size(x) == (20, 20)
     @test sum(x) == 400
@@ -346,6 +352,7 @@ end
             rasterize!(st, geom; shape=:point, fill=(layer1=1, layer2=2))
             @test sum(st[:layer1]) == 4
             @test sum(st[:layer2]) == 8
+            @test parent(st[:layer1]) isa Array{Float64,2}
             st[:layer1] .= st[:layer2] .= 0
             @test_nowarn rasterize!(A, geom; shape=:point, fill=1)
         end
@@ -374,8 +381,10 @@ end
         for A in (A1, A2), poly in (polygon, multi_polygon)
             ra = rasterize(poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center)
             ra_res = rasterize(poly; res=map(step, span(A)), missingval=0, shape=:polygon, fill=1, boundary=:center)
+            @test parent(ra) isa Array{Int,2}
             @test sum(ra) == sum(ra_res) === 20 * 20
             ra = rasterize(poly; to=A, shape=:polygon, fill=1, boundary=:touches)
+            @test parent(ra) isa Array{Union{Missing,Int},2}
             @test sum(skipmissing(ra)) === 21 * 21
             rasterize!(A, poly; shape=:polygon, fill=1, boundary=:inside)
             @test sum(A) === 19.0 * 19.0
@@ -384,6 +393,7 @@ end
             @testset "polygon is detected for polygon geometries" begin
                 A = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
                 R = rasterize(poly; to=A, fill=1)
+                @test parent(R) isa Array{}
                 @test sum(skipmissing(R)) == 20 * 20
                 @test_throws ArgumentError rasterize!(A, poly; shape=:notashape, fill=1)
                 @test_throws ArgumentError rasterize!(A, poly; shape=:polygon, fill=1, boundary=:notaboundary)
@@ -432,30 +442,34 @@ end
             GeoInterface.isfeature(feature)
             @testset "NTuple of Symbol fill makes an stack" begin
                 rst = rasterize(feature; to=A, fill=(:val1, :val2))
-                rst = rasterize(feature; to=A, fill=(:val1, :val2))
+                @test parent(rst.val1) isa Array{Union{Missing,Int},2}
+                @test parent(rst.val2) isa Array{Union{Missing,Float32},2}
                 @test keys(rst) == (:val1, :val2)
                 @test dims(rst) == dims(A)
                 @test map(sum ∘ skipmissing, rst) === (val1=4, val2=8.0f0)
             end
             @testset "Symbol fill makes an array" begin
                 ra = rasterize(feature; to=A, fill=:val1)
-                @test ra isa Raster{Union{Missing,Int64}}
+                @test ra isa Raster
+                @test parent(ra) isa Array{Union{Missing,Int},2}
                 @test name(ra) == :val1
             end
         end
 
         @testset "feature collection, table from fill of Symbol keys" begin
             data = pointfc
-            pointfc
             for data in (pointfc, DataFrame(pointfc))
                 @testset "NTuple of Symbol fill makes an stack" begin
                     rst = rasterize(sum, data; to=A, fill=(:val1, :val2))
+                    @test parent(rst.val1) isa Array{Union{Missing,Int},2}
+                    @test parent(rst.val2) isa Array{Union{Missing,Float32},2}
                     @test keys(rst) == (:val1, :val2)
                     @test map(sum ∘ skipmissing, rst) === (val1=14, val2=28.0f0)
                     @test_throws ArgumentError rasterize(data; to=A, fill=(:val1, :not_a_column))
                 end
                 @testset "Symbol fill makes an array" begin
                     ra = rasterize(data; to=A, fill=:val1)
+                    @test parent(ra) isa Array{Union{Missing,Int},2}
                     @test ra isa Raster
                     @test name(ra) == :val1
                     @test_throws ArgumentError rasterize(data; to=A, fill=:not_a_column)
@@ -576,28 +590,54 @@ end
 
 
     @testset "reducing rasterization" begin
-        pointvec2 = map(p -> (p[1] + 10, p[2] + 10), pointvec)
-        pointvec3 = map(p -> (p[1] + 20, p[2] + 20), pointvec)
-        pointvec4 = map(p -> (p[1] + 30, p[2] + 30), pointvec)
+        pointvec1 = [(-20.0, 30.0),
+                    (-20.0, 10.0),
+                    (0.0, 10.0),
+                    (0.0, 30.0),
+                    (-20.0, 30.0)]
+        pointvec2 = map(p -> (p[1] + 10, p[2] + 10), pointvec1)
+        pointvec3 = map(p -> (p[1] + 20, p[2] + 20), pointvec1)
+        pointvec4 = map(p -> (p[1] + 30, p[2] + 30), pointvec1)
         polygon = ArchGDAL.createpolygon(pointvec)
-        polygons = ArchGDAL.createpolygon.([[pointvec], [pointvec2], [pointvec3], [pointvec4]])
-        # With fill of these are all the same thing
-        reduced_raster_last_center = rasterize(last, polygons; res=5, fill=1, boundary=:center)
-        reduced_raster_first_center = rasterize(first, polygons; res=5, fill=1, boundary=:center)
-        reduced_raster_mean_center = rasterize(mean, polygons; res=5, fill=1, boundary=:center)
-        reduced_raster_median_center = rasterize(median, polygons; res=5, fill=1, boundary=:center)
-        # using Plots
-        # plot(reduced_raster_mean_center)
-        # plot(reduced_raster_last_center)
-        # plot(reduced_raster_median_center)
-        @test sum(skipmissing(reduced_raster_last_center)) ==
-              sum(skipmissing(reduced_raster_first_center)) ==
-              sum(skipmissing(reduced_raster_median_center)) ==
-              sum(skipmissing(reduced_raster_mean_center)) == 16 * 4 - 12
-        # The outlines of these plots should exactly mactch,  
-        # Plots.plot(raster; clims=(0, 3))
-        # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
-        
+        polygons = ArchGDAL.createpolygon.([[pointvec1], [pointvec2], [pointvec3], [pointvec4]])
+        # With fill of 1 these are all the same thing
+        for f in (last, first, mean, median, maximum, minimum)
+            r = rasterize(f, polygons; res=5, fill=1, boundary=:center)
+            r = rasterize(mean, polygons; res=5, fill=1, boundary=:center)
+            @test parent(r) isa Array{<:Union{Missing,<:Real},2}
+            @test sum(skipmissing(r)) == 12 + 12 + 12 + 16
+        end
+        for f in (last, maximum)
+            r = rasterize(last, polygons; res=5, fill=1:4, boundary=:center)
+            @test parent(r) isa Array{Union{Missing,Int},2}
+            @test sum(skipmissing(r)) == 12 * 1 + 12 * 2 + 12 * 3 + 16 * 4
+        end
+        for f in (first, minimum)
+            r = rasterize(f, polygons; res=5, fill=1:4, boundary=:center)
+            @test parent(r) isa Array{Union{Missing,Int},2}
+            @test sum(skipmissing(r)) == 16 * 1 + 12 * 2 + 12 * 3 + 12 * 4
+        end
+        for f in (mean, median)
+            r = rasterize(f, polygons; res=5, fill=1:4, boundary=:center)
+            @test parent(r) isa Array{Union{Missing,Float64},2}
+            @test sum(skipmissing(r)) == 
+                (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1.5 + 4 * 2.5 + 4 * 3.5)
+        end
+        prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename="test.tif")
+        prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center)
+        @test sum(skipmissing(prod_r)) == 
+            (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1 * 2 + 4 * 2 * 3 + 4 * 3 * 4)
+
+        prod_st = rasterize(prod, polygons; res=5, fill=(a=1:4, b=4:-1:1), missingval=missing, boundary=:center)
+        @test all(prod_st.a .=== rot180(prod_st.b))
+        @test all(prod_r .=== prod_st.a)
+        prod_r_m = rasterize(prod, polygons; res=5, fill=1:4, missingval=-1, boundary=:center)
+        prod_st_m = rasterize(prod, polygons; res=5, fill=(a=1:4, b=4.0:-1.0:1.0), missingval=(a=-1, b=-1.0), boundary=:center)
+        @test all(prod_st_m.a .=== prod_r_m)
+        @test all( prod_st_m.b .=== rot180(Float64.(prod_r_m)))
+
+        r = rasterize(last, polygons; res=5, fill=(a=1, b=2), boundary=:center)
+        @test all(r.a .* 2 .=== r.b)
         
         reduced_raster_sum_center = rasterize(sum, polygons; res=5, fill=1, boundary=:center)
         reduced_raster_count_center = rasterize(count, polygons; res=5, fill=1, boundary=:center)
@@ -636,8 +676,10 @@ end
 end
 
 @testset "coverage" begin
-    @time covsum = Rasters.coverage(shphandle.shapes; mode=:sum, res=1, scale=10);
-    @time covunion = Rasters.coverage(shphandle.shapes; mode=:union, res=1, scale=10);
+    @time covsum = coverage(sum, shphandle.shapes; res=1, scale=10);
+    @time covunion = coverage(union, shphandle.shapes; res=1, scale=10);
+    @test parent(covsum) isa Array{Float64,2}
+    @test parent(covunion) isa Array{Float64,2}
     # using Plots
     # plot(covsum; clims=(0, 2))
     # plot(covunion; clims=(0, 2))
@@ -675,7 +717,7 @@ end
     end
 
     # Resample cea.tif using resample
-    cea = Raster(raster_path)
+    cea = Raster(raster_path; missingval=0x00)
     raster_output = resample(cea, output_res; crs=output_crs, method=resample_method)
     disk_output = resample(cea, output_res; crs=output_crs, method=resample_method, filename="resample.tif")
 

@@ -20,6 +20,7 @@ These can be used when `of` is a GeoInterface.jl compatible object:
 - `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
     where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
     The default is `:center`.
+- `progress`: show a progress bar, `true` by default, `false` to hide..
 
 # Example
 
@@ -40,7 +41,7 @@ st = RasterStack(WorldClim{Climate}; month=Jan, lazy=false)
 countries = Shapefile.Table(shp_name) |> DataFrame
 
 # Calculate the january mean of all climate variables for all countries
-january_stats = zonal(mean, st; of=countries, boundary=:touches) |> DataFrame
+january_stats = zonal(mean, st; of=countries, boundary=:touches, progress=false) |> DataFrame
 
 # Add the country name column (natural earth has some string errors it seems)
 insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Za-z ]")))
@@ -111,15 +112,15 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; kw
         f(skipmissing(A))
     end
 end
-function _zonal(f, x::RasterStackOrArray, ::Nothing, geoms; kw...)
+function _zonal(f, x::RasterStackOrArray, ::Nothing, geoms; progress=true, kw...)
     range = _geomindices(geoms)
     n = length(range)
     n == 0 && return []
     zs = _alloc_zonal(f, x, first(geoms), n; kw...)
-    p = _progress(length(range); desc="Applying $f to each geometry...")
+    p = progress ? _progress(length(range); desc="Applying $f to each geometry...") : nothing
     Threads.@threads for i in range
         zs[i] = _zonal(f, x, _getgeom(geoms, i); kw...)
-        ProgressMeter.next!(p)
+        progress && ProgressMeter.next!(p)
     end
     return zs
 end

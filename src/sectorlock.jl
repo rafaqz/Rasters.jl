@@ -15,7 +15,7 @@ Base.lock(sl::SectorLock) = lock(sl.lock)
 Base.unlock(sl::SectorLock) = unlock(sl.lock)
 Base.islocked(sl::SectorLock) = islocked(sl.lock)
 
-# One lock for each thread - this is only for :static threads
+# One lock for each thread - this is only for threads
 struct SectorLocks
     seclocks::Vector{SectorLock}
     spinlock::Threads.SpinLock
@@ -30,9 +30,10 @@ Base.eachindex(sl::SectorLocks) = 1:length(sl)
 
 Base.lock(sl::SectorLocks, sector::Raster) = Base.lock(sl, parent(sector))
 Base.lock(sl::SectorLocks, sector::RasterStack) = Base.lock(sl, parent(first(sector)))
-Base.lock(sl::SectorLocks, sector::Array) = Base.lock(sl, CartesianIndices(sector))
-Base.lock(sl::SectorLocks, sector::SubArray) = Base.lock(sl, CartesianIndices(sector.indices)) 
+Base.lock(sl::SectorLocks, sector::SubArray) = Base.lock(sl, CartesianIndices(_unitranges(sector.indices...))) 
+Base.lock(sl::SectorLocks, sector::DiskArrays.SubDiskArray) = Base.lock(sl, sector.v)
 Base.lock(sl::SectorLocks, sector::Tuple) = Base.lock(sl, CartesianIndices(sector)) 
+Base.lock(sl::SectorLocks, sector::AbstractArray) = Base.lock(sl, CartesianIndices(sector))
 function Base.lock(seclocks::SectorLocks, sector::CartesianIndices)
     idx = Threads.threadid()
     thread_lock = seclocks.seclocks[idx]
@@ -54,13 +55,22 @@ function Base.lock(seclocks::SectorLocks, sector::CartesianIndices)
         end
     end
     # Lock this sector
+    # println("locking thread", idx)
     lock(thread_lock)
     # Unlock the main spinlock so other sectors can be locked
     unlock(seclocks.spinlock)
     # Work is now done in the locked sector, knowing no other thread
-    # can write to it. `unlock` is run when it is finished
+    # can write to it. `unlock` is run when it is finished.
 end
-Base.unlock(sl::SectorLocks) = unlock(sl[Threads.threadid()])
+Base.unlock(sl::SectorLocks) = begin
+    # println("unlocking thread", idx)
+    unlock(sl[Threads.threadid()])
+end
 
 _intersects(seclock::SectorLock, sector) = _intersects(seclock.sector, sector) 
 _intersects(sector1, sector2) = length(intersect(sector1, sector2)) > 0
+
+_unitranges(x1, xs...) = (_unitranges(x1)..., _unitranges(xs...)...)
+_unitranges(x1::UnitRange) = (x1,)
+_unitranges(x1::AbstractRange{Int}) = (UnitRange(min(first(x1), last(x1)), max(first(x1), last(x1))),)
+_unitranges(x1) = ()

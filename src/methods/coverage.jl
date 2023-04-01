@@ -12,11 +12,11 @@ If `geom` is an `AbstractVector` or table, the `mode` keyword will determine how
 """
 
 const COVERAGE_KEYWORDS = """
-- `mode`: method for combining multiple geometries - `:union` or `:sum`. 
-    * `:union` (the default) gives the areas covered by all geometries. Usefull in
+- `mode`: method for combining multiple geometries - `union` or `sum`. 
+    * `union` (the default) gives the areas covered by all geometries. Usefull in
       spatial coverage where overlapping regions should not be counted twice.
       The returned raster will contain `Float64` values between `0.0` and `1.0`.
-    * `:sum` gives the summed total of the areas covered by all geometries,
+    * `sum` gives the summed total of the areas covered by all geometries,
       as in taking the sum of running `coverage` separately on all geometries.
       The returned values are positive `Float64`.
     For a single geometry, the `mode` keyword has no effect - the result is the same.
@@ -24,10 +24,13 @@ const COVERAGE_KEYWORDS = """
     10 x 10 or 100 points that contribute to coverage. Using `100` means 10,000 points
     contribute. Performance will decline as `scale` increases. Memory use will grow 
     by `scale^2` when `mode=:union`.
+- `progress`: show a progress bar, `true` by default, `false` to hide.
+- `vebose`: whether to print messages about rasterization problems. `true` by default.
 """
 
 """
-    coverage(geom; to, mode, scale, kw...)
+    coverage(mode, geom; [to, res, size, scale, verbose, progress])
+    coverage(geom; [to, mode, res, size, scale, verbose, progress])
 
 $COVERAGE_DOC
 
@@ -38,8 +41,9 @@ $TO_KEYWORD
 $SIZE_KEYWORD
 $RES_KEYWORD
 """
-coverage(data; to=nothing, mode=:union, scale=10, res=nothing, size=nothing, verbose=true) = 
-    _coverage(to, data; mode=Symbol(mode), scale, res, size, verbose)
+coverage(data; to=nothing, mode=union, scale=10, res=nothing, size=nothing, verbose=true, progress=true) = 
+    _coverage(to, data; mode, scale, res, size, verbose, progress)
+coverage(f::Union{typeof(sum),typeof(union)}, data; kw...) = coverage(data; kw..., mode=f)
 
 _coverage(to::Extents.Extent, data; res=nothing, size=nothing, kw...) =
     _coverage(_extent2dims(to; res, size, kw...), data; kw...)
@@ -65,8 +69,8 @@ $COVERAGE_DOC
 
 $COVERAGE_KEYWORDS
 """
-coverage!(A::AbstractRaster, data; scale::Integer=10, mode=:union, verbose=true) = 
-    _coverage!(A, GI.trait(data), data; scale, mode=Symbol(mode), verbose)
+coverage!(A::AbstractRaster, data; scale::Integer=10, mode=union, verbose=true, progress=true) = 
+    _coverage!(A, GI.trait(data), data; scale, mode=mode, verbose, progress)
 
 _coverage!(A::AbstractRaster, ::GI.FeatureTrait, feature; kw...) =
     _coverage!(A, GI.geometry(feature); kw...)
@@ -74,7 +78,7 @@ _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom; mode, kw...) =
     _sum_coverage!(A, geom; kw...)
 # Collect iterators so threading is easier.
 function _coverage!(A::AbstractRaster, ::Union{Nothing,GI.FeatureCollectionTrait}, geoms; 
-    mode, scale, verbose
+    mode, scale, verbose, progress
 )
     n = _nthreads()
     buffers = (
@@ -90,12 +94,12 @@ function _coverage!(A::AbstractRaster, ::Union{Nothing,GI.FeatureCollectionTrait
         geoms = Tables.getcolumn(geoms, first(GI.geometrycolumns(geoms)))
     end
     subpixel_dims = _subpixel_dims(A, scale)
-    missed_pixels = if mode == :union
-        _union_coverage!(A, geoms, buffers; scale, subpixel_dims)
-    elseif mode == :sum
-        _sum_coverage!(A, geoms, buffers; scale, subpixel_dims)
+    missed_pixels = if mode === union
+        _union_coverage!(A, geoms, buffers; scale, subpixel_dims, progress)
+    elseif mode === sum
+        _sum_coverage!(A, geoms, buffers; scale, subpixel_dims, progress)
     else
-        throw(ArgumentError("Coverage `mode` can be `:union` or `:sum`. Got $mode"))
+        throw(ArgumentError("Coverage `mode` can be `union` or `sum`. Got $mode"))
     end
     verbose && _check_missed_pixels(missed_pixels, scale)
     return A
@@ -103,7 +107,7 @@ end
 
 # Combines coverage at the sub-pixel level for a final value 0-1
 function _union_coverage!(A::AbstractRaster, geoms, buffers; 
-    scale, subpixel_dims
+    scale, subpixel_dims, progress=true
 )
     n = _nthreads()
     centeracc = [_init_bools(A, Bool; missingval=false) for _ in 1:n]
@@ -112,7 +116,7 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
 
     allbuffers = merge(buffers, (; centeracc, lineacc, subpixel_buffer))
 
-    p = _progress(length(geoms) + size(A, Y()); desc="Calculating union coverage...")
+    p = progress ? _progress(length(geoms) + size(A, Y()); desc="Calculating union coverage...") : nothing
 
     Threads.@threads for i in _geomindices(geoms)
         geom = _getgeom(geoms, i)
@@ -121,7 +125,7 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
         _union_coverage!(A, geom; scale, subpixel_buffer, thread_buffers...)
         fill!(thread_buffers.linebuffer, false)
         fill!(thread_buffers.centerbuffer, false) # Is this necessary?
-        ProgressMeter.next!(p)
+        progress && ProgressMeter.next!(p)
     end
     # Merge downscaled BitArray (with a function barrier)
     subpixel_union = _do_broadcast!(|, subpixel_buffer[1], subpixel_buffer...)
@@ -153,7 +157,7 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
                 A[D...] = pixel_coverage
             end
         end
-        ProgressMeter.next!(p)
+        progress && ProgressMeter.next!(p)
     end
     return sum(missed_pixels)
 end
@@ -243,11 +247,11 @@ end
 
 # Sums all coverage 
 function _sum_coverage!(A::AbstractRaster, geoms, buffers; 
-    scale, subpixel_dims, verbose=true
+    scale, subpixel_dims, verbose=true, progress=true
 )
     n = _nthreads()
     coveragebuffers = [fill!(similar(A), 0.0) for _ in 1:n]
-    p = _progress(length(geoms); desc="Calculating coverage...")
+    p = progress ? _progress(length(geoms); desc="Calculating coverage...") : nothing
     missed_pixels = fill(0, n)
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
@@ -261,7 +265,7 @@ function _sum_coverage!(A::AbstractRaster, geoms, buffers;
         missed_pixels[idx] += nmissed
         fill!(thread_buffers.linebuffer, false)
         fill!(thread_buffers.centerbuffer, false)
-        ProgressMeter.next!(p)
+        progress && ProgressMeter.next!(p)
     end
     _do_broadcast!(+, A, coveragebuffers...)
     _set_burnchecks(burnchecks, metadata(A), verbose)
@@ -369,6 +373,6 @@ end
 
 function _check_missed_pixels(missed_pixels::Int, scale::Int)
     if missed_pixels > 0
-        @info "There were $missed_pixels times that pixels were touched by geometries but did not produce coverage, meaning the area covered was not detectable at the $(scale * scale) points at `scale=$scale`."
+        @info "There were $missed_pixels times that pixels were touched by geometries but did not produce coverage, meaning these areas did not contain any of the $(scale * scale) points in the pixel at `scale=$scale`."
     end
 end
