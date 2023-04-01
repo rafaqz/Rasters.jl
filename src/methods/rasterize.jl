@@ -255,7 +255,7 @@ A = zeros(UInt32, dimz; missingval=UInt32(0))
 # Rasterize each indonesian island with a different number. The islands are
 # rings of a multi-polygon, so we use `GI.getring` to get them all separately.
 islands = collect(GeoInterface.getring(indonesia_border))
-rasterize!(A, islands; fill=1:length(rings))
+rasterize!(A, islands; fill=1:length(islands))
 
 # And plot
 p = plot(Rasters.trim(A); color=:spring)
