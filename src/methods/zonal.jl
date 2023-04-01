@@ -48,26 +48,26 @@ insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Z
 
 # output
 258×8 DataFrame
- Row │ country                       tmin           tmax          tavg         ⋯
-     │ SubStrin…                     Float32?       Float32?      Float32?     ⋯
+ Row │ country                       tmin       tmax       tavg       prec     ⋯
+     │ SubStrin…                     Float32    Float32    Float32    Float64  ⋯
 ─────┼──────────────────────────────────────────────────────────────────────────
-   1 │ Indonesia                          21.539         29.1784       25.3587 ⋯
-   2 │ Malaysia                           21.2955        28.4185       24.8569
-   3 │ Chile                               7.24828       17.9385       12.5933
-   4 │ Bolivia                            17.233         27.7662       22.4995
-   5 │ Peru                               15.0116        25.5386       20.2751 ⋯
-   6 │ Argentina                          13.683         27.6834       20.6831
-   7 │ Dhekelia Sovereign Base Area  missing        missing       missing
-   8 │ Cyprus                              5.03622       14.2194        9.6276
-  ⋮  │              ⋮                      ⋮             ⋮              ⋮      ⋱
- 252 │ Spratly Islands                    25.1           29.4          27.2    ⋯
- 253 │ Clipperton Island             missing        missing       missing
- 254 │ Macao S                       missing        missing       missing
- 255 │ Ashmore and Cartier Islands   missing        missing       missing
- 256 │ Bajo Nuevo Bank               missing        missing       missing      ⋯
- 257 │ Serranilla Bank               missing        missing       missing
- 258 │ Scarborough Reef              missing        missing       missing
-                                                  5 columns and 243 rows omitted
+   1 │ Indonesia                      21.5447    29.1864    25.3656   271.063  ⋯
+   2 │ Malaysia                       21.3087    28.4291    24.8688   273.381
+   3 │ Chile                           7.24534   17.9263    12.5858    78.1287
+   4 │ Bolivia                        17.2065    27.7454    22.4759   192.542
+   5 │ Peru                           15.0273    25.5504    20.2888   180.007  ⋯
+   6 │ Argentina                      13.6751    27.6715    20.6732    67.1837
+   7 │ Dhekelia Sovereign Base Area    5.87126   15.8991    10.8868    76.25
+   8 │ Cyprus                          5.65921   14.6665    10.1622    97.4474
+  ⋮  │              ⋮                    ⋮          ⋮          ⋮         ⋮     ⋱
+ 252 │ Spratly Islands                25.0       29.2       27.05      70.5    ⋯
+ 253 │ Clipperton Island              21.5       33.2727    27.4        6.0
+ 254 │ Macao S                        11.6694    17.7288    14.6988    28.0
+ 255 │ Ashmore and Cartier Islands   NaN        NaN        NaN        NaN
+ 256 │ Bajo Nuevo Bank               NaN        NaN        NaN        NaN      ⋯
+ 257 │ Serranilla Bank               NaN        NaN        NaN        NaN
+ 258 │ Scarborough Reef              NaN        NaN        NaN        NaN
+                                                  3 columns and 243 rows omitted
 ```
 """
 zonal(f, x::RasterStackOrArray; of, kw...) = _zonal(f, x, of; kw...)
