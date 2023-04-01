@@ -120,6 +120,10 @@ end
 # We only look at arrays with X, Y, Z dims here.
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(st::AbstractRasterStack)
+    D = map(d -> rebuild(d, 1), otherdims(st, (X(), Y())))
+    if length(D) > 0
+        st = view(st, D...)
+    end
     nplots = length(keys(st))
     if nplots > 1
         ncols, nrows = _balance_grid(nplots)
@@ -165,11 +169,6 @@ end
                         title := string(keys(st)[i])
                         if length(dims(A, (XDim, YDim))) > 0
                             # Get a view of the first slice of the X/Y dimension
-                            ods = otherdims(A, (X, Y))
-                            if length(ods) > 0
-                                od1s = map(d -> DD.basetypeof(d)(firstindex(d)), ods)
-                                A = view(A, od1s...)
-                            end
                             RasterPlot(), _prepare(_subsample(A, max_res))
                         else
                             framestyle := :none
