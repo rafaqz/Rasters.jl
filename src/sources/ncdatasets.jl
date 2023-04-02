@@ -84,7 +84,10 @@ Write an NCDarray to a NetCDF file using NCDatasets.jl
 
 Returns `filename`.
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster; append=false, kw...)
+function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster; 
+    append=false, force=false, verbose=true, kw...
+)
+    check_can_write(filename, force)
     mode  = !isfile(filename) || !append ? "c" : "a";
     ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(A)))
     try
