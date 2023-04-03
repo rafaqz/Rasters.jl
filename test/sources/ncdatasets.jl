@@ -247,7 +247,7 @@ stackkeys = (
 
             # test for nc `kw...`
             geoA = read(ncarray)
-            write("tos.nc", geoA) # default `deflatelevel = 0`
+            write("tos.nc", geoA; force=true) # default `deflatelevel = 0`
             write("tos_small.nc", geoA; deflatelevel=2)
             @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
             isfile("tos.nc") && rm("tos.nc")
@@ -258,12 +258,14 @@ stackkeys = (
             x = rand(n, n)
             r1 = Raster(x, (X, Y); name = "v1")
             r2 = Raster(x, (X, Y); name = "v2")
-            f = "test.nc"
-            isfile(f) && rm(f)
-            write(f, r1, append = false); size1 = filesize(f)
-            write(f, r2; append = true); size2 = filesize(f)
+            fn = "test.nc"
+            isfile(fn) && rm(fn)
+            write(fn, r1, append=false)
+            size1 = filesize(fn)
+            write(fn, r2; append=true)
+            size2 = filesize(fn)
             @test size2 > size1*1.8 # two variable 
-            isfile(f) && rm(f)
+            isfile(fn) && rm(fn)
 
             @testset "non allowed values" begin
                 # TODO return this test when the changes in NCDatasets.jl settle
@@ -287,13 +289,15 @@ stackkeys = (
         end
         @testset "to grd" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
-            write("testgrd.gri", nccleaned)
+            write("testgrd.gri", nccleaned; force=true)
             grdarray = Raster("testgrd.gri");
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == (bounds(nccleaned)..., (1, 1))
             @test reverse(index(grdarray, Y)) ≈ index(nccleaned, Y) .- 0.5
             @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
             @test Raster(grdarray) ≈ reverse(nccleaned; dims=Y)
+            rm("testgrd.gri")
+            rm("testgrd.grd")
         end
     end
 

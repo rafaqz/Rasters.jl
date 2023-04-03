@@ -26,7 +26,7 @@ Other keyword arguments are passed to the `write` method for the backend.
 If the source can't be saved as a stack-like object, individual array layers will be saved.
 """
 function Base.write(path::AbstractString, s::AbstractRasterStack;
-    suffix=nothing, ext=nothing, source=_sourcetype(filename), verbose=true, kw...
+    suffix=nothing, ext=nothing, source=_sourcetype(path, ext), verbose=true, kw...
 )
     if haslayers(source)
         write(path, source, s; kw...)
@@ -70,7 +70,7 @@ See other docs for `write`. All keywords are passed through to `Raster` and `Ras
 """
 function Base.write(
     path::AbstractString, A::AbstractRasterSeries;
-    ext=nothing, source=(isnothing(ext) ? _sourcetype(path) : _sourcetype(string("filepath" * ext))), kw...
+    ext=nothing, source=_sourcetype(path, ext), kw...
 )
     base, name_ext = splitext(path)
     ext = isnothing(ext) ? name_ext : ext

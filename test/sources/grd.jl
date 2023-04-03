@@ -420,7 +420,7 @@ end
 
 @testset "Grd series" begin
     grdpath2 = stem * "2" * ".gri"
-    write(grdpath2, 2 .* Raster(grdpath))
+    write(grdpath2, 2 .* Raster(grdpath); force=true)
     Raster(grdpath) .* 2 == Raster(grdpath2)
     eager_grdseries = RasterSeries([grdpath, grdpath2], (Ti,); mappedcrs=EPSG(4326))
     lazy_grdseries = RasterSeries([grdpath, grdpath2], (Ti,); mappedcrs=EPSG(4326), lazy=true)

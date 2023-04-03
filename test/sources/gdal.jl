@@ -327,13 +327,14 @@ gdalpath = maybedownload(url)
         end
 
         @testset "to grd" begin
-            write("testgrd.gri", gdalarray)
+            write("testgrd.gri", gdalarray; force=true)
             grdarray = Raster("testgrd.gri")
             @test crs(grdarray) == convert(ProjString, crs(gdalarray))
             @test all(map((a, b) -> all(a .≈ b), bounds(grdarray), bounds(gdalarray)))
             @test index(grdarray, Y) ≈ index(gdalarray, Y)
             @test val(dims(grdarray, X)) ≈ val(dims(gdalarray, X))
             @test grdarray == gdalarray
+            rm("testgrd.gri")
         end
 
         @testset "from Raster" begin
@@ -444,12 +445,13 @@ gdalpath = maybedownload(url)
         end
 
         @testset "write rotated" begin
-            write("rotated.tif", rotated)
+            write("rotated.tif", rotated; force=true)
             newrotated = Raster("rotated.tif")
             plot(newrotated)
             @test rotated == newrotated
             @test lookup(rotated, X).affinemap.linear == lookup(newrotated, X).affinemap.linear
             @test lookup(rotated, X).affinemap.translation == lookup(newrotated, X).affinemap.translation
+            rm("rotated.tif")
         end
 
         @testset "Non-rotated as affine has the same extent" begin
@@ -736,13 +738,14 @@ end
         @test dims(ser1) == dims(ser2) == dims(ser3) == dims(ser3) == dims(ser5) == dims(tifser)
         @test_throws ErrorException RasterSeries("tifseries", Ti(Int))
         rm("tifseries"; recursive=true)
-        mkdir("tifseries2")
-        write("tifseries2/", ser; ext=".tif")
+        mkpath("tifseries2")
+        write("tifseries2/", tifser; ext=".tif", force=true)
         RasterSeries("tifseries2/", Ti(DateTime))
         rm("tifseries2"; recursive=true)
         stackser = RasterSeries((a=[gdalpath, gdalpath], b=[gdalpath, gdalpath]), Ti([DateTime(2001), DateTime(2002)]))
         mkpath("stackseries")
         write("stackseries/test.tif", stackser; force=true)
+        rm("stackseries"; recursive=true)
     end
 
     @testset "read" begin

@@ -14,6 +14,8 @@ const REV_EXT = Dict(
 # Get the source backend for a file extension, falling back to GDALfile
 _sourcetype(filename::AbstractString) = get(REV_EXT, splitext(filename)[2], GDALfile)
 _sourcetype(filenames::NamedTuple) = _sourcetype(first(filenames))
+_sourcetype(filename, ext::Nothing) = _sourcetype(filename)
+_sourcetype(filename, ext) = get(REV_EXT, ext, GDALfile)
 
 # Internal read method
 function _open(f, filename::AbstractString; source=_sourcetype(filename), kw...)
