@@ -1,7 +1,7 @@
 ---
 name: Bug Report
-about: Describe your issue here, including a minimum working example and all file
-  downloads without authentication. Raster data is complicated And we have limitid unfunded time to work on bugfixes. Make your issue immediately reproducible and we can fix it quickly - otherwise it may take a long time.
+about: Describe your issue here, including a minimum working example and all file downloads without authentication. We have limited time, so only easily reproduced issues can be fixed quickly.
+
 title: ''
 labels: ''
 assignees: ''
