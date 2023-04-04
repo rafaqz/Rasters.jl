@@ -1,7 +1,7 @@
 ---
 name: Bug Report
 about: Describe your issue here, including a minimum working example and all file
-  downloads
+  downloads without authentication. Raster data is complicated with a large number of formats and specification details. And we have limitid unfunded time to work on bugfixes. If your issue makes the process of understanding and reproducing your problme easy and fast for the package developers, the bugfix can be fast - otherwise it may take longer.
 title: ''
 labels: ''
 assignees: ''
