@@ -8,7 +8,7 @@ assignees: ''
 
 ---
 
-__I have added a _complete_ minimum working example below including downloads of any files required and understand that without it my bug is very hard to be fix__
+__I have added a _complete_ minimum working example below including downloads of the files (that works without authentication)  and understand that without it my bug is very hard to be fix__
 
 ```julia
 mwe_here
