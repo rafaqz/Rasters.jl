@@ -50,7 +50,6 @@ function Base.write(path::AbstractString, s::AbstractRasterStack;
         end
         map(keys(s), suffix1) do key, sfx
             fn = string(base, sfx, ext)
-            @show fn
             write(fn, source, s[key]; kw...)
         end |> NamedTuple{keys(s)}
     end
@@ -77,13 +76,15 @@ function Base.write(
     verbose = true
     map(A, DimPoints(A)) do raster, p
         lookupstring = join(map(string, p), "_")
-        written_paths = if raster isa RasterStack
+        written_paths = if raster isa RasterStack && !haslayers(source)
             stack_dir = joinpath(dirname(base), lookupstring)
             mkpath(stack_dir)
             stack_filepath = joinpath(stack_dir, basename(path))
             write(stack_filepath, raster; source, verbose, ext, kw...)
         else
-            slice_filename = string(base, "_", lookupstring, ext)
+            dirpath = dirname(base)
+            filename = basename(base) == "" ? lookupstring : join((basename(base), lookupstring), '_')
+            slice_filename = joinpath(dirpath, string(filename, ext))
             write(slice_filename, raster; source, verbose, kw...)
         end
         verbose = false
