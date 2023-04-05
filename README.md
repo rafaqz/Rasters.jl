@@ -184,3 +184,20 @@ be used with identical syntax.
   by setting the `mappedcrs` keyword on construction. You don't need to know the underlying
   projection, the conversion is handled automatically. This means lat/lon
   `EPSG(4326)` can be used seamlessly if you need that.
+
+
+# Bugs, errors and making issues for Rasters.jl
+
+Raster data is complicated and there are many places for subtle or not-so-subtle bugs to creep in.
+
+We need bug reports to reduce how often they occur over time. But also, we need issues that are easy to reproduce or it isn't practically possible to fix them.
+
+Because there are so many raster file types and variations of them, most of the time we need the *exact file* that caused your problem to know how to fix it, and be sure that we have actually fixed it when we are done. So fixing a Rasters.jl bug nearly always involves downloading some file and running some code that breaks with it (if you can trigger the bug without a file, thats great! but its not always possible).
+
+To make an issue we can fix quickly (or at all) there are three key steps:
+
+1. Include the file in an accessible place on web *without autentication* or any other work on our part, so we can just get it and find your bug. You can put it on a file hosting platform (e.g. google drive, drop box, whatever you use) and share the url.
+2. Add a minimum working example to the issue template that first downloads the file, then runs the function that triggers the bug.
+3. Paste the complete stack trace of the error it produces, right to the bottom, into the issue template. Then we can be sure we reproduced the same problem.
+
+Good issues are really appreciated, but they do take just a little extra effort with Rasters.jl because of this need for files.
