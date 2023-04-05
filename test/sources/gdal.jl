@@ -726,7 +726,7 @@ end
 
     @testset "write" begin
         tifser = RasterSeries([gdalpath, gdalpath], Ti([DateTime(2001), DateTime(2002)]))
-        mkdir("tifseries")
+        mkpath("tifseries")
         write("tifseries/test.tif", tifser; force=true)
         @test isfile("tifseries/test_2001-01-01T00:00:00.tif")
         @test isfile("tifseries/test_2002-01-01T00:00:00.tif")
@@ -740,11 +740,17 @@ end
         rm("tifseries"; recursive=true)
         mkpath("tifseries2")
         write("tifseries2/", tifser; ext=".tif", force=true)
-        RasterSeries("tifseries2/", Ti(DateTime))
+        @test isfile("tifseries2/2001-01-01T00:00:00.tif")
+        @test isfile("tifseries2/2002-01-01T00:00:00.tif")
+        ser = RasterSeries("tifseries2/", Ti(DateTime))
         rm("tifseries2"; recursive=true)
         stackser = RasterSeries((a=[gdalpath, gdalpath], b=[gdalpath, gdalpath]), Ti([DateTime(2001), DateTime(2002)]))
         mkpath("stackseries")
         write("stackseries/test.tif", stackser; force=true)
+        @test isfile("stackseries/2001-01-01T00:00:00/test_a.tif")
+        @test isfile("stackseries/2001-01-01T00:00:00/test_b.tif")
+        @test isfile("stackseries/2002-01-01T00:00:00/test_a.tif")
+        @test isfile("stackseries/2002-01-01T00:00:00/test_b.tif")
         rm("stackseries"; recursive=true)
     end
 
@@ -825,4 +831,5 @@ end
         @test crs(gdalarray[Y(1)]) == wkt
     end
 end
+
 
