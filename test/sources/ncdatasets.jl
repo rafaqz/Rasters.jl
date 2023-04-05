@@ -442,6 +442,13 @@ end
     end
     geoA = Raster(ncsingle; key=:tos)
     @test all(read(ncseries[Ti(1)][:tos]) .=== read(geoA))
+
+    write("test.nc", ncseries) 
+    @test isfile("test_1.nc")
+    @test isfile("test_2.nc")
+    RasterStack("test_1.nc")
+    rm("test_1.nc")
+    rm("test_2.nc")
 end
 
 nothing
