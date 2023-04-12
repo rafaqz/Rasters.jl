@@ -35,30 +35,6 @@ isdisk(A::AbstractRasterStack) = isdisk(first(A))
 setcrs(x::AbstractRasterStack, crs) = set(x, setcrs(dims(x), crs)...)
 setmappedcrs(x::AbstractRasterStack, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
 
-"""
-    subset(s::AbstractRasterStack, keys)
-
-Subset a stack to hold only the layers in `keys`, where `keys` is a `Tuple`
-or `Array` of `String` or `Symbol`, or a `Tuple` or `Array` of `Int`
-
-*Depreciated*: As it is now possible to subset `NamedTuple` by indexing
-with a `Tuple` of `Symbol` in `getindex`, that is also possible for any
-`AbstractDimStack` like `RasterStack`. So `subset` is obsolete and will be
-remove in future versions.
-
-Use:
-
-```julia
-s[(:key1, :key2)]
-"""
-subset(s::AbstractRasterStack, keys) = subset(s, Tuple(keys))
-function subset(s::AbstractRasterStack, keys::NTuple{<:Any,<:Key})
-    RasterStack(map(k -> s[k], Tuple(keys)))
-end
-function subset(s::AbstractRasterStack, I::NTuple{<:Any,Int})
-    subset(s, map(i -> keys(s)[i], I))
-end
-
 _singlemissingval(mvs::NamedTuple, key) = mvs[key]
 _singlemissingval(mv, key) = mv
 
