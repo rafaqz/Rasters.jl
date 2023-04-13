@@ -101,7 +101,6 @@ function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom; kw...)
     cropped = crop(x; to=geom, touches=true)
     prod(size(cropped)) > 0 || return missing
     masked = mask(cropped; with=geom, kw...)
-    @show length(collect(skipmissing(masked)))
     return f(skipmissing(masked))
 end
 function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; kw...)
