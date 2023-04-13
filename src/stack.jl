@@ -68,16 +68,9 @@ function DD.rebuild(s::AbstractRasterStack;
 end
 
 function DD.rebuild_from_arrays(
-    s::AbstractRasterStack, das::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractDimArray}}};
-    refdims=DD.refdims(s),
-    metadata=DD.metadata(s),
-    data=map(parent, das),
-    dims=DD.combinedims(das...),
-    layerdims=map(DD.basedims, das),
-    layermetadata=map(DD.metadata, das),
-    missingval=map(missingval, das),
-)
-    rebuild(s; data, dims, refdims, layerdims, metadata, layermetadata, missingval)
+    s::AbstractRasterStack{<:Union{FileStack{<:Any,Keys},OpenStack{<:Any,Keys}}}, das::Tuple{Vararg{<:AbstractDimArray}}; kw...
+) where Keys
+    DD.rebuild_from_arrays(s, NamedTuple{Keys}(das); kw...)
 end
 
 # Base methods #################################################################
