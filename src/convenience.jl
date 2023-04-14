@@ -8,6 +8,7 @@ const REV_EXT = Dict(
     ".grd" => GRDfile, 
     ".gri" => GRDfile, 
     ".nc" => NCDfile, 
+    ".grib" => GRIBfile, 
     ".h5" => SMAPfile
 )
 

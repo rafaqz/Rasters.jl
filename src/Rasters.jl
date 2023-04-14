@@ -15,7 +15,9 @@ import DimensionalData
 
 import Adapt,
        ArchGDAL,
+       GRIBDatasets,
        ColorTypes,
+       CommonDataModel,
        ConstructionBase,
        DiskArrays,
        Extents,
@@ -55,6 +57,8 @@ using Base: tail, @propagate_inbounds
 using Setfield: @set, @set!
 using ColorTypes: RGB
 
+using CommonDataModel: AbstractDataset, AbstractVariable, CFVariable
+
 export AbstractRaster, Raster
 export AbstractRasterStack, RasterStack
 export AbstractRasterSeries, RasterSeries
@@ -90,7 +94,9 @@ const EXPERIMENTAL = """
     """
 
 # Source dispatch singletons
-struct NCDfile end
+abstract type CDMfile end
+struct NCDfile <: CDMfile end
+struct GRIBfile <: CDMfile end
 struct GRDfile end
 struct GDALfile end
 struct SMAPfile end
