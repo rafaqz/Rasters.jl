@@ -45,13 +45,47 @@ DD.modify(f, A::AbstractRasterSeries) = map(child -> modify(f, child), values(A)
 """
     RasterSeries <: AbstractRasterSeries
 
-    RasterSeries(arrays::AbstractArray{<:AbstractRaster}, dims; kw...)
-    RasterSeries(stacks::AbstractArray{<:AbstractRasterStack}, dims; kw...)
-    RasterSeries(filepaths::AbstractArray{<:AbstractString}, dims; child, duplicate_first, kw...)
-    RasterSeries(dirpath:::AbstractString, dims; ext, child, duplicate_first, kw...)
+    RasterSeries(rasters::AbstractArray{<:AbstractRaster}, dims; [refdims])
+    RasterSeries(stacks::AbstractArray{<:AbstractRasterStack}, dims; [refdims]) 
+
+    RasterSeries(paths::AbstractArray{<:AbstractString}, dims; child, duplicate_first, kw...)
+    RasterSeries(path:::AbstractString, dims; ext, separator, child, duplicate_first, kw...)
 
 Concrete implementation of [`AbstractRasterSeries`](@ref).
+
 A `RasterSeries` is an array of `Raster`s or `RasterStack`s, along some dimension(s).
+
+Existing `Raster` `RasterStack` can be wrapped in a `RasterSeries`, or new files 
+can be loaded from an array of `String` or from a single `String`.
+
+A single `String` can refer to a whole directory, or the name of a series of files in a directory,
+sharing a common stem. The differnce between the filenames can be used as the lookup for the
+series. 
+
+For example, with some tifs at these paths : 
+
+```
+"series_dir/myseries_2001-01-01T00:00:00.tif"
+"series_dir/myseries_2002-01-01T00:00:00.tif"
+```
+
+We can load a `RasterSeries` with a `DateTime` lookup:
+
+```julia
+julia> ser = RasterSeries("series_dir/myseries.tif", Ti(DateTime))
+2-element RasterSeries{Raster,1} with dimensions: 
+  Ti Sampled{DateTime} DateTime[DateTime("2001-01-01T00:00:00"), DateTime("2002-01-01T00:00:00")] ForwardOrdered Irregular Points
+```
+
+The `DateTime` suffix is parsed from the filenames. Using `Ti(Int)` would try to parse integers intead.
+
+Just using the directory will also work, unless there are other files mixed in it:
+
+```julia
+julia> ser = RasterSeries("series_dir", Ti(DateTime))
+2-element RasterSeries{Raster,1} with dimensions: 
+  Ti Sampled{DateTime} DateTime[DateTime("2001-01-01T00:00:00"), DateTime("2002-01-01T00:00:00")] ForwardOrdered Irregular Points
+```
 
 # Arguments
 
@@ -59,17 +93,24 @@ A `RasterSeries` is an array of `Raster`s or `RasterStack`s, along some dimensio
 
 # Keywords
 
-- `refdims`: existing reference dimension/s.
+When loading a series from a Vector of `String` paths or a single `String` path:
 - `child`: constructor of child objects for use when filenames are passed in,
     can be `Raster` or `RasterStack`. Defaults to `Raster`.
-- `lazy`: load files lazily. This is `true` by default for series, as it is common to
-    load many files to openare over lazily.
 - `duplicate_first::Bool`: wether to duplicate the dimensions and metadata of the
     first file with all other files. This can save load time with a large
-    series where dimensions are essentially identical. `false` by default.
-- `ext`: filename extension such as ".tiff" or ".nc". Use if only a directory path is passed in.
-- `kw`: keywords passed to the child constructor [`Raster`](@ref) or [`RasterStack`](@ref)
-    if only file names are passed in.
+    series where dimensions are identical. `false` by default.
+- `lazy`: load files lazily, `false` by default.
+- `kw`: keywords passed to the child constructor [`Raster`](@ref) or [`RasterStack`](@ref).
+
+When loading a series from a single `String` path:
+
+- `ext`: filename extension such as ".tiff" or ".nc". 
+    Use to specify a subset of files if only a directory path is passed in.
+- `separator`: separator used to split lookup elements from the rest of a filename. '_' by default.
+
+
+Others:
+- `refdims`: existing reference dimension/s, normally not required.
 """
 struct RasterSeries{T,N,D,R,A<:AbstractArray{T,N}} <: AbstractRasterSeries{T,N,D,A}
     data::A
@@ -113,9 +154,39 @@ function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple
     end
     return RasterSeries(data, DD.format(dims, data); refdims)
 end
-function RasterSeries(dirpath::AbstractString, dims; ext=nothing, kw...)
-    filepaths = filter_ext(dirpath, ext)
-    RasterSeries(filepaths, dims; kw...)
+function RasterSeries(path::AbstractString, dims; refdims=(), ext=nothing, separator='_', kw...)
+    if isdir(path)
+        dirpath = path
+        filepaths = filter_ext(dirpath, ext)
+        length(filepaths) > 0 || error("No $(isnothing(ext) ? "" : ext) files found in \"$path\" dir")
+        full_filename, _ = splitext(basename(first(filepaths)))
+        common_filename = join(split(full_filename, separator)[1:end-1])
+    else
+        dirpath = dirname(path)
+        common_filename, path_ext = splitext(basename(path))
+        ext = (isnothing(ext) && path_ext != "") ? path_ext : ext
+        filepaths = filter(filter_ext(dirpath, ext)) do fp
+            basename(fp)[1:length(common_filename)] == common_filename
+        end
+        length(filepaths) > 0 || error("No $(isnothing(ext) ? "" : ext) files found matching \"$common_filename\" stem and \"$ext\" extension")
+    end
+    basenames = map(fp -> basename(splitext(fp)[1]), filepaths)
+    # Try to get values of the wrapped type from the filenames
+    if dims isa Dimension && val(dims) isa Type
+        T = val(dims)
+        index_strings = map(basenames) do n
+            strip(n[length(common_filename)+1:end], separator)
+        end
+        index = map(index_strings) do s
+            try
+                parse(T, s) 
+            catch
+                error("Could not parse filename segment $s as $T")
+            end
+        end
+        dims = (rebuild(dims, index),)
+    end
+    RasterSeries(filepaths, DD.format(dims, filepaths); refdims, kw...)
 end
 
 @inline function DD.rebuild(

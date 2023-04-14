@@ -141,14 +141,17 @@ end
 # Base methods
 
 """
-    Base.write(filename::AbstractString, ::Type{GRDfile}, s::AbstractRaster)
+    Base.write(filename::AbstractString, ::Type{GRDfile}, s::AbstractRaster; force=false)
 
 Write a `Raster` to a .grd file with a .gri header file. 
 The extension of `filename` will be ignored.
 
 Returns `filename`.
 """
-function Base.write(filename::String, ::Type{GRDfile}, A::AbstractRaster)
+function Base.write(filename::String, ::Type{GRDfile}, A::AbstractRaster; 
+    force=false, verbose=true, kw...
+)
+    check_can_write(filename, force)
     A = _maybe_use_type_missingval(filename, A)
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>

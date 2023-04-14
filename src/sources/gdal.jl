@@ -21,7 +21,7 @@ cleanreturn(A::AG.RasterDataset) = Array(A)
 haslayers(::Type{GDALfile}) = false
 
 """
-    Base.write(filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster; kw...)
+    Base.write(filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster; force=false, kw...)
 
 Write a `Raster` to file using GDAL.
 
@@ -34,8 +34,10 @@ Write a `Raster` to file using GDAL.
 Returns `filename`.
 """
 function Base.write(
-    filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster{T,2}; kw...
+    filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster{T,2}; 
+    force=false, verbose=true, kw...
 ) where T
+    check_can_write(filename, force)
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
 
     correctedA = if lookup(A, X) isa AffineProjected
@@ -49,8 +51,10 @@ function Base.write(
     _gdalwrite(filename, correctedA, nbands; kw...)
 end
 function Base.write(
-    filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster{T,3}; kw...
+    filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster{T,3}; 
+    force=false, verbose=true, kw...
 ) where T
+    check_can_write(filename, force)
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
 

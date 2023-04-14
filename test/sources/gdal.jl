@@ -72,6 +72,7 @@ gdalpath = maybedownload(url)
         write(tempfile, named)
         @test parent(dims(Raster(tempfile), Band)) == ["layer_1", "layer_2"]
         @test keys(RasterStack(tempfile; layersfrom=Band)) == (:layer_1, :layer_2)
+        rm(tempfile)
     end
 
     @testset "view of disk array" begin
@@ -214,6 +215,7 @@ gdalpath = maybedownload(url)
                 aggregate!(mean, dst, gdalarray, 4)
             end
             @test Raster(tempfile) == ag
+            rm(tempfile)
         end
 
         @testset "mosaic" begin
@@ -270,6 +272,7 @@ gdalpath = maybedownload(url)
             @test val(dims(saved1, Y)) ≈ val(dims(geoA, Y))
             @test missingval(saved1) === missingval(geoA)
             @test refdims(saved1) == refdims(geoA)
+            rm(filename)
         end
 
         @testset "3d, with subsetting" begin
@@ -297,6 +300,8 @@ gdalpath = maybedownload(url)
             saved3 = read(Raster(filename3))
             @test all(saved3 .== geoA3)
             @test val(dims(saved3, Band)) == 1:3
+            rm(filename2)
+            rm(filename3)
         end
 
         @testset "custom gdal options" begin
@@ -317,18 +322,19 @@ gdalpath = maybedownload(url)
             filename = tempname() * ".rst"
             write(filename, gdalarray)
             gdalarray2 = Raster(filename; lazy=true)
-            write(gdalarray2)
+            write(gdalarray2; force=true)
             @test read(Raster(filename)) == read(gdalarray2)
         end
 
         @testset "to grd" begin
-            write("testgrd.gri", gdalarray)
+            write("testgrd.gri", gdalarray; force=true)
             grdarray = Raster("testgrd.gri")
             @test crs(grdarray) == convert(ProjString, crs(gdalarray))
             @test all(map((a, b) -> all(a .≈ b), bounds(grdarray), bounds(gdalarray)))
             @test index(grdarray, Y) ≈ index(gdalarray, Y)
             @test val(dims(grdarray, X)) ≈ val(dims(gdalarray, X))
             @test grdarray == gdalarray
+            rm("testgrd.gri")
         end
 
         @testset "from Raster" begin
@@ -369,9 +375,9 @@ gdalpath = maybedownload(url)
         @testset "write missing" begin
             A = read(replace_missing(gdalarray, missing))
             filename = tempname() * ".tif"
-            # write(filename, A)
-            @test_broken missingval(Raster(filename)) === typemin(UInt8)
-            # rm(filename)
+            write(filename, A)
+            @test missingval(Raster(filename)) === typemax(UInt8)
+            rm(filename)
         end
 
         @testset "write other eltypes" begin
@@ -388,7 +394,7 @@ gdalpath = maybedownload(url)
                 Float64.(gdalarray),
                 gdalarray .+ Int16(0)im,
                 gdalarray .+ Int32(0)im,
-                # gdalarray .+ Int64(0)im, ArachGDAL/gdal wont write Complex{Int64}
+                # gdalarray .+ Int64(0)im, #ArachGDAL/gdal wont write Complex{Int64}
                 gdalarray .+ 0.0f0im,
                 gdalarray .+ 0.0im,
             )
@@ -439,12 +445,13 @@ gdalpath = maybedownload(url)
         end
 
         @testset "write rotated" begin
-            write("rotated.tif", rotated)
+            write("rotated.tif", rotated; force=true)
             newrotated = Raster("rotated.tif")
             plot(newrotated)
             @test rotated == newrotated
             @test lookup(rotated, X).affinemap.linear == lookup(newrotated, X).affinemap.linear
             @test lookup(rotated, X).affinemap.translation == lookup(newrotated, X).affinemap.translation
+            rm("rotated.tif")
         end
 
         @testset "Non-rotated as affine has the same extent" begin
@@ -717,6 +724,36 @@ end
     modified_ser = modify(Array, stackser)
     @test typeof(modified_ser) <: RasterSeries{<:RasterStack{<:NamedTuple{(:a,:b),<:Tuple{<:Array{UInt8,3},Vararg}}}}
 
+    @testset "write" begin
+        tifser = RasterSeries([gdalpath, gdalpath], Ti([DateTime(2001), DateTime(2002)]))
+        mkpath("tifseries")
+        write("tifseries/test.tif", tifser; force=true)
+        @test isfile("tifseries/test_2001-01-01T00:00:00.tif")
+        @test isfile("tifseries/test_2002-01-01T00:00:00.tif")
+        ser1 = RasterSeries("tifseries", Ti(DateTime))
+        ser2 = RasterSeries("tifseries", Ti(DateTime); lazy=true)
+        ser3 = RasterSeries("tifseries/test.tif", Ti(DateTime))
+        ser4 = RasterSeries("tifseries", Ti(DateTime); ext=".tif")
+        ser5 = RasterSeries("tifseries/test", Ti(DateTime); ext=".tif")
+        @test dims(ser1) == dims(ser2) == dims(ser3) == dims(ser3) == dims(ser5) == dims(tifser)
+        @test_throws ErrorException RasterSeries("tifseries", Ti(Int))
+        rm("tifseries"; recursive=true)
+        mkpath("tifseries2")
+        write("tifseries2/", tifser; ext=".tif", force=true)
+        @test isfile("tifseries2/2001-01-01T00:00:00.tif")
+        @test isfile("tifseries2/2002-01-01T00:00:00.tif")
+        ser = RasterSeries("tifseries2/", Ti(DateTime))
+        rm("tifseries2"; recursive=true)
+        stackser = RasterSeries((a=[gdalpath, gdalpath], b=[gdalpath, gdalpath]), Ti([DateTime(2001), DateTime(2002)]))
+        mkpath("stackseries")
+        write("stackseries/test.tif", stackser; force=true)
+        @test isfile("stackseries/2001-01-01T00:00:00/test_a.tif")
+        @test isfile("stackseries/2001-01-01T00:00:00/test_b.tif")
+        @test isfile("stackseries/2002-01-01T00:00:00/test_a.tif")
+        @test isfile("stackseries/2002-01-01T00:00:00/test_b.tif")
+        rm("stackseries"; recursive=true)
+    end
+
     @testset "read" begin
         ser1 = read(stackser)
         @test ser1 isa RasterSeries{<:RasterStack}
@@ -794,4 +831,5 @@ end
         @test crs(gdalarray[Y(1)]) == wkt
     end
 end
+
 
