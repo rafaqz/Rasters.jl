@@ -396,7 +396,7 @@ end
     end
 
     @testset "Subsetting keys" begin
-        smallstack = subset(ncstack, (:albedo, :evap, :runoff))
+        smallstack = ncstack[(:albedo, :evap, :runoff)]
         @test keys(smallstack) == (:albedo, :evap, :runoff)
     end
 
