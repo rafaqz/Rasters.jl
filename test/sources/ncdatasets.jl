@@ -1,7 +1,7 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, FileStack, NCDfile, crs
+using Rasters: FileArray, FileStack, NCDsource, crs
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
@@ -95,7 +95,7 @@ stackkeys = (
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
-        @test metadata(ncarray) isa Metadata{NCDfile,Dict{String,Any}}
+        @test metadata(ncarray) isa Metadata{NCDsource,Dict{String,Any}}
         @test name(ncarray) == :tos
     end
 
@@ -138,7 +138,7 @@ stackkeys = (
             @test !all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
             open(Raster(tempfile; lazy=true); write=true) do A
                 mask!(A; with=msk, missingval=missing)
-                # TODO: replace the CFVariable with a FileArray{NCDfile} so this is not required
+                # TODO: replace the CFVariable with a FileArray{NCDsource} so this is not required
                 nothing
             end
             @test all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
@@ -353,9 +353,9 @@ end
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test keys(ncstack) == stackkeys
         @test first(keys(ncstack)) == :abso4
-        @test metadata(ncstack) isa Metadata{NCDfile,Dict{String,Any}}
+        @test metadata(ncstack) isa Metadata{NCDsource,Dict{String,Any}}
         @test metadata(ncstack)["institution"] == "Max-Planck-Institute for Meteorology"
-        @test metadata(ncstack[:albedo]) isa Metadata{NCDfile,Dict{String,Any}}
+        @test metadata(ncstack[:albedo]) isa Metadata{NCDsource,Dict{String,Any}}
         @test metadata(ncstack[:albedo])["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
@@ -369,7 +369,7 @@ end
     @testset "custom filename" begin
         ncmulti_custom = replace(ncmulti, "nc" => "nc4")
         cp(ncmulti, ncmulti_custom, force=true)
-        @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDfile)
+        @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDsource)
         @test ncstack_custom isa RasterStack
         @test map(read(ncstack_custom), read(ncstack)) do a, b
             all(a .=== b)

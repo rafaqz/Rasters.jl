@@ -54,7 +54,7 @@ function DD.dims(wrapper::SMAPhdf5)
 end
 
 # TODO actually add metadata to the dict
-DD.metadata(wrapper::SMAPhdf5) = _metadatadict(SMAPfile, )
+DD.metadata(wrapper::SMAPhdf5) = _metadatadict(SMAPsource, )
 
 function DD.layerdims(ds::SMAPhdf5)
     keys = cleankeys(layerkeys(ds))
@@ -99,38 +99,38 @@ function FileArray(var::SMAPvar, filename::AbstractString; key, kw...)
     N = ndims(var)
     eachchunk = DA.eachchunk(var)
     haschunks = DA.haschunks(var)
-    FileArray{SMAPfile,T,N}(filename, SMAPSIZE; key, eachchunk, haschunks, kw...)
+    FileArray{SMAPsource,T,N}(filename, SMAPSIZE; key, eachchunk, haschunks, kw...)
 end
 
-function Base.open(f::Function, A::FileArray{SMAPfile}; kw...)
-    _open(SMAPfile, filename(A); key=key(A), kw...) do var
-        f(RasterDiskArray{SMAPfile}(var)) 
+function Base.open(f::Function, A::FileArray{SMAPsource}; kw...)
+    _open(SMAPsource, filename(A); key=key(A), kw...) do var
+        f(RasterDiskArray{SMAPsource}(var)) 
     end
 end
     
-DA.writeblock!(A::RasterDiskArray{SMAPfile}, v, r::AbstractUnitRange...) = A[r...] = v
+DA.writeblock!(A::RasterDiskArray{SMAPsource}, v, r::AbstractUnitRange...) = A[r...] = v
 
-haslayers(::Type{SMAPfile}) = true
+haslayers(::Type{SMAPsource}) = true
 
 # Stack ########################################################################
 
-function FileStack{SMAPfile}(ds::SMAPhdf5, filename::AbstractString; write=false, keys)
+function FileStack{SMAPsource}(ds::SMAPhdf5, filename::AbstractString; write=false, keys)
     keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key
-        var = RasterDiskArray{SMAPfile}(ds[key])
+        var = RasterDiskArray{SMAPsource}(ds[key])
         eltype(var), size(var), DA.eachchunk(var), DA.haschunks(var)
     end
     layertypes = map(x->x[1], type_size_ec_hc)
     layersizes = map(x->x[2], type_size_ec_hc)
     eachchunk = map(x->x[3], type_size_ec_hc)
     haschunks = map(x->x[4], type_size_ec_hc)
-    FileStack{SMAPfile,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+    FileStack{SMAPsource,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
 end
-function OpenStack(fs::FileStack{SMAPfile,K}; kw...) where K
+function OpenStack(fs::FileStack{SMAPsource,K}; kw...) where K
     ds = h5open(filename(fs); kw...)
-    OpenStack{SMAPfile,K}(SMAPhdf5(ds))
+    OpenStack{SMAPsource,K}(SMAPhdf5(ds))
 end
-Base.close(os::OpenStack{SMAPfile}) = nothing # HDF5 handles this apparently?
+Base.close(os::OpenStack{SMAPsource}) = nothing # HDF5 handles this apparently?
 
 # Series #######################################################################
 
@@ -185,13 +185,13 @@ end
 
 # Utils ########################################################################
 
-function _open(f, ::Type{SMAPfile}, filename::AbstractString; key=nothing, kw...)
+function _open(f, ::Type{SMAPsource}, filename::AbstractString; key=nothing, kw...)
     isfile(filename) || _filenotfound_error(filename)
     h5open(filename; kw...) do ds
-        _open(f, SMAPfile, SMAPhdf5(ds); key, kw...)
+        _open(f, SMAPsource, SMAPhdf5(ds); key, kw...)
     end
 end
-function _open(f, ::Type{SMAPfile}, ds::SMAPhdf5; key=nothing, kw...)
+function _open(f, ::Type{SMAPsource}, ds::SMAPhdf5; key=nothing, kw...)
     cleanreturn(f(key isa Nothing ? ds : ds[key]))
 end
 
@@ -209,5 +209,5 @@ end
 
 _smap_timedim(t::DateTime) = _smap_timedim(t:Hour(3):t)
 function _smap_timedim(times::AbstractVector)
-    Ti(Sampled(times, ForwardOrdered(), Regular(Hour(3)), Intervals(Start()), _metadatadict(SMAPfile)))
+    Ti(Sampled(times, ForwardOrdered(), Regular(Hour(3)), Intervals(Start()), _metadatadict(SMAPsource)))
 end

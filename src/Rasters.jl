@@ -89,12 +89,6 @@ const EXPERIMENTAL = """
     not be 100% reliable in all cases. Please file github issues if problems occur.
     """
 
-# Source dispatch singletons
-struct NCDfile end
-struct GRDfile end
-struct GDALfile end
-struct SMAPfile end
-
 include("lookup.jl")
 include("dimensions.jl")
 include("filearray.jl")

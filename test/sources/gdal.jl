@@ -1,7 +1,7 @@
 using Rasters, Test, Statistics, Dates, Plots, DiskArrays, RasterDataSources, CoordinateTransformations, Extents
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, GDALfile, crs, bounds
+using Rasters: FileArray, GDALsource, crs, bounds
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
@@ -27,7 +27,7 @@ gdalpath = maybedownload(url)
     
     @testset "load from url" begin
         A = Raster("/vsicurl/" * url)
-        B = Raster(url)
+        B = Raster(url; source=:gdal)
         @test read(A) == read(B) == gdalarray
     end
 
@@ -59,9 +59,13 @@ gdalpath = maybedownload(url)
     @testset "custom filename" begin
         gdal_custom = replace(gdalpath, "tif" => "foo")
         cp(gdalpath, gdal_custom, force=true)
-        @time gdalarray_custom = Raster(gdal_custom, source=Rasters.GDALfile, lazy=true)
+        @time gdalarray_custom = Raster(gdal_custom, source=Rasters.GDALsource, lazy=true)
         @test gdalarray_custom isa Raster
-        @test parent(gdalarray_custom) isa FileArray{Rasters.GDALfile}
+        @test parent(gdalarray_custom) isa FileArray{Rasters.GDALsource}
+        @test all(read(gdalarray_custom) .=== gdalarray)
+        @time gdalarray_custom = Raster(gdal_custom, source=:gdal, lazy=true)
+        @test gdalarray_custom isa Raster
+        @test parent(gdalarray_custom) isa FileArray{Rasters.GDALsource}
         @test all(read(gdalarray_custom) .=== gdalarray)
     end
 
@@ -105,7 +109,7 @@ gdalpath = maybedownload(url)
     @testset "other fields" begin
         # This file has an inorrect missing value
         @test missingval(gdalarray) == nothing
-        @test metadata(gdalarray) isa Metadata{GDALfile,Dict{String,Any}} 
+        @test metadata(gdalarray) isa Metadata{GDALsource,Dict{String,Any}} 
         @test basename(metadata(gdalarray)["filepath"]) == "cea.tif"
         metadata(gdalarray)["filepath"]
         @test name(gdalarray) == :test
