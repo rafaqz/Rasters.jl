@@ -19,7 +19,7 @@ _reduce_init(::typeof(minimum), ::Type{T}) where T = typemax(nonmissingtype(T))
 _reduce_init(::typeof(maximum), ::Type{T}) where T = typemin(nonmissingtype(T))
 
 """
-    rasterize([reduce], obj; to, fill, kw...)
+    rasterize([reduce], data; to, fill, kw...)
 
 Rasterize a GeoInterface.jl compatable geometry or feature,
 or a Tables.jl table with a `:geometry` column of GeoInterface.jl objects,
@@ -34,13 +34,12 @@ or `X`, `Y` points columns.
     including `sum`, `first`, `last`, `minimum`, `maximum`, `extrema` and `Statistics.mean`.
     These may be an order of magnitude or more faster than 
     `count` is a special-cased as it does not need a fill value.
-- `obj`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
+- `data`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
     or a Tables.jl compatible object containing a `:geometry` column or points and values columns.
 
 # Keywords
 
-These are detected automatically from `obj` where possible.
-
+These are detected automatically from `data` where possible.
 
 $GEOM_KEYWORDS
 - `fill`: the value or values to fill a polygon with. A `Symbol` or tuple of `Symbol` will
@@ -106,10 +105,10 @@ function rasterize(reduce::typeof(DD.Statistics.mean), data; fill, kw...)
     counts = rasterize(count, data; kw..., fill=nothing)
     rebuild(sums ./ counts; name=:mean)
 end
-
 function rasterize(data; to=nothing, fill, kw...)
-    return _rasterize(to, data; kw..., fill)
+    _rasterize(to, data; kw..., fill)
 end
+
 function _rasterize(to::AbstractRaster, data;
     missingval=missingval(to), name=name(to), kw...
 )
@@ -168,7 +167,7 @@ function _rasterize(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name,
     fillval = _featurefillval(GI.getfeature(fc, 1), fill)
     init = isnothing(init) ? _reduce_init(reduce, fillval) : init
     name = _filter_name(name, fill)
-    return _create_rasterize_dest(to1; fill=fillval, init, name, kw...) do dest
+    return _create_rasterize_dest(to1; kw..., fill=fillval, init, name) do dest
         rasterize!(dest, fc; reduce, fill, kw..., missingval=missingval(dest))
     end
 end

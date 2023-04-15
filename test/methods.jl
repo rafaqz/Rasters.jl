@@ -499,7 +499,6 @@ end
         return raster
     end
 
-
     @testset "center in polygon rasterization" begin
         @time gdal_raster = gdal_read_rasterize(shppath);
         @time rasters_raster = rasterize(shphandle.shapes; 
@@ -588,7 +587,6 @@ end
         # heatmap(parent(parent(rasters_inside_raster)))
     end
 
-
     @testset "reducing rasterization" begin
         pointvec1 = [(-20.0, 30.0),
                     (-20.0, 10.0),
@@ -602,10 +600,10 @@ end
         polygons = ArchGDAL.createpolygon.([[pointvec1], [pointvec2], [pointvec3], [pointvec4]])
         # With fill of 1 these are all the same thing
         for f in (last, first, mean, median, maximum, minimum)
-            r = rasterize(f, polygons; res=5, fill=1, boundary=:center)
-            r = rasterize(mean, polygons; res=5, fill=1, boundary=:center)
+            r = rasterize(f, polygons; res=5, fill=1, boundary=:center, crs=EPSG(4326))
             @test parent(r) isa Array{<:Union{Missing,<:Real},2}
             @test sum(skipmissing(r)) == 12 + 12 + 12 + 16
+            @test crs(r) == EPSG(4326)
         end
         for f in (last, maximum)
             r = rasterize(last, polygons; res=5, fill=1:4, boundary=:center)

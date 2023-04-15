@@ -11,6 +11,10 @@ const SIZE_KEYWORD = """
 const RES_KEYWORD = """
 - `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
 """
+const CRS_KEYWORD = """
+- `crs`: a `crs` which will be attached to the resulting raster when `to` not passed
+   or is an `Extent`. Otherwise the crs from `to` is used.
+"""
 const COMBINE_KEYWORD = """
 - `combine`: combine all geometries in tables/iterables into a single layer, or return
     a `Raster` with a `:geometry` dimension where each slice is the rasterisation 
@@ -30,6 +34,7 @@ const GEOM_KEYWORDS = """
 $TO_KEYWORD
 $RES_KEYWORD
 $SIZE_KEYWORD
+$CRS_KEYWORD
 $SHAPE_KEYWORDS
 $COMBINE_KEYWORD
 """
