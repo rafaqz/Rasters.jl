@@ -73,12 +73,12 @@ end
     @test x == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
     @test parent(x) isa BitArray{2}
     # With a :geometry axis
-    x = boolmask([polygon, polygon]; combine=false, res=1.0)
+    x = boolmask([polygon, polygon]; collapse=false, res=1.0)
     @test eltype(x) == Bool
     @test size(x) == (20, 20, 2)
     @test sum(x) == 800
     @test parent(x) isa BitArray{3}
-    x = boolmask([polygon, polygon]; combine=true, res=1.0)
+    x = boolmask([polygon, polygon]; collapse=true, res=1.0)
     @test size(x) == (20, 20)
     @test sum(x) == 400
     @test parent(x) isa BitArray{2}
@@ -90,12 +90,12 @@ end
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
     @test dims(missingmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
     @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
-    x = missingmask([polygon, polygon]; combine=false, res=1.0)
+    x = missingmask([polygon, polygon]; collapse=false, res=1.0)
     @test eltype(x) == Union{Bool,Missing}
     @test size(x) == (20, 20, 2)
     @test sum(x) == 800
     @test parent(x) isa Array{Union{Missing,Bool},3}
-    x = missingmask([polygon, polygon]; combine=true, res=1.0)
+    x = missingmask([polygon, polygon]; collapse=true, res=1.0)
     @test size(x) == (20, 20)
     @test sum(x) == 400
 end
