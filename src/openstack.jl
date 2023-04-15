@@ -10,7 +10,7 @@ with `Symbol` keys to retrieve `AbstractArray` layers.
 passed as the function argument in `open(stack)` when the stack is
 contained in a single file.
 
-`X` is a backend type like `NCDfile`, and `K` is a tuple of `Symbol` keys.
+`X` is a backend type like `NCDsource`, and `K` is a tuple of `Symbol` keys.
 """
 struct OpenStack{X,K,DS}
     dataset::DS

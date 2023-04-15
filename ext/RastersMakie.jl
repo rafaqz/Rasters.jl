@@ -225,7 +225,6 @@ function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<:
     return layout
 end
 
-
 function Rasters.rplot(raster::Union{AbstractRaster{T, 2}, Observable{<: AbstractRaster{T, 2}}}; figure = (;), kwargs...) where T
     figure = Figure(; figure...)
     axis, plot = Rasters.rplot(figure[1, 1], raster; kwargs...)
@@ -240,7 +239,6 @@ function Rasters.rplot(raster::Union{AbstractRaster{T, 3}, Observable{<: Abstrac
     # end
     return figure
 end
-
 
 function Rasters.rplot(raster::Union{RasterStack, Observable{<: RasterStack}}; figure = (;), colormap = nothing, colorrange = Makie.automatic, kwargs...)
     figure = Figure(; figure...)

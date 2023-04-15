@@ -203,3 +203,9 @@ _progress(args...; kw...) = ProgressMeter.Progress(args...; color=:blue, barlen=
 
 _type_missingval(::Type{T}) where T = typemin(T)
 _type_missingval(::Type{T}) where T<:Unsigned = typemax(T) 
+
+# Modified from IsURL.jl, many thanks to @zlatanvasovic
+const WINDOWSREGEX = r"^[a-zA-Z]:[\\]"
+const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
+
+_isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)

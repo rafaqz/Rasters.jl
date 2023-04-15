@@ -285,8 +285,9 @@ function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Va
     Raster(filename; dims, kw...)
 end
 function Raster(filename::AbstractString;
-    name=nothing, key=name, source=_sourcetype(filename), kw...
+    name=nothing, key=name, source=nothing, kw...
 )
+    source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
     _open(filename; source) do ds
         key = filekey(ds, key)
         Raster(ds, filename, key; kw...)
@@ -296,9 +297,9 @@ function Raster(ds, filename::AbstractString, key=nothing;
     crs=nothing, mappedcrs=nothing, dims=nothing, refdims=(),
     name=Symbol(key isa Nothing ? "" : string(key)),
     metadata=metadata(ds), missingval=missingval(ds), 
-    source=_sourcetype(filename), 
-    write=false, lazy=false,
+    source=nothing, write=false, lazy=false,
 )
+    source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
