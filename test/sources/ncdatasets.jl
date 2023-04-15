@@ -157,7 +157,7 @@ stackkeys = (
             @test all(Atest .=== Afile .=== Amem)
         end
         @testset "slice" begin
-            @test_throws ArgumentError Rasters.slice(ncarray, Z)
+            @test_throws DimensionMismatch Rasters.slice(ncarray, Z)
             ser = Rasters.slice(ncarray, Ti) 
             @test ser isa RasterSeries
             @test size(ser) == (24,)
