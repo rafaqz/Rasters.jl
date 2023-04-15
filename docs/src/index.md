@@ -673,7 +673,6 @@ setcrs
 setmappedcrs
 skipmissing
 slice
-subset
 trim
 warp
 zonal
