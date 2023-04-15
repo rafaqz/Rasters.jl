@@ -16,11 +16,12 @@ slice(x::RasterStackOrArray, dim) = slice(x, (dim,))
 function slice(x::RasterStackOrArray, dims::Tuple)
     seriesdims = DD.dims(x, dims)
     seriesdata = eachslice(x; dims)
-    if seriesdata isa Slices
-        return RasterSeries(seriesdata, seriesdims)
-    else
-        return RasterSeries(collect(seriesdata), seriesdims)
+    @static if VERSION >= v"1.9"
+        if seriesdata isa Slices
+            return RasterSeries(seriesdata, seriesdims)
+        end
     end
+    return RasterSeries(collect(seriesdata), seriesdims)
 end
 # Slice an existing series into smaller slices
 slice(ser::AbstractRasterSeries, dims) = cat(map(x -> slice(x, dims), ser)...; dims=dims)
