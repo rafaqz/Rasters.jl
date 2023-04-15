@@ -72,6 +72,26 @@ function DD.rebuild_from_arrays(
 ) where Keys
     DD.rebuild_from_arrays(s, NamedTuple{Keys}(das); kw...)
 end
+function DD.rebuild_from_arrays(
+    s::AbstractRasterStack, das::NamedTuple{<:Any,<:Tuple{Vararg{AbstractDimArray}}};
+    data=map(parent, das),
+    refdims=refdims(s),
+    metadata=DD.metadata(s),
+    dims=nothing,
+    layerdims=map(DD.basedims, das),
+    layermetadata=map(DD.metadata, das),
+    missingval=map(missingval, das),
+)
+    if isnothing(dims)
+        # invokelatest avoids compiling this for other paths
+        Base.invokelatest() do
+            dims = DD.combinedims(collect(das))
+        end
+        rebuild(s; data, dims, refdims, layerdims, metadata, layermetadata, missingval)
+    else
+        rebuild(s; data, dims, refdims, layerdims, metadata, layermetadata, missingval)
+    end
+end
 
 # Base methods #################################################################
 
