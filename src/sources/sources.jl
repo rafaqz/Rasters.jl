@@ -6,6 +6,12 @@ struct GRDsource <: Source end
 struct GDALsource <: Source end
 struct SMAPsource <: Source end
 
+# Deprecations
+const NCDfile = NCDsource
+const GRDfile = GRDsource
+const GDALfile = GDALsource
+const SMAPfile = SMAPsource
+
 const SYMBOL2SOURCE = Dict(
     :gdal => GDALsource,
     :grd => GRDsource,
@@ -30,7 +36,7 @@ const EXT2SOURCE = Dict(
 _sourcetype(filename::AbstractString) = get(EXT2SOURCE, splitext(filename)[2], GDALsource)
 _sourcetype(filenames::NamedTuple) = _sourcetype(first(filenames))
 _sourcetype(filename, ext::Nothing) = _sourcetype(filename)
-_sourcetype(filename, ext) = get(REV_SOURCE_EXT, ext, GDALsource)
+_sourcetype(filename, ext) = get(EXT2SOURCE, ext, GDALsource)
 _sourcetype(source::Source) = typeof(source)
 _sourcetype(source::Type{<:Source}) = source
 function _sourcetype(name::Symbol) 
