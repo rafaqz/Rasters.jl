@@ -175,14 +175,14 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait,
 end
 # Where geoms is an iterator
 function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; 
-    combine::Union{Bool,Nothing}=nothing, lock=SectorLocks(), verbose=true, progress=true, kw...
+    collapse::Union{Bool,Nothing}=nothing, lock=SectorLocks(), verbose=true, progress=true, kw...
 )::Bool
     thread_allocs = _burning_allocs(B) 
     range = _geomindices(geoms)
     checklock = Threads.SpinLock()
     burnchecks = _alloc_burnchecks(range)
     p = progress ? _progress(length(range)) : nothing
-    if isnothing(combine) || combine
+    if isnothing(collapse) || collapse
         Threads.@threads for i in range
             geom = _getgeom(geoms, i)
             ismissing(geom) && continue
@@ -746,8 +746,8 @@ function _init_bools(to::Nothing, T::Type, data; kw...)
     dims = _extent2dims(ext; kw...)
     return _init_bools(to, dims, T, data; kw...)
 end
-function _init_bools(to, dims::DimTuple, T::Type, data; combine::Union{Bool,Nothing}=nothing, kw...)
-    if isnothing(data) || isnothing(combine) || combine
+function _init_bools(to, dims::DimTuple, T::Type, data; collapse::Union{Bool,Nothing}=nothing, kw...)
+    if isnothing(data) || isnothing(collapse) || collapse
         _alloc_bools(to, dims, T; kw...)
     else
         n = if Base.IteratorSize(data) isa Base.HasShape

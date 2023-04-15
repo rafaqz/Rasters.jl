@@ -15,12 +15,6 @@ const CRS_KEYWORD = """
 - `crs`: a `crs` which will be attached to the resulting raster when `to` not passed
    or is an `Extent`. Otherwise the crs from `to` is used.
 """
-const COMBINE_KEYWORD = """
-- `combine`: combine all geometries in tables/iterables into a single layer, or return
-    a `Raster` with a `:geometry` dimension where each slice is the rasterisation 
-    of a single geometry. This can be useful for reductions. Note the returned object
-    may be quite large when `combine=false`. `true` by default.
-"""
 
 const SHAPE_KEYWORDS = """
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point` geometries.
@@ -36,7 +30,6 @@ $RES_KEYWORD
 $SIZE_KEYWORD
 $CRS_KEYWORD
 $SHAPE_KEYWORDS
-$COMBINE_KEYWORD
 """
 
 
@@ -260,7 +253,7 @@ And specifically for `shape=:polygon`:
 
 For tabular data, feature collections and other iterables
 
-- `combine`: if `true`, combine all objects into a single mask. Otherwise
+- `collapse`: if `true`, collapse all geometry masks into a single mask. Otherwise
     return a Raster with an additional `geometry` dimension, so that each slice
     along this axis is the mask of the `geometry` opbject of each row of the
     table, feature in the feature collection, or just each geometry in the iterable.
@@ -327,7 +320,7 @@ end
 
 """
     missingmask(obj::Raster; kw...)
-    missingmask(obj; [to, res, size, combine])
+    missingmask(obj; [to, res, size, collapse])
 
 Create a mask array of `missing` and `true` values, from another `Raster`.
 `AbstractRasterStack` or `AbstractRasterSeries` are also accepted, but a mask
