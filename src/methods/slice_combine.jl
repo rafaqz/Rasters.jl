@@ -1,9 +1,9 @@
 """
     slice(A::Union{AbstractRaster,AbstractRasterStack,AbstracRasterSeries}, dims) => RasterSeries
 
-Slice an object along some dimension/s, lazily using `view`.
+Slice views along some dimension/s to obtain a `RasterSeries` of the slices.
 
-For a single `Raster` or `RasterStack` this will return a `RasterSeries` of
+For a `Raster` or `RasterStack` this will return a `RasterSeries` of
 `Raster` or `RasterStack` that are slices along the specified dimensions.
 
 For a `RasterSeries`, the output is another series where the child objects are sliced and the
@@ -12,18 +12,15 @@ with no dimensions will slice along the dimensions shared by both the series and
 
 $EXPERIMENTAL
 """
-slice(x::RasterStackOrArray, dims) = slice(x, (dims,))
-# Slice an array or stack into a series
+slice(x::RasterStackOrArray, dim) = slice(x, (dim,))
 function slice(x::RasterStackOrArray, dims::Tuple)
-    # Make sure all dimensions in `dims` are in `x`
-    all(hasdim(x, dims)) || _errordimsnotfound(dims, DD.dims(x))
-    # Define dimensions and data for the sliced RasterSeries
     seriesdims = DD.dims(x, dims)
-    # series data is a generator of view slices
-    seriesdata = map(DimIndices(seriesdims)) do ds
-        view(x, ds...)
+    seriesdata = eachslice(x; dims)
+    if seriesdata isa Slices
+        return RasterSeries(seriesdata, seriesdims)
+    else
+        return RasterSeries(collect(seriesdata), seriesdims)
     end
-    return RasterSeries(seriesdata, seriesdims)
 end
 # Slice an existing series into smaller slices
 slice(ser::AbstractRasterSeries, dims) = cat(map(x -> slice(x, dims), ser)...; dims=dims)
@@ -31,28 +28,48 @@ slice(ser::AbstractRasterSeries, dims) = cat(map(x -> slice(x, dims), ser)...; d
 @noinline _errordimsnotfound(targets, dims) =
     throw(ArgumentError("Dimensions $(map(DD.dim2key, targets)) were not found in $(map(DD.dim2key, dims))"))
 
-# By default, combine all the RasterSeries dimensions and return a Raster or RasterStack
-combine(ser::AbstractRasterSeries) = combine(ser, dims(ser))
-# Fold over all the dimensions, combining the series one dimension at a time
-combine(ser::AbstractRasterSeries, dims::Tuple) = foldl(combine, dims; init=ser)
-# Slice the N-dimensional series into an array of 1-dimensional
-# series, and combine them, returning a new series with 1 less dimension.
-function combine(ser::AbstractRasterSeries{<:Any,M}, dim::Union{Dimension,DD.DimType,Val,Symbol}) where M
-    od = otherdims(ser, dim)
-    slices = map(d -> view(ser, d...), DimIndices(od))
-    newchilren = map(s -> combine(s, dim), slices)
-    return rebuild(ser; data=newchilren, dims=od)
-end
-# Actually combine a 1-dimensional series with `cat`
-function combine(ser::AbstractRasterSeries{<:Any,1}, dim::Union{Dimension,DD.DimType,Val,Symbol})
-    dim = DD.dims(ser, dim)
-    D = DD.basetypeof(dim)
-    x = foldl(ser) do acc, x
-        # May need to reshape to match acc
-        cat(acc, _maybereshape(x, acc, dim); dims=D)
+"""
+    combine(A::Union{AbstractRaster,AbstractRasterStack,AbstracRasterSeries}, [dims]) => Raster
+
+Combine a `RasterSeries` along some dimension/s, creating a new `Raster` or `RasterStack`,
+depending on the contents of the series.
+
+If `dims` are passed, only the specified dimensions will be combined
+with a `RasterSeries` returned, unless `dims` is all the dims in the series.
+
+$EXPERIMENTAL
+"""
+function combine(ser::AbstractRasterSeries, dims)
+    ods = otherdims(ser, dims)
+    if length(ods) > 0
+        map(DimIndices(ods)) do D
+            combine(view(ser, D...))
+        end |> RasterSeries
+    else
+        combine(ser)
     end
-    return set(x, D => dims(ser, dim))
 end
+function combine(ser::AbstractRasterSeries{<:Any,N}) where N
+    r1 = first(ser)
+    dest = _alloc_combine_dest(ser)
+    for sD in DimIndices(ser)
+        rD = map(d -> rebuild(d, :), DD.dims(r1))
+        source = ser[sD...]
+        if dest isa RasterStack
+            foreach(source, dest) do source_r, dest_r
+                view(dest_r, rD..., sD...) .= source_r
+            end
+        else
+            # TODO we shouldn't need a view here??
+            view(dest, rD..., sD...) .= source
+        end
+    end
+    return dest
+end
+
+_alloc_combine_dest(s::AbstractRasterSeries) = _alloc_combine_dest(first(s), s)
+_alloc_combine_dest(r::AbstractRaster, s) = similar(r, (dims(r)..., dims(s)...))
+_alloc_combine_dest(r::AbstractRasterStack, s) = map(r -> _alloc_combine_dest(r, s), first(s))
 
 function _maybereshape(A::AbstractRaster{<:Any,N}, acc, dim) where N
     if ndims(acc) != ndims(A)
