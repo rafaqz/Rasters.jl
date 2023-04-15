@@ -181,9 +181,7 @@ function _as_intervals(ds::Tuple)
     # Rasterization only makes sense on Sampled Intervals
     interval_dims = map(dims(ds, DEFAULT_POINT_ORDER)) do d
         l = parent(d)
-        rebuild(d, Sampled(parent(l); 
-            order=order(l), span=span(l), sampling=Intervals(locus(l)), metadata=metadata(l))
-        )
+        rebuild(d, rebuild(l; sampling=Intervals(locus(l))))
     end
     return setdims(ds, interval_dims)
 end

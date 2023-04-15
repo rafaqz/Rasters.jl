@@ -291,11 +291,11 @@ setcrs(dims::DimTuple, crs) = map(d -> setcrs(d, crs), dims)
 function setcrs(dim::Dimension, crs)
     rebuild(dim, setcrs(parent(dim), crs; dim=basetypeof(dim)()))
 end
-setcrs(l::AbstractProjected, crs) = rebuild(l; crs)
+setcrs(l::AbstractProjected, crs; dim=nothing) = rebuild(l; crs)
 function setcrs(l::Sampled, crs; dim)
     dim isa Union{XDim,YDim} ? Projected(l; crs, dim) : l
 end
-setcrs(A::AbstractArray, crs) = A
+setcrs(A::AbstractArray, crs; dim=nothing) = A
 
 """
     setmappedcrs(x, crs)
@@ -308,10 +308,10 @@ function setmappedcrs(dim::Dimension, mappedcrs)
     rebuild(dim, setmappedcrs(parent(dim), mappedcrs; dim))
 end
 setmappedcrs(l::AbstractProjected, mappedcrs; dim) = rebuild(l; mappedcrs, dim=basetypeof(dim)())
-setmappedcrs(A::AbstractArray, mappedcrs; dim=nothing) = A
 function setmappedcrs(l::Sampled, mappedcrs; dim)
     dim isa Union{XDim,YDim} ? Mapped(l; mappedcrs, dim) : l
 end
+setmappedcrs(A::AbstractArray, mappedcrs; dim=nothing) = A
 
 
 """
