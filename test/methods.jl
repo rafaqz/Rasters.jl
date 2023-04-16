@@ -761,6 +761,22 @@ end
         @test size(dims(resampled, (X, Y))) == size(dims(cea, (X, Y))) .* 2
         # GDAL fp error see above
         @test_broken extent(cea) = extent(resampled)
+        resampled = resample(cea; res=(res, 2res))
+        @test size(dims(resampled, (X, Y))) == (size(cea, X) .* 2, size(cea, Y))
+        resampled = resample(cea; res=(X(2res), Y(res)))
+        @test size(dims(resampled, (X, Y))) == (size(cea, X), size(cea, Y) * 2)
+    end
+
+    @testset "only `size` kw sets the size" begin
+        res = step(span(cea, X)) / 2
+        resampled = resample(cea; size=(100, 200))
+        @test crs(cea) == crs(resampled)
+        @test size(dims(resampled, (X, Y))) == size(resampled[:, :, 1]) == (100, 200)
+        resampled = resample(cea; size=(X(99), Y(111)))
+        @test crs(cea) == crs(resampled)
+        @test size(dims(resampled, (X, Y))) == size(resampled[:, :, 1]) == (99, 111)
+        resampled = resample(cea; size=100)
+        @test size(dims(resampled, (X, Y))) == size(resampled[:, :, 1]) == (100, 100)
     end
 
     @testset "Extent `to` can resize arbitrarily" begin
@@ -782,7 +798,7 @@ end
     end
 
     @testset "only `crs` kw changes the array size" begin
-        resampled = resample(cea; crs=EPSG(3857), method=resample_method)
+        resampled = resample(cea; crs=EPSG(3857), method)
         @test size(dims(resampled, (X, Y))) !== size(dims(cea, (X, Y)))
         @test crs(resampled) == EPSG(3857)
     end
@@ -790,6 +806,6 @@ end
     @testset "no existing crs warns" begin
         nocrs = setcrs(cea, nothing)
         @test crs(nocrs) == nothing
-        @test_warn "does not have crs" resample(nocrs; crs=output_crs, method=resample_method)
+        @test_warn "does not have crs" resample(nocrs; crs=output_crs, method)
     end
 end

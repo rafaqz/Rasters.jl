@@ -15,6 +15,7 @@ or to snap to the bounds, resolution and crs of the object `to`.
 - `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
     If no `to` object is provided the extent will be calculated from `x`,
 $RES_KEYWORD
+$SIZE_KEYWORD
 - `crs`: A `GeoFormatTypes.GeoFormat` coordinate reference system for the output raster, 
     such as `EPSG(x)` or `WellKnownText(string)`. Defaults to `crs(A)`.
 - `method`: A `Symbol` or `String` specifying the method to use for resampling.
@@ -79,8 +80,11 @@ end
 function resample(x::RasterStackOrArray; 
     # We need to combine the `size` and `res` keywords with 
     # the extent in extent2dims, even if we already have dims.
-    to=nothing, res=nothing, crs=nothing, method=:near, kw...
+    to=nothing, res=nothing, crs=nothing, size=nothing, method=:near, kw...
 )
+    (isnothing(size) || isnothing(res)) || _size_and_res_error()
+
+    # Flags to send to `warp`, then to GDAL
     flags = Dict{Symbol,Any}()
 
     # Method
@@ -88,7 +92,7 @@ function resample(x::RasterStackOrArray;
 
     # Extent
     if to isa Extents.Extent || isnothing(dims(to))
-        to = to isa Extents.Extent ? to : GeoInterface.extent(to)
+        to = isnothing(to) || to isa Extents.Extent ? to : GeoInterface.extent(to)
         if !isnothing(to)
             # Get the extent of geometries
             (xmin, xmax), (ymin, ymax) = to[(:X, :Y)]
@@ -104,12 +108,12 @@ function resample(x::RasterStackOrArray;
         end
 
         # Set res from `to` if it was not already set
-        if isnothing(res)
+        if isnothing(res) && isnothing(size)
             xres, yres = map(abs ∘ step, span(to, (XDim, YDim)))
             flags[:tr] = [yres, xres]
         end
         (xmin, xmax), (ymin, ymax) = bounds(to, (XDim, YDim))
-        flag[:te] = [xmin, ymin, xmax, ymax]
+        flags[:te] = [xmin, ymin, xmax, ymax]
     end
 
     # CRS
@@ -135,14 +139,28 @@ function resample(x::RasterStackOrArray;
     if !isnothing(res)
         xres, yres = if res isa Real
             res, res
-        elseif res isa DimTuple
-            map(val, dims(res, (XDim, YDim)))
-        elseif res isa Tuple
-            res
+        elseif res isa Tuple{<:Dimension{<:Real},<:Dimension{<:Real}}
+            map(val, dims(res, (YDim, XDim)))
+        elseif res isa Tuple{<:Real,<:Real}
+            reverse(res)
         else
-            throw(ArgumentError("`res` must be a `Real`, a `Tuple` of `Real` or `Dimension` wrapping `Real`. Got $res"))
+            throw(ArgumentError("`res` must be a `Real`, or a 2 `Tuple` of `Real` or `Dimension`s wrapping `Real`. Got $res"))
         end
         flags[:tr] = [yres, xres]
+    end
+
+    # Size
+    if !isnothing(size)
+        xsize, ysize = if size isa Int
+            size, size
+        elseif size isa Tuple{<:Dimension{Int},<:Dimension{Int}}
+            map(val, dims(size, (YDim, XDim)))
+        elseif size isa Tuple{Int,Int}
+            reverse(size)
+        else
+            throw(ArgumentError("`size` must be a `Int`, or a 2 `Tuple` of `Int` or `Dimension`s wrapping `Int`. Got $size"))
+        end
+        flags[:ts] = [ysize, xsize]
     end
 
     # resample with `warp`
