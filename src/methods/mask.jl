@@ -6,10 +6,11 @@ const TO_KEYWORD = """
 """
 const SIZE_KEYWORD = """
 - `size`: the size of the output array, as a `Tuple{Int,Int}` or single `Int` for a square.
-    Only required when `to` is not used or is an `Extents.Extent`, otherwise `size`.
+    Only required when `to` is not used or is an `Extents.Extent`, and `res` is not used.
 """
 const RES_KEYWORD = """
 - `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
+    Only required when `to` is not used or is an `Extents.Extent`, and `size` is not used.
 """
 const CRS_KEYWORD = """
 - `crs`: a `crs` which will be attached to the resulting raster when `to` not passed
