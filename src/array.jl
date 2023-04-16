@@ -53,6 +53,7 @@ or of the `Y`/`X` dims of an `AbstractRaster`.
 
 For [`Mapped`](@ref) lookup this may be `nothing` as there may be no projected
 coordinate reference system at all.
+See [`setcrs`](@ref) to set it manually.
 """
 function crs end
 function crs(obj)
@@ -76,6 +77,7 @@ values form the mappedcrs defined projection to the underlying projection, and t
 show plot axes in the mapped projection.
 
 In `Mapped` lookup this is the coordinate reference system of the index values.
+See [`setmappedcrs`](@ref) to set it manually.
 """
 function mappedcrs end
 function mappedcrs(obj)
@@ -233,12 +235,12 @@ methods _do not_ load data from disk: they are applied later, lazily.
 - `metadata`: `ArrayMetadata` object for the array, or `NoMetadata()`.
 - `crs`: the coordinate reference system of  the objects `XDim`/`YDim` dimensions. 
     Only set this if you know the detected crs is incrorrect, or it is not present in
-    the file.
+    the file. The crs is expected to be a `GeoFormatTypes Geom or Mixed` type. 
 - `mappedcrs`: the mapped coordinate reference system of the objects `XDim`/`YDim` dimensions.
     for `Mapped` lookups these are the actual values of the index. For `Projected` lookups
     this can be used to index in eg. `EPSG(4326)` lat/lon values, having it converted automatically.
     Only set this if the detected `mappedcrs` in incorrect, or the file does not have a `mappedcrs`,
-    e.g. a tiff.
+    e.g. a tiff. The mappedcrs is expected to be a `GeoFormatTypes Geom or Mixed` type.
 
 # Internal Keywords
 
