@@ -240,7 +240,7 @@ methods _do not_ load data from disk: they are applied later, lazily.
     for `Mapped` lookups these are the actual values of the index. For `Projected` lookups
     this can be used to index in eg. `EPSG(4326)` lat/lon values, having it converted automatically.
     Only set this if the detected `mappedcrs` in incorrect, or the file does not have a `mappedcrs`,
-    e.g. a tiff. The mappedcrs is expected to be a `GeoFormatTypes Geom or Mixed` type.
+    e.g. a tiff. The `mappedcrs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` `GeoFormat` type. 
 
 # Internal Keywords
 
