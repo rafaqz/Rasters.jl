@@ -702,25 +702,25 @@ end
 
     output_res = 0.0027
     output_crs = EPSG(4326)
-    resample_method = "near"
+    method = "near"
 
     ## Resample cea.tif manually with ArchGDAL
     wkt = convert(String, convert(WellKnownText, output_crs))
     AG_output = ArchGDAL.read(raster_path) do dataset
         ArchGDAL.gdalwarp([dataset], ["-t_srs", "$(wkt)",
                                 "-tr", "$(output_res)", "$(output_res)",
-                                "-r", "$(resample_method)"]) do warped
+                                "-r", "$(method)"]) do warped
             ArchGDAL.read(ArchGDAL.getband(warped, 1))
         end
     end
 
     # Resample cea.tif using resample
     cea = Raster(raster_path; missingval=0x00)
-    raster_output = resample(cea, output_res; crs=output_crs, method=resample_method)
-    disk_output = resample(cea, output_res; crs=output_crs, method=resample_method, filename="resample.tif")
+    raster_output = resample(cea; res=output_res, crs=output_crs, method)
+    disk_output = resample(cea; res=output_res, crs=output_crs, method, filename="resample.tif")
 
     cea_permuted = permutedims(Raster(raster_path), (Y, X, Band))
-    permuted_output = resample(cea_permuted, output_res; crs=output_crs, method=resample_method)
+    permuted_output = resample(cea_permuted, output_res; crs=output_crs, method)
 
     # Compare ArchGDAL, resample and permuted resample 
     @test AG_output ==
@@ -743,5 +743,71 @@ end
         @test isapprox(index(snaptarget, X), index(snapped, X))
         @test isapprox(index(snaptarget, Y), index(disk_snapped, Y))
         @test isapprox(index(snaptarget, X), index(disk_snapped, X))
+    end
+
+    @testset "`method` only does nothing" begin
+        resampled = resample(cea; method)
+        @test crs(cea) == crs(resampled)
+        @test cea == resampled
+        # There is some floating point error here after Rasters -> GDAL -> Rasterss...
+        # Should we correct it by detecting almost identical extent and using the original?
+        @test_broken extent(cea) = extent(resampled)
+    end
+
+    @testset "only `res` kw changes the array size predictably" begin
+        res = step(span(cea, X)) / 2
+        resampled = resample(cea; res)
+        @test crs(cea) == crs(resampled)
+        @test size(dims(resampled, (X, Y))) == size(dims(cea, (X, Y))) .* 2
+        # GDAL fp error see above
+        @test_broken extent(cea) = extent(resampled)
+        resampled = resample(cea; res=(res, 2res))
+        @test size(dims(resampled, (X, Y))) == (size(cea, X) .* 2, size(cea, Y))
+        resampled = resample(cea; res=(X(2res), Y(res)))
+        @test size(dims(resampled, (X, Y))) == (size(cea, X), size(cea, Y) * 2)
+    end
+
+    @testset "only `size` kw sets the size" begin
+        res = step(span(cea, X)) / 2
+        resampled = resample(cea; size=(100, 200))
+        @test crs(cea) == crs(resampled)
+        @test size(dims(resampled, (X, Y))) == size(resampled[:, :, 1]) == (100, 200)
+        resampled = resample(cea; size=(X(99), Y(111)))
+        @test crs(cea) == crs(resampled)
+        @test size(dims(resampled, (X, Y))) == size(resampled[:, :, 1]) == (99, 111)
+        resampled = resample(cea; size=100)
+        @test size(dims(resampled, (X, Y))) == size(resampled[:, :, 1]) == (100, 100)
+    end
+
+    @testset "Extent `to` can resize arbitrarily" begin
+        to = Extent(X=(-10000.0, 2000.0), Y=(4.2e6, 4.3e6))
+        resampled = resample(cea; to)
+        @test all(map((bs...,) -> all(map(≈, bs...)), extent(resampled), to))
+        @test crs(cea) == crs(resampled)
+        # Most of the area is extended, and filled with missingval
+        @test sum(x -> x === missingval(resampled), resampled) > length(resampled) / 2
+    end
+
+    @testset "Geometries work as `to`" begin
+        geom = GeoInterface.Polygon([[(0.0, 4e6), (-1e5, 4.4e6), (-1e5, 4.2e6)]])
+        resampled = resample(cea; to=geom)
+        @test map(extent(resampled[Band(1)]), GeoInterface.extent(geom)) do bs1, bs2 
+            map(≈, bs2, bs2) |> all 
+        end |> all
+        @test crs(cea) == crs(resampled)
+        # Most of the area is extended, and filled with missingval
+        @test sum(x -> x === missingval(resampled), resampled) > length(resampled) / 2
+    end
+
+    @testset "only `crs` kw changes the array size" begin
+        resampled = resample(cea; crs=EPSG(3857), method)
+        @test size(dims(resampled, (X, Y))) !== size(dims(cea, (X, Y)))
+        @test crs(resampled) == EPSG(3857)
+    end
+
+    @testset "no existing crs warns" begin
+        nocrs = setcrs(cea, nothing)
+        @test crs(nocrs) == nothing
+        @test_warn "does not have crs" resample(nocrs; crs=output_crs, method)
     end
 end

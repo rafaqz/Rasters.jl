@@ -65,6 +65,7 @@ function crs(obj)
         nothing
     end
 end
+crs(::Nothing) = nothing
 crs(dim::Dimension) = crs(lookup(dim))
 
 """

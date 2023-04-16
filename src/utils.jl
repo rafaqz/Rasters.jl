@@ -137,7 +137,7 @@ function _extent2dims(to::Extents.Extent, size::Nothing, res::Nothing, crs)
     isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
 end
 function _extent2dims(to::Extents.Extent, size, res, crs)
-    isnothing(res) || throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
+    isnothing(res) || _size_and_res_error()
 end
 function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) where K
     tuple_res = ntuple(_ -> res, length(K))
@@ -198,6 +198,8 @@ _progress(args...; kw...) = ProgressMeter.Progress(args...; color=:blue, barlen=
 
 # Function barrier for splatted vector broadcast
 @noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
+
+_size_and_res_error() = throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
 
 _type_missingval(::Type{T}) where T = typemin(T)
 _type_missingval(::Type{T}) where T<:Unsigned = typemax(T) 
