@@ -235,7 +235,7 @@ methods _do not_ load data from disk: they are applied later, lazily.
 - `metadata`: `ArrayMetadata` object for the array, or `NoMetadata()`.
 - `crs`: the coordinate reference system of  the objects `XDim`/`YDim` dimensions. 
     Only set this if you know the detected crs is incrorrect, or it is not present in
-    the file. The crs is expected to be a `GeoFormatTypes Geom or Mixed` type. 
+    the file. The `crs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` `GeoFormat` type. 
 - `mappedcrs`: the mapped coordinate reference system of the objects `XDim`/`YDim` dimensions.
     for `Mapped` lookups these are the actual values of the index. For `Projected` lookups
     this can be used to index in eg. `EPSG(4326)` lat/lon values, having it converted automatically.
