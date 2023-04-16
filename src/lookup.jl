@@ -303,7 +303,7 @@ setcrs(A::AbstractArray, crs; dim=nothing) = A
 
 Set the mapped crs of a `Raster`, a `RasterStack`, a `Tuple`
 of `Dimension`, or a `Dimension`.
-The crs is expected to be a `GeoFormatTypes Geom or Mixed` type.
+The `crs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` `GeoFormat` type
 """
 setmappedcrs(dims::DimTuple, mappedcrs) = map(d -> setmappedcrs(d, mappedcrs), dims)
 function setmappedcrs(dim::Dimension, mappedcrs)
