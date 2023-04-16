@@ -672,10 +672,16 @@ reproject
 setcrs
 setmappedcrs
 skipmissing
-slice
 trim
 warp
 zonal
+```
+
+## Slice and combine to and from `RasterSeries`
+
+```@docs
+slice
+combine
 ```
 
 ## File operations

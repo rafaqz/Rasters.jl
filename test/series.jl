@@ -85,6 +85,7 @@ end
     @test size(ser) == (4, 10)
     ser = slice(ga1, (X, Y, Ti))
     combined2 = Rasters.combine(ser, (X, Y, Ti))
+    slice(ga1, Ti)
     @test combined == ga1 == permutedims(combined2, (X, Y, Ti))
     @test dims(combined) == dims(ga1) == dims(permutedims(combined2, (X, Y, Ti)))
     stack = RasterStack((ga1=ga1, ga2=ga2))
