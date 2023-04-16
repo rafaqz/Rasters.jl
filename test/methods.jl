@@ -788,10 +788,12 @@ end
         @test sum(x -> x === missingval(resampled), resampled) > length(resampled) / 2
     end
 
-    @testset "Geometries work for `to`" begin
-        GeoInterface.Polygon([[(0.0, 4e6), (-1e5, 4.4e6), (-1e5, 4.2e6)]])
-        resampled = resample(cea; to)
-        @test all(map((bs...,) -> all(map(≈, bs...)), extent(resampled), to))
+    @testset "Geometries work as `to`" begin
+        geom = GeoInterface.Polygon([[(0.0, 4e6), (-1e5, 4.4e6), (-1e5, 4.2e6)]])
+        resampled = resample(cea; to=geom)
+        @test map(extent(resampled[Band(1)]), GeoInterface.extent(geom)) do bs1, bs2 
+            map(≈, bs2, bs2) |> all 
+        end |> all
         @test crs(cea) == crs(resampled)
         # Most of the area is extended, and filled with missingval
         @test sum(x -> x === missingval(resampled), resampled) > length(resampled) / 2
