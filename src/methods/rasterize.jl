@@ -359,7 +359,7 @@ function _rasterize_iterable!(
     kw...
 )
     # We dont need to iterate the fill, so just mask
-    mask = boolmask(geoms; to=x1, combine=true, allocs=thread_allocs, metadata=metadata(x1), kw...)
+    mask = boolmask(geoms; to=x1, collapse=true, allocs=thread_allocs, metadata=metadata(x1), kw...)
     # And broadcast the fill
     broadcast_dims!(x1, x1, mask) do v, m
         m ? fill_itr.xs : v
@@ -372,7 +372,7 @@ function _rasterize_iterable!(
     kw...
 )
     # We dont need to iterate the fill, so just mask
-    mask = boolmask(geoms; to=x1, combine=true, allocs=thread_allocs, metadata=metadata(x1), kw...)
+    mask = boolmask(geoms; to=x1, collapse=true, allocs=thread_allocs, metadata=metadata(x1), kw...)
     foreach(x1, fill_itr) do A, f 
         # And broadcast the fill
         broadcast_dims!(A, A, mask) do v, m
@@ -456,7 +456,7 @@ function _reduce_fill!(f, st::AbstractRasterStack, geoms, fill_itr::NamedTuple; 
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(st, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
-    masks = boolmask(geoms; to=st, combine=false, metadata=metadata(st), kw...)
+    masks = boolmask(geoms; to=st, collapse=false, metadata=metadata(st), kw...)
     # Use a generator over the array axis in case the iterator has no length
     geom_axis = axes(masks, Dim{:geometry}())
     fill = map(itr -> [v for (_, v) in zip(geom_axis, itr)], fill_itr)
@@ -467,7 +467,7 @@ function _reduce_fill!(f, A::AbstractRaster, geoms, fill_itr; progress=true, kw.
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(A, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
-    masks = boolmask(geoms; to=A, combine=false, metadata=metadata(A), kw...)
+    masks = boolmask(geoms; to=A, collapse=false, metadata=metadata(A), kw...)
     # Use a generator over the array axis in case the iterator has no length
     geom_axis = parent(axes(masks, Dim{:geometry}()))
     fill = [val for (i, val) in zip(geom_axis, fill_itr)]
