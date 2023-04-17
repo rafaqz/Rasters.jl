@@ -66,7 +66,7 @@ export Projected, Mapped
 export Band
 export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!, 
-       resample, warp, zonal, crop, extend, trim, slice, points, subset,
+       resample, warp, zonal, crop, extend, trim, slice, combine, points,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
        coverage, coverage!, setcrs, setmappedcrs
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
@@ -93,14 +93,6 @@ const EXPERIMENTAL = """
     not be 100% reliable in all cases. Please file github issues if problems occur.
     """
 
-# Source dispatch singletons
-abstract type CDMfile end
-struct NCDfile <: CDMfile end
-struct GRIBfile <: CDMfile end
-struct GRDfile end
-struct GDALfile end
-struct SMAPfile end
-
 include("lookup.jl")
 include("dimensions.jl")
 include("filearray.jl")
@@ -120,7 +112,6 @@ include("table_ops.jl")
 include("create.jl")
 include("read.jl")
 include("write.jl")
-include("convenience.jl")
 include("show.jl")
 include("plotrecipes.jl")
 include("sectorlock.jl")
@@ -143,6 +134,7 @@ include("methods/trim.jl")
 include("methods/warp.jl")
 include("methods/zonal.jl")
 
+include("sources/sources.jl")
 include("sources/grd.jl")
 include("sources/smap.jl")
 include("sources/commondatamodel.jl")

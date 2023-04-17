@@ -1,7 +1,7 @@
 using Rasters, Test, Statistics, Dates, Plots
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets, HDF5, CFTime
-using Rasters: layerkeys, SMAPfile, FileArray
+using Rasters: layerkeys, SMAPsource, FileArray
 
 testpath = joinpath(dirname(pathof(Rasters)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
@@ -80,7 +80,7 @@ if isfile(path1) && isfile(path2)
         end
 
         @testset "other fields" begin @test missingval(smaparray) == -9999.0
-            @test metadata(smaparray) isa Metadata{SMAPfile,Dict{String,Any}}
+            @test metadata(smaparray) isa Metadata{SMAPsource,Dict{String,Any}}
             @test name(smaparray) == :baseflow_flux
         end
 
@@ -237,7 +237,7 @@ if isfile(path1) && isfile(path2)
             dt = DateTime(2016, 1, 1, 22, 30)
             step_ = Hour(3)
             # Currently empty
-            @test metadata(smaparray) isa Metadata{SMAPfile,Dict{String,Any}}
+            @test metadata(smaparray) isa Metadata{SMAPsource,Dict{String,Any}}
         end
 
         @testset "conversion to regular RasterStack" begin

@@ -1,5 +1,5 @@
 using Rasters, Test, GRIBDatasets
-using Rasters: FileArray, CDMfile
+using Rasters: FileArray, CDMsource
 using Rasters.LookupArrays, Rasters.Dimensions
 using Statistics
 using Dates
@@ -80,7 +80,7 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
 
     @testset "other fields" begin
         @test ismissing(missingval(gribarray))
-        @test metadata(gribarray) isa Metadata{CDMfile,Dict{String,Any}}
+        @test metadata(gribarray) isa Metadata{CDMsource,Dict{String,Any}}
     end
 
     @testset "indexing" begin

@@ -35,9 +35,9 @@ const CDM_STANDARD_NAME_MAP = Dict(
 
 _dataset(var::AbstractVariable) = CDM.dataset(var)
 
-haslayers(::Type{<:CDMfile}) = true
-defaultcrs(::Type{<:CDMfile}) = EPSG(4326)
-defaultmappedcrs(::Type{<:CDMfile}) = EPSG(4326)
+haslayers(::Type{<:CDMsource}) = true
+defaultcrs(::Type{<:CDMsource}) = EPSG(4326)
+defaultmappedcrs(::Type{<:CDMsource}) = EPSG(4326)
 
 # Raster ########################################################################
 
@@ -47,7 +47,7 @@ function Raster(ds::AbstractDataset, filename::AbstractString, key=nothing; kw..
         for key in layerkeys(ds)
             if ndims(ds[key]) > 0
                 @info "No `name` or `key` keyword provided, using first valid layer with name `:$key`"
-                return Raster(ds[key], filename, key; source=NCDfile, kw...)
+                return Raster(ds[key], filename, key; source=NCDsource, kw...)
             end
         end
         throw(ArgumentError("dataset at $filename has no array variables"))
@@ -60,29 +60,29 @@ _firstkey(ds::AbstractDataset, key::Nothing=nothing) = Symbol(first(layerkeys(ds
 _firstkey(ds::AbstractDataset, key) = Symbol(key)
 
 function FileArray(var::AbstractVariable, filename::AbstractString; kw...)
-    da = RasterDiskArray{CDMfile}(var)
+    da = RasterDiskArray{CDMsource}(var)
     size_ = size(da)
     eachchunk = DA.eachchunk(da)
     haschunks = DA.haschunks(da)
     T = eltype(var)
     N = length(size_)
-    FileArray{CDMfile,T,N}(filename, size_; eachchunk, haschunks, kw...)
+    FileArray{CDMsource,T,N}(filename, size_; eachchunk, haschunks, kw...)
 end
 
-function Base.open(f::Function, A::FileArray{CDMfile}; write=A.write, kw...)
-    _open(CDMfile, filename(A); key=key(A), write, kw...) do var
-        f(RasterDiskArray{CDMfile}(var, DA.eachchunk(A), DA.haschunks(A)))
+function Base.open(f::Function, A::FileArray{CDMsource}; write=A.write, kw...)
+    _open(CDMsource, filename(A); key=key(A), write, kw...) do var
+        f(RasterDiskArray{CDMsource}(var, DA.eachchunk(A), DA.haschunks(A)))
     end
 end
 
 """
-    Base.write(filename::AbstractString, ::Type{<:CDMfile}, A::AbstractRaster)
+    Base.write(filename::AbstractString, ::Type{<:CDMsource}, A::AbstractRaster)
 
 Write an NCDarray to a NetCDF file using NCDatasets.jl
 
 Returns `filename`.
 """
-function Base.write(filename::AbstractString, ::Type{<:CDMfile}, A::AbstractRaster; append=false, kw...)
+function Base.write(filename::AbstractString, ::Type{<:CDMsource}, A::AbstractRaster; append=false, kw...)
     mode  = !isfile(filename) || !append ? "c" : "a";
     ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(A)))
     try
@@ -96,7 +96,7 @@ end
 # Stack ########################################################################
 
 """
-    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; kw...)
+    Base.write(filename::AbstractString, ::Type{NCDsource}, s::AbstractRasterStack; kw...)
 
 Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 
@@ -124,7 +124,7 @@ Keywords are passed to `NCDatasets.defVar`.
  - `typename` (string): The name of the NetCDF type required for vlen arrays
     (https://web.archive.org/save/https://www.unidata.ucar.edu/software/netcdf/netcdf-4/newdocs/netcdf-c/nc_005fdef_005fvlen.html)
 """
-function Base.write(filename::AbstractString, ::Type{<:CDMfile}, s::AbstractRasterStack; append = false, kw...)
+function Base.write(filename::AbstractString, ::Type{<:CDMsource}, s::AbstractRasterStack; append = false, kw...)
     mode  = !isfile(filename) || !append ? "c" : "a";
     ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(s)))
     try
@@ -135,7 +135,7 @@ function Base.write(filename::AbstractString, ::Type{<:CDMfile}, s::AbstractRast
     return filename
 end
 
-function create(filename, ::Type{<:CDMfile}, T::Union{Type,Tuple}, dims::DimTuple;
+function create(filename, ::Type{<:CDMsource}, T::Union{Type,Tuple}, dims::DimTuple;
     name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing,
     metadata=NoMetadata(), lazy=true, 
 )
@@ -146,8 +146,8 @@ function create(filename, ::Type{<:CDMfile}, T::Union{Type,Tuple}, dims::DimTupl
         A = FillArrays.Zeros{t}(map(length, lds))
         Raster(A, dims=lds; name=key, missingval=mv)
     end
-    write(filename, CDMfile, Raster(first(layers)))
-    return Raster(filename; source=CDMfile, lazy)
+    write(filename, CDMsource, Raster(first(layers)))
+    return Raster(filename; source=CDMsource, lazy)
 end
 
 # DimensionalData methods for NCDatasets types ###############################
@@ -165,9 +165,9 @@ function DD.dims(var::AbstractVariable, crs=nothing, mappedcrs=nothing)
 end
 
 _attrib(ds::Union{AbstractDataset, AbstractVariable}) = Dict(k => CDM.attrib(ds, k) for k in CDM.attribnames(ds))
-DD.metadata(ds::AbstractDataset) = _metadatadict(CDMfile, _attrib(ds))
-DD.metadata(var::CFVariable) = _metadatadict(CDMfile, _attrib(var))
-DD.metadata(var::AbstractVariable) = _metadatadict(CDMfile, _attrib(var))
+DD.metadata(ds::AbstractDataset) = _metadatadict(CDMsource, _attrib(ds))
+DD.metadata(var::CFVariable) = _metadatadict(CDMsource, _attrib(var))
+DD.metadata(var::AbstractVariable) = _metadatadict(CDMsource, _attrib(var))
 
 function DD.layerdims(ds::AbstractDataset)
     keys = Tuple(layerkeys(ds))
@@ -209,7 +209,7 @@ function layerkeys(ds::AbstractDataset)
     return setdiff(keys(ds), toremove)
 end
 
-function FileStack(source::Type{<:CDMfile}, ds::AbstractDataset, filename::AbstractString; write, keys)
+function FileStack(source::Type{<:CDMsource}, ds::AbstractDataset, filename::AbstractString; write, keys)
     keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key
         var = ds[string(key)]
@@ -222,35 +222,35 @@ function FileStack(source::Type{<:CDMfile}, ds::AbstractDataset, filename::Abstr
     return FileStack{source,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
 end
 
-FileStack{NCDfile}(ds::AbstractDataset, filename::AbstractString; write=false, keys) = FileStack(NCDfile, ds, filename; write, keys)
-FileStack{GRIBfile}(ds::AbstractDataset, filename::AbstractString; write=false, keys) = FileStack(GRIBfile, ds, filename; write, keys)
+FileStack{NCDsource}(ds::AbstractDataset, filename::AbstractString; write=false, keys) = FileStack(NCDsource, ds, filename; write, keys)
+FileStack{GRIBsource}(ds::AbstractDataset, filename::AbstractString; write=false, keys) = FileStack(GRIBsource, ds, filename; write, keys)
 
-function OpenStack(fs::FileStack{NCDfile,K}) where K
-    OpenStack{NCDfile,K}(NCD.Dataset(filename(fs)))
+function OpenStack(fs::FileStack{NCDsource,K}) where K
+    OpenStack{NCDsource,K}(NCD.Dataset(filename(fs)))
 end
-function OpenStack(fs::FileStack{GRIBfile,K}) where K
-    OpenStack{GRIBfile,K}(GDS.GRIBDataset(filename(fs)))
+function OpenStack(fs::FileStack{GRIBsource,K}) where K
+    OpenStack{GRIBsource,K}(GDS.GRIBDataset(filename(fs)))
 end
-Base.close(os::OpenStack{NCDfile}) = NCD.close(dataset(os))
+Base.close(os::OpenStack{NCDsource}) = NCD.close(dataset(os))
 
-function _open(f, ::Type{NCDfile}, filename::AbstractString; write=false, kw...)
+function _open(f, ::Type{NCDsource}, filename::AbstractString; write=false, kw...)
     isfile(filename) || _filenotfound_error(filename)
     mode = write ? "a" : "r"
     NCD.Dataset(filename, mode) do ds
-        _open(f, NCDfile, ds; kw...)
+        _open(f, NCDsource, ds; kw...)
     end
 end
-function _open(f, ::Type{GRIBfile}, filename::AbstractString; write=false, kw...)
+function _open(f, ::Type{GRIBsource}, filename::AbstractString; write=false, kw...)
     isfile(filename) || _filenotfound_error(filename)
     ds = GRIBDatasets.GRIBDataset(filename)
-    _open(f, GRIBfile, ds; kw...)
+    _open(f, GRIBsource, ds; kw...)
 end
 
-function _open(f, ::Type{<:CDMfile}, ds::AbstractDataset; key=nothing, kw...)
+function _open(f, ::Type{<:CDMsource}, ds::AbstractDataset; key=nothing, kw...)
     x = key isa Nothing ? ds : ds[_firstkey(ds, key)]
     cleanreturn(f(x))
 end
-_open(f, ::Type{<:CDMfile}, var::CDM.CFVariable; kw...) = cleanreturn(f(var))
+_open(f, ::Type{<:CDMsource}, var::CDM.CFVariable; kw...) = cleanreturn(f(var))
 
 # Utils ########################################################################
 
@@ -311,7 +311,7 @@ end
 function _ncdlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs)
     dvar = ds[dimname]
     index = dvar[:]
-    metadata = _metadatadict(CDMfile, _attrib(dvar))
+    metadata = _metadatadict(CDMsource, _attrib(dvar))
     return _ncdlookup(ds, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For unknown types we just make a Categorical lookup
@@ -391,7 +391,7 @@ function _ncdspan(index, order)
 end
 
 # delta_t and ave_period are not CF standards, but CDC
-function _ncdperiod(index, metadata::Metadata{<:CDMfile})
+function _ncdperiod(index, metadata::Metadata{<:CDMsource})
     if haskey(metadata, "delta_t")
         period = _parse_period(metadata["delta_t"])
         period isa Nothing || return Regular(period), Points()
@@ -423,7 +423,7 @@ function _parse_period(period_str::String)
     end
 end
 
-_attribdict(md::Metadata{<:CDMfile}) = Dict{String,Any}(string(k) => v for (k, v) in md)
+_attribdict(md::Metadata{<:CDMsource}) = Dict{String,Any}(string(k) => v for (k, v) in md)
 _attribdict(md) = Dict{String,Any}()
 
 _dimkeys(ds::AbstractDataset) = CDM.dimnames(ds)
@@ -537,7 +537,7 @@ end
 
 const _NCDVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}
 
-function _precompile(::Type{NCDfile})
+function _precompile(::Type{NCDsource})
     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
 
     precompile(Rasters.FileArray, (_NCDVar, String))
@@ -557,5 +557,5 @@ function _precompile(::Type{NCDfile})
     precompile(Raster, (String,))
 end
 
-_precompile(NCDfile)
+_precompile(NCDsource)
 

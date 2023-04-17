@@ -7,7 +7,7 @@ A wrapper object that holds file pointer and size/chunking
 metadata for a multi-layered stack stored in a single file, 
 typically netcdf or hdf5.
 
-`X` is a backend type like `NCDfile`, and `K` is a tuple of `Symbol` keys.
+`X` is a backend type like `NCDsource`, and `K` is a tuple of `Symbol` keys.
 """
 struct FileStack{X,K,F<:AbstractString,T,S,EC,HC}
     filename::F

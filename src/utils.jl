@@ -1,7 +1,8 @@
-filter_ext(path, ext::AbstractString) = filter(fn -> splitext(fn)[2] == ext, readdir(path))
+filter_ext(path, ext::AbstractString) =
+    filter(fn -> splitext(fn)[2] == ext, readdir(path; join=true))
 filter_ext(path, exts::Union{Tuple,AbstractArray}) =
-    filter(fn -> splitext(fn)[2] in exts, readdir(path))
-filter_ext(path, ext::Nothing) = readdir(path)
+    filter(fn -> splitext(fn)[2] in exts, readdir(path; join=true))
+filter_ext(path, ext::Nothing) = readdir(path; join=true)
 
 cleankeys(name) = (_cleankey(name),)
 function cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray})
@@ -136,7 +137,7 @@ function _extent2dims(to::Extents.Extent, size::Nothing, res::Nothing, crs)
     isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
 end
 function _extent2dims(to::Extents.Extent, size, res, crs)
-    isnothing(res) || throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
+    isnothing(res) || _size_and_res_error()
 end
 function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) where K
     tuple_res = ntuple(_ -> res, length(K))
@@ -180,9 +181,7 @@ function _as_intervals(ds::Tuple)
     # Rasterization only makes sense on Sampled Intervals
     interval_dims = map(dims(ds, DEFAULT_POINT_ORDER)) do d
         l = parent(d)
-        rebuild(d, Sampled(parent(l); 
-            order=order(l), span=span(l), sampling=Intervals(locus(l)), metadata=metadata(l))
-        )
+        rebuild(d, rebuild(l; sampling=Intervals(locus(l))))
     end
     return setdims(ds, interval_dims)
 end
@@ -200,5 +199,13 @@ _progress(args...; kw...) = ProgressMeter.Progress(args...; color=:blue, barlen=
 # Function barrier for splatted vector broadcast
 @noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
 
+_size_and_res_error() = throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
+
 _type_missingval(::Type{T}) where T = typemin(T)
 _type_missingval(::Type{T}) where T<:Unsigned = typemax(T) 
+
+# Modified from IsURL.jl, many thanks to @zlatanvasovic
+const WINDOWSREGEX = r"^[a-zA-Z]:[\\]"
+const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
+
+_isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)

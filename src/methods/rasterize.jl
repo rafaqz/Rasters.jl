@@ -19,7 +19,7 @@ _reduce_init(::typeof(minimum), ::Type{T}) where T = typemax(nonmissingtype(T))
 _reduce_init(::typeof(maximum), ::Type{T}) where T = typemin(nonmissingtype(T))
 
 """
-    rasterize([reduce], obj; to, fill, kw...)
+    rasterize([reduce], data; to, fill, kw...)
 
 Rasterize a GeoInterface.jl compatable geometry or feature,
 or a Tables.jl table with a `:geometry` column of GeoInterface.jl objects,
@@ -34,13 +34,12 @@ or `X`, `Y` points columns.
     including `sum`, `first`, `last`, `minimum`, `maximum`, `extrema` and `Statistics.mean`.
     These may be an order of magnitude or more faster than 
     `count` is a special-cased as it does not need a fill value.
-- `obj`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
+- `data`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
     or a Tables.jl compatible object containing a `:geometry` column or points and values columns.
 
 # Keywords
 
-These are detected automatically from `obj` where possible.
-
+These are detected automatically from `data` where possible.
 
 $GEOM_KEYWORDS
 - `fill`: the value or values to fill a polygon with. A `Symbol` or tuple of `Symbol` will
@@ -106,10 +105,10 @@ function rasterize(reduce::typeof(DD.Statistics.mean), data; fill, kw...)
     counts = rasterize(count, data; kw..., fill=nothing)
     rebuild(sums ./ counts; name=:mean)
 end
-
 function rasterize(data; to=nothing, fill, kw...)
-    return _rasterize(to, data; kw..., fill)
+    _rasterize(to, data; kw..., fill)
 end
+
 function _rasterize(to::AbstractRaster, data;
     missingval=missingval(to), name=name(to), kw...
 )
@@ -168,7 +167,7 @@ function _rasterize(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name,
     fillval = _featurefillval(GI.getfeature(fc, 1), fill)
     init = isnothing(init) ? _reduce_init(reduce, fillval) : init
     name = _filter_name(name, fill)
-    return _create_rasterize_dest(to1; fill=fillval, init, name, kw...) do dest
+    return _create_rasterize_dest(to1; kw..., fill=fillval, init, name) do dest
         rasterize!(dest, fc; reduce, fill, kw..., missingval=missingval(dest))
     end
 end
@@ -360,7 +359,7 @@ function _rasterize_iterable!(
     kw...
 )
     # We dont need to iterate the fill, so just mask
-    mask = boolmask(geoms; to=x1, combine=true, allocs=thread_allocs, metadata=metadata(x1), kw...)
+    mask = boolmask(geoms; to=x1, collapse=true, allocs=thread_allocs, metadata=metadata(x1), kw...)
     # And broadcast the fill
     broadcast_dims!(x1, x1, mask) do v, m
         m ? fill_itr.xs : v
@@ -373,7 +372,7 @@ function _rasterize_iterable!(
     kw...
 )
     # We dont need to iterate the fill, so just mask
-    mask = boolmask(geoms; to=x1, combine=true, allocs=thread_allocs, metadata=metadata(x1), kw...)
+    mask = boolmask(geoms; to=x1, collapse=true, allocs=thread_allocs, metadata=metadata(x1), kw...)
     foreach(x1, fill_itr) do A, f 
         # And broadcast the fill
         broadcast_dims!(A, A, mask) do v, m
@@ -457,7 +456,7 @@ function _reduce_fill!(f, st::AbstractRasterStack, geoms, fill_itr::NamedTuple; 
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(st, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
-    masks = boolmask(geoms; to=st, combine=false, metadata=metadata(st), kw...)
+    masks = boolmask(geoms; to=st, collapse=false, metadata=metadata(st), kw...)
     # Use a generator over the array axis in case the iterator has no length
     geom_axis = axes(masks, Dim{:geometry}())
     fill = map(itr -> [v for (_, v) in zip(geom_axis, itr)], fill_itr)
@@ -468,7 +467,7 @@ function _reduce_fill!(f, A::AbstractRaster, geoms, fill_itr; progress=true, kw.
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(A, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
-    masks = boolmask(geoms; to=A, combine=false, metadata=metadata(A), kw...)
+    masks = boolmask(geoms; to=A, collapse=false, metadata=metadata(A), kw...)
     # Use a generator over the array axis in case the iterator has no length
     geom_axis = parent(axes(masks, Dim{:geometry}()))
     fill = [val for (i, val) in zip(geom_axis, fill_itr)]

@@ -15,7 +15,7 @@ const GRD_DATATYPE_TRANSLATION = Dict{String, DataType}(
     "FLT4S" => Float32,
     "FLT8S" => Float64
 )
-const REVGRDfile_DATATYPE_TRANSLATION =
+const REVGRDsource_DATATYPE_TRANSLATION =
     Dict{DataType, String}(v => k for (k,v) in GRD_DATATYPE_TRANSLATION)
 
 # GRD attributes wrapper. Only used during file load, for dispatch.
@@ -54,7 +54,7 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     yspan = (ybounds[1] - ybounds[2]) / ysize
 
     # Not fully implemented yet
-    xy_metadata = _metadatadict(GRDfile)
+    xy_metadata = _metadatadict(GRDsource)
 
     xindex = LinRange(xbounds[1], xbounds[2] - xspan, xsize)
     yindex = LinRange(ybounds[2] + yspan, ybounds[1], ysize)
@@ -87,7 +87,7 @@ end
 DD.name(grd::GRDattrib) = Symbol(get(grd.attrib, "layername", ""))
 
 function DD.metadata(grd::GRDattrib, args...)
-    metadata = _metadatadict(GRDfile)
+    metadata = _metadatadict(GRDsource)
     for key in ("creator", "created", "history")
         val = get(grd.attrib, key, "")
         if val != ""
@@ -135,20 +135,23 @@ function FileArray(grd::GRDattrib, filename=filename(grd); kw...)
     haschunks = DiskArrays.Unchunked()
     T = eltype(grd)
     N = length(size_)
-    FileArray{GRDfile,T,N}(filename, size_; eachchunk, haschunks, kw...)
+    FileArray{GRDsource,T,N}(filename, size_; eachchunk, haschunks, kw...)
 end
 
 # Base methods
 
 """
-    Base.write(filename::AbstractString, ::Type{GRDfile}, s::AbstractRaster)
+    Base.write(filename::AbstractString, ::Type{GRDsource}, s::AbstractRaster; force=false)
 
 Write a `Raster` to a .grd file with a .gri header file. 
 The extension of `filename` will be ignored.
 
 Returns `filename`.
 """
-function Base.write(filename::String, ::Type{GRDfile}, A::AbstractRaster)
+function Base.write(filename::String, ::Type{GRDsource}, A::AbstractRaster; 
+    force=false, verbose=true, kw...
+)
+    check_can_write(filename, force)
     A = _maybe_use_type_missingval(filename, A)
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
@@ -185,7 +188,7 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
     xmin, xmax = bounds(x)
     ymin, ymax = bounds(y)
     proj = convert(String, convert(ProjString, crs(x)))
-    datatype = REVGRDfile_DATATYPE_TRANSLATION[T]
+    datatype = REVGRDsource_DATATYPE_TRANSLATION[T]
     nodatavalue = missingval
 
     # Metadata: grd file
@@ -218,7 +221,7 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
 end
 
 
-function create(filename, ::Type{GRDfile}, T::Type, dims::DD.DimTuple; 
+function create(filename, ::Type{GRDsource}, T::Type, dims::DD.DimTuple; 
     name="layer", metadata=nothing, missingval=nothing, keys=(name,), lazy=true, 
 )
     # Remove extension
@@ -233,24 +236,24 @@ function create(filename, ::Type{GRDfile}, T::Type, dims::DD.DimTuple;
     open(basename * ".gri", write=true) do IO
         write(IO, FillArrays.Zeros(sze))
     end
-    return Raster(filename; source=GRDfile, lazy)
+    return Raster(filename; source=GRDsource, lazy)
 end
 
 # AbstractRasterStack methods
 
 # Custom `open` because the data and metadata objects are separate
 # Here we _mmapgrd instead of `_open`
-function Base.open(f::Function, A::FileArray{GRDfile}, key...; write=A.write)
-    _mmapgrd(mm -> f(RasterDiskArray{GRDfile}(mm, A.eachchunk, A.haschunks)), A; write)
+function Base.open(f::Function, A::FileArray{GRDsource}, key...; write=A.write)
+    _mmapgrd(mm -> f(RasterDiskArray{GRDsource}(mm, A.eachchunk, A.haschunks)), A; write)
 end
 
-function _open(f, ::Type{GRDfile}, filename; key=nothing, write=false)
+function _open(f, ::Type{GRDsource}, filename; key=nothing, write=false)
     isfile(filename) || _filenotfound_error(filename)
-    _open(f, GRDfile, GRDattrib(filename; write))
+    _open(f, GRDsource, GRDattrib(filename; write))
 end
-_open(f, ::Type{GRDfile}, attrib::GRDattrib; kw...) = f(attrib)
+_open(f, ::Type{GRDsource}, attrib::GRDattrib; kw...) = f(attrib)
 
-haslayers(::Type{GRDfile}) = false
+haslayers(::Type{GRDsource}) = false
 
 # Utils ########################################################################
 
@@ -269,7 +272,7 @@ function _mmapgrd(f, filename::AbstractString, T::Type, size::Tuple; write=false
 end
 
 # precompilation
-function _precompile(::Type{GRDfile})
+function _precompile(::Type{GRDsource})
     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
 
     T = UInt16
@@ -291,4 +294,4 @@ function _precompile(::Type{GRDfile})
     end
 end
 
-_precompile(GRDfile)
+_precompile(GRDsource)

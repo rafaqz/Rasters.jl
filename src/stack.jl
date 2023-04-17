@@ -35,30 +35,6 @@ isdisk(A::AbstractRasterStack) = isdisk(first(A))
 setcrs(x::AbstractRasterStack, crs) = set(x, setcrs(dims(x), crs)...)
 setmappedcrs(x::AbstractRasterStack, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
 
-"""
-    subset(s::AbstractRasterStack, keys)
-
-Subset a stack to hold only the layers in `keys`, where `keys` is a `Tuple`
-or `Array` of `String` or `Symbol`, or a `Tuple` or `Array` of `Int`
-
-*Depreciated*: As it is now possible to subset `NamedTuple` by indexing
-with a `Tuple` of `Symbol` in `getindex`, that is also possible for any
-`AbstractDimStack` like `RasterStack`. So `subset` is obsolete and will be
-remove in future versions.
-
-Use:
-
-```julia
-s[(:key1, :key2)]
-"""
-subset(s::AbstractRasterStack, keys) = subset(s, Tuple(keys))
-function subset(s::AbstractRasterStack, keys::NTuple{<:Any,<:Key})
-    RasterStack(map(k -> s[k], Tuple(keys)))
-end
-function subset(s::AbstractRasterStack, I::NTuple{<:Any,Int})
-    subset(s, map(i -> keys(s)[i], I))
-end
-
 _singlemissingval(mvs::NamedTuple, key) = mvs[key]
 _singlemissingval(mv, key) = mv
 
@@ -92,16 +68,29 @@ function DD.rebuild(s::AbstractRasterStack;
 end
 
 function DD.rebuild_from_arrays(
-    s::AbstractRasterStack, das::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractDimArray}}};
-    refdims=DD.refdims(s),
-    metadata=DD.metadata(s),
+    s::AbstractRasterStack{<:Union{FileStack{<:Any,Keys},OpenStack{<:Any,Keys}}}, das::Tuple{Vararg{<:AbstractDimArray}}; kw...
+) where Keys
+    DD.rebuild_from_arrays(s, NamedTuple{Keys}(das); kw...)
+end
+function DD.rebuild_from_arrays(
+    s::AbstractRasterStack, das::NamedTuple{<:Any,<:Tuple{Vararg{AbstractDimArray}}};
     data=map(parent, das),
-    dims=DD.combinedims(das...),
+    refdims=refdims(s),
+    metadata=DD.metadata(s),
+    dims=nothing,
     layerdims=map(DD.basedims, das),
     layermetadata=map(DD.metadata, das),
     missingval=map(missingval, das),
 )
-    rebuild(s; data, dims, refdims, layerdims, metadata, layermetadata, missingval)
+    if isnothing(dims)
+        # invokelatest avoids compiling this for other paths
+        Base.invokelatest() do
+            dims = DD.combinedims(collect(das))
+        end
+        rebuild(s; data, dims, refdims, layerdims, metadata, layermetadata, missingval)
+    else
+        rebuild(s; data, dims, refdims, layerdims, metadata, layermetadata, missingval)
+    end
 end
 
 # Base methods #################################################################
@@ -182,7 +171,7 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     crs=nothing, mappedcrs=nothing, source=nothing, lazy=false, kw...
 ) where K
     layers = map(keys(filenames), values(filenames)) do key, fn
-        source = source isa Nothing ? _sourcetype(fn) : source
+        source = source isa Nothing ? _sourcetype(fn) : _sourcetype(source)
         crs = defaultcrs(source, crs)
         mappedcrs = defaultmappedcrs(source, mappedcrs)
         _open(source, fn; key) do ds
@@ -241,9 +230,10 @@ end
 function RasterStack(filename::AbstractString;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, missingval=nothing,
-    source=_sourcetype(filename), name=nothing, keys=name, layersfrom=nothing,
+    source=nothing, name=nothing, keys=name, layersfrom=nothing,
     resize=nothing, lazy=false, ext=nothing
 )
+    source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
     st = if isdir(filename)
         # Load a whole directory
         filenames = readdir(filename)

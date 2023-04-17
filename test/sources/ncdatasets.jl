@@ -1,7 +1,7 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, FileStack, NCDfile, crs
+using Rasters: FileArray, FileStack, NCDsource, crs
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
@@ -95,7 +95,7 @@ stackkeys = (
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
-        @test metadata(ncarray) isa Metadata{NCDfile,Dict{String,Any}}
+        @test metadata(ncarray) isa Metadata{NCDsource,Dict{String,Any}}
         @test name(ncarray) == :tos
     end
 
@@ -138,7 +138,7 @@ stackkeys = (
             @test !all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
             open(Raster(tempfile; lazy=true); write=true) do A
                 mask!(A; with=msk, missingval=missing)
-                # TODO: replace the CFVariable with a FileArray{NCDfile} so this is not required
+                # TODO: replace the CFVariable with a FileArray{NCDsource} so this is not required
                 nothing
             end
             @test all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
@@ -157,7 +157,7 @@ stackkeys = (
             @test all(Atest .=== Afile .=== Amem)
         end
         @testset "slice" begin
-            @test_throws ArgumentError Rasters.slice(ncarray, Z)
+            @test_throws DimensionMismatch Rasters.slice(ncarray, Z)
             ser = Rasters.slice(ncarray, Ti) 
             @test ser isa RasterSeries
             @test size(ser) == (24,)
@@ -247,7 +247,7 @@ stackkeys = (
 
             # test for nc `kw...`
             geoA = read(ncarray)
-            write("tos.nc", geoA) # default `deflatelevel = 0`
+            write("tos.nc", geoA; force=true) # default `deflatelevel = 0`
             write("tos_small.nc", geoA; deflatelevel=2)
             @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
             isfile("tos.nc") && rm("tos.nc")
@@ -258,12 +258,14 @@ stackkeys = (
             x = rand(n, n)
             r1 = Raster(x, (X, Y); name = "v1")
             r2 = Raster(x, (X, Y); name = "v2")
-            f = "test.nc"
-            isfile(f) && rm(f)
-            write(f, r1, append = false); size1 = filesize(f)
-            write(f, r2; append = true); size2 = filesize(f)
+            fn = "test.nc"
+            isfile(fn) && rm(fn)
+            write(fn, r1, append=false)
+            size1 = filesize(fn)
+            write(fn, r2; append=true)
+            size2 = filesize(fn)
             @test size2 > size1*1.8 # two variable 
-            isfile(f) && rm(f)
+            isfile(fn) && rm(fn)
 
             @testset "non allowed values" begin
                 # TODO return this test when the changes in NCDatasets.jl settle
@@ -287,13 +289,15 @@ stackkeys = (
         end
         @testset "to grd" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
-            write("testgrd.gri", nccleaned)
+            write("testgrd.gri", nccleaned; force=true)
             grdarray = Raster("testgrd.gri");
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == (bounds(nccleaned)..., (1, 1))
             @test reverse(index(grdarray, Y)) ≈ index(nccleaned, Y) .- 0.5
             @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
             @test Raster(grdarray) ≈ reverse(nccleaned; dims=Y)
+            rm("testgrd.gri")
+            rm("testgrd.grd")
         end
     end
 
@@ -349,9 +353,9 @@ end
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test keys(ncstack) == stackkeys
         @test first(keys(ncstack)) == :abso4
-        @test metadata(ncstack) isa Metadata{NCDfile,Dict{String,Any}}
+        @test metadata(ncstack) isa Metadata{NCDsource,Dict{String,Any}}
         @test metadata(ncstack)["institution"] == "Max-Planck-Institute for Meteorology"
-        @test metadata(ncstack[:albedo]) isa Metadata{NCDfile,Dict{String,Any}}
+        @test metadata(ncstack[:albedo]) isa Metadata{NCDsource,Dict{String,Any}}
         @test metadata(ncstack[:albedo])["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
@@ -365,7 +369,7 @@ end
     @testset "custom filename" begin
         ncmulti_custom = replace(ncmulti, "nc" => "nc4")
         cp(ncmulti, ncmulti_custom, force=true)
-        @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDfile)
+        @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDsource)
         @test ncstack_custom isa RasterStack
         @test map(read(ncstack_custom), read(ncstack)) do a, b
             all(a .=== b)
@@ -392,7 +396,7 @@ end
     end
 
     @testset "Subsetting keys" begin
-        smallstack = subset(ncstack, (:albedo, :evap, :runoff))
+        smallstack = ncstack[(:albedo, :evap, :runoff)]
         @test keys(smallstack) == (:albedo, :evap, :runoff)
     end
 
@@ -438,6 +442,13 @@ end
     end
     geoA = Raster(ncsingle; key=:tos)
     @test all(read(ncseries[Ti(1)][:tos]) .=== read(geoA))
+
+    write("test.nc", ncseries) 
+    @test isfile("test_1.nc")
+    @test isfile("test_2.nc")
+    RasterStack("test_1.nc")
+    rm("test_1.nc")
+    rm("test_2.nc")
 end
 
 nothing

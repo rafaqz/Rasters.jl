@@ -13,15 +13,15 @@ const GDAL_DRIVERS_SUPPORTING_CREATE = ("GTiff", "HDF4", "KEA", "netCDF", "PCIDS
 
 function FileArray(raster::AG.RasterDataset{T}, filename; kw...) where {T}
     eachchunk, haschunks = DA.eachchunk(raster), DA.haschunks(raster)
-    FileArray{GDALfile,T,3}(filename, size(raster); eachchunk, haschunks, kw...)
+    FileArray{GDALsource,T,3}(filename, size(raster); eachchunk, haschunks, kw...)
 end
 
 cleanreturn(A::AG.RasterDataset) = Array(A)
 
-haslayers(::Type{GDALfile}) = false
+haslayers(::Type{GDALsource}) = false
 
 """
-    Base.write(filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster; kw...)
+    Base.write(filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster; force=false, kw...)
 
 Write a `Raster` to file using GDAL.
 
@@ -34,8 +34,10 @@ Write a `Raster` to file using GDAL.
 Returns `filename`.
 """
 function Base.write(
-    filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster{T,2}; kw...
+    filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster{T,2}; 
+    force=false, verbose=true, kw...
 ) where T
+    check_can_write(filename, force)
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
 
     correctedA = if lookup(A, X) isa AffineProjected
@@ -49,8 +51,10 @@ function Base.write(
     _gdalwrite(filename, correctedA, nbands; kw...)
 end
 function Base.write(
-    filename::AbstractString, ::Type{GDALfile}, A::AbstractRaster{T,3}; kw...
+    filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster{T,3}; 
+    force=false, verbose=true, kw...
 ) where T
+    check_can_write(filename, force)
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
 
@@ -66,7 +70,7 @@ function Base.write(
     _gdalwrite(filename, correctedA, nbands; kw...)
 end
 
-function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
+function create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
     missingval=nothing, metadata=nothing, name=nothing, keys=(name,),
     driver=AG.extensiondriver(filename), 
     lazy=true, options=Dict{String,String}(),
@@ -115,29 +119,27 @@ function create(filename, ::Type{GDALfile}, T::Type, dims::DD.DimTuple;
         end
     end
     if hasdim(dims, Band)
-        return Raster(filename; source=GDALfile, lazy)
+        return Raster(filename; source=GDALsource, lazy)
     else
-        return view(Raster(filename; source=GDALfile, lazy), Band(1))
+        return view(Raster(filename; source=GDALsource, lazy), Band(1))
     end
 end
 
-function _open(f, ::Type{GDALfile}, filename::AbstractString; write=false, kw...)
+function _open(f, ::Type{GDALsource}, filename::AbstractString; write=false, kw...)
     # Handle url filenames
     # /vsicurl/ is added to urls for GDAL, /vsimem/ for in memory
-    if length(filename) >= 8 
-        if (filename[1:7] == "http://" || filename[1:8] == "https://")
-           filename = "/vsicurl/" * filename
-        elseif !(filename[1:8] in ("/vsicurl", "/vsimem/"))
-            # check the file actually exists because GDALs error is unhelpful
-            isfile(filename) || _filenotfound_error(filename)
-        end
+    if length(filename) >= 8 && filename[1:8] in ("/vsicurl", "/vsimem/")
+        nothing
+    elseif _isurl(filename)
+        filename = "/vsicurl/" * filename
     else
+        # check the file actually exists because GDALs error is unhelpful
         isfile(filename) || _filenotfound_error(filename)
     end
     flags = write ? (; flags=AG.OF_UPDATE) : ()
     AG.readraster(cleanreturn ∘ f, filename; flags...)
 end
-_open(f, ::Type{GDALfile}, ds::AG.RasterDataset; kw...) = cleanreturn(f(ds))
+_open(f, ::Type{GDALsource}, ds::AG.RasterDataset; kw...) = cleanreturn(f(ds))
 
 
 # DimensionalData methods for ArchGDAL types ###############################
@@ -238,7 +240,7 @@ function DD.metadata(raster::AG.RasterDataset, args...)
     path = first(AG.filelist(raster))
     units = AG.getunittype(band)
     upair = units == "" ? () : ("units"=>units,)
-    _metadatadict(GDALfile, "filepath"=>path, "scale"=>scale, "offset"=>offset, upair...)
+    _metadatadict(GDALsource, "filepath"=>path, "scale"=>scale, "offset"=>offset, upair...)
 end
 
 # Rasters methods for ArchGDAL types ##############################
@@ -592,7 +594,7 @@ function _dims2geotransform(x::XDim{<:AffineProjected}, y::YDim)
 end
 
 # precompilation
-function _precompile(::Type{GDALfile})
+function _precompile(::Type{GDALsource})
     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
 
     for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
@@ -612,4 +614,4 @@ function _precompile(::Type{GDALfile})
     end
 end
 
-_precompile(GRDfile)
+_precompile(GRDsource)
