@@ -82,6 +82,14 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
         @test Rasters.bounds(gribarray) == ((0.0, 357.0), (-90.0, 90.0), (500, 850), (0, 9), (DateTime("2017-01-01T00:00:00"), DateTime("2017-01-02T12:00:00")))
     end
 
+    @testset "cf attributes" begin
+        z = lazystack[:z]
+        @test metadata(z)["standard_name"] == "geopotential"
+
+        @test metadata(lazystack)["Conventions"] == "CF-1.7"
+        x = dims(lazystack, :X)
+        @test metadata(x)["standard_name"] == "longitude"
+    end
 
     @testset "other fields" begin
         @test ismissing(missingval(gribarray))
