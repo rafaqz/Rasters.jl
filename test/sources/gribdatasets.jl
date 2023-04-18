@@ -29,7 +29,7 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
     @time gribarray = Raster(era5)
     @time lazyarray = Raster(era5; lazy=true);
     @time lazystack= RasterStack(era5; lazy=true);
-    @test_broken eagerstack = RasterStack(era5; lazy=false);
+    @time eagerstack = RasterStack(era5; lazy=false);
     @time ds = GRIBDataset(era5)
 
     @testset "lazyness" begin
@@ -57,6 +57,11 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
         diff = stack[:z][:,:,1,1,1] - ds["z"][:,:,1,1,1]
 
         @test all(diff .== 0.)
+    end
+
+    @testset "eager stack" begin
+        t = eagerstack[:t]
+        @test t[:,:,2,3,1] isa AbstractMatrix
     end
 
     @testset "array properties" begin
@@ -114,7 +119,7 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
             @test all(masked[X(1:100), Y([1, 5, 45])] .=== missingval(msk))
         end
         @testset "slice" begin
-            @test_throws ArgumentError Rasters.slice(gribarray, Band)
+            @test_throws DimensionMismatch Rasters.slice(gribarray, Band)
             ser = Rasters.slice(gribarray, Ti) 
             @test ser isa RasterSeries
             @test size(ser) == (4,)
