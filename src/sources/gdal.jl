@@ -237,10 +237,16 @@ function DD.metadata(raster::AG.RasterDataset, args...)
     scale = AG.getscale(band)
     offset = AG.getoffset(band)
     # norvw = AG.noverview(band)
-    path = first(AG.filelist(raster))
     units = AG.getunittype(band)
-    upair = units == "" ? () : ("units"=>units,)
-    _metadatadict(GDALsource, "filepath"=>path, "scale"=>scale, "offset"=>offset, upair...)
+    filelist = AG.filelist(raster)
+    metadata = _metadatadict(GDALsource, "scale"=>scale, "offset"=>offset)
+    if units == ""
+        metadata["units"] = units
+    end
+    if length(filelist) > 0
+        metadata["filepath"] = first(filelist)
+    end
+    return metadata
 end
 
 # Rasters methods for ArchGDAL types ##############################
@@ -248,9 +254,11 @@ end
 # Create a Raster from a dataset
 Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
 function Raster(ds::AG.RasterDataset;
-    crs=crs(ds), mappedcrs=nothing,
+    crs=crs(ds), 
+    mappedcrs=nothing,
     dims=dims(ds, crs, mappedcrs),
-    refdims=(), name=Symbol(""),
+    refdims=(), 
+    name=Symbol(""),
     metadata=metadata(ds),
     missingval=missingval(ds)
 )
