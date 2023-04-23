@@ -181,13 +181,12 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
             ymax = gt[GDAL_TOPLEFT_Y]
             ymin = gt[GDAL_TOPLEFT_Y] + ystep * (ysize - 1)
             yorder = ForwardOrdered()
-            yindex = ymin:ystep:ymax
         else
             ymax = gt[GDAL_TOPLEFT_Y] + ystep
             ymin = gt[GDAL_TOPLEFT_Y] + ystep * ysize
             yorder = ReverseOrdered()
-            yindex = ymax:ystep:ymin
         end
+        yindex = ymax:ystep:ymin
 
         # Spatial data defaults to area/inteval
         xsampling, ysampling = if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"

@@ -37,7 +37,7 @@ end
 
     lonstart, lonend = 0.5, 179.5
     cealonstart, cealonend = reproject(proj4326, projcea, X(), [lonstart, lonend])
-    cealonrange = LinRange(cealonstart, cealonend, 180)
+    cealonrange = cealonstart:1.0:cealonend
     lon = X(Projected(cealonrange, ForwardOrdered(), Regular(step(cealonrange)), 
                       Intervals(Center()), NoMetadata(), projcea, proj4326, X()))
     convertedlon = convertlookup(Mapped, lon)
@@ -52,7 +52,7 @@ end
     latbounds = -90.0, 90.0
     ceabounds = reproject(proj4326, projcea, Y(), latbounds)
     # Vals are the bounding range without the end bound
-    cealatrange = LinRange(ceabounds..., 181)[1:180]
+    cealatrange = ceabounds[1] : (ceabounds[2] - ceabounds[1] / 180) : ceabounds[2]
     lat = Y(Projected(cealatrange, ForwardOrdered(), Regular(step(cealatrange)), 
                       Intervals(Start()), NoMetadata(), projcea, proj4326, Y()))
     convertedlat = convertlookup(Mapped, lat)

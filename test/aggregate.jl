@@ -26,8 +26,8 @@ data1 = [ 1  2  3  4  5  6 -1
 data2 = 2 * data1
 data3 = 3 * data1
 data4 = 4 * data1
-dimz = X(Sampled([30., 40., 50.]; order=ForwardOrdered(), span=Regular(10.0), sampling=Points())), 
-       Y(Sampled(LinRange(-10., 20., 7); order=ForwardOrdered(), span=Regular(5.0), sampling=Points()))
+dimz = X(Sampled([30.0, 40.0, 50.]; order=ForwardOrdered(), span=Regular(10.0), sampling=Points())), 
+Y(Sampled(-10.0:30//6:20.0; order=ForwardOrdered(), span=Regular(5.0), sampling=Points()))
 array1 = Raster(data1, dimz)
 array2 = Raster(data2, dimz)
 array1a = Raster(data3, dimz)
@@ -39,7 +39,7 @@ series = RasterSeries([stack1, stack2], (Ti(dates),));
 
 
 @testset "Aggregate a dimension" begin
-    lat = Y(Sampled(LinRange(3, 13, 6), ForwardOrdered(), Regular(2.0), Intervals(Start()), NoMetadata()))
+    lat = Y(Sampled(3.0:2.0:13.0, ForwardOrdered(), Regular(2.0), Intervals(Start()), NoMetadata()))
     aglat = aggregate(Start(), lat, 3)
     @test span(lookup(aglat)) == Regular(6.0)
     @test disaggregate(Start(), aglat, 3) == lat

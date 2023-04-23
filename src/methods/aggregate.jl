@@ -232,7 +232,7 @@ function disaggregate(locus, lookup::LookupArray, scale)
     step_ = step(lookup) / intscale
     start = lookup[1] - _agoffset(locus, intscale) * step_
     stop = start + (len - 1)  * step_
-    index = LinRange(start, stop, len)
+    index = start:step_:stop
     if lookup isa AbstractSampled
         sp = disaggregate(locus, span(lookup), intscale)
         return rebuild(lookup; data=index, span=sp)
