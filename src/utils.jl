@@ -152,7 +152,7 @@ function _extent2dims(to::Extents.Extent, size::Nothing, res, crs)
     end
     return _extent2dims(to, ranges, crs)
 end
-function _extent2dims(to::Extents.Extent, size, res::Nothing, crs)
+function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs) where K
     if size isa Int
         size = ntuple(_ -> size, length(K))
     end

@@ -647,10 +647,17 @@ const XYExtent = Extents.Extent{(:X,:Y),Tuple{Tuple{Float64,Float64},Tuple{Float
 # Get the bounds of a geometry
 _extent(geom)::XYExtent = _extent(GI.trait(geom), geom)
 function _extent(::Nothing, data::AbstractVector)::XYExtent
-    ext = reduce(data; init=_extent(first(data))) do ext, geom
-        Extents.union(ext, _extent(geom))
+    g1 = first(data)
+    if GI.trait(g1) isa GI.PointTrait 
+        xs = extrema(p -> GI.x(p), data)
+        ys = extrema(p -> GI.y(p), data)
+        return _float64_xy_extent(Extents.Extent(X=xs, Y=ys))
+    else
+        ext = reduce(geoms; init=_extent(first(geoms))) do ext, geom
+            Extents.union(ext, _extent(geom))
+        end
+        return _float64_xy_extent(ext)
     end
-    return _float64_xy_extent(ext)
 end
 _extent(::Nothing, data::RasterStackOrArray)::XYExtent = _float64_xy_extent(Extents.extent(data))
 function _extent(::Nothing, data::T)::XYExtent where T
@@ -660,9 +667,7 @@ function _extent(::Nothing, data::T)::XYExtent where T
         if geomcolname in Tables.columnnames(cols)
             # Table of geometries
             geoms = Tables.getcolumn(data, geomcolname)
-            return reduce(geoms; init=_extent(first(geoms))) do ext, geom
-                Extents.union(ext, _extent(geom))
-            end
+            return _extent(nothing, geoms)
         else
             # TODO: test this branch
             # Table of points with dimension columns
@@ -682,7 +687,7 @@ function _extent(::Nothing, data::T)::XYExtent where T
     end
 end
 function _extent(::GI.AbstractPointTrait, point)::XYExtent
-    x, y = GI.x(point), GI.y(point)
+    x, y = Float64(GI.x(point)), Float64(GI.y(point))
     Extents.Extent(X=(x, x), Y=(y, y))
 end
 function _extent(::GI.AbstractGeometryTrait, geom)::XYExtent
