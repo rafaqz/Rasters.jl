@@ -121,6 +121,9 @@ function _rasterize(to::Nothing, data; fill, kw...)
     to = _extent(data)
     _rasterize(to, data; kw..., fill)
 end
+function _rasterize(to, data; fill, kw...)
+    _rasterize(_extent(to), data; kw..., fill)
+end
 function _rasterize(to::Extents.Extent{K}, data;
     fill,
     res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing,
@@ -349,9 +352,14 @@ end
 # We rasterize all iterables from here
 function _rasterize!(x, trait::Nothing, geoms; fill, reduce=nothing, op=nothing, kw...)
     fill_itr = _iterable_fill(geoms, fill)
-    x1 = _prepare_for_burning(x)
-    thread_allocs = _burning_allocs(x1)
-    return _rasterize_iterable!(x1, geoms, reduce, op, fill, fill_itr, thread_allocs; kw...)
+    t1 = GI.trait(first(skipmissing(geoms)))
+    if isconcretetype(nonmissingtype(eltype(geoms))) && (t1 isa GI.PointTrait || t1 isa GI.MultiPointTrait)
+        return _rasterize_points!(x, geoms, reduce, op, fill, fill_itr; kw...)
+    else
+        x1 = _prepare_for_burning(x)
+        thread_allocs = _burning_allocs(x1)
+        return _rasterize_iterable!(x1, geoms, reduce, op, fill, fill_itr, thread_allocs; kw...)
+    end
 end
 
 function _rasterize_iterable!(
@@ -415,30 +423,52 @@ function _rasterize_iterable!(
         return _reduce_fill!(reduce, x1, geoms, fill_itr; kw..., init, allocs=thread_allocs, lock)
     else # But if we can, use op in a fast iterative reduction
         range = _geomindices(geoms)
-        burnchecks = _alloc_burnchecks(range)
         p = progress ? _progress(length(geoms); desc="Rasterizing...") : nothing
-        if isconcretetype(nonmissingtype(eltype(geoms))) && GI.trait(first(skipmissing(geoms))) isa GI.PointTrait
-            for i in _geomindices(geoms)
-                geom = _getgeom(geoms, i)
-                ismissing(geom) && continue
-                allocs = _get_alloc(thread_allocs)
-                fill = _getfill(fill_itr, i)
-                burnchecks[i] = _rasterize!(x1, GI.trait(geom), geom; kw..., fill, op=op1, allocs, init, lock)
-                progress && ProgressMeter.next!(p)
-            end
-        else
-            Threads.@threads for i in _geomindices(geoms)
-                geom = _getgeom(geoms, i)
-                ismissing(geom) && continue
-                allocs = _get_alloc(thread_allocs)
-                fill = _getfill(fill_itr, i)
-                burnchecks[i] = _rasterize!(x1, GI.trait(geom), geom; kw..., fill, op=op1, allocs, init, lock)
-                progress && ProgressMeter.next!(p)
-            end
+        burnchecks = _alloc_burnchecks(range)
+        Threads.@threads for i in _geomindices(geoms)
+            geom = _getgeom(geoms, i)
+            ismissing(geom) && continue
+            allocs = _get_alloc(thread_allocs)
+            fill = _getfill(fill_itr, i)
+            burnchecks[i] = _rasterize!(x1, GI.trait(geom), geom; kw..., fill, op=op1, allocs, init, lock)
+            progress && ProgressMeter.next!(p)
         end
         _set_burnchecks(burnchecks, metadata(x1), verbose)
         return any(burnchecks)
     end
+end
+
+function _rasterize_points!(A, geoms, reduce, op, fill, fill_itr; 
+    init=nothing, missingval=nothing, kw...
+)
+    range = _geomindices(geoms)
+    ext = Extents.extent(A)
+    xrange = ext.X[2] - ext.X[1]
+    yrange = ext.Y[2] - ext.Y[1]
+    xsize = size(A, X)
+    ysize = size(A, Y)
+    n = 0
+    for i in range
+        geom = _getgeom(geoms, i)
+        ismissing(geom) && continue
+        point = (X=GI.x(geom), Y=GI.y(geom))
+        _contains(ext, point) || continue
+        n += 1
+        x = X(trunc(Int, (point.X - ext.X[1]) / xrange * xsize) + 1) 
+        y = Y(trunc(Int, (point.Y - ext.Y[1]) / yrange * ysize) + 1)
+        I = dims2indices(A, (x, y))
+        if reduce === count
+            A[I...] += 1
+        else
+            f = _getfill(fill_itr, i)
+            a = A[I...]
+            A[I...] = _choose_fill(a, f, op, init, missingval)
+        end
+    end
+end
+
+function _contains(extent::Extents.Extent, point::NamedTuple)
+    extent.X[1] <= point.X < extent.X[2] && extent.Y[1] <= point.Y < extent.Y[2]
 end
 
 # _reduce_fill!
