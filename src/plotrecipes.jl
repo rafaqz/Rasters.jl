@@ -376,9 +376,9 @@ missing_or_float32(num::Number) = Float32(num)
 missing_or_float32(::Missing) = missing
 
 # then, define how they are to be converted to plottable data
-function MakieCore.convert_arguments(::MakieCore.PointBased, raw_raster::AbstractRaster{<: Union{Missing, Real}, 1})
+function MakieCore.convert_arguments(PB::MakieCore.PointBased, raw_raster::AbstractRaster{<: Union{Missing, Real}, 1})
     z = map(Rasters._prepare, dims(raw_raster))
-    return (parent(Float32.(replace_missing(missing_or_float32.(raw_raster), missingval = NaN32))), index(z))
+    return MakieCore.convert_arguments(PB, parent(Float32.(replace_missing(missing_or_float32.(raw_raster), missingval = NaN32))), index(z))
 end
     
 
@@ -492,7 +492,7 @@ function __style_rasters()
     )
 end
 
-style_rasters() = __style_rasters()
+function style_rasters end # defined in ../ext/RastersMakie
 
 function color_rasters()
     return MakieCore.Attributes(
