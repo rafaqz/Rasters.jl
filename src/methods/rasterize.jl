@@ -162,12 +162,12 @@ function _rasterize(to::DimTuple, data::T; fill, name=Symbol(""), reduce=nothing
         _rasterize(to, GeoInterface.trait(data), data; reduce, fill, init, name, kw...)
     end
 end
-function _rasterize(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name, reduce, fill, kw...)
+function _rasterize(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name, reduce, fill, init, kw...)
     # TODO: how to handle when there are fillvals with different types
     fillval = _featurefillval(GI.getfeature(fc, 1), fill)
     init = isnothing(init) ? _reduce_init(reduce, fillval) : init
     name = _filter_name(name, fill)
-    return _create_rasterize_dest(to1; kw..., fill=fillval, init, name) do dest
+    return _create_rasterize_dest(to; kw..., fill=fillval, init, name) do dest
         rasterize!(dest, fc; reduce, fill, kw..., missingval=missingval(dest))
     end
 end
@@ -310,8 +310,8 @@ function rasterize!(x::RasterStackOrArray, data::T; fill, reduce=nothing, kw...)
     return x
 end
 function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; reduce=nothing, fill, kw...)
-    fill_itr = _iterable_fill(fc, keyorfill)
-    features = GI.feaatures(fc)
+    fill_itr = _iterable_fill(fc, fill)
+    features = GI.getfeature(fc)
     return _rasterize!(x, nothing, features; fill=fill_itr, kw...)
 end
 # Single object rasterization
