@@ -438,6 +438,7 @@ function _rasterize_iterable!(
     end
 end
 
+# geoms is a vector of points or a MultiPoint geometry
 function _rasterize_points!(A, geoms, reduce, op, fill, fill_itr; 
     init=nothing, missingval=nothing, kw...
 )
