@@ -691,7 +691,7 @@ function _extent(::GI.AbstractPointTrait, point)::XYExtent
     Extents.Extent(X=(x, x), Y=(y, y))
 end
 function _extent(::GI.AbstractGeometryTrait, geom)::XYExtent
-    geomextent = GI.extent(geom)
+    geomextent = GI.extent(geom; fallback=false)
     if isnothing(geomextent)
         points = GI.getpoint(geom)
         xbounds = extrema(GI.x(p) for p in points)
