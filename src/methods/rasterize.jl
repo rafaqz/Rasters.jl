@@ -484,7 +484,11 @@ end
 function _rasterize_points!(A, points, reduce, op, fill, fill_itr; 
     init=nothing, missingval=nothing, kw...
 )
-    fill isa Function || op isa Function || throw(ArgumentError("Arbitrary reducing functions (such as `median`) are not supported for points. Either use `reduce=sum` or `prod, `mean`, `minimum`, `maximum`, `first`, `last`, or `count`, or pass an `op` function to combine values, or set fill as a function to increment values"))
+    if !(fill isa Function || op isa Function) && isnothing(reduce)
+        op = _take_last # last is the default
+    else
+        throw(ArgumentError("Arbitrary reducing functions (such as `median`) are not supported for points. Either use `reduce=sum` or `prod, `mean`, `minimum`, `maximum`, `first`, `last`, or `count`, or pass an `op` function to combine values, or set fill as a function to increment values"))
+    end
     hasburned = false
     ext = Extents.extent(A)
     xrange = ext.X[2] - ext.X[1]

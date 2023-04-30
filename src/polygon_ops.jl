@@ -661,10 +661,11 @@ function _extent(::Nothing, data::AbstractVector; kw...)::XYExtent
 end
 _extent(::Nothing, data::RasterStackOrArray; kw...)::XYExtent = _float64_xy_extent(Extents.extent(data))
 function _extent(::Nothing, data::T; geometrycolumn=nothing)::XYExtent where T
+    @show data
     if Tables.istable(T)
         singlecolumn = isnothing(geometrycolumn) ? first(GI.geometrycolumns(data)) : geometrycolumn
         cols = Tables.columns(data)
-        if singlecolumn  isa Symbol && singlecolumn  in Tables.columnnames(cols)
+        if singlecolumn isa Symbol && singlecolumn in Tables.columnnames(cols)
             # Table of geometries
             geoms = Tables.getcolumn(data, singlecolumn)
             return _extent(nothing, geoms)
