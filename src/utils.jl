@@ -143,7 +143,7 @@ function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) wher
     tuple_res = ntuple(_ -> res, length(K))
     _extent2dims(to, size, tuple_res, crs)
 end
-function _extent2dims(to::Extents.Extent, size::Nothing, res, crs)
+function _extent2dims(to::Extents.Extent{K}, size::Nothing, res, crs) where K
     ranges = map(values(to), res) do bounds, r
         start, outer = bounds
         length = ceil(Int, (outer - start) / r)
