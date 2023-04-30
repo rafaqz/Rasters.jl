@@ -68,12 +68,12 @@ Base.isless(x::Real, e::Edge) = isless(x, e.iystart)
 
 _to_edges(geom, dims; kw...) = _to_edges(GI.geomtrait(geom), geom, dims; kw...)
 function _to_edges(
-    tr::Union{GI.LinearRingTrait,GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, geom, dims;
+    tr::Union{GI.AbstractCurveTrait,GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, geom, dims;
     allocs::Union{Allocs,Vector{Allocs}}, kw...
 )
     (; edges, scratch) = _get_alloc(allocs)
     local edge_count = max_ylen = 0
-    if tr isa GI.LinearRingTrait
+    if tr isa GI.AbstractCurveTrait
         edge_count, max_ylen = _to_edges!(edges, geom, dims, edge_count)
     else
         for ring in GI.getring(geom)
@@ -481,7 +481,7 @@ function _burn_lines!(
     return n_on_line
 end
 function _burn_lines!(
-    B::AbstractArray, ::Union{GI.LineStringTrait,GI.LinearRingTrait}, linestring, fill
+    B::AbstractArray, ::GI.AbstractCurveTrait, linestring, fill
 )
     isfirst = true
     local firstpoint, laststop
@@ -645,33 +645,34 @@ const XYExtent = Extents.Extent{(:X,:Y),Tuple{Tuple{Float64,Float64},Tuple{Float
 
 # _extent
 # Get the bounds of a geometry
-_extent(geom)::XYExtent = _extent(GI.trait(geom), geom)
-function _extent(::Nothing, data::AbstractVector)::XYExtent
+_extent(geom; kw...)::XYExtent = _extent(GI.trait(geom), geom; kw...)
+function _extent(::Nothing, data::AbstractVector; kw...)::XYExtent
     g1 = first(data)
     if GI.trait(g1) isa GI.PointTrait 
         xs = extrema(p -> GI.x(p), data)
         ys = extrema(p -> GI.y(p), data)
         return _float64_xy_extent(Extents.Extent(X=xs, Y=ys))
     else
-        ext = reduce(geoms; init=_extent(first(geoms))) do ext, geom
+        ext = reduce(data; init=_extent(first(data))) do ext, geom
             Extents.union(ext, _extent(geom))
         end
         return _float64_xy_extent(ext)
     end
 end
-_extent(::Nothing, data::RasterStackOrArray)::XYExtent = _float64_xy_extent(Extents.extent(data))
-function _extent(::Nothing, data::T)::XYExtent where T
+_extent(::Nothing, data::RasterStackOrArray; kw...)::XYExtent = _float64_xy_extent(Extents.extent(data))
+function _extent(::Nothing, data::T; geometrycolumn=nothing)::XYExtent where T
     if Tables.istable(T)
-        geomcolname = first(GI.geometrycolumns(data))
+        singlecolumn = isnothing(geometrycolumn) ? first(GI.geometrycolumns(data)) : geometrycolumn
         cols = Tables.columns(data)
-        if geomcolname in Tables.columnnames(cols)
+        if singlecolumn  isa Symbol && singlecolumn  in Tables.columnnames(cols)
             # Table of geometries
-            geoms = Tables.getcolumn(data, geomcolname)
+            geoms = Tables.getcolumn(data, singlecolumn)
             return _extent(nothing, geoms)
         else
+            multicolumn = isnothing(geometrycolumn) ? DEFAULT_POINT_ORDER : geometrycolumn 
             # TODO: test this branch
             # Table of points with dimension columns
-            bounds = reduce(DEFAULT_TABLE_DIM_KEYS; init=(;)) do acc, key
+            bounds = reduce(multicolumn; init=(;)) do acc, key
                 if key in Tables.columnnames(cols)
                     merge(acc, (; key=extrema(cols[key])))
                 else
@@ -686,11 +687,11 @@ function _extent(::Nothing, data::T)::XYExtent where T
         return _float64_xy_extent(ext)
     end
 end
-function _extent(::GI.AbstractPointTrait, point)::XYExtent
+function _extent(::GI.AbstractPointTrait, point; kw...)::XYExtent
     x, y = Float64(GI.x(point)), Float64(GI.y(point))
     Extents.Extent(X=(x, x), Y=(y, y))
 end
-function _extent(::GI.AbstractGeometryTrait, geom)::XYExtent
+function _extent(::GI.AbstractGeometryTrait, geom; kw...)::XYExtent
     geomextent = GI.extent(geom; fallback=false)
     if isnothing(geomextent)
         points = GI.getpoint(geom)
@@ -701,8 +702,8 @@ function _extent(::GI.AbstractGeometryTrait, geom)::XYExtent
         return _float64_xy_extent(geomextent)
     end
 end
-_extent(::GI.AbstractFeatureTrait, feature)::XYExtent = _extent(GI.geometry(feature))
-function _extent(::GI.AbstractFeatureCollectionTrait, features)::XYExtent
+_extent(::GI.AbstractFeatureTrait, feature; kw...)::XYExtent = _extent(GI.geometry(feature))
+function _extent(::GI.AbstractFeatureCollectionTrait, features; kw...)::XYExtent
     features = GI.getfeature(features)
     init = _float64_xy_extent(_extent(first(features)))
     ext = reduce(features; init) do acc, f

@@ -1,16 +1,20 @@
 
 const BaseReduceFunc = Union{typeof(sum),typeof(prod),typeof(maximum),typeof(minimum),typeof(extrema)}
 
+_take_last(a, b) = b
+
 _reduce_op(::typeof(sum)) = Base.add_sum
 _reduce_op(::typeof(prod)) = Base.mul_prod
 _reduce_op(::typeof(minimum)) = min
 _reduce_op(::typeof(maximum)) = max
+_reduce_op(::typeof(last)) = _take_last
 _reduce_op(x) = nothing
 
 _reduce_init(reduce, st::AbstractRasterStack) = map(A -> _reduce_init(reduce, A), st)
 _reduce_init(reduce, ::AbstractRaster{T}) where T = _reduce_init(reduce, T)
 _reduce_init(reduce, nt::NamedTuple) = map(x -> _reduce_init(reduce, x), nt)
 _reduce_init(f, x) = _reduce_init(f, typeof(x)) 
+
 _reduce_init(::Nothing, x::Type{T}) where T = zero(T)
 _reduce_init(f::Function, ::Type{T}) where T = zero(f((zero(nonmissingtype(T)), zero(nonmissingtype(T)))))
 _reduce_init(::typeof(sum), ::Type{T}) where T = zero(nonmissingtype(T))
@@ -50,6 +54,8 @@ $GEOM_KEYWORDS
 - `suffix`: a string or value to append to the filename.
     A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
 - `progress`: show a progress bar, `true` by default, `false` to hide..
+- `geometrycolumn`: `Symbol` to manually select the column the geometries are in, 
+    or a tuple of `Symbol` for columns of point coordsates.
 
 # Example
 
@@ -91,8 +97,9 @@ end
 
 const COUNT_NO_FILL = "`rasterize` with `count` does not use the `fill` keyword"
 _count_fill(x) = x + 1
-# Catch some functione early
-#
+
+# Catch some functions early
+
 # count is faster with an incrementing function as `fill`
 function rasterize(reduce::typeof(count), data; fill=nothing, kw...)
     isnothing(fill) || @info COUNT_NO_FILL
@@ -154,15 +161,21 @@ function _rasterize(to::DimTuple, data::T; fill, name=Symbol(""), reduce=nothing
             fill
         end
         init = if isnothing(init)
-            isnothing(reduce) ? nothing : _reduce_init(reduce, fillval)
+            Base.invokelatest() do
+                isnothing(reduce) ? nothing : _reduce_init(reduce, fillval)
+            end
         else
             init
         end
-        return _create_rasterize_dest(to; kw..., fill=fillval, init, name) do dest
-            rasterize!(dest, data; kw..., reduce, fill, init, missingval=missingval(dest))
+        Base.invokelatest() do
+            return _create_rasterize_dest(to; kw..., fill=fillval, init, name) do dest
+                rasterize!(dest, data; kw..., reduce, fill, init, missingval=missingval(dest))
+            end
         end
     else
-        _rasterize(to, GeoInterface.trait(data), data; reduce, fill, init, name, kw...)
+        Base.invokelatest() do
+            _rasterize(to, GeoInterface.trait(data), data; reduce, fill, init, name, kw...)
+        end
     end
 end
 function _rasterize(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name, reduce, fill, init, kw...)
@@ -170,16 +183,20 @@ function _rasterize(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name,
     fillval = _featurefillval(GI.getfeature(fc, 1), fill)
     init = isnothing(init) ? _reduce_init(reduce, fillval) : init
     name = _filter_name(name, fill)
-    return _create_rasterize_dest(to; kw..., fill=fillval, init, name) do dest
-        rasterize!(dest, fc; reduce, fill, kw..., missingval=missingval(dest))
+    return Base.invokelatest() do
+        _create_rasterize_dest(to; kw..., fill=fillval, init, name) do dest
+            rasterize!(dest, fc; reduce, fill, kw..., missingval=missingval(dest))
+        end
     end
 end
 function _rasterize(to::DimTuple, ::GI.AbstractFeatureTrait, feature; reduce, fill, name, init, kw...)
     fillval = _featurefillval(feature, fill)
     init = isnothing(init) ? _reduce_init(reduce, fillval) : init
     name = _filter_name(name, fill)
-    return _create_rasterize_dest(to; fill=fillval, init, name, kw...) do dest
-        rasterize!(dest, feature; reduce, fill, init, kw..., missingval=missingval(dest))
+    return Base.invokelatest() do
+        return _create_rasterize_dest(to; fill=fillval, init, name, kw...) do dest
+            rasterize!(dest, feature; reduce, fill, init, kw..., missingval=missingval(dest))
+        end
     end
 end
 function _rasterize(to::DimTuple, ::Nothing, data; reduce, init, fill, kw...)
@@ -192,8 +209,10 @@ function _rasterize(to::DimTuple, ::Nothing, data; reduce, init, fill, kw...)
     end
     init = isnothing(init) ? _reduce_init(reduce, fillval) : init
 
-    return _create_rasterize_dest(to; kw..., fill=fillval, init) do dest
-        rasterize!(dest, data; kw..., reduce, fill, init, missingval=missingval(dest))
+    return Base.invokelatest() do
+        _create_rasterize_dest(to; kw..., fill=fillval, init) do dest
+            rasterize!(dest, data; kw..., reduce, fill, init, missingval=missingval(dest))
+        end
     end
 end
 function _rasterize(to::DimTuple, ::GI.AbstractGeometryTrait, data; reduce, init, fill, kw...)
@@ -226,7 +245,9 @@ using the values specified by `fill`.
 These are detected automatically from `A` and `data` where possible.
 
 $GEOM_KEYWORDS
-- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`.
+- `shape`: force `data` to be treated as `:polygon`, `:line` or `:point`, where possible
+    Points can't be treated as lines or polygons, and lines may not work as polygons, but
+    an attempt will be made.
 - `atol`: an absolute tolerance for rasterizing points to dimensions with `Points` sampling.
 
 And specifically for `shape=:polygon`:
@@ -280,88 +301,109 @@ function rasterize!(reduce::typeof(count), x::RasterStackOrArray, data; fill=not
     isnothing(fill) || @info COUNT_NO_FILL
     rasterize!(x::RasterStackOrArray, data; kw..., reduce=nothing, op=nothing, fill=_count_fill)
 end
-function rasterize!(x::RasterStackOrArray, data::T; fill, reduce=nothing, kw...) where T
-    function _rasterize_point_table_inner!(x, pointcols, fill_itr; kw...)
-        for i in eachindex(first(pointcols))
-            point = map(c -> c[i], pointcols)
-            fill = _getfill(fill_itr, i)
-            _fill_point!(x, point; fill, kw...)
-        end
-    end
+function rasterize!(x::RasterStackOrArray, data::T; 
+    fill, geomcolumn=nothing, reduce=nothing, op=nothing, kw...
+) where T
+    op = isnothing(op) ? _reduce_op(reduce) : op
     # Check if it's a Tables.jl compatible object
     if Tables.istable(T)
         schema = Tables.schema(data)
-        geomcolname = first(GI.geometrycolumns(data))
         cols = Tables.columns(data)
-
         fill_itr = _iterable_fill(cols, fill)
-        if geomcolname in Tables.columnnames(cols)
+        geomcolname = if isnothing(geomcolumn) 
+            geomcols = GI.geometrycolumns(data)
+            isnothing(geomcols) ? nothing : first(geomcols) 
+        else
+            geomcolumn
+        end
+        if geomcolname isa Symbol && geomcolname in Tables.columnnames(cols)
             # Its a geometry table
             geomcol = Tables.getcolumn(cols, geomcolname)
-            _rasterize!(x, nothing, geomcol; reduce, fill=fill_itr, kw...)
+            _rasterize!(x, nothing, geomcol; kw..., op, reduce, fill=fill_itr)
         else
             # Its a point table
-            dimscols = _auto_dim_columns(data, dims(x))
-            pointcols = map(k -> Tables.getcolumn(data, k), map(DD.dim2key, dimscols))
-            reduce in (last, nothing) || throw(ArgumentError("Can only reduce with `last` on point tables. Make a github issue at the Rasters.jl repository if you need something else."))
-            _rasterize_point_table_inner!(x, pointcols, fill_itr; reduce, kw...)
+            pointcolnames = isnothing(geomcolumn) ? map(DD.dim2key, _auto_dim_columns(data, DEFAULT_POINT_ORDER)) : geomcolumn
+            pointcols = map(k -> Tables.getcolumn(cols, k), pointcolnames)
+            # TODO error on missing columns here
+            geomcol = zip(pointcols...)
+            # TODO warn on wrong shape here
+            _rasterize_points!(x, geomcol, reduce, op, fill, fill_itr; kw...)
         end
-    else
+    else 
         # Otherwise maybe a Geometry, FeatureCollection or some iterator
-        _rasterize!(x, GI.trait(data), data; fill, reduce, kw...)
+        _rasterize!(x, GI.trait(data), data; kw..., fill, reduce, op)
     end
     return x
 end
 function _rasterize!(x, ::GI.AbstractFeatureCollectionTrait, fc; reduce=nothing, fill, kw...)
     fill_itr = _iterable_fill(fc, fill)
     features = GI.getfeature(fc)
-    return _rasterize!(x, nothing, features; fill=fill_itr, kw...)
+    return _rasterize!(x, nothing, features; kw..., fill=fill_itr)
 end
-# Single object rasterization
+# Single feature to rasterize
 function _rasterize!(x, ::GI.AbstractFeatureTrait, feature; fill, kw...)
     geom = GI.geometry(feature)
     _rasterize!(x, GI.trait(geom), geom; fill=_featurefillval(feature, fill), kw...)
 end
+# Single geometry to rastetize
 function _rasterize!(x, ::GI.AbstractGeometryTrait, geom;
-    fill, op=nothing, init=nothing, missingval=missing, lock=nothing, kw...
+    fill, reduce=nothing, op=nothing, init=nothing, missingval=missing, lock=nothing, shape=nothing, kw...
 )
-    ext = _extent(geom)
-    x1 = view(x, Touches(ext))
-    length(x1) > 0 || return false
+    if shape === :point || geom isa GI.MultiPointTrait
+        hasburned = _rasterize_points!(x, GI.getpoint(geom), reduce, op, fill, _iterable_fill(geom, fill); kw...)
+    else
+        ext = _extent(geom)
+        x1 = view(x, Touches(ext))
+        length(x1) > 0 || return false
 
-    bools = _init_bools(x1; metadata=metadata(x))
-    boolmask!(bools, geom; lock, kw...)
-    hasburned = any(bools)
-    if hasburned 
-        # Avoid race conditions with a SectorLock
-        isnothing(lock) || Base.lock(lock, x1)
-        _fill!(x1, bools, fill, op, init, missingval)
-        isnothing(lock) || Base.unlock(lock)
+        bools = _init_bools(x1; metadata=metadata(x))
+        boolmask!(bools, geom; kw..., lock, shape)
+        hasburned = any(bools)
+        if hasburned 
+            # Avoid race conditions with a SectorLock
+            isnothing(lock) || Base.lock(lock, x1)
+            _fill!(x1, bools, fill, op, init, missingval)
+            isnothing(lock) || Base.unlock(lock)
+        end
     end
     return hasburned
 end
 # Fill points
 function _rasterize!(x, trait::GI.AbstractPointTrait, point; fill, lock=nothing, kw...)
     # Avoid race conditions whern Point is in a mixed set of Geometries
-    # for all points we avoid parallel rasterization completely
     isnothing(lock) || Base.lock(lock, x) 
     hasburned = _fill_point!(x, trait, point; fill, kw...)
     isnothing(lock) || Base.unlock(lock)
+    # for all points we avoid parallel rasterization completely - this method should not be hit often
     return hasburned
 end
-# We rasterize all iterables from here
-function _rasterize!(x, trait::Nothing, geoms; fill, reduce=nothing, op=nothing, kw...)
+function _rasterize!(x, trait::Nothing, geoms; 
+    fill, reduce=nothing, op=nothing, shape=nothing, kw...
+)
     fill_itr = _iterable_fill(geoms, fill)
     t1 = GI.trait(first(skipmissing(geoms)))
-    if isconcretetype(nonmissingtype(eltype(geoms))) && (t1 isa GI.PointTrait || t1 isa GI.MultiPointTrait)
+    if t1 isa GI.PointTrait 
+        (isnothing(shape) || shape === :point) || @warn "Rasterizing point as a point, not $shape"
+        # Points are rasterized as points with a fill value for each point
         return _rasterize_points!(x, geoms, reduce, op, fill, fill_itr; kw...)
+    elseif shape === :point || t1 isa GI.MultiPointTrait
+        if t1 isa GI.MultiPointTrait
+            (isnothing(shape) || shape === :point) || @warn "Rasterizing point as a point, not $shape"
+        end
+        # MultiPoints or all other geoms when shape == :points are rasterized as points
+        # with the current fill value for every point.
+        for (geom, f) in zip(geoms, fill_itr)
+            _rasterize!(x, GI.trait(geom), geom; kw..., fill=f, reduce, op, shape)
+        end
     else
+        # Everything else is rasterized as line or polygon geometries
         x1 = _prepare_for_burning(x)
         thread_allocs = _burning_allocs(x1)
-        return _rasterize_iterable!(x1, geoms, reduce, op, fill, fill_itr, thread_allocs; kw...)
+        return _rasterize_iterable!(x1, geoms, reduce, op, fill, fill_itr, thread_allocs; shape, kw...)
     end
 end
 
+# We rasterize all iterables from here
 function _rasterize_iterable!(
     x1, geoms, reduce::Nothing, op::Nothing, fill, fill_itr::Iterators.Cycle, thread_allocs; 
     kw...
@@ -374,6 +416,7 @@ function _rasterize_iterable!(
     end
     return true
 end
+# Stacks
 function _rasterize_iterable!(
     x1, geoms, reduce::Nothing, op::Nothing, fill, 
     fill_itr::NamedTuple{<:Any,Tuple{<:Iterators.Cycle,Vararg}}, thread_allocs; 
@@ -416,9 +459,8 @@ function _rasterize_iterable!(
     lock=SectorLocks(), verbose=true, progress=true, kw...
 )
     # See if there is a reducing operator passed in, or matching `reduce`
-    op1 = isnothing(op) ? _reduce_op(reduce) : op
     init = _reduce_init(reduce, x1)
-    if isnothing(op1)
+    if isnothing(op) 
         # If there still isn't any `op`, reduce over all the values later rather than iteratively
         return _reduce_fill!(reduce, x1, geoms, fill_itr; kw..., init, allocs=thread_allocs, lock)
     else # But if we can, use op in a fast iterative reduction
@@ -430,7 +472,7 @@ function _rasterize_iterable!(
             ismissing(geom) && continue
             allocs = _get_alloc(thread_allocs)
             fill = _getfill(fill_itr, i)
-            burnchecks[i] = _rasterize!(x1, GI.trait(geom), geom; kw..., fill, op=op1, allocs, init, lock)
+            burnchecks[i] = _rasterize!(x1, GI.trait(geom), geom; kw..., fill, op, allocs, init, lock)
             progress && ProgressMeter.next!(p)
         end
         _set_burnchecks(burnchecks, metadata(x1), verbose)
@@ -438,34 +480,38 @@ function _rasterize_iterable!(
     end
 end
 
-# geoms is a vector of points or a MultiPoint geometry
-function _rasterize_points!(A, geoms, reduce, op, fill, fill_itr; 
+# geoms is a iterator of points
+function _rasterize_points!(A, points, reduce, op, fill, fill_itr; 
     init=nothing, missingval=nothing, kw...
 )
-    range = _geomindices(geoms)
+    fill isa Function || op isa Function || throw(ArgumentError("Arbitrary reducing functions (such as `median`) are not supported for points. Either use `reduce=sum` or `prod, `mean`, `minimum`, `maximum`, `first`, `last`, or `count`, or pass an `op` function to combine values, or set fill as a function to increment values"))
+    hasburned = false
     ext = Extents.extent(A)
     xrange = ext.X[2] - ext.X[1]
     yrange = ext.Y[2] - ext.Y[1]
     xsize = size(A, X)
     ysize = size(A, Y)
     n = 0
-    for i in range
-        geom = _getgeom(geoms, i)
-        ismissing(geom) && continue
-        point = (X=GI.x(geom), Y=GI.y(geom))
+    for (i, point) in enumerate(points)
+        ismissing(point) && continue
+        point = (X=GI.x(point), Y=GI.y(point))
         _contains(ext, point) || continue
         n += 1
         x = X(trunc(Int, (point.X - ext.X[1]) / xrange * xsize) + 1) 
         y = Y(trunc(Int, (point.Y - ext.Y[1]) / yrange * ysize) + 1)
         I = dims2indices(A, (x, y))
-        if reduce === count
-            A[I...] += 1
+        if A isa RasterStack
+            checkbounds(Bool, first(A), I...) || continue
         else
-            f = _getfill(fill_itr, i)
-            a = A[I...]
-            A[I...] = _choose_fill(a, f, op, init, missingval)
+            checkbounds(Bool, A, I...) || continue
         end
+        f = _getfill(fill_itr, i)
+        a = A[I...]
+        f1 = _choose_fill(a, f, op, init, missingval)
+        A[I...] = f1
+        hasburned = true
     end
+    return hasburned
 end
 
 function _contains(extent::Extents.Extent, point::NamedTuple)
@@ -529,7 +575,7 @@ end
 # _apply_reduction!
 #
 # Apply a reducing functin over an iterable
-# with performance optimisations where possible
+# This is applied for all reducing methods that don't have a matching `op` method
 @inline function _apply_reduction!(::Type{T}, f, fill_itr, pixel_geom_list) where T
     any(pixel_geom_list) || return nothing
     iterator = (fl for (fl, b) in zip(fill_itr, pixel_geom_list) if b && !ismissing(fl))
@@ -654,31 +700,43 @@ _featurefillval(feature, fill) = fill
 @noinline function _choose_fill(::Type, a, b, fill::Function, op::Function, init, missingval)
     throw(ArgumentError("`fill` and `op` can't both be functions"))
 end
+@noinline function _choose_fill(::Type, a, b, fill::Function, op::Function, init, missingval::Missing)
+    throw(ArgumentError("`fill` and `op` can't both be functions"))
+end
+# No op fill is a function, apply it unless missingval
 _choose_fill(a, fill::Function, op::Nothing, init, missingval) =
     a == missingval ? fill(init) : fill(a)
+# No op fill is a function, apply it unless missingval===missing
 _choose_fill(a, fill::Function, op::Nothing, init, missingval::Missing) =
     ismissing(a) ? fill(init) : fill(a)
+# No op fill is a function, no init
 _choose_fill(a, fill::Function, op::Nothing, init::Nothing, missingval) = fill(a)
+# No op fill is a function, no init fill a (repeated to avoid ambiguity)
 _choose_fill(a, fill::Function, op::Nothing, init::Nothing, missingval::Missing) = fill(a)
+# Op is a function, fill is not, missingval===missing
+# apply retudcing op to a and fill, or to init and fill if a equals missing and init exists
 function _choose_fill(a, fill, op, init, missingval::Missing)
     a1 = if ismissing(a)
         isnothing(init) ? a : init
     else
         a
     end
-    _do_op(op, a1, fill)
+    _apply_op(op, a1, fill)
 end
+# Op is a function, fill is not, missingval===missing
+# apply retudcing op to a and fill, or to init and fill if a equals missingval and init exists
 function _choose_fill(a, fill, op, init, missingval)
     a1 = if a === missingval
         isnothing(init) ? a : init
     else
         a
     end
-    _do_op(op, a1, fill)
+    _apply_op(op, a1, fill)
 end
 
-_do_op(op::Nothing, a1, fill) = fill
-_do_op(op::Function, a1, fill) = op(a1, fill)
+# apply reducing op to current value and fill value
+_apply_op(op::Nothing, a1, fill) = fill
+_apply_op(op::Function, a1, fill) = op(a1, fill)
 
 function _at_or_contains(d, v, atol)
     selector = sampling(d) isa Intervals ? Contains(v) : At(v; atol=atol)
