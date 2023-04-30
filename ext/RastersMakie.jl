@@ -50,7 +50,6 @@ lift_layer(rs::RasterStack, ind::Symbol) = getproperty(rs, ind)
 - `nan_color = :transparent`: The color which `NaN` values should take.  Default to transparent.
 """
 function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,<:Tuple{D1,D2}}, Observable{<: AbstractRaster{T,2,<:Tuple{D1,D2}}}};
-    raster = read(raster)
     plottype = Makie.Heatmap,
     axistype = Makie.Axis,
     X=X, Y=Y,
@@ -66,6 +65,7 @@ function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,
     colorrange = Makie.automatic,
     kw_attributes...
     ) where {T,D1<:Rasters.SpatialDim,D2<:Rasters.SpatialDim}
+    raster = read(raster)
 
     # handle extra kwargs
     attributes = merge(
