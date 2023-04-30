@@ -50,6 +50,7 @@ lift_layer(rs::RasterStack, ind::Symbol) = getproperty(rs, ind)
 - `nan_color = :transparent`: The color which `NaN` values should take.  Default to transparent.
 """
 function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,<:Tuple{D1,D2}}, Observable{<: AbstractRaster{T,2,<:Tuple{D1,D2}}}};
+    raster = read(raster)
     plottype = Makie.Heatmap,
     axistype = Makie.Axis,
     X=X, Y=Y,
@@ -137,6 +138,7 @@ function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,
 end
 
 function Rasters.rplot(gp::GridPosition, raster::Union{AbstractRaster{T, 3}, Observable{<: AbstractRaster{T, 3}}}; ncols = Makie.automatic, nrows = Makie.automatic, kwargs...) where T
+    raster = read(raster)
 
     val_raster = Makie.to_value(raster)
 
@@ -165,6 +167,7 @@ function Rasters.rplot(gp::GridPosition, raster::Union{AbstractRaster{T, 3}, Obs
 end
 
 function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<: RasterStack}}; ncols = Makie.automatic, nrows = Makie.automatic, colormap = nothing, colorrange = Makie.automatic, link_colorrange = false, link_axes = true, axis = (;), kwargs...)
+    raster = read(raster)
 
     val_stack = Makie.to_value(stack)
 
@@ -226,12 +229,14 @@ function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<:
 end
 
 function Rasters.rplot(raster::Union{AbstractRaster{T, 2}, Observable{<: AbstractRaster{T, 2}}}; figure = (;), kwargs...) where T
+    raster = read(raster)
     figure = Figure(; figure...)
     axis, plot = Rasters.rplot(figure[1, 1], raster; kwargs...)
     return Makie.FigureAxisPlot(figure, axis, plot)
 end
 
 function Rasters.rplot(raster::Union{AbstractRaster{T, 3}, Observable{<: AbstractRaster{T, 3}}}; figure = (;), colormap = nothing, colorrange = Makie.automatic, kwargs...) where T
+    raster = read(raster)
     figure = Figure(; figure...)
     layout = Rasters.rplot(figure[1, 1], raster; colormap, colorrange, kwargs...)
     # if draw_title
@@ -241,6 +246,7 @@ function Rasters.rplot(raster::Union{AbstractRaster{T, 3}, Observable{<: Abstrac
 end
 
 function Rasters.rplot(raster::Union{RasterStack, Observable{<: RasterStack}}; figure = (;), colormap = nothing, colorrange = Makie.automatic, kwargs...)
+    raster = read(raster)
     figure = Figure(; figure...)
     layout = Rasters.rplot(figure[1, 1], raster; colormap, colorrange, kwargs...)
     # if draw_title
