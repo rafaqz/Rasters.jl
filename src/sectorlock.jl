@@ -40,7 +40,7 @@ function Base.lock(seclocks::SectorLocks, sector::CartesianIndices)
     thread_lock.sector = sector
     # Lock the main lock so no other sectors can be locked
     lock(seclocks.spinlock)
-    # Check for any other lock that intersects our `sector`
+    # Check for any other lock that intersects our sector
     for i in eachindex(seclocks)
         # Ignore a lock from this thread
         i == idx && continue
@@ -49,13 +49,12 @@ function Base.lock(seclocks::SectorLocks, sector::CartesianIndices)
         if islocked(seclock) && _intersects(seclock, sector)
             # If it does, lock the sector and wait 
             # All other threads are also waiting, 
-            # but if this doens't happen often it fine.
+            # but if this doens't happen often its fine.
             lock(seclock)
             unlock(seclock)
         end
     end
     # Lock this sector
-    # println("locking thread", idx)
     lock(thread_lock)
     # Unlock the main spinlock so other sectors can be locked
     unlock(seclocks.spinlock)

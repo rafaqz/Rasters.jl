@@ -7,7 +7,6 @@ _reduce_op(::typeof(sum)) = Base.add_sum
 _reduce_op(::typeof(prod)) = Base.mul_prod
 _reduce_op(::typeof(minimum)) = min
 _reduce_op(::typeof(maximum)) = max
-_reduce_op(::typeof(last)) = _take_last
 _reduce_op(x) = nothing
 
 _reduce_init(reduce, st::AbstractRasterStack) = map(A -> _reduce_init(reduce, A), st)
