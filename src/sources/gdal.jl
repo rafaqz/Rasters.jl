@@ -126,15 +126,17 @@ function create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
 end
 
 function _open(f, ::Type{GDALsource}, filename::AbstractString; write=false, kw...)
-    # Handle url filenames
-    # /vsicurl/ is added to urls for GDAL, /vsimem/ for in memory
-    if length(filename) >= 8 && filename[1:8] in ("/vsicurl", "/vsimem/")
-        nothing
-    elseif _isurl(filename)
-        filename = "/vsicurl/" * filename
-    else
-        # check the file actually exists because GDALs error is unhelpful
-        isfile(filename) || _filenotfound_error(filename)
+    if !isfile(filename)
+        # Handle url filenames
+        # /vsicurl/ is added to urls for GDAL, /vsimem/ for in memory
+        if length(filename) >= 8 && filename[1:8] in ("/vsicurl", "/vsimem/")
+            nothing
+        elseif _isurl(filename)
+            filename = "/vsicurl/" * filename
+        else
+            # check the file actually exists because GDALs error is unhelpful
+            _filenotfound_error(filename)
+        end
     end
     flags = write ? (; flags=AG.OF_UPDATE) : ()
     AG.readraster(cleanreturn ∘ f, filename; flags...)
