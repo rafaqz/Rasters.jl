@@ -97,9 +97,7 @@ function _to_edges!(edges, geom, dims, edge_count)
 
     # Dummy Initialisation
     local firstpos = prevpos = nextpos = Position((0.0, 0.0), 0)
-
-    firstpoint = true
-
+    isfirst = true
     local max_ylen = 0
 
     # Raster properties
@@ -113,10 +111,10 @@ function _to_edges!(edges, geom, dims, edge_count)
         p = (Float64(GI.x(point)), Float64(GI.y(point)))
        
         # For the first point just set variables
-        if firstpoint
+        if isfirst
             prevpos = firstpos = Position(p, starts, steps)
             prevpoint = p
-            firstpoint = false
+            isfirst = false
             continue
         end
 
@@ -141,6 +139,17 @@ function _to_edges!(edges, geom, dims, edge_count)
         end
         prevpos = nextpos
         prevpoint = p
+    end
+    # Check in case the polygon is not closed
+    if !(prevpos == firstpos)
+        edge_count += 1
+        edge = Edge(prevpos, firstpos)
+        max_ylen = max(max_ylen, edge.iystop - edge.iystart)
+        if edge_count <= lastindex(edges)
+            edges[edge_count] = edge
+        else
+            push!(edges, edge)
+        end
     end
 
     return edge_count, max_ylen
