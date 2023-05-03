@@ -88,7 +88,7 @@ function _coverage!(A::AbstractRaster, ::Union{Nothing,GI.FeatureCollectionTrait
         linebuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
         centerbuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
         block_crossings = [[Vector{Float64}(undef, 0) for _ in 1:scale] for _ in 1:n],
-        burnstatus=[fill(INIT_BURNSTATUS, scale) for _ in 1:n],
+        burnstatus=[fill(BurnStatus(), scale) for _ in 1:n],
         subbuffer = [fill!(Array{Bool}(undef, scale, scale), false) for _ in 1:n],
         ncrossings = [fill(0, scale) for _ in 1:n],
     )
@@ -171,7 +171,7 @@ function _union_coverage!(A::AbstractRaster, geom;
     subpixel_buffer=falses(size(A) .* scale),
     centeracc=_init_bools(A, Bool; missingval=false),
     lineacc=_init_bools(A, Bool; missingval=false),
-    burnstatus=[INIT_BURNSTATUS for _ in 1:scale],
+    burnstatus=[BurnStatus() for _ in 1:scale],
     block_crossings=[Vector{Float64}(undef, 0) for _ in 1:scale],
     subbuffer=falses(scale, scale),
     subpixel_dims=_subpixel_dims(A, scale),
@@ -214,7 +214,7 @@ function _union_coverage!(A::AbstractRaster, geom;
 
         # Reset burn burnstatus
         for i in eachindex(burnstatus)
-            burnstatus[i] = INIT_BURNSTATUS
+            burnstatus[i] = BurnStatus()
         end
         subpixel_raster = Raster(subpixel_buffer, subpixel_dims)
 
@@ -280,7 +280,7 @@ function _sum_coverage!(A::AbstractRaster, geom;
     centerbuffer=_init_bools(A, Bool; missingval=false),
     block_crossings=[Vector{Float64}(undef, 0) for _ in 1:scale],
     subbuffer=falses(scale, scale),
-    burnstatus=[INIT_BURNSTATUS for _ in 1:scale],
+    burnstatus=[BurnStatus() for _ in 1:scale],
     subpixel_dims=_subpixel_dims(A, scale),
     ncrossings=fill(0, scale),
 )
@@ -320,7 +320,7 @@ function _sum_coverage!(A::AbstractRaster, geom;
             ncrossings[i], prev_ypos = _set_crossings!(block_crossings[i], A, filtered_edges, sub_y, prev_ypos, max_ylen)
         end
         # Set the burn/skip status to false (skip) for each starting position
-        burnstatus .= Ref(INIT_BURNSTATUS)
+        burnstatus .= Ref(BurnStatus())
 
         missed_pixels = 0
         # Loop over x in A

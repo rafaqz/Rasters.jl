@@ -377,7 +377,7 @@ function _rasterize!(x, trait::GI.AbstractPointTrait, point; fill, lock=nothing,
     return hasburned
 end
 function _rasterize!(x, trait::Nothing, geoms; 
-    fill, reduce=nothing, op=nothing, shape=nothing, kw...
+    fill, reduce=nothing, op=nothing, shape=nothing, allocs=nothing, kw...
 )
     fill_itr = _iterable_fill(geoms, fill)
     t1 = GI.trait(first(skipmissing(geoms)))
@@ -397,20 +397,20 @@ function _rasterize!(x, trait::Nothing, geoms;
     else
         # Everything else is rasterized as line or polygon geometries
         x1 = _prepare_for_burning(x)
-        thread_allocs = _burning_allocs(x1)
-        return _rasterize_iterable!(x1, geoms, reduce, op, fill, fill_itr, thread_allocs; shape, kw...)
+        allocs = isnothing(allocs) ? _burning_allocs(x) : allocs
+        return _rasterize_iterable!(x, geoms, reduce, op, fill, fill_itr, allocs; shape, kw...)
     end
 end
 
 # We rasterize all iterables from here
 function _rasterize_iterable!(
-    x1, geoms, reduce::Nothing, op::Nothing, fill, fill_itr::Iterators.Cycle, thread_allocs; 
+    x, geoms, reduce::Nothing, op::Nothing, fill, fill_itr::Iterators.Cycle, allocs; 
     kw...
 )
     # We dont need to iterate the fill, so just mask
-    mask = boolmask(geoms; to=x1, collapse=true, allocs=thread_allocs, metadata=metadata(x1), kw...)
+    mask = boolmask(geoms; to=x, collapse=true, allocs, metadata=metadata(x), kw...)
     # And broadcast the fill
-    broadcast_dims!(x1, x1, mask) do v, m
+    broadcast_dims!(x, x, mask) do v, m
         m ? fill_itr.xs : v
     end
     return true
@@ -418,11 +418,11 @@ end
 # Stacks
 function _rasterize_iterable!(
     x1, geoms, reduce::Nothing, op::Nothing, fill, 
-    fill_itr::NamedTuple{<:Any,Tuple{<:Iterators.Cycle,Vararg}}, thread_allocs; 
+    fill_itr::NamedTuple{<:Any,Tuple{<:Iterators.Cycle,Vararg}}, allocs; 
     kw...
 )
     # We dont need to iterate the fill, so just mask
-    mask = boolmask(geoms; to=x1, collapse=true, allocs=thread_allocs, metadata=metadata(x1), kw...)
+    mask = boolmask(geoms; to=x1, collapse=true, allocs, metadata=metadata(x1), kw...)
     foreach(x1, fill_itr) do A, f 
         # And broadcast the fill
         broadcast_dims!(A, A, mask) do v, m
@@ -433,48 +433,50 @@ function _rasterize_iterable!(
 end
 # Simple iterator
 function _rasterize_iterable!(
-    x1, geoms, reduce::Nothing, op::Nothing, fill, fill_itr, thread_allocs; 
+    x, geoms, reduce::Nothing, op::Nothing, fill, fill_itr, allocs; 
     lock=SectorLocks(), verbose=true, progress=true, kw...
 )
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
     p = progress ? _progress(length(geoms); desc="Rasterizing...") : nothing
-    Threads.@threads for i in _geomindices(geoms)
+    # Threads.@threads 
+    for i in _geomindices(geoms)
         geom = _getgeom(geoms, i)
         ismissing(geom) && continue
-        allocs = _get_alloc(thread_allocs)
+        a = _get_alloc(allocs)
         fill = _getfill(fill_itr, i)
-        res = _rasterize!(x1, GI.trait(geom), geom; kw..., fill, allocs, lock)
+        res = _rasterize!(x, GI.trait(geom), geom; kw..., fill, allocs=a, lock)
         burnchecks[i] = res
         progress && ProgressMeter.next!(p)
     end
-    _set_burnchecks(burnchecks, metadata(x1), verbose)
+    _set_burnchecks(burnchecks, metadata(x), verbose)
     return any(burnchecks)
 end
 
 # Iterator with `reduce` or `op`
 function _rasterize_iterable!(
-    x1, geoms, reduce, op, fill, fill_itr, thread_allocs; 
+    x, geoms, reduce, op, fill, fill_itr, allocs; 
     lock=SectorLocks(), verbose=true, progress=true, kw...
 )
     # See if there is a reducing operator passed in, or matching `reduce`
-    init = _reduce_init(reduce, x1)
+    init = _reduce_init(reduce, x)
     if isnothing(op) 
         # If there still isn't any `op`, reduce over all the values later rather than iteratively
-        return _reduce_fill!(reduce, x1, geoms, fill_itr; kw..., init, allocs=thread_allocs, lock)
+        return _reduce_fill!(reduce, x, geoms, fill_itr; kw..., init, allocs, lock)
     else # But if we can, use op in a fast iterative reduction
         range = _geomindices(geoms)
         p = progress ? _progress(length(geoms); desc="Rasterizing...") : nothing
         burnchecks = _alloc_burnchecks(range)
-        Threads.@threads for i in _geomindices(geoms)
+        # Threads.@threads 
+        for i in _geomindices(geoms)
             geom = _getgeom(geoms, i)
             ismissing(geom) && continue
-            allocs = _get_alloc(thread_allocs)
+            a = _get_alloc(allocs)
             fill = _getfill(fill_itr, i)
-            burnchecks[i] = _rasterize!(x1, GI.trait(geom), geom; kw..., fill, op, allocs, init, lock)
+            burnchecks[i] = _rasterize!(x, GI.trait(geom), geom; kw..., fill, op, allocs=a, init, lock)
             progress && ProgressMeter.next!(p)
         end
-        _set_burnchecks(burnchecks, metadata(x1), verbose)
+        _set_burnchecks(burnchecks, metadata(x), verbose)
         return any(burnchecks)
     end
 end

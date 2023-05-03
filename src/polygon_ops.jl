@@ -1,6 +1,12 @@
 const DEFAULT_POINT_ORDER = (X(), Y())
 const DEFAULT_TABLE_DIM_KEYS = (:X, :Y)
-const INIT_BURNSTATUS = (; ic=1, burn=false, hasburned=false)
+
+struct BurnStatus
+    ic::Int
+    burn::Bool
+    hasburned::Bool
+end
+BurnStatus() = BurnStatus(1, false, false)
 
 # Simple point positions offset relative to the raster
 struct Position
@@ -13,6 +19,19 @@ function Position(point::Tuple, start::Tuple, step::Tuple)
     offset = (xoff / step[1] + 1.0, yoff / step[2] + 1.0)
     yind = trunc(Int32, offset[2])
     return Position(offset, yind)
+end
+
+function can_skip(prevpos::Position, nextpos::Position, xlookup, ylookup)
+    # ignore horizontal edges
+    (prevpos.offset[2] == nextpos.offset[2]) && return true
+    # ignore edges between grid lines on y axis
+    (nextpos.yind == prevpos.yind) && 
+        (prevpos.offset[2] != prevpos.yind) && 
+        (nextpos.offset[2] != nextpos.yind) && return true
+    # ignore edges outside the grid on the y axis
+    (prevpos.offset[2] < 0) && (nextpos.offset[2] < 0) && return true
+    (prevpos.offset[2] > lastindex(ylookup)) && (nextpos.offset[2] > lastindex(ylookup)) && return true
+    return false
 end
 
 # Simple edge offset with (x, y) start relative to the raster
@@ -31,18 +50,12 @@ struct Edge
     end
 end
 
-function _can_skip_edge(prevpos::Position, nextpos::Position, xlookup, ylookup)
-    # ignore horizontal edges
-    (prevpos.offset[2] == nextpos.offset[2]) && return true
-    # ignore edges between grid lines on y axis
-    (nextpos.yind == prevpos.yind) && 
-        (prevpos.offset[2] != prevpos.yind) && 
-        (nextpos.offset[2] != nextpos.yind) && return true
-    # ignore edges outside the grid on the y axis
-    (prevpos.offset[2] < 0) && (nextpos.offset[2] < 0) && return true
-    (prevpos.offset[2] > lastindex(ylookup)) && (nextpos.offset[2] > lastindex(ylookup)) && return true
-    return false
-end
+Base.isless(e1::Edge, e2::Edge) = isless(e1.iystart, e2.iystart)
+Base.isless(e::Edge, x::Real) = isless(e.iystart, x)
+Base.isless(x::Real, e::Edge) = isless(x, e.iystart)
+
+x_at_y(e::Edge, y) = (y - e.start[2]) * e.gradient + e.start[1]
+
 
 struct Allocs{B}
     buffer::B
@@ -60,16 +73,18 @@ _get_alloc(thread_allocs::Vector{<:Allocs}) =
     _get_alloc(thread_allocs[Threads.threadid()])
 _get_alloc(allocs::Allocs) = allocs
 
-x_at_y(e::Edge, y) = (y - e.start[2]) * e.gradient + e.start[1]
 
-Base.isless(e1::Edge, e2::Edge) = isless(e1.iystart, e2.iystart)
-Base.isless(e::Edge, x::Real) = isless(e.iystart, x)
-Base.isless(x::Real, e::Edge) = isless(x, e.iystart)
-
-_to_edges(geom, dims; kw...) = _to_edges(GI.geomtrait(geom), geom, dims; kw...)
-function _to_edges(
-    tr::Union{GI.AbstractCurveTrait,GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, geom, dims;
-    allocs::Union{Allocs,Vector{Allocs}}, kw...
+struct Edges <: AbstractVector{Edge}
+    edges::Vector{Edge}
+    max_ylen::Int
+    edge_count::Int
+end
+Edges(geom, dims; kw...) = Edges(GI.geomtrait(geom), geom, dims; kw...)
+function Edges(
+    tr::Union{GI.AbstractCurveTrait,GI.AbstractPolygonTrait,GI.AbstractMultiPolygonTrait}, 
+    geom, dims;
+    allocs::Union{Allocs,Vector{Allocs}}, 
+    kw...
 )
     (; edges, scratch) = _get_alloc(allocs)
     local edge_count = max_ylen = 0
@@ -82,18 +97,21 @@ function _to_edges(
         end
     end
 
-    # We may have allocated too much
-    edges1 = view(edges, 1:edge_count)
-    @static if VERSION < v"1.9-alpha1"
-        sort!(edges1)
-    else
-        sort!(edges1; scratch)
-    end
+    partialsort!(edges, 1:edge_count)
 
-    return edges1, max_ylen
+    return Edges(edges, max_ylen, edge_count)
 end
+
+Base.parent(edges::Edges) = edges.edges
+Base.length(edges::Edges) = edges.edge_count
+Base.axes(edges::Edges) = axes(parent(edges))
+Base.getindex(edges::Edges, I...) = getindex(parent(edges), I...)
+Base.setindex(edges::Edges, x, I...) = setindex!(parent(edges), x, I...)
+
 function _to_edges!(edges, geom, dims, edge_count)
     GI.npoint(geom) > 0 || return edge_count
+    xlookup, ylookup = lookup(dims, (X(), Y())) 
+    length(xlookup) > 0 && length(ylookup) > 0 || return edge_count
 
     # Dummy Initialisation
     local firstpos = prevpos = nextpos = Position((0.0, 0.0), 0)
@@ -101,7 +119,6 @@ function _to_edges!(edges, geom, dims, edge_count)
     local max_ylen = 0
 
     # Raster properties
-    xlookup, ylookup = lookup(dims, (X(), Y())) 
     starts = (Float64(first(xlookup)), Float64(first(ylookup)))
     steps = (Float64(Base.step(xlookup)), Float64(Base.step(ylookup)))
     local prevpoint = (0.0, 0.0)
@@ -123,7 +140,7 @@ function _to_edges!(edges, geom, dims, edge_count)
 
         # Check if we need an edge between these offsets
         # This is the performance-critical step that reduces the size of the edge list
-        if _can_skip_edge(prevpos, nextpos, xlookup, ylookup)
+        if can_skip(prevpos, nextpos, xlookup, ylookup)
             prevpos = nextpos
             continue
         end
@@ -141,7 +158,7 @@ function _to_edges!(edges, geom, dims, edge_count)
         prevpoint = p
     end
     # Check in case the polygon is not closed
-    if !(prevpos == firstpos)
+    if prevpos != firstpos
         edge_count += 1
         edge = Edge(prevpos, firstpos)
         max_ylen = max(max_ylen, edge.iystop - edge.iystart)
@@ -154,6 +171,7 @@ function _to_edges!(edges, geom, dims, edge_count)
 
     return edge_count, max_ylen
 end
+
 
 # _burn_geometry!
 # Fill a raster with `fill` where it interacts with a geometry.
@@ -192,7 +210,8 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
     burnchecks = _alloc_burnchecks(range)
     p = progress ? _progress(length(range)) : nothing
     if isnothing(collapse) || collapse
-        Threads.@threads for i in range
+        # Threads.@threads 
+        for i in range
             geom = _getgeom(geoms, i)
             ismissing(geom) && continue
             allocs = _get_alloc(thread_allocs)
@@ -200,10 +219,11 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
             burnchecks[i] = _burn_geometry!(B1, geom; allocs, lock, kw...)
             progress && ProgressMeter.next!(p)
         end
-        buffers = map(a -> a.buffer, thread_allocs)
+        buffers = map(getproperty(:buffer), thread_allocs)
         _do_broadcast!(|, B, buffers...)
     else
-        Threads.@threads for i in range
+        # Threads.@threads 
+        for i in range
             geom = _getgeom(geoms, i)
             ismissing(geom) && continue
             B1 = view(B, Dim{:geometry}(i))
@@ -243,7 +263,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
         # Burn the polygon into the buffer
         hasburned = _burn_polygon!(buf1, geom; shape, geomextent, allocs, boundary, kw...)
         for i in eachindex(B1)
-            if buf1[i] 
+            if buf1[i]
                 B1[i] = true
             end
         end
@@ -270,9 +290,9 @@ function _burn_polygon!(B::AbstractDimArray, trait, geom;
     fill=true, boundary=:center, geomextent, verbose=false, allocs=Allocs(B), kw...
 )::Bool
     allocs = _get_alloc(allocs)
-    filtered_edges, max_ylen = _to_edges(geom, dims(B); allocs)
+    edges = Edges(geom, dims(B); allocs)
     
-    hasburned::Bool = _burn_polygon!(B, filtered_edges, allocs.crossings, max_ylen)
+    hasburned::Bool = _burn_polygon!(B, edges, allocs.crossings)
 
     # Lines
     n_on_line = 0
@@ -300,7 +320,7 @@ function _burn_polygon!(B::AbstractDimArray, trait, geom;
 
     return hasburned
 end
-function _burn_polygon!(A::AbstractDimArray, edges::AbstractArray{Edge}, crossings, max_ylen;
+function _burn_polygon!(A::AbstractDimArray, edges::Edges, crossings::Vector{Float64};
     offset=nothing, verbose=true
 )::Bool
     local prev_ypos = 0
@@ -308,22 +328,22 @@ function _burn_polygon!(A::AbstractDimArray, edges::AbstractArray{Edge}, crossin
     # Loop over each index of the y axis
     for iy in axes(A, YDim)
         # Calculate where on the x axis iy is crossed
-        ncrossings, prev_ypos = _set_crossings!(crossings, A, edges, iy, prev_ypos, max_ylen)
+        y1 = first(lookup(A, YDim))
+        ncrossings, prev_ypos = _set_crossings!(crossings, edges, iy, prev_ypos)
         # Burn between alternate crossings
-        burndata = _burn_crossings!(A, crossings, ncrossings, iy)
-        hasburned = burndata.hasburned
+        status = _burn_crossings!(A, crossings, ncrossings, iy)
+        hasburned |= status.hasburned
     end
     return hasburned
 end
 
-function _set_crossings!(crossings, A, edges, iy, prev_ypos, max_ylen)
-    ypos = max(1, prev_ypos - max_ylen - 1)
+function _set_crossings!(crossings::Vector{Float64}, edges::Edges, iy::Int, prev_ypos::Int)
+    ypos = max(1, prev_ypos - edges.max_ylen - 1)
     ncrossings = 0
     # We know the maximum size on y, so we can start from ypos 
     start_ypos = searchsortedfirst(edges, ypos)
     prev_ypos = start_ypos
     for i in start_ypos:lastindex(edges)
-        y = iy + first(lookup(A, YDim)) - 1
         e = edges[i]
         # Edges are sorted on y, so we can skip
         # some at the end once they are larger than iy
@@ -345,11 +365,11 @@ function _set_crossings!(crossings, A, edges, iy, prev_ypos, max_ylen)
 end
 
 function _burn_crossings!(A, crossings, ncrossings, iy; 
-    status::typeof(INIT_BURNSTATUS)=INIT_BURNSTATUS, 
-)
+    status::BurnStatus=BurnStatus()
+) 
     stop = false
     # Start burning loop from outside any rings
-    ic, burn = status
+    (; ic, burn) = status
     ix = firstindex(A, X())
     hasburned = false
     while ic <= ncrossings
@@ -380,7 +400,7 @@ function _burn_crossings!(A, crossings, ncrossings, iy;
             A[X(ix), Y(iy)] = true
         end
     end
-    return (; ic, burn, hasburned)
+    return BurnStatus(ic, burn, hasburned)
 end
 
 const INTERVALS_INFO = "makes more sense on `Intervals` than `Points` and will have more correct results. You can construct dimensions with a `X(values; sampling=Intervals(Center()))` to acheive this"
@@ -670,7 +690,6 @@ function _extent(::Nothing, data::AbstractVector; kw...)::XYExtent
 end
 _extent(::Nothing, data::RasterStackOrArray; kw...)::XYExtent = _float64_xy_extent(Extents.extent(data))
 function _extent(::Nothing, data::T; geometrycolumn=nothing)::XYExtent where T
-    @show data
     if Tables.istable(T)
         singlecolumn = isnothing(geometrycolumn) ? first(GI.geometrycolumns(data)) : geometrycolumn
         cols = Tables.columns(data)
