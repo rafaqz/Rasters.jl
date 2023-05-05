@@ -94,14 +94,14 @@ function rasterize(reduce::Function, data; kw...)
     rasterize(data; reduce, name=Symbol(string(reduce)), kw...)
 end
 
-const COUNT_NO_FILL = "`rasterize` with `count` does not use the `fill` keyword"
+_count_fill_info() = @info "`rasterize` with `count` does not use the `fill` keyword"
 _count_fill(x) = x + 1
 
 # Catch some functions early
 
 # count is faster with an incrementing function as `fill`
 function rasterize(reduce::typeof(count), data; fill=nothing, kw...)
-    isnothing(fill) || @info COUNT_NO_FILL
+    isnothing(fill) || _count_fill_info()
     rasterize(data; kw..., name=:count, init=0, reduce=nothing, fill=_count_fill, missingval=0)
 end
 # `mean` is sum / count
@@ -486,9 +486,9 @@ function _rasterize_points!(A, points, reduce, op, fill, fill_itr;
     init=nothing, missingval=nothing, kw...
 )
     if !(fill isa Function || op isa Function) && isnothing(reduce)
-        op = _take_last # last is the default
+        op = _take_last # last is the default ?
     else
-        throw(ArgumentError("Arbitrary reducing functions (such as `median`) are not supported for points. Either use `reduce=sum` or `prod, `mean`, `minimum`, `maximum`, `first`, `last`, or `count`, or pass an `op` function to combine values, or set fill as a function to increment values"))
+        throw(ArgumentError("$reduce Arbitrary reducing functions (such as `median`) are not supported for points. Either use `reduce=sum` or `prod, `mean`, `minimum`, `last`, `maximum`, `count`, or pass an `op` function to combine values, or set fill as a function to increment values"))
     end
     hasburned = false
     ext = Extents.extent(A)

@@ -37,14 +37,6 @@ A1 = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals()))
 A2 = Raster(zeros(Y(0:30; sampling=Intervals()), X(-20:5; sampling=Intervals())))
 st = RasterStack((A1, copy(A1)))
 
-seclocks = Rasters.SectorLocks()
-tl = locks.seclocks[1]
-sector = CartesianIndices((1:10, 1:10))
-lock(tl)
-unlock(tl)
-islocked(tl)
-
-
 @testset "all geoms work as :point" begin
     A = A2
     geom = polygon

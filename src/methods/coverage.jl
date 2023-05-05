@@ -186,10 +186,7 @@ function _union_coverage!(A::AbstractRaster, geom;
     # We don't just use `boundary=:inside` because we need the line burns separately anyway
     centeracc .|= (centerbuffer .& .!(linebuffer))
     lineacc .|= linebuffer
-    filtered_edges, max_ylen = _to_edges(geom, subpixel_dims; allocs)
-    sort!(filtered_edges)
-    # Brodcast over the rasterizations and indices
-    # to calculate coverage of each pixel
+    edges = Edges(geom, subpixel_dims; allocs)
 
     prev_ypos = 0
     # Loop over y in A
@@ -209,7 +206,7 @@ function _union_coverage!(A::AbstractRaster, geom;
 
         # Generate all of the x crossings beforehand so we don't do it for every pixel
         for (i, sub_y) in enumerate(sub_yaxis)
-            ncrossings[i], prev_ypos = _set_crossings!(block_crossings[i], A, filtered_edges, sub_y, prev_ypos, max_ylen)
+            ncrossings[i], prev_ypos = _set_crossings!(block_crossings[i], edges, sub_y, prev_ypos)
         end
 
         # Reset burn burnstatus
@@ -288,7 +285,7 @@ function _sum_coverage!(A::AbstractRaster, geom;
     crossings = allocs.crossings
     boolmask!(linebuffer, geom; shape=:line, allocs)
     boolmask!(centerbuffer, geom; boundary=:center, allocs)
-    filtered_edges, max_ylen = _to_edges(geom, subpixel_dims; allocs)
+    edges = Edges(geom, subpixel_dims; allocs)
     # Brodcast over the rasterizations and indices
     # to calculate coverage of each pixel
     local missed_pixels = 0
@@ -317,7 +314,7 @@ function _sum_coverage!(A::AbstractRaster, geom;
 
         # Generate all of the x crossings beforehand so we don't do it for every pixel
         for (i, sub_y) in enumerate(sub_yaxis)
-            ncrossings[i], prev_ypos = _set_crossings!(block_crossings[i], A, filtered_edges, sub_y, prev_ypos, max_ylen)
+            ncrossings[i], prev_ypos = _set_crossings!(block_crossings[i], edges, sub_y, prev_ypos)
         end
         # Set the burn/skip status to false (skip) for each starting position
         burnstatus .= Ref(BurnStatus())
