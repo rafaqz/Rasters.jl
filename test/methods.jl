@@ -148,7 +148,7 @@ end
     polygon_empty = ArchGDAL.createpolygon(pointvec_empty)
     zonal(sum, a; of=polygon) ==
         zonal(sum, a; of=[polygon, polygon])[1] ==
-        zonal(sum, a; of=[polygon_empty, polygon_empty])[1] ==
+        zonal(sum, a; of=[polygon, polygon_empty])[1] ==
         zonal(sum, a; of=(geometry=polygon, x=:a, y=:b)) ==
         zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
         zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
