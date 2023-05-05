@@ -144,10 +144,13 @@ end
 
 @testset "zonal" begin
     a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
+    pointvec_empty = [(-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0)]
+    polygon_empty = ArchGDAL.createpolygon(pointvec_empty)
     zonal(sum, a; of=polygon) ==
         zonal(sum, a; of=[polygon, polygon])[1] ==
+        zonal(sum, a; of=[polygon, polygon_empty])[1] ==
         zonal(sum, a; of=(geometry=polygon, x=:a, y=:b)) ==
-        zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1]
+        zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
         zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
         sum(skipmissing(mask(a; with=polygon)))
     @test zonal(sum, a; of=a) == 
