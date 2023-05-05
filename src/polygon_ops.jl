@@ -69,8 +69,7 @@ function _burning_allocs(x; nthreads=_nthreads(), kw...)
     return [Allocs(_init_bools(x; metadata=Metadata())) for _ in 1:nthreads]
 end
 
-_get_alloc(thread_allocs::Vector{<:Allocs}) =
-    _get_alloc(thread_allocs[Threads.threadid()])
+_get_alloc(allocs::Vector{<:Allocs}) = _get_alloc(allocs[Threads.threadid()])
 _get_alloc(allocs::Allocs) = allocs
 
 
@@ -202,33 +201,31 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait,
 end
 # Where geoms is an iterator
 function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; 
-    collapse::Union{Bool,Nothing}=nothing, lock=SectorLocks(), verbose=true, progress=true, kw...
+    collapse::Union{Bool,Nothing}=nothing, lock=SectorLocks(), verbose=true, progress=true, 
+    allocs=_burning_allocs(B), kw...
 )::Bool
-    thread_allocs = _burning_allocs(B) 
     range = _geomindices(geoms)
     checklock = Threads.SpinLock()
     burnchecks = _alloc_burnchecks(range)
     p = progress ? _progress(length(range)) : nothing
     if isnothing(collapse) || collapse
-        # Threads.@threads 
-        for i in range
+        Threads.@threads for i in range
             geom = _getgeom(geoms, i)
             ismissing(geom) && continue
-            allocs = _get_alloc(thread_allocs)
-            B1 = allocs.buffer
-            burnchecks[i] = _burn_geometry!(B1, geom; allocs, lock, kw...)
+            a = _get_alloc(allocs)
+            B1 = a.buffer
+            burnchecks[i] = _burn_geometry!(B1, geom; allocs=a, lock, kw...)
             progress && ProgressMeter.next!(p)
         end
-        buffers = map(getproperty(:buffer), thread_allocs)
+        buffers = map(a -> a.buffer, allocs)
         _do_broadcast!(|, B, buffers...)
     else
-        # Threads.@threads 
-        for i in range
+        Threads.@threads for i in range
             geom = _getgeom(geoms, i)
             ismissing(geom) && continue
             B1 = view(B, Dim{:geometry}(i))
-            allocs = _get_alloc(thread_allocs)
-            burnchecks[i] = _burn_geometry!(B1, geom; allocs, lock, kw...)
+            a = _get_alloc(allocs)
+            burnchecks[i] = _burn_geometry!(B1, geom; allocs=a, lock, kw...)
             progress && ProgressMeter.next!(p)
         end
     end
@@ -360,7 +357,7 @@ function _set_crossings!(crossings::Vector{Float64}, edges::Edges, iy::Int, prev
             end
         end
     end
-    sort!(view(crossings, 1:ncrossings), )
+    sort!(view(crossings, 1:ncrossings))
     return ncrossings, prev_ypos
 end
 
