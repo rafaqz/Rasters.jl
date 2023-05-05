@@ -127,7 +127,7 @@ end
 
 function _alloc_zonal(f, x, geom, n; kw...)
     z1 = _zonal(f, x, geom; kw...)
-    zs = Vector{typeof(z1)}(undef, n)
+    zs = Vector{Union{Missing,typeof(z1)}}(undef, n)
     zs[1] = z1
     return zs
 end
