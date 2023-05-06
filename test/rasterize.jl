@@ -40,23 +40,25 @@ st = RasterStack((A1, copy(A1)))
 @testset "all geoms work as :point" begin
     A = A2
     geom = polygon
+    geom = linearring
+    geom = pointvec
     
     for A in (A1, A2), geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table)
         fill!(A, 0)
-        rasterize!(last, A, geom; shape=:point, fill=1);
-        @test sum(A) == 4
+        rasterize!(sum, A, geom; shape=:point, fill=1);
+        @test sum(A) == 5.0
         fill!(A, 0)
         if !Tables.istable(geom)
             rasterize!(sum, A, [geom, geom]; shape=:point, fill=1)
-            @test sum(A) == 10
+            @test sum(A) == 10.0
             A .= 0
         end
     end
     for A in (A1, A2), geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon)
         st.layer1 .= st.layer2 .= 0
-        rasterize!(last, st, geom; shape=:point, fill=(layer1=2, layer2=3))
-        @test sum(st[:layer1]) == 8
-        @test sum(st[:layer2]) == 12
+        rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3))
+        @test sum(st[:layer1]) == 10
+        @test sum(st[:layer2]) == 15
         @test parent(st[:layer1]) isa Array{Float64,2}
         st[:layer1] .= 0
         st[:layer2] .= 0
@@ -69,7 +71,7 @@ end
     geom = linestring
     for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon)
         A .= 0
-        rasterize!(A, geom; shape=:line, fill=1)
+        rasterize!(sum, A, geom; shape=:line, fill=1)
         @test sum(A) == 20 + 20 + 20 + 20
     end
     @testset ":line is detected for line geometries" begin
@@ -82,9 +84,10 @@ end
 end
 
 @testset "polygon geoms work as :polygon" begin
-    A = A2
-    poly = multi_polygon
+    A = A1
+    poly = polygon
     for A in (A1, A2), poly in (polygon, multi_polygon)
+        A .= 0
         ra = rasterize(poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center)
         ra_res = rasterize(poly; res=map(step, span(A)), missingval=0, shape=:polygon, fill=1, boundary=:center)
         @test parent(ra) isa Array{Int,2}
@@ -125,21 +128,21 @@ end
     data = pointfc
 
     for data in (pointfc, DataFrame(pointfc), multi_point, pointvec, reverse(pointvec))
-        @test sum(skipmissing(rasterize(data; to=A, fill=1))) == 4
+        @test sum(skipmissing(rasterize(sum, data; to=A, fill=1))) == 5
         @testset "to and fill Keywords are required" begin
             @test_throws ArgumentError R = rasterize(data; fill=1) 
             @test_throws UndefKeywordError R = rasterize(data; to=A) 
         end
         @testset "NamedTuple of value fill makes a stack" begin
-            rst = rasterize(data; to=A, fill=(fill1=3, fill2=6.0f0))
+            rst = rasterize(sum, data; to=A, fill=(fill1=3, fill2=6.0f0))
             @test keys(rst) == (:fill1, :fill2)
             @test dims(rst) == dims(A)
-            @test map(sum ∘ skipmissing, rst) === (fill1=12, fill2=24.0f0)
+            @test map(sum ∘ skipmissing, rst) === (fill1=15, fill2=30.0f0)
         end
         @testset "Single value fill makes an array (ignoring table vals)" begin
-            ra = rasterize(data; to=A, fill=0x03, missingval=0x00)
+            ra = rasterize(sum, data; to=A, fill=0x03, missingval=0x00)
             @test eltype(ra) == UInt8
-            @test sum(ra) == 12
+            @test sum(ra) === 0x000000000000000f
         end
     end
 
@@ -167,15 +170,15 @@ end
         Tables.istable(data)
         for data in (pointfc, DataFrame(pointfc))
             @testset "NTuple of Symbol fill makes an stack" begin
-                rst = rasterize(data; to=A, fill=(:val1, :val2))
+                rst = rasterize(sum, data; to=A, fill=(:val1, :val2))
                 @test parent(rst.val1) isa Array{Union{Missing,Int},2}
                 @test parent(rst.val2) isa Array{Union{Missing,Float32},2}
                 @test keys(rst) == (:val1, :val2)
-                @test map(sum ∘ skipmissing, rst) === (val1=14, val2=28.0f0)
+                @test map(sum ∘ skipmissing, rst) === (val1=15, val2=30.0f0)
                 @test_throws ArgumentError rasterize(data; to=A, fill=(:val1, :not_a_column))
             end
             @testset "Symbol fill makes an array" begin
-                ra = rasterize(data; to=A, fill=:val1)
+                ra = rasterize(sum, data; to=A, fill=:val1)
                 @test parent(ra) isa Array{Union{Missing,Int},2}
                 @test ra isa Raster
                 @test name(ra) == :val1
@@ -402,5 +405,3 @@ end
     @test !all(mask(covunion; with=insidecount) .=== covunion)
     # TODO test coverage along all the lines is correct somehow
 end
-
-

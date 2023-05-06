@@ -450,7 +450,7 @@ end
     fill, atol=nothing, lock=nothing, kw...
 )
     selectors = map(dims(x, DEFAULT_POINT_ORDER)) do d
-        _at_or_contains(d, _dimcoord(d, point), atol)
+        _at_or_contains(d, _dimcoord(d, point))
     end
     # TODO make a check in dimensionaldata that returns the index if it is inbounds
     if hasselection(x, selectors)
@@ -752,12 +752,12 @@ _dimcoord(::ZDim, point) = GI.z(point)
 
 # _geom_shape
 # Get the shape category for a geometry
-@inline _geom_shape(geom) = _geom_shape(GI.geomtrait(geom), geom)
-@inline _geom_shape(::Union{<:GI.PointTrait,<:GI.MultiPointTrait}, geom) = :point
-@inline _geom_shape(::Union{<:GI.LineTrait,<:GI.LineStringTrait,<:GI.MultiLineStringTrait}, geom) = :line
-@inline _geom_shape(::Union{<:GI.LinearRingTrait,<:GI.PolygonTrait,<:GI.MultiPolygonTrait}, geom) = :polygon
-@inline _geom_shape(x, geom) = throw(ArgumentError("Geometry trait $x cannot be rasterized"))
-@inline _geom_shape(::Nothing, geom) = throw(ArgumentError("Object is not a GeoInterface.jl compatible geometry: $geom"))
+@inline _geom_shape(geom) = _geom_shape(GI.geomtrait(geom))
+@inline _geom_shape(::Union{<:GI.PointTrait,<:GI.MultiPointTrait}) = :point
+@inline _geom_shape(::Union{<:GI.LineTrait,<:GI.LineStringTrait,<:GI.MultiLineStringTrait}) = :line
+@inline _geom_shape(::Union{<:GI.LinearRingTrait,<:GI.PolygonTrait,<:GI.MultiPolygonTrait}) = :polygon
+@inline _geom_shape(x) = throw(ArgumentError("Geometry trait $x cannot be rasterized"))
+@inline _geom_shape(::Nothing) = throw(ArgumentError("Object is not a GeoInterface.jl compatible geometry: $geom"))
 
 
 # Like `create` but without disk writes, mostly for Bool/Union{Missing,Boo},
@@ -817,3 +817,7 @@ end
 
 _nthreads() = Threads.nthreads()
 
+function _at_or_contains(d, v, atol)
+    selector = sampling(d) isa Intervals ? Contains(v) : At(v; atol=atol)
+    DD.basetypeof(d)(selector)
+end
