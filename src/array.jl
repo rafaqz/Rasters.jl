@@ -28,7 +28,15 @@ function missingval end
 missingval(x) = missing
 missingval(A::AbstractRaster) = A.missingval
 
-filename(A::AbstractRaster) = filename(parent(A))
+# The filename might be buried somewhere in a DiskArray wrapper, so try to get it
+function filename(A::AbstractRaster)
+    arrays = Flatten.flatten(parent(A), FLATTEN_SELECT, FLATTEN_IGNORE)
+    if length(arrays) == 0
+        nothing
+    else
+        filename(first(arrays))
+    end
+end
 filename(A::AbstractArray) = nothing # Fallback
 
 cleanreturn(A::AbstractRaster) = rebuild(A, cleanreturn(parent(A)))
@@ -242,6 +250,7 @@ methods _do not_ load data from disk: they are applied later, lazily.
     this can be used to index in eg. `EPSG(4326)` lat/lon values, having it converted automatically.
     Only set this if the detected `mappedcrs` in incorrect, or the file does not have a `mappedcrs`,
     e.g. a tiff. The `mappedcrs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` `GeoFormat` type. 
+- `dropband`: drop single band dimensions. `true` by default.
 
 # Internal Keywords
 
@@ -300,7 +309,7 @@ function Raster(ds, filename::AbstractString, key=nothing;
     crs=nothing, mappedcrs=nothing, dims=nothing, refdims=(),
     name=Symbol(key isa Nothing ? "" : string(key)),
     metadata=metadata(ds), missingval=missingval(ds), 
-    source=nothing, write=false, lazy=false,
+    source=nothing, write=false, lazy=false, dropband=true,
 )
     source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
     crs = defaultcrs(source, crs)
@@ -311,7 +320,8 @@ function Raster(ds, filename::AbstractString, key=nothing;
     else
         _open(Array, source, ds; key)
     end
-    return Raster(data, dims, refdims, name, metadata, missingval)
+    raster =  Raster(data, dims, refdims, name, metadata, missingval)
+    return dropband ? _drop_single_band(raster, lazy) : raster
 end
 
 function Raster{T, N, D, R, A, Na, Me, Mi}(ras::Raster{T, N, D, R, A, Na, Me, Mi}) where {T, N, D, R, A, Na, Me, Mi}
@@ -322,3 +332,16 @@ filekey(ds, key) = key
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
 DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = Raster
+
+
+function _drop_single_band(raster, lazy::Bool)
+    if hasdim(raster, Band()) && size(raster, Band()) < 2
+         if lazy
+             return view(raster, Band(1)) # TODO fix dropdims in DiskArrays
+         else
+             return dropdims(raster; dims=Band())
+         end
+    else
+         return raster
+    end
+end

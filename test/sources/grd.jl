@@ -192,8 +192,8 @@ grdpath = stem * ".gri"
             write(filename2, grdarray[Band(1)])
             saved = Raster(filename2)
             # 1 band is added again on save
-            @test size(saved) == size(grdarray[Band(1:1)])
-            @test parent(saved) == parent(grdarray[Band(1:1)])
+            @test size(saved) == size(grdarray[Band(1)])
+            @test parent(saved) == parent(grdarray[Band(1)])
         end
 
         @testset "3d with subset" begin

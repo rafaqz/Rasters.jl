@@ -722,14 +722,14 @@ end
     raster_output = resample(cea; res=output_res, crs=output_crs, method)
     disk_output = resample(cea; res=output_res, crs=output_crs, method, filename="resample.tif")
 
-    cea_permuted = permutedims(Raster(raster_path), (Y, X, Band))
+    cea_permuted = permutedims(Raster(raster_path), (Y, X))
     permuted_output = resample(cea_permuted, output_res; crs=output_crs, method)
 
     # Compare ArchGDAL, resample and permuted resample 
     @test AG_output ==
         raster_output[Band(1)] ==
         disk_output[Band(1)] ==
-        permutedims(permuted_output, (X, Y, Band))[Band(1)]
+        permutedims(permuted_output, (X, Y))
     @test abs(step(dims(raster_output, Y))) ≈
         abs(step(dims(raster_output, X))) ≈ 
         abs(step(dims(disk_output, X))) ≈ 
