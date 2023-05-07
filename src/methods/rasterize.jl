@@ -19,14 +19,14 @@ _reduce_init(::typeof(minimum), ::Type{T}) where T = typemax(nonmissingtype(T))
 _reduce_init(::typeof(maximum), ::Type{T}) where T = typemin(nonmissingtype(T))
 
 
-# Handles all data validations needed to 
+# Handles all data validations needed to
 # run before rasterizing
-struct Rasterizer{T,G,F,FV,I,R,O,M,MD,A}
+struct Rasterizer{T,G,F,FV,FI,I,R,O,M,MD,A,ET}
     to::T
     geom::G
     fill::F
     fillval::FV
-    filliter::FI
+    fillitr::FI
     reduce::R
     op::O
     init::I
@@ -34,48 +34,109 @@ struct Rasterizer{T,G,F,FV,I,R,O,M,MD,A}
     missingval::M
     metadata::MD
     suffix::String
-    filename::String
+    filename::Union{String,Nothing}
     shape::Symbol
-    allocs::A
+    boundary::Symbol
     verbose::Bool
     progress::Bool
+    allocs::A
     lock::SectorLocks
-    eltype::Type
+    eltype::ET
+    crs::Any
+    mappedcrs::Any
 end
-function Rasterizer(to, geoms, fill, fillval, fillitr; 
+function Rasterizer(to, geom, fill, fillitr;
     name=Symbol(""),
-    reduce=sum,
-    init=_reduce_init(reduce, fill),
+    reduce=nothing,
     op=_reduce_op(reduce),
-    missingval=nothing, 
+    missingval=nothing,
     metadata=Metadata(Dict()),
-    shape=_geom_shape(first(geoms))
+    shape=nothing,
+    eltype=nothing,
+    suffix="",
+    verbose=true,
+    progress=true,
+    filename=nothing,
+    boundary=:center,
+    res=nothing, # We shouldn't need this but coverage does
+    crs=nothing,
+    mappedcrs=nothing,
+    init=nothing,
 )
-    # shape === :point && @warn "Rasterizing geoms as a :point, not $shape"
-    to = _as_intervals(to) # Only makes sense to rasterize to intervals
-    if fill isa NamedTuple
-        missingval = if missingval isa NamedTuple
-            missingval
+    shape = if isnothing(shape)
+        if GI.isgeometry(geom)
+            _geom_shape(geom)
         else
-            if isnothing(missingval)
-                isnothing(missingval) ? _writeable_missing(filename, T) : missingval
-            else
-                map(_ -> missingval, fill)
-            end
+            _geom_shape(first(geom))
         end
     else
-        T = if isnothing(init)
-            typeof(fill isa Function ? fill(fillval) : fillval)
-        else
-            initval = fill isa Function ? fill(init) : init
-            promote_type(typeof(initval), typeof(fillval))
-        end
-        missingval = isnothing(missingval) ? _writeable_missing(filename, T) : missingval
-        T = promote_type(typeof(missingval), T)
+        shape
     end
 
-    return Rasterizer(to, geom, fill, fillval, filliter, reduce, op, init, name, missingval, metadata,
-                      suffix, filename, shape, allocs, verbose, progress, lock, T)
+    filleltype = if fillitr isa NamedTuple 
+        if all(map(x -> x isa Number, fillitr))
+            map(typeof, fillitr)
+        elseif all(map(x -> Base.IteratorEltype(x) isa Base.HasEltype, fillitr))
+            map(Base.eltype, fillitr)
+        else
+            map(typeof ∘ first, fillitr) # This is not really correct. 
+        end
+    elseif fill isa Function
+        isnothing(init) ? typeof(missingval) : typeof(fill(init))
+    elseif Base.IteratorEltype(fillitr) isa Base.HasEltype
+        Base.eltype(fillitr)
+    else
+        typeof(first(fillitr)) # This is not really correct
+    end
+
+    stable_reductions = (first, last, sum, prod, maximum, minimum)
+    init = isnothing(init) ? _reduce_init(reduce, filleltype) : init
+    if shape == :points &&
+        !GI.isgeometry(geom) && 
+        !GI.trait(first(geom)) isa PointTrait &&
+        !(reduce in stable_reductions)
+        @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be innaccurate for `reduce` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
+    end
+    name = Symbol(_filter_name(name, fill))
+    eltype, missingval = get_eltype_missingval(eltype, missingval, fillitr, init, filename, op, reduce)
+    lock = SectorLocks()
+    allocs = shape == :points ? nothing : _burning_allocs(to)
+    # shape === :point && @warn "Rasterizing geoms as a :point, not $shape"
+    to = _as_intervals(to) # Only makes sense to rasterize to intervals
+
+    return Rasterizer(to, geom, fill, fill, fillitr, reduce, op, init, name, missingval, metadata,
+                      suffix, filename, shape, boundary, verbose, progress, allocs, lock, eltype, crs, mappedcrs)
+end
+
+function get_eltype_missingval(eltype, missingval, fillitr, init::NamedTuple, filename, op, reduce)
+    eltype = eltype isa NamedTuple ? eltype : map(_ -> eltype, init)
+    missingval = missingval isa NamedTuple ? missingval : map(_ -> missingval, init)
+    em = map(eltype, missingval, fillitr, init) do et, mv, fi, i
+        get_eltype_missingval(et, mv, fi, i, filename, op, reduce)
+    end
+    eltype = map(first, em)
+    missingval = map(last, em)
+    return eltype, missingval
+end
+function get_eltype_missingval(known_eltype, missingval, fillitr, init, filename, op, reduce)
+    eltype = if isnothing(known_eltype)
+        if fillitr isa Function 
+            typeof(fillitr(init))
+        elseif op isa Function
+            typeof(op(init, init))
+        elseif reduce isa Function
+            typeof(reduce((init, init)))
+        else
+            typeof(init)
+        end
+    else
+        known_eltype
+    end
+
+    missingval = isnothing(missingval) ? _writeable_missing(filename, eltype) : missingval
+    # eltype was not the actually array eltype, so promote it with the missingval
+    eltype = isnothing(known_eltype) ? promote_type(typeof(missingval), eltype) : eltype
+    return eltype, missingval
 end
 
 function Rasterizer(to::AbstractRaster, data; missingval=missingval(to), name=name(to), kw...)
@@ -100,28 +161,13 @@ function Rasterizer(to::Extents.Extent{K}, data;
     to_as_dims = _extent2dims(to; size, res, kw...)
     return Rasterizer(to_as_dims, data; kw..., fill)
 end
-function Rasterizer(to::DimTuple, data::T; fill, name=Symbol(""), kw...) where T
+function Rasterizer(to::DimTuple, data::T; fill, geomcolumn=nothing, kw...) where T
     if Tables.istable(T) # typeof so we dont check iterable table fallback in Tables.jl
         schema = Tables.schema(data)
         cols = Tables.columns(data)
         colnames = Tables.columnnames(Tables.columns(data))
-        name = _filter_name(name, fill)
+        fillitr = _iterable_fill(cols, fill)
         # If fill is a symbol or tuple of Symbol we need to allocate based on the column type
-        fillval = if fill isa Symbol
-            fill in colnames || _fill_key_error(colnames, fill)
-            zero(Tables.columntype(schema, fill))
-        elseif fill isa Tuple{Symbol,Vararg}
-            map(fill) do f
-                f in colnames || _fill_key_error(colnames, fill)
-                zero(Tables.columntype(schema, f))
-            end |> NamedTuple{fill}
-        elseif fill isa AbstractArray
-            zero(eltype(fill))
-        else
-            # Otherwise allocate based on the fill type
-            fill
-        end
-        fill_itr = _iterable_fill(cols, fill)
         geomcolname = if isnothing(geomcolumn)
             geomcols = GI.geometrycolumns(data)
             isnothing(geomcols) ? nothing : first(geomcols)
@@ -135,47 +181,114 @@ function Rasterizer(to::DimTuple, data::T; fill, name=Symbol(""), kw...) where T
         else
             # Its a point table
             pointcolnames = isnothing(geomcolumn) ? map(DD.dim2key, _auto_dim_columns(data, DEFAULT_POINT_ORDER)) : geomcolumn
-            # TODO error on missing columns here
             pointcols = map(k -> Tables.getcolumn(cols, k), pointcolnames)
-            isnothing(shape) && shape == :points || throw(ArgumentError("Cant' rasterize points as $shape"))
             zip(pointcols...)
         end
-        Rasterizer(to, geometries, fill, fillval, fillitr, name; kw..., shape)
+        Rasterizer(to, geometries, fill, fillitr; kw...)
     else
-        Rasterizer(to, GeoInterface.trait(data), data; fill, name, kw...)
+        Rasterizer(to, GeoInterface.trait(data), data; fill, kw...)
     end
 end
 function Rasterizer(to::DimTuple, ::GI.AbstractFeatureCollectionTrait, fc; name, fill, kw...)
     # TODO: how to handle when there are fillvals with different types
-    fillval = _featurefillval(GI.getfeature(fc, 1), fill)
+    # fillval = _featurefillval(GI.getfeature(fc, 1), fill)
     fillitr = _iterable_fill(fc, fill)
-    name = _filter_name(name, fill)
     geometries = map(f -> GI.geometry(f), GI.getfeature(fc))
-    Rasterizer(to, geometries; kw..., fill, fillval, filliter, name)
+    Rasterizer(to, geometries; kw..., fill, fillitr)
 end
-function Rasterizer(to::DimTuple, ::GI.AbstractFeatureTrait, feature; 
-    name = _filter_name(name, fill), kw...
-)
-    fillval = _featurefillval(feature, fill)
-    filitr = _iterable_fill(feature, fill)
-    Rasterizer(to, GI.geometry(feature), fill, fillval, fillit; name, kw...)
+function Rasterizer(to::DimTuple, ::GI.AbstractFeatureTrait, feature; fill, kw...)
+    fillitr = _iterable_fill(feature, fill)
+    # fillval = _featurefillval(feature, fill)
+    Rasterizer(to, GI.geometry(feature), fill, fillitr; kw...)
 end
-function Rasterizer(to::DimTuple, ::Nothing, data; fill, kw...)
-    fillval = if fill isa AbstractArray
-        zero(eltype(fill))
-    elseif fill isa NamedTuple && all(x -> x isa AbstractArray, fill)
-        map(zero ∘ eltype, fill)
-    else
-        fill
-    end
+function Rasterizer(to::DimTuple, ::Nothing, geoms; fill, kw...)
     fillitr = _iterable_fill(geoms, fill)
-    Rasterizer(to, data, fill, fillval, fillitr; kw..., name)
+    Rasterizer(to, geoms, fill, fillitr; kw...)
 end
 function Rasterizer(to::DimTuple, ::GI.AbstractGeometryTrait, geom; fill, kw...)
-    Rasterizer(to, geom, fill, fillval=fill, fillitr=_iterable_fill(geom, fill); kw...)
+    Rasterizer(to, geom, fill, _iterable_fill(geom, fill); kw...)
 end
 
 _fill_key_error(names, fill) = throw(ArgumentError("fill key $fill not found in table, use one of: $(Tuple(names))"))
+
+# _featurefillval
+# Get fill value from a feature, or use fill itself
+_featurefillval(feature, fill::Nothing) = first(GI.properties(feature))
+_featurefillval(feature, fill::Symbol) = GI.properties(feature)[fill]
+_featurefillval(feature, fill::Val) = _featurefillval(feature, _unwrap(fill))
+_featurefillval(feature, fill::NamedTuple) = map(f -> _featurefillval(feature, f), _unwrap(fill))
+function _featurefillval(feature, fill::NTuple{<:Any,Symbol})
+    map(fill) do key
+        getproperty(GI.properties(feature), key)
+    end |> NamedTuple{fill}
+end
+_featurefillval(feature, fill) = fill
+
+_filter_name(name, fill::NamedTuple) = keys(fill)
+_filter_name(name::NamedTuple, fill::NamedTuple) = keys(fill)
+_filter_name(name::Nothing, fill::Nothing) = nothing
+_filter_name(name::DimensionalData.NoName, fill::Union{Symbol,NTuple{<:Any,Symbol}}) = fill
+_filter_name(name::Union{NamedTuple,Tuple,Array}, fill::NTuple{<:Any,Symbol}) = fill
+function _filter_name(name::Union{NamedTuple,Tuple,Array}, fill::Union{Tuple,Array})
+    length(name) == length(fill) || throw(ArgumentError("`name` keyword (possibly from `to` object) does not match length of fill. A fix is to use a `NamedTuple` for `fill`."))
+    return name isa NamedTuple ? keys(name) : name
+end
+function _filter_name(name, fill)
+    fill isa Union{Symbol,NTuple{<:Any,Symbol}} ? fill : name
+end
+
+# A Tuple of `Symbol` is multiple keys to make a RasterStack
+_iterable_fill(data, keys::Tuple{Symbol,Vararg}) =
+    NamedTuple{keys}(map(k -> _iterable_fill(data, k), keys))
+# A Symbol is a Table or FeatureCollection key, it cant be used as fill itself
+function _iterable_fill(data, key::Symbol)
+    if GI.isfeature(data)
+        return get(x -> error("feature has no key $key"), GI.properties(data), key)
+    end
+    cols = Tables.columns(data)
+    # For column tables, get the column now
+    names = Tables.columnnames(cols)
+    key in names || _fill_key_error(names, key)
+    return Tables.getcolumn(cols, key)
+end
+_iterable_fill(data, fill::Function) = fill
+_iterable_fill(data, fill::NamedTuple) = begin
+    map(f -> _iterable_fill(data, f), fill)
+end
+# Inspect our data and fill as much as possible to check they match
+# and cycle any fill of known length one
+function _iterable_fill(data, fill)
+    if GI.isgeometry(data) || GI.isfeature(data) 
+        return fill
+    end
+    if fill isa Number
+        return Iterators.cycle(fill)
+    end
+    if Tables.istable(typeof(data))
+        # we don't need the keys, just the column length
+        data = first(Tables.columns(data))
+    end
+    if Base.IteratorSize(data) isa Union{Base.HasShape,Base.HasLength}
+        fillvec = collect(fill)
+        l = length(fillvec)
+        n = length(data) 
+        if l == 1
+            # Cycle all length one iterables to fill every row
+            return Iterators.cycle(fillvec[1])
+        elseif !(l == n)
+            throw(ArgumentError("Length of fill $l does not match length of iterator $n"))
+        else
+            return fillvec
+        end
+    else
+        return fill
+    end
+end
+
+_getfill(itrs::NamedTuple, i::Int) = map(itr -> _getfill(itr, i), itrs)
+_getfill(itr::AbstractArray, i::Int) = itr[i]
+_getfill(itr::Iterators.Cycle, i::Int) = first(itr)
+_getfill(itr, i) = itr
 
 """
     rasterize([reduce], data; to, fill, kw...)
@@ -249,14 +362,16 @@ function rasterize(reduce::Function, data; kw...)
     rasterize(data; reduce, name=Symbol(string(reduce)), kw...)
 end
 
-_count_fill_info() = @info "`rasterize` with `count` does not use the `fill` keyword"
+_count_init_info(init) = @info "`rasterize` with `count` does not use the `init` keyword, $init ignored"
+_count_fill_info(fill) = @info "`rasterize` with `count` does not use the `fill` keyword, $fill ignored"
 _count_fill(x) = x + 1
 
 # Catch some functions early
 
 # count is faster with an incrementing function as `fill`
-function rasterize(reduce::typeof(count), data; fill=nothing, kw...)
-    isnothing(fill) || _count_fill_info()
+function rasterize(reduce::typeof(count), data; fill=nothing, init=nothing, kw...)
+    isnothing(init) || _count_init_info(init)
+    isnothing(fill) || _count_fill_info(fill)
     rasterize(data; kw..., name=:count, init=0, reduce=nothing, fill=_count_fill, missingval=0)
 end
 # `mean` is sum / count
@@ -267,57 +382,54 @@ function rasterize(reduce::typeof(DD.Statistics.mean), data; fill, kw...)
     rebuild(sums ./ counts; name=:mean)
 end
 function rasterize(data; to=nothing, fill, kw...)
-    rasterizer = Rasteriziser(to, data; kw...)
+    r = Rasterizer(to, data; fill, kw...)
     return Base.invokelatest() do
-        return create_rasterize_dest(rasterizer) do dest
-            _rasterize!(dest, rasterizer)
+        return create_rasterize_dest(r) do dest
+            _rasterize!(dest, r)
         end
     end
 end
 
 ######################################
-# Dest Array
+# Create a dest Array to rasterize! into
 
 # create_rasterize_dest
 # We create a Raster or RasterStack and apply f to it.
 # This may be on disk, which is the reason for applying f rather than just
 # returning the initiallised object - we may need to open it to be able to write.
-create_rasterize_dest(f, r::Rasterizer) = create_rasterize_dest(f, r::Rasterizer, r.fill)
+create_rasterize_dest(f, r::Rasterizer) = create_rasterize_dest(f, r.eltype, r::Rasterizer)
 # function _create_rasterize_dest(f, dims; fill, name=nothing, init=nothing, kw...)
     # _create_rasterize_dest(f, fill, init, name, dims; fill, kw...)
 # end
-function create_rasterize_dest(f, r::Rasterizer, fill::Union{Tuple,NamedTuple})
-    keys = DD.uniquekeys(fill)
-    layers = map(keys, values(fill), values(r.init), values(r.missingval)) do name, fillval, init, missingval
-        T = typeof(fillval isa Function ? fillval(initval) : initval)
-        _alloc_rasterize(r; fillval, init, name, metadata, missingval, suffix=name) do a
+function create_rasterize_dest(f, ::NamedTuple{K}, r::Rasterizer) where K
+    layers = map(NamedTuple{K}(K), r.missingval, r.eltype) do name, missingval, eltype
+        alloc_rasterize(r; eltype, name, missingval, suffix=name) do a
             # We should run `f` here, but it doesn't work yet.
             a
         end
     end
     # Combine layers into a RasterStack
-    st = RasterStack(layers; keys)
+    st = RasterStack(layers)
     # Apply f to the stack. (remove when we can do this in `_alloc_rasterize` while it is open)
     open(f, st; write=true)
     # Return the updated stack
     return st
 end
-function _create_rasterize_dest(f, r::Rasterizer, fill)
-    T = typeof(fill isa Function ? fill(r.init) : r.init)
-    result = _alloc_rasterize(r) do a
+function create_rasterize_dest(f, _, r::Rasterizer)
+    result = alloc_rasterize(r) do a
         f(a)
     end
     return result
 end
 
-function _alloc_rasterize(f, r::Rasterizer;
-    name=r.name, 
-    missingval=r.missingval, 
-    metadata=r.metadata, 
-    suffix=r.suffix
-    fillval=r.fillval
+function alloc_rasterize(f, r::Rasterizer;
+    eltype=r.eltype,
+    name=r.name,
+    missingval=r.missingval,
+    metadata=r.metadata,
+    suffix=r.suffix,
 )
-    A = create(r.filename, eltype(r), r.to; name, missingval, metadata, suffix)
+    A = create(r.filename, eltype, r.to; name, missingval, metadata, suffix)
     # TODO f should apply to the file when it is initially created
     # instead of reopening but we need a `create(f, filename, ...)` method
     open(A; write=true) do A
@@ -398,93 +510,93 @@ $EXPERIMENTAL
 function rasterize! end
 rasterize!(reduce::Function, x::RasterStackOrArray, data; kw...) =
     rasterize!(x::RasterStackOrArray, data; reduce, kw...)
-function rasterize!(reduce::typeof(count), x::RasterStackOrArray, data; fill=nothing, kw...)
-    isnothing(fill) || @info COUNT_NO_FILL
-    rasterize!(x::RasterStackOrArray, data; kw..., reduce=nothing, op=nothing, fill=_count_fill)
+function rasterize!(reduce::typeof(count), x::RasterStackOrArray, data; fill=nothing, init=nothing, kw...)
+    isnothing(fill) || @info _count_fill_info(fill)
+    isnothing(init) || @info _count_init_info(init)
+    rasterize!(x::RasterStackOrArray, data; kw..., reduce=nothing, op=nothing, fill=_count_fill, init=0)
 end
-function rasterize!(x::RasterStackOrArray, r::Rasterizer)
-    if rasterizer.shape == points
+function rasterize!(x::RasterStackOrArray, data; kw...)
+    r = Rasterizer(x, data; eltype=eltype(x), kw...)
+    return _rasterize!(x, r)
+end
+
+
+function _rasterize!(x::RasterStackOrArray, r::Rasterizer)
+    if r.shape == points
         _rasterize_points!(x, r)
     else
-        _rasterize!(x, GI.trait(data), data, r)
+        _rasterize!(x, GI.trait(r.geom), r.geom, r.fillitr, r)
     end
     return x
 end
 
 # Single geometry to rasterize
-function _rasterize!(x, ::GI.AbstractGeometryTrait, geom, r::Rasterizer)
+function _rasterize!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer; allocs=r.allocs)
+    (; op, init, missingval, lock, shape, boundary, verbose, progress) = r
     if r.shape === :point
-        hasburned = _rasterize_points!(x, GI.getpoint(geom), reduce, op, fill, _iterable_fill(geom, fill); kw...)
+        hasburned = _rasterize_points!(A, GI.trait(geom), geom, fill, r)
     else
         ext = _extent(geom)
-        x1 = view(x, Touches(ext))
-        length(x1) > 0 || return false
+        V = view(A, Touches(ext))
+        length(V) > 0 || return false
 
-        bools = _init_bools(x1; metadata=metadata(x))
-        boolmask!(bools, geom; kw..., lock, shape)
+        bools = _init_bools(V; metadata=metadata(A))
+        boolmask!(bools, geom; allocs, lock, shape, boundary, verbose, progress)
         hasburned = any(bools)
         if hasburned
             # Avoid race conditions with a SectorLock
-            isnothing(lock) || Base.lock(lock, x1)
-            _fill!(x1, bools, fill, op, init, missingval)
+            isnothing(lock) || Base.lock(lock, V)
+            _fill!(V, bools, fill, op, init, missingval)
             isnothing(lock) || Base.unlock(lock)
         end
     end
     return hasburned
 end
 # Fill points
-function _rasterize!(x, trait::GI.AbstractPointTrait, point, r::Rasterizer; lock=nothing, allocs=nothing)
+function _rasterize!(A, trait::GI.AbstractPointTrait, point, fill, r::Rasterizer; allocs=nothing)
     # Avoid race conditions whern Point is in a mixed set of Geometries
-    isnothing(lock) || Base.lock(lock, x)
-    hasburned = _fill_point!(x, trait, point; fill=r.fill, lock)
-    isnothing(lock) || Base.unlock(lock)
+    # isnothing(r.lock) || Base.lock(r.lock, A)
+    hasburned = _fill_point!(A, trait, point; fill, r.lock)
+    # isnothing(r.lock) || Base.unlock(r.lock)
     # for all points we avoid parallel rasterization completely - this method should not be hit often
     return hasburned
 end
-function _rasterize!(x, trait::Nothing, geoms, r::Rasterizer; lock=nothing, allocs=r.allocs)
+function _rasterize!(A, trait::Nothing, geoms, fill, r::Rasterizer; allocs=r.allocs)
     t1 = GI.trait(first(skipmissing(geoms)))
-    if t1 isa GI.PointTrait
-        # Points are rasterized as points with a fill value for each point
-        return _rasterize_points!(x, geoms, r.fill, r.fillitr, rasterizer)
-    elseif shape === :point || t1 isa GI.MultiPointTrait
-        if t1 isa GI.MultiPointTrait
-            (isnothing(shape) || shape === :point) || @warn "Rasterizing point as a point, not $shape"
-        end
-        # MultiPoints or all other geoms when shape == :points are rasterized as points
-        # with the current fill value for every point.
-        for (geom, fill) in zip(geoms, fill_itr)
-            _rasterize_points!(x, Gi.getpoint(geom), fill, r.fillitr, rasterizer)
-        end
+    if r.shape === :point
+        return _rasterize_points!(A, trait, geoms, fill, r)
     else
         # Everything else is rasterized as line or polygon geometries
-        return _rasterize_iterable!(_prepare_for_burning(x), geoms, rasterizer)
+        return _rasterize_iterable!(_prepare_for_burning(A), geoms, r)
     end
 end
 
 # We rasterize all iterables from here
-function _rasterize_iterable!(x, geoms, r::Rasterizer) = 
+function _rasterize_iterable!(A, geoms, r::Rasterizer)
     (; reduce, op, fillitr) = r
-    _rasterize_iterable!(x, geoms, reduce, op, fillitr, r)
+    _rasterize_iterable!(A, geoms, reduce, op, fillitr, r)
 end
 
 function _rasterize_iterable!(
-    x, geoms, reduce::Nothing, op::Nothing, fillitr::Iterators.Cycle, r::Rasterizer
+    A, geoms, reduce::Nothing, op::Nothing, fillitr::Iterators.Cycle, r::Rasterizer
 )
+    (; allocs, lock, shape, boundary, verbose, progress) = r
     # We dont need to iterate the fill, so just mask
-    mask = boolmask(geoms; to=x, collapse=true, allocs, metadata=metadata(x), kw...)
+    mask = boolmask(geoms; to=A, collapse=true, metadata=metadata(A), allocs, lock, shape, boundary, verbose, progress)
     # And broadcast the fill
-    broadcast_dims!(x, x, mask) do v, m
-        m ? fill_itr.xs : v
+    broadcast_dims!(A, A, mask) do v, m
+        m ? fillitr.xs : v
     end
     return true
 end
 # Stacks
-function _rasterize_iterable!(x, geoms, reduce::Nothing, op::Nothing,
-    fill_itr::NamedTuple{<:Any,Tuple{<:Iterators.Cycle,Vararg}}, r::Rasterizer
+function _rasterize_iterable!(A, geoms, reduce::Nothing, op::Nothing,
+    fillitr::NamedTuple{<:Any,Tuple{<:Iterators.Cycle,Vararg}}, r::Rasterizer
 )
+    (; allocs, shape, boundary, verbose, progress) = r
     # We dont need to iterate the fill, so just mask
-    mask = boolmask(geoms; to=x, collapse=true, allocs, metadata=metadata(x1), kw...)
-    foreach(x, fill_itr) do A, f
+    mask = boolmask(geoms; to=A, collapse=true, metadata=metadata(A), allocs, lock, shape, boundary, verbose, progress)
+    foreach(A, fillitr) do A, f
         # And broadcast the fill
         broadcast_dims!(A, A, mask) do v, m
             m ? f.xs : v
@@ -493,63 +605,98 @@ function _rasterize_iterable!(x, geoms, reduce::Nothing, op::Nothing,
     return true
 end
 # Simple iterator
-function _rasterize_iterable!(x, geoms, reduce::Nothing, op::Nothing, fill_itr, r::Rasterizer)
+function _rasterize_iterable!(A, geoms, reduce::Nothing, op::Nothing, fillitr, r::Rasterizer)
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
-    p = progress ? _progress(length(geoms); desc="Rasterizing...") : nothing
+    p = r.progress ? _progress(length(geoms); desc="Rasterizing...") : nothing
     # Threads.@threads
     for i in _geomindices(geoms)
         geom = _getgeom(geoms, i)
         ismissing(geom) && continue
-        a = _get_alloc(allocs)
-        fill = _getfill(fill_itr, i)
-        res = _rasterize!(x, GI.trait(geom), geom; kw..., fill, allocs=a, lock)
+        allocs = _get_alloc(r.allocs)
+        fill = _getfill(fillitr, i)
+        res = _rasterize!(A, GI.trait(geom), geom, fill, r; allocs)
         burnchecks[i] = res
-        progress && ProgressMeter.next!(p)
+        r.progress && ProgressMeter.next!(p)
     end
-    _set_burnchecks(burnchecks, metadata(x), verbose)
+    _set_burnchecks(burnchecks, metadata(A), r.verbose)
     return any(burnchecks)
 end
 
 # Iterator with `reduce` or `op`
-function _rasterize_iterable!(x, geoms, reduce, op::Nothing, fill_itr, r::Rasterizer)
+function _rasterize_iterable!(A, geoms, reduce, op::Nothing, fillitr, r::Rasterizer)
     # If there still isn't any `op`, reduce over all the values later rather than iteratively
-    return _reduce_fill!(x, geoms, r)
+    return _reduce_fill!(reduce, A, geoms, fillitr, r)
 end
-function _rasterize_iterable!(x, geoms, reduce, op, fill_itr, r::Rasterizer)
+function _rasterize_iterable!(A, geoms, reduce, op, fillitr, r::Rasterizer)
     # Use op in a fast iterative reduction
     p = r.progress ? _progress(length(geoms); desc="Rasterizing...") : nothing
+    range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
-    # Threads.@threads
-    for i in eachindex(geoms)
+    # Threads.@threads 
+    for i in range
         geom = geoms[i]
         ismissing(geom) && continue
-        a = _get_alloc(allocs)
-        fill = _getfill(fill_itr, i)
-        burnchecks[i] = _rasterize!(x, GI.trait(geom), geom, r;, allocs=a)
+        allocs = _get_alloc(r.allocs)
+        fill = _getfill(fillitr, i)
+        burnchecks[i] = _rasterize!(A, GI.trait(geom), geom, fill, r; allocs)
         r.progress && ProgressMeter.next!(p)
     end
-    _set_burnchecks(burnchecks, metadata(x), verbose)
+    _set_burnchecks(burnchecks, metadata(A), r.verbose)
     return any(burnchecks)
 end
 
-function _contains(extent::Extents.Extent, point::NamedTuple)
-    extent.X[1] <= point.X < extent.X[2] && extent.Y[1] <= point.Y < extent.Y[2]
+function _contains(extent::Extents.Extent, point)
+    extent.X[1] <= point[1] < extent.X[2] && extent.Y[1] <= point[2] < extent.Y[2]
 end
 
+
+################################
+# Fast point rasterization
+#
 # geoms is a iterator of points
-function _rasterize_points!(A, points, r::Rasterizer)
-    (; reduce, op, fill, fillitr, missingval, init) = r
-    if fill isa Function
-        rasterize_associative!(A, points, nothing, fill, missingval, init)
+_rasterize_points!(A, r::Rasterizer) =
+    _rasterize_points!(A, GI.trait(r.geom), r.geom, r.fillitr, r)
+function _rasterize_points!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer)
+    points = GI.getpoint(geom)
+    fill1 =_iterable_fill(points, fill)
+    _rasterize_points!(A, nothing, points, fill1, r)
+end
+function _rasterize_points!(A, ::Nothing, geoms, fillitr, r::Rasterizer)
+    (; reduce, op, missingval, init) = r
+    t1 = GI.trait(first(skipmissing(geoms)))
+    if !(t1 isa GI.PointTrait)
+        # Recurse down until we hit points
+        if r.fill isa Function
+            for geom in _getgeom(geoms)
+                _rasterize_points!(A, GI.trait(geom), geom, fillitr, r)
+            end
+        else
+            if fillitr isa NamedTuple
+                ntfill = _maybe_namedtuple_itr(fillitr)
+                for (geom, f) in zip(_getgeom(geoms), ntfill)
+                    _rasterize_points!(A, GI.trait(geom), geom, f, r)
+                end
+            else
+                for (geom, f) in zip(_getgeom(geoms), fillitr)
+                    _rasterize_points!(A, GI.trait(geom), geom, f, r)
+                end
+            end
+        end
+        return A
+    end
+
+    op = reduce == last ? _take_last : op
+    if r.fill isa Function
+        rasterize_points_unsorted!(A, geoms, nothing, fillitr, missingval, init)
     elseif op isa Function
-        rasterize_associative!(A, points, op, fillitr, missingval, init)
+        rasterize_points_unsorted!(A, geoms, op, fillitr, missingval, init)
     else
-        rasterize_nonassociative!(A, points, reduce, fillitr, missingval, init)
+        rasterize_points_sorted!(A, geoms, reduce, fillitr, missingval, init)
     end
 end
 # Some algorithms don't need sort, like sum
-function rasterize_points_associative!(A, points, op, fill, missingval, init)
+function rasterize_points_unsorted!(A, points, op, fillitr, missingval, init)
     hasburned = false
     # Get extent information to properly shift the points
     # to the region of the array during rounding
@@ -561,16 +708,17 @@ function rasterize_points_associative!(A, points, op, fill, missingval, init)
     n = 0
     for (i, point) in enumerate(points)
         ismissing(point) && continue
-        _checkbounds(A, I...) || continue
         point = (GI.x(point), GI.y(point))
         _contains(ext, point) || continue
         # Convert points to Int matching the array indices
         x = X(trunc(Int, (point[1] - ext.X[1]) / xrange * xsize) + 1)
         y = Y(trunc(Int, (point[2] - ext.Y[1]) / yrange * ysize) + 1)
         I = dims2indices(A, (x, y))
+        _checkbounds(A, I...) || continue
         # Get the currenti fill value
         # And the Array value
         a = A[I...]
+        f = _getfill(fillitr, i)
         if A isa RasterStack
             # Map for stacks
             f1 = map(a, f, init, missingval) do an, fn, it, mv
@@ -588,7 +736,7 @@ function rasterize_points_associative!(A, points, op, fill, missingval, init)
     return hasburned
 end
 
-function rasterize_points_nonassociative!(A, points, reduce, fill_itr, missingval, init)
+function rasterize_points_sorted!(A, points, reduce, fillitr, missingval, init)
     hasburned = false
     # Get extent information to properly shift the points
     # to the region of the array during rounding
@@ -598,47 +746,59 @@ function rasterize_points_nonassociative!(A, points, reduce, fill_itr, missingva
     xsize = size(A, X)
     ysize = size(A, Y)
     # Convert all points to Int
-    intpoints = map(points) do p
+    pf = map(points, _maybe_namedtuple_itr(fillitr)) do p, f
         ismissing(p) && return (0, 0) # Checkbounds will remove this later
-        (GI.x(p), GI.y(p))
-        x = X(round(Int, (GI.x(p) - ext.X[1]) / xrange * xsize) + 1)
-        y = Y(round(Int, (GI.y(p) - ext.Y[1]) / yrange * ysize) + 1)
-        (x, y)
+        x = round(Int, (GI.x(p) - ext.X[1]) / xrange * xsize) + 1
+        y = round(Int, (GI.y(p) - ext.Y[1]) / yrange * ysize) + 1
+        ((x, y), f)
     end
-    sort!(intpoints)
-    prevpoint = first(intpoints)
+    sort!(pf; by=first, alg=Base.Sort.DEFAULT_STABLE)
+    prevpoint = first(first(pf))
     n = 0
     startind = 1
-    for (i, point) in enumerate(intpoints)
-        _checkbounds(A, I...) || continue
+    for i in eachindex(pf)
+        point, fill = pf[i]
         n += 1
         if prevpoint === point
             # We will reduce all of these points together later on
             continue
         else
-            I = dims2indices(A, prevpoint)
-            a = A[I...]
-            if A isa RasterStack
-                v = map(fill_itr) do fi
-                    reduce(_getfill(fill_itr, n) for n in startind:i - 1)
-                end
-                A[I...] = v
-            else
-                v = reduce(_getfill(fill_itr, n) for n in startind:i - 1)
-                A[I...] = v
-            end
-            startind = 1
+            I = dims2indices(A, (X(prevpoint[1]), Y(prevpoint[2])))
+            _checkbounds(A, I...) || continue
+            startind = _fill_point!(reduce, A, I, pf, startind, i, missingval)
         end
         # Update the previous point to the current
         prevpoint = point
         # Mark that we have written at least one index
         hasburned = true
     end
+    # Fill the last points
+    I = dims2indices(A, (X(prevpoint[1]), Y(prevpoint[2])))
+    _checkbounds(A, I...) && _fill_point!(reduce, A, I, pf, startind, lastindex(pf) + 1, missingval)
     return hasburned
 end
 
-_checkbounds(A::AbstractRasterStack, I...) = checkbounds(Bool, first(A), I...)
-_checkbounds(A::AbstractRaster, I...) = checkbounds(Bool, A, I...)
+# This will not be correct for multiple geometries
+function _fill_point!(reduce, A, I, pf, startind, i, missingval)
+    a = A[I...]
+    v = _get_fill(reduce, pf[1][2], pf, startind:i - 1)
+    x = _reduce_existing(reduce, a, v, missingval)
+    A[I...] = x
+    return i
+end
+
+_get_fill(reduce, ::NamedTuple{K}, pf, range) where K = NamedTuple{K}(map(k -> reduce(pf[n][2][k] for n in range), K))
+_get_fill(reduce, ::Any, pf, range) = reduce(pf[n][2] for n in range)
+
+_reduce_existing(reduce, as::NamedTuple, vs::NamedTuple, missingvals::NamedTuple) = 
+    map((a, v, m) -> _reduce_existing(reduce, a, v, m), as, vs, missingvals)
+function _reduce_existing(reduce, a, v, missingval)
+    if ismissing(missingval) || (!ismissing(a) && a == missingval)
+        v
+    else
+        reduce((a, v)) # This fill fail for mean, median etc
+    end
+end
 
 # _reduce_fill!
 #
@@ -651,26 +811,27 @@ _checkbounds(A::AbstractRaster, I...) = checkbounds(Bool, A, I...)
 # We get 64 Bool values to a regular `Int` meaning this doesn't scale too
 # badly for large tables of geometries. 64k geometries and a 1000 * 1000
 # raster needs 1GB of memory just for the `BitArray`.
-function _reduce_fill!(f, st::AbstractRasterStack, geoms, fill_itr::NamedTuple, r::Rasterizer)
+function _reduce_fill!(f, st::AbstractRasterStack, geoms, fill::NamedTuple, r::Rasterizer)
+    (; allocs, lock, shape, boundary, verbose, progress) = r
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(st, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
-    masks = boolmask(geoms; to=st, collapse=false, metadata=metadata(st), kw...)
+    masks = boolmask(geoms; to=st, collapse=false, metadata=metadata(st), allocs, lock, shape, boundary, verbose, progress)
     # Use a generator over the array axis in case the iterator has no length
     geom_axis = axes(masks, Dim{:geometry}())
-    fill = map(itr -> [v for (_, v) in zip(geom_axis, itr)], fill_itr)
+    fill = map(itr -> [v for (_, v) in zip(geom_axis, itr)], fill)
     T = NamedTuple{keys(st),Tuple{map(eltype, st)...}}
     _reduce_fill_inner!(f, st, T, geoms, fill, masks, progress)
 end
-function _reduce_fill!(f, A::AbstractRaster, geoms, fill_itr, r::Rasterizer)
-    (; metadata, allocs, lock, progress) = r
+function _reduce_fill!(f, A::AbstractRaster, geoms, fill, r::Rasterizer)
+    (; allocs, lock, shape, boundary, verbose, progress) = r
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(A, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
-    masks = boolmask(geoms; to=A, collapse=false, metadata, allocs, lock)
+    masks = boolmask(geoms; to=A, collapse=false, metadata=metadata(A), allocs, lock, shape, boundary, verbose, progress)
     # Use a generator over the array axis in case the iterator has no length
     geom_axis = parent(axes(masks, Dim{:geometry}()))
-    fill = [val for (i, val) in zip(geom_axis, fill_itr)]
+    fill = [val for (i, val) in zip(geom_axis, fill)]
     T = eltype(A)
     _reduce_fill_inner!(f, A, T, geoms, fill, masks, progress)
 end
@@ -699,15 +860,15 @@ end
 #
 # Apply a reducing functin over an iterable
 # This is applied for all reducing methods that don't have a matching `op` method
-@inline function _apply_reduction!(::Type{T}, f, fill_itr, pixel_geom_list) where T
+@inline function _apply_reduction!(::Type{T}, f, fill, pixel_geom_list) where T
     any(pixel_geom_list) || return nothing
-    iterator = (fl for (fl, b) in zip(fill_itr, pixel_geom_list) if b && !ismissing(fl))
+    iterator = (fl for (fl, b) in zip(fill, pixel_geom_list) if b && !ismissing(fl))
     return convert(T, f(iterator))
 end
-@inline function _apply_reduction!(::Type{T}, f, fill_itrs::NamedTuple, pixel_geom_list) where T
+@inline function _apply_reduction!(::Type{T}, f, fill::NamedTuple, pixel_geom_list) where T
     any(pixel_geom_list) || return nothing
-    vals = map(fill_itrs) do fill_itr
-        iterator = (fl for (fl, b) in zip(fill_itr, pixel_geom_list) if b && !ismissing(fl))
+    vals = map(fill) do fill
+        iterator = (fl for (fl, b) in zip(fill, pixel_geom_list) if b && !ismissing(fl))
         f(iterator)
     end
     return convert(T, vals)
@@ -733,19 +894,6 @@ function _fill!(A::AbstractRaster{T}, B, fill, op, init, missingval) where T
     end
     return A
 end
-
-# _featurefillval
-# Get fill value from a feature, or use fill itself
-_featurefillval(feature, fill::Nothing) = first(GI.properties(feature))
-_featurefillval(feature, fill::Symbol) = GI.properties(feature)[fill]
-_featurefillval(feature, fill::Val) = _featurefillval(feature, _unwrap(fill))
-_featurefillval(feature, fill::NamedTuple) = map(f -> _featurefillval(feature, f), _unwrap(fill))
-function _featurefillval(feature, fill::NTuple{<:Any,Symbol})
-    map(fill) do key
-        getproperty(GI.properties(feature), key)
-    end |> NamedTuple{fill}
-end
-_featurefillval(feature, fill) = fill
 
 @noinline function _choose_fill(::Type, a, b, fill::Function, op::Function, init, missingval)
     throw(ArgumentError("`fill` and `op` can't both be functions"))
@@ -788,63 +936,6 @@ end
 _apply_op(op::Nothing, a1, fill) = fill
 _apply_op(op::Function, a1, fill) = op(a1, fill)
 
-_filter_name(name, fill::NamedTuple) = keys(fill)
-_filter_name(name::NamedTuple, fill::NamedTuple) = keys(fill)
-_filter_name(name::Nothing, fill::Nothing) = nothing
-_filter_name(name::DimensionalData.NoName, fill::Union{Symbol,NTuple{<:Any,Symbol}}) = fill
-_filter_name(name::Union{NamedTuple,Tuple,Array}, fill::NTuple{<:Any,Symbol}) = fill
-function _filter_name(name::Union{NamedTuple,Tuple,Array}, fill::Union{Tuple,Array})
-    length(name) == length(fill) || throw(ArgumentError("`name` keyword (possibly from `to` object) does not match length of fill. A fix is to use a `NamedTuple` for `fill`."))
-    return name isa NamedTuple ? keys(name) : name
-end
-function _filter_name(name, fill)
-    fill isa Union{Symbol,NTuple{<:Any,Symbol}} ? fill : name
-end
 
-# A Tuple of `Symbol` is multiple keys to make a RasterStack
-_iterable_fill(data, keys::Tuple{Symbol,Vararg}) =
-    NamedTuple{keys}(map(k -> _iterable_fill(data, k), keys))
-# A Symbol is a Table or FeatureCollection key, it cant be used as fill itself
-function _iterable_fill(data, key::Symbol)
-    # For column tables, get the column now
-    if !Tables.isrowtable(typeof(data))
-        names = Tables.columnnames(Tables.columns(data))
-        key in names || _fill_key_error(names, key)
-        Tables.getcolumn(data, key)
-    else
-        # For row tables and FeatureCollection, get the values row by row
-        # We lift the Symbols to the type domain here so the generator is type stable later
-        Val{key}()
-    end
-end
-_iterable_fill(data, fill::NamedTuple) = map(f -> _iterable_fill(data, f), fill)
-# Inspect our data and fill as much as possible to check they match
-# and cycle any fill of known length one
-function _iterable_fill(data, fill)
-    if Base.IteratorSize(fill) isa Base.HasShape
-        l = length(fill)
-        if l == 1
-            # Cycle all length one iterables to fill every row
-            Iterators.cycle(fill)
-        elseif Base.IteratorSize(data) isa Union{Base.HasShape,Base.HasLength}
-            # We know the data and iterator length, so check that they match to catch errors early with a clean message
-            n = length(data)
-            if l == n
-                fill
-            else
-                throw(ArgumentError("Length of fill $l does not match length of iterator $n"))
-            end
-        else
-            # We don't know the length of the data so let it error later if it has to
-            fill
-        end
-    else
-        # We don't knwo the length of the data or the fill, so whatever happens, happens
-        fill
-    end
-end
-
-_getfill(itrs::NamedTuple, i::Int) = map(itr -> _getfill(itr, i), itrs)
-_getfill(itr::AbstractArray, i::Int) = itr[i]
-_getfill(itr::Iterators.Cycle, i::Int) = first(itr)
-_getfill(itr, i) = itr
+_maybe_namedtuple_itr(nt::NamedTuple{K}) where K = (NamedTuple{K}(xs) for xs in zip(nt...))
+_maybe_namedtuple_itr(itr) = itr

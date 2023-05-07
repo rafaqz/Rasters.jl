@@ -533,25 +533,25 @@ end
 
 const _NCDVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}
 
-function _precompile(::Type{NCDsource})
-    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
+# function _precompile(::Type{NCDsource})
+#     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
 
-    precompile(Rasters.FileArray, (_NCDVar, String))
-    precompile(layerkeys, (NCDatasets.NCDataset{Nothing},))
-    precompile(dims, (_NCDVar,Symbol))
-    precompile(dims, (_NCDVar,Symbol,Nothing,Nothing))
-    precompile(dims, (_NCDVar,Symbol,Nothing,EPSG))
-    precompile(dims, (_NCDVar,Symbol,EPSG,EPSG))
-    precompile(_firstkey, (NCDatasets.NCDataset{Nothing},))
-    precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, Nothing))
-    precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, EPSG))
-    precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, EPSG, EPSG))
-    precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Nothing))
-    precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Symbol))
-    precompile(Raster, (_NCDVar, String, Symbol))
+#     precompile(Rasters.FileArray, (_NCDVar, String))
+#     precompile(layerkeys, (NCDatasets.NCDataset{Nothing},))
+#     precompile(dims, (_NCDVar,Symbol))
+#     precompile(dims, (_NCDVar,Symbol,Nothing,Nothing))
+#     precompile(dims, (_NCDVar,Symbol,Nothing,EPSG))
+#     precompile(dims, (_NCDVar,Symbol,EPSG,EPSG))
+#     precompile(_firstkey, (NCDatasets.NCDataset{Nothing},))
+#     precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, Nothing))
+#     precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, EPSG))
+#     precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, EPSG, EPSG))
+#     precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Nothing))
+#     precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Symbol))
+#     precompile(Raster, (_NCDVar, String, Symbol))
 
-    precompile(Raster, (String,))
-end
+#     precompile(Raster, (String,))
+# end
 
-_precompile(NCDsource)
+# _precompile(NCDsource)
 

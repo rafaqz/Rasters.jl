@@ -41,21 +41,18 @@ $TO_KEYWORD
 $SIZE_KEYWORD
 $RES_KEYWORD
 """
-coverage(data; to=nothing, mode=union, scale=10, res=nothing, size=nothing, verbose=true, progress=true) = 
-    _coverage(to, data; mode, scale, res, size, verbose, progress)
+coverage(data; to=nothing, mode=union, scale=10, kw...) = _coverage(to, data; mode, scale, kw...)
 coverage(f::Union{typeof(sum),typeof(union)}, data; kw...) = coverage(data; kw..., mode=f)
 
-_coverage(to::Extents.Extent, data; res=nothing, size=nothing, kw...) =
-    _coverage(_extent2dims(to; res, size, kw...), data; kw...)
-_coverage(to::Nothing, data; kw...) = _coverage(_extent(data), data; kw...)
-function _coverage(to, data; mode, res=nothing, size=nothing, kw...)
+function _coverage(to, data; mode, scale, kw...)
     name = if GI.isgeometry(data) || GI.isfeature(data)
         Symbol(:coverage)
     else
         Symbol(:coverage_, mode)
     end
-    dest = _create_rasterize_dest(dims(to); fill=0.0, init=0.0, name, missingval=0.0, kw...) do A
-        coverage!(A, data; mode, kw...)
+    r = Rasterizer(dims(to), data; fill=0.0, init=0.0, missingval=0.0, name, kw...)
+    dest = create_rasterize_dest(r) do A
+        _coverage!(A, r; mode, scale)
     end
     return dest
 end
@@ -71,17 +68,27 @@ $COVERAGE_KEYWORDS
 """
 coverage!(mode::Union{typeof(union),typeof(sum)}, A::AbstractRaster, data; kw...) =
     _coverage!(A, GI.trait(data), data; kw..., mode)
-coverage!(A::AbstractRaster, data; scale::Integer=10, mode=union, verbose=true, progress=true) = 
-    _coverage!(A, GI.trait(data), data; scale, mode, verbose, progress)
-
-_coverage!(A::AbstractRaster, ::GI.FeatureTrait, feature; kw...) =
-    _coverage!(A, GI.geometry(feature); kw...)
-_coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom; mode, kw...) =
-    _sum_coverage!(A, geom; kw...)
+function coverage!(A::AbstractRaster, data; scale::Integer=10, mode=union, kw...)
+    r = Rasterizer(A, data; fill=0.0, init=0.0, missingval=0.0, name, kw...)
+    coverage!(A, r; scale, mode) 
+end
 # Collect iterators so threading is easier.
-function _coverage!(A::AbstractRaster, ::Union{Nothing,GI.FeatureCollectionTrait}, geoms; 
-    mode, scale, verbose, progress
-)
+function _coverage!(A::AbstractRaster, r::Rasterizer; scale::Integer=10, mode=union)  
+    _coverage!(A, GI.trait(r.geom), r.geom, r; scale, mode)
+end
+function _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom, r; scale, mode)
+    subpixel_dims = _subpixel_dims(A, scale)
+    missed_pixels = if mode === union
+        _union_coverage!(A, geom; scale, subpixel_dims, progress=r.progress)
+    elseif mode === sum
+        _sum_coverage!(A, geoms; scale, subpixel_dims, progress=r.progress)
+    else
+        throw(ArgumentError("Coverage `mode` can be `union` or `sum`. Got $mode"))
+    end
+    r.verbose && _check_missed_pixels(missed_pixels, scale)
+    return A
+end
+function _coverage!(A::AbstractRaster, ::Nothing, geoms, r::Rasterizer; mode, scale)
     n = _nthreads()
     buffers = (
         allocs = _burning_allocs(A),
@@ -92,18 +99,15 @@ function _coverage!(A::AbstractRaster, ::Union{Nothing,GI.FeatureCollectionTrait
         subbuffer = [fill!(Array{Bool}(undef, scale, scale), false) for _ in 1:n],
         ncrossings = [fill(0, scale) for _ in 1:n],
     )
-    if Tables.istable(geoms)
-        geoms = Tables.getcolumn(geoms, first(GI.geometrycolumns(geoms)))
-    end
     subpixel_dims = _subpixel_dims(A, scale)
     missed_pixels = if mode === union
-        _union_coverage!(A, geoms, buffers; scale, subpixel_dims, progress)
+        _union_coverage!(A, geoms, buffers; scale, subpixel_dims, progress=r.progress)
     elseif mode === sum
-        _sum_coverage!(A, geoms, buffers; scale, subpixel_dims, progress)
+        _sum_coverage!(A, geoms, buffers; scale, subpixel_dims, progress=r.progress)
     else
         throw(ArgumentError("Coverage `mode` can be `union` or `sum`. Got $mode"))
     end
-    verbose && _check_missed_pixels(missed_pixels, scale)
+    r.verbose && _check_missed_pixels(missed_pixels, scale)
     return A
 end
 

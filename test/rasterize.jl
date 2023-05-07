@@ -47,21 +47,43 @@ st = RasterStack((A1, copy(A1)))
         fill!(A, 0)
         rasterize!(sum, A, geom; shape=:point, fill=1);
         @test sum(A) == 5.0
+        rasterize!(last, A, geom; shape=:point, fill=1);
+        @test sum(A) == 4.0
         fill!(A, 0)
         if !Tables.istable(geom)
-            rasterize!(sum, A, [geom, geom]; shape=:point, fill=1)
+            rasterize!(count, A, [geom, geom]; shape=:point)
             @test sum(A) == 10.0
             A .= 0
         end
     end
+    geom = multi_point
     for A in (A1, A2), geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon)
         st.layer1 .= st.layer2 .= 0
         rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3))
         @test sum(st[:layer1]) == 10
         @test sum(st[:layer2]) == 15
         @test parent(st[:layer1]) isa Array{Float64,2}
-        st[:layer1] .= 0
-        st[:layer2] .= 0
+        st[:layer1] .= 0; st[:layer2] .= 0
+        rasterize!(sum, st, geom; shape=:point, fill=(layer1=1:5, layer2=6:10))
+        @test sum(st[:layer1]) == sum(1:5)
+        @test sum(st[:layer2]) == sum(6:10)
+        @test parent(st[:layer1]) isa Array{Float64,2}
+        st[:layer1] .= 0; st[:layer2] .= 0
+        rasterize!(last, st, geom; shape=:point, fill=(layer1=2, layer2=3))
+        @test sum(st[:layer1]) == 8
+        @test sum(st[:layer2]) == 12
+        rasterize!(last, st, geom; shape=:point, fill=(layer1=1:5, layer2=6:10))
+        @test sum(st[:layer1]) == sum(2:5)
+        @test sum(st[:layer2]) == sum(7:10)
+        st[:layer1] .= 0; st[:layer2] .= 0
+        rasterize!(first, st, geom; shape=:point, fill=(layer1=2, layer2=3))
+        @test sum(st[:layer1]) == 8
+        @test sum(st[:layer2]) == 12
+        st[:layer1] .= 0; st[:layer2] .= 0
+        rasterize!(first, st, geom; shape=:point, fill=(layer1=1:5, layer2=6:10))
+        @test sum(st[:layer1]) == sum(1:4)
+        @test sum(st[:layer2]) == sum(6:9)
+        st[:layer1] .= 0; st[:layer2] .= 0
         @test_nowarn rasterize!(sum, A, geom; shape=:point, fill=1)
     end
 end
@@ -88,9 +110,9 @@ end
     poly = polygon
     for A in (A1, A2), poly in (polygon, multi_polygon)
         A .= 0
-        ra = rasterize(poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center)
+        ra = rasterize(last, poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center)
         ra_res = rasterize(poly; res=map(step, span(A)), missingval=0, shape=:polygon, fill=1, boundary=:center)
-        @test parent(ra) isa Array{Int,2}
+        @test parent(ra) isa Matrix{Int}
         @test sum(ra) == sum(ra_res) === 20 * 20
         ra = rasterize(poly; to=A, shape=:polygon, fill=1, boundary=:touches)
         @test parent(ra) isa Array{Union{Missing,Int},2}
@@ -135,13 +157,14 @@ end
         end
         @testset "NamedTuple of value fill makes a stack" begin
             rst = rasterize(sum, data; to=A, fill=(fill1=3, fill2=6.0f0))
+            @test eltype(rst) == (fill1=Union{Missing,Int64}, fill2=Union{Missing,Float32})
             @test keys(rst) == (:fill1, :fill2)
             @test dims(rst) == dims(A)
             @test map(sum ∘ skipmissing, rst) === (fill1=15, fill2=30.0f0)
         end
         @testset "Single value fill makes an array (ignoring table vals)" begin
             ra = rasterize(sum, data; to=A, fill=0x03, missingval=0x00)
-            @test eltype(ra) == UInt8
+            @test eltype(ra) == UInt64
             @test sum(ra) === 0x000000000000000f
         end
     end
@@ -186,6 +209,7 @@ end
             end
         end
     end
+
 end
 
 function gdal_read_rasterize(fn, options...)
@@ -211,7 +235,7 @@ end
 
 @testset "center in polygon rasterization" begin
     @time gdal_raster = gdal_read_rasterize(shppath);
-    @time rasters_raster = rasterize(shphandle.shapes; 
+    @time rasters_raster = rasterize(last, shphandle.shapes; 
          size=(250, 250), fill=UInt8(1), missingval=UInt8(0),
     );
     # using Plots
@@ -224,7 +248,7 @@ end
 
 @testset "line touches rasterization" begin
     gdal_touches_raster = gdal_read_rasterize(shppath, "-at")
-    rasters_touches_raster = rasterize(shphandle.shapes; 
+    rasters_touches_raster = rasterize(last, shphandle.shapes; 
         size=(250, 250), fill=UInt64(1), missingval=UInt64(0), boundary=:touches
     )
     # Not quite the same answer as GDAL
@@ -239,12 +263,12 @@ end
     line = LineString([Point(1.00, 4.50), Point(4.75, 0.75)])
     r1 = Raster(zeros(Bool, X(0.5:1.0:6.5; sampling=Intervals()), Y(0.5:1.0:6.5; sampling=Intervals())));
     r1r = reverse(r1; dims=X) 
-    Rasters.rasterize!(r1, line; fill=true)
-    Rasters.rasterize!(r1r, line; fill=true)
+    Rasters.rasterize!(last, r1, line; fill=true)
+    Rasters.rasterize!(last, r1r, line; fill=true)
     r2 = Raster(zeros(Bool, X(0.5:1.00001:6.5; sampling=Intervals()), Y(0.5:1.00001:6.5; sampling=Intervals())))
     r2r = reverse(r2; dims=X) 
-    Rasters.rasterize!(r2, line; fill=true)
-    Rasters.rasterize!(r2r, line; fill=true)
+    Rasters.rasterize!(last, r2, line; fill=true)
+    Rasters.rasterize!(last, r2r, line; fill=true)
     r3 = Raster(zeros(Bool, X(0.5:0.99999:6.5; sampling=Intervals()), Y(0.5:0.99999:6.5; sampling=Intervals())))
     r3r = reverse(r3; dims=X) 
     Rasters.rasterize!(r3, line; fill=true)
@@ -391,8 +415,8 @@ end
     # plot(covsum; clims=(0, 2))
     # plot(covunion; clims=(0, 2))
     # plot!(shphandle.shapes; opacity=0.2)
-    insidecount = rasterize(count, shphandle.shapes; res=1, scale=10, boundary=:inside);
-    touchescount = rasterize(count, shphandle.shapes; res=1, scale=10, boundary=:touches);
+    insidecount = rasterize(count, shphandle.shapes; res=1, boundary=:inside);
+    touchescount = rasterize(count, shphandle.shapes; res=1, boundary=:touches);
     # The main polygon should be identical
     @test all(covsum[X=0..120] .=== covunion[X=0..120])
     # The doubled polygon will have doubled values in covsum

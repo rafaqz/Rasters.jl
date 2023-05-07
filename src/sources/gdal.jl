@@ -604,24 +604,24 @@ function _dims2geotransform(x::XDim{<:AffineProjected}, y::YDim)
 end
 
 # precompilation
-function _precompile(::Type{GDALsource})
-    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
+# function _precompile(::Type{GDALsource})
+#     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
 
-    for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
-        DS = AG.RasterDataset{T,AG.Dataset}
-        precompile(crs, (DS,))
-        precompile(Rasters.FileArray, (DS, String))
-        precompile(dims, (DS,))
-        precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},Nothing))
-        precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},EPSG))
-        precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},ProjString))
-        precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},WellKnownText{GeoFormatTypes.CRS}))
-        precompile(metadata, (DS, key))
-        precompile(missingval, (DS, key))
-        precompile(Raster, (DS, key))
-        precompile(Raster, (DS, String, Nothing))
-        precompile(Raster, (DS, String, Symbol))
-    end
-end
+#     for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
+#         DS = AG.RasterDataset{T,AG.Dataset}
+#         precompile(crs, (DS,))
+#         precompile(Rasters.FileArray, (DS, String))
+#         precompile(dims, (DS,))
+#         precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},Nothing))
+#         precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},EPSG))
+#         precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},ProjString))
+#         precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},WellKnownText{GeoFormatTypes.CRS}))
+#         precompile(metadata, (DS, key))
+#         precompile(missingval, (DS, key))
+#         precompile(Raster, (DS, key))
+#         precompile(Raster, (DS, String, Nothing))
+#         precompile(Raster, (DS, String, Symbol))
+#     end
+# end
 
-_precompile(GRDsource)
+# _precompile(GRDsource)
