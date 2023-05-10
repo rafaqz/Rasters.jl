@@ -21,19 +21,6 @@ function Position(point::Tuple, start::Tuple, step::Tuple)
     return Position(offset, yind)
 end
 
-function can_skip(prevpos::Position, nextpos::Position, xlookup, ylookup)
-    # ignore horizontal edges
-    (prevpos.offset[2] == nextpos.offset[2]) && return true
-    # ignore edges between grid lines on y axis
-    (nextpos.yind == prevpos.yind) && 
-        (prevpos.offset[2] != prevpos.yind) && 
-        (nextpos.offset[2] != nextpos.yind) && return true
-    # ignore edges outside the grid on the y axis
-    (prevpos.offset[2] < 0) && (nextpos.offset[2] < 0) && return true
-    (prevpos.offset[2] > lastindex(ylookup)) && (nextpos.offset[2] > lastindex(ylookup)) && return true
-    return false
-end
-
 # Simple edge offset with (x, y) start relative to the raster
 # gradient of line and integer start/stop for y
 struct Edge
@@ -57,19 +44,43 @@ Base.isless(x::Real, e::Edge) = isless(x, e.iystart)
 x_at_y(e::Edge, y) = (y - e.start[2]) * e.gradient + e.start[1]
 
 
+
+function can_skip(prevpos::Position, nextpos::Position, xlookup, ylookup)
+    # ignore horizontal edges
+    (prevpos.offset[2] == nextpos.offset[2]) && return true
+    # ignore edges between grid lines on y axis
+    (nextpos.yind == prevpos.yind) && 
+        (prevpos.offset[2] != prevpos.yind) && 
+        (nextpos.offset[2] != nextpos.yind) && return true
+    # ignore edges outside the grid on the y axis
+    (prevpos.offset[2] < 0) && (nextpos.offset[2] < 0) && return true
+    (prevpos.offset[2] > lastindex(ylookup)) && (nextpos.offset[2] > lastindex(ylookup)) && return true
+    return false
+end
+
 struct Allocs{B}
     buffer::B
     edges::Vector{Edge}
     scratch::Vector{Edge}
     crossings::Vector{Float64}
 end
-Allocs(buffer) = Allocs(buffer, Vector{Edge}(undef, 0), Vector{Edge}(undef, 0), Vector{Float64}(undef, 0))
-
-function _burning_allocs(x; nthreads=_nthreads(), kw...) 
-    return [Allocs(_init_bools(x; metadata=Metadata())) for _ in 1:nthreads]
+function Allocs(buffer)
+    edges = Vector{Edge}(undef, 0)
+    scratch = Vector{Edge}(undef, 0)
+    crossings = Vector{Float64}(undef, 0)
+    return Allocs(buffer, edges, scratch, crossings)
 end
 
-_get_alloc(allocs::Vector{<:Allocs}) = _get_alloc(allocs[Threads.threadid()])
+function _burning_allocs(x; nthreads=_nthreads(), threaded, kw...) 
+    if threaded
+        [Allocs(_init_bools(x; metadata=Metadata())) for _ in 1:nthreads]
+    else
+        Allocs(_init_bools(x; metadata=Metadata()))
+    end
+end
+
+_get_alloc(allocs::Vector{<:Allocs}) = 
+    _get_alloc(allocs[Threads.threadid()])
 _get_alloc(allocs::Allocs) = allocs
 
 
@@ -96,7 +107,13 @@ function Edges(
         end
     end
 
-    partialsort!(edges, 1:edge_count)
+    # We may have allocated too much
+    edges1 = view(edges, 1:edge_count)
+    @static if VERSION < v"1.9-alpha1"
+        sort!(edges1)
+    else
+        sort!(edges1; scratch)
+    end
 
     return Edges(edges, max_ylen, edge_count)
 end
@@ -110,7 +127,7 @@ Base.setindex(edges::Edges, x, I...) = setindex!(parent(edges), x, I...)
 function _to_edges!(edges, geom, dims, edge_count)
     GI.npoint(geom) > 0 || return edge_count
     xlookup, ylookup = lookup(dims, (X(), Y())) 
-    length(xlookup) > 0 && length(ylookup) > 0 || return edge_count
+    (length(xlookup) > 0 && length(ylookup) > 0) || return edge_count
 
     # Dummy Initialisation
     local firstpos = prevpos = nextpos = Position((0.0, 0.0), 0)
@@ -147,12 +164,8 @@ function _to_edges!(edges, geom, dims, edge_count)
         # Add the edge to our `edges` vector
         edge_count += 1
         edge = Edge(prevpos, nextpos)
+        add_edge!(edges, edge, edge_count)
         max_ylen = max(max_ylen, edge.iystop - edge.iystart)
-        if edge_count <= lastindex(edges)
-            edges[edge_count] = edge
-        else
-            push!(edges, edge)
-        end
         prevpos = nextpos
         prevpoint = p
     end
@@ -161,14 +174,18 @@ function _to_edges!(edges, geom, dims, edge_count)
         edge_count += 1
         edge = Edge(prevpos, firstpos)
         max_ylen = max(max_ylen, edge.iystop - edge.iystart)
-        if edge_count <= lastindex(edges)
-            edges[edge_count] = edge
-        else
-            push!(edges, edge)
-        end
+        add_edge!(edges, edge, edge_count)
     end
 
     return edge_count, max_ylen
+end
+
+function add_edge!(edges, edge, edge_count)
+    if edge_count <= lastindex(edges)
+        edges[edge_count] = edge
+    else
+        push!(edges, edge)
+    end
 end
 
 
@@ -201,32 +218,35 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait,
 end
 # Where geoms is an iterator
 function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; 
-    collapse::Union{Bool,Nothing}=nothing, lock=SectorLocks(), verbose=true, progress=true, 
-    allocs=_burning_allocs(B), kw...
+    collapse::Union{Bool,Nothing}=nothing, lock=SectorLocks(), verbose=true, progress=true, threaded=true,
+    allocs=_burning_allocs(B, threaded), kw...
 )::Bool
     range = _geomindices(geoms)
     checklock = Threads.SpinLock()
     burnchecks = _alloc_burnchecks(range)
-    p = progress ? _progress(length(range)) : nothing
     if isnothing(collapse) || collapse
-        Threads.@threads for i in range
+        _run(range, threaded, progress, "") do i
             geom = _getgeom(geoms, i)
-            ismissing(geom) && continue
+            ismissing(geom) && return nothing
             a = _get_alloc(allocs)
             B1 = a.buffer
             burnchecks[i] = _burn_geometry!(B1, geom; allocs=a, lock, kw...)
-            progress && ProgressMeter.next!(p)
+            return nothing
         end
-        buffers = map(a -> a.buffer, allocs)
-        _do_broadcast!(|, B, buffers...)
+        if allocs isa Allocs
+            _do_broadcast!(|, B, allocs.buffer)
+        else
+            buffers = map(a -> a.buffer, allocs)
+            _do_broadcast!(|, B, buffers...)
+        end
     else
-        Threads.@threads for i in range
+        _run(range, threaded, progress, "") do i
             geom = _getgeom(geoms, i)
-            ismissing(geom) && continue
+            ismissing(geom) && return nothing
             B1 = view(B, Dim{:geometry}(i))
             a = _get_alloc(allocs)
             burnchecks[i] = _burn_geometry!(B1, geom; allocs=a, lock, kw...)
-            progress && ProgressMeter.next!(p)
+            return nothing
         end
     end
     
@@ -235,7 +255,7 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
 end
 
 function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; 
-    shape=nothing, verbose=true, boundary=:center, allocs=Allocs(B), kw...
+    shape=nothing, verbose=true, boundary=:center, allocs=nothing, kw...
 )::Bool
     hasburned = false
     # Use the specified shape or detect it
@@ -258,6 +278,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
         B1 = view(B, Touches(geomextent))
         buf1 = _init_bools(B1)
         # Burn the polygon into the buffer
+        allocs = isnothing(allocs) ? Allocs(B) : allocs
         hasburned = _burn_polygon!(buf1, geom; shape, geomextent, allocs, boundary, kw...)
         for i in eachindex(B1)
             if buf1[i]
@@ -265,7 +286,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
             end
         end
     else
-        _shape_error(shape) 
+        _shape_error(shape)
     end
     return hasburned
 end
@@ -325,7 +346,6 @@ function _burn_polygon!(A::AbstractDimArray, edges::Edges, crossings::Vector{Flo
     # Loop over each index of the y axis
     for iy in axes(A, YDim)
         # Calculate where on the x axis iy is crossed
-        y1 = first(lookup(A, YDim))
         ncrossings, prev_ypos = _set_crossings!(crossings, edges, iy, prev_ypos)
         # Burn between alternate crossings
         status = _burn_crossings!(A, crossings, ncrossings, iy)
@@ -667,90 +687,11 @@ function _burn_line!(A::AbstractRaster, line, fill, order::Tuple{Vararg{<:Dimens
     throw(ArgumentError(msg))
 end
 
-const XYExtent = Extents.Extent{(:X,:Y),Tuple{Tuple{Float64,Float64},Tuple{Float64,Float64}}}
-
-# _extent
-# Get the bounds of a geometry
-_extent(geom; kw...)::XYExtent = _extent(GI.trait(geom), geom; kw...)
-function _extent(::Nothing, data::AbstractVector; kw...)::XYExtent
-    g1 = first(data)
-    if GI.trait(g1) isa GI.PointTrait 
-        xs = extrema(p -> GI.x(p), data)
-        ys = extrema(p -> GI.y(p), data)
-        return _float64_xy_extent(Extents.Extent(X=xs, Y=ys))
-    else
-        ext = reduce(data; init=_extent(first(data))) do ext, geom
-            Extents.union(ext, _extent(geom))
-        end
-        return _float64_xy_extent(ext)
-    end
-end
-_extent(::Nothing, data::RasterStackOrArray; kw...)::XYExtent = _float64_xy_extent(Extents.extent(data))
-function _extent(::Nothing, data::T; geometrycolumn=nothing)::XYExtent where T
-    if Tables.istable(T)
-        singlecolumn = isnothing(geometrycolumn) ? first(GI.geometrycolumns(data)) : geometrycolumn
-        cols = Tables.columns(data)
-        if singlecolumn isa Symbol && singlecolumn in Tables.columnnames(cols)
-            # Table of geometries
-            geoms = Tables.getcolumn(data, singlecolumn)
-            return _extent(nothing, geoms)
-        else
-            multicolumn = isnothing(geometrycolumn) ? DEFAULT_POINT_ORDER : geometrycolumn 
-            # TODO: test this branch
-            # Table of points with dimension columns
-            bounds = reduce(multicolumn; init=(;)) do acc, key
-                if key in Tables.columnnames(cols)
-                    merge(acc, (; key=extrema(cols[key])))
-                else
-                    acc
-                end
-            end
-            return _float64_xy_extent(Extent(bounds))
-        end
-    else
-        ext = Extents.extent(data)
-        ext isa Extents.Extent || throw(ArgumentError("object returns `nothing` from `Extents.extent`."))
-        return _float64_xy_extent(ext)
-    end
-end
-function _extent(::GI.AbstractPointTrait, point; kw...)::XYExtent
-    x, y = Float64(GI.x(point)), Float64(GI.y(point))
-    Extents.Extent(X=(x, x), Y=(y, y))
-end
-function _extent(::GI.AbstractGeometryTrait, geom; kw...)::XYExtent
-    geomextent = GI.extent(geom; fallback=false)
-    if isnothing(geomextent)
-        points = GI.getpoint(geom)
-        xbounds = extrema(GI.x(p) for p in points)
-        ybounds = extrema(GI.y(p) for p in points)
-        return _float64_xy_extent(Extents.Extent(X=xbounds, Y=ybounds))
-    else
-        return _float64_xy_extent(geomextent)
-    end
-end
-_extent(::GI.AbstractFeatureTrait, feature; kw...)::XYExtent = _extent(GI.geometry(feature))
-function _extent(::GI.AbstractFeatureCollectionTrait, features; kw...)::XYExtent
-    features = GI.getfeature(features)
-    init = _float64_xy_extent(_extent(first(features)))
-    ext = reduce(features; init) do acc, f
-        Extents.union(acc, _extent(f))
-    end
-    return _float64_xy_extent(ext)
-end
-
-function _float64_xy_extent(ext::Extents.Extent)
-    xbounds = map(Float64, ext.X)
-    ybounds = map(Float64, ext.Y)
-    return Extents.Extent(X=xbounds, Y=ybounds)
-end
-
-# _dimcoord
 # Get the GeoInterface coord from a point for a specific Dimension
 _dimcoord(::XDim, point) = GI.x(point)
 _dimcoord(::YDim, point) = GI.y(point)
 _dimcoord(::ZDim, point) = GI.z(point)
 
-# _geom_shape
 # Get the shape category for a geometry
 @inline _geom_shape(geom) = _geom_shape(GI.geomtrait(geom), geom)
 @inline _geom_shape(::Union{<:GI.PointTrait,<:GI.MultiPointTrait}, geom) = :point

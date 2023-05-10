@@ -53,7 +53,7 @@ st = RasterStack((A1, copy(A1)))
         if !Tables.istable(geom)
             rasterize!(count, A, [geom, geom]; shape=:point)
             @test sum(A) == 10.0
-            A .= 0
+            fill!(A, 0)
         end
     end
     geom = multi_point
@@ -111,7 +111,7 @@ end
     for A in (A1, A2), poly in (polygon, multi_polygon)
         A .= 0
         ra = rasterize(last, poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center)
-        ra_res = rasterize(poly; res=map(step, span(A)), missingval=0, shape=:polygon, fill=1, boundary=:center)
+        ra_res = rasterize(last, poly; res=map(step, span(A)), missingval=0, shape=:polygon, fill=1, boundary=:center)
         @test parent(ra) isa Matrix{Int}
         @test sum(ra) == sum(ra_res) === 20 * 20
         ra = rasterize(poly; to=A, shape=:polygon, fill=1, boundary=:touches)
