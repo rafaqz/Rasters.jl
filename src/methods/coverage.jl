@@ -50,8 +50,10 @@ function _coverage(to, data; mode, scale, kw...)
     else
         Symbol(:coverage_, mode)
     end
-    r = Rasterizer(dims(to), data; fill=0.0, init=0.0, missingval=0.0, name, kw...)
-    dest = create_rasterize_dest(r) do A
+    r = Rasterizer(data; reduce=mode, fill=0.0, init=0.0, missingval=0.0, kw...)
+    @show r.eltype
+    rc = RasterCreator(to, data; kw..., eltype=r.eltype, fill, name, missingval=r.missingval)
+    dest = create_rasterize_dest(rc) do A
         _coverage!(A, r; mode, scale)
     end
     return dest
@@ -69,7 +71,7 @@ $COVERAGE_KEYWORDS
 coverage!(mode::Union{typeof(union),typeof(sum)}, A::AbstractRaster, data; kw...) =
     _coverage!(A, GI.trait(data), data; kw..., mode)
 function coverage!(A::AbstractRaster, data; scale::Integer=10, mode=union, kw...)
-    r = Rasterizer(A, data; fill=0.0, init=0.0, missingval=0.0, name, kw...)
+    r = Rasterizer(data; reduce=mode, fill=0.0, init=0.0, missingval=0.0, kw...)
     coverage!(A, r; scale, mode) 
 end
 # Collect iterators so threading is easier.
@@ -130,7 +132,6 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
         _union_coverage!(A, geom; scale, subpixel_buffer, thread_buffers...)
         fill!(thread_buffers.linebuffer, false)
         fill!(thread_buffers.centerbuffer, false) # Is this necessary?
-        progress && ProgressMeter.next!(p)
     end
     # Merge downscaled BitArray (with a function barrier)
     subpixel_union = _do_broadcast!(|, subpixel_buffer[1], subpixel_buffer...)

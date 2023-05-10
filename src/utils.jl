@@ -233,17 +233,17 @@ _checkbounds(A::AbstractRaster, I...) = checkbounds(Bool, A, I...)
 # Run `f` threaded or not, w
 function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String) 
     p = progress ? _progress(length(range); desc) : nothing
-    # if threaded
-    #     Threads.@threads for i in range
-    #         f(i)
-    #         isnothing(p) || ProgressMeter.next!(p)
-    #     end
-    # else
+    if threaded
+        Threads.@threads for i in range
+            f(i)
+            isnothing(p) || ProgressMeter.next!(p)
+        end
+    else
         for i in range
             f(i)
             isnothing(p) || ProgressMeter.next!(p)
         end
-    # end
+    end
 end
 
 

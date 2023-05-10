@@ -309,7 +309,6 @@ function boolmask!(dest::AbstractRaster, geoms;
             slice = view(dest, Dim{:geometry}(i))
             # We don't need locks - these are independent slices
             burn_geometry!(slice, geom; kw..., fill=true, allocs=_get_alloc(allocs))
-            progress && ProgressMeter.next!(p)
             return nothing
         end
     else

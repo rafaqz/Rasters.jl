@@ -71,7 +71,7 @@ function Allocs(buffer)
     return Allocs(buffer, edges, scratch, crossings)
 end
 
-function _burning_allocs(x; nthreads=_nthreads(), threaded, kw...) 
+function _burning_allocs(x; nthreads=_nthreads(), threaded=true, kw...) 
     if threaded
         [Allocs(_init_bools(x; metadata=Metadata())) for _ in 1:nthreads]
     else
@@ -97,6 +97,9 @@ function Edges(
     kw...
 )
     (; edges, scratch) = _get_alloc(allocs)
+
+    # TODO fix bug that requires this to be redefined
+    edges = Vector{Edge}(undef, 0)
     local edge_count = max_ylen = 0
     if tr isa GI.AbstractCurveTrait
         edge_count, max_ylen = _to_edges!(edges, geom, dims, edge_count)
@@ -222,7 +225,6 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
     allocs=_burning_allocs(B, threaded), kw...
 )::Bool
     range = _geomindices(geoms)
-    checklock = Threads.SpinLock()
     burnchecks = _alloc_burnchecks(range)
     if isnothing(collapse) || collapse
         _run(range, threaded, progress, "") do i
@@ -280,7 +282,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
         # Burn the polygon into the buffer
         allocs = isnothing(allocs) ? Allocs(B) : allocs
         hasburned = _burn_polygon!(buf1, geom; shape, geomextent, allocs, boundary, kw...)
-        for i in eachindex(B1)
+        @inbounds for i in eachindex(B1)
             if buf1[i]
                 B1[i] = true
             end
@@ -398,7 +400,7 @@ function _burn_crossings!(A, crossings, ncrossings, iy;
                 break
             end
             if burn
-                A[X(ix), Y(iy)] = true
+                @inbounds A[X(ix), Y(iy)] = true
                 hasburned = true
             end
             ix += 1
@@ -414,7 +416,7 @@ function _burn_crossings!(A, crossings, ncrossings, iy;
     # Maybe fill in the end of the row
     if burn
         for x in ix:lastindex(A, X())
-            A[X(ix), Y(iy)] = true
+            @inbounds A[X(ix), Y(iy)] = true
         end
     end
     return BurnStatus(ic, burn, hasburned)

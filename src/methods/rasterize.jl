@@ -44,12 +44,12 @@ function RasterCreator(to::DimTuple;
     res=nothing, # We shouldn't need this but coverage does
     crs=nothing,
     mappedcrs=nothing,
-    name=Symbol(_filter_name(name, fill)),
+    name=nothing,
     metadata=Metadata(Dict()),
     kw...
 )
+    name = Symbol(_filter_name(name, fill))
     to = _as_intervals(to) # Only makes sense to rasterize to intervals
-    name = Symbol(name)
     RasterCreator(eltype, to, filename, suffix, name, metadata, missingval, crs, mappedcrs)
 end
 RasterCreator(to::AbstractRaster, data; kw...) = RasterCreator(dims(to); kw...)
@@ -138,40 +138,9 @@ function Rasterizer(geom, fill, fillitr;
         @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be innaccurate for `reduce` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
     end
     eltype, missingval = get_eltype_missingval(eltype, missingval, fillitr, init, filename, op, reduce)
-    lock = SectorLocks()
+    lock = threaded ? SectorLocks() : nothing
 
     return Rasterizer(eltype, geom, fillitr, reduce, op, init, missingval, lock, shape, boundary, verbose, progress, threaded)
-end
-
-function get_eltype_missingval(eltype, missingval, fillitr, init::NamedTuple, filename, op, reduce)
-    eltype = eltype isa NamedTuple ? eltype : map(_ -> eltype, init)
-    missingval = missingval isa NamedTuple ? missingval : map(_ -> missingval, init)
-    em = map(eltype, missingval, fillitr, init) do et, mv, fi, i
-        get_eltype_missingval(et, mv, fi, i, filename, op, reduce)
-    end
-    eltype = map(first, em)
-    missingval = map(last, em)
-    return eltype, missingval
-end
-function get_eltype_missingval(known_eltype, missingval, fillitr, init, filename, op, reduce)
-    eltype = if isnothing(known_eltype)
-        if fillitr isa Function
-            typeof(fillitr(init))
-        elseif op isa Function
-            typeof(op(init, init))
-        elseif reduce isa Function
-            typeof(reduce((init, init)))
-        else
-            typeof(init)
-        end
-    else
-        known_eltype
-    end
-
-    missingval = isnothing(missingval) ? _writeable_missing(filename, eltype) : missingval
-    # eltype was not the actually array eltype, so promote it with the missingval
-    eltype = isnothing(known_eltype) ? promote_type(typeof(missingval), eltype) : eltype
-    return eltype, missingval
 end
 function Rasterizer(data::T; fill, geomcolumn=nothing, kw...) where T
     if Tables.istable(T) # typeof so we dont check iterable table fallback in Tables.jl
@@ -219,6 +188,37 @@ function Rasterizer(::Nothing, geoms; fill, kw...)
 end
 function Rasterizer(::GI.AbstractGeometryTrait, geom; fill, kw...)
     Rasterizer(geom, fill, _iterable_fill(geom, fill); kw...)
+end
+
+function get_eltype_missingval(eltype, missingval, fillitr, init::NamedTuple, filename, op, reduce)
+    eltype = eltype isa NamedTuple ? eltype : map(_ -> eltype, init)
+    missingval = missingval isa NamedTuple ? missingval : map(_ -> missingval, init)
+    em = map(eltype, missingval, fillitr, init) do et, mv, fi, i
+        get_eltype_missingval(et, mv, fi, i, filename, op, reduce)
+    end
+    eltype = map(first, em)
+    missingval = map(last, em)
+    return eltype, missingval
+end
+function get_eltype_missingval(known_eltype, missingval, fillitr, init, filename, op, reduce)
+    eltype = if isnothing(known_eltype)
+        if fillitr isa Function
+            typeof(fillitr(init))
+        elseif op isa Function
+            typeof(op(init, init))
+        elseif reduce isa Function
+            typeof(reduce((init, init)))
+        else
+            typeof(init)
+        end
+    else
+        known_eltype
+    end
+
+    missingval = isnothing(missingval) ? _writeable_missing(filename, eltype) : missingval
+    # eltype was not the actually array eltype, so promote it with the missingval
+    eltype = isnothing(known_eltype) ? promote_type(typeof(missingval), eltype) : eltype
+    return eltype, missingval
 end
 
 _fill_key_error(names, fill) = throw(ArgumentError("fill key $fill not found in table, use one of: $(Tuple(names))"))
@@ -529,7 +529,7 @@ function rasterize!(reduce::typeof(count), x::RasterStackOrArray, data; fill=not
 end
 function rasterize!(x::RasterStackOrArray, data; threaded=true, kw...)
     r = Rasterizer(data; eltype=eltype(x), threaded, kw...)
-    allocs = r.shape == :points ? nothing : _burning_allocs(dims(x), threaded)
+    allocs = r.shape == :points ? nothing : _burning_allocs(dims(x); threaded)
     return _rasterize!(x, r; allocs)
 end
 
@@ -619,11 +619,11 @@ end
 function _rasterize_iterable!(A, geoms, reduce, op, fillitr, r::Rasterizer, allocs)
     # reduce 
     if isnothing(op) && !(fillitr isa Function)
-        return _reduce_bitarray!(reduce, A, geoms, fillitr, r)
+        return _reduce_bitarray!(reduce, A, geoms, fillitr, r, allocs)
     end
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
-    _run(range, r.threaded, progress, "Rasterizing...") do i
+    _run(range, r.threaded, r.progress, "Rasterizing...") do i
         geom = geoms[i]
         ismissing(geom) && return nothing
         a = _get_alloc(allocs)
@@ -779,7 +779,7 @@ type_length(tup::Type{T}) where {T<:Union{Tuple,NamedTuple}} = length(tup.types)
     prevpoint = first(first(points_fill))
     startind = 1
     for n in eachindex(points_fill)
-        point, fill = points_fill[i]
+        point, fill = points_fill[n]
         if prevpoint === point
             continue # We will reduce all of these points together later on
         else
@@ -830,8 +830,8 @@ end
 # We get 64 Bool values to a regular `Int` meaning this doesn't scale too
 # badly for large tables of geometries. 64k geometries and a 1000 * 1000
 # raster needs 1GB of memory just for the `BitArray`.
-function _reduce_bitarray!(f, st::AbstractRasterStack, geoms, fill::NamedTuple, r::Rasterizer)
-    (; allocs, lock, shape, boundary, verbose, progress) = r
+function _reduce_bitarray!(f, st::AbstractRasterStack, geoms, fill::NamedTuple, r::Rasterizer, allocs)
+    (; lock, shape, boundary, verbose, progress) = r
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(st, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
@@ -842,8 +842,8 @@ function _reduce_bitarray!(f, st::AbstractRasterStack, geoms, fill::NamedTuple, 
     T = NamedTuple{keys(st),Tuple{map(eltype, st)...}}
     _reduce_bitarray!(f, st, T, geoms, fill, masks, progress)
 end
-function _reduce_bitarray!(f, A::AbstractRaster, geoms, fill, r::Rasterizer)
-    (; allocs, lock, shape, boundary, verbose, progress, threaded) = r
+function _reduce_bitarray!(f, A::AbstractRaster, geoms, fill, r::Rasterizer, allocs)
+    (; lock, shape, boundary, verbose, progress, threaded) = r
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(A, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
@@ -852,21 +852,21 @@ function _reduce_bitarray!(f, A::AbstractRaster, geoms, fill, r::Rasterizer)
     geom_axis = parent(axes(masks, Dim{:geometry}()))
     fill = [val for (i, val) in zip(geom_axis, fill)]
     T = eltype(A)
-    _reduce_bitarray_inner!(f, A, T, fill, masks, progress)
-    _run(range, threaded, progress, "Reducing...") do i
-        _reduce_bitarray_loop(f, obj, T, fill, masks, y)
+    range = _geomindices(geoms)
+    _run(range, threaded, progress, "Reducing...") do y
+        _reduce_bitarray_loop(f, A, T, fill, masks, y)
     end
-    return obj
+    return A
 end
 
-function _reduce_bitarray_loop(f, obj, ::Type{T}, fill, masks, y) where T
-    for x in axes(obj, X())
+function _reduce_bitarray_loop(f, A, ::Type{T}, fill, masks, y) where T
+    for x in axes(A, X())
         D = (X(x), Y(y))
         # Do DimensionalData.jl indexing manually to avoid taking a view of the index and TwicePrecision problems
         I = dims2indices(masks, D)
         newval = _apply_reduction!(T, f, fill, view(parent(masks), I...))::Union{T,Nothing}
         if !isnothing(newval)
-            @inbounds obj[D...] = newval::T
+            @inbounds A[D...] = newval::T
         end
     end
 end
