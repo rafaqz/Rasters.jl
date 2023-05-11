@@ -334,7 +334,7 @@ end
     polygons = ArchGDAL.createpolygon.([[pointvec1], [pointvec2], [pointvec3], [pointvec4]])
     # With fill of 1 these are all the same thing
     for f in (last, first, mean, median, maximum, minimum)
-        r = rasterize(f, polygons; res=5, fill=1, boundary=:center, crs=EPSG(4326))
+        r = rasterize(f, polygons; res=5, fill=1, boundary=:center, threaded=false, crs=EPSG(4326))
         @test parent(r) isa Array{<:Union{Missing,<:Real},2}
         @test sum(skipmissing(r)) == 12 + 12 + 12 + 16
         @test crs(r) == EPSG(4326)
@@ -407,8 +407,8 @@ end
 end
 
 @testset "coverage" begin
-    @time covsum = coverage(sum, shphandle.shapes; res=1, scale=10);
-    @time covunion = coverage(union, shphandle.shapes; res=1, scale=10);
+    @time covsum = coverage(sum, shphandle.shapes; res=1, scale=10)
+    @time covunion = coverage(union, shphandle.shapes; res=1, scale=10)
     @test parent(covsum) isa Array{Float64,2}
     @test parent(covunion) isa Array{Float64,2}
     # using Plots

@@ -75,7 +75,7 @@ struct Rasterizer{T,G,F,R,O,I,M}
     op::O
     init::I
     missingval::M
-    lock::SectorLocks
+    lock::Union{SectorLocks,Nothing}
     shape::Symbol
     boundary::Symbol
     verbose::Bool
@@ -578,44 +578,14 @@ function _rasterize!(A, trait::Nothing, geoms, fill, r::Rasterizer; allocs=nothi
     if r.shape === :point
         return _rasterize_points!(A, trait, geoms, fill, r)
     else
+        (; reduce, op, fillitr) = r
+        A1 = _prepare_for_burning(A)
         # Everything else is rasterized as line or polygon geometries
-        return _rasterize_iterable!(_prepare_for_burning(A), geoms, r, allocs)
+        return _rasterize_iterable!(A1, geoms, reduce, op, fillitr, r, allocs)
     end
 end
 
 # We rasterize all iterables from here
-function _rasterize_iterable!(A, geoms, r::Rasterizer, allocs)
-    (; reduce, op, fillitr) = r
-    _rasterize_iterable!(A, geoms, reduce, op, fillitr, r, allocs)
-end
-
-function _rasterize_iterable!(
-    A, geoms, reduce::Function, op::Function, fillitr::Iterators.Cycle, r::Rasterizer, allocs
-)
-    (; allocs, lock, shape, boundary, verbose, progress) = r
-    # We dont need to iterate the fill, so just mask
-    mask = boolmask(geoms; to=A, collapse=true, metadata=metadata(A), allocs, lock, shape, boundary, verbose, progress)
-    # And broadcast the fill
-    broadcast_dims!(A, A, mask) do v, m
-        m ? fillitr.xs : v
-    end
-    return true
-end
-# Stacks
-function _rasterize_iterable!(A, geoms, reduce::Function, op::Function,
-    fillitr::NamedTuple{<:Any,Tuple{<:Iterators.Cycle,Vararg}}, r::Rasterizer, allocs
-)
-    (; allocs, shape, boundary, verbose, progress) = r
-    # We dont need to iterate the fill, so just mask
-    mask = boolmask(geoms; to=A, collapse=true, metadata=metadata(A), allocs, lock, shape, boundary, verbose, progress)
-    foreach(A, fillitr) do A, f
-        # And broadcast the fill
-        broadcast_dims!(A, A, mask) do v, m
-            m ? f.xs : v
-        end
-    end
-    return true
-end
 function _rasterize_iterable!(A, geoms, reduce, op, fillitr, r::Rasterizer, allocs)
     # reduce 
     if isnothing(op) && !(fillitr isa Function)
@@ -634,11 +604,6 @@ function _rasterize_iterable!(A, geoms, reduce, op, fillitr, r::Rasterizer, allo
     _set_burnchecks(burnchecks, metadata(A), r.verbose)
     return any(burnchecks)
 end
-
-function _contains(extent::Extents.Extent, point)
-    extent.X[1] <= point[1] < extent.X[2] && extent.Y[1] <= point[2] < extent.Y[2]
-end
-
 
 ################################
 # Fast point rasterization
@@ -831,7 +796,7 @@ end
 # badly for large tables of geometries. 64k geometries and a 1000 * 1000
 # raster needs 1GB of memory just for the `BitArray`.
 function _reduce_bitarray!(f, st::AbstractRasterStack, geoms, fill::NamedTuple, r::Rasterizer, allocs)
-    (; lock, shape, boundary, verbose, progress) = r
+    (; lock, shape, boundary, verbose, progress, threaded) = r
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(st, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
@@ -840,19 +805,22 @@ function _reduce_bitarray!(f, st::AbstractRasterStack, geoms, fill::NamedTuple, 
     geom_axis = axes(masks, Dim{:geometry}())
     fill = map(itr -> [v for (_, v) in zip(geom_axis, itr)], fill)
     T = NamedTuple{keys(st),Tuple{map(eltype, st)...}}
-    _reduce_bitarray!(f, st, T, geoms, fill, masks, progress)
+    range = axes(first(st), Y())
+    _run(range, threaded, progress, "Reducing...") do y
+        _reduce_bitarray_loop(f, st, T, fill, masks, y)
+    end
 end
 function _reduce_bitarray!(f, A::AbstractRaster, geoms, fill, r::Rasterizer, allocs)
     (; lock, shape, boundary, verbose, progress, threaded) = r
     # Define mask dimensions, the same size as the spatial dims of x
     spatialdims = commondims(A, DEFAULT_POINT_ORDER)
     # Mask geoms as separate bool layers
-    masks = boolmask(geoms; to=A, collapse=false, metadata=metadata(A), allocs, lock, shape, boundary, verbose, progress, threaded)
+    masks = boolmask(geoms; to=A, collapse=false, metadata=metadata(A), lock, shape, boundary, verbose, progress, threaded)
     # Use a generator over the array axis in case the iterator has no length
     geom_axis = parent(axes(masks, Dim{:geometry}()))
     fill = [val for (i, val) in zip(geom_axis, fill)]
     T = eltype(A)
-    range = _geomindices(geoms)
+    range = axes(A, Y())
     _run(range, threaded, progress, "Reducing...") do y
         _reduce_bitarray_loop(f, A, T, fill, masks, y)
     end

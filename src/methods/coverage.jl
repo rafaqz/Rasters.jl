@@ -50,8 +50,8 @@ function _coverage(to, data; mode, scale, kw...)
     else
         Symbol(:coverage_, mode)
     end
-    r = Rasterizer(data; reduce=mode, fill=0.0, init=0.0, missingval=0.0, kw...)
-    @show r.eltype
+    # We use sum for `reduce` so eltype inference works
+    r = Rasterizer(data; reduce=sum, fill=0.0, init=0.0, missingval=0.0, kw...)
     rc = RasterCreator(to, data; kw..., eltype=r.eltype, fill, name, missingval=r.missingval)
     dest = create_rasterize_dest(rc) do A
         _coverage!(A, r; mode, scale)
@@ -71,7 +71,8 @@ $COVERAGE_KEYWORDS
 coverage!(mode::Union{typeof(union),typeof(sum)}, A::AbstractRaster, data; kw...) =
     _coverage!(A, GI.trait(data), data; kw..., mode)
 function coverage!(A::AbstractRaster, data; scale::Integer=10, mode=union, kw...)
-    r = Rasterizer(data; reduce=mode, fill=0.0, init=0.0, missingval=0.0, kw...)
+    # We use sum for `reduce` so eltype inference works
+    r = Rasterizer(data; reduce=sum, fill=0.0, init=0.0, missingval=0.0, kw...)
     coverage!(A, r; scale, mode) 
 end
 # Collect iterators so threading is easier.
