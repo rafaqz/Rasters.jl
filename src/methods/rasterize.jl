@@ -353,7 +353,7 @@ isfile(shapefile_name) || Downloads.download(shapefile_url, shapefile_name)
 china_border = Shapefile.Handle(shapefile_name).shapes[10]
 
 # Rasterize the border polygon
-china = rasterize(china_border; res=0.1, missingval=0, fill=1, boundary=:touches, progress=false)
+china = rasterize(last, china_border; res=0.1, missingval=0, fill=1, boundary=:touches, progress=false)
 
 # And plot
 p = plot(china; color=:spring, legend=false)
@@ -503,7 +503,7 @@ A = zeros(UInt32, dimz; missingval=UInt32(0))
 # Rasterize each indonesian island with a different number. The islands are
 # rings of a multi-polygon, so we use `GI.getring` to get them all separately.
 islands = collect(GeoInterface.getring(indonesia_border))
-rasterize!(A, islands; fill=1:length(islands), progress=false)
+rasterize!(last, A, islands; fill=1:length(islands), progress=false)
 
 # And plot
 p = plot(Rasters.trim(A); color=:spring)
