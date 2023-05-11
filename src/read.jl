@@ -30,11 +30,7 @@ end
 
 # Filename methods
 function Base.read!(filename::AbstractString, dst::AbstractRaster)
-    src = Raster(filename;
-        dims=dims(dst), refdims=refdims(dst), name=name(dst),
-        metadata=metadata(dst), missingval=missingval(dst),
-    )
-    read!(src, dst)
+    read!(Raster(filename; lazy=true), dst)
 end
 function Base.read!(filenames::Union{NamedTuple,<:AbstractVector{<:AbstractString}}, dst::AbstractRasterStack)
     _readstack!(filenames, dst)
@@ -48,9 +44,5 @@ function Base.read!(filenames::AbstractVector{<:Union{AbstractString,NamedTuple}
 end
 
 function _readstack!(filenames, dst)
-    src = RasterStack(filenames;
-        dims=dims(dst), refdims=refdims(dst), keys=keys(dst), metadata=metadata(dst),
-        layermetadata=DD.layermetadata(dst), missingval=missingval(dst),
-    )
-    read!(src, dst)
+    read!(RasterStack(filenames; lazy=true), dst)
 end

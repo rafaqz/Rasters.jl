@@ -281,7 +281,7 @@ stackkeys = (
             # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
             # But the Proj representation is the same
             @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
-            @test bounds(gdalarray) == (bounds(nccleaned)..., (1, 1))
+            @test bounds(gdalarray) == bounds(nccleaned)
             # Tiff locus = Start, Netcdf locus = Center
             @test reverse(index(gdalarray, Y)) .+ 0.5 ≈ index(nccleaned, Y)
             @test index(gdalarray, X) .+ 1.0  ≈ index(nccleaned, X)
@@ -292,7 +292,7 @@ stackkeys = (
             write("testgrd.gri", nccleaned; force=true)
             grdarray = Raster("testgrd.gri");
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
-            @test bounds(grdarray) == (bounds(nccleaned)..., (1, 1))
+            @test bounds(grdarray) == bounds(nccleaned)
             @test reverse(index(grdarray, Y)) ≈ index(nccleaned, Y) .- 0.5
             @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
             @test Raster(grdarray) ≈ reverse(nccleaned; dims=Y)
