@@ -28,10 +28,13 @@ Base.getindex(sl::SectorLocks, i::Int) = sl.seclocks[i]
 Base.iterate(sl::SectorLocks, args...) = iterate(sl.seclocks, args...)
 Base.eachindex(sl::SectorLocks) = 1:length(sl)
 
-Base.lock(sl::SectorLocks, sector::Raster) = Base.lock(sl, parent(sector))
-Base.lock(sl::SectorLocks, sector::RasterStack) = Base.lock(sl, parent(first(sector)))
-Base.lock(sl::SectorLocks, sector::SubArray) = Base.lock(sl, CartesianIndices(_unitranges(sector.indices...))) 
-Base.lock(sl::SectorLocks, sector::DiskArrays.SubDiskArray) = Base.lock(sl, sector.v)
+Base.lock(sl::SectorLocks, sector::RasterStack) = Base.lock(sl, first(sector))
+function Base.lock(sl::SectorLocks, A::Raster)
+    slice = first(eachslice(A; dims=otherdims(A, DEFAULT_POINT_ORDER)))
+    Base.lock(sl, parent(slice))
+end
+# Base.lock(sl::SectorLocks, sector::SubArray) = Base.lock(sl, CartesianIndices(_unitranges(sector.indices...))) 
+# Base.lock(sl::SectorLocks, sector::DiskArrays.SubDiskArray) = Base.lock(sl, sector.v)
 Base.lock(sl::SectorLocks, sector::Tuple) = Base.lock(sl, CartesianIndices(sector)) 
 Base.lock(sl::SectorLocks, sector::AbstractArray) = Base.lock(sl, CartesianIndices(sector))
 function Base.lock(seclocks::SectorLocks, sector::CartesianIndices)

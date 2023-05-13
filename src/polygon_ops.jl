@@ -46,8 +46,6 @@ x_at_y(e::Edge, y) = (y - e.start[2]) * e.gradient + e.start[1]
 
 
 function can_skip(prevpos::Position, nextpos::Position, xlookup, ylookup)
-    # ignore horizontal edges
-    (prevpos.offset[2] == nextpos.offset[2]) && return true
     # ignore edges between grid lines on y axis
     (nextpos.yind == prevpos.yind) && 
         (prevpos.offset[2] != prevpos.yind) && 
@@ -55,6 +53,8 @@ function can_skip(prevpos::Position, nextpos::Position, xlookup, ylookup)
     # ignore edges outside the grid on the y axis
     (prevpos.offset[2] < 0) && (nextpos.offset[2] < 0) && return true
     (prevpos.offset[2] > lastindex(ylookup)) && (nextpos.offset[2] > lastindex(ylookup)) && return true
+    # ignore horizontal edges
+    (prevpos.offset[2] == nextpos.offset[2]) && return true
     return false
 end
 
@@ -99,7 +99,7 @@ function Edges(
     (; edges, scratch) = _get_alloc(allocs)
 
     # TODO fix bug that requires this to be redefined
-    edges = Vector{Edge}(undef, 0)
+    # edges = Vector{Edge}(undef, 0)
     local edge_count = max_ylen = 0
     if tr isa GI.AbstractCurveTrait
         edge_count, max_ylen = _to_edges!(edges, geom, dims, edge_count)
@@ -127,7 +127,7 @@ Base.axes(edges::Edges) = axes(parent(edges))
 Base.getindex(edges::Edges, I...) = getindex(parent(edges), I...)
 Base.setindex(edges::Edges, x, I...) = setindex!(parent(edges), x, I...)
 
-function _to_edges!(edges, geom, dims, edge_count)
+@noinline function _to_edges!(edges, geom, dims, edge_count)
     GI.npoint(geom) > 0 || return edge_count
     xlookup, ylookup = lookup(dims, (X(), Y())) 
     (length(xlookup) > 0 && length(ylookup) > 0) || return edge_count
@@ -185,7 +185,7 @@ end
 
 function add_edge!(edges, edge, edge_count)
     if edge_count <= lastindex(edges)
-        edges[edge_count] = edge
+        @inbounds edges[edge_count] = edge
     else
         push!(edges, edge)
     end
@@ -357,13 +357,16 @@ function _burn_polygon!(A::AbstractDimArray, edges::Edges, crossings::Vector{Flo
 end
 
 function _set_crossings!(crossings::Vector{Float64}, edges::Edges, iy::Int, prev_ypos::Int)
+    # max_ylen tells us how big the largest y edge is.
+    # We can use this to jump back from the last y position
+    # rather than iterating from the start of the edges
     ypos = max(1, prev_ypos - edges.max_ylen - 1)
     ncrossings = 0
     # We know the maximum size on y, so we can start from ypos 
     start_ypos = searchsortedfirst(edges, ypos)
     prev_ypos = start_ypos
     for i in start_ypos:lastindex(edges)
-        e = edges[i]
+        e = @inbounds edges[i]
         # Edges are sorted on y, so we can skip
         # some at the end once they are larger than iy
         if iy < e.iystart 
@@ -372,13 +375,14 @@ function _set_crossings!(crossings::Vector{Float64}, edges::Edges, iy::Int, prev
         end
         if iy <= e.iystop 
             ncrossings += 1
-            if length(crossings) >= ncrossings
-                crossings[ncrossings] = Rasters.x_at_y(e, iy)
+            if ncrossings <= length(crossings)
+                @inbounds crossings[ncrossings] = Rasters.x_at_y(e, iy)
             else
                 push!(crossings, Rasters.x_at_y(e, iy))
             end
         end
     end
+    # For some reason this is much faster than `partialsort!`
     sort!(view(crossings, 1:ncrossings))
     return ncrossings, prev_ypos
 end
@@ -471,12 +475,13 @@ end
 @noinline function _fill_point!(x::RasterStackOrArray, ::GI.AbstractPointTrait, point;
     fill, atol=nothing, lock=nothing, kw...
 )
-    selectors = map(dims(x, DEFAULT_POINT_ORDER)) do d
+    dims1 = commondims(x, DEFAULT_POINT_ORDER)
+    selectors = map(dims1) do d
         _at_or_contains(d, _dimcoord(d, point), atol)
     end
     # TODO make a check in dimensionaldata that returns the index if it is inbounds
     if hasselection(x, selectors)
-        I = dims2indices(x, selectors)
+        I = dims2indices(dims1, selectors)
         if isnothing(lock)  
             _fill_index!(x, fill, I)
         else
@@ -736,8 +741,13 @@ function _init_bools(to, dims::DimTuple, T::Type, data; collapse::Union{Bool,Not
 end
 
 function _alloc_bools(to, dims::DimTuple, ::Type{Bool}; missingval=false, metadata=NoMetadata(), kw...)
-    # Use a BitArray
-    return Raster(falses(size(dims)), dims; missingval, metadata) # Use a BitArray
+    dims1 = commondims(dims, (X(), Y(), Dim{:geometry}()))
+    if hasdim(dims1, Dim{:geometry}())
+        # Use a BitArray
+        return Raster(falses(size(dims1)), dims1; missingval, metadata) # Use a BitArray
+    else
+        return Raster(zeros(Bool, size(dims1)), dims1; missingval, metadata) # Use a BitArray
+    end
 end
 function _alloc_bools(to, dims::DimTuple, ::Type{T}; missingval=false, metadata=NoMetadata(), kw...) where T
     # Use an `Array`

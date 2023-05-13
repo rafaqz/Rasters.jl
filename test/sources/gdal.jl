@@ -235,9 +235,9 @@ gdalpath = maybedownload(url)
 
         @testset "rasterize round trip" begin
             A = rebuild(read(gdalarray); missingval=0x00)
-            R = rasterize(A[Band(1)]; to=A, fill=:test)
+            R = rasterize(last, A; to=A, fill=:test)
             @test all(A .===  R .=== gdalarray)
-            R = rasterize(A[Band(1)]; to=A, fill=:test)
+            R = rasterize(A; to=A, fill=:test)
             @test all(A .=== R .== gdalarray)
             B = rebuild(read(gdalarray) .= 0x00; missingval=0x00)
             rasterize!(B, read(gdalarray); fill=:test)

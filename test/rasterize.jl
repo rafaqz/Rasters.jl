@@ -406,6 +406,14 @@ end
     # arbitrary choices of which lines are touched for :touches
 end
 
+@testset "Rasterizing with extra dimensions" begin
+    A3 = cat(A1, A1, A1; dims=Band)
+    Rasters.rasterize!(last, A3, polygon; fill=true)
+    @test A3[Band(1)] == A3[Band(2)] == A3[Band(3)]
+    @test sum(A3) == 1200
+end
+
+
 @testset "coverage" begin
     @time covsum = coverage(sum, shphandle.shapes; res=1, scale=10)
     @time covunion = coverage(union, shphandle.shapes; res=1, scale=10)

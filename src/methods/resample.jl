@@ -91,7 +91,7 @@ function resample(x::RasterStackOrArray;
     flags[:r] = method
 
     # Extent
-    if to isa Extents.Extent || isnothing(dims(to))
+    if to isa Extents.Extent || isnothing(to) || isnothing(dims(to))
         to = isnothing(to) || to isa Extents.Extent ? to : GeoInterface.extent(to)
         if !isnothing(to)
             # Get the extent of geometries
