@@ -98,7 +98,7 @@ function Rasterizer(geom, fill, fillitr;
 )
     # A single geometry does not need a reducing function 
     if !GI.isgeometry(geom)
-        isnothing(reduce) && isnothing(op) && !(fill isa Function) && throw(ArgumentError("eidther reduce, op or fill must be a function"))
+        isnothing(reduce) && isnothing(op) && !(fill isa Function) && throw(ArgumentError("either reduce, op or fill must be a function"))
     end
  
     op = _reduce_op(reduce)
