@@ -111,12 +111,6 @@ end
     end
 end
 
-function _balance_grid(nplots)
-    ncols = (nplots - 1) ÷ ceil(Int, sqrt(nplots)) + 1
-    nrows = (nplots - 1) ÷ ncols + 1
-    return ncols, nrows
-end
-
 # We only look at arrays with X, Y, Z dims here.
 # Otherwise they fall back to DimensionalData.jl recipes
 @recipe function f(st::AbstractRasterStack)
@@ -188,61 +182,6 @@ end
     end
 end
 
-# Plots.jl heatmaps pixels are centered.
-# So we should center the index, and use the projected value.
-_prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
-# Convert arrays to a consistent missing value and Forward array order
-function _prepare(A::AbstractRaster)
-    reorder(A, DD.ForwardOrdered) |>
-    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A)))# |>
-end
-
-function _subsample(A, max_res)
-    ssdims = dims(A, (XDim, YDim, ZDim))[1:2]
-    # Aggregate based on the number of pixels
-    s1, s2 = size(A, ssdims[1]), size(A, ssdims[2])
-    ag = floor(Int, max(s1, s2) / max_res) + 1
-    if ag == 1
-        return read(A)
-    else
-        d1 = rebuild(ssdims[1], 1:ag:s1)
-        d2 = rebuild(ssdims[2], 1:ag:s2)
-        # TODO make this actually load lazily.
-        # DiskArrays.jl does not handle StepRange views
-        return view(read(A), d1, d2)
-    end
-end
-
-_maybename(A) = _maybename(name(A))
-_maybename(n::Name{N}) where N = _maybename(N)
-_maybename(n::NoName) = ""
-_maybename(n::Symbol) = string(n)
-_maybename(n::AbstractString) = n
-
-_maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, eltype(A)(NaN))
-_maybe_replace_missing(A) = A
-
-_maybe_shift(d) = _maybe_shift(sampling(d), d)
-_maybe_shift(::Intervals, d) = DD.maybeshiftlocus(Center(), d)
-_maybe_shift(sampling, d) = d
-
-_maybe_mapped(dims::Tuple) = map(_maybe_mapped, dims)
-_maybe_mapped(dim::Dimension) = _maybe_mapped(lookup(dim), dim)
-_maybe_mapped(lookup::LookupArray, dim::Dimension) = dim
-_maybe_mapped(lookup::Projected, dim::Dimension) = _maybe_mapped(mappedcrs(lookup), dim)
-_maybe_mapped(::Nothing, dim::Dimension) = dim
-_maybe_mapped(::GeoFormat, dim::Dimension) = convertlookup(Mapped, dim)
-
-# We don't show the Band label for a single-band raster,
-# it's just not interesting information.
-function DD.refdims_title(refdim::Band; issingle=false)
-    if issingle
-        ""
-    else
-        string(name(refdim), ": ", DD.refdims_title(lookup(refdim), refdim))
-    end
-end
-
 @recipe function f(A::RasterSeries{<:Any,1})
     nplots = length(A)
     if nplots > 16 
@@ -299,61 +238,6 @@ end
     end
 end
 
-# Plots.jl heatmaps pixels are centered.
-# So we should center the index, and use the projected value.
-_prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
-# Convert arrays to a consistent missing value and Forward array order
-function _prepare(A::AbstractRaster)
-    reorder(A, DD.ForwardOrdered) |>
-    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A)))# |>
-end
-
-function _subsample(A, max_res)
-    ssdims = dims(A, (XDim, YDim, ZDim))[1:2]
-    # Aggregate based on the number of pixels
-    s1, s2 = size(A, ssdims[1]), size(A, ssdims[2])
-    ag = floor(Int, max(s1, s2) / max_res) + 1
-    if ag == 1
-        return read(A)
-    else
-        d1 = rebuild(ssdims[1], 1:ag:s1)
-        d2 = rebuild(ssdims[2], 1:ag:s2)
-        # TODO make this actually load lazily.
-        # DiskArrays.jl does not handle StepRange views
-        return view(read(A), d1, d2)
-    end
-end
-
-_maybename(A) = _maybename(name(A))
-_maybename(n::Name{N}) where N = _maybename(N)
-_maybename(n::NoName) = ""
-_maybename(n::Symbol) = string(n)
-_maybename(n::AbstractString) = n
-
-_maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, eltype(A)(NaN))
-_maybe_replace_missing(A) = A
-
-_maybe_shift(d) = _maybe_shift(sampling(d), d)
-_maybe_shift(::Intervals, d) = DD.maybeshiftlocus(Center(), d)
-_maybe_shift(sampling, d) = d
-
-_maybe_mapped(dims::Tuple) = map(_maybe_mapped, dims)
-_maybe_mapped(dim::Dimension) = _maybe_mapped(lookup(dim), dim)
-_maybe_mapped(lookup::LookupArray, dim::Dimension) = dim
-_maybe_mapped(lookup::Projected, dim::Dimension) = _maybe_mapped(mappedcrs(lookup), dim)
-_maybe_mapped(::Nothing, dim::Dimension) = dim
-_maybe_mapped(::GeoFormat, dim::Dimension) = convertlookup(Mapped, dim)
-
-# We don't show the Band label for a single-band raster,
-# it's just not interesting information.
-function DD.refdims_title(refdim::Band; issingle=false)
-    if issingle
-        ""
-    else
-        string(name(refdim), ": ", DD.refdims_title(lookup(refdim), refdim))
-    end
-end
-
 # Makie.jl recipes
 
 # For now, these are just basic conversions from 2D rasters to surface-like (surface, heatmap) plot types.
@@ -371,7 +255,6 @@ function MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 
     end
 end
 
-
 missing_or_float32(num::Number) = Float32(num)
 missing_or_float32(::Missing) = missing
 
@@ -380,7 +263,6 @@ function MakieCore.convert_arguments(PB::MakieCore.PointBased, raw_raster::Abstr
     z = map(Rasters._prepare, dims(raw_raster))
     return MakieCore.convert_arguments(PB, parent(Float32.(replace_missing(missing_or_float32.(raw_raster), missingval = NaN32))), index(z))
 end
-    
 
 function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::AbstractRaster{<: Union{Missing, Real}, 2})
     raster = replace_missing(missing_or_float32.(raw_raster), missingval = NaN32)
@@ -502,4 +384,56 @@ end
 
 function theme_rasters()
     return merge(style_rasters(), color_rasters())
+end
+
+
+# Plots.jl heatmaps pixels are centered.
+# So we should center the index, and use the projected value.
+_prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
+# Convert arrays to a consistent missing value and Forward array order
+function _prepare(A::AbstractRaster)
+    reorder(A, DD.ForwardOrdered) |>
+    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A)))# |>
+end
+
+function _subsample(A, max_res)
+    ssdims = dims(A, (XDim, YDim, ZDim))[1:2]
+    # Aggregate based on the number of pixels
+    s1, s2 = size(A, ssdims[1]), size(A, ssdims[2])
+    ag = floor(Int, max(s1, s2) / max_res) + 1
+    if ag == 1
+        return read(A)
+    else
+        d1 = rebuild(ssdims[1], 1:ag:s1)
+        d2 = rebuild(ssdims[2], 1:ag:s2)
+        # TODO make this actually load lazily.
+        # DiskArrays.jl does not handle StepRange views
+        return view(read(A), d1, d2)
+    end
+end
+
+_maybename(A) = _maybename(name(A))
+_maybename(n::Name{N}) where N = _maybename(N)
+_maybename(n::NoName) = ""
+_maybename(n::Symbol) = string(n)
+_maybename(n::AbstractString) = n
+
+_maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, eltype(A)(NaN))
+_maybe_replace_missing(A) = A
+
+_maybe_shift(d) = _maybe_shift(sampling(d), d)
+_maybe_shift(::Intervals, d) = DD.maybeshiftlocus(Center(), d)
+_maybe_shift(sampling, d) = d
+
+_maybe_mapped(dims::Tuple) = map(_maybe_mapped, dims)
+_maybe_mapped(dim::Dimension) = _maybe_mapped(lookup(dim), dim)
+_maybe_mapped(lookup::LookupArray, dim::Dimension) = dim
+_maybe_mapped(lookup::Projected, dim::Dimension) = _maybe_mapped(mappedcrs(lookup), dim)
+_maybe_mapped(::Nothing, dim::Dimension) = dim
+_maybe_mapped(::GeoFormat, dim::Dimension) = convertlookup(Mapped, dim)
+
+function _balance_grid(nplots)
+    ncols = (nplots - 1) ÷ ceil(Int, sqrt(nplots)) + 1
+    nrows = (nplots - 1) ÷ ncols + 1
+    return ncols, nrows
 end
