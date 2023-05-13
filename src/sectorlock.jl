@@ -30,8 +30,13 @@ Base.eachindex(sl::SectorLocks) = 1:length(sl)
 
 Base.lock(sl::SectorLocks, sector::RasterStack) = Base.lock(sl, first(sector))
 function Base.lock(sl::SectorLocks, A::Raster)
-    slice = first(eachslice(A; dims=otherdims(A, DEFAULT_POINT_ORDER)))
-    Base.lock(sl, parent(slice))
+    o = otherdims(A, DEFAULT_POINT_ORDER)
+    if length(o) > 0
+        slice = first(eachslice(A; dims=o))
+        return Base.lock(sl, parent(slice))
+    else
+        return Base.lock(sl, parent(A))
+    end
 end
 # Base.lock(sl::SectorLocks, sector::SubArray) = Base.lock(sl, CartesianIndices(_unitranges(sector.indices...))) 
 # Base.lock(sl::SectorLocks, sector::DiskArrays.SubDiskArray) = Base.lock(sl, sector.v)

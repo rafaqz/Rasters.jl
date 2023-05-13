@@ -293,16 +293,18 @@ end
 function boolmask!(dest::AbstractRaster, src::AbstractRaster;
     missingval=_missingval_or_missing(src)
 )
-    broadcast!(a -> !isequal(a, missingval), dest, src)
+    broadcast!(dest, src) do a
+        !isequal(a, missingval)
+    end
 end
-function boolmask!(dest::AbstractRaster, geoms; 
+function boolmask!(dest::AbstractRaster, geoms;
     allocs=nothing, lock=nothing, progress=true, threaded=true, kw...
 )
     if isnothing(allocs)
         allocs = _burning_allocs(dest; threaded)
     end
     if hasdim(dest, :geometry)
-        range = _geomindices(geoms) 
+        range = _geomindices(geoms)
         _run(range, threaded, progress, "Burning each geometry to a BitArray slice...") do i
             geom = _getgeom(geoms, i)
             ismissing(geom) && return nothing

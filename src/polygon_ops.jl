@@ -72,10 +72,11 @@ function Allocs(buffer)
 end
 
 function _burning_allocs(x; nthreads=_nthreads(), threaded=true, kw...) 
+    dims = commondims(x, DEFAULT_POINT_ORDER)
     if threaded
-        [Allocs(_init_bools(x; metadata=Metadata())) for _ in 1:nthreads]
+        [Allocs(_init_bools(dims; metadata=Metadata())) for _ in 1:nthreads]
     else
-        Allocs(_init_bools(x; metadata=Metadata()))
+        Allocs(_init_bools(dims; metadata=Metadata()))
     end
 end
 
@@ -741,12 +742,11 @@ function _init_bools(to, dims::DimTuple, T::Type, data; collapse::Union{Bool,Not
 end
 
 function _alloc_bools(to, dims::DimTuple, ::Type{Bool}; missingval=false, metadata=NoMetadata(), kw...)
-    dims1 = commondims(dims, (X(), Y(), Dim{:geometry}()))
-    if hasdim(dims1, Dim{:geometry}())
+    if length(dims) > 2
         # Use a BitArray
-        return Raster(falses(size(dims1)), dims1; missingval, metadata) # Use a BitArray
+        return Raster(falses(size(dims)), dims; missingval, metadata) # Use a BitArray
     else
-        return Raster(zeros(Bool, size(dims1)), dims1; missingval, metadata) # Use a BitArray
+        return Raster(zeros(Bool, size(dims)), dims; missingval, metadata) # Use a BitArray
     end
 end
 function _alloc_bools(to, dims::DimTuple, ::Type{T}; missingval=false, metadata=NoMetadata(), kw...) where T

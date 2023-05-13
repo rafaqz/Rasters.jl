@@ -552,7 +552,7 @@ function _rasterize!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer; a
         V = view(A, Touches(ext))
         length(V) > 0 || return false
 
-        bools = _init_bools(V; metadata=metadata(A))
+        bools = _init_bools(commondims(V, DEFAULT_POINT_ORDER), Bool; metadata=metadata(A))
         boolmask!(bools, geom; allocs, lock, shape, boundary, verbose, progress)
         hasburned = any(bools)
         if hasburned
