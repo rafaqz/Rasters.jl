@@ -44,7 +44,7 @@ c = Raster(rand(RGB, Y(-20.0:1.0:20.0), X(0.0:4.0:360.0)))
 plot(c)
 
 # Series
-plot(RasterSeries([ga2, ga2], Z))
+plot(RasterSeries([ga2, ga2, ga2], Z))
 plot(RasterSeries([ga2 for _ in 1:100], Ti([DateTime(i) for i in 2001:2100])))
 
 xs = 0.0:4.0:360.0

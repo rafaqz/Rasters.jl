@@ -120,12 +120,7 @@ end
     end
     nplots = length(keys(st))
     if nplots > 1
-        ncols, nrows = _balance_grid(nplots)
-        :layout --> (ncols, nrows)
-        # colorbar := false
-        max_res = get(plotattributes, :max_res, 1000/(max(nrows, ncols)))
 
-        l = DD.layers(st)
         if haskey(plotattributes, :layout)
             first = true
             i = 1
@@ -146,6 +141,9 @@ end
                 first = false
             end
         else
+            ncols, nrows = _balance_grid(nplots)
+            :layout --> (ncols, nrows)
+            rasters = values(st)
             for r in 1:nrows, c in 1:ncols
                 i = (r + (c - 1) * nrows)
                 @series begin
@@ -159,11 +157,11 @@ end
                         :yguide := ""
                     end
                     if i <= nplots
-                        A = l[i]
+                        A = rasters[i]
                         title := string(keys(st)[i])
                         if length(dims(A, (XDim, YDim))) > 0
                             # Get a view of the first slice of the X/Y dimension
-                            RasterPlot(), _prepare(_subsample(A, max_res))
+                            rasters[i]
                         else
                             framestyle := :none
                             legend := :none
