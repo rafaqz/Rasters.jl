@@ -293,7 +293,7 @@ end
 function boolmask!(dest::AbstractRaster, src::AbstractRaster;
     missingval=_missingval_or_missing(src)
 )
-    broadcast!(dest, src) do a
+    broadcast_dims!(dest, src) do a
         !isequal(a, missingval)
     end
 end
@@ -367,7 +367,9 @@ end
 function missingmask!(dest::AbstractRaster, src::AbstractRaster;
     missingval=_missingval_or_missing(src)
 )
-    broadcast!(x -> isequal(x, missingval) ? missing : true, dest, src)
+    broadcast_dims!(dest, src) do x
+        isequal(x, missingval) ? missing : true
+    end
 end
 function missingmask!(dest::AbstractRaster, geom; kw...)
     B = boolmask!(dest, geom; kw...)

@@ -237,10 +237,10 @@ gdalpath = maybedownload(url)
             A = rebuild(read(gdalarray); missingval=0x00)
             R = rasterize(last, A; to=A, fill=:test)
             @test all(A .===  R .=== gdalarray)
-            R = rasterize(A; to=A, fill=:test)
+            R = rasterize(last, A; to=A, fill=:test)
             @test all(A .=== R .== gdalarray)
             B = rebuild(read(gdalarray) .= 0x00; missingval=0x00)
-            rasterize!(B, read(gdalarray); fill=:test)
+            rasterize!(last, B, read(gdalarray); fill=:test)
             @test all(B .=== gdalarray |> collect)
         end
 

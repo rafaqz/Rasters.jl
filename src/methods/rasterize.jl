@@ -532,16 +532,15 @@ function rasterize!(x::RasterStackOrArray, data; threaded=true, kw...)
     allocs = r.shape == :points ? nothing : _burning_allocs(dims(x); threaded)
     return _rasterize!(x, r; allocs)
 end
-
-function _rasterize!(x::RasterStackOrArray, r::Rasterizer; allocs=nothing)
+function _rasterize!(A::RasterStackOrArray, r::Rasterizer; allocs=nothing)
+    A1 = _prepare_for_burning(A)
     if r.shape == points
-        _rasterize_points!(x, r; allocs)
+        _rasterize_points!(A1, r; allocs)
     else
-        _rasterize!(x, GI.trait(r.geom), r.geom, r.fillitr, r; allocs)
+        _rasterize!(A1, GI.trait(r.geom), r.geom, r.fillitr, r; allocs)
     end
-    return x
+    return A
 end
-
 # Single geometry to rasterize
 function _rasterize!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer; allocs=nothing)
     (; op, init, missingval, lock, shape, boundary, verbose, progress) = r
@@ -574,14 +573,12 @@ function _rasterize!(A, trait::GI.AbstractPointTrait, point, fill, r::Rasterizer
     return hasburned
 end
 function _rasterize!(A, trait::Nothing, geoms, fill, r::Rasterizer; allocs=nothing)
-    t1 = GI.trait(first(skipmissing(geoms)))
     if r.shape === :point
-        return _rasterize_points!(A, trait, geoms, fill, r)
+        return _rasterize_points!(A, geoms, fill, r)
     else
         (; reduce, op, fillitr) = r
-        A1 = _prepare_for_burning(A)
         # Everything else is rasterized as line or polygon geometries
-        return _rasterize_iterable!(A1, geoms, reduce, op, fillitr, r, allocs)
+        return _rasterize_iterable!(A, geoms, reduce, op, fillitr, r, allocs)
     end
 end
 
@@ -609,8 +606,9 @@ end
 # Fast point rasterization
 #
 # geoms is a iterator of points
-_rasterize_points!(A, r::Rasterizer) =
-    _rasterize_points!(A, GI.trait(r.geom), r.geom, r.fillitr, r)
+_rasterize_points!(A, r::Rasterizer) = _rasterize_points!(A, r.geom, r.fillitr, r)
+_rasterize_points!(A, geom, fillitr, r::Rasterizer) =
+    _rasterize_points!(A, GI.trait(geom), geom, fillitr, r)
 function _rasterize_points!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer)
     points = GI.getpoint(geom)
     fill1 =_iterable_fill(points, fill)
