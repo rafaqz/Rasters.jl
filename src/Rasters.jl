@@ -139,11 +139,13 @@ include("sources/rasterdatasources.jl")
 
 # extensions
 
-# Makie.jl integration
-
 function __init__()
     @static if !isdefined(Base, :get_extension)
+        @require ArchGDAL = "" include("../ext/RastersArchGDALExt.jl")
+        @require CoordinateTransformations = "" include("../ext/RastersCoordinateTransformationsExt.jl")
         @require Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" include("../ext/RastersMakie.jl")
+        @require NCDatasets = "" include("../ext/RastersNCDatasetsExt.jl")
+        @require RasterDataSources = "" include("../ext/RastersRasterDataSources.jl")
     end
 end
 
