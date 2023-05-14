@@ -112,15 +112,13 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; kw
         f(skipmissing(A))
     end
 end
-function _zonal(f, x::RasterStackOrArray, ::Nothing, geoms; progress=true, kw...)
+function _zonal(f, x::RasterStackOrArray, ::Nothing, geoms; progress=true, threaded=true, kw...)
     range = _geomindices(geoms)
     n = length(range)
     n == 0 && return []
     zs = _alloc_zonal(f, x, first(geoms), n; kw...)
-    p = progress ? _progress(length(range); desc="Applying $f to each geometry...") : nothing
-    Threads.@threads for i in range
+    _run(range, threaded, progress, "Applying $f to each geometry...") do i
         zs[i] = _zonal(f, x, _getgeom(geoms, i); kw...)
-        progress && ProgressMeter.next!(p)
     end
     return zs
 end

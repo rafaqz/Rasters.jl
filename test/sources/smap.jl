@@ -164,9 +164,7 @@ if isfile(path1) && isfile(path2)
                 gdalarray = Raster(gdalfilename; mappedcrs=EPSG(4326))
                 # These come out with slightly different format
                 # @test convert(ProjString, crs(gdalarray)) == crs(smaparray)
-                @test all(map((a, b) -> all(a .≈ b), 
-                              mappedbounds(dims(gdalarray))
-                              , (bounds(smaparray)..., (1, 1))))
+                @test all(map((a, b) -> all(a .≈ b), mappedbounds(dims(gdalarray)) , bounds(smaparray)))
                 # Tiff locus = Start, SMAP locus = Center
                 @test mappedindex(DimensionalData.shiftlocus(Center(), dims(gdalarray, Y))) ≈ index(smaparray, Y)
                 @test mappedindex(DimensionalData.shiftlocus(Center(), dims(gdalarray, X))) ≈ index(smaparray, X)

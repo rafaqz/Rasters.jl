@@ -41,21 +41,20 @@ $TO_KEYWORD
 $SIZE_KEYWORD
 $RES_KEYWORD
 """
-coverage(data; to=nothing, mode=union, scale=10, res=nothing, size=nothing, verbose=true, progress=true) = 
-    _coverage(to, data; mode, scale, res, size, verbose, progress)
+coverage(data; to=nothing, mode=union, scale=10, kw...) = _coverage(to, data; mode, scale, kw...)
 coverage(f::Union{typeof(sum),typeof(union)}, data; kw...) = coverage(data; kw..., mode=f)
 
-_coverage(to::Extents.Extent, data; res=nothing, size=nothing, kw...) =
-    _coverage(_extent2dims(to; res, size, kw...), data; kw...)
-_coverage(to::Nothing, data; kw...) = _coverage(_extent(data), data; kw...)
-function _coverage(to, data; mode, res=nothing, size=nothing, kw...)
+function _coverage(to, data; mode, scale, kw...)
     name = if GI.isgeometry(data) || GI.isfeature(data)
         Symbol(:coverage)
     else
         Symbol(:coverage_, mode)
     end
-    dest = _create_rasterize_dest(dims(to); fill=0.0, init=0.0, name, missingval=0.0, kw...) do A
-        coverage!(A, data; mode, kw...)
+    # We use sum for `reducer` so eltype inference works
+    r = Rasterizer(data; reducer=sum, fill=0.0, init=0.0, missingval=0.0, kw...)
+    rc = RasterCreator(to, data; kw..., eltype=r.eltype, fill, name, missingval=r.missingval)
+    dest = create_rasterize_dest(rc) do A
+        _coverage!(A, r; mode, scale)
     end
     return dest
 end
@@ -71,45 +70,53 @@ $COVERAGE_KEYWORDS
 """
 coverage!(mode::Union{typeof(union),typeof(sum)}, A::AbstractRaster, data; kw...) =
     _coverage!(A, GI.trait(data), data; kw..., mode)
-coverage!(A::AbstractRaster, data; scale::Integer=10, mode=union, verbose=true, progress=true) = 
-    _coverage!(A, GI.trait(data), data; scale, mode, verbose, progress)
-
-_coverage!(A::AbstractRaster, ::GI.FeatureTrait, feature; kw...) =
-    _coverage!(A, GI.geometry(feature); kw...)
-_coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom; mode, kw...) =
-    _sum_coverage!(A, geom; kw...)
+function coverage!(A::AbstractRaster, data; scale::Integer=10, mode=union, kw...)
+    # We use sum for `reducer` so eltype inference works
+    r = Rasterizer(data; reducer=sum, fill=0.0, init=0.0, missingval=0.0, kw...)
+    coverage!(A, r; scale, mode) 
+end
 # Collect iterators so threading is easier.
-function _coverage!(A::AbstractRaster, ::Union{Nothing,GI.FeatureCollectionTrait}, geoms; 
-    mode, scale, verbose, progress
-)
-    n = _nthreads()
-    buffers = (
-        allocs = _burning_allocs(A),
-        linebuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
-        centerbuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
-        block_crossings = [[Vector{Float64}(undef, 0) for _ in 1:scale] for _ in 1:n],
-        burnstatus=[fill(INIT_BURNSTATUS, scale) for _ in 1:n],
-        subbuffer = [fill!(Array{Bool}(undef, scale, scale), false) for _ in 1:n],
-        ncrossings = [fill(0, scale) for _ in 1:n],
-    )
-    if Tables.istable(geoms)
-        geoms = Tables.getcolumn(geoms, first(GI.geometrycolumns(geoms)))
-    end
+function _coverage!(A::AbstractRaster, r::Rasterizer; scale::Integer=10, mode=union)  
+    _coverage!(A, GI.trait(r.geom), r.geom, r; scale, mode)
+end
+function _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom, r; scale, mode)
     subpixel_dims = _subpixel_dims(A, scale)
     missed_pixels = if mode === union
-        _union_coverage!(A, geoms, buffers; scale, subpixel_dims, progress)
+        _union_coverage!(A, geom; scale, subpixel_dims, progress=r.progress)
     elseif mode === sum
-        _sum_coverage!(A, geoms, buffers; scale, subpixel_dims, progress)
+        _sum_coverage!(A, geoms; scale, subpixel_dims, progress=r.progress)
     else
         throw(ArgumentError("Coverage `mode` can be `union` or `sum`. Got $mode"))
     end
-    verbose && _check_missed_pixels(missed_pixels, scale)
+    r.verbose && _check_missed_pixels(missed_pixels, scale)
+    return A
+end
+function _coverage!(A::AbstractRaster, ::Nothing, geoms, r::Rasterizer; mode, scale)
+    n = _nthreads()
+    buffers = (
+        allocs = _burning_allocs(A; threaded=r.threaded),
+        linebuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
+        centerbuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
+        block_crossings = [[Vector{Float64}(undef, 0) for _ in 1:scale] for _ in 1:n],
+        burnstatus=[fill(BurnStatus(), scale) for _ in 1:n],
+        subbuffer = [fill!(Array{Bool}(undef, scale, scale), false) for _ in 1:n],
+        ncrossings = [fill(0, scale) for _ in 1:n],
+    )
+    subpixel_dims = _subpixel_dims(A, scale)
+    missed_pixels = if mode === union
+        _union_coverage!(A, geoms, buffers; scale, subpixel_dims, progress=r.progress, threaded=r.threaded)
+    elseif mode === sum
+        _sum_coverage!(A, geoms, buffers; scale, subpixel_dims, progress=r.progress, threaded=r.threaded)
+    else
+        throw(ArgumentError("Coverage `mode` can be `union` or `sum`. Got $mode"))
+    end
+    r.verbose && _check_missed_pixels(missed_pixels, scale)
     return A
 end
 
 # Combines coverage at the sub-pixel level for a final value 0-1
 function _union_coverage!(A::AbstractRaster, geoms, buffers; 
-    scale, subpixel_dims, progress=true
+    scale, subpixel_dims, progress=true, threaded=true
 )
     n = _nthreads()
     centeracc = [_init_bools(A, Bool; missingval=false) for _ in 1:n]
@@ -118,16 +125,14 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
 
     allbuffers = merge(buffers, (; centeracc, lineacc, subpixel_buffer))
 
-    p = progress ? _progress(length(geoms) + size(A, Y()); desc="Calculating union coverage...") : nothing
-
-    Threads.@threads for i in _geomindices(geoms)
+    range = _geomindices(geoms)
+    _run(range, threaded, progress, "Calculating coverage buffers...") do i
         geom = _getgeom(geoms, i)
         idx = Threads.threadid()
         thread_buffers = map(b -> b[idx], allbuffers)
         _union_coverage!(A, geom; scale, subpixel_buffer, thread_buffers...)
         fill!(thread_buffers.linebuffer, false)
         fill!(thread_buffers.centerbuffer, false) # Is this necessary?
-        progress && ProgressMeter.next!(p)
     end
     # Merge downscaled BitArray (with a function barrier)
     subpixel_union = _do_broadcast!(|, subpixel_buffer[1], subpixel_buffer...)
@@ -137,7 +142,8 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
     line_covered = _do_broadcast!(|, lineacc[1], lineacc...)
 
     missed_pixels = fill(0, n)
-    Threads.@threads for y in axes(A, Y())
+    range = axes(A, Y())
+    _run(range, threaded, progress, "Combining coverage...") do y
         for x in axes(A, X())
             D = (X(x), Y(y))
             if center_covered[D...]
@@ -159,7 +165,6 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
                 A[D...] = pixel_coverage
             end
         end
-        progress && ProgressMeter.next!(p)
     end
     return sum(missed_pixels)
 end
@@ -171,7 +176,7 @@ function _union_coverage!(A::AbstractRaster, geom;
     subpixel_buffer=falses(size(A) .* scale),
     centeracc=_init_bools(A, Bool; missingval=false),
     lineacc=_init_bools(A, Bool; missingval=false),
-    burnstatus=[INIT_BURNSTATUS for _ in 1:scale],
+    burnstatus=[BurnStatus() for _ in 1:scale],
     block_crossings=[Vector{Float64}(undef, 0) for _ in 1:scale],
     subbuffer=falses(scale, scale),
     subpixel_dims=_subpixel_dims(A, scale),
@@ -186,10 +191,7 @@ function _union_coverage!(A::AbstractRaster, geom;
     # We don't just use `boundary=:inside` because we need the line burns separately anyway
     centeracc .|= (centerbuffer .& .!(linebuffer))
     lineacc .|= linebuffer
-    filtered_edges, max_ylen = _to_edges(geom, subpixel_dims; allocs)
-    sort!(filtered_edges)
-    # Brodcast over the rasterizations and indices
-    # to calculate coverage of each pixel
+    edges = Edges(geom, subpixel_dims; allocs)
 
     prev_ypos = 0
     # Loop over y in A
@@ -209,12 +211,12 @@ function _union_coverage!(A::AbstractRaster, geom;
 
         # Generate all of the x crossings beforehand so we don't do it for every pixel
         for (i, sub_y) in enumerate(sub_yaxis)
-            ncrossings[i], prev_ypos = _set_crossings!(block_crossings[i], A, filtered_edges, sub_y, prev_ypos, max_ylen)
+            ncrossings[i], prev_ypos = _set_crossings!(block_crossings[i], edges, sub_y, prev_ypos)
         end
 
         # Reset burn burnstatus
         for i in eachindex(burnstatus)
-            burnstatus[i] = INIT_BURNSTATUS
+            burnstatus[i] = BurnStatus()
         end
         subpixel_raster = Raster(subpixel_buffer, subpixel_dims)
 
@@ -249,17 +251,16 @@ end
 
 # Sums all coverage 
 function _sum_coverage!(A::AbstractRaster, geoms, buffers; 
-    scale, subpixel_dims, verbose=true, progress=true
+    scale, subpixel_dims, verbose=true, progress=true, threaded=true
 )
     n = _nthreads()
     coveragebuffers = [fill!(similar(A), 0.0) for _ in 1:n]
-    p = progress ? _progress(length(geoms); desc="Calculating coverage...") : nothing
     missed_pixels = fill(0, n)
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
-    Threads.@threads for i in range
+    _run(range, threaded, progress, "Calculating coverage...") do i
         geom = _getgeom(geoms, i)
-        ismissing(geom) && continue
+        ismissing(geom) && return nothing
         idx = Threads.threadid()
         thread_buffers = map(b -> b[idx], buffers)
         coveragebuffer = coveragebuffers[idx]
@@ -267,7 +268,7 @@ function _sum_coverage!(A::AbstractRaster, geoms, buffers;
         missed_pixels[idx] += nmissed
         fill!(thread_buffers.linebuffer, false)
         fill!(thread_buffers.centerbuffer, false)
-        progress && ProgressMeter.next!(p)
+        return nothing
     end
     _do_broadcast!(+, A, coveragebuffers...)
     _set_burnchecks(burnchecks, metadata(A), verbose)
@@ -280,7 +281,7 @@ function _sum_coverage!(A::AbstractRaster, geom;
     centerbuffer=_init_bools(A, Bool; missingval=false),
     block_crossings=[Vector{Float64}(undef, 0) for _ in 1:scale],
     subbuffer=falses(scale, scale),
-    burnstatus=[INIT_BURNSTATUS for _ in 1:scale],
+    burnstatus=[BurnStatus() for _ in 1:scale],
     subpixel_dims=_subpixel_dims(A, scale),
     ncrossings=fill(0, scale),
 )
@@ -288,7 +289,7 @@ function _sum_coverage!(A::AbstractRaster, geom;
     crossings = allocs.crossings
     boolmask!(linebuffer, geom; shape=:line, allocs)
     boolmask!(centerbuffer, geom; boundary=:center, allocs)
-    filtered_edges, max_ylen = _to_edges(geom, subpixel_dims; allocs)
+    edges = Edges(geom, subpixel_dims; allocs)
     # Brodcast over the rasterizations and indices
     # to calculate coverage of each pixel
     local missed_pixels = 0
@@ -317,10 +318,10 @@ function _sum_coverage!(A::AbstractRaster, geom;
 
         # Generate all of the x crossings beforehand so we don't do it for every pixel
         for (i, sub_y) in enumerate(sub_yaxis)
-            ncrossings[i], prev_ypos = _set_crossings!(block_crossings[i], A, filtered_edges, sub_y, prev_ypos, max_ylen)
+            ncrossings[i], prev_ypos = _set_crossings!(block_crossings[i], edges, sub_y, prev_ypos)
         end
         # Set the burn/skip status to false (skip) for each starting position
-        burnstatus .= Ref(INIT_BURNSTATUS)
+        burnstatus .= Ref(BurnStatus())
 
         missed_pixels = 0
         # Loop over x in A

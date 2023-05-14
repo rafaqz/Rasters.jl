@@ -184,7 +184,7 @@ end
     nplots = length(A)
     if nplots > 16 
         plotinds = round.(Int, 1:nplots//16:nplots)
-        @info "Too many raster reatmaps: plotting 16 slices from $nplots"
+        @info "Too many raster heatmaps: plotting 16 slices from $nplots"
         A = @views A[plotinds]
         nplots = length(plotinds)
     end
