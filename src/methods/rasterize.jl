@@ -6,9 +6,9 @@ _reduce_op(::typeof(minimum)) = min
 _reduce_op(::typeof(maximum)) = max
 _reduce_op(x) = nothing
 
-_reduce_init(reduce, st::AbstractRasterStack) = map(A -> _reduce_init(reduce, A), st)
-_reduce_init(reduce, ::AbstractRaster{T}) where T = _reduce_init(reduce, T)
-_reduce_init(reduce, nt::NamedTuple) = map(x -> _reduce_init(reduce, x), nt)
+_reduce_init(reducer, st::AbstractRasterStack) = map(A -> _reduce_init(reducer, A), st)
+_reduce_init(reducer, ::AbstractRaster{T}) where T = _reduce_init(reducer, T)
+_reduce_init(reducer, nt::NamedTuple) = map(x -> _reduce_init(reducer, x), nt)
 _reduce_init(f, x) = _reduce_init(f, typeof(x))
 
 _reduce_init(::Nothing, x::Type{T}) where T = zero(T)
@@ -71,7 +71,7 @@ struct Rasterizer{T,G,F,R,O,I,M}
     eltype::T
     geom::G
     fillitr::F
-    reduce::R
+    reducer::R
     op::O
     init::I
     missingval::M
@@ -83,7 +83,7 @@ struct Rasterizer{T,G,F,R,O,I,M}
     threaded::Bool
 end
 function Rasterizer(geom, fill, fillitr;
-    reduce=nothing,
+    reducer=nothing,
     op=nothing,
     missingval=nothing,
     shape=nothing,
@@ -98,10 +98,10 @@ function Rasterizer(geom, fill, fillitr;
 )
     # A single geometry does not need a reducing function 
     if !GI.isgeometry(geom)
-        isnothing(reduce) && isnothing(op) && !(fill isa Function) && throw(ArgumentError("either reduce, op or fill must be a function"))
+        isnothing(reducer) && isnothing(op) && !(fill isa Function) && throw(ArgumentError("either reducer, op or fill must be a function"))
     end
  
-    op = _reduce_op(reduce)
+    op = _reduce_op(reducer)
 
     shape = if isnothing(shape)
         if GI.isgeometry(geom)
@@ -130,17 +130,17 @@ function Rasterizer(geom, fill, fillitr;
     end
 
     stable_reductions = (first, last, sum, prod, maximum, minimum)
-    init = isnothing(init) ? _reduce_init(reduce, filleltype) : init
+    init = isnothing(init) ? _reduce_init(reducer, filleltype) : init
     if shape == :points &&
         !GI.isgeometry(geom) &&
         !GI.trait(first(geom)) isa PointTrait &&
-        !(reduce in stable_reductions)
-        @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be innaccurate for `reduce` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
+        !(reducer in stable_reductions)
+        @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be innaccurate for `reducer` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
     end
-    eltype, missingval = get_eltype_missingval(eltype, missingval, fillitr, init, filename, op, reduce)
+    eltype, missingval = get_eltype_missingval(eltype, missingval, fillitr, init, filename, op, reducer)
     lock = threaded ? SectorLocks() : nothing
 
-    return Rasterizer(eltype, geom, fillitr, reduce, op, init, missingval, lock, shape, boundary, verbose, progress, threaded)
+    return Rasterizer(eltype, geom, fillitr, reducer, op, init, missingval, lock, shape, boundary, verbose, progress, threaded)
 end
 function Rasterizer(data::T; fill, geomcolumn=nothing, kw...) where T
     if Tables.istable(T) # typeof so we dont check iterable table fallback in Tables.jl
@@ -190,24 +190,24 @@ function Rasterizer(::GI.AbstractGeometryTrait, geom; fill, kw...)
     Rasterizer(geom, fill, _iterable_fill(geom, fill); kw...)
 end
 
-function get_eltype_missingval(eltype, missingval, fillitr, init::NamedTuple, filename, op, reduce)
+function get_eltype_missingval(eltype, missingval, fillitr, init::NamedTuple, filename, op, reducer)
     eltype = eltype isa NamedTuple ? eltype : map(_ -> eltype, init)
     missingval = missingval isa NamedTuple ? missingval : map(_ -> missingval, init)
     em = map(eltype, missingval, fillitr, init) do et, mv, fi, i
-        get_eltype_missingval(et, mv, fi, i, filename, op, reduce)
+        get_eltype_missingval(et, mv, fi, i, filename, op, reducer)
     end
     eltype = map(first, em)
     missingval = map(last, em)
     return eltype, missingval
 end
-function get_eltype_missingval(known_eltype, missingval, fillitr, init, filename, op, reduce)
+function get_eltype_missingval(known_eltype, missingval, fillitr, init, filename, op, reducer)
     eltype = if isnothing(known_eltype)
         if fillitr isa Function
             typeof(fillitr(init))
         elseif op isa Function
             typeof(op(init, init))
-        elseif reduce isa Function
-            typeof(reduce((init, init)))
+        elseif reducer isa Function
+            typeof(reducer((init, init)))
         else
             typeof(init)
         end
@@ -302,16 +302,29 @@ _getfill(itr::AbstractArray, i::Int) = itr[i]
 _getfill(itr::Iterators.Cycle, i::Int) = first(itr)
 _getfill(itr, i) = itr
 
+
+const RASTERIZE_KEYWORDS = """
+- `fill`: the value or values to fill a polygon with. A `Symbol` or tuple of `Symbol` will
+    be used to retrieve properties from features or column values from table rows. An array
+    or other iterable will be used for each geometry, in order. `fill` can also be a function of 
+    the current value, e.g. `x -> x + 1`.
+- `op`: A reducing function that accepts two values and returns one, like `min` to `minimum`.
+    For common methods this will be assigned for you, or is not required. But you can use it
+    instead of a `reducer` as it will usually be faster.
+- `shape`: force `data` to be treated as `:polygon`, `:line` or `:point`, where possible
+    Points can't be treated as lines or polygons, and lines may not work as polygons, but
+    an attempt will be made.
+- `geometrycolumn`: `Symbol` to manually select the column the geometries are in
+    when `data` is a Tables.jl compatible table, or a tuple of `Symbol` for columns of
+    point coordinates.
+- `progress`: show a progress bar, `true` by default, `false` to hide..
+- `verbose`: print information and warnings whne there are problems with the rasterisation.
+    `true` by default.
+- `threaded`: run operations in parallel. `true` by default.
 """
-    rasterize([reduce], data; to, fill, kw...)
 
-Rasterize a GeoInterface.jl compatable geometry or feature,
-or a Tables.jl table with a `:geometry` column of GeoInterface.jl objects,
-or `X`, `Y` points columns.
-
-# Arguments
-
-- `reduce`: a reducing function to reduce the fill value for all geometries that
+const RASTERIZE_ARGUMENTS = """
+- `reducer`: a reducing function to reduce the fill value for all geometries that
     cover or touch a pixel down to a single value. The default is `last`.
     Any  that takes an iterable and returns a single value will work, including
     custom functions. However, there are optimisations for built-in methods
@@ -320,21 +333,28 @@ or `X`, `Y` points columns.
     `count` is a special-cased as it does not need a fill value.
 - `data`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
     or a Tables.jl compatible object containing a `:geometry` column or points and values columns.
+"""
+
+"""
+    rasterize([reducer], data; kw...)
+
+Rasterize a GeoInterface.jl compatable geometry or feature,
+or a Tables.jl table with a `:geometry` column of GeoInterface.jl objects,
+or `X`, `Y` points columns.
+
+# Arguments
+
+$RASTERIZE_ARGUMENTS
 
 # Keywords
 
 These are detected automatically from `data` where possible.
 
 $GEOM_KEYWORDS
-- `fill`: the value or values to fill a polygon with. A `Symbol` or tuple of `Symbol` will
-    be used to retrieve properties from features or column values from table rows. An array
-    or other iterable will be used for each geometry, in order.
+$RASTERIZE_KEYWORDS
 - `filename`: a filename to write to directly, useful for large files.
 - `suffix`: a string or value to append to the filename.
     A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
-- `progress`: show a progress bar, `true` by default, `false` to hide..
-- `geometrycolumn`: `Symbol` to manually select the column the geometries are in,
-    or a tuple of `Symbol` for columns of point coordsates.
 
 # Example
 
@@ -370,8 +390,8 @@ savefig("build/china_rasterized.png"); nothing
 $EXPERIMENTAL
 """
 function rasterize end
-function rasterize(reduce::Function, data; kw...)
-    rasterize(data; reduce, name=Symbol(string(reduce)), kw...)
+function rasterize(reducer::Function, data; kw...)
+    rasterize(data; reducer, name=Symbol(string(reducer)), kw...)
 end
 
 _count_init_info(init) = @info "`rasterize` with `count` does not use the `init` keyword, $init ignored"
@@ -381,14 +401,14 @@ _count_fill(x) = x + 1
 # Catch some functions early
 
 # count is faster with an incrementing function as `fill`
-function rasterize(reduce::typeof(count), data; fill=nothing, init=nothing, kw...)
+function rasterize(reducer::typeof(count), data; fill=nothing, init=nothing, kw...)
     isnothing(init) || _count_init_info(init)
     isnothing(fill) || _count_fill_info(fill)
-    rasterize(data; kw..., name=:count, init=0, reduce=nothing, fill=_count_fill, missingval=0)
+    rasterize(data; kw..., name=:count, init=0, reducer=nothing, fill=_count_fill, missingval=0)
 end
 # `mean` is sum / count
 # We can do better than this, but its easy for now
-function rasterize(reduce::typeof(DD.Statistics.mean), data; fill, kw...)
+function rasterize(reducer::typeof(DD.Statistics.mean), data; fill, kw...)
     sums = rasterize(sum, data; kw..., fill)
     counts = rasterize(count, data; kw..., fill=nothing)
     rebuild(sums ./ counts; name=:mean)
@@ -452,7 +472,7 @@ function alloc_rasterize(f, r::RasterCreator;
 end
 
 """
-    rasterize!(dest, data; fill)
+    rasterize!([reducer], dest, data; kw...)
 
 Rasterize the geometries in `data` into the [`Raster`](@ref) or [`RasterStack`](@ref) `dest`,
 using the values specified by `fill`.
@@ -460,25 +480,14 @@ using the values specified by `fill`.
 # Arguments
 
 - `dest`: a `Raster` or `RasterStack` to rasterize into.
-- `data`: a GeoInterface.jl compatible object or an `AbstractVector` of such objects,
-    or a Tables.jl compatible table containing `:geometry` column of GeoInterface compatible objects or
-    columns with point names `X` and `Y`.
-- `fill`: the value to fill a polygon with. A `Symbol` or tuple of `Symbol` will
-    be used to retrieve properties from features or column values from table rows.
+$RASTERIZE_ARGUMENTS
 
 # Keywords
 
 These are detected automatically from `A` and `data` where possible.
 
+$RASTERIZE_KEYWORDS
 $GEOM_KEYWORDS
-- `shape`: force `data` to be treated as `:polygon`, `:line` or `:point`, where possible
-    Points can't be treated as lines or polygons, and lines may not work as polygons, but
-    an attempt will be made.
-
-And specifically for `shape=:polygon`:
-
-- `boundary`: include pixels where the `:center` is inside the polygon, where
-    the polygon `:touches` the pixel, or that are completely `:inside` the polygon.
 
 # Example
 
@@ -520,12 +529,12 @@ savefig("build/indonesia_rasterized.png"); nothing
 $EXPERIMENTAL
 """
 function rasterize! end
-rasterize!(reduce::Function, x::RasterStackOrArray, data; kw...) =
-    rasterize!(x::RasterStackOrArray, data; reduce, kw...)
-function rasterize!(reduce::typeof(count), x::RasterStackOrArray, data; fill=nothing, init=nothing, kw...)
+rasterize!(reducer::Function, x::RasterStackOrArray, data; kw...) =
+    rasterize!(x::RasterStackOrArray, data; reducer, kw...)
+function rasterize!(reducer::typeof(count), x::RasterStackOrArray, data; fill=nothing, init=nothing, kw...)
     isnothing(fill) || @info _count_fill_info(fill)
     isnothing(init) || @info _count_init_info(init)
-    rasterize!(x::RasterStackOrArray, data; kw..., reduce=nothing, op=nothing, fill=_count_fill, init=0)
+    rasterize!(x::RasterStackOrArray, data; kw..., reducer=nothing, op=nothing, fill=_count_fill, init=0)
 end
 function rasterize!(x::RasterStackOrArray, data; threaded=true, kw...)
     r = Rasterizer(data; eltype=eltype(x), threaded, kw...)
@@ -576,17 +585,17 @@ function _rasterize!(A, trait::Nothing, geoms, fill, r::Rasterizer; allocs=nothi
     if r.shape === :point
         return _rasterize_points!(A, geoms, fill, r)
     else
-        (; reduce, op, fillitr) = r
+        (; reducer, op, fillitr) = r
         # Everything else is rasterized as line or polygon geometries
-        return _rasterize_iterable!(A, geoms, reduce, op, fillitr, r, allocs)
+        return _rasterize_iterable!(A, geoms, reducer, op, fillitr, r, allocs)
     end
 end
 
 # We rasterize all iterables from here
-function _rasterize_iterable!(A, geoms, reduce, op, fillitr, r::Rasterizer, allocs)
+function _rasterize_iterable!(A, geoms, reducer, op, fillitr, r::Rasterizer, allocs)
     # reduce 
     if isnothing(op) && !(fillitr isa Function)
-        return _reduce_bitarray!(reduce, A, geoms, fillitr, r, allocs)
+        return _reduce_bitarray!(reducer, A, geoms, fillitr, r, allocs)
     end
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
@@ -615,7 +624,7 @@ function _rasterize_points!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Raster
     _rasterize_points!(A, nothing, points, fill1, r)
 end
 function _rasterize_points!(A, ::Nothing, geoms, fillitr, r::Rasterizer)
-    (; reduce, op, missingval, init) = r
+    (; reducer, op, missingval, init) = r
     t1 = GI.trait(first(skipmissing(geoms)))
     hasburned = false
     if !(t1 isa GI.PointTrait)
@@ -646,10 +655,10 @@ function _rasterize_points!(A, ::Nothing, geoms, fillitr, r::Rasterizer)
     xsize = size(A, X)
     ysize = size(A, Y)
     s = (; ext, xrange, yrange, xsize, ysize)
-    _rasterize_points_inner!(A, geoms, fillitr, s, reduce, op, missingval, init)
+    _rasterize_points_inner!(A, geoms, fillitr, s, reducer, op, missingval, init)
 end
 
-@noinline function _rasterize_points_inner!(A, geoms, fillitr::F, s, reduce::R, op::O, missingval, init)::Bool where {F,O,R}
+@noinline function _rasterize_points_inner!(A, geoms, fillitr::F, s, reducer::R, op::O, missingval, init)::Bool where {F,O,R}
     function xy(p) 
         # TODO handle reversed lookups
         x = round(Int, (GI.x(p) - s.ext.X[1]) / s.xrange * s.xsize) + 1
@@ -657,7 +666,7 @@ end
         (x, y)
     end
 
-    op = reduce == last ? _take_last : op
+    op = reducer == last ? _take_last : op
     if fillitr isa Function
         # We don't need to iterate fill
         points = Iterators.map(xy, geoms)
@@ -675,7 +684,7 @@ end
         points_fill = map(geoms, _maybe_namedtuple_itr(fillitr)) do p, f
             (xy(p), f)
         end
-        return rasterize_points_reduce!(reduce, A, points_fill, missingval, init)
+        return rasterize_points_reduce!(reducer, A, points_fill, missingval, init)
     end
 end
 
@@ -735,7 +744,7 @@ end
 
 type_length(tup::Type{T}) where {T<:Union{Tuple,NamedTuple}} = length(tup.types)
 
-@noinline function rasterize_points_reduce!(reduce, A, points_fill, missingval, init)
+@noinline function rasterize_points_reduce!(reducer, A, points_fill, missingval, init)
     hasburned = false
     # Convert all points to Int
     sort!(points_fill; by=first, alg=Base.Sort.DEFAULT_STABLE)
@@ -748,7 +757,7 @@ type_length(tup::Type{T}) where {T<:Union{Tuple,NamedTuple}} = length(tup.types)
         else
             I = dims2indices(A, (X(prevpoint[1]), Y(prevpoint[2])))
             _checkbounds(A, I...) || continue
-            startind = _fill_reduce!(reduce, A, I, points_fill, startind, n, missingval)
+            startind = _fill_reduce!(reducer, A, I, points_fill, startind, n, missingval)
         end
         prevpoint = point # Update the previous point to the current
         hasburned = true # Mark that we have written at least one index
@@ -756,29 +765,29 @@ type_length(tup::Type{T}) where {T<:Union{Tuple,NamedTuple}} = length(tup.types)
     # Fill the last points
     I = dims2indices(A, (X(prevpoint[1]), Y(prevpoint[2])))
     n = lastindex(points_fill) + 1
-    _checkbounds(A, I...) && _fill_reduce!(reduce, A, I, points_fill, startind, n, missingval)
+    _checkbounds(A, I...) && _fill_reduce!(reducer, A, I, points_fill, startind, n, missingval)
     return hasburned
 end
 
 # This will not be correct for multiple geometries
-function _fill_reduce!(reduce, A, I, pf, startind, i, missingval)
+function _fill_reduce!(reducer, A, I, pf, startind, i, missingval)
     @inbounds a = A[I...]
-    v = _get_fill(reduce, pf[1][2], pf, startind:i - 1)
-    x = _reduce_existing(reduce, a, v, missingval)
+    v = _get_fill(reducer, pf[1][2], pf, startind:i - 1)
+    x = _reduce_existing(reducer, a, v, missingval)
     @inbounds A[I...] = x
     return i
 end
 
-_get_fill(reduce, ::NamedTuple{K}, pf, range) where K = NamedTuple{K}(map(k -> reduce(pf[n][2][k] for n in range), K))
-_get_fill(reduce, ::Any, pf, range) = reduce(pf[n][2] for n in range)
+_get_fill(reducer, ::NamedTuple{K}, pf, range) where K = NamedTuple{K}(map(k -> reducer(pf[n][2][k] for n in range), K))
+_get_fill(reducer, ::Any, pf, range) = reducer(pf[n][2] for n in range)
 
-_reduce_existing(reduce, as::NamedTuple, vs::NamedTuple, missingvals::NamedTuple) =
-    map((a, v, m) -> _reduce_existing(reduce, a, v, m), as, vs, missingvals)
-function _reduce_existing(reduce, a, v, missingval)
+_reduce_existing(reducer, as::NamedTuple, vs::NamedTuple, missingvals::NamedTuple) =
+    map((a, v, m) -> _reduce_existing(reducer, a, v, m), as, vs, missingvals)
+function _reduce_existing(reducer, a, v, missingval)
     if ismissing(missingval) || (!ismissing(a) && a == missingval)
         v
     else
-        reduce((a, v)) # This fill fail for mean, median etc
+        reducer((a, v)) # This fill fail for mean, median etc
     end
 end
 
