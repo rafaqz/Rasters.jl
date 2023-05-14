@@ -479,7 +479,7 @@ gdalpath = maybedownload(url)
         @test order(dims(rast)) == (ForwardOrdered(), ForwardOrdered())
         @test span(rast) == (Regular(1.0), Regular(1.0))
         @test sampling(rast) == (Intervals(Start()), Intervals(Start()))
-        @test index(rast) == (0.0::1.0:239.0, 0.0:1.0:179.0)
+        @test index(rast) == (LinRange(0.0, 239.0, 240), LinRange(0.0, 179.0, 180))
     end
 
 end
@@ -542,23 +542,23 @@ end
             @test all(st[:b][X(1:100), Y([1, 5, 95])] .=== 0x00)
         end
 
-        @testset "rasterize roud trip" begin
+        @testset "rasterize round trip" begin
             st = map(A -> rebuild(A; missingval=0x00), gdalstack) |> read
             # We round-trip rasterise the Tables.jl form of st
-            r_st = rasterize(read(gdalstack); to=st, fill=keys(gdalstack))
+            r_st = rasterize(last, read(gdalstack); to=st, fill=keys(gdalstack))
             @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, read(gdalstack)))
-            r_st = rasterize(read(gdalstack); to=st, fill=(:a, :b))
+            r_st = rasterize(last, read(gdalstack); to=st, fill=(:a, :b))
             @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, read(gdalstack)))
             st = map(A -> rebuild(A .* 0x00; missingval=0x00), gdalstack) |> read
-            rasterize!(st, read(gdalstack), fill=keys(st))
+            rasterize!(last, st, read(gdalstack), fill=keys(st))
             @test all(map((a, b) -> all(a .=== b), st, gdalstack))
 
             bandst = RasterStack((a=gdalpath, b=gdalpath); dropband=false)
             # Getting the band column works if we force it
             # name of Symbol gives a Raster, Tuple gives a RasterStack
-            b_r = rasterize(bandst; to=st, fill=:Band)
+            b_r = rasterize(last, bandst; to=st, fill=:Band)
             @test b_r isa Raster
-            b_st = rasterize(bandst; to=st, fill=(:Band, ))
+            b_st = rasterize(last, bandst; to=st, fill=(:Band, ))
             @test b_st isa RasterStack
             @test b_r == b_st[:Band]
         end
