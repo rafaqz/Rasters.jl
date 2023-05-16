@@ -7,11 +7,7 @@ struct RasterZPlot end
     ddplot(A) = DimArray(A; dims=_maybe_mapped(dims(A)))
     # Resample AffineProjected
     max_res = get(plotattributes, :max_res, 1000)
-    if all(hasdim(A, (X, Y))) && first(lookup(A, (X, Y))) isa AffineProjected
-        l = first(lookup(A, (X, Y)))
-        res = Y(abs(l.affinemap.linear[1, 1])), X(abs(l.affinemap.linear[2, 2]))
-        A = resample(A, res)
-    end
+    A = maybe_resample(A)
     if !(get(plotattributes, :seriestype, :none) in (:none, :heatmap, :contourf))
         DD.DimensionalPlot(), ddplot(A)
     elseif all(hasdim(A, (SpatialDim, SpatialDim)))
@@ -25,6 +21,18 @@ struct RasterZPlot end
         DD.DimensionalPlot(), ddplot(A)
     end
 end
+
+function maybe_resample(A)
+    if all(hasdim(A, (X, Y))) 
+        maybe_resample(first(lookup(A, (X, Y))), A)
+    else
+        return A
+    end
+end
+maybe_resample(lookup, A) = A
+
+
+
 # Plot a sinlge 2d map
 @recipe function f(::RasterPlot, A::AbstractRaster{T,2,<:Tuple{D1,D2}}) where {T,D1<:SpatialDim,D2<:SpatialDim}
     # If colorbar is close to symmetric (< 25% difference) use a symmetric

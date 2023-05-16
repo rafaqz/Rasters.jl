@@ -11,14 +11,13 @@ const GDAL_DRIVERS_SUPPORTING_CREATE = ("GTiff", "HDF4", "KEA", "netCDF", "PCIDS
 
 # Array ########################################################################
 
-function FileArray(raster::AG.RasterDataset{T}, filename; kw...) where {T}
+function RA.FileArray(raster::AG.RasterDataset{T}, filename; kw...) where {T}
     eachchunk, haschunks = DA.eachchunk(raster), DA.haschunks(raster)
-    FileArray{GDALsource,T,3}(filename, size(raster); eachchunk, haschunks, kw...)
+    RA.FileArray{GDALsource,T,3}(filename, size(raster); eachchunk, haschunks, kw...)
 end
 
-cleanreturn(A::AG.RasterDataset) = Array(A)
-
-haslayers(::Type{GDALsource}) = false
+RA.cleanreturn(A::AG.RasterDataset) = Array(A)
+RA.haslayers(::Type{GDALsource}) = false
 
 """
     Base.write(filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster; force=false, kw...)
@@ -37,16 +36,10 @@ function Base.write(
     filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster{T,2}; 
     force=false, verbose=true, kw...
 ) where T
-    check_can_write(filename, force)
+    RA.check_can_write(filename, force)
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
 
-    correctedA = if lookup(A, X) isa AffineProjected
-        A
-    else
-        _maybe_permute_to_gdal(A) |>
-            a -> noindex_to_sampled(a) |>
-            a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER)))
-    end
+    correctedA = _maybe_correct_to_write(A)
     nbands = 1
     _gdalwrite(filename, correctedA, nbands; kw...)
 end
@@ -54,23 +47,24 @@ function Base.write(
     filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster{T,3}; 
     force=false, verbose=true, kw...
 ) where T
-    check_can_write(filename, force)
+    RA.check_can_write(filename, force)
     all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
     hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
 
-    correctedA = if lookup(A, X) isa AffineProjected
-        A
-    else
-        _maybe_permute_to_gdal(A) |>
-            a -> noindex_to_sampled(a) |>
-            a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER)))
-    end
-
+    correctedA = _maybe_correct_to_write(A)
     nbands = size(correctedA, Band())
     _gdalwrite(filename, correctedA, nbands; kw...)
 end
 
-function create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
+_maybe_correct_to_write(A) = _maybe_correct_to_write(lookup(A, X()), A)
+_maybe_correct_to_write(lookup, A) = A
+function _maybe_correct_to_write(lookup::AbstractSampled, A)
+    _maybe_permute_to_gdal(A) |>
+        a -> RA.noindex_to_sampled(a) |>
+        a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER)))
+end
+
+function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
     missingval=nothing, metadata=nothing, name=nothing, keys=(name,),
     driver=AG.extensiondriver(filename), 
     lazy=true, options=Dict{String,String}(),
@@ -125,23 +119,23 @@ function create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
     end
 end
 
-function _open(f, ::Type{GDALsource}, filename::AbstractString; write=false, kw...)
+function RA._open(f, ::Type{GDALsource}, filename::AbstractString; write=false, kw...)
     if !isfile(filename)
         # Handle url filenames
         # /vsicurl/ is added to urls for GDAL, /vsimem/ for in memory
         if length(filename) >= 8 && filename[1:8] in ("/vsicurl", "/vsimem/")
             nothing
-        elseif _isurl(filename)
+        elseif RA._isurl(filename)
             filename = "/vsicurl/" * filename
         else
             # check the file actually exists because GDALs error is unhelpful
-            _filenotfound_error(filename)
+            RA._filenotfound_error(filename)
         end
     end
     flags = write ? (; flags=AG.OF_UPDATE) : ()
-    AG.readraster(cleanreturn ∘ f, filename; flags...)
+    AG.readraster(RA.cleanreturn ∘ f, filename; flags...)
 end
-_open(f, ::Type{GDALsource}, ds::AG.RasterDataset; kw...) = cleanreturn(f(ds))
+RA._open(f, ::Type{GDALsource}, ds::AG.RasterDataset; kw...) = RA.cleanreturn(f(ds))
 
 
 # DimensionalData methods for ArchGDAL types ###############################
@@ -241,7 +235,7 @@ function DD.metadata(raster::AG.RasterDataset, args...)
     # norvw = AG.noverview(band)
     units = AG.getunittype(band)
     filelist = AG.filelist(raster)
-    metadata = _metadatadict(GDALsource, "scale"=>scale, "offset"=>offset)
+    metadata = RA._metadatadict(GDALsource, "scale"=>scale, "offset"=>offset)
     if units == ""
         metadata["units"] = units
     end
@@ -254,8 +248,8 @@ end
 # Rasters methods for ArchGDAL types ##############################
 
 # Create a Raster from a dataset
-Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
-function Raster(ds::AG.RasterDataset;
+RA.Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
+function RA.Raster(ds::AG.RasterDataset;
     crs=crs(ds), 
     mappedcrs=nothing,
     dims=dims(ds, crs, mappedcrs),
@@ -274,7 +268,7 @@ function Raster(ds::AG.RasterDataset;
     end
 end
 
-function missingval(rasterds::AG.RasterDataset, args...)
+function RA.missingval(rasterds::AG.RasterDataset, args...)
     # All bands have the same missingval
     band = AG.getband(rasterds.ds, 1)
     hasnodataval = Ref(Cint(0))
@@ -292,7 +286,7 @@ function missingval(rasterds::AG.RasterDataset, args...)
     end
 end
 
-function crs(raster::AG.RasterDataset, args...)
+function RA.crs(raster::AG.RasterDataset, args...)
     WellKnownText(GeoFormatTypes.CRS(), string(AG.getproj(raster.ds)))
 end
 
@@ -362,7 +356,7 @@ _gdalconvertmissing(T, x) = x
 function _gdalwrite(filename, A::AbstractRaster, nbands;
     driver=AG.extensiondriver(filename), kw... 
 )
-    A = _maybe_use_type_missingval(filename, A)
+    A = RA._maybe_use_type_missingval(filename, A)
     create_kw = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
     _gdal_with_driver(filename, driver, create_kw; _block_template=A, kw...) do dataset
         _gdalsetproperties!(dataset, A)
@@ -568,26 +562,13 @@ const GDAL_TOPLEFT_Y = 4
 const GDAL_ROT2 = 5
 const GDAL_NS_RES = 6
 
+# These function are defined in ext/RastersCoordinateTransformationsExt.jl
+const USING_COORDINATETRANSFORMATIONS_MESSAGE = 
+    "Run `using CoordinateTransformations` to load affine transformed rasters"
+_geotransform2affine(gt) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)
+_affine2geotransform(am) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)
+
 _isalligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
-
-function _geotransform2affine(gt::AbstractVector)
-    M = [gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]]
-    v = [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]]
-    CoordinateTransformations.AffineMap(M, v)
-end
-
-function _affine2geotransform(am::CoordinateTransformations.AffineMap)
-    M = am.linear
-    v = am.translation
-    gt = zeros(6)
-    gt[GDAL_TOPLEFT_X] = v[1]
-    gt[GDAL_WE_RES] = M[1, 1]
-    gt[GDAL_ROT1] = M[1, 2]
-    gt[GDAL_TOPLEFT_Y] = v[2]
-    gt[GDAL_ROT2] = M[2, 1]
-    gt[GDAL_NS_RES] = M[2, 2]
-    return gt
-end
 
 function _dims2geotransform(x::XDim, y::YDim)
     gt = zeros(6)
@@ -598,9 +579,6 @@ function _dims2geotransform(x::XDim, y::YDim)
     gt[GDAL_ROT2] = zero(eltype(gt))
     gt[GDAL_NS_RES] = step(y)
     return gt
-end
-function _dims2geotransform(x::XDim{<:AffineProjected}, y::YDim)
-    _affine2geotransform(parent(x).affinemap)
 end
 
 # precompilation

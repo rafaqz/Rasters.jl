@@ -57,11 +57,11 @@ function warp(A::AbstractRaster, flags::Dict; kw...)
     end
 end
 function warp(st::AbstractRasterStack, flags::Dict; filename=nothing, suffix=keys(st), kw...)
-    mapargs((A, s) -> warp(A, flags; filename, suffix=s), st, suffix; kw...)
+    RA.mapargs((A, s) -> warp(A, flags; filename, suffix=s), st, suffix; kw...)
 end
 
 function _warp(A::AbstractRaster, flags::Dict; filename=nothing, suffix="", kw...)
-    filename = _maybe_add_suffix(filename, suffix)
+    filename = RA._maybe_add_suffix(filename, suffix)
     flagvect = reduce([flags...]; init=[]) do acc, (key, val)
         append!(acc, String[_asflag(key), _stringvect(val)...])
     end

@@ -16,8 +16,7 @@ or to snap to the bounds, resolution and crs of the object `to`.
     If no `to` object is provided the extent will be calculated from `x`,
 $RES_KEYWORD
 $SIZE_KEYWORD
-- `crs`: A `GeoFormatTypes.GeoFormat` coordinate reference system for the output raster, 
-    such as `EPSG(x)` or `WellKnownText(string)`. Defaults to `crs(A)`.
+$CRS_KEYWORD
 - `method`: A `Symbol` or `String` specifying the method to use for resampling.
     From the docs for [`gdalwarp`](https://gdal.org/programs/gdalwarp.html#cmdoption-gdalwarp-r):
     * `:near`: nearest neighbour resampling (default, fastest algorithm, worst interpolation quality).

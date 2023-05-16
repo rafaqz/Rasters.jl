@@ -1,7 +1,3 @@
-using HDF5
-
-export smapseries
-
 const SMAPMISSING = -9999.0f0
 const SMAPGEODATA = "Geophysical_Data"
 const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
@@ -16,9 +12,9 @@ struct SMAPhdf5{T}
     ds::T
 end
 
-missingval(ds::SMAPhdf5) = SMAPMISSING
-layerkeys(ds::SMAPhdf5) = keys(ds)
-filekey(ds::SMAPhdf5, key::Nothing) = first(keys(ds))
+RA.missingval(ds::SMAPhdf5) = SMAPMISSING
+RA.layerkeys(ds::SMAPhdf5) = keys(ds)
+RA.filekey(ds::SMAPhdf5, key::Nothing) = first(keys(ds))
 
 function DD.dims(wrapper::SMAPhdf5)
     dataset = parent(wrapper)
@@ -54,20 +50,20 @@ function DD.dims(wrapper::SMAPhdf5)
 end
 
 # TODO actually add metadata to the dict
-DD.metadata(wrapper::SMAPhdf5) = _metadatadict(SMAPsource, )
+DD.metadata(wrapper::SMAPhdf5) = RA._metadatadict(SMAPsource, )
 
 function DD.layerdims(ds::SMAPhdf5)
-    keys = cleankeys(layerkeys(ds))
+    keys = RA.cleankeys(RA.layerkeys(ds))
     # All dims are the same
     NamedTuple{keys}(map(_ -> SMAPDIMTYPES, keys))
 end
 
 function DD.layermetadata(ds::SMAPhdf5)
-    keys = cleankeys(layerkeys(ds))
+    keys = cleankeys(RA.layerkeys(ds))
     NamedTuple{keys}(map(_ -> DD.metadata(ds), keys))
 end
 
-Base.keys(ds::SMAPhdf5) = cleankeys(keys(parent(ds)[SMAPGEODATA]))
+Base.keys(ds::SMAPhdf5) = RA.cleankeys(keys(parent(ds)[SMAPGEODATA]))
 Base.parent(wrapper::SMAPhdf5) = wrapper.ds
 Base.getindex(wrapper::SMAPhdf5, key) = SMAPvar(wrapper.ds[_smappath(key)])
 
@@ -91,10 +87,10 @@ DA.haschunks(var::SMAPvar) = DA.Unchunked()
 
 # Raster ######################################################################
 
-function FileArray(ds::SMAPhdf5, filename::AbstractString; key, kw...)
+function RA.FileArray(ds::SMAPhdf5, filename::AbstractString; key, kw...)
     FileArray(ds[key], filename; key, kw...)
 end
-function FileArray(var::SMAPvar, filename::AbstractString; key, kw...)
+function RA.FileArray(var::SMAPvar, filename::AbstractString; key, kw...)
     T = eltype(var)
     N = ndims(var)
     eachchunk = DA.eachchunk(var)
@@ -103,31 +99,31 @@ function FileArray(var::SMAPvar, filename::AbstractString; key, kw...)
 end
 
 function Base.open(f::Function, A::FileArray{SMAPsource}; kw...)
-    _open(SMAPsource, filename(A); key=key(A), kw...) do var
+    RA._open(SMAPsource, RA.filename(A); key=RA.key(A), kw...) do var
         f(RasterDiskArray{SMAPsource}(var)) 
     end
 end
     
 DA.writeblock!(A::RasterDiskArray{SMAPsource}, v, r::AbstractUnitRange...) = A[r...] = v
 
-haslayers(::Type{SMAPsource}) = true
+RA.haslayers(::Type{SMAPsource}) = true
 
 # Stack ########################################################################
 
-function FileStack{SMAPsource}(ds::SMAPhdf5, filename::AbstractString; write=false, keys)
-    keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
+function RA.FileStack{SMAPsource}(ds::SMAPhdf5, filename::AbstractString; write=false, keys)
+    keys = map(Symbol, keys isa Nothing ? RA.layerkeys(ds) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key
-        var = RasterDiskArray{SMAPsource}(ds[key])
+        var = RA.RasterDiskArray{SMAPsource}(ds[key])
         eltype(var), size(var), DA.eachchunk(var), DA.haschunks(var)
     end
     layertypes = map(x->x[1], type_size_ec_hc)
     layersizes = map(x->x[2], type_size_ec_hc)
     eachchunk = map(x->x[3], type_size_ec_hc)
     haschunks = map(x->x[4], type_size_ec_hc)
-    FileStack{SMAPsource,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+    RA.FileStack{SMAPsource,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
 end
-function OpenStack(fs::FileStack{SMAPsource,K}; kw...) where K
-    ds = h5open(filename(fs); kw...)
+function RA.OpenStack(fs::FileStack{SMAPsource,K}; kw...) where K
+    ds = HDF5.h5open(RA.filename(fs); kw...)
     OpenStack{SMAPsource,K}(SMAPhdf5(ds))
 end
 Base.close(os::OpenStack{SMAPsource}) = nothing # HDF5 handles this apparently?
@@ -152,10 +148,10 @@ organised along the time dimension. Returns a [`RasterSeries`](@ref).
 
 - `kw`: Passed to `RasterSeries`.
 """
-function smapseries(dir::AbstractString; kw...)
-    smapseries(joinpath.(dir, filter_ext(dir, ".h5")); kw...)
+function RA.smapseries(dir::AbstractString; kw...)
+    RA.smapseries(joinpath.(dir, filter_ext(dir, ".h5")); kw...)
 end
-function smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
+function RA.smapseries(filenames::Vector{<:AbstractString}, dims=nothing; kw...)
     if dims isa Nothing
         usedpaths = String[]
         timeseries = []
@@ -185,14 +181,14 @@ end
 
 # Utils ########################################################################
 
-function _open(f, ::Type{SMAPsource}, filename::AbstractString; key=nothing, kw...)
-    isfile(filename) || _filenotfound_error(filename)
-    h5open(filename; kw...) do ds
-        _open(f, SMAPsource, SMAPhdf5(ds); key, kw...)
+function RA._open(f, ::Type{SMAPsource}, filename::AbstractString; key=nothing, kw...)
+    isfile(filename) || RA._filenotfound_error(filename)
+    HDF5.h5open(filename; kw...) do ds
+        RA._open(f, SMAPsource, SMAPhdf5(ds); key, kw...)
     end
 end
-function _open(f, ::Type{SMAPsource}, ds::SMAPhdf5; key=nothing, kw...)
-    cleanreturn(f(key isa Nothing ? ds : ds[key]))
+function RA._open(f, ::Type{SMAPsource}, ds::SMAPhdf5; key=nothing, kw...)
+    RA.cleanreturn(f(key isa Nothing ? ds : ds[key]))
 end
 
 
@@ -209,5 +205,5 @@ end
 
 _smap_timedim(t::DateTime) = _smap_timedim(t:Hour(3):t)
 function _smap_timedim(times::AbstractVector)
-    Ti(Sampled(times, ForwardOrdered(), Regular(Hour(3)), Intervals(Start()), _metadatadict(SMAPsource)))
+    Ti(Sampled(times, ForwardOrdered(), Regular(Hour(3)), Intervals(Start()), RA._metadatadict(SMAPsource)))
 end

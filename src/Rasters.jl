@@ -10,11 +10,9 @@ end Rasters
 using Dates
 
 # Load first to fix StaticArrays invalidations
-import CoordinateTransformations
 import DimensionalData
 
 import Adapt,
-       ArchGDAL,
        ColorTypes,
        ConstructionBase,
        DiskArrays,
@@ -22,13 +20,11 @@ import Adapt,
        FillArrays,
        Flatten,
        GeoInterface,
-       HDF5,
        OffsetArrays,
        ProgressMeter,
        MakieCore,
        Missings,
        Mmap,
-       NCDatasets,
        RecipesBase,
        Reexport,
        Setfield
@@ -38,7 +34,7 @@ import Adapt,
     using Requires
 end
 
-Reexport.@reexport using DimensionalData, GeoFormatTypes, RasterDataSources
+Reexport.@reexport using DimensionalData, GeoFormatTypes
 
 using DimensionalData.Tables,
       DimensionalData.LookupArrays,
@@ -64,7 +60,7 @@ export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!, 
        resample, warp, zonal, crop, extend, trim, slice, combine, points,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
-       coverage, coverage!, setcrs, setmappedcrs
+       coverage, coverage!, setcrs, setmappedcrs, smapseries
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertlookup
 
@@ -123,19 +119,12 @@ include("methods/extract.jl")
 include("methods/mosaic.jl")
 include("methods/points.jl")
 include("methods/replace_missing.jl")
-include("methods/reproject.jl")
-include("methods/resample.jl")
 include("methods/slice_combine.jl")
 include("methods/trim.jl")
-include("methods/warp.jl")
 include("methods/zonal.jl")
 
 include("sources/sources.jl")
 include("sources/grd.jl")
-include("sources/smap.jl")
-include("sources/ncdatasets.jl")
-include("sources/gdal.jl")
-include("sources/rasterdatasources.jl")
 
 # extensions
 
@@ -148,5 +137,15 @@ function __init__()
         @require RasterDataSources = "" include("../ext/RastersRasterDataSources.jl")
     end
 end
+
+# stubs that need ArchGDAL
+resample(args...; kw...) = error("Run `using ArchGDAL` to use `resample`")
+reproject(args...; kw...) = error("Run `using ArchGDAL` to use `reproject`")
+warp(args...; kw...) = error("Run `using ArchGDAL` to use `warp`")
+
+# Other shared stubs
+function layerkeys end
+function smapseries end
+function maybe_correct_to_write end
 
 end

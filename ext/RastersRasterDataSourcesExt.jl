@@ -1,7 +1,12 @@
-using .RasterDataSources
+module RastersRasterDataSourcesExt
 
-using .RasterDataSources: RasterDataSource
+using Rasters, RasterDataSources
 
+using RasterDataSources: RasterDataSource
+using Rasters.LookupArrays
+using Rasters.Dimensions
+
+const RA = Rasters
 const RDS = RasterDataSources
 
 """
@@ -27,7 +32,7 @@ See the docs for
 [`RasterDatasources.getraster`](http://docs.ecojulia.org/RasterDataSources.jl/stable/#getraster)
 for more specific details about data sources, layers and keyword arguments.
 """
-function Raster(T::Type{<:RasterDataSource}, layer; crs=_source_crs(T), kw...)
+function RA.Raster(T::Type{<:RasterDataSource}, layer; crs=_source_crs(T), kw...)
     rds_kw, gd_kw = _filterkw(T, kw)
     filename = getraster(T, layer; rds_kw...)
     Raster(filename; name=RDS.layerkeys(T, layer), crs, gd_kw...)
@@ -56,9 +61,9 @@ See the docs for
 [`RasterDatasources.getraster`](http://docs.ecojulia.org/RasterDataSources.jl/stable/#getraster)
 for more specific details about data sources, layers and keyword arguments.
 """
-RasterStack(T::Type{<:RasterDataSource}; kw...) = RasterStack(T, RDS.layers(T); kw...) 
-RasterStack(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = RasterStack(T, (layer,); kw...) 
-function RasterStack(T::Type{<:RasterDataSource}, layers::Tuple; crs=_source_crs(T), kw...)
+RA.RasterStack(T::Type{<:RasterDataSource}; kw...) = RasterStack(T, RDS.layers(T); kw...) 
+RA.RasterStack(T::Type{<:RasterDataSource}, layer::Symbol; kw...) = RasterStack(T, (layer,); kw...) 
+function RA.RasterStack(T::Type{<:RasterDataSource}, layers::Tuple; crs=_source_crs(T), kw...)
     rds_kw, gd_kw = _filterkw(T, kw)
     filenames = map(l -> getraster(T, l; rds_kw...), layers)
     RasterStack(filenames; keys=RDS.layerkeys(T, layers), crs, gd_kw...)
@@ -87,9 +92,9 @@ See the docs for
 [`RasterDatasources.getraster`](http://docs.ecojulia.org/RasterDataSources.jl/stable/#getraster)
 for more specific details about data sources, layers and keyword arguments.
 """
-RasterSeries(T::Type{<:RasterDataSource}; kw...) = RasterSeries(T, RDS.layers(T); kw...) 
+RA.RasterSeries(T::Type{<:RasterDataSource}; kw...) = RasterSeries(T, RDS.layers(T); kw...) 
 # DateTime time-series
-function RasterSeries(T::Type{<:RasterDataSource}, layers; 
+function RA.RasterSeries(T::Type{<:RasterDataSource}, layers; 
     resize=_mayberesize(T), crs=_source_crs(T), mappedcrs=nothing, kw...
 )
     monthdim = if haskey(values(kw), :month) values(kw)[:month] isa AbstractArray
@@ -140,3 +145,5 @@ function _filterkw(T, kw)
     end
     rds, gd
 end
+
+end # Module
