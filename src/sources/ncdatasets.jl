@@ -214,7 +214,15 @@ function layerkeys(ds::NCD.Dataset)
     else
         dimkeys::Vector{String}
     end
-    return setdiff(keys(ds), toremove)
+    nondim = setdiff(keys(ds), toremove)
+    grid_mapping = String[]
+    for k in nondim
+        var = NCD.variable(ds, k)
+        if haskey(var.attrib, "grid_mapping")
+            push!(grid_mapping, var.attrib["grid_mapping"])
+        end
+    end
+    nondim = setdiff(nondim, grid_mapping)
 end
 
 function FileStack{NCDsource}(ds::NCD.Dataset, filename::AbstractString; write=false, keys)
