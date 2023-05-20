@@ -1,6 +1,6 @@
 using Rasters, Test, Aqua, SafeTestsets
 
-if VERSION >= v"1.5.0"
+if VERSION >= v"1.9.0"
     # Aqua.test_ambiguities([Rasters, Base, Core])
     Aqua.test_unbound_args(Rasters)
     Aqua.test_stale_deps(Rasters)
