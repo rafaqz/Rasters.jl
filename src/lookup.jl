@@ -286,14 +286,3 @@ _projectedindex(crs::Nothing, lookup::Mapped, dim::Dimension) =
     error("No projection crs attached to $(name(dim)) dimension")
 _projectedindex(crs::GeoFormat, lookup::Mapped, dim::Dimension) =
     reproject(mappedcrs(dim), crs, dim, index(dim))
-
-# The rest of the definition is in CoordinateTransformations
-struct AffineProjected{T,F,A<:AbstractVector{T},M,C,MC,P,D} <: LA.Unaligned{T,1}
-    affinemap::F
-    data::A
-    metadata::M
-    crs::C
-    mappedcrs::MC
-    paired_lookup::P
-    dim::D
-end

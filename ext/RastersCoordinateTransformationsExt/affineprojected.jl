@@ -1,7 +1,5 @@
-import Rasters: AffineProjected
-
 function AffineProjected(f;
-    data=AutoIndex(), metadata=NoMetadata(), crs=nothing, mappedcrs=nothing, paired_lookup, dim=AutoDim()
+    data=LA.AutoIndex(), metadata=DD.NoMetadata(), crs=nothing, mappedcrs=nothing, paired_lookup, dim=RA.AutoDim()
 )
     AffineProjected(f, data, metadata, crs, mappedcrs, paired_lookup, dim)
 end
@@ -14,14 +12,14 @@ paired_lookup(lookup::AffineProjected) = lookup.paired_lookup
 DD.metadata(lookup::AffineProjected) = lookup.metadata
 function DD.rebuild(l::AffineProjected;
     affinemap=l.affinemap, data=l.data, metadata=metadata(l),
-    crs=crs(l), mappedcrs=mappedcrs(l), paired_lookup=paired_lookup(l), dim=dim(l), args...
+    crs=crs(l), mappedcrs=mappedcrs(l), paired_lookup=paired_lookup(l), dim=DD.dim(l), args...
 )
     AffineProjected(affinemap, data, metadata, crs, mappedcrs, paired_lookup, dim)
 end
 function Dimensions.format(l::AffineProjected, D::Type, index, axis::AbstractRange)
     return rebuild(l; data=axis, dim=basetypeof(D)())
 end
-DD.bounds(lookup::AffineProjected) = _bounds(dim(lookup), lookup)
+DD.bounds(lookup::AffineProjected) = _bounds(DD.dim(lookup), lookup)
 
 function _bounds(::XDim, lookup::AffineProjected)
     am = lookup.affinemap
@@ -34,6 +32,15 @@ function _bounds(::YDim, lookup::AffineProjected)
     extrema = _affine_extrema(am, lookup.paired_lookup, lookup)
     ybounds = min(map(last, extrema)...), max(map(last, extrema)...)
     return ybounds
+end
+
+function _affine_extrema(am::CoordinateTransformations.AffineMap, lookup_x, lookup_y)
+    # Not 100% sure this holds in all cases
+    minx = first(lookup_x) - 1
+    maxx = last(lookup_x)
+    miny = first(lookup_y) - 1
+    maxy = last(lookup_y)
+    extrema = am((minx, miny)), am((maxx, maxy)), am((minx, maxy)), am((maxx, miny))
 end
 
 LA.transformfunc(lookup::AffineProjected) = CoordinateTransformations.inv(lookup.affinemap)
@@ -83,11 +90,30 @@ function Base.show(io::IO, mime::MIME"text/plain", lookup::AffineProjected)
     end
 end
 
-function _dims2geotransform(x::XDim{<:AffineProjected}, y::YDim)
-    _affine2geotransform(parent(x).affinemap)
-end
-
-function Rasters.maybe_resample(l::AffineProjected, A)
+function RA.maybe_resample(l::AffineProjected, A)
     res = Y(abs(l.affinemap.linear[1, 1])), X(abs(l.affinemap.linear[2, 2]))
     A = resample(A, res)
+end
+
+function RA.dims2geotransform(x::XDim{<:AffineProjected}, y::YDim)
+    RA.affine2geotransform(parent(x).affinemap)
+end
+
+function RA.geotransform2affine(gt::AbstractVector)
+    M = [gt[GDAL_WE_RES] gt[GDAL_ROT1]; gt[GDAL_ROT2] gt[GDAL_NS_RES]]
+    v = [gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_Y]]
+    return CoordinateTransformations.AffineMap(M, v)
+end
+
+function RA.affine2geotransform(am::CoordinateTransformations.AffineMap)
+    M = am.linear
+    v = am.translation
+    gt = zeros(6)
+    gt[GDAL_TOPLEFT_X] = v[1]
+    gt[GDAL_WE_RES] = M[1, 1]
+    gt[GDAL_ROT1] = M[1, 2]
+    gt[GDAL_TOPLEFT_Y] = v[2]
+    gt[GDAL_ROT2] = M[2, 1]
+    gt[GDAL_NS_RES] = M[2, 2]
+    return gt
 end

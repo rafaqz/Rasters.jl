@@ -58,7 +58,7 @@ end
 
 _maybe_correct_to_write(A) = _maybe_correct_to_write(lookup(A, X()), A)
 _maybe_correct_to_write(lookup, A) = A
-function _maybe_correct_to_write(lookup::AbstractSampled, A)
+function _maybe_correct_to_write(lookup::Union{AbstractSampled,NoLookup}, A)
     _maybe_permute_to_gdal(A) |>
         a -> RA.noindex_to_sampled(a) |>
         a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER)))
@@ -219,9 +219,9 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
 
         DD.format((x, y, band), map(Base.OneTo, (xsize, ysize, nbands)))
     else
-        affinemap = _geotransform2affine(gt)
-        x = X(AffineProjected(affinemap; crs, mappedcrs, metadata=xy_metadata, dim=X(), paired_lookup=Base.OneTo(ysize)))
-        y = Y(AffineProjected(affinemap; crs, mappedcrs, metadata=xy_metadata, dim=Y(), paired_lookup=Base.OneTo(xsize)))
+        affinemap = RA.geotransform2affine(gt)
+        x = X(RA.AffineProjected(affinemap; crs, mappedcrs, metadata=xy_metadata, dim=X(), paired_lookup=Base.OneTo(ysize)))
+        y = Y(RA.AffineProjected(affinemap; crs, mappedcrs, metadata=xy_metadata, dim=Y(), paired_lookup=Base.OneTo(xsize)))
 
         DD.format((x, y, band), map(Base.OneTo, (xsize, ysize, nbands)))
     end
@@ -478,7 +478,7 @@ function _gdalsetproperties!(dataset::AG.Dataset, dims::Tuple, missingval)
         AG.setproj!(dataset, convert(String, convert(WellKnownText, crs(x))))
     end
     # Get the geotransform from the updated lat/lon dims and write
-    AG.setgeotransform!(dataset, _dims2geotransform(x, y))
+    AG.setgeotransform!(dataset, RA.dims2geotransform(x, y))
 
     # Set the nodata value. GDAL can't handle missing. We could choose a default,
     # but we would need to do this for all possible types. `nothing` means
@@ -554,23 +554,11 @@ adfGeoTransform[4] /* 0 */
 adfGeoTransform[5] /* n-s pixel resolution (negative value) */
 =#
 
-const GDAL_EMPTY_TRANSFORM = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-const GDAL_TOPLEFT_X = 1
-const GDAL_WE_RES = 2
-const GDAL_ROT1 = 3
-const GDAL_TOPLEFT_Y = 4
-const GDAL_ROT2 = 5
-const GDAL_NS_RES = 6
-
 # These function are defined in ext/RastersCoordinateTransformationsExt.jl
 const USING_COORDINATETRANSFORMATIONS_MESSAGE = 
     "Run `using CoordinateTransformations` to load affine transformed rasters"
-_geotransform2affine(gt) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)
-_affine2geotransform(am) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)
 
-_isalligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
-
-function _dims2geotransform(x::XDim, y::YDim)
+function RA.dims2geotransform(x::XDim, y::YDim)
     gt = zeros(6)
     gt[GDAL_TOPLEFT_X] = first(x)
     gt[GDAL_WE_RES] = step(x)
@@ -580,6 +568,10 @@ function _dims2geotransform(x::XDim, y::YDim)
     gt[GDAL_NS_RES] = step(y)
     return gt
 end
+RA.geotransform2affine(gt) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)
+RA.affine2geotransform(am) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)
+
+_isalligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
 
 # precompilation
 # function _precompile(::Type{GDALsource})

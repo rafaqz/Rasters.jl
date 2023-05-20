@@ -62,18 +62,18 @@ _firstkey(ds::NCD.NCDataset, key::Nothing=nothing) = Symbol(first(RA.layerkeys(d
 _firstkey(ds::NCD.NCDataset, key) = Symbol(key)
 
 function RA.FileArray(var::NCD.CFVariable, filename::AbstractString; kw...)
-    da = RasterDiskArray{NCDsource}(var)
+    da = RA.RasterDiskArray{NCDsource}(var)
     size_ = size(da)
     eachchunk = DA.eachchunk(da)
     haschunks = DA.haschunks(da)
     T = eltype(var)
     N = length(size_)
-    FileArray{NCDsource,T,N}(filename, size_; eachchunk, haschunks, kw...)
+    RA.FileArray{NCDsource,T,N}(filename, size_; eachchunk, haschunks, kw...)
 end
 
-function Base.open(f::Function, A::FileArray{NCDsource}; write=A.write, kw...)
-    _open(NCDsource, filename(A); key=key(A), write, kw...) do var
-        f(RasterDiskArray{NCDsource}(var, DA.eachchunk(A), DA.haschunks(A)))
+function Base.open(f::Function, A::RA.FileArray{NCDsource}; write=A.write, kw...)
+    RA._open(NCDsource, RA.filename(A); key=RA.key(A), write, kw...) do var
+        f(RA.RasterDiskArray{NCDsource}(var, DA.eachchunk(A), DA.haschunks(A)))
     end
 end
 
@@ -145,7 +145,7 @@ function Base.write(filename::AbstractString, ::Type{NCDsource}, s::AbstractRast
     return filename
 end
 
-function RA.create(filename, ::Type{NCDsource}, T::Union{Type,Tuple}, dims::DimTuple;
+function RA.create(filename, ::Type{NCDsource}, T::Union{Type,Tuple}, dims::DD.DimTuple;
     name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing,
     metadata=NoMetadata(), lazy=true, 
 )
@@ -174,9 +174,9 @@ function DD.dims(var::NCD.CFVariable, crs=nothing, mappedcrs=nothing)
     end |> Tuple
 end
 
-DD.metadata(ds::NCD.Dataset) = _metadatadict(NCDsource, ds.attrib)
-DD.metadata(var::NCD.CFVariable) = _metadatadict(NCDsource, var.attrib)
-DD.metadata(var::NCD.Variable) = _metadatadict(NCDsource, var.attrib)
+DD.metadata(ds::NCD.Dataset) = RA._metadatadict(NCDsource, ds.attrib)
+DD.metadata(var::NCD.CFVariable) = RA._metadatadict(NCDsource, var.attrib)
+DD.metadata(var::NCD.Variable) = RA._metadatadict(NCDsource, var.attrib)
 
 function DD.layerdims(ds::NCD.Dataset)
     keys = Tuple(RA.layerkeys(ds))
@@ -242,18 +242,18 @@ function RA.FileStack{NCDsource}(ds::NCD.Dataset, filename::AbstractString; writ
     layersizes = map(x->x[2], type_size_ec_hc)
     eachchunk = map(x->x[3], type_size_ec_hc)
     haschunks = map(x->x[4], type_size_ec_hc)
-    return FileStack{NCDsource,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+    return RA.FileStack{NCDsource,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
 end
-function RA.OpenStack(fs::FileStack{NCDsource,K}) where K
+function RA.OpenStack(fs::RA.FileStack{NCDsource,K}) where K
     RA.OpenStack{NCDsource,K}(NCD.Dataset(RA.filename(fs)))
 end
-Base.close(os::OpenStack{NCDsource}) = NCD.close(RA.dataset(os))
+Base.close(os::RA.OpenStack{NCDsource}) = NCD.close(RA.dataset(os))
 
 function RA._open(f, ::Type{NCDsource}, filename::AbstractString; write=false, kw...)
     isfile(filename) || RA._isurl(filename) || RA._filenotfound_error(filename)
     mode = write ? "a" : "r"
     NCD.Dataset(filename, mode) do ds
-        _open(f, NCDsource, ds; kw...)
+        RA._open(f, NCDsource, ds; kw...)
     end
 end
 function RA._open(f, ::Type{NCDsource}, ds::NCD.Dataset; key=nothing, kw...)
@@ -269,7 +269,7 @@ RA.cleanreturn(A::NCD.CFVariable) = Array(A)
 
 # Utils ########################################################################
 
-function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
+function _ncddim(ds, dimname::RA.Key, crs=nothing, mappedcrs=nothing)
     if haskey(ds, dimname)
         var = NCD.variable(ds, dimname)
         D = _ncddimtype(var.attrib, dimname)

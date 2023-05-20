@@ -1,23 +1,20 @@
 module RastersNCDatasetsExt
 
 import DiskArrays,
+    FillArrays,
     Extents,
+    GeoInterface,
     Missings,
     NCDatasets
 
 using Dates, 
     DimensionalData,
     GeoFormatTypes,
-    GeoInterface,
     Rasters
 
 using Rasters.LookupArrays
 using Rasters.Dimensions
-using Rasters: NCDsource, AbstractProjected, RasterStackOrArray, FileArray, FileStack, OpenStack, DimTuple, Key,
-    RES_KEYWORD, SIZE_KEYWORD, CRS_KEYWORD, EXPERIMENTAL
-
-import Rasters: Raster, create, crs, dims, refdims, metadata, missingval, reproject, resample, warp,
-    _open, _writeable_missing, _metadatadict, cleanreturn
+using Rasters: NCDsource
 
 const RA = Rasters
 const DD = DimensionalData

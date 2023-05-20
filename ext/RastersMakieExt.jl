@@ -1,4 +1,4 @@
-module RastersMakie
+module RastersMakieExt
 
 @static if isdefined(Base, :get_extension) # julia < 1.9
     using Makie, Rasters
