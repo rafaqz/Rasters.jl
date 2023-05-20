@@ -13,9 +13,7 @@ using Dates,
 
 using Rasters.LookupArrays
 using Rasters.Dimensions
-using Rasters: SMAPsource, AbstractProjected, RasterStackOrArray, 
-    FileArray, FileStack, OpenStack, DimTuple, Key, SMAPsource, RasterDiskArray,
-    RES_KEYWORD, SIZE_KEYWORD, CRS_KEYWORD, EXPERIMENTAL, cleankeys
+using Rasters: SMAPsource
 
 export smapseries
 

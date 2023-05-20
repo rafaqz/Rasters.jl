@@ -50,7 +50,7 @@ function DD.dims(wrapper::SMAPhdf5)
 end
 
 # TODO actually add metadata to the dict
-DD.metadata(wrapper::SMAPhdf5) = RA._metadatadict(SMAPsource, )
+DD.metadata(wrapper::SMAPhdf5) = RA._metadatadict(SMAPsource)
 
 function DD.layerdims(ds::SMAPhdf5)
     keys = RA.cleankeys(RA.layerkeys(ds))
@@ -59,7 +59,7 @@ function DD.layerdims(ds::SMAPhdf5)
 end
 
 function DD.layermetadata(ds::SMAPhdf5)
-    keys = cleankeys(RA.layerkeys(ds))
+    keys = RA.cleankeys(RA.layerkeys(ds))
     NamedTuple{keys}(map(_ -> DD.metadata(ds), keys))
 end
 
@@ -67,7 +67,7 @@ Base.keys(ds::SMAPhdf5) = RA.cleankeys(keys(parent(ds)[SMAPGEODATA]))
 Base.parent(wrapper::SMAPhdf5) = wrapper.ds
 Base.getindex(wrapper::SMAPhdf5, key) = SMAPvar(wrapper.ds[_smappath(key)])
 
-_smappath(key::Key) = SMAPGEODATA * "/" * string(key)
+_smappath(key::RA.Key) = SMAPGEODATA * "/" * string(key)
 
 struct SMAPvar{DS} <: AbstractArray{Float32,2}
     ds::DS
@@ -88,23 +88,23 @@ DA.haschunks(var::SMAPvar) = DA.Unchunked()
 # Raster ######################################################################
 
 function RA.FileArray(ds::SMAPhdf5, filename::AbstractString; key, kw...)
-    FileArray(ds[key], filename; key, kw...)
+    RA.FileArray(ds[key], filename; key, kw...)
 end
 function RA.FileArray(var::SMAPvar, filename::AbstractString; key, kw...)
     T = eltype(var)
     N = ndims(var)
     eachchunk = DA.eachchunk(var)
     haschunks = DA.haschunks(var)
-    FileArray{SMAPsource,T,N}(filename, SMAPSIZE; key, eachchunk, haschunks, kw...)
+    RA.FileArray{SMAPsource,T,N}(filename, SMAPSIZE; key, eachchunk, haschunks, kw...)
 end
 
-function Base.open(f::Function, A::FileArray{SMAPsource}; kw...)
+function Base.open(f::Function, A::RA.FileArray{SMAPsource}; kw...)
     RA._open(SMAPsource, RA.filename(A); key=RA.key(A), kw...) do var
-        f(RasterDiskArray{SMAPsource}(var)) 
+        f(RA.RasterDiskArray{SMAPsource}(var)) 
     end
 end
     
-DA.writeblock!(A::RasterDiskArray{SMAPsource}, v, r::AbstractUnitRange...) = A[r...] = v
+DA.writeblock!(A::RA.RasterDiskArray{SMAPsource}, v, r::AbstractUnitRange...) = A[r...] = v
 
 RA.haslayers(::Type{SMAPsource}) = true
 
@@ -122,11 +122,11 @@ function RA.FileStack{SMAPsource}(ds::SMAPhdf5, filename::AbstractString; write=
     haschunks = map(x->x[4], type_size_ec_hc)
     RA.FileStack{SMAPsource,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
 end
-function RA.OpenStack(fs::FileStack{SMAPsource,K}; kw...) where K
+function RA.OpenStack(fs::RA.FileStack{SMAPsource,K}; kw...) where K
     ds = HDF5.h5open(RA.filename(fs); kw...)
-    OpenStack{SMAPsource,K}(SMAPhdf5(ds))
+    RA.OpenStack{SMAPsource,K}(SMAPhdf5(ds))
 end
-Base.close(os::OpenStack{SMAPsource}) = nothing # HDF5 handles this apparently?
+Base.close(os::RA.OpenStack{SMAPsource}) = nothing # HDF5 handles this apparently?
 
 # Series #######################################################################
 

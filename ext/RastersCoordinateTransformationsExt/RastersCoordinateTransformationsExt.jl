@@ -15,6 +15,5 @@ const LA = LookupArrays
 
 
 include("affineprojected.jl")
-include("geotransform.jl")
 
 end # module

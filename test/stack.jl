@@ -15,7 +15,7 @@ ga1 = Raster(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=
 ga2 = Raster(data2, dims2)
 
 @testset "stack constructors" begin
-    @test_throws ErrorException RasterStack("notastack")
+    @test_throws ArgumentError RasterStack("notastack")
     # Maybe too many ways to define a stack...
     st1 = RasterStack((ga1, ga2); name=(:ga1, :ga2))
     st2 = RasterStack((ga1, ga2); keys=(:ga1, :ga2))

@@ -79,7 +79,7 @@ function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
     T = Missings.nonmissingtype(T)
 
     if ismissing(missingval)
-        missingval = _writeable_missing(T)
+        missingval = RA._writeable_missing(T)
     end
 
     if hasdim(dims, Band)
@@ -485,7 +485,7 @@ function _gdalsetproperties!(dataset::AG.Dataset, dims::Tuple, missingval)
     # there is no missing value.
     if !isnothing(missingval)
         if ismissing(missingval)
-            missingval = _writeable_missing(T)
+            missingval = RA._writeable_missing(T)
         end
         bands = hasdim(dims, Band) ? axes(DD.dims(dims, Band), 1) : 1
         for i in bands
