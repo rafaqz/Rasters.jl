@@ -14,7 +14,7 @@ also updating the `missingval` field/s.
 # Example
 
 ```jldoctest
-using Rasters, RasterDataSources
+using Rasters, RasterDataSources, ArchGDAL
 A = Raster(WorldClim{Climate}, :prec; month=1) |> replace_missing
 missingval(A)
 # output

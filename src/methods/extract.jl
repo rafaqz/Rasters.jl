@@ -27,7 +27,7 @@ _Burramis parvus_. This could be used to fit a species distribution model.
 using Rasters, RasterDataSources, ArchGDAL, GBIF2, CSV
 
 # Get a stack of BioClim layers, and replace missing values with `missing`
-st = RasterStack(WorldClim{BioClim}, (1, 3, 5, 7, 12))[Band(1)] |> replace_missing
+st = RasterStack(WorldClim{BioClim}, (1, 3, 5, 7, 12)) |> replace_missing
 
 # Download some occurrence data
 obs = GBIF2.occurrence_search("Burramys parvus"; limit=5, year="2009")

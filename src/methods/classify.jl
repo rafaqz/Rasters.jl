@@ -113,7 +113,7 @@ If `others` is set other values not covered in `pairs` will be set to that value
     the file is stored as `Float32`. Attempting to write some other type will fail.
 
 ```jldoctest
-using Rasters, Plots, RasterDataSources
+using Rasters, RasterDataSources, ArchGDAL, Plots
 # Download and copy the file
 filename = getraster(WorldClim{Climate}, :tavg; month=6)
 tempfile = tempname() * ".tif"
