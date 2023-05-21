@@ -1,16 +1,3 @@
-module RastersMakieExt
-
-@static if isdefined(Base, :get_extension) # julia < 1.9
-    using Makie, Rasters
-else    
-    using ..Makie
-    using ..Rasters
-end
-
-using Rasters.DimensionalData
-using Rasters.MakieCore
-using Rasters: Band, _balance_grid
-
 function Rasters.style_rasters()
     return merge(
         Rasters.__style_rasters(),
@@ -23,7 +10,6 @@ end
 function lift_layer(r::Observable, inds...)
     return lift(lift_layer, r, inds...)
 end
-
 lift_layer(r::Raster, inds...) = getindex(r, inds...)
 lift_layer(rs::RasterStack, ind::Symbol) = getproperty(rs, ind)
 
@@ -141,7 +127,7 @@ function Rasters.rplot(gp::GridPosition, raster::Union{AbstractRaster{T, 3}, Obs
     val_raster = Makie.to_value(raster)
 
     nrows, ncols = if ncols isa Makie.Automatic && nrows isa Makie.Automatic
-        _balance_grid(size(val_raster, 3))
+        Rasters._balance_grid(size(val_raster, 3))
     elseif ncols isa Int && nrows isa Int
         @assert ncols * nrows ≥ size(val_raster, 3)
         nrows, ncols
@@ -171,7 +157,7 @@ function Rasters.rplot(gp::GridPosition, stack::Union{RasterStack, Observable{<:
     @assert (length(size(val_stack)) == 2 || size(val_stack, 3) == 1)
 
     nrows, ncols = if ncols isa Makie.Automatic && nrows isa Makie.Automatic
-        _balance_grid(length(propertynames(val_stack)))
+        Rasters._balance_grid(length(propertynames(val_stack)))
     elseif ncols isa Int && nrows isa Int
         @assert ncols * nrows ≥ length(propertynames(val_stack))
         nrows, ncols
@@ -247,6 +233,4 @@ function Rasters.rplot(raster::Union{RasterStack, Observable{<: RasterStack}}; f
     #     Label(layout[0, 1:Makie.ncols(layout)], raster_title; fontsize = get(figure.scene.attributes, (:Axis :titlesize), 16), font = get(figure.scene.attributes, (:Axis, :titlefont), :bold))
     # end
     return figure
-end
-
 end

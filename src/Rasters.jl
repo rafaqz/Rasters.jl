@@ -133,7 +133,7 @@ function __init__()
         @require ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3" include("../ext/RastersArchGDALExt/RastersArchGDALExt.jl")
         @require CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298" include("../ext/RastersCoordinateTransformationsExt/RastersCoordinateTransformationsExt.jl")
         @require HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f" include("../ext/RastersHDF5Ext/RastersHDF5Ext.jl")
-        @require Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" include("../ext/RastersMakie.jl")
+        @require Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" include("../ext/RastersMakieExt/RastersMakieExt.jl")
         @require NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab" include("../ext/RastersNCDatasetsExt/RastersNCDatasetsExt.jl")
         @require RasterDataSources = "3cb90ccd-e1b6-4867-9617-4276c8b2ca36" include("../ext/RastersRasterDataSourcesExt/RastersRasterDataSourcesExt.jl")
     end

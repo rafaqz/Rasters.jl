@@ -1,9 +1,12 @@
 module RastersCoordinateTransformationsExt
 
-using DimensionalData,
-    CoordinateTransformations,
-    Rasters
+@static if isdefined(Base, :get_extension) # julia < 1.9
+    using Rasters, CoordinateTransformations
+else    
+    using ..Rasters, ..CoordinateTransformations
+end
 
+using DimensionalData
 using Rasters.LookupArrays
 using Rasters.Dimensions
 

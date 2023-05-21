@@ -1,16 +1,20 @@
 module RastersNCDatasetsExt
 
+@static if isdefined(Base, :get_extension) # julia < 1.9
+    using Rasters, NCDatasets
+else    
+    using ..Rasters, ..NCDatasets
+end
+
 import DiskArrays,
     FillArrays,
     Extents,
     GeoInterface,
     Missings,
-    NCDatasets
 
 using Dates, 
     DimensionalData,
-    GeoFormatTypes,
-    Rasters
+    GeoFormatTypes
 
 using Rasters.LookupArrays
 using Rasters.Dimensions

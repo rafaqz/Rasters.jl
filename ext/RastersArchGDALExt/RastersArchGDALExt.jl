@@ -1,14 +1,18 @@
 module RastersArchGDALExt
 
-import ArchGDAL,
-    DiskArrays,
+@static if isdefined(Base, :get_extension) # julia < 1.9
+    using Rasters, ArchGDAL
+else    
+    using ..Rasters, ..ArchGDAL
+end
+
+import DiskArrays,
     Extents,
     Missings
 
 using DimensionalData,
     GeoFormatTypes,
-    GeoInterface,
-    Rasters
+    GeoInterface
 
 using Rasters.LookupArrays
 using Rasters.Dimensions
