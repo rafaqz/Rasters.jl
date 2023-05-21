@@ -10,7 +10,7 @@ import DiskArrays,
     FillArrays,
     Extents,
     GeoInterface,
-    Missings,
+    Missings
 
 using Dates, 
     DimensionalData,
