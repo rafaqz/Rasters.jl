@@ -22,7 +22,7 @@ Trim `missingval(x)` from `x` for axes in `dims`, returning a view of `x`.
 Create trimmed layers of Australian habitat heterogeneity.
 
 ```jldoctest
-using Rasters, Plots
+using Rasters, RasterDataSources, Plots
 layers = (:evenness, :range, :contrast, :correlation)
 st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers)
 

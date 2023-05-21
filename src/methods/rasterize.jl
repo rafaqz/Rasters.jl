@@ -361,7 +361,7 @@ $RASTERIZE_KEYWORDS
 Rasterize a shapefile for China and plot, with a border.
 
 ```jldoctest
-using Rasters, Plots, Dates, Shapefile, Downloads
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates, Shapefile, Downloads
 using Rasters.LookupArrays
 
 # Download a borders shapefile
@@ -492,7 +492,7 @@ $GEOM_KEYWORDS
 # Example
 
 ```jldoctest
-using Rasters, Plots, Dates, Shapefile, GeoInterface, Downloads
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates, Shapefile, GeoInterface, Downloads
 using Rasters.LookupArrays
 
 # Download a borders shapefile

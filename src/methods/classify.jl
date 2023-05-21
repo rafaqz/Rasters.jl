@@ -29,7 +29,7 @@ If `others` is set other values not covered in `pairs` will be set to that value
 # Example
 
 ```jldoctest
-using Rasters, Plots
+using Rasters, RasterDataSources, ArchGDAL, Plots
 A = Raster(WorldClim{Climate}, :tavg; month=1)
 classes = <=(15) => 10,
           15..25 => 20,

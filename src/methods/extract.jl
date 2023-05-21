@@ -24,7 +24,7 @@ Here we extact points matching the occurrence of the Mountain Pygmy Possum,
 _Burramis parvus_. This could be used to fit a species distribution model.
 
 ```julia
-using Rasters, GBIF2, CSV
+using Rasters, RasterDataSources, ArchGDAL, GBIF2, CSV
 
 # Get a stack of BioClim layers, and replace missing values with `missing`
 st = RasterStack(WorldClim{BioClim}, (1, 3, 5, 7, 12))[Band(1)] |> replace_missing

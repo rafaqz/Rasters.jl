@@ -38,7 +38,7 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 # Example
 
 ```jldoctest
-using Rasters, Statistics, Plots
+using Rasters, RasterDataSources, Statistics, Plots
 using Rasters: Center
 st = read(RasterStack(WorldClim{Climate}; month=1))
 ag = aggregate(Center(), st, (Y(20), X(20)); skipmissingval=true, progress=false)
