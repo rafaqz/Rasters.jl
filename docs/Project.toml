@@ -1,4 +1,5 @@
 [deps]
+ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 CFTime = "179af706-886a-5703-950a-314cd64e0468"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
@@ -8,6 +9,7 @@ GBIF2 = "dedd4f52-e074-43bf-924d-d6bce14ad628"
 GeoInterface = "cf35fbd7-0cd7-5166-be24-54bfbe79505f"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 RasterDataSources = "3cb90ccd-e1b6-4867-9617-4276c8b2ca36"
 Shapefile = "8e980c4a-a4fe-5da2-b3a7-4b4b0353a2f4"

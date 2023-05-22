@@ -1,4 +1,4 @@
-using Documenter, Rasters, Plots, Logging, Statistics, Dates, RasterDataSources, ArchGDAL
+using Documenter, Rasters, Plots, Logging, Statistics, Dates, RasterDataSources, ArchGDAL, NCDatasets
 import Makie, CairoMakie
 
 using Rasters.LookupArrays, Rasters.Dimensions
