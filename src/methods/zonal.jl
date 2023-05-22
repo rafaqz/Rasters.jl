@@ -118,7 +118,12 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, geoms; progress=true, threa
     n == 0 && return []
     zs = _alloc_zonal(f, x, first(geoms), n; kw...)
     _run(range, threaded, progress, "Applying $f to each geometry...") do i
-        zs[i] = _zonal(f, x, _getgeom(geoms, i); kw...)
+        geom = _getgeom(geoms, i)
+        if ismissing(geom)
+            zs[i] = missing
+        else
+            zs[i] = _zonal(f, x, geom; kw...)
+        end
     end
     return zs
 end
