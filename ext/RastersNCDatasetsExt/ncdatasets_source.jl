@@ -460,10 +460,10 @@ function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}; kw...) where {T,
         missingval(A) isa Nothing || @warn "`missingval` $(missingval(A)) is not the same type as your data $T."
     end
 
-    key = if string(name(A)) == ""
+    key = if string(DD.name(A)) == ""
         UNNAMED_NCD_FILE_KEY
     else
-        string(name(A))
+        string(DD.name(A))
     end
 
     dimnames = lowercase.(string.(map(name, dims(A))))
@@ -478,7 +478,7 @@ end
 
 _def_dim_var!(ds::NCD.Dataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::NCD.Dataset, dim::Dimension)
-    dimkey = lowercase(string(name(dim)))
+    dimkey = lowercase(string(DD.name(dim)))
     haskey(ds.dim, dimkey) && return nothing
     NCD.defDim(ds, dimkey, length(dim))
     lookup(dim) isa NoLookup && return nothing
