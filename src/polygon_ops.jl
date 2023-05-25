@@ -100,7 +100,7 @@ function Edges(
     (; edges, scratch) = _get_alloc(allocs)
 
     # TODO fix bug that requires this to be redefined
-    # edges = Vector{Edge}(undef, 0)
+    edges = Vector{Edge}(undef, 0)
     local edge_count = max_ylen = 0
     if tr isa GI.AbstractCurveTrait
         edge_count, max_ylen = _to_edges!(edges, geom, dims, edge_count)
