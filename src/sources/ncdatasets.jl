@@ -191,9 +191,16 @@ function DD.layerdims(var::NCD.Variable)
     end
 end
 
-DD.layermetadata(ds::NCD.Dataset) = _layermetadata(ds, Tuple(layerkeys(ds)))
-function _layermetadata(ds, keys)
-    dimtypes = map(k -> DD.metadata(NCD.variable(ds, string(k))), keys)
+function DD.layermetadata(ds::NCD.Dataset)
+    keys = Tuple(layerkeys(ds))
+    dimtypes = map(keys) do k
+        md = DD.metadata(NCD.variable(ds, string(k)))
+        var = NCD.variable(ds, k)
+        if haskey(var.attrib, "grid_mapping")
+            md["grid_mapping"] = Dict(ds[var.attrib["grid_mapping"]].attrib)
+        end
+        md
+    end
     NamedTuple{map(Symbol, keys)}(dimtypes)
 end
 
@@ -214,7 +221,15 @@ function layerkeys(ds::NCD.Dataset)
     else
         dimkeys::Vector{String}
     end
-    return setdiff(keys(ds), toremove)
+    nondim = setdiff(keys(ds), toremove)
+    grid_mapping = String[]
+    for k in nondim
+        var = NCD.variable(ds, k)
+        if haskey(var.attrib, "grid_mapping")
+            push!(grid_mapping, var.attrib["grid_mapping"])
+        end
+    end
+    nondim = setdiff(nondim, grid_mapping)
 end
 
 function FileStack{NCDsource}(ds::NCD.Dataset, filename::AbstractString; write=false, keys)
