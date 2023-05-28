@@ -1,4 +1,5 @@
-using Documenter, Rasters, Plots, Logging, Statistics, Dates, RasterDataSources, ArchGDAL, NCDatasets
+using Documenter, Rasters, Plots, Logging, Statistics, Dates, 
+    RasterDataSources, ArchGDAL, NCDatasets, HDF5, CoordinateTransformations
 import Makie, CairoMakie
 
 using Rasters.LookupArrays, Rasters.Dimensions
