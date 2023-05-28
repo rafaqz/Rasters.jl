@@ -26,7 +26,7 @@ e.g. certain X/Y coordinates. The available selectors are listed here:
 Use the `..` selector to take a `view` of madagascar:
 
 ```@example
-using Rasters, RasterDataSource, ArchGDAL, Plots
+using Rasters, RasterDataSources, ArchGDAL, Plots
 A = Raster(WorldClim{BioClim}, 5)
 madagascar = view(A, X(43.25 .. 50.48), Y(-25.61 .. -12.04)) # Note the space between .. -12
 plot(madagascar)
@@ -621,7 +621,7 @@ tightly integrated into Rasters.jl, so that datsets and keywords can be used
 directly to download and load data as a `Raster`, `RasterStack`, or `RasterSeries`.
 
 ```@example
-using Rasters, RasterDataSource, ArchGDAL, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 A = Raster(WorldClim{Climate}, :tavg; month=June)
 plot(A)
 ```
