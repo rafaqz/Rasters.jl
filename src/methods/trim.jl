@@ -103,7 +103,7 @@ end
 
 Base.axes(A::AxisTrackers) = map(d -> axes(d, 1), A.dims)
 Base.size(A::AxisTrackers) = map(length, A.dims)
-Base.getindex(A::AxisTrackers, I...) = map(getindex, A.tracking, _trackedinds(I)) |> any
+Base.getindex(A::AxisTrackers, I...) = map(getindex, A.tracking, _trackedinds(A, I)) |> any
 function Base.setindex!(A::AxisTrackers, x, I::Int...)
     map(A.tracking, _trackedinds(A, I)) do axis, i
         axis[i] |= x

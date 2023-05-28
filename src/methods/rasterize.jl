@@ -133,7 +133,7 @@ function Rasterizer(geom, fill, fillitr;
     init = isnothing(init) ? _reduce_init(reducer, filleltype) : init
     if shape == :points &&
         !GI.isgeometry(geom) &&
-        !GI.trait(first(geom)) isa PointTrait &&
+        !GI.trait(first(geom)) isa GI.PointTrait &&
         !(reducer in stable_reductions)
         @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be innaccurate for `reducer` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
     end
@@ -707,8 +707,8 @@ function _fill_func!(fillfunc, A::Raster, I)
 end
 function _fill_func!(fillfunc, A::RasterStack, I)
     @inbounds a = A[I...]
-    f1 = map(a) do an
-        fillfunc(n)
+    f1 = map(a) do x
+        fillfunc(x)
     end
     @inbounds A[I...] = f1
 end

@@ -311,7 +311,7 @@ end
 
 # allow 3d rasters to be plotted as volumes
 function MakieCore.convert_arguments(::MakieCore.VolumeLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 3})
-    raster = replace_missing(missing_or_float32.(raw_raster), missingval = NaN32)
+    raster = replace_missing(missing_or_float32.(raw_raster_with_missings), missingval = NaN32)
     ds = DD._fwdorderdims(raster)
     A = permutedims(raster, ds)
     x, y, z = dims(A)
