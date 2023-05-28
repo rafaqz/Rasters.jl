@@ -4,10 +4,12 @@ filter_ext(path, exts::Union{Tuple,AbstractArray}) =
     filter(fn -> splitext(fn)[2] in exts, readdir(path; join=true))
 filter_ext(path, ext::Nothing) = readdir(path; join=true)
 
+cleankeys(name) = (_cleankey(name),)
 function cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray})
-    Tuple(map(cleankeys, values(keys), ntuple(i -> i, length(keys))))
+    Tuple(map(_cleankey, keys, ntuple(i -> i, length(keys))))
 end
-function cleankeys(name::Union{Symbol,AbstractString,Name,NoName}, i=1)
+
+function _cleankey(name::Union{Symbol,AbstractString,Name,NoName}, i=1)
     if name in (NoName(), Symbol(""), Name(Symbol("")))
         Symbol("layer$i")
     else
@@ -193,7 +195,7 @@ _geomindices(::GI.AbstractGeometryTrait, geoms) = 1:GI.ngeom(geoms)
 _getgeom(geoms, i::Integer) = _getgeom(GI.trait(geoms), geoms, i)
 _getgeom(::GI.FeatureCollectionTrait, geoms, i::Integer) = GI.geometry(GI.getfeature(geoms, i))
 _getgeom(::GI.FeatureTrait, geoms, i::Integer) = GI.getgeom(GI.geometry(geoms), i)
-_getgeom(::GI.AbstractGeometryTrait, geoms, i::Integer) = GI.getgeom(geoms, i)
+_getgeom(::GI.AbstractGeometryTrait, geoms, i::Integer) = GI.getgeom(geom, i)
 _getgeom(::GI.PointTrait, geom, i::Integer) = error("PointTrait should not be reached")
 _getgeom(::Nothing, geoms, i::Integer) = geoms[i] # Otherwise we can probably just index?
 
@@ -282,7 +284,7 @@ function _extent(::Nothing, data::T; geometrycolumn=nothing)::XYExtent where T
                     acc
                 end
             end
-            return _float64_xy_extent(Extents.Extent(bounds))
+            return _float64_xy_extent(Extensts.Extent(bounds))
         end
     else
         ext = Extents.extent(data)
