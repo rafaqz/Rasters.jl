@@ -192,7 +192,7 @@ function DD.layerdims(var::NCD.Variable)
 end
 
 function DD.layermetadata(ds::NCD.Dataset)
-    keys = Tuple(layerkeys(ds))
+    keys = Tuple(RA.layerkeys(ds))
     dimtypes = map(keys) do k
         md = DD.metadata(NCD.variable(ds, string(k)))
         var = NCD.variable(ds, k)
