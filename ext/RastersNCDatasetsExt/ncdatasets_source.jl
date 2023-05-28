@@ -466,7 +466,7 @@ function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}; kw...) where {T,
         string(DD.name(A))
     end
 
-    dimnames = lowercase.(string.(map(name, dims(A))))
+    dimnames = lowercase.(string.(map(DD.name, dims(A))))
     var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...)
 
     # NCDatasets needs Colon indices to write without allocations

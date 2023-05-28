@@ -45,7 +45,7 @@ Note:
 Resample a WorldClim layer to match an EarthEnv layer:
 
 ```jldoctest
-using Rasters, Plots
+using Rasters, RasterDataSources, ArchGDAL, Plots
 A = Raster(WorldClim{Climate}, :prec; month=1)
 B = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 
