@@ -21,8 +21,16 @@ flush_info_and_warnings()
 Logging.disable_logging(Logging.Warn)
 
 # Make the docs, without running the tests again
+# We need to explicitly add all the extensions here
 makedocs(
-    modules = [Rasters],
+    modules = [
+        Rasters,
+        Base.get_extension(Rasters, :RastersArchGDALExt),
+        Base.get_extension(Rasters, :RastersCoordinateTransformationsExt),
+        Base.get_extension(Rasters, :RastersMakieExt),
+        Base.get_extension(Rasters, :RastersNCDatasetsExt),
+        Base.get_extension(Rasters, :RastersRasterDataSourcesExt),
+    ],
     sitename = "Rasters.jl",
     strict = true,
     clean = false,
