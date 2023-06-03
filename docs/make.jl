@@ -27,6 +27,7 @@ makedocs(
         Rasters,
         Base.get_extension(Rasters, :RastersArchGDALExt),
         Base.get_extension(Rasters, :RastersCoordinateTransformationsExt),
+        Base.get_extension(Rasters, :RastersHDF5Ext),
         Base.get_extension(Rasters, :RastersMakieExt),
         Base.get_extension(Rasters, :RastersNCDatasetsExt),
         Base.get_extension(Rasters, :RastersRasterDataSourcesExt),
