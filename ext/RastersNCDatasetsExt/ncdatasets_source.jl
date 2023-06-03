@@ -54,7 +54,7 @@ function RA.Raster(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw.
         end
         throw(ArgumentError("dataset at $filename has no array variables"))
     else
-       return Raster(ds[key], filename, key; kw...)
+       return Raster(ds[key], filename, key; source=NCDsource, kw...)
     end
 end
 
