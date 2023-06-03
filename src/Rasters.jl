@@ -98,6 +98,7 @@ const RasterStackOrArray = Union{AbstractRasterStack,AbstractRaster}
 const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}
 
 include("utils.jl")
+include("sources/sources.jl")
 include("skipmissing.jl")
 include("polygon_ops.jl")
 include("table_ops.jl")
@@ -123,7 +124,6 @@ include("methods/slice_combine.jl")
 include("methods/trim.jl")
 include("methods/zonal.jl")
 
-include("sources/sources.jl")
 include("sources/grd.jl")
 include("extensions.jl")
 

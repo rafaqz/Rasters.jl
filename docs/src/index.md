@@ -265,7 +265,7 @@ A[Y(Near(20.0)), Ti(1)] |> plot
 Load occurrences for the Mountain Pygmy Possum using GBIF.jl
 
 ```@example sdm
-using Rasters, GBIF2, Plots 
+using Rasters, RasterDataSources, ArchGDAL, GBIF2, Plots 
 records = GBIF2.occurrence_search("Burramys parvus"; limit=300)
 ```
 
@@ -280,7 +280,7 @@ Get BioClim layers and subset to south-east Australia
 
 ```@example sdm
 A = RasterStack(WorldClim{BioClim}, (1, 3, 7, 12))
-se_aus = A[X(138 .. 155), Y(-40 .. -25), Band(1)]
+se_aus = A[X(138 .. 155), Y(-40 .. -25)]
 ```
 
 Plot BioClim predictors and scatter occurrence points on all subplots
@@ -316,7 +316,7 @@ then `mosaic` together to make a single plot.
 First, get the country boundary shape files using GADM.jl.
 
 ```@example mask
-using Rasters, RasterDataSources, ArchGDAL, Shapefile, Plots, Dates, Downloads
+using Rasters, RasterDataSources, ArchGDAL, Shapefile, Plots, Dates, Downloads, NCDatasets
 
 # Download the shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -330,11 +330,10 @@ norway_border = shapes.shapes[53]
 sweden_border = shapes.shapes[54]
 ```
 
-Then load raster data. We load some worldclim layers using `RasterDataSources` via
-Rasters.jl, and drop the Band dimension.
+Then load raster data. We load some worldclim layers using `RasterDataSources` via Rasters.jl:
 
 ```@example mask
-climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)[Band(1)]
+climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
 ```
 
 `mask` Denmark, Norway and Sweden from the global dataset using their border polygon,

@@ -361,7 +361,7 @@ end
 
 # define the theme
 
-# this function is defined so that we can override style_rasters in RastersMakie.jl
+# this function is defined so that we can override style_rasters in RastersMakieExt
 function __style_rasters()
     return MakieCore.Attributes(
         Axis = (
@@ -380,7 +380,7 @@ function __style_rasters()
     )
 end
 
-function style_rasters end # defined in ../ext/RastersMakie
+function style_rasters end # defined in ../ext/RastersMakieExt
 
 function color_rasters()
     return MakieCore.Attributes(
