@@ -84,7 +84,7 @@ function _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom, r; scal
     missed_pixels = if mode === union
         _union_coverage!(A, geom; scale, subpixel_dims, progress=r.progress)
     elseif mode === sum
-        _sum_coverage!(A, geoms; scale, subpixel_dims, progress=r.progress)
+        _sum_coverage!(A, geom; scale, subpixel_dims, progress=r.progress)
     else
         throw(ArgumentError("Coverage `mode` can be `union` or `sum`. Got $mode"))
     end
@@ -170,9 +170,9 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
 end
 function _union_coverage!(A::AbstractRaster, geom;
     scale,
-    allocs=Allocs(),
     linebuffer=_init_bools(A, Bool; missingval=false),
     centerbuffer=_init_bools(A, Bool; missingval=false),
+    allocs=Allocs(linebuffer),
     subpixel_buffer=falses(size(A) .* scale),
     centeracc=_init_bools(A, Bool; missingval=false),
     lineacc=_init_bools(A, Bool; missingval=false),
@@ -276,9 +276,9 @@ function _sum_coverage!(A::AbstractRaster, geoms, buffers;
 end
 function _sum_coverage!(A::AbstractRaster, geom;
     scale,
-    allocs=Allocs(),
     linebuffer=_init_bools(A, Bool; missingval=false),
     centerbuffer=_init_bools(A, Bool; missingval=false),
+    allocs=Allocs(linebuffer),
     block_crossings=[Vector{Float64}(undef, 0) for _ in 1:scale],
     subbuffer=falses(scale, scale),
     burnstatus=[BurnStatus() for _ in 1:scale],

@@ -27,7 +27,7 @@ If your mosaic has has apparent line errors, increase the `atol` value.
 Here we cut out Australia and Africa from a stack, and join them with `mosaic`.
 
 ```jldoctest
-using Rasters, Plots
+using Rasters, RasterDataSources, ArchGDAL, Plots
 st = RasterStack(WorldClim{Climate}; month=1);
 
 africa = st[X(-20.0 .. 60.0), Y(-40.0 .. 35.0)]
@@ -118,7 +118,7 @@ Cut out Australia and Africa stacks, then combined them
 into a single stack.
 
 ```jldoctest
-using Rasters, Statistics, Plots
+using Rasters, RasterDataSources, ArchGDAL, Statistics, Plots
 st = read(RasterStack(WorldClim{Climate}; month=1))
 aus = st[X=100.0 .. 160.0, Y=-50.0 .. -10.0]
 africa = st[X=-20.0 .. 60.0, Y=-40.0 .. 35.0]

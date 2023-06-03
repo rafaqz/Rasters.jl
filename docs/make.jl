@@ -1,4 +1,5 @@
-using Documenter, Rasters, Plots, Logging, Statistics, Dates
+using Documenter, Rasters, Plots, Logging, Statistics, Dates, 
+    RasterDataSources, ArchGDAL, NCDatasets, HDF5, CoordinateTransformations
 import Makie, CairoMakie
 
 using Rasters.LookupArrays, Rasters.Dimensions
@@ -20,8 +21,17 @@ flush_info_and_warnings()
 Logging.disable_logging(Logging.Warn)
 
 # Make the docs, without running the tests again
+# We need to explicitly add all the extensions here
 makedocs(
-    modules = [Rasters],
+    modules = [
+        Rasters,
+        Base.get_extension(Rasters, :RastersArchGDALExt),
+        Base.get_extension(Rasters, :RastersCoordinateTransformationsExt),
+        Base.get_extension(Rasters, :RastersHDF5Ext),
+        Base.get_extension(Rasters, :RastersMakieExt),
+        Base.get_extension(Rasters, :RastersNCDatasetsExt),
+        Base.get_extension(Rasters, :RastersRasterDataSourcesExt),
+    ],
     sitename = "Rasters.jl",
     strict = true,
     clean = false,

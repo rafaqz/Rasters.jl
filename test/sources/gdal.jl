@@ -455,7 +455,7 @@ gdalpath = maybedownload(url)
         end
 
         @testset "Non-rotated as affine has the same extent" begin
-            am = Rasters._geotransform2affine(Rasters._dims2geotransform(dims(gdalarray, (X, Y))...))
+            am = Rasters.geotransform2affine(Rasters.dims2geotransform(dims(gdalarray, (X, Y))...))
             xap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, X)))
             yap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, Y)))
             affine_dims = DimensionalData.format((X(xap), Y(yap)), gdalarray)

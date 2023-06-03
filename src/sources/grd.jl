@@ -247,7 +247,7 @@ function Base.open(f::Function, A::FileArray{GRDsource}, key...; write=A.write)
     _mmapgrd(mm -> f(RasterDiskArray{GRDsource}(mm, A.eachchunk, A.haschunks)), A; write)
 end
 
-function _open(f, ::Type{GRDsource}, filename; key=nothing, write=false)
+function _open(f, ::Type{GRDsource}, filename::AbstractString; key=nothing, write=false)
     isfile(filename) || _filenotfound_error(filename)
     _open(f, GRDsource, GRDattrib(filename; write))
 end

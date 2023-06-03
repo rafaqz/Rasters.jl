@@ -24,8 +24,8 @@ These can be used when `of` is a GeoInterface.jl compatible object:
 
 # Example
 
-```jldoctest
-using Rasters, Shapefile, DataFrames, Downloads, Statistics, Dates
+ ``jldoctest
+using Rasters, RasterDataSources, ArchGDAL, Shapefile, DataFrames, Downloads, Statistics, Dates
 
 # Download a borders shapefile
 ne_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries"

@@ -133,7 +133,7 @@ function Rasterizer(geom, fill, fillitr;
     init = isnothing(init) ? _reduce_init(reducer, filleltype) : init
     if shape == :points &&
         !GI.isgeometry(geom) &&
-        !GI.trait(first(geom)) isa PointTrait &&
+        !GI.trait(first(geom)) isa GI.PointTrait &&
         !(reducer in stable_reductions)
         @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be innaccurate for `reducer` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
     end
@@ -361,7 +361,7 @@ $RASTERIZE_KEYWORDS
 Rasterize a shapefile for China and plot, with a border.
 
 ```jldoctest
-using Rasters, Plots, Dates, Shapefile, Downloads
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates, Shapefile, Downloads
 using Rasters.LookupArrays
 
 # Download a borders shapefile
@@ -492,7 +492,7 @@ $GEOM_KEYWORDS
 # Example
 
 ```jldoctest
-using Rasters, Plots, Dates, Shapefile, GeoInterface, Downloads
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates, Shapefile, GeoInterface, Downloads
 using Rasters.LookupArrays
 
 # Download a borders shapefile
@@ -707,8 +707,8 @@ function _fill_func!(fillfunc, A::Raster, I)
 end
 function _fill_func!(fillfunc, A::RasterStack, I)
     @inbounds a = A[I...]
-    f1 = map(a) do an
-        fillfunc(n)
+    f1 = map(a) do x
+        fillfunc(x)
     end
     @inbounds A[I...] = f1
 end

@@ -66,7 +66,7 @@ Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask.
 
 ```julia
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 
 # Load and plot the file
 awap = read(Raster(AWAP, :tmax; date=DateTime(2001, 1, 1)))
@@ -155,7 +155,7 @@ Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask to match the size and projection.
 
 ```julia
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 
 # Load and plot the file
 awap = read(RasterStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
@@ -262,7 +262,7 @@ For tabular data, feature collections and other iterables
 # Example
 
 ```jldoctest
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 boolmask(wc) |> plot
 
@@ -340,7 +340,7 @@ $GEOM_KEYWORDS
 # Example
 
 ```jldoctest
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 missingmask(wc) |> plot
 

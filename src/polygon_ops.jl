@@ -1,6 +1,7 @@
 const DEFAULT_POINT_ORDER = (X(), Y())
 const DEFAULT_TABLE_DIM_KEYS = (:X, :Y)
 
+# Tracks the burning status for each column
 struct BurnStatus
     ic::Int
     burn::Bool
@@ -217,13 +218,13 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureTrait, feature; 
     _burn_geometry!(B, GI.geometry(feature); kw...)
 end
 function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait, fc; kw...)::Bool
-    geoms = (GI.geometry(f) for f in GI.getfeature(gc))
+    geoms = (GI.geometry(f) for f in GI.getfeature(fc))
     _burn_geometry!(B, nothing, geoms; kw...)
 end
 # Where geoms is an iterator
 function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; 
     collapse::Union{Bool,Nothing}=nothing, lock=SectorLocks(), verbose=true, progress=true, threaded=true,
-    allocs=_burning_allocs(B, threaded), kw...
+    allocs=_burning_allocs(B; threaded), kw...
 )::Bool
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
