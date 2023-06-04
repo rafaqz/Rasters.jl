@@ -16,7 +16,36 @@ multi-layered stacks, and multi-file series of arrays and stacks.
 
 _A RasterStack of EarthEnv HabitatHeterogeneity layers, trimmed to Australia and plotted with Plots.jl_
 
-## Quick start
+## Packages extensions and Rasters 0.8 and onwards
+
+On Julia 1.9 we can put additional packages in extensions, so the code only loads when
+you load a specific package. Rasters.jl was always intended to work like this,
+and its finally possible. This reduced package `using` time from many seconds to well under a second.
+
+But, it means you have to manually load packages you need for each backend or additional
+functionality.
+
+For example, to use the GDAL backend, and download files, you now need to do:
+
+```julia
+using Rasters, ArchGDAL, RasterDataSources
+```
+
+where previously it was just `using Rasters`.
+
+Sources and packages needed:
+- `:gdal`: `using ArchGDAL`
+- `:netcdf`: `using NCDatasets`
+- `:grd`: built-in.
+- `:smap`: `using HDF5`
+- `:grib`: not yet finished.
+
+Other functionality in extensions:
+- Raster data downloads, like `Worldclim{Climate}`: `using RasterDataSources`
+- Makie plots: `using Makie`
+- Coordinate transformations for gdal rasters: `using CoordinateTransformations`
+
+# Quick start
 Install the package by typing:
 
 ```julia
