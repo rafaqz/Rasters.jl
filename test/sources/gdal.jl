@@ -17,7 +17,7 @@ gdalpath = maybedownload(url)
     @testset "lazyness" begin
         # Eager is the default
         @test parent(gdalarray) isa Array
-        @test parent(lazyarray) isa FileArray
+        @test parent(lazyarray) isa DiskArrays.AbstractDiskArray
         @test parent(eagerarray) isa Array
         @testset "lazy broadcast" begin
             @test read(lazyarray .* 2) == eagerarray .* 2
@@ -32,7 +32,7 @@ gdalpath = maybedownload(url)
     end
 
     @testset "open" begin
-        @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1, :]
+        @test open(A -> A[Y=1], gdalarray) == gdalarray[:, 1]
         tempfile = tempname() * ".tif"
         cp(gdalpath, tempfile)
         gdalwritearray = Raster(tempfile; lazy=true)
@@ -61,11 +61,13 @@ gdalpath = maybedownload(url)
         cp(gdalpath, gdal_custom, force=true)
         @time gdalarray_custom = Raster(gdal_custom, source=Rasters.GDALsource, lazy=true)
         @test gdalarray_custom isa Raster
-        @test parent(gdalarray_custom) isa FileArray{Rasters.GDALsource}
+        @test parent(gdalarray_custom) isa AbstractDiskArray
+        @test parent(parent(gdalarray_custom)) isa FileArray{Rasters.GDALsource}
         @test all(read(gdalarray_custom) .=== gdalarray)
         @time gdalarray_custom = Raster(gdal_custom, source=:gdal, lazy=true)
         @test gdalarray_custom isa Raster
-        @test parent(gdalarray_custom) isa FileArray{Rasters.GDALsource}
+        @test parent(gdalarray_custom) isa AbstractDiskArray
+        @test parent(parent(gdalarray_custom)) isa FileArray{Rasters.GDALsource}
         @test all(read(gdalarray_custom) .=== gdalarray)
     end
 
@@ -80,27 +82,26 @@ gdalpath = maybedownload(url)
     end
 
     @testset "view of disk array" begin
-        A = view(lazyarray, 1:10, 1:10, 1)
+        A = view(lazyarray, 1:10, 1:10)
         @test A isa Raster
         @test parent(A) isa DiskArrays.SubDiskArray
         @test parent(parent(A)) isa Rasters.FileArray
     end
 
     @testset "array properties" begin
-        @test size(gdalarray) == (514, 515, 1)
-        @test gdalarray isa Raster{UInt8,3}
+        @test size(gdalarray) == (514, 515)
+        @test gdalarray isa Raster{UInt8,2}
     end
 
     @testset "dimensions" begin
         @test length(dims(gdalarray, X)) == 514
-        @test ndims(gdalarray) == 3
-        @test dims(gdalarray) isa Tuple{<:X,<:Y,<:Band}
-        @test lookup(gdalarray, Band) isa DimensionalData.Categorical;
+        @test ndims(gdalarray) == 2
+        @test dims(gdalarray) isa Tuple{<:X,<:Y}
+        @test lookup(refdims(gdalarray), Band) isa DimensionalData.Categorical;
         # @test span(gdalarray, (Y, X)) ==
             # (Regular(-60.02213698319351), Regular(60.02213698319374))
         @test sampling(gdalarray, (Y, X)) ==
             (Intervals(Start()), Intervals(Start()))
-        @test refdims(gdalarray) == ()
         # Bounds calculated in python using rasterio
         @test all(bounds(gdalarray, Y) .≈ (4224973.143255847, 4255884.5438021915))
         @test all(bounds(gdalarray, X) .≈ (-28493.166784412522, 2358.211624949061))
@@ -120,8 +121,7 @@ gdalpath = maybedownload(url)
         @test crs(gdalarray) isa WellKnownText
         @test crs(gdalarray[Y(1)]) isa WellKnownText
         @test mappedcrs(gdalarray) === nothing
-        @test mappedcrs(gdalarray[Y(1), X(1)]) === nothing
-        @test crs(gdalarray[Y(1), X(1)]) === nothing
+        @test mappedcrs(gdalarray[Y(1)]) === nothing
     end
 
     @testset "indexing" begin
@@ -149,9 +149,9 @@ gdalpath = maybedownload(url)
             a = read(replace_missing(gdalarray, zero(eltype(gdalarray))))
             a[X(1:100)] .= missingval(a)
             trimmed = trim(a)
-            @test size(trimmed) == (414, 514, 1)
+            @test size(trimmed) == (414, 514)
             cropped = Rasters.crop(a; to=trimmed)
-            @test size(cropped) == (414, 514, 1)
+            @test size(cropped) == (414, 514)
             @test all(collect(cropped .=== trimmed))
             extended = extend(cropped; to=a)
             @test all(collect(extended .=== a))
@@ -194,10 +194,9 @@ gdalpath = maybedownload(url)
             pmasked = mask(A; with=polymask);
             revX_pmasked = reverse(mask(reverse(A; dims=X); with=polymask); dims=X);
             revY_pmasked = reverse(mask(reverse(A; dims=Y); with=polymask); dims=Y);
-            perm_pmasked1 = permutedims(mask(permutedims(A, (Y, X, Band)); with=polymask), (X, Y, Band));
-            perm_pmasked2 = permutedims(mask(permutedims(A, (Band, Y, X)); with=polymask), (X, Y, Band));
+            perm_pmasked1 = permutedims(mask(permutedims(A, (Y, X)); with=polymask), (X, Y));
             rmasked = mask(A; with=rastermask)
-            @test all(rmasked .=== pmasked .=== revX_pmasked .=== revY_pmasked .=== perm_pmasked1 .=== perm_pmasked2)
+            @test all(rmasked .=== pmasked .=== revX_pmasked .=== revY_pmasked .=== perm_pmasked1)
         end
 
         @testset "classify! to disk" begin
@@ -212,7 +211,6 @@ gdalpath = maybedownload(url)
         @testset "aggregate" begin
             ag = aggregate(mean, gdalarray, 4)
             @test ag == aggregate(mean, gdalarray, (X(4), Y(4), Band(1)))
-            ag = set(ag, Band => string.(Ref("layer_"), dims(ag, Band)))
             tempfile = tempname() * ".tif"
             write(tempfile, ag)
             open(Raster(tempfile); write=true) do dst
@@ -237,12 +235,12 @@ gdalpath = maybedownload(url)
 
         @testset "rasterize round trip" begin
             A = rebuild(read(gdalarray); missingval=0x00)
-            R = rasterize(A[Band(1)]; to=A, fill=:test)
+            R = rasterize(last, A; to=A, fill=:test)
             @test all(A .===  R .=== gdalarray)
-            R = rasterize(A[Band(1)]; to=A, fill=:test)
+            R = rasterize(last, A; to=A, fill=:test)
             @test all(A .=== R .== gdalarray)
             B = rebuild(read(gdalarray) .= 0x00; missingval=0x00)
-            rasterize!(B, read(gdalarray[Band(1)]); fill=:test)
+            rasterize!(last, B, read(gdalarray); fill=:test)
             @test all(B .=== gdalarray |> collect)
         end
 
@@ -264,23 +262,21 @@ gdalpath = maybedownload(url)
         gdalarray = Raster(gdalpath; name=:test);
 
         @testset "2d" begin
-            geoA = view(gdalarray, Band(1))
             filename = tempname() * ".asc"
-            @time write(filename, geoA)
-            saved1 = Raster(filename)[Band(1)];
-            eltype(saved1)
-            eltype(geoA)
-            @test all(saved1 .== geoA)
+            @time write(filename, gdalarray)
+            saved1 = Raster(filename);
+            @test all(saved1 .== gdalarray)
             # @test typeof(saved1) == typeof(geoA)
-            @test val(dims(saved1, X)) ≈ val(dims(geoA, X))
-            @test val(dims(saved1, Y)) ≈ val(dims(geoA, Y))
-            @test missingval(saved1) === missingval(geoA)
-            @test refdims(saved1) == refdims(geoA)
+            @test val(dims(saved1, X)) ≈ val(dims(gdalarray, X))
+            @test val(dims(saved1, Y)) ≈ val(dims(gdalarray, Y))
+            @test missingval(saved1) === missingval(gdalarray)
+            @test refdims(saved1) == refdims(gdalarray)
             rm(filename)
         end
 
         @testset "3d, with subsetting" begin
-            geoA2 = gdalarray[Y(4.224e6..4.226e6), X(-28492..0)]
+            geoA2 = cat(gdalarray, gdalarray; dims=Band)[Y(4.224e6..4.226e6), X(-28492..0)]
+            geoA2 = set(geoA2, Band => Band(1:2))
             filename2 = tempname() * ".tif"
             write(filename2, geoA2)
             saved2 = read(Raster(filename2; name=:test))
@@ -299,7 +295,7 @@ gdalpath = maybedownload(url)
             @test parent(saved2) == parent(geoA2)
             @test typeof(saved2) == typeof(geoA2)
             filename3 = tempname() * ".tif"
-            geoA3 = cat(gdalarray[Band(1)], gdalarray[Band(1)], gdalarray[Band(1)]; dims=Band(1:3))
+            geoA3 = cat(gdalarray, gdalarray, gdalarray; dims=Band(1:3))
             write(filename3, geoA3)
             saved3 = read(Raster(filename3))
             @test all(saved3 .== geoA3)
@@ -347,8 +343,8 @@ gdalpath = maybedownload(url)
             write(filename, ga)
             saved = Raster(filename)
             @test all(reverse(saved[Band(1)]; dims=Y) .=== ga)
-            @test saved[1, end, 1] == saved[At(1.0), At(1.0), At(1.0)]
-            @test saved[100, 1, 1] == saved[At(100), At(200), At(1)]
+            @test saved[1, end] == saved[At(1.0), At(1.0)]
+            @test saved[100, 1] == saved[At(100), At(200)]
             filename2 = tempname() * ".tif"
             ga2 = Raster(rand(100, 200), (X(Sampled(101:200)), Y(Sampled(1:200))))
             write(filename2, ga2)
@@ -459,10 +455,10 @@ gdalpath = maybedownload(url)
         end
 
         @testset "Non-rotated as affine has the same extent" begin
-            am = Rasters._geotransform2affine(Rasters._dims2geotransform(dims(gdalarray, (X, Y))...))
+            am = Rasters.geotransform2affine(Rasters.dims2geotransform(dims(gdalarray, (X, Y))...))
             xap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, X)))
             yap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, Y)))
-            affine_dims = DimensionalData.format((X(xap), Y(yap), Band(1:1)), gdalarray)
+            affine_dims = DimensionalData.format((X(xap), Y(yap)), gdalarray)
             gdalarray_affine = rebuild(gdalarray; dims=affine_dims)
             @test Extents.extent(gdalarray_affine, :X).X[1] ≈ Extents.extent(gdalarray, :X).X[1]
             @test Extents.extent(gdalarray_affine, :X).X[2] ≈ Extents.extent(gdalarray, :X).X[2]
@@ -480,10 +476,10 @@ gdalpath = maybedownload(url)
             ArchGDAL.write!(dataset, rand(240, 180), 1)
         end
         rast = Raster("test.tif")
-        @test order(dims(rast)) == (ForwardOrdered(), ForwardOrdered(), ForwardOrdered())
-        @test span(rast) == (Regular(1.0), Regular(1.0), NoSpan())
-        @test sampling(rast) == (Intervals(Start()), Intervals(Start()), NoSampling())
-        @test index(rast) == (LinRange(0.0, 239.0, 240), LinRange(0.0, 179.0, 180), 1:1)
+        @test order(dims(rast)) == (ForwardOrdered(), ForwardOrdered())
+        @test span(rast) == (Regular(1.0), Regular(1.0))
+        @test sampling(rast) == (Intervals(Start()), Intervals(Start()))
+        @test index(rast) == (LinRange(0.0, 239.0, 240), LinRange(0.0, 179.0, 180))
     end
 
 end
@@ -492,7 +488,7 @@ end
     @time gdalstack = RasterStack((a=gdalpath, b=gdalpath))
 
     @test length(gdalstack) == 2
-    @test dims(gdalstack) isa Tuple{<:X,<:Y,<:Band}
+    @test dims(gdalstack) isa Tuple{<:X,<:Y}
 
     @testset "read" begin
         st = read(gdalstack)
@@ -504,16 +500,16 @@ end
     end
 
     @testset "child array properties" begin
-        @test size(gdalstack[:a]) == (514, 515, 1)
-        @test gdalstack[:a] isa Raster{UInt8,3}
+        @test size(gdalstack[:a]) == (514, 515)
+        @test gdalstack[:a] isa Raster{UInt8,2}
     end
 
     @testset "indexing" begin
-        @test gdalstack[:a][Y(2:3), X(1), Band(1)] == [0x00, 0x6b]
-        @test gdalstack[:a][Y(1), X(1), Band(1)] == 0x00
-        @test gdalstack[:b, Band(1)] == gdalstack[:b][Band(1)]
-        @test typeof(gdalstack[:b, Band(1)]) == typeof(gdalstack[:b][Band(1)])
-        @test view(gdalstack, Y(2:3), X(1), Band(1))[:a] == [0x00, 0x6b]
+        @test gdalstack[:a][Y(2:3), X(1)] == [0x00, 0x6b]
+        @test gdalstack[:a][Y(1), X(1)] == 0x00
+        @test gdalstack[:b] == gdalstack[:b]
+        @test typeof(gdalstack[:b]) == typeof(gdalstack[:b])
+        @test view(gdalstack, Y(2:3), X(1))[:a] == [0x00, 0x6b]
     end
 
     @testset "methods" begin
@@ -526,9 +522,9 @@ end
             st = read(replace_missing(gdalstack, mv))
             st = map(A -> (view(A, X(1:100)) .= mv; A), st)
             trimmed = trim(st)
-            @test size(trimmed) == (414, 514, 1)
+            @test size(trimmed) == (414, 514)
             cropped = crop(st; to=trimmed)
-            @test size(cropped) == (414, 514, 1)
+            @test size(cropped) == (414, 514)
             @test map((c, t) -> all(collect(c .=== t)), cropped, trimmed) |> all
             extended = extend(read(cropped); to=st)
             @test all(map((s, e) -> all(s .=== e), st, extended))
@@ -546,22 +542,23 @@ end
             @test all(st[:b][X(1:100), Y([1, 5, 95])] .=== 0x00)
         end
 
-        @testset "rasterize roud trip" begin
+        @testset "rasterize round trip" begin
             st = map(A -> rebuild(A; missingval=0x00), gdalstack) |> read
             # We round-trip rasterise the Tables.jl form of st
-            r_st = rasterize(read(gdalstack); to=st, fill=keys(gdalstack))
+            r_st = rasterize(last, read(gdalstack); to=st, fill=keys(gdalstack))
             @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, read(gdalstack)))
-            r_st = rasterize(read(gdalstack); to=st, fill=(:a, :b))
+            r_st = rasterize(last, read(gdalstack); to=st, fill=(:a, :b))
             @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, read(gdalstack)))
             st = map(A -> rebuild(A .* 0x00; missingval=0x00), gdalstack) |> read
-            rasterize!(st, read(gdalstack), fill=keys(st))
+            rasterize!(last, st, read(gdalstack), fill=keys(st))
             @test all(map((a, b) -> all(a .=== b), st, gdalstack))
 
+            bandst = RasterStack((a=gdalpath, b=gdalpath); dropband=false)
             # Getting the band column works if we force it
             # name of Symbol gives a Raster, Tuple gives a RasterStack
-            b_r = rasterize(read(gdalstack); to=st, fill=:Band)
+            b_r = rasterize(last, bandst; to=st, fill=:Band)
             @test b_r isa Raster
-            b_st = rasterize(read(gdalstack); to=st, fill=(:Band, ))
+            b_st = rasterize(last, bandst; to=st, fill=(:Band, ))
             @test b_st isa RasterStack
             @test b_r == b_st[:Band]
         end
@@ -623,7 +620,6 @@ end
         @test occursin("RasterStack", sh)
         @test occursin("Y", sh)
         @test occursin("X", sh)
-        @test occursin("Band", sh)
         @test occursin(":a", sh)
         @test occursin(":b", sh)
     end
@@ -659,19 +655,19 @@ end
     extradim_raster = cat(gdalarray, gdalarray, gdalarray; dims=Z)
     extradim_output = resample(extradim_raster, output_res; crs=output_crs, method=resample_method)
 
-    permuted_raster = permutedims(gdalarray, (Y, X, Band))
+    permuted_raster = permutedims(gdalarray, (Y, X))
     permuted_output = resample(permuted_raster, output_res; crs=output_crs, method=resample_method)
 
     # Compare ArchGDAL, resample and permuted resample 
     @test AG_output ==
-        raster_output[Band(1)] == disk_output[Band(1)] ==
-        stack_output[:a][Band(1)] ==
-        written_stack_output[:a][Band(1)] ==
-        series_output[1][Band(1)] ==
-        extradim_output[Z(3), Band(1)] ==
-        permutedims(permuted_output, (X, Y, Band))[Band(1)]
+        raster_output == disk_output ==
+        stack_output[:a] ==
+        written_stack_output[:a] ==
+        series_output[1] ==
+        extradim_output[Z(3)] ==
+        permutedims(permuted_output, (X, Y))
 
-    @test stack_output[:b][Band(1)] == written_stack_output[:b][Band(1)] == AG_output .* 2
+    @test stack_output[:b] == written_stack_output[:b] == AG_output .* 2
     @test abs(step(dims(raster_output, Y))) ≈
         abs(step(dims(raster_output, X))) ≈ 
         abs(step(dims(disk_output, X))) ≈ 
@@ -726,7 +722,7 @@ end
     # Rebuild the ser by wrapping the disk data in Array.
     # `modify` forces `rebuild` on all containers as in-Memory variants
     modified_ser = modify(Array, stackser)
-    @test typeof(modified_ser) <: RasterSeries{<:RasterStack{<:NamedTuple{(:a,:b),<:Tuple{<:Array{UInt8,3},Vararg}}}}
+    @test typeof(modified_ser) <: RasterSeries{<:RasterStack{<:NamedTuple{(:a,:b),<:Tuple{<:Array{UInt8,2},Vararg}}}}
 
     @testset "write" begin
         tifser = RasterSeries([gdalpath, gdalpath], Ti([DateTime(2001), DateTime(2002)]))
@@ -789,9 +785,9 @@ end
             ser = read(replace_missing(gdalser, mv))
             ser = map(A -> (view(A, X(1:100)) .= mv; A), ser)
             trimmed = trim(ser)
-            @test size(trimmed[1]) == (414, 514, 1)
+            @test size(trimmed[1]) == (414, 514)
             cropped = crop(ser; to=trimmed[1])
-            @test size(cropped[1]) == (414, 514, 1)
+            @test size(cropped[1]) == (414, 514)
             @test map((c, t) -> all(collect(c .=== t)), cropped, trimmed) |> all
             extended = extend(read(cropped); to=ser[1])
             @test all(map((s, e) -> all(s .=== e), ser, extended))

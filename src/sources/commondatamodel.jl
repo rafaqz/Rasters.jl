@@ -1,6 +1,4 @@
 const CDM = CommonDataModel
-const NCD = NCDatasets
-const GDS = GRIBDatasets
 
 const CDM_DIM_MAP = Dict(
     "lat" => Y,
@@ -47,7 +45,7 @@ function Raster(ds::AbstractDataset, filename::AbstractString, key=nothing; kw..
         for key in layerkeys(ds)
             if ndims(ds[key]) > 0
                 @info "No `name` or `key` keyword provided, using first valid layer with name `:$key`"
-                return Raster(ds[key], filename, key; source=NCDsource, kw...)
+                return Raster(ds[key], filename, key; source=CDMsource, kw...)
             end
         end
         throw(ArgumentError("dataset at $filename has no array variables"))
@@ -60,79 +58,20 @@ _firstkey(ds::AbstractDataset, key::Nothing=nothing) = Symbol(first(layerkeys(ds
 _firstkey(ds::AbstractDataset, key) = Symbol(key)
 
 function FileArray(var::AbstractVariable, filename::AbstractString; kw...)
-    da = RasterDiskArray{CDMsource}(var)
+    source = _sourcetype(filename)
+    da = RasterDiskArray{source}(var)
     size_ = size(da)
     eachchunk = DA.eachchunk(da)
     haschunks = DA.haschunks(da)
     T = eltype(var)
     N = length(size_)
-    FileArray{CDMsource,T,N}(filename, size_; eachchunk, haschunks, kw...)
+    FileArray{source,T,N}(filename, size_; eachchunk, haschunks, kw...)
 end
 
-function Base.open(f::Function, A::FileArray{CDMsource}; write=A.write, kw...)
-    _open(CDMsource, filename(A); key=key(A), write, kw...) do var
-        f(RasterDiskArray{CDMsource}(var, DA.eachchunk(A), DA.haschunks(A)))
+function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) where source <: CDMsource
+    _open(source, filename(A); key=key(A), write, kw...) do var
+        f(RasterDiskArray{source}(var, DA.eachchunk(A), DA.haschunks(A)))
     end
-end
-
-"""
-    Base.write(filename::AbstractString, ::Type{<:CDMsource}, A::AbstractRaster)
-
-Write an NCDarray to a NetCDF file using NCDatasets.jl
-
-Returns `filename`.
-"""
-function Base.write(filename::AbstractString, ::Type{<:CDMsource}, A::AbstractRaster; append=false, kw...)
-    mode  = !isfile(filename) || !append ? "c" : "a";
-    ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(A)))
-    try
-        _ncdwritevar!(ds, A; kw...)
-    finally
-        close(ds)
-    end
-    return filename
-end
-
-# Stack ########################################################################
-
-"""
-    Base.write(filename::AbstractString, ::Type{NCDsource}, s::AbstractRasterStack; kw...)
-
-Write an NCDstack to a single netcdf file, using NCDatasets.jl.
-
-Currently `Metadata` is not handled for dimensions, and `Metadata` from other
-[`AbstractRaster`](@ref) @types is ignored.
-
-# Keywords
-
-Keywords are passed to `NCDatasets.defVar`.
-
-- `append`: If true, the variable of the current Raster will be appended to
-    `filename`. Note that the variable of the current Raster should be not exist
-    before. If not, you need to set `append = false`. Rasters.jl can not
-    overwrite a previous existing variable.
-- `fillvalue`: A value filled in the NetCDF file to indicate missing data. It
-    will be stored in the `_FillValue` attribute.
-- `chunksizes`: Vector integers setting the chunk size. The total size of a
-    chunk must be less than 4 GiB.
-- `deflatelevel`: Compression level: 0 (default) means no compression and 9
-    means maximum compression. Each chunk will be compressed individually.
-- `shuffle`: If true, the shuffle filter is activated which can improve the
-    compression ratio.
-- `checksum`: The checksum method can be `:fletcher32` or `:nochecksum`
-    (checksumming is disabled, which is the default)
- - `typename` (string): The name of the NetCDF type required for vlen arrays
-    (https://web.archive.org/save/https://www.unidata.ucar.edu/software/netcdf/netcdf-4/newdocs/netcdf-c/nc_005fdef_005fvlen.html)
-"""
-function Base.write(filename::AbstractString, ::Type{<:CDMsource}, s::AbstractRasterStack; append = false, kw...)
-    mode  = !isfile(filename) || !append ? "c" : "a";
-    ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(s)))
-    try
-        map(key -> _ncdwritevar!(ds, s[key]), keys(s); kw...)
-    finally
-        close(ds)
-    end
-    return filename
 end
 
 function create(filename, ::Type{<:CDMsource}, T::Union{Type,Tuple}, dims::DimTuple;
@@ -220,33 +159,6 @@ function FileStack(source::Type{<:CDMsource}, ds::AbstractDataset, filename::Abs
     eachchunk = map(x->x[3], type_size_ec_hc)
     haschunks = map(x->x[4], type_size_ec_hc)
     return FileStack{source,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
-end
-
-FileStack{NCDsource}(ds::AbstractDataset, filename::AbstractString; write=false, keys) = FileStack(NCDsource, ds, filename; write, keys)
-FileStack{GRIBsource}(ds::AbstractDataset, filename::AbstractString; write=false, keys) = FileStack(GRIBsource, ds, filename; write, keys)
-
-function OpenStack(fs::FileStack{NCDsource,K}) where K
-    OpenStack{NCDsource,K}(NCD.Dataset(filename(fs)))
-end
-function OpenStack(fs::FileStack{GRIBsource,K}) where K
-    OpenStack{GRIBsource,K}(GDS.GRIBDataset(filename(fs)))
-end
-Base.close(os::OpenStack{NCDsource}) = NCD.close(dataset(os))
-
-# In GRIBDatasets, the file is open for reading the values and closed afterwards. 
-Base.close(os::OpenStack{GRIBsource}) = nothing
-
-function _open(f, ::Type{NCDsource}, filename::AbstractString; write=false, kw...)
-    isfile(filename) || _filenotfound_error(filename)
-    mode = write ? "a" : "r"
-    NCD.Dataset(filename, mode) do ds
-        _open(f, NCDsource, ds; kw...)
-    end
-end
-function _open(f, ::Type{GRIBsource}, filename::AbstractString; write=false, kw...)
-    isfile(filename) || _filenotfound_error(filename)
-    ds = GRIBDatasets.GRIBDataset(filename)
-    _open(f, GRIBsource, ds; kw...)
 end
 
 function _open(f, ::Type{<:CDMsource}, ds::AbstractDataset; key=nothing, kw...)
@@ -452,10 +364,10 @@ function _ncdwritevar!(ds::AbstractDataset, A::AbstractRaster{T,N}; kw...) where
         missingval(A) isa Nothing || @warn "`missingval` $(missingval(A)) is not the same type as your data $T."
     end
 
-    key = if string(name(A)) == ""
+    key = if string(DD.name(A)) == ""
         UNNAMED_NCD_FILE_KEY
     else
-        string(name(A))
+        string(DD.name(A))
     end
 
     dimnames = lowercase.(string.(map(name, dims(A))))
@@ -470,7 +382,7 @@ end
 
 _def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
-    dimkey = lowercase(string(name(dim)))
+    dimkey = lowercase(string(DD.name(dim)))
     haskey(ds.dim, dimkey) && return nothing
     NCD.defDim(ds, dimkey, length(dim))
     lookup(dim) isa NoLookup && return nothing
@@ -536,29 +448,4 @@ function _ncd_haschunks(var)
     DA.Unchunked()
 end
 
-# precompilation
-
-const _NCDVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}
-
-function _precompile(::Type{NCDsource})
-    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
-
-    precompile(Rasters.FileArray, (_NCDVar, String))
-    precompile(layerkeys, (NCDatasets.NCDataset{Nothing},))
-    precompile(dims, (_NCDVar,Symbol))
-    precompile(dims, (_NCDVar,Symbol,Nothing,Nothing))
-    precompile(dims, (_NCDVar,Symbol,Nothing,EPSG))
-    precompile(dims, (_NCDVar,Symbol,EPSG,EPSG))
-    precompile(_firstkey, (NCDatasets.NCDataset{Nothing},))
-    precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, Nothing))
-    precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, EPSG))
-    precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, EPSG, EPSG))
-    precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Nothing))
-    precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Symbol))
-    precompile(Raster, (_NCDVar, String, Symbol))
-
-    precompile(Raster, (String,))
-end
-
-_precompile(NCDsource)
 

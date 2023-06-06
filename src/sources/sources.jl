@@ -9,7 +9,9 @@ struct GDALsource <: Source end
 struct SMAPsource <: Source end
 
 # Deprecations
+const CDMfile = CDMsource
 const NCDfile = NCDsource
+const GRIBfile = GRIBsource
 const GRDfile = GRDsource
 const GDALfile = GDALsource
 const SMAPfile = SMAPsource
@@ -18,6 +20,7 @@ const SYMBOL2SOURCE = Dict(
     :gdal => GDALsource,
     :grd => GRDsource,
     :netcdf => NCDsource, 
+    :grib => GRIBsource, 
     :smap => SMAPsource,
 )
 
@@ -25,8 +28,16 @@ const SYMBOL2SOURCE = Dict(
 const SOURCE2EXT = Dict(
     GRDsource => (".grd", ".gri"), 
     NCDsource => (".nc",), 
-    SMAPsource => (".h5",)
+    GRIBsource => (".grib",), 
+    SMAPsource => (".h5",),
 )
+const SOURCE2PACAKGENAME = Dict(
+    GDALsource => "ArchGDAL",
+    NCDsource => "NCDatasets",
+    GRIBsource => "GRIBDatasets",
+    SMAPsource => "HDF5",
+)
+
 const EXT2SOURCE = Dict(
     ".grd" => GRDsource, 
     ".gri" => GRDsource, 
@@ -53,4 +64,8 @@ end
 # Internal read method
 function _open(f, filename::AbstractString; source=_sourcetype(filename), kw...)
     _open(f, source, filename; kw...)
+end
+function _open(f, T::Type, filename::AbstractString; kw...)
+    packagename = SOURCE2PACAKGENAME[T]
+    error("Run `import $packagename` to read $filename")
 end

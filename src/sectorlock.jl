@@ -28,10 +28,18 @@ Base.getindex(sl::SectorLocks, i::Int) = sl.seclocks[i]
 Base.iterate(sl::SectorLocks, args...) = iterate(sl.seclocks, args...)
 Base.eachindex(sl::SectorLocks) = 1:length(sl)
 
-Base.lock(sl::SectorLocks, sector::Raster) = Base.lock(sl, parent(sector))
-Base.lock(sl::SectorLocks, sector::RasterStack) = Base.lock(sl, parent(first(sector)))
-Base.lock(sl::SectorLocks, sector::SubArray) = Base.lock(sl, CartesianIndices(_unitranges(sector.indices...))) 
-Base.lock(sl::SectorLocks, sector::DiskArrays.SubDiskArray) = Base.lock(sl, sector.v)
+Base.lock(sl::SectorLocks, sector::RasterStack) = Base.lock(sl, first(sector))
+function Base.lock(sl::SectorLocks, A::Raster)
+    o = otherdims(A, DEFAULT_POINT_ORDER)
+    if length(o) > 0
+        slice = first(eachslice(A; dims=o))
+        return Base.lock(sl, parent(slice))
+    else
+        return Base.lock(sl, parent(A))
+    end
+end
+# Base.lock(sl::SectorLocks, sector::SubArray) = Base.lock(sl, CartesianIndices(_unitranges(sector.indices...))) 
+# Base.lock(sl::SectorLocks, sector::DiskArrays.SubDiskArray) = Base.lock(sl, sector.v)
 Base.lock(sl::SectorLocks, sector::Tuple) = Base.lock(sl, CartesianIndices(sector)) 
 Base.lock(sl::SectorLocks, sector::AbstractArray) = Base.lock(sl, CartesianIndices(sector))
 function Base.lock(seclocks::SectorLocks, sector::CartesianIndices)
@@ -40,7 +48,7 @@ function Base.lock(seclocks::SectorLocks, sector::CartesianIndices)
     thread_lock.sector = sector
     # Lock the main lock so no other sectors can be locked
     lock(seclocks.spinlock)
-    # Check for any other lock that intersects our `sector`
+    # Check for any other lock that intersects our sector
     for i in eachindex(seclocks)
         # Ignore a lock from this thread
         i == idx && continue
@@ -49,13 +57,12 @@ function Base.lock(seclocks::SectorLocks, sector::CartesianIndices)
         if islocked(seclock) && _intersects(seclock, sector)
             # If it does, lock the sector and wait 
             # All other threads are also waiting, 
-            # but if this doens't happen often it fine.
+            # but if this doens't happen often its fine.
             lock(seclock)
             unlock(seclock)
         end
     end
     # Lock this sector
-    # println("locking thread", idx)
     lock(thread_lock)
     # Unlock the main spinlock so other sectors can be locked
     unlock(seclocks.spinlock)

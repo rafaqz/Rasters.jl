@@ -1,6 +1,7 @@
 ---
 name: Bug Report
-about: Describe your issue here, including a minimum working example and all file downloads without authentication. We have limited time, so only easily reproduced issues can be fixed quickly.
+about: Describe your issue here, including a minimum working example and all file downloads without authentication.
+We cant fix your problem unless you help us by filling out the code blocks below.
 
 title: ''
 labels: ''
@@ -8,13 +9,22 @@ assignees: ''
 
 ---
 
-__I have added a _complete_ minimum working example below including downloads of the files (that works without authentication)  and understand that without it my bug is very hard to be fix__
+Your problem. You don't have to write anything here for a bug, the code and error are what is important.
 
 ```julia
-mwe_here
+All the julia code needed to make the error goes here including download or generation of all data used
+
+This is the most important thing in the issue, we cant fix bugs without it.
 ```
 
-__I have pasted a _complete_ error from function call down to the end__
 ```julia
-error here
+The full complete error from start to finish goes here
+
+This is the second most imortant thing in the issue, we can't be sure we fixed the same problem unless we can see this.
+```
+
+```julia
+Paste the results of `versioninfo()` here.
+
+Paste the results of `] status Rasters` here.
 ```

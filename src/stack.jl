@@ -144,6 +144,7 @@ Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert argum
     `nothing` is default, so that a single `RasterStack(raster)` is a single layered stack.
     `RasterStack(raster; layersfrom=Band)` will use the bands as layers.
 - `lazy`: A `Bool` specifying whether to load the stack lazily from disk. `false` by default.
+- `dropband`: drop single band dimensions when creating stacks from filenames. `true` by default.
 
 ```julia
 files = (temp="temp.tif", pressure="pressure.tif", relhum="relhum.tif")
@@ -168,7 +169,7 @@ function RasterStack(
     RasterStack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
 end
 function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
-    crs=nothing, mappedcrs=nothing, source=nothing, lazy=false, kw...
+    crs=nothing, mappedcrs=nothing, source=nothing, lazy=false, dropband=true, kw...
 ) where K
     layers = map(keys(filenames), values(filenames)) do key, fn
         source = source isa Nothing ? _sourcetype(fn) : _sourcetype(source)
@@ -183,7 +184,8 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
             dims = DD.dims(ds, crs, mappedcrs)
             md = metadata(ds)
             mv = missingval(ds)
-            Raster(data, dims; name=key, metadata=md, missingval=mv)
+            raster = Raster(data, dims; name=key, metadata=md, missingval=mv) 
+            return dropband ? _drop_single_band(raster, lazy) : raster
         end
     end
     RasterStack(NamedTuple{K}(layers); kw...)
@@ -231,7 +233,7 @@ function RasterStack(filename::AbstractString;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, missingval=nothing,
     source=nothing, name=nothing, keys=name, layersfrom=nothing,
-    resize=nothing, lazy=false, ext=nothing
+    resize=nothing, lazy=false, ext=nothing, dropband=true,
 )
     source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
     st = if isdir(filename)
@@ -273,7 +275,16 @@ function RasterStack(filename::AbstractString;
             st
         end
     end
-    return lazy ? st : read(st)
+    st1 = lazy ? st : read(st)
+    if hasdim(st1, Band()) && size(st1, Band()) < 2
+         if lazy
+             return view(st1, Band(1)) # TODO fix dropdims in DiskArrays
+         else
+             return dropdims(st1; dims=Band())
+         end
+    else
+         return st1
+    end
 end
 function RasterStack(A::Raster;
     layersfrom=nothing, name=nothing, keys=name, metadata=metadata(A), refdims=refdims(A), kw...
@@ -308,7 +319,7 @@ function RasterStack(table, dims::Tuple; name=_not_a_dimcol(table, dims), keys=n
             reshape(col, map(length, dims))
         end |> NamedTuple{keys}
     end
-    RasterStack(layers, dims; kw...)
+    return RasterStack(layers, dims; kw...)
 end
 
 function DD.modify(f, s::AbstractRasterStack{<:FileStack})
@@ -330,7 +341,7 @@ function Base.open(f::Function, st::AbstractRasterStack{<:NamedTuple}; kw...)
 end
 
 # Open all layers through nested closures, applying `f` to the rebuilt open stack
-_open_layers(f, st) = _open_layers(f, st, layers(f), NamedTuple())
+_open_layers(f, st) = _open_layers(f, st, DD.layers(f), NamedTuple())
 function _open_layers(f, st, unopened::NamedTuple{K}, opened::NamedTuple) where K
     open(first(unopened)) do open_layer
         _open_layers(f, st, Base.tail(unopened), merge(opened, NamedTuple{(first(K))}(open_layer)))

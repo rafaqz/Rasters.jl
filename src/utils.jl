@@ -143,7 +143,7 @@ function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) wher
     tuple_res = ntuple(_ -> res, length(K))
     _extent2dims(to, size, tuple_res, crs)
 end
-function _extent2dims(to::Extents.Extent, size::Nothing, res, crs)
+function _extent2dims(to::Extents.Extent{K}, size::Nothing, res, crs) where K
     ranges = map(values(to), res) do bounds, r
         start, outer = bounds
         length = ceil(Int, (outer - start) / r)
@@ -152,7 +152,7 @@ function _extent2dims(to::Extents.Extent, size::Nothing, res, crs)
     end
     return _extent2dims(to, ranges, crs)
 end
-function _extent2dims(to::Extents.Extent, size, res::Nothing, crs)
+function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs) where K
     if size isa Int
         size = ntuple(_ -> size, length(K))
     end
@@ -186,8 +186,25 @@ function _as_intervals(ds::Tuple)
     return setdims(ds, interval_dims)
 end
 
-_geomindices(geoms) = GI.isfeaturecollection(geoms) ? (1:GI.nfeature(geoms)) : eachindex(geoms)
-_getgeom(geoms, i::Integer) = GI.isfeaturecollection(geoms) ? GI.getfeature(geoms, i) : geoms[i]
+_geomindices(geoms) = _geomindices(GI.trait(geoms), geoms) 
+_geomindices(::Nothing, geoms) = eachindex(geoms)
+_geomindices(::GI.FeatureCollectionTrait, geoms) = 1:GI.nfeature(geoms)
+_geomindices(::GI.FeatureTrait, geoms) = _geomindices(GI.geometry(geoms))
+_geomindices(::GI.AbstractGeometryTrait, geoms) = 1:GI.ngeom(geoms)
+
+_getgeom(geoms, i::Integer) = _getgeom(GI.trait(geoms), geoms, i)
+_getgeom(::GI.FeatureCollectionTrait, geoms, i::Integer) = GI.geometry(GI.getfeature(geoms, i))
+_getgeom(::GI.FeatureTrait, geoms, i::Integer) = GI.getgeom(GI.geometry(geoms), i)
+_getgeom(::GI.AbstractGeometryTrait, geoms, i::Integer) = GI.getgeom(geom, i)
+_getgeom(::GI.PointTrait, geom, i::Integer) = error("PointTrait should not be reached")
+_getgeom(::Nothing, geoms, i::Integer) = geoms[i] # Otherwise we can probably just index?
+
+_getgeom(geoms) = _getgeom(GI.trait(geoms), geoms)
+_getgeom(::GI.FeatureCollectionTrait, geoms) = (GI.geometry(f) for f in GI.getfeature(geoms))
+_getgeom(::GI.FeatureTrait, geoms) = GI.getgeom(GI.geometry(geoms))
+_getgeom(::GI.AbstractGeometryTrait, geoms) = GI.getgeom(geoms)
+_getgeom(::GI.PointTrait, geom) = error("PointTrait should not be reached")
+_getgeom(::Nothing, geoms) = geoms
 
 
 _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
@@ -209,3 +226,100 @@ const WINDOWSREGEX = r"^[a-zA-Z]:[\\]"
 const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
 
 _isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)
+
+_checkbounds(A::AbstractRasterStack, I...) = checkbounds(Bool, first(A), I...)
+_checkbounds(A::AbstractRaster, I...) = checkbounds(Bool, A, I...)
+
+# Run `f` threaded or not, w
+function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String) 
+    p = progress ? _progress(length(range); desc) : nothing
+    if threaded
+        Threads.@threads :static for i in range
+            f(i)
+            isnothing(p) || ProgressMeter.next!(p)
+        end
+    else
+        for i in range
+            f(i)
+            isnothing(p) || ProgressMeter.next!(p)
+        end
+    end
+end
+
+
+const XYExtent = Extents.Extent{(:X,:Y),Tuple{Tuple{Float64,Float64},Tuple{Float64,Float64}}}
+
+# Get the bounds of a geometry
+_extent(geom; kw...)::XYExtent = _extent(GI.trait(geom), geom; kw...)
+function _extent(::Nothing, data::AbstractVector; kw...)::XYExtent
+    g1 = first(data)
+    if GI.trait(g1) isa GI.PointTrait 
+        xs = extrema(p -> GI.x(p), data)
+        ys = extrema(p -> GI.y(p), data)
+        return _float64_xy_extent(Extents.Extent(X=xs, Y=ys))
+    else
+        ext = reduce(data; init=_extent(first(data))) do ext, geom
+            Extents.union(ext, _extent(geom))
+        end
+        return _float64_xy_extent(ext)
+    end
+end
+_extent(::Nothing, data::RasterStackOrArray; kw...)::XYExtent = _float64_xy_extent(Extents.extent(data))
+function _extent(::Nothing, data::T; geometrycolumn=nothing)::XYExtent where T
+    if Tables.istable(T)
+        singlecolumn = isnothing(geometrycolumn) ? first(GI.geometrycolumns(data)) : geometrycolumn
+        cols = Tables.columns(data)
+        if singlecolumn isa Symbol && singlecolumn in Tables.columnnames(cols)
+            # Table of geometries
+            geoms = Tables.getcolumn(data, singlecolumn)
+            return _extent(nothing, geoms)
+        else
+            multicolumn = isnothing(geometrycolumn) ? DEFAULT_POINT_ORDER : geometrycolumn 
+            # TODO: test this branch
+            # Table of points with dimension columns
+            bounds = reduce(multicolumn; init=(;)) do acc, key
+                if key in Tables.columnnames(cols)
+                    merge(acc, (; key=extrema(cols[key])))
+                else
+                    acc
+                end
+            end
+            return _float64_xy_extent(Extensts.Extent(bounds))
+        end
+    else
+        ext = Extents.extent(data)
+        ext isa Extents.Extent || throw(ArgumentError("object returns `nothing` from `Extents.extent`."))
+        return _float64_xy_extent(ext)
+    end
+end
+function _extent(::GI.AbstractPointTrait, point; kw...)::XYExtent
+    x, y = Float64(GI.x(point)), Float64(GI.y(point))
+    Extents.Extent(X=(x, x), Y=(y, y))
+end
+function _extent(::GI.AbstractGeometryTrait, geom; kw...)::XYExtent
+    geomextent = GI.extent(geom; fallback=false)
+    if isnothing(geomextent)
+        points = GI.getpoint(geom)
+        xbounds = extrema(GI.x(p) for p in points)
+        ybounds = extrema(GI.y(p) for p in points)
+        return _float64_xy_extent(Extents.Extent(X=xbounds, Y=ybounds))
+    else
+        return _float64_xy_extent(geomextent)
+    end
+end
+_extent(::GI.AbstractFeatureTrait, feature; kw...)::XYExtent = _extent(GI.geometry(feature))
+function _extent(::GI.AbstractFeatureCollectionTrait, features; kw...)::XYExtent
+    features = GI.getfeature(features)
+    init = _float64_xy_extent(_extent(first(features)))
+    ext = reduce(features; init) do acc, f
+        Extents.union(acc, _extent(f))
+    end
+    return _float64_xy_extent(ext)
+end
+
+function _float64_xy_extent(ext::Extents.Extent)
+    xbounds = map(Float64, ext.X)
+    ybounds = map(Float64, ext.Y)
+    return Extents.Extent(X=xbounds, Y=ybounds)
+end
+

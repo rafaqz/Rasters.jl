@@ -24,7 +24,7 @@ As `crop` is lazy, `filename` and `suffix` keywords don't apply.
 Crop to another raster:
 
 ```jldoctest
-using Rasters, Plots
+using Rasters, RasterDataSources, Plots
 evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 rnge = Raster(EarthEnv{HabitatHeterogeneity}, :range)
 
@@ -47,7 +47,7 @@ nothing
 Crop to a polygon:
 
 ```jldoctest
-using Rasters, Plots, Dates, Shapefile, Downloads
+using Rasters, RasterDataSources, Plots, Dates, Shapefile, Downloads
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -134,7 +134,7 @@ covered by all `xs`, or by the keyword argument `to`.
     A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
 
 ```jldoctest
-using Rasters, Plots
+using Rasters, RasterDataSources, Plots
 evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 rnge = Raster(EarthEnv{HabitatHeterogeneity}, :range)
 

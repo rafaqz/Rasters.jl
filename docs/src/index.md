@@ -26,7 +26,7 @@ e.g. certain X/Y coordinates. The available selectors are listed here:
 Use the `..` selector to take a `view` of madagascar:
 
 ```@example
-using Rasters, Plots
+using Rasters, RasterDataSources, ArchGDAL, Plots
 A = Raster(WorldClim{BioClim}, 5)
 madagascar = view(A, X(43.25 .. 50.48), Y(-25.61 .. -12.04)) # Note the space between .. -12
 plot(madagascar)
@@ -177,7 +177,7 @@ specifies the maximum pixel resolution to show on the longest axis of the array.
 It can be set manually to change the resolution (e.g. for large or high-quality plots):
 
 ```julia
-using Rasters, Plots
+using Rasters, RasterDataSources, ArchGDAL, Plots
 A = Raster(WorldClim{BioClim}, 5)
 plot(A; max_res=3000)
 ```
@@ -190,7 +190,7 @@ To obtain tiled plots for 3D rasters and RasterStacks, use the function `Rasters
 ```@example makie
 using CairoMakie # hide
 CairoMakie.activate!(px_per_unit = 2) # hide
-using Rasters, CairoMakie
+using Rasters, CairoMakie, RasterDataSources, ArchGDAL
 A = Raster(WorldClim{BioClim}, 5)
 Makie.plot(A)
 ```
@@ -203,7 +203,7 @@ This netcdf file only has one layer, if it has more we could use `RasterStack`
 instead. 
 
 ```@example nc
-using Rasters, Plots
+using Rasters, NCDatasets, Plots
 url = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc";
 filename = download(url, "tos_O1_2001-2002.nc");
 A = Raster(filename)
@@ -265,7 +265,7 @@ A[Y(Near(20.0)), Ti(1)] |> plot
 Load occurrences for the Mountain Pygmy Possum using GBIF.jl
 
 ```@example sdm
-using Rasters, GBIF2, Plots 
+using Rasters, RasterDataSources, ArchGDAL, GBIF2, Plots 
 records = GBIF2.occurrence_search("Burramys parvus"; limit=300)
 ```
 
@@ -280,7 +280,7 @@ Get BioClim layers and subset to south-east Australia
 
 ```@example sdm
 A = RasterStack(WorldClim{BioClim}, (1, 3, 7, 12))
-se_aus = A[X(138 .. 155), Y(-40 .. -25), Band(1)]
+se_aus = A[X(138 .. 155), Y(-40 .. -25)]
 ```
 
 Plot BioClim predictors and scatter occurrence points on all subplots
@@ -316,7 +316,7 @@ then `mosaic` together to make a single plot.
 First, get the country boundary shape files using GADM.jl.
 
 ```@example mask
-using Rasters, Shapefile, Plots, Dates, Downloads
+using Rasters, RasterDataSources, ArchGDAL, Shapefile, Plots, Dates, Downloads, NCDatasets
 
 # Download the shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -330,11 +330,10 @@ norway_border = shapes.shapes[53]
 sweden_border = shapes.shapes[54]
 ```
 
-Then load raster data. We load some worldclim layers using `RasterDataSources` via
-Rasters.jl, and drop the Band dimension.
+Then load raster data. We load some worldclim layers using `RasterDataSources` via Rasters.jl:
 
 ```@example mask
-climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)[Band(1)]
+climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
 ```
 
 `mask` Denmark, Norway and Sweden from the global dataset using their border polygon,
@@ -425,13 +424,13 @@ arrays of common raster file types. These methods also work for entire
 
 ### 2-D rasters in Makie
 
-Plotting in Makie works somewhat differently than Plots, since the recipe system is different.  You can pass a 2-D raster to any surface-like function (`heatmap`, `contour`, `contourf`, or even `surface` for a 3D plot) with ease.
+Plotting in Makie works somewhat differently than Plots, since the recipe system is different.
+You can pass a 2-D raster to any surface-like function (`heatmap`, `contour`, `contourf`, or even `surface` for a 3D plot) with ease.
 
 ```@example makie
-using CairoMakie # hide
+using CairoMakie, Makie
 CairoMakie.activate!(px_per_unit = 2) # hide
-using Makie # hide
-using Rasters, CairoMakie
+using Rasters, RasterDataSources, ArchGDAL
 A = Raster(WorldClim{BioClim}, 5) # this is a 3D raster, so is not accepted.
 B = A[:, :, 1] # this converts to a 2D raster which Makie accepts!
 figure = Figure()
@@ -461,7 +460,6 @@ You can pass any theming keywords in, which are interpreted by Makie appropriate
 
 The plots seem a little squished here.  We provide a Makie theme which makes text a little smaller and has some other space-efficient attributes:
 
-
 ```@example makie
 CairoMakie.set_theme!(Rasters.theme_rasters())
 Rasters.rplot(stack)
@@ -469,7 +467,8 @@ Rasters.rplot(stack)
 
 ### Plotting with `Observable`s
 
-`Rasters.rplot` should support Observable input out of the box, but the dimensions of that input must remain the same - i.e., the element names of a RasterStack must remain the same.
+`Rasters.rplot` should support Observable input out of the box, but the dimensions of that input
+must remain the same - i.e., the element names of a RasterStack must remain the same.
 
 ```@example makie
 stack_obs = Observable(stack)
@@ -621,7 +620,7 @@ tightly integrated into Rasters.jl, so that datsets and keywords can be used
 directly to download and load data as a `Raster`, `RasterStack`, or `RasterSeries`.
 
 ```@example
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 A = Raster(WorldClim{Climate}, :tavg; month=June)
 plot(A)
 ```

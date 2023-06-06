@@ -247,7 +247,7 @@ function Base.open(f::Function, A::FileArray{GRDsource}, key...; write=A.write)
     _mmapgrd(mm -> f(RasterDiskArray{GRDsource}(mm, A.eachchunk, A.haschunks)), A; write)
 end
 
-function _open(f, ::Type{GRDsource}, filename; key=nothing, write=false)
+function _open(f, ::Type{GRDsource}, filename::AbstractString; key=nothing, write=false)
     isfile(filename) || _filenotfound_error(filename)
     _open(f, GRDsource, GRDattrib(filename; write))
 end
@@ -272,26 +272,26 @@ function _mmapgrd(f, filename::AbstractString, T::Type, size::Tuple; write=false
 end
 
 # precompilation
-function _precompile(::Type{GRDsource})
-    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
+# function _precompile(::Type{GRDsource})
+#     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
 
-    T = UInt16
-    for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Int64, Float32, Float64)
-        precompile(GRDattrib, (String,))
-        DS = Rasters.GRDattrib{T,String}
-        precompile(crs, (DS,))
-        precompile(Rasters.FileArray, (DS, String))
-        precompile(dims, (DS,))
-        precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},Nothing))
-        precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},EPSG))
-        precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},ProjString))
-        precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},WellKnownText{GeoFormatTypes.CRS}))
-        precompile(metadata, (DS, ))
-        precompile(metadata, (DS, Symbol))
-        precompile(missingval, (DS,))
-        precompile(Raster, (DS, String, Nothing))
-        precompile(Raster, (DS, String, Symbol))
-    end
-end
+#     T = UInt16
+#     for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Int64, Float32, Float64)
+#         precompile(GRDattrib, (String,))
+#         DS = Rasters.GRDattrib{T,String}
+#         precompile(crs, (DS,))
+#         precompile(Rasters.FileArray, (DS, String))
+#         precompile(dims, (DS,))
+#         precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},Nothing))
+#         precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},EPSG))
+#         precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},ProjString))
+#         precompile(dims, (DS,WellKnownText{GeoFormatTypes.CRS},WellKnownText{GeoFormatTypes.CRS}))
+#         precompile(metadata, (DS, ))
+#         precompile(metadata, (DS, Symbol))
+#         precompile(missingval, (DS,))
+#         precompile(Raster, (DS, String, Nothing))
+#         precompile(Raster, (DS, String, Symbol))
+#     end
+# end
 
-_precompile(GRDsource)
+# _precompile(GRDsource)

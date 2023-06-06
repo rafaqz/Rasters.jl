@@ -66,7 +66,7 @@ Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask.
 
 ```julia
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 
 # Load and plot the file
 awap = read(Raster(AWAP, :tmax; date=DateTime(2001, 1, 1)))
@@ -155,7 +155,7 @@ Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask to match the size and projection.
 
 ```julia
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 
 # Load and plot the file
 awap = read(RasterStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
@@ -262,7 +262,7 @@ For tabular data, feature collections and other iterables
 # Example
 
 ```jldoctest
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 boolmask(wc) |> plot
 
@@ -293,28 +293,28 @@ end
 function boolmask!(dest::AbstractRaster, src::AbstractRaster;
     missingval=_missingval_or_missing(src)
 )
-    broadcast!(a -> !isequal(a, missingval), dest, src)
+    broadcast_dims!(dest, src) do a
+        !isequal(a, missingval)
+    end
 end
-function boolmask!(dest::AbstractRaster, geoms; allocs=nothing, lock=nothing, progress=true, kw...)
+function boolmask!(dest::AbstractRaster, geoms;
+    allocs=nothing, lock=nothing, progress=true, threaded=true, kw...
+)
+    if isnothing(allocs)
+        allocs = _burning_allocs(dest; threaded)
+    end
     if hasdim(dest, :geometry)
-        range = _geomindices(geoms) 
-        p = progress ? _progress(length(range); desc="Burning each geometry to a BitArray slice...") : nothing
-        if isnothing(allocs) 
-            allocs = _burning_allocs(dest)
-        end
-        Threads.@threads for i in range
+        range = _geomindices(geoms)
+        _run(range, threaded, progress, "Burning each geometry to a BitArray slice...") do i
             geom = _getgeom(geoms, i)
-            ismissing(geom) && continue
+            ismissing(geom) && return nothing
             slice = view(dest, Dim{:geometry}(i))
             # We don't need locks - these are independent slices
             burn_geometry!(slice, geom; kw..., fill=true, allocs=_get_alloc(allocs))
-            progress && ProgressMeter.next!(p)
+            return nothing
         end
     else
-        if isnothing(allocs)
-            allocs = Allocs(dest)
-        end
-        burn_geometry!(dest, geoms; kw..., allocs, lock, fill=true)
+        burn_geometry!(dest, geoms; kw..., allocs, lock, progress, threaded, fill=true)
     end
     return dest
 end
@@ -340,7 +340,7 @@ $GEOM_KEYWORDS
 # Example
 
 ```jldoctest
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 missingmask(wc) |> plot
 
@@ -367,7 +367,9 @@ end
 function missingmask!(dest::AbstractRaster, src::AbstractRaster;
     missingval=_missingval_or_missing(src)
 )
-    broadcast!(x -> isequal(x, missingval) ? missing : true, dest, src)
+    broadcast_dims!(dest, src) do x
+        isequal(x, missingval) ? missing : true
+    end
 end
 function missingmask!(dest::AbstractRaster, geom; kw...)
     B = boolmask!(dest, geom; kw...)
