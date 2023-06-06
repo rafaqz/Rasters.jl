@@ -31,16 +31,15 @@ Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 [extensions]
 RastersArchGDALExt = "ArchGDAL"
 RastersCoordinateTransformationsExt = "CoordinateTransformations"
+RastersGRIBDatasetsExt = "GRIBDatasets"
 RastersHDF5Ext = "HDF5"
 RastersMakieExt = "Makie"
 RastersNCDatasetsExt = "NCDatasets"
-RastersGRIBDatasetsExt = "GRIBDatasets"
 RastersRasterDataSourcesExt = "RasterDataSources"
 
 [compat]
 Adapt = "2, 3.0"
 ArchGDAL = "0.9, 0.10"
-GRIBDatasets = "0.2"
 ColorTypes = "0.10, 0.11"
 CommonDataModel = "0.2.3"
 ConstructionBase = "1"
@@ -69,11 +68,11 @@ julia = "1.8"
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
-GRIBDatasets = "82be9cdb-ee19-4151-bdb3-b400788d9abc"
 CFTime = "179af706-886a-5703-950a-314cd64e0468"
 CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
+GRIBDatasets = "82be9cdb-ee19-4151-bdb3-b400788d9abc"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
@@ -85,12 +84,12 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "ArchGDAL", "GRIBDatasets", "CFTime", "CoordinateTransformations", "DataFrames", "GeometryBasics", "HDF5", "NCDatasets", "Plots", "RasterDataSources", "SafeTestsets", "Shapefile", "Statistics", "Test"]
+test = ["Aqua", "ArchGDAL", "CFTime", "CoordinateTransformations", "DataFrames", "GeometryBasics", "GRIBDatasets", "HDF5", "NCDatasets", "Plots", "RasterDataSources", "SafeTestsets", "Shapefile", "Statistics", "Test"]
 
 [weakdeps]
 ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
-GRIBDatasets = "82be9cdb-ee19-4151-bdb3-b400788d9abc"
 CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
+GRIBDatasets = "82be9cdb-ee19-4151-bdb3-b400788d9abc"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
