@@ -401,7 +401,7 @@ function _gdal_process_options(driver::AbstractString, options::Dict;
 )
     gdaldriver = AG.getdriver(driver)
     # set default compression
-    if !("COMPRESS" in keys(options)) && AG.validate(gdaldriver, ["COMPRESS=ZSTD"])
+    if driver != "MEM" && !("COMPRESS" in keys(options)) && AG.validate(gdaldriver, ["COMPRESS=ZSTD"])
         options["COMPRESS"] = "ZSTD"
     end
 
