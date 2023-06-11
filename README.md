@@ -16,7 +16,7 @@ multi-layered stacks, and multi-file series of arrays and stacks.
 
 _A RasterStack of EarthEnv HabitatHeterogeneity layers, trimmed to Australia and plotted with Plots.jl_
 
-## :warning: Packages extensions and Rasters 0.8 and onwards :warning:
+## :warning: Packages extensions and Rasters 0.8 and onwards 
 
 On Julia 1.9 we can put additional packages in extensions, so the code only loads when
 you load a specific package. Rasters.jl was always intended to work like this,
