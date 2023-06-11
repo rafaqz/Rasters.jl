@@ -2,7 +2,6 @@
 
 # stubs that need ArchGDAL
 resample(args...; kw...) = error("Run `using ArchGDAL` to use `resample`")
-reproject(args...; kw...) = error("Run `using ArchGDAL` to use `reproject`")
 warp(args...; kw...) = error("Run `using ArchGDAL` to use `warp`")
 
 # Other shared stubs
