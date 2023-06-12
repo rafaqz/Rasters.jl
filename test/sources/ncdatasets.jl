@@ -57,9 +57,10 @@ end
     end
 
     @testset "from url" begin
-        url = "http://apdrc.soest.hawaii.edu:80/dods/public_data/Reanalysis_Data/NCEP/NCEP2/daily/surface/mslp"
-        r = Raster(url; name=:mslp, source=:netcdf, lazy=true)
-        @test sum(r[Ti(1)]) == 1.0615972f9
+        # TODO we need a permanent url here that doesn't end in .nc
+        # url = "http://apdrc.soest.hawaii.edu:80/dods/public_data/Reanalysis_Data/NCEP/NCEP2/daily/surface/mslp"
+        # r = Raster(url; name=:mslp, source=:netcdf, lazy=true)
+        # @test sum(r[Ti(1)]) == 1.0615972f9
     end
 
     @testset "open" begin
