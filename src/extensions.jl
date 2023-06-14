@@ -1,8 +1,8 @@
 # extensions
 
 # stubs that need ArchGDAL
-resample(args...; kw...) = error("Run `using ArchGDAL` to use `resample`")
-warp(args...; kw...) = error("Run `using ArchGDAL` to use `warp`")
+resample(args...; kw...) = throw(BackendException("ArchGDAL"))
+warp(args...; kw...) = throw(BackendException("ArchGDAL"))
 
 # Other shared stubs
 function layerkeys end

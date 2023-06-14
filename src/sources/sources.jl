@@ -38,6 +38,16 @@ const EXT2SOURCE = Dict(
     ".h5" => SMAPsource
 )
 
+# exception to be raised when backend extension is not satisfied
+mutable struct BackendException <: Exception
+    backend
+end
+
+# error message to show when backend is not loaded
+function Base.showerror(io::IO, e::BackendException)
+    print(io, "`Rasters.jl` requires backends to be loaded externally as of version 0.8. Run `import $(e.backend)` to fix this error.")
+end
+
 # Get the source backend for a file extension, falling back to GDALsource
 _sourcetype(filename::AbstractString) = get(EXT2SOURCE, splitext(filename)[2], GDALsource)
 _sourcetype(filenames::NamedTuple) = _sourcetype(first(filenames))
@@ -59,5 +69,5 @@ function _open(f, filename::AbstractString; source=_sourcetype(filename), kw...)
 end
 function _open(f, T::Type, filename::AbstractString; kw...)
     packagename = SOURCE2PACAKGENAME[T]
-    error("`Rasters.jl` requires backends to be loaded externally as of version 0.8. Run `import $packagename` to read $filename")
+    throw(BackendException(packagename))
 end
