@@ -39,7 +39,7 @@ const EXT2SOURCE = Dict(
 )
 
 # exception to be raised when backend extension is not satisfied
-mutable struct BackendException <: Exception
+struct BackendException <: Exception
     backend
 end
 
