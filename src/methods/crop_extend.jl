@@ -12,12 +12,10 @@ Otherwise crop to the size of the keyword argument `to`. This can be a
 
 # Keywords
 
-- `to`: the object to crop to. If `to` keyword is passed, the smallest shared
+- `to`: the object to crop to. If no `to` keyword is passed, the smallest shared
     area of all `xs` is used.
 - `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
-   When lines need to be included in e.g. zonal statistics, `true` shoudle be used.
-
-As `crop` is lazy, `filename` and `suffix` keywords don't apply.
+   When lines need to be included in e.g. zonal statistics, `true` should be used.
 
 # Example
 
