@@ -10,11 +10,7 @@ if VERSION >= v"1.9.0"
     # Aqua.test_project_toml_formatting(Rasters)
 end
 
-# Only test SMAP locally for now, also RasterDataSources because CI dowloads keep breaking
-if !haskey(ENV, "CI")
-    @time @safetestset "smap" begin include("sources/smap.jl") end
-    @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
-end
+
 @time @safetestset "methods" begin include("methods.jl") end
 @time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "array" begin include("array.jl") end
@@ -25,6 +21,7 @@ end
 @time @safetestset "aggregate" begin include("aggregate.jl") end
 @time @safetestset "rasterize" begin include("rasterize.jl") end
 @time @safetestset "adapt" begin include("adapt.jl") end
+@time @safetestset "warp" begin include("warp.jl") end
 
 
 # Only test SMAP locally for now, also RasterDataSources because CI dowloads keep breaking

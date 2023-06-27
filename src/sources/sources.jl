@@ -67,5 +67,5 @@ function _open(f, filename::AbstractString; source=_sourcetype(filename), kw...)
 end
 function _open(f, T::Type, filename::AbstractString; kw...)
     packagename = SOURCE2PACAKGENAME[T]
-    error("Run `import $packagename` to read $filename")
+    error("`Rasters.jl` requires backends to be loaded externally as of version 0.8. Run `import $packagename` to read $filename")
 end
