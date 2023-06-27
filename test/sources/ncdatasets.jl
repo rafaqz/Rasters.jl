@@ -1,7 +1,7 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, FileStack, NCDsource, crs
+using Rasters: FileArray, FileStack, NCDsource, crs, name, bounds
 testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))
 include(joinpath(testdir, "test_utils.jl"))
 
@@ -117,7 +117,7 @@ end
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
-        @test metadata(ncarray) isa Metadata{NCDsource,Dict{String,Any}}
+        @test metadata(ncarray) isa Metadata{<:Rasters.CDMsource,Dict{String,Any}}
         @test name(ncarray) == :tos
     end
 

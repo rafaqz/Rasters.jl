@@ -1,5 +1,9 @@
 const NCD = NCDatasets
 
+const UNNAMED_NCD_FILE_KEY = "unnamed"
+
+const NCDAllowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
+
 """
     Base.write(filename::AbstractString, ::Type{<:CDMsource}, A::AbstractRaster)
 
@@ -17,7 +21,7 @@ function Base.write(filename::AbstractString, ::Type{<:CDMsource}, A::AbstractRa
         "c"
     end
     mode  = !isfile(filename) || !append ? "c" : "a";
-    ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(A)))
+    ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(A)))
     try
         _ncdwritevar!(ds, A; kw...)
     finally
@@ -59,7 +63,7 @@ Keywords are passed to `NCDatasets.defVar`.
 """
 function Base.write(filename::AbstractString, ::Type{<:CDMsource}, s::AbstractRasterStack; append = false, kw...)
     mode  = !isfile(filename) || !append ? "c" : "a";
-    ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(s)))
+    ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
     try
         map(key -> _ncdwritevar!(ds, s[key]), keys(s); kw...)
     finally
@@ -81,6 +85,69 @@ function RA._open(f, ::Type{NCDsource}, filename::AbstractString; write=false, k
     NCD.Dataset(filename, mode) do ds
         RA._open(f, NCDsource, ds; kw...)
     end
+end
+
+# Add a var array to a dataset before writing it.
+function _ncdwritevar!(ds::AbstractDataset, A::AbstractRaster{T,N}; kw...) where {T,N}
+    _def_dim_var!(ds, A)
+    attrib = RA._attribdict(metadata(A))
+    # Set _FillValue
+    eltyp = Missings.nonmissingtype(T)
+    eltyp <: NCDAllowedType || throw(ArgumentError("$eltyp cannot be written to NetCDF, convert to one of $(Base.uniontypes(NCDAllowedType))"))
+    if ismissing(missingval(A))
+        fillval = if haskey(attrib, "_FillValue") && attrib["_FillValue"] isa eltyp
+            attrib["_FillValue"]
+        else
+            NCD.fillvalue(eltyp)
+        end
+        attrib["_FillValue"] = fillval
+        A = replace_missing(A, fillval)
+    elseif missingval(A) isa T
+        attrib["_FillValue"] = missingval(A)
+    else
+        missingval(A) isa Nothing || @warn "`missingval` $(missingval(A)) is not the same type as your data $T."
+    end
+
+    key = if string(DD.name(A)) == ""
+        UNNAMED_NCD_FILE_KEY
+    else
+        string(DD.name(A))
+    end
+
+    dimnames = lowercase.(string.(map(RA.name, dims(A))))
+    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...)
+
+    # NCDatasets needs Colon indices to write without allocations
+    # TODO do this with DiskArrays broadcast ??
+    var[map(_ -> Colon(), axes(A))...] = parent(read(A))
+
+    return nothing
+end
+
+_def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
+function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
+    dimkey = lowercase(string(DD.name(dim)))
+    haskey(ds.dim, dimkey) && return nothing
+    NCD.defDim(ds, dimkey, length(dim))
+    lookup(dim) isa NoLookup && return nothing
+
+    # Shift index before conversion to Mapped
+    dim = RA._ncdshiftlocus(dim)
+    if dim isa Y || dim isa X
+        dim = convertlookup(Mapped, dim)
+    end
+    # Attributes
+    attrib = RA._attribdict(metadata(dim))
+    RA._ncd_set_axis_attrib!(attrib, dim)
+    # Bounds variables
+    if span(dim) isa Explicit
+        bounds = val(span(dim))
+        boundskey = get(metadata(dim), :bounds, string(dimkey, "_bnds"))
+        push!(attrib, "bounds" => boundskey)
+        NCD.defVar(ds, boundskey, bounds, ("bnds", dimkey))
+    end
+    NCD.defVar(ds, dimkey, Vector(index(dim)), (dimkey,); attrib=attrib)
+    return nothing
 end
 
 const _NCDVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}

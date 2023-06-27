@@ -74,7 +74,7 @@ function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) wher
     end
 end
 
-function create(filename, ::Type{<:CDMsource}, T::Union{Type,Tuple}, dims::DimTuple;
+function create(filename, source::Type{<:CDMsource}, T::Union{Type,Tuple}, dims::DimTuple;
     name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing,
     metadata=NoMetadata(), lazy=true, 
 )
@@ -85,8 +85,8 @@ function create(filename, ::Type{<:CDMsource}, T::Union{Type,Tuple}, dims::DimTu
         A = FillArrays.Zeros{t}(map(length, lds))
         Raster(A, dims=lds; name=key, missingval=mv)
     end
-    write(filename, CDMsource, Raster(first(layers)))
-    return Raster(filename; source=CDMsource, lazy)
+    write(filename, source, Raster(first(layers)))
+    return Raster(filename; source=source, lazy)
 end
 
 # DimensionalData methods for NCDatasets types ###############################
@@ -342,69 +342,6 @@ _attribdict(md::Metadata{<:CDMsource}) = Dict{String,Any}(string(k) => v for (k,
 _attribdict(md) = Dict{String,Any}()
 
 _dimkeys(ds::AbstractDataset) = CDM.dimnames(ds)
-
-# Add a var array to a dataset before writing it.
-function _ncdwritevar!(ds::AbstractDataset, A::AbstractRaster{T,N}; kw...) where {T,N}
-    _def_dim_var!(ds, A)
-    attrib = _attribdict(metadata(A))
-    # Set _FillValue
-    eltyp = Missings.nonmissingtype(T)
-    eltyp <: NCDAllowedType || throw(ArgumentError("$eltyp cannot be written to NetCDF, convert to one of $(Base.uniontypes(NCDAllowedType))"))
-    if ismissing(missingval(A))
-        fillval = if haskey(attrib, "_FillValue") && attrib["_FillValue"] isa eltyp
-            attrib["_FillValue"]
-        else
-            NCD.fillvalue(eltyp)
-        end
-        attrib["_FillValue"] = fillval
-        A = replace_missing(A, fillval)
-    elseif missingval(A) isa T
-        attrib["_FillValue"] = missingval(A)
-    else
-        missingval(A) isa Nothing || @warn "`missingval` $(missingval(A)) is not the same type as your data $T."
-    end
-
-    key = if string(DD.name(A)) == ""
-        UNNAMED_NCD_FILE_KEY
-    else
-        string(DD.name(A))
-    end
-
-    dimnames = lowercase.(string.(map(name, dims(A))))
-    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...)
-
-    # NCDatasets needs Colon indices to write without allocations
-    # TODO do this with DiskArrays broadcast ??
-    var[map(_ -> Colon(), axes(A))...] = parent(read(A))
-
-    return nothing
-end
-
-_def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
-function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
-    dimkey = lowercase(string(DD.name(dim)))
-    haskey(ds.dim, dimkey) && return nothing
-    NCD.defDim(ds, dimkey, length(dim))
-    lookup(dim) isa NoLookup && return nothing
-
-    # Shift index before conversion to Mapped
-    dim = _ncdshiftlocus(dim)
-    if dim isa Y || dim isa X
-        dim = convertlookup(Mapped, dim)
-    end
-    # Attributes
-    attrib = _attribdict(metadata(dim))
-    _ncd_set_axis_attrib!(attrib, dim)
-    # Bounds variables
-    if span(dim) isa Explicit
-        bounds = val(span(dim))
-        boundskey = get(metadata(dim), :bounds, string(dimkey, "_bnds"))
-        push!(attrib, "bounds" => boundskey)
-        NCD.defVar(ds, boundskey, bounds, ("bnds", dimkey))
-    end
-    NCD.defVar(ds, dimkey, Vector(index(dim)), (dimkey,); attrib=attrib)
-    return nothing
-end
 
 # Add axis and standard name attributes to dimension variabls
 # We need to get better at guaranteeing if X/Y is actually measured in `longitude/latitude`
