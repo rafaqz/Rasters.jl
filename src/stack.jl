@@ -230,10 +230,7 @@ function RasterStack(layers::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractRaster}}}
 end
 # Single-file stack from a string
 function RasterStack(filename::AbstractString;
-    dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
-    layerdims=nothing, layermetadata=nothing, missingval=nothing,
-    source=nothing, name=nothing, keys=name, layersfrom=nothing,
-    resize=nothing, lazy=false, ext=nothing, dropband=true,
+    source=nothing, name=nothing, keys=name, resize=nothing, lazy=false, dropband=true, kw...
 )
     source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
     st = if isdir(filename)
@@ -248,25 +245,13 @@ function RasterStack(filename::AbstractString;
         else
             keys
         end
-        RasterStack(joinpath.(Ref(filename), filenames); keys)
+        RasterStack(joinpath.(Ref(filename), filenames); lazy, kw...)
     else
         st = if haslayers(source)
-            crs = defaultcrs(source, crs)
-            mappedcrs = defaultmappedcrs(source, mappedcrs)
-            data, field_kw = _open(filename; source) do ds
-                dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
-                refdims = refdims == () || refdims isa Nothing ? () : refdims
-                layerdims = layerdims isa Nothing ? DD.layerdims(ds) : layerdims
-                metadata = metadata isa Nothing ? DD.metadata(ds) : metadata
-                layermetadata = layermetadata isa Nothing ? DD.layermetadata(ds) : layermetadata
-                missingval = missingval isa Nothing ? Rasters.missingval(ds) : missingval
-                data = FileStack{source}(ds, filename; keys)
-                data, (; dims, refdims, layerdims, metadata, layermetadata, missingval)
-            end
-            RasterStack(data; field_kw...)
+        _layer_raster(filename; kw...)
         else
-            # Band dims acts as layers
-            RasterStack(Raster(filename; lazy); layersfrom)
+            # layeresfrom (default: Band) dims acts as layers
+            RasterStack(Raster(filename; source); kw...)
         end
         # Maybe split the stack into separate arrays to remove extra dims.
         if !(keys isa Nothing)
@@ -276,7 +261,7 @@ function RasterStack(filename::AbstractString;
         end
     end
     st1 = lazy ? st : read(st)
-    if hasdim(st1, Band()) && size(st1, Band()) < 2
+    if dropband && hasdim(st1, Band()) && size(st1, Band()) == 1
          if lazy
              return view(st1, Band(1)) # TODO fix dropdims in DiskArrays
          else
@@ -286,6 +271,27 @@ function RasterStack(filename::AbstractString;
          return st1
     end
 end
+
+function _layer_raster(filename;
+    dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
+    layerdims=nothing, layermetadata=nothing, missingval=nothing,
+    source=nothing, name=nothing, keys=name, kw...
+)
+    crs = defaultcrs(source, crs)
+    mappedcrs = defaultmappedcrs(source, mappedcrs)
+    data, field_kw = _open(filename; source) do ds
+        dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
+        refdims = refdims == () || refdims isa Nothing ? () : refdims
+        layerdims = layerdims isa Nothing ? DD.layerdims(ds) : layerdims
+        metadata = metadata isa Nothing ? DD.metadata(ds) : metadata
+        layermetadata = layermetadata isa Nothing ? DD.layermetadata(ds) : layermetadata
+        missingval = missingval isa Nothing ? Rasters.missingval(ds) : missingval
+        data = FileStack{source}(ds, filename; keys)
+        data, (; dims, refdims, layerdims, metadata, layermetadata, missingval)
+    end
+    return RasterStack(data; field_kw..., kw...)
+end
+
 function RasterStack(A::Raster;
     layersfrom=nothing, name=nothing, keys=name, metadata=metadata(A), refdims=refdims(A), kw...
 )
