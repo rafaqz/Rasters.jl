@@ -75,9 +75,9 @@ end
 RA.FileStack{NCDsource}(ds::AbstractDataset, filename::AbstractString; write=false, keys) = RA.FileStack(NCDsource, ds, filename; write, keys)
 
 function RA.OpenStack(fs::RA.FileStack{NCDsource,K}) where K
-    OpenStack{NCDsource,K}(NCD.Dataset(filename(fs)))
+    RA.OpenStack{NCDsource,K}(NCD.Dataset(RA.filename(fs)))
 end
-Base.close(os::RA.OpenStack{NCDsource}) = NCD.close(dataset(os))
+Base.close(os::RA.OpenStack{NCDsource}) = NCD.close(RA.dataset(os))
 
 function RA._open(f, ::Type{NCDsource}, filename::AbstractString; write=false, kw...)
     isfile(filename) || RA._isurl(filename) || RA._filenotfound_error(filename)
