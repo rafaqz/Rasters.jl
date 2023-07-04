@@ -117,8 +117,8 @@ function DD.layerdims(ds::AbstractDataset)
 end
 function DD.layerdims(var::AbstractVariable)
     map(CDM.dimnames(var)) do dimname
-        _ncddimtype(_attrib(var), dimname)()
-    end |> Tuple
+        _ncddim(_dataset(var), dimname)
+    end |> Tuple    
 end
 
 DD.layermetadata(ds::AbstractDataset) = _layermetadata(ds, Tuple(layerkeys(ds)))
