@@ -116,9 +116,8 @@ function DD.layerdims(ds::AbstractDataset)
     NamedTuple{map(Symbol, keys)}(dimtypes)
 end
 function DD.layerdims(var::AbstractVariable)
-    ds = _dataset(var)
     map(CDM.dimnames(var)) do dimname
-        _ncddimtype(_attrib(ds[dimname]), dimname)()
+        _ncddimtype(_attrib(var), dimname)()
     end |> Tuple
 end
 
