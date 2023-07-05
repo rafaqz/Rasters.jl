@@ -121,9 +121,16 @@ function DD.layerdims(var::AbstractVariable)
     end |> Tuple    
 end
 
-DD.layermetadata(ds::AbstractDataset) = _layermetadata(ds, Tuple(layerkeys(ds)))
-function _layermetadata(ds, keys)
-    dimtypes = map(k -> DD.metadata(ds[string(k)]), keys)
+function DD.layermetadata(ds::AbstractDataset)
+    keys = Tuple(layerkeys(ds))
+    dimtypes = map(keys) do k
+        var = ds[k]
+        md = DD.metadata(var)
+        if haskey(_attrib(var), "grid_mapping")
+            md["grid_mapping"] = Dict(_attrib(ds[_attrib(var)["grid_mapping"]]))
+        end
+        md
+    end
     NamedTuple{map(Symbol, keys)}(dimtypes)
 end
 
@@ -137,14 +144,22 @@ function layerkeys(ds::AbstractDataset)
         for k in dimkeys
             var = ds[k]
             if haskey(_attrib(var), "bounds")
-                push!(boundskeys, CDM.attrib(var, "bounds"))
+                push!(boundskeys, _attrib(var)["bounds"])
             end
         end
         union(dimkeys, boundskeys)::Vector{String}
     else
         dimkeys::Vector{String}
     end
-    return setdiff(keys(ds), toremove)
+    nondim = setdiff(keys(ds), toremove)
+    grid_mapping = String[]
+    for k in nondim
+        var = ds[k]
+        if haskey(_attrib(var), "grid_mapping")
+            push!(grid_mapping, _attrib(var)["grid_mapping"])
+        end
+    end
+    nondim = setdiff(nondim, grid_mapping)
 end
 
 function FileStack(source::Type{<:CDMsource}, ds::AbstractDataset, filename::AbstractString; write, keys)
