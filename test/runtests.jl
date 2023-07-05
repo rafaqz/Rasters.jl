@@ -23,10 +23,11 @@ end
 @time @safetestset "adapt" begin include("adapt.jl") end
 @time @safetestset "warp" begin include("warp.jl") end
 
-
-# Only test SMAP locally for now, also RasterDataSources because CI dowloads keep breaking
+# CommondataModel sources
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
 @time @safetestset "gribdatasets" begin include("sources/gribdatasets.jl") end
+
+# Only test SMAP locally for now, also RasterDataSources because CI dowloads keep breaking
 if !haskey(ENV, "CI")
     @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
     @time @safetestset "smap" begin include("sources/smap.jl") end
