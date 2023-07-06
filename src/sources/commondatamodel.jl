@@ -31,6 +31,38 @@ const CDM_STANDARD_NAME_MAP = Dict(
     "time" => Ti,
 )
 
+struct CFVariable{T,N,TV,TA,TSA} <: CDM.AbstractVariable{T,N}
+    var::CDM.CFVariable{T,N,TV,TA,TSA}
+end
+@implement_diskarray CFVariable
+
+Base.parent(A::CFVariable) = A.var
+
+function DiskArrays.readblock!(A::CFVariable, aout, i::AbstractUnitRange...)
+    aout[i...] = getindex(parent(A), i...)
+end
+
+function DiskArrays.writeblock!(A::CFVariable, data, i::AbstractUnitRange...)
+    setindex!(parent(A), data, i...)
+    return data
+end
+_open(f, ::Type{<:CDMsource}, var::CFVariable; kw...) = cleanreturn(f(var))
+
+# Methods from CommonDataModel
+for method in (:size, :name, :dimnames, :dataset, :attribnames)
+    @eval begin
+        CDM.$(method)(var::CFVariable) = CDM.$(method)(parent(var))
+    end
+end
+
+for method in (:attrib, :dim)
+    @eval begin
+        CDM.$(method)(var::CFVariable, name::CDM.SymbolOrString) = CDM.$(method)(parent(var), name)
+    end
+end
+
+Base.getindex(os::OpenStack{<:CDMsource}, key::Symbol) = CFVariable(dataset(os)[key])
+
 _dataset(var::AbstractVariable) = CDM.dataset(var)
 
 haslayers(::Type{<:CDMsource}) = true
@@ -45,12 +77,12 @@ function Raster(ds::AbstractDataset, filename::AbstractString, key=nothing; kw..
         for key in layerkeys(ds)
             if ndims(ds[key]) > 0
                 @info "No `name` or `key` keyword provided, using first valid layer with name `:$key`"
-                return Raster(ds[key], filename, key; source=CDMsource, kw...)
+                return Raster(CFVariable(ds[key]), filename, key; source=CDMsource, kw...)
             end
         end
         throw(ArgumentError("dataset at $filename has no array variables"))
     else
-       return Raster(ds[key], filename, key; kw...)
+       return Raster(CFVariable(ds[key]), filename, key; kw...)
     end
 end
 
@@ -70,7 +102,7 @@ end
 
 function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) where source <: CDMsource
     _open(source, filename(A); key=key(A), write, kw...) do var
-        f(RasterDiskArray{source}(var, DA.eachchunk(A), DA.haschunks(A)))
+        f(var)
     end
 end
 
@@ -105,7 +137,6 @@ end
 
 _attrib(ds::Union{AbstractDataset, AbstractVariable}) = CDM.attribs(ds)
 DD.metadata(ds::AbstractDataset) = _metadatadict(CDMsource, _attrib(ds))
-DD.metadata(var::CFVariable) = _metadatadict(CDMsource, _attrib(var))
 DD.metadata(var::AbstractVariable) = _metadatadict(CDMsource, _attrib(var))
 
 function DD.layerdims(ds::AbstractDataset)
@@ -134,7 +165,7 @@ function DD.layermetadata(ds::AbstractDataset)
     NamedTuple{map(Symbol, keys)}(dimtypes)
 end
 
-missingval(var::CDM.CFVariable{T}) where T = missing isa T ? missing : nothing
+missingval(var::AbstractVariable{T}) where T = missing isa T ? missing : nothing
 
 function layerkeys(ds::AbstractDataset)
     dimkeys = _dimkeys(ds)
@@ -176,14 +207,14 @@ function FileStack(source::Type{<:CDMsource}, ds::AbstractDataset, filename::Abs
 end
 
 function _open(f, ::Type{<:CDMsource}, ds::AbstractDataset; key=nothing, kw...)
-    x = key isa Nothing ? ds : ds[_firstkey(ds, key)]
+    x = key isa Nothing ? ds : CFVariable(ds[_firstkey(ds, key)])
     cleanreturn(f(x))
 end
-_open(f, ::Type{<:CDMsource}, var::CDM.CFVariable; kw...) = cleanreturn(f(var))
+# _open(f, ::Type{<:CDMsource}, var::CDM.CFVariable; kw...) = cleanreturn(f(CFVariable(var)))
 
 # Utils ########################################################################
 
-cleanreturn(A::CDM.CFVariable) = Array(A)
+cleanreturn(A::CFVariable) = Array(A)
 
 # Utils ########################################################################
 

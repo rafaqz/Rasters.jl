@@ -52,7 +52,9 @@ using Base: tail, @propagate_inbounds
 using Setfield: @set, @set!
 using ColorTypes: RGB
 
-using CommonDataModel: AbstractDataset, AbstractVariable, CFVariable
+using CommonDataModel: AbstractDataset, AbstractVariable
+
+using DiskArrays: @implement_diskarray
 
 export AbstractRaster, Raster
 export AbstractRasterStack, RasterStack
