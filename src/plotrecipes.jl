@@ -1,3 +1,6 @@
+##################################################################################
+# Plots.jl recipes
+
 # Method specialisation singletons.
 struct RasterPlot end
 struct RasterZPlot end
@@ -7,31 +10,21 @@ struct RasterZPlot end
     ddplot(A) = DimArray(A; dims=_maybe_mapped(dims(A)))
     # Resample AffineProjected
     max_res = get(plotattributes, :max_res, 1000)
-    A = maybe_resample(A)
+    A = _maybe_resample(A)
     if !(get(plotattributes, :seriestype, :none) in (:none, :heatmap, :contourf))
         DD.DimensionalPlot(), ddplot(A)
     elseif all(hasdim(A, (SpatialDim, SpatialDim)))
-        # Heatmap or multiple heatmaps. Use GD recipes.
+        # Heatmap or multiple heatmaps. Use Rasters recipes.
         A = _prepare(_subsample(A, max_res))
         RasterPlot(), A
     elseif hasdim(A, ZDim) && ndims(A) == 1
         # Z dim plot, but for spatial data we want Z on the Y axis
         RasterZPlot(), _prepare(A)
     else
+        # Otherwise use DD recipes
         DD.DimensionalPlot(), ddplot(A)
     end
 end
-
-function maybe_resample(A)
-    if all(hasdim(A, (X, Y))) 
-        maybe_resample(first(lookup(A, (X, Y))), A)
-    else
-        return A
-    end
-end
-maybe_resample(lookup, A) = A
-
-
 
 # Plot a sinlge 2d map
 @recipe function f(::RasterPlot, A::AbstractRaster{T,2,<:Tuple{D1,D2}}) where {T,D1<:SpatialDim,D2<:SpatialDim}
@@ -113,7 +106,7 @@ end
     if nplots > 1
         :plot_title --> name(A)
         # Plot as a RasterSeries
-        slice(A, dims(A, 3)) 
+        slice(A, dims(A, 3))
     else
         RasterPlot(), view(A, :, :, 1)
     end
@@ -189,16 +182,8 @@ end
 end
 
 @recipe function f(A::RasterSeries{<:Any,1})
-    nplots = length(A)
-    if nplots > 16 
-        plotinds = round.(Int, 1:nplots//16:nplots)
-        @info "Too many raster heatmaps: plotting 16 slices from $nplots"
-        A = @views A[plotinds]
-        nplots = length(plotinds)
-    end
     # link --> :both
     # :colorbar := false
-    titles = string.(index(A, dims(A, 1)))
     if haskey(plotattributes, :layout)
         first = true
         for (i, raster) in enumerate(A)
@@ -217,6 +202,8 @@ end
             first = false
         end
     else
+        thinned, plotinds, nplots = _maybe_thin_plots(A)
+        titles = string.(index(A, dims(A, 1)))
         ncols, nrows = _balance_grid(nplots)
         :layout --> (ncols, nrows)
         for r in 1:nrows, c in 1:ncols
@@ -233,7 +220,7 @@ end
                 end
                 if i <= nplots
                     title := titles[i]
-                    A[i]
+                    thinned[i]
                 else
                     :framestyle := :none
                     :legend := :none
@@ -244,143 +231,119 @@ end
     end
 end
 
+
+##################################################################################
 # Makie.jl recipes
 
 # For now, these are just basic conversions from 2D rasters to surface-like (surface, heatmap) plot types.
 # Once Makie supports figure level recipes, we should integrate those.
-    
+
 # First, define default plot types for Rasters
-MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 1}) = MakieCore.Lines
-MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 2}) = MakieCore.Heatmap
+MakieCore.plottype(raster::AbstractRaster{<:Union{Missing,Real},1}) = MakieCore.Lines
+MakieCore.plottype(raster::AbstractRaster{<:Union{Missing,Real},2}) = MakieCore.Heatmap
 # 3d rasters are a little more complicated - if dim3 is a singleton, then heatmap, otherwise volume
-function MakieCore.plottype(raw_raster::AbstractRaster{<: Union{Missing, Real}, 3})
-    if size(raw_raster, 3) == 1
+function MakieCore.plottype(raster::AbstractRaster{<:Union{Missing,Real},3})
+    if size(raster, 3) == 1
         MakieCore.Heatmap
     else
         MakieCore.Volume
     end
 end
-
-missing_or_float32(num::Number) = Float32(num)
-missing_or_float32(::Missing) = missing
-
-# then, define how they are to be converted to plottable data
-function MakieCore.convert_arguments(PB::MakieCore.PointBased, raw_raster::AbstractRaster{<: Union{Missing, Real}, 1})
-    z = map(Rasters._prepare, dims(raw_raster))
-    return MakieCore.convert_arguments(PB, parent(Float32.(replace_missing(missing_or_float32.(raw_raster), missingval = NaN32))), index(z))
-end
-
-function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::AbstractRaster{<: Union{Missing, Real}, 2})
-    raster = replace_missing(missing_or_float32.(raw_raster), missingval = NaN32)
-    ds = DD._fwdorderdims(raster)
-    A = permutedims(raster, ds)
-    x, y = dims(A)
-    xs, ys, vs = DD._withaxes(x, y, (A))
-    return (xs, ys, collect(vs))
-end
-
-function __edges(v::AbstractVector)
-    l = length(v)
-    if l == 1
-        return [v[begin] - 0.5, v[begin] + 0.5]
-    else
-        # Equivalent to
-        # mids = 0.5 .* (v[1:end-1] .+ v[2:end])
-        # borders = [2v[1] - mids[1]; mids; 2v[end] - mids[end]]
-        borders = [0.5 * (v[max(begin, i)] + v[min(end, i+1)]) for i in (firstindex(v) - 1):lastindex(v)]
-        borders[1] = 2borders[1] - borders[2]
-        borders[end] = 2borders[end] - borders[end-1]
-        return borders
-    end
-end
-
-function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::AbstractRaster{<: Union{Missing, Real}, 2})
-    raster = replace_missing(missing_or_float32.(raw_raster), missingval = NaN32)
-    ds = DD._fwdorderdims(raster)
-    A = permutedims(raster, ds)
-    x, y = dims(A)
-    xs, ys, vs = DD._withaxes(x, y, (A))
-    return (__edges(xs), __edges(ys), collect(vs))
-end
-
-# allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
-function MakieCore.convert_arguments(sl::MakieCore.SurfaceLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 3})
-    @assert size(raw_raster_with_missings, 3) == 1
-    return MakieCore.convert_arguments(sl, raw_raster_with_missings[:, :, begin])
-end
-
-# allow 3d rasters to be plotted as volumes
-function MakieCore.convert_arguments(::MakieCore.VolumeLike, raw_raster_with_missings::AbstractRaster{<: Union{Real, Missing}, 3})
-    raster = replace_missing(missing_or_float32.(raw_raster_with_missings), missingval = NaN32)
-    ds = DD._fwdorderdims(raster)
-    A = permutedims(raster, ds)
-    x, y, z = dims(A)
-    xs, ys, zs, vs = DD._withaxes(x, y, z, A)
-    return (xs, ys, zs, collect(vs))
-end
-
 # plot rasters of ColorTypes as images
 # define the correct plottype
-MakieCore.plottype(::AbstractRaster{<: ColorTypes.Colorant, 2}) = MakieCore.Image
+MakieCore.plottype(::AbstractRaster{<:ColorTypes.Colorant,2}) = MakieCore.Image
 
-function MakieCore.convert_arguments(::MakieCore.SurfaceLike, raw_raster::AbstractRaster{<: ColorTypes.Colorant, 2})
-    ds = DD._fwdorderdims(raw_raster)
-    A = permutedims(raw_raster, ds)
-    x, y = dims(A)
-    xs, ys, vs = DD._withaxes(x, y, (A))
-    return (xs, ys, collect(vs))
+# then, define how they are to be converted to plottable data
+function MakieCore.convert_arguments(PB::MakieCore.PointBased, raster::AbstractRaster{<:Union{Real,Missing},1})
+    A = _prepare_makie(raster, ds)
+    return MakieCore.convert_arguments(PB, A, index(ds))
 end
-
-function MakieCore.convert_arguments(::MakieCore.DiscreteSurface, raw_raster::AbstractRaster{<: ColorTypes.Colorant, 2})
-    ds = DD._fwdorderdims(raw_raster)
-    A = permutedims(raw_raster, ds)
-    x, y = dims(A)
-    xs, ys, vs = DD._withaxes(x, y, (A))
-    return (__edges(xs), __edges(ys), collect(vs))
+# allow 3d rasters to be plotted as volumes
+function MakieCore.convert_arguments(
+    ::MakieCore.VolumeLike, raster::AbstractRaster{<:Union{Real,Missing},3,<:Tuple{D1,D2,D3}}
+) where {D1<:SpatialDim,D2<:SpatialDim,D3<:SpatialDim}
+    @show "here"
+    A = _prepare_makie(raster)
+    xs, ys, zs = lookup(A)
+    return (xs, ys, zs, parent(A))
 end
-            
+# allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
+function MakieCore.convert_arguments(x::MakieCore.ConversionTrait, raster::AbstractRaster{<:Union{Real,Missing},3})
+    D = _series_dim(raster)
+    nplots = size(raster, D)
+    if nplots > 1
+        # Plot as a RasterSeries
+        return MakieCore.convert_arguments(x, slice(raster, D))
+    else
+        return MakieCore.convert_arguments(x, view(raster, rebuild(D, 1)))
+    end
+end
+function MakieCore.convert_arguments(
+    ::MakieCore.SurfaceLike, raster::AbstractRaster{<:Union{Missing,Real},2,<:Tuple{D1,D2}}
+) where {D1<:SpatialDim,D2<:SpatialDim}
+    A = _prepare_makie(raster)
+    xs, ys = lookup(A)
+    return (xs, ys, parent(A))
+end
+function MakieCore.convert_arguments(
+    ::MakieCore.SurfaceLike, raster::AbstractRaster{<:ColorTypes.Colorant,2,<:Tuple{D1,D2}}
+) where {D1<:SpatialDim,D2<:SpatialDim}
+    A = _prepare_makie(raster)
+    x, y = dims(A)
+    xs, ys, vs = DD._withaxes(x, y, A)
+    return (xs, ys, parent(vs))
+end
+function MakieCore.convert_arguments(
+    ::MakieCore.DiscreteSurface, raster::AbstractRaster{<:Union{Missing,Real},2,<:Tuple{D1,D2}}
+) where {D1<:SpatialDim,D2<:SpatialDim}
+    A = _prepare_makie(raster)
+    xs, ys = map(_lookup_edges, lookup(A))
+    return (xs, ys, parent(A))
+end
+function MakieCore.convert_arguments(
+    ::MakieCore.DiscreteSurface,raster::AbstractRaster{<:ColorTypes.Colorant,2,<:Tuple{D1,D2}}
+) where {D1<:SpatialDim,D2<:SpatialDim}
+    A = _prepare_makie(raster)
+    xs, ys = map(_lookup_edges, lookup(A, (X, Y)))
+    return (xs, ys, parent(A))
+end
+function MakieCore.convert_arguments(x::MakieCore.ConversionTrait, series::AbstractRasterSeries)
+    return MakieCore.convert_arguments(x, first(series))
+end
 # fallbacks with descriptive error messages
-MakieCore.convert_arguments(::MakieCore.SurfaceLike, ::AbstractRaster{<: Real, Dim}) = @error """
-            We don't currently support plotting Rasters of dimension $Dim in Makie.jl. in surface/heatmap-like plots.
-            
-            In order to plot, please provide a 2-dimensional slice of your raster.
-            For example, in a 3-dimensional raster, this would look like:
-            ```julia
-            myraster = Raster(...)
-            heatmap(myraster)          # errors
-            heatmap(myraster[:, :, 1]) # use some index to subset, this works!
-            ```
-            """
-            
+MakieCore.convert_arguments(t::MakieCore.ConversionTrait, r::AbstractRaster) =
+    _makie_not_implemented_error(t, r)
+
+function _makie_not_implemented_error(t, r::AbstractRaster{T,N}) where {T,N}
+    @error """
+    We don't currently support plotting Rasters of eltype $T, with $N dimensions, as
+    a $t type plot in Makie.jl.
+
+    In order to plot, please provide a 2-dimensional slice of your raster contining 
+    only `Real` and `Missing` values.
+
+    For example, in a 3-dimensional raster, this would look like:
+
+    ```julia
+    myraster = Raster(...)
+    heatmap(myraster)        # errors
+    heatmap(myraster[Ti(1)]) # use some index to subset, this works!
+    ```
+    """
+end
+
+_prepare_makie(A) = replace_missing(read(_missing_or_float32.(_prepare(A))); missingval=NaN32)
 
 # initial definitions of `rplot`, to get around the extension package availability question
 
-function rplot() 
-    @error("Please load `Makie.jl` and then call this function.  If Makie is loaded, then you can't call `rplot` with no arguments!")
+function rplot(args...)
+    @error("Please load `Makie.jl` and then call this function. If Makie is loaded, then you can't call `rplot` with no arguments!")
 end
 
 # define the theme
 
 # this function is defined so that we can override style_rasters in RastersMakieExt
-function __style_rasters()
-    return MakieCore.Attributes(
-        Axis = (
-            xtickalign = 1.0,
-            ytickalign = 1.0,
-            xticklabelrotation = -π/4,
-            xticklabelsize = 14,
-            yticklabelsize = 14,
-            # aspect = DataAspect(),
-        ),
-
-        Colorbar = (
-            ticklabelsize = 11,
-            tickalign = 1.0,
-        ),
-    )
-end
-
-function style_rasters end # defined in ../ext/RastersMakieExt
+function style_rasters end
 
 function color_rasters()
     return MakieCore.Attributes(
@@ -393,14 +356,40 @@ function theme_rasters()
 end
 
 
+##################################################################################
+# Utils
+
+_missing_or_float32(num::Number) = Float32(num)
+_missing_or_float32(::Missing) = missing
+
+function _lookup_edges(l::LookupArray)
+    l = if l isa AbstractSampled 
+        set(l, Intervals())
+    else
+        set(l, Sampled(; sampling=Intervals()))
+    end
+    if l == 1
+        return [bounds(l)...]
+    else
+        ib = intervalbounds(l)
+        if order(l) isa ForwardOrdered
+            edges = first.(ib)
+            push!(edges, last(last(ib)))
+        else
+            edges = last.(ib)
+            push!(edges, first(last(ib)))
+        end
+        return edges
+    end
+end
+
 # Plots.jl heatmaps pixels are centered.
 # So we should center the index, and use the projected value.
 _prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
 # Convert arrays to a consistent missing value and Forward array order
-function _prepare(A::AbstractRaster)
-    reorder(A, DD.ForwardOrdered) |>
-    a -> permutedims(a, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A)))# |>
-end
+_prepare(A::AbstractRaster) = A |> _reorder |> _permute
+_reorder(A) = reorder(A, DD.ForwardOrdered)
+_permute(A) = permutedims(A, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A)))
 
 function _subsample(A, max_res)
     ssdims = dims(A, (XDim, YDim, ZDim))[1:2]
@@ -417,6 +406,15 @@ function _subsample(A, max_res)
         return view(read(A), d1, d2)
     end
 end
+
+function _maybe_resample(A)
+    if all(hasdim(A, (X, Y)))
+        _maybe_resample(first(lookup(A, (X, Y))), A)
+    else
+        return A
+    end
+end
+_maybe_resample(lookup, A) = A
 
 _maybename(A) = _maybename(name(A))
 _maybename(n::Name{N}) where N = _maybename(N)
@@ -442,4 +440,22 @@ function _balance_grid(nplots)
     ncols = (nplots - 1) ÷ ceil(Int, sqrt(nplots)) + 1
     nrows = (nplots - 1) ÷ ncols + 1
     return ncols, nrows
+end
+
+function _maybe_thin_plots(A::AbstractRasterSeries)
+    nplots = length(A)
+    if nplots > 16
+        plotinds = round.(Int, 1:nplots//16:nplots)
+        @info "too many raster heatmaps: plotting 16 slices from $nplots"
+        thinned = @views A[plotinds]
+        nplots = length(plotinds)
+        return thinned, plotinds, nplots
+    else
+        return A, collect(eachindex(A)), nplots
+    end
+end
+
+function _series_dim(A)
+    spatialdims = (X(), Y(), Z())
+    last((dims(A, spatialdims)..., otherdims(A, spatialdims)...))
 end
