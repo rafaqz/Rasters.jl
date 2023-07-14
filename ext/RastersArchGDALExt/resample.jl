@@ -14,7 +14,6 @@ or to snap to the bounds, resolution and crs of the object `to`.
 
 - `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
     If no `to` object is provided the extent will be calculated from `x`,
-
 $RES_KEYWORD
 $SIZE_KEYWORD
 $CRS_KEYWORD
