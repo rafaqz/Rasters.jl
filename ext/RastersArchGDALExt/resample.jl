@@ -1,6 +1,6 @@
 """
-	resample(x; to, size, res, method)
-    resample(xs...; to=first(xs), size, res, method)
+	resample(x; kw...)
+    resample(xs...; to=first(xs), kw...)
 
 `resample` uses `ArchGDAL.gdalwarp` to resample a [`Raster`](@ref) or
 [`RasterStack`](@ref) to a new `resolution` and optionally new `crs`,
@@ -14,6 +14,7 @@ or to snap to the bounds, resolution and crs of the object `to`.
 
 - `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
     If no `to` object is provided the extent will be calculated from `x`,
+
 $RES_KEYWORD
 $SIZE_KEYWORD
 $CRS_KEYWORD
@@ -35,6 +36,8 @@ $CRS_KEYWORD
     * `:sum`: compute the weighted sum of all non-NODATA contributing pixels (since GDAL 3.1)
 
     Where NODATA values are set to `missingval`.
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
 
 Note:
 - GDAL may cause some unexpected changes in the data, such as returning a reversed Y dimension or

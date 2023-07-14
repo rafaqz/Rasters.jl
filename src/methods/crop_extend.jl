@@ -5,9 +5,6 @@
 Crop one or multiple [`AbstractRaster`](@ref) or [`AbstractRasterStack`](@ref) `x`
 to match the size of the object `to`, or smallest of any dimensions that are shared.
 
-Otherwise crop to the size of the keyword argument `to`. This can be a
-`Tuple` of `Dimension` or any object that will return one from `dims(to)`.
-
 `crop` is lazy, using a `view` into the object rather than alocating new memory.
 
 # Keywords
@@ -17,7 +14,7 @@ Otherwise crop to the size of the keyword argument `to`. This can be a
 - `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
    When lines need to be included in e.g. zonal statistics, `true` shoudle be used.
 
-As `crop` is lazy, `filename` and `suffix` keywords don't apply.
+As `crop` is lazy, `filename` and `suffix` keywords are not used.
 
 # Example
 
@@ -129,9 +126,8 @@ covered by all `xs`, or by the keyword argument `to`.
     shared area of all `xs` is used.
 - `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
    When lines need to be included in e.g. zonal statistics, `true` shoudle be used.
-- `filename`: a filename to write to directly, useful for large files.
-- `suffix`: a string or value to append to the filename.
-    A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
 
 ```jldoctest
 using Rasters, RasterDataSources, Plots

@@ -15,7 +15,7 @@ Trim `missingval(x)` from `x` for axes in `dims`, returning a view of `x`.
 - `pad`: The trimmed size will be padded by `pad` on all sides, although
     padding will not be added beyond the original extent of the array.
 
-`trim` does not accept `filename`/`suffix` arguments as it does not alter the underlying data.
+As `trim` is lazy, `filename` and `suffix` keywords are not used.
 
 # Example
 

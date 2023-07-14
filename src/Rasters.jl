@@ -110,6 +110,7 @@ include("plotrecipes.jl")
 include("sectorlock.jl")
 
 
+include("methods/shared_docstrings.jl")
 include("methods/mask.jl")
 include("methods/rasterize.jl")
 include("methods/aggregate.jl")
