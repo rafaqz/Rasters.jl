@@ -57,7 +57,7 @@ $EXPERIMENTAL
 function warp(A::AbstractRaster, flags::Dict; filename=nothing, kw...)
     odims = otherdims(A, (X, Y, Band))
     if length(odims) > 0
-        isnothing(filename) && throw(ArgumentError("Cannot currently write dimensions other than X/Y/Band to disk using `filename` keyword. Make a Rasters.jl github issue if you need this."))
+        isnothing(filename) || throw(ArgumentError("Cannot currently write dimensions other than X/Y/Band to disk using `filename` keyword. Make a Rasters.jl github issue if you need this."))
         # Handle dimensions other than X, Y, Band
         slices = slice(A, odims)
         warped = map(A -> _warp(A, flags; kw...), slices)
