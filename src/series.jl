@@ -223,6 +223,6 @@ function swap_filename(x::AbstractArray, filename::AbstractString)
     ignore = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
     Flatten.modify(x, FileArray, ignore) do fa
 
-        @set fa.flename = filename
+        @set fa.filename = filename
     end
 end
