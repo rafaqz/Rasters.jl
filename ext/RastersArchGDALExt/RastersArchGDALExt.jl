@@ -28,6 +28,10 @@ const DA = DiskArrays
 const GI = GeoInterface
 const LA = LookupArrays
 
+# Make stubs throw MethodError instead of BackendException
+resample(args...; kw...) = throw(MethodError(resample, args))
+warp(args...; kw...) = throw(MethodError(warp, args))
+
 include("gdal_source.jl")
 include("reproject.jl")
 include("resample.jl")
