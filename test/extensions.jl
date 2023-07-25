@@ -1,4 +1,4 @@
-using Rasters
+using Test, Rasters
 
 # These methods should throw a BackendException
 @test_throws Rasters.BackendException resample(1, 2, 3)
