@@ -1,38 +1,3 @@
-const TO_KEYWORD = """
-- `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
-    If no `to` object is provided the extent will be calculated from the geometries,
-    Additionally, when no `to` object or an `Extent` is passed for `to`, the `size`
-    or `res` keyword must also be used.
-"""
-const SIZE_KEYWORD = """
-- `size`: the size of the output array, as a `Tuple{Int,Int}` or single `Int` for a square.
-    Only required when `to` is not used or is an `Extents.Extent`, and `res` is not used.
-"""
-const RES_KEYWORD = """
-- `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
-    Only required when `to` is not used or is an `Extents.Extent`, and `size` is not used.
-"""
-const CRS_KEYWORD = """
-- `crs`: a `crs` which will be attached to the resulting raster when `to` not passed
-   or is an `Extent`. Otherwise the crs from `to` is used.
-"""
-
-const SHAPE_KEYWORDS = """
-- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point` geometries.
-    using points or lines as polygons may have unexpected results.
-- `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
-    where the polygon `:touches` the pixel, or that are completely `:inside` the polygon.
-    The default is `:center`.
-"""
-
-const GEOM_KEYWORDS = """
-$TO_KEYWORD
-$RES_KEYWORD
-$SIZE_KEYWORD
-$CRS_KEYWORD
-$SHAPE_KEYWORDS
-"""
-
 
 """
     mask(A:AbstractRaster; with, missingval=missingval(A))
@@ -50,9 +15,8 @@ or by the shape of `with`, if `with` is a geometric object.
 - `with`: an `AbstractRaster`, or any GeoInterface.jl compatible objects
     or table. The coordinate reference system of the point must match `crs(A)`.
 - `missingval`: the missing value to use in the returned file.
-- `filename`: a filename to write to directly, useful for large files.
-- `suffix`: a string or value to append to the filename.
-    A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
 
 # Geometry keywords
 

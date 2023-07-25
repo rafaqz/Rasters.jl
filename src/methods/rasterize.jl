@@ -352,9 +352,8 @@ These are detected automatically from `data` where possible.
 
 $GEOM_KEYWORDS
 $RASTERIZE_KEYWORDS
-- `filename`: a filename to write to directly, useful for large files.
-- `suffix`: a string or value to append to the filename.
-    A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
 
 # Example
 

@@ -18,7 +18,8 @@ Combine `regions` into a single raster.
     This is often required due to minor differences in range values
     due to floating point error. It is not applied to non-float dimensions.
     A tuple of tolerances may be passed, matching the dimension order.
-- `filename`: a file to write to directly.
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
 
 If your mosaic has has apparent line errors, increase the `atol` value.
 

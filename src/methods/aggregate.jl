@@ -30,10 +30,9 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 - `skipmissingval`: if `true`, any `missingval` will be skipped during aggregation, so that
     only areas of all missing values will be aggregated to `missingval`. If `false`, any
     aggegrated area containing a `missingval` will be assigned `missingval`.
-- `filename`: a filename to write to directly, useful for large files.
-- `suffix`: a string or value to append to the filename.
-    A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
-- `progress`: show a progress bar, `true` by default, `false` to hide..
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
+$PROGRESS_KEYWORD
 
 # Example
 
