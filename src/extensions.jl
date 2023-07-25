@@ -1,8 +1,20 @@
 # extensions
 
 # stubs that need ArchGDAL
-resample(args...; kw...) = throw(BackendException("ArchGDAL"))
-warp(args...; kw...) = throw(BackendException("ArchGDAL"))
+function resample(args...; kw...)
+    if isnothing(Base.get_extension(Rasters, :RastersArchGDALExt))
+        throw(BackendException("ArchGDAL"))
+    else
+        throw(MethodError(resample, args))
+    end
+end
+function warp(args...; kw...)
+    if isnothing(Base.get_extension(Rasters, :RastersArchGDALExt))
+        throw(BackendException("ArchGDAL"))
+    else
+        throw(MethodError(warp, args))
+    end
+end
 
 # Other shared stubs
 function layerkeys end
