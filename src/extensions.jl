@@ -2,17 +2,25 @@
 
 # stubs that need ArchGDAL
 function resample(args...; kw...)
-    if isnothing(Base.get_extension(Rasters, :RastersArchGDALExt))
-        throw(BackendException("ArchGDAL"))
+    @static if isdefined(Base, :get_extension) # julia > 1.9
+        if isnothing(Base.get_extension(Rasters, :RastersArchGDALExt))
+            throw(BackendException("ArchGDAL"))
+        else
+            throw(MethodError(resample, args))
+        end
     else
-        throw(MethodError(resample, args))
+        throw(BackendException("ArchGDAL"))
     end
 end
 function warp(args...; kw...)
-    if isnothing(Base.get_extension(Rasters, :RastersArchGDALExt))
-        throw(BackendException("ArchGDAL"))
+    @static if isdefined(Base, :get_extension) # julia > 1.9
+        if isnothing(Base.get_extension(Rasters, :RastersArchGDALExt))
+            throw(BackendException("ArchGDAL"))
+        else
+            throw(MethodError(warp, args))
+        end
     else
-        throw(MethodError(warp, args))
+        throw(BackendException("ArchGDAL"))
     end
 end
 
