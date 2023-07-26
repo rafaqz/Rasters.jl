@@ -364,6 +364,21 @@ end
         @test parent(eagerstack[:xi]) isa Array
     end
 
+    @testset "source" begin
+        no_ext = tempname()
+        cp(ncmulti, no_ext)
+        a = RasterStack(no_ext; source=:netcdf)
+        b = RasterStack(no_ext; source=Rasters.NCDsource())
+        @test a == b == ncstack
+        rm(no_ext)
+    end
+
+    @testset "crs" begin
+        st = RasterStack(ncmulti; crs=EPSG(3857), mappedcrs=EPSG(3857))
+        @test crs(st) == EPSG(3857)
+        @test mappedcrs(st) == EPSG(3857)
+    end
+
     @testset "load ncstack" begin
         @test ncstack isa RasterStack
         @test all(ismissing, missingval(ncstack))

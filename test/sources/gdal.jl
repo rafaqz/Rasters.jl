@@ -72,7 +72,7 @@ gdalpath = maybedownload(url)
     end
 
     @testset "read and write band names" begin
-        A = set(cat(gdalarray, gdalarray; dims=Band), Band=>1:2)
+        A = cat(gdalarray, gdalarray; dims=Band(1:2))
         named = set(A, Band => string.(Ref("layer_"), dims(A, Band)))
         tempfile = tempname() * ".tif"
         write(tempfile, named)
@@ -510,6 +510,33 @@ end
         @test gdalstack[:b] == gdalstack[:b]
         @test typeof(gdalstack[:b]) == typeof(gdalstack[:b])
         @test view(gdalstack, Y(2:3), X(1))[:a] == [0x00, 0x6b]
+    end
+
+    @testset "lazy" begin
+        gdalstack_lazy = RasterStack((a=gdalpath, b=gdalpath); lazy=true)
+        @test Rasters.isdisk(gdalstack_lazy.a)
+        @test Rasters.isdisk(gdalstack_lazy.b)
+        gdalstack_eager = RasterStack((a=gdalpath, b=gdalpath); lazy=false)
+        @test !Rasters.isdisk(gdalstack_eager.a)
+        @test !Rasters.isdisk(gdalstack_eager.b)
+    end
+
+    @testset "dropband" begin
+        gdalstack_band = RasterStack((a=gdalpath, b=gdalpath); dropband=false)
+        @test hasdim(gdalstack_band, Band)
+        gdalstack_noband = RasterStack((a=gdalpath, b=gdalpath); dropband=true)
+        @test !hasdim(gdalstack_noband, Band)
+    end
+
+    @testset "source" begin
+        no_ext = tempname()
+        cp(gdalpath, no_ext)
+        a = RasterStack((a=no_ext, b=no_ext); source=:gdal)
+        b = RasterStack((a=no_ext, b=no_ext); source=Rasters.GDALsource())
+        # GDAL is the fallback anyway
+        c = RasterStack((a=no_ext, b=no_ext))
+        @test a == b == c == gdalstack
+        rm(no_ext)
     end
 
     @testset "methods" begin
