@@ -289,6 +289,16 @@ end
             @test size2 > size1*1.8 # two variable 
             isfile(fn) && rm(fn)
 
+            # test erroring doesn't write file
+            fn = "test_broken.nc"
+            try 
+                write(fn, r1; deflatelevel="a")
+            catch e
+            end
+            @test !isfile(fn)
+            isfile(fn) && rm(fn)
+            
+
             @testset "non allowed values" begin
                 # TODO return this test when the changes in NCDatasets.jl settle
                 # @test_throws ArgumentError write(filename, convert.(Union{Missing,Float16}, geoA))

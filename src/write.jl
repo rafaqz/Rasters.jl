@@ -8,7 +8,14 @@ Keyword arguments are passed to the `write` method for the backend.
 function Base.write(
     filename::AbstractString, A::AbstractRaster; source=_sourcetype(filename), kw...
 )
-    write(filename, source, A; kw...)
+    try
+        write(filename, source, A; kw...)
+    catch e
+        if isfile(filename)
+            rm(filename)
+        end
+        rethrow(e)
+    end
 end
 Base.write(A::AbstractRaster; kw...) = write(filename(A), A; kw...)
 function Base.write(
