@@ -322,4 +322,3 @@ function _float64_xy_extent(ext::Extents.Extent)
     ybounds = map(Float64, ext.Y)
     return Extents.Extent(X=xbounds, Y=ybounds)
 end
-
