@@ -386,7 +386,7 @@ end
         end
         @testset "multi file with single name" begin
             tempnc = tempname() * ".nc"
-            write(tempnc, rebuild(ncarray; name=:tos2))
+            write(tempnc, rebuild(Raster(ncsingle); name=:tos2))
             @time small_stack = RasterStack((ncsingle, tempnc); name=(:tos, :tos2))
         end
     end

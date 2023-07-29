@@ -167,8 +167,7 @@ function RasterStack(
     filenames::Union{AbstractArray{<:AbstractString},Tuple{<:AbstractString,Vararg}};
     name=map(filekey, filenames), keys=name, kw...
 )
-    _checkname(NTuple{<:Any,Symbol}, name)
-    RasterStack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
+    RasterStack(NamedTuple{cleankeys(Tuple(keys))}(Tuple(filenames)); kw...)
 end
 function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     crs=nothing, mappedcrs=nothing, source=nothing, lazy=false, dropband=true, kw...
