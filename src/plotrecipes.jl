@@ -332,7 +332,7 @@ function _makie_not_implemented_error(t, r::AbstractRaster{T,N}) where {T,N}
 end
 
 _prepare_makie(A) = 
-    replace_missing(read(_missing_or_float32.(_reorder(A))); missingval=NaN32)
+    _reorder(read(_missing_or_float32.(replace_missing(A; missingval=NaN32))))
 
 # initial definitions of `rplot`, to get around the extension package availability question
 

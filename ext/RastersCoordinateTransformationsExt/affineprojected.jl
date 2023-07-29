@@ -90,7 +90,7 @@ function Base.show(io::IO, mime::MIME"text/plain", lookup::AffineProjected)
     end
 end
 
-function RA.maybe_resample(l::AffineProjected, A)
+function RA._maybe_resample(l::AffineProjected, A)
     res = Y(abs(l.affinemap.linear[1, 1])), X(abs(l.affinemap.linear[2, 2]))
     A = resample(A, res)
 end
