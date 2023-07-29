@@ -275,7 +275,7 @@ gdalpath = maybedownload(url)
         end
 
         @testset "3d, with subsetting" begin
-            geoA2 = cat(gdalarray, gdalarray; dims=Band)[Y(4.224e6..4.226e6), X(-28492..0)]
+            geoA2 = cat(gdalarray, gdalarray; dims=Band(1:2))[Y(4.224e6..4.226e6), X(-28492..0)]
             geoA2 = set(geoA2, Band => Band(1:2))
             filename2 = tempname() * ".tif"
             write(filename2, geoA2)
@@ -433,7 +433,7 @@ gdalpath = maybedownload(url)
         am = AffineMap([60.0 20; 40 60], [first.(bounds(gdalarray, (X, Y)))...])
         xap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, X)))
         yap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, Y)))
-        twoband = cat(gdalarray, gdalarray; dims=Band)
+        twoband = cat(gdalarray, gdalarray; dims=Band(1:2))
         affine_dims = DimensionalData.format((X(xap), Y(yap), Band(1:2)), twoband)
         rotated = rebuild(twoband; dims=affine_dims);
         @test occursin("Extent", sprint(show, MIME"text/plain"(), rotated))
