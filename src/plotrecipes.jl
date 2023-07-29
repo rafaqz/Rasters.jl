@@ -15,11 +15,11 @@ struct RasterZPlot end
         DD.DimensionalPlot(), ddplot(A)
     elseif all(hasdim(A, (SpatialDim, SpatialDim)))
         # Heatmap or multiple heatmaps. Use Rasters recipes.
-        A = _prepare(_subsample(A, max_res))
+        A = _prepare_plots(_subsample(A, max_res))
         RasterPlot(), A
     elseif hasdim(A, ZDim) && ndims(A) == 1
         # Z dim plot, but for spatial data we want Z on the Y axis
-        RasterZPlot(), _prepare(A)
+        RasterZPlot(), _prepare_plots(A)
     else
         # Otherwise use DD recipes
         DD.DimensionalPlot(), ddplot(A)
@@ -96,7 +96,7 @@ end
     :xguide --> xguide
     :yguide --> yguide
     :label --> ""
-    z = map(_prepare, dims(A))
+    z = map(_prepare_plots, dims(A))
     parent(A), index(z)
 end
 
@@ -262,7 +262,6 @@ end
 function MakieCore.convert_arguments(
     ::MakieCore.VolumeLike, raster::AbstractRaster{<:Union{Real,Missing},3,<:Tuple{D1,D2,D3}}
 ) where {D1<:SpatialDim,D2<:SpatialDim,D3<:SpatialDim}
-    @show "here"
     A = _prepare_makie(raster)
     xs, ys, zs = lookup(A)
     return (xs, ys, zs, parent(A))
@@ -332,7 +331,8 @@ function _makie_not_implemented_error(t, r::AbstractRaster{T,N}) where {T,N}
     """
 end
 
-_prepare_makie(A) = replace_missing(read(_missing_or_float32.(_prepare(A))); missingval=NaN32)
+_prepare_makie(A) = 
+    replace_missing(read(_missing_or_float32.(_reorder(A))); missingval=NaN32)
 
 # initial definitions of `rplot`, to get around the extension package availability question
 
@@ -387,7 +387,7 @@ end
 # So we should center the index, and use the projected value.
 _prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
 # Convert arrays to a consistent missing value and Forward array order
-_prepare(A::AbstractRaster) = A |> _reorder |> _permute
+_prepare_plots(A::AbstractRaster) = A |> _reorder |> _permute
 _reorder(A) = reorder(A, DD.ForwardOrdered)
 _permute(A) = permutedims(A, DD.commondims(>:, (ZDim, YDim, XDim, TimeDim, Dimension), dims(A)))
 

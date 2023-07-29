@@ -151,7 +151,8 @@ function Rasters.rplot(
 end
 
 function Rasters.rplot(
-    gp::GridPosition, series::Union{<:AbstractRasterSeries,Observable{<:AbstractRasterSeries}};
+    gp::GridPosition, 
+    series::Union{<:AbstractRasterSeries{<:Any,1},Observable{<:AbstractRasterSeries{<:Any,1}}};
     ncols=Makie.automatic,
     nrows=Makie.automatic,
     kw...
@@ -160,7 +161,8 @@ function Rasters.rplot(
 
     nrows, ncols, plotinds = if ncols isa Makie.Automatic && nrows isa Makie.Automatic
         _, plotinds, nplots = Rasters._maybe_thin_plots(val_series)
-        Rasters._balance_grid(nplots)..., plotinds
+        nrows, ncols = Rasters._balance_grid(nplots)
+        nrows, ncols, plotinds
     elseif ncols isa Int && nrows isa Int
         nrows, ncols, eachindex(series)
     else
@@ -169,8 +171,8 @@ function Rasters.rplot(
 
     layout = GridLayout(gp, nrows, ncols)
 
-    for i in plotinds
-        ax, plt = Rasters.rplot(layout[fldmod1(i, ncols)...], lift_layer(series, i); kw...)
+    for (i, ip) in enumerate(plotinds)
+        ax, plt = Rasters.rplot(layout[fldmod1(i, ncols)...], lift_layer(series, ip); kw...)
         if fldmod1(i, ncols)[1] != nrows
             hidexdecorations!(ax; HIDE_DEC...)
         end

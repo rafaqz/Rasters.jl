@@ -43,6 +43,7 @@ end
 
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle)
+    plot(ncarray)
 
     @time lazyarray = Raster(ncsingle; lazy=true);
     @time eagerarray = Raster(ncsingle; lazy=false);
