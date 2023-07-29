@@ -539,6 +539,11 @@ end
         rm(no_ext)
     end
 
+    @testset "name" begin
+        gdalstack_names = RasterStack((gdalpath, gdalpath); name=(:c, :d))
+        @test keys(gdalstack_names) == (:c, :d)
+    end
+
     @testset "methods" begin
         @testset "mean" begin
             means = map(A -> mean(parent(A); dims=2), gdalstack)

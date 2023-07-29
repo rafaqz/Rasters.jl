@@ -167,6 +167,7 @@ function RasterStack(
     filenames::Union{AbstractArray{<:AbstractString},Tuple{<:AbstractString,Vararg}};
     name=map(filekey, filenames), keys=name, kw...
 )
+    _checkname(NTuple{<:Any,Symbol}, name)
     RasterStack(NamedTuple{Tuple(keys)}(Tuple(filenames)); kw...)
 end
 function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
@@ -193,7 +194,6 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
 end
 # Multi Raster stack from Tuple of AbstractArray
 function RasterStack(data::Tuple{Vararg{<:AbstractArray}}, dims::Tuple; name=nothing, keys=name, kw...)
-    isnothing(keys) && throw(ArgumentError("`name` or `keys` keyword must be a tuple of `Symbol`"))
     return RasterStack(NamedTuple{cleankeys(keys)}(data), dims; kw...)
 end
 # Multi Raster stack from NamedTuple of AbstractArray
@@ -282,7 +282,7 @@ end
 function _layer_stack(filename;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, missingval=nothing,
-    source=nothing, name=nothing, keys=name, kw...
+    source=nothing, name=nothing, keys=name, resize=nothing, kw...
 )
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
@@ -303,7 +303,6 @@ end
 function RasterStack(A::Raster;
     layersfrom=nothing, name=nothing, keys=name, metadata=metadata(A), refdims=refdims(A), kw...
 )
-
     keys = keys isa Union{AbstractString,Symbol,Name} ? (keys,) : keys
     layers = if isnothing(layersfrom)
         keys = if keys isa Nothing

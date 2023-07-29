@@ -379,6 +379,18 @@ end
         @test mappedcrs(st) == EPSG(3857)
     end
 
+    @testset "name" begin
+        @testset "multi name from single file" begin
+            @time small_stack = RasterStack(ncmulti; name=(:sofllac, :xlvi))
+            @test keys(small_stack) == (:sofllac, :xlvi)
+        end
+        @testset "multi file with single name" begin
+            tempnc = tempname() * ".nc"
+            write(tempnc, rebuild(ncarray; name=:tos2))
+            @time small_stack = RasterStack((ncsingle, tempnc); name=(:tos, :tos2))
+        end
+    end
+
     @testset "load ncstack" begin
         @test ncstack isa RasterStack
         @test all(ismissing, missingval(ncstack))
