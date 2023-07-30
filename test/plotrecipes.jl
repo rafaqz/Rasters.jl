@@ -51,7 +51,7 @@ xs = 0.0:4.0:360.0
 ys = -20.0:1.0:20.0
 rast = Raster(rand(X(xs), Y(ys)))
 
-@test Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurface(), rast) == (Rasters.__edges(xs), Rasters.__edges(ys), Float32.(rast.data))
+@test Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurface(), rast) == (Rasters._lookup_edges(lookup(rast, X)), Rasters._lookup_edges(lookup(rast, Y)), Float32.(rast.data))
 # test true 3d rasters fail
 true_3d_raster = Raster(rand(X(0.0:4.0:360.0), Y(-20.0:1.0:20.0), Ti(1:10)))
 @test_throws AssertionError Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurface(), true_3d_raster)
