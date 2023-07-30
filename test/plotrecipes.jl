@@ -61,8 +61,8 @@ converted = Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurfac
 @test length(converted) == 3
 @test all(collect(converted[end] .== Float32.(singleton_3d_raster.data[:, :, 1]))) # remove if we want to handle 3d rasters with a singleton dimension
 
-using GLMakie
-Makie.image(ga2)
-Makie.heatmap(ga3)
-Rasters.rplot(ga2)
-Rasters.rplot(ga3)
+# using GLMakie
+# Makie.image(ga2)
+# Makie.heatmap(ga3)
+# Rasters.rplot(ga2)
+# Rasters.rplot(ga3)

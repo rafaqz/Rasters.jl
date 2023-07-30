@@ -33,7 +33,7 @@ end
 
     yguide, xguide = label(dims(A))
 
-    y, x = map(_prepare, dims(A))
+    y, x = map(_prepare_plots, dims(A))
 
     rdt = DD.refdims_title(A; issingle=true)
     :title --> (rdt === "" ? _maybename(A) : _maybename(A) * "\n" * rdt)
@@ -331,9 +331,6 @@ function _makie_not_implemented_error(t, r::AbstractRaster{T,N}) where {T,N}
     """
 end
 
-_prepare_makie(A) = 
-    _reorder(read(_missing_or_float32.(replace_missing(A; missingval=NaN32))))
-
 # initial definitions of `rplot`, to get around the extension package availability question
 
 function rplot(args...)
@@ -383,9 +380,12 @@ function _lookup_edges(l::LookupArray)
     end
 end
 
+
+_prepare_makie(A) = 
+    _missing_or_float32.(replace_missing(A; missingval=NaN32)) |> read |> _reorder
 # Plots.jl heatmaps pixels are centered.
 # So we should center the index, and use the projected value.
-_prepare(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
+_prepare_plots(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
 # Convert arrays to a consistent missing value and Forward array order
 _prepare_plots(A::AbstractRaster) = A |> _reorder |> _permute
 _reorder(A) = reorder(A, DD.ForwardOrdered)
