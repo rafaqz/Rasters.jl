@@ -44,19 +44,19 @@ wc_mask = resample(wc; to=awap)
 awap_masked = mask(awap; with=wc_mask)
 b = plot(awap_masked; clims=(10, 45))
 
-savefig(a, "build/mask_example_before.png");
-savefig(b, "build/mask_example_after.png"); nothing
+savefig(a, "docs/build/mask_example_before.png");
+savefig(b, "docs/build/mask_example_after.png"); nothing
 # output
 
 ```
 
 ### Before `mask`:
 
-![before mask](mask_example_before.png)
+![before mask](/build/mask_example_before.png)
 
 ### After `mask`:
 
-![after mask](mask_example_after.png)
+![after mask](/build/mask_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -133,8 +133,8 @@ wc_mask = resample(wc; to=awap)
 mask!(awap; with=wc_mask)
 b = plot(awap; clims=(10, 45))
 
-savefig(a, "build/mask_bang_example_before.png");
-savefig(b, "build/mask_bang_example_after.png"); nothing
+savefig(a, "docs/build/mask_bang_example_before.png");
+savefig(b, "docs/build/mask_bang_example_after.png"); nothing
 
 # output
 
@@ -142,11 +142,11 @@ savefig(b, "build/mask_bang_example_after.png"); nothing
 
 ### Before `mask!`:
 
-![before mask!](mask_bang_example_before.png)
+![before mask!](/build/mask_bang_example_before.png)
 
 ### After `mask!`:
 
-![after mask!](mask_bang_example_after.png)
+![after mask!](/build/mask_bang_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -230,12 +230,12 @@ using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 boolmask(wc) |> plot
 
-savefig("build/boolmask_example.png"); nothing
+savefig("docs/build/boolmask_example.png"); nothing
 
 # output
 ```
 
-![boolmask](boolmask_example.png)
+![boolmask](/build/boolmask_example.png)
 
 $EXPERIMENTAL
 """
@@ -308,12 +308,12 @@ using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 missingmask(wc) |> plot
 
-savefig("build/missingmask_example.png"); nothing
+savefig("docs/build/missingmask_example.png"); nothing
 
 # output
 ```
 
-![missingmask](missingmask_example.png)
+![missingmask](/build/missingmask_example.png)
 
 $EXPERIMENTAL
 """
