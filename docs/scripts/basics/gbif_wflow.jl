@@ -33,7 +33,7 @@ using CSV
 predictors = collect(extract(se_aus, coords))
 CSV.write("burramys_parvus_predictors.csv", predictors)
 
-# Or convert them to a `DataFrame`.
+# Or convert them to a `DataFrame`:
 
 using DataFrames
 df = DataFrame(predictors)
