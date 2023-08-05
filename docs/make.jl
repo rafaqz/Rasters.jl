@@ -55,4 +55,4 @@ deploydocs(; repo="https://github.com/rafaqz/Rasters.jl.git", push_preview=true,
     deps=Deps.pip("mkdocs", "pygments", "python-markdown-math", "mkdocs-material",
         "pymdown-extensions", "mkdocstrings", "mknotebooks",
         "pytkdocs_tweaks", "mkdocs_include_exclude_files", "jinja2", "mkdocs-video"),
-    make=() -> run(`mkdocs build`), target="site", devbranch="master")
+    make=() -> run(`mkdocs build`), target="site", devbranch="main")
