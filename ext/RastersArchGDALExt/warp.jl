@@ -35,8 +35,8 @@ flags = Dict(
 )
 b = plot(warp(A, flags))
 
-savefig(a, "build/warp_example_before.png");
-savefig(b, "build/warp_example_after.png"); nothing
+savefig(a, "docs/build/warp_example_before.png");
+savefig(b, "docs/build/warp_example_after.png"); nothing
 
 # output
 

@@ -1,7 +1,7 @@
 using Documenter, Rasters, Plots, Logging, Statistics, Dates, 
     RasterDataSources, ArchGDAL, NCDatasets, HDF5, CoordinateTransformations
 import Makie, CairoMakie
-
+using DocumenterMarkdown
 using Rasters.LookupArrays, Rasters.Dimensions
 
 ENV["GKSwstype"] = "100"
@@ -33,13 +33,26 @@ makedocs(
         Base.get_extension(Rasters, :RastersRasterDataSourcesExt),
     ],
     sitename = "Rasters.jl",
-    strict = true,
-    clean = false,
+    authors="Rafael Schouten et al.",
+    clean=true,
+    doctest=true,
+    strict=[
+        :doctest,
+        :linkcheck,
+        :parse_error,
+        :example_block,
+        # Other available options are
+        # :autodocs_block, :cross_references, :docs_block, :eval_block, :example_block,
+        # :footnote, :meta_block, :missing_docs, :setup_block
+    ], checkdocs=:all, format=Markdown(), draft=false,
+    build=joinpath(@__DIR__, "docs")
 )
 
 # Enable logging to console again
 Logging.disable_logging(Logging.BelowMinLevel)
 
-deploydocs(
-    repo = "github.com/rafaqz/Rasters.jl.git",
-)
+deploydocs(; repo="https://github.com/rafaqz/Rasters.jl.git", push_preview=true,
+    deps=Deps.pip("mkdocs", "pygments", "python-markdown-math", "mkdocs-material",
+        "pymdown-extensions", "mkdocstrings", "mknotebooks",
+        "pytkdocs_tweaks", "mkdocs_include_exclude_files", "jinja2", "mkdocs-video"),
+    make=() -> run(`mkdocs build`), target="site", devbranch="master")

@@ -34,8 +34,8 @@ a = plot(aus)
 # Trim missing values and plot
 b = plot(trim(aus))
 
-savefig(a, "build/trim_example_before.png");
-savefig(b, "build/trim_example_after.png"); nothing
+savefig(a, "docs/build/trim_example_before.png");
+savefig(b, "docs/build/trim_example_after.png"); nothing
 
 # output
 
@@ -43,11 +43,11 @@ savefig(b, "build/trim_example_after.png"); nothing
 
 ### Before `trim`:
 
-![before trim](trim_example_before.png)
+![before trim](/build/trim_example_before.png)
 
 ### After `trim`:
 
-![after trim](trim_example_after.png)
+![after trim](/build/trim_example_after.png)
 
 $EXPERIMENTAL
 """
