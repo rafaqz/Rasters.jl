@@ -2,7 +2,7 @@
 
 # Click through to the function documentation for more in-depth descriptions and examples.
 #    
-# | <div style="width:120px">Methods</div> |              Description                                                                |
+# | <div style="width:120px">Methods</div> |              Description                                        |
 # | :------------------------ | :--------------------------------------------------------------------------- |
 # | [`aggregate`](@ref)       | aggregate data by the same or different amounts for each axis.               |
 # | [`disaggregate`](@ref)    | similarly disaggregate data.                                                 |
@@ -20,7 +20,7 @@
 #       Note that most regular Julia methods, such as `replace`, work as for a standard
 #       `Array`. These additional methods are commonly required in GIS applications.
 #    
-# | <div style="width:120px">Methods</div> |              Description                                                                         |
+# | <div style="width:120px">Methods</div> |              Description                                        |
 # | :------------------------ | :--------------------------------------------------------------------------- |
 # | [`classify`](@ref)        | classify values into categories.                                             |
 # | [`mask`](@ref)            | mask an object by a polygon or `Raster` along `X/Y`, or other dimensions.    |
@@ -29,16 +29,15 @@
 #    
 # ## Point, polygon and table operation
 #    
-# | <div style="width:120px">Methods</div> |              Description                                                     |
+# | <div style="width:120px">Methods</div> |              Description                                        |
 # | :------------------------ | :--------------------------------------------------------------------------- |
 # | [`rasterize`](@ref)       | rasterize points and geometries.                                             |
 # | [`extract`](@ref)         | extract values from points or geometries.                                    |
-# | [`inpolygon`](@ref)       | find if a point or points are in a polygon.                                  |
 # | [`zonal`](@ref)           | calculate zonal statistics for an object masked by geometries.               |    
 #    
 # ## Methods to load, write and modify data sources
 #    
-# | <div style="width:120px">Methods</div> |              Description                                                         |
+# | <div style="width:120px">Methods</div> |              Description                                   |
 # | :------------------------ | :---------------------------------------------------------------------- |
 # | [`modify`](@ref)          | replace the data in objects. Useful to e.g. move objects to/from a GPU. |
 # | [`read`](@ref)            | read data to memory if it is on disk.                                   |
