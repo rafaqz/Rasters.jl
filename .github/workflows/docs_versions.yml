@@ -1,0 +1,27 @@
+name: Documentation Versions
+
+on:
+  push:
+    branches:
+      - gh-pages
+    tags: "*"
+  workflow_run:
+    workflows: ["Documentation"]
+    types:
+      - completed
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: gh-pages
+      - uses: julia-actions/setup-julia@latest
+        with:
+          version: "1.9"
+      - name: Install dependencies
+        run: julia -e 'using Pkg; Pkg.add("JSON")'
+      - name: Update versions
+        run: julia update_version.jl
+      - uses: stefanzweifel/git-auto-commit-action@v4

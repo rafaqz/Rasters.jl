@@ -5,6 +5,7 @@ using DocumenterMarkdown
 using Rasters.LookupArrays, Rasters.Dimensions
 
 ENV["GKSwstype"] = "100"
+ENV["RASTERDATASOURCES_PATH"] = "/Users/lalonso/Data/"
 
 # Plots warnings are brWarn doctests. They dont warn the second time.
 # Downloads also show op in doctests. So download everything first.
@@ -55,4 +56,6 @@ deploydocs(; repo="github.com/rafaqz/Rasters.jl.git", push_preview=true,
     deps=Deps.pip("mkdocs", "pygments", "python-markdown-math", "mkdocs-material",
         "pymdown-extensions", "mkdocstrings", "mknotebooks",
         "pytkdocs_tweaks", "mkdocs_include_exclude_files", "jinja2", "mkdocs-video"),
-    make=() -> run(`mkdocs build`), target="site", devbranch="main")
+    make=() -> run(`mkdocs build`),
+    versions = ["stable" => "v^", "v#.#.#", "dev" => "dev"],
+    target="site")
