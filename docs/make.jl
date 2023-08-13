@@ -5,7 +5,6 @@ using DocumenterMarkdown
 using Rasters.LookupArrays, Rasters.Dimensions
 
 ENV["GKSwstype"] = "100"
-ENV["RASTERDATASOURCES_PATH"] = "/Users/lalonso/data"
 
 # Plots warnings are brWarn doctests. They dont warn the second time.
 # Downloads also show op in doctests. So download everything first.
