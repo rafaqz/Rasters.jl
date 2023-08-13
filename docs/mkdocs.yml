@@ -8,7 +8,7 @@ theme:
     # - content.tabs.link
     #- content.tooltips
     # - header.autohide
-    # - navigation.expand
+    - navigation.expand
     #- navigation.indexes
     # - navigation.instant
     # - navigation.prune
@@ -104,10 +104,11 @@ plugins:
 nav:
   - "Home": "index.md"
   - "Quick start" : "scripts/generated/basics/first_raster.md"
-  - "Data Sources" : "scripts/generated/basics/data_sources.md"
-  - "Methods" : "scripts/generated/basics/methods.md"
-  - "Arrays operations" : "scripts/generated/basics/array_operations.md"
-  - "Examples and Plotting" : "scripts/generated/basics/plotting.md"
-  - "A basic species distribution modelling workflow" : "scripts/generated/basics/gbif_wflow.md"
-  - "Examples with Makie" : "scripts/generated/basics/plot_makie.md"
+  - "User Guide":
+    - "Data Sources" : "scripts/generated/basics/data_sources.md"
+    - "Methods" : "scripts/generated/basics/methods.md"
+    - "Arrays operations" : "scripts/generated/basics/array_operations.md"
+    - "Examples and Plotting" : "scripts/generated/basics/plotting.md"
+    - "A basic species distribution modelling workflow" : "scripts/generated/basics/gbif_wflow.md"
+    - "Examples with Makie" : "scripts/generated/basics/plot_makie.md"
   - "API Reference" : "reference.md"
