@@ -1,4 +1,4 @@
-<img src="/scripts/generated/basics/aus_trim.png" align="center" style="padding-right:10px"; width=100%"></img>
+<img src="https://rafaqz.github.io/Rasters.jl/dev/scripts/generated/basics/aus_trim.png" align="center" style="padding-right:10px"; width=100%"></img>
 
 
 ## Rasters.jl
