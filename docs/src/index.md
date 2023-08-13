@@ -1,16 +1,24 @@
-# Rasters.jl
+<img src="/scripts/generated/basics/aus_trim.png" align="center" style="padding-right:10px"; width=100%"></img>
+
+
+## Rasters.jl
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/rafaqz/Rasters.jl/blob/main/LICENSE)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://rafaqz.github.io/Rasters.jl/stable)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://rafaqz.github.io/Rasters.jl/dev)
+[![CI](https://github.com/rafaqz/Rasters.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaqz/Rasters.jl/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/rafaqz/Rasters.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/rafaqz/Rasters.jl)
+[![Aqua.jl Quality Assurance](https://img.shields.io/badge/Aquajl-%F0%9F%8C%A2-aqua.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![Downloads](https://shields.io/endpoint?url=https://pkgs.genieframework.com/api/v1/badge/Rasters&label=Downloads)](https://pkgs.genieframework.com?packages=Rasters)
+
 [Rasters.jl](https://rafaqz.github.io/Rasters.jl/dev) defines common types and methods for reading, writing and
 manipulating rasterized spatial data. 
 
 These currently include raster arrays like `GeoTIFF` and `NetCDF`, `R grd` files, 
 multi-layered stacks, and multi-file series of arrays and stacks. 
 
-![EarthEnv HabitatHeterogeneity layers trimmed to Australia](https://rafaqz.github.io/Rasters.jl/stable/trim_example_after.png)
 
-_A RasterStack of EarthEnv HabitatHeterogeneity layers, trimmed to Australia and plotted with Plots.jl_
-
-```@raw html
-??? info "Data-source abstraction"
+!!! info "Data-source abstraction"
 
     Rasters provides a standardised interface that allows many source data types to
     be used with identical syntax.
@@ -26,7 +34,6 @@ _A RasterStack of EarthEnv HabitatHeterogeneity layers, trimmed to Australia and
     by setting the `mappedcrs` keyword on construction. You don't need to know the underlying
     projection, the conversion is handled automatically. This means lat/lon
     `EPSG(4326)` can be used seamlessly if you need that.
-```
 
 !!! warning "Packages extensions and Rasters 0.8 and onwards"
 

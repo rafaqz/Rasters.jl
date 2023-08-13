@@ -67,3 +67,40 @@ Makie.set_theme!() # reset theme
 # ```@docs
 # Rasters.rplot
 # ```
+
+# ## using more vanilla Makie
+
+using Rasters, RasterDataSources
+
+#the data
+layers = (:evenness, :range, :contrast, :correlation)
+st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers)
+ausbounds = X(100 .. 160), Y(-50 .. -10) # Roughly cut out australia
+aus = st[ausbounds...] |> trim
+#the plot
+#colorbar attributes
+colormap = :batlow
+flipaxis = false
+tickalign=1
+width=13
+ticksize=13;
+#figure
+with_theme(theme_ggplot2()) do 
+    fig = Figure(resolution=(800, 600))
+    axs = [Axis(fig[i,j], xlabel = "lon", ylabel = "lat") for i in 1:2 for j in 1:2]
+    plt = [Makie.heatmap!(axs[i], aus[l]; colormap) for (i,l) in enumerate(layers)]
+    [axs[i].title = string(l) for (i,l) in enumerate(layers)]
+    hidexdecorations!.(axs[1:2]; grid=false, ticks=false)
+    hideydecorations!.(axs[[2,4]]; grid=false, ticks=false)
+    Colorbar(fig[1, 0], plt[1]; flipaxis, tickalign, width, ticksize)
+    Colorbar(fig[1, 3], plt[2]; tickalign, width, ticksize)
+    Colorbar(fig[2, 0], plt[3]; flipaxis, tickalign, width, ticksize)
+    Colorbar(fig[2, 3], plt[4]; tickalign, width, ticksize)
+    colgap!(fig.layout, 5)
+    rowgap!(fig.layout, 5)
+    Label(fig[0, :], "RasterStack of EarthEnv HabitatHeterogeneity layers, trimmed to Australia")
+    fig 
+end
+save("aus_trim.png", current_figure());
+
+# ![aus_trim](aus_trim.png)
