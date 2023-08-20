@@ -9,10 +9,10 @@ to match the size of the object `to`, or smallest of any dimensions that are sha
 
 # Keywords
 
-- `to`: the object to crop to. If `to` keyword is passed, the smallest shared
+- `to`: the object to crop to. If no `to` keyword is passed, the smallest shared
     area of all `xs` is used.
 - `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
-   When lines need to be included in e.g. zonal statistics, `true` shoudle be used.
+   When lines need to be included in e.g. zonal statistics, `true` should be used.
 
 As `crop` is lazy, `filename` and `suffix` keywords are not used.
 
