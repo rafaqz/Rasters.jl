@@ -9,6 +9,35 @@ const GDAL_Y_LOCUS = Start()
 # drivers supporting the gdal Create() method to directly write to disk
 const GDAL_DRIVERS_SUPPORTING_CREATE = ("GTiff", "HDF4", "KEA", "netCDF", "PCIDSK", "Zarr", "MEM"#=...=#) 
 
+# order is equal to https://gdal.org/user/virtual_file_systems.html
+const GDAL_VIRTUAL_FILESYSTEMS = "/vsi" .* (
+    "zip",
+    "tar",
+    "gzip",
+    "7z",
+    "rar",
+    "curl",
+    "curl_streaming",
+    "s3",
+    "s3_streaming",
+    "gs",
+    "gs_streaming",
+    "az",
+    "az_streaming",
+    "adls",
+    "oss",
+    "oss_streaming",
+    "swift",
+    "swift_streaming",
+    "hdfs",
+    "webhdfs",
+    "stdin",
+    "stdout",
+    "mem",
+    "subfile",
+    "sparse",
+    )
+
 # Array ########################################################################
 
 function RA.FileArray(raster::AG.RasterDataset{T}, filename; kw...) where {T}
@@ -121,9 +150,10 @@ end
 
 function RA._open(f, ::Type{GDALsource}, filename::AbstractString; write=false, kw...)
     if !isfile(filename)
-        # Handle url filenames
-        # /vsicurl/ is added to urls for GDAL, /vsimem/ for in memory
-        if length(filename) >= 8 && filename[1:8] in ("/vsicurl", "/vsimem/")
+        # Handle gdal virtual file systems
+        # the respective string is prepended to the data source,
+        # e.g. /vsicurl/https://...
+        if length(filename) >= 8 && any(startswith.(filename, GDAL_VIRTUAL_FILESYSTEMS))
             nothing
         elseif RA._isurl(filename)
             filename = "/vsicurl/" * filename

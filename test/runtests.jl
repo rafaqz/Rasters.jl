@@ -8,6 +8,7 @@ if VERSION >= v"1.9.0"
     Aqua.test_project_extras(Rasters)
     Aqua.test_deps_compat(Rasters)
     # Aqua.test_project_toml_formatting(Rasters)
+    @time @safetestset "extensions" begin include("extensions.jl") end
 end
 
 

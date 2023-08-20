@@ -1,8 +1,28 @@
 # extensions
 
 # stubs that need ArchGDAL
-resample(args...; kw...) = error("Run `using ArchGDAL` to use `resample`")
-warp(args...; kw...) = error("Run `using ArchGDAL` to use `warp`")
+function resample(args...; kw...)
+    @static if isdefined(Base, :get_extension) # julia > 1.9
+        if isnothing(Base.get_extension(Rasters, :RastersArchGDALExt))
+            throw(BackendException("ArchGDAL"))
+        else
+            throw(MethodError(resample, args))
+        end
+    else
+        throw(BackendException("ArchGDAL"))
+    end
+end
+function warp(args...; kw...)
+    @static if isdefined(Base, :get_extension) # julia > 1.9
+        if isnothing(Base.get_extension(Rasters, :RastersArchGDALExt))
+            throw(BackendException("ArchGDAL"))
+        else
+            throw(MethodError(warp, args))
+        end
+    else
+        throw(BackendException("ArchGDAL"))
+    end
+end
 
 # Other shared stubs
 function layerkeys end

@@ -132,13 +132,21 @@ end
     stack_b = RasterStack((ga1=Raster(data1 .+ 10, dims1b), ga2=Raster(data2 .+ 20, dims2b)))
     catstack = cat(stack_a, stack_b; dims=X())
     @test size(first(catstack)) == (20, 11)
+    @test size(last(catstack)) == (20, 11, 1)
     @test val(dims(catstack, X)) ≈ 10.0:10.0:200.0
     #@test step(dims(first(catstack), X())) == 10.0
     @test DimensionalData.bounds(dims(first(catstack), X)) == (10.0, 200.0)
     @test catstack[:ga1][Y(1)] == 1.0:20.0
     @test catstack[:ga2][Y(1), Ti(1)] == 2.0:2.0:40.0
-    catstack = cat(stack_a, stack_b; dims=(X(), Y()))
+    dims2c = (dims1b..., Ti([DateTime(2019)]))
+    stack_c = set(stack_b, X=>110:10:200, Y=>60:10:160)
+    catstack = cat(stack_a, stack_c; dims=(X(), Y()))
     @test size(first(catstack)) == (20, 22)
+    @test size(last(catstack)) == (20, 22, 1)
+    @test dims(catstack) == 
+        (X(Sampled(10:10.0:200, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
+         Y(Sampled(-50:10.0:160, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
+         Ti(Sampled([DateTime(2019)], ForwardOrdered(), Irregular(nothing, nothing), Points(), NoMetadata())))
 end
 
 @testset "copy" begin

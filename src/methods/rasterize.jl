@@ -352,9 +352,8 @@ These are detected automatically from `data` where possible.
 
 $GEOM_KEYWORDS
 $RASTERIZE_KEYWORDS
-- `filename`: a filename to write to directly, useful for large files.
-- `suffix`: a string or value to append to the filename.
-    A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
 
 # Example
 
@@ -379,13 +378,13 @@ china = rasterize(last, china_border; res=0.1, missingval=0, fill=1, boundary=:t
 p = plot(china; color=:spring, legend=false)
 plot!(p, china_border; fillalpha=0, linewidth=0.6)
 
-savefig("build/china_rasterized.png"); nothing
+savefig("docs/build/china_rasterized.png"); nothing
 
 # output
 
 ```
 
-![rasterize](china_rasterized.png)
+![rasterize](/build/china_rasterized.png)
 
 $EXPERIMENTAL
 """
@@ -518,13 +517,13 @@ rasterize!(last, A, islands; fill=1:length(islands), progress=false)
 p = plot(Rasters.trim(A); color=:spring)
 plot!(p, indonesia_border; fillalpha=0, linewidth=0.7)
 
-savefig("build/indonesia_rasterized.png"); nothing
+savefig("docs/build/indonesia_rasterized.png"); nothing
 
 # output
 
 ```
 
-![rasterize](indonesia_rasterized.png)
+![rasterize](/build/indonesia_rasterized.png)
 
 $EXPERIMENTAL
 """

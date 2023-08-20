@@ -5,9 +5,6 @@
 Crop one or multiple [`AbstractRaster`](@ref) or [`AbstractRasterStack`](@ref) `x`
 to match the size of the object `to`, or smallest of any dimensions that are shared.
 
-Otherwise crop to the size of the keyword argument `to`. This can be a
-`Tuple` of `Dimension` or any object that will return one from `dims(to)`.
-
 `crop` is lazy, using a `view` into the object rather than alocating new memory.
 
 # Keywords
@@ -15,7 +12,9 @@ Otherwise crop to the size of the keyword argument `to`. This can be a
 - `to`: the object to crop to. If no `to` keyword is passed, the smallest shared
     area of all `xs` is used.
 - `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
-   When lines need to be included in e.g. zonal statistics, `true` should be used.
+   When lines need to be included in e.g. zonal statistics, `true` shoudle be used.
+
+As `crop` is lazy, `filename` and `suffix` keywords are not used.
 
 # Example
 
@@ -34,13 +33,13 @@ nz_evenness = evenness[nz_bounds...]
 nz_range = crop(rnge; to=nz_evenness)
 plot(nz_range)
 
-savefig("build/nz_crop_example.png")
+savefig("docs/build/nz_crop_example.png")
 nothing
 
 # output
 ```
 
-![new zealand evenness cropped](nz_crop_example.png)
+![new zealand evenness cropped](/build/nz_crop_example.png)
 
 Crop to a polygon:
 
@@ -57,12 +56,12 @@ evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 argentina_evenness = crop(evenness; to=shp)
 plot(argentina_evenness)
 
-savefig("build/argentina_crop_example.png"); nothing
+savefig("docs/build/argentina_crop_example.png"); nothing
 
 # output
 ```
 
-![argentina evenness cropped](argentina_crop_example.png)
+![argentina evenness cropped](/build/argentina_crop_example.png)
 
 $EXPERIMENTAL
 """
@@ -127,9 +126,8 @@ covered by all `xs`, or by the keyword argument `to`.
     shared area of all `xs` is used.
 - `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
    When lines need to be included in e.g. zonal statistics, `true` shoudle be used.
-- `filename`: a filename to write to directly, useful for large files.
-- `suffix`: a string or value to append to the filename.
-    A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
 
 ```jldoctest
 using Rasters, RasterDataSources, Plots
@@ -144,12 +142,12 @@ sa_evenness = evenness[sa_bounds...]
 sa_range = extend(sa_evenness; to=rnge)
 plot(sa_range)
 
-savefig("build/extend_example.png")
+savefig("docs/build/extend_example.png")
 nothing
 # output
 ```
 
-![extend](extend_example.png)
+![extend](/build/extend_example.png)
 
 $EXPERIMENTAL
 """

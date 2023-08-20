@@ -1,14 +1,23 @@
 """
-    warp(A::AbstractRaster, flags::Dict)
+    warp(A::AbstractRaster, flags::Dict; kw...)
 
 Gives access to the GDALs `gdalwarp` method given a `Dict` of 
 `flag => value` arguments that can be converted to strings, or vectors
 where multiple space-separated arguments are required.
 
 Arrays with additional dimensions not handled by GDAL (other than `X`, `Y`, `Band`)
-are sliced, warped, and then combined to match the original array dimensions.
+are sliced, warped, and then combined to match the original array dimensions. 
+These slices will *not* be written to disk and loaded lazyily at this stage -
+you will need to do that manually if required.
 
 See [the gdalwarp docs](https://gdal.org/programs/gdalwarp.html) for a list of arguments.
+
+# Keywords
+
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
+
+Any additional keywords are passed to `ArchGDAL.Dataset`.
 
 ## Example
 
@@ -26,8 +35,8 @@ flags = Dict(
 )
 b = plot(warp(A, flags))
 
-savefig(a, "build/warp_example_before.png");
-savefig(b, "build/warp_example_after.png"); nothing
+savefig(a, "docs/build/warp_example_before.png");
+savefig(b, "docs/build/warp_example_after.png"); nothing
 
 # output
 
@@ -45,15 +54,16 @@ In practise, prefer [`resample`](@ref) for this. But `warp` may be more flexible
 
 $EXPERIMENTAL
 """
-function warp(A::AbstractRaster, flags::Dict; kw...)
+function warp(A::AbstractRaster, flags::Dict; filename=nothing, kw...)
     odims = otherdims(A, (X, Y, Band))
     if length(odims) > 0
+        isnothing(filename) || throw(ArgumentError("Cannot currently write dimensions other than X/Y/Band to disk using `filename` keyword. Make a Rasters.jl github issue if you need this."))
         # Handle dimensions other than X, Y, Band
         slices = slice(A, odims)
-        warped = map(A -> _warp(A, flags), slices)
+        warped = map(A -> _warp(A, flags; kw...), slices)
         return combine(warped, odims)
     else
-        return _warp(A, flags; kw...)
+        return _warp(A, flags; filename, kw...)
     end
 end
 function warp(st::AbstractRasterStack, flags::Dict; filename=nothing, suffix=keys(st), kw...)
