@@ -1,39 +1,3 @@
-const TO_KEYWORD = """
-- `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
-    If no `to` object is provided the extent will be calculated from the geometries,
-    Additionally, when no `to` object or an `Extent` is passed for `to`, the `size`
-    or `res` keyword must also be used.
-"""
-const SIZE_KEYWORD = """
-- `size`: the size of the output array, as a `Tuple{Int,Int}` or single `Int` for a square.
-    Only required when `to` is not used or is an `Extents.Extent`, otherwise `size`.
-"""
-const RES_KEYWORD = """
-- `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
-"""
-const COMBINE_KEYWORD = """
-- `combine`: combine all geometries in tables/iterables into a single layer, or return
-    a `Raster` with a `:geometry` dimension where each slice is the rasterisation 
-    of a single geometry. This can be useful for reductions. Note the returned object
-    may be quite large when `combine=false`. `true` by default.
-"""
-
-const SHAPE_KEYWORDS = """
-- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point` geometries.
-    using points or lines as polygons may have unexpected results.
-- `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
-    where the polygon `:touches` the pixel, or that are completely `:inside` the polygon.
-    The default is `:center`.
-"""
-
-const GEOM_KEYWORDS = """
-$TO_KEYWORD
-$RES_KEYWORD
-$SIZE_KEYWORD
-$SHAPE_KEYWORDS
-$COMBINE_KEYWORD
-"""
-
 
 """
     mask(A:AbstractRaster; with, missingval=missingval(A))
@@ -51,9 +15,8 @@ or by the shape of `with`, if `with` is a geometric object.
 - `with`: an `AbstractRaster`, or any GeoInterface.jl compatible objects
     or table. The coordinate reference system of the point must match `crs(A)`.
 - `missingval`: the missing value to use in the returned file.
-- `filename`: a filename to write to directly, useful for large files.
-- `suffix`: a string or value to append to the filename.
-    A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
 
 # Geometry keywords
 
@@ -67,7 +30,7 @@ Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask.
 
 ```julia
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 
 # Load and plot the file
 awap = read(Raster(AWAP, :tmax; date=DateTime(2001, 1, 1)))
@@ -81,19 +44,19 @@ wc_mask = resample(wc; to=awap)
 awap_masked = mask(awap; with=wc_mask)
 b = plot(awap_masked; clims=(10, 45))
 
-savefig(a, "build/mask_example_before.png");
-savefig(b, "build/mask_example_after.png"); nothing
+savefig(a, "docs/build/mask_example_before.png");
+savefig(b, "docs/build/mask_example_after.png"); nothing
 # output
 
 ```
 
 ### Before `mask`:
 
-![before mask](mask_example_before.png)
+![before mask](/build/mask_example_before.png)
 
 ### After `mask`:
 
-![after mask](mask_example_after.png)
+![after mask](/build/mask_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -156,7 +119,7 @@ Mask an unmasked AWAP layer with a masked WorldClim layer,
 by first resampling the mask to match the size and projection.
 
 ```julia
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 
 # Load and plot the file
 awap = read(RasterStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1)))
@@ -170,8 +133,8 @@ wc_mask = resample(wc; to=awap)
 mask!(awap; with=wc_mask)
 b = plot(awap; clims=(10, 45))
 
-savefig(a, "build/mask_bang_example_before.png");
-savefig(b, "build/mask_bang_example_after.png"); nothing
+savefig(a, "docs/build/mask_bang_example_before.png");
+savefig(b, "docs/build/mask_bang_example_after.png"); nothing
 
 # output
 
@@ -179,11 +142,11 @@ savefig(b, "build/mask_bang_example_after.png"); nothing
 
 ### Before `mask!`:
 
-![before mask!](mask_bang_example_before.png)
+![before mask!](/build/mask_bang_example_before.png)
 
 ### After `mask!`:
 
-![after mask!](mask_bang_example_after.png)
+![after mask!](/build/mask_bang_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -255,7 +218,7 @@ And specifically for `shape=:polygon`:
 
 For tabular data, feature collections and other iterables
 
-- `combine`: if `true`, combine all objects into a single mask. Otherwise
+- `collapse`: if `true`, collapse all geometry masks into a single mask. Otherwise
     return a Raster with an additional `geometry` dimension, so that each slice
     along this axis is the mask of the `geometry` opbject of each row of the
     table, feature in the feature collection, or just each geometry in the iterable.
@@ -263,16 +226,16 @@ For tabular data, feature collections and other iterables
 # Example
 
 ```jldoctest
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 boolmask(wc) |> plot
 
-savefig("build/boolmask_example.png"); nothing
+savefig("docs/build/boolmask_example.png"); nothing
 
 # output
 ```
 
-![boolmask](boolmask_example.png)
+![boolmask](/build/boolmask_example.png)
 
 $EXPERIMENTAL
 """
@@ -294,35 +257,35 @@ end
 function boolmask!(dest::AbstractRaster, src::AbstractRaster;
     missingval=_missingval_or_missing(src)
 )
-    broadcast!(a -> !isequal(a, missingval), dest, src)
+    broadcast_dims!(dest, src) do a
+        !isequal(a, missingval)
+    end
 end
-function boolmask!(dest::AbstractRaster, geoms; allocs=nothing, lock=nothing, progress=true, kw...)
+function boolmask!(dest::AbstractRaster, geoms;
+    allocs=nothing, lock=nothing, progress=true, threaded=true, kw...
+)
+    if isnothing(allocs)
+        allocs = _burning_allocs(dest; threaded)
+    end
     if hasdim(dest, :geometry)
-        range = _geomindices(geoms) 
-        p = progress ? _progress(length(range); desc="Burning each geometry to a BitArray slice...") : nothing
-        if isnothing(allocs) 
-            allocs = _burning_allocs(dest)
-        end
-        Threads.@threads for i in range
+        range = _geomindices(geoms)
+        _run(range, threaded, progress, "Burning each geometry to a BitArray slice...") do i
             geom = _getgeom(geoms, i)
-            ismissing(geom) && continue
+            ismissing(geom) && return nothing
             slice = view(dest, Dim{:geometry}(i))
             # We don't need locks - these are independent slices
             burn_geometry!(slice, geom; kw..., fill=true, allocs=_get_alloc(allocs))
-            progress && ProgressMeter.next!(p)
+            return nothing
         end
     else
-        if isnothing(allocs)
-            allocs = Allocs(dest)
-        end
-        burn_geometry!(dest, geoms; kw..., allocs, lock, fill=true)
+        burn_geometry!(dest, geoms; kw..., allocs, lock, progress, threaded, fill=true)
     end
     return dest
 end
 
 """
     missingmask(obj::Raster; kw...)
-    missingmask(obj; [to, res, size, combine])
+    missingmask(obj; [to, res, size, collapse])
 
 Create a mask array of `missing` and `true` values, from another `Raster`.
 `AbstractRasterStack` or `AbstractRasterSeries` are also accepted, but a mask
@@ -341,16 +304,16 @@ $GEOM_KEYWORDS
 # Example
 
 ```jldoctest
-using Rasters, Plots, Dates
+using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 missingmask(wc) |> plot
 
-savefig("build/missingmask_example.png"); nothing
+savefig("docs/build/missingmask_example.png"); nothing
 
 # output
 ```
 
-![missingmask](missingmask_example.png)
+![missingmask](/build/missingmask_example.png)
 
 $EXPERIMENTAL
 """
@@ -368,7 +331,9 @@ end
 function missingmask!(dest::AbstractRaster, src::AbstractRaster;
     missingval=_missingval_or_missing(src)
 )
-    broadcast!(x -> isequal(x, missingval) ? missing : true, dest, src)
+    broadcast_dims!(dest, src) do x
+        isequal(x, missingval) ? missing : true
+    end
 end
 function missingmask!(dest::AbstractRaster, geom; kw...)
     B = boolmask!(dest, geom; kw...)

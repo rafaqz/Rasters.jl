@@ -13,10 +13,11 @@ jobs:
       fail-fast: true
       matrix:
         version:
+          - '1.8'
           - '1'
         os:
           - ubuntu-latest
-          # - macOS-latest
+          - macOS-latest
           # - windows-latest
         arch:
           - x64

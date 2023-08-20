@@ -73,15 +73,3 @@ function LA.show_properties(io::IO, lookup::AbstractProjected)
         print(io, " mappedcrs: ", nameof(typeof(mappedcrs(lookup))))
     end
 end
-
-function Base.show(io::IO, mime::MIME"text/plain", lookup::AffineProjected)
-    LA.show_compact(io, mime, lookup)
-    print(io, " ")
-    printstyled(io, lookup.affinemap; color=:cyan)
-    if !(crs(lookup) isa Nothing)
-        print(io, " crs: ", nameof(typeof(crs(lookup))))
-    end
-    if !(mappedcrs(lookup) isa Nothing)
-        print(io, " mappedcrs: ", nameof(typeof(mappedcrs(lookup))))
-    end
-end

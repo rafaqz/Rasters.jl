@@ -24,8 +24,8 @@ These can be used when `of` is a GeoInterface.jl compatible object:
 
 # Example
 
-```jldoctest
-using Rasters, Shapefile, DataFrames, Downloads, Statistics, Dates
+ ``jldoctest
+using Rasters, RasterDataSources, ArchGDAL, Shapefile, DataFrames, Downloads, Statistics, Dates
 
 # Download a borders shapefile
 ne_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries"
@@ -112,22 +112,20 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; kw
         f(skipmissing(A))
     end
 end
-function _zonal(f, x::RasterStackOrArray, ::Nothing, geoms; progress=true, kw...)
+function _zonal(f, x::RasterStackOrArray, ::Nothing, geoms; progress=true, threaded=true, kw...)
     range = _geomindices(geoms)
     n = length(range)
     n == 0 && return []
     zs = _alloc_zonal(f, x, first(geoms), n; kw...)
-    p = progress ? _progress(length(range); desc="Applying $f to each geometry...") : nothing
-    Threads.@threads for i in range
+    _run(range, threaded, progress, "Applying $f to each geometry...") do i
         zs[i] = _zonal(f, x, _getgeom(geoms, i); kw...)
-        progress && ProgressMeter.next!(p)
     end
     return zs
 end
 
 function _alloc_zonal(f, x, geom, n; kw...)
     z1 = _zonal(f, x, geom; kw...)
-    zs = Vector{typeof(z1)}(undef, n)
+    zs = Vector{Union{Missing,typeof(z1)}}(undef, n)
     zs[1] = z1
     return zs
 end

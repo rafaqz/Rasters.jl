@@ -18,7 +18,8 @@ Combine `regions` into a single raster.
     This is often required due to minor differences in range values
     due to floating point error. It is not applied to non-float dimensions.
     A tuple of tolerances may be passed, matching the dimension order.
-- `filename`: a file to write to directly.
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
 
 If your mosaic has has apparent line errors, increase the `atol` value.
 
@@ -27,7 +28,7 @@ If your mosaic has has apparent line errors, increase the `atol` value.
 Here we cut out Australia and Africa from a stack, and join them with `mosaic`.
 
 ```jldoctest
-using Rasters, Plots
+using Rasters, RasterDataSources, ArchGDAL, Plots
 st = RasterStack(WorldClim{Climate}; month=1);
 
 africa = st[X(-20.0 .. 60.0), Y(-40.0 .. 35.0)]
@@ -40,9 +41,9 @@ b = plot(aus)
 mos = mosaic(first, aus, africa)
 c = plot(mos)
 
-savefig(a, "build/mosaic_example_africa.png")
-savefig(b, "build/mosaic_example_aus.png")
-savefig(c, "build/mosaic_example_combined.png")
+savefig(a, "docs/build/mosaic_example_africa.png")
+savefig(b, "docs/build/mosaic_example_aus.png")
+savefig(c, "docs/build/mosaic_example_combined.png")
 nothing
 # output
 
@@ -50,13 +51,13 @@ nothing
 
 ### Individual continents
 
-![arica](mosaic_example_africa.png)
+![arica](/build/mosaic_example_africa.png)
 
-![aus](mosaic_example_aus.png)
+![aus](/build/mosaic_example_aus.png)
 
 ### Mosaic of continents
 
-![mosaic](mosaic_example_combined.png)
+![mosaic](/build/mosaic_example_combined.png)
 
 $EXPERIMENTAL
 """
@@ -118,19 +119,19 @@ Cut out Australia and Africa stacks, then combined them
 into a single stack.
 
 ```jldoctest
-using Rasters, Statistics, Plots
+using Rasters, RasterDataSources, ArchGDAL, Statistics, Plots
 st = read(RasterStack(WorldClim{Climate}; month=1))
 aus = st[X=100.0 .. 160.0, Y=-50.0 .. -10.0]
 africa = st[X=-20.0 .. 60.0, Y=-40.0 .. 35.0]
 mosaic!(first, st, aus, africa)
 plot(st)
-savefig("build/mosaic_bang_example.png")
+savefig("docs/build/mosaic_bang_example.png")
 nothing
 # output
 
 ```
 
-![mosaic](mosaic_bang_example.png)
+![mosaic](/build/mosaic_bang_example.png)
 
 $EXPERIMENTAL
 """

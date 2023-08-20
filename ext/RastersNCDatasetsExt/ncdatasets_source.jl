@@ -37,60 +37,60 @@ const NCD_STANDARD_NAME_MAP = Dict(
     "time" => Ti,
 )
 
-haslayers(::Type{NCDfile}) = true
-defaultcrs(::Type{NCDfile}) = EPSG(4326)
-defaultmappedcrs(::Type{NCDfile}) = EPSG(4326)
+RA.haslayers(::Type{NCDsource}) = true
+RA.defaultcrs(::Type{NCDsource}) = EPSG(4326)
+RA.defaultmappedcrs(::Type{NCDsource}) = EPSG(4326)
 
 # Raster ########################################################################
 
-function Raster(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw...)
+function RA.Raster(ds::NCD.NCDataset, filename::AbstractString, key=nothing; kw...)
     if isnothing(key)
         # Find the first valid variable
-        for key in layerkeys(ds)
+        for key in RA.layerkeys(ds)
             if ndims(NCD.variable(ds, key)) > 0
                 @info "No `name` or `key` keyword provided, using first valid layer with name `:$key`"
-                return Raster(ds[key], filename, key; source=NCDfile, kw...)
+                return Raster(ds[key], filename, key; source=NCDsource, kw...)
             end
         end
         throw(ArgumentError("dataset at $filename has no array variables"))
     else
-       return Raster(ds[key], filename, key; kw...)
+       return Raster(ds[key], filename, key; source=NCDsource, kw...)
     end
 end
 
-_firstkey(ds::NCD.NCDataset, key::Nothing=nothing) = Symbol(first(layerkeys(ds)))
+_firstkey(ds::NCD.NCDataset, key::Nothing=nothing) = Symbol(first(RA.layerkeys(ds)))
 _firstkey(ds::NCD.NCDataset, key) = Symbol(key)
 
-function FileArray(var::NCD.CFVariable, filename::AbstractString; kw...)
-    da = RasterDiskArray{NCDfile}(var)
+function RA.FileArray(var::NCD.CFVariable, filename::AbstractString; kw...)
+    da = RA.RasterDiskArray{NCDsource}(var)
     size_ = size(da)
     eachchunk = DA.eachchunk(da)
     haschunks = DA.haschunks(da)
     T = eltype(var)
     N = length(size_)
-    FileArray{NCDfile,T,N}(filename, size_; eachchunk, haschunks, kw...)
+    RA.FileArray{NCDsource,T,N}(filename, size_; eachchunk, haschunks, kw...)
 end
 
-function Base.open(f::Function, A::FileArray{NCDfile}; write=A.write, kw...)
-    _open(NCDfile, filename(A); key=key(A), write, kw...) do var
-        f(RasterDiskArray{NCDfile}(var, DA.eachchunk(A), DA.haschunks(A)))
+function Base.open(f::Function, A::RA.FileArray{NCDsource}; write=A.write, kw...)
+    RA._open(NCDsource, RA.filename(A); key=RA.key(A), write, kw...) do var
+        f(RA.RasterDiskArray{NCDsource}(var, DA.eachchunk(A), DA.haschunks(A)))
     end
 end
 
 """
-    Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster)
+    Base.write(filename::AbstractString, ::Type{NCDsource}, A::AbstractRaster)
 
 Write an NCDarray to a NetCDF file using NCDatasets.jl
 
 Returns `filename`.
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, A::AbstractRaster; 
+function Base.write(filename::AbstractString, ::Type{NCDsource}, A::AbstractRaster; 
     append=false, force=false, verbose=true, kw...
 )
     mode = if append
         isfile(filename) ? "a" : "c"
     else
-        check_can_write(filename, force)
+        RA.check_can_write(filename, force)
         "c"
     end
     mode  = !isfile(filename) || !append ? "c" : "a";
@@ -106,7 +106,7 @@ end
 # Stack ########################################################################
 
 """
-    Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; kw...)
+    Base.write(filename::AbstractString, ::Type{NCDsource}, s::AbstractRasterStack; kw...)
 
 Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 
@@ -134,7 +134,7 @@ Keywords are passed to `NCDatasets.defVar`.
  - `typename` (string): The name of the NetCDF type required for vlen arrays
     (https://web.archive.org/save/https://www.unidata.ucar.edu/software/netcdf/netcdf-4/newdocs/netcdf-c/nc_005fdef_005fvlen.html)
 """
-function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRasterStack; append = false, kw...)
+function Base.write(filename::AbstractString, ::Type{NCDsource}, s::AbstractRasterStack; append = false, kw...)
     mode  = !isfile(filename) || !append ? "c" : "a";
     ds = NCD.Dataset(filename, mode; attrib=_attribdict(metadata(s)))
     try
@@ -145,7 +145,7 @@ function Base.write(filename::AbstractString, ::Type{NCDfile}, s::AbstractRaster
     return filename
 end
 
-function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DimTuple;
+function RA.create(filename, ::Type{NCDsource}, T::Union{Type,Tuple}, dims::DD.DimTuple;
     name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing,
     metadata=NoMetadata(), lazy=true, 
 )
@@ -156,8 +156,8 @@ function create(filename, ::Type{NCDfile}, T::Union{Type,Tuple}, dims::DimTuple;
         A = FillArrays.Zeros{t}(map(length, lds))
         Raster(A, dims=lds; name=key, missingval=mv)
     end
-    write(filename, NCDfile, Raster(first(layers)))
-    return Raster(filename; source=NCDfile, lazy)
+    write(filename, NCDsource, Raster(first(layers)))
+    return Raster(filename; source=NCDsource, lazy)
 end
 
 # DimensionalData methods for NCDatasets types ###############################
@@ -174,12 +174,12 @@ function DD.dims(var::NCD.CFVariable, crs=nothing, mappedcrs=nothing)
     end |> Tuple
 end
 
-DD.metadata(ds::NCD.Dataset) = _metadatadict(NCDfile, ds.attrib)
-DD.metadata(var::NCD.CFVariable) = _metadatadict(NCDfile, var.attrib)
-DD.metadata(var::NCD.Variable) = _metadatadict(NCDfile, var.attrib)
+DD.metadata(ds::NCD.Dataset) = RA._metadatadict(NCDsource, ds.attrib)
+DD.metadata(var::NCD.CFVariable) = RA._metadatadict(NCDsource, var.attrib)
+DD.metadata(var::NCD.Variable) = RA._metadatadict(NCDsource, var.attrib)
 
 function DD.layerdims(ds::NCD.Dataset)
-    keys = Tuple(layerkeys(ds))
+    keys = Tuple(RA.layerkeys(ds))
     dimtypes = map(keys) do key
         DD.layerdims(NCD.variable(ds, string(key)))
     end
@@ -191,15 +191,22 @@ function DD.layerdims(var::NCD.Variable)
     end
 end
 
-DD.layermetadata(ds::NCD.Dataset) = _layermetadata(ds, Tuple(layerkeys(ds)))
-function _layermetadata(ds, keys)
-    dimtypes = map(k -> DD.metadata(NCD.variable(ds, string(k))), keys)
+function DD.layermetadata(ds::NCD.Dataset)
+    keys = Tuple(RA.layerkeys(ds))
+    dimtypes = map(keys) do k
+        md = DD.metadata(NCD.variable(ds, string(k)))
+        var = NCD.variable(ds, k)
+        if haskey(var.attrib, "grid_mapping")
+            md["grid_mapping"] = Dict(ds[var.attrib["grid_mapping"]].attrib)
+        end
+        md
+    end
     NamedTuple{map(Symbol, keys)}(dimtypes)
 end
 
-missingval(var::NCD.CFVariable{T}) where T = missing isa T ? missing : nothing
+RA.missingval(var::NCD.CFVariable{T}) where T = missing isa T ? missing : nothing
 
-function layerkeys(ds::NCD.Dataset)
+function RA.layerkeys(ds::NCD.Dataset)
     dimkeys = _dimkeys(ds)
     toremove = if "bnds" in dimkeys
         dimkeys = setdiff(dimkeys, ("bnds",))
@@ -214,11 +221,19 @@ function layerkeys(ds::NCD.Dataset)
     else
         dimkeys::Vector{String}
     end
-    return setdiff(keys(ds), toremove)
+    nondim = setdiff(keys(ds), toremove)
+    grid_mapping = String[]
+    for k in nondim
+        var = NCD.variable(ds, k)
+        if haskey(var.attrib, "grid_mapping")
+            push!(grid_mapping, var.attrib["grid_mapping"])
+        end
+    end
+    nondim = setdiff(nondim, grid_mapping)
 end
 
-function FileStack{NCDfile}(ds::NCD.Dataset, filename::AbstractString; write=false, keys)
-    keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
+function RA.FileStack{NCDsource}(ds::NCD.Dataset, filename::AbstractString; write=false, keys)
+    keys = map(Symbol, keys isa Nothing ? RA.layerkeys(ds) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key
         var = ds[string(key)]
         Union{Missing,eltype(var)}, size(var), _ncd_eachchunk(var), _ncd_haschunks(var)
@@ -227,34 +242,34 @@ function FileStack{NCDfile}(ds::NCD.Dataset, filename::AbstractString; write=fal
     layersizes = map(x->x[2], type_size_ec_hc)
     eachchunk = map(x->x[3], type_size_ec_hc)
     haschunks = map(x->x[4], type_size_ec_hc)
-    return FileStack{NCDfile,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+    return RA.FileStack{NCDsource,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
 end
-function OpenStack(fs::FileStack{NCDfile,K}) where K
-    OpenStack{NCDfile,K}(NCD.Dataset(filename(fs)))
+function RA.OpenStack(fs::RA.FileStack{NCDsource,K}) where K
+    RA.OpenStack{NCDsource,K}(NCD.Dataset(RA.filename(fs)))
 end
-Base.close(os::OpenStack{NCDfile}) = NCD.close(dataset(os))
+Base.close(os::RA.OpenStack{NCDsource}) = NCD.close(RA.dataset(os))
 
-function _open(f, ::Type{NCDfile}, filename::AbstractString; write=false, kw...)
-    isfile(filename) || _filenotfound_error(filename)
+function RA._open(f, ::Type{NCDsource}, filename::AbstractString; write=false, kw...)
+    isfile(filename) || RA._isurl(filename) || RA._filenotfound_error(filename)
     mode = write ? "a" : "r"
     NCD.Dataset(filename, mode) do ds
-        _open(f, NCDfile, ds; kw...)
+        RA._open(f, NCDsource, ds; kw...)
     end
 end
-function _open(f, ::Type{NCDfile}, ds::NCD.Dataset; key=nothing, kw...)
+function RA._open(f, ::Type{NCDsource}, ds::NCD.Dataset; key=nothing, kw...)
     x = key isa Nothing ? ds : ds[_firstkey(ds, key)]
-    cleanreturn(f(x))
+    RA.cleanreturn(f(x))
 end
-_open(f, ::Type{NCDfile}, var::NCD.CFVariable; kw...) = cleanreturn(f(var))
+RA._open(f, ::Type{NCDsource}, var::NCD.CFVariable; kw...) = RA.cleanreturn(f(var))
 
 
 # Utils ########################################################################
 
-cleanreturn(A::NCD.CFVariable) = Array(A)
+RA.cleanreturn(A::NCD.CFVariable) = Array(A)
 
 # Utils ########################################################################
 
-function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
+function _ncddim(ds, dimname::RA.Key, crs=nothing, mappedcrs=nothing)
     if haskey(ds, dimname)
         var = NCD.variable(ds, dimname)
         D = _ncddimtype(var.attrib, dimname)
@@ -307,7 +322,7 @@ end
 function _ncdlookup(ds::NCD.Dataset, dimname, D::Type, crs, mappedcrs)
     dvar = ds[dimname]
     index = dvar[:]
-    metadata = _metadatadict(NCDfile, dvar.attrib)
+    metadata = RA._metadatadict(NCDsource, dvar.attrib)
     return _ncdlookup(ds, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For unknown types we just make a Categorical lookup
@@ -387,7 +402,7 @@ function _ncdspan(index, order)
 end
 
 # delta_t and ave_period are not CF standards, but CDC
-function _ncdperiod(index, metadata::Metadata{NCDfile})
+function _ncdperiod(index, metadata::Metadata{NCDsource})
     if haskey(metadata, "delta_t")
         period = _parse_period(metadata["delta_t"])
         period isa Nothing || return Regular(period), Points()
@@ -419,7 +434,7 @@ function _parse_period(period_str::String)
     end
 end
 
-_attribdict(md::Metadata{NCDfile}) = Dict{String,Any}(string(k) => v for (k, v) in md)
+_attribdict(md::Metadata{NCDsource}) = Dict{String,Any}(string(k) => v for (k, v) in md)
 _attribdict(md) = Dict{String,Any}()
 
 _dimkeys(ds::NCD.Dataset) = keys(ds.dim)
@@ -445,13 +460,13 @@ function _ncdwritevar!(ds::NCD.Dataset, A::AbstractRaster{T,N}; kw...) where {T,
         missingval(A) isa Nothing || @warn "`missingval` $(missingval(A)) is not the same type as your data $T."
     end
 
-    key = if string(name(A)) == ""
+    key = if string(DD.name(A)) == ""
         UNNAMED_NCD_FILE_KEY
     else
-        string(name(A))
+        string(DD.name(A))
     end
 
-    dimnames = lowercase.(string.(map(name, dims(A))))
+    dimnames = lowercase.(string.(map(DD.name, dims(A))))
     var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...)
 
     # NCDatasets needs Colon indices to write without allocations
@@ -463,7 +478,7 @@ end
 
 _def_dim_var!(ds::NCD.Dataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::NCD.Dataset, dim::Dimension)
-    dimkey = lowercase(string(name(dim)))
+    dimkey = lowercase(string(DD.name(dim)))
     haskey(ds.dim, dimkey) && return nothing
     NCD.defDim(ds, dimkey, length(dim))
     lookup(dim) isa NoLookup && return nothing
@@ -533,25 +548,25 @@ end
 
 const _NCDVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}
 
-function _precompile(::Type{NCDfile})
-    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
+# function _precompile(::Type{NCDsource})
+#     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
 
-    precompile(Rasters.FileArray, (_NCDVar, String))
-    precompile(layerkeys, (NCDatasets.NCDataset{Nothing},))
-    precompile(dims, (_NCDVar,Symbol))
-    precompile(dims, (_NCDVar,Symbol,Nothing,Nothing))
-    precompile(dims, (_NCDVar,Symbol,Nothing,EPSG))
-    precompile(dims, (_NCDVar,Symbol,EPSG,EPSG))
-    precompile(_firstkey, (NCDatasets.NCDataset{Nothing},))
-    precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, Nothing))
-    precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, EPSG))
-    precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, EPSG, EPSG))
-    precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Nothing))
-    precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Symbol))
-    precompile(Raster, (_NCDVar, String, Symbol))
+#     precompile(Rasters.FileArray, (_NCDVar, String))
+#     precompile(layerkeys, (NCDatasets.NCDataset{Nothing},))
+#     precompile(dims, (_NCDVar,Symbol))
+#     precompile(dims, (_NCDVar,Symbol,Nothing,Nothing))
+#     precompile(dims, (_NCDVar,Symbol,Nothing,EPSG))
+#     precompile(dims, (_NCDVar,Symbol,EPSG,EPSG))
+#     precompile(_firstkey, (NCDatasets.NCDataset{Nothing},))
+#     precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, Nothing))
+#     precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, EPSG))
+#     precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, EPSG, EPSG))
+#     precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Nothing))
+#     precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Symbol))
+#     precompile(Raster, (_NCDVar, String, Symbol))
 
-    precompile(Raster, (String,))
-end
+#     precompile(Raster, (String,))
+# end
 
-_precompile(NCDfile)
+# _precompile(NCDsource)
 

@@ -1,7 +1,9 @@
 using Rasters, Test, Statistics, Dates, Plots
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets, HDF5, CFTime
-using Rasters: layerkeys, SMAPfile, FileArray
+using Rasters: layerkeys, SMAPsource, FileArray
+
+Ext = Base.get_extension(Rasters, :RastersHDF5Ext)
 
 testpath = joinpath(dirname(pathof(Rasters)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
@@ -28,7 +30,7 @@ if isfile(path1) && isfile(path2)
     # We need to wrap HDF5 for SMAP, as h5 file may not be SMAP files
     @testset "SMAPhdf5 wrapper" begin
         HDF5.h5open(path1) do f
-            ds= Rasters.SMAPhdf5(f)
+            ds= Ext.SMAPhdf5(f)
             @test keys(ds) == layerkeys(ds) == smapkeys
             @test dims(ds) isa Tuple{<:X,<:Y}
         end
@@ -80,7 +82,7 @@ if isfile(path1) && isfile(path2)
         end
 
         @testset "other fields" begin @test missingval(smaparray) == -9999.0
-            @test metadata(smaparray) isa Metadata{SMAPfile,Dict{String,Any}}
+            @test metadata(smaparray) isa Metadata{SMAPsource,Dict{String,Any}}
             @test name(smaparray) == :baseflow_flux
         end
 
@@ -164,9 +166,7 @@ if isfile(path1) && isfile(path2)
                 gdalarray = Raster(gdalfilename; mappedcrs=EPSG(4326))
                 # These come out with slightly different format
                 # @test convert(ProjString, crs(gdalarray)) == crs(smaparray)
-                @test all(map((a, b) -> all(a .≈ b), 
-                              mappedbounds(dims(gdalarray))
-                              , (bounds(smaparray)..., (1, 1))))
+                @test all(map((a, b) -> all(a .≈ b), mappedbounds(dims(gdalarray)) , bounds(smaparray)))
                 # Tiff locus = Start, SMAP locus = Center
                 @test mappedindex(DimensionalData.shiftlocus(Center(), dims(gdalarray, Y))) ≈ index(smaparray, Y)
                 @test mappedindex(DimensionalData.shiftlocus(Center(), dims(gdalarray, X))) ≈ index(smaparray, X)
@@ -237,7 +237,7 @@ if isfile(path1) && isfile(path2)
             dt = DateTime(2016, 1, 1, 22, 30)
             step_ = Hour(3)
             # Currently empty
-            @test metadata(smaparray) isa Metadata{SMAPfile,Dict{String,Any}}
+            @test metadata(smaparray) isa Metadata{SMAPsource,Dict{String,Any}}
         end
 
         @testset "conversion to regular RasterStack" begin

@@ -1,5 +1,6 @@
 using Rasters, Test, Dates, DimensionalData
 using Rasters.LookupArrays, Rasters.Dimensions
+include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
 # RasterSeries from Raster/RasterStack components
 
@@ -85,6 +86,7 @@ end
     @test size(ser) == (4, 10)
     ser = slice(ga1, (X, Y, Ti))
     combined2 = Rasters.combine(ser, (X, Y, Ti))
+    slice(ga1, Ti)
     @test combined == ga1 == permutedims(combined2, (X, Y, Ti))
     @test dims(combined) == dims(ga1) == dims(permutedims(combined2, (X, Y, Ti)))
     stack = RasterStack((ga1=ga1, ga2=ga2))
@@ -113,4 +115,14 @@ end
     @test occursin("RasterSeries", sh)
     @test occursin("Raster", sh)
     @test occursin("X", sh)
+end
+
+@testset "duplicate_first & lazy" begin
+    temporary_random_rasters(3, (10,10,3), UInt8) do filenames
+        times = Ti(DateTime.(sort(rand(UInt16, length(filenames)))))
+        series = RasterSeries(filenames, times; duplicate_first=true, lazy=true)
+        @test all(Rasters.filename.(series) .== filenames)
+        first_dims = dims(first(series))
+        @test all(dims(r) == first_dims for r in series)
+    end
 end

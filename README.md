@@ -1,10 +1,14 @@
 # Rasters
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/rafaqz/Rasters.jl/blob/main/LICENSE)
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://rafaqz.github.io/Rasters.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://rafaqz.github.io/Rasters.jl/dev)
 [![CI](https://github.com/rafaqz/Rasters.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaqz/Rasters.jl/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/rafaqz/Rasters.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/rafaqz/Rasters.jl)
 [![Aqua.jl Quality Assurance](https://img.shields.io/badge/Aquajl-%F0%9F%8C%A2-aqua.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![Downloads](https://shields.io/endpoint?url=https://pkgs.genieframework.com/api/v1/badge/Rasters&label=Downloads)](https://pkgs.genieframework.com?packages=Rasters)
+
+<img src="https://rafaqz.github.io/Rasters.jl/dev/scripts/generated/basics/aus_trim.png" align="right" width="30%"></img>
 
 [Rasters.jl](https://rafaqz.github.io/Rasters.jl/dev) defines common types and methods for reading, writing and
 manipulating rasterized spatial data. 
@@ -12,11 +16,37 @@ manipulating rasterized spatial data.
 These currently include raster arrays like GeoTIFF and NetCDF, R grd files, 
 multi-layered stacks, and multi-file series of arrays and stacks. 
 
-![EarthEnv HabitatHeterogeneity layers trimmed to Australia](https://rafaqz.github.io/Rasters.jl/stable/trim_example_after.png)
 
-_A RasterStack of EarthEnv HabitatHeterogeneity layers, trimmed to Australia and plotted with Plots.jl_
+## :warning: Packages extensions and Rasters 0.8 and onwards 
 
-## Quick start
+On Julia 1.9 we can put additional packages in extensions, so the code only loads when
+you load a specific package. Rasters.jl was always intended to work like this,
+and its finally possible. This reduced package `using` time from many seconds to well under a second.
+
+But, it means you have to manually load packages you need for each backend or additional
+functionality.
+
+For example, to use the GDAL backend, and download files, you now need to do:
+
+```julia
+using Rasters, ArchGDAL, RasterDataSources
+```
+
+where previously it was just `using Rasters`.
+
+Sources and packages needed:
+- `:gdal`: `using ArchGDAL`
+- `:netcdf`: `using NCDatasets`
+- `:grd`: built-in.
+- `:smap`: `using HDF5`
+- `:grib`: not yet finished.
+
+Other functionality in extensions:
+- Raster data downloads, like `Worldclim{Climate}`: `using RasterDataSources`
+- Makie plots: `using Makie`
+- Coordinate transformations for gdal rasters: `using CoordinateTransformations`
+
+# Quick start
 Install the package by typing:
 
 ```julia

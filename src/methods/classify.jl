@@ -29,7 +29,7 @@ If `others` is set other values not covered in `pairs` will be set to that value
 # Example
 
 ```jldoctest
-using Rasters, Plots
+using Rasters, RasterDataSources, ArchGDAL, Plots
 A = Raster(WorldClim{Climate}, :tavg; month=1)
 classes = <=(15) => 10,
           15..25 => 20,
@@ -38,12 +38,12 @@ classes = <=(15) => 10,
 classified = classify(A, classes; others=0, missingval=0)
 plot(classified; c=:magma)
 
-savefig("build/classify_example.png"); nothing
+savefig("docs/build/classify_example.png"); nothing
 
 # output
 ```
 
-![classify](classify_example.png)
+![classify](/build/classify_example.png)
 
 $EXPERIMENTAL
 """
@@ -113,7 +113,7 @@ If `others` is set other values not covered in `pairs` will be set to that value
     the file is stored as `Float32`. Attempting to write some other type will fail.
 
 ```jldoctest
-using Rasters, Plots, RasterDataSources
+using Rasters, RasterDataSources, ArchGDAL, Plots
 # Download and copy the file
 filename = getraster(WorldClim{Climate}, :tavg; month=6)
 tempfile = tempname() * ".tif"
@@ -130,12 +130,12 @@ end
 # Open it again to plot the changes
 plot(Raster(tempfile); c=:magma)
 
-savefig("build/classify_bang_example.png"); nothing
+savefig("docs/build/classify_bang_example.png"); nothing
 
 # output
 ```
 
-![classify!](classify_bang_example.png)
+![classify!](/build/classify_bang_example.png)
 
 $EXPERIMENTAL
 """

@@ -1,8 +1,9 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, FileStack, NCDfile, crs
-include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
+using Rasters: FileArray, FileStack, NCDsource, crs
+testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))
+include(joinpath(testdir, "test_utils.jl"))
 
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = maybedownload(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
@@ -26,8 +27,23 @@ stackkeys = (
     :xl, :xlvi
 )
 
+@testset "grid mapping" begin
+    stack = RasterStack(joinpath(testdir, "data/grid_mapping_test.nc"))
+    @test metadata(stack.mask)["grid_mapping"]  == Dict{String, Any}(
+      "straight_vertical_longitude_from_pole" => 0.0,
+      "false_easting"                         => 0.0,
+      "standard_parallel"                     => -71.0,
+      "inverse_flattening"                    => 298.27940504282,
+      "latitude_of_projection_origin"         => -90.0,
+      "grid_mapping_name"                     => "polar_stereographic",
+      "semi_major_axis"                       => 6.378273e6,
+      "false_northing"                        => 0.0,
+    )
+end
+
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle)
+    plot(ncarray)
 
     @time lazyarray = Raster(ncsingle; lazy=true);
     @time eagerarray = Raster(ncsingle; lazy=false);
@@ -39,6 +55,13 @@ stackkeys = (
         @test parent(ncarray) isa Array
         @test parent(lazyarray) isa FileArray
         @test parent(eagerarray) isa Array
+    end
+
+    @testset "from url" begin
+        # TODO we need a permanent url here that doesn't end in .nc
+        # url = "http://apdrc.soest.hawaii.edu:80/dods/public_data/Reanalysis_Data/NCEP/NCEP2/daily/surface/mslp"
+        # r = Raster(url; name=:mslp, source=:netcdf, lazy=true)
+        # @test sum(r[Ti(1)]) == 1.0615972f9
     end
 
     @testset "open" begin
@@ -95,7 +118,7 @@ stackkeys = (
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
-        @test metadata(ncarray) isa Metadata{NCDfile,Dict{String,Any}}
+        @test metadata(ncarray) isa Metadata{NCDsource,Dict{String,Any}}
         @test name(ncarray) == :tos
     end
 
@@ -138,7 +161,7 @@ stackkeys = (
             @test !all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
             open(Raster(tempfile; lazy=true); write=true) do A
                 mask!(A; with=msk, missingval=missing)
-                # TODO: replace the CFVariable with a FileArray{NCDfile} so this is not required
+                # TODO: replace the CFVariable with a FileArray{NCDsource} so this is not required
                 nothing
             end
             @test all(Raster(tempfile)[X(1:100), Y([1, 5, 95])] .=== missing)
@@ -157,7 +180,7 @@ stackkeys = (
             @test all(Atest .=== Afile .=== Amem)
         end
         @testset "slice" begin
-            @test_throws ArgumentError Rasters.slice(ncarray, Z)
+            @test_throws DimensionMismatch Rasters.slice(ncarray, Z)
             ser = Rasters.slice(ncarray, Ti) 
             @test ser isa RasterSeries
             @test size(ser) == (24,)
@@ -281,7 +304,7 @@ stackkeys = (
             # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
             # But the Proj representation is the same
             @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
-            @test bounds(gdalarray) == (bounds(nccleaned)..., (1, 1))
+            @test bounds(gdalarray) == bounds(nccleaned)
             # Tiff locus = Start, Netcdf locus = Center
             @test reverse(index(gdalarray, Y)) .+ 0.5 ≈ index(nccleaned, Y)
             @test index(gdalarray, X) .+ 1.0  ≈ index(nccleaned, X)
@@ -292,7 +315,7 @@ stackkeys = (
             write("testgrd.gri", nccleaned; force=true)
             grdarray = Raster("testgrd.gri");
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
-            @test bounds(grdarray) == (bounds(nccleaned)..., (1, 1))
+            @test bounds(grdarray) == bounds(nccleaned)
             @test reverse(index(grdarray, Y)) ≈ index(nccleaned, Y) .- 0.5
             @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
             @test Raster(grdarray) ≈ reverse(nccleaned; dims=Y)
@@ -302,7 +325,10 @@ stackkeys = (
     end
 
     @testset "no missing value" begin
-        write("nomissing.nc", boolmask(ncarray) .* 1)
+        write("nomissing.nc", 
+              boolmask(ncarray)
+              .* 1
+             )
         nomissing = Raster("nomissing.nc")
         @test missingval(nomissing) == nothing
         rm("nomissing.nc")
@@ -339,6 +365,33 @@ end
         @test parent(eagerstack[:xi]) isa Array
     end
 
+    @testset "source" begin
+        no_ext = tempname()
+        cp(ncmulti, no_ext)
+        a = RasterStack(no_ext; source=:netcdf)
+        b = RasterStack(no_ext; source=Rasters.NCDsource())
+        @test a == b == ncstack
+        rm(no_ext)
+    end
+
+    @testset "crs" begin
+        st = RasterStack(ncmulti; crs=EPSG(3857), mappedcrs=EPSG(3857))
+        @test crs(st) == EPSG(3857)
+        @test mappedcrs(st) == EPSG(3857)
+    end
+
+    @testset "name" begin
+        @testset "multi name from single file" begin
+            @time small_stack = RasterStack(ncmulti; name=(:sofllac, :xlvi))
+            @test keys(small_stack) == (:sofllac, :xlvi)
+        end
+        @testset "multi file with single name" begin
+            tempnc = tempname() * ".nc"
+            write(tempnc, rebuild(Raster(ncsingle); name=:tos2))
+            @time small_stack = RasterStack((ncsingle, tempnc); name=(:tos, :tos2))
+        end
+    end
+
     @testset "load ncstack" begin
         @test ncstack isa RasterStack
         @test all(ismissing, missingval(ncstack))
@@ -353,9 +406,9 @@ end
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test keys(ncstack) == stackkeys
         @test first(keys(ncstack)) == :abso4
-        @test metadata(ncstack) isa Metadata{NCDfile,Dict{String,Any}}
+        @test metadata(ncstack) isa Metadata{NCDsource,Dict{String,Any}}
         @test metadata(ncstack)["institution"] == "Max-Planck-Institute for Meteorology"
-        @test metadata(ncstack[:albedo]) isa Metadata{NCDfile,Dict{String,Any}}
+        @test metadata(ncstack[:albedo]) isa Metadata{NCDsource,Dict{String,Any}}
         @test metadata(ncstack[:albedo])["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
@@ -369,7 +422,7 @@ end
     @testset "custom filename" begin
         ncmulti_custom = replace(ncmulti, "nc" => "nc4")
         cp(ncmulti, ncmulti_custom, force=true)
-        @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDfile)
+        @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDsource)
         @test ncstack_custom isa RasterStack
         @test map(read(ncstack_custom), read(ncstack)) do a, b
             all(a .=== b)
