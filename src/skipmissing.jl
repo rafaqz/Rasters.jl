@@ -35,7 +35,9 @@ end
 
 _missing(x, itr) = ismissing(x) || x == missingval(itr)  # mind the order, as comparison with missing returns missing
 function _missing(x::AbstractFloat, itr)
-    if isnan(missingval(itr))
+    if isnothing(missingval(itr))
+        return false
+    elseif isnan(missingval(itr))
         return ismissing(x) || isnan(x)
     else
         return ismissing(x) || x == missingval(itr)
