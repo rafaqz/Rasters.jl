@@ -33,7 +33,12 @@ function Base.iterate(itr::SkipMissingVal, state...)
     item, state
 end
 
-_missing(x, itr) = ismissing(x) || x == missingval(itr)  # mind the order, as comparison with missing returns missing
+_missing(x, itr) = x == missingval(itr)
+
+_missing(x::Missing, itr) = true
+
+_missing(x::Nothing, itr) = true
+
 function _missing(x::AbstractFloat, itr)
     if isnothing(missingval(itr))
         return false
