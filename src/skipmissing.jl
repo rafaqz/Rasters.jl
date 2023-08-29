@@ -33,21 +33,11 @@ function Base.iterate(itr::SkipMissingVal, state...)
     item, state
 end
 
-_missing(x, itr) = x == missingval(itr)
+_missing(x, itr) = isequal(x, missingval(itr))
 
 _missing(x::Missing, itr) = true
 
 _missing(x::Nothing, itr) = true
-
-function _missing(x::AbstractFloat, itr)
-    if isnothing(missingval(itr))
-        return false
-    elseif isnan(missingval(itr))
-        return isnan(x)
-    else
-        return x == missingval(itr)
-    end
-end
 
 Base.IndexStyle(::Type{<:SkipMissingVal{T}}) where {T} = IndexStyle(T)
 Base.eachindex(itr::SkipMissingVal) =
