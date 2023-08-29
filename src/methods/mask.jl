@@ -76,6 +76,7 @@ end
 function _mask(A::AbstractRaster, with::AbstractRaster;
     filename=nothing, suffix=nothing, missingval=_missingval_or_missing(A), kw...
 )
+    missingval = _convert_missing(eltype(A), missingval)
     A1 = create(filename, A; suffix, missingval)
     open(A1; write=true) do a
         # The values array will be be written to A1 in `mask!`
@@ -168,20 +169,21 @@ function _mask!(st::RasterStack, with::AbstractRaster; kw...)
     map(A -> mask!(A; with, kw...), st)
     return st
 end
-function _mask!(A::AbstractRaster, with::AbstractRaster;
-    missingval=missingval(A), values=A
-)
+
+function _mask!(A::AbstractRaster, with::AbstractRaster; missingval=missingval(A), values=A)
     missingval isa Nothing && _nomissingerror()
-    missingval = convert(eltype(A), missingval)
+    missingval = _convert_missing(eltype(A), missingval)
 
     broadcast_dims!(A, values, with) do x, w
-        if isequal(w, Rasters.missingval(with))
+        if ismissing(w) || ismissing(x)
+            return missingval
+        elseif isequal(w, Rasters.missingval(with)) || isequal(x, Rasters.missingval(values))
             missingval
         else
             convert(eltype(A), x)
         end
     end
-    return A
+    return rebuild(A, missingval=missingval)
 end
 
 _nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `missingval` keyword compatible with the type, or use `rebuild(A; missingval=somemissingval)` to set it."))
@@ -340,3 +342,7 @@ function missingmask!(dest::AbstractRaster, geom; kw...)
     dest .= (b -> b ? true : missing).(B)
     return dest
 end
+
+_convert_missing(t::Type{<:Number}, missingval::Number) = convert(t, missingval)
+
+_convert_missing(t, missingval) = try convert(t, missingval) catch; missingval end
