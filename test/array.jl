@@ -92,12 +92,14 @@ end
 end
 
 @testset "skipmissing uses missingval" begin
+    # Test missingval=NaN
     raster = Raster([NaN 1.0; 2.0 NaN], (X, Y); missingval=NaN)
     @test collect(skipmissing(raster)) == [2.0, 1.0]
     @test collect(keys(skipmissing(raster))) == [CartesianIndex(2, 1), CartesianIndex(1, 2)]
     @test collect(eachindex(skipmissing(raster))) == [2, 3]
     @test_throws MissingException skipmissing(raster)[1]
     @test skipmissing(raster)[2] == 2.0
+
     # It skips actual missing values as well
     mraster = Raster([NaN 1.0; missing NaN], (X, Y); missingval=NaN)
     @test collect(skipmissing(mraster)) == [1.0]
@@ -106,6 +108,17 @@ end
     @test skipmissing(mraster)[3] == 1.0
     @test_throws MissingException skipmissing(mraster)[2]
 
+    # Test missingval=nothing
+    fraster = Raster([NaN 1.0; 2.0 NaN], (X, Y); missingval=nothing)
+    mraster = Raster([NaN 1.0; missing NaN], (X, Y); missingval=nothing)
+    iraster = Raster([1 1; missing 2], (X, Y); missingval=nothing)
+    nraster = Raster([1 1; missing nothing], (X, Y); missingval=nothing)
+    @test length(collect(skipmissing(fraster))) == 4 # Keeps NaN
+    @test length(collect(skipmissing(mraster))) == 3 # Drops missing
+    @test length(collect(skipmissing(iraster))) == 3 # Drops missing (integers)
+    @test length(collect(skipmissing(nraster))) == 3 # Keeps nothing (integer)
+
+    # Confirm that missingvals are removed by value, even when types don't match
     r = Raster(ones(Int16, 8, 8), (X,Y); missingval = Int16(-9999))
     r[1:4, 1:4] .= -9999
     r = float.(r)
