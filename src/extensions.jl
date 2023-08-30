@@ -1,28 +1,21 @@
 # extensions
+function throw_extention_error(package::String, extention::Symbol)
+    @static if isdefined(Base, :get_extension) # julia > 1.9
+    if isnothing(Base.get_extension(Rasters, extention))
+        throw(BackendException(package))
+    else
+        throw(MethodError(resample, args))
+    end
+    else
+        throw(BackendException(package))
+    end
+end
+
 
 # stubs that need ArchGDAL
-function resample(args...; kw...)
-    @static if isdefined(Base, :get_extension) # julia > 1.9
-        if isnothing(Base.get_extension(Rasters, :RastersArchGDALExt))
-            throw(BackendException("ArchGDAL"))
-        else
-            throw(MethodError(resample, args))
-        end
-    else
-        throw(BackendException("ArchGDAL"))
-    end
-end
-function warp(args...; kw...)
-    @static if isdefined(Base, :get_extension) # julia > 1.9
-        if isnothing(Base.get_extension(Rasters, :RastersArchGDALExt))
-            throw(BackendException("ArchGDAL"))
-        else
-            throw(MethodError(warp, args))
-        end
-    else
-        throw(BackendException("ArchGDAL"))
-    end
-end
+resample(args...; kw...) = throw_extention_error("ArchGDAL", :RastersArchGDALExt)
+warp(args...; kw...) = throw_extention_error("ArchGDAL", :RastersArchGDALExt)
+cellsize(args...; kw...) = throw_extention_error("ArchGDAL", :RastersArchGDALExt)
 
 # Other shared stubs
 function layerkeys end

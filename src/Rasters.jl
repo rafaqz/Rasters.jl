@@ -60,7 +60,7 @@ export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!, 
        resample, warp, zonal, crop, extend, trim, slice, combine, points,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
-       coverage, coverage!, setcrs, setmappedcrs, smapseries
+       coverage, coverage!, setcrs, setmappedcrs, smapseries, cellsize
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertlookup
 
