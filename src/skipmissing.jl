@@ -34,7 +34,6 @@ function Base.iterate(itr::SkipMissingVal, state...)
 end
 
 _missing(x, itr) = isequal(x, missingval(itr))
-
 _missing(x::Missing, itr) = true
 
 _missing(x::Nothing, itr) = false
