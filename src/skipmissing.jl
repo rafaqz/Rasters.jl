@@ -37,7 +37,7 @@ _missing(x, itr) = isequal(x, missingval(itr))
 
 _missing(x::Missing, itr) = true
 
-_missing(x::Nothing, itr) = true
+_missing(x::Nothing, itr) = false
 
 Base.IndexStyle(::Type{<:SkipMissingVal{T}}) where {T} = IndexStyle(T)
 Base.eachindex(itr::SkipMissingVal) =

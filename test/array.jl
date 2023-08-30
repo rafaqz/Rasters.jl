@@ -115,8 +115,8 @@ end
     nraster = Raster([1 1; missing nothing], (X, Y); missingval=nothing)
     @test length(collect(skipmissing(fraster))) == 4 # Keeps NaN
     @test length(collect(skipmissing(mraster))) == 3 # Drops missing
-    @test length(collect(skipmissing(iraster))) == 3 # Test with integers
-    @test length(collect(skipmissing(nraster))) == 2 # Drops nothing
+    @test length(collect(skipmissing(iraster))) == 3 # Drops missing (integers)
+    @test length(collect(skipmissing(nraster))) == 3 # Keeps nothing (integer)
 
     # Confirm that missingvals are removed by value, even when types don't match
     r = Raster(ones(Int16, 8, 8), (X,Y); missingval = Int16(-9999))
