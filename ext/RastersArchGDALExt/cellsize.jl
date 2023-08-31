@@ -2,7 +2,7 @@
     cellsize(x)
 
 Gives the approximate size of each cell in square km. 
-This function works for any projection, but uses an algorithm for spherical polygons, and thus gives the approximates the true size to about 0.1%, depending on latitude.
+This function works for any projection, using an algorithm for polygons on a sphere. It approximates the true size to about 0.1%, depending on latitude.
 
 # Arguments
 
@@ -56,7 +56,6 @@ end
 
 _area_from_coords(transform, geom) = _area_from_coords(transform, GI.trait(geom), geom)
 _area_from_coords(geom) = _area_from_coords(GI.trait(geom), geom)
-
 function _area_from_coords(::GI.LinearRingTrait, ring) # no ArchGDAL, assumes degrees
     points = map(GI.getpoint(ring)) do p 
         (deg2rad(GI.x(p)), deg2rad(GI.y(p)))
@@ -64,7 +63,6 @@ function _area_from_coords(::GI.LinearRingTrait, ring) # no ArchGDAL, assumes de
 
     return _area_from_rads(GI.LinearRing(points))
 end
-
 function _area_from_coords(transform::ArchGDAL.CoordTransform, ::GI.LinearRingTrait, ring)
     points = map(GI.getpoint(ring)) do p 
         t = ArchGDAL.transform!(ArchGDAL.createpoint(p...), transform)
@@ -73,10 +71,9 @@ function _area_from_coords(transform::ArchGDAL.CoordTransform, ::GI.LinearRingTr
     return _area_from_rads(GI.LinearRing(points))
 end
 
-function cellsize(x::Tuple{X, Y})
-    xbnds, ybnds = DimensionalData.intervalbounds(x)
-
-    if convert(CoordSys, crs(x)) == CoordSys("Earth Projection 1, 104") # check if need to reproject
+function cellsize(dims::Tuple{X, Y})
+    xbnds, ybnds = DimensionalData.intervalbounds(dims)
+    if convert(CoordSys, crs(dims)) == CoordSys("Earth Projection 1, 104") # check if need to reproject
         areas = [_area_from_coords(
             GI.LinearRing([
                 (xb[1], yb[1]), 
@@ -87,7 +84,7 @@ function cellsize(x::Tuple{X, Y})
             ]))
             for xb in xbnds, yb in ybnds]
     else 
-        areas = ArchGDAL.crs2transform(crs(x), EPSG(4326)) do transform
+        areas = ArchGDAL.crs2transform(crs(dims), EPSG(4326)) do transform
             [_area_from_coords(
                 transform,         
                 GI.LinearRing([
@@ -101,7 +98,7 @@ function cellsize(x::Tuple{X, Y})
         end
     end
 
-    return Raster(areas, dims = x)
+    return Raster(areas, dims)
 end
 
 function cellsize(x::Raster)
