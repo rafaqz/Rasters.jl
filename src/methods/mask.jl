@@ -76,7 +76,7 @@ end
 function _mask(A::AbstractRaster, with::AbstractRaster;
     filename=nothing, suffix=nothing, missingval=_missingval_or_missing(A), kw...
 )
-    missingval = convert(eltype(A), missingval)
+    missingval = ismissing(missingval) ? missing : convert(eltype(A), missingval)
     A1 = create(filename, A; suffix, missingval)
     open(A1; write=true) do a
         # The values array will be be written to A1 in `mask!`
