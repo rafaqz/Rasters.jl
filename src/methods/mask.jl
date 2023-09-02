@@ -76,7 +76,7 @@ end
 function _mask(A::AbstractRaster, with::AbstractRaster;
     filename=nothing, suffix=nothing, missingval=_missingval_or_missing(A), kw...
 )
-    missingval = _convert_missing(eltype(A), missingval)
+    missingval = convert(eltype(A), missingval)
     A1 = create(filename, A; suffix, missingval)
     open(A1; write=true) do a
         # The values array will be be written to A1 in `mask!`
@@ -172,7 +172,7 @@ end
 
 function _mask!(A::AbstractRaster, with::AbstractRaster; missingval=missingval(A), values=A)
     missingval isa Nothing && _nomissingerror()
-    missingval = _convert_missing(eltype(A), missingval)
+    missingval = convert(eltype(A), missingval)
 
     broadcast_dims!(A, values, with) do x, w
         if ismissing(w) || ismissing(x)
@@ -342,7 +342,3 @@ function missingmask!(dest::AbstractRaster, geom; kw...)
     dest .= (b -> b ? true : missing).(B)
     return dest
 end
-
-_convert_missing(t::Type{<:Number}, missingval::Number) = convert(t, missingval)
-
-_convert_missing(t, missingval) = try convert(t, missingval) catch; missingval end
