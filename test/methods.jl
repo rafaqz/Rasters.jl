@@ -455,7 +455,8 @@ end
         @test_warn "does not have crs" resample(nocrs; crs=output_crs, method)
     end
 
-    @testset "resample with missingval==missing"
+    @testset "resample with missingval==missing" begin 
         ras = Raster(rand(X(1:10), Y(1:10), missingval=missing))
         @test resample(ras, to=ras) == ras
+    end
 end
