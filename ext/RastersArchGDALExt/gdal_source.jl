@@ -483,6 +483,7 @@ function _gdalsetproperties!(dataset::AG.Dataset, dims::Tuple, missingval)
     # Set the nodata value. GDAL can't handle missing. We could choose a default,
     # but we would need to do this for all possible types. `nothing` means
     # there is no missing value.
+    T = eltype(AG.getband(dataset, 1))
     if !isnothing(missingval)
         if ismissing(missingval)
             missingval = RA._writeable_missing(T)
