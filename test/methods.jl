@@ -180,6 +180,10 @@ end
     @test eltype(mask(c, with=d, missingval=0.0f0)) == Int64
     @test eltype(mask(c, with=Float64.(d), missingval=-1.0)) == Int64
     @test eltype(mask(c, with=Float64.(d), missingval=0.0f0)) == Int64
+
+    # Test mask!
+    @test_throws MethodError mask!(a, with=b, missingval=missing)
+    @test_throws MethodError mask!(a, with=b, missingval=nothing)
 end
 
 @testset "zonal" begin
