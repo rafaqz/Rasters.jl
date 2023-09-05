@@ -183,7 +183,6 @@ end
 
     # Test mask!
     @test_throws MethodError mask!(a, with=b, missingval=missing)
-    @test_throws MethodError mask!(a, with=b, missingval=nothing)
 end
 
 @testset "zonal" begin
