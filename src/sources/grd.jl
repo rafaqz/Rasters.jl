@@ -152,7 +152,7 @@ function Base.write(filename::String, ::Type{GRDsource}, A::AbstractRaster;
     force=false, verbose=true, kw...
 )
     check_can_write(filename, force)
-    A = _maybe_use_type_missingval(filename, A)
+    A = _maybe_use_type_missingval(A, GRDsource)
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
             a -> reorder(a, (X(GRD_X_ORDER), Y(GRD_Y_ORDER), Band(GRD_BAND_ORDER)))

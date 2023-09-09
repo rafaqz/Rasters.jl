@@ -75,6 +75,29 @@ end
     @test A6 == [false false; false false] 
 end
 
+@testset "convert" begin
+    ra = convert(Raster{Float32}, ga1)
+    @test all(ra .=== Float32.(ga1))
+    @test missingval(ra) === Float32(missingval(ga1))
+    # missing detected as missingval
+    da = DimArray([1.0, missing], X)
+    ra = convert(Raster{Union{Int,Missing}}, da)
+    @test all(ra .=== [1, missing])
+    @test missingval(ra) === missing
+    # No missingval
+    da = DimArray([1.0, 2.0], X)
+    ra = convert(Raster{Int}}, da)
+    @test all(ra .=== [1, 2])
+    @test missingval(ra) === nothing
+    # Not working
+    da = DimArray([1.0, 2.0], X)
+    ra = convert(Raster{Union{Int,Missing}}, da)
+    @test all(ra .=== [1, 2])
+    # Not sure how to get this result generically
+    # without falling back to allocating an `Array`
+    @test_broken eltype(ra) == Union{Int,Missing}
+    @test_broken missingval(ra) === missing
+end
 
 @testset "collect and Array" begin
     @test collect(ga1) isa Array

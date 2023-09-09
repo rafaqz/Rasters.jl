@@ -205,6 +205,7 @@ function DD.layermetadata(ds::NCD.Dataset)
 end
 
 RA.missingval(var::NCD.CFVariable{T}) where T = missing isa T ? missing : nothing
+RA.missingval(var::NCD.Dataset) = missing
 
 function RA.layerkeys(ds::NCD.Dataset)
     dimkeys = _dimkeys(ds)

@@ -79,8 +79,6 @@ function resample(xs::Union{Tuple,NamedTuple}; to=first(xs), kw...)
     map(x -> resample(x; to, kw...), xs)
 end
 function resample(x::RasterStackOrArray; 
-    # We need to combine the `size` and `res` keywords with 
-    # the extent in extent2dims, even if we already have dims.
     to=nothing, res=nothing, crs=nothing, size=nothing, method=:near, kw...
 )
     (isnothing(size) || isnothing(res)) || _size_and_res_error()
@@ -100,7 +98,7 @@ function resample(x::RasterStackOrArray;
             flags[:te] = [xmin, ymin, xmax, ymax]
         end
     else
-        all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` mush have both XDim and YDim dimensions to resize with GDAL"))
+        all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` must have both `XDim` and `YDim` dimensions to resize with GDAL"))
         if sampling(to, XDim) isa Points
             to = set(to, dims(to, XDim) => Intervals(Start()))
         end

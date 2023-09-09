@@ -25,8 +25,8 @@ abstract type AbstractRaster{T,N,D,A} <: AbstractDimArray{T,N,D,A} end
 Returns the value representing missing data in the dataset
 """
 function missingval end
-missingval(x) = missing
 missingval(A::AbstractRaster) = A.missingval
+missingval(x::AbstractArray{T}) where T = Missing <: T ? missing : nothing
 
 # The filename might be buried somewhere in a DiskArray wrapper, so try to get it
 function filename(A::AbstractRaster)
@@ -287,6 +287,20 @@ function Raster(table, dims::Tuple; name=first(_not_a_dimcol(table, dims)), kw..
     return Raster(A, dims; name, kw...)
 end
 Raster(A::AbstractArray; dims, kw...) = Raster(A, dims; kw...)
+Raster{T}(A::AbstractDimArray{T}; kw...) where T = Raster(A; kw...)
+function Raster{T}(A::AbstractDimArray; kw...) where T
+    A1 = convert.(T, x)
+    # Also convert `missingval`
+    if isnothing(missingval(A))
+        if Missing <: typeof(A1)
+            return Raster(A1; missingval=missing, kw...)
+        else
+            return Raster(A1; kw...)
+        end
+    else
+        return Raster(A1; missingval=convert(T, missingval(A)), kw...)
+    end
+end
 function Raster(A::AbstractDimArray;
     data=parent(A), dims=dims(A), refdims=refdims(A),
     name=name(A), metadata=metadata(A), missingval=missingval(A), kw...
@@ -323,9 +337,8 @@ function Raster(ds, filename::AbstractString, key=nothing;
     raster =  Raster(data, dims, refdims, name, metadata, missingval)
     return dropband ? _drop_single_band(raster, lazy) : raster
 end
-
-function Raster{T, N, D, R, A, Na, Me, Mi}(ras::Raster{T, N, D, R, A, Na, Me, Mi}) where {T, N, D, R, A, Na, Me, Mi}
-    return Raster(ras.data, ras.dims, ras.refdims, ras.name, ras.metadata, ras.missingval)
+function Raster{T,N,D,R,A,Na,Me,Mi}(raster::Raster{T,N,D,R,A,Na,Me,Mi}) where {T,N,D,R,A,Na,Me,Mi}
+    return rebuild(raster) # What is this method even for ?
 end
 
 filekey(ds, key) = key

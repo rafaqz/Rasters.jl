@@ -35,8 +35,9 @@ lift_layer(s::RasterSeries, inds...) = getindex(s, inds...)
 
 - `plottype = Makie.Heatmap`: The type of plot. Can be any Makie plot type which accepts a `Raster`; in practice, `Heatmap`, `Contour`, `Contourf` and `Surface` are the best bets.
 - `axistype = Makie.Axis`: The type of axis. This can be an `Axis`, `Axis3`, `LScene`, or even a `GeoAxis` from GeoMakie.jl.
-- `X=X`: The X dimension of the raster.
-- `Y=Y`: The Y dimension of the raster.
+- `X = XDim`: The X dimension of the raster.
+- `Y = YDim`: The Y dimension of the raster.
+- `Z = YDim`: The Y dimension of the raster.
 - `draw_colorbar = true`: Whether to draw a colorbar for the axis or not.
 - `colorbar_position = Makie.Right()`: Indicates which side of the axis the colorbar should be placed on.  Can be `Makie.Top()`, `Makie.Bottom()`, `Makie.Left()`, or `Makie.Right()`.
 - `colorbar_padding = Makie.automatic`: The amound of padding between the colorbar and its axis.  If `automatic`, then this is set to the width of the colorbar.
@@ -51,8 +52,7 @@ lift_layer(s::RasterSeries, inds...) = getindex(s, inds...)
 function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,<:Tuple{D1,D2}},Observable{<:AbstractRaster{T,2,<:Tuple{D1,D2}}}};
     plottype=Makie.Heatmap,
     axistype=Makie.Axis,
-    X=X,
-    Y=Y,
+    X=XDim, Y=YDim, Z=ZDim,
     draw_colorbar=true,
     colorbar_position=Makie.Right(),
     colorbar_padding=Makie.automatic,
@@ -142,14 +142,14 @@ function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,
 end
 function Rasters.rplot(
     gp::GridPosition, raster::Union{AbstractRaster{T,3},Observable{<:AbstractRaster{T,3}}};
+    X=XDim, Y=YDim, Z=ZDim,
     kw...
 ) where T
     val_raster = Makie.to_value(raster)
     spatialdims = (XDim, YDim, ZDim)
     ds = (dims(val_raster, spatialdims)..., otherdims(val_raster, spatialdims)...)
-    return Rasters.rplot(gp, slice(raster, last(ds)); kw...)
+    return Rasters.rplot(gp, slice(raster, last(ds)); X, Y, Z, kw...)
 end
-
 function Rasters.rplot(
     gp::GridPosition, 
     series::Union{<:AbstractRasterSeries{<:Any,1},Observable{<:AbstractRasterSeries{<:Any,1}}};
