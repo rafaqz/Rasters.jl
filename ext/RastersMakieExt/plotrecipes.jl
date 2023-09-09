@@ -145,7 +145,7 @@ function Rasters.rplot(
     kw...
 ) where T
     val_raster = Makie.to_value(raster)
-    spatialdims = (X(), Y(), Z())
+    spatialdims = (XDim, YDim, ZDim)
     ds = (dims(val_raster, spatialdims)..., otherdims(val_raster, spatialdims)...)
     return Rasters.rplot(gp, slice(raster, last(ds)); kw...)
 end
@@ -171,7 +171,7 @@ function Rasters.rplot(
 
     layout = GridLayout(gp, nrows, ncols)
 
-    for (i, ip) in enumerate(plotinds)
+    axes = map(enumerate(plotinds)) do (i, ip)
         ax, plt = Rasters.rplot(layout[fldmod1(i, ncols)...], lift_layer(series, ip); kw...)
         if fldmod1(i, ncols)[1] != nrows
             hidexdecorations!(ax; HIDE_DEC...)
@@ -179,7 +179,9 @@ function Rasters.rplot(
         if fldmod1(i, ncols)[2] != 1
             hideydecorations!(ax; HIDE_DEC...)
         end
+        ax
     end
+    linkaxes!(axes...)
 
     return layout
 end
@@ -268,6 +270,13 @@ function Rasters.rplot(raster::Union{AbstractRaster{T,3},Observable{<:AbstractRa
     # if draw_title
     #     Label(layout[0, 1:Makie.ncols(layout)], raster_title; fontsize = get(figure.scene.attributes, (:Axis :titlesize), 16), font = get(figure.scene.attributes, (:Axis, :titlefont), :bold))
     # end
+    return figure
+end
+function Rasters.rplot(series::Union{AbstractRasterSeries{T},Observable{<:AbstractRasterSeries{T}}};
+    figure=(;), colormap=nothing, colorrange=Makie.automatic, kw...
+) where T
+    figure = Figure(; figure...)
+    layout = Rasters.rplot(figure[1, 1], series; colormap, colorrange, kw...)
     return figure
 end
 function Rasters.rplot(raster::Union{RasterStack,Observable{<:RasterStack}};
