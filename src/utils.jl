@@ -24,15 +24,12 @@ function noindex_to_sampled(dims::DimTuple)
     end
 end
 
-function _maybe_use_type_missingval(filename::String, A::AbstractRaster{T}) where T
+function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Type{<:Source}) where T
     if ismissing(missingval(A))
         newmissingval = _type_missingval(Missings.nonmissingtype(T))
-        base, ext = splitext(filename)
         A1 = replace_missing(A, newmissingval)
-        @warn "`missing` cant be written to $ext, missinval for `$(eltype(A1))` of `$newmissingval` used instead"
+        @warn "`missing` cant be written with $(SOURCE2SYMBOL[source]), missinval for `$(eltype(A1))` of `$newmissingval` used instead"
         return A1
-    elseif missing isa eltype(A)
-        A1 = replace_missing(A, missingval)
     else
         return A
     end

@@ -454,4 +454,10 @@ end
         @test crs(nocrs) == nothing
         @test_warn "does not have crs" resample(nocrs; crs=output_crs, method)
     end
+
+    @testset "resample eltype propagates" begin
+        r = Raster(rand(UInt8, X(1:10), Y(1:10)))
+        r1 = resample(r; to=r)
+        @test eltype(r1) == UInt8
+    end
 end

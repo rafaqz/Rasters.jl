@@ -7,7 +7,7 @@ where multiple space-separated arguments are required.
 
 Arrays with additional dimensions not handled by GDAL (other than `X`, `Y`, `Band`)
 are sliced, warped, and then combined to match the original array dimensions. 
-These slices will *not* be written to disk and loaded lazyily at this stage -
+These slices will *not* be written to disk and loaded lazily at this stage -
 you will need to do that manually if required.
 
 See [the gdalwarp docs](https://gdal.org/programs/gdalwarp.html) for a list of arguments.
@@ -79,14 +79,12 @@ function _warp(A::AbstractRaster, flags::Dict; filename=nothing, suffix="", kw..
     warp_kw = isnothing(filename) || filename == "/vsimem/tmp" ? () : (; dest=filename)
     warped = AG.Dataset(A; filename=tempfile, kw...) do dataset
         AG.gdalwarp([dataset], flagvect; warp_kw...) do warped
-            raster = Raster(warped)
+            # Read the raster lazily, dropping Band if there is none in `A`
+            raster = Raster(warped; lazy=true, dropband=!hasdim(A, Band()))
             # Either read the MEM dataset, or get the filename as a FileArray
-            d_raster = if !hasdim(A, Band()) && hasdim(raster, Band())
-                rebuild(view(raster, Band(1)); refdims=refdims(A))
-            else
-                raster
-            end
-            p_raster = _maybe_permute_from_gdal(d_raster, dims(A))
+            # And permute the dimensions back to what they were in A
+            p_raster = _maybe_permute_from_gdal(raster, dims(A))
+            # Either read the MEM dataset to an Array, or keep a filename base raster lazy
             return isnothing(filename) ? read(p_raster) : p_raster
         end
     end
