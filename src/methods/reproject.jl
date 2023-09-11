@@ -34,7 +34,7 @@ end
 `reproject` uses ArchGDAL.reproject, but implemented for a reprojecting
 a value array of values, a single dimension at a time.
 """
-function reproject(source, target, dim, val)
+function reproject(source::GeoFormat, target::GeoFormat, dim, val)
     if source == target
         return val
     else
@@ -66,9 +66,6 @@ end
 function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim}, vals::AbstractVector) 
     error("Rasters.jl requires backends to be loaded externally as of version 0.8. Run `using ArchGDAL` to use `reproject`")
 end
-
-
-_rep_error(source, target) = throw(ArgumentError("Cannot reproject from: \n $source \nto: \n $target")) 
 
 # Guess the step for arrays
 stepof(A::AbstractArray) = (last(A) - first(A)) / (length(A) - 1)
