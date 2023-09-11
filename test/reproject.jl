@@ -33,6 +33,7 @@ using Rasters: reproject, convertlookup
     @test span(y2) == Regular(1.0)
 
     @test_throws ArgumentError reproject(cea, EPSG(32618), Y(), [-3.658789324855012e6])
+    @test_throws ArgumentError reproject(cea, EPSG(32618), X(), [-3.658789324855012e6])
 end
 
 @testset "convertlookup" begin
