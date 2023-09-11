@@ -34,7 +34,7 @@ end
 `reproject` uses ArchGDAL.reproject, but implemented for a reprojecting
 a value array of values, a single dimension at a time.
 """
-function reproject(source::GeoFormat, target::GeoFormat, dim, val)
+function reproject(source, target, dim, val)
     if source == target
         return val
     else
