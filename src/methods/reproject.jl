@@ -67,9 +67,6 @@ function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim},
     error("Rasters.jl requires backends to be loaded externally as of version 0.8. Run `using ArchGDAL` to use `reproject`")
 end
 
-
-_rep_error(source, target) = throw(ArgumentError("Cannot reproject from: \n $source \nto: \n $target")) 
-
 # Guess the step for arrays
 stepof(A::AbstractArray) = (last(A) - first(A)) / (length(A) - 1)
 stepof(A::AbstractRange) = step(A)
