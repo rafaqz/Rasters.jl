@@ -87,10 +87,9 @@ end
 
 function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
     missingval=nothing, metadata=nothing, name=nothing, keys=(name,),
-    driver=AG.extensiondriver(filename), 
-    lazy=true, options=Dict{String,String}(),
-    _block_template=nothing
+    driver="", lazy=true, options=Dict{String,String}(), _block_template=nothing
 )
+    driver = _check_driver(filename, driver)
     if !(keys isa Nothing || keys isa Symbol) && length(keys) > 1
         throw(ArgumentError("GDAL cant write more than one layer per file, but keys $keys have $(length(keys))"))
     end
@@ -114,10 +113,6 @@ function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
 
     kw = (width=length(x), height=length(y), nbands=nbands, dtype=T)
     options_vec = _process_options(driver, options; _block_template)
-    # COG doesn't support CREATE but is the default for `tif`.
-    if driver == "COG"
-        driver = "GTiff"
-    end
     gdaldriver = driver isa String ? AG.getdriver(driver) : driver
     if driver in GDAL_DRIVERS_SUPPORTING_CREATE
         AG.create(filename; driver=gdaldriver, options=options_vec, kw...) do ds
@@ -127,7 +122,7 @@ function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
         tif_options_vec = _process_options("GTiff", Dict{String,String}(); _block_template)
         # Create a tif and copy it to `filename`, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
-        ArchGDAL.create(tempname() * ".tif"; driver=AG.getdriver("GTiff"), options=options_vec, kw...) do ds
+        ArchGDAL.create(tempname() * ".tif"; driver=AG.getdriver("GTiff"), options=tif_options_vec, kw...) do ds
             _set_dataset_properties!(ds, newdims, missingval)
             target_ds = AG.copy(ds; filename=filename, driver=gdaldriver, options=options_vec)
             AG.destroy(target_ds)
@@ -336,8 +331,9 @@ function AG.Dataset(f::Function, A::AbstractRaster; kw...)
     end
 end
 function AG.RasterDataset(f::Function, A::AbstractRaster; 
-    filename=nothing, driver = _extensiondriver(filename),
+    filename=nothing, driver="",
 )
+    driver = _check_driver(filename, driver)
     all(hasdim(A, (X, Y))) || throw(ArgumentError("`AbstractRaster` must have both an `X` and `Y` to be converted to an ArchGDAL `Dataset`"))
     if ndims(A) === 3
         thirddim = otherdims(A, (X, Y))[1]
@@ -399,9 +395,7 @@ function _maybe_correct_to_write(lookup::Union{AbstractSampled,NoLookup}, A)
 end
 
 # Write a Raster to disk using GDAL
-function _write(filename, A::AbstractRaster, nbands;
-    driver=AG.extensiondriver(filename), kw... 
-)
+function _write(filename, A::AbstractRaster, nbands; driver="", kw...)
     A = RA._maybe_use_type_missingval(A, GDALsource)
     create_kw = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
     _create_with_driver(filename, driver, create_kw; _block_template=A, kw...) do dataset
@@ -415,15 +409,24 @@ function _write(filename, A::AbstractRaster, nbands;
     return filename
 end
 
+_check_driver(filename::Nothing, driver) = "MEM"
+function _check_driver(filename::AbstractString, driver)
+    if isempty(driver) 
+        driver = AG.extensiondriver(filename)
+        if driver == "COG"
+            driver = "GTiff"
+        end
+    end
+    return driver
+end
+
 # Handle creating a dataset with any driver, 
 # applying the function `f` to the created dataset
 function _create_with_driver(f, filename, driver, create_kw;
     options=Dict{String,String}(), _block_template=nothing
 )
+    driver = _check_driver(filename, driver)
     options_vec = _process_options(driver, options; _block_template)
-    if driver == "COG"
-        driver = "GTiff"
-    end
     gdaldriver = driver isa String ? AG.getdriver(driver) : driver
     if AG.shortname(gdaldriver) in GDAL_DRIVERS_SUPPORTING_CREATE
         AG.create(filename; driver=gdaldriver, create_kw..., options=options_vec) do dataset
@@ -442,10 +445,12 @@ function _create_with_driver(f, filename, driver, create_kw;
 end
 
 # Convert a Dict of options to a Vector{String} for GDAL
-function _process_options(driver::AbstractString, options::Dict;
+function _process_options(driver::String, options::Dict;
     _block_template=nothing
 )
+    # Get the GDAL driver object
     gdaldriver = AG.getdriver(driver)
+
     # set default compression
     if driver != "MEM" && !("COMPRESS" in keys(options)) && AG.validate(gdaldriver, ["COMPRESS=ZSTD"])
         options["COMPRESS"] = "ZSTD"
