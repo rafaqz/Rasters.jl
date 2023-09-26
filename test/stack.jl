@@ -1,4 +1,4 @@
-using Rasters, DimensionalData, Test, Statistics, Dates
+using Rasters, DimensionalData, Test, Statistics, Dates, ArchGDAL
 using Rasters.LookupArrays, Rasters.Dimensions
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
