@@ -413,6 +413,18 @@ end
     @test sum(A3) == 1200
 end
 
+@testset "Rasterize an empty polygon" begin
+    empty_polygon = ArchGDAL.createpolygon(Tuple{Float64,Float64}[])
+    rast = rasterize(empty_polygon; to=A1, fill=1, missingval=0)
+    @test sum(rast) == 0
+end
+
+@testset "Cant rasterize to a new empty array" begin
+    # Its difficult to make a new empty raster here (we possibly could in future?)
+    @test_throws ArgumentError rasterize(polygon; to=A1[1:0, 1:0], fill=1, missingval=0)
+    # But we just warn in `rasterize!` because the result is still correct
+    @test_warn "Destination is empty" rasterize!(A1[1:0, 1:0], polygon; to=A1[1:0, 1:0], fill=1, missingval=0)
+end
 
 @testset "coverage" begin
     @time covsum = coverage(sum, shphandle.shapes; res=1, scale=10)
