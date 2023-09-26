@@ -210,6 +210,24 @@ function Base.map(f, series::RasterSeries)
     end
 end
 
+@propagate_inbounds function Base.getindex(A::AbstractRasterSeries, i::Integer)
+    # Add refdims from the series
+    x = parent(A)[i]
+    _, refdims = DD.slicedims(getindex, dims(A), (), (i,))
+    return rebuild(x; refdims) 
+end
+@propagate_inbounds function Base.getindex(A::AbstractRasterSeries, i1::StandardIndices, i2::StandardIndices, I::StandardIndices...)
+    I = to_indices(A, (i1, i2, I...))
+    x = Base.$f(parent(A), I...)
+    if all(i -> i isa Integer, I) 
+        # Add refdims from the series
+        _, refdims = DD.slicedims(A, I...)
+        return rebuild(x; refdims) 
+    else
+        return rebuildsliced(Base.$f, A, x, I)
+    end
+end
+
 # Swap in the filename/s of an object for another filename, wherever it is.
 # This is used to use already loaded metadata of one file with another
 # file that is similar or identical besides tha actual raster data.
@@ -226,3 +244,4 @@ function swap_filename(x::AbstractArray, filename::AbstractString)
         @set fa.filename = filename
     end
 end
+
