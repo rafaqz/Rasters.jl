@@ -25,13 +25,29 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 
+[weakdeps]
+ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
+CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
+RasterDataSources = "3cb90ccd-e1b6-4867-9617-4276c8b2ca36"
+
+[extensions]
+RastersArchGDALExt = "ArchGDAL"
+RastersCoordinateTransformationsExt = "CoordinateTransformations"
+RastersHDF5Ext = "HDF5"
+RastersMakieExt = "Makie"
+RastersNCDatasetsExt = "NCDatasets"
+RastersRasterDataSourcesExt = "RasterDataSources"
+
 [compat]
 Adapt = "2, 3.0"
 ArchGDAL = "0.9, 0.10"
 ColorTypes = "0.10, 0.11"
 ConstructionBase = "1"
 CoordinateTransformations = "0.6.2"
-DimensionalData = "0.24.13"
+DimensionalData = "0.24.13, 0.25"
 DiskArrays = "^0.3.3"
 Extents = "0.1"
 FillArrays = "0.12, 0.13, 1"
@@ -50,14 +66,6 @@ Reexport = "0.2, 1.0"
 Requires = "0.5, 1"
 Setfield = "0.6, 0.7, 0.8, 1"
 julia = "1.8"
-
-[extensions]
-RastersArchGDALExt = "ArchGDAL"
-RastersCoordinateTransformationsExt = "CoordinateTransformations"
-RastersHDF5Ext = "HDF5"
-RastersMakieExt = "Makie"
-RastersNCDatasetsExt = "NCDatasets"
-RastersRasterDataSourcesExt = "RasterDataSources"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
@@ -78,11 +86,3 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Aqua", "ArchGDAL", "CFTime", "CoordinateTransformations", "DataFrames", "GeometryBasics", "HDF5", "NCDatasets", "Plots", "RasterDataSources", "SafeTestsets", "Shapefile", "Statistics", "Test"]
-
-[weakdeps]
-ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
-CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
-HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
-Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
-NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
-RasterDataSources = "3cb90ccd-e1b6-4867-9617-4276c8b2ca36"
