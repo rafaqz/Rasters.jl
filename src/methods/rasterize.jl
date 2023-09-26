@@ -460,6 +460,9 @@ function alloc_rasterize(f, r::RasterCreator;
     metadata=r.metadata,
     suffix=r.suffix,
 )
+    if prod(size(r.to)) == 0  
+        throw(ArgumentError("Destination array is is empty, with size $(size(r.to))). Rasterization is not possible"))
+    end
     A = create(r.filename, eltype, r.to; name, missingval, metadata, suffix)
     # TODO f should apply to the file when it is initially created
     # instead of reopening but we need a `create(f, filename, ...)` method
@@ -536,6 +539,10 @@ function rasterize!(reducer::typeof(count), x::RasterStackOrArray, data; fill=no
     rasterize!(x::RasterStackOrArray, data; kw..., reducer=nothing, op=nothing, fill=_count_fill, init=0)
 end
 function rasterize!(x::RasterStackOrArray, data; threaded=true, kw...)
+    if prod(size(x)) == 0  
+        @warn "Destination is empty, rasterization skipped"
+        return x
+    end
     r = Rasterizer(data; eltype=eltype(x), threaded, kw...)
     allocs = r.shape == :points ? nothing : _burning_allocs(dims(x); threaded)
     return _rasterize!(x, r; allocs)

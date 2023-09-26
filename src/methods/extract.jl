@@ -84,7 +84,7 @@ _prop_nt(A::AbstractRaster, I, names::NamedTuple{K}) where K = NamedTuple{K}((A[
 
 function _extract(x::RasterStackOrArray, ::GI.PointTrait, point; dims, names, atol=nothing)
     # Get the actual dimensions available in the object
-    coords = map(DD.dims(x)) do d
+    coords = map(DD.commondims(x, dims)) do d
         _dimcoord(d, point)
     end
 
