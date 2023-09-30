@@ -52,7 +52,7 @@ st = RasterStack((A1, copy(A1)))
         @test sum(rasterize(sum, geom; to=A, shape=:point, fill=1, missingval=0)) == 5.0
         rasterize!(last, A, geom; shape=:point, fill=1);
         @test sum(A) == 4.0
-        @test sum(rasterize(last, geom; to=A, shape=:point, fill=1)) == 4.0
+        @test sum(rasterize(last, geom; to=A, shape=:point, fill=1, missingval=0)) == 4.0
         fill!(A, 0)
         if !Tables.istable(geom)
             rasterize!(count, A, [geom, geom]; shape=:point)
@@ -100,14 +100,14 @@ end
         A .= 0
         rasterize!(sum, A, geom; shape=:line, fill=1)
         @test sum(A) == 20 + 20 + 20 + 20
-        @test sum(rasterize(sum, geom; to=A, shape=:line, fill=1)) == 80
+        @test sum(rasterize(sum, geom; to=A, shape=:line, fill=1, missingval=0)) == 80
     end
     @testset ":line is detected for line geometries" begin
         for A in (A1, A2), geom in (linestring, multi_linestring, line_collection)
             A .= 0
             rasterize!(A, geom; fill=1)
             @test sum(A) == 20 + 20 + 20 + 20
-            @test sum(rasterize!(geom; to=A, fill=1)) == 80
+            @test sum(rasterize!(geom; to=A, fill=1, missingval=0)) == 80
         end
     end
 end
