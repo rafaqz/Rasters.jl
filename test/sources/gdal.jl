@@ -306,14 +306,21 @@ gdalpath = maybedownload(url)
 
         @testset "custom gdal options" begin
             gdalarray = Raster(gdalpath; name=:test);
-            filename = tempname() * ".tif"
-            write(filename, gdalarray; driver="GTiff", options=Dict("TILED"=>"YES","BLOCKXSIZE"=>"128","BLOCKYSIZE"=>"128"))
-            @test isfile(filename)
-            if isfile(filename)
-                r = Raster(filename; lazy=true) # lazy is important here, otherwise it's not chunked
-                block_x, block_y = DiskArrays.max_chunksize(DiskArrays.eachchunk(r))
-                @test block_x == block_y == 128
-                rm(filename)
+            filename_default = tempname() * ".tif"
+            filename_gtiff = tempname() * ".tif"
+            filename_cog = tempname() * ".tif"
+            options = Dict("TILED"=>"YES", "BLOCKXSIZE"=>"128", "BLOCKYSIZE"=>"128")
+            write(filename_default, gdalarray; options)
+            write(filename_gtiff, gdalarray; driver="GTiff", options)
+            write(filename_cog, gdalarray; driver="COG", options=Dict("BLOCKSIZE"=>"128"))
+            for filename in (filename_default, filename_gtiff, filename_cog)
+                @test isfile(filename)
+                if isfile(filename)
+                    r = Raster(filename; lazy=true) # lazy is important here, otherwise it's not chunked
+                    block_x, block_y = DiskArrays.max_chunksize(DiskArrays.eachchunk(r))
+                    @test block_x == block_y == 128
+                    rm(filename)
+                end
             end
             @test_throws ArgumentError write(filename, gdalarray; driver="GTiff", options=Dict("COMPRESS"=>"FOOBAR"))
         end
