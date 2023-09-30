@@ -23,7 +23,8 @@ multi_point = ArchGDAL.createmultipoint(pointvec)
 linestring = ArchGDAL.createlinestring(pointvec)
 multi_linestring = ArchGDAL.createmultilinestring([pointvec])
 linearring = ArchGDAL.createlinearring(pointvec)
-collection = GeoInterface.GeometryCollection([linestring, multi_linestring])
+line_collection = GeoInterface.GeometryCollection([linestring, multi_linestring])
+poly_collection = GeoInterface.GeometryCollection([polygon])
 pointfc = map(GeoInterface.getpoint(polygon), vals) do geom, v
     (geometry=geom, val1=v, val2=2.0f0v)
 end
@@ -44,12 +45,14 @@ st = RasterStack((A1, copy(A1)))
     geom = linearring
     geom = pointvec
     
-    for A in (A1, A2), geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table, collection)
+    for A in (A1, A2), geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table, line_collection)
         fill!(A, 0)
         rasterize!(sum, A, geom; shape=:point, fill=1);
         @test sum(A) == 5.0
+        @test sum(rasterize(sum, geom; to=A, shape=:point, fill=1, missingval=0)) == 5.0
         rasterize!(last, A, geom; shape=:point, fill=1);
         @test sum(A) == 4.0
+        @test sum(rasterize(last, geom; to=A, shape=:point, fill=1)) == 4.0
         fill!(A, 0)
         if !Tables.istable(geom)
             rasterize!(count, A, [geom, geom]; shape=:point)
@@ -58,7 +61,8 @@ st = RasterStack((A1, copy(A1)))
         end
     end
     geom = multi_point
-    for A in (A1, A2), geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, collection)
+    for A in (A1, A2), geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection)
+        rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3))
         st.layer1 .= st.layer2 .= 0
         rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3))
         @test sum(st[:layer1]) == 10
@@ -92,16 +96,18 @@ end
 @testset "all line and polygon geoms work as :line" begin
     A = A1
     geom = linestring
-    for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon, collection)
+    for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection)
         A .= 0
         rasterize!(sum, A, geom; shape=:line, fill=1)
         @test sum(A) == 20 + 20 + 20 + 20
+        @test sum(rasterize(sum, geom; to=A, shape=:line, fill=1)) == 80
     end
     @testset ":line is detected for line geometries" begin
-        for A in (A1, A2), geom in (linestring, multi_linestring, collection)
+        for A in (A1, A2), geom in (linestring, multi_linestring, line_collection)
             A .= 0
             rasterize!(A, geom; fill=1)
             @test sum(A) == 20 + 20 + 20 + 20
+            @test sum(rasterize!(geom; to=A, fill=1)) == 80
         end
     end
 end
@@ -109,7 +115,7 @@ end
 @testset "polygon geoms work as :polygon" begin
     A = A1
     poly = polygon
-    for A in (A1, A2), poly in (polygon, multi_polygon)
+    for A in (A1, A2), poly in (polygon, multi_polygon, poly_collection)
         A .= 0
         ra = rasterize(last, poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center)
         ra_res = rasterize(last, poly; res=map(step, span(A)), missingval=0, shape=:polygon, fill=1, boundary=:center)
