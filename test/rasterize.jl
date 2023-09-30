@@ -23,6 +23,7 @@ multi_point = ArchGDAL.createmultipoint(pointvec)
 linestring = ArchGDAL.createlinestring(pointvec)
 multi_linestring = ArchGDAL.createmultilinestring([pointvec])
 linearring = ArchGDAL.createlinearring(pointvec)
+collection = GeoInterface.GeometryCollection([linestring, multi_linestring])
 pointfc = map(GeoInterface.getpoint(polygon), vals) do geom, v
     (geometry=geom, val1=v, val2=2.0f0v)
 end
@@ -43,7 +44,7 @@ st = RasterStack((A1, copy(A1)))
     geom = linearring
     geom = pointvec
     
-    for A in (A1, A2), geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table)
+    for A in (A1, A2), geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table, collection)
         fill!(A, 0)
         rasterize!(sum, A, geom; shape=:point, fill=1);
         @test sum(A) == 5.0
@@ -57,7 +58,7 @@ st = RasterStack((A1, copy(A1)))
         end
     end
     geom = multi_point
-    for A in (A1, A2), geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon)
+    for A in (A1, A2), geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, collection)
         st.layer1 .= st.layer2 .= 0
         rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3))
         @test sum(st[:layer1]) == 10
@@ -91,13 +92,13 @@ end
 @testset "all line and polygon geoms work as :line" begin
     A = A1
     geom = linestring
-    for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon)
+    for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon, collection)
         A .= 0
         rasterize!(sum, A, geom; shape=:line, fill=1)
         @test sum(A) == 20 + 20 + 20 + 20
     end
     @testset ":line is detected for line geometries" begin
-        for A in (A1, A2), geom in (linestring, multi_linestring)
+        for A in (A1, A2), geom in (linestring, multi_linestring, collection)
             A .= 0
             rasterize!(A, geom; fill=1)
             @test sum(A) == 20 + 20 + 20 + 20

@@ -182,6 +182,9 @@ function Rasterizer(::GI.AbstractFeatureTrait, feature; fill, kw...)
     # fillval = _featurefillval(feature, fill)
     Rasterizer(GI.geometry(feature), fill, fillitr; kw...)
 end
+function Rasterizer(::GI.GeometryCollectionTrait, collection; kw...)
+    Rasterizer(collect(GI.getgeom(collection)); kw...)
+end
 function Rasterizer(::Nothing, geoms; fill, kw...)
     fillitr = _iterable_fill(geoms, fill)
     Rasterizer(geoms, fill, fillitr; kw...)
