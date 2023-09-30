@@ -322,7 +322,8 @@ gdalpath = maybedownload(url)
                     rm(filename)
                 end
             end
-            @test_throws ArgumentError write(filename, gdalarray; driver="GTiff", options=Dict("COMPRESS"=>"FOOBAR"))
+            filename_gtiff2 = tempname() * ".tif"
+            @test_throws ArgumentError write(filename_gtiff2, gdalarray; driver="GTiff", options=Dict("COMPRESS"=>"FOOBAR"))
         end
 
         @testset "resave current" begin
