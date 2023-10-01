@@ -54,3 +54,14 @@ function _prepare_for_burning(B, locus=Center())
     end
     return setdims(B1, start_dims)
 end
+
+function _forward_ordered(B)
+    reduce(dims(B); init=B) do A, d
+        if DD.order(d) isa ReverseOrdered
+            A = view(A, rebuild(d, lastindex(d):-1:firstindex(d)))
+            set(A, d => reverse(d))
+        else
+            A
+        end
+    end
+end
