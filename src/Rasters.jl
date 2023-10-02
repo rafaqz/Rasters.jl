@@ -43,7 +43,7 @@ using DimensionalData.Tables,
 
 using DimensionalData: Name, NoName
 using .Dimensions: StandardIndices, DimTuple
-using .LookupArrays: LookupArrayTuple 
+using .LookupArrays: LookupArrayTuple
 
 using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
@@ -57,7 +57,7 @@ export AbstractRasterSeries, RasterSeries
 export Projected, Mapped
 export Band
 export missingval, boolmask, missingmask, replace_missing, replace_missing!,
-       aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!, 
+       aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!,
        resample, warp, zonal, crop, extend, trim, slice, combine, points,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
        coverage, coverage!, setcrs, setmappedcrs, smapseries, cellsize
@@ -85,6 +85,9 @@ const EXPERIMENTAL = """
     not be 100% reliable in all cases. Please file github issues if problems occur.
     """
 
+const DEFAULT_POINT_ORDER = (X(), Y())
+const DEFAULT_TABLE_DIM_KEYS = (:X, :Y)
+
 include("lookup.jl")
 include("dimensions.jl")
 include("filearray.jl")
@@ -100,7 +103,7 @@ const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}
 include("sources/sources.jl")
 include("utils.jl")
 include("skipmissing.jl")
-include("polygon_ops.jl")
+
 include("table_ops.jl")
 include("create.jl")
 include("read.jl")
@@ -109,6 +112,13 @@ include("show.jl")
 include("plotrecipes.jl")
 include("sectorlock.jl")
 
+include("methods/burning/edges.jl")
+include("methods/burning/allocs.jl")
+include("methods/burning/array_init.jl")
+include("methods/burning/geometry.jl")
+include("methods/burning/point.jl")
+include("methods/burning/line.jl")
+include("methods/burning/polygon.jl")
 
 include("methods/shared_docstrings.jl")
 include("methods/mask.jl")
