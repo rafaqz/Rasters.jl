@@ -68,3 +68,5 @@ function _forward_ordered(B)
         end
     end
 end
+
+_nthreads() = Threads.nthreads()

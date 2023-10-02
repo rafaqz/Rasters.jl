@@ -11,7 +11,7 @@ function Allocs(buffer)
     return Allocs(buffer, edges, scratch, crossings)
 end
 
-function _burning_allocs(x; nthreads=Threads.nthreads(), threaded=true, kw...) 
+function _burning_allocs(x; nthreads=_nthreads(), threaded=true, kw...) 
     dims = commondims(x, DEFAULT_POINT_ORDER)
     if threaded
         [Allocs(_init_bools(dims; metadata=Metadata())) for _ in 1:nthreads]
