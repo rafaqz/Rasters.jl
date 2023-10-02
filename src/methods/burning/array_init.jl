@@ -55,6 +55,9 @@ function _prepare_for_burning(B, locus=Center())
     return setdims(B1, start_dims)
 end
 
+# Convert to Array if its not one already
+_lookup_as_array(d::Dimension) = parent(lookup(d)) isa Array ? d : modify(Array, d) 
+
 function _forward_ordered(B)
     reduce(dims(B); init=B) do A, d
         if DD.order(d) isa ReverseOrdered
