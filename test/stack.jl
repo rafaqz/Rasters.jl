@@ -90,7 +90,8 @@ end
         @test s[:ga2] == data2[:, 5:7, 1]
         @test dims(s[:ga2]) == (X(Sampled(10.0:10.0:100.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
                                 Y(Sampled(-10.0:10.0:10.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())))
-        @test refdims(s[:ga2]) == (Ti(Sampled([DateTime(2019)], ForwardOrdered(), Irregular(nothing, nothing), Points(), NoMetadata())),)
+        @test refdims(s[:ga2]) == 
+            (Ti(Sampled([DateTime(2019)], ForwardOrdered(), Irregular((DateTime(2019), DateTime(2019))), Points(), NoMetadata())),)
         @test ismissing(missingval(s, :ga2)) && ismissing(missingval(s[:ga2]))
     end
 
@@ -103,7 +104,8 @@ end
         @test sv[:ga2] == data2[:, 6:8, 1]
         @test dims(sv.ga2) == (X(Sampled(10.0:10:100.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
                                Y(Sampled(0.0:10:20.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())))
-        @test refdims(sv[:ga2])[1] == Ti(Sampled(view([DateTime(2019)], 1:1), ForwardOrdered(), Irregular((nothing, nothing)), Points(), NoMetadata()))
+        @test refdims(sv[:ga2])[1] == 
+            Ti(Sampled(view([DateTime(2019)], 1:1), ForwardOrdered(), Irregular((DateTime(2019), DateTime(2019))), Points(), NoMetadata()))
         # Stack of view-based Rasters
         v = view(st, X(2:4), Y(5:6))
         # @inferred view(st, X(2:4), Y(5:6))
@@ -130,7 +132,7 @@ end
     dims2b = (dims1b..., Ti([DateTime(2019)]))
     stack_a = RasterStack((ga1=ga1, ga2=ga2))
     stack_b = RasterStack((ga1=Raster(data1 .+ 10, dims1b), ga2=Raster(data2 .+ 20, dims2b)))
-    catstack = cat(stack_a, stack_b; dims=X())
+    catstack = cat(stack_a, stack_b; dims=X)
     @test size(first(catstack)) == (20, 11)
     @test size(last(catstack)) == (20, 11, 1)
     @test val(dims(catstack, X)) ≈ 10.0:10.0:200.0
@@ -140,7 +142,7 @@ end
     @test catstack[:ga2][Y(1), Ti(1)] == 2.0:2.0:40.0
     dims2c = (dims1b..., Ti([DateTime(2019)]))
     stack_c = set(stack_b, X=>110:10:200, Y=>60:10:160)
-    catstack = cat(stack_a, stack_c; dims=(X(), Y()))
+    catstack = cat(stack_a, stack_c; dims=(X, Y))
     @test size(first(catstack)) == (20, 22)
     @test size(last(catstack)) == (20, 22, 1)
     @test dims(catstack) == 
