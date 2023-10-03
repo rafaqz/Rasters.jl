@@ -1,7 +1,16 @@
+# TODO use rasterize_points for this instead
 
 # _fill_point!
 # Fill a raster with `fill` where points are inside raster pixels
 @noinline _fill_point!(x::RasterStackOrArray, geom; kw...) = _fill_point!(x, GI.geomtrait(geom), geom; kw...)
+@noinline function _fill_point!(x::RasterStackOrArray, ::GI.GeometryCollectionTrait, geom; kw...)
+    _without_mapped_crs(x) do x1
+        for geom in GI.getgeom(geom)
+            _fill_point!(x, geom; kw...)
+        end
+    end
+    return true
+end
 @noinline function _fill_point!(x::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom; kw...)
     # Just find which pixels contain the points, and set them to true
     _without_mapped_crs(x) do x1

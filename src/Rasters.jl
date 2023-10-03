@@ -119,6 +119,8 @@ include("methods/burning/geometry.jl")
 include("methods/burning/point.jl")
 include("methods/burning/line.jl")
 include("methods/burning/polygon.jl")
+include("methods/burning/extents.jl")
+include("methods/burning/utils.jl")
 
 include("methods/shared_docstrings.jl")
 include("methods/mask.jl")
