@@ -632,11 +632,29 @@ function _rasterize_points!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Raster
     fill1 =_iterable_fill(points, fill)
     _rasterize_points!(A, nothing, points, fill1, r)
 end
+function _rasterize_points!(A, ::GI.GeometryCollectionTrait, collection, fill, r::Rasterizer)
+    # TODO How to handle fill when there is another level of nesting
+    hasburned = false
+    for geom in _getgeom(collection)
+        hasburned |= _rasterize_points!(A, geom, fill, r)
+    end
+    return hasburned
+end
 function _rasterize_points!(A, ::Nothing, geoms, fillitr, r::Rasterizer)
     (; reducer, op, missingval, init) = r
     t1 = GI.trait(first(skipmissing(geoms)))
     hasburned = false
-    if !(t1 isa GI.PointTrait)
+    if t1 isa GI.PointTrait
+        # Get extent information to properly shift the points
+        # to the region of the array during rounding
+        ext = Extents.extent(A)
+        xrange = ext.X[2] - ext.X[1]
+        yrange = ext.Y[2] - ext.Y[1]
+        xsize = size(A, X)
+        ysize = size(A, Y)
+        s = (; ext, xrange, yrange, xsize, ysize)
+        return _rasterize_points_inner!(A, geoms, fillitr, s, reducer, op, missingval, init)
+    else
         # Recurse down until we hit points
         if r.fillitr isa Function
             for geom in _getgeom(geoms)
@@ -656,15 +674,6 @@ function _rasterize_points!(A, ::Nothing, geoms, fillitr, r::Rasterizer)
         end
         return hasburned
     end
-    # Get extent information to properly shift the points
-    # to the region of the array during rounding
-    ext = Extents.extent(A)
-    xrange = ext.X[2] - ext.X[1]
-    yrange = ext.Y[2] - ext.Y[1]
-    xsize = size(A, X)
-    ysize = size(A, Y)
-    s = (; ext, xrange, yrange, xsize, ysize)
-    _rasterize_points_inner!(A, geoms, fillitr, s, reducer, op, missingval, init)
 end
 
 @noinline function _rasterize_points_inner!(A, geoms, fillitr::F, s, reducer::R, op::O, missingval, init)::Bool where {F,O,R}
