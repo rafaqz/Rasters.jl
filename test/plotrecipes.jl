@@ -1,4 +1,4 @@
-using Rasters, Test, Dates, Plots, ColorTypes
+using Rasters, Test, Dates, Plots, ColorTypes, MakieCore
 
 ga2 = Raster(ones(91) * (-25:15)', (X(0.0:4.0:360.0), Y(-25.0:1.0:15.0), ); name=:Test)
 ga3 = Raster(rand(10, 41, 91), (Z(100:100:1000), Y(-20.0:1.0:20.0), X(0.0:4.0:360.0)))
@@ -47,19 +47,22 @@ plot(c)
 plot(RasterSeries([ga2, ga2, ga2], Z))
 plot(RasterSeries([ga2 for _ in 1:100], Ti([DateTime(i) for i in 2001:2100])))
 
+#########################
+# Makie
 xs = 0.0:4.0:360.0
 ys = -20.0:1.0:20.0
 rast = Raster(rand(X(xs), Y(ys)))
 
-@test Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurface(), rast) == 
-    (Rasters._lookup_edges(lookup(rast, X)), Rasters._lookup_edges(lookup(rast, Y)), Float32.(rast.data))
+# Some small diversions from the DimensionalData.jl recipes
+@test MakieCore.convert_arguments(MakieCore.DiscreteSurface(), rast) == 
+    (lookup(rast, X), lookup(rast, Y), Float32.(rast.data))
 # test true 3d rasters just show the first slice
 true_3d_raster = Raster(rand(X(0.0:4.0:360.0), Y(-20.0:1.0:20.0), Ti(1:10)))
-@test Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurface(), true_3d_raster) ==
-    (Rasters._lookup_edges(lookup(true_3d_raster, X)), Rasters._lookup_edges(lookup(true_3d_raster, Y)), Float32.(true_3d_raster[:, :, 1]))
+@test MakieCore.convert_arguments(MakieCore.DiscreteSurface(), true_3d_raster) ==
+    (lookup(true_3d_raster, X), lookup(true_3d_raster, Y), Float32.(true_3d_raster[:, :, 1]))
 # test that singleton 3d dimensions work
 singleton_3d_raster = Raster(rand(X(0.0:4.0:360.0), Y(-20.0:1.0:20.0), Ti(1)))
-converted = Rasters.MakieCore.convert_arguments(Rasters.MakieCore.DiscreteSurface(), singleton_3d_raster) 
+converted = MakieCore.convert_arguments(MakieCore.DiscreteSurface(), singleton_3d_raster) 
 @test length(converted) == 3
 @test all(collect(converted[end] .== Float32.(singleton_3d_raster.data[:, :, 1]))) # remove if we want to handle 3d rasters with a singleton dimension
 

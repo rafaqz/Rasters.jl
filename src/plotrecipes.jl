@@ -240,52 +240,9 @@ function rplot(args...)
     @error("Please load `Makie.jl` and then call this function. If Makie is loaded, then you can't call `rplot` with no arguments!")
 end
 
-# define the theme
-
-# this function is defined so that we can override style_rasters in RastersMakieExt
-function style_rasters end
-
-function color_rasters()
-    return MakieCore.Attributes(
-        colormap = :plasma,
-    )
-end
-
-function theme_rasters()
-    return merge(style_rasters(), color_rasters())
-end
-
-
 ##################################################################################
 # Utils
 
-_missing_or_float32(num::Number) = Float32(num)
-_missing_or_float32(::Missing) = missing
-
-function _lookup_edges(l::LookupArray)
-    l = if l isa AbstractSampled 
-        set(l, Intervals())
-    else
-        set(l, Sampled(; sampling=Intervals()))
-    end
-    if l == 1
-        return [bounds(l)...]
-    else
-        ib = intervalbounds(l)
-        if order(l) isa ForwardOrdered
-            edges = first.(ib)
-            push!(edges, last(last(ib)))
-        else
-            edges = last.(ib)
-            push!(edges, first(last(ib)))
-        end
-        return edges
-    end
-end
-
-
-_prepare_makie(A) = 
-    _missing_or_float32.(replace_missing(A; missingval=NaN32)) |> read |> _reorder
 # Plots.jl heatmaps pixels are centered.
 # So we should center the index, and use the projected value.
 _prepare_plots(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
@@ -356,9 +313,4 @@ function _maybe_thin_plots(A::AbstractRasterSeries)
     else
         return A, collect(eachindex(A)), nplots
     end
-end
-
-function _series_dim(A)
-    spatialdims = (X(), Y(), Z())
-    last((dims(A, spatialdims)..., otherdims(A, spatialdims)...))
 end
