@@ -208,9 +208,11 @@ The array returned from calling `boolmask` on a `AbstractRaster` is a
 
 - `missingval`: The missing value of the source array, with default `missingval(raster)`.
 
-# Geometry keywords
+# Keywords
 
 $GEOM_KEYWORDS
+$THREADED_KEYWORD
+$PROGRESS_KEYWORD
 
 And specifically for `shape=:polygon`:
 
@@ -264,7 +266,7 @@ function boolmask!(dest::AbstractRaster, src::AbstractRaster;
     end
 end
 function boolmask!(dest::AbstractRaster, geoms;
-    allocs=nothing, lock=nothing, progress=true, threaded=true, kw...
+    allocs=nothing, lock=nothing, progress=true, threaded=false, kw...
 )
     if isnothing(allocs)
         allocs = _burning_allocs(dest; threaded)

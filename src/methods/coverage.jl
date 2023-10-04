@@ -24,6 +24,7 @@ const COVERAGE_KEYWORDS = """
     10 x 10 or 100 points that contribute to coverage. Using `100` means 10,000 points
     contribute. Performance will decline as `scale` increases. Memory use will grow 
     by `scale^2` when `mode=:union`.
+$THREADED_KEYWORD
 $PROGRESS_KEYWORD
 $VERBOSE_KEYWORD
 """
@@ -116,7 +117,7 @@ end
 
 # Combines coverage at the sub-pixel level for a final value 0-1
 function _union_coverage!(A::AbstractRaster, geoms, buffers; 
-    scale, subpixel_dims, progress=true, threaded=true
+    scale, subpixel_dims, progress=true, threaded=false
 )
     n = _nthreads()
     centeracc = [_init_bools(A, BitArray; missingval=false) for _ in 1:n]
@@ -251,7 +252,7 @@ end
 
 # Sums all coverage 
 function _sum_coverage!(A::AbstractRaster, geoms, buffers; 
-    scale, subpixel_dims, verbose=true, progress=true, threaded=true
+    scale, subpixel_dims, verbose=true, progress=true, threaded=false
 )
     n = _nthreads()
     coveragebuffers = [fill!(similar(A), 0.0) for _ in 1:n]

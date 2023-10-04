@@ -93,7 +93,7 @@ function Rasterizer(geom, fill, fillitr;
     filename=nothing,
     verbose=true,
     progress=true,
-    threaded=true,
+    threaded=false,
     kw...
 )
     # A single geometry does not need a reducing function 
@@ -323,7 +323,7 @@ const RASTERIZE_KEYWORDS = """
 - `progress`: show a progress bar, `true` by default, `false` to hide..
 - `verbose`: print information and warnings whne there are problems with the rasterisation.
     `true` by default.
-- `threaded`: run operations in parallel. `true` by default.
+$THREADED_KEYWORD
 """
 
 const RASTERIZE_ARGUMENTS = """
