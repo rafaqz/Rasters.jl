@@ -275,8 +275,7 @@ gdalpath = maybedownload(url)
         end
 
         @testset "3d, with subsetting" begin
-            geoA2 = cat(gdalarray, gdalarray; dims=Band(1:2))[Y(4.224e6..4.226e6), X(-28492..0)]
-            geoA2 = set(geoA2, Band => Band(1:2))
+            geoA2 = cat(gdalarray, gdalarray; dims=Band(Categorical(1:2)))[Y(4.224e6..4.226e6), X(-28492..0)]
             filename2 = tempname() * ".tif"
             write(filename2, geoA2)
             saved2 = read(Raster(filename2; name=:test))
