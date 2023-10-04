@@ -245,14 +245,14 @@ function boolmask end
 boolmask(series::AbstractRasterSeries; kw...) = boolmask(first(series); kw...)
 boolmask(stack::AbstractRasterStack; kw...) = boolmask(first(stack); kw...)
 function boolmask(source::AbstractRaster; kw...)
-    dest = _init_bools(source, Bool, nothing; kw..., missingval=false)
+    dest = _init_bools(source, BitArray, nothing; kw..., missingval=false)
     return boolmask!(dest, source; kw...)
 end
 function boolmask(x; to=nothing, kw...)
     if to isa Union{AbstractDimArray,AbstractDimStack,DimTuple}
         to = dims(to, DEFAULT_POINT_ORDER)
     end
-    A = _init_bools(to, Bool, x; kw..., missingval=false)
+    A = _init_bools(to, BitArray, x; kw..., missingval=false)
     return boolmask!(A, x; kw...)
 end
 
@@ -322,11 +322,11 @@ $EXPERIMENTAL
 missingmask(series::AbstractRasterSeries; kw...) = missingmask(first(series); kw...)
 missingmask(stack::AbstractRasterStack; kw...) = missingmask(first(stack); kw...)
 function missingmask(source::AbstractRaster; kw...)
-    dest = _init_bools(source, Union{Missing,Bool}, nothing; kw..., missingval=missing)
+    dest = _init_bools(source, Array{Union{Missing,Bool}}, nothing; kw..., missingval=missing)
     return missingmask!(dest, source; kw...)
 end
 function missingmask(x; to=nothing, kw...)
-    B = _init_bools(to, Union{Missing,Bool}, x; kw..., missingval=missing)
+    B = _init_bools(to, Array{Union{Missing,Bool}}, x; kw..., missingval=missing)
     return missingmask!(B, x; kw...)
 end
 

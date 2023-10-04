@@ -569,7 +569,7 @@ function _rasterize!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer; a
         V = view(A, Touches(ext))
         length(V) > 0 || return false
 
-        bools = _init_bools(commondims(V, DEFAULT_POINT_ORDER), Bool; metadata=metadata(A))
+        bools = _init_bools(commondims(V, DEFAULT_POINT_ORDER), BitArray; metadata=metadata(A))
         boolmask!(bools, geom; allocs, lock, shape, boundary, verbose, progress)
         hasburned = any(bools)
         if hasburned
@@ -584,9 +584,9 @@ end
 # Fill points
 function _rasterize!(A, trait::GI.AbstractPointTrait, point, fill, r::Rasterizer; allocs=nothing)
     # Avoid race conditions whern Point is in a mixed set of Geometries
-    # isnothing(r.lock) || Base.lock(r.lock, A)
+    isnothing(r.lock) || Base.lock(r.lock, A)
     hasburned = _fill_point!(A, trait, point; fill, r.lock)
-    # isnothing(r.lock) || Base.unlock(r.lock)
+    isnothing(r.lock) || Base.unlock(r.lock)
     # for all points we avoid parallel rasterization completely - this method should not be hit often
     return hasburned
 end

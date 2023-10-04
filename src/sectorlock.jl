@@ -38,11 +38,11 @@ function Base.lock(sl::SectorLocks, A::Raster)
         return Base.lock(sl, parent(A))
     end
 end
-# Base.lock(sl::SectorLocks, sector::SubArray) = Base.lock(sl, CartesianIndices(_unitranges(sector.indices...))) 
 # Base.lock(sl::SectorLocks, sector::DiskArrays.SubDiskArray) = Base.lock(sl, sector.v)
-Base.lock(sl::SectorLocks, sector::Tuple) = Base.lock(sl, CartesianIndices(sector)) 
+Base.lock(sl::SectorLocks, sector::SubArray) = Base.lock(sl, CartesianIndices(_unitranges(sector.indices...))) 
+Base.lock(sl::SectorLocks, sector::Tuple) = Base.lock(sl, CartesianIndices(sector))
 Base.lock(sl::SectorLocks, sector::AbstractArray) = Base.lock(sl, CartesianIndices(sector))
-function Base.lock(seclocks::SectorLocks, sector::CartesianIndices)
+function Base.lock(seclocks::SectorLocks, sector::CartesianIndices; grouping=1)
     idx = Threads.threadid()
     thread_lock = seclocks.seclocks[idx]
     thread_lock.sector = sector

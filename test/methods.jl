@@ -65,13 +65,13 @@ end
 
 @testset "boolmask" begin
     @test boolmask(ga) == [false true; true false]
-    @test parent(boolmask(ga)) isa Matrix{Bool}
+    @test parent(boolmask(ga)) isa BitMatrix
     @test boolmask(ga99) == [false true; true false]
     @test boolmask(gaNaN) == [false true; true false]
     @test dims(boolmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
     x = boolmask(polygon; res=1.0) 
     @test x == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
-    @test parent(x) isa Matrix{Bool}
+    @test parent(x) isa BitMatrix
     # With a :geometry axis
     x = boolmask([polygon, polygon]; collapse=false, res=1.0)
     @test eltype(x) == Bool
@@ -81,7 +81,7 @@ end
     x = boolmask([polygon, polygon]; collapse=true, res=1.0)
     @test size(x) == (20, 20)
     @test sum(x) == 400
-    @test parent(x) isa Matrix{Bool}
+    @test parent(x) isa BitMatrix
 end
 
 @testset "missingmask" begin
