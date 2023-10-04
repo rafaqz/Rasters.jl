@@ -1,4 +1,4 @@
-using Rasters, Test, Dates, Plots, ColorTypes, MakieCore
+using Rasters, Test, Dates, Plots, ColorTypes, Makie
 
 ga2 = Raster(ones(91) * (-25:15)', (X(0.0:4.0:360.0), Y(-25.0:1.0:15.0), ); name=:Test)
 ga3 = Raster(rand(10, 41, 91), (Z(100:100:1000), Y(-20.0:1.0:20.0), X(0.0:4.0:360.0)))

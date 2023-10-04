@@ -38,7 +38,6 @@ Flatten = "0.4"
 GeoFormatTypes = "0.4"
 GeoInterface = "1"
 HDF5 = "0.14, 0.15, 0.16"
-MakieCore = "0.5, 0.6"
 Missings = "0.4, 1"
 NCDatasets = "0.10, 0.11, 0.12"
 OffsetArrays = "1"
@@ -77,7 +76,7 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "ArchGDAL", "CFTime", "CoordinateTransformations", "DataFrames", "GeometryBasics", "HDF5", "NCDatasets", "Plots", "RasterDataSources", "SafeTestsets", "Shapefile", "Statistics", "Test"]
+test = ["Aqua", "ArchGDAL", "CFTime", "CoordinateTransformations", "DataFrames", "GeometryBasics", "HDF5", "MakieCore", "NCDatasets", "Plots", "RasterDataSources", "SafeTestsets", "Shapefile", "Statistics", "Test"]
 
 [weakdeps]
 ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
