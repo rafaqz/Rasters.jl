@@ -184,11 +184,11 @@ end
     # Test mask!
     @test_throws MethodError mask!(a, with=b, missingval=missing)
     @test isequal(mask!(deepcopy(a), with=b, missingval=3.14), [1.0 3.14; 1.0 3.14]) # Test missingval = 3.14
-    @test isequal(mask!(deepcopy(a), with=b, missingval=missing), [1.0 missing; 1.0 missing]) # Test missingval = missing
     @test isequal(mask!(deepcopy(a), with=b, missingval=NaN), [1.0 NaN; 1.0 NaN]) # Test missingval = NaN
     @test isequal(mask!(deepcopy(a), with=b, missingval=NaN32), [1.0 NaN; 1.0 NaN]) # Test convert NaN32 to NaN
     @test isequal(mask!(deepcopy(a), with=b, missingval=Inf), [1.0 Inf; 1.0 Inf]) # Test missingval = Inf
     @test isequal(mask(deepcopy(c), with=d, missingval=-1.0), [1 -1; 1 -1])
+    @test_throws MethodError mask!(deepcopy(a), with=b, missingval=missing)
     @test_throws MethodError mask!(deepcopy(c), with=d, missingval=nothing)
     @test_throws InexactError mask!(deepcopy(c), with=d, missingval=NaN)
     @test_throws InexactError mask!(deepcopy(c), with=d, missingval=3.14)
