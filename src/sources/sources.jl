@@ -19,6 +19,8 @@ const SYMBOL2SOURCE = Dict(
     :smap => SMAPsource,
 )
 
+const SOURCE2SYMBOL = Dict(map(reverse, collect(pairs(SYMBOL2SOURCE))))
+
 # File extensions. GDAL is the catch-all for everything else
 const SOURCE2EXT = Dict(
     GRDsource => (".grd", ".gri"), 

@@ -10,11 +10,13 @@ B = [1.0 0.4; 2.0 missing]
 ga = Raster(A, (X, Y); missingval=missing) 
 st = RasterStack((a=A, b=B), (X, Y); missingval=(a=missing,b=missing))
 
-pointvec = [(-20.0, 30.0),
-            (-20.0, 10.0),
-            (0.0, 10.0),
-            (0.0, 30.0),
-            (-20.0, 30.0)]
+pointvec = [
+    (-20.0, 30.0),
+    (-20.0, 10.0),
+    (0.0, 10.0),
+    (0.0, 30.0),
+    (-20.0, 30.0),
+]
 vals = [1, 2, 3, 4, 5]
 polygon = ArchGDAL.createpolygon(pointvec)
 multi_polygon = ArchGDAL.createmultipolygon([[pointvec]])
@@ -23,6 +25,8 @@ multi_point = ArchGDAL.createmultipoint(pointvec)
 linestring = ArchGDAL.createlinestring(pointvec)
 multi_linestring = ArchGDAL.createmultilinestring([pointvec])
 linearring = ArchGDAL.createlinearring(pointvec)
+line_collection = GeoInterface.GeometryCollection([multi_linestring])
+poly_collection = GeoInterface.GeometryCollection([polygon])
 pointfc = map(GeoInterface.getpoint(polygon), vals) do geom, v
     (geometry=geom, val1=v, val2=2.0f0v)
 end
@@ -42,13 +46,17 @@ st = RasterStack((A1, copy(A1)))
     geom = polygon
     geom = linearring
     geom = pointvec
+    geom = line_collection
+    geom = poly_collection
     
-    for A in (A1, A2), geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table)
+    for A in (A1, A2), geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table, line_collection, poly_collection)
         fill!(A, 0)
         rasterize!(sum, A, geom; shape=:point, fill=1);
         @test sum(A) == 5.0
+        @test sum(rasterize(sum, geom; to=A, shape=:point, fill=1, missingval=0)) == 5.0
         rasterize!(last, A, geom; shape=:point, fill=1);
         @test sum(A) == 4.0
+        @test sum(rasterize(last, geom; to=A, shape=:point, fill=1, missingval=0)) == 4.0
         fill!(A, 0)
         if !Tables.istable(geom)
             rasterize!(count, A, [geom, geom]; shape=:point)
@@ -57,28 +65,35 @@ st = RasterStack((A1, copy(A1)))
         end
     end
     geom = multi_point
-    for A in (A1, A2), geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon)
+    for A in (A1, A2), geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection, poly_collection)
+        rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3))
         st.layer1 .= st.layer2 .= 0
         rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3))
-        @test sum(st[:layer1]) == 10
-        @test sum(st[:layer2]) == 15
-        @test parent(st[:layer1]) isa Array{Float64,2}
+        @test sum(st.layer1) == 10
+        @test sum(st.layer2) == 15
+        @test parent(st.layer1) isa Array{Float64,2}
+        st.layer1 .= 0; st.layer2 .= 0
+        rasterize!(last, st, geom; shape=:point, fill=(layer1=2, layer2=3))
+        @test sum(st.layer1) == 8
+        @test sum(st.layer2) == 12
+        st.layer1 .= 0; st.layer2 .= 0
+        rasterize!(first, st, geom; shape=:point, fill=(layer1=2, layer2=3))
+        @test sum(st.layer1) == 8
+        @test sum(st.layer2) == 12
+        st.layer1 .= 0; st.layer2 .= 0
+    end
+
+
+    for A in (A1, A2), geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon)
         st[:layer1] .= 0; st[:layer2] .= 0
         rasterize!(sum, st, geom; shape=:point, fill=(layer1=1:5, layer2=6:10))
         @test sum(st[:layer1]) == sum(1:5)
         @test sum(st[:layer2]) == sum(6:10)
         @test parent(st[:layer1]) isa Array{Float64,2}
         st[:layer1] .= 0; st[:layer2] .= 0
-        rasterize!(last, st, geom; shape=:point, fill=(layer1=2, layer2=3))
-        @test sum(st[:layer1]) == 8
-        @test sum(st[:layer2]) == 12
         rasterize!(last, st, geom; shape=:point, fill=(layer1=1:5, layer2=6:10))
         @test sum(st[:layer1]) == sum(2:5)
         @test sum(st[:layer2]) == sum(7:10)
-        st[:layer1] .= 0; st[:layer2] .= 0
-        rasterize!(first, st, geom; shape=:point, fill=(layer1=2, layer2=3))
-        @test sum(st[:layer1]) == 8
-        @test sum(st[:layer2]) == 12
         st[:layer1] .= 0; st[:layer2] .= 0
         rasterize!(first, st, geom; shape=:point, fill=(layer1=1:5, layer2=6:10))
         @test sum(st[:layer1]) == sum(1:4)
@@ -91,16 +106,19 @@ end
 @testset "all line and polygon geoms work as :line" begin
     A = A1
     geom = linestring
-    for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon)
+    geom = line_collection
+    for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection, poly_collection)
         A .= 0
         rasterize!(sum, A, geom; shape=:line, fill=1)
         @test sum(A) == 20 + 20 + 20 + 20
+        @test sum(rasterize(sum, geom; to=A, shape=:line, fill=1, missingval=0)) == 80
     end
     @testset ":line is detected for line geometries" begin
         for A in (A1, A2), geom in (linestring, multi_linestring)
             A .= 0
             rasterize!(A, geom; fill=1)
             @test sum(A) == 20 + 20 + 20 + 20
+            @test sum(rasterize(geom; to=A, fill=1, missingval=0)) == 80
         end
     end
 end
@@ -108,29 +126,30 @@ end
 @testset "polygon geoms work as :polygon" begin
     A = A1
     poly = polygon
-    for A in (A1, A2), poly in (polygon, multi_polygon)
+    poly = poly_collection
+    for A in (A1, A2), poly in (polygon, multi_polygon, poly_collection)
         A .= 0
         ra = rasterize(last, poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center)
         ra_res = rasterize(last, poly; res=map(step, span(A)), missingval=0, shape=:polygon, fill=1, boundary=:center)
         @test parent(ra) isa Matrix{Int}
         @test sum(ra) == sum(ra_res) === 20 * 20
-        ra = rasterize(poly; to=A, shape=:polygon, fill=1, boundary=:touches)
+        ra = rasterize(last, poly; to=A, shape=:polygon, fill=1, boundary=:touches)
         @test parent(ra) isa Array{Union{Missing,Int},2}
         @test sum(skipmissing(ra)) === 21 * 21
-        rasterize!(A, poly; shape=:polygon, fill=1, boundary=:inside)
+        rasterize!(last, A, poly; shape=:polygon, fill=1, boundary=:inside)
         @test sum(A) === 19.0 * 19.0
         A .= 0
 
         @testset "polygon is detected for polygon geometries" begin
             A = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
-            R = rasterize(poly; to=A, fill=1)
+            R = rasterize(last, poly; to=A, fill=1)
             @test parent(R) isa Array{}
             @test sum(skipmissing(R)) == 20 * 20
             @test_throws ArgumentError rasterize!(A, poly; shape=:notashape, fill=1)
             @test_throws ArgumentError rasterize!(A, poly; shape=:polygon, fill=1, boundary=:notaboundary)
         end
 
-        st1 = rasterize(poly; fill=(layer1=1, layer2=2), to=st)
+        st1 = rasterize(last, poly; fill=(layer1=1, layer2=2), to=st)
         @test sum(skipmissing(st1[:layer1])) == 400 # The last value overwrites the first
         @test sum(skipmissing(st1[:layer2])) == 800
         # Missing size / res
@@ -413,6 +432,18 @@ end
     @test sum(A3) == 1200
 end
 
+@testset "Rasterize an empty polygon" begin
+    empty_polygon = ArchGDAL.createpolygon(Tuple{Float64,Float64}[])
+    rast = rasterize(empty_polygon; to=A1, fill=1, missingval=0)
+    @test sum(rast) == 0
+end
+
+@testset "Cant rasterize to a new empty array" begin
+    # Its difficult to make a new empty raster here (we possibly could in future?)
+    @test_throws ArgumentError rasterize(polygon; to=A1[1:0, 1:0], fill=1, missingval=0)
+    # But we just warn in `rasterize!` because the result is still correct
+    @test_warn "Destination is empty" rasterize!(A1[1:0, 1:0], polygon; to=A1[1:0, 1:0], fill=1, missingval=0)
+end
 
 @testset "coverage" begin
     @time covsum = coverage(sum, shphandle.shapes; res=1, scale=10)

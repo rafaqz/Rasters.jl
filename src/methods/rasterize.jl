@@ -182,6 +182,9 @@ function Rasterizer(::GI.AbstractFeatureTrait, feature; fill, kw...)
     # fillval = _featurefillval(feature, fill)
     Rasterizer(GI.geometry(feature), fill, fillitr; kw...)
 end
+function Rasterizer(::GI.GeometryCollectionTrait, collection; kw...)
+    Rasterizer(collect(GI.getgeom(collection)); kw...)
+end
 function Rasterizer(::Nothing, geoms; fill, kw...)
     fillitr = _iterable_fill(geoms, fill)
     Rasterizer(geoms, fill, fillitr; kw...)
@@ -460,6 +463,9 @@ function alloc_rasterize(f, r::RasterCreator;
     metadata=r.metadata,
     suffix=r.suffix,
 )
+    if prod(size(r.to)) == 0  
+        throw(ArgumentError("Destination array is is empty, with size $(size(r.to))). Rasterization is not possible"))
+    end
     A = create(r.filename, eltype, r.to; name, missingval, metadata, suffix)
     # TODO f should apply to the file when it is initially created
     # instead of reopening but we need a `create(f, filename, ...)` method
@@ -536,6 +542,10 @@ function rasterize!(reducer::typeof(count), x::RasterStackOrArray, data; fill=no
     rasterize!(x::RasterStackOrArray, data; kw..., reducer=nothing, op=nothing, fill=_count_fill, init=0)
 end
 function rasterize!(x::RasterStackOrArray, data; threaded=true, kw...)
+    if prod(size(x)) == 0  
+        @warn "Destination is empty, rasterization skipped"
+        return x
+    end
     r = Rasterizer(data; eltype=eltype(x), threaded, kw...)
     allocs = r.shape == :points ? nothing : _burning_allocs(dims(x); threaded)
     return _rasterize!(x, r; allocs)
@@ -622,11 +632,29 @@ function _rasterize_points!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Raster
     fill1 =_iterable_fill(points, fill)
     _rasterize_points!(A, nothing, points, fill1, r)
 end
+function _rasterize_points!(A, ::GI.GeometryCollectionTrait, collection, fill, r::Rasterizer)
+    # TODO How to handle fill when there is another level of nesting
+    hasburned = false
+    for geom in _getgeom(collection)
+        hasburned |= _rasterize_points!(A, geom, fill, r)
+    end
+    return hasburned
+end
 function _rasterize_points!(A, ::Nothing, geoms, fillitr, r::Rasterizer)
     (; reducer, op, missingval, init) = r
     t1 = GI.trait(first(skipmissing(geoms)))
     hasburned = false
-    if !(t1 isa GI.PointTrait)
+    if t1 isa GI.PointTrait
+        # Get extent information to properly shift the points
+        # to the region of the array during rounding
+        ext = Extents.extent(A)
+        xrange = ext.X[2] - ext.X[1]
+        yrange = ext.Y[2] - ext.Y[1]
+        xsize = size(A, X)
+        ysize = size(A, Y)
+        s = (; ext, xrange, yrange, xsize, ysize)
+        return _rasterize_points_inner!(A, geoms, fillitr, s, reducer, op, missingval, init)
+    else
         # Recurse down until we hit points
         if r.fillitr isa Function
             for geom in _getgeom(geoms)
@@ -646,15 +674,6 @@ function _rasterize_points!(A, ::Nothing, geoms, fillitr, r::Rasterizer)
         end
         return hasburned
     end
-    # Get extent information to properly shift the points
-    # to the region of the array during rounding
-    ext = Extents.extent(A)
-    xrange = ext.X[2] - ext.X[1]
-    yrange = ext.Y[2] - ext.Y[1]
-    xsize = size(A, X)
-    ysize = size(A, Y)
-    s = (; ext, xrange, yrange, xsize, ysize)
-    _rasterize_points_inner!(A, geoms, fillitr, s, reducer, op, missingval, init)
 end
 
 @noinline function _rasterize_points_inner!(A, geoms, fillitr::F, s, reducer::R, op::O, missingval, init)::Bool where {F,O,R}
