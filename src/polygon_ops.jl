@@ -130,14 +130,14 @@ Base.getindex(edges::Edges, I...) = getindex(parent(edges), I...)
 Base.setindex(edges::Edges, x, I...) = setindex!(parent(edges), x, I...)
 
 @noinline function _to_edges!(edges, geom, dims, edge_count)
-    GI.npoint(geom) > 0 || return edge_count
-    xlookup, ylookup = lookup(dims, (X(), Y())) 
-    (length(xlookup) > 0 && length(ylookup) > 0) || return edge_count
-
     # Dummy Initialisation
     local firstpos = prevpos = nextpos = Position((0.0, 0.0), 0)
     isfirst = true
     local max_ylen = 0
+
+    GI.npoint(geom) > 0 || return edge_count, max_ylen
+    xlookup, ylookup = lookup(dims, (X(), Y())) 
+    (length(xlookup) > 0 && length(ylookup) > 0) || return edge_count, max_ylen
 
     # Raster properties
     starts = (Float64(first(xlookup)), Float64(first(ylookup)))
@@ -262,6 +262,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
     shape=nothing, verbose=true, boundary=:center, allocs=nothing, kw...
 )::Bool
     hasburned = false
+    GI.npoint(geom) > 0 || return false
     # Use the specified shape or detect it
     shape = shape isa Symbol ? shape : _geom_shape(geom)
     if shape === :point
