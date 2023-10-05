@@ -161,7 +161,7 @@ end
 
     # Test that missingval is replaced in source mask (Ints)
     @test isequal(mask(c, with=d, missingval=missing), [1 missing; 1 missing]) # Test missingval = missing
-    @test isequal(mask(c, with=d, missingval=-1.0), [1 -1; 1 -1]) # Test missingval = missing
+    @test isequal(mask(c, with=d, missingval=-1.0), [1 -1; 1 -1])
     @test_throws MethodError mask(c, with=d, missingval=nothing)
     @test_throws InexactError mask(c, with=d, missingval=NaN)
     @test_throws InexactError mask(c, with=d, missingval=3.14)
@@ -188,7 +188,7 @@ end
     @test isequal(mask!(deepcopy(a), with=b, missingval=NaN), [1.0 NaN; 1.0 NaN]) # Test missingval = NaN
     @test isequal(mask!(deepcopy(a), with=b, missingval=NaN32), [1.0 NaN; 1.0 NaN]) # Test convert NaN32 to NaN
     @test isequal(mask!(deepcopy(a), with=b, missingval=Inf), [1.0 Inf; 1.0 Inf]) # Test missingval = Inf
-    @test isequal(mask(deepcopy(c), with=d, missingval=-1.0), [1 -1; 1 -1]) # Test missingval = missing
+    @test isequal(mask(deepcopy(c), with=d, missingval=-1.0), [1 -1; 1 -1])
     @test_throws MethodError mask!(deepcopy(c), with=d, missingval=nothing)
     @test_throws InexactError mask!(deepcopy(c), with=d, missingval=NaN)
     @test_throws InexactError mask!(deepcopy(c), with=d, missingval=3.14)
