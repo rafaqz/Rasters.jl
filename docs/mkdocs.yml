@@ -105,7 +105,8 @@ nav:
   - "Home": "index.md"
   - "Quick start" : "scripts/generated/basics/first_raster.md"
   - "User Guide":
-    - "Data Sources" : "scripts/generated/basics/data_sources.md"
+    - "Reading" : "scripts/generated/basics/reading.md"
+    - "Writing" : "scripts/generated/basics/writing.md"
     - "Methods" : "scripts/generated/basics/methods.md"
     - "Arrays operations" : "scripts/generated/basics/array_operations.md"
     - "Examples and Plotting" : "scripts/generated/basics/plotting.md"
