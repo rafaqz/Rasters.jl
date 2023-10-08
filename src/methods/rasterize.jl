@@ -75,7 +75,7 @@ struct Rasterizer{T,G,F,R,O,I,M}
     op::O
     init::I
     missingval::M
-    lock::Union{SectorLocks,Nothing}
+    lock::Union{Threads.SpinLock,Nothing}
     shape::Symbol
     boundary::Symbol
     verbose::Bool
@@ -138,7 +138,7 @@ function Rasterizer(geom, fill, fillitr;
         @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be innaccurate for `reducer` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
     end
     eltype, missingval = get_eltype_missingval(eltype, missingval, fillitr, init, filename, op, reducer)
-    lock = threaded ? SectorLocks() : nothing
+    lock = threaded ? Threads.SpinLock() : nothing
 
     return Rasterizer(eltype, geom, fillitr, reducer, op, init, missingval, lock, shape, boundary, verbose, progress, threaded)
 end
@@ -573,7 +573,7 @@ function _rasterize!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer; a
         boolmask!(bools, geom; allocs, lock, shape, boundary, verbose, progress)
         hasburned = any(bools)
         if hasburned
-            # Avoid race conditions with a SectorLock
+            # Avoid race conditions
             isnothing(lock) || Base.lock(lock, V)
             _fill!(V, bools, fill, op, init, missingval)
             isnothing(lock) || Base.unlock(lock)
