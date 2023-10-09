@@ -166,6 +166,7 @@ function DD.layermetadata(ds::AbstractDataset)
 end
 
 missingval(var::AbstractVariable{T}) where T = missing isa T ? missing : nothing
+missingval(var::AbstractDataset) = missing
 
 function layerkeys(ds::AbstractDataset)
     dimkeys = _dimkeys(ds)

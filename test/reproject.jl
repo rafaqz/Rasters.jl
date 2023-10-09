@@ -9,10 +9,12 @@ using Rasters: reproject, convertlookup
     wkt4326 = convert(WellKnownText, EPSG(4326))
     proj4326 = convert(ProjString, EPSG(4326))
 
+
     @test reproject(proj4326, cea, Y(), -30.0) ≈ -3.658789324855012e6
     @test reproject(wktcea, EPSG(4326), Y(), -3.658789324855012e6) ≈ -30.0
     @test reproject(projcea, wkt4326, Y(), -3.658789324855012e6) ≈ -30.0
     @test reproject(cea, proj4326, Y(), [-3.658789324855012e6]) ≈ [-30.0]
+    
 
     @test reproject(proj4326, cea, X(), 180.0) ≈ 1.7367530445161372e7
     @test reproject(cea, EPSG(4326), X(), 1.7367530445161372e7) ≈ 180.0
@@ -29,6 +31,9 @@ using Rasters: reproject, convertlookup
     @test all(y .== y2)
     @test span(x2) == Regular(1.0)
     @test span(y2) == Regular(1.0)
+
+    @test_throws ArgumentError reproject(cea, EPSG(32618), Y(), [-3.658789324855012e6])
+    @test_throws ArgumentError reproject(cea, EPSG(32618), X(), [-3.658789324855012e6])
 end
 
 @testset "convertlookup" begin

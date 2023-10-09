@@ -24,8 +24,8 @@ const COVERAGE_KEYWORDS = """
     10 x 10 or 100 points that contribute to coverage. Using `100` means 10,000 points
     contribute. Performance will decline as `scale` increases. Memory use will grow 
     by `scale^2` when `mode=:union`.
-- `progress`: show a progress bar, `true` by default, `false` to hide.
-- `vebose`: whether to print messages about rasterization problems. `true` by default.
+$PROGRESS_KEYWORD
+$VERBOSE_KEYWORD
 """
 
 """

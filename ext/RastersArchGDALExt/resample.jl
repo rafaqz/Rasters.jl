@@ -1,6 +1,6 @@
 """
-	resample(x; to, size, res, method)
-    resample(xs...; to=first(xs), size, res, method)
+	resample(x; kw...)
+    resample(xs...; to=first(xs), kw...)
 
 `resample` uses `ArchGDAL.gdalwarp` to resample a [`Raster`](@ref) or
 [`RasterStack`](@ref) to a new `resolution` and optionally new `crs`,
@@ -35,6 +35,8 @@ $CRS_KEYWORD
     * `:sum`: compute the weighted sum of all non-NODATA contributing pixels (since GDAL 3.1)
 
     Where NODATA values are set to `missingval`.
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
 
 Note:
 - GDAL may cause some unexpected changes in the data, such as returning a reversed Y dimension or
@@ -52,8 +54,8 @@ B = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 a = plot(A)
 b = plot(resample(A; to=B))
 
-savefig(a, "build/resample_example_before.png");
-savefig(b, "build/resample_example_after.png"); nothing
+savefig(a, "docs/build/resample_example_before.png");
+savefig(b, "docs/build/resample_example_after.png"); nothing
 # output
 ```
 
@@ -77,8 +79,6 @@ function resample(xs::Union{Tuple,NamedTuple}; to=first(xs), kw...)
     map(x -> resample(x; to, kw...), xs)
 end
 function resample(x::RasterStackOrArray; 
-    # We need to combine the `size` and `res` keywords with 
-    # the extent in extent2dims, even if we already have dims.
     to=nothing, res=nothing, crs=nothing, size=nothing, method=:near, kw...
 )
     (isnothing(size) || isnothing(res)) || _size_and_res_error()
@@ -98,7 +98,7 @@ function resample(x::RasterStackOrArray;
             flags[:te] = [xmin, ymin, xmax, ymax]
         end
     else
-        all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` mush have both XDim and YDim dimensions to resize with GDAL"))
+        all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` must have both `XDim` and `YDim` dimensions to resize with GDAL"))
         if sampling(to, XDim) isa Points
             to = set(to, dims(to, XDim) => Intervals(Start()))
         end

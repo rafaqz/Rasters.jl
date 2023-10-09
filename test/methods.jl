@@ -142,6 +142,59 @@ end
     end
 end
 
+@testset "mask_replace_missing" begin
+    # Floating point rasters
+    a = Raster([1.0 0.0; 1.0 1.0], dims=(X, Y), missingval=0)
+    b = Raster([1.0 1.0; 1.0 0.0], dims=(X, Y), missingval=0)
+
+    # Integer rasters
+    c = Raster([1 0; 1 1], dims=(X, Y), missingval=0)
+    d = Raster([1 1; 1 0], dims=(X, Y), missingval=0)
+
+    # Test that missingval is replaced in source mask (Floats)
+    @test isequal(mask(a, with=b, missingval=3.14), [1.0 3.14; 1.0 3.14]) # Test missingval = 3.14
+    @test isequal(mask(a, with=b, missingval=missing), [1.0 missing; 1.0 missing]) # Test missingval = missing
+    @test isequal(mask(a, with=b, missingval=NaN), [1.0 NaN; 1.0 NaN]) # Test missingval = NaN
+    @test isequal(mask(a, with=b, missingval=NaN32), [1.0 NaN; 1.0 NaN]) # Test convert NaN32 to NaN
+    @test isequal(mask(a, with=b, missingval=Inf), [1.0 Inf; 1.0 Inf]) # Test missingval = Inf
+    @test_throws MethodError mask(a, with=b, missingval=nothing)
+
+    # Test that missingval is replaced in source mask (Ints)
+    @test isequal(mask(c, with=d, missingval=missing), [1 missing; 1 missing]) # Test missingval = missing
+    @test isequal(mask(c, with=d, missingval=-1.0), [1 -1; 1 -1])
+    @test_throws MethodError mask(c, with=d, missingval=nothing)
+    @test_throws InexactError mask(c, with=d, missingval=NaN)
+    @test_throws InexactError mask(c, with=d, missingval=3.14)
+    @test_throws InexactError mask(c, with=d, missingval=Inf)
+
+    # Test Type Stability
+    @test eltype(mask(a, with=b, missingval=0)) == Float64
+    @test eltype(mask(a, with=b, missingval=-1)) == Float64
+    @test eltype(mask(a, with=b, missingval=Inf32)) == Float64
+    @test eltype(mask(Float32.(a), with=b, missingval=Inf)) == Float32
+    @test eltype(mask(Float32.(a), with=b, missingval=NaN)) == Float32
+    @test eltype(mask(Float32.(a), with=b, missingval=0.0)) == Float32
+    @test eltype(mask(Float32.(a), with=b, missingval=0)) == Float32
+    @test eltype(mask(Float32.(a), with=b, missingval=-1)) == Float32
+    @test eltype(mask(c, with=d, missingval=-1.0)) == Int64
+    @test eltype(mask(c, with=d, missingval=0.0f0)) == Int64
+    @test eltype(mask(c, with=Float64.(d), missingval=-1.0)) == Int64
+    @test eltype(mask(c, with=Float64.(d), missingval=0.0f0)) == Int64
+
+    # Test mask!
+    @test_throws MethodError mask!(a, with=b, missingval=missing)
+    @test isequal(mask!(deepcopy(a), with=b, missingval=3.14), [1.0 3.14; 1.0 3.14]) # Test missingval = 3.14
+    @test isequal(mask!(deepcopy(a), with=b, missingval=NaN), [1.0 NaN; 1.0 NaN]) # Test missingval = NaN
+    @test isequal(mask!(deepcopy(a), with=b, missingval=NaN32), [1.0 NaN; 1.0 NaN]) # Test convert NaN32 to NaN
+    @test isequal(mask!(deepcopy(a), with=b, missingval=Inf), [1.0 Inf; 1.0 Inf]) # Test missingval = Inf
+    @test isequal(mask(deepcopy(c), with=d, missingval=-1.0), [1 -1; 1 -1])
+    @test_throws MethodError mask!(deepcopy(a), with=b, missingval=missing)
+    @test_throws ArgumentError mask!(deepcopy(c), with=d, missingval=nothing)
+    @test_throws InexactError mask!(deepcopy(c), with=d, missingval=NaN)
+    @test_throws InexactError mask!(deepcopy(c), with=d, missingval=3.14)
+    @test_throws InexactError mask!(deepcopy(c), with=d, missingval=Inf)
+end
+
 @testset "zonal" begin
     a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
     pointvec_empty = [(-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0)]
@@ -453,5 +506,11 @@ end
         nocrs = setcrs(cea, nothing)
         @test crs(nocrs) == nothing
         @test_warn "does not have crs" resample(nocrs; crs=output_crs, method)
+    end
+
+    @testset "resample eltype propagates" begin
+        r = Raster(rand(UInt8, X(1:10), Y(1:10)))
+        r1 = resample(r; to=r)
+        @test eltype(r1) == UInt8
     end
 end

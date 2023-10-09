@@ -1,38 +1,3 @@
-const TO_KEYWORD = """
-- `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
-    If no `to` object is provided the extent will be calculated from the geometries,
-    Additionally, when no `to` object or an `Extent` is passed for `to`, the `size`
-    or `res` keyword must also be used.
-"""
-const SIZE_KEYWORD = """
-- `size`: the size of the output array, as a `Tuple{Int,Int}` or single `Int` for a square.
-    Only required when `to` is not used or is an `Extents.Extent`, and `res` is not used.
-"""
-const RES_KEYWORD = """
-- `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
-    Only required when `to` is not used or is an `Extents.Extent`, and `size` is not used.
-"""
-const CRS_KEYWORD = """
-- `crs`: a `crs` which will be attached to the resulting raster when `to` not passed
-   or is an `Extent`. Otherwise the crs from `to` is used.
-"""
-
-const SHAPE_KEYWORDS = """
-- `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point` geometries.
-    using points or lines as polygons may have unexpected results.
-- `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
-    where the polygon `:touches` the pixel, or that are completely `:inside` the polygon.
-    The default is `:center`.
-"""
-
-const GEOM_KEYWORDS = """
-$TO_KEYWORD
-$RES_KEYWORD
-$SIZE_KEYWORD
-$CRS_KEYWORD
-$SHAPE_KEYWORDS
-"""
-
 
 """
     mask(A:AbstractRaster; with, missingval=missingval(A))
@@ -50,9 +15,8 @@ or by the shape of `with`, if `with` is a geometric object.
 - `with`: an `AbstractRaster`, or any GeoInterface.jl compatible objects
     or table. The coordinate reference system of the point must match `crs(A)`.
 - `missingval`: the missing value to use in the returned file.
-- `filename`: a filename to write to directly, useful for large files.
-- `suffix`: a string or value to append to the filename.
-    A tuple of `suffix` will be applied to stack layers. `keys(st)` are the default.
+$FILENAME_KEYWORD
+$SUFFIX_KEYWORD
 
 # Geometry keywords
 
@@ -80,19 +44,19 @@ wc_mask = resample(wc; to=awap)
 awap_masked = mask(awap; with=wc_mask)
 b = plot(awap_masked; clims=(10, 45))
 
-savefig(a, "build/mask_example_before.png");
-savefig(b, "build/mask_example_after.png"); nothing
+savefig(a, "docs/build/mask_example_before.png");
+savefig(b, "docs/build/mask_example_after.png"); nothing
 # output
 
 ```
 
 ### Before `mask`:
 
-![before mask](mask_example_before.png)
+![before mask](/build/mask_example_before.png)
 
 ### After `mask`:
 
-![after mask](mask_example_after.png)
+![after mask](/build/mask_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -112,6 +76,7 @@ end
 function _mask(A::AbstractRaster, with::AbstractRaster;
     filename=nothing, suffix=nothing, missingval=_missingval_or_missing(A), kw...
 )
+    missingval = ismissing(missingval) ? missing : convert(eltype(A), missingval)
     A1 = create(filename, A; suffix, missingval)
     open(A1; write=true) do a
         # The values array will be be written to A1 in `mask!`
@@ -169,8 +134,8 @@ wc_mask = resample(wc; to=awap)
 mask!(awap; with=wc_mask)
 b = plot(awap; clims=(10, 45))
 
-savefig(a, "build/mask_bang_example_before.png");
-savefig(b, "build/mask_bang_example_after.png"); nothing
+savefig(a, "docs/build/mask_bang_example_before.png");
+savefig(b, "docs/build/mask_bang_example_after.png"); nothing
 
 # output
 
@@ -178,11 +143,11 @@ savefig(b, "build/mask_bang_example_after.png"); nothing
 
 ### Before `mask!`:
 
-![before mask!](mask_bang_example_before.png)
+![before mask!](/build/mask_bang_example_before.png)
 
 ### After `mask!`:
 
-![after mask!](mask_bang_example_after.png)
+![after mask!](/build/mask_bang_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -204,20 +169,21 @@ function _mask!(st::RasterStack, with::AbstractRaster; kw...)
     map(A -> mask!(A; with, kw...), st)
     return st
 end
-function _mask!(A::AbstractRaster, with::AbstractRaster;
-    missingval=missingval(A), values=A
-)
+
+function _mask!(A::AbstractRaster, with::AbstractRaster; missingval=missingval(A), values=A)
     missingval isa Nothing && _nomissingerror()
     missingval = convert(eltype(A), missingval)
 
     broadcast_dims!(A, values, with) do x, w
-        if isequal(w, Rasters.missingval(with))
+        if ismissing(w) || ismissing(x)
+            return missingval
+        elseif isequal(w, Rasters.missingval(with)) || isequal(x, Rasters.missingval(values))
             missingval
         else
             convert(eltype(A), x)
         end
     end
-    return A
+    return rebuild(A, missingval=missingval)
 end
 
 _nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `missingval` keyword compatible with the type, or use `rebuild(A; missingval=somemissingval)` to set it."))
@@ -266,12 +232,12 @@ using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 boolmask(wc) |> plot
 
-savefig("build/boolmask_example.png"); nothing
+savefig("docs/build/boolmask_example.png"); nothing
 
 # output
 ```
 
-![boolmask](boolmask_example.png)
+![boolmask](/build/boolmask_example.png)
 
 $EXPERIMENTAL
 """
@@ -344,12 +310,12 @@ using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 missingmask(wc) |> plot
 
-savefig("build/missingmask_example.png"); nothing
+savefig("docs/build/missingmask_example.png"); nothing
 
 # output
 ```
 
-![missingmask](missingmask_example.png)
+![missingmask](/build/missingmask_example.png)
 
 $EXPERIMENTAL
 """
