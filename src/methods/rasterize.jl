@@ -574,7 +574,7 @@ function _rasterize!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer; a
         hasburned = any(bools)
         if hasburned
             # Avoid race conditions
-            isnothing(lock) || Base.lock(lock, V)
+            isnothing(lock) || Base.lock(lock)
             _fill!(V, bools, fill, op, init, missingval)
             isnothing(lock) || Base.unlock(lock)
         end
@@ -584,7 +584,7 @@ end
 # Fill points
 function _rasterize!(A, trait::GI.AbstractPointTrait, point, fill, r::Rasterizer; allocs=nothing)
     # Avoid race conditions whern Point is in a mixed set of Geometries
-    isnothing(r.lock) || Base.lock(r.lock, A)
+    isnothing(r.lock) || Base.lock(r.lock)
     hasburned = _fill_point!(A, trait, point; fill, r.lock)
     isnothing(r.lock) || Base.unlock(r.lock)
     # for all points we avoid parallel rasterization completely - this method should not be hit often
