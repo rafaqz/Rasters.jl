@@ -8,7 +8,6 @@ end
 
 using Rasters.DimensionalData
 using Rasters.Dimensions
-using Rasters.MakieCore
 
 include("plotrecipes.jl")
 

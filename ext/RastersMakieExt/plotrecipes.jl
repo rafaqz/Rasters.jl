@@ -1,23 +1,6 @@
 
 const HIDE_DEC = (; label=true, grid=false, minorgrid=false, minorticks=false)
 
-function Rasters.style_rasters()
-    MakieCore.Attributes(
-        Axis=(
-            xtickalign=1.0,
-            ytickalign=1.0,
-            xticklabelrotation=-π/4,
-            xticklabelsize=14,
-            yticklabelsize=14,
-            aspect=DataAspect(),
-        ),
-        Colorbar=(
-            ticklabelsize=11,
-            tickalign=1.0,
-        ),
-    )
-end
-
 function lift_layer(r::Observable, inds...)
     return lift(lift_layer, r, inds...)
 end
@@ -288,4 +271,37 @@ function Rasters.rplot(raster::Union{RasterStack,Observable{<:RasterStack}};
     #     Label(layout[0, 1:Makie.ncols(layout)], raster_title; fontsize = get(figure.scene.attributes, (:Axis :titlesize), 16), font = get(figure.scene.attributes, (:Axis, :titlefont), :bold))
     # end
     return figure
+end
+
+
+# Some small diversions from the DimensionalData.jl recipes
+# So 3d plots and series just plot as a single heatmap by default.
+# TODO: `plot` should call `rplot`
+
+# 3d rasters are a little more complicated - if dim3 is a singleton, then heatmap, otherwise volume
+function Makie.plottype(raster::AbstractRaster{<:Union{Missing,Real},3})
+    if size(raster, 3) == 1
+        Makie.Heatmap
+    else
+        Makie.Volume
+    end
+end
+# allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
+function Makie.convert_arguments(x::Makie.ConversionTrait, raster::AbstractRaster{<:Union{Real,Missing},3})
+    D = _series_dim(raster)
+    nplots = size(raster, D)
+    if nplots > 1
+        # Plot as a RasterSeries
+        return Makie.convert_arguments(x, slice(raster, D))
+    else
+        return Makie.convert_arguments(x, view(raster, rebuild(D, 1)))
+    end
+end
+function Makie.convert_arguments(x::Makie.ConversionTrait, series::AbstractRasterSeries)
+    return Makie.convert_arguments(x, first(series))
+end
+
+function _series_dim(A)
+    spatialdims = (X(), Y(), Z())
+    last((dims(A, spatialdims)..., otherdims(A, spatialdims)...))
 end

@@ -234,155 +234,15 @@ end
 
 ##################################################################################
 # Makie.jl recipes
-
-# For now, these are just basic conversions from 2D rasters to surface-like (surface, heatmap) plot types.
-# Once Makie supports figure level recipes, we should integrate those.
-
-# First, define default plot types for Rasters
-MakieCore.plottype(raster::AbstractRaster{<:Union{Missing,Real},1}) = MakieCore.Lines
-MakieCore.plottype(raster::AbstractRaster{<:Union{Missing,Real},2}) = MakieCore.Heatmap
-# 3d rasters are a little more complicated - if dim3 is a singleton, then heatmap, otherwise volume
-function MakieCore.plottype(raster::AbstractRaster{<:Union{Missing,Real},3})
-    if size(raster, 3) == 1
-        MakieCore.Heatmap
-    else
-        MakieCore.Volume
-    end
-end
-# plot rasters of ColorTypes as images
-# define the correct plottype
-MakieCore.plottype(::AbstractRaster{<:ColorTypes.Colorant,2}) = MakieCore.Image
-
-# then, define how they are to be converted to plottable data
-function MakieCore.convert_arguments(PB::MakieCore.PointBased, raster::AbstractRaster{<:Union{Real,Missing},1})
-    A = _prepare_makie(raster, ds)
-    return MakieCore.convert_arguments(PB, A, index(ds))
-end
-# allow 3d rasters to be plotted as volumes
-function MakieCore.convert_arguments(
-    ::MakieCore.VolumeLike, raster::AbstractRaster{<:Union{Real,Missing},3,<:Tuple{D1,D2,D3}}
-) where {D1<:SpatialDim,D2<:SpatialDim,D3<:SpatialDim}
-    A = _prepare_makie(raster)
-    xs, ys, zs = lookup(A)
-    return (xs, ys, zs, parent(A))
-end
-# allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
-function MakieCore.convert_arguments(x::MakieCore.ConversionTrait, raster::AbstractRaster{<:Union{Real,Missing},3})
-    D = _series_dim(raster)
-    nplots = size(raster, D)
-    if nplots > 1
-        # Plot as a RasterSeries
-        return MakieCore.convert_arguments(x, slice(raster, D))
-    else
-        return MakieCore.convert_arguments(x, view(raster, rebuild(D, 1)))
-    end
-end
-function MakieCore.convert_arguments(
-    ::MakieCore.SurfaceLike, raster::AbstractRaster{<:Union{Missing,Real},2,<:Tuple{D1,D2}}
-) where {D1<:SpatialDim,D2<:SpatialDim}
-    A = _prepare_makie(raster)
-    xs, ys = lookup(A)
-    return (xs, ys, parent(A))
-end
-function MakieCore.convert_arguments(
-    ::MakieCore.SurfaceLike, raster::AbstractRaster{<:ColorTypes.Colorant,2,<:Tuple{D1,D2}}
-) where {D1<:SpatialDim,D2<:SpatialDim}
-    A = _prepare_makie(raster)
-    x, y = dims(A)
-    xs, ys, vs = DD._withaxes(x, y, A)
-    return (xs, ys, parent(vs))
-end
-function MakieCore.convert_arguments(
-    ::MakieCore.DiscreteSurface, raster::AbstractRaster{<:Union{Missing,Real},2,<:Tuple{D1,D2}}
-) where {D1<:SpatialDim,D2<:SpatialDim}
-    A = _prepare_makie(raster)
-    xs, ys = map(_lookup_edges, lookup(A))
-    return (xs, ys, parent(A))
-end
-function MakieCore.convert_arguments(
-    ::MakieCore.DiscreteSurface,raster::AbstractRaster{<:ColorTypes.Colorant,2,<:Tuple{D1,D2}}
-) where {D1<:SpatialDim,D2<:SpatialDim}
-    A = _prepare_makie(raster)
-    xs, ys = map(_lookup_edges, lookup(A, (X, Y)))
-    return (xs, ys, parent(A))
-end
-function MakieCore.convert_arguments(x::MakieCore.ConversionTrait, series::AbstractRasterSeries)
-    return MakieCore.convert_arguments(x, first(series))
-end
-# fallbacks with descriptive error messages
-MakieCore.convert_arguments(t::MakieCore.ConversionTrait, r::AbstractRaster) =
-    _makie_not_implemented_error(t, r)
-
-function _makie_not_implemented_error(t, r::AbstractRaster{T,N}) where {T,N}
-    @error """
-    We don't currently support plotting Rasters of eltype $T, with $N dimensions, as
-    a $t type plot in Makie.jl.
-
-    In order to plot, please provide a 2-dimensional slice of your raster contining 
-    only `Real` and `Missing` values.
-
-    For example, in a 3-dimensional raster, this would look like:
-
-    ```julia
-    myraster = Raster(...)
-    heatmap(myraster)        # errors
-    heatmap(myraster[Ti(1)]) # use some index to subset, this works!
-    ```
-    """
-end
-
 # initial definitions of `rplot`, to get around the extension package availability question
 
 function rplot(args...)
     @error("Please load `Makie.jl` and then call this function. If Makie is loaded, then you can't call `rplot` with no arguments!")
 end
 
-# define the theme
-
-# this function is defined so that we can override style_rasters in RastersMakieExt
-function style_rasters end
-
-function color_rasters()
-    return MakieCore.Attributes(
-        colormap = :plasma,
-    )
-end
-
-function theme_rasters()
-    return merge(style_rasters(), color_rasters())
-end
-
-
 ##################################################################################
 # Utils
 
-_missing_or_float32(num::Number) = Float32(num)
-_missing_or_float32(::Missing) = missing
-
-function _lookup_edges(l::LookupArray)
-    l = if l isa AbstractSampled 
-        set(l, Intervals())
-    else
-        set(l, Sampled(; sampling=Intervals()))
-    end
-    if l == 1
-        return [bounds(l)...]
-    else
-        ib = intervalbounds(l)
-        if order(l) isa ForwardOrdered
-            edges = first.(ib)
-            push!(edges, last(last(ib)))
-        else
-            edges = last.(ib)
-            push!(edges, first(last(ib)))
-        end
-        return edges
-    end
-end
-
-
-_prepare_makie(A) = 
-    _missing_or_float32.(replace_missing(A; missingval=NaN32)) |> read |> _reorder
 # Plots.jl heatmaps pixels are centered.
 # So we should center the index, and use the projected value.
 _prepare_plots(d::Dimension) = d |> _maybe_shift |> _maybe_mapped
@@ -453,9 +313,4 @@ function _maybe_thin_plots(A::AbstractRasterSeries)
     else
         return A, collect(eachindex(A)), nplots
     end
-end
-
-function _series_dim(A)
-    spatialdims = (X(), Y(), Z())
-    last((dims(A, spatialdims)..., otherdims(A, spatialdims)...))
 end

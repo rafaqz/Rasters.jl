@@ -321,6 +321,7 @@ end
 RasterStack(st::AbstractRasterStack, dims::Tuple; kw...) = RasterStack(st; dims, kw...)
 # Stack from table and dims args
 function RasterStack(table, dims::Tuple; name=_not_a_dimcol(table, dims), keys=name, kw...)
+    Tables.istable(table) || throw(ArgumentError("object $(typeof(table)) is not a valid input to `RasterStack`"))
     # TODO use `name` everywhere, not keys
     if keys isa Symbol
         col = Tables.getcolumn(table, keys)

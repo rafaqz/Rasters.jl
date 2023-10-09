@@ -3,7 +3,7 @@ using Rasters, Test, Aqua, SafeTestsets
 if VERSION >= v"1.9.0"
     # Aqua.test_ambiguities([Rasters, Base, Core])
     Aqua.test_unbound_args(Rasters)
-    # Aqua.test_stale_deps(Rasters)
+    Aqua.test_stale_deps(Rasters)
     Aqua.test_undefined_exports(Rasters)
     Aqua.test_project_extras(Rasters)
     Aqua.test_deps_compat(Rasters)
@@ -13,7 +13,6 @@ end
 
 
 @time @safetestset "methods" begin include("methods.jl") end
-@time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "array" begin include("array.jl") end
 @time @safetestset "stack" begin include("stack.jl") end
 @time @safetestset "series" begin include("series.jl") end
@@ -22,6 +21,7 @@ end
 @time @safetestset "aggregate" begin include("aggregate.jl") end
 @time @safetestset "rasterize" begin include("rasterize.jl") end
 @time @safetestset "adapt" begin include("adapt.jl") end
+@time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "warp" begin include("warp.jl") end
 
 
