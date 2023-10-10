@@ -2,7 +2,7 @@
 
 # Rasters.jl supports writing datasets to disk in several differnt formats. grd files are 
 # currently the only supported file format that does not require loading an extension. 
-# All other formats are supported with the ArchGDAL, HDF5, and NCDatasets extensions.
+# All other formats are supported with the ArchGDAL and NCDatasets extensions.
 # Datasets can (with some caveats) be written to different formats than they were loaded 
 # in as, providing file-type conversion for spatial data.
 
@@ -60,10 +60,14 @@ using NCDatasets
 filename = tempname() * ".nc"
 write(filename, ras)
 
-# # write Raster to a HDF5 file [requires adding HDF5.jl]
-using Pkg;
-Pkg.add("HDF5");
-using HDF5
+# # write Raster to a JDL2 file. 
 
-filename = tempname() * ".hdf"
-write(filename, ras)
+# JLD2 saves and loads Julia data structures in a format comprising a subset of HDF5, 
+# without any dependency on the HDF5 C library. The save and load functions, provided 
+# by FileIO, provide a mechanism to read and write data from a JLD2 file.
+Pkg.add("FileIO");
+using FileIO
+
+filename = tempname() * ".jld2"
+save(filename, ras)
+
