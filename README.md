@@ -39,7 +39,7 @@ Sources and packages needed:
 - `:netcdf`: `using NCDatasets`
 - `:grd`: built-in.
 - `:smap`: `using HDF5`
-- `:grib`: not yet finished.
+- `:grib`: `using GRIBDatasets`.
 
 Other functionality in extensions:
 - Raster data downloads, like `Worldclim{Climate}`: `using RasterDataSources`
