@@ -152,6 +152,8 @@ gdalpath = maybedownload(url)
             @test size(trimmed) == (414, 514)
             cropped = Rasters.crop(a; to=trimmed)
             @test size(cropped) == (414, 514)
+            kwcropped = Rasters.crop(a; to=trimmed, dims=(X,))
+            @test size(kwcropped) == (414, 515)  # mind the 1px difference here, only cropped along x
             @test all(collect(cropped .=== trimmed))
             extended = extend(cropped; to=a)
             @test all(collect(extended .=== a))

@@ -146,6 +146,8 @@ end
             @test size(trimmed) == (160, 169, 24)
             cropped = crop(a; to=trimmed)
             @test size(cropped) == (160, 169, 24)
+            kwcropped = crop(a; to=trimmed, dims=(X,))
+            @test size(kwcropped) == (160, size(a,Y), 24)
             @test all(collect(cropped .=== trimmed))
             extended = extend(cropped; to=a)
             @test all(collect(extended .=== a))
