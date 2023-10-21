@@ -93,9 +93,10 @@ function _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom, r; scal
     return A
 end
 function _coverage!(A::AbstractRaster, ::Nothing, geoms, r::Rasterizer; mode, scale)
-    n = _nthreads()
+    n = r.threaded ? _nthreads() : 1
     buffers = (
-        allocs = _burning_allocs(A; threaded=r.threaded),
+        # We always need a vector of threads, but just
+        allocs = _burning_allocs(A; nthreads=n, threaded=true),
         linebuffer = [_init_bools(A, BitArray; missingval=false) for _ in 1:n],
         centerbuffer = [_init_bools(A, BitArray; missingval=false) for _ in 1:n],
         block_crossings = [[Vector{Float64}(undef, 0) for _ in 1:scale] for _ in 1:n],
@@ -130,6 +131,7 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
     _run(range, threaded, progress, "Calculating coverage buffers...") do i
         geom = _getgeom(geoms, i)
         idx = Threads.threadid()
+        # Get buffers for each thread as a NamedTuple
         thread_buffers = map(b -> b[idx], allbuffers)
         _union_coverage!(A, geom; scale, subpixel_buffer, thread_buffers...)
         fill!(thread_buffers.linebuffer, false)
