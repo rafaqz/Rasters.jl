@@ -75,7 +75,7 @@ struct Rasterizer{T,G,F,R,O,I,M}
     op::O
     init::I
     missingval::M
-    lock::Union{SectorLocks,Nothing}
+    lock::Union{Threads.SpinLock,Nothing}
     shape::Symbol
     boundary::Symbol
     verbose::Bool
@@ -93,7 +93,7 @@ function Rasterizer(geom, fill, fillitr;
     filename=nothing,
     verbose=true,
     progress=true,
-    threaded=true,
+    threaded=false,
     kw...
 )
     # A single geometry does not need a reducing function 
@@ -138,7 +138,7 @@ function Rasterizer(geom, fill, fillitr;
         @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be innaccurate for `reducer` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
     end
     eltype, missingval = get_eltype_missingval(eltype, missingval, fillitr, init, filename, op, reducer)
-    lock = threaded ? SectorLocks() : nothing
+    lock = threaded ? Threads.SpinLock() : nothing
 
     return Rasterizer(eltype, geom, fillitr, reducer, op, init, missingval, lock, shape, boundary, verbose, progress, threaded)
 end
@@ -323,7 +323,7 @@ const RASTERIZE_KEYWORDS = """
 - `progress`: show a progress bar, `true` by default, `false` to hide..
 - `verbose`: print information and warnings whne there are problems with the rasterisation.
     `true` by default.
-- `threaded`: run operations in parallel. `true` by default.
+$THREADED_KEYWORD
 """
 
 const RASTERIZE_ARGUMENTS = """
@@ -569,12 +569,12 @@ function _rasterize!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer; a
         V = view(A, Touches(ext))
         length(V) > 0 || return false
 
-        bools = _init_bools(commondims(V, DEFAULT_POINT_ORDER), Bool; metadata=metadata(A))
+        bools = _init_bools(commondims(V, DEFAULT_POINT_ORDER), BitArray; metadata=metadata(A))
         boolmask!(bools, geom; allocs, lock, shape, boundary, verbose, progress)
         hasburned = any(bools)
         if hasburned
-            # Avoid race conditions with a SectorLock
-            isnothing(lock) || Base.lock(lock, V)
+            # Avoid race conditions
+            isnothing(lock) || Base.lock(lock)
             _fill!(V, bools, fill, op, init, missingval)
             isnothing(lock) || Base.unlock(lock)
         end
@@ -584,11 +584,7 @@ end
 # Fill points
 function _rasterize!(A, trait::GI.AbstractPointTrait, point, fill, r::Rasterizer; allocs=nothing)
     # Avoid race conditions whern Point is in a mixed set of Geometries
-    # isnothing(r.lock) || Base.lock(r.lock, A)
-    hasburned = _fill_point!(A, trait, point; fill, r.lock)
-    # isnothing(r.lock) || Base.unlock(r.lock)
-    # for all points we avoid parallel rasterization completely - this method should not be hit often
-    return hasburned
+    return _fill_point!(A, trait, point; fill, r.lock)
 end
 function _rasterize!(A, trait::Nothing, geoms, fill, r::Rasterizer; allocs=nothing)
     if r.shape === :point

@@ -34,7 +34,7 @@ end
             _fill_index!(x, fill, I)
         else
             sector = CartesianIndices(map(i -> i:i, I))
-            Base.lock(lock, sector)
+            Base.lock(lock)
             _fill_index!(x, fill, I)
             Base.unlock(lock)
         end

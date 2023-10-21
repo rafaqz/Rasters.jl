@@ -27,6 +27,15 @@ const SHAPE_KEYWORDS = """
     The default is `:center`.
 """
 
+const THREADED_KEYWORD = """
+- `threaded`: run operations in parallel, `false` by default. In some circumstances `threaded` 
+    can give large speedups over single-threaded operation. This can be true for complicated 
+    geometries written into low-resolution rasters, but may not be for simple geometries with 
+    high-resolution rasters. With very large rasters threading may be counter productive due 
+    to excessing memory use. Caution should also be used: `threaded` should not be used in in-place 
+    functions wrinting to `BitArray` or other arrays where race conditions can occur. 
+"""
+
 const GEOM_KEYWORDS = """
 $TO_KEYWORD
 $RES_KEYWORD

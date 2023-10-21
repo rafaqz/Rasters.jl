@@ -49,57 +49,66 @@ st = RasterStack((A1, copy(A1)))
     geom = line_collection
     geom = poly_collection
     
-    for A in (A1, A2), geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table, line_collection, poly_collection)
+    for A in (A1, A2), 
+        geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table, line_collection, poly_collection),
+        threaded in (true, false)
+
         fill!(A, 0)
-        rasterize!(sum, A, geom; shape=:point, fill=1);
+        rasterize!(sum, A, geom; shape=:point, fill=1, threaded);
         @test sum(A) == 5.0
-        @test sum(rasterize(sum, geom; to=A, shape=:point, fill=1, missingval=0)) == 5.0
-        rasterize!(last, A, geom; shape=:point, fill=1);
+        @test sum(rasterize(sum, geom; to=A, shape=:point, fill=1, missingval=0, threaded)) == 5.0
+        rasterize!(last, A, geom; shape=:point, fill=1, threaded);
         @test sum(A) == 4.0
-        @test sum(rasterize(last, geom; to=A, shape=:point, fill=1, missingval=0)) == 4.0
+        @test sum(rasterize(last, geom; to=A, shape=:point, fill=1, missingval=0, threaded)) == 4.0
         fill!(A, 0)
         if !Tables.istable(geom)
-            rasterize!(count, A, [geom, geom]; shape=:point)
+            rasterize!(count, A, [geom, geom]; shape=:point, threaded)
             @test sum(A) == 10.0
             fill!(A, 0)
         end
     end
     geom = multi_point
-    for A in (A1, A2), geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection, poly_collection)
-        rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3))
+    for A in (A1, A2), 
+        geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection, poly_collection),
+        threaded in (true, false)
+
+        rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3), threaded)
         st.layer1 .= st.layer2 .= 0
-        rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3))
+        rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3), threaded)
         @test sum(st.layer1) == 10
         @test sum(st.layer2) == 15
         @test parent(st.layer1) isa Array{Float64,2}
         st.layer1 .= 0; st.layer2 .= 0
-        rasterize!(last, st, geom; shape=:point, fill=(layer1=2, layer2=3))
+        rasterize!(last, st, geom; shape=:point, fill=(layer1=2, layer2=3), threaded)
         @test sum(st.layer1) == 8
         @test sum(st.layer2) == 12
         st.layer1 .= 0; st.layer2 .= 0
-        rasterize!(first, st, geom; shape=:point, fill=(layer1=2, layer2=3))
+        rasterize!(first, st, geom; shape=:point, fill=(layer1=2, layer2=3), threaded)
         @test sum(st.layer1) == 8
         @test sum(st.layer2) == 12
         st.layer1 .= 0; st.layer2 .= 0
     end
 
 
-    for A in (A1, A2), geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon)
+    for A in (A1, A2), 
+        geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon),
+        threaded in (true, false)
+
         st[:layer1] .= 0; st[:layer2] .= 0
-        rasterize!(sum, st, geom; shape=:point, fill=(layer1=1:5, layer2=6:10))
+        rasterize!(sum, st, geom; shape=:point, fill=(layer1=1:5, layer2=6:10), threaded)
         @test sum(st[:layer1]) == sum(1:5)
         @test sum(st[:layer2]) == sum(6:10)
         @test parent(st[:layer1]) isa Array{Float64,2}
         st[:layer1] .= 0; st[:layer2] .= 0
-        rasterize!(last, st, geom; shape=:point, fill=(layer1=1:5, layer2=6:10))
+        rasterize!(last, st, geom; shape=:point, fill=(layer1=1:5, layer2=6:10), threaded)
         @test sum(st[:layer1]) == sum(2:5)
         @test sum(st[:layer2]) == sum(7:10)
         st[:layer1] .= 0; st[:layer2] .= 0
-        rasterize!(first, st, geom; shape=:point, fill=(layer1=1:5, layer2=6:10))
+        rasterize!(first, st, geom; shape=:point, fill=(layer1=1:5, layer2=6:10), threaded)
         @test sum(st[:layer1]) == sum(1:4)
         @test sum(st[:layer2]) == sum(6:9)
         st[:layer1] .= 0; st[:layer2] .= 0
-        @test_nowarn rasterize!(sum, A, geom; shape=:point, fill=1)
+        @test_nowarn rasterize!(sum, A, geom; shape=:point, fill=1, threaded)
     end
 end
 
@@ -107,18 +116,21 @@ end
     A = A1
     geom = linestring
     geom = line_collection
-    for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection, poly_collection)
+    for A in (A1, A2), 
+        geom in (linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection, poly_collection),
+        threaded in (true, false)
+
         A .= 0
-        rasterize!(sum, A, geom; shape=:line, fill=1)
+        rasterize!(sum, A, geom; shape=:line, fill=1, threaded)
         @test sum(A) == 20 + 20 + 20 + 20
-        @test sum(rasterize(sum, geom; to=A, shape=:line, fill=1, missingval=0)) == 80
+        @test sum(rasterize(sum, geom; to=A, shape=:line, fill=1, missingval=0, threaded)) == 80
     end
     @testset ":line is detected for line geometries" begin
-        for A in (A1, A2), geom in (linestring, multi_linestring)
+        for A in (A1, A2), geom in (linestring, multi_linestring), threaded in (true, false)
             A .= 0
-            rasterize!(A, geom; fill=1)
+            rasterize!(A, geom; fill=1, threaded)
             @test sum(A) == 20 + 20 + 20 + 20
-            @test sum(rasterize(geom; to=A, fill=1, missingval=0)) == 80
+            @test sum(rasterize(geom; to=A, fill=1, missingval=0, threaded)) == 80
         end
     end
 end
@@ -127,38 +139,38 @@ end
     A = A1
     poly = polygon
     poly = poly_collection
-    for A in (A1, A2), poly in (polygon, multi_polygon, poly_collection)
+    for A in (A1, A2), poly in (polygon, multi_polygon, poly_collection), threaded in (true, false)
         A .= 0
-        ra = rasterize(last, poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center)
-        ra_res = rasterize(last, poly; res=map(step, span(A)), missingval=0, shape=:polygon, fill=1, boundary=:center)
+        ra = rasterize(last, poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center, threaded)
+        ra_res = rasterize(last, poly; res=map(step, span(A)), missingval=0, shape=:polygon, fill=1, boundary=:center, threaded)
         @test parent(ra) isa Matrix{Int}
         @test sum(ra) == sum(ra_res) === 20 * 20
-        ra = rasterize(last, poly; to=A, shape=:polygon, fill=1, boundary=:touches)
+        ra = rasterize(last, poly; to=A, shape=:polygon, fill=1, boundary=:touches, threaded)
         @test parent(ra) isa Array{Union{Missing,Int},2}
         @test sum(skipmissing(ra)) === 21 * 21
-        rasterize!(last, A, poly; shape=:polygon, fill=1, boundary=:inside)
+        rasterize!(last, A, poly; shape=:polygon, fill=1, boundary=:inside, threaded)
         @test sum(A) === 19.0 * 19.0
         A .= 0
 
         @testset "polygon is detected for polygon geometries" begin
             A = Raster(zeros(X(-20:5; sampling=Intervals()), Y(0:30; sampling=Intervals())))
-            R = rasterize(last, poly; to=A, fill=1)
+            R = rasterize(last, poly; to=A, fill=1, threaded)
             @test parent(R) isa Array{}
             @test sum(skipmissing(R)) == 20 * 20
-            @test_throws ArgumentError rasterize!(A, poly; shape=:notashape, fill=1)
-            @test_throws ArgumentError rasterize!(A, poly; shape=:polygon, fill=1, boundary=:notaboundary)
+            @test_throws ArgumentError rasterize!(A, poly; shape=:notashape, fill=1, threaded)
+            @test_throws ArgumentError rasterize!(A, poly; shape=:polygon, fill=1, boundary=:notaboundary, threaded)
         end
 
-        st1 = rasterize(last, poly; fill=(layer1=1, layer2=2), to=st)
+        st1 = rasterize(last, poly; fill=(layer1=1, layer2=2), to=st, threaded)
         @test sum(skipmissing(st1[:layer1])) == 400 # The last value overwrites the first
         @test sum(skipmissing(st1[:layer2])) == 800
         # Missing size / res
-        @test_throws ArgumentError rasterize(poly; fill=1)
+        @test_throws ArgumentError rasterize(poly; fill=1, threaded)
         # Both size + res
-        @test_throws ArgumentError rasterize(poly; res=0.1, size=200, fill=1)
-        @test_throws ArgumentError rasterize(poly; res=(0.1, 0.2), size=200, fill=1)
-        @test_throws ArgumentError rasterize(poly; res=0.1, size=(200, 200), fill=1)
-        @test_throws ArgumentError rasterize(poly; res=(0.1, 0.2), size=(200, 200), fill=1)
+        @test_throws ArgumentError rasterize(poly; res=0.1, size=200, fill=1, threaded)
+        @test_throws ArgumentError rasterize(poly; res=(0.1, 0.2), size=200, fill=1, threaded)
+        @test_throws ArgumentError rasterize(poly; res=0.1, size=(200, 200), fill=1, threaded)
+        @test_throws ArgumentError rasterize(poly; res=(0.1, 0.2), size=(200, 200), fill=1, threaded)
     end
 end
 
@@ -210,14 +222,14 @@ end
     @testset "feature collection, table from fill of Symbol keys" begin
         data = pointfc
         Tables.istable(data)
-        for data in (pointfc, DataFrame(pointfc))
+        for data in (pointfc, DataFrame(pointfc)), threaded in (true, false)
             @testset "NTuple of Symbol fill makes an stack" begin
-                rst = rasterize(sum, data; to=A, fill=(:val1, :val2))
+                rst = rasterize(sum, data; to=A, fill=(:val1, :val2), threaded)
                 @test parent(rst.val1) isa Array{Union{Missing,Int},2}
                 @test parent(rst.val2) isa Array{Union{Missing,Float32},2}
                 @test keys(rst) == (:val1, :val2)
                 @test map(sum ∘ skipmissing, rst) === (val1=15, val2=30.0f0)
-                @test_throws ArgumentError rasterize(data; to=A, fill=(:val1, :not_a_column))
+                @test_throws ArgumentError rasterize(data; to=A, fill=(:val1, :not_a_column), threaded)
             end
             @testset "Symbol fill makes an array" begin
                 ra = rasterize(sum, data; to=A, fill=:val1)
@@ -352,77 +364,79 @@ end
     polygon = ArchGDAL.createpolygon(pointvec)
     polygons = ArchGDAL.createpolygon.([[pointvec1], [pointvec2], [pointvec3], [pointvec4]])
     # With fill of 1 these are all the same thing
-    for f in (last, first, mean, median, maximum, minimum)
-        r = rasterize(f, polygons; res=5, fill=1, boundary=:center, threaded=false, crs=EPSG(4326))
-        @test parent(r) isa Array{<:Union{Missing,<:Real},2}
-        @test sum(skipmissing(r)) == 12 + 12 + 12 + 16
-        @test crs(r) == EPSG(4326)
-    end
-    for f in (last, maximum)
-        r = rasterize(last, polygons; res=5, fill=1:4, boundary=:center)
-        @test parent(r) isa Array{Union{Missing,Int},2}
-        @test sum(skipmissing(r)) == 12 * 1 + 12 * 2 + 12 * 3 + 16 * 4
-    end
-    for f in (first, minimum)
-        r = rasterize(f, polygons; res=5, fill=1:4, boundary=:center)
-        @test parent(r) isa Array{Union{Missing,Int},2}
-        @test sum(skipmissing(r)) == 16 * 1 + 12 * 2 + 12 * 3 + 12 * 4
-    end
-    for f in (mean, median)
-        r = rasterize(f, polygons; res=5, fill=1:4, boundary=:center)
-        @test parent(r) isa Array{Union{Missing,Float64},2}
-        @test sum(skipmissing(r)) == 
-            (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1.5 + 4 * 2.5 + 4 * 3.5)
-    end
-    prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename="test.tif")
-    prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center)
-    @test sum(skipmissing(prod_r)) == 
-        (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1 * 2 + 4 * 2 * 3 + 4 * 3 * 4)
+    for  threaded in (true, false)
+        for f in (last, first, mean, median, maximum, minimum)
+            r = rasterize(f, polygons; res=5, fill=1, boundary=:center, threaded, crs=EPSG(4326))
+            @test parent(r) isa Array{<:Union{Missing,<:Real},2}
+            @test sum(skipmissing(r)) == 12 + 12 + 12 + 16
+            @test crs(r) == EPSG(4326)
+        end
+        for f in (last, maximum)
+            r = rasterize(last, polygons; res=5, fill=1:4, boundary=:center, threaded)
+            @test parent(r) isa Array{Union{Missing,Int},2}
+            @test sum(skipmissing(r)) == 12 * 1 + 12 * 2 + 12 * 3 + 16 * 4
+        end
+        for f in (first, minimum)
+            r = rasterize(f, polygons; res=5, fill=1:4, boundary=:center, threaded)
+            @test parent(r) isa Array{Union{Missing,Int},2}
+            @test sum(skipmissing(r)) == 16 * 1 + 12 * 2 + 12 * 3 + 12 * 4
+        end
+        for f in (mean, median)
+            r = rasterize(f, polygons; res=5, fill=1:4, boundary=:center)
+            @test parent(r) isa Array{Union{Missing,Float64},2}
+            @test sum(skipmissing(r)) == 
+                (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1.5 + 4 * 2.5 + 4 * 3.5)
+        end
+        prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename="test.tif", threaded)
+        prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, threaded)
+        @test sum(skipmissing(prod_r)) == 
+            (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1 * 2 + 4 * 2 * 3 + 4 * 3 * 4)
 
-    prod_st = rasterize(prod, polygons; res=5, fill=(a=1:4, b=4:-1:1), missingval=missing, boundary=:center)
-    @test all(prod_st.a .=== rot180(prod_st.b))
-    @test all(prod_r .=== prod_st.a)
-    prod_r_m = rasterize(prod, polygons; res=5, fill=1:4, missingval=-1, boundary=:center)
-    prod_st_m = rasterize(prod, polygons; res=5, fill=(a=1:4, b=4.0:-1.0:1.0), missingval=(a=-1, b=-1.0), boundary=:center)
-    @test all(prod_st_m.a .=== prod_r_m)
-    @test all( prod_st_m.b .=== rot180(Float64.(prod_r_m)))
+        prod_st = rasterize(prod, polygons; res=5, fill=(a=1:4, b=4:-1:1), missingval=missing, boundary=:center, threaded)
+        @test all(prod_st.a .=== rot180(prod_st.b))
+        @test all(prod_r .=== prod_st.a)
+        prod_r_m = rasterize(prod, polygons; res=5, fill=1:4, missingval=-1, boundary=:center, threaded)
+        prod_st_m = rasterize(prod, polygons; res=5, fill=(a=1:4, b=4.0:-1.0:1.0), missingval=(a=-1, b=-1.0), boundary=:center, threaded)
+        @test all(prod_st_m.a .=== prod_r_m)
+        @test all( prod_st_m.b .=== rot180(Float64.(prod_r_m)))
 
-    r = rasterize(last, polygons; res=5, fill=(a=1, b=2), boundary=:center)
-    @test all(r.a .* 2 .=== r.b)
-    
-    reduced_raster_sum_center = rasterize(sum, polygons; res=5, fill=1, boundary=:center)
-    reduced_raster_count_center = rasterize(count, polygons; res=5, fill=1, boundary=:center)
-    @test name(reduced_raster_sum_center) == :sum
-    @test name(reduced_raster_count_center) == :count
-    @test sum(skipmissing(reduced_raster_sum_center)) == 
-          sum(skipmissing(reduced_raster_count_center)) == 16 * 4
-    reduced_raster_sum_touches = rasterize(sum, polygons; res=5, fill=1, boundary=:touches)
-    reduced_raster_count_touches = rasterize(count, polygons; res=5, fill=1, boundary=:touches)
-    @test name(reduced_raster_sum_touches) == :sum
-    @test name(reduced_raster_count_touches) == :count
-    # plot(reduced_raster_count_touches)
-    # plot(reduced_raster_sum_touches)
-    # This is broken because the raster area isn't big enough
-    @test_broken sum(skipmissing(reduced_raster_sum_touches)) == 
-          sum(skipmissing(reduced_raster_count_touches)) == 25 * 4
-    @test sum(skipmissing(reduced_raster_sum_touches)) == 
-          sum(skipmissing(reduced_raster_count_touches)) == 25 * 4 - 9
-    # The outlines of these plots should exactly mactch, 
-    # with three values of 2 on the diagonal
-    # using Plots
-    # Plots.plot(reduced_raster; clims=(0, 3))
-    # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
-    reduced_center = rasterize(sum, polygons; res=5, fill=1, boundary=:center)
-    reduced_touches = rasterize(sum, polygons; res=5, fill=1, boundary=:touches)
-    reduced_inside = rasterize(sum, polygons; res=5, fill=1, boundary=:inside)
-    # Plots.plot(reduced_inside; clims=(0, 3))
-    # Plots.plot(reduced_center; clims=(0, 3))
-    # Plots.plot(reduced_touches; clims=(0, 3))
-    # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
-    # Its not clear what the results here should be - there 
-    # are differences between different implementations.
-    # Soon we will define the pixel intervals so we don't need
-    # arbitrary choices of which lines are touched for :touches
+        r = rasterize(last, polygons; res=5, fill=(a=1, b=2), boundary=:center, threaded)
+        @test all(r.a .* 2 .=== r.b)
+        
+        reduced_raster_sum_center = rasterize(sum, polygons; res=5, fill=1, boundary=:center, threaded)
+        reduced_raster_count_center = rasterize(count, polygons; res=5, fill=1, boundary=:center, threaded)
+        @test name(reduced_raster_sum_center) == :sum
+        @test name(reduced_raster_count_center) == :count
+        @test sum(skipmissing(reduced_raster_sum_center)) == 
+              sum(skipmissing(reduced_raster_count_center)) == 16 * 4
+        reduced_raster_sum_touches = rasterize(sum, polygons; res=5, fill=1, boundary=:touches, threaded)
+        reduced_raster_count_touches = rasterize(count, polygons; res=5, fill=1, boundary=:touches, threaded)
+        @test name(reduced_raster_sum_touches) == :sum
+        @test name(reduced_raster_count_touches) == :count
+        # plot(reduced_raster_count_touches)
+        # plot(reduced_raster_sum_touches)
+        # This is broken because the raster area isn't big enough
+        @test_broken sum(skipmissing(reduced_raster_sum_touches)) == 
+              sum(skipmissing(reduced_raster_count_touches)) == 25 * 4
+        @test sum(skipmissing(reduced_raster_sum_touches)) == 
+              sum(skipmissing(reduced_raster_count_touches)) == 25 * 4 - 9
+        # The outlines of these plots should exactly mactch, 
+        # with three values of 2 on the diagonal
+        # using Plots
+        # Plots.plot(reduced_raster; clims=(0, 3))
+        # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
+        reduced_center = rasterize(sum, polygons; res=5, fill=1, boundary=:center, threaded)
+        reduced_touches = rasterize(sum, polygons; res=5, fill=1, boundary=:touches, threaded)
+        reduced_inside = rasterize(sum, polygons; res=5, fill=1, boundary=:inside, threaded)
+        # Plots.plot(reduced_inside; clims=(0, 3))
+        # Plots.plot(reduced_center; clims=(0, 3))
+        # Plots.plot(reduced_touches; clims=(0, 3))
+        # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
+        # Its not clear what the results here should be - there 
+        # are differences between different implementations.
+        # Soon we will define the pixel intervals so we don't need
+        # arbitrary choices of which lines are touched for :touches
+    end
 end
 
 @testset "Rasterizing with extra dimensions" begin
@@ -446,8 +460,13 @@ end
 end
 
 @testset "coverage" begin
-    @time covsum = coverage(sum, shphandle.shapes; res=1, scale=10)
-    @time covunion = coverage(union, shphandle.shapes; res=1, scale=10)
+    @time covsum = coverage(sum, shphandle.shapes; threaded=false, res=1, scale=10)
+    @time covunion = coverage(union, shphandle.shapes; threaded=false, res=1, scale=10)
+    @test parent(covsum) isa Array{Float64,2}
+    @test parent(covunion) isa Array{Float64,2}
+
+    @time covsum = coverage(sum, shphandle.shapes; threaded=true, res=1, scale=10)
+    @time covunion = coverage(union, shphandle.shapes; threaded=true, res=1, scale=10)
     @test parent(covsum) isa Array{Float64,2}
     @test parent(covunion) isa Array{Float64,2}
     # using Plots

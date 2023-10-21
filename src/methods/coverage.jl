@@ -24,6 +24,7 @@ const COVERAGE_KEYWORDS = """
     10 x 10 or 100 points that contribute to coverage. Using `100` means 10,000 points
     contribute. Performance will decline as `scale` increases. Memory use will grow 
     by `scale^2` when `mode=:union`.
+$THREADED_KEYWORD
 $PROGRESS_KEYWORD
 $VERBOSE_KEYWORD
 """
@@ -92,11 +93,12 @@ function _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom, r; scal
     return A
 end
 function _coverage!(A::AbstractRaster, ::Nothing, geoms, r::Rasterizer; mode, scale)
-    n = _nthreads()
+    n = r.threaded ? _nthreads() : 1
     buffers = (
-        allocs = _burning_allocs(A; threaded=r.threaded),
-        linebuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
-        centerbuffer = [_init_bools(A, Bool; missingval=false) for _ in 1:n],
+        # We always need a vector of threads, but just
+        allocs = _burning_allocs(A; nthreads=n, threaded=true),
+        linebuffer = [_init_bools(A, BitArray; missingval=false) for _ in 1:n],
+        centerbuffer = [_init_bools(A, BitArray; missingval=false) for _ in 1:n],
         block_crossings = [[Vector{Float64}(undef, 0) for _ in 1:scale] for _ in 1:n],
         burnstatus=[fill(BurnStatus(), scale) for _ in 1:n],
         subbuffer = [fill!(Array{Bool}(undef, scale, scale), false) for _ in 1:n],
@@ -116,11 +118,11 @@ end
 
 # Combines coverage at the sub-pixel level for a final value 0-1
 function _union_coverage!(A::AbstractRaster, geoms, buffers; 
-    scale, subpixel_dims, progress=true, threaded=true
+    scale, subpixel_dims, progress=true, threaded=false
 )
     n = _nthreads()
-    centeracc = [_init_bools(A, Bool; missingval=false) for _ in 1:n]
-    lineacc = [_init_bools(A, Bool; missingval=false) for _ in 1:n]
+    centeracc = [_init_bools(A, BitArray; missingval=false) for _ in 1:n]
+    lineacc = [_init_bools(A, BitArray; missingval=false) for _ in 1:n]
     subpixel_buffer = [falses(size(A) .* scale) for _ in 1:n]
 
     allbuffers = merge(buffers, (; centeracc, lineacc, subpixel_buffer))
@@ -129,6 +131,7 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
     _run(range, threaded, progress, "Calculating coverage buffers...") do i
         geom = _getgeom(geoms, i)
         idx = Threads.threadid()
+        # Get buffers for each thread as a NamedTuple
         thread_buffers = map(b -> b[idx], allbuffers)
         _union_coverage!(A, geom; scale, subpixel_buffer, thread_buffers...)
         fill!(thread_buffers.linebuffer, false)
@@ -170,12 +173,12 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
 end
 function _union_coverage!(A::AbstractRaster, geom;
     scale,
-    linebuffer=_init_bools(A, Bool; missingval=false),
-    centerbuffer=_init_bools(A, Bool; missingval=false),
+    linebuffer=_init_bools(A, BitArray; missingval=false),
+    centerbuffer=_init_bools(A, BitArray; missingval=false),
     allocs=Allocs(linebuffer),
     subpixel_buffer=falses(size(A) .* scale),
-    centeracc=_init_bools(A, Bool; missingval=false),
-    lineacc=_init_bools(A, Bool; missingval=false),
+    centeracc=_init_bools(A, BitArray; missingval=false),
+    lineacc=_init_bools(A, BitArray; missingval=false),
     burnstatus=[BurnStatus() for _ in 1:scale],
     block_crossings=[Vector{Float64}(undef, 0) for _ in 1:scale],
     subbuffer=falses(scale, scale),
@@ -251,7 +254,7 @@ end
 
 # Sums all coverage 
 function _sum_coverage!(A::AbstractRaster, geoms, buffers; 
-    scale, subpixel_dims, verbose=true, progress=true, threaded=true
+    scale, subpixel_dims, verbose=true, progress=true, threaded=false
 )
     n = _nthreads()
     coveragebuffers = [fill!(similar(A), 0.0) for _ in 1:n]
@@ -276,8 +279,8 @@ function _sum_coverage!(A::AbstractRaster, geoms, buffers;
 end
 function _sum_coverage!(A::AbstractRaster, geom;
     scale,
-    linebuffer=_init_bools(A, Bool; missingval=false),
-    centerbuffer=_init_bools(A, Bool; missingval=false),
+    linebuffer=_init_bools(A, BitArray; missingval=false),
+    centerbuffer=_init_bools(A, BitArray; missingval=false),
     allocs=Allocs(linebuffer),
     block_crossings=[Vector{Float64}(undef, 0) for _ in 1:scale],
     subbuffer=falses(scale, scale),
