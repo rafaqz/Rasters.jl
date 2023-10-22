@@ -98,10 +98,9 @@ function _crop_to(x, to::DimTuple; kw...)
     sampled = reduce(to; init=()) do acc, d
         lookup(d) isa AbstractSampled ? (acc..., d) : acc
     end
-    return _crop_to(x, Extents.extent(to); kw...)
+    return _crop_to(x, Extents.extent(sampled); kw...)
 end
 function _crop_to(x, to::Extents.Extent; touches=false)
-    ds = dims(x, map(key2dim, keys(to)))
     # Take a view over the bounds
     _without_mapped_crs(x) do x1
         if touches 
