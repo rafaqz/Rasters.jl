@@ -240,6 +240,22 @@ function rplot(args...)
     @error("Please load `Makie.jl` and then call this function. If Makie is loaded, then you can't call `rplot` with no arguments!")
 end
 
+# define the theme
+
+# this function is defined so that we can override style_rasters in RastersMakieExt
+function style_rasters end
+
+function color_rasters()
+    return MakieCore.Attributes(
+        colormap = :batlow,
+    )
+end
+
+function theme_rasters()
+    return merge(style_rasters(), color_rasters())
+end
+
+
 ##################################################################################
 # Utils
 
