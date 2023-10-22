@@ -309,6 +309,22 @@ function Makie.plottype(raster::AbstractRaster{<:Union{Missing,Real},3})
         Makie.Volume
     end
 end
+
+function Makie.convert_arguments(t::Makie.PointBased, A::AbstractRaster{<:Any,1})
+    return Makie.convert_arguments(t, _prepare_dimarray(A))
+end
+function Makie.convert_arguments(t::Makie.PointBased, A::AbstractRaster{<:Number,2})
+    return Makie.convert_arguments(t, _prepare_dimarray(A))
+end
+function Makie.convert_arguments(t::Makie.SurfaceLike, A::AbstractRaster{<:Any,2})
+    return Makie.convert_arguments(t, _prepare_dimarray(A))
+end
+function Makie.convert_arguments(t::Makie.DiscreteSurface, A::AbstractRaster{<:Any,2})
+    return Makie.convert_arguments(t, _prepare_dimarray(A))
+end
+function Makie.convert_arguments(t::Makie.VolumeLike, A::AbstractRaster{<:Any,3}) 
+    return Makie.convert_arguments(t, _prepare_dimarray(A))
+end
 # allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
 function Makie.convert_arguments(x::Makie.ConversionTrait, raster::AbstractRaster{<:Union{Real,Missing},3})
     D = _series_dim(raster)
@@ -327,4 +343,10 @@ end
 function _series_dim(A)
     spatialdims = (X(), Y(), Z())
     last((dims(A, spatialdims)..., otherdims(A, spatialdims)...))
+end
+
+function _prepare_dimarray(A)
+    map(A) do x
+        isequal(x, missingval(A)) || ismissing(x) ? NaN32 : Float32(x)
+    end |> DimArray
 end
