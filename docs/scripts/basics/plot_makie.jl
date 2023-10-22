@@ -88,10 +88,8 @@ ticksize = 13
 with_theme(theme_ggplot2()) do 
     fig = Figure(resolution=(800, 600))
     axs = [Axis(fig[i,j], xlabel = "lon", ylabel = "lat") for i in 1:2 for j in 1:2]
-    for (i, l) in enumerate(layers) 
-        Makie.heatmap!(axs[i], aus[l]; colormap)
-        axs[i].title = string(l) 
-    end
+    plt = [Makie.heatmap!(axs[i], aus[l]; colormap) for (i, l) in enumerate(layers)]
+    for (i, l) in enumerate(layers) axs[i].title = string(l) end
     hidexdecorations!.(axs[1:2]; grid=false, ticks=false)
     hideydecorations!.(axs[[2,4]]; grid=false, ticks=false)
     Colorbar(fig[1, 0], plt[1]; flipaxis, tickalign, width, ticksize)
