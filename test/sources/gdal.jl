@@ -109,13 +109,13 @@ gdalpath = maybedownload(url)
 
     @testset "other fields" begin
         # This file has an inorrect missing value
-        @test missingval(gdalarray) == nothing
+        @test missingval(gdalarray) === nothing
         @test metadata(gdalarray) isa Metadata{GDALsource,Dict{String,Any}} 
         @test basename(metadata(gdalarray)["filepath"]) == "cea.tif"
         metadata(gdalarray)["filepath"]
         @test name(gdalarray) == :test
         @test label(gdalarray) == "test"
-        @test units(gdalarray) == nothing
+        @test units(gdalarray) === nothing
         @test crs(dims(gdalarray, Y)) isa WellKnownText 
         @test crs(dims(gdalarray, X)) isa WellKnownText
         @test crs(gdalarray) isa WellKnownText
@@ -152,6 +152,8 @@ gdalpath = maybedownload(url)
             @test size(trimmed) == (414, 514)
             cropped = Rasters.crop(a; to=trimmed)
             @test size(cropped) == (414, 514)
+            kwcropped = Rasters.crop(a; to=trimmed, dims=(X,))
+            @test size(kwcropped) == (414, 515)  # mind the 1px difference here, only cropped along x
             @test all(collect(cropped .=== trimmed))
             extended = extend(cropped; to=a)
             @test all(collect(extended .=== a))
@@ -254,7 +256,7 @@ gdalpath = maybedownload(url)
         @test dims(geoA) isa Tuple{<:X,Y}
         @test refdims(geoA) isa Tuple{<:Band}
         @test metadata(geoA) == metadata(gdalarray)
-        @test missingval(geoA) == nothing
+        @test missingval(geoA) === nothing
         @test name(geoA) == :test
     end
 

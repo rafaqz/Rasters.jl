@@ -100,6 +100,8 @@ grdpath = stem * ".gri"
             @test size(trimmed) == (81, 77, 3)
             cropped = crop(a; to=trimmed)
             @test size(cropped) == (81, 77, 3)
+            kwcropped = crop(a; to=trimmed, dims=(X,))
+            @test size(kwcropped) == (81, size(a,Y), 3)
             @test all(collect(cropped .== trimmed))
             extended = extend(cropped; to=a);
             @test all(collect(extended .== a))
