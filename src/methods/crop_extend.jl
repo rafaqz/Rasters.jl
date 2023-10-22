@@ -92,10 +92,7 @@ function _crop_to(x, to; kw...)
         return _crop_to(x, ext; kw...)
     end
 end
-function _crop_to(A, to::RasterStackOrArray; kw...)
-    target_dims = get(kw, :dims, name.(dims(to)))
-    return _crop_to(A, dims(to, target_dims); kw...)
-end
+_crop_to(A, to::RasterStackOrArray; dims=DD.dims(to), kw...) = _crop_to(A, DD.dims(to, dims); kw...)
 function _crop_to(x, to::DimTuple; kw...)
     # We can only crop to sampled dims (e.g. not categorical dims like Band)
     sampled = reduce(to; init=()) do acc, d
@@ -103,7 +100,7 @@ function _crop_to(x, to::DimTuple; kw...)
     end
     return _crop_to(x, Extents.extent(to); kw...)
 end
-function _crop_to(x, to::Extents.Extent; touches=false, kw...)
+function _crop_to(x, to::Extents.Extent; touches=false)
     ds = dims(x, map(key2dim, keys(to)))
     # Take a view over the bounds
     _without_mapped_crs(x) do x1
