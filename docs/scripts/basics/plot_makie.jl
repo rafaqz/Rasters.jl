@@ -9,14 +9,13 @@
 using CairoMakie, Makie
 using Rasters, RasterDataSources, ArchGDAL
 A = Raster(WorldClim{BioClim}, 5) # this is a 3D raster, so is not accepted.
-B = A[:, :, 1] # this converts to a 2D raster which Makie accepts!
 
 fig = Figure()
-plot(fig[1, 1], B)
-contour(fig[1, 2], B)
+plot(fig[1, 1], A)
+contour(fig[1, 2], A)
 ax = Axis(fig[2, 1]; aspect = DataAspect())
-contourf!(ax, B)
-surface(fig[2, 2], B) # even a 3D plot works!
+contourf!(ax, A)
+surface(fig[2, 2], A) # even a 3D plot works!
 fig
 
 # ### 3-D rasters in Makie
@@ -37,12 +36,11 @@ Rasters.rplot(stack; Axis = (aspect = DataAspect(),),)
 # The plots seem a little squished here.  We provide a Makie theme which makes text a little smaller
 # and has some other space-efficient attributes:
 
-CairoMakie.set_theme!(Rasters.theme_rasters())
+Makie.set_theme!(Rasters.theme_rasters())
 Rasters.rplot(stack)
 
 
 # reset theme
-using Makie
 Makie.set_theme!() 
 
 # ### Plotting with `Observable`s, animations
@@ -50,46 +48,48 @@ Makie.set_theme!()
 # `Rasters.rplot` should support Observable input out of the box, but the dimensions of that input
 # must remain the same - i.e., the element names of a RasterStack must remain the same.
 
-CairoMakie.set_theme!(Rasters.theme_rasters())
+Makie.set_theme!(Rasters.theme_rasters())
 
+# `stack` is the WorldClim climate data for January
 stack_obs = Observable(stack)
 fig = Rasters.rplot(stack_obs;
-    Colorbar = (; height= Relative(0.75), width=5,)) # `stack` is the WorldClim climate data for January
+    Colorbar=(; height=Relative(0.75), width=5)
+) 
 record(fig, "rplot.mp4", 1:12; framerate = 3) do i
     stack_obs[] = RasterStack(WorldClim{Climate}; month = i)
 end 
 
 # ![](rplot.mp4)
 
-using Makie
 Makie.set_theme!() # reset theme
 
 # ```@docs
 # Rasters.rplot
 # ```
 
-# ## using more vanilla Makie
+# ## Using vanilla Makie
 
 using Rasters, RasterDataSources
 
-#the data
+# The data
 layers = (:evenness, :range, :contrast, :correlation)
 st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers)
 ausbounds = X(100 .. 160), Y(-50 .. -10) # Roughly cut out australia
-aus = st[ausbounds...] |> trim
-#the plot
-#colorbar attributes
+aus = st[ausbounds...] |> Rasters.trim
+
+# The plot
+# colorbar attributes
 colormap = :batlow
 flipaxis = false
 tickalign=1
-width=13
-ticksize=13;
-#figure
+width = 13
+ticksize = 13
+# figure
 with_theme(theme_ggplot2()) do 
     fig = Figure(resolution=(800, 600))
     axs = [Axis(fig[i,j], xlabel = "lon", ylabel = "lat") for i in 1:2 for j in 1:2]
-    plt = [Makie.heatmap!(axs[i], aus[l]; colormap) for (i,l) in enumerate(layers)]
-    [axs[i].title = string(l) for (i,l) in enumerate(layers)]
+    plt = [Makie.heatmap!(axs[i], aus[l]; colormap) for (i, l) in enumerate(layers)]
+    for (i, l) in enumerate(layers) axs[i].title = string(l) end
     hidexdecorations!.(axs[1:2]; grid=false, ticks=false)
     hideydecorations!.(axs[[2,4]]; grid=false, ticks=false)
     Colorbar(fig[1, 0], plt[1]; flipaxis, tickalign, width, ticksize)
