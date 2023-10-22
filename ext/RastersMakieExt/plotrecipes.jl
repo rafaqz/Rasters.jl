@@ -1,6 +1,29 @@
 
 const HIDE_DEC = (; label=true, grid=false, minorgrid=false, minorticks=false)
 
+function Rasters.style_rasters()
+    Makie.Attributes(
+        Axis=(
+            xtickalign=1.0,
+            ytickalign=1.0,
+            xticklabelrotation=-π/4,
+            xticklabelsize=14,
+            yticklabelsize=14,
+            aspect=DataAspect(),
+        ),
+        Colorbar=(
+            ticklabelsize=11,
+            tickalign=1.0,
+        ),
+    )
+end
+
+function Rasters.color_rasters()
+    return Makie.Attributes(
+        colormap = :batlow,
+    )
+end
+
 function lift_layer(r::Observable, inds...)
     return lift(lift_layer, r, inds...)
 end

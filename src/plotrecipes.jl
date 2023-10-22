@@ -244,12 +244,7 @@ end
 
 # this function is defined so that we can override style_rasters in RastersMakieExt
 function style_rasters end
-
-function color_rasters()
-    return MakieCore.Attributes(
-        colormap = :batlow,
-    )
-end
+function color_rasters end
 
 function theme_rasters()
     return merge(style_rasters(), color_rasters())
