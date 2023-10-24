@@ -52,11 +52,11 @@ savefig(b, "docs/build/mask_example_after.png"); nothing
 
 ### Before `mask`:
 
-![before mask](../build/mask_example_before.png)
+![before mask](/build/mask_example_before.png)
 
 ### After `mask`:
 
-![after mask](../build/mask_example_after.png)
+![after mask](/build/mask_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -143,11 +143,11 @@ savefig(b, "docs/build/mask_bang_example_after.png"); nothing
 
 ### Before `mask!`:
 
-![before mask!](../build/mask_bang_example_before.png)
+![before mask!](/build/mask_bang_example_before.png)
 
 ### After `mask!`:
 
-![after mask!](../build/mask_bang_example_after.png)
+![after mask!](/build/mask_bang_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -239,7 +239,7 @@ savefig("docs/build/boolmask_example.png"); nothing
 # output
 ```
 
-![boolmask](../build/boolmask_example.png)
+![boolmask](/build/boolmask_example.png)
 
 $EXPERIMENTAL
 """
@@ -317,7 +317,7 @@ savefig("docs/build/missingmask_example.png"); nothing
 # output
 ```
 
-![missingmask](../build/missingmask_example.png)
+![missingmask](/build/missingmask_example.png)
 
 $EXPERIMENTAL
 """

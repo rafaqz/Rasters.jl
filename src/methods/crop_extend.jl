@@ -39,7 +39,7 @@ nothing
 # output
 ```
 
-![new zealand evenness cropped](../build/nz_crop_example.png)
+![new zealand evenness cropped](/build/nz_crop_example.png)
 
 Crop to a polygon:
 
@@ -61,7 +61,7 @@ savefig("docs/build/argentina_crop_example.png"); nothing
 # output
 ```
 
-![argentina evenness cropped](../build/argentina_crop_example.png)
+![argentina evenness cropped](/build/argentina_crop_example.png)
 
 $EXPERIMENTAL
 """
@@ -146,7 +146,7 @@ nothing
 # output
 ```
 
-![extend](../build/extend_example.png)
+![extend](/build/extend_example.png)
 
 $EXPERIMENTAL
 """

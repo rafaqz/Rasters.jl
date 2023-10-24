@@ -47,7 +47,7 @@ savefig("docs/build/aggregate_example.png"); nothing
 
 ```
 
-![aggregate](../build/aggregate_example.png)
+![aggregate](/build/aggregate_example.png)
 
 Note: currently it is faster to aggregate over memory-backed arrays.
 Use [`read`](@ref) on `src` before use where required.

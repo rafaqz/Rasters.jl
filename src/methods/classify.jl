@@ -43,7 +43,7 @@ savefig("docs/build/classify_example.png"); nothing
 # output
 ```
 
-![classify](../build/classify_example.png)
+![classify](/build/classify_example.png)
 
 $EXPERIMENTAL
 """
@@ -135,7 +135,7 @@ savefig("docs/build/classify_bang_example.png"); nothing
 # output
 ```
 
-![classify!](../build/classify_bang_example.png)
+![classify!](/build/classify_bang_example.png)
 
 $EXPERIMENTAL
 """
