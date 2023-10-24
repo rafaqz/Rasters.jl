@@ -51,13 +51,13 @@ nothing
 
 ### Individual continents
 
-![arica](/build/mosaic_example_africa.png)
+![arica](../build/mosaic_example_africa.png)
 
-![aus](/build/mosaic_example_aus.png)
+![aus](../build/mosaic_example_aus.png)
 
 ### Mosaic of continents
 
-![mosaic](/build/mosaic_example_combined.png)
+![mosaic](../build/mosaic_example_combined.png)
 
 $EXPERIMENTAL
 """
@@ -131,7 +131,7 @@ nothing
 
 ```
 
-![mosaic](/build/mosaic_bang_example.png)
+![mosaic](../build/mosaic_bang_example.png)
 
 $EXPERIMENTAL
 """

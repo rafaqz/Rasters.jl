@@ -43,11 +43,11 @@ savefig(b, "docs/build/trim_example_after.png"); nothing
 
 ### Before `trim`:
 
-![before trim](/build/trim_example_before.png)
+![before trim](../build/trim_example_before.png)
 
 ### After `trim`:
 
-![after trim](/build/trim_example_after.png)
+![after trim](../build/trim_example_after.png)
 
 $EXPERIMENTAL
 """
