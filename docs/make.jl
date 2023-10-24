@@ -40,15 +40,16 @@ makedocs(
     authors="Rafael Schouten et al.",
     clean=true,
     doctest=true,
-    strict=[
-        :doctest,
+    # strict=[
+        # :doctest,
         # :linkcheck,
-        :parse_error,
-        :example_block,
+        # :parse_error,
+        # :example_block,
         # Other available options are
         # :autodocs_block, :cross_references, :docs_block, :eval_block, :example_block,
         # :footnote, :meta_block, :missing_docs, :setup_block
-    ], checkdocs=:all, format=Markdown(), draft=false,
+    # ], 
+    checkdocs=:all, format=Markdown(), draft=false,
     build=joinpath(@__DIR__, "docs")
 )
 
