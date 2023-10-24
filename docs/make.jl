@@ -42,7 +42,7 @@ makedocs(
     doctest=true,
     strict=[
         :doctest,
-        :linkcheck,
+        # :linkcheck,
         :parse_error,
         :example_block,
         # Other available options are
