@@ -345,8 +345,7 @@ function _series_dim(A)
     last((dims(A, spatialdims)..., otherdims(A, spatialdims)...))
 end
 
-function _prepare_dimarray(A)
-    map(A) do x
-        isequal(x, missingval(A)) || ismissing(x) ? NaN32 : Float32(x)
-    end |> DimArray
-end
+_prepare_dimarray(A) = DimArray(map(x -> _convert_with_missing(x, missingval(A)), A))
+
+_convert_with_missing(x::Real, missingval) = isequal(x, missingval) || ismissing(x) ? NaN32 : Float32(x)
+_convert_with_missing(x, missingval) = isequal(x, missingval) ? missing : x
