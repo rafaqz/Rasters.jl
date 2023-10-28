@@ -1,26 +1,3 @@
-"""
-    cellsize(x)
-
-Gives the approximate size of each cell in square km. 
-This function works for any projection, using an algorithm for polygons on a sphere. It approximates the true size to about 0.1%, depending on latitude.
-
-# Arguments
-
-- `x`: A `Raster` or a `Tuple` of `X` and `Y` dimensions. 
-
-## Example
-
-```jldoctest
-using Rasters, Rasters.LookupArrays
-dimz = X(Projected(90.0:0.1:120; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326))),
-       Y(Projected(0.0:0.1:50; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326)))
-
-cs = cellsize(dimz)
-
-```
-$EXPERIMENTAL
-"""
-
 function _great_circle_bearing(lon1::AbstractFloat, lat1::AbstractFloat, lon2::AbstractFloat, lat2::AbstractFloat)
     dLong = lon1 - lon2
 

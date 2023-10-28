@@ -76,7 +76,7 @@ gdalpath = maybedownload(url)
         named = set(A, Band => string.(Ref("layer_"), dims(A, Band)))
         tempfile = tempname() * ".tif"
         write(tempfile, named)
-        @test parent(dims(Raster(tempfile), Band)) == ["layer_1", "layer_2"]
+        @test lookup(Raster(tempfile), Band) == ["layer_1", "layer_2"]
         @test keys(RasterStack(tempfile; layersfrom=Band)) == (:layer_1, :layer_2)
         rm(tempfile)
     end
@@ -265,6 +265,7 @@ gdalpath = maybedownload(url)
 
         @testset "2d" begin
             filename = tempname() * ".asc"
+            gdalarray
             @time write(filename, gdalarray)
             saved1 = Raster(filename);
             @test all(saved1 .== gdalarray)
@@ -351,13 +352,13 @@ gdalpath = maybedownload(url)
             ga = Raster(rand(100, 200), (X, Y))
             write(filename, ga)
             saved = Raster(filename)
-            @test all(reverse(saved[Band(1)]; dims=Y) .=== ga)
-            @test saved[1, end] == saved[At(1.0), At(1.0)]
-            @test saved[100, 1] == saved[At(100), At(200)]
+            @test all(saved[Band(1)] .=== ga)
+            @test saved[At(1.0), At(1.0)] == saved[1, 1]
+            @test saved[end, end] == saved[At(100), At(200)]
             filename2 = tempname() * ".tif"
             ga2 = Raster(rand(100, 200), (X(Sampled(101:200)), Y(Sampled(1:200))))
             write(filename2, ga2)
-            @test reverse(Raster(filename2)[Band(1)]; dims=Y) == ga2
+            @test Raster(filename2) == ga2
         end
 
         @testset "to netcdf" begin

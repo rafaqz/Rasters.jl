@@ -1,81 +1,3 @@
-"""
-	resample(x; kw...)
-    resample(xs...; to=first(xs), kw...)
-
-`resample` uses `warp` (which uses GDALs `gdalwarp`) to resample a [`Raster`](@ref)
-or [`RasterStack`](@ref) to a new `resolution` and optionally new `crs`,
-or to snap to the bounds, resolution and crs of the object `to`.
-
-Dimensions without an `AbstractProjected` lookup (such as a `Ti` dimension)
-are iteratively resampled with GDAL and joined back into a single array.
-
-If projections can be converted for each axis independently, it may 
-be faster and more accurate to use [`reproject`](@ref).
-
-# Arguments
-
-- `x`: the object/s to resample.
-
-# Keywords
-
-- `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
-    If no `to` object is provided the extent will be calculated from `x`,
-$RES_KEYWORD
-$SIZE_KEYWORD
-$CRS_KEYWORD
-- `method`: A `Symbol` or `String` specifying the method to use for resampling.
-    From the docs for [`gdalwarp`](https://gdal.org/programs/gdalwarp.html#cmdoption-gdalwarp-r):
-    * `:near`: nearest neighbour resampling (default, fastest algorithm, worst interpolation quality).
-    * `:bilinear`: bilinear resampling.
-    * `:cubic`: cubic resampling.
-    * `:cubicspline`: cubic spline resampling.
-    * `:lanczos`: Lanczos windowed sinc resampling.
-    * `:average`: average resampling, computes the weighted average of all non-NODATA contributing pixels.
-        rms root mean square / quadratic mean of all non-NODATA contributing pixels (GDAL >= 3.3)
-    * `:mode`: mode resampling, selects the value which appears most often of all the sampled points.
-    * `:max`: maximum resampling, selects the maximum value from all non-NODATA contributing pixels.
-    * `:min`: minimum resampling, selects the minimum value from all non-NODATA contributing pixels.
-    * `:med`: median resampling, selects the median value of all non-NODATA contributing pixels.
-    * `:q1`: first quartile resampling, selects the first quartile value of all non-NODATA contributing pixels.
-    * `:q3`: third quartile resampling, selects the third quartile value of all non-NODATA contributing pixels.
-    * `:sum`: compute the weighted sum of all non-NODATA contributing pixels (since GDAL 3.1)
-
-    Where NODATA values are set to `missingval`.
-$FILENAME_KEYWORD
-$SUFFIX_KEYWORD
-
-Note:
-- GDAL may cause some unexpected changes in the raster, such as changing the `crs`
-    type from `EPSG` to `WellKnownText` (it will represent the same CRS).
-
-# Example
-
-Resample a WorldClim layer to match an EarthEnv layer:
-
-```jldoctest
-using Rasters, RasterDataSources, ArchGDAL, Plots
-A = Raster(WorldClim{Climate}, :prec; month=1)
-B = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
-
-a = plot(A)
-b = plot(resample(A; to=B))
-
-savefig(a, "docs/build/resample_example_before.png");
-savefig(b, "docs/build/resample_example_after.png"); nothing
-# output
-```
-
-### Before `resample`:
-
-![before resample](resample_example_before.png)
-
-### After `resample`:
-
-![after resample](resample_example_after.png)
-
-$EXPERIMENTAL
-"""
-function resample end
 resample(x, res; kw...) = resample(x; res, kw...)
 resample(xs::RasterStackOrArray...; kw...) = resample(xs; kw...)
 function resample(ser::AbstractRasterSeries, args...; kw...)
@@ -84,7 +6,7 @@ end
 function resample(xs::Union{Tuple,NamedTuple}; to=first(xs), kw...)
     map(x -> resample(x; to, kw...), xs)
 end
-function resample(x::RasterStackOrArray; 
+function resample(A::RasterStackOrArray; 
     to=nothing, res=nothing, crs=nothing, size=nothing, method=:near, kw...
 )
     (isnothing(size) || isnothing(res)) || _size_and_res_error()
@@ -105,12 +27,6 @@ function resample(x::RasterStackOrArray;
         end
     else
         all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` must have both `XDim` and `YDim` dimensions to resize with GDAL"))
-        if sampling(to, XDim) isa Points
-            to = set(to, dims(to, XDim) => Intervals(Start()))
-        end
-        if sampling(to, YDim) isa Points
-            to = set(to, dims(to, YDim) => Intervals(Start()))
-        end
 
         # Set res from `to` if it was not already set
         if isnothing(res) && isnothing(size)
@@ -127,7 +43,7 @@ function resample(x::RasterStackOrArray;
             nothing
         else
             # get crs from `to` or `x` if none was passed in
-            isnothing(Rasters.crs(to)) ? Rasters.crs(x) : Rasters.crs(to)
+            isnothing(Rasters.crs(to)) ? Rasters.crs(A) : Rasters.crs(to)
         end
     else
         crs
@@ -135,7 +51,7 @@ function resample(x::RasterStackOrArray;
     if !isnothing(crs)
         wkt = convert(String, convert(WellKnownText, crs))
         flags[:t_srs] = wkt
-        if isnothing(Rasters.crs(x))
+        if isnothing(Rasters.crs(A))
             @warn "You have set a crs to resample to, but the object does not have crs so GDAL will assume it is already in the target crs. Use `newraster = setcrs(raster, somecrs)` to fix this."
         end
     end
@@ -151,6 +67,7 @@ function resample(x::RasterStackOrArray;
         else
             throw(ArgumentError("`res` must be a `Real`, or a 2 `Tuple` of `Real` or `Dimension`s wrapping `Real`. Got $res"))
         end
+
         flags[:tr] = [yres, xres]
     end
 
@@ -161,7 +78,7 @@ function resample(x::RasterStackOrArray;
         elseif size isa Tuple{<:Dimension{Int},<:Dimension{Int}}
             map(val, dims(size, (YDim, XDim)))
         elseif size isa Tuple{Int,Int}
-            reverse(size)
+            dimnum(A, XDim) > dimnum(A, YDim) ? size : reverse(size)
         else
             throw(ArgumentError("`size` must be a `Int`, or a 2 `Tuple` of `Int` or `Dimension`s wrapping `Int`. Got $size"))
         end
@@ -169,11 +86,11 @@ function resample(x::RasterStackOrArray;
     end
 
     # resample with `warp`
-    resampled = warp(x, flags; kw...)
+    resampled = warp(A, flags; kw...)
 
     # Return crs to the original type, from GDAL it will always be WellKnownText
     if isnothing(crs)
-        return setcrs(resampled, Rasters.crs(x))
+        return setcrs(resampled, Rasters.crs(A))
     else
         return setcrs(resampled, crs)
     end
