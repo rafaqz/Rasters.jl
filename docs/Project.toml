@@ -17,6 +17,3 @@ Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 RasterDataSources = "3cb90ccd-e1b6-4867-9617-4276c8b2ca36"
 Rasters = "a3a2b9e3-a471-40c9-b274-f788e487c689"
 Shapefile = "8e980c4a-a4fe-5da2-b3a7-4b4b0353a2f4"
-
-[compat]
-Documenter = "1"
