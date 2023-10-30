@@ -15,7 +15,7 @@ const GRD_DATATYPE_TRANSLATION = Dict{String, DataType}(
     "FLT4S" => Float32,
     "FLT8S" => Float64
 )
-const REVGRDsource_DATATYPE_TRANSLATION =
+const REVGRD_DATATYPE_TRANSLATION =
     Dict{DataType, String}(v => k for (k,v) in GRD_DATATYPE_TRANSLATION)
 
 # GRD attributes wrapper. Only used during file load, for dispatch.
@@ -164,8 +164,8 @@ function Base.write(filename::String, ::Type{GRDsource}, A::AbstractRaster;
     end
     # Remove extension
     filename = splitext(filename)[1]
-    minvalue = minimum(filter(x -> x !== missingval(A), parent(A)))
-    maxvalue = maximum(filter(x -> x !== missingval(A), parent(A)))
+    minvalue = minimum(skipmissing(A))
+    maxvalue = maximum(skipmissing(A))
     _write_grd(filename, eltype(A), dims(A), missingval(A), minvalue, maxvalue, name(A))
 
     # Data: gri file
@@ -188,7 +188,7 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
     xmin, xmax = bounds(x)
     ymin, ymax = bounds(y)
     proj = convert(String, convert(ProjString, crs(x)))
-    datatype = REVGRDsource_DATATYPE_TRANSLATION[T]
+    datatype = REVGRD_DATATYPE_TRANSLATION[T]
     nodatavalue = missingval
 
     # Metadata: grd file
