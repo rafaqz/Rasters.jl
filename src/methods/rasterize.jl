@@ -381,13 +381,13 @@ china = rasterize(last, china_border; res=0.1, missingval=0, fill=1, boundary=:t
 p = plot(china; color=:spring, legend=false)
 plot!(p, china_border; fillalpha=0, linewidth=0.6)
 
-savefig("china_rasterized.png"); nothing
+savefig("docs/build/china_rasterized.png"); nothing
 
 # output
 
 ```
 
-![rasterize](../china_rasterized.png)
+![rasterize](../build/china_rasterized.png)
 
 $EXPERIMENTAL
 """
@@ -529,7 +529,7 @@ savefig("docs/build/indonesia_rasterized.png"); nothing
 
 ```
 
-![rasterize](/build/indonesia_rasterized.png)
+![rasterize](../build/indonesia_rasterized.png)
 
 $EXPERIMENTAL
 """
