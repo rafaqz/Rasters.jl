@@ -387,7 +387,7 @@ savefig("docs/build/china_rasterized.png"); nothing
 
 ```
 
-![rasterize](/build/china_rasterized.png)
+![rasterize](../build/china_rasterized.png)
 
 $EXPERIMENTAL
 """
@@ -529,7 +529,7 @@ savefig("docs/build/indonesia_rasterized.png"); nothing
 
 ```
 
-![rasterize](/build/indonesia_rasterized.png)
+![rasterize](../build/indonesia_rasterized.png)
 
 $EXPERIMENTAL
 """
