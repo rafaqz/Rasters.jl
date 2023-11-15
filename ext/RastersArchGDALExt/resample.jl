@@ -7,7 +7,7 @@ or [`RasterStack`](@ref) to a new `resolution` and optionally new `crs`,
 or to snap to the bounds, resolution and crs of the object `to`.
 
 Dimensions without an `AbstractProjected` lookup (such as a `Ti` dimension)
-are iteratively resampled with GDAL and joined back int a single array.
+are iteratively resampled with GDAL and joined back into a single array.
 
 If projections can be converted for each axis independently, it may 
 be faster and more accurate to use [`reproject`](@ref).
