@@ -114,7 +114,6 @@ include("read.jl")
 include("write.jl")
 include("show.jl")
 include("plotrecipes.jl")
-include("sectorlock.jl")
 
 include("methods/burning/edges.jl")
 include("methods/burning/allocs.jl")

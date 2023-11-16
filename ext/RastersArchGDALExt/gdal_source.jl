@@ -448,12 +448,13 @@ end
 function _process_options(driver::String, options::Dict;
     _block_template=nothing
 )
+    options_str = Dict(string(k)=>string(v) for (k,v) in options)
     # Get the GDAL driver object
     gdaldriver = AG.getdriver(driver)
 
     # set default compression
-    if driver != "MEM" && !("COMPRESS" in keys(options)) && AG.validate(gdaldriver, ["COMPRESS=ZSTD"])
-        options["COMPRESS"] = "ZSTD"
+    if driver != "MEM" && !("COMPRESS" in keys(options_str)) && AG.validate(gdaldriver, ["COMPRESS=ZSTD"])
+        options_str["COMPRESS"] = "ZSTD"
     end
 
     # the goal is to set write block sizes that correspond to eventually blocked reads
@@ -463,23 +464,23 @@ function _process_options(driver::String, options::Dict;
         block_x, block_y = string.(DA.max_chunksize(DA.eachchunk(_block_template)))
         if driver == "GTiff"
             # dont overwrite user specified values
-            if !("BLOCKXSIZE" in keys(options))
-                options["BLOCKXSIZE"] = block_x
+            if !("BLOCKXSIZE" in keys(options_str))
+                options_str["BLOCKXSIZE"] = block_x
             end
-            if !("BLOCKYSIZE" in keys(options))
-                options["BLOCKYSIZE"] = block_y
+            if !("BLOCKYSIZE" in keys(options_str))
+                options_str["BLOCKYSIZE"] = block_y
             end
         elseif driver == "COG"
-            if !("BLOCKSIZE" in keys(options))
+            if !("BLOCKSIZE" in keys(options_str))
                 # cog only supports square blocks
                 # if the source already has square blocks, use them
                 # otherwise use the driver default
-                options["BLOCKSIZE"] = block_x == block_y ? block_x : 512
+                options_str["BLOCKSIZE"] = block_x == block_y ? block_x : 512
             end
         end
     end
     # if the input is unchunked we just use the driver defaults
-    options_vec = ["$(uppercase(k))=$(uppercase(string(v)))" for (k,v) in options]
+    options_vec = ["$(uppercase(k))=$(uppercase(v))" for (k,v) in options_str]
 
     invalid_options = String[]
     for option in options_vec

@@ -56,7 +56,7 @@ if !haskey(ENV, "CI")
     ys = -20.0:1.0:20.0
     rast = Raster(rand(X(xs), Y(ys)))
 
-    using Makie
+    using GLMakie
     # Some small diversions from the DimensionalData.jl recipes
     @test Makie.convert_arguments(Makie.DiscreteSurface(), rast) == 
         (lookup(rast, X), lookup(rast, Y), Float32.(rast.data))
@@ -74,4 +74,9 @@ if !haskey(ENV, "CI")
     Makie.heatmap(ga3)
     Rasters.rplot(ga2)
     Rasters.rplot(ga3)
+
+    using Colors
+    c = Raster(rand(RGB, X(10), Y(10)))
+    Makie.image(c)
+    # Makie.heatmap(c) # Doesn't work because of the auto Colorbar
 end

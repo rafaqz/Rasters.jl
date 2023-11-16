@@ -4,6 +4,10 @@ import Makie, CairoMakie
 using DocumenterMarkdown
 using Rasters.LookupArrays, Rasters.Dimensions
 
+# Don't output huge svgs for Makie plots
+CairoMakie.activate!(type = "png")
+
+# Fix some GR.jl CI bug
 ENV["GKSwstype"] = "100"
 
 # Plots warnings are brWarn doctests. They dont warn the second time.

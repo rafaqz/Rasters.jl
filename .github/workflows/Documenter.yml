@@ -25,7 +25,7 @@ jobs:
         run: julia --project=docs -e 'using Pkg; pkg"dev ."; Pkg.instantiate()'
       - name: Build and deploy
         env:
-          RASTERDATASOURCES_PATH: "."
+          RASTERDATASOURCES_PATH: "/tmp"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # For authentication with SSH deploy key
           GKSwstype: "100" # https://discourse.julialang.org/t/generation-of-documentation-fails-qt-qpa-xcb-could-not-connect-to-display/60988

@@ -72,7 +72,7 @@ end
 
 function _warp(A::AbstractRaster, flags::Dict; filename=nothing, suffix="", kw...)
     filename = RA._maybe_add_suffix(filename, suffix)
-    flagvect = reduce([flags...]; init=[]) do acc, (key, val)
+    flagvect = reduce([flags...]; init=String[]) do acc, (key, val)
         append!(acc, String[_asflag(key), _stringvect(val)...])
     end
     tempfile = isnothing(filename) ? nothing : tempname() * ".tif"
@@ -84,7 +84,7 @@ function _warp(A::AbstractRaster, flags::Dict; filename=nothing, suffix="", kw..
             # Either read the MEM dataset, or get the filename as a FileArray
             # And permute the dimensions back to what they were in A
             p_raster = _maybe_permute_from_gdal(raster, dims(A))
-            # Either read the MEM dataset to an Array, or keep a filename base raster lazy
+            # Either read the MEM dataset to an Array, or keep the raster lazy
             return isnothing(filename) ? read(p_raster) : p_raster
         end
     end

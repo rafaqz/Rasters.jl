@@ -23,7 +23,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait,
 end
 # Where geoms is an iterator
 function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; 
-    collapse::Union{Bool,Nothing}=nothing, lock=SectorLocks(), verbose=true, progress=true, threaded=true,
+    collapse::Union{Bool,Nothing}=nothing, lock=Threads.SpinLock(), verbose=true, progress=true, threaded=true,
     allocs=_burning_allocs(B; threaded), kw...
 )::Bool
     range = _geomindices(geoms)
