@@ -81,26 +81,24 @@ function _extract(A::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom;
     names, geometry=true, index=false, kw...
 )
     B = boolmask(geom; to=dims(A, DEFAULT_POINT_ORDER), kw...)
-    pts = DimPoints(B)
-    dis = DimIndices(B)
     fs = let names=names
         ((b, i) -> _prop_nt(b, i, names),)
     end
-    if geometry
-        fs = (fs..., _geom_nt)
-    end
     if index
-        fs = (fs..., _index_nt)
+        fs = (_index_nt, fs...)
+    end
+    if geometry
+        fs = (_geom_nt, fs...)
     end
     return _create_nametuples(B, fs)
 end
-_geom_nt(x, pts) = NamedTuple{map(dim2key, dims(x))}(pts)
-_prop_nt(st::AbstractRasterStack, I, names::NamedTuple{K}) where K = NamedTuple{K}(values(st[I]))
+_geom_nt(x, I) = (; geometry=NamedTuple{map(dim2key, dims(x))}(DimPoints(x)[I]))
+_prop_nt(st::AbstractRasterStack, I, names::NamedTuple{K}) where K = NamedTuple{K}(DimIndices(x)[I])
 _prop_nt(A::AbstractRaster, I, names::NamedTuple{K}) where K = NamedTuple{K}((A[I],))
 _index_nt(x, I) = (; index=CartesianIndex(I))
 
-function _create_nametuple(B, fs::Tuple)
-    (merge(map(f -> f(B, I), fs) for I in CartesianIndices(B) if B[I])
+function _create_nametuples(B, fs::Tuple)
+    (merge(map(f -> f(B, I), fs)...) for I in CartesianIndices(B) if B[I])
 end
 
 function _extract(x::RasterStackOrArray, ::GI.PointTrait, point; dims, names, atol=nothing)
