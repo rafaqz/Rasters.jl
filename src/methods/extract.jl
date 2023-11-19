@@ -15,6 +15,10 @@ sliced arrays or stacks will be returned instead of single values.
 
 # Keywords
 
+- `geometry`: include a `:geometry` column with the corresponding points for each value, `true` by default.
+- `index`: include a column of the `CartesianIndex` for each value, `false` by default.
+- `names`: `Tuple` of `Symbol` corresponding to layers of a `RasterStack`. All layers by default.
+- `skipmissing`: skip missing points automatically.
 - `atol`: a tolorerance for floating point lookup values for when the `LookupArray`
     contains `Points`. `atol` is ignored for `Intervals`.
 
@@ -32,12 +36,9 @@ st = RasterStack(WorldClim{BioClim}, (1, 3, 5, 7, 12)) |> replace_missing
 # Download some occurrence data
 obs = GBIF2.occurrence_search("Burramys parvus"; limit=5, year="2009")
 
-# Convert observations to points
-pnts = collect((o.decimalLongitude, o.decimalLatitude) for o in obs if !ismissing(o.decimalLongitude))
-
 # use `extract` to get values for all layers at each observation point.
 # We `collect` to get a `Vector` from the lazy iterator.
-collect(extract(st, pnts))
+collect(extract(st, pnts; skipmissing=true))
 
 # output
 5-element Vector{NamedTuple{(:geometry, :bio1, :bio3, :bio5, :bio7, :bio12)}}:
@@ -50,18 +51,22 @@ collect(extract(st, pnts))
 """
 function extract end
 function extract(x::RasterStackOrArray, data;
-    dims=DD.dims(x, DEFAULT_POINT_ORDER), kw...
+    dims=DD.dims(x, DEFAULT_POINT_ORDER), names=_names(x), kw...
 )
-    _extract(x, data; dims, names=_names(x), kw...)
+    _extract(x, data; dims, names, kw...)
 end
 _extract(A::RasterStackOrArray, point::Missing; kw...) = missing
 function _extract(A::RasterStackOrArray, geom; kw...)
     _extract(A, GI.geomtrait(geom), geom; kw...)
 end
-function _extract(A::RasterStackOrArray, ::Nothing, geoms; kw...)
-    geom1 = first(skipmissing(geoms))
+function _extract(A::RasterStackOrArray, ::Nothing, geoms; skipmissing=false, kw...)
+    geom1 = first(Base.skipmissing(geoms))
     if GI.isgeometry(geom1) || GI.isfeature(geom1) || GI.isfeaturecollection(geom1)
-        (_extract(A, g; kw...) for g in geoms)
+        if skipmissing
+            (_extract(A, g; kw...) for g in skipmissing(geoms))
+        else
+            (_extract(A, g; kw...) for g in geoms)
+        end
     else
         throw(ArgumentError("`data` does not contain geomety objects"))
     end
@@ -72,15 +77,31 @@ end
 function _extract(A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom; kw...)
     (_extract(A, p; kw...) for p in GI.getpoint(geom))
 end
-function _extract(A::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom; names, kw...)
+function _extract(A::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom; 
+    names, geometry=true, index=false, kw...
+)
     B = boolmask(geom; to=dims(A, DEFAULT_POINT_ORDER), kw...)
     pts = DimPoints(B)
     dis = DimIndices(B)
-    ((; geometry=_geom_nt(dims(B), pts[I]), _prop_nt(A, I, names)...) for I in CartesianIndices(B) if B[I])
+    fs = let names=names
+        ((b, i) -> _prop_nt(b, i, names),)
+    end
+    if geometry
+        fs = (fs..., _geom_nt)
+    end
+    if index
+        fs = (fs..., _index_nt)
+    end
+    return _create_nametuples(B, fs)
 end
-_geom_nt(dims::DimTuple, pts) = NamedTuple{map(dim2key, dims)}(pts)
+_geom_nt(x, pts) = NamedTuple{map(dim2key, dims(x))}(pts)
 _prop_nt(st::AbstractRasterStack, I, names::NamedTuple{K}) where K = NamedTuple{K}(values(st[I]))
 _prop_nt(A::AbstractRaster, I, names::NamedTuple{K}) where K = NamedTuple{K}((A[I],))
+_index_nt(x, I) = (; index=CartesianIndex(I))
+
+function _create_nametuple(B, fs::Tuple)
+    (merge(map(f -> f(B, I), fs) for I in CartesianIndices(B) if B[I])
+end
 
 function _extract(x::RasterStackOrArray, ::GI.PointTrait, point; dims, names, atol=nothing)
     # Get the actual dimensions available in the object
