@@ -349,6 +349,7 @@ function _create_with_driver(f, filename, dims, T, missingval;
     x, y = map(DD.dims(dims, (XDim, YDim))) do d
         maybeshiftlocus(Start(), RA.nolookup_to_sampled(d))
     end
+
     newdims = hasdim(dims, Band()) ? (x, y, DD.dims(dims, Band)) : (x, y)
     nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band())) : 1
 
@@ -468,7 +469,7 @@ _set_dataset_properties!(ds::AG.Dataset, A) =
 function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval)
     # We cant write mixed Points/Intervals, so default to Intervals if mixed
     xy = DD.dims(dims, (X, Y))
-    if any(x -> x isa Intervals, sampling.(xy)) && any(x -> x isa Points, sampling.(xy))
+    if any(x -> x isa Intervals, map(sampling, xy)) && any(x -> x isa Points, map(sampling, xy))
         dims = set(dims, X => Intervals, Y => Intervals)
     end
     # Convert the dimensions to `Projected` if they are `Converted`
@@ -480,6 +481,7 @@ function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval)
     # NetCDF or other formats use the center of the interval, so they need conversion.
     x = DD.maybeshiftlocus(GDAL_LOCUS, x)
     y = DD.maybeshiftlocus(GDAL_LOCUS, y)
+    display((x, y))
 
     # Set GDAL AREA_OR_POINT metadata
     area_or_point = sampling(x) isa Points ? "Point" : "Area"

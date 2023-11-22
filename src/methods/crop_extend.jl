@@ -93,6 +93,7 @@ function _crop_to(x, to; kw...)
     end
 end
 _crop_to(A, to::RasterStackOrArray; dims=DD.dims(to), kw...) = _crop_to(A, DD.dims(to, dims); kw...)
+_crop_to(x, to::Dimension; kw...) = _crop_to(x, (to,); kw...)
 function _crop_to(x, to::DimTuple; kw...)
     # We can only crop to sampled dims (e.g. not categorical dims like Band)
     sampled = reduce(to; init=()) do acc, d
@@ -170,38 +171,52 @@ function _extend_to(x::RasterStackOrArray, to; kw...)
     isnothing(ext) && throw(ArgumentError("No dims or extent available on `to` object of type $(typeof(to))"))
     return _extend_to(x, ext; kw...)
 end
+_extend_to(x::RasterStackOrArray, to::Dimension; kw...) = _extend_to(x, (to,); kw...)
 
 function _extend_to(A::AbstractRaster, to::DimTuple;
-    filename=nothing, suffix=nothing, touches=false
+    filename=nothing, suffix=nothing, touches=false, missingval=missingval(A)
 )
+    others = otherdims(to, A)
+    # Allow not specifying all dimensions
+    to = (set(dims(A), map(=>, dims(A, to), to)...)..., others...)
     # Calculate the range of the old array in the extended array
-    ranges = _without_mapped_crs(A) do A
+    rangedims = _without_mapped_crs(A) do A
         _without_mapped_crs(to) do to
-            map(dims(A), to) do d, t
-                range = if touches 
-                    DD.selectindices(t, LA.Touches(bounds(d)))
-                else
-                    DD.selectindices(t, LA.ClosedInterval(bounds(d)...))
-                end
-                rebuild(d, range)
+            map(dims(A, to), to) do d, t
+                # Values must match exactly, so use `At`
+                DD.selectindices(t, At(first(d))):DD.selectindices(t, At(last(d)))
             end
         end
     end
+    others1 = otherdims(to, A)
+    final_to = (set(dims(A), map(=>, dims(A, to), to)...)..., others1...)
     # Create a new extended array
-    newA = create(filename, eltype(A), to;
-        suffix, parent=parent(A), missingval=missingval(A),
+    newA = create(filename, eltype(A), final_to;
+        suffix, parent=parent(A), missingval,
         name=name(A), metadata=metadata(A)
     )
+    # Input checks
+    map(dims(A, to), dims(newA, to)) do d1, d2
+        if lookup(d1) isa Union{AbstractSampled,NoLookup}
+            b1, b2 = bounds(d1), bounds(d2)
+            b1[1] >= b2[1] || throw(ArgumentError("Lower bound of $(basetypeof(d1)) lookup of `$(b2[1])` are not larger than the original `$(b1[1])`"))
+            b1[2] <= b2[2] || throw(ArgumentError("Upper bound of $(basetypeof(d2)) lookup of `$(b2[2])` is not larger than the original `$(b1[2])`"))
+        elseif lookup(d1) isa Categorical
+            map(lookup(d1)) do x 
+                x in d2 || throw(ArgumentError("category $x not in new dimension"))
+            end
+        end
+    end
     # The missingval may have changed for disk-based arrays
-    if !isequal(missingval(A), missingval(newA))
-        A = replace_missing(A, missingval(newA))
+    if !isequal(missingval, Rasters.missingval(newA))
+        A = replace_missing(A, Rasters.missingval(newA))
     end
     open(newA; write=true) do O
         # Fill it with missing/nodata values
-        O .= missingval(O)
+        O .= Rasters.missingval(O)
         # Copy the original data to the new array
         # Somehow this is slow from disk?
-        broadcast_dims!(identity, view(O, ranges...), A)
+        broadcast_dims!(identity, view(O, rangedims...), A)
     end
     return newA
 end
