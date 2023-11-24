@@ -55,6 +55,7 @@ function extract(x::RasterStackOrArray, data;
 )
     _extract(x, data; dims, names, kw...)
 end
+
 _extract(A::RasterStackOrArray, point::Missing; kw...) = missing
 _extract(A::RasterStackOrArray, geom; kw...) = _extract(A, GI.geomtrait(geom), geom; kw...)
 function _extract(A::RasterStackOrArray, ::Nothing, geoms; skipmissing=false, kw...)
