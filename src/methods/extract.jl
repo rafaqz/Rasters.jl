@@ -48,6 +48,9 @@ collect(extract(st, pnts; skipmissing=true))
  (geometry = (0.52, 40.37), bio1 = missing, bio3 = missing, bio5 = missing, bio7 = missing, bio12 = missing)
  (geometry = (0.32, 40.24), bio1 = 16.321388f0, bio3 = 41.659454f0, bio5 = 30.029825f0, bio7 = 25.544561f0, bio12 = 480.0f0)
 ```
+
+Note: passing in arrays, geometry collections or feature collections 
+containing a mix of points and other geometries has undefined results.
 """
 function extract end
 function extract(x::RasterStackOrArray, data;
@@ -79,7 +82,7 @@ end
 function _extract(A::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...)
     _extract(A, GI.geometry(feature); kw...)
 end
-function _extract(A::RasterStackOrArray, ::GI.FeatureCollection, fc; kw...)
+function _extract(A::RasterStackOrArray, ::GI.FeatureCollectionTrait, fc; kw...)
     # Fall back to the Array/iterator method for feature collections
     _extract(A, [GI.geometry(f) for f in GI.getfeature(fc)]; kw...)
 end
