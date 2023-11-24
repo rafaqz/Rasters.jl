@@ -2,8 +2,6 @@ using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Ext
 import GeoInterface
 using Rasters.LookupArrays, Rasters.Dimensions 
 using Rasters: bounds
-using Rasters
-using ArchGDAL
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
@@ -267,97 +265,107 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
     st = RasterStack(rast, rast2)
     @testset "from Raster" begin
         # Tuple points
-        @test all(collect(extract(rast, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])) .=== [
+        @test all(extract(rast, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]) .=== [
             (geometry = missing, test = missing)
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (9.0, 0.2), test = 2)
             (geometry = (10.0, 0.3), test = missing)
         ])
-        @test all(collect(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true)) .=== [
+        @test all(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true) .=== [
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (9.0, 0.2), test = 2)
         ])
-        @test all(collect(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false)) .=== [
+        @test all(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false) .=== [
             (test = 1,)
             (test = 2,)
         ])
-        @test all(collect(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true)) .=== [
+        @test all(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) .=== [
             (index = (1, 1), test = 1,)
             (index = (1, 2), test = 2,)
         ])
         # NamedTuple (reversed) points
-        @test all(collect(extract(rast, [missing, (Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)])) .=== [
+        @test all(extract(rast, [missing, (Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) .=== [
             (geometry = missing, test = missing)
             (geometry = (Y = 0.1, X = 9.0), test = 1)
             (geometry = (Y = 0.2, X = 10.0), test = 4)
             (geometry = (Y = 0.3, X = 10.0), test = missing)
         ])
         # Vector points
-        @test all(collect(extract(rast, [[9.0, 0.1], [10.0, 0.2]])) .== [
+        @test all(extract(rast, [[9.0, 0.1], [10.0, 0.2]]) .== [
             (geometry = [9.0, 0.1], test = 1)
             (geometry = [10.0, 0.2], test = 4)
         ])
         # Extract a polygon
         p = ArchGDAL.createpolygon([[[8.0, 0.0], [11.0, 0.0], [11.0, 0.4], [8.0, 0.0]]])
-        @test all(collect(extract(rast_m, p)) .=== [
+        @test all(extract(rast_m, p) .=== [
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (10.0, 0.1), test = 3)
             (geometry = (10.0, 0.2), test = missing)
         ])
-        @test all(collect(extract(rast_m, p; geometry=false)) .=== [
+        # Extract a vector of polygons
+        @test all(extract(rast_m, [p, p]) .=== [
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (10.0, 0.1), test = 3)
+            (geometry = (10.0, 0.2), test = missing)
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (10.0, 0.1), test = 3)
+            (geometry = (10.0, 0.2), test = missing)
+        ])
+        # Test all the keyword combinations
+        @test all(extract(rast_m, p) .=== [
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (10.0, 0.1), test = 3)
+            (geometry = (10.0, 0.2), test = missing)
+        ])
+        @test all(extract(rast_m, p; geometry=false) .=== [
             (test = 1,)
             (test = 3,)
             (test = missing,)
         ])
-        @test all(collect(extract(rast_m, p; geometry=false, index=true)) .=== [
+        @test all(extract(rast_m, p; geometry=false, index=true) .=== [
             (index = CartesianIndex(1, 1), test = 1)
             (index = CartesianIndex(2, 1), test = 3)
             (index = CartesianIndex(2, 2), test = missing)
         ])
-        @test all(collect(extract(rast_m, p)) .=== [
-            (geometry = (9.0, 0.1), test = 1)
-            (geometry = (10.0, 0.1), test = 3)
-            (geometry = (10.0, 0.2), test = missing)
-        ])
-        @test all(collect(extract(rast_m, p; index=true)) .=== [
+        @test all(extract(rast_m, p; index=true) .=== [
              (geometry = (9.0, 0.1), index = CartesianIndex(1, 1), test = 1)
              (geometry = (10.0, 0.1), index = CartesianIndex(2, 1), test = 3)
              (geometry = (10.0, 0.2), index = CartesianIndex(2, 2), test = missing)
         ])
-        @test collect(extract(rast_m, p; skipmissing=true, geometry=false)) == [
-            (test = 1,)
-            (test = 3,)
-        ]                                                         
-        @test collect(extract(rast_m, p; skipmissing=true, geometry=false, index=true)) == [
-            (index = CartesianIndex(1, 1), test = 1)
-            (index = CartesianIndex(2, 1), test = 3)
-        ]                                                         
-        @test collect(extract(rast_m, p; skipmissing=true)) == [
+        @test extract(rast_m, p; skipmissing=true) == [
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (10.0, 0.1), test = 3)
         ]                                                         
-        @test collect(extract(rast_m, p; skipmissing=true, index=true)) == [
+        @test extract(rast_m, p; skipmissing=true, geometry=false) == [
+            (test = 1,)
+            (test = 3,)
+        ]                                                         
+        @test extract(rast_m, p; skipmissing=true, geometry=false, index=true) == [
+            (index = CartesianIndex(1, 1), test = 1)
+            (index = CartesianIndex(2, 1), test = 3)
+        ]                                                         
+        @test extract(rast_m, p; skipmissing=true, index=true) == [
             (geometry = (9.0, 0.1), index = CartesianIndex(1, 1), test = 1)
             (geometry = (10.0, 0.1), index = CartesianIndex(2, 1), test = 3)
         ]                                                         
     end
 
     @testset "from stack" begin
-        @test all(collect(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)])) .=== [
+        @test all(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]) .=== [
             (geometry = missing, test = missing, test2 = missing)
             (geometry = (9.0, 0.1), test = 1, test2 = 5)
             (geometry = (10.0, 0.2), test = 4, test2 = 8)
             (geometry = (10.0, 0.3), test = missing, test2 = missing)
         ])
-        @test collect(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true)) == [
+        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true) == [
             (geometry = (9.0, 0.1), test = 1, test2 = 5)
             (geometry = (10.0, 0.2), test = 4, test2 = 8)
         ]
-        @test collect(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false)) == [
+        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false) == [
             (test = 1, test2 = 5)
             (test = 4, test2 = 8)
         ]
-        @test collect(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true)) == [
+        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) == [
             (index = (1, 1), test = 1, test2 = 5)
             (index = (2, 2), test = 4, test2 = 8)
         ]
