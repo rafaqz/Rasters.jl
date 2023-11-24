@@ -56,110 +56,42 @@ function extract(x::RasterStackOrArray, data;
     _extract(x, data; dims, names, kw...)
 end
 
-_extract(A::RasterStackOrArray, point::Missing; kw...) = missing
+function _extract(A::RasterStackOrArray, geom::Missing; names, kw...)
+    vals = map(_ -> missing, names)
+    _maybe_add_fields(A, vals, missing, missing; kw...)
+end
 _extract(A::RasterStackOrArray, geom; kw...) = _extract(A, GI.geomtrait(geom), geom; kw...)
 function _extract(A::RasterStackOrArray, ::Nothing, geoms; skipmissing=false, kw...)
-    geom1 = first(Base.skipmissing(geoms))
-    if GI.trait(geom1) isa GI.PointTrait
-        if skipmissing
-            Base.skipmissing((_extract_point_skip(A, g; kw...) for g in geoms))
-        else
-            (_extract_point(A, g; kw...) for g in geoms)
-        end
-    elseif GI.isgeometry(geom1) || GI.isfeature(geom1) || GI.isfeaturecollection(geom1)
-        vals = (_extract(A, g; skipmissing, kw...) for g in geoms)
-        skipmissing ? Base.skipmissing(vals) : vals
-    else
-        throw(ArgumentError("`data` does not contain geometry objects"))
-    end
+    rows = (_extract(A, g; kw...) for g in geoms)
+    skipmissing ? _skip_missing_rows(rows) : rows
 end
 function _extract(A::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...)
     _extract(A, GI.geometry(feature); kw...)
 end
 function _extract(A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom; skipmissing=false, kw...)
-    if skipmissing
-        skipmissing(_extract_point_skip(A, p; kw...) for g in geoms)
-    else
-        (_extract_point(A, g; kw...) for g in geoms)
-    end
+    rows = (_extract(A, g; kw...) for g in GI.getpoint(geom))
+    return skipmissing ? _skip_missing_rows(rows) : rows
 end
 function _extract(A::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom; 
     names, geometry=true, index=false, skipmissing=false, kw...
 )
+    # Make a raster mask of the geometry
     B = boolmask(geom; to=commondims(A, DEFAULT_POINT_ORDER), kw...)
-    return _extract_geom(A, B, names; skipmissing, geometry, index)
+    # Add a row for each pixel that is `true` in the mask
+    rows = (_maybe_add_fields(A, _prop_nt(A, I, names), I; index, geometry) for I in CartesianIndices(B) if B[I])
+    # Maybe skip missing rows
+    return skipmissing ? _skip_missing_rows(rows) : rows
 end
 
-@inline function _extract_geom(A, B, names; skipmissing, index, geometry)
-    if skipmissing
-        Base.skipmissing(_skipped_get(A, names, I; index, geometry) for I in CartesianIndices(B) if B[I])
-    else
-        (_normal_get(A, names, I; index, geometry) for I in CartesianIndices(B) if B[I])
-    end
-end
+@inline _skip_missing_rows(rows) = Iterators.filter(row -> !any(ismissing, row), rows)
 
-@inline _skipped_get(A, names, I; kw...) = _skipped_get(A, names, _prop_nt(A, I, names), I,; kw...)
-@inline function _skipped_get(st::RasterStack, names, vals, I; geometry, index) 
-    if any(x -> map((x, m) -> ismissing(x) || s === m, vals, missingval(st)), vals) 
-        missing 
-    else
-        _fill_row(A, vals, I; geometry, index)
-    end
-end
-@inline function _skipped_get(A, names, vals, I; geometry, index) 
-    if any(x -> ismissing(x) || x === missingval(A), vals) 
-        missing 
-    else
-        _fill_row(A, vals, I; geometry, index)
-    end
-end
+@inline _prop_nt(st::AbstractRasterStack, I, names::NamedTuple{K}) where K = t[I][K]
+@inline _prop_nt(A::AbstractRaster, I, names::NamedTuple{K}) where K = NamedTuple{K}((A[I],))
 
-@inline _normal_get(A, names, I; kw...) = _fill_row(A, _prop_nt(A, I, names), I; kw...)
-
-_prop_nt(st::AbstractRasterStack, I, names::NamedTuple{K}) where K = t[I][K]
-_prop_nt(A::AbstractRaster, I, names::NamedTuple{K}) where K = NamedTuple{K}((A[I],))
-
-function _extract(x::RasterStackOrArray, ::GI.PointTrait, point; skipmissing=false)
-    if skipmissing
-        _extract_point(x, point; kw...)
-    else
-        _extract_point_skip(x, point; kw...)
-    end
-end
-function _extract_point_skip(x::RasterStackOrArray, point; 
-    dims, names, atol=nothing, geometry=true, index=false, kw...
-)  
-    ismissing(point) && return missing
-    # Get the actual dimensions available in the object
-    coords = map(DD.commondims(x, dims)) do d
-        _dimcoord(d, point)
-    end
-
-    # Extract the values
-    if any(map(ismissing, coords))
-        return missing
-    else
-        selectors = map(dims, coords) do d, c
-            _at_or_contains(d, c, atol)
-        end
-        if DD.hasselection(x, selectors)
-            I = DD.dims2indices(x, selectors)
-            val = x[I...]
-            layer_vals = if x isa Raster
-                NamedTuple{keys(names)}((val,))
-            else
-                val
-            end
-            return _fill_row(x, layer_vals, point, I; geometry, index)
-        else
-            return missing
-        end
-    end
-end
-
-function _extract_point(x::RasterStackOrArray, point; 
+function _extract(x::RasterStackOrArray, ::GI.PointTrait, point; 
     dims, names::NamedTuple{K}, atol=nothing, geometry=true, index=false, kw...
 ) where K
+    # The point itself might be missing, so return missing for every field
     if ismissing(point) 
         layer_vals = map(_ -> missing, names)
         geom = missing
@@ -169,9 +101,8 @@ function _extract_point(x::RasterStackOrArray, point;
         coords = map(DD.commondims(x, dims)) do d
             _dimcoord(d, point)
         end
-        # Extract the values
+        # If any are coordinates missing, also return missing for everything
         if any(map(ismissing, coords))
-            # TODO test this branch somehow
             layer_vals = map(_ -> missing, names)
             geom = missing
             I = missing
@@ -179,24 +110,28 @@ function _extract_point(x::RasterStackOrArray, point;
             selectors = map(dims, coords) do d, c
                 _at_or_contains(d, c, atol)
             end
+            # Check the selector is in bounds / actually selectable
             if DD.hasselection(x, selectors)
                 I = DD.dims2indices(x, selectors)
                 layer_vals = x isa Raster ? NamedTuple{K}((x[I...],)) : x[I...][K]
             else
+                # Otherwise return `missing` for everything
                 I = missing
                 layer_vals = map(_ -> missing, names)
             end
+            # Return the point for the geometry, either way 
             geom = point
         end
     end
 
-    return _fill_row(x, layer_vals, geom, I; geometry, index)
+    return _maybe_add_fields(x, layer_vals, geom, I; geometry, index)
 end
 
-@inline function _fill_row(A, layer_vals::NamedTuple, I; kw...)
-    _fill_row(A, layer_vals, DimPoints(A)[I], I; kw...)
+# Maybe add optional fields
+@inline function _maybe_add_fields(A, layer_vals::NamedTuple, I; kw...)
+    _maybe_add_fields(A, layer_vals, DimPoints(A)[I], I; kw...)
 end
-@inline function _fill_row(A, layer_vals::NamedTuple, point, I; geometry, index)
+@inline function _maybe_add_fields(A, layer_vals::NamedTuple, point, I; geometry=true, index=false, kw...)
     if geometry
         if index
             merge((; geometry=point, index=I), layer_vals)
