@@ -56,7 +56,7 @@ function extract end
 function extract(x::RasterStackOrArray, data;
     dims=DD.dims(x, DEFAULT_POINT_ORDER), names=_names(x), kw...
 )
-    _extract(x, data; dims, names, kw...)
+    _extract(x, data; dims, names=NamedTuple{names}(names), kw...)
 end
 
 function _extract(A::RasterStackOrArray, geom::Missing; names, kw...)
@@ -172,5 +172,5 @@ end
     end
 end
 
-_names(A::AbstractRaster) = NamedTuple{(Symbol(name(A)),)}((Symbol(name(A)),))
-_names(A::AbstractRasterStack) = NamedTuple{keys(A)}(keys(A))
+_names(A::AbstractRaster) = (Symbol(name(A)),)
+_names(A::AbstractRasterStack) = keys(A)

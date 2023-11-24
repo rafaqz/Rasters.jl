@@ -372,6 +372,13 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (index = (1, 1), test = 1, test2 = 5)
             (index = (2, 2), test = 4, test2 = 8)
         ]
+        # Subset with `names`
+        @test all(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; names=(:test2,)) .=== [
+            (geometry = missing, test2 = missing)
+            (geometry = (9.0, 0.1), test2 = 5)
+            (geometry = (10.0, 0.2), test2 = 8)
+            (geometry = (10.0, 0.3), test2 = missing)
+        ])
     end
 end
 
