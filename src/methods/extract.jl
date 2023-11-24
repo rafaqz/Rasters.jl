@@ -79,6 +79,10 @@ end
 function _extract(A::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...)
     _extract(A, GI.geometry(feature); kw...)
 end
+function _extract(A::RasterStackOrArray, ::GI.FeatureCollection, fc; kw...)
+    # Fall back to the Array/iterator method for feature collections
+    _extract(A, [GI.geometry(f) for f in GI.getfeature(fc)]; kw...)
+end
 function _extract(A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom; skipmissing=false, kw...)
     rows = (_extract_point(A, g; kw...) for g in GI.getpoint(geom))
     return skipmissing ? collect(_skip_missing_rows(rows)) : collect(rows)
