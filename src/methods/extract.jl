@@ -57,21 +57,22 @@ function extract(x::RasterStackOrArray, data;
 end
 
 function _extract(A::RasterStackOrArray, geom::Missing; names, kw...)
-    vals = map(_ -> missing, names)
-    [_maybe_add_fields(A, vals, missing, missing; kw...)]
+    [_maybe_add_fields(A, map(_ -> missing, names), missing, missing; kw...)]
 end
 _extract(A::RasterStackOrArray, geom; kw...) = _extract(A, GI.geomtrait(geom), geom; kw...)
-function _extract(A::RasterStackOrArray, ::Nothing, geoms; skipmissing=false, kw...)
+function _extract(A::RasterStackOrArray, ::Nothing, geoms; names, skipmissing=false, kw...)
+    # Handle empty / all missing cases
+    (length(geoms) > 0 && any(!ismissing, geoms)) || return typeof(_maybe_add_fields(A, map(_ -> missing, names), missing, missing; kw...))[]
     geom1 = first(Base.skipmissing(geoms)) # TODO: will fail if `geoms` is empty or all missing
     trait1 = GI.trait(geom1)
     # We need to split out points from other geoms
     # TODO this will fail with mixed point/geom vectors
     if trait1 isa GI.PointTrait
-        rows = (_extract_point(A, g; kw...) for g in geoms)
+        rows = (_extract_point(A, g; names, kw...) for g in geoms)
         return skipmissing ? collect(_skip_missing_rows(rows)) : collect(rows)
     else
         # This will be a list of vectors, we need to flatten it into one
-        rows = Iterators.flatten(_extract(A, g; kw...) for g in geoms)
+        rows = Iterators.flatten(_extract(A, g; names, skipmissing, kw...) for g in geoms)
         return skipmissing ? collect(_skip_missing_rows(rows)) : collect(rows)
     end
 end
@@ -140,9 +141,8 @@ function _extract_point(x::RasterStackOrArray, point;
     return _maybe_add_fields(x, layer_vals, geom, I; geometry, index)
 end
 function _extract_point(A::RasterStackOrArray, point::Missing; names, kw...)
-    vals = map(_ -> missing, names)
     # Missing points return a single row
-    return _maybe_add_fields(A, vals, missing, missing; kw...)
+    return _maybe_add_fields(A, map(_ -> missing, names), missing, missing; kw...)
 end
 
 # Maybe add optional fields

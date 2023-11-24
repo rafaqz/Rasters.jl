@@ -348,6 +348,9 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (geometry = (9.0, 0.1), index = CartesianIndex(1, 1), test = 1)
             (geometry = (10.0, 0.1), index = CartesianIndex(2, 1), test = 3)
         ]                                                         
+        # Empty geoms
+        @test extract(rast, []) == NamedTuple{(:geometry, :test),Tuple{Missing,Missing}}[]
+        @test extract(rast, []; geometry=false) == NamedTuple{(:test,),Tuple{Missing}}[]
     end
 
     @testset "from stack" begin
