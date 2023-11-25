@@ -69,7 +69,7 @@ end
     @test parent(boolmask(ga)) isa BitMatrix
     @test boolmask(ga99) == [false true; true false]
     @test boolmask(gaNaN) == [false true; true false]
-    @test dims(boolmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
+    @test dims(boolmask(ga)) === dims(ga)
     x = boolmask(polygon; res=1.0) 
     @test x == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
     @test parent(x) isa BitMatrix
