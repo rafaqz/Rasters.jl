@@ -64,7 +64,7 @@ function Base.write(
     RA.check_can_write(filename, force)
     A1 = _maybe_correct_to_write(A)
     _create_with_driver(filename, dims(A1), eltype(A1), missingval(A1); _block_template=A1, kw...) do dataset
-        _maybe_warn_south_up(A, verbose, "Writing South-up. Use `reverse(raster; dims=Y)` first to write conventional North-up")
+        verbose && _maybe_warn_south_up(A, verbose, "Writing South-up. Use `reverse(x; dims=Y)` first to write conventional North-up")
         open(A1; write=true) do O
             AG.RasterDataset(dataset) .= parent(O)
         end
@@ -78,7 +78,7 @@ function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
     T = Missings.nonmissingtype(T)
     missingval = ismissing(missingval) ? RA._writeable_missing(T) : missingval
     _create_with_driver(filename, dims, T, missingval; kw...) do A
-        _maybe_warn_south_up(A, verbose, "Creating South-up. Use `reverse(ydim)` first to write conventional North-up")
+        verbose && _maybe_warn_south_up(dims, verbose, "Creating South-up. Use `reverse(x; dims=Y)` first to write conventional North-up")
         nothing
     end
 
@@ -86,7 +86,7 @@ function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
 end
 
 _maybe_warn_south_up(A, verbose, msg) = 
-    verbose && lookup(A, Y, msg) isa AbstractProjected && order(A, Y, msg) isa ForwardOrdered && @warn msg
+    verbose && lookup(A, Y) isa AbstractProjected && order(A, Y) isa ForwardOrdered && @warn msg
 
 function RA._open(f, ::Type{GDALsource}, filename::AbstractString; write=false, kw...)
     # Check the file actually exists because the GDAL error is unhelpful
