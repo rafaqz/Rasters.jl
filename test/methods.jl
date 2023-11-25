@@ -265,20 +265,20 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
     st = RasterStack(rast, rast2)
     @testset "from Raster" begin
         # Tuple points
-        @test all(extract(rast, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]) .=== [
+        ex = extract(rast, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
+        @test eltype(ex) == NamedTuple{(:geometry,:test)}
+        @test all(ex .=== [
             (geometry = missing, test = missing)
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (9.0, 0.2), test = 2)
             (geometry = (10.0, 0.3), test = missing)
         ])
-        @test all(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true) .=== [
-            (geometry = (9.0, 0.1), test = 1)
-            (geometry = (9.0, 0.2), test = 2)
-        ])
-        @test all(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false) .=== [
-            (test = 1,)
-            (test = 2,)
-        ])
+        ex = extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true)
+        @test eltype(ex) == NamedTuple{(:geometry,:test),Tuple{Tuple{Float64,Float64},Int}}
+        @test all(ex .=== [(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2)])
+        ex = extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false)
+        @test eltype(ex) == NamedTuple{(:test,),Tuple{Int}}
+        @test all(ex .=== [(test = 1,), (test = 2,)])
         @test all(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) .=== [
             (index = (1, 1), test = 1,)
             (index = (1, 2), test = 2,)
@@ -303,7 +303,9 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (geometry = (10.0, 0.2), test = missing)
         ])
         # Extract a vector of polygons
-        @test all(extract(rast_m, [p, p]) .=== [
+        ex = extract(rast_m, [p, p])
+        @test eltype(ex) == NamedTuple{(:geometry,:test)}
+        @test all(ex .=== [
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (10.0, 0.1), test = 3)
             (geometry = (10.0, 0.2), test = missing)
@@ -351,6 +353,8 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         # Empty geoms
         @test extract(rast, []) == NamedTuple{(:geometry, :test),Tuple{Missing,Missing}}[]
         @test extract(rast, []; geometry=false) == NamedTuple{(:test,),Tuple{Missing}}[]
+        # Missing coord errors
+        @test_throws ArgumentError extract(rast, [(0.0, missing), (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
     end
 
     @testset "from stack" begin
