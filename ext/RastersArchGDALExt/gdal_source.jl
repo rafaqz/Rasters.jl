@@ -77,16 +77,17 @@ function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
 )
     T = Missings.nonmissingtype(T)
     missingval = ismissing(missingval) ? RA._writeable_missing(T) : missingval
-    _create_with_driver(filename, dims, T, missingval; kw...) do A
-        verbose && _maybe_warn_south_up(dims, verbose, "Creating South-up. Use `reverse(x; dims=Y)` first to write conventional North-up")
+    _create_with_driver(filename, dims, T, missingval; kw...) do _
+        verbose && _maybe_warn_south_up(dims, verbose, "Creating a South-up raster. Use `reverse(x; dims=Y)` first to write conventional North-up")
         nothing
     end
 
     return Raster(filename; source=GDALsource, name, lazy, dropband=!hasdim(dims, Band))
 end
 
-_maybe_warn_south_up(A, verbose, msg) = 
-    verbose && lookup(A, Y) isa AbstractProjected && order(A, Y) isa ForwardOrdered && @warn msg
+function _maybe_warn_south_up(A, verbose, msg) 
+    verbose && lookup(A, Y) isa AbstractSampled && order(A, Y) isa ForwardOrdered && @warn msg
+end
 
 function RA._open(f, ::Type{GDALsource}, filename::AbstractString; write=false, kw...)
     # Check the file actually exists because the GDAL error is unhelpful

@@ -7,7 +7,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
 A = [missing 7.0f0; 2.0f0 missing]
 B = [1.0 0.4; 2.0 missing]
-ga = Raster(A, (X, Y); missingval=missing) 
+ga = Raster(A, (X(1.0:1:2.0), Y(1.0:1:2.0)); missingval=missing) 
 st = RasterStack((a=A, b=B), (X, Y); missingval=(a=missing,b=missing))
 
 pointvec = [(-20.0, 30.0),
@@ -52,6 +52,7 @@ gaMi = replace_missing(ga)
     @test all(map(values(replace_missing(st, NaN32)), (a=[NaN32 7.0f0; 2.0f0 NaN32], b=[1.0 0.4; 2.0 NaN])) do x, y
         all(x .=== y)
     end)
+    ga
     dNaN = replace_missing(ga, NaN32; filename="test.tif")
     @test all(isequal.(dNaN, [NaN32 7.0f0; 2.0f0 NaN32]))
     rm("test.tif")
