@@ -10,7 +10,7 @@ and destination projections are alligned: the change is usually from
 a [`Regular`](@ref) and an [`Irregular`](@ref) lookup spans.
 
 For converting between projections that are rotated, 
-skewed or warped in any way, `resample` use [`resample`](@ref).
+skewed or warped in any way, use [`resample`](@ref).
 
 Dimensions without an `AbstractProjected` lookup (such as a `Ti` dimension)
 are silently returned without modification.
