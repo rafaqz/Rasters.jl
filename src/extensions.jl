@@ -171,11 +171,24 @@ Run `using ArchGDAL` to make this method available.
 
 ```jldoctest
 using Rasters, Rasters.LookupArrays
-dimz = X(Projected(90.0:0.1:120; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326))),
-       Y(Projected(0.0:0.1:50; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326)))
+dimz = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), order=ForwardOrdered(), span=Regular(10.0), crs=EPSG(4326))),
+       Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), order=ForwardOrdered(), span=Regular(10.0), crs=EPSG(4326)))
 
 cs = cellsize(dimz)
 
+# output
+4×6 Raster{Float64,2} with dimensions: 
+  X Projected{Float64} 90.0:10.0:120.0 ForwardOrdered Regular Intervals{Start} crs: EPSG,
+  Y Projected{Float64} 0.0:10.0:50.0 ForwardOrdered Regular Intervals{Start} crs: EPSG
+extent: Extent(X = (90.0, 130.0), Y = (0.0, 60.0))
+missingval: missing
+crs: EPSG:4326
+parent:
+        0.0       10.0       20.0        30.0        40.0            50.0
+  90.0  1.2332e6   1.1952e6   1.12048e6   1.01158e6   8.72085e5  706488.0
+ 100.0  1.2332e6   1.1952e6   1.12048e6   1.01158e6   8.72085e5  706488.0
+ 110.0  1.2332e6   1.1952e6   1.12048e6   1.01158e6   8.72085e5  706488.0
+ 120.0  1.2332e6   1.1952e6   1.12048e6   1.01158e6   8.72085e5  706488.0
 ```
 $EXPERIMENTAL
 """
