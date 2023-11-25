@@ -11,6 +11,7 @@ if VERSION >= v"1.9.0"
     @time @safetestset "extensions" begin include("extensions.jl") end
 end
 
+@time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
 
 @time @safetestset "methods" begin include("methods.jl") end
 @time @safetestset "array" begin include("array.jl") end
@@ -26,7 +27,6 @@ end
 
 
 # Only test SMAP locally for now, also RasterDataSources because CI dowloads keep breaking
-@time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
 if !haskey(ENV, "CI")
     @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
     @time @safetestset "smap" begin include("sources/smap.jl") end
