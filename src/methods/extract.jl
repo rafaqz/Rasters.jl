@@ -80,13 +80,12 @@ function _extract(T, A::RasterStackOrArray, ::Nothing, geoms::AbstractArray; nam
     # We need to split out points from other geoms
     # TODO this will fail with mixed point/geom vectors
     if trait1 isa GI.PointTrait
-        rows = [_extract_point(T, A, g; names, kw...) for g in geoms]
+        rows = (_extract_point(T, A, g; names, kw...) for g in geoms)
         return skipmissing ? collect(_skip_missing_rows(rows)) : collect(rows)
     else
         # This will be a list of vectors, we need to flatten it into one
         rows = Iterators.flatten(_extract(T, A, g; names, skipmissing, kw...) for g in geoms)
-        # return skipmissing ? collect(_skip_missing_rows(rows)) : c
-        return collect(rows)
+        return skipmissing ? collect(_skip_missing_rows(rows)) : collect(rows)
     end
 end
 function _extract(T, A::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...)
@@ -112,6 +111,11 @@ function _extract(T, A::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom;
 end
 _extract(T, x::RasterStackOrArray, trait::GI.PointTrait, point; kw...) =
     _extract_point(T, x, point; kw...)
+
+@inline _skip_missing_rows(rows) = Iterators.filter(row -> !any(ismissing, row), rows)
+
+@inline _prop_nt(st::AbstractRasterStack, I, names::NamedTuple{K}) where K = t[I][K]
+@inline _prop_nt(A::AbstractRaster, I, names::NamedTuple{K}) where K = NamedTuple{K}((A[I],))
 
 # Extract a single point
 function _extract_point(T, x::RasterStackOrArray, point;
@@ -150,7 +154,6 @@ function _extract_point(T, x::RasterStackOrArray, point;
         end
     end
 
-    @show geom
     return _maybe_add_fields(T, x, layer_vals, geom, I)
 end
 function _extract_point(T, A::RasterStackOrArray, point::Missing; names, kw...)
@@ -169,11 +172,6 @@ end
         :index in K ? merge((; index=I), layer_vals) : layer_vals
     end
 end
-
-@inline _skip_missing_rows(rows) = Iterators.filter(row -> !any(ismissing, row), rows)
-
-@inline _prop_nt(st::AbstractRasterStack, I, names::NamedTuple{K}) where K = t[I][K]
-@inline _prop_nt(A::AbstractRaster, I, names::NamedTuple{K}) where K = NamedTuple{K}((A[I],))
 
 _names(A::AbstractRaster) = (Symbol(name(A)),)
 _names(A::AbstractRasterStack) = keys(A)

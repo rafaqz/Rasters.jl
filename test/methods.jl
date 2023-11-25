@@ -355,6 +355,7 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         @test extract(rast, []; geometry=false) == NamedTuple{(:test,),Tuple{Missing}}[]
         # Missing coord errors
         @test_throws ArgumentError extract(rast, [(0.0, missing), (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
+        @test_throws ArgumentError extract(rast, [(X=0.0, Y=missing), (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
     end
 
     @testset "from stack" begin
