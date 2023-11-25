@@ -2,9 +2,15 @@
 	resample(x; kw...)
     resample(xs...; to=first(xs), kw...)
 
-`resample` uses `ArchGDAL.gdalwarp` to resample a [`Raster`](@ref) or
-[`RasterStack`](@ref) to a new `resolution` and optionally new `crs`,
+`resample` uses `warp` (which uses GDALs `gdalwarp`) to resample a [`Raster`](@ref)
+or [`RasterStack`](@ref) to a new `resolution` and optionally new `crs`,
 or to snap to the bounds, resolution and crs of the object `to`.
+
+Dimensions without an `AbstractProjected` lookup (such as a `Ti` dimension)
+are iteratively resampled with GDAL and joined back into a single array.
+
+If projections can be converted for each axis independently, it may 
+be faster and more accurate to use [`reproject`](@ref).
 
 # Arguments
 
@@ -39,8 +45,8 @@ $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
 
 Note:
-- GDAL may cause some unexpected changes in the data, such as returning a reversed Y dimension or
-  changing the `crs` type from `EPSG` to `WellKnownText` (it will represent the same CRS).
+- GDAL may cause some unexpected changes in the raster, such as changing the `crs`
+    type from `EPSG` to `WellKnownText` (it will represent the same CRS).
 
 # Example
 

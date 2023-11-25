@@ -14,7 +14,6 @@ using Rasters: reproject, convertlookup
     @test reproject(wktcea, EPSG(4326), Y(), -3.658789324855012e6) ≈ -30.0
     @test reproject(projcea, wkt4326, Y(), -3.658789324855012e6) ≈ -30.0
     @test reproject(cea, proj4326, Y(), [-3.658789324855012e6]) ≈ [-30.0]
-    
 
     @test reproject(proj4326, cea, X(), 180.0) ≈ 1.7367530445161372e7
     @test reproject(cea, EPSG(4326), X(), 1.7367530445161372e7) ≈ 180.0
@@ -23,14 +22,22 @@ using Rasters: reproject, convertlookup
 
     x = X(Projected(0.0:1.0:360.0; crs=EPSG(4326), dim=X(), order=ForwardOrdered(), span=Regular(1.0), sampling=Intervals(Start())))
     y = Y(Projected(-80.0:1.0:80.0; crs=EPSG(4326), dim=Y(), order=ReverseOrdered(), span=Regular(1.0), sampling=Intervals(Start())))
-    x1, y1 = reproject(projcea, (x, y))
+
+    x1, y1 = reproject((x, y); crs=projcea)
     @test span(x1) isa Irregular
     @test span(y1) isa Irregular
-    x2, y2 = reproject(EPSG(4326), (x, y))
+    x2, y2 = reproject((x, y); crs=EPSG(4326))
     @test all(x .== x2)
     @test all(y .== y2)
     @test span(x2) == Regular(1.0)
     @test span(y2) == Regular(1.0)
+
+    raster = rand(x, y)
+    reprojected_raster = reproject(raster; crs=projcea)
+    # Dims have changed
+    @test dims(reprojected_raster) == (x1, y1)
+    # Raster has not changed
+    @test reprojected_raster == raster
 
     @test_throws ArgumentError reproject(cea, EPSG(32618), Y(), [-3.658789324855012e6])
     @test_throws ArgumentError reproject(cea, EPSG(32618), X(), [-3.658789324855012e6])
