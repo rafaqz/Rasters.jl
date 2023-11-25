@@ -77,7 +77,7 @@ function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
 )
     T = Missings.nonmissingtype(T)
     missingval = ismissing(missingval) ? RA._writeable_missing(T) : missingval
-    _create_with_driver(filename, dims, T, missingval; kw...) do _
+    _create_with_driver(filename, dims, T, missingval; kw...) do A
         _maybe_warn_south_up(A, verbose, "Creating South-up. Use `reverse(ydim)` first to write conventional North-up")
         nothing
     end
