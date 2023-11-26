@@ -75,7 +75,11 @@ _extract(T, A::RasterStackOrArray, ::Nothing, geom; kw...) = throw(ArgumentError
 function _extract(T, A::RasterStackOrArray, ::Nothing, geoms::AbstractArray; names, skipmissing=false, kw...)
     # Handle empty / all missing cases
     (length(geoms) > 0 && any(!ismissing, geoms)) || return T[]
-    geom1 = first(Base.skipmissing(geoms)) # TODO: will fail if `geoms` is empty or all missing
+    # Handle cases with some invalid geometries
+    invalid_geom_idx = findfirst(g -> !ismissing(g) && GI.geomtrait(g) === nothing, geoms)
+    invalid_geom_idx === nothing || throw(ArgumentError("$(geoms[invalid_geom_idx]) is not a valid GeoInterface.jl geometry"))
+
+    geom1 = first(Base.skipmissing(geoms))
     trait1 = GI.trait(geom1)
     # We need to split out points from other geoms
     # TODO this will fail with mixed point/geom vectors
