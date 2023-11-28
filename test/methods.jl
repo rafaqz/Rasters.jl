@@ -262,6 +262,7 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
     rast = Raster([1 2; 3 4], dimz; name=:test, missingval=missing)
     rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=missing)
     rast_m = Raster([1 2; 3 missing], dimz; name=:test, missingval=missing)
+    table = (geometry=[missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)], foo=zeros(4))
     st = RasterStack(rast, rast2)
     @testset "from Raster" begin
         # Tuple points
@@ -357,6 +358,27 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         @test_throws ArgumentError extract(rast, [(0.0, missing), (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
         @test_throws ArgumentError extract(rast, [(9.0, 0.1), (0.0, missing), (9.0, 0.2), (10.0, 0.3)])
         @test_throws ArgumentError extract(rast, [(X=0.0, Y=missing), (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
+    end
+
+    @testset "with table" begin
+        @test all(extract(rast, table) .=== [
+            (geometry = missing, test = missing)
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (9.0, 0.2), test = 2)
+            (geometry = (10.0, 0.3), test = missing)
+        ])
+        @test extract(rast, table; skipmissing=true) == [
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (9.0, 0.2), test = 2)
+        ]
+        @test extract(rast, table; skipmissing=true, geometry=false) == [
+            (test = 1,)
+            (test = 2,)
+        ]
+        @test extract(rast, table; skipmissing=true, geometry=false, index=true) == [
+            (index = (1, 1), test = 1,)
+            (index = (1, 2), test = 2,)
+        ]
     end
 
     @testset "from stack" begin

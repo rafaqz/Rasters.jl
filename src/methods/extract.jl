@@ -38,7 +38,7 @@ obs = GBIF2.occurrence_search("Burramys parvus"; limit=5, year="2009")
 
 # use `extract` to get values for all layers at each observation point.
 # We `collect` to get a `Vector` from the lazy iterator.
-collect(extract(st, pnts; skipmissing=true))
+extract(st, obs; skipmissing=true)
 
 # output
 5-element Vector{NamedTuple{(:geometry, :bio1, :bio3, :bio5, :bio7, :bio12)}}:
@@ -56,7 +56,6 @@ function extract end
 function extract(x::RasterStackOrArray, data;
     dims=DD.dims(x, DEFAULT_POINT_ORDER), names=_names(x), geometry=true, index=false, kw...
 )
-    
     T = if geometry 
         keys = index ? (:geometry, :index, names...,) : (:geometry, names...,)
         NamedTuple{keys}
@@ -64,17 +63,28 @@ function extract(x::RasterStackOrArray, data;
         keys = index ? (:index, names...,) : (names...,)
         NamedTuple{keys}
     end
-    _extract(T, x, data; dims, names=NamedTuple{names}(names), kw...)
+    names = NamedTuple{names}(names)
+    if Tables.istable(data)
+        geomcolnames = GI.geometrycolumns(data)
+        isnothing(geomcolnames) && throw(ArgumentError("No `:geometry` column and `GeoInterface.geometrycolums(::$(typeof(data)))` does not define alternate columns"))
+        geometries = Tables.getcolumn(Tables.columns(data), first(geomcolnames))
+        _extract(T, x, geometries; dims, names, kw...)
+    else
+        _extract(T, x, data; dims, names, kw...)
+    end
 end
 
 function _extract(T, A::RasterStackOrArray, geom::Missing; names, kw...)
     [_maybe_add_fields(T, A, map(_ -> missing, names), missing, missing)]
 end
-_extract(T, A::RasterStackOrArray, geom; kw...) = _extract(T, A, GI.geomtrait(geom), geom; kw...)
-_extract(T, A::RasterStackOrArray, ::Nothing, geom; kw...) = throw(ArgumentError("$geom is not a valid GeoInterface.jl geometry"))
+_extract(T, A::RasterStackOrArray, geom; kw...) = 
+    _extract(T, A, GI.geomtrait(geom), geom; kw...)
+_extract(T, A::RasterStackOrArray, ::Nothing, geom; kw...) =
+    throw(ArgumentError("$geom is not a valid GeoInterface.jl geometry"))
 function _extract(T, A::RasterStackOrArray, ::Nothing, geoms::AbstractArray; names, skipmissing=false, kw...)
     # Handle empty / all missing cases
     (length(geoms) > 0 && any(!ismissing, geoms)) || return T[]
+
     # Handle cases with some invalid geometries
     invalid_geom_idx = findfirst(g -> !ismissing(g) && GI.geomtrait(g) === nothing, geoms)
     invalid_geom_idx === nothing || throw(ArgumentError("$(geoms[invalid_geom_idx]) is not a valid GeoInterface.jl geometry"))
