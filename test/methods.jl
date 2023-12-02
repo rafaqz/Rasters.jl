@@ -256,35 +256,157 @@ end
 # Polygon(::Val{:ArchGDAL}, values) = ArchGDAL.createpolygon(values)
 
 createpoint(args...) = ArchGDAL.createpoint(args...)
-createfeature(x::Tuple{<:Any,<:Any}) = NamedTuple{(:geometry,:test)}(x)
-createfeature(x::Tuple{<:Any,<:Any,<:Any}) = NamedTuple{(:geometry,:test,:test2)}(x)
-createfeature(::Missing) = missing
 
 @testset "extract" begin
     dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
-    ga = Raster([1 2; 3 4], dimz; name=:test, missingval=missing)
-    ga2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=missing)
-    st = RasterStack(ga, ga2)
+    rast = Raster([1 2; 3 4], dimz; name=:test, missingval=missing)
+    rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=missing)
+    rast_m = Raster([1 2; 3 missing], dimz; name=:test, missingval=missing)
+    table = (geometry=[missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)], foo=zeros(4))
+    st = RasterStack(rast, rast2)
     @testset "from Raster" begin
         # Tuple points
-        @test all(extract(ga, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]) .=== 
-                  createfeature.([missing, ((9.0, 0.1), 1), ((9.0, 0.2), 2), ((10.0, 0.3), missing)]))
+        ex = extract(rast, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
+        @test eltype(ex) == NamedTuple{(:geometry,:test)}
+        @test all(ex .=== [
+            (geometry = missing, test = missing)
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (9.0, 0.2), test = 2)
+            (geometry = (10.0, 0.3), test = missing)
+        ])
+        ex = extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true)
+        @test eltype(ex) == NamedTuple{(:geometry,:test),Tuple{Tuple{Float64,Float64},Int}}
+        @test all(ex .=== [(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2)])
+        ex = extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false)
+        @test eltype(ex) == NamedTuple{(:test,),Tuple{Int}}
+        @test all(ex .=== [(test = 1,), (test = 2,)])
+        @test all(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) .=== [
+            (index = (1, 1), test = 1,)
+            (index = (1, 2), test = 2,)
+        ])
         # NamedTuple (reversed) points
-        @test all(extract(ga, [missing, (Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) |> collect .=== 
-                  createfeature.([missing, ((Y=0.1, X=9.0), 1), ((Y=0.2, X=10.0), 4), ((Y=0.3, X=10.0), missing)]))
+        @test all(extract(rast, [missing, (Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) .=== [
+            (geometry = missing, test = missing)
+            (geometry = (Y = 0.1, X = 9.0), test = 1)
+            (geometry = (Y = 0.2, X = 10.0), test = 4)
+            (geometry = (Y = 0.3, X = 10.0), test = missing)
+        ])
         # Vector points
-        @test all(extract(ga, [[9.0, 0.1], [10.0, 0.2]]) .== createfeature.([([9.0, 0.1], 1), ([10.0, 0.2], 4)]))
-        # ArchGDAL equality is broken
-        # @test all(extract(ga, ArchGDAL.createmultipoint([[0.1, 9.0], [0.2, 10.0], [0.3, 10.0]])) .==
-                  # createfeature.([(createpoint(0.1, 9.0), 1), (createpoint(0.2, 10.0), 4), (createpoint(0.3, 10.0), missing)]))
+        @test all(extract(rast, [[9.0, 0.1], [10.0, 0.2]]) .== [
+            (geometry = [9.0, 0.1], test = 1)
+            (geometry = [10.0, 0.2], test = 4)
+        ])
         # Extract a polygon
         p = ArchGDAL.createpolygon([[[8.0, 0.0], [11.0, 0.0], [11.0, 0.4], [8.0, 0.0]]])
-        @test all(extract(ga, p) .=== 
-            createfeature.([((X=9.0, Y=0.1), 1), ((X=10.0, Y=0.1), 3), ((X=10.0, Y=0.2), 4)]))
+        @test all(extract(rast_m, p) .=== [
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (10.0, 0.1), test = 3)
+            (geometry = (10.0, 0.2), test = missing)
+        ])
+        # Extract a vector of polygons
+        ex = extract(rast_m, [p, p])
+        @test eltype(ex) == NamedTuple{(:geometry,:test)}
+        @test all(ex .=== [
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (10.0, 0.1), test = 3)
+            (geometry = (10.0, 0.2), test = missing)
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (10.0, 0.1), test = 3)
+            (geometry = (10.0, 0.2), test = missing)
+        ])
+        # Test all the keyword combinations
+        @test all(extract(rast_m, p) .=== [
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (10.0, 0.1), test = 3)
+            (geometry = (10.0, 0.2), test = missing)
+        ])
+        @test all(extract(rast_m, p; geometry=false) .=== [
+            (test = 1,)
+            (test = 3,)
+            (test = missing,)
+        ])
+        @test all(extract(rast_m, p; geometry=false, index=true) .=== [
+            (index = CartesianIndex(1, 1), test = 1)
+            (index = CartesianIndex(2, 1), test = 3)
+            (index = CartesianIndex(2, 2), test = missing)
+        ])
+        @test all(extract(rast_m, p; index=true) .=== [
+             (geometry = (9.0, 0.1), index = CartesianIndex(1, 1), test = 1)
+             (geometry = (10.0, 0.1), index = CartesianIndex(2, 1), test = 3)
+             (geometry = (10.0, 0.2), index = CartesianIndex(2, 2), test = missing)
+        ])
+        @test extract(rast_m, p; skipmissing=true) == [
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (10.0, 0.1), test = 3)
+        ]                                                         
+        @test extract(rast_m, p; skipmissing=true, geometry=false) == [
+            (test = 1,)
+            (test = 3,)
+        ]                                                         
+        @test extract(rast_m, p; skipmissing=true, geometry=false, index=true) == [
+            (index = CartesianIndex(1, 1), test = 1)
+            (index = CartesianIndex(2, 1), test = 3)
+        ]                                                         
+        @test extract(rast_m, p; skipmissing=true, index=true) == [
+            (geometry = (9.0, 0.1), index = CartesianIndex(1, 1), test = 1)
+            (geometry = (10.0, 0.1), index = CartesianIndex(2, 1), test = 3)
+        ]                                                         
+        # Empty geoms
+        @test extract(rast, []) == NamedTuple{(:geometry, :test),Tuple{Missing,Missing}}[]
+        @test extract(rast, []; geometry=false) == NamedTuple{(:test,),Tuple{Missing}}[]
+        # Missing coord errors
+        @test_throws ArgumentError extract(rast, [(0.0, missing), (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
+        @test_throws ArgumentError extract(rast, [(9.0, 0.1), (0.0, missing), (9.0, 0.2), (10.0, 0.3)])
+        @test_throws ArgumentError extract(rast, [(X=0.0, Y=missing), (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
     end
+
+    @testset "with table" begin
+        @test all(extract(rast, table) .=== [
+            (geometry = missing, test = missing)
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (9.0, 0.2), test = 2)
+            (geometry = (10.0, 0.3), test = missing)
+        ])
+        @test extract(rast, table; skipmissing=true) == [
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (9.0, 0.2), test = 2)
+        ]
+        @test extract(rast, table; skipmissing=true, geometry=false) == [
+            (test = 1,)
+            (test = 2,)
+        ]
+        @test extract(rast, table; skipmissing=true, geometry=false, index=true) == [
+            (index = (1, 1), test = 1,)
+            (index = (1, 2), test = 2,)
+        ]
+    end
+
     @testset "from stack" begin
-        @test all(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]) |> collect .===
-                  createfeature.([missing, ((9.0, 0.1), 1, 5), ((10.0, 0.2), 4, 8), ((10.0, 0.3), missing, missing)]))
+        @test all(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]) .=== [
+            (geometry = missing, test = missing, test2 = missing)
+            (geometry = (9.0, 0.1), test = 1, test2 = 5)
+            (geometry = (10.0, 0.2), test = 4, test2 = 8)
+            (geometry = (10.0, 0.3), test = missing, test2 = missing)
+        ])
+        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true) == [
+            (geometry = (9.0, 0.1), test = 1, test2 = 5)
+            (geometry = (10.0, 0.2), test = 4, test2 = 8)
+        ]
+        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false) == [
+            (test = 1, test2 = 5)
+            (test = 4, test2 = 8)
+        ]
+        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) == [
+            (index = (1, 1), test = 1, test2 = 5)
+            (index = (2, 2), test = 4, test2 = 8)
+        ]
+        # Subset with `names`
+        @test all(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; names=(:test2,)) .=== [
+            (geometry = missing, test2 = missing)
+            (geometry = (9.0, 0.1), test2 = 5)
+            (geometry = (10.0, 0.2), test2 = 8)
+            (geometry = (10.0, 0.3), test2 = missing)
+        ])
     end
 end
 
