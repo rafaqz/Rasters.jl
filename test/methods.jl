@@ -89,7 +89,7 @@ end
     @test all(missingmask(ga) .=== [missing true; true missing])
     @test all(missingmask(ga99) .=== [missing true; true missing])
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
-    @test dims(missingmask(ga)) == (X(NoLookup(Base.OneTo(2))), Y(NoLookup(Base.OneTo(2))))
+    @test dims(missingmask(ga)) == dims(ga)
     @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
     x = missingmask([polygon, polygon]; collapse=false, res=1.0)
     @test eltype(x) == Union{Bool,Missing}
