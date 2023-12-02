@@ -25,7 +25,7 @@ or to snap to the bounds, resolution and crs of the object `to`.
 Dimensions without an `AbstractProjected` lookup (such as a `Ti` dimension)
 are iteratively resampled with GDAL and joined back into a single array.
 
-If projections can be converted for each axis independently, it may 
+If projections can be converted for each axis independently, it may
 be faster and more accurate to use [`reproject`](@ref).
 
 Run `using ArchGDAL` to make this method available.
@@ -80,6 +80,7 @@ b = plot(resample(A; to=B))
 
 savefig(a, "docs/build/resample_example_before.png");
 savefig(b, "docs/build/resample_example_after.png"); nothing
+
 # output
 ```
 
@@ -98,12 +99,12 @@ resample(args...; kw...) = throw_extension_error(resample, "ArchGDAL", :RastersA
 """
     warp(A::AbstractRaster, flags::Dict; kw...)
 
-Gives access to the GDALs `gdalwarp` method given a `Dict` of 
+Gives access to the GDALs `gdalwarp` method given a `Dict` of
 `flag => value` arguments that can be converted to strings, or vectors
 where multiple space-separated arguments are required.
 
 Arrays with additional dimensions not handled by GDAL (other than `X`, `Y`, `Band`)
-are sliced, warped, and then combined to match the original array dimensions. 
+are sliced, warped, and then combined to match the original array dimensions.
 These slices will *not* be written to disk and loaded lazily at this stage -
 you will need to do that manually if required.
 
@@ -158,26 +159,26 @@ warp(args...; kw...) = throw_extension_error(warp, "ArchGDAL", :RastersArchGDALE
 """
     cellsize(x)
 
-Gives the approximate size of each cell in square km. 
+Gives the approximate size of each cell in square km.
 This function works for any projection, using an algorithm for polygons on a sphere. It approximates the true size to about 0.1%, depending on latitude.
 
 Run `using ArchGDAL` to make this method available.
 
 # Arguments
 
-- `x`: A `Raster` or a `Tuple` of `X` and `Y` dimensions. 
+- `x`: A `Raster` or a `Tuple` of `X` and `Y` dimensions.
 
 ## Example
 
-```jldoctest
-using Rasters, Rasters.LookupArrays
+```julia
+using Rasters, ArchGDAL, Rasters.LookupArrays
 dimz = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), order=ForwardOrdered(), span=Regular(10.0), crs=EPSG(4326))),
        Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), order=ForwardOrdered(), span=Regular(10.0), crs=EPSG(4326)))
 
 cs = cellsize(dimz)
 
 # output
-4×6 Raster{Float64,2} with dimensions: 
+4×6 Raster{Float64,2} with dimensions:
   X Projected{Float64} 90.0:10.0:120.0 ForwardOrdered Regular Intervals{Start} crs: EPSG,
   Y Projected{Float64} 0.0:10.0:50.0 ForwardOrdered Regular Intervals{Start} crs: EPSG
 extent: Extent(X = (90.0, 130.0), Y = (0.0, 60.0))
