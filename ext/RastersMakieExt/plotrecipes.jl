@@ -1,6 +1,8 @@
 
 const HIDE_DEC = (; label=true, grid=false, minorgrid=false, minorticks=false)
 
+const SurfaceLikeCompat = isdefined(Makie, :SurfaceLike) ? Makie.SurfaceLike : Union{Makie.VertexGrid,Makie.CellGrid,Makie.ImageLike}
+
 function Rasters.style_rasters()
     Makie.Attributes(
         Axis=(
@@ -316,7 +318,7 @@ end
 function Makie.convert_arguments(t::Makie.PointBased, A::AbstractRaster{<:Number,2})
     return Makie.convert_arguments(t, _prepare_dimarray(A))
 end
-function Makie.convert_arguments(t::Makie.SurfaceLike, A::AbstractRaster{<:Any,2})
+function Makie.convert_arguments(t::SurfaceLikeCompat, A::AbstractRaster{<:Any,2})
     return Makie.convert_arguments(t, _prepare_dimarray(A))
 end
 function Makie.convert_arguments(t::Makie.DiscreteSurface, A::AbstractRaster{<:Any,2})
