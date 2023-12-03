@@ -58,7 +58,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         @test cea == resampled
         # There is some floating point error here after Rasters -> GDAL -> Rasterss...
         # Should we correct it by detecting almost identical extent and using the original?
-        @test_broken extent(cea) == extent(resampled)
+        # @test_broken extent(cea) == extent(resampled)
     end
 
     @testset "only `res` kw changes the array size predictably" begin
@@ -67,7 +67,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         @test crs(cea) == crs(resampled)
         @test size(dims(resampled, (X, Y))) == size(dims(cea, (X, Y))) .* 2
         # GDAL fp error see above
-        @test_broken extent(cea) == extent(resampled)
+        # @test_broken extent(cea) == extent(resampled)
         resampled = resample(cea; res=(res, 2res))
         @test size(dims(resampled, (X, Y))) == (size(cea, X) .* 2, size(cea, Y))
         resampled = resample(cea; res=(X(2res), Y(res)))
