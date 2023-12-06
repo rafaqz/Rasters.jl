@@ -41,7 +41,6 @@ lift_layer(s::RasterSeries, inds...) = getindex(s, inds...)
 
 ## Keywords
 
-- `plottype = Makie.Heatmap`: The type of plot. Can be any Makie plot type which accepts a `Raster`; in practice, `Heatmap`, `Contour`, `Contourf` and `Surface` are the best bets.
 - `axistype = Makie.Axis`: The type of axis. This can be an `Axis`, `Axis3`, `LScene`, or even a `GeoAxis` from GeoMakie.jl.
 - `X = XDim`: The X dimension of the raster.
 - `Y = YDim`: The Y dimension of the raster.
@@ -58,7 +57,6 @@ lift_layer(s::RasterSeries, inds...) = getindex(s, inds...)
 - `nan_color = :transparent`: The color which `NaN` values should take. Default to transparent.
 """
 function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,<:Tuple{D1,D2}},Observable{<:AbstractRaster{T,2,<:Tuple{D1,D2}}}};
-    plottype=Makie.Heatmap,
     axistype=Makie.Axis,
     X=XDim, Y=YDim, Z=ZDim,
     draw_colorbar=true,
@@ -116,7 +114,7 @@ function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,
             title, xlabel, ylabel
         )
         # plot to the axis with the specified plot type
-        plot = plot!(plottype, axis, raster; colormap, colorrange, nan_color)
+        plot = heatmap!(axis, raster; colormap, colorrange, nan_color)
 
         if draw_colorbar
             layout = position.layout[position.span.rows, position.span.cols, colorbar_position]
