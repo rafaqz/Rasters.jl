@@ -154,8 +154,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
             xmax = gt[GDAL_TOPLEFT_X] + xstep * xsize
             xorder = ReverseOrdered()
         end
-        xindex = LinRange(xmin, xmax, xsize)
-        xorder = xstep > 0 ? ForwardOrdered() : ReverseOrdered()
+        xindex = xmin:xstep:xmax 
 
         ystep = gt[GDAL_NS_RES] # Usually a negative number
         if ystep > 0
@@ -167,7 +166,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
             ymin = gt[GDAL_TOPLEFT_Y] + ystep * ysize
             yorder = ReverseOrdered()
         end
-        yindex = LinRange(ymax, ymin, ysize)
+        yindex = ymax:ystep:ymin
 
         # Spatial data defaults to area/inteval
         xsampling, ysampling = if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
@@ -179,7 +178,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
 
         xlookup = Projected(xindex;
             order=xorder,
-            span=Regular(step(xindex)),
+            span=Regular(xstep),
             sampling=xsampling,
             metadata=xy_metadata,
             crs=crs,
@@ -189,7 +188,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
             order=yorder,
             sampling=ysampling,
             # Use the range step as is will be different to ystep due to float error
-            span=Regular(step(yindex)),
+            span=Regular(ystep),
             metadata=xy_metadata,
             crs=crs,
             mappedcrs=mappedcrs,

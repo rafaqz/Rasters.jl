@@ -50,18 +50,18 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     ybounds = parse.(Float64, (attrib["ymin"], attrib["ymax"]))
 
     # Always intervals
-    xspan = (xbounds[2] - xbounds[1]) / xsize
-    yspan = (ybounds[1] - ybounds[2]) / ysize
+    xstep = (xbounds[2] - xbounds[1]) / xsize
+    ystep = (ybounds[1] - ybounds[2]) / ysize
 
     # Not fully implemented yet
     xy_metadata = _metadatadict(GRDsource)
 
-    xindex = LinRange(xbounds[1], xbounds[2] - xspan, xsize)
-    yindex = LinRange(ybounds[2] + yspan, ybounds[1], ysize)
+    xindex = xbounds[1] : xstep : xbounds[2] - xstep
+    yindex = ybounds[2] + ystep : ystep : ybounds[1]
 
     xlookup = Projected(xindex;
         order=GRD_X_ORDER,
-        span=Regular(xspan),
+        span=Regular(xstep),
         sampling=Intervals(Start()),
         metadata=xy_metadata,
         crs=crs,
@@ -70,7 +70,7 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     )
     ylookup = Projected(yindex;
         order=GRD_Y_ORDER,
-        span=Regular(yspan),
+        span=Regular(ystep),
         sampling=Intervals(Start()),
         metadata=xy_metadata,
         crs=crs,
