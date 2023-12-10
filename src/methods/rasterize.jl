@@ -1,19 +1,22 @@
+struct _TakeFirst{MV}
+    missingval::MV
+end
+(tf::_TakeFirst)(a, b) = a === tf.missingval ? b : a
 _take_last(a, b) = b
 
 _reduce_op(::typeof(sum)) = Base.add_sum
 _reduce_op(::typeof(prod)) = Base.mul_prod
 _reduce_op(::typeof(minimum)) = min
 _reduce_op(::typeof(maximum)) = max
-_reduce_op(::typeof(last)) = (a, b) -> b
-# _reduce_op(::typeof(first)) = (a, b) -> a # Note: `first` must also be special-cased on the first call 
+_reduce_op(::typeof(last)) = _take_last
+_reduce_op(f, missingval) = _reduce_op(f)
+_reduce_op(::typeof(first), missingval) = _TakeFirst(missingval)
 _reduce_op(x) = nothing
 
 _is_op_threadsafe(::typeof(sum)) = true
 _is_op_threadsafe(::typeof(prod)) = true
 _is_op_threadsafe(::typeof(minimum)) = true
 _is_op_threadsafe(::typeof(maximum)) = true
-_is_op_threadsafe(::typeof(last)) = false
-# _is_op_threadsafe(::typeof(first)) = false
 _is_op_threadsafe(f) = false
 
 _reduce_init(reducer, st::AbstractRasterStack, missingval) = map(A -> _reduce_init(reducer, A, missingval), st)
@@ -27,8 +30,7 @@ _reduce_init(::typeof(sum), ::Type{T}, missingval) where T = zero(nonmissingtype
 _reduce_init(::typeof(prod), ::Type{T}, missingval) where T = oneunit(nonmissingtype(T))
 _reduce_init(::typeof(minimum), ::Type{T}, missingval) where T = typemax(nonmissingtype(T))
 _reduce_init(::typeof(maximum), ::Type{T}, missingval) where T = typemin(nonmissingtype(T))
-_reduce_init(::typeof(last), ::Type{T}, missingval) where T = missingval
-# _reduce_init(::typeof(first), ::Type{T}, missingval) where T = missingval
+_reduce_init(::typeof(last), ::Type{T}, missingval) where T = _maybe_nothing_to_missing(missingval)
 
 struct FillChooser{F,I,M}
     fill::F
@@ -107,6 +109,7 @@ function Rasterizer(geom, fill, fillitr;
     verbose=true,
     progress=true,
     threaded=false,
+    threadsafe=nothing,
     kw...
 )
     # A single geometry does not need a reducing function 
@@ -116,7 +119,7 @@ function Rasterizer(geom, fill, fillitr;
  
     op = _reduce_op(reducer)
 
-    threadsafe_op = _is_op_threadsafe(op)
+    threadsafe_op = isnothing(threadsafe) ? _is_op_threadsafe(op) : threadsafe
 
     shape = if isnothing(shape)
         if GI.isgeometry(geom)
@@ -128,31 +131,14 @@ function Rasterizer(geom, fill, fillitr;
         shape
     end
 
-    filleltype = if fillitr isa NamedTuple
-        if all(map(x -> x isa Number, fillitr))
-            map(typeof, fillitr)
-        elseif all(map(x -> Base.IteratorEltype(x) isa Base.HasEltype, fillitr))
-            map(Base.eltype, fillitr)
-        else
-            map(typeof ∘ first, fillitr) # This is not really correct.
-        end
-    elseif fill isa Function
-        isnothing(init) ? typeof(missingval) : typeof(fill(init))
-    elseif Base.IteratorEltype(fillitr) isa Base.HasEltype
-        Base.eltype(fillitr)
-    else
-        typeof(first(fillitr)) # This is not really correct
-    end
-
     stable_reductions = (first, last, sum, prod, maximum, minimum)
-    init = isnothing(init) ? _reduce_init(reducer, filleltype, missingval) : init
     if shape == :points &&
         !GI.isgeometry(geom) &&
         !GI.trait(first(geom)) isa GI.PointTrait &&
         !(reducer in stable_reductions)
         @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be innaccurate for `reducer` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
     end
-    eltype, missingval = get_eltype_missingval(eltype, missingval, fillitr, init, filename, op, reducer)
+    eltype, missingval, init = get_eltype_missingval(eltype, missingval, fill, fillitr, init, filename, op, reducer)
     lock = threaded ? Threads.SpinLock() : nothing
 
     return Rasterizer(eltype, geom, fillitr, reducer, op, init, missingval, lock, shape, boundary, verbose, progress, threaded, threadsafe_op)
@@ -208,35 +194,55 @@ function Rasterizer(::GI.AbstractGeometryTrait, geom; fill, kw...)
     Rasterizer(geom, fill, _iterable_fill(geom, fill); kw...)
 end
 
-function get_eltype_missingval(eltype, missingval, fillitr, init::NamedTuple, filename, op, reducer)
+function get_eltype_missingval(eltype, missingval, fill, fillitr, init, filename, op, reducer)
+    filleltype = if fillitr isa NamedTuple
+        if all(map(x -> x isa Number, fillitr))
+            map(typeof, fillitr)
+        elseif all(map(x -> Base.IteratorEltype(x) isa Base.HasEltype, fillitr))
+            map(Base.eltype, fillitr)
+        else
+            map(typeof ∘ first, fillitr) # This is not really correct.
+        end
+    elseif fill isa Function
+        isnothing(init) ? typeof(missingval) : typeof(fill(init))
+    elseif Base.IteratorEltype(fillitr) isa Base.HasEltype
+        Base.eltype(fillitr)
+    else
+        typeof(first(fillitr)) # This is not really correct
+    end
+    init = isnothing(init) ? _reduce_init(reducer, filleltype, missingval) : init
+    _get_eltype_missingval(eltype, missingval, filleltype, fillitr, init, filename, op, reducer)
+end
+function _get_eltype_missingval(eltype, missingval, filleltype, fillitr, init::NamedTuple, filename, op, reducer)
     eltype = eltype isa NamedTuple ? eltype : map(_ -> eltype, init)
     missingval = missingval isa NamedTuple ? missingval : map(_ -> missingval, init)
-    em = map(eltype, missingval, fillitr, init) do et, mv, fi, i
-        get_eltype_missingval(et, mv, fi, i, filename, op, reducer)
+    filleltype = filleltype isa NamedTuple ? filleltype : map(_ -> filleltype, init)
+    em = map(eltype, missingval, filleltype, fillitr, init) do et, mv, fe, fi, i
+        _get_eltype_missingval(et, mv, fe, fi, i, filename, op, reducer)
     end
     eltype = map(first, em)
-    missingval = map(last, em)
-    return eltype, missingval
+    missingval = map(x -> x[2], em)
+    return eltype, missingval, init
 end
-function get_eltype_missingval(known_eltype, missingval, fillitr, init, filename, op, reducer)
+function _get_eltype_missingval(known_eltype, missingval, filleltype, fillitr, init, filename, op, reducer)
+    fillzero = zero(filleltype)
     eltype = if isnothing(known_eltype)
         if fillitr isa Function
-            typeof(fillitr(init))
+            promote_type(typeof(fillitr(init)), typeof(fillitr(fillzero)))
         elseif op isa Function
-            typeof(op(init, init))
+            promote_type(typeof(op(init, init)), typeof(op(init, fillzero)), typeof(op(fillzero, fillzero)))
         elseif reducer isa Function
-            typeof(reducer((init, init)))
+            promote_type(typeof(reducer((init, init))), typeof(reducer((init, fillzero))), typeof(reducer((fillzero, fillzero))))
         else
-            typeof(init)
+            promote_type(filleltype, typeof(init))
         end
     else
         known_eltype
     end
-
     missingval = isnothing(missingval) ? _writeable_missing(filename, eltype) : missingval
     # eltype was not the actually array eltype, so promote it with the missingval
     eltype = isnothing(known_eltype) ? promote_type(typeof(missingval), eltype) : eltype
-    return eltype, missingval
+    return eltype, missingval, init
 end
 
 _fill_key_error(names, fill) = throw(ArgumentError("fill key $fill not found in table, use one of: $(Tuple(names))"))
@@ -626,11 +632,12 @@ end
 function _rasterize_iterable!(A, geoms, reducer, op, fillitr, r::Rasterizer, allocs)
     # Rasterise into a bitarray and reduce it, on one or many threads. 
     # Memory-intensive for large workloads, but thread-safe and safe for e.g. `median`
-    if !(fillitr isa Function) && ((r.threaded && !r.threadsafe) || isnothing(op))
+    if !(fillitr isa Function) && ((r.threaded && !r.threadsafe_op) || isnothing(op))
+        (r.threaded && !r.threadsafe_op) && r.verbose && @warn "if `op` is not threadsafe, `threaded=true` may be slower than `threaded=false`"
         return _reduce_bitarray!(reducer, A, geoms, fillitr, r, allocs)
     end
     # Reduce by rasterizing directly on one or many threads,, with a lock
-    # TODO: use separate arrays and combine when `r.threadsafe == true`
+    # TODO: use separate arrays and combine when `r.threadsafe_op == true` ?
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
     _run(range, r.threaded, r.progress, "Rasterizing...") do i
