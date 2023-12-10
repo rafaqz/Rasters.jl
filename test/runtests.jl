@@ -11,7 +11,6 @@ if VERSION >= v"1.9.0"
     @time @safetestset "extensions" begin include("extensions.jl") end
 end
 
-
 @time @safetestset "methods" begin include("methods.jl") end
 @time @safetestset "array" begin include("array.jl") end
 @time @safetestset "stack" begin include("stack.jl") end

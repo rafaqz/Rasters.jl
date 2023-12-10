@@ -1,6 +1,8 @@
 
 const HIDE_DEC = (; label=true, grid=false, minorgrid=false, minorticks=false)
 
+const SurfaceLikeCompat = isdefined(Makie, :SurfaceLike) ? Makie.SurfaceLike : Union{Makie.VertexGrid,Makie.CellGrid,Makie.ImageLike}
+
 function Rasters.style_rasters()
     Makie.Attributes(
         Axis=(
@@ -33,7 +35,6 @@ lift_layer(s::RasterSeries, inds...) = getindex(s, inds...)
 
 # The all-inclusive plotting function for a 2D raster
 function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,<:Tuple{D1,D2}},Observable{<:AbstractRaster{T,2,<:Tuple{D1,D2}}}};
-    plottype=Makie.Heatmap,
     axistype=Makie.Axis,
     X=XDim, Y=YDim, Z=ZDim,
     draw_colorbar=true,
@@ -91,7 +92,7 @@ function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,
             title, xlabel, ylabel
         )
         # plot to the axis with the specified plot type
-        plot = plot!(plottype, axis, raster; colormap, colorrange, nan_color)
+        plot = heatmap!(axis, raster; colormap, colorrange, nan_color)
 
         if draw_colorbar
             layout = position.layout[position.span.rows, position.span.cols, colorbar_position]
@@ -293,7 +294,7 @@ end
 function Makie.convert_arguments(t::Makie.PointBased, A::AbstractRaster{<:Number,2})
     return Makie.convert_arguments(t, _prepare_dimarray(A))
 end
-function Makie.convert_arguments(t::Makie.SurfaceLike, A::AbstractRaster{<:Any,2})
+function Makie.convert_arguments(t::SurfaceLikeCompat, A::AbstractRaster{<:Any,2})
     return Makie.convert_arguments(t, _prepare_dimarray(A))
 end
 function Makie.convert_arguments(t::Makie.DiscreteSurface, A::AbstractRaster{<:Any,2})
