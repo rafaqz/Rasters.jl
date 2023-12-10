@@ -548,11 +548,15 @@ _maybe_permute_to_gdal(A, dims::Tuple) = A
 _maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim,<:Band}) = permutedims(A, dims)
 _maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim}) = permutedims(A, dims)
 
-_maybe_restore_from_gdal(A, dims::Tuple) = reorder(permutedims(A, dims), dims) 
-function _maybe_restore_from_gdal(A, dims::Union{Tuple{<:XDim,<:YDim,<:Band},Tuple{<:XDim,<:YDim}}) 
-    all(map(l -> l isa AbstractSampled, lookup(A, (XDim, YDim)))) ? reorder(A, dims) : A
-end
+_maybe_restore_from_gdal(A, dims::Tuple) = _maybe_reorder(permutedims(A, dims), dims) 
+_maybe_restore_from_gdal(A, dims::Union{Tuple{<:XDim,<:YDim,<:Band},Tuple{<:XDim,<:YDim}}) = 
+    _maybe_reorder(A, dims) 
 
+function _maybe_reorder(A, dims)
+    reduce(dims; init=A) do a, d
+        (lookup(d) isa AbstractSampled && lookup(A, d) isa AbstractSampled) ? reorder(A, d) : A
+    end
+end
 #= Geotranforms ########################################################################
 
 See https://lists.osgeo.org/pipermail/gdal-dev/2011-July/029449.html
