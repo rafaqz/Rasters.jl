@@ -1,13 +1,9 @@
 const AG = ArchGDAL
 
-const GDAL_X_ORDER = ForwardOrdered()
-const GDAL_Y_ORDER = ReverseOrdered()
-
-const GDAL_X_LOCUS = Start()
-const GDAL_Y_LOCUS = Start()
+const GDAL_LOCUS = Start()
 
 # drivers supporting the gdal Create() method to directly write to disk
-const GDAL_DRIVERS_SUPPORTING_CREATE = ("GTiff", "HDF4", "KEA", "netCDF", "PCIDSK", "Zarr", "MEM"#=...=#) 
+const GDAL_DRIVERS_SUPPORTING_CREATE = ("GTiff", "HDF4", "KEA", "netCDF", "PCIDSK", "Zarr", "MEM"#=...=#)
 
 # order is equal to https://gdal.org/user/virtual_file_systems.html
 const GDAL_VIRTUAL_FILESYSTEMS = "/vsi" .* (
@@ -62,81 +58,39 @@ Write a `Raster` to file using GDAL.
 Returns `filename`.
 """
 function Base.write(
-    filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster{T,2}; 
+    filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster{T};
     force=false, verbose=true, kw...
 ) where T
     RA.check_can_write(filename, force)
-    all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
-
-    correctedA = _maybe_correct_to_write(A)
-    nbands = 1
-    _write(filename, correctedA, nbands; kw...)
-end
-function Base.write(
-    filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster{T,3}; 
-    force=false, verbose=true, kw...
-) where T
-    RA.check_can_write(filename, force)
-    all(hasdim(A, (X, Y))) || error("Array must have Y and X dims")
-    hasdim(A, Band()) || error("Must have a `Band` dimension to write a 3-dimensional array")
-
-    correctedA = _maybe_correct_to_write(A)
-    nbands = size(correctedA, Band())
-    _write(filename, correctedA, nbands; kw...)
+    A1 = _maybe_correct_to_write(A)
+    _create_with_driver(filename, dims(A1), eltype(A1), missingval(A1); _block_template=A1, kw...) do dataset
+        verbose && _maybe_warn_south_up(A, verbose, "Writing South-up. Use `reverse(x; dims=Y)` first to write conventional North-up")
+        open(A1; write=true) do O
+            AG.RasterDataset(dataset) .= parent(O)
+        end
+    end
+    return filename
 end
 
 function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
-    missingval=nothing, metadata=nothing, name=nothing, keys=(name,),
-    driver="", lazy=true, options=Dict{String,String}(), _block_template=nothing
+    missingval=nothing, metadata=nothing, name=nothing, lazy=true, verbose=true, kw...
 )
-    driver = _check_driver(filename, driver)
-    if !(keys isa Nothing || keys isa Symbol) && length(keys) > 1
-        throw(ArgumentError("GDAL cant write more than one layer per file, but keys $keys have $(length(keys))"))
-    end
-    x, y = map(DD.dims(dims, (XDim, YDim)), (GDAL_X_ORDER, GDAL_Y_ORDER)) do d, o
-        reorder(lookup(d) isa NoLookup ? set(d, Sampled) : d, o)
-    end
     T = Missings.nonmissingtype(T)
-
-    if ismissing(missingval)
-        missingval = RA._writeable_missing(T)
+    missingval = ismissing(missingval) ? RA._writeable_missing(T) : missingval
+    _create_with_driver(filename, dims, T, missingval; kw...) do _
+        verbose && _maybe_warn_south_up(dims, verbose, "Creating a South-up raster. Use `reverse(x; dims=Y)` first to write conventional North-up")
+        nothing
     end
 
-    if hasdim(dims, Band)
-        b = DD.dims(dims, Band)
-        nbands = length(b)
-        newdims = (x, y, b)
-    else
-        nbands = 1
-        newdims = (x, y)
-    end
+    return Raster(filename; source=GDALsource, name, lazy, dropband=!hasdim(dims, Band))
+end
 
-    kw = (width=length(x), height=length(y), nbands=nbands, dtype=T)
-    options_vec = _process_options(driver, options; _block_template)
-    gdaldriver = driver isa String ? AG.getdriver(driver) : driver
-    if driver in GDAL_DRIVERS_SUPPORTING_CREATE
-        AG.create(filename; driver=gdaldriver, options=options_vec, kw...) do ds
-            _set_dataset_properties!(ds, newdims, missingval)
-        end
-    else
-        tif_options_vec = _process_options("GTiff", Dict{String,String}(); _block_template)
-        # Create a tif and copy it to `filename`, as ArchGDAL.create
-        # does not support direct creation of ASCII etc. rasters
-        ArchGDAL.create(tempname() * ".tif"; driver=AG.getdriver("GTiff"), options=tif_options_vec, kw...) do ds
-            _set_dataset_properties!(ds, newdims, missingval)
-            target_ds = AG.copy(ds; filename=filename, driver=gdaldriver, options=options_vec)
-            AG.destroy(target_ds)
-        end
-    end
-    if hasdim(dims, Band)
-        return Raster(filename; source=GDALsource, lazy)
-    else
-        return view(Raster(filename; source=GDALsource, lazy), Band(1))
-    end
+function _maybe_warn_south_up(A, verbose, msg)
+    verbose && lookup(A, Y) isa AbstractSampled && order(A, Y) isa ForwardOrdered && @warn msg
 end
 
 function RA._open(f, ::Type{GDALsource}, filename::AbstractString; write=false, kw...)
-    # Check the file actually exists because GDALs error is unhelpful
+    # Check the file actually exists because the GDAL error is unhelpful
     if !isfile(filename)
         # Allow gdal virtual file systems
         # the respective string is prepended to the data source,
@@ -151,7 +105,7 @@ function RA._open(f, ::Type{GDALsource}, filename::AbstractString; write=false, 
             end
         end
     end
-    if write 
+    if write
         # Pass the OF_UPDATE flag to GDAL
         AG.readraster(RA.cleanreturn ∘ f, filename; flags=AG.OF_UPDATE)
     else
@@ -168,11 +122,13 @@ RA._open(f, ::Type{GDALsource}, ds::AG.RasterDataset; kw...) = RA.cleanreturn(f(
 
 # We allow passing in crs and mappedcrs manually
 function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
-    gt = try
+    gt_dims = try
         AG.getgeotransform(raster)
     catch
         GDAL_EMPTY_TRANSFORM
     end
+    # @show gt_dims
+    gt = gt_dims
     xsize, ysize = size(raster)
     nbands = AG.nraster(raster)
     bandnames = _bandnames(raster, nbands)
@@ -189,20 +145,20 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     # otherwise use Transformed index, with an affine map.
     if _isalligned(gt)
         xstep = gt[GDAL_WE_RES]
-        if xstep > 0 
+        if xstep > 0
             xmin = gt[GDAL_TOPLEFT_X]
             xmax = gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
             xorder = ForwardOrdered()
         else
-            xmin = gt[GDAL_TOPLEFT_X] + xstep 
+            xmin = gt[GDAL_TOPLEFT_X] + xstep
             xmax = gt[GDAL_TOPLEFT_X] + xstep * xsize
             xorder = ReverseOrdered()
         end
         xindex = LinRange(xmin, xmax, xsize)
         xorder = xstep > 0 ? ForwardOrdered() : ReverseOrdered()
 
-        ystep = gt[GDAL_NS_RES] # A negative number
-        if ystep > 0 
+        ystep = gt[GDAL_NS_RES] # Usually a negative number
+        if ystep > 0
             ymax = gt[GDAL_TOPLEFT_Y]
             ymin = gt[GDAL_TOPLEFT_Y] + ystep * (ysize - 1)
             yorder = ForwardOrdered()
@@ -218,7 +174,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
             Points(), Points()
         else
             # GeoTiff uses the "pixelCorner" convention
-            Intervals(GDAL_X_LOCUS), Intervals(GDAL_Y_LOCUS)
+            Intervals(GDAL_LOCUS), Intervals(GDAL_LOCUS)
         end
 
         xlookup = Projected(xindex;
@@ -274,10 +230,10 @@ end
 # Create a Raster from a dataset
 RA.Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
 function RA.Raster(ds::AG.RasterDataset;
-    crs=crs(ds), 
+    crs=crs(ds),
     mappedcrs=nothing,
     dims=dims(ds, crs, mappedcrs),
-    refdims=(), 
+    refdims=(),
     name=Symbol(""),
     metadata=metadata(ds),
     missingval=missingval(ds),
@@ -330,33 +286,11 @@ function AG.Dataset(f::Function, A::AbstractRaster; kw...)
         f(rds.ds)
     end
 end
-function AG.RasterDataset(f::Function, A::AbstractRaster; 
-    filename=nothing, driver="",
-)
-    driver = _check_driver(filename, driver)
-    all(hasdim(A, (X, Y))) || throw(ArgumentError("`AbstractRaster` must have both an `X` and `Y` to be converted to an ArchGDAL `Dataset`"))
-    if ndims(A) === 3
-        thirddim = otherdims(A, (X, Y))[1]
-        thirddim isa Band || throw(ArgumentError("ArchGDAL can't handle $(basetypeof(thirddim)) dims - only X, Y, and Band"))
-    elseif ndims(A) > 3
-        throw(ArgumentError("ArchGDAL can only accept 2 or 3 dimensional arrays"))
-    end
-
-    A_m = RA._maybe_use_type_missingval(A, GDALsource)
-    A_p = _maybe_permute_to_gdal(A_m)
-    kw = (;
-        width=length(DD.dims(A_p, X)),
-        height=length(DD.dims(A_p, Y)),
-        nbands=hasdim(A_p, Band) ? size(A_p, Band()) : 1,
-        dtype=eltype(A_p),
-    )
-    if filename == nothing 
-        filename = ""
-    end
-    _create_with_driver(filename, driver, kw; _block_template=A_p) do dataset
-        _set_dataset_properties!(dataset, dims(A_p), missingval(A_p))
+function AG.RasterDataset(f::Function, A::AbstractRaster; filename="", kw...)
+    A1 = _maybe_correct_to_write(A)
+    return _create_with_driver(filename, dims(A1), eltype(A1), missingval(A1); _block_template=A1, kw...) do dataset
         rds = AG.RasterDataset(dataset)
-        open(A_p) do a
+        open(A1) do a
             rds .= parent(a)
         end
         f(rds)
@@ -389,65 +323,76 @@ _missingval_from_gdal(T, x) = x
 _maybe_correct_to_write(A) = _maybe_correct_to_write(lookup(A, X()), A)
 _maybe_correct_to_write(lookup, A) = A
 function _maybe_correct_to_write(lookup::Union{AbstractSampled,NoLookup}, A)
-    _maybe_permute_to_gdal(A) |>
-        a -> RA.noindex_to_sampled(a) |>
-        a -> reorder(a, (X(GDAL_X_ORDER), Y(GDAL_Y_ORDER)))
-end
-
-# Write a Raster to disk using GDAL
-function _write(filename, A::AbstractRaster, nbands; driver="", kw...)
-    A = RA._maybe_use_type_missingval(A, GDALsource)
-    create_kw = (width=size(A, X()), height=size(A, Y()), nbands=nbands, dtype=eltype(A))
-    _create_with_driver(filename, driver, create_kw; _block_template=A, kw...) do dataset
-        _set_dataset_properties!(dataset, A)
-        rds = AG.RasterDataset(dataset)
-        open(A; write=true) do O
-            rds .= parent(O)
-        end
-    end
-
-    return filename
+    RA._maybe_use_type_missingval(A, GDALsource) |> _maybe_permute_to_gdal
 end
 
 _check_driver(filename::Nothing, driver) = "MEM"
 function _check_driver(filename::AbstractString, driver)
-    if isempty(driver) 
-        driver = AG.extensiondriver(filename)
-        if driver == "COG"
-            driver = "GTiff"
+    if isempty(driver)
+        if isempty(filename)
+            driver = "MEM"
+        else
+            driver = AG.extensiondriver(filename)
+            if driver == "COG"
+                driver = "GTiff"
+            end
         end
     end
     return driver
 end
 
-# Handle creating a dataset with any driver, 
+# Handle creating a dataset with any driver,
 # applying the function `f` to the created dataset
-function _create_with_driver(f, filename, driver, create_kw;
-    options=Dict{String,String}(), _block_template=nothing
+function _create_with_driver(f, filename, dims, T, missingval;
+    options=Dict{String,String}(), driver="", _block_template=nothing, kw...
 )
+    _gdal_validate(dims)
+
+    x, y = map(DD.dims(dims, (XDim, YDim))) do d
+        maybeshiftlocus(Start(), RA.nolookup_to_sampled(d))
+    end
+    newdims = hasdim(dims, Band()) ? (x, y, DD.dims(dims, Band)) : (x, y)
+    nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band())) : 1
+
     driver = _check_driver(filename, driver)
     options_vec = _process_options(driver, options; _block_template)
     gdaldriver = driver isa String ? AG.getdriver(driver) : driver
+
+    create_kw = (; width=length(x), height=length(y), nbands, dtype=T,)
+    filename = isnothing(filename) ? "" : filename
+
     if AG.shortname(gdaldriver) in GDAL_DRIVERS_SUPPORTING_CREATE
-        AG.create(filename; driver=gdaldriver, create_kw..., options=options_vec) do dataset
+        AG.create(filename; driver=gdaldriver, options=options_vec, create_kw...) do dataset
+            _set_dataset_properties!(dataset, newdims, missingval)
             f(dataset)
         end
     else
-        # Create a memory object and copy it to disk, as ArchGDAL.create
+        # Create a tif and copy it to `filename`, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
-        ArchGDAL.create(""; driver=AG.getdriver("MEM"), create_kw...) do dataset
-            result = f(dataset)
-            # This `copy` copies _to disk_
-            AG.copy(dataset; filename=filename, driver=gdaldriver, options=options_vec) |> AG.destroy
-            result
+        tif_options_vec = _process_options("GTiff", Dict{String,String}(); _block_template)
+        tif_driver = AG.getdriver("GTiff")
+        tif_name = tempname() * ".tif"
+        AG.create(tif_name; driver=tif_driver, options=tif_options_vec, create_kw...) do dataset
+            _set_dataset_properties!(dataset, newdims, missingval)
+            f(dataset)
+            target_ds = AG.copy(dataset; filename=filename, driver=gdaldriver, options=options_vec)
+            AG.destroy(target_ds)
         end
     end
 end
 
+@noinline function _gdal_validate(dims)
+    all(hasdim(dims, (XDim, YDim))) || throw(ArgumentError("`Raster` must have both an `X` and `Y` to be converted to an ArchGDAL `Dataset`"))
+    if length(dims) === 3
+        otherdim = otherdims(dims, (XDim, YDim))[1]
+        otherdim isa Band || throw(ArgumentError("ArchGDAL can't handle $(basetypeof(thirddim)) dims - only X, Y, and Band"))
+    elseif !(length(dims) in (2, 3))
+        throw(ArgumentError("ArchGDAL can only accept 2 or 3 dimensional arrays"))
+    end
+end
+
 # Convert a Dict of options to a Vector{String} for GDAL
-function _process_options(driver::String, options::Dict;
-    _block_template=nothing
-)
+function _process_options(driver::String, options::Dict; _block_template=nothing)
     options_str = Dict(string(k)=>string(v) for (k,v) in options)
     # Get the GDAL driver object
     gdaldriver = AG.getdriver(driver)
@@ -520,22 +465,40 @@ end
 
 # Set the properties of an ArchGDAL Dataset to match
 # the dimensions and missingval of a Raster
-_set_dataset_properties!(ds::AG.Dataset, A) = 
+_set_dataset_properties!(ds::AG.Dataset, A) =
     _set_dataset_properties!(ds, dims(A), missingval(A))
 function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval)
+    # We cant write mixed Points/Intervals, so default to Intervals if mixed
+    xy = DD.dims(dims, (X, Y))
+    if any(x -> x isa Intervals, sampling.(xy)) && any(x -> x isa Points, sampling.(xy))
+        dims = set(dims, X => Intervals, Y => Intervals)
+    end
     # Convert the dimensions to `Projected` if they are `Converted`
-    # This allows saving NetCDF to Tiff
+    # This allows saving NetCDF to Tiff.
+    x = convertlookup(Projected, DD.dims(dims, X))
+    y = convertlookup(Projected, DD.dims(dims, Y))
+
     # Set the index loci to the start of the cell for the lat and lon dimensions.
     # NetCDF or other formats use the center of the interval, so they need conversion.
-    x = DD.maybeshiftlocus(GDAL_X_LOCUS, convertlookup(Projected, DD.dims(dims, X)))
-    y = DD.maybeshiftlocus(GDAL_Y_LOCUS, convertlookup(Projected, DD.dims(dims, Y)))
-    # Convert crs to WKT if it exists
+    x = DD.maybeshiftlocus(GDAL_LOCUS, x)
+    y = DD.maybeshiftlocus(GDAL_LOCUS, y)
+
+    # Set GDAL AREA_OR_POINT metadata
+    area_or_point = sampling(x) isa Points ? "Point" : "Area"
+    AG.GDAL.gdalsetmetadataitem(dataset, "AREA_OR_POINT", area_or_point, "")
+
+    # Set crs if it exists, converting crs to WKT
     if !isnothing(crs(x))
         AG.setproj!(dataset, convert(String, convert(WellKnownText, crs(x))))
     end
-    # Get the geotransform from the updated lat/lon dims and write
-    AG.setgeotransform!(dataset, RA.dims2geotransform(x, y))
 
+    # Set the geotransform from the updated lookups
+    gt = RA.dims2geotransform(x, y)
+    # @show gt
+    AG.setgeotransform!(dataset, gt)
+
+    # Set the missing value/nodataval. This is a little complicated
+    # because gdal has separate method for 64 bit integers
     if !isnothing(missingval)
         bands = hasdim(dims, Band) ? axes(DD.dims(dims, Band), 1) : 1
         for i in bands
@@ -552,7 +515,7 @@ function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval)
 
     # Write band labels if they are not Integers.
     if hasdim(dims, Band)
-        bandlookup = DD.lookup(dims, Band)
+        bandlookup = DD.lookup(DD.dims(dims, Band))
         if !(eltype(bandlookup) <: Integer)
             for i in eachindex(bandlookup)
                 AG.getband(dataset, i) do band
@@ -569,8 +532,8 @@ end
 _extensiondriver(filename::Nothing) = "MEM"
 function _extensiondriver(filename::AbstractString)
     # TODO move this check to ArchGDAL
-    if filename == "/vsimem/tmp" 
-        "MEM" 
+    if filename == "/vsimem/tmp"
+        "MEM"
     elseif splitext(filename)[2] == ".tif"
         # Force GTiff as the default for .tif because COG cannot do `create` yet
         "GTiff"
@@ -585,10 +548,18 @@ _maybe_permute_to_gdal(A, dims::Tuple) = A
 _maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim,<:Band}) = permutedims(A, dims)
 _maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim}) = permutedims(A, dims)
 
-_maybe_permute_from_gdal(A, dims::Tuple) = permutedims(A, dims)
-_maybe_permute_from_gdal(A, dims::Tuple{<:XDim,<:YDim,<:Band}) = A
-_maybe_permute_from_gdal(A, dims::Tuple{<:XDim,<:YDim}) = A
+_maybe_restore_from_gdal(A, dims::Tuple) = _maybe_reorder(permutedims(A, dims), dims)
+_maybe_restore_from_gdal(A, dims::Union{Tuple{<:XDim,<:YDim,<:Band},Tuple{<:XDim,<:YDim}}) =
+    _maybe_reorder(A, dims)
 
+function _maybe_reorder(A, dims)
+    if all(map(l -> l isa AbstractSampled, lookup(dims, (XDim, YDim)))) &&
+        all(map(l -> l isa AbstractSampled, lookup(A, (XDim, YDim))))
+        reorder(A, dims)
+    else
+        A
+    end
+end
 #= Geotranforms ########################################################################
 
 See https://lists.osgeo.org/pipermail/gdal-dev/2011-July/029449.html
@@ -604,17 +575,26 @@ adfGeoTransform[5] /* n-s pixel resolution (negative value) */
 =#
 
 # These function are defined in ext/RastersCoordinateTransformationsExt.jl
-const USING_COORDINATETRANSFORMATIONS_MESSAGE = 
+const USING_COORDINATETRANSFORMATIONS_MESSAGE =
     "Run `using CoordinateTransformations` to load affine transformed rasters"
 
 function RA.dims2geotransform(x::XDim, y::YDim)
+    sampling(x) == sampling(y) || throw(ArgumentError("Sampling of x and y must match to generate a geotransform"))
+    (order(x) isa Ordered && order(y) isa Ordered) || throw(ArgumentError("GDAL can only write ordered lookups"))
+    (span(x) isa Regular && span(y) isa Regular) || throw(ArgumentError("GDAL can only write regular lookups"))
     gt = zeros(6)
-    gt[GDAL_TOPLEFT_X] = first(x)
-    gt[GDAL_WE_RES] = step(x)
     gt[GDAL_ROT1] = zero(eltype(gt))
-    gt[GDAL_TOPLEFT_Y] = first(y) - step(y)
     gt[GDAL_ROT2] = zero(eltype(gt))
+    gt[GDAL_WE_RES] = step(x)
     gt[GDAL_NS_RES] = step(y)
+    if sampling(x) isa Points
+        gt[GDAL_TOPLEFT_X] = first(x)
+        gt[GDAL_TOPLEFT_Y] = first(y)
+    else
+        sampling(x) isa Intervals{Start} || throw(ArgumentError("GDAL can only write intervals with Start locus"))
+        gt[GDAL_TOPLEFT_X] = order(x) isa ReverseOrdered ? first(x) - step(x) : first(x)
+        gt[GDAL_TOPLEFT_Y] = order(y) isa ReverseOrdered ? first(y) - step(y) : first(y)
+    end
     return gt
 end
 RA.geotransform2affine(gt) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)

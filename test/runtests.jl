@@ -22,6 +22,7 @@ end
 @time @safetestset "adapt" begin include("adapt.jl") end
 @time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "warp" begin include("warp.jl") end
+@time @safetestset "resample" begin include("resample.jl") end
 
 
 # Only test SMAP locally for now, also RasterDataSources because CI dowloads keep breaking
@@ -30,6 +31,7 @@ if !haskey(ENV, "CI")
     @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
     @time @safetestset "smap" begin include("sources/smap.jl") end
 end
+
 if !Sys.iswindows()
     # GDAL Environment vars need to be set manually for windows, so skip for now
     @time @safetestset "gdal" begin include("sources/gdal.jl") end

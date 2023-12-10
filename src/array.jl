@@ -34,6 +34,7 @@ function filename(A::AbstractRaster)
     if length(arrays) == 0
         nothing
     else
+        # TODO its not clear which array supplies the filename if there are multiple in a broadcast
         filename(first(arrays))
     end
 end

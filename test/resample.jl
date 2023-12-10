@@ -23,8 +23,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
     # Resample cea.tif using resample
     cea = Raster(raster_path; missingval=0x00)
-    raster_output = 
-    resample(cea; res=output_res, crs=output_crs, method)
+    raster_output = resample(cea; res=output_res, crs=output_crs, method)
     disk_output = resample(cea; res=output_res, crs=output_crs, method, filename="resample.tif")
 
     cea_permuted = permutedims(Raster(raster_path), (Y, X))
@@ -59,7 +58,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         @test cea == resampled
         # There is some floating point error here after Rasters -> GDAL -> Rasterss...
         # Should we correct it by detecting almost identical extent and using the original?
-        @test_broken extent(cea) = extent(resampled)
+        # @test_broken extent(cea) == extent(resampled)
     end
 
     @testset "only `res` kw changes the array size predictably" begin
@@ -68,7 +67,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         @test crs(cea) == crs(resampled)
         @test size(dims(resampled, (X, Y))) == size(dims(cea, (X, Y))) .* 2
         # GDAL fp error see above
-        @test_broken extent(cea) = extent(resampled)
+        # @test_broken extent(cea) == extent(resampled)
         resampled = resample(cea; res=(res, 2res))
         @test size(dims(resampled, (X, Y))) == (size(cea, X) .* 2, size(cea, Y))
         resampled = resample(cea; res=(X(2res), Y(res)))
@@ -138,6 +137,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         rev_x_interval_dims = interval_dims[1], reverse(interval_dims[2])
         test_dims = (point_dims, interval_dims, rev_x_point_dims, rev_x_interval_dims, rev_y_point_dims, rev_y_interval_dims)
         ds_fwd = point_dims; f = identity
+        ds_fwd = point_dims; f = reverse
 
         for ds_fwd in test_dims, f in (identity, reverse)
             ds = f(ds_fwd)

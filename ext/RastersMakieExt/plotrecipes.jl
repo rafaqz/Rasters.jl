@@ -34,28 +34,6 @@ lift_layer(rs::RasterStack, ind::Symbol) = getproperty(rs, ind)
 lift_layer(s::RasterSeries, inds...) = getindex(s, inds...)
 
 # The all-inclusive plotting function for a 2D raster
-"""
-    Rasters.rplot([position::GridPosition], raster; kw...)
-
-`raster` may be a `Raster` (of 2 or 3 dimensions) or a `RasterStack` whose underlying rasters are 2 dimensional, or 3-dimensional with a singleton (length-1) third dimension.
-
-## Keywords
-
-- `axistype = Makie.Axis`: The type of axis. This can be an `Axis`, `Axis3`, `LScene`, or even a `GeoAxis` from GeoMakie.jl.
-- `X = XDim`: The X dimension of the raster.
-- `Y = YDim`: The Y dimension of the raster.
-- `Z = YDim`: The Y dimension of the raster.
-- `draw_colorbar = true`: Whether to draw a colorbar for the axis or not.
-- `colorbar_position = Makie.Right()`: Indicates which side of the axis the colorbar should be placed on.  Can be `Makie.Top()`, `Makie.Bottom()`, `Makie.Left()`, or `Makie.Right()`.
-- `colorbar_padding = Makie.automatic`: The amound of padding between the colorbar and its axis.  If `automatic`, then this is set to the width of the colorbar.
-- `title = Makie.automatic`: The titles of each plot. If `automatic`, these are set to the name of the band.
-- `xlabel = Makie.automatic`: The x-label for the axis. If `automatic`, set to the dimension name of the X-dimension of the raster.
-- `ylabel = Makie.automatic`: The y-label for the axis. If `automatic`, set to the dimension name of the Y-dimension of the raster.
-- `colorbarlabel = ""`: Usually nothing, but here if you need it. Sets the label on the colorbar.
-- `colormap = nothing`: The colormap for the heatmap. This can be set to a vector of colormaps (symbols, strings, `cgrad`s) if plotting a 3D raster or RasterStack.
-- `colorrange = Makie.automatic`: The colormap for the heatmap.  This can be set to a vector of `(low, high)` if plotting a 3D raster or RasterStack.
-- `nan_color = :transparent`: The color which `NaN` values should take. Default to transparent.
-"""
 function Rasters.rplot(position::GridPosition, raster::Union{AbstractRaster{T,2,<:Tuple{D1,D2}},Observable{<:AbstractRaster{T,2,<:Tuple{D1,D2}}}};
     axistype=Makie.Axis,
     X=XDim, Y=YDim, Z=ZDim,
