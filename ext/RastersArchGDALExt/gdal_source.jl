@@ -3,7 +3,7 @@ const AG = ArchGDAL
 const GDAL_LOCUS = Start()
 
 # drivers supporting the gdal Create() method to directly write to disk
-const GDAL_DRIVERS_SUPPORTING_CREATE = ("GTiff", "HDF4", "KEA", "netCDF", "PCIDSK", "Zarr", "MEM"#=...=#) 
+const GDAL_DRIVERS_SUPPORTING_CREATE = ("GTiff", "HDF4", "KEA", "netCDF", "PCIDSK", "Zarr", "MEM"#=...=#)
 
 # order is equal to https://gdal.org/user/virtual_file_systems.html
 const GDAL_VIRTUAL_FILESYSTEMS = "/vsi" .* (
@@ -58,7 +58,7 @@ Write a `Raster` to file using GDAL.
 Returns `filename`.
 """
 function Base.write(
-    filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster{T}; 
+    filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster{T};
     force=false, verbose=true, kw...
 ) where T
     RA.check_can_write(filename, force)
@@ -85,7 +85,7 @@ function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
     return Raster(filename; source=GDALsource, name, lazy, dropband=!hasdim(dims, Band))
 end
 
-function _maybe_warn_south_up(A, verbose, msg) 
+function _maybe_warn_south_up(A, verbose, msg)
     verbose && lookup(A, Y) isa AbstractSampled && order(A, Y) isa ForwardOrdered && @warn msg
 end
 
@@ -105,7 +105,7 @@ function RA._open(f, ::Type{GDALsource}, filename::AbstractString; write=false, 
             end
         end
     end
-    if write 
+    if write
         # Pass the OF_UPDATE flag to GDAL
         AG.readraster(RA.cleanreturn ∘ f, filename; flags=AG.OF_UPDATE)
     else
@@ -145,12 +145,12 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     # otherwise use Transformed index, with an affine map.
     if _isalligned(gt)
         xstep = gt[GDAL_WE_RES]
-        if xstep > 0 
+        if xstep > 0
             xmin = gt[GDAL_TOPLEFT_X]
             xmax = gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
             xorder = ForwardOrdered()
         else
-            xmin = gt[GDAL_TOPLEFT_X] + xstep 
+            xmin = gt[GDAL_TOPLEFT_X] + xstep
             xmax = gt[GDAL_TOPLEFT_X] + xstep * xsize
             xorder = ReverseOrdered()
         end
@@ -158,7 +158,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
         xorder = xstep > 0 ? ForwardOrdered() : ReverseOrdered()
 
         ystep = gt[GDAL_NS_RES] # Usually a negative number
-        if ystep > 0 
+        if ystep > 0
             ymax = gt[GDAL_TOPLEFT_Y]
             ymin = gt[GDAL_TOPLEFT_Y] + ystep * (ysize - 1)
             yorder = ForwardOrdered()
@@ -230,10 +230,10 @@ end
 # Create a Raster from a dataset
 RA.Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
 function RA.Raster(ds::AG.RasterDataset;
-    crs=crs(ds), 
+    crs=crs(ds),
     mappedcrs=nothing,
     dims=dims(ds, crs, mappedcrs),
-    refdims=(), 
+    refdims=(),
     name=Symbol(""),
     metadata=metadata(ds),
     missingval=missingval(ds),
@@ -341,7 +341,7 @@ function _check_driver(filename::AbstractString, driver)
     return driver
 end
 
-# Handle creating a dataset with any driver, 
+# Handle creating a dataset with any driver,
 # applying the function `f` to the created dataset
 function _create_with_driver(f, filename, dims, T, missingval;
     options=Dict{String,String}(), driver="", _block_template=nothing, kw...
@@ -351,7 +351,7 @@ function _create_with_driver(f, filename, dims, T, missingval;
     x, y = map(DD.dims(dims, (XDim, YDim))) do d
         maybeshiftlocus(Start(), RA.nolookup_to_sampled(d))
     end
-    newdims = hasdim(dims, Band()) ? (x, y, DD.dims(dims, Band)) : (x, y) 
+    newdims = hasdim(dims, Band()) ? (x, y, DD.dims(dims, Band)) : (x, y)
     nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band())) : 1
 
     driver = _check_driver(filename, driver)
@@ -465,7 +465,7 @@ end
 
 # Set the properties of an ArchGDAL Dataset to match
 # the dimensions and missingval of a Raster
-_set_dataset_properties!(ds::AG.Dataset, A) = 
+_set_dataset_properties!(ds::AG.Dataset, A) =
     _set_dataset_properties!(ds, dims(A), missingval(A))
 function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval)
     # We cant write mixed Points/Intervals, so default to Intervals if mixed
@@ -484,7 +484,7 @@ function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval)
     y = DD.maybeshiftlocus(GDAL_LOCUS, y)
 
     # Set GDAL AREA_OR_POINT metadata
-    area_or_point = sampling(x) isa Points ? "Point" : "Area" 
+    area_or_point = sampling(x) isa Points ? "Point" : "Area"
     AG.GDAL.gdalsetmetadataitem(dataset, "AREA_OR_POINT", area_or_point, "")
 
     # Set crs if it exists, converting crs to WKT
@@ -532,8 +532,8 @@ end
 _extensiondriver(filename::Nothing) = "MEM"
 function _extensiondriver(filename::AbstractString)
     # TODO move this check to ArchGDAL
-    if filename == "/vsimem/tmp" 
-        "MEM" 
+    if filename == "/vsimem/tmp"
+        "MEM"
     elseif splitext(filename)[2] == ".tif"
         # Force GTiff as the default for .tif because COG cannot do `create` yet
         "GTiff"
@@ -548,13 +548,16 @@ _maybe_permute_to_gdal(A, dims::Tuple) = A
 _maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim,<:Band}) = permutedims(A, dims)
 _maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim}) = permutedims(A, dims)
 
-_maybe_restore_from_gdal(A, dims::Tuple) = _maybe_reorder(permutedims(A, dims), dims) 
-_maybe_restore_from_gdal(A, dims::Union{Tuple{<:XDim,<:YDim,<:Band},Tuple{<:XDim,<:YDim}}) = 
-    _maybe_reorder(A, dims) 
+_maybe_restore_from_gdal(A, dims::Tuple) = _maybe_reorder(permutedims(A, dims), dims)
+_maybe_restore_from_gdal(A, dims::Union{Tuple{<:XDim,<:YDim,<:Band},Tuple{<:XDim,<:YDim}}) =
+    _maybe_reorder(A, dims)
 
 function _maybe_reorder(A, dims)
-    reduce(dims; init=A) do a, d
-        (lookup(d) isa AbstractSampled && lookup(A, d) isa AbstractSampled) ? reorder(A, d) : A
+    if all(map(l -> l isa AbstractSampled, lookup(dims, (XDim, YDim)))) &&
+        all(map(l -> l isa AbstractSampled, lookup(A, (XDim, YDim))))
+        reorder(A, dims)
+    else
+        A
     end
 end
 #= Geotranforms ########################################################################
@@ -572,7 +575,7 @@ adfGeoTransform[5] /* n-s pixel resolution (negative value) */
 =#
 
 # These function are defined in ext/RastersCoordinateTransformationsExt.jl
-const USING_COORDINATETRANSFORMATIONS_MESSAGE = 
+const USING_COORDINATETRANSFORMATIONS_MESSAGE =
     "Run `using CoordinateTransformations` to load affine transformed rasters"
 
 function RA.dims2geotransform(x::XDim, y::YDim)

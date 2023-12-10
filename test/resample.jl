@@ -137,6 +137,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         rev_x_interval_dims = interval_dims[1], reverse(interval_dims[2])
         test_dims = (point_dims, interval_dims, rev_x_point_dims, rev_x_interval_dims, rev_y_point_dims, rev_y_interval_dims)
         ds_fwd = point_dims; f = identity
+        ds_fwd = point_dims; f = reverse
 
         for ds_fwd in test_dims, f in (identity, reverse)
             ds = f(ds_fwd)
