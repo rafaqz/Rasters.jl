@@ -48,6 +48,7 @@ st = RasterStack((A1, copy(A1)))
     geom = pointvec
     geom = line_collection
     geom = poly_collection
+    threaded = true
     
     for A in (A1, A2), 
         geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table, line_collection, poly_collection),
@@ -57,6 +58,8 @@ st = RasterStack((A1, copy(A1)))
         rasterize!(sum, A, geom; shape=:point, fill=1, threaded);
         @test sum(A) == 5.0
         @test sum(rasterize(sum, geom; to=A, shape=:point, fill=1, missingval=0, threaded)) == 5.0
+        @test sum(rasterize(xs -> sum(xs), geom; to=A, shape=:point, fill=1, missingval=0, threaded)) == 5.0
+        @test sum(rasterize(xs -> sum(xs), geom; to=A, shape=:point, fill=1, missingval=0, threaded, threadsafe=true)) == 5.0
         rasterize!(last, A, geom; shape=:point, fill=1, threaded);
         @test sum(A) == 4.0
         @test sum(rasterize(last, geom; to=A, shape=:point, fill=1, missingval=0, threaded)) == 4.0
@@ -124,6 +127,8 @@ end
         rasterize!(sum, A, geom; shape=:line, fill=1, threaded)
         @test sum(A) == 20 + 20 + 20 + 20
         @test sum(rasterize(sum, geom; to=A, shape=:line, fill=1, missingval=0, threaded)) == 80
+        @test sum(rasterize(xs -> sum(xs), geom; to=A, shape=:line, fill=1, missingval=0, threaded, threadsafe=true)) == 80
+        @test sum(rasterize(xs -> sum(xs), geom; to=A, shape=:line, fill=1, missingval=0, threaded, threadsafe=false)) == 80
     end
     @testset ":line is detected for line geometries" begin
         for A in (A1, A2), geom in (linestring, multi_linestring), threaded in (true, false)
@@ -139,6 +144,7 @@ end
     A = A1
     poly = polygon
     poly = poly_collection
+    threaded = false
     for A in (A1, A2), poly in (polygon, multi_polygon, poly_collection), threaded in (true, false)
         A .= 0
         ra = rasterize(last, poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center, threaded)
@@ -195,6 +201,7 @@ end
         end
         @testset "Single value fill makes an array (ignoring table vals)" begin
             ra = rasterize(sum, data; to=A, fill=0x03, missingval=0x00)
+            @test ra isa Raster
             @test eltype(ra) == UInt64
             @test sum(ra) === 0x000000000000000f
         end

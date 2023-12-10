@@ -77,7 +77,10 @@ end
 _unwrap(::Val{X}) where X = X
 _unwrap(x) = x
 
-_missingval_or_missing(x) = missingval(x) isa Nothing ? missing : missingval(x)
+_missingval_or_missing(x) = _maybe_nothing_to_missing(missingval(x))
+
+_maybe_nothing_to_missing(::Nothing) = missing
+_maybe_nothing_to_missing(missingval) = missingval
 
 maybe_eps(dims::DimTuple) = map(maybe_eps, dims)
 maybe_eps(dim::Dimension) = maybe_eps(eltype(dim))
