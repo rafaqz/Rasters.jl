@@ -432,15 +432,17 @@ end
             @test all(trimmed_r .=== [missing 1.0; 0.5 2.0])
         end
         cropped = crop(ga; to=trimmed)
+        cropped1 = crop(crop(ga; to=dims(trimmed, X)); to=dims(trimmed, Y))
         _, cropped2 = crop(trimmed, ga)
         cropped_r = crop(ga_r; to=trimmed_r)
-        @test all(cropped .=== trimmed)
+        @test all(cropped .=== cropped1 .=== trimmed)
         @test all(cropped_r .=== trimmed_r)
         extended = extend(cropped, ga)[1]
         extended_r = extend(cropped_r; to=ga_r)
-        @test all(extended .=== ga) 
-        @test all(extended_r .=== ga_r)
+        extended1 = extend(extend(cropped; to=dims(ga, X)); to=dims(ga, Y))
         extended_d = extend(cropped; to=ga, filename="extended.tif")
+        @test all(extended .=== extended1 .=== replace_missing(extended_d) .=== ga) 
+        @test all(extended_r .=== ga_r)
         @test all(map(==, lookup(extended_d), lookup(extended)))
 
         @testset "to polygons" begin
