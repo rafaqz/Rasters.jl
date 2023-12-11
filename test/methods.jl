@@ -440,9 +440,9 @@ end
         extended = extend(cropped, ga)[1]
         extended_r = extend(cropped_r; to=ga_r)
         extended1 = extend(extend(cropped; to=dims(ga, X)); to=dims(ga, Y))
+        extended_d = extend(cropped; to=ga, filename="extended.tif")
         @test all(extended .=== extended1 .=== replace_missing(extended_d) .=== ga) 
         @test all(extended_r .=== ga_r)
-        extended_d = extend(cropped; to=ga, filename="extended.tif")
         @test all(map(==, lookup(extended_d), lookup(extended)))
 
         @testset "to polygons" begin
