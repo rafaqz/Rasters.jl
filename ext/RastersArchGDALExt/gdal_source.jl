@@ -481,7 +481,6 @@ function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval)
     # NetCDF or other formats use the center of the interval, so they need conversion.
     x = DD.maybeshiftlocus(GDAL_LOCUS, x)
     y = DD.maybeshiftlocus(GDAL_LOCUS, y)
-    display((x, y))
 
     # Set GDAL AREA_OR_POINT metadata
     area_or_point = sampling(x) isa Points ? "Point" : "Area"
