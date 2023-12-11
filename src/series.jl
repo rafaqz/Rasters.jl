@@ -172,8 +172,8 @@ function RasterSeries(path::AbstractString, dims; refdims=(), ext=nothing, separ
     end
     basenames = map(fp -> basename(splitext(fp)[1]), filepaths)
     # Try to get values of the wrapped type from the filenames
-    if dims isa Dimension && val(dims) isa AutoVal{<:Type}
-        T = val(val(dims))
+    if dims isa Dimension && val(dims) isa Type
+        T = val(dims)
         index_strings = map(basenames) do n
             strip(n[length(common_filename)+1:end], separator)
         end
@@ -184,7 +184,7 @@ function RasterSeries(path::AbstractString, dims; refdims=(), ext=nothing, separ
                 error("Could not parse filename segment $s as $T")
             end
         end
-        dims = (basetypeof(dims)(index; val(dims).kw...),)
+        dims = (rebuild(dims, index),)
     end
     RasterSeries(filepaths, DD.format(dims, filepaths); refdims, kw...)
 end
