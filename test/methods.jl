@@ -438,9 +438,10 @@ end
         @test all(cropped_r .=== trimmed_r)
         extended = extend(cropped, ga)[1]
         extended_r = extend(cropped_r; to=ga_r)
-        extended_d = extend(cropped; to=ga, filename="extended.tif")
         @test all(extended .=== ga) 
         @test all(extended_r .=== ga_r)
+        extended_d = extend(cropped; to=ga, filename="extended.tif")
+        @test all(map(==, lookup(extended_d), lookup(extended)))
 
         @testset "to polygons" begin
             A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))

@@ -127,7 +127,6 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     catch
         GDAL_EMPTY_TRANSFORM
     end
-    # @show gt_dims
     gt = gt_dims
     xsize, ysize = size(raster)
     nbands = AG.nraster(raster)
@@ -144,50 +143,49 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     # Output Sampled index dims when the transformation is lat/lon alligned,
     # otherwise use Transformed index, with an affine map.
     if _isalligned(gt)
+        # Get step sizes
         xstep = gt[GDAL_WE_RES]
-        if xstep > 0
-            xmin = gt[GDAL_TOPLEFT_X]
-            xmax = gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
-            xorder = ForwardOrdered()
-        else
-            xmin = gt[GDAL_TOPLEFT_X] + xstep
-            xmax = gt[GDAL_TOPLEFT_X] + xstep * xsize
-            xorder = ReverseOrdered()
-        end
-        xindex = LinRange(xmin, xmax, xsize)
-        xorder = xstep > 0 ? ForwardOrdered() : ReverseOrdered()
-
         ystep = gt[GDAL_NS_RES] # Usually a negative number
-        if ystep > 0
+        # Get min, max and sampling depending on AREA_OR_POINT
+        if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
+            sampling = Points()
+            xmin, xmax = gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
             ymax = gt[GDAL_TOPLEFT_Y]
             ymin = gt[GDAL_TOPLEFT_Y] + ystep * (ysize - 1)
-            yorder = ForwardOrdered()
-        else
-            ymax = gt[GDAL_TOPLEFT_Y] + ystep
-            ymin = gt[GDAL_TOPLEFT_Y] + ystep * ysize
-            yorder = ReverseOrdered()
-        end
-        yindex = LinRange(ymax, ymin, ysize)
-
-        # Spatial data defaults to area/inteval
-        xsampling, ysampling = if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
-            Points(), Points()
         else
             # GeoTiff uses the "pixelCorner" convention
-            Intervals(GDAL_LOCUS), Intervals(GDAL_LOCUS)
+            sampling = Intervals(GDAL_LOCUS)
+            xmin, xmax = if xstep > 0
+                gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
+            else
+                gt[GDAL_TOPLEFT_X] + xstep, gt[GDAL_TOPLEFT_X] + xstep * xsize
+            end
+            ymax, ymin = if ystep > 0
+                gt[GDAL_TOPLEFT_Y], gt[GDAL_TOPLEFT_Y] + ystep * (ysize - 1)
+            else
+                gt[GDAL_TOPLEFT_Y] + ystep, gt[GDAL_TOPLEFT_Y] + ystep * ysize
+            end
         end
 
+        # Define order
+        xorder = xstep > 0 ? ForwardOrdered() : ReverseOrdered()
+        yorder = ystep > 0 ? ForwardOrdered() : ReverseOrdered()
+        # Create lookup index. LinRange is easiest always the right size after fp error
+        xindex = LinRange(xmin, xmax, xsize)
+        yindex = LinRange(ymax, ymin, ysize)
+
+        # Define `Projected` lookups fo X and Y dimensions
         xlookup = Projected(xindex;
             order=xorder,
             span=Regular(step(xindex)),
-            sampling=xsampling,
+            sampling=sampling,
             metadata=xy_metadata,
             crs=crs,
             mappedcrs=mappedcrs,
         )
         ylookup = Projected(yindex;
             order=yorder,
-            sampling=ysampling,
+            sampling=sampling,
             # Use the range step as is will be different to ystep due to float error
             span=Regular(step(yindex)),
             metadata=xy_metadata,
@@ -494,7 +492,6 @@ function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval)
 
     # Set the geotransform from the updated lookups
     gt = RA.dims2geotransform(x, y)
-    # @show gt
     AG.setgeotransform!(dataset, gt)
 
     # Set the missing value/nodataval. This is a little complicated

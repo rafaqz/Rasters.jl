@@ -263,9 +263,8 @@ gdalpath = maybedownload(url)
     @testset "write" begin
         gdalarray = Raster(gdalpath; name=:test);
 
-        @testset "2d" begin
+        @testset "2d asc" begin
             filename = tempname() * ".asc"
-            gdalarray
             @time write(filename, gdalarray)
             saved1 = Raster(filename);
             @test all(saved1 .== gdalarray)
@@ -275,6 +274,30 @@ gdalpath = maybedownload(url)
             @test missingval(saved1) === missingval(gdalarray)
             @test refdims(saved1) == refdims(gdalarray)
             rm(filename)
+        end
+
+        @testset "2d tif" begin
+            @testset "Intervals" begin
+                filename = tempname() * ".tif"
+                @time write(filename, gdalarray)
+                saved1 = Raster(filename);
+                @test all(saved1 .== gdalarray)
+                @test lookup(saved1) == lookup(gdalarray)
+                @test missingval(saved1) === missingval(gdalarray)
+                @test refdims(saved1) == refdims(gdalarray)
+                rm(filename)
+            end
+            @testset "Points" begin
+                filename = tempname() * ".tif"
+                gdalarray_points = set(gdalarray, X => Points, Y => Points)
+                @time write(filename, gdalarray_points)
+                saved1 = Raster(filename);
+                @test all(saved1 .== gdalarray_points)
+                @test lookup(saved1) == lookup(gdalarray_points)
+                @test missingval(saved1) === missingval(gdalarray_points)
+                @test refdims(saved1) == refdims(gdalarray_points)
+                rm(filename)
+            end
         end
 
         @testset "3d, with subsetting" begin
