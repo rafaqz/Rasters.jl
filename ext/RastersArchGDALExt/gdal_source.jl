@@ -249,6 +249,7 @@ function RA.Raster(ds::AG.RasterDataset;
     return dropband ? RA._drop_single_band(raster, lazy) : raster
 end
 
+RA.missingval(ds::AG.Dataset, args...) = RA.missingval(AG.RasterDataset(ds))
 function RA.missingval(rasterds::AG.RasterDataset, args...)
     # All bands have the same missingval in GDAL
     band = AG.getband(rasterds.ds, 1)

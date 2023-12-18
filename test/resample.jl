@@ -41,6 +41,10 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
     rm("resample.tif")
 
+    @testset "missingval propagates" begin
+        @test missingval(resample(cea; res=output_res, crs=output_crs, method)) == 0x00
+    end
+
     @testset "snapped size and dim index match" begin
         snaptarget = raster_output
         snapped = resample(cea; to=snaptarget)
@@ -72,6 +76,10 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         @test size(dims(resampled, (X, Y))) == (size(cea, X) .* 2, size(cea, Y))
         resampled = resample(cea; res=(X(2res), Y(res)))
         @test size(dims(resampled, (X, Y))) == (size(cea, X), size(cea, Y) * 2)
+    end
+
+    @testset "only size or res allowed not both" begin
+        @test_throws ArgumentError resample(cea; res=output_res, size=(1000, 1000))
     end
 
     @testset "only `size` kw sets the size" begin
