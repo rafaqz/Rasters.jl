@@ -171,9 +171,10 @@ function RasterSeries(path::AbstractString, dims; refdims=(), ext=nothing, separ
         length(filepaths) > 0 || error("No $(isnothing(ext) ? "" : ext) files found matching \"$common_filename\" stem and \"$ext\" extension")
     end
     basenames = map(fp -> basename(splitext(fp)[1]), filepaths)
+    v = val(dims)
     # Try to get values of the wrapped type from the filenames
-    if dims isa Dimension && val(dims) isa AutoVal{<:Type}
-        T = val(val(dims))
+    if dims isa Dimension && val(dims) isa Union{Type,AutoVal{<:Type}}
+        T = val(dims) isa Type ? v : val(v)
         index_strings = map(basenames) do n
             strip(n[length(common_filename)+1:end], separator)
         end
@@ -184,7 +185,11 @@ function RasterSeries(path::AbstractString, dims; refdims=(), ext=nothing, separ
                 error("Could not parse filename segment $s as $T")
             end
         end
-        dims = (basetypeof(dims)(index; val(dims).kw...),)
+        dims = if v isa Type
+            (basetypeof(dims)(index),)
+        else
+            (basetypeof(dims)(index; v.kw...),)
+        end
     end
     RasterSeries(filepaths, DD.format(dims, filepaths); refdims, kw...)
 end
