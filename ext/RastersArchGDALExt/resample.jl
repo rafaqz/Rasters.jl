@@ -95,3 +95,5 @@ function resample(A::RasterStackOrArray;
         return setcrs(resampled, crs)
     end
 end
+
+_size_and_res_error() = throw(ArgumentError("Include only `size` or `res` keywords, not both"))
