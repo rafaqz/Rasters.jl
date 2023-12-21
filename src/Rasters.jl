@@ -47,7 +47,7 @@ using .LookupArrays: LookupArrayTuple
 using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
 
-using GeoInterface: crs
+import GeoInterface: crs
 
 using Setfield: @set, @set!
 using ColorTypes: RGB
