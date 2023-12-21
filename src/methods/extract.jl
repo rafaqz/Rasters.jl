@@ -128,7 +128,7 @@ _extract(T, x::RasterStackOrArray, trait::GI.PointTrait, point; kw...) =
 
 @inline _skip_missing_rows(rows) = Iterators.filter(row -> !any(ismissing, row), rows)
 
-@inline _prop_nt(st::AbstractRasterStack, I, names::NamedTuple{K}) where K = t[I][K]
+@inline _prop_nt(st::AbstractRasterStack, I, names::NamedTuple{K}) where K = st[I][K]
 @inline _prop_nt(A::AbstractRaster, I, names::NamedTuple{K}) where K = NamedTuple{K}((A[I],))
 
 # Extract a single point
