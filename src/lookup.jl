@@ -13,7 +13,7 @@ function Adapt.adapt_structure(to, l::AbstractProjected)
     return Adapt.adapt_structure(to, sampled)
 end
 
-crs(lookup::LookupArray) = nothing
+GeoInterface.crs(lookup::LookupArray) = nothing
 mappedcrs(lookup::LookupArray) = nothing
 
 # When the lookup is formatted with an array we match the `dim` field with the
