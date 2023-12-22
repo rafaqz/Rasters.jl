@@ -1,5 +1,5 @@
 filter_ext(path, ext::AbstractString) =
-    filter(fn -> splitext(fn)[2] == ext, readdir(path; join=true))
+    filte(fn -> splitext(fn)[2] == ext, readdir(path; join=true))
 filter_ext(path, exts::Union{Tuple,AbstractArray}) =
     filter(fn -> splitext(fn)[2] in exts, readdir(path; join=true))
 filter_ext(path, ext::Nothing) = readdir(path; join=true)

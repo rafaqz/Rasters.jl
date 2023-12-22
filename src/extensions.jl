@@ -195,6 +195,41 @@ $EXPERIMENTAL
 """
 cellsize(args...; kw...) = throw_extension_error(cellsize, "ArchGDAL", :RastersArchGDALExt, args)
 
+
+"""
+    kerneldensity(geoms; kw...)
+
+Kalculate the kernel density of the points in `geoms` using KernelDensity.jl.
+
+Returns a `Raster`.
+
+## Keywords
+
+- `geoms`: an iterable of GeoInterface.jl compatible points or multipoints,
+    or a Tables.jl compatible table with a geometry column. KernelDensity.jl
+    compatible 2-column `Matrix` or `Tuple` of `Vectors` are also supported.
+$TO_KEYWORD
+$RES_KEYWORD
+$SIZE_KEYWORD
+$CRS_KEYWORD
+$GEOMCOLUMN_KEYWORD
+- `kernel`: a distribution from Distributions.jl, default is `Normal()`.
+- `bandwidth` bandwidth to be passed to the kernel density estimator.
+- `weights`: weights to be passed to the kernel density estimator.
+
+## Example
+
+```julia
+using Rasters, KernelDensity
+points = zip(rand(Normal(), 100), rand(Normal(), 100))
+
+kerneldensity(points; res=0.1, weights=rand(100))
+```
+
+$EXPERIMENTAL
+"""
+kerneldensity(args...; kw...) = throw_extension_error(warp, "KernelDensity", :RastersKernelDensityExt, args)
+
 # Other shared stubs
 function layerkeys end
 function smapseries end
