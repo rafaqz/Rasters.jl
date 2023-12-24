@@ -128,15 +128,14 @@ function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
     return x
 end
 
-function _extent2dims(to; size=nothing, res=nothing, crs=nothing, kw...) 
-    _extent2dims(to, size, res, crs)
-end
-function _extent2dims(to::Extents.Extent, size::Nothing, res::Nothing, crs)
-    isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
-end
-function _extent2dims(to::Extents.Extent, size, res, crs)
-    isnothing(res) || _size_and_res_error()
-end
+_extent2dims(to; size=nothing, res=nothing, crs=nothing, kw...) = _extent2dims(to, size, res, crs)
+_extent2dims(to::DimTuple, size::Nothing, res::Nothing, crs) = setcrs(to, crs)
+_extent2dims(to::DimTuple, size::Nothing, res::Nothing, crs::Nothing) = to
+_extent2dims(to, size::Nothing, res::Nothing, crs) = _extent2dims(dims(to), size, res, crs)
+_extent2dims(to, size, res, crs) = _extent2dims(Extents.extent(to), size, res, crs)
+_extent2dims(to::Extents.Extent, size, res, crs) = _size_and_res_error()
+_extent2dims(to::Union{Nothing,Extents.Extent}, size::Nothing, res::Nothing, crs) =
+    throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
 function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) where K
     tuple_res = ntuple(_ -> res, length(K))
     _extent2dims(to, size, tuple_res, crs)
