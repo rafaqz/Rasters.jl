@@ -199,7 +199,7 @@ cellsize(args...; kw...) = throw_extension_error(cellsize, "ArchGDAL", :RastersA
 """
     kerneldensity(geoms; kw...)
 
-Kalculate the kernel density of the points in `geoms` using KernelDensity.jl.
+Calculate the kernel density of the points in `geoms` using KernelDensity.jl.
 
 Returns a `Raster`.
 
