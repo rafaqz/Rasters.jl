@@ -796,12 +796,7 @@ end
         @test isfile("tifseries/test_2001-01-01T00:00:00.tif")
         @test isfile("tifseries/test_2002-01-01T00:00:00.tif")
         ser1 = RasterSeries("tifseries", Ti(DateTime))
-        ser2 = RasterSeries("tifseries", Ti(DateTime); lazy=true)
-        ser3 = RasterSeries("tifseries/test.tif", Ti(DateTime))
-        ser4 = RasterSeries("tifseries", Ti(DateTime); ext=".tif")
-        ser5 = RasterSeries("tifseries/test", Ti(DateTime); ext=".tif")
-        @test dims(ser1) == dims(ser2) == dims(ser3) == dims(ser3) == dims(ser5) == dims(tifser)
-        @test_throws ErrorException RasterSeries("tifseries", Ti(Int))
+        @test dims(ser1) == dims(tifser)
         rm("tifseries"; recursive=true)
         mkpath("tifseries2")
         write("tifseries2/", tifser; ext=".tif", force=true)
@@ -833,6 +828,24 @@ end
                 (A2 .=== A2 .=== A3) |> all
             end |> all
         end |> all
+    end
+
+    @testset "detect dimension from file name" begin
+        tifser = RasterSeries([gdalpath, gdalpath], Ti([DateTime(2001), DateTime(2002)]))
+        mkpath("tifseries")
+        write("tifseries/test.tif", tifser; force=true)
+        @test isfile("tifseries/test_2001-01-01T00:00:00.tif")
+        @test isfile("tifseries/test_2002-01-01T00:00:00.tif")
+        ser1 = RasterSeries("tifseries", Ti(DateTime))
+        ser2 = RasterSeries("tifseries", Ti(DateTime); lazy=true)
+        ser3 = RasterSeries("tifseries/test.tif", Ti(DateTime))
+        ser4 = RasterSeries("tifseries", Ti(DateTime; order=ForwardOrdered()); ext=".tif")
+        ser5 = RasterSeries("tifseries/test", Ti(DateTime); ext=".tif")
+        @test dims(ser1) == dims(ser2) == dims(ser3) == dims(ser3) == dims(ser5) == dims(tifser)
+        @test_throws ErrorException RasterSeries("tifseries", Ti(Int))
+        ser6 = RasterSeries("tifseries/test", Ti(DateTime; sampling=Intervals(Center())); ext=".tif")
+        @test sampling(ser6) == (Intervals(Center()),)
+        rm("tifseries"; recursive=true)
     end
 
     @testset "methods" begin
