@@ -55,7 +55,7 @@ function Base.:(==)(A::AbstractRaster{T,N}, B::AbstractRaster{T,N}) where {T,N}
 end
 
 """
-    crs(x)
+    crs(x::Raster)
 
 Get the projected coordinate reference system of a `Y` or `X` `Dimension`,
 or of the `Y`/`X` dims of an `AbstractRaster`.
@@ -64,18 +64,16 @@ For [`Mapped`](@ref) lookup this may be `nothing` as there may be no projected
 coordinate reference system at all.
 See [`setcrs`](@ref) to set it manually.
 """
-function crs end
-function crs(obj)
+function GeoInterface.crs(obj)
     if hasdim(obj, Y)
-        crs(dims(obj, Y))
+        GeoInterface.crs(dims(obj, Y))
     elseif hasdim(obj, X)
-        crs(dims(obj, X))
+        GeoInterface.crs(dims(obj, X))
     else
         nothing
     end
 end
-crs(::Nothing) = nothing
-crs(dim::Dimension) = crs(lookup(dim))
+GeoInterface.crs(dim::Dimension) = crs(lookup(dim))
 
 """
     mappedcrs(x)
