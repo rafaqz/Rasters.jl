@@ -35,7 +35,7 @@ array2a = Raster(data4, dimz)
 stack1 = RasterStack(array1, array2; keys=(:array1, :array2))
 stack2 = RasterStack(array1a, array2a; keys=(:array1, :array2))
 dates = DateTime(2017):Year(1):DateTime(2018)
-series = RasterSeries([stack1, stack2], (Ti(dates),));
+series = RasterSeries([stack1, stack2], (Ti(dates),))
 
 
 @testset "Aggregate a dimension" begin
@@ -63,9 +63,13 @@ series = RasterSeries([stack1, stack2], (Ti(dates),));
     @test sampling(disaglat) == sampling(dimz[2])
 end
 
-@testset "aggregate a single dim" begin
-    aggregate(Start(), series, (X(3), ))
-    @test_broken aggregate(Start(), series, (Y(5), ))
+@testset "aggregate a single dim" begin 
+    ag = aggregate(Start(), series, (X(3), ))
+    @test size(first(ag)) == (1, 7)
+    ag = aggregate(Start(), series, (Y(5), ))
+    @test size(first(ag)) == (3, 1)
+    ag = aggregate(Start(), series, (Y(2), ))
+    @test size(first(ag)) == (3, 3)
 end
 
 @testset "aggregate and disaggregate at a locus" begin
