@@ -1,7 +1,6 @@
 const FLATTEN_SELECT = FileArray
 const FLATTEN_IGNORE = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
 
-
 """
     AbstractRaster <: DimensionalData.AbstractDimArray
 

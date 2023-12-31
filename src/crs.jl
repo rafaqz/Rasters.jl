@@ -68,6 +68,8 @@ Set the mapped crs of a `Raster`, a `RasterStack`, a `Tuple`
 of `Dimension`, or a `Dimension`.
 The `crs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` `GeoFormat` type
 """
+setmappedcrs(x::Union{<:AbstractRaster,AbstractRasterStack}, mappedcrs) =
+    set(x, setmappedcrs(dims(x), mappedcrs)...)
 setmappedcrs(dims::DimTuple, mappedcrs) = map(d -> setmappedcrs(d, mappedcrs), dims)
 function setmappedcrs(dim::Dimension, mappedcrs)
     rebuild(dim, setmappedcrs(parent(dim), mappedcrs; dim))
