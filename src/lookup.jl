@@ -77,7 +77,7 @@ function Projected(l::Sampled;
     Projected(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 
-crs(lookup::Projected) = lookup.crs
+GeoInterface.crs(lookup::Projected) = lookup.crs
 mappedcrs(lookup::Projected) = lookup.mappedcrs
 dim(lookup::Projected) = lookup.dim
 
@@ -133,7 +133,7 @@ function Mapped(l::Sampled;
     Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 
-crs(lookup::Mapped) = lookup.crs
+GeoInterface.crs(lookup::Mapped) = lookup.crs
 mappedcrs(lookup::Mapped) = lookup.mappedcrs
 dim(lookup::Mapped) = lookup.dim
 
@@ -182,8 +182,6 @@ function convertlookup(::Type{<:Projected}, l::Mapped)
     )
 end
 
-
-
 _projectedrange(l::Projected) = LinRange(first(l), last(l), length(l))
 _projectedrange(l::Mapped) = _projectedrange(span(l), crs(l), l)
 function _projectedrange(span, crs, l::Mapped)
@@ -194,40 +192,6 @@ _projectedrange(::Regular, crs::Nothing, l::Mapped) = LinRange(first(l), last(l)
 function _projectedrange(::T, crs::Nothing, l::Mapped) where T<:Union{Irregular,Explicit}
     error("Cannot convert a Mapped $T index to Projected when crs is nothing")
 end
-
-"""
-    setcrs(x, crs)
-
-Set the crs of a `Raster`, `RasterStack`, `Tuple` of `Dimension`, or a `Dimension`.
-The `crs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` `GeoFormat` type
-"""
-setcrs(dims::DimTuple, crs) = map(d -> setcrs(d, crs), dims)
-function setcrs(dim::Dimension, crs)
-    rebuild(dim, setcrs(parent(dim), crs; dim=basetypeof(dim)()))
-end
-setcrs(l::AbstractProjected, crs; dim=nothing) = rebuild(l; crs)
-function setcrs(l::Sampled, crs; dim)
-    dim isa Union{XDim,YDim} ? Projected(l; crs, dim) : l
-end
-setcrs(A::AbstractArray, crs; dim=nothing) = A
-
-"""
-    setmappedcrs(x, crs)
-
-Set the mapped crs of a `Raster`, a `RasterStack`, a `Tuple`
-of `Dimension`, or a `Dimension`.
-The `crs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` `GeoFormat` type
-"""
-setmappedcrs(dims::DimTuple, mappedcrs) = map(d -> setmappedcrs(d, mappedcrs), dims)
-function setmappedcrs(dim::Dimension, mappedcrs)
-    rebuild(dim, setmappedcrs(parent(dim), mappedcrs; dim))
-end
-setmappedcrs(l::AbstractProjected, mappedcrs; dim) = rebuild(l; mappedcrs, dim=basetypeof(dim)())
-function setmappedcrs(l::Sampled, mappedcrs; dim)
-    dim isa Union{XDim,YDim} ? Mapped(l; mappedcrs, dim) : l
-end
-setmappedcrs(A::AbstractArray, mappedcrs; dim=nothing) = A
-
 
 """
     mappedbounds(x)

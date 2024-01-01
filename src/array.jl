@@ -1,7 +1,6 @@
 const FLATTEN_SELECT = FileArray
 const FLATTEN_IGNORE = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
 
-
 """
     AbstractRaster <: DimensionalData.AbstractDimArray
 
@@ -47,58 +46,9 @@ isdisk(A::AbstractRaster) = parent(A) isa DiskArrays.AbstractDiskArray
 isdisk(x) = false
 ismem(x) = !isdisk(x)
 
-setcrs(x::AbstractRaster, crs) = set(x, setcrs(dims(x), crs)...)
-setmappedcrs(x::AbstractRaster, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
-
 function Base.:(==)(A::AbstractRaster{T,N}, B::AbstractRaster{T,N}) where {T,N} 
     size(A) == size(B) && all(A .== B)
 end
-
-"""
-    crs(x::Raster)
-
-Get the projected coordinate reference system of a `Y` or `X` `Dimension`,
-or of the `Y`/`X` dims of an `AbstractRaster`.
-
-For [`Mapped`](@ref) lookup this may be `nothing` as there may be no projected
-coordinate reference system at all.
-See [`setcrs`](@ref) to set it manually.
-"""
-function GeoInterface.crs(obj)
-    if hasdim(obj, Y)
-        GeoInterface.crs(dims(obj, Y))
-    elseif hasdim(obj, X)
-        GeoInterface.crs(dims(obj, X))
-    else
-        nothing
-    end
-end
-GeoInterface.crs(dim::Dimension) = crs(lookup(dim))
-
-"""
-    mappedcrs(x)
-
-Get the mapped coordinate reference system for the `Y`/`X` dims of an array.
-
-In [`Projected`](@ref) lookup this is used to convert [`Selector`]($DDselectordocs)
-values form the mappedcrs defined projection to the underlying projection, and to
-show plot axes in the mapped projection.
-
-In `Mapped` lookup this is the coordinate reference system of the index values.
-See [`setmappedcrs`](@ref) to set it manually.
-"""
-function mappedcrs end
-function mappedcrs(obj)
-    if hasdim(obj, Y)
-        mappedcrs(dims(obj, Y))
-    elseif hasdim(obj, X)
-        mappedcrs(dims(obj, X))
-    else
-        nothing
-    end
-end
-mappedcrs(dim::Dimension) = mappedcrs(lookup(dim))
-
 for f in (:mappedbounds, :projectedbounds, :mappedindex, :projectedindex)
     @eval ($f)(A::AbstractRaster, dims_) = ($f)(dims(A, dims_))
     @eval ($f)(A::AbstractRaster) = ($f)(dims(A))

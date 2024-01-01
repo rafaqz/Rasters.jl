@@ -97,6 +97,7 @@ include("openstack.jl")
 include("array.jl")
 include("stack.jl")
 include("series.jl")
+include("crs.jl")
 
 const RasterStackOrArray = Union{AbstractRasterStack,AbstractRaster}
 const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}

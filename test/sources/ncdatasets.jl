@@ -317,8 +317,8 @@ end
             @test index(grdarray, Y) ≈ reverse(index(nccleaned, Y)) .- 0.5
             @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
             @test reverse(grdarray; dims=Y) ≈ nccleaned
-            rm("testgrd.gri")
-            rm("testgrd.grd")
+            # rm("testgrd.gri")
+            # rm("testgrd.grd")
         end
     end
 
