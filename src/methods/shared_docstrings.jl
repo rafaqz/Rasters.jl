@@ -57,3 +57,9 @@ const PROGRESS_KEYWORD = """
 const VERBOSE_KEYWORD = """
 - `vebose`: whether to print messages about potential problems. `true` by default.
 """
+
+const GEOMCOLUMN_KEYWORD = """
+- `geomcolumn`: `Symbol` to manually select the column the geometries are in
+    when `data` is a Tables.jl compatible table, or a tuple of `Symbol` for columns
+    of point coordinates.
+"""

@@ -23,7 +23,7 @@ end
 @time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "warp" begin include("warp.jl") end
 @time @safetestset "resample" begin include("resample.jl") end
-
+@time @safetestset "kernel density" begin include("kerneldensity.jl") end
 
 # Only test SMAP locally for now, also RasterDataSources because CI dowloads keep breaking
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end

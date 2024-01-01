@@ -382,6 +382,7 @@ These are detected automatically from `data` where possible.
 
 $GEOM_KEYWORDS
 $RASTERIZE_KEYWORDS
+$GEOMCOLUMN_KEYWORD
 $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
 
