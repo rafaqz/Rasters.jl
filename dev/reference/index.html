@@ -676,8 +676,8 @@
 <li><a href="./#Rasters.resample-Tuple"><code>Rasters.resample</code></a></li>
 <li><a href="./#Rasters.rplot-Tuple"><code>Rasters.rplot</code></a></li>
 <li><a href="../scripts/generated/basics/plot_makie/#Rasters.rplot"><code>Rasters.rplot</code></a></li>
-<li><a href="./#Rasters.setcrs-Tuple{Tuple{Dimension,%20Vararg{Dimension}},%20Any}"><code>Rasters.setcrs</code></a></li>
-<li><a href="./#Rasters.setmappedcrs-Tuple{Tuple{Dimension,%20Vararg{Dimension}},%20Any}"><code>Rasters.setmappedcrs</code></a></li>
+<li><a href="./#Rasters.setcrs-Tuple{Union{AbstractRaster,%20AbstractRasterStack},%20Any}"><code>Rasters.setcrs</code></a></li>
+<li><a href="./#Rasters.setmappedcrs-Tuple{Union{AbstractRaster,%20AbstractRasterStack},%20Any}"><code>Rasters.setmappedcrs</code></a></li>
 <li><a href="./#Rasters.slice-Tuple{Union{AbstractRaster,%20AbstractRasterStack},%20Any}"><code>Rasters.slice</code></a></li>
 <li><a href="../scripts/generated/basics/data_sources/#Rasters.smapseries"><code>Rasters.smapseries</code></a></li>
 <li><a href="./#Rasters.trim-Tuple{Union{AbstractRaster,%20AbstractRasterStack}}"><code>Rasters.trim</code></a></li>
@@ -851,14 +851,14 @@ values:      25         26          27          28         29          30
 <li>Paste the complete stack trace of the error it produces, right to the bottom, into the issue template. Then we can be sure we reproduced the same problem.</li>
 </ol>
 <p>Good issues are really appreciated, but they do take just a little extra effort with Rasters.jl because of this need for files.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/Rasters.jl#L4-L238" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/Rasters.jl#L4-L238" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.AbstractRaster" href="#Rasters.AbstractRaster">#</a>
 <strong><code>Rasters.AbstractRaster</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="kt">AbstractRaster</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">DimensionalData</span><span class="o">.</span><span class="n">AbstractDimArray</span>
 </code></pre></div>
 <p>Abstract supertype for objects that wrap an array (or location of an array)  and metadata about its contents. It may be memory or hold a <code>FileArray</code>, which holds the filename, and is only opened when required.</p>
 <p><code>AbstractRaster</code>s inherit from <a href="https://rafaqz.github.io/DimensionalData.jl/stable/api/#DimensionalData.AbstractDimensionalArray"><code>AbstractDimArray</code></a> from DimensionalData.jl. They can be indexed as regular Julia arrays or with DimensionalData.jl <a href="https://rafaqz.github.io/DimensionalData.jl/stable/api/#DimensionalData.Dimension"><code>Dimension</code></a>s. They will plot as a heatmap in Plots.jl with correct coordinates and labels, even after slicing with <code>getindex</code> or <code>view</code>. <code>getindex</code> on a <code>AbstractRaster</code> will always return a memory-backed <code>Raster</code>.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/array.jl#L5-L18" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/array.jl#L4-L17" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.AbstractRasterSeries" href="#Rasters.AbstractRasterSeries">#</a>
 <strong><code>Rasters.AbstractRasterSeries</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="kt">AbstractRasterSeries</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">DimensionalData</span><span class="o">.</span><span class="n">AbstractDimensionalArray</span>
@@ -869,7 +869,7 @@ values:      25         26          27          28         29          30
 <div class="highlight"><pre><span></span><code><span class="n">RasterSeries</span><span class="p">[</span><span class="n">Time</span><span class="p">(</span><span class="n">Near</span><span class="p">(</span><span class="n">DateTime</span><span class="p">(</span><span class="mi">2001</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">))][</span><span class="ss">:temp</span><span class="p">][</span><span class="n">Y</span><span class="p">(</span><span class="n">Between</span><span class="p">(</span><span class="mi">70</span><span class="p">,</span><span class="w"> </span><span class="mi">150</span><span class="p">)),</span><span class="w"> </span><span class="n">X</span><span class="p">(</span><span class="n">Between</span><span class="p">(</span><span class="o">-</span><span class="mi">20</span><span class="p">,</span><span class="mi">20</span><span class="p">))]</span><span class="w"> </span><span class="o">|&gt;</span><span class="w"> </span><span class="sa">plot</span><span class="sb">`</span>
 </code></pre></div>
 <p><a href="./#Rasters.RasterSeries"><code>RasterSeries</code></a> is the concrete implementation.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/series.jl#L1-L19" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/series.jl#L1-L19" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.AbstractRasterStack" href="#Rasters.AbstractRasterStack">#</a>
 <strong><code>Rasters.AbstractRasterStack</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">AbstractRasterStack</span>
@@ -879,7 +879,7 @@ values:      25         26          27          28         29          30
 <p><code>AbstractRasterStack</code> can hold layers that share some or all of their dimensions. They cannot have the same dimension with different length or spatial extent as another layer.</p>
 <p><code>getindex</code> on an <code>AbstractRasterStack</code> generally returns a memory backed standard <a href="./#Rasters.Raster"><code>Raster</code></a>. <code>raster[:somelayer] |&gt; plot</code> plots the layers array, while <code>raster[:somelayer, X(1:100), Band(2)] |&gt; plot</code> will plot the subset without loading the whole array.</p>
 <p><code>getindex</code> on an <code>AbstractRasterStack</code> with a key returns another stack with <code>getindex</code> applied to all the arrays in the stack.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/stack.jl#L4-L26" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/stack.jl#L4-L26" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.Band" href="#Rasters.Band">#</a>
 <strong><code>Rasters.Band</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="kt">Band</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">Dimension</span>
@@ -894,7 +894,7 @@ values:      25         26          27          28         29          30
 <span class="c"># Or</span>
 <span class="n">mean</span><span class="p">(</span><span class="n">A</span><span class="p">;</span><span class="w"> </span><span class="n">dims</span><span class="o">=</span><span class="n">Band</span><span class="p">)</span>
 </code></pre></div>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/dimensions.jl#L4-L19" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/dimensions.jl#L4-L19" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.Mapped" href="#Rasters.Mapped">#</a>
 <strong><code>Rasters.Mapped</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="kt">Mapped</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">AbstractProjected</span>
@@ -905,7 +905,7 @@ values:      25         26          27          28         29          30
 <p>An <a href="https://rafaqz.github.io/DimensionalData.jl/stable/api/#DimensionalData.AbstractSampled"><code>AbstractSampled</code></a> <code>LookupArray</code>, where the dimension index has been mapped to another projection, usually lat/lon or <code>EPSG(4326)</code>. <code>Mapped</code> matches the dimension format commonly used in netcdf files.</p>
 <p>Fields and behaviours are identical to <a href="https://rafaqz.github.io/DimensionalData.jl/stable/api/#DimensionalData.Sampled"><code>Sampled</code></a> with the addition of <code>crs</code> and <code>mappedcrs</code> fields.</p>
 <p>The mapped dimension index will be used as for <a href="https://rafaqz.github.io/DimensionalData.jl/stable/api/#DimensionalData.Sampled"><code>Sampled</code></a>, but to save in another format the underlying <code>crs</code> may be used to convert it.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/lookup.jl#L97-L112" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/lookup.jl#L97-L112" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.Projected" href="#Rasters.Projected">#</a>
 <strong><code>Rasters.Projected</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="kt">Projected</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">AbstractProjected</span>
@@ -920,7 +920,7 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p>The underlying <code>crs</code> will be detected by GDAL.</p>
 <p>If <code>mappedcrs</code> is not supplied (ie. <code>mappedcrs=nothing</code>), the base index will be shown on plots, and selectors will need to use whatever format it is in.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/lookup.jl#L32-L56" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/lookup.jl#L32-L56" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.Raster" href="#Rasters.Raster">#</a>
 <strong><code>Rasters.Raster</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="kt">Raster</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">AbsractRaster</span>
@@ -947,7 +947,7 @@ values:      25         26          27          28         29          30
 <li><code>data</code>: can replace the data in an <code>AbstractRaster</code></li>
 <li><code>refdims</code>: <code>Tuple of</code> position <code>Dimension</code>s the array was sliced from, defaulting to <code>()</code>.</li>
 </ul>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/array.jl#L220-L260" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/array.jl#L170-L210" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.RasterSeries" href="#Rasters.RasterSeries">#</a>
 <strong><code>Rasters.RasterSeries</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="kt">RasterSeries</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">AbstractRasterSeries</span>
@@ -998,7 +998,7 @@ values:      25         26          27          28         29          30
 <ul>
 <li><code>refdims</code>: existing reference dimension/s, normally not required.</li>
 </ul>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/series.jl#L45-L114" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/series.jl#L45-L114" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.RasterStack" href="#Rasters.RasterStack">#</a>
 <strong><code>Rasters.RasterStack</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="kt">RasterStack</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">AbstrackRasterStack</span>
@@ -1029,7 +1029,7 @@ values:      25         26          27          28         29          30
 <span class="n">stack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RasterStack</span><span class="p">(</span><span class="n">files</span><span class="p">;</span><span class="w"> </span><span class="n">mappedcrs</span><span class="o">=</span><span class="n">EPSG</span><span class="p">(</span><span class="mi">4326</span><span class="p">))</span>
 <span class="n">stack</span><span class="p">[</span><span class="ss">:relhum</span><span class="p">][</span><span class="n">Lat</span><span class="p">(</span><span class="n">Contains</span><span class="p">(</span><span class="o">-</span><span class="mi">37</span><span class="p">),</span><span class="w"> </span><span class="n">Lon</span><span class="p">(</span><span class="n">Contains</span><span class="p">(</span><span class="mi">144</span><span class="p">))</span>
 </code></pre></div>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/stack.jl#L118-L155" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/stack.jl#L118-L155" class="documenter-source">source</a><br></p>
 <p><a id="DimensionalData.modify-Tuple{Any, AbstractRasterSeries}" href="#DimensionalData.modify-Tuple{Any,%20AbstractRasterSeries}">#</a>
 <strong><code>DimensionalData.modify</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">modify</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">series</span><span class="o">::</span><span class="kt">AbstractRasterSeries</span><span class="p">)</span>
@@ -1038,14 +1038,14 @@ values:      25         26          27          28         29          30
 <p><code>f</code> must return an idenically sized array.</p>
 <p>This method triggers a complete rebuild of all objects, and disk based objects will be transferred to memory.</p>
 <p>An example of the usefulnesss of this is for swapping out array backend for an entire series to <code>CuArray</code> from CUDA.jl to copy data to a GPU.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/series.jl#L28-L42" class="documenter-source">source</a><br></p>
-<p><a id="GeoInterface.crs-Tuple{Any}" href="#GeoInterface.crs-Tuple{Any}">#</a>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/series.jl#L28-L42" class="documenter-source">source</a><br></p>
+<p><a id="GeoInterface.crs-Tuple{Union{AbstractRaster, AbstractRasterSeries, AbstractRasterStack}}" href="#GeoInterface.crs-Tuple{Union{AbstractRaster,%20AbstractRasterSeries,%20AbstractRasterStack}}">#</a>
 <strong><code>GeoInterface.crs</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">crs</span><span class="p">(</span><span class="n">x</span><span class="o">::</span><span class="kt">Raster</span><span class="p">)</span>
 </code></pre></div>
 <p>Get the projected coordinate reference system of a <code>Y</code> or <code>X</code> <code>Dimension</code>, or of the <code>Y</code>/<code>X</code> dims of an <code>AbstractRaster</code>.</p>
-<p>For <a href="./#Rasters.Mapped"><code>Mapped</code></a> lookup this may be <code>nothing</code> as there may be no projected coordinate reference system at all. See <a href="./#Rasters.setcrs-Tuple{Tuple{Dimension,%20Vararg{Dimension}},%20Any}"><code>setcrs</code></a> to set it manually.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/array.jl#L57-L66" class="documenter-source">source</a><br></p>
+<p>For <a href="./#Rasters.Mapped"><code>Mapped</code></a> lookup this may be <code>nothing</code> as there may be no projected coordinate reference system at all. See <a href="./#Rasters.setcrs-Tuple{Union{AbstractRaster,%20AbstractRasterStack},%20Any}"><code>setcrs</code></a> to set it manually.</p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/crs.jl#L1-L10" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.aggregate" href="#Rasters.aggregate">#</a>
 <strong><code>Rasters.aggregate</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">aggregate</span><span class="p">(</span><span class="n">method</span><span class="p">,</span><span class="w"> </span><span class="n">object</span><span class="p">,</span><span class="w"> </span><span class="n">scale</span><span class="p">;</span><span class="w"> </span><span class="n">filename</span><span class="p">,</span><span class="w"> </span><span class="n">progress</span><span class="p">,</span><span class="w"> </span><span class="n">skipmissing</span><span class="p">)</span>
@@ -1076,7 +1076,7 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p><img alt="aggregate" src="../build/aggregate_example.png"></p>
 <p>Note: currently it is faster to aggregate over memory-backed arrays. Use <a href="./#Base.read-Tuple{Union{AbstractRaster,%20AbstractRasterSeries,%20AbstractRasterStack}}"><code>read</code></a> on <code>src</code> before use where required.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/aggregate.jl#L8-L54" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/aggregate.jl#L8-L54" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.aggregate!-Tuple{Locus, AbstractRaster, Any, Any}" href="#Rasters.aggregate!-Tuple{Locus,%20AbstractRaster,%20Any,%20Any}">#</a>
 <strong><code>Rasters.aggregate!</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">aggregate!</span><span class="p">(</span><span class="n">method</span><span class="p">,</span><span class="w"> </span><span class="n">dst</span><span class="o">::</span><span class="kt">AbstractRaster</span><span class="p">,</span><span class="w"> </span><span class="n">src</span><span class="o">::</span><span class="kt">AbstractRaster</span><span class="p">,</span><span class="w"> </span><span class="n">scale</span><span class="p">;</span><span class="w"> </span><span class="n">skipmissingval</span><span class="o">=</span><span class="nb">false</span><span class="p">)</span>
@@ -1094,7 +1094,7 @@ values:      25         26          27          28         29          30
 <li><code>skipmissingval</code>: if <code>true</code>, any <code>missingval</code> will be skipped during aggregation, so that   only areas of all missing values will be aggregated to <code>missingval</code>. If <code>false</code>, any   aggegrated area containing a <code>missingval</code> will be assigned <code>missingval</code>.</li>
 </ul>
 <p>Note: currently it is <em>much</em> faster to aggregate over memory-backed arrays. Use <a href="./#Base.read-Tuple{Union{AbstractRaster,%20AbstractRasterSeries,%20AbstractRasterStack}}"><code>read</code></a> on <code>src</code> before use where required.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/aggregate.jl#L102-L128" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/aggregate.jl#L102-L128" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.boolmask" href="#Rasters.boolmask">#</a>
 <strong><code>Rasters.boolmask</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">boolmask</span><span class="p">(</span><span class="n">obj</span><span class="o">::</span><span class="kt">Raster</span><span class="p">;</span><span class="w"> </span><span class="p">[</span><span class="n">missingval</span><span class="p">])</span>
@@ -1144,7 +1144,7 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p><img alt="boolmask" src="../build/boolmask_example.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/mask.jl#L191-L245" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/mask.jl#L191-L245" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.cellsize-Tuple" href="#Rasters.cellsize-Tuple">#</a>
 <strong><code>Rasters.cellsize</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">cellsize</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
@@ -1177,7 +1177,7 @@ values:      25         26          27          28         29          30
 <span class="w"> </span><span class="mf">120.0</span><span class="w">  </span><span class="mf">1.2332e6</span><span class="w">   </span><span class="mf">1.1952e6</span><span class="w">   </span><span class="mf">1.12048e6</span><span class="w">   </span><span class="mf">1.01158e6</span><span class="w">   </span><span class="mf">8.72085e5</span><span class="w">  </span><span class="mf">706488.0</span>
 </code></pre></div>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/extensions.jl#L159-L195" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/extensions.jl#L159-L195" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.classify" href="#Rasters.classify">#</a>
 <strong><code>Rasters.classify</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">classify</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">pairs</span><span class="p">;</span><span class="w"> </span><span class="n">lower</span><span class="o">=</span><span class="p">(</span><span class="o">&gt;=</span><span class="p">),</span><span class="w"> </span><span class="n">upper</span><span class="o">=</span><span class="p">(</span><span class="o">&lt;</span><span class="p">),</span><span class="w"> </span><span class="n">others</span><span class="o">=</span><span class="nb">nothing</span><span class="p">)</span>
@@ -1214,7 +1214,7 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p><img alt="classify" src="../build/classify_example.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/classify.jl#L1-L49" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/classify.jl#L1-L49" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.classify!-Tuple{AbstractRaster, Pair, Vararg{Pair}}" href="#Rasters.classify!-Tuple{AbstractRaster,%20Pair,%20Vararg{Pair}}">#</a>
 <strong><code>Rasters.classify!</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">classify!</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">pairs</span><span class="o">...</span><span class="p">;</span><span class="w"> </span><span class="n">lower</span><span class="p">,</span><span class="w"> </span><span class="n">upper</span><span class="p">,</span><span class="w"> </span><span class="n">others</span><span class="p">)</span>
@@ -1264,7 +1264,7 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p><img alt="classify!" src="../build/classify_bang_example.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/classify.jl#L84-L141" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/classify.jl#L84-L141" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.combine-Tuple{AbstractRasterSeries, Any}" href="#Rasters.combine-Tuple{AbstractRasterSeries,%20Any}">#</a>
 <strong><code>Rasters.combine</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">combine</span><span class="p">(</span><span class="n">A</span><span class="o">::</span><span class="kt">Union</span><span class="p">{</span><span class="kt">AbstractRaster</span><span class="p">,</span><span class="kt">AbstractRasterStack</span><span class="p">,</span><span class="kt">AbstracRasterSeries</span><span class="p">},</span><span class="w"> </span><span class="p">[</span><span class="n">dims</span><span class="p">])</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">Raster</span>
@@ -1272,14 +1272,14 @@ values:      25         26          27          28         29          30
 <p>Combine a <code>RasterSeries</code> along some dimension/s, creating a new <code>Raster</code> or <code>RasterStack</code>, depending on the contents of the series.</p>
 <p>If <code>dims</code> are passed, only the specified dimensions will be combined with a <code>RasterSeries</code> returned, unless <code>dims</code> is all the dims in the series.</p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/slice_combine.jl#L32-L42" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/slice_combine.jl#L32-L42" class="documenter-source">source</a><br></p>
 <p>&lt;a id='Rasters.convertlookup-Tuple{Type{&lt;:LookupArray}, AbstractDimArray}' href='#Rasters.convertlookup-Tuple{Type{&lt;:LookupArray}, AbstractDimArray}'&gt;#
 <strong><code>Rasters.convertlookup</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">convertlookup</span><span class="p">(</span><span class="n">dstlookup</span><span class="o">::</span><span class="kt">Type</span><span class="p">{</span><span class="o">&lt;:</span><span class="kt">LookupArray</span><span class="p">},</span><span class="w"> </span><span class="n">x</span><span class="p">)</span>
 </code></pre></div>
 <p>Convert the dimension lookup between <code>Projected</code> and <code>Mapped</code>. Other dimension lookups pass through unchanged.</p>
 <p>This is used to e.g. save a netcdf file to GeoTiff.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/lookup.jl#L140-L147" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/lookup.jl#L140-L147" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.coverage!-Tuple{Union{typeof(sum), typeof(union)}, AbstractRaster, Any}" href="#Rasters.coverage!-Tuple{Union{typeof(sum),%20typeof(union)},%20AbstractRaster,%20Any}">#</a>
 <strong><code>Rasters.coverage!</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">coverage!</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="w"> </span><span class="n">geom</span><span class="p">;</span><span class="w"> </span><span class="p">[</span><span class="n">mode</span><span class="p">,</span><span class="w"> </span><span class="n">scale</span><span class="p">])</span>
@@ -1303,7 +1303,7 @@ values:      25         26          27          28         29          30
   * <code>vebose</code>: whether to print messages about potential problems. <code>true</code> by default.</p>
 </li>
 </ul>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/coverage.jl#L63-L71" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/coverage.jl#L63-L71" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.coverage-Tuple{Any}" href="#Rasters.coverage-Tuple{Any}">#</a>
 <strong><code>Rasters.coverage</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">coverage</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span><span class="w"> </span><span class="n">geom</span><span class="p">;</span><span class="w"> </span><span class="p">[</span><span class="n">to</span><span class="p">,</span><span class="w"> </span><span class="n">res</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">scale</span><span class="p">,</span><span class="w"> </span><span class="n">verbose</span><span class="p">,</span><span class="w"> </span><span class="n">progress</span><span class="p">])</span>
@@ -1333,7 +1333,7 @@ values:      25         26          27          28         29          30
 <li><code>size</code>: the size of the output array, as a <code>Tuple{Int,Int}</code> or single <code>Int</code> for a square.   Only required when <code>to</code> is not used or is an <code>Extents.Extent</code>, and <code>res</code> is not used.</li>
 <li><code>res</code>: the resolution of the dimensions, a <code>Real</code> or <code>Tuple{&lt;:Real,&lt;:Real}</code>.   Only required when <code>to</code> is not used or is an <code>Extents.Extent</code>, and <code>size</code> is not used.</li>
 </ul>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/coverage.jl#L32-L44" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/coverage.jl#L32-L44" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.crop" href="#Rasters.crop">#</a>
 <strong><code>Rasters.crop</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">crop</span><span class="p">(</span><span class="n">x</span><span class="p">;</span><span class="w"> </span><span class="n">to</span><span class="p">)</span>
@@ -1386,7 +1386,7 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p><img alt="argentina evenness cropped" src="../build/argentina_crop_example.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/crop_extend.jl#L1-L67" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/crop_extend.jl#L1-L67" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.disaggregate" href="#Rasters.disaggregate">#</a>
 <strong><code>Rasters.disaggregate</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">disaggregate</span><span class="p">(</span><span class="n">method</span><span class="p">,</span><span class="w"> </span><span class="n">object</span><span class="p">,</span><span class="w"> </span><span class="n">scale</span><span class="p">;</span><span class="w"> </span><span class="n">filename</span><span class="p">,</span><span class="w"> </span><span class="n">progress</span><span class="p">,</span><span class="w"> </span><span class="n">keys</span><span class="p">)</span>
@@ -1403,7 +1403,7 @@ values:      25         26          27          28         29          30
 <li><code>progress</code>: show a progress bar.</li>
 </ul>
 <p>Note: currently it is faster to aggregate over memory-backed arrays. Use <a href="./#Base.read-Tuple{Union{AbstractRaster,%20AbstractRasterSeries,%20AbstractRasterStack}}"><code>read</code></a> on <code>src</code> before use where required.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/aggregate.jl#L171-L195" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/aggregate.jl#L171-L195" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.disaggregate!-Tuple{Locus, AbstractRaster, Any, Any}" href="#Rasters.disaggregate!-Tuple{Locus,%20AbstractRaster,%20Any,%20Any}">#</a>
 <strong><code>Rasters.disaggregate!</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">disaggregate!</span><span class="p">(</span><span class="n">method</span><span class="p">,</span><span class="w"> </span><span class="n">dst</span><span class="o">::</span><span class="kt">AbstractRaster</span><span class="p">,</span><span class="w"> </span><span class="n">src</span><span class="o">::</span><span class="kt">AbstractRaster</span><span class="p">,</span><span class="w"> </span><span class="n">filename</span><span class="p">,</span><span class="w"> </span><span class="n">scale</span><span class="p">)</span>
@@ -1414,7 +1414,7 @@ values:      25         26          27          28         29          30
 <li><code>scale</code>: the aggregation factor, which can be an integer, a tuple of integers for each dimension, or any <code>Dimension</code>, <code>Selector</code> or <code>Int</code> combination you can usually use in <code>getindex</code>. Using a <code>Selector</code> will determine the scale by the distance from the start of the index in the <code>src</code> array.</li>
 </ul>
 <p>Note: currently it is faster to aggregate over memory-backed arrays. Use <a href="./#Base.read-Tuple{Union{AbstractRaster,%20AbstractRasterSeries,%20AbstractRasterStack}}"><code>read</code></a> on <code>src</code> before use where required.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/aggregate.jl#L246-L261" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/aggregate.jl#L246-L261" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.extend" href="#Rasters.extend">#</a>
 <strong><code>Rasters.extend</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">extend</span><span class="p">(</span><span class="n">xs</span><span class="o">...</span><span class="p">;</span><span class="w"> </span><span class="p">[</span><span class="n">to</span><span class="p">])</span>
@@ -1447,7 +1447,7 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p><img alt="extend" src="../build/extend_example.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/crop_extend.jl#L115-L153" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/crop_extend.jl#L115-L153" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.extract" href="#Rasters.extract">#</a>
 <strong><code>Rasters.extract</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">extract</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">geoms</span><span class="p">;</span><span class="w"> </span><span class="n">atol</span><span class="p">)</span>
@@ -1490,29 +1490,29 @@ values:      25         26          27          28         29          30
 <span class="w"> </span><span class="p">(</span><span class="n">geometry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="mf">0.32</span><span class="p">,</span><span class="w"> </span><span class="mf">40.24</span><span class="p">),</span><span class="w"> </span><span class="n">bio1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">16.321388f0</span><span class="p">,</span><span class="w"> </span><span class="n">bio3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">41.659454f0</span><span class="p">,</span><span class="w"> </span><span class="n">bio5</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">30.029825f0</span><span class="p">,</span><span class="w"> </span><span class="n">bio7</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">25.544561f0</span><span class="p">,</span><span class="w"> </span><span class="n">bio12</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">480.0f0</span><span class="p">)</span>
 </code></pre></div>
 <p>Note: passing in arrays, geometry collections or feature collections  containing a mix of points and other geometries has undefined results.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/extract.jl#L1-L54" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/extract.jl#L1-L54" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.mappedbounds" href="#Rasters.mappedbounds">#</a>
 <strong><code>Rasters.mappedbounds</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mappedbounds</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 </code></pre></div>
 <p>Get the bounds converted to the <a href="./#Rasters.mappedcrs"><code>mappedcrs</code></a> value.</p>
 <p>Whithout ArchGDAL loaded, this is just the regular bounds.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/lookup.jl#L232-L238" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/lookup.jl#L196-L202" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.mappedcrs" href="#Rasters.mappedcrs">#</a>
 <strong><code>Rasters.mappedcrs</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mappedcrs</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 </code></pre></div>
 <p>Get the mapped coordinate reference system for the <code>Y</code>/<code>X</code> dims of an array.</p>
 <p>In <a href="./#Rasters.Projected"><code>Projected</code></a> lookup this is used to convert <a href="https://rafaqz.github.io/DimensionalData.jl/stable/api/#DimensionalData.Selector"><code>Selector</code></a> values form the mappedcrs defined projection to the underlying projection, and to show plot axes in the mapped projection.</p>
-<p>In <code>Mapped</code> lookup this is the coordinate reference system of the index values. See <a href="./#Rasters.setmappedcrs-Tuple{Tuple{Dimension,%20Vararg{Dimension}},%20Any}"><code>setmappedcrs</code></a> to set it manually.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/array.jl#L78-L89" class="documenter-source">source</a><br></p>
+<p>In <code>Mapped</code> lookup this is the coordinate reference system of the index values. See <a href="./#Rasters.setmappedcrs-Tuple{Union{AbstractRaster,%20AbstractRasterStack},%20Any}"><code>setmappedcrs</code></a> to set it manually.</p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/crs.jl#L22-L33" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.mappedindex" href="#Rasters.mappedindex">#</a>
 <strong><code>Rasters.mappedindex</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mappedindex</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 </code></pre></div>
 <p>Get the index value of a dimension converted to the <code>mappedcrs</code> value.</p>
 <p>Whithout ArchGDAL loaded, this is just the regular dim value.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/lookup.jl#L261-L267" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/lookup.jl#L225-L231" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.mask!" href="#Rasters.mask!">#</a>
 <strong><code>Rasters.mask!</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mask!</span><span class="p">(</span><span class="n">x</span><span class="p">;</span><span class="w"> </span><span class="n">with</span><span class="p">,</span><span class="w"> </span><span class="n">missingval</span><span class="o">=</span><span class="n">missingval</span><span class="p">(</span><span class="n">A</span><span class="p">))</span>
@@ -1555,7 +1555,7 @@ values:      25         26          27          28         29          30
 <p><strong>After <code>mask!</code>:</strong></p>
 <p><img alt="after mask!" src="../build/mask_bang_example_after.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/mask.jl#L94-L153" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/mask.jl#L94-L153" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.mask-Tuple{Any}" href="#Rasters.mask-Tuple{Any}">#</a>
 <strong><code>Rasters.mask</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mask</span><span class="p">(</span><span class="n">A</span><span class="o">:</span><span class="n">AbstractRaster</span><span class="p">;</span><span class="w"> </span><span class="n">with</span><span class="p">,</span><span class="w"> </span><span class="n">missingval</span><span class="o">=</span><span class="n">missingval</span><span class="p">(</span><span class="n">A</span><span class="p">))</span>
@@ -1604,7 +1604,7 @@ values:      25         26          27          28         29          30
 <p><strong>After <code>mask</code>:</strong></p>
 <p><img alt="after mask" src="../build/mask_example_after.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/mask.jl#L2-L62" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/mask.jl#L2-L62" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.missingmask-Tuple{AbstractRasterSeries}" href="#Rasters.missingmask-Tuple{AbstractRasterSeries}">#</a>
 <strong><code>Rasters.missingmask</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">missingmask</span><span class="p">(</span><span class="n">obj</span><span class="o">::</span><span class="kt">Raster</span><span class="p">;</span><span class="w"> </span><span class="n">kw</span><span class="o">...</span><span class="p">)</span>
@@ -1633,13 +1633,13 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p><img alt="missingmask" src="../build/missingmask_example.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/mask.jl#L290-L323" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/mask.jl#L290-L323" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.missingval" href="#Rasters.missingval">#</a>
 <strong><code>Rasters.missingval</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">missingval</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 </code></pre></div>
 <p>Returns the value representing missing data in the dataset</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/array.jl#L22-L26" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/array.jl#L21-L25" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.mosaic!-Tuple{Function, Union{AbstractRaster, AbstractRasterStack}, Vararg{Union{AbstractRaster, AbstractRasterStack}}}" href="#Rasters.mosaic!-Tuple{Function,%20Union{AbstractRaster,%20AbstractRasterStack},%20Vararg{Union{AbstractRaster,%20AbstractRasterStack}}}">#</a>
 <strong><code>Rasters.mosaic!</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mosaic!</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">regions</span><span class="o">...</span><span class="p">;</span><span class="w"> </span><span class="n">missingval</span><span class="p">,</span><span class="w"> </span><span class="n">atol</span><span class="p">)</span>
@@ -1671,7 +1671,7 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p><img alt="mosaic" src="../build/mosaic_bang_example.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/mosaic.jl#L90-L137" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/mosaic.jl#L90-L137" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.mosaic-Tuple{Function, Union{AbstractRaster, AbstractRasterStack}, Vararg{Union{AbstractRaster, AbstractRasterStack}}}" href="#Rasters.mosaic-Tuple{Function,%20Union{AbstractRaster,%20AbstractRasterStack},%20Vararg{Union{AbstractRaster,%20AbstractRasterStack}}}">#</a>
 <strong><code>Rasters.mosaic</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">mosaic</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">regions</span><span class="o">...</span><span class="p">;</span><span class="w"> </span><span class="n">missingval</span><span class="p">,</span><span class="w"> </span><span class="n">atol</span><span class="p">)</span>
@@ -1718,7 +1718,7 @@ values:      25         26          27          28         29          30
 <p><strong>Mosaic of continents</strong></p>
 <p><img alt="mosaic" src="../build/mosaic_example_combined.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/mosaic.jl#L1-L63" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/mosaic.jl#L1-L63" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.points-Tuple{AbstractRaster}" href="#Rasters.points-Tuple{AbstractRaster}">#</a>
 <strong><code>Rasters.points</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">points</span><span class="p">(</span><span class="n">A</span><span class="o">::</span><span class="kt">AbstractRaster</span><span class="p">;</span><span class="w"> </span><span class="n">dims</span><span class="o">=</span><span class="p">(</span><span class="n">YDim</span><span class="p">,</span><span class="w"> </span><span class="n">XDim</span><span class="p">),</span><span class="w"> </span><span class="n">ignore_missing</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="kt">Array</span><span class="p">{</span><span class="kt">Tuple</span><span class="p">}</span>
@@ -1731,7 +1731,7 @@ values:      25         26          27          28         29          30
 </ul>
 <p>The order of <code>dims</code> determines the order of the points.</p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/points.jl#L1-L19" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/points.jl#L1-L19" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.rasterize" href="#Rasters.rasterize">#</a>
 <strong><code>Rasters.rasterize</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">rasterize</span><span class="p">([</span><span class="n">reducer</span><span class="p">],</span><span class="w"> </span><span class="n">data</span><span class="p">;</span><span class="w"> </span><span class="n">kw</span><span class="o">...</span><span class="p">)</span>
@@ -1793,7 +1793,7 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p><img alt="rasterize" src="../build/china_rasterized.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/rasterize.jl#L368-L426" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/rasterize.jl#L368-L426" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.rasterize!" href="#Rasters.rasterize!">#</a>
 <strong><code>Rasters.rasterize!</code></strong> — <em>Function</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">rasterize!</span><span class="p">([</span><span class="n">reducer</span><span class="p">],</span><span class="w"> </span><span class="n">dest</span><span class="p">,</span><span class="w"> </span><span class="n">data</span><span class="p">;</span><span class="w"> </span><span class="n">kw</span><span class="o">...</span><span class="p">)</span>
@@ -1856,7 +1856,7 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p><img alt="rasterize" src="../build/indonesia_rasterized.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/rasterize.jl#L512-L568" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/rasterize.jl#L512-L568" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.replace_missing-Tuple{Any}" href="#Rasters.replace_missing-Tuple{Any}">#</a>
 <strong><code>Rasters.replace_missing</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">replace_missing</span><span class="p">(</span><span class="n">a</span><span class="o">::</span><span class="kt">AbstractRaster</span><span class="p">,</span><span class="w"> </span><span class="n">newmissingval</span><span class="p">)</span>
@@ -1875,13 +1875,13 @@ values:      25         26          27          28         29          30
 <span class="c"># output</span>
 <span class="nb">missing</span>
 </code></pre></div>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/replace_missing.jl#L1-L23" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/replace_missing.jl#L1-L23" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.reproject-NTuple{4, Any}" href="#Rasters.reproject-NTuple{4,%20Any}">#</a>
 <strong><code>Rasters.reproject</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">reproject</span><span class="p">(</span><span class="n">source</span><span class="o">::</span><span class="kt">GeoFormat</span><span class="p">,</span><span class="w"> </span><span class="n">target</span><span class="o">::</span><span class="kt">GeoFormat</span><span class="p">,</span><span class="w"> </span><span class="n">dim</span><span class="o">::</span><span class="kt">Dimension</span><span class="p">,</span><span class="w"> </span><span class="n">val</span><span class="p">)</span>
 </code></pre></div>
 <p><code>reproject</code> uses ArchGDAL.reproject, but implemented for a reprojecting a value array of values, a single dimension at a time.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/reproject.jl#L40-L45" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/reproject.jl#L40-L45" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.reproject-Tuple{Any}" href="#Rasters.reproject-Tuple{Any}">#</a>
 <strong><code>Rasters.reproject</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">reproject</span><span class="p">(</span><span class="n">obj</span><span class="p">;</span><span class="w"> </span><span class="n">crs</span><span class="p">)</span>
@@ -1895,7 +1895,7 @@ values:      25         26          27          28         29          30
 <li><code>obj</code>: a <code>LookupArray</code>, <code>Dimension</code>, <code>Tuple</code> of <code>Dimension</code>, <code>Raster</code> or <code>RasterStack</code>.</li>
 <li><code>crs</code>: a <code>crs</code> which will be attached to the resulting raster when <code>to</code> not passed  or is an <code>Extent</code>. Otherwise the crs from <code>to</code> is used.</li>
 </ul>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/reproject.jl#L2-L22" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/reproject.jl#L2-L22" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.resample-Tuple" href="#Rasters.resample-Tuple">#</a>
 <strong><code>Rasters.resample</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">resample</span><span class="p">(</span><span class="n">x</span><span class="p">;</span><span class="w"> </span><span class="n">kw</span><span class="o">...</span><span class="p">)</span>
@@ -1960,19 +1960,19 @@ values:      25         26          27          28         29          30
 <p><strong>After <code>resample</code>:</strong></p>
 <p><img alt="after resample" src="resample_example_after.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/extensions.jl#L17-L96" class="documenter-source">source</a><br></p>
-<p><a id="Rasters.setcrs-Tuple{Tuple{Dimension, Vararg{Dimension}}, Any}" href="#Rasters.setcrs-Tuple{Tuple{Dimension,%20Vararg{Dimension}},%20Any}">#</a>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/extensions.jl#L17-L96" class="documenter-source">source</a><br></p>
+<p><a id="Rasters.setcrs-Tuple{Union{AbstractRaster, AbstractRasterStack}, Any}" href="#Rasters.setcrs-Tuple{Union{AbstractRaster,%20AbstractRasterStack},%20Any}">#</a>
 <strong><code>Rasters.setcrs</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">setcrs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">crs</span><span class="p">)</span>
 </code></pre></div>
 <p>Set the crs of a <code>Raster</code>, <code>RasterStack</code>, <code>Tuple</code> of <code>Dimension</code>, or a <code>Dimension</code>. The <code>crs</code> is expected to be a GeoFormatTypes.jl <code>CRS</code> or <code>Mixed</code> <code>GeoFormat</code> type</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/lookup.jl#L198-L203" class="documenter-source">source</a><br></p>
-<p><a id="Rasters.setmappedcrs-Tuple{Tuple{Dimension, Vararg{Dimension}}, Any}" href="#Rasters.setmappedcrs-Tuple{Tuple{Dimension,%20Vararg{Dimension}},%20Any}">#</a>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/crs.jl#L47-L52" class="documenter-source">source</a><br></p>
+<p><a id="Rasters.setmappedcrs-Tuple{Union{AbstractRaster, AbstractRasterStack}, Any}" href="#Rasters.setmappedcrs-Tuple{Union{AbstractRaster,%20AbstractRasterStack},%20Any}">#</a>
 <strong><code>Rasters.setmappedcrs</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">setmappedcrs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">crs</span><span class="p">)</span>
 </code></pre></div>
 <p>Set the mapped crs of a <code>Raster</code>, a <code>RasterStack</code>, a <code>Tuple</code> of <code>Dimension</code>, or a <code>Dimension</code>. The <code>crs</code> is expected to be a GeoFormatTypes.jl <code>CRS</code> or <code>Mixed</code> <code>GeoFormat</code> type</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/lookup.jl#L214-L220" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/crs.jl#L64-L70" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.slice-Tuple{Union{AbstractRaster, AbstractRasterStack}, Any}" href="#Rasters.slice-Tuple{Union{AbstractRaster,%20AbstractRasterStack},%20Any}">#</a>
 <strong><code>Rasters.slice</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">slice</span><span class="p">(</span><span class="n">A</span><span class="o">::</span><span class="kt">Union</span><span class="p">{</span><span class="kt">AbstractRaster</span><span class="p">,</span><span class="kt">AbstractRasterStack</span><span class="p">,</span><span class="kt">AbstracRasterSeries</span><span class="p">},</span><span class="w"> </span><span class="n">dims</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">RasterSeries</span>
@@ -1981,7 +1981,7 @@ values:      25         26          27          28         29          30
 <p>For a <code>Raster</code> or <code>RasterStack</code> this will return a <code>RasterSeries</code> of <code>Raster</code> or <code>RasterStack</code> that are slices along the specified dimensions.</p>
 <p>For a <code>RasterSeries</code>, the output is another series where the child objects are sliced and the series dimensions index is now of the child dimensions combined. <code>slice</code> on a <code>RasterSeries</code> with no dimensions will slice along the dimensions shared by both the series and child object.</p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/slice_combine.jl#L1-L14" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/slice_combine.jl#L1-L14" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.trim-Tuple{Union{AbstractRaster, AbstractRasterStack}}" href="#Rasters.trim-Tuple{Union{AbstractRaster,%20AbstractRasterStack}}">#</a>
 <strong><code>Rasters.trim</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">trim</span><span class="p">(</span><span class="n">x</span><span class="p">;</span><span class="w"> </span><span class="n">dims</span><span class="o">::</span><span class="kt">Tuple</span><span class="p">,</span><span class="w"> </span><span class="n">pad</span><span class="o">::</span><span class="kt">Int</span><span class="p">)</span>
@@ -2021,7 +2021,7 @@ values:      25         26          27          28         29          30
 <p><strong>After <code>trim</code>:</strong></p>
 <p><img alt="after trim" src="../build/trim_example_after.png"></p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/trim.jl#L1-L53" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/trim.jl#L1-L53" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.warp-Tuple" href="#Rasters.warp-Tuple">#</a>
 <strong><code>Rasters.warp</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">warp</span><span class="p">(</span><span class="n">A</span><span class="o">::</span><span class="kt">AbstractRaster</span><span class="p">,</span><span class="w"> </span><span class="n">flags</span><span class="o">::</span><span class="kt">Dict</span><span class="p">;</span><span class="w"> </span><span class="n">kw</span><span class="o">...</span><span class="p">)</span>
@@ -2059,7 +2059,7 @@ values:      25         26          27          28         29          30
 <p><img alt="after warp" src="warp_example_after.png"></p>
 <p>In practise, prefer <a href="./#Rasters.resample-Tuple"><code>resample</code></a> for this. But <code>warp</code> may be more flexible.</p>
 <p>WARNING: This feature is experimental. It may change in future versions, and may not be 100% reliable in all cases. Please file github issues if problems occur.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/extensions.jl#L99-L156" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/extensions.jl#L99-L156" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.zonal-Tuple{Any, Union{AbstractRaster, AbstractRasterStack}}" href="#Rasters.zonal-Tuple{Any,%20Union{AbstractRaster,%20AbstractRasterStack}}">#</a>
 <strong><code>Rasters.zonal</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">zonal</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="o">::</span><span class="kt">Union</span><span class="p">{</span><span class="kt">Raster</span><span class="p">,</span><span class="kt">RasterStack</span><span class="p">};</span><span class="w"> </span><span class="n">of</span><span class="p">,</span><span class="w"> </span><span class="n">kw</span><span class="o">...</span><span class="p">)</span>
@@ -2092,7 +2092,7 @@ values:      25         26          27          28         29          30
 <p>insertcols!(january_stats, 1, :country =&gt; first.(split.(countries.ADMIN, r"[^A-Za-z ]")))</p>
 <p><strong>output</strong></p>
 <p>258×8 DataFrame  Row │ country                       tmin       tmax       tavg       prec     ⋯      │ SubStrin…                     Float32    Float32    Float32    Float64  ⋯ ─────┼──────────────────────────────────────────────────────────────────────────    1 │ Indonesia                      21.5447    29.1864    25.3656   271.063  ⋯    2 │ Malaysia                       21.3087    28.4291    24.8688   273.381    3 │ Chile                           7.24534   17.9263    12.5858    78.1287    4 │ Bolivia                        17.2065    27.7454    22.4759   192.542    5 │ Peru                           15.0273    25.5504    20.2888   180.007  ⋯    6 │ Argentina                      13.6751    27.6715    20.6732    67.1837    7 │ Dhekelia Sovereign Base Area    5.87126   15.8991    10.8868    76.25    8 │ Cyprus                          5.65921   14.6665    10.1622    97.4474   ⋮  │              ⋮                    ⋮          ⋮          ⋮         ⋮     ⋱  252 │ Spratly Islands                25.0       29.2       27.05      70.5    ⋯  253 │ Clipperton Island              21.5       33.2727    27.4        6.0  254 │ Macao S                        11.6694    17.7288    14.6988    28.0  255 │ Ashmore and Cartier Islands   NaN        NaN        NaN        NaN  256 │ Bajo Nuevo Bank               NaN        NaN        NaN        NaN      ⋯  257 │ Serranilla Bank               NaN        NaN        NaN        NaN  258 │ Scarborough Reef              NaN        NaN        NaN        NaN                                                   3 columns and 243 rows omitted ```</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/methods/zonal.jl#L1-L72" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/methods/zonal.jl#L1-L72" class="documenter-source">source</a><br></p>
 <p><a id="Reference-Internal-functions"></a></p>
 <p><a id="Reference-Internal-functions-1"></a></p>
 <h2 id="reference-internal-functions">Reference - Internal functions<a class="headerlink" href="#reference-internal-functions" title="Permanent link">¤</a></h2>
@@ -2101,13 +2101,13 @@ values:      25         26          27          28         29          30
 <div class="highlight"><pre><span></span><code><span class="kt">AbstractProjected</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">AbstractSampled</span>
 </code></pre></div>
 <p>Abstract supertype for projected index lookups.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/lookup.jl#L1-L5" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/lookup.jl#L1-L5" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.FileArray" href="#Rasters.FileArray">#</a>
 <strong><code>Rasters.FileArray</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="kt">FileArray</span><span class="p">{</span><span class="kt">X</span><span class="p">}</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">DiskArrays</span><span class="o">.</span><span class="n">AbstractDiskArray</span>
 </code></pre></div>
 <p>Filearray is a DiskArrays.jl <code>AbstractDiskArray</code>. Instead of holding an open object, it just holds a filename string that is opened lazily  when it needs to be read.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/filearray.jl#L2-L8" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/filearray.jl#L2-L8" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.FileStack" href="#Rasters.FileStack">#</a>
 <strong><code>Rasters.FileStack</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="kt">FileStack</span><span class="p">{</span><span class="kt">X</span><span class="p">,</span><span class="kt">K</span><span class="p">}</span>
@@ -2116,7 +2116,7 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p>A wrapper object that holds file pointer and size/chunking metadata for a multi-layered stack stored in a single file,  typically netcdf or hdf5.</p>
 <p><code>X</code> is a backend type like <code>NCDsource</code>, and <code>K</code> is a tuple of <code>Symbol</code> keys.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/filestack.jl#L1-L11" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/filestack.jl#L1-L11" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.OpenStack" href="#Rasters.OpenStack">#</a>
 <strong><code>Rasters.OpenStack</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="kt">OpenStack</span><span class="p">{</span><span class="kt">X</span><span class="p">,</span><span class="kt">K</span><span class="p">}</span>
@@ -2126,13 +2126,13 @@ values:      25         26          27          28         29          30
 <p>A wrapper for any stack-like opened dataset that can be indexed with <code>Symbol</code> keys to retrieve <code>AbstractArray</code> layers.</p>
 <p><code>OpenStack</code> is usually hidden from users, wrapped in a regular <code>RasterStack</code> passed as the function argument in <code>open(stack)</code> when the stack is contained in a single file.</p>
 <p><code>X</code> is a backend type like <code>NCDsource</code>, and <code>K</code> is a tuple of <code>Symbol</code> keys.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/openstack.jl#L1-L14" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/openstack.jl#L1-L14" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.RasterDiskArray" href="#Rasters.RasterDiskArray">#</a>
 <strong><code>Rasters.RasterDiskArray</code></strong> — <em>Type</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="kt">RasterDiskArray</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">DiskArrays</span><span class="o">.</span><span class="n">AbstractDiskArray</span>
 </code></pre></div>
 <p>A basic DiskArrays.jl wrapper for objects that don't have one defined yet.  When we <code>open</code> a <code>FileArray</code> it is replaced with a <code>RasterDiskArray</code>.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/filearray.jl#L55-L60" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/filearray.jl#L55-L60" class="documenter-source">source</a><br></p>
 <p><a id="Base.open-Tuple{Function, AbstractRaster}" href="#Base.open-Tuple{Function,%20AbstractRaster}">#</a>
 <strong><code>Base.open</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">open</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">A</span><span class="o">::</span><span class="kt">AbstractRaster</span><span class="p">;</span><span class="w"> </span><span class="n">write</span><span class="o">=</span><span class="nb">false</span><span class="p">)</span>
@@ -2148,7 +2148,7 @@ values:      25         26          27          28         29          30
 <span class="k">end</span>
 </code></pre></div>
 <p>By using a do block to open files we ensure they are always closed again after we finish working with them.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/array.jl#L158-L182" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/array.jl#L108-L132" class="documenter-source">source</a><br></p>
 <p><a id="Base.read!-Tuple{AbstractRaster, AbstractArray}" href="#Base.read!-Tuple{AbstractRaster,%20AbstractArray}">#</a>
 <strong><code>Base.read!</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">read!</span><span class="p">(</span><span class="n">src</span><span class="o">::</span><span class="kt">Union</span><span class="p">{</span><span class="kt">AbstractString</span><span class="p">,</span><span class="kt">AbstractRaster</span><span class="p">},</span><span class="w"> </span><span class="n">dst</span><span class="o">::</span><span class="kt">AbstractRaster</span><span class="p">)</span>
@@ -2157,7 +2157,7 @@ values:      25         26          27          28         29          30
 </code></pre></div>
 <p><code>read!</code> will copy the data from <code>src</code> to the object <code>dst</code>. </p>
 <p><code>src</code> can be an object or a file-path <code>String</code>.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/read.jl#L12-L20" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/read.jl#L12-L20" class="documenter-source">source</a><br></p>
 <p><a id="Base.read-Tuple{Union{AbstractRaster, AbstractRasterSeries, AbstractRasterStack}}" href="#Base.read-Tuple{Union{AbstractRaster,%20AbstractRasterSeries,%20AbstractRasterStack}}">#</a>
 <strong><code>Base.read</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">read</span><span class="p">(</span><span class="n">A</span><span class="o">::</span><span class="kt">AbstractRaster</span><span class="p">)</span>
@@ -2165,13 +2165,13 @@ values:      25         26          27          28         29          30
 <span class="n">read</span><span class="p">(</span><span class="n">A</span><span class="o">::</span><span class="kt">AbstractRasterSeries</span><span class="p">)</span>
 </code></pre></div>
 <p><code>read</code> will move a Rasters.jl object completely to memory.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/read.jl#L1-L7" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/read.jl#L1-L7" class="documenter-source">source</a><br></p>
 <p><a id="Base.skipmissing-Tuple{Raster}" href="#Base.skipmissing-Tuple{Raster}">#</a>
 <strong><code>Base.skipmissing</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">skipmissing</span><span class="p">(</span><span class="n">itr</span><span class="o">::</span><span class="kt">Raster</span><span class="p">)</span>
 </code></pre></div>
 <p>Returns an iterable over the elements in a <code>Raster</code> object, skipping any values equal to either the <code>missingval</code> or <code>missing</code>.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/skipmissing.jl#L1-L5" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/skipmissing.jl#L1-L5" class="documenter-source">source</a><br></p>
 <p><a id="Base.write-Tuple{AbstractString, AbstractRasterSeries}" href="#Base.write-Tuple{AbstractString,%20AbstractRasterSeries}">#</a>
 <strong><code>Base.write</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">Base</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">filepath</span><span class="o">::</span><span class="kt">AbstractString</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="o">::</span><span class="kt">AbstractRasterSeries</span><span class="p">;</span><span class="w"> </span><span class="n">kw</span><span class="o">...</span><span class="p">)</span>
@@ -2180,7 +2180,7 @@ values:      25         26          27          28         29          30
 <p>The lookup values of the series will be appended to the filepath (before the extension), separated by underscores.</p>
 <p><strong>Keywords</strong></p>
 <p>See other docs for <code>write</code>. All keywords are passed through to <code>Raster</code> and <code>RasterStack</code> methods.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/write.jl#L64-L75" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/write.jl#L64-L75" class="documenter-source">source</a><br></p>
 <p><a id="Base.write-Tuple{AbstractString, AbstractRasterStack}" href="#Base.write-Tuple{AbstractString,%20AbstractRasterStack}">#</a>
 <strong><code>Base.write</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">Base</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">filename</span><span class="o">::</span><span class="kt">AbstractString</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="o">::</span><span class="kt">AbstractRasterStack</span><span class="p">;</span><span class="w"> </span><span class="n">suffix</span><span class="p">,</span><span class="w"> </span><span class="n">kw</span><span class="o">...</span><span class="p">)</span>
@@ -2192,21 +2192,21 @@ values:      25         26          27          28         29          30
 </ul>
 <p>Other keyword arguments are passed to the <code>write</code> method for the backend.</p>
 <p>If the source can't be saved as a stack-like object, individual array layers will be saved.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/write.jl#L21-L33" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/write.jl#L21-L33" class="documenter-source">source</a><br></p>
 <p><a id="Base.write-Tuple{AbstractString, AbstractRaster}" href="#Base.write-Tuple{AbstractString,%20AbstractRaster}">#</a>
 <strong><code>Base.write</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">Base</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">filename</span><span class="o">::</span><span class="kt">AbstractString</span><span class="p">,</span><span class="w"> </span><span class="n">A</span><span class="o">::</span><span class="kt">AbstractRaster</span><span class="p">;</span><span class="w"> </span><span class="n">kw</span><span class="o">...</span><span class="p">)</span>
 </code></pre></div>
 <p>Write an <a href="./#Rasters.AbstractRaster"><code>AbstractRaster</code></a> to file, guessing the backend from the file extension.</p>
 <p>Keyword arguments are passed to the <code>write</code> method for the backend.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/write.jl#L1-L7" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/write.jl#L1-L7" class="documenter-source">source</a><br></p>
 <p><a id="Base.write-Tuple{String, Type{Rasters.GRDsource}, AbstractRaster}" href="#Base.write-Tuple{String,%20Type{Rasters.GRDsource},%20AbstractRaster}">#</a>
 <strong><code>Base.write</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">Base</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">filename</span><span class="o">::</span><span class="kt">AbstractString</span><span class="p">,</span><span class="w"> </span><span class="o">::</span><span class="kt">Type</span><span class="p">{</span><span class="kt">GRDsource</span><span class="p">},</span><span class="w"> </span><span class="n">s</span><span class="o">::</span><span class="kt">AbstractRaster</span><span class="p">;</span><span class="w"> </span><span class="n">force</span><span class="o">=</span><span class="nb">false</span><span class="p">)</span>
 </code></pre></div>
 <p>Write a <code>Raster</code> to a .grd file with a .gri header file.  The extension of <code>filename</code> will be ignored.</p>
 <p>Returns <code>filename</code>.</p>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/sources/grd.jl#L143-L150" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/sources/grd.jl#L143-L150" class="documenter-source">source</a><br></p>
 <p><a id="Rasters.rplot-Tuple" href="#Rasters.rplot-Tuple">#</a>
 <strong><code>Rasters.rplot</code></strong> — <em>Method</em>.</p>
 <div class="highlight"><pre><span></span><code><span class="n">Rasters</span><span class="o">.</span><span class="n">rplot</span><span class="p">([</span><span class="n">position</span><span class="o">::</span><span class="kt">GridPosition</span><span class="p">],</span><span class="w"> </span><span class="n">raster</span><span class="p">;</span><span class="w"> </span><span class="n">kw</span><span class="o">...</span><span class="p">)</span>
@@ -2230,7 +2230,7 @@ values:      25         26          27          28         29          30
 <li><code>colorrange = Makie.automatic</code>: The colormap for the heatmap.  This can be set to a vector of <code>(low, high)</code> if plotting a 3D raster or RasterStack.</li>
 <li><code>nan_color = :transparent</code>: The color which <code>NaN</code> values should take. Default to transparent.</li>
 </ul>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/5315346316c0cc4da573987f239b86220a12eb36/src/plotrecipes.jl#L239-L261" class="documenter-source">source</a><br></p></div>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/plotrecipes.jl#L239-L261" class="documenter-source">source</a><br></p></div>
 
 
 
