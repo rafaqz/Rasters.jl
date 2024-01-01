@@ -693,7 +693,7 @@
 <span class="n">surface</span><span class="p">(</span><span class="n">fig</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="n">A</span><span class="p">)</span><span class="w"> </span><span class="c"># even a 3D plot works!</span>
 <span class="n">fig</span>
 </code></pre></div>
-<p><img alt="" src="../dpfclzg.png"></p>
+<p><img alt="" src="../mrbwkvo.png"></p>
 <p><a id="D-rasters-in-Makie-2"></a></p>
 <h3 id="3-d-rasters-in-makie">3-D rasters in Makie<a class="headerlink" href="#3-d-rasters-in-makie" title="Permanent link">¤</a></h3>
 <div class="admonition warning">
@@ -705,13 +705,13 @@
 <div class="highlight"><pre><span></span><code><span class="n">stack</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">RasterStack</span><span class="p">(</span><span class="kt">WorldClim</span><span class="p">{</span><span class="kt">Climate</span><span class="p">};</span><span class="w"> </span><span class="n">month</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
 <span class="n">Rasters</span><span class="o">.</span><span class="n">rplot</span><span class="p">(</span><span class="n">stack</span><span class="p">;</span><span class="w"> </span><span class="n">Axis</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">aspect</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">DataAspect</span><span class="p">(),),)</span>
 </code></pre></div>
-<p><img alt="" src="../hbhutrw.png"></p>
+<p><img alt="" src="../ophjkmh.png"></p>
 <p>You can pass any theming keywords in, which are interpreted by Makie appropriately.</p>
 <p>The plots seem a little squished here.  We provide a Makie theme which makes text a little smaller and has some other space-efficient attributes:</p>
 <div class="highlight"><pre><span></span><code><span class="n">Makie</span><span class="o">.</span><span class="n">set_theme!</span><span class="p">(</span><span class="n">Rasters</span><span class="o">.</span><span class="n">theme_rasters</span><span class="p">())</span>
 <span class="n">Rasters</span><span class="o">.</span><span class="n">rplot</span><span class="p">(</span><span class="n">stack</span><span class="p">)</span>
 </code></pre></div>
-<p><img alt="" src="../qebpyqo.png"></p>
+<p><img alt="" src="../nqlmwam.png"></p>
 <p>reset theme</p>
 <div class="highlight"><pre><span></span><code><span class="n">Makie</span><span class="o">.</span><span class="n">set_theme!</span><span class="p">()</span>
 </code></pre></div>
@@ -758,7 +758,7 @@
 <li><code>colorrange = Makie.automatic</code>: The colormap for the heatmap.  This can be set to a vector of <code>(low, high)</code> if plotting a 3D raster or RasterStack.</li>
 <li><code>nan_color = :transparent</code>: The color which <code>NaN</code> values should take. Default to transparent.</li>
 </ul>
-<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/d9be04d3fa1b535082a11a056263d1dd3ca97a2d/src/plotrecipes.jl#L239-L261" class="documenter-source">source</a><br></p>
+<p><a target="_blank" href="https://github.com/rafaqz/Rasters.jl/blob/c63af5536fb2e0bbb50dbad85e4b878392c6e68e/src/plotrecipes.jl#L239-L261" class="documenter-source">source</a><br></p>
 <p><a id="Using-vanilla-Makie"></a></p>
 <p><a id="Using-vanilla-Makie-1"></a></p>
 <h2 id="using-vanilla-makie">Using vanilla Makie<a class="headerlink" href="#using-vanilla-makie" title="Permanent link">¤</a></h2>
