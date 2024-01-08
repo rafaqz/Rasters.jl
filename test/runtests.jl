@@ -11,7 +11,6 @@ if VERSION >= v"1.9.0"
     @time @safetestset "extensions" begin include("extensions.jl") end
 end
 
-
 @time @safetestset "methods" begin include("methods.jl") end
 @time @safetestset "array" begin include("array.jl") end
 @time @safetestset "stack" begin include("stack.jl") end
@@ -23,6 +22,7 @@ end
 @time @safetestset "adapt" begin include("adapt.jl") end
 @time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "warp" begin include("warp.jl") end
+@time @safetestset "resample" begin include("resample.jl") end
 
 # CommondataModel sources
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
@@ -33,6 +33,7 @@ if !haskey(ENV, "CI")
     @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
     @time @safetestset "smap" begin include("sources/smap.jl") end
 end
+
 if !Sys.iswindows()
     # GDAL Environment vars need to be set manually for windows, so skip for now
     @time @safetestset "gdal" begin include("sources/gdal.jl") end

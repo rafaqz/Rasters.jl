@@ -1,59 +1,3 @@
-"""
-    warp(A::AbstractRaster, flags::Dict; kw...)
-
-Gives access to the GDALs `gdalwarp` method given a `Dict` of 
-`flag => value` arguments that can be converted to strings, or vectors
-where multiple space-separated arguments are required.
-
-Arrays with additional dimensions not handled by GDAL (other than `X`, `Y`, `Band`)
-are sliced, warped, and then combined to match the original array dimensions. 
-These slices will *not* be written to disk and loaded lazily at this stage -
-you will need to do that manually if required.
-
-See [the gdalwarp docs](https://gdal.org/programs/gdalwarp.html) for a list of arguments.
-
-# Keywords
-
-$FILENAME_KEYWORD
-$SUFFIX_KEYWORD
-
-Any additional keywords are passed to `ArchGDAL.Dataset`.
-
-## Example
-
-This simply resamples the array with the `:tr` (output file resolution) and `:r`
-flags, giving us a pixelated version:
-
-```jldoctest
-using Rasters, RasterDataSources, Plots
-A = Raster(WorldClim{Climate}, :prec; month=1)
-a = plot(A)
-
-flags = Dict(
-    :tr => [2.0, 2.0],
-    :r => :near,
-)
-b = plot(warp(A, flags))
-
-savefig(a, "docs/build/warp_example_before.png");
-savefig(b, "docs/build/warp_example_after.png"); nothing
-
-# output
-
-```
-
-### Before `warp`:
-
-![before warp](warp_example_before.png)
-
-### After `warp`:
-
-![after warp](warp_example_after.png)
-
-In practise, prefer [`resample`](@ref) for this. But `warp` may be more flexible.
-
-$EXPERIMENTAL
-"""
 function warp(A::AbstractRaster, flags::Dict; filename=nothing, kw...)
     odims = otherdims(A, (X, Y, Band))
     if length(odims) > 0
@@ -71,23 +15,26 @@ function warp(st::AbstractRasterStack, flags::Dict; filename=nothing, suffix=key
 end
 
 function _warp(A::AbstractRaster, flags::Dict; filename=nothing, suffix="", kw...)
+    A1 = _set_gdalwarp_sampling(A)
     filename = RA._maybe_add_suffix(filename, suffix)
     flagvect = reduce([flags...]; init=String[]) do acc, (key, val)
         append!(acc, String[_asflag(key), _stringvect(val)...])
     end
     tempfile = isnothing(filename) ? nothing : tempname() * ".tif"
     warp_kw = isnothing(filename) || filename == "/vsimem/tmp" ? () : (; dest=filename)
-    warped = AG.Dataset(A; filename=tempfile, kw...) do dataset
+    out = AG.Dataset(A1; filename=tempfile, kw...) do dataset
+        rds = Raster(dataset)
         AG.gdalwarp([dataset], flagvect; warp_kw...) do warped
             # Read the raster lazily, dropping Band if there is none in `A`
             raster = Raster(warped; lazy=true, dropband=!hasdim(A, Band()))
-            # Either read the MEM dataset, or get the filename as a FileArray
-            # And permute the dimensions back to what they were in A
-            p_raster = _maybe_permute_from_gdal(raster, dims(A))
-            # Either read the MEM dataset to an Array, or keep the raster lazy
-            return isnothing(filename) ? read(p_raster) : p_raster
+            # Either read the MEM dataset to an Array, or keep a filename base raster lazy
+            return isnothing(filename) ? read(raster) : raster
         end
     end
+    # And permute the dimensions back to what they were in A
+    out1 = _maybe_restore_from_gdal(out, dims(A))
+    out2 = _reset_gdalwarp_sampling(out1, A)
+    return out2
 end
 
 _asflag(x) = string(x)[1] == '-' ? x : string("-", x)
@@ -96,3 +43,30 @@ _stringvect(x::AbstractVector) = Vector(string.(x))
 _stringvect(x::Tuple) = [map(string, x)...]
 _stringvect(x) = [string(x)]
 
+function _set_gdalwarp_sampling(A)
+    x = if sampling(A, X) isa Points
+        DD.maybeshiftlocus(Start(), set(convertlookup(Projected, dims(A, X)), Intervals(Center())))
+    else
+        DD.maybeshiftlocus(Start(), convertlookup(Projected, dims(A, X)))
+    end
+    y = if sampling(A, Y) isa Points
+        DD.maybeshiftlocus(Start(), set(convertlookup(Projected, dims(A, Y)), Intervals(Center())))
+    else
+        DD.maybeshiftlocus(Start(), convertlookup(Projected, dims(A, Y)))
+    end
+    return set(A, X => x, Y=> y)
+end
+
+function _reset_gdalwarp_sampling(A, template)
+    x = if sampling(template, X) isa Points
+        set(DD.maybeshiftlocus(Center(), lookup(A, X)), Points())
+    else
+        DD.maybeshiftlocus(locus(template, X), lookup(A, X))
+    end
+    y = if sampling(template, Y) isa Points
+        set(DD.maybeshiftlocus(Center(), lookup(A, Y)), Points())
+    else
+        DD.maybeshiftlocus(locus(template, Y), lookup(A, Y))
+    end
+    return set(A, X => x, Y => y)
+end

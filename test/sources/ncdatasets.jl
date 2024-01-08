@@ -1,7 +1,7 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, FileStack, NCDsource, crs, name, bounds
+using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name
 testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))
 include(joinpath(testdir, "test_utils.jl"))
 
@@ -43,8 +43,6 @@ end
 
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle)
-    plot(ncarray)
-
     @time lazyarray = Raster(ncsingle; lazy=true);
     @time eagerarray = Raster(ncsingle; lazy=false);
     @test_throws ArgumentError Raster("notafile.nc")
@@ -211,9 +209,7 @@ end
         a = ncarray[X(At(21.0)), Y(Between(50, 52)), Ti(Near(DateTime360Day(2002, 12)))]
         @test bounds(a) == ((50.0, 52.0),)
         x = ncarray[X(Near(150)), Y(Near(30)), Ti(1)]
-        size(ncarray)
         @test x isa Float32
-        lookup(ncarray)
         dimz = X(Between(-0.0, 360)), Y(Between(-90, 90)), 
                Ti(Between(DateTime360Day(2001, 1, 1), DateTime360Day(2003, 01, 02)))
         @test size(ncarray[dimz...]) == (180, 170, 24)
@@ -308,9 +304,9 @@ end
             @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test bounds(gdalarray) == bounds(nccleaned)
             # Tiff locus = Start, Netcdf locus = Center
-            @test reverse(index(gdalarray, Y)) .+ 0.5 ≈ index(nccleaned, Y)
+            @test index(gdalarray, Y) .+ 0.5 ≈ index(nccleaned, Y)
             @test index(gdalarray, X) .+ 1.0  ≈ index(nccleaned, X)
-            @test reverse(Raster(gdalarray); dims=Y()) ≈ nccleaned
+            @test gdalarray ≈ nccleaned
         end
         @testset "to grd" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
@@ -318,19 +314,16 @@ end
             grdarray = Raster("testgrd.gri");
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == bounds(nccleaned)
-            @test reverse(index(grdarray, Y)) ≈ index(nccleaned, Y) .- 0.5
+            @test index(grdarray, Y) ≈ reverse(index(nccleaned, Y)) .- 0.5
             @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
-            @test Raster(grdarray) ≈ reverse(nccleaned; dims=Y)
-            rm("testgrd.gri")
-            rm("testgrd.grd")
+            @test reverse(grdarray; dims=Y) ≈ nccleaned
+            # rm("testgrd.gri")
+            # rm("testgrd.grd")
         end
     end
 
     @testset "no missing value" begin
-        write("nomissing.nc", 
-              boolmask(ncarray)
-              .* 1
-             )
+        write("nomissing.nc", boolmask(ncarray) .* 1)
         nomissing = Raster("nomissing.nc")
         @test missingval(nomissing) == nothing
         rm("nomissing.nc")

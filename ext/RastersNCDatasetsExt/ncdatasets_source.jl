@@ -140,8 +140,8 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
     attrib = RA._attribdict(metadata(dim))
     RA._ncd_set_axis_attrib!(attrib, dim)
     # Bounds variables
-    if span(dim) isa Explicit
-        bounds = val(span(dim))
+    if sampling(dim) isa Intervals
+        bounds = Dimensions.dim2boundsmatrix(dim)
         boundskey = get(metadata(dim), :bounds, string(dimkey, "_bnds"))
         push!(attrib, "bounds" => boundskey)
         NCD.defVar(ds, boundskey, bounds, ("bnds", dimkey))

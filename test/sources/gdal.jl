@@ -76,7 +76,7 @@ gdalpath = maybedownload(url)
         named = set(A, Band => string.(Ref("layer_"), dims(A, Band)))
         tempfile = tempname() * ".tif"
         write(tempfile, named)
-        @test parent(dims(Raster(tempfile), Band)) == ["layer_1", "layer_2"]
+        @test lookup(Raster(tempfile), Band) == ["layer_1", "layer_2"]
         @test keys(RasterStack(tempfile; layersfrom=Band)) == (:layer_1, :layer_2)
         rm(tempfile)
     end
@@ -263,7 +263,7 @@ gdalpath = maybedownload(url)
     @testset "write" begin
         gdalarray = Raster(gdalpath; name=:test);
 
-        @testset "2d" begin
+        @testset "2d asc" begin
             filename = tempname() * ".asc"
             @time write(filename, gdalarray)
             saved1 = Raster(filename);
@@ -274,6 +274,30 @@ gdalpath = maybedownload(url)
             @test missingval(saved1) === missingval(gdalarray)
             @test refdims(saved1) == refdims(gdalarray)
             rm(filename)
+        end
+
+        @testset "2d tif" begin
+            @testset "Intervals" begin
+                filename = tempname() * ".tif"
+                @time write(filename, gdalarray)
+                saved1 = Raster(filename);
+                @test all(saved1 .== gdalarray)
+                @test lookup(saved1) == lookup(gdalarray)
+                @test missingval(saved1) === missingval(gdalarray)
+                @test refdims(saved1) == refdims(gdalarray)
+                rm(filename)
+            end
+            @testset "Points" begin
+                filename = tempname() * ".tif"
+                gdalarray_points = set(gdalarray, X => Points, Y => Points)
+                @time write(filename, gdalarray_points)
+                saved1 = Raster(filename);
+                @test all(saved1 .== gdalarray_points)
+                @test lookup(saved1) == lookup(gdalarray_points)
+                @test missingval(saved1) === missingval(gdalarray_points)
+                @test refdims(saved1) == refdims(gdalarray_points)
+                rm(filename)
+            end
         end
 
         @testset "3d, with subsetting" begin
@@ -351,13 +375,13 @@ gdalpath = maybedownload(url)
             ga = Raster(rand(100, 200), (X, Y))
             write(filename, ga)
             saved = Raster(filename)
-            @test all(reverse(saved[Band(1)]; dims=Y) .=== ga)
-            @test saved[1, end] == saved[At(1.0), At(1.0)]
-            @test saved[100, 1] == saved[At(100), At(200)]
+            @test all(saved[Band(1)] .=== ga)
+            @test saved[At(1.0), At(1.0)] == saved[1, 1]
+            @test saved[end, end] == saved[At(100), At(200)]
             filename2 = tempname() * ".tif"
             ga2 = Raster(rand(100, 200), (X(Sampled(101:200)), Y(Sampled(1:200))))
             write(filename2, ga2)
-            @test reverse(Raster(filename2)[Band(1)]; dims=Y) == ga2
+            @test Raster(filename2) == ga2
         end
 
         @testset "to netcdf" begin
@@ -772,12 +796,7 @@ end
         @test isfile("tifseries/test_2001-01-01T00:00:00.tif")
         @test isfile("tifseries/test_2002-01-01T00:00:00.tif")
         ser1 = RasterSeries("tifseries", Ti(DateTime))
-        ser2 = RasterSeries("tifseries", Ti(DateTime); lazy=true)
-        ser3 = RasterSeries("tifseries/test.tif", Ti(DateTime))
-        ser4 = RasterSeries("tifseries", Ti(DateTime); ext=".tif")
-        ser5 = RasterSeries("tifseries/test", Ti(DateTime); ext=".tif")
-        @test dims(ser1) == dims(ser2) == dims(ser3) == dims(ser3) == dims(ser5) == dims(tifser)
-        @test_throws ErrorException RasterSeries("tifseries", Ti(Int))
+        @test dims(ser1) == dims(tifser)
         rm("tifseries"; recursive=true)
         mkpath("tifseries2")
         write("tifseries2/", tifser; ext=".tif", force=true)
@@ -809,6 +828,24 @@ end
                 (A2 .=== A2 .=== A3) |> all
             end |> all
         end |> all
+    end
+
+    @testset "detect dimension from file name" begin
+        tifser = RasterSeries([gdalpath, gdalpath], Ti([DateTime(2001), DateTime(2002)]))
+        mkpath("tifseries")
+        write("tifseries/test.tif", tifser; force=true)
+        @test isfile("tifseries/test_2001-01-01T00:00:00.tif")
+        @test isfile("tifseries/test_2002-01-01T00:00:00.tif")
+        ser1 = RasterSeries("tifseries", Ti(DateTime))
+        ser2 = RasterSeries("tifseries", Ti(DateTime); lazy=true)
+        ser3 = RasterSeries("tifseries/test.tif", Ti(DateTime))
+        ser4 = RasterSeries("tifseries", Ti(DateTime; order=ForwardOrdered()); ext=".tif")
+        ser5 = RasterSeries("tifseries/test", Ti(DateTime); ext=".tif")
+        @test dims(ser1) == dims(ser2) == dims(ser3) == dims(ser3) == dims(ser5) == dims(tifser)
+        @test_throws ErrorException RasterSeries("tifseries", Ti(Int))
+        ser6 = RasterSeries("tifseries/test", Ti(DateTime; sampling=Intervals(Center())); ext=".tif")
+        @test sampling(ser6) == (Intervals(Center()),)
+        rm("tifseries"; recursive=true)
     end
 
     @testset "methods" begin

@@ -17,12 +17,10 @@ function _cleankey(name::Union{Symbol,AbstractString,Name,NoName}, i=1)
     end
 end
 
-noindex_to_sampled(A) = rebuild(A; dims=noindex_to_sampled(dims(A)))
-function noindex_to_sampled(dims::DimTuple)
-    map(dims) do d
-        lookup(d) isa NoLookup ? set(d, Sampled) : d
-    end
-end
+nolookup_to_sampled(A) = rebuild(A; dims=nolookup_to_sampled(dims(A)))
+nolookup_to_sampled(dims::DimTuple) = map(nolookup_to_sampled, dims)
+nolookup_to_sampled(d::Dimension) =
+    lookup(d) isa NoLookup ? set(d, Sampled(; sampling=Points())) : d
 
 function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Type{<:Source}) where T
     if ismissing(missingval(A))
@@ -77,7 +75,10 @@ end
 _unwrap(::Val{X}) where X = X
 _unwrap(x) = x
 
-_missingval_or_missing(x) = missingval(x) isa Nothing ? missing : missingval(x)
+_missingval_or_missing(x) = _maybe_nothing_to_missing(missingval(x))
+
+_maybe_nothing_to_missing(::Nothing) = missing
+_maybe_nothing_to_missing(missingval) = missingval
 
 maybe_eps(dims::DimTuple) = map(maybe_eps, dims)
 maybe_eps(dim::Dimension) = maybe_eps(eltype(dim))

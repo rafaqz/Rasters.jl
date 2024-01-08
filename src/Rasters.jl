@@ -48,6 +48,8 @@ using .LookupArrays: LookupArrayTuple
 using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
 
+import GeoInterface: crs
+
 using Setfield: @set, @set!
 using ColorTypes: RGB
 
@@ -100,6 +102,7 @@ include("openstack.jl")
 include("array.jl")
 include("stack.jl")
 include("series.jl")
+include("crs.jl")
 
 const RasterStackOrArray = Union{AbstractRasterStack,AbstractRaster}
 const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}

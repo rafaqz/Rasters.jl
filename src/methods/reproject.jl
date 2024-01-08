@@ -1,17 +1,26 @@
 
 """
-    reproject(target::GeoFormat, x)
+    reproject(obj; crs)
 
-Reproject the dimensions of `x` to a different crs.
+Reproject the lookups of `obj` to a different crs. 
 
-# Arguments
+This is a lossless operation for the raster data, as only the 
+lookup values change. This is only possible when the axes of source
+and destination projections are alligned: the change is usually from
+a [`Regular`](@ref) and an [`Irregular`](@ref) lookup spans.
 
-- `target`: any crs in a GeoFormatTypes.jl wrapper, e.g. `EPSG`, `WellKnownText`, `ProjString`.
-- `x`: a `Dimension`, `Tuple` of `Dimension`, `Raster` or `RasterStack`.
+For converting between projections that are rotated, 
+skewed or warped in any way, use [`resample`](@ref).
 
 Dimensions without an `AbstractProjected` lookup (such as a `Ti` dimension)
 are silently returned without modification.
+
+# Arguments
+
+- `obj`: a `LookupArray`, `Dimension`, `Tuple` of `Dimension`, `Raster` or `RasterStack`.
+$CRS_KEYWORD
 """
+reproject(x; crs::GeoFormat) = reproject(crs, x)
 reproject(target::GeoFormat, x) = rebuild(x; dims=reproject(target, dims(x)))
 reproject(target::GeoFormat, dims::Tuple) = map(d -> reproject(target, d), dims)
 reproject(target::GeoFormat, l::LookupArray) = l
