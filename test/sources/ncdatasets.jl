@@ -1,7 +1,7 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
 using Rasters.LookupArrays, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, FileStack, NCDsource, crs, bounds
+using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name
 testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))
 include(joinpath(testdir, "test_utils.jl"))
 
@@ -116,7 +116,7 @@ end
 
     @testset "other fields" begin
         @test ismissing(missingval(ncarray))
-        @test metadata(ncarray) isa Metadata{NCDsource,Dict{String,Any}}
+        @test metadata(ncarray) isa Metadata{<:Rasters.CDMsource,Dict{String,Any}}
         @test name(ncarray) == :tos
     end
 
@@ -401,9 +401,9 @@ end
         @test keys(ncstack) isa NTuple{131,Symbol}
         @test keys(ncstack) == stackkeys
         @test first(keys(ncstack)) == :abso4
-        @test metadata(ncstack) isa Metadata{NCDsource,Dict{String,Any}}
+        @test metadata(ncstack) isa Metadata{<:Rasters.CDMsource,Dict{String,Any}}
         @test metadata(ncstack)["institution"] == "Max-Planck-Institute for Meteorology"
-        @test metadata(ncstack[:albedo]) isa Metadata{NCDsource,Dict{String,Any}}
+        @test metadata(ncstack[:albedo]) isa Metadata{<:Rasters.CDMsource,Dict{String,Any}}
         @test metadata(ncstack[:albedo])["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean

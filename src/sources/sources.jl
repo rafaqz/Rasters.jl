@@ -1,13 +1,17 @@
 # Source dispatch singletons
 abstract type Source end
 
-struct NCDsource <: Source end
+abstract type CDMsource <: Source end
+struct NCDsource <: CDMsource end
+struct GRIBsource <: CDMsource end
 struct GRDsource <: Source end
 struct GDALsource <: Source end
 struct SMAPsource <: Source end
 
 # Deprecations
+const CDMfile = CDMsource
 const NCDfile = NCDsource
+const GRIBfile = GRIBsource
 const GRDfile = GRDsource
 const GDALfile = GDALsource
 const SMAPfile = SMAPsource
@@ -16,6 +20,7 @@ const SYMBOL2SOURCE = Dict(
     :gdal => GDALsource,
     :grd => GRDsource,
     :netcdf => NCDsource, 
+    :grib => GRIBsource, 
     :smap => SMAPsource,
 )
 
@@ -25,11 +30,13 @@ const SOURCE2SYMBOL = Dict(map(reverse, collect(pairs(SYMBOL2SOURCE))))
 const SOURCE2EXT = Dict(
     GRDsource => (".grd", ".gri"), 
     NCDsource => (".nc",), 
+    GRIBsource => (".grib",), 
     SMAPsource => (".h5",),
 )
 const SOURCE2PACAKGENAME = Dict(
     GDALsource => "ArchGDAL",
     NCDsource => "NCDatasets",
+    GRIBsource => "GRIBDatasets",
     SMAPsource => "HDF5",
 )
 
@@ -37,6 +44,7 @@ const EXT2SOURCE = Dict(
     ".grd" => GRDsource, 
     ".gri" => GRDsource, 
     ".nc" => NCDsource, 
+    ".grib" => GRIBsource, 
     ".h5" => SMAPsource
 )
 

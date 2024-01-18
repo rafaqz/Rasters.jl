@@ -14,6 +14,7 @@ import DimensionalData
 
 import Adapt,
        ColorTypes,
+       CommonDataModel,
        ConstructionBase,
        DiskArrays,
        Extents,
@@ -51,6 +52,10 @@ import GeoInterface: crs
 
 using Setfield: @set, @set!
 using ColorTypes: RGB
+
+using CommonDataModel: AbstractDataset, AbstractVariable
+
+using DiskArrays: @implement_diskarray
 
 export AbstractRaster, Raster
 export AbstractRasterStack, RasterStack
@@ -140,6 +145,7 @@ include("methods/trim.jl")
 include("methods/zonal.jl")
 
 include("sources/grd.jl")
+include("sources/commondatamodel.jl")
 include("extensions.jl")
 
 # Compatibility with pre-1.9 julia
@@ -150,6 +156,7 @@ function __init__()
         @require HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f" include("../ext/RastersHDF5Ext/RastersHDF5Ext.jl")
         @require Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" include("../ext/RastersMakieExt/RastersMakieExt.jl")
         @require NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab" include("../ext/RastersNCDatasetsExt/RastersNCDatasetsExt.jl")
+        @require GRIBDatasets = "82be9cdb-ee19-4151-bdb3-b400788d9abc" include("../ext/RastersGRIBDatasetsExt/RastersGRIBDatasetsExt.jl")
         @require RasterDataSources = "3cb90ccd-e1b6-4867-9617-4276c8b2ca36" include("../ext/RastersRasterDataSourcesExt/RastersRasterDataSourcesExt.jl")
     end
 end

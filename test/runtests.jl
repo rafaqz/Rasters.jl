@@ -24,9 +24,14 @@ end
 @time @safetestset "warp" begin include("warp.jl") end
 @time @safetestset "resample" begin include("resample.jl") end
 
+# CommondataModel sources
+@time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
+if !Sys.iswindows()
+    # GRIBDatasets doesn't work on Windows for now
+    @time @safetestset "gribdatasets" begin include("sources/gribdatasets.jl") end
+end
 
 # Only test SMAP locally for now, also RasterDataSources because CI dowloads keep breaking
-@time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
 if !haskey(ENV, "CI")
     @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
     @time @safetestset "smap" begin include("sources/smap.jl") end
