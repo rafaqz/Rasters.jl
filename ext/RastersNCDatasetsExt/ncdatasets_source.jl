@@ -23,7 +23,7 @@ function Base.write(filename::AbstractString, ::Type{<:CDMsource}, A::AbstractRa
     mode  = !isfile(filename) || !append ? "c" : "a";
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(A)))
     try
-        _ncdwritevar!(ds, A; kw...)
+        _cdmwritevar!(ds, A; kw...)
     finally
         close(ds)
     end
@@ -65,14 +65,12 @@ function Base.write(filename::AbstractString, ::Type{<:CDMsource}, s::AbstractRa
     mode  = !isfile(filename) || !append ? "c" : "a";
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
     try
-        map(key -> _ncdwritevar!(ds, s[key]), keys(s); kw...)
+        map(key -> _cdmwritevar!(ds, s[key]), keys(s); kw...)
     finally
         close(ds)
     end
     return filename
 end
-
-RA.FileStack{NCDsource}(ds::AbstractDataset, filename::AbstractString; write=false, keys) = RA.FileStack(NCDsource, ds, filename; write, keys)
 
 function RA.OpenStack(fs::RA.FileStack{NCDsource,K}) where K
     RA.OpenStack{NCDsource,K}(NCD.Dataset(RA.filename(fs)))
@@ -88,7 +86,7 @@ function RA._open(f, ::Type{NCDsource}, filename::AbstractString; write=false, k
 end
 
 # Add a var array to a dataset before writing it.
-function _ncdwritevar!(ds::AbstractDataset, A::AbstractRaster{T,N}; kw...) where {T,N}
+function _cdmwritevar!(ds::AbstractDataset, A::AbstractRaster{T,N}; kw...) where {T,N}
     _def_dim_var!(ds, A)
     attrib = RA._attribdict(metadata(A))
     # Set _FillValue
@@ -117,9 +115,8 @@ function _ncdwritevar!(ds::AbstractDataset, A::AbstractRaster{T,N}; kw...) where
     dimnames = lowercase.(string.(map(RA.name, dims(A))))
     var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...)
 
-    # NCDatasets needs Colon indices to write without allocations
-    # TODO do this with DiskArrays broadcast ??
-    var[map(_ -> Colon(), axes(A))...] = parent(read(A))
+    # Write with a DiskArays.jl broadcast
+    var .= A
 
     return nothing
 end
@@ -132,13 +129,13 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
     lookup(dim) isa NoLookup && return nothing
 
     # Shift index before conversion to Mapped
-    dim = RA._ncdshiftlocus(dim)
+    dim = RA._cdmshiftlocus(dim)
     if dim isa Y || dim isa X
         dim = convertlookup(Mapped, dim)
     end
     # Attributes
     attrib = RA._attribdict(metadata(dim))
-    RA._ncd_set_axis_attrib!(attrib, dim)
+    RA._cdm_set_axis_attrib!(attrib, dim)
     # Bounds variables
     if sampling(dim) isa Intervals
         bounds = Dimensions.dim2boundsmatrix(dim)
@@ -150,10 +147,13 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
     return nothing
 end
 
-const _NCDVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}
+# Hack to get the inner DiskArrays chunks as they are not exposed at the top level
+RA._get_eachchunk(var::NCD.Variable) = DiskArrays.eachchunk(var)
+RA._get_haschunks(var::NCD.Variable) = DiskArrays.haschunks(var)
 
 # precompilation
 
+# const _NCDVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}
 
 # function _precompile(::Type{NCDsource})
 #     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
@@ -165,9 +165,9 @@ const _NCDVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Var
 #     precompile(dims, (_NCDVar,Symbol,Nothing,EPSG))
 #     precompile(dims, (_NCDVar,Symbol,EPSG,EPSG))
 #     precompile(_firstkey, (NCDatasets.NCDataset{Nothing},))
-#     precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, Nothing))
-#     precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, EPSG))
-#     precompile(_ncddim, (NCDatasets.NCDataset{Nothing}, Symbol, EPSG, EPSG))
+#     precompile(_cdmdim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, Nothing))
+#     precompile(_cdmdim, (NCDatasets.NCDataset{Nothing}, Symbol, Nothing, EPSG))
+#     precompile(_cdmdim, (NCDatasets.NCDataset{Nothing}, Symbol, EPSG, EPSG))
 #     precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Nothing))
 #     precompile(Raster, (NCDatasets.NCDataset{Nothing}, String, Symbol))
 #     precompile(Raster, (_NCDVar, String, Symbol))

@@ -128,7 +128,7 @@ Base.Array(grd::GRDattrib) = _mmapgrd(Array, grd)
 
 # Array ########################################################################
 
-function FileArray(grd::GRDattrib, filename=filename(grd); kw...)
+function FileArray{GRDsource}(grd::GRDattrib, filename=filename(grd); kw...)
     filename = first(splitext(filename))
     size_ = size(grd)
     eachchunk = DiskArrays.GridChunks(size_, size_)

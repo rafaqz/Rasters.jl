@@ -178,7 +178,7 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
         mappedcrs = defaultmappedcrs(source, mappedcrs)
         _open(source, fn; key) do ds
             data = if lazy
-                FileArray(ds, fn; key)
+                FileArray{source}(ds, fn; key)
             else
                 _open(Array, source, ds; key)
             end

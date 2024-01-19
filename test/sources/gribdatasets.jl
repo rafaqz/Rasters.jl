@@ -28,26 +28,27 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
 @testset "Raster" begin
     @time gribarray = Raster(era5)
     @time lazyarray = Raster(era5; lazy=true);
-    @time lazystack= RasterStack(era5; lazy=true);
+    @time lazystack = RasterStack(era5; lazy=true);
     @time eagerstack = RasterStack(era5; lazy=false);
-    @time ds = GRIBDataset(era5)
+    @time ds = GRIBDataset(era5);
 
     @testset "lazyness" begin
-        @time read(Raster(era5));
+        @time Raster(era5);
         @test parent(gribarray) isa Array
         @test parent(lazyarray) isa FileArray
     end
 
     @testset "read" begin
-        @time A = read(gribarray);
+        @time A = read(lazyarray);
         @test A isa Raster
         @test parent(A) isa Array
         A2 = zero(A)
-        @time read!(gribarray, A2);
+        @time read!(lazyarray, A2);
         A3 = zero(A)
         @time read!(gribarray, A3)
         @test all(A .=== A2) 
         @test all(A .=== A3)
+        @time st = read(lazystack);
     end
 
     @testset "stack, compare to GRIBDataset" begin
