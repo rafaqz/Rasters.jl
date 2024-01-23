@@ -242,7 +242,7 @@ function RA.Raster(ds::AG.RasterDataset;
     filelist = AG.filelist(ds)
     raster = if lazy && length(filelist) > 0
         filename = first(filelist)
-        A = Raster(FileArray{GDALSource}(ds, filename), args...)
+        A = Raster(FileArray{GDALsource}(ds, filename), args...)
     else
         Raster(Array(ds), args...)
     end
