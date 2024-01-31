@@ -79,6 +79,6 @@ function cellsize(dims::Tuple{X, Y})
     return Raster(areas, dims)
 end
 
-function cellsize(x::Raster)
+function cellsize(x::Union{AbstractRaster, AbstractRasterStack})
     cellsize(dims(x, (X, Y)))
 end
