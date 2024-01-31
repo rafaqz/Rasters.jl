@@ -10,8 +10,11 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     dimz_25832 = X(Projected(0.0:100:10000.0; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(100), crs=EPSG(25832))),
        Y(Projected(0.0:100:10000.0; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(100), crs=EPSG(25832)))
 
+   ras = ones(dimz)
+
     cs = cellsize(dimz)
     cs2 = cellsize(dimz_25832)
+    cs_ras = cellsize(ras)
 
     # Check the output is a raster 
     @test cs isa Raster
@@ -21,5 +24,6 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     # Test all areas are about 0.01 km2
     @test maximum(cs2) ≈ 0.01 rtol = 0.01
     @test minimum(cs2) ≈ 0.01 rtol = 0.01
+    @test cs == cs_ras
 
 end
