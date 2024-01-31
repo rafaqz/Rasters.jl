@@ -50,7 +50,8 @@ end
 
 function cellsize(dims::Tuple{X, Y})
     xbnds, ybnds = DimensionalData.intervalbounds(dims)
-    dcrs = isnothing(crs(dims[2])) ? crs(dims[2]) : crs(dims[1])
+    # take CRS from Y if it has crs, else from X
+    dcrs = !isnothing(crs(dims[2])) ? crs(dims[2]) : crs(dims[1])
     if convert(CoordSys, dcrs) == CoordSys("Earth Projection 1, 104") # check if need to reproject
         areas = [_area_from_coords(
             GI.LinearRing([
