@@ -320,6 +320,15 @@ end
             # rm("testgrd.gri")
             # rm("testgrd.grd")
         end
+
+        @testset "write points" begin
+            lon, lat = X(25:1:30), Y(25:1:30)
+            ti = Ti(DateTime(2001):Month(1):DateTime(2002))
+            ras = Raster(rand(lon, lat, ti))
+            write("point_rast.nc", ras; force=true)
+            saved = Raster("point_rast.nc")
+            @test sampling(saved) == (Points(), Points(), Points())
+        end
     end
 
     @testset "no missing value" begin
