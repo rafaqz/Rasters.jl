@@ -408,7 +408,7 @@ function _process_options(driver::String, options::Dict; _block_template=nothing
     if !isnothing(_block_template) && DA.haschunks(_block_template) == DA.Chunked()
         block_x, block_y = DA.max_chunksize(DA.eachchunk(_block_template))
         
-        if block_x >= 16 && block_y >= 16
+        if (block_x % 16 == 0) && (block_y % 16 == 0)
             options_str["TILED"] = "YES"
         end
         
