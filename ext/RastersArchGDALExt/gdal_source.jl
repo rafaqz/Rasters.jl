@@ -407,6 +407,7 @@ function _process_options(driver::String, options::Dict; _block_template=nothing
 
     if !isnothing(_block_template) && DA.haschunks(_block_template) == DA.Chunked()
         block_x, block_y = string.(DA.max_chunksize(DA.eachchunk(_block_template)))
+        options_str["TILED"] = "YES"
         if driver == "GTiff"
             # dont overwrite user specified values
             if !("BLOCKXSIZE" in keys(options_str))
