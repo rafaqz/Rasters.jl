@@ -8,7 +8,7 @@ For [`Mapped`](@ref) lookup this may be `nothing` as there may be no projected
 coordinate reference system at all.
 See [`setcrs`](@ref) to set it manually.
 """
-function GeoInterface.crs(obj::Union{<:AbstractRaster,<:AbstractRasterStack,<:AbstractRasterSeries})
+function GeoInterface.crs(obj::Union{<:AbstractRaster,<:AbstractRasterStack,<:AbstractRasterSeries, <:DimTuple})
     if hasdim(obj, Y)
         crs(dims(obj, Y))
     elseif hasdim(obj, X)
