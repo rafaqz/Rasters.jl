@@ -48,10 +48,10 @@ function _area_from_coords(transform::ArchGDAL.CoordTransform, ::GI.LinearRingTr
     return _area_from_rads(GI.LinearRing(points))
 end
 
-function cellsize(dims::Tuple{X, Y})
+function cellsize(dims::DimTuple)
     xbnds, ybnds = DimensionalData.intervalbounds(dims)
     # take CRS from Y if it has crs, else from X
-    dcrs = !isnothing(crs(dims[2])) ? crs(dims[2]) : crs(dims[1])
+    dcrs = crs(dims)
     if convert(CoordSys, dcrs) == CoordSys("Earth Projection 1, 104") # check if need to reproject
         areas = [_area_from_coords(
             GI.LinearRing([
