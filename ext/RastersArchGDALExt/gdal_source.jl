@@ -407,7 +407,10 @@ function _process_options(driver::String, options::Dict; _block_template=nothing
 
     if !isnothing(_block_template) && DA.haschunks(_block_template) == DA.Chunked()
         block_x, block_y = DA.max_chunksize(DA.eachchunk(_block_template))
-        
+
+        # GDAL default is line-by-line compression without tiling.
+        # Here, tiling is enabled if the source chunk size is viable for GTiff,
+        # i.e. when the chunk size is divisible by 16.
         if (block_x % 16 == 0) && (block_y % 16 == 0)
             options_str["TILED"] = "YES"
         end
