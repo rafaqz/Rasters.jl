@@ -37,7 +37,7 @@ end
     mappedcrs(ga1) == nothing
     gapr = setcrs(ga1, EPSG(4326))
     gampr = setmappedcrs(gapr, EPSG(4326))
-    @test crs(gapr) == crs(gapr[X(1)]) == EPSG(4326)
+    @test crs(gapr) == crs(gapr[X(1)]) == crs(dims(gapr)) == EPSG(4326)
     @test mappedcrs(gampr) == mappedcrs(gampr[X(1)]) == EPSG(4326)
 end
 
