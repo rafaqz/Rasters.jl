@@ -322,15 +322,33 @@ savefig("docs/build/missingmask_example.png"); nothing
 
 $EXPERIMENTAL
 """
-function missingmask(stack::Union{<:AbstractRasterStack, <:AbstractRasterSeries}; alllayers = true, kw...) 
+function missingmask_multilayer(layers::Union{<:AbstractRasterStack, <:AbstractRasterSeries}, to; kw...)
+    mask = _init_bools(to, Array{Union{Missing,Bool}}, layers; kw..., missingval=missing)
+    a = copy(mask)
+    mask .= true
+    map(layers) do layer
+        missingmask!(a, layer)
+        mask .&= a
+   end
+   return mask
+end
+
+function missingmask(stack::AbstractRasterStack; alllayers = true, to = dims(stack), kw...) 
     if alllayers
-       mapreduce(.&, stack) do layer
-        missingmask(layer; kw...)
-       end
+        missingmask_multilayer(stack, to; kw...)
     else
         missingmask(first(stack); kw...)
     end
 end
+
+function missingmask(series::AbstractRasterSeries; alllayers = true, to = first(stack), kw...)
+    if alllayers
+        missingmask_multilayer(series, to; kw...)
+    else
+        missingmask(first(series); kw...)
+    end
+end
+
 function missingmask(source::AbstractRaster; kw...)
     dest = _init_bools(source, Array{Union{Missing,Bool}}, nothing; kw..., missingval=missing)
     return missingmask!(dest, source; kw...)
