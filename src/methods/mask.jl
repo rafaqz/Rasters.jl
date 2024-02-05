@@ -324,7 +324,7 @@ $EXPERIMENTAL
 """
 function missingmask(stack::AbstractRasterStack; alllayers = true, to = dims(stack), kw...) 
     if alllayers
-        missingmask_multilayer(stack, to; kw...)
+        _missingmask_multilayer(stack, to; kw...)
     else
         missingmask(first(stack); kw...)
     end
@@ -332,7 +332,7 @@ end
 
 function missingmask(series::AbstractRasterSeries; alllayers = true, to = first(stack), kw...)
     if alllayers
-        missingmask_multilayer(series, to; kw...)
+        _missingmask_multilayer(series, to; kw...)
     else
         missingmask(first(series); kw...)
     end
