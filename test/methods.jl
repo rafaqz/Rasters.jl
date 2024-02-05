@@ -69,6 +69,10 @@ end
     @test parent(boolmask(ga)) isa BitMatrix
     @test boolmask(ga99) == [false true; true false]
     @test boolmask(gaNaN) == [false true; true false]
+    @test all(boolmask(st[(:b, :a)], alllayers = true) .=== [false true; true false])
+    @test all(boolmask(st[(:b, :a)], alllayers = false) .=== [true true; true false])    
+    @test all(boolmask(st[(:b, :a)], alllayers = false, missingval = 7.0) .=== [true true; true true])    
+    @test all(boolmask(st[(:b, :a)], alllayers = true, missingval = 7.0) .=== [true false; true true])    
     @test dims(boolmask(ga)) === dims(ga)
     x = boolmask(polygon; res=1.0) 
     @test x == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
@@ -89,6 +93,10 @@ end
     @test all(missingmask(ga) .=== [missing true; true missing])
     @test all(missingmask(ga99) .=== [missing true; true missing])
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
+    @test all(missingmask(st[(:b, :a)], alllayers = true) .=== [missing true; true missing])
+    @test all(missingmask(st[(:b, :a)], alllayers = false) .=== [true true; true missing])  
+    @test all(missingmask(st[(:b, :a)], alllayers = false, missingval = 7.0) .=== [true true; true true])    
+    @test all(missingmask(st[(:b, :a)], alllayers = true, missingval = 7.0) .=== [true missing; true true])      
     @test dims(missingmask(ga)) == dims(ga)
     @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
     x = missingmask([polygon, polygon]; collapse=false, res=1.0)
