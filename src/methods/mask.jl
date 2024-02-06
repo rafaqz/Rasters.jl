@@ -330,7 +330,7 @@ function missingmask(stack::AbstractRasterStack; alllayers = true, to = dims(sta
     end
 end
 
-function missingmask(series::AbstractRasterSeries; alllayers = true, to = first(stack), kw...)
+function missingmask(series::AbstractRasterSeries; alllayers = true, to = first(series), kw...)
     if alllayers
         _missingmask_multilayer(series, to; kw...)
     else
