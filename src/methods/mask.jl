@@ -290,10 +290,11 @@ end
 """
     missingmask(obj::Raster; kw...)
     missingmask(obj; [to, res, size, collapse])
+    missingmask(obj::RasterStack; alllayers = true, kw...)
 
 Create a mask array of `missing` and `true` values, from another `Raster`.
-`AbstractRasterStack` or `AbstractRasterSeries` are also accepted, but a mask
-is taken of the first layer or object *not* all of them.
+`AbstractRasterStack` or `AbstractRasterSeries` are also accepted, if alllayers is `true` (the default),
+a mask is taken for all layers, otherwise only the first layer is used.
 
 For [`AbstractRaster`](@ref) the default `missingval` is `missingval(A)`,
 but others can be chosen manually.
@@ -321,8 +322,22 @@ savefig("docs/build/missingmask_example.png"); nothing
 
 $EXPERIMENTAL
 """
-missingmask(series::AbstractRasterSeries; kw...) = missingmask(first(series); kw...)
-missingmask(stack::AbstractRasterStack; kw...) = missingmask(first(stack); kw...)
+function missingmask(stack::AbstractRasterStack; alllayers = true, to = dims(stack), kw...) 
+    if alllayers
+        _missingmask_multilayer(stack, to; kw...)
+    else
+        missingmask(first(stack); kw...)
+    end
+end
+
+function missingmask(series::AbstractRasterSeries; alllayers = true, to = first(series), kw...)
+    if alllayers
+        _missingmask_multilayer(series, to; kw...)
+    else
+        missingmask(first(series); kw...)
+    end
+end
+
 function missingmask(source::AbstractRaster; kw...)
     dest = _init_bools(source, Array{Union{Missing,Bool}}, nothing; kw..., missingval=missing)
     return missingmask!(dest, source; kw...)
@@ -343,4 +358,17 @@ function missingmask!(dest::AbstractRaster, geom; kw...)
     B = boolmask!(dest, geom; kw...)
     dest .= (b -> b ? true : missing).(B)
     return dest
+end
+
+function _missingmask_multilayer(layers::Union{<:AbstractRasterStack, <:AbstractRasterSeries}, to; kw...)
+    dest = _init_bools(to, Array{Union{Missing,Bool}}, layers; kw..., missingval=missing)
+    dest .= true
+    map(layers) do layer
+        missingval=_missingval_or_missing(layer)
+
+        broadcast_dims!(dest, dest, layer) do d, x
+            isequal(d, missing) || isequal(x, missingval) ? missing : true
+        end
+   end
+   return dest
 end
