@@ -96,7 +96,7 @@ end
     @test all(missingmask(st[(:b, :a)], alllayers = false) .=== [true true; true missing])    
     mm_st2 = missingmask(st2)
     @test dims(mm_st2) == dims(st2)
-    @test all(missingmask(st[(:b, :a)], alllayers = false) .=== [missing missing; true missing])    
+    @test all(mm_st2 .=== [missing missing; true missing])    
     @test all(missingmask(st2, alllayers = false) .=== [missing; true])    
     @test all(missingmask(se) .=== missingmask(ga))
     @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
