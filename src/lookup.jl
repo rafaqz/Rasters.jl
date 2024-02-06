@@ -158,11 +158,17 @@ function convertlookup(::Type{<:Mapped}, l::Projected)
     newindex = reproject(crs(l), mappedcrs(l), dim(l), index(l))
     # We use Explicit mode and make a bounds matrix
     # This way the bounds can be saved correctly to NetCDF
-    newbounds = reproject(crs(l), mappedcrs(l), dim(l), Dimensions.dim2boundsmatrix(l))
-    return Mapped(newindex,
+    span = if sampling(l) isa Points
+        a, b = newindex[1], newindex[end]
+        Irregular(LA.isreverse(l) ? (b, a) : (a, b))
+    else
+        newbounds = reproject(crs(l), mappedcrs(l), dim(l), Dimensions.dim2boundsmatrix(l))
+        Explicit(newbounds)
+    end
+    return Mapped(newindex;
         order=order(l),
-        span=Explicit(newbounds),
         sampling=sampling(l),
+        span,
         metadata=metadata(l),
         crs=crs(l),
         mappedcrs=mappedcrs(l),
