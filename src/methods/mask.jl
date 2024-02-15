@@ -401,6 +401,5 @@ function _mask_multilayer(
             isequal(d, _dest_missingval) || isequal(x, mv) ? _dest_missingval : true
         end
     end
-
    return dest
 end
