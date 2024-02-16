@@ -256,7 +256,7 @@ function boolmask(stack::AbstractRasterStack; alllayers = true, to = dims(stack)
     end
 end
 
-function boolmask(series::AbstractRasterSeries; alllayers = true, to = first(stack), kw...)
+function boolmask(series::AbstractRasterSeries; alllayers = true, to = first(series), kw...)
     if alllayers
         _mask_multilayer(series, to; kw..., _dest_missingval = false)
     else
