@@ -1,4 +1,4 @@
-# # Data sources
+# # Reading data into Rasters
 
 # Rasters.jl uses a number of backends to load raster data. `Raster`, `RasterStack`
 # and `RasterSeries` will detect which backend to use for you, automatically.
@@ -45,16 +45,6 @@
 #md # ```@docs
 #md # smapseries
 #md # ```
-
-# ## Writing file formats to disk
-
-# Files can be written to disk in all formats other than SMAP HDF5 using
-# `write("filename.ext", A)`. See the docs for [`write`](@ref). They can (with
-# some caveats) be written to different formats than they were loaded in as,
-# providing file-type conversion for spatial data.
-
-# Some metadata may be lost in formats that store little metadata, or where
-# metadata conversion has not been completely implemented.
 
 # ## RasterDataSources.jl integration
 
