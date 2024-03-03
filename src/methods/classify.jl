@@ -38,12 +38,12 @@ classes = <=(15) => 10,
 classified = classify(A, classes; others=0, missingval=0)
 plot(classified; c=:magma)
 
-savefig("docs/build/classify_example.png"); nothing
+savefig("docs/build/.documenter/classify_example.png"); nothing
 
 # output
 ```
 
-![classify](../build/classify_example.png)
+![classify](classify_example.png)
 
 $EXPERIMENTAL
 """
@@ -130,12 +130,12 @@ end
 # Open it again to plot the changes
 plot(Raster(tempfile); c=:magma)
 
-savefig("docs/build/classify_bang_example.png"); nothing
+savefig("docs/build/.documenter/classify_bang_example.png"); nothing
 
 # output
 ```
 
-![classify!](../build/classify_bang_example.png)
+![classify!](classify_bang_example.png)
 
 $EXPERIMENTAL
 """

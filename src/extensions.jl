@@ -78,8 +78,8 @@ B = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 a = plot(A)
 b = plot(resample(A; to=B))
 
-savefig(a, "docs/build/resample_example_before.png");
-savefig(b, "docs/build/resample_example_after.png"); nothing
+savefig(a, "docs/build/.documenter/.documenter/resample_example_before.png");
+savefig(b, "docs/build/.documenter/resample_example_after.png"); nothing
 
 # output
 ```
@@ -135,8 +135,8 @@ flags = Dict(
 )
 b = plot(warp(A, flags))
 
-savefig(a, "docs/build/warp_example_before.png");
-savefig(b, "docs/build/warp_example_after.png"); nothing
+savefig(a, "docs/build/.documenter/warp_example_before.png");
+savefig(b, "docs/build/.documenter/warp_example_after.png"); nothing
 
 # output
 
