@@ -64,7 +64,7 @@ struct Projected{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC,MC,
     mappedcrs::MC
     dim::D
 end
-function Projected(data=AutoIndex();
+function Projected(data=AutoValues();
     order=AutoOrder(), span=AutoSpan(), sampling=AutoSampling(),
     metadata=NoMetadata(), crs, mappedcrs=nothing, dim=AutoDim()
 )
@@ -120,7 +120,7 @@ struct Mapped{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC,MC,D} 
     mappedcrs::MC
     dim::D
 end
-function Mapped(data=AutoIndex();
+function Mapped(data=AutoValues();
     order=AutoOrder(), span=AutoSpan(), sampling=AutoSampling(),
     metadata=NoMetadata(), crs=nothing, mappedcrs, dim=AutoDim()
 )
