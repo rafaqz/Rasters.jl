@@ -31,44 +31,49 @@ const CDM_STANDARD_NAME_MAP = Dict(
     "time" => Ti,
 )
 
-struct CFDiskArray{T,N,TV,TA,TSA} <: AbstractDiskArray{T,N}
+# CFVariable is imblemented again here because the one
+# in CommonDataModel is not DiskArrays.jl compatible.
+# TODO move this code to CommonDataModel.jl
+struct CFVariable{T,N,TV,TA,TSA} <: CDM.AbstractVariable{T,N}
     var::CDM.CFVariable{T,N,TV,TA,TSA}
 end
+@implement_diskarray CFVariable
 
 # Base methods
-Base.parent(A::CFDiskArray) = A.var
-Base.getindex(os::OpenStack{<:CDMsource}, key::Symbol) = CFDiskArray(dataset(os)[key])
+Base.parent(A::CFVariable) = A.var
+Base.getindex(os::OpenStack{<:CDMsource}, key::Symbol) = CFVariable(dataset(os)[key])
 
 # DiskArrays.jl methods
-function DiskArrays.readblock!(A::CFDiskArray, aout, i::AbstractUnitRange...)
+function DiskArrays.readblock!(A::CFVariable, aout, i::AbstractUnitRange...)
     aout .= getindex(parent(A), i...)
 end
-function DiskArrays.writeblock!(A::CFDiskArray, data, i::AbstractUnitRange...)
+function DiskArrays.writeblock!(A::CFVariable, data, i::AbstractUnitRange...)
     setindex!(parent(A), data, i...)
     return data
 end
+_open(f, ::Type{<:CDMsource}, var::CFVariable; kw...) = cleanreturn(f(var))
 
 # We have to dig down to find the chunks as they are not immplemented
 # properly in the source packages, but they are in their internal objects.
 # We just make it work here even though it doesn't work in NCDatasets.jl or GRIBDatasets.jl
-DiskArrays.eachchunk(var::CFDiskArray) = _get_eachchunk(var)
-DiskArrays.haschunks(var::CFDiskArray) = _get_haschunks(var)
+DiskArrays.eachchunk(var::CFVariable) = _get_eachchunk(var)
+DiskArrays.haschunks(var::CFVariable) = _get_haschunks(var)
 
-_get_eachchunk(var::CFDiskArray) = _get_eachchunk(var.var)
+_get_eachchunk(var::CFVariable) = _get_eachchunk(var.var)
 _get_eachchunk(var::CDM.CFVariable) = _get_eachchunk(var.var)
-_get_haschunks(var::CFDiskArray) = _get_haschunks(var.var)
+_get_haschunks(var::CFVariable) = _get_haschunks(var.var)
 _get_haschunks(var::CDM.CFVariable) = _get_haschunks(var.var)
 
 # CommonDataModel.jl methods
 for method in (:size, :name, :dimnames, :dataset, :attribnames)
     @eval begin
-        CDM.$(method)(var::CFDiskArray) = CDM.$(method)(parent(var))
+        CDM.$(method)(var::CFVariable) = CDM.$(method)(parent(var))
     end
 end
 
 for method in (:attrib, :dim)
     @eval begin
-        CDM.$(method)(var::CFDiskArray, name::CDM.SymbolOrString) = CDM.$(method)(parent(var), name)
+        CDM.$(method)(var::CFVariable, name::CDM.SymbolOrString) = CDM.$(method)(parent(var), name)
     end
 end
 
@@ -77,7 +82,6 @@ haslayers(::Type{<:CDMsource}) = true
 defaultcrs(::Type{<:CDMsource}) = EPSG(4326)
 defaultmappedcrs(::Type{<:CDMsource}) = EPSG(4326)
 
-_dataset(var::CFDiskArray) = _dataset(parent(var))
 _dataset(var::AbstractVariable) = CDM.dataset(var)
 
 # Raster ########################################################################
@@ -89,12 +93,12 @@ function Raster(ds::AbstractDataset, filename::AbstractString, key=nothing; sour
         for key in layerkeys(ds)
             if ndims(ds[key]) > 0
                 @info "No `name` or `key` keyword provided, using first valid layer with name `:$key`"
-                return Raster(CFDiskArray(ds[key]), filename, key; source, kw...)
+                return Raster(CFVariable(ds[key]), filename, key; source, kw...)
             end
         end
         throw(ArgumentError("dataset at $filename has no array variables"))
     else
-       return Raster(CFDiskArray(ds[key]), filename, key; source, kw...)
+       return Raster(CFVariable(ds[key]), filename, key; source, kw...)
     end
 end
 
@@ -218,13 +222,14 @@ function FileStack{source}(
 end
 
 function _open(f, ::Type{<:CDMsource}, ds::AbstractDataset; key=nothing, kw...)
-    x = key isa Nothing ? ds : CFDiskArray(ds[_firstkey(ds, key)])
+    x = key isa Nothing ? ds : CFVariable(ds[_firstkey(ds, key)])
     cleanreturn(f(x))
 end
-_open(f, ::Type{<:CDMsource}, var::CFDiskArray; kw...) = cleanreturn(f(var))
-# _open(f, ::Type{<:CDMsource}, var::CDM.CFVariable; kw...) = cleanreturn(f(CFDiskArray(var)))
+# _open(f, ::Type{<:CDMsource}, var::CDM.CFVariable; kw...) = cleanreturn(f(CFVariable(var)))
 
-cleanreturn(A::CFDiskArray) = Array(A)
+# Utils ########################################################################
+
+cleanreturn(A::CFVariable) = Array(A)
 
 # Utils ########################################################################
 
