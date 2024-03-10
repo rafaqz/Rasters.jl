@@ -29,11 +29,6 @@ import Adapt,
        Reexport,
        Setfield
 
-# This symbol is only defined on Julia versions that support extensions.
-@static if !isdefined(Base, :get_extension)
-    using Requires
-end
-
 Reexport.@reexport using DimensionalData, GeoFormatTypes
 
 using DimensionalData.Tables,
