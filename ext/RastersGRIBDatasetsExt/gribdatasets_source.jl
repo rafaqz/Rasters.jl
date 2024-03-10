@@ -1,7 +1,5 @@
 const GDS = GRIBDatasets
 
-RA.FileStack{GRIBsource}(ds::AbstractDataset, filename::AbstractString; write=false, keys) = RA.FileStack(GRIBsource, ds, filename; write, keys)
-
 function RA.OpenStack(fs::RA.FileStack{GRIBsource,K}) where K
     RA.OpenStack{GRIBsource,K}(GDS.GRIBDataset(RA.filename(fs)))
 end
@@ -14,3 +12,7 @@ function RA._open(f, ::Type{GRIBsource}, filename::AbstractString; write=false, 
     ds = GRIBDatasets.GRIBDataset(filename)
     RA._open(f, GRIBsource, ds; kw...)
 end
+
+# Hack to get the inner DiskArrays chunks as they are not exposed at the top level
+RA._get_eachchunk(var::GDS.Variable) = DiskArrays.eachchunk(var.values)
+RA._get_haschunks(var::GDS.Variable) = DiskArrays.haschunks(var.values)

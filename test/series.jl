@@ -1,5 +1,5 @@
 using Rasters, Test, Dates, DimensionalData
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
 # RasterSeries from Raster/RasterStack components

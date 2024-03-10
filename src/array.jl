@@ -251,7 +251,7 @@ function Raster(filename::AbstractString;
     source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
     _open(filename; source) do ds
         key = filekey(ds, key)
-        Raster(ds, filename, key; kw...)
+        Raster(ds, filename, key; source, kw...)
     end
 end
 function Raster(ds, filename::AbstractString, key=nothing;
@@ -265,7 +265,7 @@ function Raster(ds, filename::AbstractString, key=nothing;
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
     data = if lazy 
-        FileArray(ds, filename; key, write)
+        FileArray{source}(ds, filename; key, write)
     else
         _open(Array, source, ds; key)
     end

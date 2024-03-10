@@ -57,7 +57,7 @@ function combine(ser::AbstractRasterSeries{<:Any,N}) where N
         rD = map(d -> rebuild(d, :), DD.dims(r1))
         source = ser[sD...]
         if dest isa RasterStack
-            foreach(source, dest) do source_r, dest_r
+            foreach(layers(source), layers(dest)) do source_r, dest_r
                 view(dest_r, rD..., sD...) .= source_r
             end
         else

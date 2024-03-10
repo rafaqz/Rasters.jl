@@ -1,5 +1,5 @@
 using Rasters, Test, Statistics, Dates, Plots
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
 import ArchGDAL, NCDatasets, HDF5, CFTime
 using Rasters: layerkeys, SMAPsource, FileArray
 

@@ -17,13 +17,13 @@ are silently returned without modification.
 
 # Arguments
 
-- `obj`: a `LookupArray`, `Dimension`, `Tuple` of `Dimension`, `Raster` or `RasterStack`.
+- `obj`: a `Lookup`, `Dimension`, `Tuple` of `Dimension`, `Raster` or `RasterStack`.
 $CRS_KEYWORD
 """
 reproject(x; crs::GeoFormat) = reproject(crs, x)
 reproject(target::GeoFormat, x) = rebuild(x; dims=reproject(target, dims(x)))
 reproject(target::GeoFormat, dims::Tuple) = map(d -> reproject(target, d), dims)
-reproject(target::GeoFormat, l::LookupArray) = l
+reproject(target::GeoFormat, l::Lookup) = l
 reproject(target::GeoFormat, dim::Dimension) = rebuild(dim, reproject(target, lookup(dim)))
 function reproject(target::GeoFormat, l::AbstractProjected)
     source = crs(l)

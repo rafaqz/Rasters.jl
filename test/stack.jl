@@ -1,5 +1,5 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, ArchGDAL
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
@@ -22,11 +22,9 @@ ga2 = Raster(data2, dims2)
     st3 = RasterStack((data1, data2), dims2; keys=[:ga1, :ga2])
     st4 = RasterStack(st3)
     st5 = RasterStack(st3, dims2)
-    st6 = RasterStack(RasterStack(ga1)..., RasterStack(ga2)...; name=(:ga1, :ga2))
-    st7 = RasterStack(RasterStack(ga1; name=:ga1)..., RasterStack(ga2; name=:ga2)...)
-    st8 = RasterStack((; ga1, ga2))
-    st9 = RasterStack((ga1=data1, ga2=data2), dims2)
-    @test st1 == st2 == st3 == st4 == st5 == st6 == st7 == st8 == st9
+    st6 = RasterStack((ga1=data1, ga2=data2), dims2)
+    st7 = RasterStack((; ga1, ga2))
+    @test st1 == st2 == st3 == st4 == st5 == st6 == st7
 
     # The dimension differences are lost because the table
     # is tidy - every column is the same length
@@ -37,9 +35,9 @@ end
 st = RasterStack((ga1, ga2); name=(:ga1, :ga2))
 
 @testset "stack layers" begin
-    @test length(st) == 2
-    @test first(st) == ga1
-    @test last(st) == ga2
+    @test length(layers(st)) == 2
+    @test first(layers(st)) == ga1
+    @test last(layers(st)) == ga2
     @test DimensionalData.layers(st) isa NamedTuple
     @test st.ga1 == ga1
     @test st[:ga2] == ga2
@@ -49,8 +47,6 @@ st = RasterStack((ga1, ga2); name=(:ga1, :ga2))
     @test haskey(st, :ga1)
     @test names(st) == (:ga1, :ga2)
     @test collect(values(st)) == [ga1, ga2]
-    # We can iterate/splat stacks as GeArrays
-    @test st == RasterStack(st...)
 end
 
 @testset "st fields " begin
@@ -130,21 +126,21 @@ end
 @testset "concatenate stacks" begin
     dims1b = X(110:10:200), Y(-50:10:50)
     dims2b = (dims1b..., Ti([DateTime(2019)]))
-    stack_a = RasterStack((ga1=ga1, ga2=ga2))
-    stack_b = RasterStack((ga1=Raster(data1 .+ 10, dims1b), ga2=Raster(data2 .+ 20, dims2b)))
+    stack_a = RasterStack((l1=ga1, l2=ga2))
+    stack_b = RasterStack((l1=Raster(data1 .+ 10, dims1b), l2=Raster(data2 .+ 20, dims2b)))
     catstack = cat(stack_a, stack_b; dims=X)
-    @test size(first(catstack)) == (20, 11)
-    @test size(last(catstack)) == (20, 11, 1)
+    @test size(catstack.l1) == (20, 11)
+    @test size(catstack.l2) == (20, 11, 1)
     @test val(dims(catstack, X)) ≈ 10.0:10.0:200.0
     #@test step(dims(first(catstack), X())) == 10.0
-    @test DimensionalData.bounds(dims(first(catstack), X)) == (10.0, 200.0)
-    @test catstack[:ga1][Y(1)] == 1.0:20.0
-    @test catstack[:ga2][Y(1), Ti(1)] == 2.0:2.0:40.0
+    @test DimensionalData.bounds(dims(layers(catstack, 1), X)) == (10.0, 200.0)
+    @test catstack.l1[Y(1)] == 1.0:20.0
+    @test catstack.l2[Y(1), Ti(1)] == 2.0:2.0:40.0
     dims2c = (dims1b..., Ti([DateTime(2019)]))
     stack_c = set(stack_b, X=>110:10:200, Y=>60:10:160)
     catstack = cat(stack_a, stack_c; dims=(X, Y))
-    @test size(first(catstack)) == (20, 22)
-    @test size(last(catstack)) == (20, 22, 1)
+    @test size(catstack.l1) == (20, 22)
+    @test size(catstack.l2) == (20, 22, 1)
     @test dims(catstack) == 
         (X(Sampled(10:10.0:200, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
          Y(Sampled(-50:10.0:160, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),

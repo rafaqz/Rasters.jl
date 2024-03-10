@@ -30,7 +30,7 @@ missingval(stack::AbstractRasterStack) = getfield(stack, :missingval)
 filename(stack::AbstractRasterStack) = filename(parent(stack))
 missingval(s::AbstractRasterStack, key::Symbol) = _singlemissingval(missingval(s), key)
 
-isdisk(A::AbstractRasterStack) = isdisk(first(A))
+isdisk(st::AbstractRasterStack) = isdisk(layers(st, 1))
 
 setcrs(x::AbstractRasterStack, crs) = set(x, setcrs(dims(x), crs)...)
 setmappedcrs(x::AbstractRasterStack, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
@@ -178,7 +178,7 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
         mappedcrs = defaultmappedcrs(source, mappedcrs)
         _open(source, fn; key) do ds
             data = if lazy
-                FileArray(ds, fn; key)
+                FileArray{source}(ds, fn; key)
             else
                 _open(Array, source, ds; key)
             end

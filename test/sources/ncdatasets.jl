@@ -1,5 +1,5 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
 import ArchGDAL, NCDatasets
 using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name
 testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))
@@ -57,9 +57,9 @@ end
 
     @testset "from url" begin
         # TODO we need a permanent url here that doesn't end in .nc
-        # url = "http://apdrc.soest.hawaii.edu:80/dods/public_data/Reanalysis_Data/NCEP/NCEP2/daily/surface/mslp"
-        # r = Raster(url; name=:mslp, source=:netcdf, lazy=true)
-        # @test sum(r[Ti(1)]) == 1.0615972f9
+        url = "http://apdrc.soest.hawaii.edu:80/dods/public_data/Reanalysis_Data/NCEP/NCEP2/daily/surface/mslp"
+        r = Raster(url; name=:mslp, source=:netcdf, lazy=true)
+        @test sum(r[Ti(1)]) == 1.0615972f9
     end
 
     @testset "open" begin

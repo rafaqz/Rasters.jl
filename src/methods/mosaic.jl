@@ -182,19 +182,19 @@ function _mosaic(dims::Dimension...)
     end
     return rebuild(first(dims), _mosaic(lookup(dims)))
 end
-_mosaic(lookups::LookupArrayTuple) = _mosaic(first(lookups), lookups)
-function _mosaic(lookup::Categorical, lookups::LookupArrayTuple)
+_mosaic(lookups::LookupTuple) = _mosaic(first(lookups), lookups)
+function _mosaic(lookup::Categorical, lookups::LookupTuple)
     newindex = union(lookups...)
     if order isa ForwardOrdered
         newindex = sort(newindex; order=LA.ordering(order(lookup)))
     end
     return rebuild(lookup; data=newindex)
 end
-function _mosaic(lookup::AbstractSampled, lookups::LookupArrayTuple)
+function _mosaic(lookup::AbstractSampled, lookups::LookupTuple)
     order(lookup) isa Unordered && throw(ArgumentError("Cant mozaic an Unordered lookup"))
     return _mosaic(span(lookup), lookup, lookups)
 end
-function _mosaic(span::Regular, lookup::AbstractSampled, lookups::LookupArrayTuple)
+function _mosaic(span::Regular, lookup::AbstractSampled, lookups::LookupTuple)
     newindex = if order(lookup) isa ForwardOrdered
         mi = minimum(map(first, lookups))
         ma = maximum(map(last, lookups))
@@ -217,11 +217,11 @@ function _mosaic(span::Regular, lookup::AbstractSampled, lookups::LookupArrayTup
     return rebuild(lookup; data=newindex)
 end
 
-function _mosaic(::Irregular, lookup::AbstractSampled, lookups::LookupArrayTuple)
+function _mosaic(::Irregular, lookup::AbstractSampled, lookups::LookupTuple)
     newindex = sort(union(map(parent, lookups)...); order=LA.ordering(order(lookup)))
     return rebuild(lookup; data=newindex)
 end
-function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::LookupArrayTuple)
+function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::LookupTuple)
     # TODO make this less fragile to floating point innaccuracy
     newindex = sort(union(map(parent, lookups)...); order=LA.ordering(order(lookup)))
     bounds = map(val ∘ DD.span, lookups)

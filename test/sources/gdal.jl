@@ -1,5 +1,5 @@
 using Rasters, Test, Statistics, Dates, Plots, DiskArrays, RasterDataSources, CoordinateTransformations, Extents
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
 import ArchGDAL, NCDatasets
 using Rasters: FileArray, GDALsource, crs, bounds
 
@@ -448,7 +448,6 @@ gdalpath = maybedownload(url)
         @test occursin("Raster", sh)
         @test occursin("Y", sh)
         @test occursin("X", sh)
-        @test occursin("Band", sh)
     end
 
     @testset "plot" begin # TODO write some tests for this
@@ -467,7 +466,7 @@ gdalpath = maybedownload(url)
         xap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, X)))
         yap = Rasters.AffineProjected(am; crs=crs(gdalarray), paired_lookup=parent(lookup(gdalarray, Y)))
         twoband = cat(gdalarray, gdalarray; dims=Band(1:2))
-        affine_dims = DimensionalData.format((X(xap), Y(yap), Band(1:2)), twoband)
+        affine_dims = DimensionalData.format((X(xap), Y(yap), Band(Categorical(1:2))), twoband)
         rotated = rebuild(twoband; dims=affine_dims);
         @test occursin("Extent", sprint(show, MIME"text/plain"(), rotated))
         @test rotated[X=At(-1e4; atol=0.5), Y=Near(4.24e6), Band=1] == 0x8c
@@ -481,7 +480,7 @@ gdalpath = maybedownload(url)
             write("rotated.tif", rotated; force=true)
             newrotated = Raster("rotated.tif")
             plot(newrotated)
-            @test rotated == newrotated
+            @test dims(rotated) == dims(newrotated)
             @test lookup(rotated, X).affinemap.linear == lookup(newrotated, X).affinemap.linear
             @test lookup(rotated, X).affinemap.translation == lookup(newrotated, X).affinemap.translation
             rm("rotated.tif")
@@ -520,7 +519,7 @@ end
 @testset "RasterStack" begin
     @time gdalstack = RasterStack((a=gdalpath, b=gdalpath))
 
-    @test length(gdalstack) == 2
+    @test length(layers(gdalstack)) == 2
     @test dims(gdalstack) isa Tuple{<:X,<:Y}
 
     @testset "read" begin

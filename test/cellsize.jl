@@ -1,4 +1,4 @@
-using Rasters, Rasters.LookupArrays, ArchGDAL
+using Rasters, Rasters.Lookups, ArchGDAL
 using Test
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))

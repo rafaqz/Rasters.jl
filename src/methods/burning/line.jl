@@ -81,8 +81,8 @@ function _burn_line!(A::AbstractRaster, line, fill)
         """
     all(regular) || throw(ArgumentError(msg))
 
-    @assert order(xdim) == order(ydim) == LookupArrays.ForwardOrdered()
-    @assert locus(xdim) == locus(ydim) == LookupArrays.Center()
+    @assert order(xdim) == order(ydim) == Lookups.ForwardOrdered()
+    @assert locus(xdim) == locus(ydim) == Lookups.Center()
 
     raster_x_step = abs(step(span(A, X)))
     raster_y_step = abs(step(span(A, Y)))

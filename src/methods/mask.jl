@@ -252,7 +252,7 @@ function boolmask(stack::AbstractRasterStack; alllayers = true, to = dims(stack)
     if alllayers
         _mask_multilayer(stack, to; kw..., _dest_missingval = false)
     else
-        boolmask(first(stack); kw...)
+        boolmask(layers(stack, 1); kw...)
     end
 end
 
@@ -345,7 +345,7 @@ function missingmask(stack::AbstractRasterStack; alllayers = true, to = dims(sta
     if alllayers
         _mask_multilayer(stack, to; kw..., _dest_missingval = missing)
     else
-        missingmask(first(stack); kw...)
+        missingmask(layers(stack, 1); kw...)
     end
 end
 
