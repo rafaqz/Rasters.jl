@@ -112,6 +112,7 @@ function missingval(grd::GRDattrib{T}) where T
     end
 end
 
+_sizeof(A::GRDattrib{T}) where T = sizeof(T) * prod(size(A))
 
 Base.eltype(::GRDattrib{T}) where T = T
 
