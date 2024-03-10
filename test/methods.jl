@@ -1,6 +1,6 @@
 using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
 import GeoInterface
-using Rasters.LookupArrays, Rasters.Dimensions 
+using Rasters.Lookups, Rasters.Dimensions 
 using Rasters: bounds
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
@@ -529,7 +529,7 @@ end
     A1 = Raster(ones(2, 2, 2), (X(2.0:-1.0:1.0), Y(5.0:1.0:6.0), Ti(DateTime(2001):Year(1):DateTime(2002))))
     A2 = Raster(zeros(2, 2, 2), (X(3.0:-1.0:2.0), Y(4.0:1.0:5.0), Ti(DateTime(2002):Year(1):DateTime(2003))))
     @test all(mosaic(mean, A1, A2) |> parent .=== 
-              first(mosaic(mean, RasterStack(A1), RasterStack(A2))) .===
+              mosaic(mean, RasterStack(A1), RasterStack(A2)).layer1 .===
               cat([missing missing missing
                    missing 1.0     1.0
                    missing 1.0     1.0    ],

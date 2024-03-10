@@ -13,8 +13,8 @@ function Adapt.adapt_structure(to, l::AbstractProjected)
     return Adapt.adapt_structure(to, sampled)
 end
 
-GeoInterface.crs(lookup::LookupArray) = nothing
-mappedcrs(lookup::LookupArray) = nothing
+GeoInterface.crs(lookup::Lookup) = nothing
+mappedcrs(lookup::Lookup) = nothing
 
 # When the lookup is formatted with an array we match the `dim` field with the
 # wrapper dimension. We will need this later for e.g. projecting with GDAL,
@@ -35,7 +35,7 @@ end
     Projected(order, span, sampling, crs, mappedcrs)
     Projected(; order=AutoOrder(), span=AutoSpan(), sampling=AutoSampling(), crs, mappedcrs=nothing)
 
-An [`AbstractSampled`]($DDabssampleddocs) `LookupArray` with projections attached.
+An [`AbstractSampled`]($DDabssampleddocs) `Lookup` with projections attached.
 
 Fields and behaviours are identical to [`Sampled`]($DDsampleddocs)
 with the addition of `crs` and `mappedcrs` fields.
@@ -100,7 +100,7 @@ end
     Mapped(order, span, sampling, crs, mappedcrs)
     Mapped(; order=AutoOrder(), span=AutoSpan(), sampling=AutoSampling(), crs=nothing, mappedcrs)
 
-An [`AbstractSampled`]($DDabssampleddocs) `LookupArray`, where the dimension index has
+An [`AbstractSampled`]($DDabssampleddocs) `Lookup`, where the dimension index has
 been mapped to another projection, usually lat/lon or `EPSG(4326)`.
 `Mapped` matches the dimension format commonly used in netcdf files.
 
@@ -138,19 +138,19 @@ mappedcrs(lookup::Mapped) = lookup.mappedcrs
 dim(lookup::Mapped) = lookup.dim
 
 """
-    convertlookup(dstlookup::Type{<:LookupArray}, x)
+    convertlookup(dstlookup::Type{<:Lookup}, x)
 
 Convert the dimension lookup between `Projected` and `Mapped`.
 Other dimension lookups pass through unchanged.
 
 This is used to e.g. save a netcdf file to GeoTiff.
 """
-convertlookup(T::Type{<:LookupArray}, A::AbstractDimArray) =
+convertlookup(T::Type{<:Lookup}, A::AbstractDimArray) =
     rebuild(A; dims=convertlookup(T, dims(A)))
-convertlookup(T::Type{<:LookupArray}, dims::Tuple) = map(d -> convertlookup(T, d), dims)
-convertlookup(T::Type{<:LookupArray}, d::Dimension) = rebuild(d, convertlookup(T, lookup(d)))
-# Non-projected LookupArray lookupss pass through
-convertlookup(::Type, lookup::LookupArray) = lookup
+convertlookup(T::Type{<:Lookup}, dims::Tuple) = map(d -> convertlookup(T, d), dims)
+convertlookup(T::Type{<:Lookup}, d::Dimension) = rebuild(d, convertlookup(T, lookup(d)))
+# Non-projected Lookup lookupss pass through
+convertlookup(::Type, lookup::Lookup) = lookup
 # AbstractProjected passes through if it's the same as dstlookup
 convertlookup(::Type{T1}, lookup::T2) where {T1,T2<:T1} = lookup
 # Otherwise AbstractProjected needs ArchGDAL
@@ -210,7 +210,7 @@ function mappedbounds end
 
 mappedbounds(dims::Tuple) = map(mappedbounds, dims)
 mappedbounds(dim::Dimension) = mappedbounds(parent(dim), dim)
-mappedbounds(::LookupArray, dim) = bounds(dim)
+mappedbounds(::Lookup, dim) = bounds(dim)
 mappedbounds(lookup::Projected, dim) = mappedbounds(mappedcrs(lookup), lookup, dim)
 mappedbounds(mappedcrs::Nothing, lookup::Projected, dim) =
     error("No mappedcrs attached to $(name(dim)) dimension")
@@ -219,7 +219,7 @@ mappedbounds(mappedcrs::GeoFormat, lookup::Projected, dim) =
 
 projectedbounds(dims::Tuple) = map(projectedbounds, dims)
 projectedbounds(dim::Dimension) = projectedbounds(parent(dim), dim)
-projectedbounds(::LookupArray, dim) = bounds(dim)
+projectedbounds(::Lookup, dim) = bounds(dim)
 projectedbounds(lookup::Mapped, dim) = projectedbounds(crs(lookup), lookup, dim)
 projectedbounds(crs::Nothing, lookup::Mapped, dim) =
     error("No projection crs attached to $(name(dim)) dimension")
@@ -240,7 +240,7 @@ function mappedindex end
 mappedindex(dims::Tuple) = map(mappedindex, dims)
 mappedindex(dim::Dimension) = _mappedindex(parent(dim), dim)
 
-_mappedindex(::LookupArray, dim::Dimension) = index(dim)
+_mappedindex(::Lookup, dim::Dimension) = index(dim)
 _mappedindex(lookup::Projected, dim::Dimension) = _mappedindex(mappedcrs(lookup), lookup, dim)
 _mappedindex(mappedcrs::Nothing, lookup::Projected, dim) =
     error("No mappedcrs attached to $(name(dim)) dimension")
@@ -250,7 +250,7 @@ _mappedindex(mappedcrs::GeoFormat, lookup::Projected, dim) =
 projectedindex(dims::Tuple) = map(projectedindex, dims)
 projectedindex(dim::Dimension) = _projectedindex(parent(dim), dim)
 
-_projectedindex(::LookupArray, dim::Dimension) = index(dim)
+_projectedindex(::Lookup, dim::Dimension) = index(dim)
 _projectedindex(lookup::Mapped, dim::Dimension) = _projectedindex(crs(lookup), lookup, dim)
 _projectedindex(crs::Nothing, lookup::Mapped, dim::Dimension) =
     error("No projection crs attached to $(name(dim)) dimension")

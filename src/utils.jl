@@ -46,7 +46,7 @@ end
 
 # We often need to convert the locus and the lookup in the same step,
 # as doing it in the wrong order can give errors.
-# function convert_locus_lookup(M1::Type{<:LookupArray}, L1::Type{<:Locus}, dim::Dimension)
+# function convert_locus_lookup(M1::Type{<:Lookup}, L1::Type{<:Locus}, dim::Dimension)
 #     _convert(S1, L1, sampling(dim), locus(dim), span(dim), dim)
 # end
 
@@ -203,9 +203,6 @@ const WINDOWSREGEX = r"^[a-zA-Z]:[\\]"
 const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
 
 _isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)
-
-_checkbounds(A::AbstractRasterStack, I...) = checkbounds(Bool, first(A), I...)
-_checkbounds(A::AbstractRaster, I...) = checkbounds(Bool, A, I...)
 
 # Run `f` threaded or not, w
 function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String) 

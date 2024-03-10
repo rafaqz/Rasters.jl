@@ -1,5 +1,5 @@
 using Rasters, Test
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
 
 @testset "set"  begin
     A = [missing 7; 2 missing]

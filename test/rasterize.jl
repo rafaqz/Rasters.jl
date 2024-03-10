@@ -1,6 +1,6 @@
 using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
 import GeoInterface
-using Rasters.LookupArrays, Rasters.Dimensions 
+using Rasters.Lookups, Rasters.Dimensions 
 using Rasters: bounds
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
@@ -192,7 +192,7 @@ end
         end
         @testset "NamedTuple of value fill makes a stack" begin
             rst = rasterize(sum, data; to=A, fill=(fill1=3, fill2=6.0f0))
-            @test eltype(rst) == (fill1=Union{Missing,Int64}, fill2=Union{Missing,Float32})
+            @test eltype(rst) == @NamedTuple{fill1::Union{Missing,Int64}, fill2::Union{Missing,Float32}}
             @test keys(rst) == (:fill1, :fill2)
             @test dims(rst) == dims(A)
             @test map(sum ∘ skipmissing, rst) === (fill1=15, fill2=30.0f0)
@@ -399,12 +399,12 @@ end
             (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1 * 2 + 4 * 2 * 3 + 4 * 3 * 4)
 
         prod_st = rasterize(prod, polygons; res=5, fill=(a=1:4, b=4:-1:1), missingval=missing, boundary=:center, threaded)
-        @test all(prod_st.a .=== rot180(prod_st.b))
+        @test all(prod_st.a .=== rot180(parent(prod_st.b)))
         @test all(prod_r .=== prod_st.a)
         prod_r_m = rasterize(prod, polygons; res=5, fill=1:4, missingval=-1, boundary=:center, threaded)
         prod_st_m = rasterize(prod, polygons; res=5, fill=(a=1:4, b=4.0:-1.0:1.0), missingval=(a=-1, b=-1.0), boundary=:center, threaded)
         @test all(prod_st_m.a .=== prod_r_m)
-        @test all( prod_st_m.b .=== rot180(Float64.(prod_r_m)))
+        @test all(prod_st_m.b .=== rot180(parent(Float64.(prod_r_m))))
 
         r = rasterize(last, polygons; res=5, fill=(a=1, b=2), boundary=:center, threaded)
         @test all(r.a .* 2 .=== r.b)

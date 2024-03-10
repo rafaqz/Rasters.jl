@@ -1,5 +1,5 @@
 using Rasters, Test, Statistics, Dates, Plots
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
 import NCDatasets, ArchGDAL
 using Rasters: FileArray, GRDsource, GDALsource, metadata
 
@@ -291,7 +291,7 @@ end
         @test parent(eagerstack[:a]) isa Array
     end
 
-    @test length(grdstack) == 2
+    @test length(layers(grdstack)) == 2
     @test dims(grdstack) isa Tuple{<:X,<:Y,<:Band}
 
     @testset "read" begin
@@ -358,7 +358,7 @@ end
     @test keys(RasterStack(grdpath)) == (Symbol("red:green:blue"),)
     grdstack = RasterStack(grdpath; layersfrom=Band)
 
-    @test length(grdstack) == 3
+    @test length(layers(grdstack)) == 3
     @test dims(grdstack) isa Tuple{<:X,<:Y}
 
     @testset "read" begin

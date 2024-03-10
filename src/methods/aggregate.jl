@@ -83,7 +83,7 @@ function aggregate(method, src::AbstractRaster, scale;
     aggregate!(method, dst, src, scale; kw...)
 end
 aggregate(method, d::Dimension, scale) = rebuild(d, aggregate(method, lookup(d), scale))
-function aggregate(method, lookup::LookupArray, scale)
+function aggregate(method, lookup::Lookup, scale)
     intscale = _scale2int(Ag(), lookup, scale)
     intscale == 1 && return lookup
     start, stop = _endpoints(method, lookup, intscale)
@@ -223,7 +223,7 @@ end
 function disaggregate(locus::Locus, dim::Dimension, scale)
     rebuild(dim, disaggregate(locus, lookup(dim), scale))
 end
-function disaggregate(locus, lookup::LookupArray, scale)
+function disaggregate(locus, lookup::Lookup, scale)
     intscale = _scale2int(DisAg(), lookup, scale)
     intscale == 1 && return lookup
 
@@ -329,17 +329,17 @@ end
 _scale2int(x, dims::DimTuple, scale::Int) = map(d -> _scale2int(x, d, scale), dims)
 _scale2int(x, dims::DimTuple, scale::Colon) = map(d -> _scale2int(x, d, scale), dims)
 _scale2int(x, dim::Dimension, scale::Int) = _scale2int(x, lookup(dim), scale)
-_scale2int(::Ag, l::LookupArray, scale::Int) = scale > length(l) ? length(l) : scale
-_scale2int(::DisAg, l::LookupArray, scale::Int) = scale
+_scale2int(::Ag, l::Lookup, scale::Int) = scale > length(l) ? length(l) : scale
+_scale2int(::DisAg, l::Lookup, scale::Int) = scale
 _scale2int(x, dim::Dimension, scale::Colon) = 1
 
-_agoffset(locus::Locus, l::LookupArray, scale) = _agoffset(locus, scale)
-_agoffset(method, l::LookupArray, scale) = _agoffset(locus(l), scale)
+_agoffset(locus::Locus, l::Lookup, scale) = _agoffset(locus, scale)
+_agoffset(method, l::Lookup, scale) = _agoffset(locus(l), scale)
 _agoffset(locus::Start, scale) = 0
 _agoffset(locus::End, scale) = scale - 1
 _agoffset(locus::Center, scale) = scale ÷ 2
 
-function _endpoints(method, l::LookupArray, scale)
+function _endpoints(method, l::Lookup, scale)
     start = firstindex(l) + _agoffset(method, l, scale)
     stop = (length(l) ÷ scale) * scale
     return start, stop

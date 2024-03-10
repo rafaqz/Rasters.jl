@@ -1,39 +1,51 @@
 
-function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractRaster)
-
-    printstyled(io, "extent: "; color=:light_black)
-    show(io, mime, Extents.extent(A))
-    println()
-    if missingval(A) !== nothing
-        printstyled(io, "missingval: "; color=:light_black)
-        show(io, mime, missingval(A))
-        println()
-    end
-    if crs(A) !== nothing
-        printstyled(io, "crs: "; color=:light_black)
-        print(io, convert(String, crs(A)), "\n")
-    end
-    if mappedcrs(A) !== nothing
-        printstyled(io, "mappedcrs: "; color=:light_black)
-        print(io, convert(String, mappedcrs(A)), "\n")
-    end
+function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractRaster; kw...)
+    blockwidth = get(io, :blockwidth, 0)
+    print_geo(io, mime, A; blockwidth)
+    DD.print_block_close(io, blockwidth)
+    ndims(A) > 0 && println(io)
     if parent(A) isa DiskArrays.AbstractDiskArray 
         if parent(A) isa FileArray 
             printstyled(io, "from file:\n"; color=:light_black)
             print(io, filename(parent(A)))
+        else
+            show(io, mime, parent(A))
         end
     else
-        printstyled(io, "parent:\n"; color=:light_black)
         DD.print_array(io, mime, A)
     end
 end
 
-function DD.show_after(io, mime, stack::AbstractRasterStack) 
+function DD.show_after(io, mime, stack::AbstractRasterStack; kw...) 
+    blockwidth = get(io, :blockwidth, 0)
+    print_geo(io, mime, stack; blockwidth)
     if parent(stack) isa FileStack 
         printstyled(io, "from file:\n"; color=:light_black)
         println(io, filename(stack))
     end
+    DD.print_block_close(io, blockwidth)
 end
+
+function print_geo(io, mime, A; blockwidth) 
+    DD.print_block_separator(io, "raster", blockwidth)
+    printstyled(io, "\n  extent: "; color=:light_black)
+    show(io, mime, Extents.extent(A))
+    println(io)
+    if missingval(A) !== nothing
+        printstyled(io, "  missingval: "; color=:light_black)
+        show(io, mime, missingval(A))
+    end
+    if crs(A) !== nothing
+        printstyled(io, "\n  crs: "; color=:light_black)
+        print(io, convert(String, crs(A)))
+    end
+    if mappedcrs(A) !== nothing
+        printstyled(io, "\n  mappedcrs: "; color=:light_black)
+        print(io, convert(String, mappedcrs(A)))
+    end
+    println(io)
+end
+
 
 # Stack types can be enourmous. Just use nameof(T)
 function Base.summary(io::IO, ser::AbstractRasterSeries{T,N}) where {T,N}
@@ -57,19 +69,4 @@ function Base.show(io::IO, mime::MIME"text/plain", A::AbstractRasterSeries{T,N})
     println(io)
     ds = displaysize(io)
     ioctx = IOContext(io, :displaysize => (ds[1] - lines, ds[2]))
-end
-
-function LA.show_properties(io::IO, lookup::AbstractProjected)
-    print(io, " ")
-    LA.print_order(io, lookup)
-    print(io, " ")
-    LA.print_span(io, lookup)
-    print(io, " ")
-    LA.print_sampling(io, lookup)
-    if !(crs(lookup) isa Nothing)
-        print(io, " crs: ", nameof(typeof(crs(lookup))))
-    end
-    if !(mappedcrs(lookup) isa Nothing)
-        print(io, " mappedcrs: ", nameof(typeof(mappedcrs(lookup))))
-    end
 end

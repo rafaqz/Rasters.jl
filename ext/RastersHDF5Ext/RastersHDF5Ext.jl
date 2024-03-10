@@ -17,7 +17,7 @@ using Dates,
     GeoInterface,
     Rasters
 
-using Rasters.LookupArrays
+using Rasters.Lookups
 using Rasters.Dimensions
 using Rasters: SMAPsource
 
@@ -27,7 +27,7 @@ const RA = Rasters
 const DD = DimensionalData
 const DA = DiskArrays
 const GI = GeoInterface
-const LA = LookupArrays
+const LA = Lookups
 
 include("smap_source.jl")
 

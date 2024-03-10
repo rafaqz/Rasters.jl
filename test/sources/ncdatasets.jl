@@ -1,5 +1,5 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
 import ArchGDAL, NCDatasets
 using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name
 testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))

@@ -56,11 +56,13 @@ _open(f, ::Type{<:CDMsource}, var::CFVariable; kw...) = cleanreturn(f(var))
 # We have to dig down to find the chunks as they are not immplemented
 # properly in the source packages, but they are in their internal objects.
 # We just make it work here even though it doesn't work in NCDatasets.jl or GRIBDatasets.jl
-DiskArrays.eachchunk(var::CFVariable) = _get_eachchunk(var.var.var)
-DiskArrays.haschunks(var::CFVariable) = _get_haschunks(var.var.var)
+DiskArrays.eachchunk(var::CFVariable) = _get_eachchunk(var)
+DiskArrays.haschunks(var::CFVariable) = _get_haschunks(var)
 
-function _get_eachchunk end
-function _get_haschunks end
+_get_eachchunk(var::CFVariable) = _get_eachchunk(var.var)
+_get_eachchunk(var::CDM.CFVariable) = _get_eachchunk(var.var)
+_get_haschunks(var::CFVariable) = _get_haschunks(var.var)
+_get_haschunks(var::CDM.CFVariable) = _get_haschunks(var.var)
 
 # CommonDataModel.jl methods
 for method in (:size, :name, :dimnames, :dataset, :attribnames)
@@ -140,9 +142,8 @@ function DD.dims(ds::AbstractDataset, crs=nothing, mappedcrs=nothing)
     end |> Tuple
 end
 function DD.dims(var::AbstractVariable, crs=nothing, mappedcrs=nothing)
-    names = CDM.dimnames(var)
-    map(names) do name
-        _cdmdim(_dataset(var), name, crs, mappedcrs)
+    map(CDM.dimnames(var)) do key
+        _cdmdim(_dataset(var), key, crs, mappedcrs)
     end |> Tuple
 end
 
@@ -211,7 +212,7 @@ function FileStack{source}(
     keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
     type_size_ec_hc = map(keys) do key
         var = ds[string(key)]
-        Union{Missing,eltype(var)}, size(var), _cdm_eachchunk(var), _cdm_haschunks(var)
+        Union{Missing,eltype(var)}, size(var), _get_eachchunk(var), _get_haschunks(var)
     end
     layertypes = map(x->x[1], type_size_ec_hc)
     layersizes = map(x->x[2], type_size_ec_hc)
@@ -241,14 +242,15 @@ function _cdmdim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
     else
         # The var doesn't exist. Maybe its `complex` or some other marker,
         # so make it a custom `Dim` with `NoLookup`
-        len = _ncfinddimlen(ds, dimname)
+        len = _cdmfinddimlen(ds, dimname)
         len === nothing && _unuseddimerror()
         lookup = NoLookup(Base.OneTo(len))
-        return Dim{Symbol(dimname)}(lookup)
+        D = _cdmdimtype(NoMetadata(), dimname)
+        return D(lookup)
     end
 end
 
-function _ncfinddimlen(ds, dimname)
+function _cdmfinddimlen(ds, dimname)
     for key in keys(ds)
         var = ds[key]
         dimnames = CDM.dimnames(var)
@@ -281,7 +283,7 @@ function _cdmdimtype(attrib, dimname)
 end
 
 # _cdmlookup
-# Generate a `LookupArray` from a netcdf dim.
+# Generate a `Lookup` from a netcdf dim.
 function _cdmlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs)
     dvar = ds[dimname]
     index = dvar[:]
@@ -412,7 +414,7 @@ _cdm_set_axis_attrib!(atr, dim::Ti) = (atr["axis"] = "T"; atr["standard_name"] =
 _cdm_set_axis_attrib!(atr, dim) = nothing
 
 _cdmshiftlocus(dim::Dimension) = _cdmshiftlocus(lookup(dim), dim)
-_cdmshiftlocus(::LookupArray, dim::Dimension) = dim
+_cdmshiftlocus(::Lookup, dim::Dimension) = dim
 function _cdmshiftlocus(lookup::AbstractSampled, dim::Dimension)
     if span(lookup) isa Regular && sampling(lookup) isa Intervals
         # We cant easily shift a DateTime value
@@ -430,18 +432,3 @@ function _cdmshiftlocus(lookup::AbstractSampled, dim::Dimension)
 end
 
 _unuseddimerror(dimname) = error("Dataset contains unused dimension $dimname")
-
-function _cdm_eachchunk(var)
-    # chunklookup, chunkvec = NCDatasets.chunking(var)
-    # chunksize = chunklookup == :chunked ? Tuple(chunkvec) :
-    chunksize = size(var)
-    DA.GridChunks(var, chunksize)
-end
-
-function _cdm_haschunks(var)
-    # chunklookup, _ = NCDatasets.chunking(var)
-    # chunklookup == :chunked ? DA.Chunked() :
-    DA.Unchunked()
-end
-
-

@@ -171,7 +171,7 @@ Run `using ArchGDAL` to make this method available.
 ## Example
 
 ```julia
-using Rasters, ArchGDAL, Rasters.LookupArrays
+using Rasters, ArchGDAL, Rasters.Lookups
 dimz = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), order=ForwardOrdered(), span=Regular(10.0), crs=EPSG(4326))),
        Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), order=ForwardOrdered(), span=Regular(10.0), crs=EPSG(4326)))
 

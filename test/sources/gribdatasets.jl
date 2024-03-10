@@ -1,6 +1,6 @@
 using Rasters, Test, GRIBDatasets
 using Rasters: FileArray, CDMsource
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
 using Statistics
 using Dates
 

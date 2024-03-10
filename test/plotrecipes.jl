@@ -24,7 +24,7 @@ plot(ga4x[X(At(0.0))])
 heatmap(ga4x[X(At(0.0)), Y(At(0.0))])
 # Cant plot 4d
 @test_throws ErrorException plot(ga4x)
-# 3d plot by NoLookupArray X dim
+# 3d plot by NoLookup X dim
 
 @test_broken plot(ga4x[Y(1)])
 # 3d plot by Ti dim

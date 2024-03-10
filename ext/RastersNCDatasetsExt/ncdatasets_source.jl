@@ -23,7 +23,7 @@ function Base.write(filename::AbstractString, ::Type{<:CDMsource}, A::AbstractRa
     mode  = !isfile(filename) || !append ? "c" : "a";
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(A)))
     try
-        _cdmwritevar!(ds, A; kw...)
+        _writevar!(ds, A; kw...)
     finally
         close(ds)
     end
@@ -65,7 +65,7 @@ function Base.write(filename::AbstractString, ::Type{<:CDMsource}, s::AbstractRa
     mode  = !isfile(filename) || !append ? "c" : "a";
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
     try
-        map(key -> _cdmwritevar!(ds, s[key]), keys(s); kw...)
+        map(key -> _writevar!(ds, s[key]), keys(s); kw...)
     finally
         close(ds)
     end
@@ -86,7 +86,7 @@ function RA._open(f, ::Type{NCDsource}, filename::AbstractString; write=false, k
 end
 
 # Add a var array to a dataset before writing it.
-function _cdmwritevar!(ds::AbstractDataset, A::AbstractRaster{T,N}; kw...) where {T,N}
+function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N}; kw...) where {T,N}
     _def_dim_var!(ds, A)
     attrib = RA._attribdict(metadata(A))
     # Set _FillValue

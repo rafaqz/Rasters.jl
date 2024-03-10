@@ -1,6 +1,6 @@
 using Rasters, ArchGDAL, GeoInterface, Extents
 using Test
-using Rasters.LookupArrays
+using Rasters.Lookups
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
