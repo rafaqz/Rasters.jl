@@ -267,7 +267,10 @@ function Raster(ds, filename::AbstractString, key=nothing;
     data = if lazy 
         FileArray{source}(ds, filename; key, write)
     else
-        _open(Array, source, ds; key)
+        _open(source, ds; key) do A
+            _checkmem(A)
+            Array(A)
+        end
     end
     raster =  Raster(data, dims, refdims, name, metadata, missingval)
     return dropband ? _drop_single_band(raster, lazy) : raster
