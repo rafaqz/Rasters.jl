@@ -4,14 +4,7 @@ function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractRaster; kw...)
     print_geo(io, mime, A; blockwidth)
     DD.print_block_close(io, blockwidth)
     ndims(A) > 0 && println(io)
-    if parent(A) isa DiskArrays.AbstractDiskArray 
-        if parent(A) isa FileArray 
-            printstyled(io, "from file:\n"; color=:light_black)
-            print(io, filename(parent(A)))
-        else
-            show(io, mime, parent(A))
-        end
-    else
+    if !(parent(A) isa DiskArrays.AbstractDiskArray)
         DD.print_array(io, mime, A)
     end
 end
@@ -19,10 +12,6 @@ end
 function DD.show_after(io, mime, stack::AbstractRasterStack; kw...) 
     blockwidth = get(io, :blockwidth, 0)
     print_geo(io, mime, stack; blockwidth)
-    if parent(stack) isa FileStack 
-        printstyled(io, "from file:\n"; color=:light_black)
-        println(io, filename(stack))
-    end
     DD.print_block_close(io, blockwidth)
 end
 
@@ -42,6 +31,10 @@ function print_geo(io, mime, A; blockwidth)
     if mappedcrs(A) !== nothing
         printstyled(io, "\n  mappedcrs: "; color=:light_black)
         print(io, convert(String, mappedcrs(A)))
+    end
+    if isdisk(A)
+        printstyled(io, "\n  filename: "; color=:light_black)
+        print(io, filename(A))
     end
     println(io)
 end

@@ -72,7 +72,8 @@ function DD.rebuild(A::AbstractRaster;
 end
 
 function DD.modify(f, A::AbstractRaster)
-    newdata = if isdisk(A) 
+    # Have to avoid calling `open` on CFDiskArray
+    newdata = if isdisk(A) && !(parent(A) isa CFDiskArray)
         open(A) do O
             f(parent(O))
         end

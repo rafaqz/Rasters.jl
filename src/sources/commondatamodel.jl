@@ -34,6 +34,9 @@ const CDM_STANDARD_NAME_MAP = Dict(
 struct CFDiskArray{T,N,TV,TA,TSA} <: DiskArrays.AbstractDiskArray{T,N}
     var::CDM.CFVariable{T,N,TV,TA,TSA}
 end
+DD.dims(var::CFDiskArray, args...) = dims(parent(var), args...)
+FileArray{source}(var::CFDiskArray, filename::AbstractString; kw...) where source =
+    FileArray{source}(parent(var), filename; kw...)
 
 # Base methods
 Base.parent(A::CFDiskArray) = A.var
@@ -82,7 +85,10 @@ _dataset(var::AbstractVariable) = CDM.dataset(var)
 
 # Raster ########################################################################
 
-function Raster(ds::AbstractDataset, filename::AbstractString, key=nothing; source=nothing, kw...)
+# This is usually called on an open stack inside a closure
+function Raster(ds::AbstractDataset, filename::AbstractString, key=nothing; 
+    source=nothing, kw...
+)
     source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
     if isnothing(key)
         # Find the first valid variable
