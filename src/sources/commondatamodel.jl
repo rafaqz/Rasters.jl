@@ -31,7 +31,7 @@ const CDM_STANDARD_NAME_MAP = Dict(
     "time" => Ti,
 )
 
-struct CFDiskArray{T,N,TV,TA,TSA} <: AbstractDiskArray{T,N}
+struct CFDiskArray{T,N,TV,TA,TSA} <: DiskArrays.AbstractDiskArray{T,N}
     var::CDM.CFVariable{T,N,TV,TA,TSA}
 end
 
