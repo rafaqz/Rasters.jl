@@ -270,7 +270,7 @@ function Raster(ds, filename::AbstractString, key=nothing;
     else
         _open(Array, source, ds; key)
     end
-    raster =  Raster(data, dims, refdims, name, metadata, missingval)
+    raster = Raster(data, dims, refdims, name, metadata, missingval)
     return dropband ? _drop_single_band(raster, lazy) : raster
 end
 
