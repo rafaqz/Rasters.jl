@@ -38,7 +38,7 @@ end
 
 attrib(grd::GRDattrib) = grd.attrib
 filename(grd::GRDattrib) = grd.filename
-filekey(grd::GRDattrib, key::Nothing) = get(attrib(grd), "layername", Symbol(""))
+filekey(grd::GRDattrib, key::NoKW) = get(attrib(grd), "layername", Symbol(""))
 
 function _dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     attrib = grd.attrib
@@ -142,15 +142,24 @@ end
 # Base methods
 
 """
-    Base.write(filename::AbstractString, ::Type{GRDsource}, s::AbstractRaster; force=false)
+    Base.write(filename::AbstractString, ::Type{GRDsource}, s::AbstractRaster; kw...)
 
-Write a `Raster` to a .grd file with a .gri header file. 
-The extension of `filename` will be ignored.
+Write a `Raster` to a .grd file with a .gri header file.
 
-Returns `filename`.
+This method is called automatically if you `write` a `Raster` 
+with a `.grd` or `.gri` extension. 
+
+## Keywords 
+
+$FORCE_KEYWORD
+
+If this method is called directly the extension of `filename` will be ignored.
+
+Returns the base of `filename` with a `.grd` extension.
 """
 function Base.write(filename::String, ::GRDsource, A::AbstractRaster; 
-    force=false, verbose=true, kw...
+    force=false, 
+    kw...
 )
     check_can_write(filename, force)
     A = _maybe_use_type_missingval(A, GRDsource())
@@ -220,7 +229,6 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
         )
     end
 end
-
 
 function create(filename, ::GRDsource, T::Type, dims::DD.DimTuple; 
     name="layer", metadata=nothing, missingval=nothing, keys=(name,), lazy=true, 

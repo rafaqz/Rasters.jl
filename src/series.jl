@@ -99,13 +99,11 @@ When loading a series from a Vector of `String` paths or a single `String` path:
 - `duplicate_first::Bool`: wether to duplicate the dimensions and metadata of the
     first file with all other files. This can save load time with a large
     series where dimensions are identical. `false` by default.
-- `lazy`: load files lazily, `false` by default.
+$LAZY_KEYWORD
 - `kw`: keywords passed to the child constructor [`Raster`](@ref) or [`RasterStack`](@ref).
 
 When loading a series from a single `String` path:
 
-- `ext`: filename extension such as ".tiff" or ".nc". 
-    Use to specify a subset of files if only a directory path is passed in.
 - `separator`: separator used to split lookup elements from the rest of a filename. '_' by default.
 
 
