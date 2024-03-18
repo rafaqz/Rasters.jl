@@ -44,6 +44,9 @@ $CRS_KEYWORD
 $SHAPE_KEYWORDS
 """
 
+const LAZY_KEYWORD = """
+- `lazy`: A `Bool` specifying if to load data lazily from disk. `false` by default.
+"""
 const FILENAME_KEYWORD = """
 - `filename`: a filename to write to directly, useful for large files.
 """
@@ -56,4 +59,20 @@ const PROGRESS_KEYWORD = """
 """
 const VERBOSE_KEYWORD = """
 - `vebose`: whether to print messages about potential problems. `true` by default.
+"""
+const SOURCE_KEYWORD = """
+- `source`: Usually automatically detected from filepath extension. 
+    To manually force, a `Symbol` can be passed `:gdal`, `:netcdf`, `:grd`, `:grib`.
+    The internal [`Rasters.Source`](@ref) objects, such as `Rasters.GDALsource()`, 
+    `Rasters.GRIBsource()` or `Rasters.NCDsource()` can also be used.
+"""
+const EXT_KEYWORD = """
+- `ext`: filename extension such as ".tiff" or ".nc". 
+    Used to specify specific files if only a directory path is used.
+"""
+const FORCE_KEYWORD = """
+- `force`: `false` by default. If `true` it force writing to a file destructively, even if it already exists.
+"""
+const DROPBAND_KEYWORD = """
+- `dropband`: drop single band dimensions when creating stacks from filenames. `true` by default.
 """

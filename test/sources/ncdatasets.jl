@@ -368,7 +368,7 @@ end
 end
 
 @testset "Single file stack" begin
-    @time ncstack = RasterStack(ncmulti);
+    @time ncstack = RasterStack(ncmulti)
 
     @testset "lazyness" begin
         @time read(RasterStack(ncmulti));

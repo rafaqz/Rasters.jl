@@ -90,28 +90,7 @@ for method in (:attrib, :dim)
 end
 
 # Rasters methods for CDM types ###############################
-
-# This is usually called inside a closure and cleaned up in `cleanreturn`
-function Raster(ds::AbstractDataset, filename::AbstractString, key::Nothing=nothing;
-    source=nothing, kw...
-)
-    source = isnothing(source) ? _sourcetrait(filename) : _sourcetrait(source)
-    # Find the first valid variable
-    layers = _layers(ds)
-    for (key, var) in zip(layers.keys, layers.vars)
-        if ndims(var) > 0
-            @info "No `name` or `key` keyword provided, using first valid layer with name `:$key`"
-            return Raster(CFDiskArray(var), filename, key; source, kw...)
-        end
-    end
-    throw(ArgumentError("dataset at $filename has no array variables"))
-end
-function Raster(ds::AbstractDataset, filename::AbstractString, key::Union{AbstractString,Symbol};
-    source=nothing, kw...
-)
-    return Raster(CFDiskArray(ds[key]), filename, key; source)
-end
-
+#
 function FileArray{source}(var::AbstractVariable, filename::AbstractString; kw...) where source<:CDMsource
     eachchunk = DA.eachchunk(var)
     haschunks = DA.haschunks(var)
@@ -137,12 +116,11 @@ function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) wher
     end
 end
 
-function _open(f, ::CDMsource, ds::AbstractDataset; key=nothing, kw...)
-    x = key isa Nothing ? ds : CFDiskArray(ds[_firstkey(ds, key)])
+function _open(f, ::CDMsource, ds::AbstractDataset; key=nokw, kw...)
+    x = key isa NoKW ? ds : CFDiskArray(ds[_firstname(ds, key)])
     cleanreturn(f(x))
 end
 _open(f, ::CDMsource, var::CFDiskArray; kw...) = cleanreturn(f(var))
-# _open(f, ::CDMsource, var::CDM.CFVariable; kw...) = cleanreturn(f(CFDiskArray(var)))
 
 # TODO fix/test this for RasterStack
 function create(filename, source::CDMsource, T::Union{Type,Tuple}, dims::DimTuple;
@@ -164,6 +142,7 @@ function create(filename, source::CDMsource, T::Union{Type,Tuple}, dims::DimTupl
     return Raster(filename; source=source, lazy)
 end
 
+filekey(ds::AbstractDataset, key) = _firstname(ds, key)
 missingval(var::AbstractDataset) = missing
 missingval(var::AbstractVariable{T}) where T = missing isa T ? missing : nothing
 cleanreturn(A::AbstractVariable) = Array(A)
@@ -171,23 +150,28 @@ haslayers(::CDMsource) = true
 defaultcrs(::CDMsource) = EPSG(4326)
 defaultmappedcrs(::CDMsource) = EPSG(4326)
 
-function _layers(ds::AbstractDataset, ::Nothing=nothing)
-    dimkeys = CDM.dimnames(ds)
-    toremove = if "bnds" in dimkeys
-        dimkeys = setdiff(dimkeys, ("bnds",))
-        boundskeys = String[]
-        for k in dimkeys
+function _nondimnames(ds)
+    dimnames = CDM.dimnames(ds)
+    toremove = if "bnds" in dimnames
+        dimnames = setdiff(dimnames, ("bnds",))
+        boundsnames = String[]
+        for k in dimnames
             var = ds[k]
             attr = CDM.attribs(var)
             if haskey(attr, "bounds")
-                push!(boundskeys, attr["bounds"])
+                push!(boundsnames, attr["bounds"])
             end
         end
-        union(dimkeys, boundskeys)::Vector{String}
+        union(dimnames, boundsnames)::Vector{String}
     else
-        dimkeys::Vector{String}
+        dimnames::Vector{String}
     end
     nondim = setdiff(keys(ds), toremove)
+    return nondim
+end
+
+function _layers(ds::AbstractDataset, ::Nothing=nothing)
+    nondim = _nondimnames(ds)
     grid_mapping = String[]
     vars = map(k -> ds[k], nondim)
     attrs = map(CDM.attribs, vars)
@@ -253,8 +237,9 @@ end
 # Utils ########################################################################
 
 # TODO dont load all keys here with _layers
-_firstkey(ds::AbstractDataset, key::Nothing=nothing) = Symbol(first(_layers(ds).keys))
-_firstkey(ds::AbstractDataset, key) = Symbol(key)
+_firstname(ds::AbstractDataset, key) = Symbol(key)
+_firstname(ds::AbstractDataset, key::NoKW=nokw) =
+    Symbol(first(_nondimnames(ds)))
 
 function _cdmdim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
     if haskey(ds, dimname)
@@ -281,7 +266,7 @@ function _cdmfinddimlen(ds, dimname)
             return size(var)[findfirst(==(dimname), dimnames)]
         end
     end
-    return nothing
+    return nothsng
 end
 
 # Find the matching dimension constructor. If its an unknown name

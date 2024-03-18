@@ -36,9 +36,9 @@ const GDAL_VIRTUAL_FILESYSTEMS = "/vsi" .* (
 
 # Array ########################################################################
 
-function RA.FileArray{GDALsource}(raster::AG.RasterDataset{T}, filename; kw...) where {T}
-    eachchunk, haschunks = DA.eachchunk(raster), DA.haschunks(raster)
-    RA.FileArray{GDALsource,T,3}(filename, size(raster); eachchunk, haschunks, kw...)
+function RA.FileArray{GDALsource}(ds::AG.RasterDataset{T}, filename; kw...) where {T}
+    eachchunk, haschunks = DA.eachchunk(ds), DA.haschunks(ds)
+    RA.FileArray{GDALsource,T,3}(filename, size(ds); eachchunk, haschunks, kw...)
 end
 
 RA.cleanreturn(A::AG.RasterDataset) = Array(A)
@@ -46,15 +46,24 @@ RA.haslayers(::GDALsource) = false
 RA._sourcetrait(A::AG.RasterDataset) = GDALsource()
 
 """
-    Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster; force=false, kw...)
+    Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster; kw...)
 
 Write a `Raster` to file using GDAL.
 
+This method is called automatically if you `write` a `Raster` 
+with a `filename` extension that no other backend can read. 
+
+GDAL is the fallback, and reads a lot of file types, but is not guaranteed to work.
+
 # Keywords
 
-- `driver`: A GDAL driver name or a GDAL driver retrieved via `ArchGDAL.getdriver(drivername)`. Guessed from the filename extension by default.
-- `options::Dict{String,String}`: A dictionary containing the dataset creation options passed to the driver. For example: `Dict("COMPRESS"=>"DEFLATE")`\n
-  Valid options for the drivers can be looked up here: https://gdal.org/drivers/raster/index.html
+$(RA.FORCE_KEYWORD)
+- `driver`: A GDAL driver name or a GDAL driver retrieved via `ArchGDAL.getdriver(drivername)`. 
+    Guessed from the filename extension by default.
+- `options::Dict{String,String}`: A dictionary containing the dataset creation options passed to the driver. 
+    For example: `Dict("COMPRESS" => "DEFLATE")`. 
+
+Valid `options` for each specific `driver` can be looked up here: https://gdal.org/drivers/raster/index.html
 
 Returns `filename`.
 """
@@ -122,7 +131,7 @@ RA._open(f, ::GDALsource, ds::AG.RasterDataset; kw...) = RA.cleanreturn(f(ds))
 # These methods are type piracy on DimensionalData/ArchGDAL and may have to move some day
 
 # We allow passing in crs and mappedcrs manually
-function RA._dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
+function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw)
     gt_dims = try
         AG.getgeotransform(raster)
     catch
@@ -138,7 +147,8 @@ function RA._dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
         Band(Categorical(bandnames; order=Unordered()))
     end
 
-    crs = crs isa Nothing ? Rasters.crs(raster) : crs
+    crs = crs isa NoKW ? Rasters.crs(raster) : crs
+    mappedcrs = mappedcrs isa NoKW ? nothing : mappedcrs
     xy_metadata = metadata(raster)
 
     # Output Sampled index dims when the transformation is lat/lon alligned,
