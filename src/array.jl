@@ -72,7 +72,8 @@ function DD.rebuild(A::AbstractRaster;
 end
 
 function DD.modify(f, A::AbstractRaster)
-    newdata = if isdisk(A) 
+    # Have to avoid calling `open` on CFDiskArray
+    newdata = if isdisk(A) && !(parent(A) isa CFDiskArray)
         open(A) do O
             f(parent(O))
         end
@@ -272,7 +273,7 @@ function Raster(ds, filename::AbstractString, key=nothing;
             Array(A)
         end
     end
-    raster =  Raster(data, dims, refdims, name, metadata, missingval)
+    raster = Raster(data, dims, refdims, name, metadata, missingval)
     return dropband ? _drop_single_band(raster, lazy) : raster
 end
 
