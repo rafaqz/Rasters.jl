@@ -1,6 +1,8 @@
 # Accept either Symbol or String keys, but allways convert to Symbol
 const Key = Union{Symbol,AbstractString}
 
+const MAX_STACK_SIZE = 200
+
 """
     AbstractRasterStack
 
@@ -30,7 +32,7 @@ missingval(stack::AbstractRasterStack) = getfield(stack, :missingval)
 filename(stack::AbstractRasterStack) = filename(parent(stack))
 missingval(s::AbstractRasterStack, key::Symbol) = _singlemissingval(missingval(s), key)
 
-isdisk(A::AbstractRasterStack) = isdisk(first(A))
+isdisk(st::AbstractRasterStack) = isdisk(layers(st, 1))
 
 setcrs(x::AbstractRasterStack, crs) = set(x, setcrs(dims(x), crs)...)
 setmappedcrs(x::AbstractRasterStack, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
@@ -177,12 +179,16 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
         crs = defaultcrs(source, crs)
         mappedcrs = defaultmappedcrs(source, mappedcrs)
         _open(source, fn; key) do ds
-            data = if lazy
-                FileArray(ds, fn; key)
-            else
-                _open(Array, source, ds; key)
-            end
             dims = DD.dims(ds, crs, mappedcrs)
+            prod(map(length, dims))
+            data = if lazy
+                FileArray{source}(ds, fn; key)
+            else
+                _open(source, ds; key) do A
+                    _checkmem(A)
+                    Array(A)
+                end
+            end
             md = metadata(ds)
             mv = missingval(ds)
             raster = Raster(data, dims; name=key, metadata=md, missingval=mv) 
@@ -259,7 +265,7 @@ function RasterStack(filename::AbstractString;
             end
         else
             # With bands actings as layers
-            RasterStack(Raster(filename; source); kw...)
+            RasterStack(Raster(filename; source, lazy, dropband=false); kw...)
         end
     end
 
@@ -352,7 +358,6 @@ function RasterStack(s::AbstractDimStack; name=cleankeys(Base.keys(s)), keys=nam
     st = RasterStack(
         data, DD.dims(s), refdims, layerdims, metadata, layermetadata, missingval
     )
-
     # TODO This is a bit of a hack, it should use `formatdims`.
     return set(st, dims...)
 end
@@ -387,7 +392,20 @@ function _open_layers(f, st, unopened::NamedTuple{()}, opened)
 end
 
 function _layerkeysfromdim(A, dim)
-    map(index(A, dim)) do x
+    hasdim(A, dim) || throw(ArgumentError("`layersrom` dim `$(dim2key(dim))` not found in `$(map(basetypeof, dims(A)))`"))
+    vals = parent(lookup(A, dim))
+    l = length(vals)
+    if l > MAX_STACK_SIZE 
+        D = basetypeof(dim)
+        options = map(basetypeof, dims(otherdims(A, dim), d -> length(d) <= MAX_STACK_SIZE))
+        toolong = "Lookup of `layersfrom=$D` is too long to use for stack layers: $l"
+        if length(options) > 0
+            throw(ArgumentError("$toolong. Choose a different dimension from: $options"))
+        else
+            throw(ArgumentError("$toolong. Maybe try a simple `Raster` ?"))
+        end
+    end
+    map(vals) do x
         if x isa Number
             Symbol(string(DD.dim2key(dim), "_", x))
         else

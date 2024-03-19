@@ -397,7 +397,7 @@ Rasterize a shapefile for China and plot, with a border.
 
 ```jldoctest
 using Rasters, RasterDataSources, ArchGDAL, Plots, Dates, Shapefile, Downloads
-using Rasters.LookupArrays
+using Rasters.Lookups
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -531,7 +531,7 @@ $GEOM_KEYWORDS
 
 ```jldoctest
 using Rasters, RasterDataSources, ArchGDAL, Plots, Dates, Shapefile, GeoInterface, Downloads
-using Rasters.LookupArrays
+using Rasters.Lookups
 
 # Download a borders shapefile
 shapefile_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries.shp"
@@ -600,7 +600,8 @@ function _rasterize!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer; a
     else
         ext = _extent(geom)
         V = view(A, Touches(ext))
-        length(V) > 0 || return false
+        # TODO use length when this is fixed in DimensionalData
+        prod(size(V)) > 0 || return false
 
         bools = _init_bools(commondims(V, DEFAULT_POINT_ORDER), BitArray; metadata=metadata(A))
         boolmask!(bools, geom; allocs, lock, shape, boundary, verbose, progress)
@@ -744,7 +745,7 @@ end
     n = 0
     for point in points
         I = dims2indices(A, (X(point[1]), Y(point[2])))
-        _checkbounds(A, I...) || continue
+        checkbounds(Bool, A, I...) || continue
          _fill_func!(fillfunc, A, I)
         # Mark that we have written at least one index
         hasburned = true
@@ -770,7 +771,7 @@ end
     
     for (point, fill) in points_fill
         I = dims2indices(A, (X(point[1]), Y(point[2])))
-        _checkbounds(A, I...) || continue
+        checkbounds(Bool, A, I...) || continue
          _fill_op!(op, A, fill, init, missingval, I)
         # Mark that we have written at least one index
         hasburned = true
@@ -806,7 +807,7 @@ type_length(tup::Type{T}) where {T<:Union{Tuple,NamedTuple}} = length(tup.types)
             continue # We will reduce all of these points together later on
         else
             I = dims2indices(A, (X(prevpoint[1]), Y(prevpoint[2])))
-            _checkbounds(A, I...) || continue
+            checkbounds(Bool, A, I...) || continue
             startind = _fill_reduce!(reducer, A, I, points_fill, startind, n, missingval)
         end
         prevpoint = point # Update the previous point to the current
@@ -815,7 +816,7 @@ type_length(tup::Type{T}) where {T<:Union{Tuple,NamedTuple}} = length(tup.types)
     # Fill the last points
     I = dims2indices(A, (X(prevpoint[1]), Y(prevpoint[2])))
     n = lastindex(points_fill) + 1
-    _checkbounds(A, I...) && _fill_reduce!(reducer, A, I, points_fill, startind, n, missingval)
+    checkbounds(Bool, A, I...) && _fill_reduce!(reducer, A, I, points_fill, startind, n, missingval)
     return hasburned
 end
 
@@ -862,7 +863,7 @@ function _reduce_bitarray!(f, st::AbstractRasterStack, geoms, fill::NamedTuple, 
     geom_axis = axes(masks, Dim{:geometry}())
     fill = map(itr -> [v for (_, v) in zip(geom_axis, itr)], fill)
     T = NamedTuple{keys(st),Tuple{map(eltype, st)...}}
-    range = axes(first(st), Y())
+    range = axes(st, Y())
     _run(range, threaded, progress, "Reducing...") do y
         _reduce_bitarray_loop(f, st, T, fill, masks, y)
     end

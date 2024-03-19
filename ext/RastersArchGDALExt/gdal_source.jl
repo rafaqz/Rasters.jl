@@ -36,7 +36,7 @@ const GDAL_VIRTUAL_FILESYSTEMS = "/vsi" .* (
 
 # Array ########################################################################
 
-function RA.FileArray(raster::AG.RasterDataset{T}, filename; kw...) where {T}
+function RA.FileArray{GDALsource}(raster::AG.RasterDataset{T}, filename; kw...) where {T}
     eachchunk, haschunks = DA.eachchunk(raster), DA.haschunks(raster)
     RA.FileArray{GDALsource,T,3}(filename, size(raster); eachchunk, haschunks, kw...)
 end
@@ -242,7 +242,7 @@ function RA.Raster(ds::AG.RasterDataset;
     filelist = AG.filelist(ds)
     raster = if lazy && length(filelist) > 0
         filename = first(filelist)
-        A = Raster(FileArray(ds, filename), args...)
+        A = Raster(FileArray{GDALsource}(ds, filename), args...)
     else
         Raster(Array(ds), args...)
     end

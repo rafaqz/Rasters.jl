@@ -1,5 +1,5 @@
 using Rasters, Test, ArchGDAL
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
 using Rasters: reproject, convertlookup
 
 @testset "reproject" begin

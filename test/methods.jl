@@ -1,6 +1,6 @@
 using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
 import GeoInterface
-using Rasters.LookupArrays, Rasters.Dimensions 
+using Rasters.Lookups, Rasters.Dimensions 
 using Rasters: bounds
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
@@ -9,6 +9,8 @@ A = [missing 7.0f0; 2.0f0 missing]
 B = [1.0 0.4; 2.0 missing]
 ga = Raster(A, (X(1.0:1:2.0), Y(1.0:1:2.0)); missingval=missing) 
 st = RasterStack((a=A, b=B), (X, Y); missingval=(a=missing,b=missing))
+st2 = RasterStack((a=A[1,:], b=B), (X, Y); missingval=(a=missing,b=missing))
+se = RasterSeries([ga, ga], Rasters.Band(1:2))
 
 pointvec = [(-20.0, 30.0),
             (-20.0, 10.0),
@@ -69,6 +71,15 @@ end
     @test parent(boolmask(ga)) isa BitMatrix
     @test boolmask(ga99) == [false true; true false]
     @test boolmask(gaNaN) == [false true; true false]
+    @test all(boolmask(st[(:b, :a)], alllayers = true) .=== [false true; true false])
+    @test all(boolmask(st[(:b, :a)], alllayers = false) .=== [true true; true false])    
+    @test all(boolmask(st[(:b, :a)], alllayers = false, missingval = 7.0) .=== [true true; true true])    
+    @test all(boolmask(st[(:b, :a)], alllayers = true, missingval = 7.0) .=== [true false; true true])    
+    @test all(boolmask(st, alllayers = true, missingval = (a = missing, b = 0.4)) .=== [false false; true false])    
+    @test_throws ArgumentError boolmask(st, alllayers = true, missingval = (b = missing, a = 0.4))  
+    se2 = RasterSeries([st.b, st.a], Rasters.Band(1:2))
+    @test all(boolmask(se2, alllayers = true) .=== [false true; true false])
+    @test all(boolmask(se2, alllayers = false) .=== [true true; true false])    
     @test dims(boolmask(ga)) === dims(ga)
     x = boolmask(polygon; res=1.0) 
     @test x == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
@@ -89,7 +100,18 @@ end
     @test all(missingmask(ga) .=== [missing true; true missing])
     @test all(missingmask(ga99) .=== [missing true; true missing])
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
+    @test all(missingmask(st[(:b, :a)], alllayers = true) .=== [missing true; true missing])
+    @test all(missingmask(st[(:b, :a)], alllayers = false) .=== [true true; true missing])  
+    @test all(missingmask(st[(:b, :a)], alllayers = false, missingval = 7.0) .=== [true true; true true])    
+    @test all(missingmask(st[(:b, :a)], alllayers = true, missingval = 7.0) .=== [true missing; true true])      
     @test dims(missingmask(ga)) == dims(ga)
+    @test all(missingmask(st[(:b, :a)], alllayers = true) .=== [missing true; true missing])
+    @test all(missingmask(st[(:b, :a)], alllayers = false) .=== [true true; true missing])    
+    mm_st2 = missingmask(st2)
+    @test dims(mm_st2) == dims(st2)
+    @test all(mm_st2 .=== [missing missing; true missing])    
+    @test all(missingmask(st2, alllayers = false) .=== [missing; true])    
+    @test all(missingmask(se) .=== missingmask(ga))
     @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
     x = missingmask([polygon, polygon]; collapse=false, res=1.0)
     @test eltype(x) == Union{Bool,Missing}
@@ -507,7 +529,7 @@ end
     A1 = Raster(ones(2, 2, 2), (X(2.0:-1.0:1.0), Y(5.0:1.0:6.0), Ti(DateTime(2001):Year(1):DateTime(2002))))
     A2 = Raster(zeros(2, 2, 2), (X(3.0:-1.0:2.0), Y(4.0:1.0:5.0), Ti(DateTime(2002):Year(1):DateTime(2003))))
     @test all(mosaic(mean, A1, A2) |> parent .=== 
-              first(mosaic(mean, RasterStack(A1), RasterStack(A2))) .===
+              mosaic(mean, RasterStack(A1), RasterStack(A2)).layer1 .===
               cat([missing missing missing
                    missing 1.0     1.0
                    missing 1.0     1.0    ],

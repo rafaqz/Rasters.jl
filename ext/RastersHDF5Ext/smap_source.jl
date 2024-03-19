@@ -87,10 +87,10 @@ DA.haschunks(var::SMAPvar) = DA.Unchunked()
 
 # Raster ######################################################################
 
-function RA.FileArray(ds::SMAPhdf5, filename::AbstractString; key, kw...)
-    RA.FileArray(ds[key], filename; key, kw...)
+function RA.FileArray{SMAPsource}(ds::SMAPhdf5, filename::AbstractString; key, kw...)
+    RA.FileArray{SMAPsource}(ds[key], filename; key, kw...)
 end
-function RA.FileArray(var::SMAPvar, filename::AbstractString; key, kw...)
+function RA.FileArray{SMAPsource}(var::SMAPvar, filename::AbstractString; key, kw...)
     T = eltype(var)
     N = ndims(var)
     eachchunk = DA.eachchunk(var)

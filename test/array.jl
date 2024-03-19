@@ -1,5 +1,5 @@
 using Rasters, Test, Dates, DiskArrays
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
 using Rasters: isdisk, ismem, filename
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)

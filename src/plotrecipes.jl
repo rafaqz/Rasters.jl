@@ -325,7 +325,7 @@ _maybe_shift(sampling, d) = d
 
 _maybe_mapped(dims::Tuple) = map(_maybe_mapped, dims)
 _maybe_mapped(dim::Dimension) = _maybe_mapped(lookup(dim), dim)
-_maybe_mapped(lookup::LookupArray, dim::Dimension) = dim
+_maybe_mapped(lookup::Lookup, dim::Dimension) = dim
 _maybe_mapped(lookup::Projected, dim::Dimension) = _maybe_mapped(mappedcrs(lookup), dim)
 _maybe_mapped(::Nothing, dim::Dimension) = dim
 _maybe_mapped(::GeoFormat, dim::Dimension) = convertlookup(Mapped, dim)

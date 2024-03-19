@@ -7,7 +7,7 @@ else
 end
 
 # using RasterDataSources: RasterDataSource
-using Rasters.LookupArrays
+using Rasters.Lookups
 using Rasters.Dimensions
 
 const RA = Rasters

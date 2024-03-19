@@ -1,5 +1,5 @@
 function AffineProjected(f;
-    data=LA.AutoIndex(), metadata=DD.NoMetadata(), crs=nothing, mappedcrs=nothing, paired_lookup, dim=RA.AutoDim()
+    data=LA.AutoValues(), metadata=DD.NoMetadata(), crs=nothing, mappedcrs=nothing, paired_lookup, dim=RA.AutoDim()
 )
     AffineProjected(f, data, metadata, crs, mappedcrs, paired_lookup, dim)
 end

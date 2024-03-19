@@ -16,7 +16,7 @@ using Dates,
     DimensionalData,
     GeoFormatTypes
 
-using Rasters.LookupArrays
+using Rasters.Lookups
 using Rasters.Dimensions
 using Rasters: GRIBsource
 
@@ -26,7 +26,7 @@ const RA = Rasters
 const DD = DimensionalData
 const DA = DiskArrays
 const GI = GeoInterface
-const LA = LookupArrays
+const LA = Lookups
 
 include("gribdatasets_source.jl")
 

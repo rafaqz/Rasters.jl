@@ -31,80 +31,119 @@ const CDM_STANDARD_NAME_MAP = Dict(
     "time" => Ti,
 )
 
-struct CFVariable{T,N,TV,TA,TSA} <: CDM.AbstractVariable{T,N}
+
+# CFDiskArray ########################################################################
+
+struct CFDiskArray{T,N,TV,TA,TSA} <: DiskArrays.AbstractDiskArray{T,N}
     var::CDM.CFVariable{T,N,TV,TA,TSA}
 end
-@implement_diskarray CFVariable
 
-Base.parent(A::CFVariable) = A.var
+# Rasters methods
+FileArray{source}(var::CFDiskArray, filename::AbstractString; kw...) where source =
+    FileArray{source}(parent(var), filename; kw...)
 
-function DiskArrays.readblock!(A::CFVariable, aout, i::AbstractUnitRange...)
-    aout[i...] = getindex(parent(A), i...)
+cleanreturn(A::CFDiskArray) = Array(A)
+missingval(A::CFDiskArray) = missingval(parent(A))
+
+# DimensionalData methods
+DD.dims(var::CFDiskArray, args...) = DD.dims(parent(var), args...)
+DD.layerdims(var::CFDiskArray, args...) = DD.layerdims(parent(var), args...)
+DD.metadata(var::CFDiskArray, args...) = DD.metadata(parent(var), args...)
+
+# Base methods
+Base.parent(A::CFDiskArray) = A.var
+
+Base.getindex(os::OpenStack{<:CDMsource}, key::Symbol) = CFDiskArray(dataset(os)[key])
+
+# DiskArrays.jl methods
+function DiskArrays.readblock!(A::CFDiskArray, aout, i::AbstractUnitRange...)
+    aout .= getindex(parent(A), i...)
 end
-
-function DiskArrays.writeblock!(A::CFVariable, data, i::AbstractUnitRange...)
+function DiskArrays.writeblock!(A::CFDiskArray, data, i::AbstractUnitRange...)
     setindex!(parent(A), data, i...)
     return data
 end
-_open(f, ::Type{<:CDMsource}, var::CFVariable; kw...) = cleanreturn(f(var))
 
-# Methods from CommonDataModel
+# We have to dig down to find the chunks as they are not immplemented
+# in the CDM, but they are in their internal objects.
+DiskArrays.eachchunk(var::CFDiskArray) = _get_eachchunk(var)
+DiskArrays.haschunks(var::CFDiskArray) = _get_haschunks(var)
+
+_get_eachchunk(var::CFDiskArray) = _get_eachchunk(var.var)
+_get_eachchunk(var::CDM.CFVariable) = _get_eachchunk(var.var)
+_get_haschunks(var::CFDiskArray) = _get_haschunks(var.var)
+_get_haschunks(var::CDM.CFVariable) = _get_haschunks(var.var)
+
+# CommonDataModel.jl methods
 for method in (:size, :name, :dimnames, :dataset, :attribnames)
     @eval begin
-        CDM.$(method)(var::CFVariable) = CDM.$(method)(parent(var))
+        CDM.$(method)(var::CFDiskArray) = CDM.$(method)(parent(var))
     end
 end
 
 for method in (:attrib, :dim)
     @eval begin
-        CDM.$(method)(var::CFVariable, name::CDM.SymbolOrString) = CDM.$(method)(parent(var), name)
+        CDM.$(method)(var::CFDiskArray, name::CDM.SymbolOrString) = CDM.$(method)(parent(var), name)
     end
 end
 
-Base.getindex(os::OpenStack{<:CDMsource}, key::Symbol) = CFVariable(dataset(os)[key])
+# Rasters methods for CDM types ###############################
 
-_dataset(var::AbstractVariable) = CDM.dataset(var)
-
-haslayers(::Type{<:CDMsource}) = true
-defaultcrs(::Type{<:CDMsource}) = EPSG(4326)
-defaultmappedcrs(::Type{<:CDMsource}) = EPSG(4326)
-
-# Raster ########################################################################
-
-function Raster(ds::AbstractDataset, filename::AbstractString, key=nothing; kw...)
+# This is usually called inside a closure and cleaned up in `cleanreturn`
+function Raster(ds::AbstractDataset, filename::AbstractString, key=nothing; 
+    source=nothing, kw...
+)
+    @show kw
+    source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
     if isnothing(key)
         # Find the first valid variable
         for key in layerkeys(ds)
             if ndims(ds[key]) > 0
                 @info "No `name` or `key` keyword provided, using first valid layer with name `:$key`"
-                return Raster(CFVariable(ds[key]), filename, key; source=CDMsource, kw...)
+                return Raster(CFDiskArray(ds[key]), filename, key; source, kw...)
             end
         end
         throw(ArgumentError("dataset at $filename has no array variables"))
     else
-       return Raster(CFVariable(ds[key]), filename, key; kw...)
+       return Raster(CFDiskArray(ds[key]), filename, key; source, kw...)
     end
 end
 
-_firstkey(ds::AbstractDataset, key::Nothing=nothing) = Symbol(first(layerkeys(ds)))
-_firstkey(ds::AbstractDataset, key) = Symbol(key)
-
-function FileArray(var::AbstractVariable, filename::AbstractString; kw...)
-    source = _sourcetype(filename)
-    da = RasterDiskArray{source}(var)
-    size_ = size(da)
-    eachchunk = DA.eachchunk(da)
-    haschunks = DA.haschunks(da)
+function FileArray{source}(var::AbstractVariable, filename::AbstractString; kw...) where source<:CDMsource
+    eachchunk = DA.eachchunk(var)
+    haschunks = DA.haschunks(var)
     T = eltype(var)
-    N = length(size_)
-    FileArray{source,T,N}(filename, size_; eachchunk, haschunks, kw...)
+    N = ndims(var)
+    FileArray{source,T,N}(filename, size(var); eachchunk, haschunks, kw...)
 end
 
-function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) where source <: CDMsource
+function FileStack{source}(
+    ds::AbstractDataset, filename::AbstractString; write=false, keys
+) where source<:CDMsource
+    keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
+    type_size_ec_hc = map(keys) do key
+        var = ds[string(key)]
+        Union{Missing,eltype(var)}, size(var), _get_eachchunk(var), _get_haschunks(var)
+    end
+    layertypes = map(x->x[1], type_size_ec_hc)
+    layersizes = map(x->x[2], type_size_ec_hc)
+    eachchunk = map(x->x[3], type_size_ec_hc)
+    haschunks = map(x->x[4], type_size_ec_hc)
+    return FileStack{source,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+end
+
+function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) where source<:CDMsource
     _open(source, filename(A); key=key(A), write, kw...) do var
         f(var)
     end
 end
+
+function _open(f, ::Type{<:CDMsource}, ds::AbstractDataset; key=nothing, kw...)
+    x = key isa Nothing ? ds : CFDiskArray(ds[_firstkey(ds, key)])
+    cleanreturn(f(x))
+end
+_open(f, ::Type{<:CDMsource}, var::CFDiskArray; kw...) = cleanreturn(f(var))
+# _open(f, ::Type{<:CDMsource}, var::CDM.CFVariable; kw...) = cleanreturn(f(CFDiskArray(var)))
 
 function create(filename, source::Type{<:CDMsource}, T::Union{Type,Tuple}, dims::DimTuple;
     name=:layer1, keys=(name,), layerdims=map(_->dims, keys), missingval=nothing,
@@ -121,62 +160,22 @@ function create(filename, source::Type{<:CDMsource}, T::Union{Type,Tuple}, dims:
     return Raster(filename; source=source, lazy)
 end
 
-# DimensionalData methods for NCDatasets types ###############################
-
-function DD.dims(ds::AbstractDataset, crs=nothing, mappedcrs=nothing)
-    map(_dimkeys(ds)) do key
-        _ncddim(ds, key, crs, mappedcrs)
-    end |> Tuple
-end
-function DD.dims(var::AbstractVariable, crs=nothing, mappedcrs=nothing)
-    names = CDM.dimnames(var)
-    map(names) do name
-        _ncddim(_dataset(var), name, crs, mappedcrs)
-    end |> Tuple
-end
-
-_attrib(ds::Union{AbstractDataset, AbstractVariable}) = CDM.attribs(ds)
-DD.metadata(ds::AbstractDataset) = _metadatadict(CDMsource, _attrib(ds))
-DD.metadata(var::AbstractVariable) = _metadatadict(CDMsource, _attrib(var))
-
-function DD.layerdims(ds::AbstractDataset)
-    keys = Tuple(layerkeys(ds))
-    dimtypes = map(keys) do key
-        DD.layerdims(ds[string(key)])
-    end
-    NamedTuple{map(Symbol, keys)}(dimtypes)
-end
-function DD.layerdims(var::AbstractVariable)
-    map(CDM.dimnames(var)) do dimname
-        _ncddim(_dataset(var), dimname)
-    end |> Tuple    
-end
-
-function DD.layermetadata(ds::AbstractDataset)
-    keys = Tuple(layerkeys(ds))
-    dimtypes = map(keys) do k
-        var = ds[k]
-        md = DD.metadata(var)
-        if haskey(_attrib(var), "grid_mapping")
-            md["grid_mapping"] = Dict(_attrib(ds[_attrib(var)["grid_mapping"]]))
-        end
-        md
-    end
-    NamedTuple{map(Symbol, keys)}(dimtypes)
-end
-
-missingval(var::AbstractVariable{T}) where T = missing isa T ? missing : nothing
 missingval(var::AbstractDataset) = missing
+missingval(var::AbstractVariable{T}) where T = missing isa T ? missing : nothing
+cleanreturn(A::AbstractVariable) = Array(A)
+haslayers(::Type{<:CDMsource}) = true
+defaultcrs(::Type{<:CDMsource}) = EPSG(4326)
+defaultmappedcrs(::Type{<:CDMsource}) = EPSG(4326)
 
 function layerkeys(ds::AbstractDataset)
-    dimkeys = _dimkeys(ds)
+    dimkeys = CDM.dimnames(ds)
     toremove = if "bnds" in dimkeys
         dimkeys = setdiff(dimkeys, ("bnds",))
         boundskeys = String[]
         for k in dimkeys
             var = ds[k]
-            if haskey(_attrib(var), "bounds")
-                push!(boundskeys, _attrib(var)["bounds"])
+            if haskey(CDM.attribs(var), "bounds")
+                push!(boundskeys, CDM.attribs(var)["bounds"])
             end
         end
         union(dimkeys, boundskeys)::Vector{String}
@@ -187,55 +186,78 @@ function layerkeys(ds::AbstractDataset)
     grid_mapping = String[]
     for k in nondim
         var = ds[k]
-        if haskey(_attrib(var), "grid_mapping")
-            push!(grid_mapping, _attrib(var)["grid_mapping"])
+        if haskey(CDM.attribs(var), "grid_mapping")
+            push!(grid_mapping, CDM.attribs(var)["grid_mapping"])
         end
     end
     nondim = setdiff(nondim, grid_mapping)
 end
 
-function FileStack(source::Type{<:CDMsource}, ds::AbstractDataset, filename::AbstractString; write, keys)
-    keys = map(Symbol, keys isa Nothing ? layerkeys(ds) : keys) |> Tuple
-    type_size_ec_hc = map(keys) do key
-        var = ds[string(key)]
-        Union{Missing,eltype(var)}, size(var), _ncd_eachchunk(var), _ncd_haschunks(var)
+# DimensionalData methods for CDM types ###############################
+
+function DD.dims(var::AbstractVariable, crs=nothing, mappedcrs=nothing)
+    map(CDM.dimnames(var)) do key
+        _cdmdim(CDM.dataset(var), key, crs, mappedcrs)
+    end |> Tuple
+end
+function DD.layerdims(var::AbstractVariable)
+    map(CDM.dimnames(var)) do dimname
+        _cdmdim(CDM.dataset(var), dimname)
+    end |> Tuple    
+end
+DD.metadata(var::AbstractVariable) = _metadatadict(CDMsource, CDM.attribs(var))
+
+function DD.dims(ds::AbstractDataset, crs=nothing, mappedcrs=nothing)
+    @show CDM.dimnames(ds)
+    map(CDM.dimnames(ds)) do key
+        _cdmdim(ds, key, crs, mappedcrs)
+    end |> Tuple
+end
+DD.metadata(ds::AbstractDataset) = _metadatadict(CDMsource, CDM.attribs(ds))
+function DD.layerdims(ds::AbstractDataset)
+    keys = Tuple(layerkeys(ds))
+    dimtypes = map(keys) do key
+        DD.layerdims(ds[string(key)])
     end
-    layertypes = map(x->x[1], type_size_ec_hc)
-    layersizes = map(x->x[2], type_size_ec_hc)
-    eachchunk = map(x->x[3], type_size_ec_hc)
-    haschunks = map(x->x[4], type_size_ec_hc)
-    return FileStack{source,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+    NamedTuple{map(Symbol, keys)}(dimtypes)
+end
+function DD.layermetadata(ds::AbstractDataset)
+    keys = Tuple(layerkeys(ds))
+    dimtypes = map(keys) do k
+        var = ds[k]
+        md = DD.metadata(var)
+        if haskey(CDM.attribs(var), "grid_mapping")
+            md["grid_mapping"] = Dict(CDM.attribs(ds[CDM.attribs(var)["grid_mapping"]]))
+        end
+        md
+    end
+    NamedTuple{map(Symbol, keys)}(dimtypes)
 end
 
-function _open(f, ::Type{<:CDMsource}, ds::AbstractDataset; key=nothing, kw...)
-    x = key isa Nothing ? ds : CFVariable(ds[_firstkey(ds, key)])
-    cleanreturn(f(x))
-end
-# _open(f, ::Type{<:CDMsource}, var::CDM.CFVariable; kw...) = cleanreturn(f(CFVariable(var)))
 
 # Utils ########################################################################
 
-cleanreturn(A::CFVariable) = Array(A)
+_firstkey(ds::AbstractDataset, key::Nothing=nothing) = Symbol(first(layerkeys(ds)))
+_firstkey(ds::AbstractDataset, key) = Symbol(key)
 
-# Utils ########################################################################
-
-function _ncddim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
+function _cdmdim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
     if haskey(ds, dimname)
         var = ds[dimname]
-        D = _ncddimtype(_attrib(var), dimname)
-        lookup = _ncdlookup(ds, dimname, D, crs, mappedcrs)
+        D = _cdmdimtype(CDM.attribs(var), dimname)
+        lookup = _cdmlookup(ds, dimname, D, crs, mappedcrs)
         return D(lookup)
     else
         # The var doesn't exist. Maybe its `complex` or some other marker,
         # so make it a custom `Dim` with `NoLookup`
-        len = _ncfinddimlen(ds, dimname)
+        len = _cdmfinddimlen(ds, dimname)
         len === nothing && _unuseddimerror()
         lookup = NoLookup(Base.OneTo(len))
-        return Dim{Symbol(dimname)}(lookup)
+        D = _cdmdimtype(NoMetadata(), dimname)
+        return D(lookup)
     end
 end
 
-function _ncfinddimlen(ds, dimname)
+function _cdmfinddimlen(ds, dimname)
     for key in keys(ds)
         var = ds[key]
         dimnames = CDM.dimnames(var)
@@ -248,7 +270,7 @@ end
 
 # Find the matching dimension constructor. If its an unknown name
 # use the generic Dim with the dim name as type parameter
-function _ncddimtype(attrib, dimname)
+function _cdmdimtype(attrib, dimname)
     if haskey(attrib, "axis") 
         k = attrib["axis"] 
         if haskey(CDM_AXIS_MAP, k) 
@@ -267,22 +289,22 @@ function _ncddimtype(attrib, dimname)
     return DD.basetypeof(DD.key2dim(Symbol(dimname)))
 end
 
-# _ncdlookup
-# Generate a `LookupArray` from a netcdf dim.
-function _ncdlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs)
+# _cdmlookup
+# Generate a `Lookup` from a nCDM dim.
+function _cdmlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs)
     dvar = ds[dimname]
     index = dvar[:]
-    metadata = _metadatadict(CDMsource, _attrib(dvar))
-    return _ncdlookup(ds, dimname, D, index, metadata, crs, mappedcrs)
+    metadata = _metadatadict(CDMsource, CDM.attribs(dvar))
+    return _cdmlookup(ds, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For unknown types we just make a Categorical lookup
-function _ncdlookup(ds::AbstractDataset, dimname, D::Type, index::AbstractArray, metadata, crs, mappedcrs)
+function _cdmlookup(ds::AbstractDataset, dimname, D::Type, index::AbstractArray, metadata, crs, mappedcrs)
     Categorical(index; order=Unordered(), metadata=metadata)
 end
 # For Number and AbstractTime we generate order/span/sampling
 # We need to include `Missing` in unions in case `_FillValue` is used
 # on coordinate variables in a file and propagates here.
-function _ncdlookup(
+function _cdmlookup(
     ds::AbstractDataset, dimname, D::Type, index::AbstractArray{<:Union{Missing,Number,Dates.AbstractTime}},
     metadata, crs, mappedcrs
 )
@@ -290,21 +312,21 @@ function _ncdlookup(
     # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
     order = LA.orderof(index)
     var = ds[dimname]
-    if haskey(_attrib(var), "bounds")
+    if haskey(CDM.attribs(var), "bounds")
         boundskey = var.attrib["bounds"]
         boundsmatrix = Array(ds[boundskey])
         span, sampling = Explicit(boundsmatrix), Intervals(Center())
-        return _ncdlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
+        return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     elseif eltype(index) <: Union{Missing,Dates.AbstractTime}
-        span, sampling = _ncdperiod(index, metadata)
-        return _ncdlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
+        span, sampling = _cdmperiod(index, metadata)
+        return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     else
-        span, sampling = _ncdspan(index, order), Points()
-        return _ncdlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
+        span, sampling = _cdmspan(index, order), Points()
+        return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     end
 end
 # For X and Y use a Mapped <: AbstractSampled lookup
-function _ncdlookup(
+function _cdmlookup(
     D::Type{<:Union{<:XDim,<:YDim}}, index, order::Order, span, sampling, metadata, crs, mappedcrs
 )
     # If the index is regularly spaced and there is no crs
@@ -318,15 +340,15 @@ function _ncdlookup(
     return Mapped(index, order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 # Band dims have a Categorical lookup, with order
-function _ncdlookup(D::Type{<:Band}, index, order::Order, span, sampling, metadata, crs, mappedcrs)
+function _cdmlookup(D::Type{<:Band}, index, order::Order, span, sampling, metadata, crs, mappedcrs)
     Categorical(index, order, metadata)
 end
 # Otherwise use a regular Sampled lookup
-function _ncdlookup(D::Type, index, order::Order, span, sampling, metadata, crs, mappedcrs)
+function _cdmlookup(D::Type, index, order::Order, span, sampling, metadata, crs, mappedcrs)
     Sampled(index, order, span, sampling, metadata)
 end
 
-function _ncdspan(index, order)
+function _cdmspan(index, order)
     # Handle a length 1 index
     length(index) == 1 && return Regular(zero(eltype(index)))
     step = index[2] - index[1]
@@ -352,7 +374,7 @@ function _ncdspan(index, order)
 end
 
 # delta_t and ave_period are not CF standards, but CDC
-function _ncdperiod(index, metadata::Metadata{<:CDMsource})
+function _cdmperiod(index, metadata::Metadata{<:CDMsource})
     if haskey(metadata, "delta_t")
         period = _parse_period(metadata["delta_t"])
         period isa Nothing || return Regular(period), Points()
@@ -387,20 +409,19 @@ end
 _attribdict(md::Metadata{<:CDMsource}) = Dict{String,Any}(string(k) => v for (k, v) in md)
 _attribdict(md) = Dict{String,Any}()
 
-_dimkeys(ds::AbstractDataset) = CDM.dimnames(ds)
-
 # Add axis and standard name attributes to dimension variabls
 # We need to get better at guaranteeing if X/Y is actually measured in `longitude/latitude`
 # CF standards requires that we specify "units" if we use these standard names
-_ncd_set_axis_attrib!(atr, dim::X) = atr["axis"] = "X" # at["standard_name"] = "longitude";
-_ncd_set_axis_attrib!(atr, dim::Y) = atr["axis"] = "Y" # at["standard_name"] = "latitude"; 
-_ncd_set_axis_attrib!(atr, dim::Z) = (atr["axis"] = "Z"; atr["standard_name"] = "depth")
-_ncd_set_axis_attrib!(atr, dim::Ti) = (atr["axis"] = "T"; atr["standard_name"] = "time")
-_ncd_set_axis_attrib!(atr, dim) = nothing
+_cdm_set_axis_attrib!(atr, dim::X) = atr["axis"] = "X" # at["standard_name"] = "longitude";
+_cdm_set_axis_attrib!(atr, dim::Y) = atr["axis"] = "Y" # at["standard_name"] = "latitude"; 
+_cdm_set_axis_attrib!(atr, dim::Z) = (atr["axis"] = "Z"; atr["standard_name"] = "depth")
+_cdm_set_axis_attrib!(atr, dim::Ti) = (atr["axis"] = "T"; atr["standard_name"] = "time")
+_cdm_set_axis_attrib!(atr, dim) = nothing
 
-_ncdshiftlocus(dim::Dimension) = _ncdshiftlocus(lookup(dim), dim)
-_ncdshiftlocus(::LookupArray, dim::Dimension) = dim
-function _ncdshiftlocus(lookup::AbstractSampled, dim::Dimension)
+_cdmshiftlocus(dim::Dimension) = _cdmshiftlocus(lookup(dim), dim)
+_cdmshiftlocus(::Lookup, dim::Dimension) = dim
+function _cdmshiftlocus(lookup::AbstractSampled, dim::Dimension)
+    # TODO improve this
     if span(lookup) isa Regular && sampling(lookup) isa Intervals
         # We cant easily shift a DateTime value
         if eltype(dim) isa Dates.AbstractDateTime
@@ -416,19 +437,4 @@ function _ncdshiftlocus(lookup::AbstractSampled, dim::Dimension)
     end
 end
 
-_unuseddimerror(dimname) = error("Netcdf contains unused dimension $dimname")
-
-function _ncd_eachchunk(var)
-    # chunklookup, chunkvec = NCDatasets.chunking(var)
-    # chunksize = chunklookup == :chunked ? Tuple(chunkvec) :
-    chunksize = size(var)
-    DA.GridChunks(var, chunksize)
-end
-
-function _ncd_haschunks(var)
-    # chunklookup, _ = NCDatasets.chunking(var)
-    # chunklookup == :chunked ? DA.Chunked() :
-    DA.Unchunked()
-end
-
-
+_unuseddimerror(dimname) = error("Dataset contains unused dimension $dimname")

@@ -29,21 +29,16 @@ import Adapt,
        Reexport,
        Setfield
 
-# This symbol is only defined on Julia versions that support extensions.
-@static if !isdefined(Base, :get_extension)
-    using Requires
-end
-
 Reexport.@reexport using DimensionalData, GeoFormatTypes
 
 using DimensionalData.Tables,
-      DimensionalData.LookupArrays,
+      DimensionalData.Lookups,
       DimensionalData.Dimensions
-      DimensionalData.LookupArrays.IntervalSets
+      DimensionalData.Lookups.IntervalSets
 
 using DimensionalData: Name, NoName
 using .Dimensions: StandardIndices, DimTuple
-using .LookupArrays: LookupArrayTuple
+using .Lookups: LookupTuple
 
 using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
@@ -74,7 +69,7 @@ export reproject, convertlookup
 const DD = DimensionalData
 const DA = DiskArrays
 const GI = GeoInterface
-const LA = LookupArrays
+const LA = Lookups
 
 # DimensionalData documentation urls
 const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api"

@@ -14,7 +14,7 @@ using DimensionalData,
     GeoFormatTypes,
     GeoInterface
 
-using Rasters.LookupArrays
+using Rasters.Lookups
 using Rasters.Dimensions
 using Rasters: GDALsource, AbstractProjected, RasterStackOrArray, FileArray,
     RES_KEYWORD, SIZE_KEYWORD, CRS_KEYWORD, FILENAME_KEYWORD, SUFFIX_KEYWORD, EXPERIMENTAL,
@@ -26,7 +26,7 @@ const RA = Rasters
 const DD = DimensionalData
 const DA = DiskArrays
 const GI = GeoInterface
-const LA = LookupArrays
+const LA = Lookups
 
 include("cellsize.jl")
 include("gdal_source.jl")
