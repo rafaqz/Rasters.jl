@@ -9,6 +9,22 @@ function Base.read(x::Union{AbstractRaster,AbstractRasterStack,AbstractRasterSer
     _checkmem(x)
     modify(Array, x)
 end
+function Base.read(st::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
+    layers = open(st) do ost
+        map(K) do k
+            Array(parent(ost)[k])
+        end
+    end |> NamedTuple{K}
+    return rebuild(st; data=layers)
+end
+function Base.read(st::AbstractRasterStack{<:NamedTuple{K}}) where K
+    layers = open(st) do ost
+        map(K) do k
+            Array(parent(ost)[k])
+        end
+    end |> NamedTuple{K}
+    return rebuild(st; data=layers)
+end
 
 """
     read!(src::Union{AbstractString,AbstractRaster}, dst::AbstractRaster)

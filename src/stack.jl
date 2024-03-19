@@ -169,7 +169,7 @@ function RasterStack(
     filenames::Union{AbstractArray{<:AbstractString},Tuple{<:AbstractString,Vararg}};
     name=map(filekey, filenames), keys=name, kw...
 )
-    RasterStack(NamedTuple{cleankeys(Tuple(keys))}(Tuple(filenames)); kw...)
+    RasterStack(NamedTuple{cleankeys(Tuple(keys))}(filenames); kw...)
 end
 function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     crs=nothing, mappedcrs=nothing, source=nothing, lazy=false, dropband=true, kw...
@@ -253,9 +253,9 @@ function RasterStack(filename::AbstractString;
         RasterStack(joinpath.(Ref(filename), filenames); lazy, kw...)
     else
         # Load as a single file
-        st = if haslayers(source)
+        if haslayers(source)
             # With multiple named layers
-            l_st = _layer_stack(filename; source, name, keys, kw...)
+            l_st = _layer_stack(filename; source, name, keys, lazy, kw...)
 
             # Maybe split the stack into separate arrays to remove extra dims.
             if !(keys isa Nothing)
@@ -269,37 +269,40 @@ function RasterStack(filename::AbstractString;
         end
     end
 
-    # Maybe read the lazy stack to memory
-    st1 = lazy ? st : read(st)
-
     # Maybe drop the Band dimension
-    if dropband && hasdim(st1, Band()) && size(st1, Band()) == 1
+    if dropband && hasdim(st, Band()) && size(st, Band()) == 1
          if lazy
-             return view(st1, Band(1)) # TODO fix dropdims in DiskArrays
+             return view(st, Band(1)) # TODO fix dropdims in DiskArrays
          else
-             return dropdims(st1; dims=Band())
+             return dropdims(st; dims=Band())
          end
     else
-         return st1
+         return st
     end
 end
 
 function _layer_stack(filename;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, missingval=nothing,
-    source=nothing, name=nothing, keys=name, resize=nothing, kw...
+    source=nothing, name=nothing, keys=name, resize=nothing, lazy=false, kw...
 )
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     data, field_kw = _open(filename; source) do ds
-        dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
+        layers = _layers(ds, keys)
+        dims = dims isa Nothing ? _dims(ds, crs, mappedcrs) : dims
         refdims = refdims == () || refdims isa Nothing ? () : refdims
-        layerdims = layerdims isa Nothing ? DD.layerdims(ds) : layerdims
-        metadata = metadata isa Nothing ? DD.metadata(ds) : metadata
-        layermetadata = layermetadata isa Nothing ? DD.layermetadata(ds) : layermetadata
+        metadata = metadata isa Nothing ? _metadata(ds) : metadata
+        layerdims = layerdims isa Nothing ? _layerdims(ds; layers) : layerdims
+        layermetadata = layermetadata isa Nothing ? _layermetadata(ds; layers) : layermetadata
         missingval = missingval isa Nothing ? Rasters.missingval(ds) : missingval
-        data = FileStack{source}(ds, filename; keys)
-        data, (; dims, refdims, layerdims, metadata, layermetadata, missingval)
+        tuplekeys = Tuple(map(Symbol, layers.keys))
+        data = if lazy
+            FileStack{source}(ds, filename; keys=tuplekeys, vars=Tuple(layers.vars))
+        else
+            NamedTuple{tuplekeys}(map(Array, layers.vars))
+        end
+        data, (; dims, refdims, layerdims=NamedTuple{tuplekeys}(layerdims), metadata, layermetadata=NamedTuple{tuplekeys}(layermetadata), missingval)
     end
     return RasterStack(data; field_kw..., kw...)
 end
@@ -369,9 +372,12 @@ function DD.modify(f, s::AbstractRasterStack{<:FileStack})
 end
 
 # Open a single file stack
-function Base.open(f::Function, st::AbstractRasterStack{<:FileStack}; kw...)
+function Base.open(f::Function, st::AbstractRasterStack{<:FileStack{<:Any,K}}; kw...) where K
     ost = OpenStack(parent(st))
-    out = f(rebuild(st; data=ost))
+    layers = map(K) do k
+        ost[k]
+    end |> NamedTuple{K}
+    out = f(rebuild(st; data=layers))
     close(ost)
     return out
 end

@@ -16,7 +16,7 @@ RA.missingval(ds::SMAPhdf5) = SMAPMISSING
 RA.layerkeys(ds::SMAPhdf5) = keys(ds)
 RA.filekey(ds::SMAPhdf5, key::Nothing) = first(keys(ds))
 
-function DD.dims(wrapper::SMAPhdf5)
+function _dims(wrapper::SMAPhdf5)
     dataset = parent(wrapper)
     proj = read(HDF5.attributes(HDF5.root(dataset)["EASE2_global_projection"]), "grid_mapping_name")
     if proj == "lambert_cylindrical_equal_area"
@@ -50,17 +50,15 @@ function DD.dims(wrapper::SMAPhdf5)
 end
 
 # TODO actually add metadata to the dict
-DD.metadata(wrapper::SMAPhdf5) = RA._metadatadict(SMAPsource)
+_metadata(wrapper::SMAPhdf5) = RA._metadatadict(SMAPsource)
 
-function DD.layerdims(ds::SMAPhdf5)
-    keys = RA.cleankeys(RA.layerkeys(ds))
+function _layerdims(ds::SMAPhdf5; keys=RA.cleankeys(RA.layerkeys(ds)))
     # All dims are the same
     NamedTuple{keys}(map(_ -> SMAPDIMTYPES, keys))
 end
 
-function DD.layermetadata(ds::SMAPhdf5)
-    keys = RA.cleankeys(RA.layerkeys(ds))
-    NamedTuple{keys}(map(_ -> DD.metadata(ds), keys))
+function _layermetadata(ds::SMAPhdf5; keys=RA.cleankeys(RA.layerkeys(ds)))
+    NamedTuple{keys}(map(_ -> _metadata(ds), keys))
 end
 
 Base.keys(ds::SMAPhdf5) = RA.cleankeys(keys(parent(ds)[SMAPGEODATA]))

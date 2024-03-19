@@ -264,7 +264,7 @@ function Raster(ds, filename::AbstractString, key=nothing;
     source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
-    dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
+    dims = dims isa Nothing ? _dims(ds, crs, mappedcrs) : dims
     data = if lazy 
         FileArray{source}(ds, filename; key, write)
     else

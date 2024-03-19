@@ -8,6 +8,7 @@ include(joinpath(testdir, "test_utils.jl"))
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = maybedownload(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
 ncmulti = maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
+maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
 
 stackkeys = (
     :abso4, :aclcac, :aclcov, :ahfcon, :ahfice, :ahfl, :ahfliac, :ahfllac,
@@ -42,7 +43,10 @@ stackkeys = (
 end
 
 @testset "Raster" begin
-    @time ncarray = Raster(ncsingle)
+    @time ncarray = 
+    @profview for i in 1:100 
+    Raster(ncsingle)
+end
     @time lazyarray = Raster(ncsingle; lazy=true);
     @time eagerarray = Raster(ncsingle; lazy=false);
     @test_throws ArgumentError Raster("notafile.nc")
@@ -357,7 +361,7 @@ end
 end
 
 @testset "Single file stack" begin
-    @time ncstack = RasterStack(ncmulti)
+    @time ncstack = RasterStack(ncmulti);
 
     @testset "lazyness" begin
         @time read(RasterStack(ncmulti));

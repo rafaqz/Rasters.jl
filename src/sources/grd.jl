@@ -40,7 +40,7 @@ attrib(grd::GRDattrib) = grd.attrib
 filename(grd::GRDattrib) = grd.filename
 filekey(grd::GRDattrib, key::Nothing) = get(attrib(grd), "layername", Symbol(""))
 
-function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
+function _dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     attrib = grd.attrib
     crs = crs isa Nothing ? ProjString(attrib["projection"]) : crs
 
@@ -84,9 +84,9 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     return x, y, band
 end
 
-DD.name(grd::GRDattrib) = Symbol(get(grd.attrib, "layername", ""))
+_name(grd::GRDattrib) = Symbol(get(grd.attrib, "layername", ""))
 
-function DD.metadata(grd::GRDattrib, args...)
+function _metadata(grd::GRDattrib, args...)
     metadata = _metadatadict(GRDsource)
     for key in ("creator", "created", "history")
         val = get(grd.attrib, key, "")

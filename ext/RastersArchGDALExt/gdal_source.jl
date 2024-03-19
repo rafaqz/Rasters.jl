@@ -121,7 +121,7 @@ RA._open(f, ::Type{GDALsource}, ds::AG.RasterDataset; kw...) = RA.cleanreturn(f(
 # These methods are type piracy on DimensionalData/ArchGDAL and may have to move some day
 
 # We allow passing in crs and mappedcrs manually
-function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
+function _dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     gt_dims = try
         AG.getgeotransform(raster)
     catch
@@ -205,7 +205,7 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     end
 end
 
-function DD.metadata(raster::AG.RasterDataset, args...)
+function _metadata(raster::AG.RasterDataset, args...)
     band = AG.getband(raster.ds, 1)
     # color = AG.getname(AG.getcolorinterp(band))
     scale = AG.getscale(band)
