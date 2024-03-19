@@ -301,7 +301,7 @@ end
 # Sometimes GDAL stores the `missingval` in the wrong type, so fix it.
 _missingval_from_gdal(T::Type{<:AbstractFloat}, x::Real) = convert(T, x)
 function _missingval_from_gdal(T::Type{<:Integer}, x::AbstractFloat)
-    if trunc(x) === x
+    if trunc(x) === x && x >= typemin(T) && x <= typemax(T)
         convert(T, x)
     else
         @warn "Missing value $x can't be converted to array eltype $T. `missingval` set to `nothing`"
