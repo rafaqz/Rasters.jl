@@ -153,7 +153,7 @@ function Base.write(filename::String, ::Type{GRDsource}, A::AbstractRaster;
     force=false, verbose=true, kw...
 )
     check_can_write(filename, force)
-    A = _maybe_use_type_missingval(A, GRDsource)
+    A = _maybe_use_type_missingval(A, GRDsource())
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
             a -> reorder(a, (X(GRD_X_ORDER), Y(GRD_Y_ORDER), Band(GRD_BAND_ORDER)))
@@ -222,7 +222,7 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
 end
 
 
-function create(filename, ::Type{GRDsource}, T::Type, dims::DD.DimTuple; 
+function create(filename, ::GRDsource, T::Type, dims::DD.DimTuple; 
     name="layer", metadata=nothing, missingval=nothing, keys=(name,), lazy=true, 
 )
     # Remove extension
@@ -248,7 +248,7 @@ function Base.open(f::Function, A::FileArray{GRDsource}, key...; write=A.write)
     _mmapgrd(mm -> f(RasterDiskArray{GRDsource}(mm, A.eachchunk, A.haschunks)), A; write)
 end
 
-function _open(f, ::Type{GRDsource}, filename::AbstractString; key=nothing, write=false)
+function _open(f, ::GRDsource, filename::AbstractString; key=nothing, write=false)
     isfile(filename) || _filenotfound_error(filename)
     _open(f, GRDsource, GRDattrib(filename; write))
 end

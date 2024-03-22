@@ -17,35 +17,35 @@ const GDALfile = GDALsource
 const SMAPfile = SMAPsource
 
 const SYMBOL2SOURCE = Dict(
-    :gdal => GDALsource,
-    :grd => GRDsource,
-    :netcdf => NCDsource, 
-    :grib => GRIBsource, 
-    :smap => SMAPsource,
+    :gdal => GDALsource(),
+    :grd => GRDsource(),
+    :netcdf => NCDsource(), 
+    :grib => GRIBsource(), 
+    :smap => SMAPsource(),
 )
 
 const SOURCE2SYMBOL = Dict(map(reverse, collect(pairs(SYMBOL2SOURCE))))
 
 # File extensions. GDAL is the catch-all for everything else
 const SOURCE2EXT = Dict(
-    GRDsource => (".grd", ".gri"), 
-    NCDsource => (".nc",), 
-    GRIBsource => (".grib",), 
-    SMAPsource => (".h5",),
+    GRDsource() => (".grd", ".gri"), 
+    NCDsource() => (".nc",), 
+    GRIBsource() => (".grib",), 
+    SMAPsource() => (".h5",),
 )
 const SOURCE2PACAKGENAME = Dict(
-    GDALsource => "ArchGDAL",
-    NCDsource => "NCDatasets",
-    GRIBsource => "GRIBDatasets",
-    SMAPsource => "HDF5",
+    GDALsource() => "ArchGDAL",
+    NCDsource() => "NCDatasets",
+    GRIBsource() => "GRIBDatasets",
+    SMAPsource() => "HDF5",
 )
 
 const EXT2SOURCE = Dict(
-    ".grd" => GRDsource, 
-    ".gri" => GRDsource, 
-    ".nc" => NCDsource, 
-    ".grib" => GRIBsource, 
-    ".h5" => SMAPsource
+    ".grd" => GRDsource(), 
+    ".gri" => GRDsource(), 
+    ".nc" => NCDsource(), 
+    ".grib" => GRIBsource(), 
+    ".h5" => SMAPsource(),
 )
 
 # exception to be raised when backend extension is not satisfied
@@ -59,12 +59,12 @@ function Base.showerror(io::IO, e::BackendException)
 end
 
 # Get the source backend for a file extension, falling back to GDALsource
-_sourcetype(filename::AbstractString) = get(EXT2SOURCE, splitext(filename)[2], GDALsource)
+_sourcetype(filename::AbstractString) = get(EXT2SOURCE, splitext(filename)[2], GDALsource())
 _sourcetype(filenames::NamedTuple) = _sourcetype(first(filenames))
 _sourcetype(filename, ext::Nothing) = _sourcetype(filename)
-_sourcetype(filename, ext) = get(EXT2SOURCE, ext, GDALsource)
-_sourcetype(source::Source) = typeof(source)
-_sourcetype(source::Type{<:Source}) = source
+_sourcetype(filename, ext) = get(EXT2SOURCE, ext, GDALsource())
+_sourcetype(source::Source) = source
+_sourcetype(source::Type{<:Source}) = source()
 function _sourcetype(name::Symbol) 
     if haskey(SYMBOL2SOURCE, name)
         SYMBOL2SOURCE[name]

@@ -7,7 +7,7 @@ function create(filename, T, A::AbstractRaster;
     create(filename, T, dims(A); parent=parent(A), name, metadata, missingval, kw...)
 end
 function create(filename::AbstractString, T::Type, dims::Tuple;
-    lazy=true, parent=nothing, suffix=nothing, source=_sourcetype(filename), 
+    lazy=true, parent=nothing, suffix=nothing, source::Source=_sourcetype(filename), 
     missingval=nothing, kw...
 )
     filename = _maybe_add_suffix(filename, suffix)

@@ -424,9 +424,9 @@ Base.convert(::Type{RasterStack}, src::AbstractDimStack) = RasterStack(src)
 
 Raster(stack::RasterStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
 
-defaultcrs(T::Type, crs) = crs
-defaultcrs(T::Type, ::Nothing) = defaultcrs(T)
-defaultcrs(T::Type) = nothing
-defaultmappedcrs(T::Type, crs) = crs
-defaultmappedcrs(T::Type, ::Nothing) = defaultmappedcrs(T)
-defaultmappedcrs(T::Type) = nothing
+defaultcrs(::Source, crs) = crs
+defaultcrs(s::Source, ::Nothing) = defaultcrs(s)
+defaultcrs(x) = nothing
+defaultmappedcrs(::Source, crs) = crs
+defaultmappedcrs(s::Source, ::Nothing) = defaultmappedcrs(s)
+defaultmappedcrs(::Source) = nothing

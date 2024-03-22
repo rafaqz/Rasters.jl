@@ -22,7 +22,7 @@ nolookup_to_sampled(dims::DimTuple) = map(nolookup_to_sampled, dims)
 nolookup_to_sampled(d::Dimension) =
     lookup(d) isa NoLookup ? set(d, Sampled(; sampling=Points())) : d
 
-function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Type{<:Source}) where T
+function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source) where T
     if ismissing(missingval(A))
         newmissingval = _type_missingval(Missings.nonmissingtype(T))
         A1 = replace_missing(A, newmissingval)

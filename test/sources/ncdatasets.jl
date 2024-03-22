@@ -43,10 +43,15 @@ stackkeys = (
 end
 
 @testset "Raster" begin
-    @time ncarray = 
-    @profview for i in 1:100 
-    Raster(ncsingle)
-end
+    using Cthulhu
+    using ProfileView, SnoopCompile
+    tinf = @snoopi_deep Raster(ncsingle; name=:tos)
+    fg = flamegraph(tinf)
+    ProfileView.view(fg)
+
+    @profview Raster(ncsingle; name=:tos)
+    @time ncarray = Raster(ncsingle);
+
     @time lazyarray = Raster(ncsingle; lazy=true);
     @time eagerarray = Raster(ncsingle; lazy=false);
     @test_throws ArgumentError Raster("notafile.nc")
@@ -71,7 +76,7 @@ end
     end
 
     @testset "read" begin
-        @time A = read(ncarray);
+        @time A = read(lazyarray);
         @test A isa Raster
         @test parent(A) isa Array
         A2 = copy(A) .= 0

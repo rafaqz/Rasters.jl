@@ -91,6 +91,7 @@ const DEFAULT_TABLE_DIM_KEYS = (:X, :Y)
 
 include("lookup.jl")
 include("dimensions.jl")
+include("sources/sources.jl")
 include("filearray.jl")
 include("filestack.jl")
 include("openstack.jl")
@@ -102,7 +103,6 @@ include("crs.jl")
 const RasterStackOrArray = Union{AbstractRasterStack,AbstractRaster}
 const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}
 
-include("sources/sources.jl")
 include("utils.jl")
 include("skipmissing.jl")
 

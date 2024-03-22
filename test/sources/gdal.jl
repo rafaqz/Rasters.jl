@@ -10,7 +10,7 @@ gdalpath = maybedownload(url)
 @testset "Raster" begin
     @test_throws ArgumentError Raster("notafile.tif")
 
-    @time gdalarray = Raster(gdalpath; name=:test)
+    @time gdalarray = Raster(gdalpath; name=:test);
     @time lazyarray = Raster(gdalpath; lazy=true);
     @time eagerarray = Raster(gdalpath; lazy=false);
 

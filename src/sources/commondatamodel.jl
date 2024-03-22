@@ -46,9 +46,9 @@ cleanreturn(A::CFDiskArray) = Array(A)
 missingval(A::CFDiskArray) = missingval(parent(A))
 
 # DimensionalData methods
-DD.dims(var::CFDiskArray, args...) = DD.dims(parent(var), args...)
-DD.layerdims(var::CFDiskArray, args...) = DD.layerdims(parent(var), args...)
-DD.metadata(var::CFDiskArray, args...) = DD.metadata(parent(var), args...)
+_dims(var::CFDiskArray, args...) = _dims(parent(var), args...)
+_layerdims(var::CFDiskArray, args...) = _layerdims(parent(var), args...)
+_metadata(var::CFDiskArray, args...) = _metadata(parent(var), args...)
 
 # Base methods
 Base.parent(A::CFDiskArray) = A.var
@@ -90,22 +90,24 @@ end
 # Rasters methods for CDM types ###############################
 
 # This is usually called inside a closure and cleaned up in `cleanreturn`
-function Raster(ds::AbstractDataset, filename::AbstractString, key=nothing; 
+function Raster(ds::AbstractDataset, filename::AbstractString, key::Nothing=nothing; 
     source=nothing, kw...
 )
     source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
-    if key isa Union{Nothing,NoKW}
-        # Find the first valid variable
-        for l in _layers(ds)
-            if ndims(l.var) > 0
-                @info "No `name` or `key` keyword provided, using first valid layer with name `:$key`"
-                return Raster(CFDiskArray(l.var), filename, k; source, kw...)
-            end
+    # Find the first valid variable
+    layers = _layers(ds)
+    for (key, var) in zip(layers.keys, layers.vars) 
+        if ndims(var) > 0
+            @info "No `name` or `key` keyword provided, using first valid layer with name `:$key`"
+            return Raster(CFDiskArray(var), filename, key; source, kw...)
         end
-        throw(ArgumentError("dataset at $filename has no array variables"))
-    else
-         return Raster(CFDiskArray(l.var), filename, key; source)
     end
+    throw(ArgumentError("dataset at $filename has no array variables"))
+end
+function Raster(ds::AbstractDataset, filename::AbstractString, key::Union{AbstractString,Symbol}; 
+    source=nothing, kw...
+)
+    return Raster(CFDiskArray(ds[key]), filename, key; source)
 end
 
 function FileArray{source}(var::AbstractVariable, filename::AbstractString; kw...) where source<:CDMsource
@@ -128,20 +130,20 @@ function FileStack{source}(
 end
 
 function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) where source<:CDMsource
-    _open(source, filename(A); key=key(A), write, kw...) do var
+    _open(source(), filename(A); key=key(A), write, kw...) do var
         f(var)
     end
 end
 
-function _open(f, ::Type{<:CDMsource}, ds::AbstractDataset; key=nothing, kw...)
+function _open(f, ::CDMsource, ds::AbstractDataset; key=nothing, kw...)
     x = key isa Nothing ? ds : CFDiskArray(ds[_firstkey(ds, key)])
     cleanreturn(f(x))
 end
-_open(f, ::Type{<:CDMsource}, var::CFDiskArray; kw...) = cleanreturn(f(var))
-# _open(f, ::Type{<:CDMsource}, var::CDM.CFVariable; kw...) = cleanreturn(f(CFDiskArray(var)))
+_open(f, ::CDMsource, var::CFDiskArray; kw...) = cleanreturn(f(var))
+# _open(f, ::CDMsource, var::CDM.CFVariable; kw...) = cleanreturn(f(CFDiskArray(var)))
 
 # TODO fix/test this for RasterStack
-function create(filename, source::Type{<:CDMsource}, T::Union{Type,Tuple}, dims::DimTuple;
+function create(filename, source::CDMsource, T::Union{Type,Tuple}, dims::DimTuple;
     name=:layer1, 
     keys=(name,), 
     layerdims=map(_ -> dims, keys), 
@@ -163,11 +165,11 @@ end
 missingval(var::AbstractDataset) = missing
 missingval(var::AbstractVariable{T}) where T = missing isa T ? missing : nothing
 cleanreturn(A::AbstractVariable) = Array(A)
-haslayers(::Type{<:CDMsource}) = true
-defaultcrs(::Type{<:CDMsource}) = EPSG(4326)
-defaultmappedcrs(::Type{<:CDMsource}) = EPSG(4326)
+haslayers(::CDMsource) = true
+defaultcrs(::CDMsource) = EPSG(4326)
+defaultmappedcrs(::CDMsource) = EPSG(4326)
 
-function _layers(ds::AbstractDataset, ::Nothing)
+function _layers(ds::AbstractDataset, ::Nothing=nothing)
     dimkeys = CDM.dimnames(ds)
     toremove = if "bnds" in dimkeys
         dimkeys = setdiff(dimkeys, ("bnds",))
@@ -234,20 +236,20 @@ function _layerdims(ds::AbstractDataset; layers)
     end
 end
 function _layermetadata(ds::AbstractDataset; layers)
-    dimtypes = map(layers.attrs) do attr
+    map(layers.attrs) do attr
         md = _metadatadict(CDMsource, attr)
         if haskey(attr, "grid_mapping")
             md["grid_mapping"] = Dict(attr["grid_mapping"])
         end
         md
     end
-    dimtypes
 end
 
 
 # Utils ########################################################################
 
-_firstkey(ds::AbstractDataset, key::Nothing=nothing) = Symbol(first(layerkeys(ds)))
+# TODO dont load all keys here with _layers
+_firstkey(ds::AbstractDataset, key::Nothing=nothing) = Symbol(first(_layers(ds).keys))
 _firstkey(ds::AbstractDataset, key) = Symbol(key)
 
 function _cdmdim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
@@ -305,7 +307,7 @@ function _cdmlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs)
     var = ds[dimname]
     index = var[:]
     attr = CDM.attribs(var)
-    metadata = _metadatadict(CDMsource, )
+    metadata = _metadatadict(CDMsource, attr)
     return _cdmlookup(ds, var, attr, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For unknown types we just make a Categorical lookup
@@ -403,10 +405,15 @@ function _parse_period(period_str::String)
     if mtch === nothing
         return nothing
     else
-        vals = Tuple(parse.(Int, mtch.captures))
-        periods = (Year, Month, Day, Hour, Minute, Second)
-        if length(vals) == length(periods)
-            compound = sum(map((p, v) -> p(v), periods, vals))
+        vals = map(x -> parse(Int, x), mtch.captures)
+        if length(vals) == 6
+            y = Year(vals[1])
+            m = Month(vals[2])
+            d = Day(vals[3])
+            h = Hour(vals[4])
+            m = Minute(vals[5])
+            s = Second(vals[6])
+            compound = sum(y, m, d, h, m, s)
             if length(compound.periods) == 1
                 return compound.periods[1]
             else
