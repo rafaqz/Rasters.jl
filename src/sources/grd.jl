@@ -54,7 +54,7 @@ function _dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     yspan = (ybounds[1] - ybounds[2]) / ysize
 
     # Not fully implemented yet
-    xy_metadata = _metadatadict(GRDsource)
+    xy_metadata = _metadatadict(GRDsource())
 
     xindex = LinRange(xbounds[1], xbounds[2] - xspan, xsize)
     yindex = LinRange(ybounds[2] + yspan, ybounds[1], ysize)
@@ -87,7 +87,7 @@ end
 _name(grd::GRDattrib) = Symbol(get(grd.attrib, "layername", ""))
 
 function _metadata(grd::GRDattrib, args...)
-    metadata = _metadatadict(GRDsource)
+    metadata = _metadatadict(GRDsource())
     for key in ("creator", "created", "history")
         val = get(grd.attrib, key, "")
         if val != ""

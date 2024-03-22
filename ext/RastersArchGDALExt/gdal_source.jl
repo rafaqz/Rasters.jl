@@ -213,7 +213,7 @@ function RA._metadata(raster::AG.RasterDataset, args...)
     # norvw = AG.noverview(band)
     # units = AG.getunittype(band)
     # filelist = AG.filelist(raster)
-    metadata = RA._metadatadict(GDALsource), "scale"=>scale, "offset"=>offset)
+    metadata = RA._metadatadict(GDALsource(), "scale"=>scale, "offset"=>offset)
     # if units == ""
     #     metadata["units"] = units
     # end

@@ -34,14 +34,15 @@ function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source) where 
 end
 
 # Create a standardisted Metadata object of source T, containing a `Dict{String,Any}`
-_metadatadict(T::Type, p1::Pair, pairs::Pair...) = _metadatadict(T, (p1, pairs...))
-_metadatadict(::Type{T}) where T = Metadata{T}(Dict{String,Any}())
-function _metadatadict(::Type{T}, pairs) where T
+_metadatadict(s::Source, p1::Pair, pairs::Pair...) = 
+    _metadatadict(s, (p1, pairs...))
+_metadatadict(::S) where S<:Source = Metadata{S}(Dict{String,Any}())
+function _metadatadict(::S, pairs) where S<:Source
     dict = Dict{String,Any}()
     for (k, v) in pairs
         dict[String(k)] = v
     end
-    return Metadata{T}(dict)
+    return Metadata{S}(dict)
 end
 
 # We often need to convert the locus and the lookup in the same step,
