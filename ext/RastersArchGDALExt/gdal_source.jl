@@ -43,6 +43,7 @@ end
 
 RA.cleanreturn(A::AG.RasterDataset) = Array(A)
 RA.haslayers(::GDALsource) = false
+RA._sourcetype(A::AG.RasterDataset) = GDALsource()
 
 """
     Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster; force=false, kw...)

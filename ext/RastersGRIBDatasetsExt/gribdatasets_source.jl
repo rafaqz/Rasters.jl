@@ -16,3 +16,4 @@ end
 # Hack to get the inner DiskArrays chunks as they are not exposed at the top level
 RA._get_eachchunk(var::GDS.Variable) = DiskArrays.eachchunk(var.values)
 RA._get_haschunks(var::GDS.Variable) = DiskArrays.haschunks(var.values)
+RA._sourcetype(::GDS.Variable) = GRIBsource()

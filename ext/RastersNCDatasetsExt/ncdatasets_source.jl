@@ -151,6 +151,9 @@ end
 RA._get_eachchunk(var::NCD.Variable) = DiskArrays.eachchunk(var)
 RA._get_haschunks(var::NCD.Variable) = DiskArrays.haschunks(var)
 
+RA._sourcetype(::NCD.Dataset) = NCDsource()
+RA._sourcetype(::NCD.Variable) = NCDsource()
+
 # precompilation
 
 # const _NCDVar = NCDatasets.CFVariable{Union{Missing, Float32}, 3, NCDatasets.Variable{Float32, 3, NCDatasets.NCDataset}, NCDatasets.Attributes{NCDatasets.NCDataset{Nothing}}, NamedTuple{(:fillvalue, :scale_factor, :add_offset, :calendar, :time_origin, :time_factor), Tuple{Float32, Nothing, Nothing, Nothing, Nothing, Nothing}}}

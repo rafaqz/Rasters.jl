@@ -43,13 +43,6 @@ stackkeys = (
 end
 
 @testset "Raster" begin
-    using Cthulhu
-    using ProfileView, SnoopCompile
-    tinf = @snoopi_deep Raster(ncsingle; name=:tos)
-    fg = flamegraph(tinf)
-    ProfileView.view(fg)
-
-    @profview Raster(ncsingle; name=:tos)
     @time ncarray = Raster(ncsingle);
 
     @time lazyarray = Raster(ncsingle; lazy=true);
