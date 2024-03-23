@@ -400,7 +400,7 @@ end
 
     @testset "load ncstack" begin
         @test ncstack isa RasterStack
-        @test all(ismissing, missingval(ncstack))
+        @test ismissing(missingval(ncstack))
         @test dims(ncstack[:abso4]) == dims(ncstack, (X, Y, Ti)) 
         @test refdims(ncstack) == ()
         # Loads child as a regular Raster
