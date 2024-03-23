@@ -149,7 +149,7 @@ The extension of `filename` will be ignored.
 
 Returns `filename`.
 """
-function Base.write(filename::String, ::Type{GRDsource}, A::AbstractRaster; 
+function Base.write(filename::String, ::GRDsource, A::AbstractRaster; 
     force=false, verbose=true, kw...
 )
     check_can_write(filename, force)
@@ -237,7 +237,7 @@ function create(filename, ::GRDsource, T::Type, dims::DD.DimTuple;
     open(basename * ".gri", write=true) do IO
         write(IO, FillArrays.Zeros(sze))
     end
-    return Raster(filename; source=GRDsource, lazy)
+    return Raster(filename; source=GRDsource(), lazy)
 end
 
 # AbstractRasterStack methods
@@ -252,9 +252,9 @@ function _open(f, ::GRDsource, filename::AbstractString; key=nothing, write=fals
     isfile(filename) || _filenotfound_error(filename)
     _open(f, GRDsource, GRDattrib(filename; write))
 end
-_open(f, ::Type{GRDsource}, attrib::GRDattrib; kw...) = f(attrib)
+_open(f, ::GRDsource, attrib::GRDattrib; kw...) = f(attrib)
 
-haslayers(::Type{GRDsource}) = false
+haslayers(::GRDsource) = false
 
 # Utils ########################################################################
 
