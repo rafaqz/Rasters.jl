@@ -77,7 +77,7 @@ end
 function _open(f, filename::AbstractString; source=_sourcetype(filename), kw...)
     _open(f, source, filename; kw...)
 end
-function _open(f, T::Type, filename::AbstractString; kw...)
-    packagename = SOURCE2PACAKGENAME[T]
+function _open(f, s::Source, filename::AbstractString; kw...)
+    packagename = SOURCE2PACAKGENAME[s]
     throw(BackendException(packagename))
 end
