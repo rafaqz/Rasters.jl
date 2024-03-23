@@ -250,7 +250,7 @@ end
 
 function _open(f, ::GRDsource, filename::AbstractString; key=nothing, write=false)
     isfile(filename) || _filenotfound_error(filename)
-    _open(f, GRDsource, GRDattrib(filename; write))
+    _open(f, GRDsource(), GRDattrib(filename; write))
 end
 _open(f, ::GRDsource, attrib::GRDattrib; kw...) = f(attrib)
 
