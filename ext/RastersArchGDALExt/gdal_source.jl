@@ -230,11 +230,11 @@ RA.Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
 function RA.Raster(ds::AG.RasterDataset;
     crs=crs(ds),
     mappedcrs=nothing,
-    dims=_dims(ds, crs, mappedcrs),
+    dims=RA._dims(ds, crs, mappedcrs),
     refdims=(),
     name=Symbol(""),
-    metadata=_metadata(ds),
-    missingval=missingval(ds),
+    metadata=RA._metadata(ds),
+    missingval=RA.missingval(ds),
     lazy=false,
     dropband=false
 )
