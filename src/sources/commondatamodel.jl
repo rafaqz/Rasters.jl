@@ -244,7 +244,7 @@ function _layermetadata(ds::AbstractDataset; layers)
     map(layers.attrs) do attr
         md = _metadatadict(_sourcetype(ds), attr)
         if haskey(attr, "grid_mapping")
-            md["grid_mapping"] = Dict(attr["grid_mapping"])
+            md["grid_mapping"] = Dict(CDM.attribs(ds[attr["grid_mapping"]]))
         end
         md
     end
