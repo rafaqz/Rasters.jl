@@ -59,9 +59,11 @@ function Base.showerror(io::IO, e::BackendException)
 end
 
 # Get the source backend for a file extension, falling back to GDALsource
+_sourcetype(filename::AbstractString, s::Source) = s
+_sourcetype(filename::AbstractString, s) = _sourcetype(s)
+_sourcetype(filename::AbstractString, ::Nothing) = _sourcetype(filename)
 _sourcetype(filename::AbstractString) = get(EXT2SOURCE, splitext(filename)[2], GDALsource())
 _sourcetype(filenames::NamedTuple) = _sourcetype(first(filenames))
-_sourcetype(filename, ext::Nothing) = _sourcetype(filename)
 _sourcetype(filename, ext) = get(EXT2SOURCE, ext, GDALsource())
 _sourcetype(source::Source) = source
 _sourcetype(source::Type{<:Source}) = source()

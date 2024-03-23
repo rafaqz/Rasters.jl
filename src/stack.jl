@@ -175,7 +175,7 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     crs=nothing, mappedcrs=nothing, source=nothing, lazy=false, dropband=true, kw...
 ) where K
     layers = map(keys(filenames), values(filenames)) do key, fn
-        source = source isa Nothing ? _sourcetype(fn) : _sourcetype(source)
+        source = _sourcetype(fn, source)
         crs = defaultcrs(source, crs)
         mappedcrs = defaultmappedcrs(source, mappedcrs)
         _open(source, fn; key) do ds
@@ -237,7 +237,7 @@ end
 function RasterStack(filename::AbstractString;
     source=nothing, name=nothing, keys=name, lazy=false, dropband=true, kw...
 )
-    source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
+    source = _sourcetype(filename, source)
     st = if isdir(filename)
         # Load as a whole directory
         filenames = readdir(filename)
@@ -298,7 +298,7 @@ function _layer_stack(filename;
         missingval = missingval isa Nothing ? Rasters.missingval(ds) : missingval
         tuplekeys = Tuple(map(Symbol, layers.keys))
         data = if lazy
-            FileStack{source}(ds, filename; keys=tuplekeys, vars=Tuple(layers.vars))
+            FileStack{typeof(source)}(ds, filename; keys=tuplekeys, vars=Tuple(layers.vars))
         else
             NamedTuple{tuplekeys}(map(Array, layers.vars))
         end

@@ -251,7 +251,7 @@ end
 function Raster(filename::AbstractString;
     name=nothing, key=name, source=nothing, kw...
 )::Raster
-    source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
+    source = _sourcetype(filename, source)
     Base.invokelatest() do
         _open(filename; source) do ds
             key = filekey(ds, key)
@@ -265,7 +265,7 @@ function Raster(ds, filename::AbstractString, key=nothing;
     source=nothing, write=false, lazy=false, dropband=true,
     metadata=_metadata(ds), missingval=missingval(ds)
 )::Raster
-    source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
+    source = _sourcetype(filename, source)
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     dims = dims isa Nothing ? _dims(ds, crs, mappedcrs) : dims
