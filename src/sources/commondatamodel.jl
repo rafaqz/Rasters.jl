@@ -217,14 +217,14 @@ function _layerdims(var::AbstractVariable)
         _cdmdim(CDM.dataset(var), dimname)
     end |> Tuple    
 end
-_metadata(var::AbstractVariable; attr=CDM.attribs(var)) = _metadatadict(CDMsource, attr)
+_metadata(var::AbstractVariable; attr=CDM.attribs(var)) = _metadatadict(CDMsource(), attr)
 
 function _dims(ds::AbstractDataset, crs=nothing, mappedcrs=nothing)
     map(CDM.dimnames(ds)) do key
         _cdmdim(ds, key, crs, mappedcrs)
     end |> Tuple
 end
-_metadata(ds::AbstractDataset; attr=CDM.attribs(ds)) = _metadatadict(CDMsource, attr)
+_metadata(ds::AbstractDataset; attr=CDM.attribs(ds)) = _metadatadict(CDMsource(), attr)
 function _layerdims(ds::AbstractDataset; layers)
     dimdict = map(CDM.dimnames(ds)) do dimname
         dimname => _cdmdimtype(ds, dimname)
@@ -237,7 +237,7 @@ function _layerdims(ds::AbstractDataset; layers)
 end
 function _layermetadata(ds::AbstractDataset; layers)
     map(layers.attrs) do attr
-        md = _metadatadict(CDMsource, attr)
+        md = _metadatadict(CDMsource(), attr)
         if haskey(attr, "grid_mapping")
             md["grid_mapping"] = Dict(attr["grid_mapping"])
         end
@@ -307,7 +307,7 @@ function _cdmlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs)
     var = ds[dimname]
     index = var[:]
     attr = CDM.attribs(var)
-    metadata = _metadatadict(CDMsource, attr)
+    metadata = _metadatadict(CDMsource(), attr)
     return _cdmlookup(ds, var, attr, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For unknown types we just make a Categorical lookup
