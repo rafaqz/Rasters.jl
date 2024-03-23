@@ -179,7 +179,7 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
         crs = defaultcrs(source, crs)
         mappedcrs = defaultmappedcrs(source, mappedcrs)
         _open(source, fn; key) do ds
-            dims = DD.dims(ds, crs, mappedcrs)
+            dims = _dims(ds, crs, mappedcrs)
             prod(map(length, dims))
             data = if lazy
                 FileArray{source}(ds, fn; key)
@@ -189,7 +189,7 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
                     Array(A)
                 end
             end
-            md = metadata(ds)
+            md = _metadata(ds)
             mv = missingval(ds)
             raster = Raster(data, dims; name=key, metadata=md, missingval=mv) 
             return dropband ? _drop_single_band(raster, lazy) : raster
@@ -365,9 +365,11 @@ function RasterStack(s::AbstractDimStack; name=cleankeys(Base.keys(s)), keys=nam
     return set(st, dims...)
 end
 
-function DD.modify(f, s::AbstractRasterStack{<:FileStack})
+function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
     open(s) do o
-        map(a -> modify(f, a), o)
+        map(K) do k
+            Array(parent(ost)[k])
+        end
     end
 end
 
