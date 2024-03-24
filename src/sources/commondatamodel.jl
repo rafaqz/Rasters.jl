@@ -73,8 +73,8 @@ _get_eachchunk(var::CDM.CFVariable) = _get_eachchunk(var.var)
 _get_haschunks(var::CFDiskArray) = _get_haschunks(parent(var))
 _get_haschunks(var::CDM.CFVariable) = _get_haschunks(var.var)
 
-_sourcetype(var::CFDiskArray) = _sourcetype(parent(var))
-_sourcetype(var::CDM.CFVariable) = _sourcetype(var.var)
+_sourcetrait(var::CFDiskArray) = _sourcetrait(parent(var))
+_sourcetrait(var::CDM.CFVariable) = _sourcetrait(var.var)
 
 # CommonDataModel.jl methods
 for method in (:size, :name, :dimnames, :dataset, :attribnames)
@@ -95,7 +95,7 @@ end
 function Raster(ds::AbstractDataset, filename::AbstractString, key::Nothing=nothing;
     source=nothing, kw...
 )
-    source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
+    source = isnothing(source) ? _sourcetrait(filename) : _sourcetrait(source)
     # Find the first valid variable
     layers = _layers(ds)
     for (key, var) in zip(layers.keys, layers.vars)
@@ -216,7 +216,7 @@ function _dims(var::AbstractVariable{<:Any,N}, crs=nothing, mappedcrs=nothing) w
     end
 end
 _metadata(var::AbstractVariable; attr=CDM.attribs(var)) =
-    _metadatadict(_sourcetype(var), attr)
+    _metadatadict(_sourcetrait(var), attr)
 
 function _dimdict(ds::AbstractDataset, crs=nothing, mappedcrs=nothing)
     dimdict = Dict{String,Dimension}()
@@ -231,7 +231,7 @@ function _dims(ds::AbstractDataset, dimdict::Dict)
     end |> Tuple
 end
 _metadata(ds::AbstractDataset; attr=CDM.attribs(ds)) =
-    _metadatadict(_sourcetype(ds), attr)
+    _metadatadict(_sourcetrait(ds), attr)
 function _layerdims(ds::AbstractDataset; layers, dimdict)
     map(layers.vars) do var
         map(CDM.dimnames(var)) do dimname
@@ -241,7 +241,7 @@ function _layerdims(ds::AbstractDataset; layers, dimdict)
 end
 function _layermetadata(ds::AbstractDataset; layers)
     map(layers.attrs) do attr
-        md = _metadatadict(_sourcetype(ds), attr)
+        md = _metadatadict(_sourcetrait(ds), attr)
         if haskey(attr, "grid_mapping")
             md["grid_mapping"] = Dict(CDM.attribs(ds[attr["grid_mapping"]]))
         end
@@ -311,7 +311,7 @@ function _cdmlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs)
     var = ds[dimname]
     index = var[:]
     attr = CDM.attribs(var)
-    metadata = _metadatadict(_sourcetype(ds), attr)
+    metadata = _metadatadict(_sourcetrait(ds), attr)
     return _cdmlookup(ds, var, attr, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For unknown types we just make a Categorical lookup

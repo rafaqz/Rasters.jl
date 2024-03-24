@@ -17,5 +17,5 @@ end
 RA._get_eachchunk(var::GDS.Variable) = DiskArrays.eachchunk(var.values)
 RA._get_haschunks(var::GDS.Variable) = DiskArrays.haschunks(var.values)
 
-RA._sourcetype(::GDS.Variable) = GRIBsource()
-RA._sourcetype(::GDS.GRIBDataset) = GRIBsource()
+RA._sourcetrait(::GDS.Variable) = GRIBsource()
+RA._sourcetrait(::GDS.GRIBDataset) = GRIBsource()

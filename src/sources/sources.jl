@@ -59,15 +59,15 @@ function Base.showerror(io::IO, e::BackendException)
 end
 
 # Get the source backend for a file extension, falling back to GDALsource
-_sourcetype(filename::AbstractString, s::Source) = s
-_sourcetype(filename::AbstractString, s) = _sourcetype(s)
-_sourcetype(filename::AbstractString, ::Nothing) = _sourcetype(filename)
-_sourcetype(filename::AbstractString) = get(EXT2SOURCE, splitext(filename)[2], GDALsource())
-_sourcetype(filenames::NamedTuple) = _sourcetype(first(filenames))
-_sourcetype(filename, ext) = get(EXT2SOURCE, ext, GDALsource())
-_sourcetype(source::Source) = source
-_sourcetype(source::Type{<:Source}) = source()
-function _sourcetype(name::Symbol) 
+_sourcetrait(filename::AbstractString, s::Source) = s
+_sourcetrait(filename::AbstractString, s) = _sourcetrait(s)
+_sourcetrait(filename::AbstractString, ::Nothing) = _sourcetrait(filename)
+_sourcetrait(filename::AbstractString) = get(EXT2SOURCE, splitext(filename)[2], GDALsource())
+_sourcetrait(filenames::NamedTuple) = _sourcetrait(first(filenames))
+_sourcetrait(filename, ext) = get(EXT2SOURCE, ext, GDALsource())
+_sourcetrait(source::Source) = source
+_sourcetrait(source::Type{<:Source}) = source()
+function _sourcetrait(name::Symbol) 
     if haskey(SYMBOL2SOURCE, name)
         SYMBOL2SOURCE[name]
     else
@@ -76,7 +76,7 @@ function _sourcetype(name::Symbol)
 end
 
 # Internal read method
-function _open(f, filename::AbstractString; source=_sourcetype(filename), kw...)
+function _open(f, filename::AbstractString; source=_sourcetrait(filename), kw...)
     _open(f, source, filename; kw...)
 end
 function _open(f, s::Source, filename::AbstractString; kw...)

@@ -6,7 +6,7 @@ Write an [`AbstractRaster`](@ref) to file, guessing the backend from the file ex
 Keyword arguments are passed to the `write` method for the backend.
 """
 function Base.write(
-    filename::AbstractString, A::AbstractRaster; source=_sourcetype(filename), kw...
+    filename::AbstractString, A::AbstractRaster; source=_sourcetrait(filename), kw...
 )
     write(filename, source, A; kw...)
 end
@@ -32,7 +32,7 @@ Other keyword arguments are passed to the `write` method for the backend.
 If the source can't be saved as a stack-like object, individual array layers will be saved.
 """
 function Base.write(path::AbstractString, s::AbstractRasterStack;
-    suffix=nothing, ext=nothing, source=_sourcetype(path, ext), verbose=true, kw...
+    suffix=nothing, ext=nothing, source=_sourcetrait(path, ext), verbose=true, kw...
 )
     if haslayers(source)
         write(path, source, s; kw...)
@@ -75,7 +75,7 @@ See other docs for `write`. All keywords are passed through to `Raster` and `Ras
 """
 function Base.write(
     path::AbstractString, A::AbstractRasterSeries;
-    ext=nothing, source=_sourcetype(path, ext), kw...
+    ext=nothing, source=_sourcetrait(path, ext), kw...
 )
     base, name_ext = splitext(path)
     ext = isnothing(ext) ? name_ext : ext

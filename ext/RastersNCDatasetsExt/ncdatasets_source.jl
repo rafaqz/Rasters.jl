@@ -151,8 +151,8 @@ end
 RA._get_eachchunk(var::NCD.Variable) = DiskArrays.eachchunk(var)
 RA._get_haschunks(var::NCD.Variable) = DiskArrays.haschunks(var)
 
-RA._sourcetype(::NCD.Dataset) = NCDsource()
-RA._sourcetype(::NCD.Variable) = NCDsource()
+RA._sourcetrait(::NCD.Dataset) = NCDsource()
+RA._sourcetrait(::NCD.Variable) = NCDsource()
 
 # precompilation
 
