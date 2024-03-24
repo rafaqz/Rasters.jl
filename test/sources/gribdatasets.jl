@@ -27,9 +27,9 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
 
 @testset "Raster" begin
     @time gribarray = Raster(era5)
-    @time lazyarray = Raster(era5; lazy=true);
-    @time lazystack = RasterStack(era5; lazy=true);
-    @time eagerstack = RasterStack(era5; lazy=false);
+    @time lazyarray = Raster(era5; lazy=true)
+    @time lazystack = RasterStack(era5; lazy=true)
+    @time eagerstack = RasterStack(era5; lazy=false)
     @time ds = GRIBDataset(era5);
 
     @testset "lazyness" begin
