@@ -169,27 +169,27 @@ function RasterStack(
     filenames::Union{AbstractArray{<:AbstractString},Tuple{<:AbstractString,Vararg}};
     name=map(filekey, filenames), keys=name, kw...
 )
-    RasterStack(NamedTuple{cleankeys(Tuple(keys))}(Tuple(filenames)); kw...)
+    RasterStack(NamedTuple{cleankeys(Tuple(keys))}(filenames); kw...)
 end
 function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     crs=nothing, mappedcrs=nothing, source=nothing, lazy=false, dropband=true, kw...
 ) where K
     layers = map(keys(filenames), values(filenames)) do key, fn
-        source = source isa Nothing ? _sourcetype(fn) : _sourcetype(source)
+        source = _sourcetrait(fn, source)
         crs = defaultcrs(source, crs)
         mappedcrs = defaultmappedcrs(source, mappedcrs)
         _open(source, fn; key) do ds
-            dims = DD.dims(ds, crs, mappedcrs)
+            dims = _dims(ds, crs, mappedcrs)
             prod(map(length, dims))
             data = if lazy
-                FileArray{source}(ds, fn; key)
+                FileArray{typeof(source)}(ds, fn; key)
             else
                 _open(source, ds; key) do A
                     _checkmem(A)
                     Array(A)
                 end
             end
-            md = metadata(ds)
+            md = _metadata(ds)
             mv = missingval(ds)
             raster = Raster(data, dims; name=key, metadata=md, missingval=mv) 
             return dropband ? _drop_single_band(raster, lazy) : raster
@@ -237,7 +237,7 @@ end
 function RasterStack(filename::AbstractString;
     source=nothing, name=nothing, keys=name, lazy=false, dropband=true, kw...
 )
-    source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
+    source = _sourcetrait(filename, source)
     st = if isdir(filename)
         # Load as a whole directory
         filenames = readdir(filename)
@@ -253,9 +253,9 @@ function RasterStack(filename::AbstractString;
         RasterStack(joinpath.(Ref(filename), filenames); lazy, kw...)
     else
         # Load as a single file
-        st = if haslayers(source)
+        if haslayers(source)
             # With multiple named layers
-            l_st = _layer_stack(filename; source, name, keys, kw...)
+            l_st = _layer_stack(filename; source, name, keys, lazy, kw...)
 
             # Maybe split the stack into separate arrays to remove extra dims.
             if !(keys isa Nothing)
@@ -269,39 +269,87 @@ function RasterStack(filename::AbstractString;
         end
     end
 
-    # Maybe read the lazy stack to memory
-    st1 = lazy ? st : read(st)
-
     # Maybe drop the Band dimension
-    if dropband && hasdim(st1, Band()) && size(st1, Band()) == 1
+    if dropband && hasdim(st, Band()) && size(st, Band()) == 1
          if lazy
-             return view(st1, Band(1)) # TODO fix dropdims in DiskArrays
+             return view(st, Band(1)) # TODO fix dropdims in DiskArrays
          else
-             return dropdims(st1; dims=Band())
+             return dropdims(st; dims=Band())
          end
     else
-         return st1
+         return st
     end
 end
 
 function _layer_stack(filename;
     dims=nothing, refdims=(), metadata=nothing, crs=nothing, mappedcrs=nothing,
     layerdims=nothing, layermetadata=nothing, missingval=nothing,
-    source=nothing, name=nothing, keys=name, resize=nothing, kw...
+    source=nothing, name=nothing, keys=name, resize=nothing, lazy=false, kw...
 )
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     data, field_kw = _open(filename; source) do ds
-        dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
+        layers = _layers(ds, keys)
+        # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
+        dimdict = _dimdict(ds, crs, mappedcrs)
         refdims = refdims == () || refdims isa Nothing ? () : refdims
-        layerdims = layerdims isa Nothing ? DD.layerdims(ds) : layerdims
-        metadata = metadata isa Nothing ? DD.metadata(ds) : metadata
-        layermetadata = layermetadata isa Nothing ? DD.layermetadata(ds) : layermetadata
+        metadata = metadata isa Nothing ? _metadata(ds) : metadata
+        layerdims = layerdims isa Nothing ? _layerdims(ds; layers, dimdict) : layerdims
+        dims = _sort_by_layerdims(dims isa Nothing ? _dims(ds, dimdict) : dims, layerdims)
+        layermetadata = layermetadata isa Nothing ? _layermetadata(ds; layers) : layermetadata
         missingval = missingval isa Nothing ? Rasters.missingval(ds) : missingval
-        data = FileStack{source}(ds, filename; keys)
-        data, (; dims, refdims, layerdims, metadata, layermetadata, missingval)
+        tuplekeys = Tuple(map(Symbol, layers.keys))
+        data = if lazy
+            FileStack{typeof(source)}(ds, filename; keys=tuplekeys, vars=Tuple(layers.vars))
+        else
+            NamedTuple{tuplekeys}(map(Array, layers.vars))
+        end
+        data, (; dims, refdims, layerdims=NamedTuple{tuplekeys}(layerdims), metadata, layermetadata=NamedTuple{tuplekeys}(layermetadata), missingval)
     end
     return RasterStack(data; field_kw..., kw...)
+end
+
+# Try to sort the dimensions by layer dimension into a sensible
+# order that applies without permutation, preferencing the layers
+# with most dimensions, and those that come first.
+# Intentionally not type-stable
+function _sort_by_layerdims(dims, layerdims)
+    dimlist = union(layerdims)
+    currentorder = nothing
+    for i in length(dims):-1:1
+        for ldims in dimlist
+            length(ldims) == i || continue
+            currentorder = _merge_dimorder(ldims, currentorder)
+        end
+    end
+    return DD.dims(dims, currentorder)
+end
+
+_merge_dimorder(neworder, ::Nothing) = neworder
+function _merge_dimorder(neworder, currentorder)
+    ods = otherdims(neworder, currentorder)
+    outorder = currentorder
+    for od in ods
+        # Get the dims position in current order
+        i = findfirst(d -> d == od, neworder)
+        found = false
+        # Find the next dimension that is in the outorder
+        for j in 1:length(ods)
+            if length(neworder) >= (i + j)
+                nextd = neworder[i + j]
+                if nextd in outorder
+                    n = dimnum(outorder, nextd)
+                    outorder = (outorder[1:n-1]..., od, outorder[n:end]...)
+                    found = true
+                    break
+                end
+            end
+        end
+        if !found
+            outorder = (outorder..., od)
+        end
+    end
+    return outorder
 end
 
 # Stack from a Raster
@@ -362,16 +410,21 @@ function RasterStack(s::AbstractDimStack; name=cleankeys(Base.keys(s)), keys=nam
     return set(st, dims...)
 end
 
-function DD.modify(f, s::AbstractRasterStack{<:FileStack})
+function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
     open(s) do o
-        map(a -> modify(f, a), o)
+        map(K) do k
+            Array(parent(ost)[k])
+        end
     end
 end
 
 # Open a single file stack
-function Base.open(f::Function, st::AbstractRasterStack{<:FileStack}; kw...)
+function Base.open(f::Function, st::AbstractRasterStack{<:FileStack{<:Any,K}}; kw...) where K
     ost = OpenStack(parent(st))
-    out = f(rebuild(st; data=ost))
+    layers = map(K) do k
+        ost[k]
+    end |> NamedTuple{K}
+    out = f(rebuild(st; data=layers))
     close(ost)
     return out
 end
@@ -418,9 +471,9 @@ Base.convert(::Type{RasterStack}, src::AbstractDimStack) = RasterStack(src)
 
 Raster(stack::RasterStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
 
-defaultcrs(T::Type, crs) = crs
-defaultcrs(T::Type, ::Nothing) = defaultcrs(T)
-defaultcrs(T::Type) = nothing
-defaultmappedcrs(T::Type, crs) = crs
-defaultmappedcrs(T::Type, ::Nothing) = defaultmappedcrs(T)
-defaultmappedcrs(T::Type) = nothing
+defaultcrs(::Source, crs) = crs
+defaultcrs(s::Source, ::Nothing) = defaultcrs(s)
+defaultcrs(x) = nothing
+defaultmappedcrs(::Source, crs) = crs
+defaultmappedcrs(s::Source, ::Nothing) = defaultmappedcrs(s)
+defaultmappedcrs(::Source) = nothing

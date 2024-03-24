@@ -8,6 +8,7 @@ include(joinpath(testdir, "test_utils.jl"))
 ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = maybedownload(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
 ncmulti = maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
+maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
 
 stackkeys = (
     :abso4, :aclcac, :aclcov, :ahfcon, :ahfice, :ahfl, :ahfliac, :ahfllac,
@@ -42,9 +43,10 @@ stackkeys = (
 end
 
 @testset "Raster" begin
-    @time ncarray = Raster(ncsingle)
-    @time lazyarray = Raster(ncsingle; lazy=true);
-    @time eagerarray = Raster(ncsingle; lazy=false);
+    @time ncarray = Raster(ncsingle);
+
+    @time lazyarray = Raster(ncsingle; lazy=true)
+    @time eagerarray = Raster(ncsingle; lazy=false)
     @test_throws ArgumentError Raster("notafile.nc")
 
     @testset "lazyness" begin
@@ -67,7 +69,7 @@ end
     end
 
     @testset "read" begin
-        @time A = read(ncarray);
+        @time A = read(lazyarray);
         @test A isa Raster
         @test parent(A) isa Array
         A2 = copy(A) .= 0
@@ -357,12 +359,12 @@ end
 end
 
 @testset "Single file stack" begin
-    @time ncstack = RasterStack(ncmulti)
+    @time ncstack = RasterStack(ncmulti);
 
     @testset "lazyness" begin
         @time read(RasterStack(ncmulti));
         @time lazystack = RasterStack(ncmulti; lazy=true)
-        @time eagerstack = RasterStack(ncmulti; lazy=false);
+        @time eagerstack = RasterStack(ncmulti; lazy=false)
         # Lazy is the default
         @test parent(ncstack[:xi]) isa Array
         @test parent(lazystack[:xi]) isa FileArray
@@ -376,6 +378,11 @@ end
         b = RasterStack(no_ext; source=Rasters.NCDsource())
         @test a == b == ncstack
         rm(no_ext)
+    end
+
+    @testset "size and dim order" begin
+        @test size(ncstack) == (192, 96, 2, 2080, 47, 8, 48)
+        @test dims(ncstack) isa Tuple{<:X,<:Y,<:Dim{:complex},<:Dim{:spc},<:Z,<:Ti,<:Dim{:ilev}} 
     end
 
     @testset "crs" begin
@@ -398,7 +405,7 @@ end
 
     @testset "load ncstack" begin
         @test ncstack isa RasterStack
-        @test all(ismissing, missingval(ncstack))
+        @test ismissing(missingval(ncstack))
         @test dims(ncstack[:abso4]) == dims(ncstack, (X, Y, Ti)) 
         @test refdims(ncstack) == ()
         # Loads child as a regular Raster

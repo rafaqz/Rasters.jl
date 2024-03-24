@@ -42,10 +42,11 @@ function RA.FileArray{GDALsource}(raster::AG.RasterDataset{T}, filename; kw...) 
 end
 
 RA.cleanreturn(A::AG.RasterDataset) = Array(A)
-RA.haslayers(::Type{GDALsource}) = false
+RA.haslayers(::GDALsource) = false
+RA._sourcetrait(A::AG.RasterDataset) = GDALsource()
 
 """
-    Base.write(filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster; force=false, kw...)
+    Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster; force=false, kw...)
 
 Write a `Raster` to file using GDAL.
 
@@ -58,7 +59,7 @@ Write a `Raster` to file using GDAL.
 Returns `filename`.
 """
 function Base.write(
-    filename::AbstractString, ::Type{GDALsource}, A::AbstractRaster{T};
+    filename::AbstractString, ::GDALsource, A::AbstractRaster{T};
     force=false, verbose=true, kw...
 ) where T
     RA.check_can_write(filename, force)
@@ -72,7 +73,7 @@ function Base.write(
     return filename
 end
 
-function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
+function RA.create(filename, ::GDALsource, T::Type, dims::DD.DimTuple;
     missingval=nothing, metadata=nothing, name=nothing, lazy=true, verbose=true, kw...
 )
     T = Missings.nonmissingtype(T)
@@ -82,14 +83,14 @@ function RA.create(filename, ::Type{GDALsource}, T::Type, dims::DD.DimTuple;
         nothing
     end
 
-    return Raster(filename; source=GDALsource, name, lazy, dropband=!hasdim(dims, Band))
+    return Raster(filename; source=GDALsource(), name, lazy, dropband=!hasdim(dims, Band))
 end
 
 function _maybe_warn_south_up(A, verbose, msg)
     verbose && lookup(A, Y) isa AbstractSampled && order(A, Y) isa ForwardOrdered && @warn msg
 end
 
-function RA._open(f, ::Type{GDALsource}, filename::AbstractString; write=false, kw...)
+function RA._open(f, ::GDALsource, filename::AbstractString; write=false, kw...)
     # Check the file actually exists because the GDAL error is unhelpful
     if !isfile(filename)
         # Allow gdal virtual file systems
@@ -113,7 +114,7 @@ function RA._open(f, ::Type{GDALsource}, filename::AbstractString; write=false, 
         AG.readraster(RA.cleanreturn ∘ f, filename)
     end
 end
-RA._open(f, ::Type{GDALsource}, ds::AG.RasterDataset; kw...) = RA.cleanreturn(f(ds))
+RA._open(f, ::GDALsource, ds::AG.RasterDataset; kw...) = RA.cleanreturn(f(ds))
 
 
 # DimensionalData methods for ArchGDAL types ###############################
@@ -121,7 +122,7 @@ RA._open(f, ::Type{GDALsource}, ds::AG.RasterDataset; kw...) = RA.cleanreturn(f(
 # These methods are type piracy on DimensionalData/ArchGDAL and may have to move some day
 
 # We allow passing in crs and mappedcrs manually
-function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
+function RA._dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     gt_dims = try
         AG.getgeotransform(raster)
     catch
@@ -205,7 +206,8 @@ function DD.dims(raster::AG.RasterDataset, crs=nothing, mappedcrs=nothing)
     end
 end
 
-function DD.metadata(raster::AG.RasterDataset, args...)
+# TODO make metadata optional, its slow to get
+function RA._metadata(raster::AG.RasterDataset, args...)
     band = AG.getband(raster.ds, 1)
     # color = AG.getname(AG.getcolorinterp(band))
     scale = AG.getscale(band)
@@ -213,7 +215,7 @@ function DD.metadata(raster::AG.RasterDataset, args...)
     # norvw = AG.noverview(band)
     units = AG.getunittype(band)
     filelist = AG.filelist(raster)
-    metadata = RA._metadatadict(GDALsource, "scale"=>scale, "offset"=>offset)
+    metadata = RA._metadatadict(GDALsource(), "scale"=>scale, "offset"=>offset)
     if units == ""
         metadata["units"] = units
     end
@@ -230,11 +232,11 @@ RA.Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
 function RA.Raster(ds::AG.RasterDataset;
     crs=crs(ds),
     mappedcrs=nothing,
-    dims=dims(ds, crs, mappedcrs),
+    dims=RA._dims(ds, crs, mappedcrs),
     refdims=(),
     name=Symbol(""),
-    metadata=metadata(ds),
-    missingval=missingval(ds),
+    metadata=RA._metadata(ds),
+    missingval=RA.missingval(ds),
     lazy=false,
     dropband=false
 )
@@ -322,7 +324,7 @@ _missingval_from_gdal(T, x) = x
 _maybe_correct_to_write(A) = _maybe_correct_to_write(lookup(A, X()), A)
 _maybe_correct_to_write(lookup, A) = A
 function _maybe_correct_to_write(lookup::Union{AbstractSampled,NoLookup}, A)
-    RA._maybe_use_type_missingval(A, GDALsource) |> _maybe_permute_to_gdal
+    RA._maybe_use_type_missingval(A, GDALsource()) |> _maybe_permute_to_gdal
 end
 
 _check_driver(filename::Nothing, driver) = "MEM"

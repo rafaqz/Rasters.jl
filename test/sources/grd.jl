@@ -201,7 +201,7 @@ grdpath = stem * ".gri"
         @testset "3d with subset" begin
             geoA = grdarray[1:100, 1:50, 1:2]
             filename = tempname() * ".grd"
-            write(filename, GRDsource, geoA)
+            write(filename, GRDsource(), geoA)
             saved = Raster(filename)
             @test size(saved) == size(geoA)
             @test refdims(saved) == ()
@@ -239,7 +239,7 @@ grdpath = stem * ".gri"
         @testset "to gdal" begin
             # No Band
             gdalfilename = tempname() * ".tif"
-            write(gdalfilename, GDALsource, grdarray[Band(1)])
+            write(gdalfilename, GDALsource(), grdarray[Band(1)])
             gdalarray = Raster(gdalfilename)
             # @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test val(dims(gdalarray, X)) ≈ val(dims(grdarray, X))

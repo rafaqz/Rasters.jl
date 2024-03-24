@@ -40,7 +40,7 @@ attrib(grd::GRDattrib) = grd.attrib
 filename(grd::GRDattrib) = grd.filename
 filekey(grd::GRDattrib, key::Nothing) = get(attrib(grd), "layername", Symbol(""))
 
-function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
+function _dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     attrib = grd.attrib
     crs = crs isa Nothing ? ProjString(attrib["projection"]) : crs
 
@@ -54,7 +54,7 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     yspan = (ybounds[1] - ybounds[2]) / ysize
 
     # Not fully implemented yet
-    xy_metadata = _metadatadict(GRDsource)
+    xy_metadata = _metadatadict(GRDsource())
 
     xindex = LinRange(xbounds[1], xbounds[2] - xspan, xsize)
     yindex = LinRange(ybounds[2] + yspan, ybounds[1], ysize)
@@ -84,10 +84,10 @@ function DD.dims(grd::GRDattrib, crs=nothing, mappedcrs=nothing)
     return x, y, band
 end
 
-DD.name(grd::GRDattrib) = Symbol(get(grd.attrib, "layername", ""))
+_name(grd::GRDattrib) = Symbol(get(grd.attrib, "layername", ""))
 
-function DD.metadata(grd::GRDattrib, args...)
-    metadata = _metadatadict(GRDsource)
+function _metadata(grd::GRDattrib, args...)
+    metadata = _metadatadict(GRDsource())
     for key in ("creator", "created", "history")
         val = get(grd.attrib, key, "")
         if val != ""
@@ -149,11 +149,11 @@ The extension of `filename` will be ignored.
 
 Returns `filename`.
 """
-function Base.write(filename::String, ::Type{GRDsource}, A::AbstractRaster; 
+function Base.write(filename::String, ::GRDsource, A::AbstractRaster; 
     force=false, verbose=true, kw...
 )
     check_can_write(filename, force)
-    A = _maybe_use_type_missingval(A, GRDsource)
+    A = _maybe_use_type_missingval(A, GRDsource())
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
             a -> reorder(a, (X(GRD_X_ORDER), Y(GRD_Y_ORDER), Band(GRD_BAND_ORDER)))
@@ -222,7 +222,7 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
 end
 
 
-function create(filename, ::Type{GRDsource}, T::Type, dims::DD.DimTuple; 
+function create(filename, ::GRDsource, T::Type, dims::DD.DimTuple; 
     name="layer", metadata=nothing, missingval=nothing, keys=(name,), lazy=true, 
 )
     # Remove extension
@@ -237,7 +237,7 @@ function create(filename, ::Type{GRDsource}, T::Type, dims::DD.DimTuple;
     open(basename * ".gri", write=true) do IO
         write(IO, FillArrays.Zeros(sze))
     end
-    return Raster(filename; source=GRDsource, lazy)
+    return Raster(filename; source=GRDsource(), lazy)
 end
 
 # AbstractRasterStack methods
@@ -248,13 +248,13 @@ function Base.open(f::Function, A::FileArray{GRDsource}, key...; write=A.write)
     _mmapgrd(mm -> f(RasterDiskArray{GRDsource}(mm, A.eachchunk, A.haschunks)), A; write)
 end
 
-function _open(f, ::Type{GRDsource}, filename::AbstractString; key=nothing, write=false)
+function _open(f, ::GRDsource, filename::AbstractString; key=nothing, write=false)
     isfile(filename) || _filenotfound_error(filename)
-    _open(f, GRDsource, GRDattrib(filename; write))
+    _open(f, GRDsource(), GRDattrib(filename; write))
 end
-_open(f, ::Type{GRDsource}, attrib::GRDattrib; kw...) = f(attrib)
+_open(f, ::GRDsource, attrib::GRDattrib; kw...) = f(attrib)
 
-haslayers(::Type{GRDsource}) = false
+haslayers(::GRDsource) = false
 
 # Utils ########################################################################
 

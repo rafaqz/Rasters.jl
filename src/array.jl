@@ -4,7 +4,7 @@ const FLATTEN_IGNORE = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultipli
 """
     AbstractRaster <: DimensionalData.AbstractDimArray
 
-Abstract supertype for objects that wrap an array (or location of an array) 
+Abstract supertype for objects that wrap an array (or location of an array)
 and metadata about its contents. It may be memory or hold a `FileArray`, which
 holds the filename, and is only opened when required.
 
@@ -46,7 +46,7 @@ isdisk(A::AbstractRaster) = parent(A) isa DiskArrays.AbstractDiskArray
 isdisk(x) = false
 ismem(x) = !isdisk(x)
 
-function Base.:(==)(A::AbstractRaster{T,N}, B::AbstractRaster{T,N}) where {T,N} 
+function Base.:(==)(A::AbstractRaster{T,N}, B::AbstractRaster{T,N}) where {T,N}
     size(A) == size(B) && all(A .== B)
 end
 for f in (:mappedbounds, :projectedbounds, :mappedindex, :projectedindex)
@@ -95,7 +95,7 @@ DiskArrays.haschunks(A::AbstractRaster) = DiskArrays.haschunks(parent(A))
 function DA.readblock!(A::AbstractRaster, dst, r::AbstractUnitRange...)
     DA.readblock!(parent(A), dst, r...)
 end
-function DA.writeblock!(A::AbstractRaster, src, r::AbstractUnitRange...) 
+function DA.writeblock!(A::AbstractRaster, src, r::AbstractUnitRange...)
     DA.writeblock!(parent(A), src, r...)
 end
 
@@ -161,7 +161,7 @@ function _open_many(f, A::AbstractRaster, fas::Tuple, oas::Tuple; kw...)
     end
 end
 function _open_many(f, A::AbstractRaster, fas::Tuple{}, oas::Tuple; kw...)
-    data = Flatten.reconstruct(parent(A), oas, FLATTEN_SELECT, FLATTEN_IGNORE) 
+    data = Flatten.reconstruct(parent(A), oas, FLATTEN_SELECT, FLATTEN_IGNORE)
     openraster = Raster(data, dims(A), refdims(A), name(A), metadata(A), missingval(A))
     f(openraster)
 end
@@ -178,7 +178,7 @@ end
 A generic [`AbstractRaster`](@ref) for spatial/raster array data. It may hold
 memory-backed arrays or [`FileArray`](@ref), that simply holds the `String` path
 to an unopened file. This will only be opened lazily when it is indexed with `getindex`
-or when `read(A)` is called. Broadcasting, taking a view, reversing and most other 
+or when `read(A)` is called. Broadcasting, taking a view, reversing and most other
 methods _do not_ load data from disk: they are applied later, lazily.
 
 # Keywords
@@ -192,14 +192,14 @@ methods _do not_ load data from disk: they are applied later, lazily.
     values in the raster, it simply assigns which value is treated as missing. To replace all of
     the missing values in the raster, use [`replace_missing`](@ref).
 - `metadata`: `ArrayMetadata` object for the array, or `NoMetadata()`.
-- `crs`: the coordinate reference system of  the objects `XDim`/`YDim` dimensions. 
+- `crs`: the coordinate reference system of  the objects `XDim`/`YDim` dimensions.
     Only set this if you know the detected crs is incrorrect, or it is not present in
-    the file. The `crs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` `GeoFormat` type. 
+    the file. The `crs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` `GeoFormat` type.
 - `mappedcrs`: the mapped coordinate reference system of the objects `XDim`/`YDim` dimensions.
     for `Mapped` lookups these are the actual values of the index. For `Projected` lookups
     this can be used to index in eg. `EPSG(4326)` lat/lon values, having it converted automatically.
     Only set this if the detected `mappedcrs` in incorrect, or the file does not have a `mappedcrs`,
-    e.g. a tiff. The `mappedcrs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` `GeoFormat` type. 
+    e.g. a tiff. The `mappedcrs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` `GeoFormat` type.
 - `dropband`: drop single band dimensions. `true` by default.
 
 # Internal Keywords
@@ -217,68 +217,69 @@ struct Raster{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} <: AbstractR
     metadata::Me
     missingval::Mi
 end
-function Raster(A::AbstractArray, dims::Tuple;
+function Raster(A::AbstractArray{T,N}, dims::Tuple;
     refdims=(), name=Symbol(""), metadata=NoMetadata(), missingval=missing,
     crs=nothing, mappedcrs=nothing
-)
+)::Raster{T,N} where {T,N}
     A = Raster(A, Dimensions.format(dims, A), refdims, name, metadata, missingval)
     A = isnothing(crs) ? A : setcrs(A, crs)
     A = isnothing(mappedcrs) ? A : setmappedcrs(A, mappedcrs)
     return A
 end
-function Raster(A::AbstractArray{<:Any,1}, dims::Tuple{<:Dimension,<:Dimension,Vararg}; kw...)
+function Raster(A::AbstractArray{T,1}, dims::Tuple{<:Dimension,<:Dimension,Vararg};
+    kw...
+)::Raster{T,length(dims)} where T
     Raster(reshape(A, map(length, dims)), dims; kw...)
 end
-function Raster(table, dims::Tuple; name=first(_not_a_dimcol(table, dims)), kw...)
+function Raster(table, dims::Tuple; name=first(_not_a_dimcol(table, dims)), kw...)::Raster
     Tables.istable(table) || throw(ArgumentError("First argument to `Raster` is not a table or other known object: $table"))
     isnothing(name) && throw(UndefKeywordError(:name))
     cols = Tables.columns(table)
     A = reshape(cols[name], map(length, dims))
     return Raster(A, dims; name, kw...)
 end
-Raster(A::AbstractArray; dims, kw...) = Raster(A, dims; kw...)
+Raster(A::AbstractArray; dims, kw...) = Raster(A, dims; kw...)::Raster
 function Raster(A::AbstractDimArray;
     data=parent(A), dims=dims(A), refdims=refdims(A),
     name=name(A), metadata=metadata(A), missingval=missingval(A), kw...
-)
+)::Raster
     return Raster(data, dims; refdims, name, metadata, missingval, kw...)
 end
-function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Vararg}; kw...)
+function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Vararg}; kw...)::Raster
     Raster(filename; dims, kw...)
 end
 function Raster(filename::AbstractString;
     name=nothing, key=name, source=nothing, kw...
-)
-    source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
-    _open(filename; source) do ds
-        key = filekey(ds, key)
-        Raster(ds, filename, key; source, kw...)
-    end
+)::Raster
+    source = _sourcetrait(filename, source)
+    Base.invokelatest() do
+        _open(filename; source) do ds
+            key = filekey(ds, key)
+            Raster(ds, filename, key; source, kw...)
+        end::Raster
+    end::Raster
 end
 function Raster(ds, filename::AbstractString, key=nothing;
     crs=nothing, mappedcrs=nothing, dims=nothing, refdims=(),
     name=Symbol(key isa Nothing ? "" : string(key)),
-    metadata=metadata(ds), missingval=missingval(ds), 
     source=nothing, write=false, lazy=false, dropband=true,
-)
-    source = isnothing(source) ? _sourcetype(filename) : _sourcetype(source)
+    metadata=_metadata(ds), missingval=missingval(ds)
+)::Raster
+    source = _sourcetrait(filename, source)
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
-    dims = dims isa Nothing ? DD.dims(ds, crs, mappedcrs) : dims
-    data = if lazy 
-        FileArray{source}(ds, filename; key, write)
-    else
-        _open(source, ds; key) do A
-            _checkmem(A)
-            Array(A)
+    data, dims = _open(source, ds; key) do var
+        dims1 = dims isa Nothing ? _dims(var, crs, mappedcrs) : dims
+        data = if lazy
+            FileArray{typeof(source)}(var, filename; key, write)
+        else
+            _checkmem(var)
+            Array(var)
         end
+        data, dims1
     end
     raster = Raster(data, dims, refdims, name, metadata, missingval)
     return dropband ? _drop_single_band(raster, lazy) : raster
-end
-
-function Raster{T, N, D, R, A, Na, Me, Mi}(ras::Raster{T, N, D, R, A, Na, Me, Mi}) where {T, N, D, R, A, Na, Me, Mi}
-    return Raster(ras.data, ras.dims, ras.refdims, ras.name, ras.metadata, ras.missingval)
 end
 
 filekey(ds, key) = key

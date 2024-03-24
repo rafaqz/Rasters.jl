@@ -5,13 +5,13 @@ const UNNAMED_NCD_FILE_KEY = "unnamed"
 const NCDAllowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
 
 """
-    Base.write(filename::AbstractString, ::Type{<:CDMsource}, A::AbstractRaster)
+    Base.write(filename::AbstractString, ::NCDsource, A::AbstractRaster)
 
 Write an NCDarray to a NetCDF file using NCDatasets.jl
 
 Returns `filename`.
 """
-function Base.write(filename::AbstractString, ::Type{<:CDMsource}, A::AbstractRaster; 
+function Base.write(filename::AbstractString, ::NCDsource, A::AbstractRaster; 
     append=false, force=false, verbose=true, kw...
 )
     mode = if append
@@ -33,7 +33,7 @@ end
 # Stack ########################################################################
 
 """
-    Base.write(filename::AbstractString, ::Type{NCDsource}, s::AbstractRasterStack; kw...)
+    Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStack; kw...)
 
 Write an NCDstack to a single netcdf file, using NCDatasets.jl.
 
@@ -61,7 +61,7 @@ Keywords are passed to `NCDatasets.defVar`.
  - `typename` (string): The name of the NetCDF type required for vlen arrays
     (https://web.archive.org/save/https://www.unidata.ucar.edu/software/netcdf/netcdf-4/newdocs/netcdf-c/nc_005fdef_005fvlen.html)
 """
-function Base.write(filename::AbstractString, ::Type{<:CDMsource}, s::AbstractRasterStack; append = false, kw...)
+function Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStack; append = false, kw...)
     mode  = !isfile(filename) || !append ? "c" : "a";
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
     try
@@ -77,11 +77,11 @@ function RA.OpenStack(fs::RA.FileStack{NCDsource,K}) where K
 end
 Base.close(os::RA.OpenStack{NCDsource}) = NCD.close(RA.dataset(os))
 
-function RA._open(f, ::Type{NCDsource}, filename::AbstractString; write=false, kw...)
+function RA._open(f, ::NCDsource, filename::AbstractString; write=false, kw...)
     isfile(filename) || RA._isurl(filename) || RA._filenotfound_error(filename)
     mode = write ? "a" : "r"
     NCD.Dataset(filename, mode) do ds
-        RA._open(f, NCDsource, ds; kw...)
+        RA._open(f, NCDsource(), ds; kw...)
     end
 end
 
@@ -150,6 +150,9 @@ end
 # Hack to get the inner DiskArrays chunks as they are not exposed at the top level
 RA._get_eachchunk(var::NCD.Variable) = DiskArrays.eachchunk(var)
 RA._get_haschunks(var::NCD.Variable) = DiskArrays.haschunks(var)
+
+RA._sourcetrait(::NCD.Dataset) = NCDsource()
+RA._sourcetrait(::NCD.Variable) = NCDsource()
 
 # precompilation
 
