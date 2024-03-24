@@ -2,7 +2,7 @@ const SMAPMISSING = -9999.0f0
 const SMAPGEODATA = "Geophysical_Data"
 const SMAPCRS = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
 const SMAPSIZE = (3856, 1624)
-const SMAPDIMTYPES = (X, Y) 
+const SMAPDIMTYPES = (X(), Y()) 
 
 # Dataset wrapper ###############################################################
 # Becauase SMAP is just one of many HDF5 formats,
@@ -16,7 +16,7 @@ RA.missingval(ds::SMAPhdf5) = SMAPMISSING
 RA.layerkeys(ds::SMAPhdf5) = keys(ds)
 RA.filekey(ds::SMAPhdf5, key::Nothing) = first(keys(ds))
 
-function _dims(wrapper::SMAPhdf5)
+function _dims(wrapper::SMAPhdf5, args...)
     dataset = parent(wrapper)
     proj = read(HDF5.attributes(HDF5.root(dataset)["EASE2_global_projection"]), "grid_mapping_name")
     if proj == "lambert_cylindrical_equal_area"
@@ -52,13 +52,16 @@ end
 # TODO actually add metadata to the dict
 _metadata(wrapper::SMAPhdf5) = RA._metadatadict(SMAPsource())
 
-function _layerdims(ds::SMAPhdf5; keys=RA.cleankeys(RA.layerkeys(ds)))
+function _layerdims(ds::SMAPhdf5; layers=nothing)
+    keys = map(Symbol, isnothing(layers) ? RA.cleankeys(RA.layerkeys(ds)) : layers.keys)
     # All dims are the same
-    NamedTuple{keys}(map(_ -> SMAPDIMTYPES, keys))
+    NamedTuple{Tuple(keys)}(map(_ -> SMAPDIMTYPES, keys))
 end
 
-function _layermetadata(ds::SMAPhdf5; keys=RA.cleankeys(RA.layerkeys(ds)))
-    NamedTuple{keys}(map(_ -> _metadata(ds), keys))
+function _layermetadata(ds::SMAPhdf5; layers=nothing)
+    keys = map(Symbol, isnothing(layers) ? RA.cleankeys(RA.layerkeys(ds)) : layers.keys)
+    md = _metadata(ds)
+    NamedTuple{keys}(map(_ -> md, keys))
 end
 
 Base.keys(ds::SMAPhdf5) = RA.cleankeys(keys(parent(ds)[SMAPGEODATA]))

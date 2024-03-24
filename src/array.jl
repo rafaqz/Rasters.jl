@@ -268,14 +268,15 @@ function Raster(ds, filename::AbstractString, key=nothing;
     source = _sourcetype(filename, source)
     crs = defaultcrs(source, crs)
     mappedcrs = defaultmappedcrs(source, mappedcrs)
-    dims = dims isa Nothing ? _dims(ds, crs, mappedcrs) : dims
-    data = if lazy
-        FileArray{typeof(source)}(ds, filename; key, write)
-    else
-        _open(source, ds; key) do A
-            _checkmem(A)
-            Array(A)
+    data, dims = _open(source, ds; key) do var
+        dims1 = dims isa Nothing ? _dims(var, crs, mappedcrs) : dims
+        data = if lazy
+            FileArray{typeof(source)}(var, filename; key, write)
+        else
+            _checkmem(var)
+            Array(var)
         end
+        data, dims1
     end
     raster = Raster(data, dims, refdims, name, metadata, missingval)
     return dropband ? _drop_single_band(raster, lazy) : raster

@@ -1,5 +1,5 @@
 using Rasters, Test, GRIBDatasets
-using Rasters: FileArray, GRIBsource
+using Rasters: FileArray, FileStack, GRIBsource
 using Rasters.Lookups, Rasters.Dimensions
 using Statistics
 using Dates
@@ -28,7 +28,7 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
 @testset "Raster" begin
     @time gribarray = Raster(era5)
     @time lazyarray = Raster(era5; lazy=true)
-    @time lazystack = RasterStack(era5; lazy=true)
+    @time lazystack = RasterStack(era5; lazy=true);
     @time eagerstack = RasterStack(era5; lazy=false)
     @time ds = GRIBDataset(era5);
 
@@ -36,6 +36,10 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
         @time Raster(era5);
         @test parent(gribarray) isa Array
         @test parent(lazyarray) isa FileArray
+        @test parent(eagerstack) isa NamedTuple
+        @test parent(lazystack) isa FileStack
+        @test parent(eagerstack[:t]) isa Array
+        @test parent(lazystack[:t]) isa FileArray
     end
 
     @testset "read" begin
@@ -55,23 +59,18 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
         stack = RasterStack(era5; lazy = true)
         ds = GRIBDataset(era5)
 
-        diff = stack[:z][:,:,1,1,1] - ds["z"][:,:,1,1,1]
+        diff = stack[:z][Z=1, Ti=1, number=1] - ds["z"][:,:,1,1,1]
 
         @test all(diff .== 0.)
-    end
-
-    @testset "eager stack" begin
-        t = eagerstack[:t]
-        @test t[:,:,2,3,1] isa AbstractMatrix
     end
 
     @testset "array properties" begin
         dsvar = ds["z"]
         @test size(gribarray) == size(dsvar)
         @test gribarray isa Raster
-        @test index(gribarray, Ti) == DateTime(2017, 1, 1):Hour(12):DateTime(2017, 1, 2, 12)
-        @test index(gribarray, Y) == 90.0:-3.0:-90.0
-        @test index(gribarray, X) == 0.0:3.0:357.0
+        @test lookup(gribarray, Ti) == DateTime(2017, 1, 1):Hour(12):DateTime(2017, 1, 2, 12)
+        @test lookup(gribarray, Y) == 90.0:-3.0:-90.0
+        @test lookup(gribarray, X) == 0.0:3.0:357.0
     end
 
     @testset "dimensions" begin

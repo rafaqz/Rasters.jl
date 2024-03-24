@@ -47,7 +47,6 @@ missingval(A::CFDiskArray) = missingval(parent(A))
 
 # DimensionalData methods
 _dims(var::CFDiskArray, args...) = _dims(parent(var), args...)
-_layerdims(var::CFDiskArray, args...) = _layerdims(parent(var), args...)
 _metadata(var::CFDiskArray, args...) = _metadata(parent(var), args...)
 
 # Base methods
@@ -210,33 +209,33 @@ function _layers(ds::AbstractDataset, keys)
     (; keys, vars, attrs)
 end
 
-function _dims(var::AbstractVariable, crs=nothing, mappedcrs=nothing)
-    map(CDM.dimnames(var)) do key
-        _cdmdim(CDM.dataset(var), key, crs, mappedcrs)
-    end |> Tuple
-end
-function _layerdims(var::AbstractVariable)
-    map(CDM.dimnames(var)) do dimname
-        _cdmdim(CDM.dataset(var), dimname)
-    end |> Tuple
+function _dims(var::AbstractVariable{<:Any,N}, crs=nothing, mappedcrs=nothing) where N
+    dimnames = CDM.dimnames(var)
+    ntuple(Val(N)) do i
+        _cdmdim(CDM.dataset(var), dimnames[i], crs, mappedcrs)
+    end
 end
 _metadata(var::AbstractVariable; attr=CDM.attribs(var)) =
     _metadatadict(_sourcetype(var), attr)
 
-function _dims(ds::AbstractDataset, crs=nothing, mappedcrs=nothing)
-    map(CDM.dimnames(ds)) do key
-        _cdmdim(ds, key, crs, mappedcrs)
+function _dimdict(ds::AbstractDataset, crs=nothing, mappedcrs=nothing)
+    dimdict = Dict{String,Dimension}()
+    for dimname in CDM.dimnames(ds)
+        dimdict[dimname] = _cdmdim(ds, dimname, crs, mappedcrs)
+    end
+    return dimdict
+end
+function _dims(ds::AbstractDataset, dimdict::Dict)
+    map(CDM.dimnames(ds)) do dimname
+        dimdict[dimname]
     end |> Tuple
 end
 _metadata(ds::AbstractDataset; attr=CDM.attribs(ds)) =
     _metadatadict(_sourcetype(ds), attr)
-function _layerdims(ds::AbstractDataset; layers)
-    dimdict = map(CDM.dimnames(ds)) do dimname
-        dimname => _cdmdimtype(ds, dimname)
-    end |> Dict
+function _layerdims(ds::AbstractDataset; layers, dimdict)
     map(layers.vars) do var
         map(CDM.dimnames(var)) do dimname
-            dimdict[dimname]
+            basedims(dimdict[dimname])
         end |> Tuple
     end
 end

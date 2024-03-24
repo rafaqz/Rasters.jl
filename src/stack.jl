@@ -182,7 +182,7 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
             dims = _dims(ds, crs, mappedcrs)
             prod(map(length, dims))
             data = if lazy
-                FileArray{source}(ds, fn; key)
+                FileArray{typeof(source)}(ds, fn; key)
             else
                 _open(source, ds; key) do A
                     _checkmem(A)
@@ -290,10 +290,12 @@ function _layer_stack(filename;
     mappedcrs = defaultmappedcrs(source, mappedcrs)
     data, field_kw = _open(filename; source) do ds
         layers = _layers(ds, keys)
-        dims = dims isa Nothing ? _dims(ds, crs, mappedcrs) : dims
+        # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
+        dimdict = _dimdict(ds, crs, mappedcrs)
+        dims = dims isa Nothing ? _dims(ds, dimdict) : dims
         refdims = refdims == () || refdims isa Nothing ? () : refdims
         metadata = metadata isa Nothing ? _metadata(ds) : metadata
-        layerdims = layerdims isa Nothing ? _layerdims(ds; layers) : layerdims
+        layerdims = layerdims isa Nothing ? _layerdims(ds; layers, dimdict) : layerdims
         layermetadata = layermetadata isa Nothing ? _layermetadata(ds; layers) : layermetadata
         missingval = missingval isa Nothing ? Rasters.missingval(ds) : missingval
         tuplekeys = Tuple(map(Symbol, layers.keys))
