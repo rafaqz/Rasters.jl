@@ -364,7 +364,7 @@ end
     @testset "lazyness" begin
         @time read(RasterStack(ncmulti));
         @time lazystack = RasterStack(ncmulti; lazy=true)
-        @time eagerstack = RasterStack(ncmulti; lazy=false);
+        @time eagerstack = RasterStack(ncmulti; lazy=false)
         # Lazy is the default
         @test parent(ncstack[:xi]) isa Array
         @test parent(lazystack[:xi]) isa FileArray
@@ -378,6 +378,11 @@ end
         b = RasterStack(no_ext; source=Rasters.NCDsource())
         @test a == b == ncstack
         rm(no_ext)
+    end
+
+    @testset "size and dim order" begin
+        @test size(ncstack) == (192, 96, 2, 2080, 47, 8, 48)
+        @test dims(ncstack) isa Tuple{<:X,<:Y,<:Dim{:complex},<:Dim{:spc},<:Z,<:Ti,<:Dim{:ilev}} 
     end
 
     @testset "crs" begin

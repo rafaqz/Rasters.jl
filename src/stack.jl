@@ -292,10 +292,10 @@ function _layer_stack(filename;
         layers = _layers(ds, keys)
         # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
         dimdict = _dimdict(ds, crs, mappedcrs)
-        dims = dims isa Nothing ? _dims(ds, dimdict) : dims
         refdims = refdims == () || refdims isa Nothing ? () : refdims
         metadata = metadata isa Nothing ? _metadata(ds) : metadata
         layerdims = layerdims isa Nothing ? _layerdims(ds; layers, dimdict) : layerdims
+        dims = _sort_by_layerdims(dims isa Nothing ? _dims(ds, dimdict) : dims, layerdims)
         layermetadata = layermetadata isa Nothing ? _layermetadata(ds; layers) : layermetadata
         missingval = missingval isa Nothing ? Rasters.missingval(ds) : missingval
         tuplekeys = Tuple(map(Symbol, layers.keys))
@@ -307,6 +307,49 @@ function _layer_stack(filename;
         data, (; dims, refdims, layerdims=NamedTuple{tuplekeys}(layerdims), metadata, layermetadata=NamedTuple{tuplekeys}(layermetadata), missingval)
     end
     return RasterStack(data; field_kw..., kw...)
+end
+
+# Try to sort the dimensions by layer dimension into a sensible
+# order that applies without permutation, preferencing the layers
+# with most dimensions, and those that come first.
+# Intentionally not type-stable
+function _sort_by_layerdims(dims, layerdims)
+    dimlist = union(layerdims)
+    currentorder = nothing
+    for i in length(dims):-1:1
+        for ldims in dimlist
+            length(ldims) == i || continue
+            currentorder = _merge_dimorder(ldims, currentorder)
+        end
+    end
+    return DD.dims(dims, currentorder)
+end
+
+_merge_dimorder(neworder, ::Nothing) = neworder
+function _merge_dimorder(neworder, currentorder)
+    ods = otherdims(neworder, currentorder)
+    outorder = currentorder
+    for od in ods
+        # Get the dims position in current order
+        i = findfirst(d -> d == od, neworder)
+        found = false
+        # Find the next dimension that is in the outorder
+        for j in 1:length(ods)
+            if length(neworder) >= (i + j)
+                nextd = neworder[i + j]
+                if nextd in outorder
+                    n = dimnum(outorder, nextd)
+                    outorder = (outorder[1:n-1]..., od, outorder[n:end]...)
+                    found = true
+                    break
+                end
+            end
+        end
+        if !found
+            outorder = (outorder..., od)
+        end
+    end
+    return outorder
 end
 
 # Stack from a Raster

@@ -33,7 +33,6 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
     @time ds = GRIBDataset(era5);
 
     @testset "lazyness" begin
-        @time Raster(era5);
         @test parent(gribarray) isa Array
         @test parent(lazyarray) isa FileArray
         @test parent(eagerstack) isa NamedTuple
@@ -56,12 +55,17 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
     end
 
     @testset "stack, compare to GRIBDataset" begin
-        stack = RasterStack(era5; lazy = true)
-        ds = GRIBDataset(era5)
+        @test eagerstack[:z][Z=1, Ti=1, number=1] == 
+              lazystack[:z][Z=1, Ti=1, number=1] == 
+              ds["z"][:, :, 1, 1, 1]
+    end
 
-        diff = stack[:z][Z=1, Ti=1, number=1] - ds["z"][:,:,1,1,1]
-
-        @test all(diff .== 0.)
+    @testset "stack properties" begin
+        @test size(eagerstack) == size(lazystack) == (120, 61, 2, 10, 4)
+        @test keys(eagerstack) == keys(lazystack) == (:z, :t)
+        @test dims(eagerstack) isa Tuple{<:X,<:Y,<:Z,<:Dim{:number},<:Ti} 
+        @test dims(lazystack) isa Tuple{<:X,<:Y,<:Z,<:Dim{:number},<:Ti} 
+        @test missingval(eagerstack) === missingval(lazystack) === missing
     end
 
     @testset "array properties" begin
