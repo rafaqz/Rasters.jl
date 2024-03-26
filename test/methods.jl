@@ -283,7 +283,7 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
 @testset "extract" begin
     dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
     rast = Raster([1 2; 3 4], dimz; name=:test, missingval=missing)
-    rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=missing)
+    rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=5)
     rast_m = Raster([1 2; 3 missing], dimz; name=:test, missingval=missing)
     table = (geometry=[missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)], foo=zeros(4))
     st = RasterStack(rast, rast2)
