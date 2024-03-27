@@ -22,7 +22,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     end
 
     # Resample cea.tif using resample
-    cea = Raster(raster_path; missingval=0x00)
+    cea = Raster(raster_path; missingval=0x00, name = :cea)
     raster_output = resample(cea; res=output_res, crs=output_crs, method)
     disk_output = resample(cea; res=output_res, crs=output_crs, method, filename="resample.tif")
 
@@ -38,6 +38,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         abs(step(dims(raster_output, X))) ≈ 
         abs(step(dims(disk_output, X))) ≈ 
         abs(step(dims(permuted_output, X))) ≈ output_res
+    @test name(cea) == name(raster_output)
 
     rm("resample.tif")
 
