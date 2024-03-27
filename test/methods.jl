@@ -266,7 +266,12 @@ end
     @test_throws ArgumentError classify(ga1, [1, 2, 3])
 end
 
-@testset "points" begin
+@testset "points" begin    dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
+    rast = Raster([1 2; 3 4], dimz; name=:test, missingval=missing)
+    rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=5)
+    rast_m = Raster([1 2; 3 missing], dimz; name=:test, missingval=missing)
+    table = (geometry=[missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)], foo=zeros(4))
+    st = RasterStack(rast, rast2)
     ga = Raster(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); missingval=missing)
     @test all(collect(points(ga; order=(Y, X))) .=== [missing (0.2, 9.0); (0.1, 10.0) missing])
     @test all(collect(points(ga; order=(X, Y))) .=== [missing (9.0, 0.2); (10.0, 0.1) missing])
@@ -283,7 +288,7 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
 @testset "extract" begin
     dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
     rast = Raster([1 2; 3 4], dimz; name=:test, missingval=missing)
-    rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=missing)
+    rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=5)
     rast_m = Raster([1 2; 3 missing], dimz; name=:test, missingval=missing)
     table = (geometry=[missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)], foo=zeros(4))
     st = RasterStack(rast, rast2)
@@ -373,7 +378,11 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         @test extract(rast_m, p; skipmissing=true, index=true) == [
             (geometry = (9.0, 0.1), index = CartesianIndex(1, 1), test = 1)
             (geometry = (10.0, 0.1), index = CartesianIndex(2, 1), test = 3)
-        ]                                                         
+        ]          
+        @test extract(rast2, p; skipmissing=true) == [
+            (geometry = (10.0, 0.1), test2 = 7)
+            (geometry = (10.0, 0.2), test2 = 8)
+        ]                                               
         # Empty geoms
         @test extract(rast, []) == NamedTuple{(:geometry, :test),Tuple{Missing,Missing}}[]
         @test extract(rast, []; geometry=false) == NamedTuple{(:test,),Tuple{Missing}}[]
@@ -414,6 +423,9 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true) == [
             (geometry = (9.0, 0.1), test = 1, test2 = 5)
             (geometry = (10.0, 0.2), test = 4, test2 = 8)
+        ]
+        @test extract(st2, [missing, (2, 2), (2,1)]; skipmissing=true) == [
+            (geometry = (2, 1), a = 7.0, b = 2.0)
         ]
         @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false) == [
             (test = 1, test2 = 5)
