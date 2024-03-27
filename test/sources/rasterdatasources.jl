@@ -34,13 +34,24 @@ end
 end
 
 @testset "load CHELSA BioClim" begin
-    A = Raster(CHELSA{BioClim}, 1; mappedcrs=EPSG(4326))
+    A = Raster(CHELSA{BioClim}, 1; lazy=true)
     @test Rasters.name(A) == :bio1
-    st = RasterStack(CHELSA{BioClim}, (:bio1, :BIO2))
+    st = RasterStack(CHELSA{BioClim}, (:bio1, :BIO2); lazy=true)
     @test keys(st) == (:bio1, :bio2)
     @test A isa Raster
     @test st isa RasterStack
     @test st[:bio2] isa Raster
+    # Allow forcing keywords
+    st = RasterStack(CHELSA{BioClim}, (1, 2); 
+         lazy=true, 
+         missingval=-9999, 
+         metadata=Rasters.NoMetadata(), 
+         crs=nothing, 
+         mappedcrs=EPSG(4326),
+    )
+    @test missingval(st) == -9999
+    @test missingval(st.bio1) == -9999
+    @test metadata(st) == Rasters.NoMetadata()
 end
 
 @testset "load EarthEnv HabitatHeterogeneity" begin

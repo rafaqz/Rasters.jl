@@ -89,12 +89,18 @@ const EXPERIMENTAL = """
 const DEFAULT_POINT_ORDER = (X(), Y())
 const DEFAULT_TABLE_DIM_KEYS = (:X, :Y)
 
+# To use when `nothing` is a valid keyword value
+struct NoKW end
+const nokw = NoKW()
+
+include("methods/shared_docstrings.jl")
 include("lookup.jl")
 include("dimensions.jl")
 include("sources/sources.jl")
 include("filearray.jl")
 include("filestack.jl")
 include("openstack.jl")
+include("sources/sources.jl")
 include("array.jl")
 include("stack.jl")
 include("series.jl")
@@ -123,7 +129,6 @@ include("methods/burning/polygon.jl")
 include("methods/burning/extents.jl")
 include("methods/burning/utils.jl")
 
-include("methods/shared_docstrings.jl")
 include("methods/mask.jl")
 include("methods/rasterize.jl")
 include("methods/aggregate.jl")
