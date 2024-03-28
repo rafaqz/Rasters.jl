@@ -23,9 +23,9 @@ nolookup_to_sampled(dims::DimTuple) = map(nolookup_to_sampled, dims)
 nolookup_to_sampled(d::Dimension) =
     lookup(d) isa NoLookup ? set(d, Sampled(; sampling=Points())) : d
 
-function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source) where T
-    if ismissing(missingval(A))
-        newmissingval = _type_missingval(Missings.nonmissingtype(T))
+function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source, missingval=nokw) where T
+    if ismissing(Rasters.missingval(A))
+        newmissingval = missingval isa NoKW ? _type_missingval(Missings.nonmissingtype(T)) : missingval
         A1 = replace_missing(A, newmissingval)
         @warn "`missing` cant be written with $(SOURCE2SYMBOL[source]), missinval for `$(eltype(A1))` of `$newmissingval` used instead"
         return A1

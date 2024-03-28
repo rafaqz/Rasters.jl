@@ -13,10 +13,10 @@ $SOURCE_KEYWORD
 Other keyword arguments are passed to the `write` method for the backend.
 """
 function Base.write( filename::AbstractString, A::AbstractRaster; 
-    source=_sourcetype(filename), 
+    source=_sourcetrait(filename), 
     kw...
 )
-    source = _sourcetype(source)
+    source = _sourcetrait(source)
     write(filename, source, A; kw...)
 end
 Base.write(A::AbstractRaster; kw...) = write(filename(A), A; kw...)
@@ -50,11 +50,11 @@ If the source can't be saved as a stack-like object, individual array layers wil
 function Base.write(path::AbstractString, s::AbstractRasterStack;
     suffix=nothing,
     ext=nothing,
-    source=_sourcetype(path, ext),
+    source=_sourcetrait(path, ext),
     verbose=true,
     kw...
 )
-    source = _sourcetype(source)
+    source = _sourcetrait(source)
     if haslayers(source)
         write(path, source, s; kw...)
     else
@@ -75,8 +75,8 @@ function Base.write(path::AbstractString, s::AbstractRasterStack;
         if verbose
             @warn string("Cannot write complete stacks to \"", ext, "\", writing layers as individual files")
         end
-        map(keys(s)) do key
-            fn = string(base, suffix1, ext)
+        map(keys(s), suffix1) do key, suf
+            fn = string(base, suf, ext)
             write(fn, source, s[key]; kw...)
         end |> NamedTuple{keys(s)}
     end
@@ -103,11 +103,11 @@ All keywords are passed through to these `Raster` and `RasterStack` methods.
 """
 function Base.write(path::AbstractString, A::AbstractRasterSeries;
     ext=nothing,
-    source=_sourcetype(path, ext),
+    source=_sourcetrait(path, ext),
     verbose=true,
     kw...
 )
-    source = _sourcetype(source)
+    source = _sourcetrait(source)
     base, path_ext = splitext(path)
     ext = isnothing(ext) ? path_ext : ext
     map(A, DimPoints(A)) do raster, p

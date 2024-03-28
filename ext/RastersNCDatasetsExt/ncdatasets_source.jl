@@ -76,6 +76,7 @@ and `Metadata` coming from other [`Source`](@ref) types is ignored.
 function Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStack;
     append=false,
     force=false,
+    missingval=nokw,
     kw...
 )
     mode = if append
@@ -86,7 +87,11 @@ function Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStac
     end
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
     try
-        map(key -> _writevar!(ds, s[key]; kw...), keys(s))
+        if missingval isa NamedTuple
+            map(k -> _writevar!(ds, s[k]; missinval=missingval[k], kw...), keys(s))
+        else
+            map(k -> _writevar!(ds, s[k]; missingval, kw...), keys(s))
+        end
     finally
         close(ds)
     end
@@ -109,9 +114,10 @@ end
 # Add a var array to a dataset before writing it.
 function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     verbose=true,
-    missingval=missingval(A),
+    missingval=nokw,
     kw...
 ) where {T,N}
+    missingval = missingval isa NoKW ? Rasters.missingval(A) : missingval
     _def_dim_var!(ds, A)
     attrib = RA._attribdict(metadata(A))
     # Set _FillValue
@@ -120,7 +126,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
        Element type $eltyp cannot be written to NetCDF. Convert it to one of $(Base.uniontypes(NCDAllowedType)),
        usually by broadcasting the desired type constructor over the `Raster`, e.g. `newrast = Float32.(rast)`"))
        """
-      ))
+    ))
     if ismissing(missingval)
         fillval = if haskey(attrib, "_FillValue") && attrib["_FillValue"] isa eltyp
             attrib["_FillValue"]
@@ -129,7 +135,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
         end
         attrib["_FillValue"] = fillval
         A = replace_missing(A, fillval)
-    elseif missingval(A) isa T
+    elseif Rasters.missingval(A) isa T
         attrib["_FillValue"] = missingval
     else
         verbose && !(missingval isa Nothing) && @warn "`missingval` $(missingval) is not the same type as your data $T."

@@ -6,38 +6,38 @@ Filearray is a DiskArrays.jl `AbstractDiskArray`. Instead of holding
 an open object, it just holds a filename string that is opened lazily 
 when it needs to be read.
 """
-struct FileArray{S,T,N,K,EC,HC} <: DiskArrays.AbstractDiskArray{T,N}
+struct FileArray{S,T,N,Na,EC,HC} <: DiskArrays.AbstractDiskArray{T,N}
     filename::String
     size::NTuple{N,Int}
-    key::K
+    name::Na
     eachchunk::EC
     haschunks::HC
     write::Bool
 end
 function FileArray{S,T,N}(
-    filename, size, key::K, eachchunk::EC=size, 
+    filename, size, name::Na, eachchunk::EC=size, 
     haschunks::HC=DA.Unchunked(), write=false
-) where {S,T,N,K,EC,HC}
-    FileArray{S,T,N,K,EC,HC}(filename, size, key, eachchunk, haschunks, write)
+) where {S,T,N,Na,EC,HC}
+    FileArray{S,T,N,Na,EC,HC}(filename, size, name, eachchunk, haschunks, write)
 end
 function FileArray{S,T,N}(filename::String, size::Tuple; 
-    key=nothing, eachchunk=size, haschunks=DA.Unchunked(), write=false
+    name=nothing, eachchunk=size, haschunks=DA.Unchunked(), write=false
 ) where {S,T,N}
-    FileArray{S,T,N}(filename, size, key, eachchunk, haschunks, write)
+    FileArray{S,T,N}(filename, size, name, eachchunk, haschunks, write)
 end
 
 # FileArray has S, T and N parameters not recoverable from fields
 ConstructionBase.constructorof(::Type{<:FileArray{S,T,N}}) where {S,T,N} = FileArray{S,T,N}
 
 filename(A::FileArray) = A.filename
-key(A::FileArray) = A.key
+DD.name(A::FileArray) = A.name
 Base.size(A::FileArray) = A.size
 DA.eachchunk(A::FileArray) = A.eachchunk
 DA.haschunks(A::FileArray) = A.haschunks
 
 # Run function `f` on the result of _open for the file type
 function Base.open(f::Function, A::FileArray{S}; write=A.write, kw...) where S
-    _open(f, S(), filename(A); key=key(A), write, kw...)
+    _open(f, S(), filename(A); name=name(A), write, kw...)
 end
 
 function DA.readblock!(A::FileArray, dst, r::AbstractUnitRange...)
@@ -58,17 +58,18 @@ end
 A basic DiskArrays.jl wrapper for objects that don't have one defined yet. 
 When we `open` a `FileArray` it is replaced with a `RasterDiskArray`.
 """
-struct RasterDiskArray{S,T,N,V,EC,HC} <: DiskArrays.AbstractDiskArray{T,N}
+struct RasterDiskArray{S,T,N,V,EC,HC,A} <: DiskArrays.AbstractDiskArray{T,N}
     var::V
     eachchunk::EC
     haschunks::HC
+    attrib::A
 end
 function RasterDiskArray{S}(
-    var::V, eachchunk=DA.eachchunk(var), haschunks=DA.haschunks(var)
-) where {S,V}
+    var::V, eachchunk::EC=DA.eachchunk(var), haschunks::HC=DA.haschunks(var), attrib::A=nothing
+) where {S,V,EC,HC,A}
     T = eltype(var)
     N = ndims(var)
-    RasterDiskArray{S,T,N,V,typeof(eachchunk),typeof(haschunks)}(var, eachchunk, haschunks)
+    RasterDiskArray{S,T,N,V,EC,HC,A}(var, eachchunk, haschunks, attrib)
 end
 
 Base.parent(A::RasterDiskArray) = A.var
@@ -78,6 +79,9 @@ DA.haschunks(A::RasterDiskArray) = A.haschunks
 DA.eachchunk(A::RasterDiskArray) = A.eachchunk
 DA.readblock!(A::RasterDiskArray, aout, r::AbstractUnitRange...) = aout .= parent(A)[r...]
 DA.writeblock!(A::RasterDiskArray, v, r::AbstractUnitRange...) = parent(A)[r...] .= v
+
+# Already open, doesn't use `name`
+_open(f, ::Source, A::RasterDiskArray; name=nothing) = f(A)
 
 struct MissingDiskArray{T,N,V} <: DiskArrays.AbstractDiskArray{T,N}
     var::V

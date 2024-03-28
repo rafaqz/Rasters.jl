@@ -52,7 +52,7 @@ _metadata(var::CFDiskArray, args...) = _metadata(parent(var), args...)
 # Base methods
 Base.parent(A::CFDiskArray) = A.var
 
-Base.getindex(os::OpenStack{<:CDMsource}, key::Symbol) = CFDiskArray(dataset(os)[key])
+Base.getindex(os::OpenStack{<:CDMsource}, name::Symbol) = CFDiskArray(dataset(os)[name])
 
 # DiskArrays.jl methods
 function DiskArrays.readblock!(A::CFDiskArray, aout, i::AbstractUnitRange...)
@@ -90,7 +90,7 @@ for method in (:attrib, :dim)
 end
 
 # Rasters methods for CDM types ###############################
-#
+
 function FileArray{source}(var::AbstractVariable, filename::AbstractString; kw...) where source<:CDMsource
     eachchunk = DA.eachchunk(var)
     haschunks = DA.haschunks(var)
@@ -125,8 +125,7 @@ _open(f, ::CDMsource, var::CFDiskArray; kw...) = cleanreturn(f(var))
 # TODO fix/test this for RasterStack
 function create(filename, source::CDMsource, T::Union{Type,Tuple}, dims::DimTuple;
     name=:layer1,
-    keys=(name,),
-    layerdims=map(_ -> dims, keys),
+    layerdims=map(_ -> dims, _astuple(name)),
     missingval=nothing,
     metadata=NoMetadata(),
     lazy=true,
@@ -134,15 +133,15 @@ function create(filename, source::CDMsource, T::Union{Type,Tuple}, dims::DimTupl
     types = T isa Tuple ? T : Ref(T)
     missingval = T isa Tuple ? missingval : Ref(missingval)
     # Create layers of zero arrays
-    layers = map(layerdims, keys, types, missingval) do lds, key, t, mv
+    layers = map(layerdims, name, types, missingval) do lds, name, t, mv
         A = FillArrays.Zeros{t}(map(length, lds))
-        Raster(A, dims=lds; name=key, missingval=mv)
+        Raster(A, dims=lds; name, missingval=mv)
     end
     write(filename, source, Raster(first(layers)))
     return Raster(filename; source=source, lazy)
 end
 
-filekey(ds::AbstractDataset, key) = _firstname(ds, key)
+filekey(ds::AbstractDataset, name) = _firstname(ds, name)
 missingval(var::AbstractDataset) = missing
 missingval(var::AbstractVariable{T}) where T = missing isa T ? missing : nothing
 cleanreturn(A::AbstractVariable) = Array(A)
@@ -170,7 +169,7 @@ function _nondimnames(ds)
     return nondim
 end
 
-function _layers(ds::AbstractDataset, ::Nothing=nothing)
+function _layers(ds::AbstractDataset, ::NoKW=nokw)
     nondim = _nondimnames(ds)
     grid_mapping = String[]
     vars = map(k -> ds[k], nondim)
@@ -182,18 +181,18 @@ function _layers(ds::AbstractDataset, ::Nothing=nothing)
     end
     bitinds = map(!in(grid_mapping), nondim)
     (;
-        keys=nondim[bitinds],
+        names=nondim[bitinds],
         vars=vars[bitinds],
         attrs=attrs[bitinds],
     )
 end
-function _layers(ds::AbstractDataset, keys)
-    vars = map(k -> ds[k], keys)
+function _layers(ds::AbstractDataset, names)
+    vars = map(k -> ds[k], names)
     attrs = map(CDM.attribs, vars)
-    (; keys, vars, attrs)
+    (; names, vars, attrs)
 end
 
-function _dims(var::AbstractVariable{<:Any,N}, crs=nothing, mappedcrs=nothing) where N
+function _dims(var::AbstractVariable{<:Any,N}, crs=nokw, mappedcrs=nokw) where N
     dimnames = CDM.dimnames(var)
     ntuple(Val(N)) do i
         _cdmdim(CDM.dataset(var), dimnames[i], crs, mappedcrs)
@@ -202,7 +201,7 @@ end
 _metadata(var::AbstractVariable; attr=CDM.attribs(var)) =
     _metadatadict(_sourcetrait(var), attr)
 
-function _dimdict(ds::AbstractDataset, crs=nothing, mappedcrs=nothing)
+function _dimdict(ds::AbstractDataset, crs=nokw, mappedcrs=nokw)
     dimdict = Dict{String,Dimension}()
     for dimname in CDM.dimnames(ds)
         dimdict[dimname] = _cdmdim(ds, dimname, crs, mappedcrs)
@@ -237,11 +236,11 @@ end
 # Utils ########################################################################
 
 # TODO dont load all keys here with _layers
-_firstname(ds::AbstractDataset, key) = Symbol(key)
-_firstname(ds::AbstractDataset, key::NoKW=nokw) =
+_firstname(ds::AbstractDataset, name) = Symbol(name)
+_firstname(ds::AbstractDataset, name::NoKW=nokw) =
     Symbol(first(_nondimnames(ds)))
 
-function _cdmdim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
+function _cdmdim(ds, dimname::Key, crs=nokw, mappedcrs=nokw)
     if haskey(ds, dimname)
         var = ds[dimname]
         D = _cdmdimtype(CDM.attribs(var), dimname)
@@ -259,8 +258,8 @@ function _cdmdim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
 end
 
 function _cdmfinddimlen(ds, dimname)
-    for key in keys(ds)
-        var = ds[key]
+    for name in keys(ds)
+        var = ds[name]
         dimnames = CDM.dimnames(var)
         if dimname in dimnames
             return size(var)[findfirst(==(dimname), dimnames)]
@@ -334,13 +333,13 @@ function _cdmlookup(
 )
     # If the index is regularly spaced and there is no crs
     # then there is probably just one crs - the mappedcrs
-    crs = if crs isa Nothing && span isa Regular
+    crs = if crs isa NoKW && span isa Regular
         mappedcrs
     else
         crs
     end
     dim = DD.basetypeof(D)()
-    return Mapped(index, order, span, sampling, metadata, crs, mappedcrs, dim)
+    return Mapped(index; order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 # Band dims have a Categorical lookup, with order
 function _cdmlookup(D::Type{<:Band}, index, order::Order, span, sampling, metadata, crs, mappedcrs)

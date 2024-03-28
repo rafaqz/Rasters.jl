@@ -69,11 +69,14 @@ Returns `filename`.
 """
 function Base.write(
     filename::AbstractString, ::GDALsource, A::AbstractRaster{T};
-    force=false, verbose=true, kw...
+    force=false, 
+    verbose=true, 
+    missingval=nokw,
+    kw...
 ) where T
     RA.check_can_write(filename, force)
-    A1 = _maybe_correct_to_write(A)
-    _create_with_driver(filename, dims(A1), eltype(A1), missingval(A1); _block_template=A1, kw...) do dataset
+    A1 = _maybe_correct_to_write(A, missingval)
+    _create_with_driver(filename, dims(A1), eltype(A1), Rasters.missingval(A1); _block_template=A1, kw...) do dataset
         verbose && _maybe_warn_south_up(A, verbose, "Writing South-up. Use `reverse(x; dims=Y)` first to write conventional North-up")
         open(A1; write=true) do O
             AG.RasterDataset(dataset) .= parent(O)
@@ -83,7 +86,12 @@ function Base.write(
 end
 
 function RA.create(filename, ::GDALsource, T::Type, dims::DD.DimTuple;
-    missingval=nothing, metadata=nothing, name=nothing, lazy=true, verbose=true, kw...
+    missingval=nokw, 
+    metadata=nokw, 
+    name=nokw, 
+    lazy=true, 
+    verbose=true, 
+    kw...
 )
     T = Missings.nonmissingtype(T)
     missingval = ismissing(missingval) ? RA._writeable_missing(T) : missingval
@@ -92,14 +100,17 @@ function RA.create(filename, ::GDALsource, T::Type, dims::DD.DimTuple;
         nothing
     end
 
-    return Raster(filename; source=GDALsource(), name, lazy, dropband=!hasdim(dims, Band))
+    return Raster(filename; source=GDALsource(), name, lazy, metadata, dropband=!hasdim(dims, Band))
 end
 
 function _maybe_warn_south_up(A, verbose, msg)
     verbose && lookup(A, Y) isa AbstractSampled && order(A, Y) isa ForwardOrdered && @warn msg
 end
 
-function RA._open(f, ::GDALsource, filename::AbstractString; write=false, kw...)
+function RA._open(f, ::GDALsource, filename::AbstractString; 
+    write=false, 
+    kw...
+)
     # Check the file actually exists because the GDAL error is unhelpful
     if !isfile(filename)
         # Allow gdal virtual file systems
@@ -241,22 +252,22 @@ end
 RA.Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
 function RA.Raster(ds::AG.RasterDataset;
     crs=crs(ds),
-    mappedcrs=nothing,
+    mappedcrs=nokw,
     dims=RA._dims(ds, crs, mappedcrs),
     refdims=(),
-    name=Symbol(""),
+    name=nokw,
     metadata=RA._metadata(ds),
     missingval=RA.missingval(ds),
     lazy=false,
     dropband=false
 )
-    args = dims, refdims, name, metadata, missingval
+    kw = (; dims, refdims, name, metadata, missingval)
     filelist = AG.filelist(ds)
     raster = if lazy && length(filelist) > 0
         filename = first(filelist)
-        A = Raster(FileArray{GDALsource}(ds, filename), args...)
+        Raster(FileArray{GDALsource}(ds, filename), dims; kw...)
     else
-        Raster(Array(ds), args...)
+        Raster(Array(ds), dims; kw...)
     end
     return dropband ? RA._drop_single_band(raster, lazy) : raster
 end
@@ -331,10 +342,13 @@ end
 _missingval_from_gdal(T, x) = x
 
 # Fix array and dimension configuration before writing with GDAL
-_maybe_correct_to_write(A) = _maybe_correct_to_write(lookup(A, X()), A)
-_maybe_correct_to_write(lookup, A) = A
-function _maybe_correct_to_write(lookup::Union{AbstractSampled,NoLookup}, A)
-    RA._maybe_use_type_missingval(A, GDALsource()) |> _maybe_permute_to_gdal
+_maybe_correct_to_write(A::AbstractDimArray, args...) =
+    _maybe_correct_to_write(lookup(A, X()), A, args...)
+_maybe_correct_to_write(::Lookup, A::AbstractDimArray, args...) = A
+function _maybe_correct_to_write(
+    lookup::Union{AbstractSampled,NoLookup}, A::AbstractDimArray, args...
+)
+    RA._maybe_use_type_missingval(A, GDALsource(), args...) |> _maybe_permute_to_gdal
 end
 
 _check_driver(filename::Nothing, driver) = "MEM"
@@ -354,8 +368,12 @@ end
 
 # Handle creating a dataset with any driver,
 # applying the function `f` to the created dataset
-function _create_with_driver(f, filename, dims, T, missingval;
-    options=Dict{String,String}(), driver="", _block_template=nothing, kw...
+function _create_with_driver(f, filename, dims::Tuple, T, missingval;
+    options=Dict{String,String}(), 
+    driver="", 
+    _block_template=nothing, 
+    chunks=nokw,
+    kw...
 )
     _gdal_validate(dims)
 
@@ -381,7 +399,7 @@ function _create_with_driver(f, filename, dims, T, missingval;
     else
         # Create a tif and copy it to `filename`, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
-        tif_options_vec = _process_options("GTiff", Dict{String,String}(); _block_template)
+        tif_options_vec = _process_options("GTiff", Dict{String,String}(); chunks, _block_template)
         tif_driver = AG.getdriver("GTiff")
         tif_name = tempname() * ".tif"
         AG.create(tif_name; driver=tif_driver, options=tif_options_vec, create_kw...) do dataset

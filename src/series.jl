@@ -124,9 +124,9 @@ function RasterSeries(filenames::NamedTuple{K}, dims; kw...) where K
     RasterSeries(map((fns...) -> NamedTuple{K}(fns), values(filenames)...), dims; kw...)
 end
 function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims;
-    refdims=(), lazy=false, duplicate_first=false, child=nothing, resize=nothing, kw...
+    refdims=(), lazy=false, duplicate_first=false, child=nokw, resize=nokw, kw...
 )
-    childtype = if isnothing(child)
+    childtype = if child isa NoKW
         eltype(filenames) <: NamedTuple ? RasterStack : Raster
     else
         child

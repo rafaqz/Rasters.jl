@@ -1,6 +1,6 @@
 using Rasters, Test, Dates, Statistics
 using Rasters.Lookups, Rasters.Dimensions
-using Rasters: upsample, downsample
+using Rasters: upsample, downsample, aggregate
 
 @testset "upsample" begin
     @test upsample(1, 2) == 1
@@ -32,8 +32,8 @@ array1 = Raster(data1, dimz)
 array2 = Raster(data2, dimz)
 array1a = Raster(data3, dimz)
 array2a = Raster(data4, dimz)
-stack1 = RasterStack(array1, array2; keys=(:array1, :array2))
-stack2 = RasterStack(array1a, array2a; keys=(:array1, :array2))
+stack1 = RasterStack(array1, array2; name=(:array1, :array2))
+stack2 = RasterStack(array1a, array2a; name=(:array1, :array2))
 dates = DateTime(2017):Year(1):DateTime(2018)
 series = RasterSeries([stack1, stack2], (Ti(dates),))
 

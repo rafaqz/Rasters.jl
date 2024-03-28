@@ -68,7 +68,7 @@ mosaic(f::Function, regions; kw...) = _mosaic(f, first(regions), regions; kw...)
 function _mosaic(f::Function, ::AbstractRaster, regions;
     missingval=missingval(first(regions)), filename=nothing, suffix=nothing, kw...
 )
-    missingval isa Nothing && throw(ArgumentError("Layers have no missingval, so pass a `missingval` keyword explicitly"))
+    missingval = missingval isa Nothing ? missing : missingval
     T = Base.promote_type(typeof(missingval), Base.promote_eltype(regions...))
     dims = _mosaic(Tuple(map(DD.dims, regions)))
     l1 = first(regions)

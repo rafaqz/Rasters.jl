@@ -1,7 +1,8 @@
 using Rasters, Test, Statistics, Dates, Plots
 using Rasters.Lookups, Rasters.Dimensions
+using DiskArrays
 import NCDatasets, ArchGDAL
-using Rasters: FileArray, GRDsource, GDALsource, metadata
+using Rasters: FileArray, GRDsource, GDALsource, metadata, trim
 
 testpath = joinpath(dirname(pathof(Rasters)), "../test/")
 include(joinpath(testpath, "test_utils.jl"))
@@ -26,6 +27,13 @@ grdpath = stem * ".gri"
         @test parent(grdarray) isa Array
         @test parent(lazyarray) isa FileArray
         @test parent(eagerarray) isa Array
+    end
+
+    @testset "replace_missing keyword" begin
+        # Eager is the default
+        @time missingarray = Raster(grdpath; replace_missing=true)
+        @test missingval(missingarray) === missing
+        @test eltype(missingarray) === Union{Missing,Float32}
     end
 
     @testset "open" begin
@@ -64,21 +72,41 @@ grdpath = stem * ".gri"
     end
 
     @testset "other fields" begin
+        proj = ProjString("+proj=merc +datum=WGS84")
+        @test name(grdarray) == Symbol("red:green:blue")
         @test missingval(grdarray) == -3.4f38
         @test metadata(grdarray) isa Metadata{GRDsource,Dict{String,Any}}
-        @test name(grdarray) == Symbol("red:green:blue")
         @test label(grdarray) == "red:green:blue"
         @test units(grdarray) == nothing
-        customgrdarray = Raster(grdpath; name=:test, mappedcrs=EPSG(4326));
+        @test crs(grdarray) == proj
+        @test mappedcrs(grdarray) == nothing
+        @test crs(dims(grdarray, Y)) == proj
+        @test crs(dims(grdarray, X)) == proj
+        @test mappedcrs(dims(grdarray, Y)) == nothing
+        @test mappedcrs(dims(grdarray, X)) == nothing
+    end
+
+    @testset "custom keywords" begin
+        customgrdarray = Raster(grdpath; 
+            name=:test, crs=EPSG(1000), mappedcrs=EPSG(4326), refdims=(Ti(),),
+            write=true, lazy=true, dropband=false, replace_missing=true,
+        )
         @test name(customgrdarray) == :test
+        @test refdims(customgrdarray) == (Ti(),)
         @test label(customgrdarray) == "test"
+        @test crs(customgrdarray) == EPSG(1000)
+        @test crs(dims(customgrdarray, Y)) == EPSG(1000)
+        @test crs(dims(customgrdarray, X)) == EPSG(1000)
+        @test mappedcrs(customgrdarray) == EPSG(4326)
         @test mappedcrs(dims(customgrdarray, Y)) == EPSG(4326)
         @test mappedcrs(dims(customgrdarray, X)) == EPSG(4326)
-        @test mappedcrs(customgrdarray) == EPSG(4326)
-        proj = ProjString("+proj=merc +datum=WGS84")
-        @test crs(dims(customgrdarray, Y)) == proj
-        @test crs(dims(customgrdarray, X)) == proj
-        @test crs(customgrdarray) == proj
+        @test parent(customgrdarray) isa DiskArrays.BroadcastDiskArray
+        @test eltype(customgrdarray) == Union{Float32,Missing}
+        # Needs to be separate as it overrides crs/mappedcrs 
+        dimsgrdarray = Raster(grdpath; 
+            dims=(Z(), X(), Y()),
+        )
+        @test dims(dimsgrdarray) isa Tuple{<:Z,X,Y}
     end
 
     @testset "getindex" begin
@@ -320,7 +348,7 @@ end
     @testset "conversion to RasterStack" begin
         geostack = RasterStack(grdstack)
         @test Symbol.(Tuple(keys(grdstack))) == keys(geostack)
-        smallstack = RasterStack(grdstack; keys=(:a,))
+        smallstack = RasterStack(grdstack; name=(:a,))
         @test keys(smallstack) == (:a,)
     end
 
@@ -387,7 +415,7 @@ end
     @testset "conversion to RasterStack" begin
         geostack = RasterStack(grdstack)
         @test Symbol.(Tuple(keys(grdstack))) == keys(geostack)
-        smallstack = RasterStack(grdstack; keys=(:Band_2,))
+        smallstack = RasterStack(grdstack; name=(:Band_2,))
         @test keys(smallstack) == (:Band_2,)
     end
 

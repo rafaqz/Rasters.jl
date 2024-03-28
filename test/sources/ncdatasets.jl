@@ -1,7 +1,8 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
+
 using Rasters.Lookups, Rasters.Dimensions
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name
+using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name, trim
 testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))
 include(joinpath(testdir, "test_utils.jl"))
 
@@ -343,7 +344,8 @@ end
     end
 
     @testset "no missing value" begin
-        write("nomissing.nc", boolmask(ncarray) .* 1)
+        no_ext = tempname() * ".nc"
+        write(no_ext, boolmask(ncarray) .* 1)
         nomissing = Raster("nomissing.nc")
         @test missingval(nomissing) == nothing
         rm("nomissing.nc")
@@ -432,17 +434,16 @@ end
         @test metadata(ncstack[:albedo])["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
-        @test axes(mean(ncstack[:albedo, Y(1:20)] , dims=Ti)) ==
+        @test axes(mean(ncstack[:albedo][Y(1:20)] , dims=Ti)) ==
               (Base.OneTo(192), Base.OneTo(20), Base.OneTo(1))
         geoA = ncstack[:albedo][Ti(4:6), X(1), Y(2)]
-        @test geoA == ncstack[:albedo, Ti(4:6), X(1), Y(2)]
         @test size(geoA) == (3,)
     end
 
     @testset "custom filename" begin
         ncmulti_custom = replace(ncmulti, "nc" => "nc4")
         cp(ncmulti, ncmulti_custom, force=true)
-        @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDsource)
+        @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDsource())
         @test ncstack_custom isa RasterStack
         @test map(read(ncstack_custom), read(ncstack)) do a, b
             all(a .=== b)
@@ -464,8 +465,8 @@ end
         @test dims(ncmultistack[:tos]) isa Tuple{<:X,<:Y,<:Ti}
         @test ncmultistack[:tos] isa Raster{<:Any,3}
         @test ncmultistack[:tos][Ti(1)] isa Raster{<:Any,2}
-        @test ncmultistack[:tos, Y(1), Ti(1)] isa Raster{<:Any,1}
-        @test ncmultistack[:tos, 8, 30, 10] isa Float32
+        @test ncmultistack[:tos][Y(1), Ti(1)] isa Raster{<:Any,1}
+        @test ncmultistack[:tos][8, 30, 10] isa Float32
     end
 
     @testset "Subsetting keys" begin
@@ -514,10 +515,11 @@ end
         @test geoseries isa RasterSeries{<:RasterStack}
         @test parent(geoseries) isa Vector{<:RasterStack}
     end
-    geoA = Raster(ncsingle; key=:tos)
+    geoA = Raster(ncsingle; name=:tos)
     @test all(read(ncseries[Ti(1)][:tos]) .=== read(geoA))
+    using ProfileView, Profile
 
-    write("test.nc", ncseries) 
+    @profview write("test.nc", ncseries) 
     @test isfile("test_1.nc")
     @test isfile("test_2.nc")
     @test (@allocations write("test.nc", ncseries)) < 1e4 # writing a rasterseries/stack has no force keyword

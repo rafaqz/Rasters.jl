@@ -10,7 +10,7 @@ gdalpath = maybedownload(url)
 @testset "Raster" begin
     @test_throws ArgumentError Raster("notafile.tif")
 
-    @time gdalarray = Raster(gdalpath; name=:test);
+    @time gdalarray = Raster(gdalpath; name=:test)
     @time lazyarray = Raster(gdalpath; lazy=true);
     @time eagerarray = Raster(gdalpath; lazy=false);
 
@@ -54,7 +54,6 @@ gdalpath = maybedownload(url)
         @time read!(gdalpath, A3);
         @test A == A2 == A3
     end
-
 
     @testset "custom filename" begin
         gdal_custom = replace(gdalpath, "tif" => "foo")
@@ -122,6 +121,29 @@ gdalpath = maybedownload(url)
         @test crs(gdalarray[Y(1)]) isa WellKnownText
         @test mappedcrs(gdalarray) === nothing
         @test mappedcrs(gdalarray[Y(1)]) === nothing
+    end
+
+    @testset "custom keywords" begin
+        customgdalarray = Raster(gdalpath; 
+            name=:test, crs=EPSG(1000), mappedcrs=EPSG(4326), refdims=(Ti(),),
+            write=true, lazy=true, dropband=false, replace_missing=true,
+        )
+        @test name(customgdalarray) == :test
+        @test refdims(customgdalarray) == (Ti(),)
+        @test label(customgdalarray) == "test"
+        @test crs(customgdalarray) == EPSG(1000)
+        @test crs(dims(customgdalarray, Y)) == EPSG(1000)
+        @test crs(dims(customgdalarray, X)) == EPSG(1000)
+        @test mappedcrs(customgdalarray) == EPSG(4326)
+        @test mappedcrs(dims(customgdalarray, Y)) == EPSG(4326)
+        @test mappedcrs(dims(customgdalarray, X)) == EPSG(4326)
+        @test parent(customgdalarray) isa FileArray
+        @test eltype(customgdalarray) == UInt8
+        # Needs to be separate as it overrides crs/mappedcrs 
+        dimsgdalarray = Raster(gdalpath; 
+            dims=(Z(), X(), Y()),
+        )
+        @test dims(dimsgdalarray) isa Tuple{<:Z,X,Y}
     end
 
     @testset "indexing" begin

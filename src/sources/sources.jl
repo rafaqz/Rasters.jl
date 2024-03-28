@@ -1,12 +1,14 @@
 # Source dispatch singletons
 abstract type Source end
 
-abstract type CDMsource <: Source end
-struct NCDsource <: CDMsource end
-struct GRIBsource <: CDMsource end
 struct GRDsource <: Source end
 struct GDALsource <: Source end
 struct SMAPsource <: Source end
+
+abstract type CDMsource <: Source end
+
+struct GRIBsource <: CDMsource end
+struct NCDsource <: CDMsource end
 
 # Deprecations
 const CDMfile = CDMsource
@@ -61,7 +63,7 @@ end
 # Get the source backend for a file extension, falling back to GDALsource
 _sourcetrait(filename::AbstractString, s::Source) = s
 _sourcetrait(filename::AbstractString, s) = _sourcetrait(s)
-_sourcetrait(filename::AbstractString, ::Nothing) = _sourcetrait(filename)
+_sourcetrait(filename::AbstractString, ::Union{Nothing,NoKW}) = _sourcetrait(filename)
 _sourcetrait(filename::AbstractString) = get(EXT2SOURCE, splitext(filename)[2], GDALsource())
 _sourcetrait(filenames::NamedTuple) = _sourcetrait(first(filenames))
 _sourcetrait(filename, ext) = get(EXT2SOURCE, ext, GDALsource())

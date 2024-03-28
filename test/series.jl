@@ -1,5 +1,6 @@
 using Rasters, Test, Dates, DimensionalData
 using Rasters.Lookups, Rasters.Dimensions
+using Rasters: metadata
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
 # RasterSeries from Raster/RasterStack components
@@ -10,25 +11,24 @@ data2 = 2 * data1
 data3 = 3 * data1
 data4 = 4 * data1
 dimz = X([30, 40]), Y(-10.0:10.0:20.0)
-ga1 = Raster(data1, dimz)
-ga2 = Raster(data2, dimz)
-ga1a = Raster(data3, dimz)
-ga2a = Raster(data4, dimz)
-stack1 = RasterStack(ga1, ga2; keys=(:ga1, :ga2))
-stack2 = RasterStack(ga1a, ga2a; keys=(:ga1, :ga2))
-dates =[DateTime(2017), DateTime(2018)]
+r1 = Raster(data1, dimz)
+r2 = Raster(data2, dimz)
+r1a = Raster(data3, dimz)
+r2a = Raster(data4, dimz)
+stack1 = RasterStack(r1, r2; name=(:r1, :r2))
+stack2 = RasterStack(r1a, r2a; name=(:r1, :r2))
+dates = [DateTime(2017), DateTime(2018)]
 ser = RasterSeries([stack1, stack2], Ti(dates))
 @test issorted(dates)
 
 @testset "getindex returns the currect types" begin
     @test ser[Ti(1)] isa RasterStack{<:NamedTuple}
-    @test ser[Ti(1)][:ga2] isa Raster{Int,2}
-    @test ser[Ti(1)][:ga2, 1, 1] isa Int
-    @test ser[Ti(1)][:ga2][1, 1] isa Int
+    @test ser[Ti(1)][:r2] isa Raster{Int,2}
+    @test ser[Ti(1)][:r2][1, 1] isa Int
 end
 
 @testset "map" begin
-    @test map(x -> x[1], ser) == Raster([(ga1=1, ga2=2), (ga1=3, ga2=4)], dims(ser))
+    @test map(x -> x[1], ser) == Raster([(r1=1, r2=2), (r1=3, r2=4)], dims(ser))
     @test map(x -> x, ser) == ser;
 end
 
@@ -41,21 +41,19 @@ end
 end
 
 @testset "getindex returns the currect results" begin
-    @test ser[Ti(Near(DateTime(2017)))][:ga1][X(1), Y(3)] === 3
-    @test ser[Ti(At(DateTime(2017)))][:ga1, X(1), Y(3)] === 3
-    @test ser[Ti(At(DateTime(2018)))][:ga2][X(2), Y(4)] === 32
-    @test ser[Ti(At(DateTime(2018)))][:ga2, X(2), Y(4)] === 32
-    @test ser[Ti(1)][:ga1, X(1), Y(2)] == 2
-    @test ser[Ti(1)][:ga2, X(2), Y(3:4)] == [14, 16] 
+    @test ser[Ti(Near(DateTime(2017)))][:r1][X(1), Y(3)] === 3
+    @test ser[Ti(At(DateTime(2018)))][:r2][X(2), Y(4)] === 32
+    @test ser[Ti(1)][:r1][X(1), Y(2)] == 2
+    @test ser[Ti(1)][:r2][X(2), Y(3:4)] == [14, 16] 
 end
 
 @testset "getindex is type stable all the way down" begin
-    # @inferred ser[Ti(At(DateTime(2017)))][:ga1, X(1), Y(2)]
-    @inferred ser[Ti(1)][:ga1][X(1), Y(2)]
-    # @inferred ser[Ti(1)][:ga1, X(1), Y(2:4)]
-    # @inferred ser[Ti(1)][:ga1][X(1), Y(2:4)]
-    # @inferred ser[1][:ga1, X(1:2), Y(:)]
-    # @inferred ser[1][:ga1][X(1:2), Y(:)]
+    # @inferred ser[Ti(At(DateTime(2017)))][:r1, X(1), Y(2)]
+    @inferred ser[Ti(1)][:r1][X(1), Y(2)]
+    # @inferred ser[Ti(1)][:r1, X(1), Y(2:4)]
+    # @inferred ser[Ti(1)][:r1][X(1), Y(2:4)]
+    # @inferred ser[1][:r1, X(1:2), Y(:)]
+    # @inferred ser[1][:r1][X(1:2), Y(:)]
 end
 
 @testset "setindex!" begin
@@ -75,21 +73,21 @@ end
 end
 
 @testset "slice, combine" begin
-    ga1 = Raster(ones(4, 5, 10), (X(), Y(), Ti(10:10:100))) .* reshape(1:10, (1, 1, 10))
-    ga2 = ga1 .* 2
-    ser = slice(ga1, Ti)
+    r1 = Raster(ones(4, 5, 10), (X(), Y(), Ti(10:10:100))) .* reshape(1:10, (1, 1, 10))
+    r2 = r1 .* 2
+    ser = slice(r1, Ti)
     @test size(ser) == (10,)
     combined = Rasters.combine(ser, Ti())
-    @test combined == ga1
-    @test dims(combined) == dims(ga1)
-    ser = slice(ga1, (X, Ti))
+    @test combined == r1
+    @test dims(combined) == dims(r1)
+    ser = slice(r1, (X, Ti))
     @test size(ser) == (4, 10)
-    ser = slice(ga1, (X, Y, Ti))
+    ser = slice(r1, (X, Y, Ti))
     combined2 = Rasters.combine(ser, (X, Y, Ti))
-    slice(ga1, Ti)
-    @test combined == ga1 == permutedims(combined2, (X, Y, Ti))
-    @test dims(combined) == dims(ga1) == dims(permutedims(combined2, (X, Y, Ti)))
-    stack = RasterStack((ga1=ga1, ga2=ga2))
+    slice(r1, Ti)
+    @test combined == r1 == permutedims(combined2, (X, Y, Ti))
+    @test dims(combined) == dims(r1) == dims(permutedims(combined2, (X, Y, Ti)))
+    stack = RasterStack((r1=r1, r2=r2))
     ser = slice(stack, Ti)
     @test size(ser) == (10,)
     combined = Rasters.combine(ser, Ti)
@@ -101,7 +99,7 @@ end
 
 @testset "show" begin
     # 2d
-    ser2 = slice(ga1, (X, Y))
+    ser2 = slice(r1, (X, Y))
     sh = sprint(show, MIME("text/plain"), ser2)
     # Test but don't lock this down too much
     @test occursin("RasterSeries", sh)
@@ -109,7 +107,7 @@ end
     @test occursin("X", sh)
     @test occursin("Y", sh)
     # 1d
-    ser1 = slice(ga1, X)
+    ser1 = slice(r1, X)
     sh = sprint(show, MIME("text/plain"), ser1)
     # Test but don't lock this down too much
     @test occursin("RasterSeries", sh)
