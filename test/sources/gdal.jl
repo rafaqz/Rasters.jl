@@ -548,7 +548,7 @@ end
         gdalstack_lazy = RasterStack((a=gdalpath, b=gdalpath); lazy=true)
         @test Rasters.isdisk(gdalstack_lazy.a)
         @test Rasters.isdisk(gdalstack_lazy.b)
-        gdalstack_read = read(lazygdalstack)
+        gdalstack_read = read(gdalstack_lazy)
         read!(gdalstack_lazy, gdalstack_read)
         gdalstack_eager = RasterStack((a=gdalpath, b=gdalpath); lazy=false)
         @test !Rasters.isdisk(gdalstack_eager.a)
