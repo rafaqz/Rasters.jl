@@ -15,9 +15,9 @@ sliced arrays or stacks will be returned instead of single values.
 
 # Keywords
 
-- `geometry`: include a `:geometry` column with the corresponding points for each value, `true` by default.
-- `index`: include an `:index` column of the `CartesianIndex` for each value, `false` by default.
-- `names`: `Tuple` of `Symbol` corresponding to layers of a `RasterStack`. All layers by default.
+- `geometry`: include `:geometry` in retured `NamedTuple`, `true` by default.
+- `index`: include `:index` of the `CartesianIndex` in retured `NamedTuple`, `false` by default.
+- `names`: `Tuple` of `Symbol` corresponding to layers of a `RasterStack` to extract. All layers by default.
 - `skipmissing`: skip missing points automatically.
 - `atol`: a tolorerance for floating point lookup values for when the `Lookup`
     contains `Points`. `atol` is ignored for `Intervals`.
