@@ -312,9 +312,8 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (index = (1, 1), test = 1,)
             (index = (1, 2), test = 2,)
         ])
-        # NamedTuple (reversed) points
-        @test all(extract(rast, [missing, (Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) .=== [
-            (geometry = missing, test = missing)
+        # NamedTuple (reversed) points - tests a Table that iterates over points
+        @test all(extract(rast, [(Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) .=== [
             (geometry = (Y = 0.1, X = 9.0), test = 1)
             (geometry = (Y = 0.2, X = 10.0), test = 4)
             (geometry = (Y = 0.3, X = 10.0), test = missing)
