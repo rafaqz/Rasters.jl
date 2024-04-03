@@ -548,9 +548,14 @@ end
         gdalstack_lazy = RasterStack((a=gdalpath, b=gdalpath); lazy=true)
         @test Rasters.isdisk(gdalstack_lazy.a)
         @test Rasters.isdisk(gdalstack_lazy.b)
+        gdalstack_read = read(lazygdalstack)
+        read!(gdalstack_lazy, gdalstack_read)
         gdalstack_eager = RasterStack((a=gdalpath, b=gdalpath); lazy=false)
         @test !Rasters.isdisk(gdalstack_eager.a)
         @test !Rasters.isdisk(gdalstack_eager.b)
+        gdalstack_read == gdalstack_eager
+        @test Rasters.filename(gdalstack_lazy) == (a=gdalpath, b=gdalpath)
+        @test Rasters.filename(gdalstack_read) == (a=nothing, b=nothing)
     end
 
     @testset "dropband" begin
