@@ -318,6 +318,13 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (geometry = (Y = 0.2, X = 10.0), test = 4)
             (geometry = (Y = 0.3, X = 10.0), test = missing)
         ])
+
+        @test all(extract(rast, (Y=[0.1, 0.2, 0.3], X=[9.0, 10.0, 10.0])) .=== [
+            (geometry = (Y = 0.1, X = 9.0), test = 1)
+            (geometry = (Y = 0.2, X = 10.0), test = 4)
+            (geometry = (Y = 0.3, X = 10.0), test = missing)
+        ])
+
         # Vector points
         @test all(extract(rast, [[9.0, 0.1], [10.0, 0.2]]) .== [
             (geometry = [9.0, 0.1], test = 1)
@@ -410,6 +417,8 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (index = (1, 1), test = 1,)
             (index = (1, 2), test = 2,)
         ]
+
+        @test_throws ArgumentError extract(rast, (foo = zeros(4),))
     end
 
     @testset "from stack" begin
