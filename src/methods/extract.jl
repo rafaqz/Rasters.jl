@@ -66,10 +66,9 @@ function extract(x::RasterStackOrArray, data;
     names = NamedTuple{names}(names)
     if Tables.istable(data)
         geomcolnames = GI.geometrycolumns(data)
-        if isnothing(geomcolnames)
-            rows = Tables.rows(data)
-            if GI.geomtrait(first(rows)) !== nothing
-                _extract(T, x, rows; dims, names, kw...)
+        if isnothing(geomcolnames) || !(first(geomcolnames) in Tables.columnnames(data))
+            if GI.geomtrait(NamedTuple(first(Tables.rows(data)))) !== nothing
+                _extract(T, x, Tables.rowtable(data); dims, names, kw...)
             else
                 throw(ArgumentError("No `:geometry` column and `GeoInterface.geometrycolums(::$(typeof(data)))` does not define alternate columns"))
             end
