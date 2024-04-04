@@ -423,18 +423,15 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (geometry = (10.0, 0.3), test = missing, test2 = missing)
         ])
         @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true) == [
-            (geometry = (9.0, 0.1), test = 1, test2 = 5)
             (geometry = (10.0, 0.2), test = 4, test2 = 8)
         ]
         @test extract(st2, [missing, (2, 2), (2,1)]; skipmissing=true) == [
             (geometry = (2, 1), a = 7.0, b = 2.0)
         ]
         @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false) == [
-            (test = 1, test2 = 5)
             (test = 4, test2 = 8)
         ]
         @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) == [
-            (index = (1, 1), test = 1, test2 = 5)
             (index = (2, 2), test = 4, test2 = 8)
         ]
         # Subset with `names`
@@ -444,6 +441,14 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (geometry = (10.0, 0.2), test2 = 8)
             (geometry = (10.0, 0.3), test2 = missing)
         ])
+        # Subset with `names` and `skipmissing` with mixed missingvals
+        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; names=(:test2,), skipmissing = true) == [
+            (geometry = (10.0, 0.2), test2 = 8)
+        ]
+        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; names=(:test,), skipmissing = true) == [
+            (geometry = (9.0, 0.1), test = 1)
+            (geometry = (10.0, 0.2), test = 4)
+        ]
     end
 end
 
