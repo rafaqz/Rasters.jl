@@ -137,7 +137,7 @@ _extract(T, x::RasterStackOrArray, trait::GI.PointTrait, point; kw...) =
     else
         Iterators.filter(rows) do row
             # rows may or may not contain a :geometry field, so map over keys instead
-            !any(key -> ismissing(row[key]) && row[key] === missingval[key], K)
+            !any(key -> ismissing(row[key]) || row[key] === missingval[key], K)
         end
     end
 end
