@@ -64,7 +64,7 @@ function extract(x::RasterStackOrArray, data;
         NamedTuple{keys}
     end
     names = NamedTuple{names}(names)
-    if Tables.istable(data) && !(data isa AbstractVector{<:GeoInterface.NamedTuplePoint})
+    if !(data isa AbstractVector{<:GeoInterface.NamedTuplePoint}) && Tables.istable(data)
         geomcolnames = GI.geometrycolumns(data)
         if isnothing(geomcolnames) || !in(first(geomcolnames), Tables.columnnames(Tables.columns(data)))
             throw(ArgumentError("No `:geometry` column and `GeoInterface.geometrycolums(::$(typeof(data)))` does not define alternate columns"))
