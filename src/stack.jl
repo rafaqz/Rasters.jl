@@ -29,8 +29,8 @@ subset without loading the whole array.
 abstract type AbstractRasterStack{L} <: AbstractDimStack{L} end
 
 missingval(stack::AbstractRasterStack) = getfield(stack, :missingval)
-filename(stack::AbstractRasterStack) = filename(parent(stack))
-filename(nt::NamedTuple) = ""
+filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}) = map(s -> filename(s), stack)
+filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:Union{FileStack,OpenStack}}) = filename(parent(stack))
 missingval(s::AbstractRasterStack, key::Symbol) = _singlemissingval(missingval(s), key)
 
 isdisk(st::AbstractRasterStack) = isdisk(layers(st, 1))
