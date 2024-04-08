@@ -30,6 +30,7 @@ abstract type AbstractRasterStack{L} <: AbstractDimStack{L} end
 
 missingval(stack::AbstractRasterStack) = getfield(stack, :missingval)
 filename(stack::AbstractRasterStack) = filename(parent(stack))
+filename(nt::NamedTuple) = ""
 missingval(s::AbstractRasterStack, key::Symbol) = _singlemissingval(missingval(s), key)
 
 isdisk(st::AbstractRasterStack) = isdisk(layers(st, 1))
