@@ -33,7 +33,7 @@ const SOURCE2EXT = Dict(
     GRIBsource() => (".grib",), 
     SMAPsource() => (".h5",),
 )
-const SOURCE2PACAKGENAME = Dict(
+const SOURCE2PACKAGENAME = Dict(
     GDALsource() => "ArchGDAL",
     NCDsource() => "NCDatasets",
     GRIBsource() => "GRIBDatasets",
@@ -80,6 +80,6 @@ function _open(f, filename::AbstractString; source=_sourcetrait(filename), kw...
     _open(f, source, filename; kw...)
 end
 function _open(f, s::Source, filename::AbstractString; kw...)
-    packagename = SOURCE2PACAKGENAME[s]
+    packagename = SOURCE2PACKAGENAME[s]
     throw(BackendException(packagename))
 end

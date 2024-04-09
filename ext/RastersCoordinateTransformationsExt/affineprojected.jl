@@ -4,7 +4,7 @@ function AffineProjected(f;
     AffineProjected(f, data, metadata, crs, mappedcrs, paired_lookup, dim)
 end
 
-DD.dim(lookup::AffineProjected) = lookup.dim
+DD.dims(lookup::AffineProjected) = lookup.dim
 RA.crs(lookup::AffineProjected) = lookup.crs
 RA.mappedcrs(lookup::AffineProjected) = lookup.mappedcrs
 paired_lookup(lookup::AffineProjected) = lookup.paired_lookup
