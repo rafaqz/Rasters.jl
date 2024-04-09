@@ -33,8 +33,11 @@ function print_geo(io, mime, A; blockwidth)
         print(io, convert(String, mappedcrs(A)))
     end
     if isdisk(A)
-        printstyled(io, "\n  filename: "; color=:light_black)
-        print(io, filename(A))
+        fn = filename(A)
+        if !(fn == "")
+            printstyled(io, "\n  filename: "; color=:light_black)
+            print(io, )
+        end
     end
     println(io)
 end
