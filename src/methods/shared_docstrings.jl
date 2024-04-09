@@ -11,7 +11,7 @@ const SIZE_KEYWORD = """
     Only required when `to` is not used or is an `Extents.Extent`, and `res` is not used.
 """
 const RES_KEYWORD = """
-- `res`: the resolution of the dimensions, a `Real` or `Tuple{<:Real,<:Real}`.
+- `res`: the resolution of the dimensions (often in meters or degrees), a `Real` or `Tuple{<:Real,<:Real}`.
     Only required when `to` is not used or is an `Extents.Extent`, and `size` is not used.
 """
 const CRS_KEYWORD = """

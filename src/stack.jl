@@ -29,9 +29,9 @@ subset without loading the whole array.
 abstract type AbstractRasterStack{L} <: AbstractDimStack{L} end
 
 missingval(stack::AbstractRasterStack) = getfield(stack, :missingval)
+missingval(s::AbstractRasterStack, key::Symbol) = _singlemissingval(missingval(s), key)
 filename(stack::AbstractRasterStack{<:NamedTuple}) = map(s -> filename(s), stack)
 filename(stack::AbstractRasterStack{<:Union{FileStack,OpenStack}}) = filename(parent(stack))
-missingval(s::AbstractRasterStack, key::Symbol) = _singlemissingval(missingval(s), key)
 
 isdisk(st::AbstractRasterStack) = isdisk(layers(st, 1))
 
@@ -435,13 +435,13 @@ function Base.open(f::Function, st::AbstractRasterStack{<:NamedTuple}; kw...)
 end
 
 # Open all layers through nested closures, applying `f` to the rebuilt open stack
-_open_layers(f, st) = _open_layers(f, st, DD.layers(f), NamedTuple())
+_open_layers(f, st) = _open_layers(f, st, DD.layers(st), NamedTuple())
 function _open_layers(f, st, unopened::NamedTuple{K}, opened::NamedTuple) where K
     open(first(unopened)) do open_layer
-        _open_layers(f, st, Base.tail(unopened), merge(opened, NamedTuple{(first(K))}(open_layer)))
+        _open_layers(f, st, Base.tail(unopened), merge(opened, NamedTuple{(first(K),)}((open_layer,))))
     end
 end
-function _open_layers(f, st, unopened::NamedTuple{()}, opened)
+function _open_layers(f, st, unopened::NamedTuple{()}, opened::NamedTuple)
     f(rebuild(st; data=opened))
 end
 

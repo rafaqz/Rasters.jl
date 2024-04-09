@@ -15,9 +15,9 @@ sliced arrays or stacks will be returned instead of single values.
 
 # Keywords
 
-- `geometry`: include a `:geometry` column with the corresponding points for each value, `true` by default.
-- `index`: include an `:index` column of the `CartesianIndex` for each value, `false` by default.
-- `names`: `Tuple` of `Symbol` corresponding to layers of a `RasterStack`. All layers by default.
+- `geometry`: include `:geometry` in retured `NamedTuple`, `true` by default.
+- `index`: include `:index` of the `CartesianIndex` in retured `NamedTuple`, `false` by default.
+- `names`: `Tuple` of `Symbol` corresponding to layers of a `RasterStack` to extract. All layers by default.
 - `skipmissing`: skip missing points automatically.
 - `atol`: a tolorerance for floating point lookup values for when the `Lookup`
     contains `Points`. `atol` is ignored for `Intervals`.
@@ -64,12 +64,14 @@ function extract(x::RasterStackOrArray, data;
         NamedTuple{keys}
     end
     names = NamedTuple{names}(names)
-    if Tables.istable(data)
+    if !(data isa AbstractVector{<:GeoInterface.NamedTuplePoint}) && Tables.istable(data)
         geomcolnames = GI.geometrycolumns(data)
-        isnothing(geomcolnames) && throw(ArgumentError("No `:geometry` column and `GeoInterface.geometrycolums(::$(typeof(data)))` does not define alternate columns"))
+        if isnothing(geomcolnames) || !in(first(geomcolnames), Tables.columnnames(Tables.columns(data)))
+            throw(ArgumentError("No `:geometry` column and `GeoInterface.geometrycolums(::$(typeof(data)))` does not define alternate columns"))
+        end
         geometries = Tables.getcolumn(Tables.columns(data), first(geomcolnames))
         _extract(T, x, geometries; dims, names, kw...)
-    else
+     else
         _extract(T, x, data; dims, names, kw...)
     end
 end
@@ -95,11 +97,11 @@ function _extract(T, A::RasterStackOrArray, ::Nothing, geoms::AbstractArray; nam
     # TODO this will fail with mixed point/geom vectors
     if trait1 isa GI.PointTrait
         rows = (_extract_point(T, A, g; names, kw...) for g in geoms)
-        return skipmissing ? collect(_skip_missing_rows(rows)) : collect(rows)
+        return skipmissing ? collect(_skip_missing_rows(rows, _missingval_or_missing(A), names)) : collect(rows)
     else
         # This will be a list of vectors, we need to flatten it into one
         rows = Iterators.flatten(_extract(T, A, g; names, skipmissing, kw...) for g in geoms)
-        return skipmissing ? collect(_skip_missing_rows(rows)) : collect(rows)
+        return skipmissing ? collect(_skip_missing_rows(rows, _missingval_or_missing(A), names)) : collect(rows)
     end
 end
 function _extract(T, A::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...)
@@ -111,7 +113,7 @@ function _extract(T, A::RasterStackOrArray, ::GI.FeatureCollectionTrait, fc; kw.
 end
 function _extract(T, A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom; skipmissing=false, kw...)
     rows = (_extract_point(T, A, g; kw...) for g in GI.getpoint(geom))
-    return skipmissing ? collect(_skip_missing_rows(rows)) : collect(rows)
+    return skipmissing ? collect(_skip_missing_rows(rows, _missingval_or_missing(A), names)) : collect(rows)
 end
 function _extract(T, A::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom;
     names, skipmissing=false, kw...
@@ -121,12 +123,25 @@ function _extract(T, A::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom;
     # Add a row for each pixel that is `true` in the mask
     rows = (_maybe_add_fields(T, A, _prop_nt(A, I, names), I) for I in CartesianIndices(B) if B[I])
     # Maybe skip missing rows
-    return skipmissing ? collect(_skip_missing_rows(rows)) : collect(rows)
+    return skipmissing ? collect(_skip_missing_rows(rows, _missingval_or_missing(A), names)) : collect(rows)
 end
 _extract(T, x::RasterStackOrArray, trait::GI.PointTrait, point; kw...) =
     _extract_point(T, x, point; kw...)
 
-@inline _skip_missing_rows(rows) = Iterators.filter(row -> !any(ismissing, row), rows)
+@inline _skip_missing_rows(rows, ::Missing, names) = Iterators.filter(row -> !any(ismissing, row), rows)
+@inline _skip_missing_rows(rows, missingval, names) = Iterators.filter(row -> !any(x -> ismissing(x) || x === missingval, row), rows)
+@inline function _skip_missing_rows(rows, missingval::NamedTuple, names::NamedTuple{K}) where K
+    # first check if all fields are equal - if so just call with the first value
+    if Base.allequal(missingval) == 1
+        return _skip_missing_rows(rows, first(missingval), names)
+    else
+        Iterators.filter(rows) do row
+            # rows may or may not contain a :geometry field, so map over keys instead
+            !any(key -> ismissing(row[key]) || row[key] === missingval[key], K)
+        end
+    end
+end
+
 
 @inline _prop_nt(st::AbstractRasterStack, I, names::NamedTuple{K}) where K = st[I][K]
 @inline _prop_nt(A::AbstractRaster, I, names::NamedTuple{K}) where K = NamedTuple{K}((A[I],))
