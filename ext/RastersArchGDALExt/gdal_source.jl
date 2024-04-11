@@ -408,7 +408,17 @@ function _process_options(driver::String, options::Dict; _block_template=nothing
     # creation options are driver dependent
 
     if !isnothing(_block_template) && DA.haschunks(_block_template) == DA.Chunked()
-        block_x, block_y = string.(DA.max_chunksize(DA.eachchunk(_block_template)))
+        block_x, block_y = DA.max_chunksize(DA.eachchunk(_block_template))
+
+        # GDAL default is line-by-line compression without tiling.
+        # Here, tiling is enabled if the source chunk size is viable for GTiff,
+        # i.e. when the chunk size is divisible by 16.
+        if (block_x % 16 == 0) && (block_y % 16 == 0)
+            options_str["TILED"] = "YES"
+        end
+        
+        block_x, block_y = string.((block_x, block_y))
+
         if driver == "GTiff"
             # dont overwrite user specified values
             if !("BLOCKXSIZE" in keys(options_str))
@@ -422,7 +432,7 @@ function _process_options(driver::String, options::Dict; _block_template=nothing
                 # cog only supports square blocks
                 # if the source already has square blocks, use them
                 # otherwise use the driver default
-                options_str["BLOCKSIZE"] = block_x == block_y ? block_x : 512
+                options_str["BLOCKSIZE"] = block_x == block_y ? block_x : "512"
             end
         end
     end
