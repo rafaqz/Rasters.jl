@@ -113,7 +113,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N}; kw...) where {T
     end
 
     dimnames = lowercase.(string.(map(RA.name, dims(A))))
-    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...)
+    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...) |> RA.CFDiskArray
 
     # Write with a DiskArays.jl broadcast
     var .= A
