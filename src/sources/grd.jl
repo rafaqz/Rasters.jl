@@ -164,8 +164,10 @@ Returns the base of `filename` with a `.grd` extension.
 function Base.write(filename::String, ::GRDsource, A::AbstractRaster; 
     force=false, 
     missingval=nokw,
+    chunks=nokw,
     kw...
 )
+    chunks isa NoKW || @warn "specifying chunks not supported for .grd files"
     check_can_write(filename, force)
     A = _maybe_use_type_missingval(A, GRDsource(), missingval)
     if hasdim(A, Band)

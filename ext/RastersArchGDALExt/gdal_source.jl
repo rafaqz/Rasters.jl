@@ -45,28 +45,6 @@ RA.cleanreturn(A::AG.RasterDataset) = Array(A)
 RA.haslayers(::GDALsource) = false
 RA._sourcetrait(A::AG.RasterDataset) = GDALsource()
 
-"""
-    Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster; kw...)
-
-Write a `Raster` to file using GDAL.
-
-This method is called automatically if you `write` a `Raster` 
-with a `filename` extension that no other backend can read. 
-
-GDAL is the fallback, and reads a lot of file types, but is not guaranteed to work.
-
-# Keywords
-
-$(RA.FORCE_KEYWORD)
-- `driver`: A GDAL driver name or a GDAL driver retrieved via `ArchGDAL.getdriver(drivername)`. 
-    Guessed from the filename extension by default.
-- `options::Dict{String,String}`: A dictionary containing the dataset creation options passed to the driver. 
-    For example: `Dict("COMPRESS" => "DEFLATE")`. 
-
-Valid `options` for each specific `driver` can be looked up here: https://gdal.org/drivers/raster/index.html
-
-Returns `filename`.
-"""
 function Base.write(
     filename::AbstractString, ::GDALsource, A::AbstractRaster{T};
     force=false, 
@@ -372,7 +350,7 @@ function _create_with_driver(f, filename, dims::Tuple, T, missingval;
     options=Dict{String,String}(), 
     driver="", 
     _block_template=nothing, 
-    chunks=nokw,
+    chunks=true,
     kw...
 )
     _gdal_validate(dims)

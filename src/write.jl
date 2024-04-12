@@ -1,3 +1,51 @@
+const CHUNS_KEYWORD = """
+- `chunks`: a `NTuple{N,Int}` specifying the chunk size for each dimension. 
+    To specify only specific dimensions, a Tuple of `Dimension` wrapping `Int` 
+    or a `NamedTuple` of `Int` can be used. Other dimensions will have a chunk
+    size of `1`. `true` can be used to mean: use the original 
+    chunk size of the lazy `Raster` being written or X and Y of 256 by 256.
+    `false` means dont use chunks at all.
+"""
+
+const SOURCE_WRITE_DOCSTRING = """
+Other keyword arguments are passed to the `write` method for the backend.
+
+## NetCDF keywords
+
+- `append`: If true, the variable of the current Raster will be appended
+    to `filename`, if it actually exists.
+- `deflatelevel`: Compression level: `0` (default) means no compression and `9`
+    means maximum compression. Each chunk will be compressed individually.
+- `shuffle`: If `true`, the shuffle filter is activated which can improve the
+    compression ratio.
+- `checksum`: The checksum method can be `:fletcher32` or `:nochecksum`,
+    the default.
+- `typename`: The name of the NetCDF type required for vlen arrays
+    (https://web.archive.org/save/https://www.unidata.ucar.edu/software/netcdf/netcdf-4/newdocs/netcdf-c/nc_005fdef_005fvlen.html)
+
+## GDAL Keywords
+
+$(RA.FORCE_KEYWORD)
+- `driver`: A GDAL driver name `String` or a GDAL driver retrieved via `ArchGDAL.getdriver(drivername)`. 
+    By default `driver` is guessed from the filename extension.
+- `options::Dict{String,String}`: A dictionary containing the dataset creation options passed to the driver. 
+    For example: `Dict("COMPRESS" => "DEFLATE")`. 
+
+Valid `options` for each specific `driver` can be found at: https://gdal.org/drivers/raster/index.html
+
+
+## Source comments
+
+### R grd/grid files
+
+Write a `Raster` to a .grd file with a .gri header file.
+Returns the base of `filename` with a `.grd` extension.
+
+### GDAL (tiff, and everything else)
+
+Used if you `write` a `Raster` with a `filename` extension that no other backend can write. 
+GDAL is the fallback, and writes a lot of file types, but is not guaranteed to work.
+"""
 
 """
     Base.write(filename::AbstractString, A::AbstractRaster; [source], kw...)
@@ -7,17 +55,19 @@ file extension or using the `source` keyword.
 
 # Keywords
 
+$CHUNKS_KEYWORD
 $FORCE_KEYWORD
 $SOURCE_KEYWORD
 
-Other keyword arguments are passed to the `write` method for the backend.
+$SOURCE_WRITE_DOCSTRING
+
+Returns `filename`.
 """
 function Base.write( filename::AbstractString, A::AbstractRaster; 
     source=_sourcetrait(filename), 
     kw...
 )
-    source = _sourcetrait(source)
-    write(filename, source, A; kw...)
+    write(filename, _sourcetrait(source), A; kw...)
 end
 Base.write(A::AbstractRaster; kw...) = write(filename(A), A; kw...)
 # Fallback
@@ -35,17 +85,18 @@ Write any [`AbstractRasterStack`](@ref) to one or multiple files,
 depending on the backend. Backend is guessed from the filename extension
 or forced with the `source` keyword.
 
+If the source can't be saved as a stack-like object, individual array layers will be saved.
+
 ## Keywords
 
+$CHUNKS_KEYWORD
 $EXT_KEYWORD
 $FORCE_KEYWORD
 $SOURCE_KEYWORD
 $SUFFIX_KEYWORD
 $VERBOSE_KEYWORD
 
-Other keyword arguments are passed to the `write` method for the backend.
-
-If the source can't be saved as a stack-like object, individual array layers will be saved.
+$SOURCE_WRITE_DOCSTRING
 """
 function Base.write(path::AbstractString, s::AbstractRasterStack;
     suffix=nothing,
@@ -91,15 +142,15 @@ guessing the backend from the file extension.
 The lookup values of the series will be appended to the filepath (before the extension),
 separated by underscores.
 
+All keywords are passed through to these `Raster` and `RasterStack` methods.
+
 ## Keywords
 
+$CHUNKS_KEYWORD
 $EXT_KEYWORD
 $FORCE_KEYWORD
 $SOURCE_KEYWORD
 $VERBOSE_KEYWORD
-
-See specific docs for `write` for eg. gdal or netcdf keywords, or for `RasterStack`. 
-All keywords are passed through to these `Raster` and `RasterStack` methods.
 """
 function Base.write(path::AbstractString, A::AbstractRasterSeries;
     ext=nothing,
