@@ -122,23 +122,19 @@ function _open(f, ::CDMsource, ds::AbstractDataset; name=nokw, kw...)
 end
 _open(f, ::CDMsource, var::CFDiskArray; kw...) = cleanreturn(f(var))
 
-# TODO fix/test this for RasterStack
-function create(filename, source::CDMsource, T::Union{Type,Tuple}, dims::DimTuple;
+function create(filename, source::CDMsource, T::Type, dims::DimTuple;
     name=:layer1,
-    layerdims=map(_ -> dims, _astuple(name)),
-    missingval=nothing,
+    missingval=nokw,
     metadata=NoMetadata(),
     lazy=true,
+    verbose=true,
+    chunks=nokw,
 )
-    types = T isa Tuple ? T : Ref(T)
-    missingval = T isa Tuple ? missingval : Ref(missingval)
     # Create layers of zero arrays
-    layers = map(layerdims, name, types, missingval) do lds, name, t, mv
-        A = FillArrays.Zeros{t}(map(length, lds))
-        Raster(A, dims=lds; name, missingval=mv)
-    end
-    write(filename, source, Raster(first(layers)))
-    return Raster(filename; source=source, lazy)
+    A = FillArrays.Zeros{T}(map(length, dims))
+    rast = Raster(A, dims; name, missingval)
+    write(filename, source, rast; chunks)
+    return Raster(filename; source, lazy)
 end
 
 filekey(ds::AbstractDataset, name) = _firstname(ds, name)
