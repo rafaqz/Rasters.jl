@@ -123,18 +123,18 @@ end
 _open(f, ::CDMsource, var::CFDiskArray; kw...) = cleanreturn(f(var))
 
 function create(filename, source::CDMsource, T::Type, dims::DimTuple;
-    name=:layer1,
+    name=nokw,
     missingval=nokw,
-    metadata=NoMetadata(),
+    metadata=nokw,
     lazy=true,
     verbose=true,
     chunks=nokw,
 )
     # Create layers of zero arrays
     A = FillArrays.Zeros{T}(map(length, dims))
-    rast = Raster(A, dims; name, missingval)
+    rast = Raster(A, dims; name, missingval, metadata)
     write(filename, source, rast; chunks)
-    return Raster(filename; source, lazy)
+    return Raster(filename; metadata, source, lazy)
 end
 
 filekey(ds::AbstractDataset, name) = _firstname(ds, name)
