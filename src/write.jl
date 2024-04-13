@@ -1,4 +1,5 @@
-const CHUNS_KEYWORD = """
+
+const CHUNKS_KEYWORD = """
 - `chunks`: a `NTuple{N,Int}` specifying the chunk size for each dimension. 
     To specify only specific dimensions, a Tuple of `Dimension` wrapping `Int` 
     or a `NamedTuple` of `Int` can be used. Other dimensions will have a chunk
@@ -25,7 +26,7 @@ Other keyword arguments are passed to the `write` method for the backend.
 
 ## GDAL Keywords
 
-$(RA.FORCE_KEYWORD)
+$FORCE_KEYWORD
 - `driver`: A GDAL driver name `String` or a GDAL driver retrieved via `ArchGDAL.getdriver(drivername)`. 
     By default `driver` is guessed from the filename extension.
 - `options::Dict{String,String}`: A dictionary containing the dataset creation options passed to the driver. 

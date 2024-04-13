@@ -1,6 +1,7 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
 
 using Rasters.Lookups, Rasters.Dimensions
+using Rasters.DiskArrays
 import ArchGDAL, NCDatasets
 using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name, trim
 testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))
@@ -51,11 +52,11 @@ end
     @test_throws ArgumentError Raster("notafile.nc")
 
     @testset "lazyness" begin
-        @time read(Raster(ncsingle));
         # Eager is the default
         @test parent(ncarray) isa Array
         @test parent(lazyarray) isa FileArray
         @test parent(eagerarray) isa Array
+        @time read(lazyarray);
     end
 
     @testset "from url" begin
@@ -237,18 +238,15 @@ end
 
     @testset "write" begin
         @testset "to netcdf" begin
-            # TODO save and load subset
-            geoA = read(ncarray)
-            @test size(geoA) == size(ncarray)
             filename = tempname() * ".nc"
-            write(filename, geoA; force = true)
-            @test (@allocations write(filename, geoA; force = true)) < 1e4
+            write(filename, ncarray)
+            @test (@allocations write(filename, ncarray; force=true)) < 1e4
             @testset "CF attributes" begin
                 @test NCDatasets.Dataset(filename)[:x].attrib["axis"] == "X"
                 @test NCDatasets.Dataset(filename)[:x].attrib["bounds"] == "x_bnds"
                 # TODO  better units and standard name handling
             end
-            saved = read(Raster(filename))
+            saved = Raster(filename)
             @test size(saved) == size(geoA)
             @test refdims(saved) == refdims(geoA)
             @test missingval(saved) === missingval(geoA)
@@ -270,38 +268,53 @@ end
             @test saved isa typeof(geoA)
             # TODO test crs
 
-            # test for nc `kw...`
-            geoA = read(ncarray)
-            write("tos.nc", geoA; force=true) # default `deflatelevel = 0`
-            @time write("tos_small.nc", geoA; deflatelevel=2, force = true)
-            @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
-            isfile("tos.nc") && rm("tos.nc")
-            isfile("tos_small.nc") && rm("tos_small.nc")    
-            @test (@allocations write("tos_small.nc", geoA; deflatelevel=2, force = true)) < 1e4
+            @testset "chunks" begin
+                filename = tempname() * ".nc"
+                write(filename, ncarray; chunks=(64, 64))
+                @test DiskArrays.eachchunk(Raster(filename; lazy=true))[1] == (1:64, 1:64, 1:1)
+                filename = tempname() * ".nc"
+                write(filename, ncarray; chunks=(X=16, Y=10, Ti=8))
+                @test DiskArrays.eachchunk(Raster(filename; lazy=true))[1] == (1:16, 1:10, 1:8)
+                filename = tempname() * ".nc"
+                @test_warn "larger than array size" write(filename, ncarray; chunks=(X=1000, Y=10, Ti=8))
+                # No chunks
+                @test DiskArrays.haschunks(Raster(filename; lazy=true)) isa DiskArrays.Unchunked
+                @test DiskArrays.eachchunk(Raster(filename; lazy=true))[1] == map(Base.OneTo, size(ncarray))
+            end
 
-            # test for nc `append`
-            n = 100
-            x = rand(n, n)
-            r1 = Raster(x, (X, Y); name = "v1")
-            r2 = Raster(x, (X, Y); name = "v2")
-            fn = "test.nc"
-            isfile(fn) && rm(fn)
-            write(fn, r1, append=false; force = true)
-            size1 = filesize(fn)
-            write(fn, r2; append=true)
-            size2 = filesize(fn)
-            @test size2 > size1*1.8 # two variable 
-            isfile(fn) && rm(fn)
-            @test (@allocations begin 
-                write(fn, r1, append=false, force = true)
+            @testset "deflatelevel" begin
+                write("tos.nc", ncarray; force=true) # default `deflatelevel = 0`
+                @time write("tos_small.nc", geoA; deflatelevel=2, force = true)
+                @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
+                @test (@allocations write("tos_small.nc", ncarray; deflatelevel=2, force=true)) < 1e4
+                isfile("tos.nc") && rm("tos.nc")
+                isfile("tos_small.nc") && rm("tos_small.nc")
+            end
+
+            @testset "append" begin
+                n = 100
+                x = rand(n, n)
+                r1 = Raster(x, (X, Y); name = "v1")
+                r2 = Raster(x, (X, Y); name = "v2")
+                fn = "test.nc"
+                isfile(fn) && rm(fn)
+                write(fn, r1, append=false)
+                size1 = filesize(fn)
                 write(fn, r2; append=true)
-            end) < 10e4 
+                size2 = filesize(fn)
+                @test size2 > size1*1.8 # two variable 
+                isfile(fn) && rm(fn)
+                @test (@allocations begin 
+                    write(fn, r1, append=false, force=true)
+                    write(fn, r2; append=true)
+                end) < 10e4 
+            end
 
             @testset "non allowed values" begin
-                # TODO return this test when the changes in NCDatasets.jl settle
-                # @test_throws ArgumentError write(filename, convert.(Union{Missing,Float16}, geoA))
+                @test_throws ArgumentError write(filename, convert.(Union{Missing,Float16}, ncarray); force=true)
             end
         end
+
         @testset "to gdal" begin
             gdalfilename = tempname() * ".tif"
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)

@@ -101,23 +101,23 @@ end
 
 function FileStack{source}(
     ds::AbstractDataset, filename::AbstractString;
-    write::Bool=false, keys::NTuple{N,Symbol}, vars
+    write::Bool=false, name::NTuple{N,Symbol}, vars
 ) where {source<:CDMsource,N}
     layertypes = map(var -> Union{Missing,eltype(var)}, vars)
     layersizes = map(size, vars)
     eachchunk = map(_get_eachchunk, vars)
     haschunks = map(_get_haschunks, vars)
-    return FileStack{source,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+    return FileStack{source,name}(filename, layertypes, layersizes, eachchunk, haschunks, write)
 end
 
 function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) where source<:CDMsource
-    _open(source(), filename(A); key=key(A), write, kw...) do var
+    _open(source(), filename(A); name=name(A), write, kw...) do var
         f(var)
     end
 end
 
-function _open(f, ::CDMsource, ds::AbstractDataset; key=nokw, kw...)
-    x = key isa NoKW ? ds : CFDiskArray(ds[_firstname(ds, key)])
+function _open(f, ::CDMsource, ds::AbstractDataset; name=nokw, kw...)
+    x = name isa NoKW ? ds : CFDiskArray(ds[_firstname(ds, name)])
     cleanreturn(f(x))
 end
 _open(f, ::CDMsource, var::CFDiskArray; kw...) = cleanreturn(f(var))

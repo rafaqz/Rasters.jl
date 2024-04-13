@@ -377,6 +377,17 @@ gdalpath = maybedownload(url)
             @test_throws ArgumentError write(filename_gtiff2, gdalarray; driver="GTiff", options=Dict("COMPRESS"=>"FOOBAR"))
         end
 
+        @testset "chunks" begin
+            filename = tempname() * ".tiff"
+            write(filename, gdalarray; chunks=(128, 128, 1))
+            gdalarray2 = Raster(filename; lazy=true)
+            @test DiskArrays.eachchunk(gdalarray2)[1] == (1:128, 1:128)
+            filename = tempname() * ".tiff"
+            @test_warn "X and Y chunks do not match" write(filename, gdalarray; chunks=(128, 256, 1), driver="COG")
+            gdalarray2 = Raster(filename; lazy=true)
+            @test DiskArrays.eachchunk(gdalarray2)[1] == (1:512, 1:512)
+        end
+
         @testset "resave current" begin
             filename = tempname() * ".rst"
             write(filename, gdalarray)

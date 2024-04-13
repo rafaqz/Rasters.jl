@@ -319,13 +319,13 @@ function Raster(ds, filename::AbstractString;
 )::Raster
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
-    data1, dims1, metadata1, missingval1 = _open(source, ds; key=name1) do var
+    data1, dims1, metadata1, missingval1 = _open(source, ds; name=name1) do var
         metadata1 = metadata isa NoKW ? _metadata(var) : metadata
         missingval1 = _check_missingval(var, missingval)
         replace_missing1 = replace_missing && !isnothing(missingval1)
         missingval2 = replace_missing1 ? missing : missingval1
         data = if lazy
-            A = FileArray{typeof(source)}(var, filename; key=name1, write)
+            A = FileArray{typeof(source)}(var, filename; name=name1, write)
             replace_missing1 ? _replace_missing(A, missingval1) : A
         else
             _checkmem(var)
@@ -354,7 +354,7 @@ function _replace_missing(A::AbstractArray{T}, missingval) where T
     return repmissing.(A)
 end
 
-filekey(ds, key) = key
+filekey(ds, name) = name
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
 DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = Raster

@@ -221,3 +221,44 @@ function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::Stri
         end
     end
 end
+
+# NoKW means true
+@inline function _chunks_to_tuple(template, dims, chunks::Bool)
+    if chunks == true
+        if template isa AbstractArray && DA.haschunks(template) == DA.Chunked()
+            # Get chunks from the template
+            DA.max_chunksize(DA.eachchunk(template))
+        else
+            # Use defaults
+            _chunks_to_tuple(template, dims, (X(512), Y(512)))
+        end
+    else
+        nothing
+    end
+end
+@inline function _chunks_to_tuple(template, dimorder, chunks::NTuple{N,Integer}) where N
+    n = length(dimorder) 
+    if n < N 
+        throw(ArgumentError("Length $n tuple needed for `chunks`, got $N"))
+    elseif n > N
+        (chunks..., ntuple(_ -> 1, Val{n-N}())...)
+    else
+        chunks
+    end
+end
+@inline function _chunks_to_tuple(template, dimorder, chunks::DimTuple)
+    size_one_chunk_axes = map(d -> rebuild(d, 1), otherdims(dimorder, chunks))
+    alldims = (chunks..., size_one_chunk_axes...)
+    int_chunks = map(val, dims(alldims, dimorder))
+    if !isnothing(template)
+        if !all(map(>=, size(template), int_chunks))
+            @warn "Chunks $int_chunks larger than array size $(size(template)). Using defaults."
+            return nothing
+        end
+    end
+    return int_chunks
+end
+@inline _chunks_to_tuple(template, dimorder, chunks::NamedTuple) =
+    _chunks_to_tuple(template, dimorder, DD.kw2dims(chunks))
+@inline _chunks_to_tuple(template, dimorder, chunks::Nothing) = nothing
+@inline _chunks_to_tuple(template, dims, chunks::NoKW) = nothing

@@ -2,6 +2,8 @@ const AG = ArchGDAL
 
 const GDAL_LOCUS = Start()
 
+const GDAL_DIM_ORDER = (X(), Y(), Band())
+
 # drivers supporting the gdal Create() method to directly write to disk
 const GDAL_DRIVERS_SUPPORTING_CREATE = ("GTiff", "HDF4", "KEA", "netCDF", "PCIDSK", "Zarr", "MEM"#=...=#)
 
@@ -350,7 +352,7 @@ function _create_with_driver(f, filename, dims::Tuple, T, missingval;
     options=Dict{String,String}(), 
     driver="", 
     _block_template=nothing, 
-    chunks=true,
+    chunks=nokw,
     kw...
 )
     _gdal_validate(dims)
@@ -363,7 +365,7 @@ function _create_with_driver(f, filename, dims::Tuple, T, missingval;
     nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band())) : 1
 
     driver = _check_driver(filename, driver)
-    options_vec = _process_options(driver, options; _block_template)
+    options_vec = _process_options(driver, options; _block_template, chunks)
     gdaldriver = driver isa String ? AG.getdriver(driver) : driver
 
     create_kw = (; width=length(x), height=length(y), nbands, dtype=T,)
@@ -400,7 +402,10 @@ end
 end
 
 # Convert a Dict of options to a Vector{String} for GDAL
-function _process_options(driver::String, options::Dict; _block_template=nothing)
+function _process_options(driver::String, options::Dict; 
+    chunks=nokw,
+    _block_template=nothing
+)
     options_str = Dict(string(k)=>string(v) for (k,v) in options)
     # Get the GDAL driver object
     gdaldriver = AG.getdriver(driver)
@@ -413,19 +418,21 @@ function _process_options(driver::String, options::Dict; _block_template=nothing
     # the goal is to set write block sizes that correspond to eventually blocked reads
     # creation options are driver dependent
 
-    if !isnothing(_block_template) && DA.haschunks(_block_template) == DA.Chunked()
-        block_x, block_y = DA.max_chunksize(DA.eachchunk(_block_template))
-
-        # GDAL default is line-by-line compression without tiling.
-        # Here, tiling is enabled if the source chunk size is viable for GTiff,
-        # i.e. when the chunk size is divisible by 16.
-        if (block_x % 16 == 0) && (block_y % 16 == 0)
-            options_str["TILED"] = "YES"
-        end
+    chunk_pattern = RA._chunks_to_tuple(_block_template, (X(), Y(), Band()), chunks) 
+    if !isnothing(chunk_pattern)
+        xchunksize, ychunksize = chunk_pattern
         
-        block_x, block_y = string.((block_x, block_y))
+        block_x, block_y = string.((xchunksize, ychunksize))
 
         if driver == "GTiff"
+            # GDAL default is line-by-line compression without tiling.
+            # Here, tiling is enabled if the source chunk size is viable for GTiff,
+            # i.e. when the chunk size is divisible by 16.
+            if (xchunksize % 16 == 0) && (ychunksize % 16 == 0)
+                options_str["TILED"] = "YES"
+            else
+                xchunksize == 1 || @warn "X and Y chunk size do not match. Columns are used and X size $xchunksize is ignored"
+            end
             # dont overwrite user specified values
             if !("BLOCKXSIZE" in keys(options_str))
                 options_str["BLOCKXSIZE"] = block_x
@@ -435,10 +442,11 @@ function _process_options(driver::String, options::Dict; _block_template=nothing
             end
         elseif driver == "COG"
             if !("BLOCKSIZE" in keys(options_str))
-                # cog only supports square blocks
-                # if the source already has square blocks, use them
-                # otherwise use the driver default
-                options_str["BLOCKSIZE"] = block_x == block_y ? block_x : "512"
+                if xchunksize == ychunksize 
+                    options_str["BLOCKSIZE"] = block_x
+                else
+                    @warn "Writing COG X and Y chunks do not match: $block_x, $block_y. Default of 512, 512 used."
+                end
             end
         end
     end
@@ -470,9 +478,9 @@ function _bandnames(rds::AG.RasterDataset, nbands=AG.nraster(rds))
     end
 end
 
-function _gdalmetadata(dataset::AG.Dataset, key)
+function _gdalmetadata(dataset::AG.Dataset, name)
     meta = AG.metadata(dataset)
-    regex = Regex("$key=(.*)")
+    regex = Regex("$name=(.*)")
     i = findfirst(f -> occursin(regex, f), meta)
     if i isa Nothing
         return ""
@@ -560,7 +568,7 @@ function _extensiondriver(filename::AbstractString)
 end
 
 # Permute dims unless they match the normal GDAL dimension order
-_maybe_permute_to_gdal(A) = _maybe_permute_to_gdal(A, DD.dims(A, (X, Y, Band)))
+_maybe_permute_to_gdal(A) = _maybe_permute_to_gdal(A, DD.dims(A, GDAL_DIM_ORDER))
 _maybe_permute_to_gdal(A, dims::Tuple) = A
 _maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim,<:Band}) = permutedims(A, dims)
 _maybe_permute_to_gdal(A, dims::Tuple{<:XDim,<:YDim}) = permutedims(A, dims)

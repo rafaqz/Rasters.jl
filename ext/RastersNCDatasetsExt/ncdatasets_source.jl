@@ -4,10 +4,6 @@ const UNNAMED_NCD_FILE_KEY = "unnamed"
 
 const NCDAllowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
 
-## Keywords
-
-$NCD_WRITE_KEYWORDS
-
 function Base.write(filename::AbstractString, ::NCDsource, A::AbstractRaster;
     append=false,
     force=false,
@@ -71,7 +67,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     verbose=true,
     missingval=nokw,
     chunks=nokw,
-    chunksizes=chunks,
+    chunksizes=RA._chunks_to_tuple(A, dims(A), chunks),
     kw...
 ) where {T,N}
     missingval = missingval isa NoKW ? Rasters.missingval(A) : missingval
@@ -105,7 +101,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     end
 
     dimnames = lowercase.(string.(map(RA.name, dims(A))))
-    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...) |> RA.CFDiskArray
+    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, chunksizes, kw...) |> RA.CFDiskArray
 
     # Write with a DiskArays.jl broadcast
     var .= A

@@ -464,13 +464,13 @@ function _layer_stack(filename;
         dims = _sort_by_layerdims(dims isa NoKW ? _dims(ds, dimdict) : dims, layerdims)
         layermetadata = layermetadata isa NoKW ? _layermetadata(ds; layers) : layermetadata
         missingval = missingval isa NoKW ? Rasters.missingval(ds) : missingval
-        tuplekeys = Tuple(map(Symbol, layers.keys))
+        names = Tuple(map(Symbol, layers.names))
         data = if lazy
-            FileStack{typeof(source)}(ds, filename; keys=tuplekeys, vars=Tuple(layers.vars))
+            FileStack{typeof(source)}(ds, filename; name=names, vars=Tuple(layers.vars))
         else
-            NamedTuple{tuplekeys}(map(Array, layers.vars))
+            NamedTuple{names}(map(Array, layers.vars))
         end
-        data, (; dims, refdims, layerdims=NamedTuple{tuplekeys}(layerdims), metadata, layermetadata=NamedTuple{tuplekeys}(layermetadata), missingval)
+        data, (; dims, refdims, layerdims=NamedTuple{names}(layerdims), metadata, layermetadata=NamedTuple{names}(layermetadata), missingval)
     end
     return RasterStack(data; field_kw..., kw...)
 end
