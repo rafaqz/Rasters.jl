@@ -241,7 +241,7 @@ function RA.Raster(ds::AG.RasterDataset;
     lazy=false,
     dropband=false
 )
-    kw = (; dims, refdims, name, metadata, missingval)
+    kw = (; refdims, name, metadata, missingval)
     filelist = AG.filelist(ds)
     raster = if lazy && length(filelist) > 0
         filename = first(filelist)
