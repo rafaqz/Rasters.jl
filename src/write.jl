@@ -8,6 +8,12 @@ const CHUNKS_KEYWORD = """
     `false` means dont use chunks at all.
 """
 
+const MISSINGVAL_KEYWORD = """
+- `missingval`: set the missing value (i.e. FillValue / nodataval) of the written raster,
+    as Julias `missing` cannot be stored. If not passed in, `missingval` will be detected 
+    from metadata or a default will be chosen.
+"""
+
 const SOURCE_WRITE_DOCSTRING = """
 Other keyword arguments are passed to the `write` method for the backend.
 
@@ -58,6 +64,7 @@ file extension or using the `source` keyword.
 
 $CHUNKS_KEYWORD
 $FORCE_KEYWORD
+$MISSINGVAL_KEYWORD
 $SOURCE_KEYWORD
 
 $SOURCE_WRITE_DOCSTRING
@@ -93,6 +100,8 @@ If the source can't be saved as a stack-like object, individual array layers wil
 $CHUNKS_KEYWORD
 $EXT_KEYWORD
 $FORCE_KEYWORD
+$MISSINGVAL_KEYWORD
+    For `RasterStack` this may be a `NamedTuple`, one for each layer.
 $SOURCE_KEYWORD
 $SUFFIX_KEYWORD
 $VERBOSE_KEYWORD
@@ -150,6 +159,8 @@ All keywords are passed through to these `Raster` and `RasterStack` methods.
 $CHUNKS_KEYWORD
 $EXT_KEYWORD
 $FORCE_KEYWORD
+$MISSINGVAL_KEYWORD
+    For series with `RasterStack` child objects, this may be a `NamedTuple`, one for each layer.
 $SOURCE_KEYWORD
 $VERBOSE_KEYWORD
 """
