@@ -391,8 +391,8 @@ gdalpath = maybedownload(url)
 
         @testset "to netcdf" begin
             filename2 = tempname() * ".nc"
-            write(filename2, gdalarray[Band(1)])
-            @test (@allocations write(filename2, gdalarray[Band(1)])) < 1e4
+            write(filename2, gdalarray[Band(1)]; force = true)
+            @test (@allocations write(filename2, gdalarray[Band(1)]; force = true)) < 1e4
             saved = Raster(filename2; crs=crs(gdalarray), mappedcrs=crs(gdalarray))
             @test size(saved) == size(gdalarray[Band(1)])
             @test saved ≈ gdalarray[Band(1)]
