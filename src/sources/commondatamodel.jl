@@ -101,26 +101,36 @@ end
 
 function FileStack{source}(
     ds::AbstractDataset, filename::AbstractString;
-    write::Bool=false, name::NTuple{N,Symbol}, vars
+    write::Bool=false, 
+    group=nokw,
+    name::NTuple{N,Symbol}, 
+    vars
 ) where {source<:CDMsource,N}
     layertypes = map(var -> Union{Missing,eltype(var)}, vars)
     layersizes = map(size, vars)
     eachchunk = map(_get_eachchunk, vars)
     haschunks = map(_get_haschunks, vars)
-    return FileStack{source,name}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+    group = group isa NoKW ? nothing : group
+    return FileStack{source,name}(filename, layertypes, layersizes, group, eachchunk, haschunks, write)
 end
 
 function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) where source<:CDMsource
-    _open(source(), filename(A); name=name(A), write, kw...) do var
+    _open(source(), filename(A); name=name(A), group=A.group, write, kw...) do var
         f(var)
     end
 end
 
-function _open(f, ::CDMsource, ds::AbstractDataset; name=nokw, kw...)
-    x = name isa NoKW ? ds : CFDiskArray(ds[_firstname(ds, name)])
+function _open(f, ::CDMsource, ds::AbstractDataset; name=nokw, group=nothing, kw...)
+    g = _getgroup(ds, group)
+    x = name isa NoKW ? g : CFDiskArray(g[_firstname(ds, name)])
     cleanreturn(f(x))
 end
 _open(f, ::CDMsource, var::CFDiskArray; kw...) = cleanreturn(f(var))
+
+# This allows arbitrary group nesting
+_getgroup(ds, ::Union{Nothing,NoKW}) = ds
+_getgroup(ds, group::Union{Symbol,AbstractString}) = ds.group[String(group)]
+_getgroup(ds, group::Pair) = _getgroup(ds.group[String(group[1])], group[2])
 
 function create(filename, source::CDMsource, T::Type, dims::DimTuple;
     name=nokw,
@@ -165,7 +175,7 @@ function _nondimnames(ds)
     return nondim
 end
 
-function _layers(ds::AbstractDataset, ::NoKW=nokw)
+function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
     nondim = _nondimnames(ds)
     grid_mapping = String[]
     vars = map(k -> ds[k], nondim)
@@ -182,10 +192,13 @@ function _layers(ds::AbstractDataset, ::NoKW=nokw)
         attrs=attrs[bitinds],
     )
 end
-function _layers(ds::AbstractDataset, names)
+function _layers(ds::AbstractDataset, names, ::NoKW)
     vars = map(k -> ds[k], names)
     attrs = map(CDM.attribs, vars)
     (; names, vars, attrs)
+end
+function _layers(ds::AbstractDataset, names, group)
+    _layers(ds.group[group], names, nokw)
 end
 
 function _dims(var::AbstractVariable{<:Any,N}, crs=nokw, mappedcrs=nokw) where N
@@ -233,8 +246,14 @@ end
 
 # TODO dont load all keys here with _layers
 _firstname(ds::AbstractDataset, name) = Symbol(name)
-_firstname(ds::AbstractDataset, name::NoKW=nokw) =
-    Symbol(first(_nondimnames(ds)))
+function _firstname(ds::AbstractDataset, name::NoKW=nokw)
+    names = _nondimnames(ds)
+    if length(names) > 0
+        Symbol(first(names))
+    else
+        throw(ArgumentError("No non-dimension layers found in dataset with keys: $(keys(ds))"))
+    end
+end
 
 function _cdmdim(ds, dimname::Key, crs=nokw, mappedcrs=nokw)
     if haskey(ds, dimname)
@@ -310,18 +329,25 @@ function _cdmlookup(
     # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
     order = LA.orderof(index)
     var = ds[dimname]
+    # Detect lat/lon
     if haskey(CDM.attribs(var), "bounds")
         boundskey = var.attrib["bounds"]
         boundsmatrix = Array(ds[boundskey])
         span, sampling = Explicit(boundsmatrix), Intervals(Center())
-        return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     elseif eltype(index) <: Union{Missing,Dates.AbstractTime}
         span, sampling = _cdmperiod(index, metadata)
-        return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     else
         span, sampling = _cdmspan(index, order), Points()
-        return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
     end
+    # We cant yet check CF standards crs, but we can at least check for units in lat/lon 
+    if mappedcrs isa NoKW && get(metadata, "units", "") in ("degrees_north", "degrees_east")
+        mappedcrs = EPSG(4326)
+    end
+    # Additionally, crs and mappedcrs should be identical for Regular lookups
+    if crs isa NoKW span isa Regular
+        crs = mappedcrs
+    end
+    return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
 end
 # For X and Y use a Mapped <: AbstractSampled lookup
 function _cdmlookup(
@@ -392,13 +418,15 @@ function _parse_period(period_str::String)
         vals = map(x -> parse(Int, x), mtch.captures)
         if length(vals) == 6
             y = Year(vals[1])
-            m = Month(vals[2])
+            mo = Month(vals[2])
             d = Day(vals[3])
             h = Hour(vals[4])
-            m = Minute(vals[5])
+            mi = Minute(vals[5])
             s = Second(vals[6])
-            compound = sum(y, m, d, h, m, s)
-            if length(compound.periods) == 1
+            compound = sum((y, mo, d, h, mi, s))
+            if length(compound.periods) == 0
+                return nothing
+            elseif length(compound.periods) == 1
                 return compound.periods[1]
             else
                 return compound

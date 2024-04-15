@@ -111,9 +111,9 @@ end
 
 _def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
-    dimkey = lowercase(string(DD.name(dim)))
-    haskey(ds.dim, dimkey) && return nothing
-    NCD.defDim(ds, dimkey, length(dim))
+    dimname = lowercase(string(DD.name(dim)))
+    haskey(ds.dim, dimname) && return nothing
+    NCD.defDim(ds, dimname, length(dim))
     lookup(dim) isa NoLookup && return nothing
 
     # Shift index before conversion to Mapped
@@ -127,11 +127,11 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
     # Bounds variables
     if sampling(dim) isa Intervals
         bounds = Dimensions.dim2boundsmatrix(dim)
-        boundskey = get(metadata(dim), :bounds, string(dimkey, "_bnds"))
+        boundskey = get(metadata(dim), :bounds, string(dimname, "_bnds"))
         push!(attrib, "bounds" => boundskey)
-        NCD.defVar(ds, boundskey, bounds, ("bnds", dimkey))
+        NCD.defVar(ds, boundskey, bounds, ("bnds", dimname))
     end
-    NCD.defVar(ds, dimkey, Vector(index(dim)), (dimkey,); attrib=attrib)
+    NCD.defVar(ds, dimname, Vector(index(dim)), (dimname,); attrib=attrib)
     return nothing
 end
 

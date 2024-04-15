@@ -207,20 +207,14 @@ methods _will not_ load data from disk: they are applied later, lazily.
 - `name`: a `Symbol` name for the array, which will also retreive named layers if `Raster`
     is used on a multi-layered file like a NetCDF. `name` becomes the layer name if the `Raster`
     is combined into a `RasterStack`.
+$GROUP_KEYWORD 
 - `missingval`: value reprsenting missing data, normally detected from the file. Set manually
     when you know the value is not specified or is incorrect. This will *not* change any
     values in the raster, it simply assigns which value is treated as missing. To replace all of
     the missing values in the raster, use [`replace_missing`](@ref).
 - `metadata`: `Dict` or `Metadata` object for the array, or `NoMetadata()`.
-- `crs`: the coordinate reference system of  the objects `XDim`/`YDim` dimensions.
-    Only set this if you know the detected crs is incrorrect, or it is not present in
-    the file. The `crs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` mode `GeoFormat` object,
-    like `EPSG(4326)`.
-- `mappedcrs`: the mapped coordinate reference system of the objects `XDim`/`YDim` dimensions.
-    for `Mapped` lookups these are the actual values of the index. For `Projected` lookups
-    this can be used to index in eg. `EPSG(4326)` lat/lon values, having it converted automatically.
-    Only set this if the detected `mappedcrs` in incorrect, or the file does not have a `mappedcrs`,
-    e.g. a tiff. The `mappedcrs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` mode `GeoFormat` type.
+$CONSTRUCTOR_CRS_KEYWORD 
+$CONSTRUCTOR_MAPPEDCRS_KEYWORD 
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
     Usually not needed.
 
@@ -295,7 +289,10 @@ function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Va
 )::Raster
     Raster(filename; dims, kw...)
 end
-function Raster(filename::AbstractString; source=nothing, kw...)::Raster
+function Raster(filename::AbstractString; 
+    source=nokw, 
+    kw...
+)::Raster
     source = _sourcetrait(filename, source)
     Base.invokelatest() do
         _open(filename; source) do ds
@@ -307,11 +304,12 @@ function Raster(ds, filename::AbstractString;
     dims=nokw,
     refdims=(),
     name=nokw,
+    group=nokw,
     metadata=nokw,
     missingval=nokw,
     crs=nokw,
     mappedcrs=nokw,
-    source=nothing,
+    source=nokw,
     replace_missing=false,
     write=false,
     lazy=false,
@@ -319,13 +317,13 @@ function Raster(ds, filename::AbstractString;
 )::Raster
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
-    data1, dims1, metadata1, missingval1 = _open(source, ds; name=name1) do var
+    data1, dims1, metadata1, missingval1 = _open(source, ds; name=name1, group) do var
         metadata1 = metadata isa NoKW ? _metadata(var) : metadata
         missingval1 = _check_missingval(var, missingval)
         replace_missing1 = replace_missing && !isnothing(missingval1)
         missingval2 = replace_missing1 ? missing : missingval1
         data = if lazy
-            A = FileArray{typeof(source)}(var, filename; name=name1, write)
+            A = FileArray{typeof(source)}(var, filename; name=name1, group, write)
             replace_missing1 ? _replace_missing(A, missingval1) : A
         else
             _checkmem(var)

@@ -3,27 +3,35 @@
     FileArray{S} <: DiskArrays.AbstractDiskArray
 
 Filearray is a DiskArrays.jl `AbstractDiskArray`. Instead of holding
-an open object, it just holds a filename string that is opened lazily 
+an open object, it just holds a filename string that is opened lazily
 when it needs to be read.
 """
-struct FileArray{S,T,N,Na,EC,HC} <: DiskArrays.AbstractDiskArray{T,N}
+struct FileArray{S,T,N,Na,G,EC,HC} <: DiskArrays.AbstractDiskArray{T,N}
     filename::String
     size::NTuple{N,Int}
     name::Na
+    group::G
     eachchunk::EC
     haschunks::HC
     write::Bool
 end
 function FileArray{S,T,N}(
-    filename, size, name::Na, eachchunk::EC=size, 
-    haschunks::HC=DA.Unchunked(), write=false
-) where {S,T,N,Na,EC,HC}
-    FileArray{S,T,N,Na,EC,HC}(filename, size, name, eachchunk, haschunks, write)
+    filename,
+    size,
+    name::Na,
+    group::G=nothing,
+    eachchunk::EC=size,
+    haschunks::HC=DA.Unchunked(),
+    write=false
+) where {S,T,N,Na,G,EC,HC}
+    FileArray{S,T,N,Na,G,EC,HC}(filename, size, name, group, eachchunk, haschunks, write)
 end
-function FileArray{S,T,N}(filename::String, size::Tuple; 
-    name=nothing, eachchunk=size, haschunks=DA.Unchunked(), write=false
+function FileArray{S,T,N}(filename::String, size::Tuple;
+    name=nokw, group=nokw, eachchunk=size, haschunks=DA.Unchunked(), write=false
 ) where {S,T,N}
-    FileArray{S,T,N}(filename, size, name, eachchunk, haschunks, write)
+    name = name isa NoKW ? nothing : name
+    group = group isa NoKW ? nothing : group
+    FileArray{S,T,N}(filename, size, name, group, eachchunk, haschunks, write)
 end
 
 # FileArray has S, T and N parameters not recoverable from fields
@@ -45,7 +53,7 @@ function DA.readblock!(A::FileArray, dst, r::AbstractUnitRange...)
         DA.readblock!(O, dst, r...)
     end
 end
-function DA.writeblock!(A::FileArray, src, r::AbstractUnitRange...) 
+function DA.writeblock!(A::FileArray, src, r::AbstractUnitRange...)
     open(A; write=A.write) do O
         DA.writeblock!(O, src, r...)
     end
@@ -55,7 +63,7 @@ end
 """
     RasterDiskArray <: DiskArrays.AbstractDiskArray
 
-A basic DiskArrays.jl wrapper for objects that don't have one defined yet. 
+A basic DiskArrays.jl wrapper for objects that don't have one defined yet.
 When we `open` a `FileArray` it is replaced with a `RasterDiskArray`.
 """
 struct RasterDiskArray{S,T,N,V,EC,HC,A} <: DiskArrays.AbstractDiskArray{T,N}
@@ -81,7 +89,7 @@ DA.readblock!(A::RasterDiskArray, aout, r::AbstractUnitRange...) = aout .= paren
 DA.writeblock!(A::RasterDiskArray, v, r::AbstractUnitRange...) = parent(A)[r...] .= v
 
 # Already open, doesn't use `name`
-_open(f, ::Source, A::RasterDiskArray; name=nothing) = f(A)
+_open(f, ::Source, A::RasterDiskArray; name=nokw, group=nokw) = f(A)
 
 struct MissingDiskArray{T,N,V} <: DiskArrays.AbstractDiskArray{T,N}
     var::V

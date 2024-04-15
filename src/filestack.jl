@@ -9,18 +9,19 @@ typically netcdf or hdf5.
 
 `S` is a backend type like `NCDsource`, and `Na` is a tuple of `Symbol` keys.
 """
-struct FileStack{S,Na,F<:AbstractString,T,SZ,EC,HC}
-    filename::F
+struct FileStack{S,Na,T,SZ,G<:Union{AbstractString,Symbol,Nothing},EC,HC}
+    filename::String
     types::T
     sizes::SZ
+    group::G
     eachchunk::EC
     haschunks::HC
     write::Bool
 end
 function FileStack{S,Na}(
-    filename::F, types::T, sizes::SZ, eachchunk::EC, haschunks::HC, write::Bool
-   ) where {S,Na,F,T,SZ,EC,HC}
-    FileStack{S,Na,F,T,SZ,EC,HC}(filename, types, sizes, eachchunk, haschunks, write)
+    filename, types::T, sizes::SZ, group::G, eachchunk::EC, haschunks::HC, write::Bool
+   ) where {S,Na,T,SZ,G,EC,HC}
+    FileStack{S,Na,T,SZ,G,EC,HC}(String(filename), types, sizes, group, eachchunk, haschunks, write)
 end
 
 # FileStack has `S` parameter that is not recoverable from fields.
@@ -40,5 +41,5 @@ function Base.getindex(fs::FileStack{S,Na}, name::Symbol) where {S,Na}
     haschunks = fs.haschunks[i]
     T = fs.types[i]
     N = length(size)
-    A = FileArray{S,T,N}(filename(fs), size, name, eachchunk, haschunks, fs.write)
+    return FileArray{S,T,N}(filename(fs), size, name, fs.group, eachchunk, haschunks, fs.write)
 end

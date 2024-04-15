@@ -45,7 +45,7 @@ stackkeys = (
 end
 
 @testset "Raster" begin
-    @time ncarray = Raster(ncsingle);
+    @time ncarray = Raster(ncsingle)
 
     @time lazyarray = Raster(ncsingle; lazy=true)
     @time eagerarray = Raster(ncsingle; lazy=false)
@@ -82,12 +82,16 @@ end
         @test all(A .=== A3)
     end
 
-    @testset "ignore empty variables" begin
+    @testset "handle empty variables" begin
         st = RasterStack((empty=view(ncarray, 1, 1, 1), full=ncarray))
-        write("emptyval_test.nc", st)
-        rast = Raster("emptyval_test.nc")
-        @test name(rast) == :full
-        rm("emptyval_test.nc")
+        empty_test = tempname() * ".nc"
+        write(empty_test, st)
+        rast = Raster(empty_test)
+        st = RasterStack(empty_test)
+        @test name(rast) == name(st[:empty]) == :empty
+        @test size(rast) == size(st[:empty]) == ()
+        @test all(st[:full] .=== ncarray)
+        st = RasterStack(empty_test; lazy=true)
     end
 
     @testset "array properties" begin
@@ -200,7 +204,7 @@ end
     @testset "indexing with reverse lat" begin
         if !haskey(ENV, "CI") # CI downloads fail. But run locally
             ncrevlat = maybedownload("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
-            ncrevlatarray = Raster(ncrevlat; key=:sst)
+            ncrevlatarray = Raster(ncrevlat; name=:sst)
             @test order(dims(ncrevlatarray, Y)) == ReverseOrdered()
             @test ncrevlatarray[Y(At(40)), X(At(100)), Ti(1)] === missing
             @test ncrevlatarray[Y(At(-40)), X(At(100)), Ti(1)] === ncrevlatarray[51, 65, 1] == 14.5916605f0
@@ -225,15 +229,15 @@ end
     end
 
     @testset "conversion to Raster" begin
-        geoA = ncarray[X(1:50), Y(20:20), Ti(1)]
-        @test size(geoA) == (50, 1)
-        @test eltype(geoA) <: Union{Missing,Float32}
-        @test geoA isa Raster{Union{Missing,Float32},2}
-        @test dims(geoA) isa Tuple{<:X,<:Y}
-        @test refdims(geoA) isa Tuple{<:Ti}
-        @test metadata(geoA) == metadata(ncarray)
-        @test ismissing(missingval(geoA))
-        @test name(geoA) == :tos
+        ncslice = ncarray[X(1:50), Y(20:20), Ti(1)]
+        @test size(ncslice) == (50, 1)
+        @test eltype(ncslice) <: Union{Missing,Float32}
+        @test ncslice isa Raster{Union{Missing,Float32},2}
+        @test dims(ncslice) isa Tuple{<:X,<:Y}
+        @test refdims(ncslice) isa Tuple{<:Ti}
+        @test metadata(ncslice) == metadata(ncarray)
+        @test ismissing(missingval(ncslice))
+        @test name(ncslice) == :tos
     end
 
     @testset "write" begin
@@ -247,25 +251,25 @@ end
                 # TODO  better units and standard name handling
             end
             saved = Raster(filename)
-            @test size(saved) == size(geoA)
-            @test refdims(saved) == refdims(geoA)
-            @test missingval(saved) === missingval(geoA)
+            @test size(saved) == size(ncarray)
+            @test refdims(saved) == refdims(ncarray)
+            @test missingval(saved) === missingval(ncarray)
             @test map(metadata.(dims(saved)), metadata.(dims(Raster))) do s, g
                 all(s .== g)
             end |> all
-            @test metadata(saved) == metadata(geoA)
-            @test_broken all(metadata(dims(saved))[2] == metadata.(dims(geoA))[2])
-            @test Rasters.name(saved) == Rasters.name(geoA)
-            @test all(lookup.(dims(saved)) .== lookup.(dims(geoA)))
-            @test all(order.(dims(saved)) .== order.(dims(geoA)))
-            @test all(typeof.(span.(dims(saved))) .== typeof.(span.(dims(geoA))))
-            @test all(val.(span.(dims(saved))) .== val.(span.(dims(geoA))))
-            @test all(sampling.(dims(saved)) .== sampling.(dims(geoA)))
-            @test typeof(dims(saved)) <: typeof(dims(geoA))
-            @test index(saved, 3) == index(geoA, 3)
-            @test all(val.(dims(saved)) .== val.(dims(geoA)))
-            @test all(parent(saved) .=== parent(geoA))
-            @test saved isa typeof(geoA)
+            @test metadata(saved) == metadata(ncarray)
+            @test_broken all(metadata(dims(saved))[2] == metadata.(dims(ncarray))[2])
+            @test Rasters.name(saved) == Rasters.name(ncarray)
+            @test all(lookup.(dims(saved)) .== lookup.(dims(ncarray)))
+            @test all(order.(dims(saved)) .== order.(dims(ncarray)))
+            @test all(typeof.(span.(dims(saved))) .== typeof.(span.(dims(ncarray))))
+            @test all(val.(span.(dims(saved))) .== val.(span.(dims(ncarray))))
+            @test all(sampling.(dims(saved)) .== sampling.(dims(ncarray)))
+            @test typeof(dims(saved)) <: typeof(dims(ncarray))
+            @test index(saved, 3) == index(ncarray, 3)
+            @test all(val.(dims(saved)) .== val.(dims(ncarray)))
+            @test all(parent(saved) .=== parent(ncarray))
+            @test saved isa typeof(ncarray)
             # TODO test crs
 
             @testset "chunks" begin
@@ -357,12 +361,12 @@ end
     end
 
     @testset "no missing value" begin
-        no_ext = tempname() * ".nc"
-        write(no_ext, boolmask(ncarray) .* 1)
-        nomissing = Raster("nomissing.nc")
+        filename = tempname() * ".nc"
+        B = rebuild(boolmask(ncarray) .* 1; missingval=nothing)
+        write(filename, B)
+        nomissing = Raster(filename)
         @test missingval(nomissing) == nothing
-        rm("nomissing.nc")
-        @test name(ncarray) == :tos
+        @test eltype(nomissing) == Int64
     end
 
     @testset "show" begin
@@ -528,17 +532,26 @@ end
         @test geoseries isa RasterSeries{<:RasterStack}
         @test parent(geoseries) isa Vector{<:RasterStack}
     end
-    geoA = Raster(ncsingle; name=:tos)
-    @test all(read(ncseries[Ti(1)][:tos]) .=== read(geoA))
-    using ProfileView, Profile
+    rast = Raster(ncsingle; name=:tos)
+    @test all(read(ncseries[Ti(1)][:tos]) .=== read(rast))
 
-    @profview write("test.nc", ncseries) 
+    write("test.nc", ncseries) 
     @test isfile("test_1.nc")
     @test isfile("test_2.nc")
     @test (@allocations write("test.nc", ncseries)) < 1e4 # writing a rasterseries/stack has no force keyword
     RasterStack("test_1.nc")
     rm("test_1.nc")
     rm("test_2.nc")
+end
+
+# Groups
+if !haskey(ENV, "CI")
+    path = joinpath(testdir, "data/SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5")
+    stack = RasterStack(path; group="Geophysical_Data")
+    lazy_stack = RasterStack(path; group="Geophysical_Data", lazy=true)
+    rast = Raster(path; name=:surface_temp, group="Geophysical_Data")
+    lazy_rast = Raster(path; name=:surface_temp, group="Geophysical_Data", lazy=true)
+    @test all(stack[:surface_temp] .=== read(lazy_stack[:surface_temp]) .=== rast .=== read(lazy_rast))
 end
 
 nothing

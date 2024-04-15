@@ -124,7 +124,12 @@ function RasterSeries(filenames::NamedTuple{K}, dims; kw...) where K
     RasterSeries(map((fns...) -> NamedTuple{K}(fns), values(filenames)...), dims; kw...)
 end
 function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims;
-    refdims=(), lazy=false, duplicate_first=false, child=nokw, resize=nokw, kw...
+    refdims=(), 
+    lazy=false, 
+    duplicate_first=false, 
+    child=nokw, 
+    resize=nokw, 
+    kw...
 )
     childtype = if child isa NoKW
         eltype(filenames) <: NamedTuple ? RasterStack : Raster
@@ -152,7 +157,12 @@ function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple
     end
     return RasterSeries(data, DD.format(dims, data); refdims)
 end
-function RasterSeries(path::AbstractString, dims; refdims=(), ext=nothing, separator='_', kw...)
+function RasterSeries(path::AbstractString, dims; 
+    refdims=(), 
+    ext=nothing, 
+    separator='_', 
+    kw...
+)
     if isdir(path)
         dirpath = path
         filepaths = filter_ext(dirpath, ext)

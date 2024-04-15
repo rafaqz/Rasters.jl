@@ -3,7 +3,6 @@ abstract type Source end
 
 struct GRDsource <: Source end
 struct GDALsource <: Source end
-struct SMAPsource <: Source end
 
 abstract type CDMsource <: Source end
 
@@ -16,14 +15,12 @@ const NCDfile = NCDsource
 const GRIBfile = GRIBsource
 const GRDfile = GRDsource
 const GDALfile = GDALsource
-const SMAPfile = SMAPsource
 
 const SYMBOL2SOURCE = Dict(
     :gdal => GDALsource(),
     :grd => GRDsource(),
     :netcdf => NCDsource(), 
     :grib => GRIBsource(), 
-    :smap => SMAPsource(),
 )
 
 const SOURCE2SYMBOL = Dict(map(reverse, collect(pairs(SYMBOL2SOURCE))))
@@ -31,23 +28,21 @@ const SOURCE2SYMBOL = Dict(map(reverse, collect(pairs(SYMBOL2SOURCE))))
 # File extensions. GDAL is the catch-all for everything else
 const SOURCE2EXT = Dict(
     GRDsource() => (".grd", ".gri"), 
-    NCDsource() => (".nc",), 
+    NCDsource() => (".nc", ".h5",), 
     GRIBsource() => (".grib",), 
-    SMAPsource() => (".h5",),
 )
 const SOURCE2PACKAGENAME = Dict(
     GDALsource() => "ArchGDAL",
     NCDsource() => "NCDatasets",
     GRIBsource() => "GRIBDatasets",
-    SMAPsource() => "HDF5",
 )
 
 const EXT2SOURCE = Dict(
     ".grd" => GRDsource(), 
     ".gri" => GRDsource(), 
     ".nc" => NCDsource(), 
+    ".h5" => NCDsource(),
     ".grib" => GRIBsource(), 
-    ".h5" => SMAPsource(),
 )
 
 # exception to be raised when backend extension is not satisfied

@@ -38,8 +38,8 @@ end
 
 attrib(grd::GRDdataset) = grd.attrib
 filename(grd::GRDdataset) = grd.filename
-filekey(grd::GRDdataset, key::NoKW) = get(attrib(grd), "layername", Symbol(""))
-filekey(A::RasterDiskArray{GRDsource}, key) = filekey(A.attrib, key)
+filekey(grd::GRDdataset, name::NoKW) = get(attrib(grd), "layername", Symbol(""))
+filekey(A::RasterDiskArray{GRDsource}, name) = filekey(A.attrib, name)
 
 Base.eltype(::GRDdataset{T}) where T = T
 function Base.size(grd::GRDdataset)
@@ -263,7 +263,7 @@ function Base.open(f::Function, A::FileArray{GRDsource}, args...; write=A.write)
     _mmapgrd(mm -> f(RasterDiskArray{GRDsource}(mm, A.eachchunk, A.haschunks)), A; write)
 end
 
-function _open(f, ::GRDsource, filename::AbstractString; write=false, key=nothing)
+function _open(f, ::GRDsource, filename::AbstractString; write=false, name=nokw, group=nokw)
     isfile(filename) || _filenotfound_error(filename)
     attr = GRDdataset(filename)
     _mmapgrd(attr; write) do mm
