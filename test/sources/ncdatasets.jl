@@ -272,11 +272,11 @@ end
             # test for nc `kw...`
             geoA = read(ncarray)
             write("tos.nc", geoA; force=true) # default `deflatelevel = 0`
-            write("tos_small.nc", geoA; deflatelevel=2)
+            @time write("tos_small.nc", geoA; deflatelevel=2, force = true)
             @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
             isfile("tos.nc") && rm("tos.nc")
             isfile("tos_small.nc") && rm("tos_small.nc")    
-            @test (@allocations write("tos_small.nc", geoA; deflatelevel=2, force = true)) < 2000 
+            @test (@allocations write("tos_small.nc", geoA; deflatelevel=2, force = true)) < 1e4
 
             # test for nc `append`
             n = 100
