@@ -240,7 +240,8 @@ end
             geoA = read(ncarray)
             @test size(geoA) == size(ncarray)
             filename = tempname() * ".nc"
-            write(filename, geoA)
+            write(filename, geoA; force = true)
+            @test (@allocations write(filename, geoA; force = true)) < 1e4
             @testset "CF attributes" begin
                 @test NCDatasets.Dataset(filename)[:x].attrib["axis"] == "X"
                 @test NCDatasets.Dataset(filename)[:x].attrib["bounds"] == "x_bnds"
@@ -271,10 +272,11 @@ end
             # test for nc `kw...`
             geoA = read(ncarray)
             write("tos.nc", geoA; force=true) # default `deflatelevel = 0`
-            write("tos_small.nc", geoA; deflatelevel=2)
+            @time write("tos_small.nc", geoA; deflatelevel=2, force = true)
             @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
             isfile("tos.nc") && rm("tos.nc")
-            isfile("tos_small.nc") && rm("tos_small.nc")
+            isfile("tos_small.nc") && rm("tos_small.nc")    
+            @test (@allocations write("tos_small.nc", geoA; deflatelevel=2, force = true)) < 1e4
 
             # test for nc `append`
             n = 100
@@ -283,12 +285,16 @@ end
             r2 = Raster(x, (X, Y); name = "v2")
             fn = "test.nc"
             isfile(fn) && rm(fn)
-            write(fn, r1, append=false)
+            write(fn, r1, append=false; force = true)
             size1 = filesize(fn)
             write(fn, r2; append=true)
             size2 = filesize(fn)
             @test size2 > size1*1.8 # two variable 
             isfile(fn) && rm(fn)
+            @test (@allocations begin 
+                write(fn, r1, append=false, force = true)
+                write(fn, r2; append=true)
+            end) < 10e4 
 
             @testset "non allowed values" begin
                 # TODO return this test when the changes in NCDatasets.jl settle
@@ -298,7 +304,8 @@ end
         @testset "to gdal" begin
             gdalfilename = tempname() * ".tif"
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
-            write(gdalfilename, nccleaned)
+            write(gdalfilename, nccleaned; force = true)
+            @test (@allocations write(gdalfilename, nccleaned; force = true)) < 1e4
             gdalarray = Raster(gdalfilename)
             # gdalarray WKT is missing one AUTHORITY
             # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
@@ -313,6 +320,7 @@ end
         @testset "to grd" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write("testgrd.gri", nccleaned; force=true)
+            @test (@allocations write("testgrd.gri", nccleaned; force=true)) < 1e4
             grdarray = Raster("testgrd.gri");
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == bounds(nccleaned)
@@ -330,6 +338,7 @@ end
             write("point_rast.nc", ras; force=true)
             saved = Raster("point_rast.nc")
             @test sampling(saved) == (Points(), Points(), Points())
+            @test @allocations(write("point_rast.nc", ras; force=true)) < 10e3
         end
     end
 
@@ -479,6 +488,7 @@ end
         @test metadata(saved)["advection"] == "Lin & Rood"
         @test metadata(saved) == metadata(st) == metadata(ncstack)
         @test all(first(DimensionalData.layers(saved)) .== first(DimensionalData.layers(st)))
+        @test (@allocations write(filename, st)) < 1e6 # writing a rasterseries/stack has no force keyword
     end
 
     @testset "show" begin
@@ -510,6 +520,7 @@ end
     write("test.nc", ncseries) 
     @test isfile("test_1.nc")
     @test isfile("test_2.nc")
+    @test (@allocations write("test.nc", ncseries)) < 1e4 # writing a rasterseries/stack has no force keyword
     RasterStack("test_1.nc")
     rm("test_1.nc")
     rm("test_2.nc")

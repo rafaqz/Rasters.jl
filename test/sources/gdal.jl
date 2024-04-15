@@ -265,7 +265,7 @@ gdalpath = maybedownload(url)
 
         @testset "2d asc" begin
             filename = tempname() * ".asc"
-            @time write(filename, gdalarray)
+            @time write(filename, gdalarray; force = true)
             saved1 = Raster(filename);
             @test all(saved1 .== gdalarray)
             # @test typeof(saved1) == typeof(geoA)
@@ -273,29 +273,32 @@ gdalpath = maybedownload(url)
             @test val(dims(saved1, Y)) ≈ val(dims(gdalarray, Y))
             @test missingval(saved1) === missingval(gdalarray)
             @test refdims(saved1) == refdims(gdalarray)
+            @test (@allocations write(filename, gdalarray; force = true)) < 1e4
             rm(filename)
         end
 
         @testset "2d tif" begin
             @testset "Intervals" begin
                 filename = tempname() * ".tif"
-                @time write(filename, gdalarray)
+                @time write(filename, gdalarray; force = true)
                 saved1 = Raster(filename);
                 @test all(saved1 .== gdalarray)
                 @test lookup(saved1) == lookup(gdalarray)
                 @test missingval(saved1) === missingval(gdalarray)
                 @test refdims(saved1) == refdims(gdalarray)
+                @test (@allocations write(filename, gdalarray; force = true)) < 1e4
                 rm(filename)
             end
             @testset "Points" begin
                 filename = tempname() * ".tif"
                 gdalarray_points = set(gdalarray, X => Points, Y => Points)
-                @time write(filename, gdalarray_points)
+                @time write(filename, gdalarray_points; force = true)
                 saved1 = Raster(filename);
                 @test all(saved1 .== gdalarray_points)
                 @test lookup(saved1) == lookup(gdalarray_points)
                 @test missingval(saved1) === missingval(gdalarray_points)
                 @test refdims(saved1) == refdims(gdalarray_points)
+                @test (@allocations write(filename, gdalarray_points; force = true)) < 1e4
                 rm(filename)
             end
         end
@@ -303,7 +306,8 @@ gdalpath = maybedownload(url)
         @testset "3d, with subsetting" begin
             geoA2 = cat(gdalarray, gdalarray; dims=Band(Categorical(1:2)))[Y(4.224e6..4.226e6), X(-28492..0)]
             filename2 = tempname() * ".tif"
-            write(filename2, geoA2)
+            write(filename2, geoA2; force = true)
+            @test (@allocations write(filename2, geoA2; force = true)) < 1e4
             saved2 = read(Raster(filename2; name=:test))
             @test size(saved2) == size(geoA2) == length.(dims(saved2)) == length.(dims(geoA2))
             @test refdims(saved2) == refdims(geoA2)
@@ -361,6 +365,7 @@ gdalpath = maybedownload(url)
 
         @testset "to grd" begin
             write("testgrd.gri", gdalarray; force=true)
+            @test (@allocations write("testgrd.gri", gdalarray; force=true)) < 1e4
             grdarray = Raster("testgrd.gri")
             @test crs(grdarray) == convert(ProjString, crs(gdalarray))
             @test all(map((a, b) -> all(a .≈ b), bounds(grdarray), bounds(gdalarray)))
@@ -386,7 +391,8 @@ gdalpath = maybedownload(url)
 
         @testset "to netcdf" begin
             filename2 = tempname() * ".nc"
-            write(filename2, gdalarray[Band(1)])
+            write(filename2, gdalarray[Band(1)]; force = true)
+            @test (@allocations write(filename2, gdalarray[Band(1)]; force = true)) < 1e4
             saved = Raster(filename2; crs=crs(gdalarray), mappedcrs=crs(gdalarray))
             @test size(saved) == size(gdalarray[Band(1)])
             @test saved ≈ gdalarray[Band(1)]
