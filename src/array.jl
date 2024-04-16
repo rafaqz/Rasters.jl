@@ -253,8 +253,8 @@ function Raster(A::AbstractArray{T,N}, dims::Tuple;
     mappedcrs=nokw
 )::Raster{T,N} where {T,N}
     A = Raster(A, Dimensions.format(dims, A), refdims, name, metadata, missingval)
-    A = crs isa NoKW ? A : setcrs(A, crs)
-    A = mappedcrs isa NoKW ? A : setmappedcrs(A, mappedcrs)
+    A = isnokw(crs) ? A : setcrs(A, crs)
+    A = isnokw(mappedcrs) ? A : setmappedcrs(A, mappedcrs)
     return A
 end
 function Raster(A::AbstractArray{T,1}, dims::Tuple{<:Dimension,<:Dimension,Vararg};
@@ -267,7 +267,7 @@ function Raster(table, dims::Tuple;
     kw...
 )
     Tables.istable(table) || throw(ArgumentError("First argument to `Raster` is not a table or other known object: $table"))
-    name = name isa NoKW ? first(_not_a_dimcol(table, dims)) : name
+    name = isnokw(name) ? first(_not_a_dimcol(table, dims)) : name
     cols = Tables.columns(table)
     A = reshape(cols[name], map(length, dims))
     return Raster(A, dims; name, kw...)
@@ -318,7 +318,7 @@ function Raster(ds, filename::AbstractString;
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
     data1, dims1, metadata1, missingval1 = _open(source, ds; name=name1, group) do var
-        metadata1 = metadata isa NoKW ? _metadata(var) : metadata
+        metadata1 = isnokw(metadata) ? _metadata(var) : metadata
         missingval1 = _check_missingval(var, missingval)
         replace_missing1 = replace_missing && !isnothing(missingval1)
         missingval2 = replace_missing1 ? missing : missingval1
@@ -329,7 +329,7 @@ function Raster(ds, filename::AbstractString;
             _checkmem(var)
             Array(replace_missing1 ? _replace_missing(var, missingval1) : var)
         end
-        dims1 = dims isa NoKW ? _dims(var, crs, mappedcrs) : format(dims, data)
+        dims1 = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data)
         data, dims1, metadata1, missingval2
     end
     raster = Raster(data1, dims1, refdims, Symbol(name1), metadata1, missingval1)

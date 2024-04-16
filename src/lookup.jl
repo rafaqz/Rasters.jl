@@ -80,8 +80,8 @@ function Projected(l::Sampled;
     mappedcrs::Union{GeoFormat,NoKW,Nothing}=nokw,
     dim=AutoDim()
 )
-    crs = crs isa NoKW ? nothing : crs
-    mappedcrs = mappedcrs isa NoKW ? nothing : mappedcrs
+    crs = isnokw(crs) ? nothing : crs
+    mappedcrs = isnokw(mappedcrs) ? nothing : mappedcrs
     Projected(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 

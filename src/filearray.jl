@@ -29,8 +29,8 @@ end
 function FileArray{S,T,N}(filename::String, size::Tuple;
     name=nokw, group=nokw, eachchunk=size, haschunks=DA.Unchunked(), write=false
 ) where {S,T,N}
-    name = name isa NoKW ? nothing : name
-    group = group isa NoKW ? nothing : group
+    name = isnokw(name) ? nothing : name
+    group = isnokw(group) ? nothing : group
     FileArray{S,T,N}(filename, size, name, group, eachchunk, haschunks, write)
 end
 

@@ -110,7 +110,7 @@ function FileStack{source}(
     layersizes = map(size, vars)
     eachchunk = map(_get_eachchunk, vars)
     haschunks = map(_get_haschunks, vars)
-    group = group isa NoKW ? nothing : group
+    group = isnokw(group) ? nothing : group
     return FileStack{source,name}(filename, layertypes, layersizes, group, eachchunk, haschunks, write)
 end
 
@@ -122,7 +122,7 @@ end
 
 function _open(f, ::CDMsource, ds::AbstractDataset; name=nokw, group=nothing, kw...)
     g = _getgroup(ds, group)
-    x = name isa NoKW ? g : CFDiskArray(g[_firstname(ds, name)])
+    x = isnokw(name) ? g : CFDiskArray(g[_firstname(ds, name)])
     cleanreturn(f(x))
 end
 _open(f, ::CDMsource, var::CFDiskArray; kw...) = cleanreturn(f(var))
@@ -340,11 +340,11 @@ function _cdmlookup(
         span, sampling = _cdmspan(index, order), Points()
     end
     # We cant yet check CF standards crs, but we can at least check for units in lat/lon 
-    if mappedcrs isa NoKW && get(metadata, "units", "") in ("degrees_north", "degrees_east")
+    if isnokw(mappedcrs) && get(metadata, "units", "") in ("degrees_north", "degrees_east")
         mappedcrs = EPSG(4326)
     end
     # Additionally, crs and mappedcrs should be identical for Regular lookups
-    if crs isa NoKW span isa Regular
+    if isnokw(crs) && span isa Regular
         crs = mappedcrs
     end
     return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
@@ -355,7 +355,7 @@ function _cdmlookup(
 )
     # If the index is regularly spaced and there is no crs
     # then there is probably just one crs - the mappedcrs
-    crs = if crs isa NoKW && span isa Regular
+    crs = if isnokw(crs) && span isa Regular
         mappedcrs
     else
         crs

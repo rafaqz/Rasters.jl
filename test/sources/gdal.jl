@@ -697,6 +697,7 @@ end
         @testset "write multiple files" begin
             filename = tempname() * ".tif"
             write(filename, gdalstack)
+            write(filename, gdalstack; force=true)
             base, ext = splitext(filename)
             filename_b = string(base, "_b", ext)
             saved = read(Raster(filename_b))
@@ -705,6 +706,7 @@ end
 
         @testset "write multiple files with custom suffix" begin
             filename = tempname() * ".tif"
+            write(filename, gdalstack; suffix=("_first", "_second"))
             write(filename, gdalstack; suffix=("_first", "_second"))
             base, ext = splitext(filename)
             filename_b = string(base, "_second", ext)
@@ -715,9 +717,19 @@ end
         @testset "write netcdf" begin
             filename = tempname() * ".nc"
             write(filename, gdalstack);
+            # Test forcing
+            write(filename, gdalstack; force=true);
             saved = RasterStack(filename);
             @test all(read(saved[:a]) .== geoA)
             rm(filename)
+        end
+
+        @testset "chunks" begin
+            filename = tempname() * ".tiff"
+            write(filename, gdalstack; chunks=(128, 128))
+            filenames = write(filename, gdalstack; force=true, chunks=(128, 128))
+            gdalstack2 = RasterStack(filenames; lazy=true)
+            @test DiskArrays.eachchunk(gdalstack2[:b])[1] == (1:128, 1:128)
         end
 
     end

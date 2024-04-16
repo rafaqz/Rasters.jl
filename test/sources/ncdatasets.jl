@@ -509,6 +509,7 @@ end
         @test (@allocations write(filename, st)) < 1e6 # writing a rasterseries/stack has no force keyword
     end
 
+
     @testset "show" begin
         ncstack = view(RasterStack(ncmulti), X(7:99), Y(3:90));
         sh = sprint(show, MIME("text/plain"), ncstack)

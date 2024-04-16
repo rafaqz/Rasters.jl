@@ -89,10 +89,7 @@ const EXPERIMENTAL = """
 const DEFAULT_POINT_ORDER = (X(), Y())
 const DEFAULT_TABLE_DIM_KEYS = (:X, :Y)
 
-# To use when `nothing` is a valid keyword value
-struct NoKW end
-const nokw = NoKW()
-
+include("nokw.jl")
 include("methods/shared_docstrings.jl")
 include("lookup.jl")
 include("dimensions.jl")
