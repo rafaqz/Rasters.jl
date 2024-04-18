@@ -128,7 +128,7 @@ function _extract(::Type{T}, A::RasterStackOrArray, t::GI.AbstractGeometryTrait,
         template = view(template, map(d -> rebuild(d, firstindex(d)), ods)) 
     end
     B = boolmask(geom; to=template, kw...)
-    offset = CartesianIndex(map(first, parentindices(parent(template))))
+    offset = CartesianIndex(map(x -> first(x) - 1, parentindices(parent(template))))
     # Add a row for each pixel that is `true` in the mask
     rows = (_maybe_add_fields(T, A, _prop_nt(A, I + offset, names), I + offset) for I in CartesianIndices(B) if B[I])
     # Maybe skip missing rows
