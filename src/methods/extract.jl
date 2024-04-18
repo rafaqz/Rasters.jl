@@ -113,11 +113,12 @@ function _extract(T, A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom; 
     rows = (_extract_point(T, A, g; kw...) for g in GI.getpoint(geom))
     return skipmissing ? collect(_skip_missing_rows(rows, _missingval_or_missing(A))) : collect(rows)
 end
-function _extract(T, A::RasterStackOrArray, ::GI.AbstractGeometryTrait, geom;
+function _extract(T, A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom;
     names, skipmissing=false, kw...
 )
     # Make a raster mask of the geometry
-    B = boolmask(geom; to=commondims(A, DEFAULT_POINT_ORDER), kw...)
+    template = commondims(view(A, Touches(GI.extent(geom))), DEFAULT_POINT_ORDER)
+    B = boolmask(geom; to=template, kw...)
     # Add a row for each pixel that is `true` in the mask
     rows = (_maybe_add_fields(T, A, _prop_nt(A, I, names), I) for I in CartesianIndices(B) if B[I])
     # Maybe skip missing rows
