@@ -74,14 +74,16 @@ function extract(x::RasterStackOrArray, data;
     end
 end
 
-function _extract(T, A::RasterStackOrArray, geom::Missing; names, kw...)
+function _extract(::Type{T}, A::RasterStackOrArray, geom::Missing; names, kw...) where T
     [_maybe_add_fields(T, A, map(_ -> missing, names), missing, missing)]
 end
-_extract(T, A::RasterStackOrArray, geom; kw...) = 
+_extract(::Type{T}, A::RasterStackOrArray, geom; kw...) where T = 
     _extract(T, A, GI.geomtrait(geom), geom; kw...)
-_extract(T, A::RasterStackOrArray, ::Nothing, geom; kw...) =
+_extract(::Type{T}, A::RasterStackOrArray, ::Nothing, geom; kw...) where T =
     throw(ArgumentError("$geom is not a valid GeoInterface.jl geometry"))
-function _extract(T, A::RasterStackOrArray, ::Nothing, geoms::AbstractArray; names, skipmissing=false, kw...)
+function _extract(::Type{T}, A::RasterStackOrArray, ::Nothing, geoms::AbstractArray; 
+    names, skipmissing=false, kw...
+) where T
     # Handle empty / all missing cases
     (length(geoms) > 0 && any(!ismissing, geoms)) || return T[]
 
@@ -102,29 +104,37 @@ function _extract(T, A::RasterStackOrArray, ::Nothing, geoms::AbstractArray; nam
         return skipmissing ? collect(_skip_missing_rows(rows, _missingval_or_missing(A))) : collect(rows)
     end
 end
-function _extract(T, A::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...)
+function _extract(::Type{T}, A::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...) where T
     _extract(T, A, GI.geometry(feature); kw...)
 end
-function _extract(T, A::RasterStackOrArray, ::GI.FeatureCollectionTrait, fc; kw...)
+function _extract(::Type{T}, A::RasterStackOrArray, ::GI.FeatureCollectionTrait, fc; kw...) where T
     # Fall back to the Array/iterator method for feature collections
     _extract(T, A, [GI.geometry(f) for f in GI.getfeature(fc)]; kw...)
 end
-function _extract(T, A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom; skipmissing=false, kw...)
+function _extract(::Type{T}, A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom; 
+    skipmissing=false, 
+    kw...
+) where T
     rows = (_extract_point(T, A, g; kw...) for g in GI.getpoint(geom))
     return skipmissing ? collect(_skip_missing_rows(rows, _missingval_or_missing(A))) : collect(rows)
 end
-function _extract(T, A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom;
+function _extract(::Type{T}, A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom;
     names, skipmissing=false, kw...
-)
+) where T
     # Make a raster mask of the geometry
-    template = commondims(view(A, Touches(GI.extent(geom))), DEFAULT_POINT_ORDER)
+    template = view(A, Touches(GI.extent(geom)))
+    ods = otherdims(A, DEFAULT_POINT_ORDER)
+    if length(ods) > 0
+        template = view(template, map(d -> rebuild(d, firstindex(d)), ods)) 
+    end
     B = boolmask(geom; to=template, kw...)
+    offset = CartesianIndex(map(first, parentindices(template)))
     # Add a row for each pixel that is `true` in the mask
-    rows = (_maybe_add_fields(T, A, _prop_nt(A, I, names), I) for I in CartesianIndices(B) if B[I])
+    rows = (_maybe_add_fields(T, A, _prop_nt(A, I + offset, names), I) for I in CartesianIndices(B) if B[I])
     # Maybe skip missing rows
     return skipmissing ? collect(_skip_missing_rows(rows, _missingval_or_missing(A))) : collect(rows)
 end
-_extract(T, x::RasterStackOrArray, trait::GI.PointTrait, point; kw...) =
+_extract(::Type{T}, x::RasterStackOrArray, trait::GI.PointTrait, point; kw...) where T =
     _extract_point(T, x, point; kw...)
 
 @inline _skip_missing_rows(rows, ::Missing) = Iterators.filter(row -> !any(ismissing, row), rows)
@@ -146,9 +156,9 @@ end
 @inline _prop_nt(A::AbstractRaster, I, names::NamedTuple{K}) where K = NamedTuple{K}((A[I],))
 
 # Extract a single point
-function _extract_point(T, x::RasterStackOrArray, point;
+function _extract_point(::Type{T}, x::RasterStackOrArray, point;
     dims, names::NamedTuple{K}, atol=nothing, kw...
-) where K
+) where {T,K}
     # The point itself might be missing, so return missing for every field
     if ismissing(point)
         layer_vals = map(_ -> missing, names)
@@ -184,13 +194,13 @@ function _extract_point(T, x::RasterStackOrArray, point;
 
     return _maybe_add_fields(T, x, layer_vals, geom, I)
 end
-function _extract_point(T, A::RasterStackOrArray, point::Missing; names, kw...)
+function _extract_point(::Type{T}, A::RasterStackOrArray, point::Missing; names, kw...) where T
     # Missing points return a single row
     return _maybe_add_fields(T, A, map(_ -> missing, names), missing, missing)
 end
 
 # Maybe add optional fields
-@inline function _maybe_add_fields(T, A, layer_vals::NamedTuple, I)
+@inline function _maybe_add_fields(::Type{T}, A, layer_vals::NamedTuple, I) where T
     _maybe_add_fields(T, A, layer_vals, DimPoints(A)[I], I)
 end
 @inline function _maybe_add_fields(::Type{T}, A, layer_vals::NamedTuple, point, I)::T where {T<:NamedTuple{K}} where K

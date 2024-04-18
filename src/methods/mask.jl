@@ -285,11 +285,12 @@ function boolmask!(dest::AbstractRaster, src::AbstractRaster;
     end
 end
 function boolmask!(dest::AbstractRaster, geoms;
-    allocs=nothing, lock=nothing, progress=true, threaded=false, kw...
+    lock=nothing, 
+    progress=true, 
+    threaded=false, 
+    allocs=_burning_allocs(dest; threaded), 
+    kw...
 )
-    if isnothing(allocs)
-        allocs = _burning_allocs(dest; threaded)
-    end
     if hasdim(dest, :geometry)
         range = _geomindices(geoms)
         _run(range, threaded, progress, "Burning each geometry to a BitArray slice...") do i
