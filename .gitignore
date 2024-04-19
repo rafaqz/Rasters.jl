@@ -20,3 +20,6 @@ docs/build
 docs/var
 deps/build.jl
 Manifest.toml
+node_modules
+*.zip
+EarthEnv
