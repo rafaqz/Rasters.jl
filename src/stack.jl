@@ -230,6 +230,9 @@ function RasterStack(layers::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractRaster}}}
     layerdims=map(DD.basedims, layers)
     layermetadata=map(DD.metadata, layers)
     missingval=map(Rasters.missingval, layers)
+    if Base.allequal(missingval)
+        missingval = first(missingval)
+    end
     return RasterStack(
         data, dims, refdims, layerdims, metadata, layermetadata, missingval
     )
