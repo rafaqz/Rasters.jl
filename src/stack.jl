@@ -85,6 +85,7 @@ function DD.rebuild_from_arrays(
     layermetadata=map(DD.metadata, das),
     missingval=map(missingval, das),
 )
+    missingval = Base.allequal(missingval) ? first(missingval) : missingval
     if isnothing(dims)
         # invokelatest avoids compiling this for other paths
         Base.invokelatest() do
