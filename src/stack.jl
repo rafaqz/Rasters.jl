@@ -85,7 +85,7 @@ function DD.rebuild_from_arrays(
     layermetadata=map(DD.metadata, das),
     missingval=map(missingval, das),
 )
-    missingval = Base.allequal(missingval) ? first(missingval) : missingval
+    missingval = all(m -> m === first(missingval), missingval) ? first(missingval) : missingval
     if isnothing(dims)
         # invokelatest avoids compiling this for other paths
         Base.invokelatest() do
@@ -231,7 +231,8 @@ function RasterStack(layers::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractRaster}}}
     layerdims=map(DD.basedims, layers)
     layermetadata=map(DD.metadata, layers)
     missingval=map(Rasters.missingval, layers)
-    if Base.allequal(missingval)
+    @show missingval
+    if !ismissing(missingval) && all(m -> m === first(missingval), missingval)
         missingval = first(missingval)
     end
     return RasterStack(
