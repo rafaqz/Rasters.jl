@@ -40,6 +40,14 @@ setmappedcrs(x::AbstractRasterStack, mappedcrs) = set(x, setmappedcrs(dims(x), m
 
 _singlemissingval(mvs::NamedTuple, key) = mvs[key]
 _singlemissingval(mv, key) = mv
+function _maybe_collapse_missingval(mvs::NamedTuple)
+    mv1, mvs_rest = Iterators.peel(mvs)
+    for mv in mvs_rest
+        mv === mv1 || return mvs
+    end
+    return mv1
+end
+_maybe_collapse_missingval(mv) = mv
 
 # DimensionalData methods ######################################################
 
@@ -83,9 +91,8 @@ function DD.rebuild_from_arrays(
     dims=nothing,
     layerdims=map(DD.basedims, das),
     layermetadata=map(DD.metadata, das),
-    missingval=map(missingval, das),
+    missingval=_maybe_collapse_missingval(map(missingval, das)),
 )
-    missingval = all(m -> m === first(missingval), missingval) ? first(missingval) : missingval
     if isnothing(dims)
         # invokelatest avoids compiling this for other paths
         Base.invokelatest() do
@@ -231,10 +238,7 @@ function RasterStack(layers::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractRaster}}}
     layerdims=map(DD.basedims, layers)
     layermetadata=map(DD.metadata, layers)
     missingval=map(Rasters.missingval, layers)
-    @show missingval
-    if !ismissing(missingval) && all(m -> m === first(missingval), missingval)
-        missingval = first(missingval)
-    end
+    missingval = _maybe_collapse_missingval(missingval)
     return RasterStack(
         data, dims, refdims, layerdims, metadata, layermetadata, missingval
     )
