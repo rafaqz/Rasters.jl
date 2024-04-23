@@ -22,7 +22,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     end
 
     # Resample cea.tif using resample
-    cea = Raster(raster_path; missingval=0x00, name = :cea)
+    cea = Raster(raster_path; missingval=0x00, name=:cea)
     raster_output = resample(cea; res=output_res, crs=output_crs, method)
     disk_output = resample(cea; res=output_res, crs=output_crs, method, filename="resample.tif")
 

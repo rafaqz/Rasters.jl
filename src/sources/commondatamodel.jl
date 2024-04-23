@@ -412,12 +412,12 @@ function _parse_period(period_str::String)
         vals = map(x -> parse(Int, x), mtch.captures)
         if length(vals) == 6
             y = Year(vals[1])
-            m = Month(vals[2])
+            mo = Month(vals[2])
             d = Day(vals[3])
             h = Hour(vals[4])
-            m = Minute(vals[5])
+            mi = Minute(vals[5])
             s = Second(vals[6])
-            compound = sum(y, m, d, h, m, s)
+            compound = sum(y, mo, d, h, mi, s)
             if length(compound.periods) == 1
                 return compound.periods[1]
             else

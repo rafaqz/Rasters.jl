@@ -14,6 +14,8 @@ meta = NoMetadata()
 ga1 = Raster(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=mval)
 ga2 = Raster(data2, dims2)
 
+st = RasterStack((ga1, ga2); name=(:ga1, :ga2))
+
 @testset "stack constructors" begin
     @test_throws ArgumentError RasterStack("notastack")
     # Maybe too many ways to define a stack...
@@ -31,8 +33,6 @@ ga2 = Raster(data2, dims2)
     table_st = RasterStack(DimTable(st3), dims2)
     @test dims(table_st[:ga1]) isa Tuple{<:X,<:Y,<:Ti}
 end
-
-st = RasterStack((ga1, ga2); name=(:ga1, :ga2))
 
 @testset "stack layers" begin
     @test length(layers(st)) == 2
