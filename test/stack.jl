@@ -115,7 +115,6 @@ end
 
 @testset "subset st with specific key(s)" begin
     s1 = RasterStack(st; name=(:r2,))
-    s1 = RasterStack(st; name=(:r2,))
     @test keys(s1) == (:r2,)
     @test length(values(s1)) == 1
     s2 = RasterStack(st; name=(:r1, :r2))

@@ -106,12 +106,12 @@ function FileStack{source}(
     name::NTuple{N,Symbol}, 
     vars
 ) where {source<:CDMsource,N}
-    layertypes = map(var -> Union{Missing,eltype(var)}, vars)
+    T = Tuple{map(var -> Union{Missing,eltype(var)}, vars)...}
     layersizes = map(size, vars)
     eachchunk = map(_get_eachchunk, vars)
     haschunks = map(_get_haschunks, vars)
     group = isnokw(group) ? nothing : group
-    return FileStack{source,name}(filename, layertypes, layersizes, group, eachchunk, haschunks, write)
+    return FileStack{source,name,T}(filename, layersizes, eachchunk, haschunks, write)
 end
 
 function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) where source<:CDMsource

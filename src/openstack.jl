@@ -12,17 +12,20 @@ contained in a single file.
 
 `X` is a backend type like `NCDsource`, and `K` is a tuple of `Symbol` keys.
 """
-struct OpenStack{X,K,DS}
+struct OpenStack{X,K,T,DS}
     dataset::DS
 end
-OpenStack{X,K}(dataset::DS) where {X,K,DS} = OpenStack{X,K,DS}(dataset)
-
-# OpenStack has `X` and `K` parameter that is not recoverable from fields.
-ConstructionBase.constructorof(::Type{<:OpenStack{X,K}}) where {X,K} = OpenStack{X,K} 
+OpenStack{X,K,T}(dataset::DS) where {X,K,T,DS} = OpenStack{X,K,T,DS}(dataset)
 
 dataset(os::OpenStack) = os.dataset
-Base.keys(os::OpenStack{<:Any,K}) where K = K
+
+# OpenStack has `X` and `K` parameter that is not recoverable from fields.
+ConstructionBase.constructorof(::Type{<:OpenStack{X,K,T}}) where {X,K,T} = OpenStack{X,K,T} 
+
+DD.data_eltype(::OpenStack{<:Any,<:Any,T}) where T = T
+
+Base.keys(::OpenStack{<:Any,K}) where K = K
 # TODO test this, and does it make sense to return an iterator here?
-Base.values(os::OpenStack{<:Any}) = (os[k] for k in keys(os))
+Base.values(os::OpenStack{<:Any,K}) where K = (os[k] for k in K)
 # Indexing OpenStack returns memory-backed Raster. 
 Base.getindex(os::OpenStack, key::Symbol) = dataset(os)[key]
