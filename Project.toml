@@ -32,6 +32,7 @@ HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
 RasterDataSources = "3cb90ccd-e1b6-4867-9617-4276c8b2ca36"
+ZarrDatasets = "519a4cdf-1362-424a-9ea1-b1d782dbb24b"
 
 [extensions]
 RastersArchGDALExt = "ArchGDAL"
@@ -40,6 +41,7 @@ RastersGRIBDatasetsExt = "GRIBDatasets"
 RastersMakieExt = "Makie"
 RastersNCDatasetsExt = "NCDatasets"
 RastersRasterDataSourcesExt = "RasterDataSources"
+RastersZarrDatasetsExt = "ZarrDatasets"
 
 [compat]
 Aqua = "0.8"
@@ -73,6 +75,7 @@ Setfield = "0.6, 0.7, 0.8, 1"
 Shapefile = "0.10, 0.11"
 Statistics = "1"
 Test = "1"
+ZarrDatasets = "0.1"
 julia = "1.10"
 
 [extras]

@@ -169,14 +169,10 @@ function _nondimnames(ds)
         end
         union(dimnames, boundsnames)::Vector{String}
     else
-        dimnames::Vector{String}
+        collect(dimkeys)::Vector{String}
     end
-    nondim = setdiff(keys(ds), toremove)
-    return nondim
-end
-
-function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
-    nondim = _nondimnames(ds)
+    # Maybe this should be fixed in ZarrDatasets but it works with this patch.
+    nondim = collect(setdiff(keys(ds), toremove))
     grid_mapping = String[]
     vars = map(k -> ds[k], nondim)
     attrs = map(CDM.attribs, vars)
