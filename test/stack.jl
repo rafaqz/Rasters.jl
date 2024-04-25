@@ -14,6 +14,8 @@ meta = NoMetadata()
 raster1 = Raster(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=mval)
 raster2 = Raster(data2, dims2)
 
+st = RasterStack((raster1, raster2); name=(:r1, :r2))
+
 @testset "constructors and keywords" begin
     @test_throws ArgumentError RasterStack("notastack")
     md = Dict("a" => 1)
@@ -28,7 +30,7 @@ raster2 = Raster(data2, dims2)
     stacks = (st1, st2, st3, st4, st5, st6)
     @test st1 == st2 == st3 == st4 == st5 == st6
     @test all(==((:r1, :r2)), map(name, stacks))
-    @test all(==((r1=mval, r2=mval)), map(missingval, stacks))
+    @test all(==(mval), map(missingval, stacks))
     @test all(==((Ti(),)), map(refdims, stacks))
     @test all(==(md), map(metadata, stacks))
     @test all(==(EPSG(4326)), map(crs, stacks))
@@ -40,8 +42,6 @@ raster2 = Raster(data2, dims2)
     table_st = RasterStack(DimTable(st3), dims2)
     @test dims(table_st.r1) isa Tuple{<:X,<:Y,<:Ti}
 end
-
-st = RasterStack((raster1, raster2); name=(:r1, :r2))
 
 @testset "stack layers" begin
     @test length(layers(st)) == 2

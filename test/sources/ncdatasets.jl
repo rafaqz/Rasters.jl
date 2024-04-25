@@ -241,7 +241,7 @@ end
     @testset "write" begin
         @testset "to netcdf" begin
             filename = tempname() * ".nc"
-            write(filename, ncarray)
+            write(filename, ncarray; force=true)
             @test (@allocations write(filename, ncarray; force=true)) < 1e4
             @testset "CF attributes" begin
                 @test NCDatasets.Dataset(filename)[:x].attrib["axis"] == "X"
@@ -286,9 +286,9 @@ end
 
             @testset "deflatelevel" begin
                 write("tos.nc", ncarray; force=true) # default `deflatelevel = 0`
-                @time write("tos_small.nc", ncarray; deflatelevel=2, force = true)
-                @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
+                @time write("tos_small.nc", ncarray; deflatelevel=2, force=true)
                 @test (@allocations write("tos_small.nc", ncarray; deflatelevel=2, force=true)) < 1e4
+                @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
                 isfile("tos.nc") && rm("tos.nc")
                 isfile("tos_small.nc") && rm("tos_small.nc")
             end
@@ -321,7 +321,7 @@ end
             gdalfilename = tempname() * ".tif"
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write(gdalfilename, nccleaned; force=true)
-            @test (@allocations write(gdalfilename, nccleaned; force = true)) < 1e4
+            @test (@allocations write(gdalfilename, nccleaned; force=true)) < 1e4
             gdalarray = Raster(gdalfilename)
             # gdalarray WKT is missing one AUTHORITY
             # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
@@ -498,14 +498,14 @@ end
         @test first(parent(st)) isa Array
         length(dims(st[:aclcac]))
         filename = tempname() * ".nc"
-        @test (@allocations write(filename, st)) < 1e6 # writing a rasterseries/stack has no force keyword
+        write(filename, st; force=true)
+        @test (@allocations write(filename, st; force=true)) < 1e6 # writing a rasterseries/stack has no force keyword
         saved = RasterStack(RasterStack(filename))
         @test keys(saved) == keys(st)
         @test metadata(saved)["advection"] == "Lin & Rood"
         @test metadata(saved) == metadata(st) == metadata(ncstack)
         @test all(first(DimensionalData.layers(saved)) .== first(DimensionalData.layers(st)))
     end
-
 
     @testset "show" begin
         ncstack = view(RasterStack(ncmulti), X(7:99), Y(3:90));
@@ -533,7 +533,8 @@ end
     rast = Raster(ncsingle; name=:tos)
     @test all(read(ncseries[Ti(1)][:tos]) .=== read(rast))
 
-    @test (@allocations write("test.nc", ncseries)) < 1e4 # writing a rasterseries/stack has no force keyword
+    write("test.nc", ncseries; force=true)
+    @test (@allocations write("test.nc", ncseries; force=true)) < 1e4 # writing a rasterseries/stack has no force keyword
     @test isfile("test_1.nc")
     @test isfile("test_2.nc")
     RasterStack("test_1.nc")

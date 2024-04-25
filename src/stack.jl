@@ -41,6 +41,16 @@ setmappedcrs(x::AbstractRasterStack, mappedcrs) = set(x, setmappedcrs(dims(x), m
 _singlemissingval(mvs::NamedTuple, name) = mvs[name]
 _singlemissingval(mv, name) = mv
 
+function _maybe_collapse_missingval(mvs::NamedTuple)
+    mv1, mvs_rest = Iterators.peel(mvs)
+    for mv in mvs_rest
+        mv === mv1 || return mvs
+    end
+    return mv1
+end
+_maybe_collapse_missingval(::NoKW) = nothing
+_maybe_collapse_missingval(mv) = mv
+
 # DimensionalData methods ######################################################
 
 # Always read a stack before loading it as a table.
@@ -82,7 +92,7 @@ function DD.rebuild_from_arrays(
     dims=nothing,
     layerdims=map(DD.basedims, das),
     layermetadata=map(DD.metadata, das),
-    missingval=map(missingval, das),
+    missingval=_maybe_collapse_missingval(map(missingval, das)),
 )
     data = map(parent, das)
     if isnothing(dims)
@@ -175,17 +185,25 @@ struct RasterStack{L<:Union{FileStack,OpenStack,NamedTuple},D<:Tuple,R<:Tuple,LD
     layermetadata::LM
     missingval::MV
 end
-# Rebuild from internals
 function RasterStack(
     data::Union{FileStack,OpenStack,NamedTuple};
     dims::Tuple,
     refdims::Tuple=(),
     layerdims,
     metadata=NoMetadata(),
-    layermetadata,
-    missingval,
+    layermetadata=nokw,
+    missingval=nokw,
     kw...
 )
+    # Handle values that musbe be `NamedTuple`
+    layermetadata = if layermetadata isa NamedTuple
+        layermetadata
+    elseif layermetadata isa Union{Nothing,NoMetadata}
+        map(_ -> NoMetadata(), layers)
+    else
+        throw(ArgumentError("$layermetadata is not a valid input for `layermetadata`. Try a `NamedTuple` of `Dict`, `MetaData` or `NoMetadata`"))
+    end
+    missingval = _maybe_collapse_missingval(missingval)
     st = RasterStack(
         data, dims, refdims, layerdims, metadata, layermetadata, missingval
     )
@@ -238,18 +256,9 @@ function RasterStack(layers::NamedTuple{K,<:Tuple{Vararg{<:AbstractDimArray}}};
     layerdims::NamedTuple{K}=map(DD.basedims, _layers),
     kw...
 ) where K
-    # Handle values that musbe be `NamedTuple`
-    layermetadata = if layermetadata isa NamedTuple
-        layermetadata
-    elseif layermetadata isa Union{Nothing,NoMetadata}
-        map(_ -> NoMetadata(), layers)
-    else
-        throw(ArgumentError("$layermetadata is not a valid input for `layermetadata`. Try a `NamedTuple` of `Dict`, `MetaData` or `NoMetadata`"))
-    end
-    missingval = isnokw(missingval) ? nothing : missingval
     data = map(parent, _layers)
-    st = RasterStack(
-        data, dims, refdims, layerdims, metadata, layermetadata, missingval
+    st = RasterStack(data;
+        dims, refdims, layerdims, metadata, layermetadata, missingval
     )
     return _postprocess_stack(st, dims; kw...)
 end
