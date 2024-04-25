@@ -707,7 +707,6 @@ end
         @testset "write multiple files with custom suffix" begin
             filename = tempname() * ".tif"
             write(filename, gdalstack; suffix=("_first", "_second"))
-            write(filename, gdalstack; suffix=("_first", "_second"))
             base, ext = splitext(filename)
             filename_b = string(base, "_second", ext)
             saved = read(Raster(filename_b))

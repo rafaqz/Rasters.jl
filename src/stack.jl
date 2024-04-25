@@ -177,7 +177,7 @@ struct RasterStack{L<:Union{FileStack,OpenStack,NamedTuple},D<:Tuple,R<:Tuple,LD
 end
 # Rebuild from internals
 function RasterStack(
-    data::Union{FileStack,OpenStack};
+    data::Union{FileStack,OpenStack,NamedTuple};
     dims::Tuple,
     refdims::Tuple=(),
     layerdims,
@@ -200,14 +200,21 @@ function RasterStack(data::Tuple{Vararg{<:AbstractArray}}, dims::Tuple;
     return RasterStack(NamedTuple{cleankeys(name)}(data), dims; kw...)
 end
 # Multi Raster stack from NamedTuple of AbstractArray
-function RasterStack(data::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}, dims::Tuple; kw...)
+function RasterStack(data::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}, dims::Tuple; 
+    layerdims=nokw,
+    kw...
+)
     # TODO: make this more sophisticated and match dimension length to axes?
     # We dont worry about Raster keywords because these rasters will be deconstructed 
     # again later, and `kw` will define the RasterStack keywords
-    layers = map(data) do A
-        Raster(A, dims[1:ndims(A)])
+    if isnokw(layerdims)
+        layers = map(data) do A
+            Raster(A, dims[1:ndims(A)])
+        end
+        return RasterStack(layers; kw...)
+    else
+        return RasterStack(data; dims, layerdims, kw...)
     end
-    return RasterStack(layers; kw...)
 end
 # Multi Raster stack from AbstractDimArray splat
 RasterStack(layers::AbstractDimArray...; kw...) = RasterStack(layers; kw...)
@@ -400,6 +407,7 @@ function _postprocess_stack(st, dims;
     crs=nokw,
     mappedcrs=nokw,
     name=nokw,
+    resize=nokw,
 )
     dims = format(dims, CartesianIndices(st))
     dims = isnokw(crs) ? dims : setcrs(dims, crs)

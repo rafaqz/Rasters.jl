@@ -330,15 +330,25 @@ function _cdmlookup(
     order = LA.orderof(index)
     var = ds[dimname]
     # Detect lat/lon
-    if haskey(CDM.attribs(var), "bounds")
-        boundskey = var.attrib["bounds"]
-        boundsmatrix = Array(ds[boundskey])
-        span, sampling = Explicit(boundsmatrix), Intervals(Center())
-    elseif eltype(index) <: Union{Missing,Dates.AbstractTime}
-        span, sampling = _cdmperiod(index, metadata)
+    span, sampling = if eltype(index) <: Union{Missing,Dates.AbstractTime}
+        _cdmperiod(index, metadata)
     else
-        span, sampling = _cdmspan(index, order), Points()
+        _cdmspan(index, order)
     end
+    # We only use Explicit if the span is not Regular
+    # This is important for things like rasterizatin and conversion 
+    # to gdal to be easy, and selectors are faster.
+    # TODO are there any possible floating point errors from this?
+    if haskey(CDM.attribs(var), "bounds")
+        span, sampling = if isregular(span)
+            span, Intervals(Center())
+        else
+            boundskey = var.attrib["bounds"]
+            boundsmatrix = Array(ds[boundskey])
+            Explicit(boundsmatrix), Intervals(Center())
+        end
+    end
+
     # We cant yet check CF standards crs, but we can at least check for units in lat/lon 
     if isnokw(mappedcrs) && get(metadata, "units", "") in ("degrees_north", "degrees_east")
         mappedcrs = EPSG(4326)
@@ -374,7 +384,7 @@ end
 
 function _cdmspan(index, order)
     # Handle a length 1 index
-    length(index) == 1 && return Regular(zero(eltype(index)))
+    length(index) == 1 && return Regular(zero(eltype(index))), Points()
     step = index[2] - index[1]
     for i in 2:length(index)-1
         # If any step sizes don't match, its Irregular
@@ -390,11 +400,11 @@ function _cdmspan(index, order)
             else
                 index[1], index[1]
             end
-            return Irregular(bounds)
+            return Irregular(bounds), Points()
         end
     end
     # Otherwise regular
-    return Regular(step)
+    return Regular(step), Points()
 end
 
 # delta_t and ave_period are not CF standards, but CDC

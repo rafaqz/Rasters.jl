@@ -59,12 +59,12 @@ end
         @time read(lazyarray);
     end
 
-    @testset "from url" begin
-        # TODO we need a permanent url here that doesn't end in .nc
-        url = "http://apdrc.soest.hawaii.edu:80/dods/public_data/Reanalysis_Data/NCEP/NCEP2/daily/surface/mslp"
-        r = Raster(url; name=:mslp, source=:netcdf, lazy=true)
-        @test sum(r[Ti(1)]) == 1.0615972f9
-    end
+    # @testset "from url" begin
+    #     # TODO we need a permanent url here that doesn't end in .nc
+    #     url = "http://apdrc.soest.hawaii.edu:80/dods/public_data/Reanalysis_Data/NCEP/NCEP2/daily/surface/mslp"
+    #     r = Raster(url; name=:mslp, source=:netcdf, lazy=true)
+    #     @test sum(r[Ti(1)]) == 1.0615972f9
+    # end
 
     @testset "open" begin
         @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
@@ -112,9 +112,7 @@ end
         @test length.(dims(ncarray)) == (180, 170, 24)
         @test dims(ncarray) isa Tuple{<:X,<:Y,<:Ti}
         @test refdims(ncarray) == ()
-        @test val.(span(ncarray)) == 
-            (vcat((0.0:2.0:358.0)', (2.0:2.0:360.0)'),
-             vcat((-80.0:89.0)', (-79.0:90.0)'),
+        @test val.(span(ncarray)) == (2.0, 1.0,
              vcat(permutedims(DateTime360Day(2001, 1, 1):Month(1):DateTime360Day(2002, 12, 1)), 
                   permutedims(DateTime360Day(2001, 2, 1):Month(1):DateTime360Day(2003, 1, 1)))
             )
@@ -288,7 +286,7 @@ end
 
             @testset "deflatelevel" begin
                 write("tos.nc", ncarray; force=true) # default `deflatelevel = 0`
-                @time write("tos_small.nc", geoA; deflatelevel=2, force = true)
+                @time write("tos_small.nc", ncarray; deflatelevel=2, force = true)
                 @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
                 @test (@allocations write("tos_small.nc", ncarray; deflatelevel=2, force=true)) < 1e4
                 isfile("tos.nc") && rm("tos.nc")
@@ -322,7 +320,7 @@ end
         @testset "to gdal" begin
             gdalfilename = tempname() * ".tif"
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
-            write(gdalfilename, nccleaned; force = true)
+            write(gdalfilename, nccleaned; force=true)
             @test (@allocations write(gdalfilename, nccleaned; force = true)) < 1e4
             gdalarray = Raster(gdalfilename)
             # gdalarray WKT is missing one AUTHORITY
@@ -500,13 +498,12 @@ end
         @test first(parent(st)) isa Array
         length(dims(st[:aclcac]))
         filename = tempname() * ".nc"
-        write(filename, st);
+        @test (@allocations write(filename, st)) < 1e6 # writing a rasterseries/stack has no force keyword
         saved = RasterStack(RasterStack(filename))
         @test keys(saved) == keys(st)
         @test metadata(saved)["advection"] == "Lin & Rood"
         @test metadata(saved) == metadata(st) == metadata(ncstack)
         @test all(first(DimensionalData.layers(saved)) .== first(DimensionalData.layers(st)))
-        @test (@allocations write(filename, st)) < 1e6 # writing a rasterseries/stack has no force keyword
     end
 
 
@@ -536,10 +533,9 @@ end
     rast = Raster(ncsingle; name=:tos)
     @test all(read(ncseries[Ti(1)][:tos]) .=== read(rast))
 
-    write("test.nc", ncseries) 
+    @test (@allocations write("test.nc", ncseries)) < 1e4 # writing a rasterseries/stack has no force keyword
     @test isfile("test_1.nc")
     @test isfile("test_2.nc")
-    @test (@allocations write("test.nc", ncseries)) < 1e4 # writing a rasterseries/stack has no force keyword
     RasterStack("test_1.nc")
     rm("test_1.nc")
     rm("test_2.nc")

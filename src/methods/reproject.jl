@@ -29,7 +29,7 @@ function reproject(target::GeoFormat, l::AbstractProjected)
     source = crs(l)
     newdata = reproject(source, target, l.dim, parent(l))
     newlookup = rebuild(l; data=newdata, crs=target)
-    if isregular(newdata)
+    if checkregular(newdata)
         return set(newlookup, Regular(stepof(newdata)))
     else
         newbounds = reproject(crs(l), target, l.dim, bounds(l))
@@ -79,14 +79,3 @@ end
 # Guess the step for arrays
 stepof(A::AbstractArray) = (last(A) - first(A)) / (length(A) - 1)
 stepof(A::AbstractRange) = step(A)
-
-isregular(A::AbstractRange) = true
-function isregular(A::AbstractArray)
-    step = stepof(A)
-    for i in eachindex(A)[2:end]
-        if !(A[i] - A[i-1] ≈ step)
-            return false 
-        end
-    end
-    return true
-end
