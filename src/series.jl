@@ -99,13 +99,11 @@ When loading a series from a Vector of `String` paths or a single `String` path:
 - `duplicate_first::Bool`: wether to duplicate the dimensions and metadata of the
     first file with all other files. This can save load time with a large
     series where dimensions are identical. `false` by default.
-- `lazy`: load files lazily, `false` by default.
+$LAZY_KEYWORD
 - `kw`: keywords passed to the child constructor [`Raster`](@ref) or [`RasterStack`](@ref).
 
 When loading a series from a single `String` path:
 
-- `ext`: filename extension such as ".tiff" or ".nc". 
-    Use to specify a subset of files if only a directory path is passed in.
 - `separator`: separator used to split lookup elements from the rest of a filename. '_' by default.
 
 
@@ -126,9 +124,14 @@ function RasterSeries(filenames::NamedTuple{K}, dims; kw...) where K
     RasterSeries(map((fns...) -> NamedTuple{K}(fns), values(filenames)...), dims; kw...)
 end
 function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple}}, dims;
-    refdims=(), lazy=false, duplicate_first=false, child=nothing, resize=nothing, kw...
+    refdims=(), 
+    lazy=false, 
+    duplicate_first=false, 
+    child=nokw, 
+    resize=nokw, 
+    kw...
 )
-    childtype = if isnothing(child)
+    childtype = if child isa NoKW
         eltype(filenames) <: NamedTuple ? RasterStack : Raster
     else
         child
@@ -154,7 +157,12 @@ function RasterSeries(filenames::AbstractArray{<:Union{AbstractString,NamedTuple
     end
     return RasterSeries(data, DD.format(dims, data); refdims)
 end
-function RasterSeries(path::AbstractString, dims; refdims=(), ext=nothing, separator='_', kw...)
+function RasterSeries(path::AbstractString, dims; 
+    refdims=(), 
+    ext=nothing, 
+    separator='_', 
+    kw...
+)
     if isdir(path)
         dirpath = path
         filepaths = filter_ext(dirpath, ext)

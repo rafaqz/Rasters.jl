@@ -1,7 +1,9 @@
 using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
+
 using Rasters.Lookups, Rasters.Dimensions
+using Rasters.DiskArrays
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name
+using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name, trim
 testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))
 include(joinpath(testdir, "test_utils.jl"))
 
@@ -43,26 +45,26 @@ stackkeys = (
 end
 
 @testset "Raster" begin
-    @time ncarray = Raster(ncsingle);
+    @time ncarray = Raster(ncsingle)
 
     @time lazyarray = Raster(ncsingle; lazy=true)
     @time eagerarray = Raster(ncsingle; lazy=false)
     @test_throws ArgumentError Raster("notafile.nc")
 
     @testset "lazyness" begin
-        @time read(Raster(ncsingle));
         # Eager is the default
         @test parent(ncarray) isa Array
         @test parent(lazyarray) isa FileArray
         @test parent(eagerarray) isa Array
+        @time read(lazyarray);
     end
 
-    @testset "from url" begin
-        # TODO we need a permanent url here that doesn't end in .nc
-        url = "http://apdrc.soest.hawaii.edu:80/dods/public_data/Reanalysis_Data/NCEP/NCEP2/daily/surface/mslp"
-        r = Raster(url; name=:mslp, source=:netcdf, lazy=true)
-        @test sum(r[Ti(1)]) == 1.0615972f9
-    end
+    # @testset "from url" begin
+    #     # TODO we need a permanent url here that doesn't end in .nc
+    #     url = "http://apdrc.soest.hawaii.edu:80/dods/public_data/Reanalysis_Data/NCEP/NCEP2/daily/surface/mslp"
+    #     r = Raster(url; name=:mslp, source=:netcdf, lazy=true)
+    #     @test sum(r[Ti(1)]) == 1.0615972f9
+    # end
 
     @testset "open" begin
         @test all(open(A -> A[Y=1], ncarray) .=== ncarray[:, 1, :])
@@ -80,12 +82,16 @@ end
         @test all(A .=== A3)
     end
 
-    @testset "ignore empty variables" begin
+    @testset "handle empty variables" begin
         st = RasterStack((empty=view(ncarray, 1, 1, 1), full=ncarray))
-        write("emptyval_test.nc", st)
-        rast = Raster("emptyval_test.nc")
-        @test name(rast) == :full
-        rm("emptyval_test.nc")
+        empty_test = tempname() * ".nc"
+        write(empty_test, st)
+        rast = Raster(empty_test)
+        st = RasterStack(empty_test)
+        @test name(rast) == name(st[:empty]) == :empty
+        @test size(rast) == size(st[:empty]) == ()
+        @test all(st[:full] .=== ncarray)
+        st = RasterStack(empty_test; lazy=true)
     end
 
     @testset "array properties" begin
@@ -106,9 +112,7 @@ end
         @test length.(dims(ncarray)) == (180, 170, 24)
         @test dims(ncarray) isa Tuple{<:X,<:Y,<:Ti}
         @test refdims(ncarray) == ()
-        @test val.(span(ncarray)) == 
-            (vcat((0.0:2.0:358.0)', (2.0:2.0:360.0)'),
-             vcat((-80.0:89.0)', (-79.0:90.0)'),
+        @test val.(span(ncarray)) == (2.0, 1.0,
              vcat(permutedims(DateTime360Day(2001, 1, 1):Month(1):DateTime360Day(2002, 12, 1)), 
                   permutedims(DateTime360Day(2001, 2, 1):Month(1):DateTime360Day(2003, 1, 1)))
             )
@@ -198,7 +202,7 @@ end
     @testset "indexing with reverse lat" begin
         if !haskey(ENV, "CI") # CI downloads fail. But run locally
             ncrevlat = maybedownload("ftp://ftp.cdc.noaa.gov/Datasets/noaa.ersst.v5/sst.mon.ltm.1981-2010.nc")
-            ncrevlatarray = Raster(ncrevlat; key=:sst)
+            ncrevlatarray = Raster(ncrevlat; name=:sst)
             @test order(dims(ncrevlatarray, Y)) == ReverseOrdered()
             @test ncrevlatarray[Y(At(40)), X(At(100)), Ti(1)] === missing
             @test ncrevlatarray[Y(At(-40)), X(At(100)), Ti(1)] === ncrevlatarray[51, 65, 1] == 14.5916605f0
@@ -223,89 +227,101 @@ end
     end
 
     @testset "conversion to Raster" begin
-        geoA = ncarray[X(1:50), Y(20:20), Ti(1)]
-        @test size(geoA) == (50, 1)
-        @test eltype(geoA) <: Union{Missing,Float32}
-        @test geoA isa Raster{Union{Missing,Float32},2}
-        @test dims(geoA) isa Tuple{<:X,<:Y}
-        @test refdims(geoA) isa Tuple{<:Ti}
-        @test metadata(geoA) == metadata(ncarray)
-        @test ismissing(missingval(geoA))
-        @test name(geoA) == :tos
+        ncslice = ncarray[X(1:50), Y(20:20), Ti(1)]
+        @test size(ncslice) == (50, 1)
+        @test eltype(ncslice) <: Union{Missing,Float32}
+        @test ncslice isa Raster{Union{Missing,Float32},2}
+        @test dims(ncslice) isa Tuple{<:X,<:Y}
+        @test refdims(ncslice) isa Tuple{<:Ti}
+        @test metadata(ncslice) == metadata(ncarray)
+        @test ismissing(missingval(ncslice))
+        @test name(ncslice) == :tos
     end
 
     @testset "write" begin
         @testset "to netcdf" begin
-            # TODO save and load subset
-            geoA = read(ncarray)
-            @test size(geoA) == size(ncarray)
             filename = tempname() * ".nc"
-            write(filename, geoA; force = true)
-            @test (@allocations write(filename, geoA; force = true)) < 1e4
+            write(filename, ncarray; force=true)
+            @test (@allocations write(filename, ncarray; force=true)) < 1e4
             @testset "CF attributes" begin
                 @test NCDatasets.Dataset(filename)[:x].attrib["axis"] == "X"
                 @test NCDatasets.Dataset(filename)[:x].attrib["bounds"] == "x_bnds"
                 # TODO  better units and standard name handling
             end
-            saved = read(Raster(filename))
-            @test size(saved) == size(geoA)
-            @test refdims(saved) == refdims(geoA)
-            @test missingval(saved) === missingval(geoA)
+            saved = Raster(filename)
+            @test size(saved) == size(ncarray)
+            @test refdims(saved) == refdims(ncarray)
+            @test missingval(saved) === missingval(ncarray)
             @test map(metadata.(dims(saved)), metadata.(dims(Raster))) do s, g
                 all(s .== g)
             end |> all
-            @test metadata(saved) == metadata(geoA)
-            @test_broken all(metadata(dims(saved))[2] == metadata.(dims(geoA))[2])
-            @test Rasters.name(saved) == Rasters.name(geoA)
-            @test all(lookup.(dims(saved)) .== lookup.(dims(geoA)))
-            @test all(order.(dims(saved)) .== order.(dims(geoA)))
-            @test all(typeof.(span.(dims(saved))) .== typeof.(span.(dims(geoA))))
-            @test all(val.(span.(dims(saved))) .== val.(span.(dims(geoA))))
-            @test all(sampling.(dims(saved)) .== sampling.(dims(geoA)))
-            @test typeof(dims(saved)) <: typeof(dims(geoA))
-            @test index(saved, 3) == index(geoA, 3)
-            @test all(val.(dims(saved)) .== val.(dims(geoA)))
-            @test all(parent(saved) .=== parent(geoA))
-            @test saved isa typeof(geoA)
+            @test metadata(saved) == metadata(ncarray)
+            @test_broken all(metadata(dims(saved))[2] == metadata.(dims(ncarray))[2])
+            @test Rasters.name(saved) == Rasters.name(ncarray)
+            @test all(lookup.(dims(saved)) .== lookup.(dims(ncarray)))
+            @test all(order.(dims(saved)) .== order.(dims(ncarray)))
+            @test all(typeof.(span.(dims(saved))) .== typeof.(span.(dims(ncarray))))
+            @test all(val.(span.(dims(saved))) .== val.(span.(dims(ncarray))))
+            @test all(sampling.(dims(saved)) .== sampling.(dims(ncarray)))
+            @test typeof(dims(saved)) <: typeof(dims(ncarray))
+            @test index(saved, 3) == index(ncarray, 3)
+            @test all(val.(dims(saved)) .== val.(dims(ncarray)))
+            @test all(parent(saved) .=== parent(ncarray))
+            @test saved isa typeof(ncarray)
             # TODO test crs
 
-            # test for nc `kw...`
-            geoA = read(ncarray)
-            write("tos.nc", geoA; force=true) # default `deflatelevel = 0`
-            @time write("tos_small.nc", geoA; deflatelevel=2, force = true)
-            @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
-            isfile("tos.nc") && rm("tos.nc")
-            isfile("tos_small.nc") && rm("tos_small.nc")    
-            @test (@allocations write("tos_small.nc", geoA; deflatelevel=2, force = true)) < 1e4
+            @testset "chunks" begin
+                filename = tempname() * ".nc"
+                write(filename, ncarray; chunks=(64, 64))
+                @test DiskArrays.eachchunk(Raster(filename; lazy=true))[1] == (1:64, 1:64, 1:1)
+                filename = tempname() * ".nc"
+                write(filename, ncarray; chunks=(X=16, Y=10, Ti=8))
+                @test DiskArrays.eachchunk(Raster(filename; lazy=true))[1] == (1:16, 1:10, 1:8)
+                filename = tempname() * ".nc"
+                @test_warn "larger than array size" write(filename, ncarray; chunks=(X=1000, Y=10, Ti=8))
+                # No chunks
+                @test DiskArrays.haschunks(Raster(filename; lazy=true)) isa DiskArrays.Unchunked
+                @test DiskArrays.eachchunk(Raster(filename; lazy=true))[1] == map(Base.OneTo, size(ncarray))
+            end
 
-            # test for nc `append`
-            n = 100
-            x = rand(n, n)
-            r1 = Raster(x, (X, Y); name = "v1")
-            r2 = Raster(x, (X, Y); name = "v2")
-            fn = "test.nc"
-            isfile(fn) && rm(fn)
-            write(fn, r1, append=false; force = true)
-            size1 = filesize(fn)
-            write(fn, r2; append=true)
-            size2 = filesize(fn)
-            @test size2 > size1*1.8 # two variable 
-            isfile(fn) && rm(fn)
-            @test (@allocations begin 
-                write(fn, r1, append=false, force = true)
+            @testset "deflatelevel" begin
+                write("tos.nc", ncarray; force=true) # default `deflatelevel = 0`
+                @time write("tos_small.nc", ncarray; deflatelevel=2, force=true)
+                @test (@allocations write("tos_small.nc", ncarray; deflatelevel=2, force=true)) < 1e4
+                @test filesize("tos_small.nc") * 1.5 < filesize("tos.nc") # compress ratio >= 1.5
+                isfile("tos.nc") && rm("tos.nc")
+                isfile("tos_small.nc") && rm("tos_small.nc")
+            end
+
+            @testset "append" begin
+                n = 100
+                x = rand(n, n)
+                r1 = Raster(x, (X, Y); name = "v1")
+                r2 = Raster(x, (X, Y); name = "v2")
+                fn = "test.nc"
+                isfile(fn) && rm(fn)
+                write(fn, r1, append=false)
+                size1 = filesize(fn)
                 write(fn, r2; append=true)
-            end) < 10e4 
+                size2 = filesize(fn)
+                @test size2 > size1*1.8 # two variable 
+                isfile(fn) && rm(fn)
+                @test (@allocations begin 
+                    write(fn, r1, append=false, force=true)
+                    write(fn, r2; append=true)
+                end) < 10e4 
+            end
 
             @testset "non allowed values" begin
-                # TODO return this test when the changes in NCDatasets.jl settle
-                # @test_throws ArgumentError write(filename, convert.(Union{Missing,Float16}, geoA))
+                @test_throws ArgumentError write(filename, convert.(Union{Missing,Float16}, ncarray); force=true)
             end
         end
+
         @testset "to gdal" begin
             gdalfilename = tempname() * ".tif"
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
-            write(gdalfilename, nccleaned; force = true)
-            @test (@allocations write(gdalfilename, nccleaned; force = true)) < 1e4
+            write(gdalfilename, nccleaned; force=true)
+            @test (@allocations write(gdalfilename, nccleaned; force=true)) < 1e4
             gdalarray = Raster(gdalfilename)
             # gdalarray WKT is missing one AUTHORITY
             # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
@@ -343,11 +359,12 @@ end
     end
 
     @testset "no missing value" begin
-        write("nomissing.nc", boolmask(ncarray) .* 1)
-        nomissing = Raster("nomissing.nc")
+        filename = tempname() * ".nc"
+        B = rebuild(boolmask(ncarray) .* 1; missingval=nothing)
+        write(filename, B)
+        nomissing = Raster(filename)
         @test missingval(nomissing) == nothing
-        rm("nomissing.nc")
-        @test name(ncarray) == :tos
+        @test eltype(nomissing) == Int64
     end
 
     @testset "show" begin
@@ -368,7 +385,7 @@ end
 end
 
 @testset "Single file stack" begin
-    @time ncstack = RasterStack(ncmulti);
+    @time ncstack = RasterStack(ncmulti)
 
     @testset "lazyness" begin
         @time read(RasterStack(ncmulti));
@@ -432,17 +449,16 @@ end
         @test metadata(ncstack[:albedo])["long_name"] == "surface albedo"
         # Test some DimensionalData.jl tools work
         # Time dim should be reduced to length 1 by mean
-        @test axes(mean(ncstack[:albedo, Y(1:20)] , dims=Ti)) ==
+        @test axes(mean(ncstack[:albedo][Y(1:20)] , dims=Ti)) ==
               (Base.OneTo(192), Base.OneTo(20), Base.OneTo(1))
         geoA = ncstack[:albedo][Ti(4:6), X(1), Y(2)]
-        @test geoA == ncstack[:albedo, Ti(4:6), X(1), Y(2)]
         @test size(geoA) == (3,)
     end
 
     @testset "custom filename" begin
         ncmulti_custom = replace(ncmulti, "nc" => "nc4")
         cp(ncmulti, ncmulti_custom, force=true)
-        @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDsource)
+        @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDsource())
         @test ncstack_custom isa RasterStack
         @test map(read(ncstack_custom), read(ncstack)) do a, b
             all(a .=== b)
@@ -464,8 +480,8 @@ end
         @test dims(ncmultistack[:tos]) isa Tuple{<:X,<:Y,<:Ti}
         @test ncmultistack[:tos] isa Raster{<:Any,3}
         @test ncmultistack[:tos][Ti(1)] isa Raster{<:Any,2}
-        @test ncmultistack[:tos, Y(1), Ti(1)] isa Raster{<:Any,1}
-        @test ncmultistack[:tos, 8, 30, 10] isa Float32
+        @test ncmultistack[:tos][Y(1), Ti(1)] isa Raster{<:Any,1}
+        @test ncmultistack[:tos][8, 30, 10] isa Float32
     end
 
     @testset "Subsetting keys" begin
@@ -482,13 +498,13 @@ end
         @test first(parent(st)) isa Array
         length(dims(st[:aclcac]))
         filename = tempname() * ".nc"
-        write(filename, st);
+        write(filename, st; force=true)
+        @test (@allocations write(filename, st; force=true)) < 1e6 # writing a rasterseries/stack has no force keyword
         saved = RasterStack(RasterStack(filename))
         @test keys(saved) == keys(st)
         @test metadata(saved)["advection"] == "Lin & Rood"
         @test metadata(saved) == metadata(st) == metadata(ncstack)
         @test all(first(DimensionalData.layers(saved)) .== first(DimensionalData.layers(st)))
-        @test (@allocations write(filename, st)) < 1e6 # writing a rasterseries/stack has no force keyword
     end
 
     @testset "show" begin
@@ -514,16 +530,26 @@ end
         @test geoseries isa RasterSeries{<:RasterStack}
         @test parent(geoseries) isa Vector{<:RasterStack}
     end
-    geoA = Raster(ncsingle; key=:tos)
-    @test all(read(ncseries[Ti(1)][:tos]) .=== read(geoA))
+    rast = Raster(ncsingle; name=:tos)
+    @test all(read(ncseries[Ti(1)][:tos]) .=== read(rast))
 
-    write("test.nc", ncseries) 
+    write("test.nc", ncseries; force=true)
+    @test (@allocations write("test.nc", ncseries; force=true)) < 1e4 # writing a rasterseries/stack has no force keyword
     @test isfile("test_1.nc")
     @test isfile("test_2.nc")
-    @test (@allocations write("test.nc", ncseries)) < 1e4 # writing a rasterseries/stack has no force keyword
     RasterStack("test_1.nc")
     rm("test_1.nc")
     rm("test_2.nc")
+end
+
+# Groups
+if !haskey(ENV, "CI")
+    path = joinpath(testdir, "data/SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5")
+    stack = RasterStack(path; group="Geophysical_Data")
+    lazy_stack = RasterStack(path; group="Geophysical_Data", lazy=true)
+    rast = Raster(path; name=:surface_temp, group="Geophysical_Data")
+    lazy_rast = Raster(path; name=:surface_temp, group="Geophysical_Data", lazy=true)
+    @test all(stack[:surface_temp] .=== read(lazy_stack[:surface_temp]) .=== rast .=== read(lazy_rast))
 end
 
 nothing

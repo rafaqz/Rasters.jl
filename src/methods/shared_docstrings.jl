@@ -44,6 +44,9 @@ $CRS_KEYWORD
 $SHAPE_KEYWORDS
 """
 
+const LAZY_KEYWORD = """
+- `lazy`: A `Bool` specifying if to load data lazily from disk. `false` by default.
+"""
 const FILENAME_KEYWORD = """
 - `filename`: a filename to write to directly, useful for large files.
 """
@@ -56,4 +59,39 @@ const PROGRESS_KEYWORD = """
 """
 const VERBOSE_KEYWORD = """
 - `vebose`: whether to print messages about potential problems. `true` by default.
+"""
+const SOURCE_KEYWORD = """
+- `source`: Usually automatically detected from filepath extension. 
+    To manually force, a `Symbol` can be passed `:gdal`, `:netcdf`, `:grd`, `:grib`.
+    The internal [`Rasters.Source`](@ref) objects, such as `Rasters.GDALsource()`, 
+    `Rasters.GRIBsource()` or `Rasters.NCDsource()` can also be used.
+"""
+const EXT_KEYWORD = """
+- `ext`: filename extension such as ".tiff" or ".nc". 
+    Used to specify specific files if only a directory path is used.
+"""
+const FORCE_KEYWORD = """
+- `force`: `false` by default. If `true` it force writing to a file destructively, even if it already exists.
+"""
+const DROPBAND_KEYWORD = """
+- `dropband`: drop single band dimensions when creating stacks from filenames. `true` by default.
+"""
+
+const CONSTRUCTOR_CRS_KEYWORD = """
+- `crs`: the coordinate reference system of  the objects `XDim`/`YDim` dimensions.
+    Only set this if you know the detected crs is incrorrect, or it is not present in
+    the file. The `crs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` mode `GeoFormat` object,
+    like `EPSG(4326)`.
+"""
+const CONSTRUCTOR_MAPPEDCRS_KEYWORD = """
+- `mappedcrs`: the mapped coordinate reference system of the objects `XDim`/`YDim` dimensions.
+    for `Mapped` lookups these are the actual values of the index. For `Projected` lookups
+    this can be used to index in eg. `EPSG(4326)` lat/lon values, having it converted automatically.
+    Only set this if the detected `mappedcrs` in incorrect, or the file does not have a `mappedcrs`,
+    e.g. a tiff. The `mappedcrs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` mode `GeoFormat` type.
+"""
+const GROUP_KEYWORD = """
+- `group`: the group in the dataset where `name` can be found. Only needed for nested datasets.
+    A `String` or `Symbol` will select a single group. Pairs can also used to access groups
+    at any nested depth, i.e `group=:group1 => :group2 => :group3`.
 """

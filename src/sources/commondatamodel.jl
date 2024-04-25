@@ -52,7 +52,7 @@ _metadata(var::CFDiskArray, args...) = _metadata(parent(var), args...)
 # Base methods
 Base.parent(A::CFDiskArray) = A.var
 
-Base.getindex(os::OpenStack{<:CDMsource}, key::Symbol) = CFDiskArray(dataset(os)[key])
+Base.getindex(os::OpenStack{<:CDMsource}, name::Symbol) = CFDiskArray(dataset(os)[name])
 
 # DiskArrays.jl methods
 function DiskArrays.readblock!(A::CFDiskArray, aout, i::AbstractUnitRange...)
@@ -91,27 +91,6 @@ end
 
 # Rasters methods for CDM types ###############################
 
-# This is usually called inside a closure and cleaned up in `cleanreturn`
-function Raster(ds::AbstractDataset, filename::AbstractString, key::Nothing=nothing;
-    source=nothing, kw...
-)
-    source = isnothing(source) ? _sourcetrait(filename) : _sourcetrait(source)
-    # Find the first valid variable
-    layers = _layers(ds)
-    for (key, var) in zip(layers.keys, layers.vars)
-        if ndims(var) > 0
-            @info "No `name` or `key` keyword provided, using first valid layer with name `:$key`"
-            return Raster(CFDiskArray(var), filename, key; source, kw...)
-        end
-    end
-    throw(ArgumentError("dataset at $filename has no array variables"))
-end
-function Raster(ds::AbstractDataset, filename::AbstractString, key::Union{AbstractString,Symbol};
-    source=nothing, kw...
-)
-    return Raster(CFDiskArray(ds[key]), filename, key; source)
-end
-
 function FileArray{source}(var::AbstractVariable, filename::AbstractString; kw...) where source<:CDMsource
     eachchunk = DA.eachchunk(var)
     haschunks = DA.haschunks(var)
@@ -122,48 +101,53 @@ end
 
 function FileStack{source}(
     ds::AbstractDataset, filename::AbstractString;
-    write::Bool=false, keys::NTuple{N,Symbol}, vars
+    write::Bool=false, 
+    group=nokw,
+    name::NTuple{N,Symbol}, 
+    vars
 ) where {source<:CDMsource,N}
     layertypes = map(var -> Union{Missing,eltype(var)}, vars)
     layersizes = map(size, vars)
     eachchunk = map(_get_eachchunk, vars)
     haschunks = map(_get_haschunks, vars)
-    return FileStack{source,keys}(filename, layertypes, layersizes, eachchunk, haschunks, write)
+    group = isnokw(group) ? nothing : group
+    return FileStack{source,name}(filename, layertypes, layersizes, group, eachchunk, haschunks, write)
 end
 
 function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) where source<:CDMsource
-    _open(source(), filename(A); key=key(A), write, kw...) do var
+    _open(source(), filename(A); name=name(A), group=A.group, write, kw...) do var
         f(var)
     end
 end
 
-function _open(f, ::CDMsource, ds::AbstractDataset; key=nothing, kw...)
-    x = key isa Nothing ? ds : CFDiskArray(ds[_firstkey(ds, key)])
+function _open(f, ::CDMsource, ds::AbstractDataset; name=nokw, group=nothing, kw...)
+    g = _getgroup(ds, group)
+    x = isnokw(name) ? g : CFDiskArray(g[_firstname(ds, name)])
     cleanreturn(f(x))
 end
 _open(f, ::CDMsource, var::CFDiskArray; kw...) = cleanreturn(f(var))
-# _open(f, ::CDMsource, var::CDM.CFVariable; kw...) = cleanreturn(f(CFDiskArray(var)))
 
-# TODO fix/test this for RasterStack
-function create(filename, source::CDMsource, T::Union{Type,Tuple}, dims::DimTuple;
-    name=:layer1,
-    keys=(name,),
-    layerdims=map(_ -> dims, keys),
-    missingval=nothing,
-    metadata=NoMetadata(),
+# This allows arbitrary group nesting
+_getgroup(ds, ::Union{Nothing,NoKW}) = ds
+_getgroup(ds, group::Union{Symbol,AbstractString}) = ds.group[String(group)]
+_getgroup(ds, group::Pair) = _getgroup(ds.group[String(group[1])], group[2])
+
+function create(filename, source::CDMsource, T::Type, dims::DimTuple;
+    name=nokw,
+    missingval=nokw,
+    metadata=nokw,
     lazy=true,
+    verbose=true,
+    chunks=nokw,
 )
-    types = T isa Tuple ? T : Ref(T)
-    missingval = T isa Tuple ? missingval : Ref(missingval)
     # Create layers of zero arrays
-    layers = map(layerdims, keys, types, missingval) do lds, key, t, mv
-        A = FillArrays.Zeros{t}(map(length, lds))
-        Raster(A, dims=lds; name=key, missingval=mv)
-    end
-    write(filename, source, Raster(first(layers)))
-    return Raster(filename; source=source, lazy)
+    A = FillArrays.Zeros{T}(map(length, dims))
+    rast = Raster(A, dims; name, missingval, metadata)
+    write(filename, source, rast; chunks)
+    return Raster(filename; metadata, source, lazy)
 end
 
+filekey(ds::AbstractDataset, name) = _firstname(ds, name)
 missingval(var::AbstractDataset) = missing
 missingval(var::AbstractVariable{T}) where T = missing isa T ? missing : nothing
 cleanreturn(A::AbstractVariable) = Array(A)
@@ -171,23 +155,28 @@ haslayers(::CDMsource) = true
 defaultcrs(::CDMsource) = EPSG(4326)
 defaultmappedcrs(::CDMsource) = EPSG(4326)
 
-function _layers(ds::AbstractDataset, ::Nothing=nothing)
-    dimkeys = CDM.dimnames(ds)
-    toremove = if "bnds" in dimkeys
-        dimkeys = setdiff(dimkeys, ("bnds",))
-        boundskeys = String[]
-        for k in dimkeys
+function _nondimnames(ds)
+    dimnames = CDM.dimnames(ds)
+    toremove = if "bnds" in dimnames
+        dimnames = setdiff(dimnames, ("bnds",))
+        boundsnames = String[]
+        for k in dimnames
             var = ds[k]
             attr = CDM.attribs(var)
             if haskey(attr, "bounds")
-                push!(boundskeys, attr["bounds"])
+                push!(boundsnames, attr["bounds"])
             end
         end
-        union(dimkeys, boundskeys)::Vector{String}
+        union(dimnames, boundsnames)::Vector{String}
     else
-        dimkeys::Vector{String}
+        dimnames::Vector{String}
     end
     nondim = setdiff(keys(ds), toremove)
+    return nondim
+end
+
+function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
+    nondim = _nondimnames(ds)
     grid_mapping = String[]
     vars = map(k -> ds[k], nondim)
     attrs = map(CDM.attribs, vars)
@@ -198,18 +187,21 @@ function _layers(ds::AbstractDataset, ::Nothing=nothing)
     end
     bitinds = map(!in(grid_mapping), nondim)
     (;
-        keys=nondim[bitinds],
+        names=nondim[bitinds],
         vars=vars[bitinds],
         attrs=attrs[bitinds],
     )
 end
-function _layers(ds::AbstractDataset, keys)
-    vars = map(k -> ds[k], keys)
+function _layers(ds::AbstractDataset, names, ::NoKW)
+    vars = map(k -> ds[k], names)
     attrs = map(CDM.attribs, vars)
-    (; keys, vars, attrs)
+    (; names, vars, attrs)
+end
+function _layers(ds::AbstractDataset, names, group)
+    _layers(ds.group[group], names, nokw)
 end
 
-function _dims(var::AbstractVariable{<:Any,N}, crs=nothing, mappedcrs=nothing) where N
+function _dims(var::AbstractVariable{<:Any,N}, crs=nokw, mappedcrs=nokw) where N
     dimnames = CDM.dimnames(var)
     ntuple(Val(N)) do i
         _cdmdim(CDM.dataset(var), dimnames[i], crs, mappedcrs)
@@ -218,7 +210,7 @@ end
 _metadata(var::AbstractVariable; attr=CDM.attribs(var)) =
     _metadatadict(_sourcetrait(var), attr)
 
-function _dimdict(ds::AbstractDataset, crs=nothing, mappedcrs=nothing)
+function _dimdict(ds::AbstractDataset, crs=nokw, mappedcrs=nokw)
     dimdict = Dict{String,Dimension}()
     for dimname in CDM.dimnames(ds)
         dimdict[dimname] = _cdmdim(ds, dimname, crs, mappedcrs)
@@ -253,10 +245,17 @@ end
 # Utils ########################################################################
 
 # TODO dont load all keys here with _layers
-_firstkey(ds::AbstractDataset, key::Nothing=nothing) = Symbol(first(_layers(ds).keys))
-_firstkey(ds::AbstractDataset, key) = Symbol(key)
+_firstname(ds::AbstractDataset, name) = Symbol(name)
+function _firstname(ds::AbstractDataset, name::NoKW=nokw)
+    names = _nondimnames(ds)
+    if length(names) > 0
+        Symbol(first(names))
+    else
+        throw(ArgumentError("No non-dimension layers found in dataset with keys: $(keys(ds))"))
+    end
+end
 
-function _cdmdim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
+function _cdmdim(ds, dimname::Key, crs=nokw, mappedcrs=nokw)
     if haskey(ds, dimname)
         var = ds[dimname]
         D = _cdmdimtype(CDM.attribs(var), dimname)
@@ -274,14 +273,14 @@ function _cdmdim(ds, dimname::Key, crs=nothing, mappedcrs=nothing)
 end
 
 function _cdmfinddimlen(ds, dimname)
-    for key in keys(ds)
-        var = ds[key]
+    for name in keys(ds)
+        var = ds[name]
         dimnames = CDM.dimnames(var)
         if dimname in dimnames
             return size(var)[findfirst(==(dimname), dimnames)]
         end
     end
-    return nothing
+    return nothsng
 end
 
 # Find the matching dimension constructor. If its an unknown name
@@ -330,18 +329,35 @@ function _cdmlookup(
     # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
     order = LA.orderof(index)
     var = ds[dimname]
-    if haskey(CDM.attribs(var), "bounds")
-        boundskey = var.attrib["bounds"]
-        boundsmatrix = Array(ds[boundskey])
-        span, sampling = Explicit(boundsmatrix), Intervals(Center())
-        return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
-    elseif eltype(index) <: Union{Missing,Dates.AbstractTime}
-        span, sampling = _cdmperiod(index, metadata)
-        return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
+    # Detect lat/lon
+    span, sampling = if eltype(index) <: Union{Missing,Dates.AbstractTime}
+        _cdmperiod(index, metadata)
     else
-        span, sampling = _cdmspan(index, order), Points()
-        return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
+        _cdmspan(index, order)
     end
+    # We only use Explicit if the span is not Regular
+    # This is important for things like rasterizatin and conversion 
+    # to gdal to be easy, and selectors are faster.
+    # TODO are there any possible floating point errors from this?
+    if haskey(CDM.attribs(var), "bounds")
+        span, sampling = if isregular(span)
+            span, Intervals(Center())
+        else
+            boundskey = var.attrib["bounds"]
+            boundsmatrix = Array(ds[boundskey])
+            Explicit(boundsmatrix), Intervals(Center())
+        end
+    end
+
+    # We cant yet check CF standards crs, but we can at least check for units in lat/lon 
+    if isnokw(mappedcrs) && get(metadata, "units", "") in ("degrees_north", "degrees_east")
+        mappedcrs = EPSG(4326)
+    end
+    # Additionally, crs and mappedcrs should be identical for Regular lookups
+    if isnokw(crs) && span isa Regular
+        crs = mappedcrs
+    end
+    return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
 end
 # For X and Y use a Mapped <: AbstractSampled lookup
 function _cdmlookup(
@@ -349,13 +365,13 @@ function _cdmlookup(
 )
     # If the index is regularly spaced and there is no crs
     # then there is probably just one crs - the mappedcrs
-    crs = if crs isa Nothing && span isa Regular
+    crs = if isnokw(crs) && span isa Regular
         mappedcrs
     else
         crs
     end
     dim = DD.basetypeof(D)()
-    return Mapped(index, order, span, sampling, metadata, crs, mappedcrs, dim)
+    return Mapped(index; order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 # Band dims have a Categorical lookup, with order
 function _cdmlookup(D::Type{<:Band}, index, order::Order, span, sampling, metadata, crs, mappedcrs)
@@ -368,7 +384,7 @@ end
 
 function _cdmspan(index, order)
     # Handle a length 1 index
-    length(index) == 1 && return Regular(zero(eltype(index)))
+    length(index) == 1 && return Regular(zero(eltype(index))), Points()
     step = index[2] - index[1]
     for i in 2:length(index)-1
         # If any step sizes don't match, its Irregular
@@ -384,11 +400,11 @@ function _cdmspan(index, order)
             else
                 index[1], index[1]
             end
-            return Irregular(bounds)
+            return Irregular(bounds), Points()
         end
     end
     # Otherwise regular
-    return Regular(step)
+    return Regular(step), Points()
 end
 
 # delta_t and ave_period are not CF standards, but CDC
@@ -412,13 +428,15 @@ function _parse_period(period_str::String)
         vals = map(x -> parse(Int, x), mtch.captures)
         if length(vals) == 6
             y = Year(vals[1])
-            m = Month(vals[2])
+            mo = Month(vals[2])
             d = Day(vals[3])
             h = Hour(vals[4])
-            m = Minute(vals[5])
+            mi = Minute(vals[5])
             s = Second(vals[6])
-            compound = sum(y, m, d, h, m, s)
-            if length(compound.periods) == 1
+            compound = sum((y, mo, d, h, mi, s))
+            if length(compound.periods) == 0
+                return nothing
+            elseif length(compound.periods) == 1
                 return compound.periods[1]
             else
                 return compound

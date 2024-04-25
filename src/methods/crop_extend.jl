@@ -104,7 +104,7 @@ end
 function _crop_to(x, to::Extents.Extent; touches=false)
     # Take a view over the bounds
     _without_mapped_crs(x) do x1
-        if touches 
+        if touches
             view(x1, Touches(to))
         else
             view(x1, to)
@@ -174,7 +174,8 @@ end
 _extend_to(x::RasterStackOrArray, to::Dimension; kw...) = _extend_to(x, (to,); kw...)
 
 function _extend_to(A::AbstractRaster, to::DimTuple;
-    filename=nothing, suffix=nothing, touches=false, missingval=missingval(A)
+    filename=nothing, suffix=nothing, touches=false,
+    missingval=(isnothing(missingval(A)) ? missing : missingval(A))
 )
     others = otherdims(to, A)
     # Allow not specifying all dimensions
@@ -202,7 +203,7 @@ function _extend_to(A::AbstractRaster, to::DimTuple;
             b1[1] >= b2[1] || throw(ArgumentError("Lower bound of $(basetypeof(d1)) lookup of `$(b2[1])` are not larger than the original `$(b1[1])`"))
             b1[2] <= b2[2] || throw(ArgumentError("Upper bound of $(basetypeof(d2)) lookup of `$(b2[2])` is not larger than the original `$(b1[2])`"))
         elseif lookup(d1) isa Categorical
-            map(lookup(d1)) do x 
+            map(lookup(d1)) do x
                 x in d2 || throw(ArgumentError("category $x not in new dimension"))
             end
         end

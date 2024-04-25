@@ -1,7 +1,7 @@
 using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
 import GeoInterface
 using Rasters.Lookups, Rasters.Dimensions 
-using Rasters: bounds
+using Rasters: bounds, trim
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
@@ -54,7 +54,6 @@ gaMi = replace_missing(ga)
     @test all(map(values(replace_missing(st, NaN32)), (a=[NaN32 7.0f0; 2.0f0 NaN32], b=[1.0 0.4; 2.0 NaN])) do x, y
         all(x .=== y)
     end)
-    ga
     dNaN = replace_missing(ga, NaN32; filename="test.tif")
     @test all(isequal.(dNaN, [NaN32 7.0f0; 2.0f0 NaN32]))
     rm("test.tif")
@@ -255,7 +254,7 @@ end
     @test all(classify(ga1, 1=>99, 2=>88, 3=>77; others=0) .=== [missing 99; 88 77])
     @test all(classify(ga1, 1=>99, 2=>88; others=0) .=== [missing 99; 88 0])
     A2 = [1.0 2.5; 3.0 4.0]
-    ga2 = Raster(A2, (X, Y); missingval=missing)
+    ga2 = Raster(A2 , (X, Y))
     @test classify(ga2, (2, 3)=>:x, >(3)=>:y) == [1.0 :x; 3.0 :y]
     @test classify(ga2, (>=(1), <(2))=>:x, >=(3)=>:y) == [:x 2.5; :y :y]
     classify!(ga2, (1, 2.5)=>0.0, >=(3)=>-1.0; lower=(>), upper=(<=))
@@ -267,12 +266,12 @@ end
 end
 
 @testset "points" begin    dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
-    rast = Raster([1 2; 3 4], dimz; name=:test, missingval=missing)
+    rast = Raster([1 2; 3 4], dimz; name=:test)
     rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=5)
-    rast_m = Raster([1 2; 3 missing], dimz; name=:test, missingval=missing)
+    rast_m = Raster([1 2; 3 missing], dimz; name=:test)
     table = (geometry=[missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)], foo=zeros(4))
     st = RasterStack(rast, rast2)
-    ga = Raster(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)); missingval=missing)
+    ga = Raster(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)))
     @test all(collect(points(ga; order=(Y, X))) .=== [missing (0.2, 9.0); (0.1, 10.0) missing])
     @test all(collect(points(ga; order=(X, Y))) .=== [missing (9.0, 0.2); (10.0, 0.1) missing])
     @test all(points(ga; order=(X, Y), ignore_missing=true) .===
@@ -287,7 +286,7 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
 
 @testset "extract" begin
     dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
-    rast = Raster([1 2; 3 4], dimz; name=:test, missingval=missing)
+    rast = Raster(Union{Int,Missing}[1 2; 3 4], dimz; name=:test, missingval=missing)
     rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=5)
     rast_m = Raster([1 2; 3 missing], dimz; name=:test, missingval=missing)
     table = (geometry=[missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)], foo=zeros(4))

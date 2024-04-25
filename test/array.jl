@@ -119,10 +119,12 @@ end
     @test length(collect(skipmissing(nraster))) == 3 # Keeps nothing (integer)
 
     # Confirm that missingvals are removed by value, even when types don't match
-    r = Raster(ones(Int16, 8, 8), (X,Y); missingval = Int16(-9999))
+    r = Raster(ones(Int16, 8, 8), (X,Y); missingval=Int16(-9999))
+    @test missingval(r) == Int16(-9999)
     r[1:4, 1:4] .= -9999
-    r = float.(r)
-    @test !(missingval(r) in skipmissing(r))
+    rf = Float64.(r)
+    @test missingval(rf) === -9999.0
+    @test !(missingval(rf) in skipmissing(rf))
     @test length(collect(skipmissing(r))) == 48
 end
 
@@ -140,12 +142,16 @@ end
     @test name(vra) == :from_vector
 end
 
-@testset "with properties" begin
+@testset "keywords" begin
+    md = Dict("test" => 1)
     rast = Raster(rand(X(10:0.1:20), Y(9:0.1:19)); 
-        name=:test, missingval=9999.9, crs=EPSG(4326), mappedcrs=EPSG(3857), refdims=(Ti(DateTime(2000,1,1)),)
+        name=:test, missingval=9999.9, metadata=md,
+        refdims=(Ti(DateTime(2000,1,1)),),
+        crs=EPSG(4326), mappedcrs=EPSG(3857), 
     )
     @test name(rast) == :test
     @test missingval(rast) == 9999.9
+    @test Rasters.metadata(rast) == md
     @test crs(rast) == EPSG(4326)
     @test mappedcrs(rast) == EPSG(3857)
     @test refdims(rast) == (Ti(DateTime(2000,1,1)),)

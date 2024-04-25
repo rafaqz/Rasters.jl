@@ -35,7 +35,6 @@ end
 # Only test SMAP locally for now, also RasterDataSources because CI dowloads keep breaking
 if !haskey(ENV, "CI")
     @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
-    @time @safetestset "smap" begin include("sources/smap.jl") end
 end
 
 if !Sys.iswindows()

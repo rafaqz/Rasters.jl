@@ -4,15 +4,10 @@ const UNNAMED_NCD_FILE_KEY = "unnamed"
 
 const NCDAllowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
 
-"""
-    Base.write(filename::AbstractString, ::NCDsource, A::AbstractRaster)
-
-Write an NCDarray to a NetCDF file using NCDatasets.jl
-
-Returns `filename`.
-"""
-function Base.write(filename::AbstractString, ::NCDsource, A::AbstractRaster; 
-    append=false, force=false, verbose=true, kw...
+function Base.write(filename::AbstractString, ::NCDsource, A::AbstractRaster;
+    append=false,
+    force=false,
+    kw...
 )
     mode = if append
         isfile(filename) ? "a" : "c"
@@ -29,43 +24,25 @@ function Base.write(filename::AbstractString, ::NCDsource, A::AbstractRaster;
     end
     return filename
 end
-
-# Stack ########################################################################
-
-"""
-    Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStack; kw...)
-
-Write an NCDstack to a single netcdf file, using NCDatasets.jl.
-
-Currently `Metadata` is not handled for dimensions, and `Metadata` from other
-[`AbstractRaster`](@ref) @types is ignored.
-
-# Keywords
-
-Keywords are passed to `NCDatasets.defVar`.
-
-- `append`: If true, the variable of the current Raster will be appended to
-    `filename`. Note that the variable of the current Raster should be not exist
-    before. If not, you need to set `append = false`. Rasters.jl can not
-    overwrite a previous existing variable.
-- `fillvalue`: A value filled in the NetCDF file to indicate missing data. It
-    will be stored in the `_FillValue` attribute.
-- `chunksizes`: Vector integers setting the chunk size. The total size of a
-    chunk must be less than 4 GiB.
-- `deflatelevel`: Compression level: 0 (default) means no compression and 9
-    means maximum compression. Each chunk will be compressed individually.
-- `shuffle`: If true, the shuffle filter is activated which can improve the
-    compression ratio.
-- `checksum`: The checksum method can be `:fletcher32` or `:nochecksum`
-    (checksumming is disabled, which is the default)
- - `typename` (string): The name of the NetCDF type required for vlen arrays
-    (https://web.archive.org/save/https://www.unidata.ucar.edu/software/netcdf/netcdf-4/newdocs/netcdf-c/nc_005fdef_005fvlen.html)
-"""
-function Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStack; append = false, kw...)
-    mode  = !isfile(filename) || !append ? "c" : "a";
+function Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStack;
+    append=false,
+    force=false,
+    missingval=nokw,
+    kw...
+)
+    mode = if append
+        isfile(filename) ? "a" : "c"
+    else
+        RA.check_can_write(filename, force)
+        "c"
+    end
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
     try
-        map(key -> _writevar!(ds, s[key]), keys(s); kw...)
+        if missingval isa NamedTuple
+            map(k -> _writevar!(ds, s[k]; missinval=missingval[k], kw...), keys(s))
+        else
+            map(k -> _writevar!(ds, s[k]; missingval, kw...), keys(s))
+        end
     finally
         close(ds)
     end
@@ -86,13 +63,24 @@ function RA._open(f, ::NCDsource, filename::AbstractString; write=false, kw...)
 end
 
 # Add a var array to a dataset before writing it.
-function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N}; kw...) where {T,N}
+function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
+    verbose=true,
+    missingval=nokw,
+    chunks=nokw,
+    chunksizes=RA._chunks_to_tuple(A, dims(A), chunks),
+    kw...
+) where {T,N}
+    missingval = missingval isa NoKW ? Rasters.missingval(A) : missingval
     _def_dim_var!(ds, A)
     attrib = RA._attribdict(metadata(A))
     # Set _FillValue
     eltyp = Missings.nonmissingtype(T)
-    eltyp <: NCDAllowedType || throw(ArgumentError("$eltyp cannot be written to NetCDF, convert to one of $(Base.uniontypes(NCDAllowedType))"))
-    if ismissing(missingval(A))
+    eltyp <: NCDAllowedType || throw(ArgumentError("""
+       Element type $eltyp cannot be written to NetCDF. Convert it to one of $(Base.uniontypes(NCDAllowedType)),
+       usually by broadcasting the desired type constructor over the `Raster`, e.g. `newrast = Float32.(rast)`"))
+       """
+    ))
+    if ismissing(missingval)
         fillval = if haskey(attrib, "_FillValue") && attrib["_FillValue"] isa eltyp
             attrib["_FillValue"]
         else
@@ -100,10 +88,10 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N}; kw...) where {T
         end
         attrib["_FillValue"] = fillval
         A = replace_missing(A, fillval)
-    elseif missingval(A) isa T
-        attrib["_FillValue"] = missingval(A)
+    elseif Rasters.missingval(A) isa T
+        attrib["_FillValue"] = missingval
     else
-        missingval(A) isa Nothing || @warn "`missingval` $(missingval(A)) is not the same type as your data $T."
+        verbose && !(missingval isa Nothing) && @warn "`missingval` $(missingval) is not the same type as your data $T."
     end
 
     key = if string(DD.name(A)) == ""
@@ -113,7 +101,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N}; kw...) where {T
     end
 
     dimnames = lowercase.(string.(map(RA.name, dims(A))))
-    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, kw...) |> RA.CFDiskArray
+    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, chunksizes, kw...) |> RA.CFDiskArray
 
     # Write with a DiskArays.jl broadcast
     var .= A
@@ -123,9 +111,9 @@ end
 
 _def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
-    dimkey = lowercase(string(DD.name(dim)))
-    haskey(ds.dim, dimkey) && return nothing
-    NCD.defDim(ds, dimkey, length(dim))
+    dimname = lowercase(string(DD.name(dim)))
+    haskey(ds.dim, dimname) && return nothing
+    NCD.defDim(ds, dimname, length(dim))
     lookup(dim) isa NoLookup && return nothing
 
     # Shift index before conversion to Mapped
@@ -139,11 +127,11 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
     # Bounds variables
     if sampling(dim) isa Intervals
         bounds = Dimensions.dim2boundsmatrix(dim)
-        boundskey = get(metadata(dim), :bounds, string(dimkey, "_bnds"))
+        boundskey = get(metadata(dim), :bounds, string(dimname, "_bnds"))
         push!(attrib, "bounds" => boundskey)
-        NCD.defVar(ds, boundskey, bounds, ("bnds", dimkey))
+        NCD.defVar(ds, boundskey, bounds, ("bnds", dimname))
     end
-    NCD.defVar(ds, dimkey, Vector(index(dim)), (dimkey,); attrib=attrib)
+    NCD.defVar(ds, dimname, Vector(index(dim)), (dimname,); attrib=attrib)
     return nothing
 end
 

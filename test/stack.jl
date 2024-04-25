@@ -11,122 +11,122 @@ mval = -9999.0
 meta = NoMetadata()
 
 # Formatting only occurs in shorthand constructors
-ga1 = Raster(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=mval)
-ga2 = Raster(data2, dims2)
+raster1 = Raster(data1, dims1; refdims=refdimz, name=nme, metadata=meta, missingval=mval)
+raster2 = Raster(data2, dims2)
 
-@testset "stack constructors" begin
+st = RasterStack((raster1, raster2); name=(:r1, :r2))
+
+@testset "constructors and keywords" begin
     @test_throws ArgumentError RasterStack("notastack")
+    md = Dict("a" => 1)
     # Maybe too many ways to define a stack...
-    st1 = RasterStack((ga1, ga2); name=(:ga1, :ga2))
-    st2 = RasterStack((ga1, ga2); keys=(:ga1, :ga2))
-    st3 = RasterStack((data1, data2), dims2; keys=[:ga1, :ga2])
-    st4 = RasterStack(st3)
-    st5 = RasterStack(st3, dims2)
-    st6 = RasterStack((ga1=data1, ga2=data2), dims2)
-    st7 = RasterStack((; ga1, ga2))
-    @test st1 == st2 == st3 == st4 == st5 == st6 == st7
+    kw = (; missingval=(r1=mval, r2=mval), refdims=(Ti(),), metadata=md, crs=EPSG(4326), mappedcrs=EPSG(3857), layermetadata=(r1=md, r2=md))
+    st1 = RasterStack((raster1, raster2); name=(:r1, :r2), kw...)
+    st2 = RasterStack((data1, data2), dims2; name=[:r1, :r2], kw...)
+    st3 = RasterStack(st2; kw...)
+    st4 = RasterStack(st2, dims2; kw...)
+    st5 = RasterStack((r1=data1, r2=data2), dims2; kw...)
+    st6 = RasterStack((; r1=raster1, r2=raster2); kw...)
+    stacks = (st1, st2, st3, st4, st5, st6)
+    @test st1 == st2 == st3 == st4 == st5 == st6
+    @test all(==((:r1, :r2)), map(name, stacks))
+    @test all(==(mval), map(missingval, stacks))
+    @test all(==((Ti(),)), map(refdims, stacks))
+    @test all(==(md), map(metadata, stacks))
+    @test all(==(EPSG(4326)), map(crs, stacks))
+    @test all(==(EPSG(3857)), map(mappedcrs, stacks))
+    @test all(==((r1=md, r2=md)), map(DimensionalData.layermetadata, stacks))
 
     # The dimension differences are lost because the table
     # is tidy - every column is the same length
     table_st = RasterStack(DimTable(st3), dims2)
-    @test dims(table_st[:ga1]) isa Tuple{<:X,<:Y,<:Ti}
+    @test dims(table_st.r1) isa Tuple{<:X,<:Y,<:Ti}
 end
-
-st = RasterStack((ga1, ga2); name=(:ga1, :ga2))
 
 @testset "stack layers" begin
     @test length(layers(st)) == 2
-    @test first(layers(st)) == ga1
-    @test last(layers(st)) == ga2
+    @test first(layers(st)) == raster1
+    @test last(layers(st)) == raster2
     @test DimensionalData.layers(st) isa NamedTuple
-    @test st.ga1 == ga1
-    @test st[:ga2] == ga2
-    @test parent(st[:ga1]) == data1
-    @test parent(st[:ga1]) isa Array{Float64,2}
-    @test keys(st) == (:ga1, :ga2)
-    @test haskey(st, :ga1)
-    @test names(st) == (:ga1, :ga2)
-    @test collect(values(st)) == [ga1, ga2]
+    @test st.r1 == raster1
+    @test st[:r2] == raster2
+    @test parent(st[:r1]) == data1
+    @test parent(st[:r1]) isa Array{Float64,2}
+    @test keys(st) == (:r1, :r2)
+    @test haskey(st, :r1)
+    @test names(st) == (:r1, :r2)
+    @test collect(values(st)) == [raster1, raster2]
 end
 
 @testset "st fields " begin
-    @test DimensionalData.layerdims(st, :ga1) == DimensionalData.format(dims1, data1)
+    @test DimensionalData.layerdims(st, :r1) == DimensionalData.format(dims1, data1)
     @test metadata(st) == NoMetadata()
-    @test metadata(st, :ga1) == NoMetadata()
+    @test metadata(st, :r1) == NoMetadata()
 end
 
 @testset "indexing" begin
     # Indexing the st is the same as indexing its child array
-    a = st[:ga1][X(2:4), Y(5:6)]
-    @test a == st[:ga1, X(2:4), Y(5:6)]
-
-    @inferred st[:ga1][X=2:4, Y=5:6]
-    # FIXME: This isn't inferred, the constants don't propagate like they
-    # do in the above call. Probably due to the anonymous wrapper function.
-    if VERSION < v"1.9.0-"
-        @test_broken @inferred st[:ga1, X(2:4), Y(5:6)] isa Raster
-    else
-        @test @inferred st[:ga1, X(2:4), Y(5:6)] isa Raster
-    end
+    a = st[:r1][X(2:4), Y(5:6)]
+    @inferred st[:r1][X=2:4, Y=5:6]
 
     # Getindex for a whole st of new Rasters
     a = st[X=2:4, Y=5:6]
     @test a isa RasterStack
-    @test a[:ga1] isa Raster
-    @test parent(a[:ga1]) isa Array
-    @test a[:ga1] == data1[2:4, 5:6]
-    @test a[:ga2] == data2[2:4, 5:6, 1:1]
+    @test a[:r1] isa Raster
+    @test parent(a[:r1]) isa Array
+    @test a[:r1] == data1[2:4, 5:6]
+    @test a[:r2] == data2[2:4, 5:6, 1:1]
 
     @testset "select new arrays for the whole st" begin
         s = st[Y=Between(-10, 10.0), Ti=At(DateTime(2019))]
         @test s isa RasterStack
-        @test s.ga1 isa Raster
-        @test parent(s[:ga1]) isa Array
-        @test s[:ga1] == data1[:, 5:7]
-        @test s[:ga2] == data2[:, 5:7, 1]
-        @test dims(s[:ga2]) == (X(Sampled(10.0:10.0:100.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
-                                Y(Sampled(-10.0:10.0:10.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())))
-        @test refdims(s[:ga2]) == 
+        @test s.r1 isa Raster
+        @test parent(s[:r1]) isa Array
+        @test s[:r1] == data1[:, 5:7]
+        @test s[:r2] == data2[:, 5:7, 1]
+        @test dims(s[:r2]) == (X(Sampled(10.0:10.0:100.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
+                               Y(Sampled(-10.0:10.0:10.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())))
+        @test refdims(s[:r2]) == 
             (Ti(Sampled([DateTime(2019)], ForwardOrdered(), Irregular((DateTime(2019), DateTime(2019))), Points(), NoMetadata())),)
-        @test ismissing(missingval(s, :ga2)) && ismissing(missingval(s[:ga2]))
+        @test isnothing(missingval(s, :r2)) && isnothing(missingval(s[:r2]))
     end
 
     @testset "select views of arrays for the whole st" begin
         sv = view(st, Y=Between(-4.0, 27.0), Ti=At(DateTime(2019)))
         @test sv isa RasterStack
-        @test sv.ga1 isa Raster
-        @test parent(sv.ga1) isa SubArray
-        @test sv[:ga1] == data1[:, 6:8]
-        @test sv[:ga2] == data2[:, 6:8, 1]
-        @test dims(sv.ga2) == (X(Sampled(10.0:10:100.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
+        @test sv.r1 isa Raster
+        @test parent(sv.r1) isa SubArray
+        @test sv[:r1] == data1[:, 6:8]
+        @test sv[:r2] == data2[:, 6:8, 1]
+        @test dims(sv.r2) == (X(Sampled(10.0:10:100.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
                                Y(Sampled(0.0:10:20.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())))
-        @test refdims(sv[:ga2])[1] == 
+        @test refdims(sv[:r2])[1] == 
             Ti(Sampled(view([DateTime(2019)], 1:1), ForwardOrdered(), Irregular((DateTime(2019), DateTime(2019))), Points(), NoMetadata()))
         # Stack of view-based Rasters
         v = view(st, X(2:4), Y(5:6))
         # @inferred view(st, X(2:4), Y(5:6))
         @test v isa RasterStack
-        @test v[:ga1] isa Raster
-        @test parent(v[:ga1]) isa SubArray
-        @test v[:ga1] == view(data1, 2:4, 5:6)
-        @test v[:ga2] == view(data2, 2:4, 5:6, 1:1)
+        @test v[:r1] isa Raster
+        @test parent(v[:r1]) isa SubArray
+        @test v[:r1] == view(data1, 2:4, 5:6)
+        @test v[:r2] == view(data2, 2:4, 5:6, 1:1)
     end
-
 end
 
 @testset "subset st with specific key(s)" begin
-    s1 = RasterStack(st; keys=(:ga2,))
-    @test keys(s1) == (:ga2,)
+    s1 = RasterStack(st; name=(:r2,))
+    s1 = RasterStack(st; name=(:r2,))
+    @test keys(s1) == (:r2,)
     @test length(values(s1)) == 1
-    s2 = RasterStack(st; keys=(:ga1, :ga2))
-    @test keys(s2) == (:ga1, :ga2)
+    s2 = RasterStack(st; name=(:r1, :r2))
+    @test keys(s2) == (:r1, :r2)
     @test length(values(s2)) == 2
 end
 
 @testset "concatenate stacks" begin
     dims1b = X(110:10:200), Y(-50:10:50)
     dims2b = (dims1b..., Ti([DateTime(2019)]))
-    stack_a = RasterStack((l1=ga1, l2=ga2))
+    stack_a = RasterStack((l1=raster1, l2=raster2))
     stack_b = RasterStack((l1=Raster(data1 .+ 10, dims1b), l2=Raster(data2 .+ 20, dims2b)))
     catstack = cat(stack_a, stack_b; dims=X)
     @test size(catstack.l1) == (20, 11)
@@ -149,8 +149,8 @@ end
 
 @testset "copy" begin
     cp = copy(st)
-    @test all(st[:ga1] .=== cp[:ga1])
-    @test st[:ga1] !== cp[:ga1]
+    @test all(st[:r1] .=== cp[:r1])
+    @test st[:r1] !== cp[:r1]
 end
 
 @testset "show" begin

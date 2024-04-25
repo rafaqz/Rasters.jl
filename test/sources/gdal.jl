@@ -10,7 +10,7 @@ gdalpath = maybedownload(url)
 @testset "Raster" begin
     @test_throws ArgumentError Raster("notafile.tif")
 
-    @time gdalarray = Raster(gdalpath; name=:test);
+    @time gdalarray = Raster(gdalpath; name=:test)
     @time lazyarray = Raster(gdalpath; lazy=true);
     @time eagerarray = Raster(gdalpath; lazy=false);
 
@@ -54,7 +54,6 @@ gdalpath = maybedownload(url)
         @time read!(gdalpath, A3);
         @test A == A2 == A3
     end
-
 
     @testset "custom filename" begin
         gdal_custom = replace(gdalpath, "tif" => "foo")
@@ -122,6 +121,29 @@ gdalpath = maybedownload(url)
         @test crs(gdalarray[Y(1)]) isa WellKnownText
         @test mappedcrs(gdalarray) === nothing
         @test mappedcrs(gdalarray[Y(1)]) === nothing
+    end
+
+    @testset "custom keywords" begin
+        customgdalarray = Raster(gdalpath; 
+            name=:test, crs=EPSG(1000), mappedcrs=EPSG(4326), refdims=(Ti(),),
+            write=true, lazy=true, dropband=false, replace_missing=true,
+        )
+        @test name(customgdalarray) == :test
+        @test refdims(customgdalarray) == (Ti(),)
+        @test label(customgdalarray) == "test"
+        @test crs(customgdalarray) == EPSG(1000)
+        @test crs(dims(customgdalarray, Y)) == EPSG(1000)
+        @test crs(dims(customgdalarray, X)) == EPSG(1000)
+        @test mappedcrs(customgdalarray) == EPSG(4326)
+        @test mappedcrs(dims(customgdalarray, Y)) == EPSG(4326)
+        @test mappedcrs(dims(customgdalarray, X)) == EPSG(4326)
+        @test parent(customgdalarray) isa FileArray
+        @test eltype(customgdalarray) == UInt8
+        # Needs to be separate as it overrides crs/mappedcrs 
+        dimsgdalarray = Raster(gdalpath; 
+            dims=(Z(), X(), Y()),
+        )
+        @test dims(dimsgdalarray) isa Tuple{<:Z,X,Y}
     end
 
     @testset "indexing" begin
@@ -353,6 +375,17 @@ gdalpath = maybedownload(url)
             end
             filename_gtiff2 = tempname() * ".tif"
             @test_throws ArgumentError write(filename_gtiff2, gdalarray; driver="GTiff", options=Dict("COMPRESS"=>"FOOBAR"))
+        end
+
+        @testset "chunks" begin
+            filename = tempname() * ".tiff"
+            write(filename, gdalarray; chunks=(128, 128, 1))
+            gdalarray2 = Raster(filename; lazy=true)
+            @test DiskArrays.eachchunk(gdalarray2)[1] == (1:128, 1:128)
+            filename = tempname() * ".tiff"
+            @test_warn "X and Y chunks do not match" write(filename, gdalarray; chunks=(128, 256, 1), driver="COG")
+            gdalarray2 = Raster(filename; lazy=true)
+            @test DiskArrays.eachchunk(gdalarray2)[1] == (1:512, 1:512)
         end
 
         @testset "resave current" begin
@@ -664,6 +697,7 @@ end
         @testset "write multiple files" begin
             filename = tempname() * ".tif"
             write(filename, gdalstack)
+            write(filename, gdalstack; force=true)
             base, ext = splitext(filename)
             filename_b = string(base, "_b", ext)
             saved = read(Raster(filename_b))
@@ -682,9 +716,19 @@ end
         @testset "write netcdf" begin
             filename = tempname() * ".nc"
             write(filename, gdalstack);
+            # Test forcing
+            write(filename, gdalstack; force=true);
             saved = RasterStack(filename);
             @test all(read(saved[:a]) .== geoA)
             rm(filename)
+        end
+
+        @testset "chunks" begin
+            filename = tempname() * ".tiff"
+            write(filename, gdalstack; chunks=(128, 128))
+            filenames = write(filename, gdalstack; force=true, chunks=(128, 128))
+            gdalstack2 = RasterStack(filenames; lazy=true)
+            @test DiskArrays.eachchunk(gdalstack2[:b])[1] == (1:128, 1:128)
         end
 
     end

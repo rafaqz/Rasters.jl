@@ -9,7 +9,7 @@ function DD.show_after(io::IO, mime::MIME"text/plain", A::AbstractRaster; kw...)
     end
 end
 
-function DD.show_after(io, mime, stack::AbstractRasterStack; kw...) 
+function DD.show_after(io::IO, mime, stack::AbstractRasterStack; kw...) 
     blockwidth = get(io, :blockwidth, 0)
     print_geo(io, mime, stack; blockwidth)
     DD.print_block_close(io, blockwidth)
@@ -55,14 +55,12 @@ function Base.summary(io::IO, ser::AbstractRasterSeries{T,N}) where {T,N}
     print(io, string(nameof(typeof(ser)), "{$(nameof(T)),$N}"))
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", A::AbstractRasterSeries{T,N}) where {T,N}
-    lines = 0
-    summary(io, A)
-    DD.print_name(io, name(A))
-    lines += Dimensions.print_dims(io, mime, dims(A))
-    !(isempty(dims(A)) || isempty(refdims(A))) && println(io)
-    lines += Dimensions.print_refdims(io, mime, refdims(A))
-    println(io)
-    ds = displaysize(io)
-    ioctx = IOContext(io, :displaysize => (ds[1] - lines, ds[2]))
+function DD.show_after(io::IO, mime, series::AbstractRasterSeries; kw...) 
+    if length(series) > 0
+        blockwidth = get(io, :blockwidth, 0)
+        print_geo(io, mime, first(series); blockwidth)
+        DD.print_block_close(io, blockwidth)
+    end
+    ndims(series) > 0 && println(io)
+    DD.print_array(io, mime, series)
 end

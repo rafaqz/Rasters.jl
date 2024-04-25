@@ -34,13 +34,24 @@ end
 end
 
 @testset "load CHELSA BioClim" begin
-    A = Raster(CHELSA{BioClim}, 1; mappedcrs=EPSG(4326))
+    A = Raster(CHELSA{BioClim}, 1; lazy=true)
     @test Rasters.name(A) == :bio1
-    st = RasterStack(CHELSA{BioClim}, (:bio1, :BIO2))
+    st = RasterStack(CHELSA{BioClim}, (:bio1, :BIO2); lazy=true)
     @test keys(st) == (:bio1, :bio2)
     @test A isa Raster
     @test st isa RasterStack
     @test st[:bio2] isa Raster
+    # Allow forcing keywords
+    st = RasterStack(CHELSA{BioClim}, (1, 2); 
+         lazy=true, 
+         missingval=-Int16(9999), 
+         metadata=Rasters.NoMetadata(), 
+         crs=nothing, 
+         mappedcrs=EPSG(4326),
+    )
+    @test missingval(st) === Int16(-9999)
+    @test missingval(st.bio1) == Int16(-9999)
+    @test metadata(st) == Rasters.NoMetadata()
 end
 
 @testset "load EarthEnv HabitatHeterogeneity" begin
@@ -58,20 +69,20 @@ end
     A[Y(Between(-10, -45)), X(Between(110, 160))]
     @test A isa Raster
     st = RasterStack(EarthEnv{LandCover}, (:evergreen_broadleaf_trees, :deciduous_broadleaf_trees); mappedcrs=EPSG(4326))
-    keys(st) = (:evergreen_broadleaf_trees, :deciduous_broadleaf_trees)
+    @test keys(st) == (:evergreen_broadleaf_trees, :deciduous_broadleaf_trees)
     @test st isa RasterStack
 end
 
 @testset "load ALWB" begin
-    A = Raster(ALWB{Deciles,Day}, :rain_day; date=DateTime(2019, 10, 19))
+    A = Raster(ALWB{Deciles,Day}, :rain_day; date=DateTime(2019, 10, 19), lazy=true)
     @test crs(A) == EPSG(4326)
-    A = Raster(ALWB{Values,Day}, :ss_pct; date=DateTime(2019, 10, 19))
+    A = Raster(ALWB{Values,Day}, :ss_pct; date=DateTime(2019, 10, 19), lazy=true)
     @test crs(A) == EPSG(4326)
-    st = RasterStack(ALWB{Values,Day}, (:s0_pct, :ss_pct); date=DateTime(2019, 10, 19))
+    st = RasterStack(ALWB{Values,Day}, (:s0_pct, :ss_pct); date=DateTime(2019, 10, 19), lazy=true)
     @test crs(st) == EPSG(4326)
     @test crs(st[:s0_pct]) == EPSG(4326)
     dates = DateTime(2019, 10, 19), DateTime(2021, 11, 20)
-    s = RasterSeries(ALWB{Values,Day}, (:s0_pct, :ss_pct); date=dates)
+    s = RasterSeries(ALWB{Values,Day}, (:s0_pct, :ss_pct); date=dates, lazy=true)
     s[1]
     @test A isa Raster
     @test st isa RasterStack
@@ -81,17 +92,17 @@ end
 # Obscure .Z format may not work on windows
 if Sys.islinux()
     @testset "load AWAP" begin
-        A = Raster(AWAP, :rainfall; date=DateTime(2019, 10, 19))
+        A = Raster(AWAP, :rainfall; date=DateTime(2019, 10, 19), lazy=true)
         @test crs(A) == EPSG(4326)
         # ALWB :solar has a broken index - the size is different and the
         # points dont exactly match the other layers.
         # Need to work out how to best resolve this kind of problem so that we can
         # still use the layers in stacks.
         layers = (:rainfall, :vprpress09, :vprpress15, :tmin, :tmax)
-        st = RasterStack(AWAP, layers; date=DateTime(2019, 10, 19), resize=crop)
+        st = RasterStack(AWAP, layers; date=DateTime(2019, 10, 19), resize=crop, lazy=true)
         @test crs(st) == EPSG(4326)
         dates = DateTime(2019, 09, 19), DateTime(2019, 11, 19)
-        s = RasterSeries(AWAP, layers; date=dates, resize=crop)
+        s = RasterSeries(AWAP, layers; date=dates, resize=crop, lazy=true)
         # test date as an Array
         s2 = RasterSeries(AWAP, layers; date=[dates...], resize=crop)
         # s = RasterSeries(AWAP; date=dates, resize=resample, crs=EPSG(4326)) TODO: all the same

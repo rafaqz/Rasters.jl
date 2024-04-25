@@ -1,12 +1,13 @@
 # Source dispatch singletons
 abstract type Source end
 
-abstract type CDMsource <: Source end
-struct NCDsource <: CDMsource end
-struct GRIBsource <: CDMsource end
 struct GRDsource <: Source end
 struct GDALsource <: Source end
-struct SMAPsource <: Source end
+
+abstract type CDMsource <: Source end
+
+struct GRIBsource <: CDMsource end
+struct NCDsource <: CDMsource end
 
 # Deprecations
 const CDMfile = CDMsource
@@ -14,14 +15,12 @@ const NCDfile = NCDsource
 const GRIBfile = GRIBsource
 const GRDfile = GRDsource
 const GDALfile = GDALsource
-const SMAPfile = SMAPsource
 
 const SYMBOL2SOURCE = Dict(
     :gdal => GDALsource(),
     :grd => GRDsource(),
     :netcdf => NCDsource(), 
     :grib => GRIBsource(), 
-    :smap => SMAPsource(),
 )
 
 const SOURCE2SYMBOL = Dict(map(reverse, collect(pairs(SYMBOL2SOURCE))))
@@ -29,23 +28,21 @@ const SOURCE2SYMBOL = Dict(map(reverse, collect(pairs(SYMBOL2SOURCE))))
 # File extensions. GDAL is the catch-all for everything else
 const SOURCE2EXT = Dict(
     GRDsource() => (".grd", ".gri"), 
-    NCDsource() => (".nc",), 
+    NCDsource() => (".nc", ".h5",), 
     GRIBsource() => (".grib",), 
-    SMAPsource() => (".h5",),
 )
 const SOURCE2PACKAGENAME = Dict(
     GDALsource() => "ArchGDAL",
     NCDsource() => "NCDatasets",
     GRIBsource() => "GRIBDatasets",
-    SMAPsource() => "HDF5",
 )
 
 const EXT2SOURCE = Dict(
     ".grd" => GRDsource(), 
     ".gri" => GRDsource(), 
     ".nc" => NCDsource(), 
+    ".h5" => NCDsource(),
     ".grib" => GRIBsource(), 
-    ".h5" => SMAPsource(),
 )
 
 # exception to be raised when backend extension is not satisfied
@@ -61,7 +58,7 @@ end
 # Get the source backend for a file extension, falling back to GDALsource
 _sourcetrait(filename::AbstractString, s::Source) = s
 _sourcetrait(filename::AbstractString, s) = _sourcetrait(s)
-_sourcetrait(filename::AbstractString, ::Nothing) = _sourcetrait(filename)
+_sourcetrait(filename::AbstractString, ::Union{Nothing,NoKW}) = _sourcetrait(filename)
 _sourcetrait(filename::AbstractString) = get(EXT2SOURCE, splitext(filename)[2], GDALsource())
 _sourcetrait(filenames::NamedTuple) = _sourcetrait(first(filenames))
 _sourcetrait(filename, ext) = get(EXT2SOURCE, ext, GDALsource())

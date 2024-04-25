@@ -89,6 +89,8 @@ const EXPERIMENTAL = """
 const DEFAULT_POINT_ORDER = (X(), Y())
 const DEFAULT_TABLE_DIM_KEYS = (:X, :Y)
 
+include("nokw.jl")
+include("methods/shared_docstrings.jl")
 include("lookup.jl")
 include("dimensions.jl")
 include("sources/sources.jl")
@@ -123,7 +125,6 @@ include("methods/burning/polygon.jl")
 include("methods/burning/extents.jl")
 include("methods/burning/utils.jl")
 
-include("methods/shared_docstrings.jl")
 include("methods/mask.jl")
 include("methods/rasterize.jl")
 include("methods/aggregate.jl")

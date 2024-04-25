@@ -54,7 +54,7 @@ The underlying `crs` will be detected by GDAL.
 If `mappedcrs` is not supplied (ie. `mappedcrs=nothing`), the base index will be
 shown on plots, and selectors will need to use whatever format it is in.
 """
-struct Projected{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC,MC,D} <: AbstractProjected{T,O,Sp,Sa}
+struct Projected{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC<:Union{GeoFormat,Nothing},MC<:Union{GeoFormat,Nothing},D} <: AbstractProjected{T,O,Sp,Sa}
     data::A
     order::O
     span::Sp
@@ -66,14 +66,22 @@ struct Projected{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC,MC,
 end
 function Projected(data=AutoValues();
     order=AutoOrder(), span=AutoSpan(), sampling=AutoSampling(),
-    metadata=NoMetadata(), crs, mappedcrs=nothing, dim=AutoDim()
+    metadata=NoMetadata(),
+    crs::Union{GeoFormat,Nothing},
+    mappedcrs::Union{GeoFormat,Nothing}=nothing,
+    dim=AutoDim()
 )
     Projected(data, order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 function Projected(l::Sampled;
     order=order(l), span=span(l), sampling=sampling(l),
-    metadata=metadata(l), crs, mappedcrs=nothing, dim=AutoDim()
+    metadata=metadata(l),
+    crs::Union{GeoFormat,Nothing,NoKW},
+    mappedcrs::Union{GeoFormat,NoKW,Nothing}=nokw,
+    dim=AutoDim()
 )
+    crs = isnokw(crs) ? nothing : crs
+    mappedcrs = isnokw(mappedcrs) ? nothing : mappedcrs
     Projected(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 
@@ -110,7 +118,7 @@ Fields and behaviours are identical to [`Sampled`]($DDsampleddocs) with the addi
 The mapped dimension index will be used as for [`Sampled`]($DDsampleddocs),
 but to save in another format the underlying `crs` may be used to convert it.
 """
-struct Mapped{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC,MC,D} <: AbstractProjected{T,O,Sp,Sa}
+struct Mapped{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC<:Union{GeoFormat,Nothing},MC<:Union{GeoFormat,Nothing},D<:Union{AutoDim,Dimension}} <: AbstractProjected{T,O,Sp,Sa}
     data::A
     order::O
     span::Sp
@@ -122,13 +130,21 @@ struct Mapped{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC,MC,D} 
 end
 function Mapped(data=AutoValues();
     order=AutoOrder(), span=AutoSpan(), sampling=AutoSampling(),
-    metadata=NoMetadata(), crs=nothing, mappedcrs, dim=AutoDim()
+    metadata=NoMetadata(),
+    crs::Union{GeoFormat,Nothing,NoKW}=nokw,
+    mappedcrs::Union{GeoFormat,Nothing,NoKW},
+    dim=AutoDim()
 )
+    crs = crs isa NoKW ? nothing : crs
+    mappedcrs = mappedcrs isa NoKW ? nothing : mappedcrs
     Mapped(data, order, span, sampling, metadata, crs, mappedcrs, dim)
 end
 function Mapped(l::Sampled;
     order=order(l), span=span(l), sampling=sampling(l),
-    metadata=metadata(l), crs=nothing, mappedcrs, dim=AutoDim()
+    metadata=metadata(l),
+    crs::Union{GeoFormat,Nothing}=nothng,
+    mappedcrs::Union{GeoFormat,Nothing},
+    dim=AutoDim()
 )
     Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
 end

@@ -303,7 +303,7 @@ function alloc_disag(method::Tuple, A::AbstractRaster, scale;
     # Dim aggregation determines the array size
     sze = map(length, dims_)
     T = ag_eltype(method, A)
-    mv = convert(T, missingval(A))
+    mv = missingval(A) isa Nothing ? nothing : convert(T, missingval(A))
     return create(filename, T, dims_; name=name(A), suffix, missingval=mv)
 end
 
