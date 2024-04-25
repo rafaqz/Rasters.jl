@@ -29,7 +29,7 @@ function reproject(target::GeoFormat, l::AbstractProjected)
     source = crs(l)
     newdata = reproject(source, target, l.dim, parent(l))
     newlookup = rebuild(l; data=newdata, crs=target)
-    if checkregular(newdata)
+    if _checkregular(newdata)
         return set(newlookup, Regular(stepof(newdata)))
     else
         newbounds = reproject(crs(l), target, l.dim, bounds(l))

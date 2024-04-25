@@ -262,3 +262,15 @@ end
     _chunks_to_tuple(template, dimorder, DD.kw2dims(chunks))
 @inline _chunks_to_tuple(template, dimorder, chunks::Nothing) = nothing
 @inline _chunks_to_tuple(template, dims, chunks::NoKW) = nothing
+
+
+_checkregular(A::AbstractRange) = true
+function _checkregular(A::AbstractArray)
+    step = stepof(A)
+    for i in eachindex(A)[2:end]
+        if !(A[i] - A[i-1] ≈ step)
+            return false 
+        end
+    end
+    return true
+end
