@@ -27,7 +27,7 @@ end
 slice(ser::AbstractRasterSeries, dims) = cat(map(x -> slice(x, dims), ser)...; dims=dims)
 
 @noinline _errordimsnotfound(targets, dims) =
-    throw(ArgumentError("Dimensions $(map(DD.dim2key, targets)) were not found in $(map(DD.dim2key, dims))"))
+    throw(ArgumentError("Dimensions $(map(name, targets)) were not found in $(map(name, dims))"))
 
 """
     combine(A::Union{AbstractRaster,AbstractRasterStack,AbstracRasterSeries}, [dims]) => Raster

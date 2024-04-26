@@ -162,7 +162,7 @@ function Rasterizer(data::T; fill, geomcolumn=nothing, kw...) where T
             Tables.getcolumn(cols, geomcolname)
         else
             # Its a point table
-            pointcolnames = isnothing(geomcolumn) ? map(DD.dim2key, _auto_dim_columns(data, DEFAULT_POINT_ORDER)) : geomcolumn
+            pointcolnames = isnothing(geomcolumn) ? map(name, _auto_dim_columns(data, DEFAULT_POINT_ORDER)) : geomcolumn
             pointcols = map(k -> Tables.getcolumn(cols, k), pointcolnames)
             zip(pointcols...)
         end
@@ -468,7 +468,7 @@ create_rasterize_dest(f, r::RasterCreator) = create_rasterize_dest(f, r.eltype, 
 # function _create_rasterize_dest(f, dims; fill, name=nothing, init=nothing, kw...)
     # _create_rasterize_dest(f, fill, init, name, dims; fill, kw...)
 # end
-function create_rasterize_dest(f, ::NamedTuple{K}, r::RasterCreator) where K
+function create_rasterize_dest(f::Base.Callable, ::NamedTuple{K}, r::RasterCreator) where K
     layers = map(NamedTuple{K}(K), r.missingval, r.eltype) do name, missingval, eltype
         alloc_rasterize(r; eltype, name, missingval, suffix=name) do a
             # We should run `f` here, but it doesn't work yet.

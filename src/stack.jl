@@ -26,7 +26,7 @@ subset without loading the whole array.
 `getindex` on an `AbstractRasterStack` with a key returns another stack with
 `getindex` applied to all the arrays in the stack.
 """
-abstract type AbstractRasterStack{K,N,T,L} <: AbstractDimStack{K,N,T,L} end
+abstract type AbstractRasterStack{K,T,N,L} <: AbstractDimStack{K,T,N,L} end
 
 missingval(stack::AbstractRasterStack) = getfield(stack, :missingval)
 missingval(s::AbstractRasterStack, name::Symbol) = _singlemissingval(missingval(s), name)
@@ -446,7 +446,7 @@ function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
 end
 
 # Open a single file stack
-function Base.open(f::Function, st::AbstractRasterStack{<:FileStack{X,K,T}}; kw...) where {X,K,T}
+function Base.open(f::Function, st::AbstractRasterStack{K,T,<:Any,<:FileStack{X}}; kw...) where {X,K,T}
     ost = OpenStack{X,K,T}(parent(st))
     # TODO is this needed?
     layers = map(K) do k
@@ -457,7 +457,7 @@ function Base.open(f::Function, st::AbstractRasterStack{<:FileStack{X,K,T}}; kw.
     return out
 end
 # Open a multi-file stack or just apply f to a memory backed stack
-function Base.open(f::Function, st::AbstractRasterStack{<:NamedTuple}; kw...)
+function Base.open(f::Function, st::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}; kw...)
     isdisk(st) ? _open_layers(f, st) : f(st)
 end
 
@@ -498,9 +498,9 @@ function _layer_stack(filename;
         dims = _sort_by_layerdims(isnokw(dims) ? _dims(ds, dimdict) : dims, layerdims)
         layermetadata = isnokw(layermetadata) ? _layermetadata(ds; layers) : layermetadata
         missingval = isnokw(missingval) ? Rasters.missingval(ds) : missingval
-        name = Tuple(map(Symbol, layers.keys))
+        name = Tuple(map(Symbol, layers.names))
         data = if lazy
-            FileStack{typeof(source)}(ds, filename; name, vars=Tuple(layers.vars))
+            FileStack{typeof(source)}(ds, filename; name, group, vars=Tuple(layers.vars))
         else
             arrays = map(layers.vars) do v
                 A = Array(v)
@@ -509,7 +509,7 @@ function _layer_stack(filename;
             end
             NamedTuple{name}(arrays)
         end
-        data, (; dims, refdims, layerdims=NamedTuple{Na}(layerdims), metadata, layermetadata=NamedTuple{Na}(layermetadata), missingval)
+        data, (; dims, refdims, layerdims=NamedTuple{name}(layerdims), metadata, layermetadata=NamedTuple{name}(layermetadata), missingval)
     end
     return RasterStack(data; field_kw..., kw...)
 end
@@ -559,7 +559,7 @@ end
 
 
 function _layerkeysfromdim(A, dim)
-    hasdim(A, dim) || throw(ArgumentError("`layersrom` dim `$(dim2key(dim))` not found in `$(map(basetypeof, dims(A)))`"))
+    hasdim(A, dim) || throw(ArgumentError("`layersrom` dim `$(name(dim))` not found in `$(map(basetypeof, dims(A)))`"))
     vals = parent(lookup(A, dim))
     l = length(vals)
     if l > MAX_STACK_SIZE
@@ -574,7 +574,7 @@ function _layerkeysfromdim(A, dim)
     end
     map(vals) do x
         if x isa Number
-            Symbol(string(DD.dim2key(dim), "_", x))
+            Symbol(string(DD.name(dim), "_", x))
         else
             Symbol(x)
         end

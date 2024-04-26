@@ -106,12 +106,12 @@ function FileStack{source}(
     name::NTuple{N,Symbol}, 
     vars
 ) where {source<:CDMsource,N}
-    T = Tuple{map(var -> Union{Missing,eltype(var)}, vars)...}
+    T = NamedTuple{name,Tuple{map(var -> Union{Missing,eltype(var)}, vars)...}}
     layersizes = map(size, vars)
     eachchunk = map(_get_eachchunk, vars)
     haschunks = map(_get_haschunks, vars)
     group = isnokw(group) ? nothing : group
-    return FileStack{source,name,T}(filename, layersizes, eachchunk, haschunks, write)
+    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, write)
 end
 
 function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) where source<:CDMsource
@@ -122,7 +122,7 @@ end
 
 function _open(f, ::CDMsource, ds::AbstractDataset; name=nokw, group=nothing, kw...)
     g = _getgroup(ds, group)
-    x = isnokw(name) ? g : CFDiskArray(g[_firstname(ds, name)])
+    x = isnokw(name) ? g : CFDiskArray(g[_firstname(g, name)])
     cleanreturn(f(x))
 end
 _open(f, ::CDMsource, var::CFDiskArray; kw...) = cleanreturn(f(var))
@@ -301,7 +301,7 @@ function _cdmdimtype(attrib, dimname)
     if haskey(CDM_DIM_MAP, dimname)
         return CDM_DIM_MAP[dimname]
     end
-    return DD.basetypeof(DD.key2dim(Symbol(dimname)))
+    return DD.basetypeof(DD.name2dim(Symbol(dimname)))
 end
 
 # _cdmlookup
