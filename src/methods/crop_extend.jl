@@ -267,7 +267,7 @@ function _subsetbounds(fs, layers)
         end
         return (acc..., rebuild(d, bounds))
     end
-    return Extents.Extent{dim2key(bounds)}(map(val, bounds))
+    return Extents.Extent{name(bounds)}(map(val, bounds))
 end
 
 # Choose bounds from either missing dimension

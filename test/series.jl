@@ -22,7 +22,7 @@ ser = RasterSeries([stack1, stack2], Ti(dates))
 @test issorted(dates)
 
 @testset "getindex returns the currect types" begin
-    @test ser[Ti(1)] isa RasterStack{<:NamedTuple}
+    @test ser[Ti(1)] isa RasterStack{(:r1, :r2),@NamedTuple{r1::Int, r2::Int},2,<:NamedTuple}
     @test ser[Ti(1)][:r2] isa Raster{Int,2}
     @test ser[Ti(1)][:r2][1, 1] isa Int
 end

@@ -841,7 +841,7 @@ end
     # Rebuild the ser by wrapping the disk data in Array.
     # `modify` forces `rebuild` on all containers as in-Memory variants
     modified_ser = modify(Array, stackser)
-    @test typeof(modified_ser) <: RasterSeries{<:RasterStack{<:NamedTuple{(:a,:b),<:Tuple{<:Array{UInt8,2},Vararg}}}}
+    @test typeof(modified_ser) <: RasterSeries{<:RasterStack{(:a,:b),<:Any,<:Any,<:NamedTuple{(:a,:b),<:Tuple{<:Array{UInt8,2},Vararg}}}}
 
     @testset "write" begin
         tifser = RasterSeries([gdalpath, gdalpath], Ti([DateTime(2001), DateTime(2002)]))

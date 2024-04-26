@@ -26,12 +26,13 @@ subset without loading the whole array.
 `getindex` on an `AbstractRasterStack` with a key returns another stack with
 `getindex` applied to all the arrays in the stack.
 """
-abstract type AbstractRasterStack{L} <: DD.AbstractDimStack{L} end
+abstract type AbstractRasterStack{K,T,N,L} <: AbstractDimStack{K,T,N,L} end
 
 missingval(stack::AbstractRasterStack) = getfield(stack, :missingval)
 missingval(s::AbstractRasterStack, name::Symbol) = _singlemissingval(missingval(s), name)
-filename(stack::AbstractRasterStack{<:NamedTuple}) = map(s -> filename(s), stack)
-filename(stack::AbstractRasterStack{<:Union{FileStack,OpenStack}}) = filename(parent(stack))
+
+filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}) = map(s -> filename(s), stack)
+filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:Union{FileStack,OpenStack}}) = filename(parent(stack))
 
 isdisk(st::AbstractRasterStack) = isdisk(layers(st, 1))
 
@@ -56,10 +57,10 @@ _maybe_collapse_missingval(mv) = mv
 # Always read a stack before loading it as a table.
 DD.DimTable(stack::AbstractRasterStack) = invoke(DD.DimTable, Tuple{DD.AbstractDimStack}, read(stack))
 
-function DD.layers(s::AbstractRasterStack{<:FileStack{<:Any,Keys}}) where Keys
+function DD.layers(s::AbstractRasterStack{<:Any,<:Any,<:Any,<:FileStack{<:Any,Keys}}) where Keys
     NamedTuple{Keys}(map(K -> s[K], Keys))
 end
-function DD.layers(s::AbstractRasterStack{<:OpenStack{<:Any,Keys}}) where Keys
+function DD.layers(s::AbstractRasterStack{<:Any,<:Any,<:Any,<:OpenStack{<:Any,Keys}}) where Keys
     NamedTuple{Keys}(map(K -> s[K], Keys))
 end
 
@@ -176,7 +177,7 @@ stack = RasterStack(files; mappedcrs=EPSG(4326))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
 """
-struct RasterStack{L<:Union{FileStack,OpenStack,NamedTuple},D<:Tuple,R<:Tuple,LD<:NamedTuple,M,LM,MV} <: AbstractRasterStack{L}
+struct RasterStack{K,T,N,L<:Union{FileStack,OpenStack,NamedTuple},D<:Tuple,R<:Tuple,LD<:NamedTuple,M,LM,MV} <: AbstractRasterStack{K,T,N,L}
     data::L
     dims::D
     refdims::R
@@ -184,6 +185,18 @@ struct RasterStack{L<:Union{FileStack,OpenStack,NamedTuple},D<:Tuple,R<:Tuple,LD
     metadata::M
     layermetadata::LM
     missingval::MV
+end
+function RasterStack{K,T,N}(
+    data::L, dims::D, refdims::R, layerdims::LD, metadata::Me, layermetadata::LM, missingval::Mi
+) where {K,T,N,L,D,R,LD<:NamedTuple{K},Me,LM,Mi}
+    RasterStack{K,T,N,L,D,R,LD,Me,LM,Mi}(data, dims, refdims, layerdims, metadata, layermetadata, missingval)
+end
+function RasterStack(
+    data, dims, refdims, layerdims::LD, metadata, layermetadata, missingval
+) where LD<:NamedTuple{K} where K
+    T = DD.data_eltype(data)
+    N = length(dims)
+    RasterStack{K,T,N}(data, dims, refdims, layerdims, metadata, layermetadata, missingval)
 end
 function RasterStack(
     data::Union{FileStack,OpenStack,NamedTuple};
@@ -350,9 +363,8 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
                     Array(A)
                 end
             end
-            md = _metadata(ds)
             missingval = isnokw(missingval) ? Rasters.missingval(ds) : missingval
-            raster = Raster(data; dims, name, metadata=md, missingval)
+            raster = Raster(data; dims, name, metadata=_metadata(ds), missingval)
             return dropband ? _drop_single_band(raster, lazy) : raster
         end
     end
@@ -434,8 +446,9 @@ function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
 end
 
 # Open a single file stack
-function Base.open(f::Function, st::AbstractRasterStack{<:FileStack{<:Any,K}}; kw...) where K
-    ost = OpenStack(parent(st))
+function Base.open(f::Function, st::AbstractRasterStack{K,T,<:Any,<:FileStack{X}}; kw...) where {X,K,T}
+    ost = OpenStack{X,K,T}(parent(st))
+    # TODO is this needed?
     layers = map(K) do k
         ost[k]
     end |> NamedTuple{K}
@@ -444,7 +457,7 @@ function Base.open(f::Function, st::AbstractRasterStack{<:FileStack{<:Any,K}}; k
     return out
 end
 # Open a multi-file stack or just apply f to a memory backed stack
-function Base.open(f::Function, st::AbstractRasterStack{<:NamedTuple}; kw...)
+function Base.open(f::Function, st::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}; kw...)
     isdisk(st) ? _open_layers(f, st) : f(st)
 end
 
@@ -485,18 +498,18 @@ function _layer_stack(filename;
         dims = _sort_by_layerdims(isnokw(dims) ? _dims(ds, dimdict) : dims, layerdims)
         layermetadata = isnokw(layermetadata) ? _layermetadata(ds; layers) : layermetadata
         missingval = isnokw(missingval) ? Rasters.missingval(ds) : missingval
-        names = Tuple(map(Symbol, layers.names))
+        name = Tuple(map(Symbol, layers.names))
         data = if lazy
-            FileStack{typeof(source)}(ds, filename; name=names, group, vars=Tuple(layers.vars))
+            FileStack{typeof(source)}(ds, filename; name, group, vars=Tuple(layers.vars))
         else
             arrays = map(layers.vars) do v
                 A = Array(v)
                 # Hack for NCDatasets.jl bug with zero dimensional arrays
                 A isa Array ? A : fill(A)
             end
-            NamedTuple{names}(arrays)
+            NamedTuple{name}(arrays)
         end
-        data, (; dims, refdims, layerdims=NamedTuple{names}(layerdims), metadata, layermetadata=NamedTuple{names}(layermetadata), missingval)
+        data, (; dims, refdims, layerdims=NamedTuple{name}(layerdims), metadata, layermetadata=NamedTuple{name}(layermetadata), missingval)
     end
     return RasterStack(data; field_kw..., kw...)
 end
@@ -544,8 +557,9 @@ function _merge_dimorder(neworder, currentorder)
     return outorder
 end
 
+
 function _layerkeysfromdim(A, dim)
-    hasdim(A, dim) || throw(ArgumentError("`layersrom` dim `$(dim2key(dim))` not found in `$(map(basetypeof, dims(A)))`"))
+    hasdim(A, dim) || throw(ArgumentError("`layersrom` dim `$(name(dim))` not found in `$(map(basetypeof, dims(A)))`"))
     vals = parent(lookup(A, dim))
     l = length(vals)
     if l > MAX_STACK_SIZE
@@ -560,7 +574,7 @@ function _layerkeysfromdim(A, dim)
     end
     map(vals) do x
         if x isa Number
-            Symbol(string(DD.dim2key(dim), "_", x))
+            Symbol(string(DD.name(dim), "_", x))
         else
             Symbol(x)
         end

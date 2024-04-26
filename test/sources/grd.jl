@@ -467,7 +467,7 @@ end
     grdseries2 = RasterSeries(stacks, (Ti,))
     @test all(grdseries2[Ti(1)][:a] .== Raster(grdpath; mappedcrs=EPSG(4326), name=:test))
     modified_ser = modify(x -> Array(1.0f0x), grdseries2)
-    @test typeof(modified_ser) <: RasterSeries{<:RasterStack{<:NamedTuple{(:a,:b),<:Tuple{<:Array{Float32,3},Vararg}}},1}
+    @test typeof(modified_ser) <: RasterSeries{<:RasterStack{(:a, :b),@NamedTuple{a::Float32,b::Float32},3,@NamedTuple{a::Array{Float32,3},b::Array{Float32,3}}},1}
 
     @testset "read" begin
         geoseries = read(grdseries2)

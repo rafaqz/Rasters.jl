@@ -164,7 +164,7 @@ function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs) where K
     return _extent2dims(to, ranges, crs)
 end
 function _extent2dims(to::Extents.Extent{K}, ranges, crs) where K
-    emptydims = map(key2dim, K)
+    emptydims = map(name2dim, K)
     lookups = map(ranges) do range
         Projected(range;
             order=ForwardOrdered(),
