@@ -163,6 +163,7 @@ For when one or multiple filepaths are used:
 
 $DROPBAND_KEYWORD
 $LAZY_KEYWORD
+$REPLACE_MISSING_KEYWORD
 $SOURCE_KEYWORD
 
 For when a single `Raster` is used:
@@ -203,7 +204,7 @@ function RasterStack(
     dims::Tuple,
     refdims::Tuple=(),
     layerdims,
-    metadata=NoMetadata(),
+    metadata=nokw,
     layermetadata=nokw,
     missingval=nokw,
     kw...
@@ -216,6 +217,7 @@ function RasterStack(
     else
         throw(ArgumentError("$layermetadata is not a valid input for `layermetadata`. Try a `NamedTuple` of `Dict`, `MetaData` or `NoMetadata`"))
     end
+    metadata = isnokw(metadata) ? NoMetadata() : metadata
     missingval = _maybe_collapse_missingval(missingval)
     st = RasterStack(
         data, dims, refdims, layerdims, metadata, layermetadata, missingval
@@ -235,10 +237,10 @@ function RasterStack(data::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}, d
     layerdims=nokw,
     kw...
 )
-    # TODO: make this more sophisticated and match dimension length to axes?
-    # We dont worry about Raster keywords because these rasters will be deconstructed 
-    # again later, and `kw` will define the RasterStack keywords
     if isnokw(layerdims)
+        # TODO: make this more sophisticated and match dimension length to axes?
+        # We dont worry about Raster keywords because these rasters will be deconstructed 
+        # again later, and `kw` will define the RasterStack keywords
         layers = map(data) do A
             Raster(A, dims[1:ndims(A)])
         end
@@ -342,39 +344,26 @@ function RasterStack(
     RasterStack(NamedTuple{cleankeys(Tuple(name))}(filenames); kw...)
 end
 function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
-    lazy=false,
-    dropband=true,
-    source=nothing,
-    crs=nokw,
-    mappedcrs=nokw,
+    source=nokw,
     missingval=nokw,
+    metadata=nokw,
+    resize=nokw,
+    layermetadata::Union{NoKW,NamedTuple{K}}=nokw,
+    layerdims::Union{NoKW,NamedTuple{K}}=nokw,
     kw...
 ) where K
-    layers = map(keys(filenames), values(filenames)) do name, fn
-        source = _sourcetrait(fn, source)
-        _open(source, fn; name) do ds
-            dims = _dims(ds, crs, mappedcrs)
-            prod(map(length, dims))
-            data = if lazy
-                FileArray{typeof(source)}(ds, fn; name)
-            else
-                _open(source, ds; name) do A
-                    _checkmem(A)
-                    Array(A)
-                end
-            end
-            missingval = isnokw(missingval) ? Rasters.missingval(ds) : missingval
-            raster = Raster(data; dims, name, metadata=_metadata(ds), missingval)
-            return dropband ? _drop_single_band(raster, lazy) : raster
-        end
+    missingval = missingval isa NamedTuple ? missingval : map(_ -> missingval, filenames)
+    layermetadata = layermetadata isa NamedTuple ? layermetadata : map(_ -> layermetadata, filenames)
+    layers = map(keys(filenames), values(filenames), values(missingval), values(layermetadata)) do name, fn, mv, md
+        Raster(fn; source=_sourcetrait(fn, source), name, missingval=mv, metadata=md, kw...)
     end
-    # Try to keep the passed-in missingval as a single value
-    RasterStack(NamedTuple{K}(layers); missingval, kw...)
+    return RasterStack(NamedTuple{K}(layers); resize, metadata)
 end
 # Stack from a String
 function RasterStack(filename::AbstractString;
     lazy::Bool=false,
     dropband::Bool=true,
+    replace_missing::Bool=false,
     source::Union{Symbol,Source,NoKW}=nokw,
     name=nokw,
     group=nokw,
@@ -393,12 +382,12 @@ function RasterStack(filename::AbstractString;
         else
             name
         end
-        RasterStack(joinpath.(Ref(filename), filenames); lazy, kw...)
+        RasterStack(joinpath.(Ref(filename), filenames); lazy, replace_missing, dropband, group, kw...)
     else
         # Load as a single file
         if haslayers(source)
             # With multiple named layers
-            l_st = _layer_stack(filename; source, name, lazy, group, kw...)
+            l_st = _layer_stack(filename; source, name, lazy, group, replace_missing, kw...)
 
             # Maybe split the stack into separate arrays to remove extra dims.
             if !isnokw(name)
@@ -408,7 +397,7 @@ function RasterStack(filename::AbstractString;
             end
         else
             # With bands actings as layers
-            RasterStack(Raster(filename; source, lazy, dropband=false); kw...)
+            RasterStack(Raster(filename; source, lazy, replace_missing, dropband=false); kw...)
         end
     end
 
@@ -422,19 +411,6 @@ function RasterStack(filename::AbstractString;
     else
          return st
     end
-end
-
-function _postprocess_stack(st, dims;
-    crs=nokw,
-    mappedcrs=nokw,
-    name=nokw,
-    resize=nokw,
-)
-    dims = format(dims, CartesianIndices(st))
-    dims = isnokw(crs) ? dims : setcrs(dims, crs)
-    dims = isnokw(mappedcrs) ? dims : setmappedcrs(dims, mappedcrs)
-    st = rebuild(st; dims)
-    return isnokw(name) ? st : st[Dimensions._astuple(name)]
 end
 
 function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
@@ -473,6 +449,19 @@ function _open_layers(f, st, unopened::NamedTuple{()}, opened::NamedTuple)
     f(rebuild(st; data=opened))
 end
 
+function _postprocess_stack(st, dims;
+    crs=nokw,
+    mappedcrs=nokw,
+    name=nokw,
+    resize=nokw,
+)
+    dims = format(dims, CartesianIndices(st))
+    dims = isnokw(crs) ? dims : setcrs(dims, crs)
+    dims = isnokw(mappedcrs) ? dims : setmappedcrs(dims, mappedcrs)
+    st = rebuild(st; dims)
+    return isnokw(name) ? st : st[Dimensions._astuple(name)]
+end
+
 function _layer_stack(filename;
     source=nokw,
     dims=nokw,
@@ -485,6 +474,7 @@ function _layer_stack(filename;
     missingval=nokw,
     crs=nokw,
     mappedcrs=nokw,
+    replace_missing=false,
     lazy=false,
     kw...
 )
@@ -500,14 +490,17 @@ function _layer_stack(filename;
         missingval = isnokw(missingval) ? Rasters.missingval(ds) : missingval
         name = Tuple(map(Symbol, layers.names))
         data = if lazy
+            # TODO replace_missing is currently always true for 
+            # CommonDataModel FileStack. We should change this.
             FileStack{typeof(source)}(ds, filename; name, group, vars=Tuple(layers.vars))
         else
-            arrays = map(layers.vars) do v
-                A = Array(v)
-                # Hack for NCDatasets.jl bug with zero dimensional arrays
-                A isa Array ? A : fill(A)
-            end
-            NamedTuple{name}(arrays)
+            map(layers.vars) do v
+                x = Array(replace_missing ? _replace_missing(v, missingval) : v)
+                x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
+            end |> NamedTuple{name}
+        end
+        if replace_missing 
+            missingval = missing
         end
         data, (; dims, refdims, layerdims=NamedTuple{name}(layerdims), metadata, layermetadata=NamedTuple{name}(layermetadata), missingval)
     end

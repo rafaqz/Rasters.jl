@@ -19,8 +19,9 @@ using Rasters, RasterDataSources, Test, Dates, ArchGDAL, NCDatasets
     @test A isa Raster
     A[Y(Between(-10, -45)), X(Between(110, 160))]
     st = RasterStack(WorldClim{Climate}, (:prec, :tmax); month=1)
-    st[:prec]
-    @test st isa RasterStack
+    @test st[:prec] == A
+    @test missingval(st) == (prec=-32768, tmax=-3.4f38)
+    @test st isa RasterStack{(:prec,:tmax),@NamedTuple{prec::Int16,tmax::Float32},2}
 end
 
 @testset "load WorldClim BioClim" begin

@@ -221,7 +221,7 @@ $CONSTRUCTOR_MAPPEDCRS_KEYWORD
 When a filepath `String` is used:
 $DROPBAND_KEYWORD
 $LAZY_KEYWORD
-- `replace_missing`: replace `missingval` with `missing`. This is done lazily if `lazy=true`.
+$REPLACE_MISSING_KEYWORD
 $SOURCE_KEYWORD
 - `write`: defines the default `write` keyword value when calling `open` on the Raster. `false` by default.
     Only makes sense to use when `lazy=true`.
@@ -240,7 +240,7 @@ struct Raster{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi<:Union{T,Noth
         data::A, dims::D, refdims::R, name::Na, metadata::Me, missingval::Mi
     ) where {D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} where {T,N}
         DD.checkdims(data, dims)
-        missingval1 = Mi <: Union{T,Nothing} ? missingval : convert(T, missingval)
+        missingval1 = _fix_missingval(T, missingval)
         new{T,N,D,R,A,Na,Me,typeof(missingval1)}(data, dims, refdims, name, metadata, missingval1)
     end
 end
@@ -292,12 +292,10 @@ end
 function Raster(filename::AbstractString; 
     source=nokw, 
     kw...
-)::Raster
+)
     source = _sourcetrait(filename, source)
-    Base.invokelatest() do
-        _open(filename; source) do ds
-            Raster(ds, filename; source, kw...)
-        end::Raster
+    _open(filename; source) do ds
+        Raster(ds, filename; source, kw...)
     end::Raster
 end
 function Raster(ds, filename::AbstractString;
@@ -319,15 +317,16 @@ function Raster(ds, filename::AbstractString;
     source = _sourcetrait(filename, source)
     data1, dims1, metadata1, missingval1 = _open(source, ds; name=name1, group) do var
         metadata1 = isnokw(metadata) ? _metadata(var) : metadata
-        missingval1 = _check_missingval(var, missingval)
-        replace_missing1 = replace_missing && !isnothing(missingval1)
-        missingval2 = replace_missing1 ? missing : missingval1
+        missingval1 = _fix_missingval(var, missingval)
+        rm = replace_missing && !isnothing(missingval1)
+        missingval2 = rm ? missing : missingval1
         data = if lazy
             A = FileArray{typeof(source)}(var, filename; name=name1, group, write)
-            replace_missing1 ? _replace_missing(A, missingval1) : A
+            rm ? _replace_missing(A, missingval1) : A
         else
             _checkmem(var)
-            Array(replace_missing1 ? _replace_missing(var, missingval1) : var)
+            x = Array(rm ? _replace_missing(var, missingval1) : var)
+            x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
         end
         dims1 = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data)
         data, dims1, metadata1, missingval2
@@ -336,14 +335,23 @@ function Raster(ds, filename::AbstractString;
     return dropband ? _drop_single_band(raster, lazy) : raster
 end
 
-_check_missingval(A::AbstractArray, ::NoKW) = _check_missingval(A, Rasters.missingval(A))
-_check_missingval(A::AbstractArray, ::Nothing) = nothing
-function _check_missingval(::AbstractArray{T}, missingval) where T
-    if !(missingval isa T)
-        @warn "missingval $missingval of type $(typeof(missingval)) does not match the raster eltype $T"
-        nothing
-    else
+_fix_missingval(::Type, ::Union{NoKW,Nothing}) = nothing
+_fix_missingval(::AbstractArray, ::Nothing) = nothing
+_fix_missingval(A::AbstractArray, ::NoKW) = _fix_missingval(A, Rasters.missingval(A))
+_fix_missingval(::AbstractArray{T}, missingval) where T = _fix_missingval(T, missingval)
+function _fix_missingval(::Type{T}, missingval::M) where {T,M}
+    T1 = nonmissingtype(T)
+    if missingval isa T
         missingval
+    elseif hasmethod(convert, Tuple{Type{T1},M}) && isreal(missingval) && 
+            missingval <= typemax(T1) && missingval >= typemin(T)
+        if T1 <: Integer && !isinteger(missingval) 
+            nothing
+        else
+            convert(T, missingval)
+        end
+    else
+        nothing
     end
 end
 

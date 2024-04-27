@@ -95,3 +95,9 @@ const GROUP_KEYWORD = """
     A `String` or `Symbol` will select a single group. Pairs can also used to access groups
     at any nested depth, i.e `group=:group1 => :group2 => :group3`.
 """
+
+const REPLACE_MISSING_KEYWORD = """
+- `replace_missing`: replace `missingval` with `missing`. This is done lazily if `lazy=true`.
+    Note that currently for NetCDF and GRIB files `replace_missing` is always true. 
+    In future `replace_missing=false` will also work for these data sources.
+"""

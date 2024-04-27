@@ -314,14 +314,20 @@ end
 
 @testset "Grd stack" begin
     grdstack = RasterStack((a=grdpath, b=grdpath))
-    @time lazystack = RasterStack((a=grdpath, b=grdpath); lazy=true);
-    @time eagerstack = RasterStack((a=grdpath, b=grdpath); lazy=false);
 
     @testset "lazyness" begin
-        # Lazy is the default
+        # Eager is the default
         @test parent(grdstack[:a]) isa Array
+        @time lazystack = RasterStack((a=grdpath, b=grdpath); lazy=true);
+        @time eagerstack = RasterStack((a=grdpath, b=grdpath); lazy=false);
         @test parent(lazystack[:a]) isa FileArray
         @test parent(eagerstack[:a]) isa Array
+    end
+
+    @testset "replace_missing keyword" begin
+        st = RasterStack((a=grdpath, b=grdpath); replace_missing=true)
+        @test eltype(st) == @NamedTuple{a::Union{Missing,Float32},b::Union{Missing,Float32}}
+        @test missingval(st) === missing
     end
 
     @test length(layers(grdstack)) == 2
