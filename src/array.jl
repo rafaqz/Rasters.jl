@@ -339,7 +339,7 @@ function _fix_missingval(::Type{T}, missingval::M) where {T,M}
     if missingval isa T
         missingval
     elseif hasmethod(convert, Tuple{Type{T1},M}) && isreal(missingval) && 
-            missingval <= typemax(T1) && missingval >= typemin(T)
+            missingval <= typemax(T1) && missingval >= typemin(T1)
         if T1 <: Integer && !isinteger(missingval) 
             nothing
         else
