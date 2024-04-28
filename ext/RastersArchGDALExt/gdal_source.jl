@@ -57,7 +57,7 @@ function Base.write(
     RA.check_can_write(filename, force)
     A1 = _maybe_correct_to_write(A, missingval)
     _create_with_driver(filename, dims(A1), eltype(A1), Rasters.missingval(A1); _block_template=A1, kw...) do dataset
-        verbose && _maybe_warn_south_up(A, verbose, "Writing South-up. Use `reverse(x; dims=Y)` first to write conventional North-up")
+        verbose && _maybe_warn_south_up(A, verbose, "Writing South-up. Use `reverse(myrast; dims=Y)` first to write conventional North-up")
         open(A1; write=true) do O
             AG.RasterDataset(dataset) .= parent(O)
         end
@@ -76,7 +76,7 @@ function RA.create(filename, ::GDALsource, T::Type, dims::DD.DimTuple;
     T = Missings.nonmissingtype(T)
     missingval = ismissing(missingval) ? RA._writeable_missing(T) : missingval
     _create_with_driver(filename, dims, T, missingval; kw...) do _
-        verbose && _maybe_warn_south_up(dims, verbose, "Creating a South-up raster. Use `reverse(x; dims=Y)` first to write conventional North-up")
+        verbose && _maybe_warn_south_up(dims, verbose, "Creating a South-up raster. Use `reverse(myrast; dims=Y)` first to write conventional North-up")
         nothing
     end
 
