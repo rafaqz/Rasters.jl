@@ -74,11 +74,6 @@ function DD.rebuild(A::AbstractRaster;
     rebuild(A, data, dims, refdims, name, metadata, missingval)
 end
 
-function _fix_missingval(::Type{T}, x::X) where {T,X} 
-    promote_type(T, X) === T ? convert(T, x) : nothing
-end
-_fix_missingval(::Type{T}, mv::M) where {T,M<:T} = mv
-
 function DD.modify(f, A::AbstractRaster)
     # Have to avoid calling `open` on CFDiskArray
     newdata = if isdisk(A) && !(parent(A) isa CFDiskArray)
