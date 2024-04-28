@@ -244,8 +244,7 @@ end
                 @test parent(ra) isa Array{Union{Missing,Int},2}
                 @test ra isa Raster
                 @test name(ra) == :val1
-                @test_throws ArgumentError 
-                rasterize(data; to=A, fill=:not_a_column)
+                @test_throws ArgumentError rasterize(data; to=A, fill=:not_a_column)
             end
         end
     end
@@ -447,6 +446,17 @@ end
         # Soon we will define the pixel intervals so we don't need
         # arbitrary choices of which lines are touched for :touches
     end
+end
+
+@testset "Rasterizing feature collection of polygons" begin
+    p1 = GI.Polygon([[[-55965.680060140774, -31588.16072168928], [-55956.50771556479, -31478.09258677756], [-31577.548550575284, -6897.015828572996], [-15286.184961223798, -15386.952072224134], [-9074.387601621409, -27468.20712382156], [-8183.4538916097845, -31040.003969070774], [-27011.85123029944, -38229.02388009402], [-54954.72822634951, -32258.9734800704], [-55965.680060140774, -31588.16072168928]]])
+    p2 = GI.Polygon([[[-80000.0, -80000.0], [-80000.0, 80000.0], [-60000.0, 80000.0], [-50000.0, 40000.0], [-60000.0, -80000.0], [-80000.0, -80000.0]]])
+    fc = GI.FeatureCollection([GI.Feature(p1, properties = (;val=1)), GI.Feature(p2, properties = (;val=2))])
+
+    vecint = rasterize(sum, [p1, p2]; size=(100, 100), fill=[1, 2])
+    fcint = rasterize(sum, fc; size=(100, 100), fill=[1, 2])
+    fcval = rasterize(sum, fc; size=(100, 100), fill=:val)
+    @test all(vecint .=== fcval .=== fcint)
 end
 
 @testset "Rasterizing with extra dimensions" begin
