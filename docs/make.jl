@@ -1,5 +1,5 @@
 using Documenter, Rasters, Plots, Logging, Statistics, Dates, 
-    RasterDataSources, ArchGDAL, NCDatasets, HDF5, CoordinateTransformations
+    RasterDataSources, ArchGDAL, NCDatasets, CoordinateTransformations
 import Makie, CairoMakie
 using DocumenterMarkdown
 using Rasters.LookupArrays, Rasters.Dimensions
@@ -31,7 +31,6 @@ makedocs(
         Rasters,
         Base.get_extension(Rasters, :RastersArchGDALExt),
         Base.get_extension(Rasters, :RastersCoordinateTransformationsExt),
-        Base.get_extension(Rasters, :RastersHDF5Ext),
         Base.get_extension(Rasters, :RastersMakieExt),
         Base.get_extension(Rasters, :RastersNCDatasetsExt),
         Base.get_extension(Rasters, :RastersRasterDataSourcesExt),
