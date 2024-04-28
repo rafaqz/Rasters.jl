@@ -660,6 +660,7 @@ end
 _rasterize_points!(A, r::Rasterizer) = _rasterize_points!(A, r.geom, r.fillitr, r)
 _rasterize_points!(A, geom, fillitr, r::Rasterizer) =
     _rasterize_points!(A, GI.trait(geom), geom, fillitr, r)
+
 function _rasterize_points!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer)
     points = GI.getpoint(geom)
     fill1 =_iterable_fill(points, fill)

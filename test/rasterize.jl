@@ -1,5 +1,5 @@
 using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
-import GeoInterface
+import GeoInterface as GI
 using Rasters.Lookups, Rasters.Dimensions 
 using Rasters: bounds
 
@@ -25,11 +25,14 @@ multi_point = ArchGDAL.createmultipoint(pointvec)
 linestring = ArchGDAL.createlinestring(pointvec)
 multi_linestring = ArchGDAL.createmultilinestring([pointvec])
 linearring = ArchGDAL.createlinearring(pointvec)
-line_collection = GeoInterface.GeometryCollection([multi_linestring])
-poly_collection = GeoInterface.GeometryCollection([polygon])
-pointfc = map(GeoInterface.getpoint(polygon), vals) do geom, v
+line_collection = GI.GeometryCollection([multi_linestring])
+poly_collection = GI.GeometryCollection([polygon])
+pointtable = map(GI.getpoint(polygon), vals) do geom, v
     (geometry=geom, val1=v, val2=2.0f0v)
 end
+pointfc = map(GI.getpoint(polygon), vals) do geom, v
+    GI.Feature(geom; properties=(val1=v, val2=2.0f0v))
+end |> GI.FeatureCollection
 table = (X=first.(pointvec), Y=last.(pointvec), othercol=zero.(last.(pointvec)))
 
 test_shape_dir = realpath(joinpath(dirname(pathof(Shapefile)), "..", "test", "shapelib_testcases"))
@@ -48,10 +51,11 @@ st = RasterStack((A1, copy(A1)))
     geom = pointvec
     geom = line_collection
     geom = poly_collection
+    geom = pointfc
     threaded = true
     
     for A in (A1, A2), 
-        geom in (pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table, line_collection, poly_collection),
+        geom in (pointvec, pointtable, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table, line_collection, poly_collection),
         threaded in (true, false)
 
         fill!(A, 0)
@@ -64,7 +68,7 @@ st = RasterStack((A1, copy(A1)))
         @test sum(A) == 4.0
         @test sum(rasterize(last, geom; to=A, shape=:point, fill=1, missingval=0, threaded)) == 4.0
         fill!(A, 0)
-        if !Tables.istable(geom)
+        if !(Tables.istable(geom) || GI.isfeaturecollection(geom))
             rasterize!(count, A, [geom, geom]; shape=:point, threaded)
             @test sum(A) == 10.0
             fill!(A, 0)
@@ -72,7 +76,7 @@ st = RasterStack((A1, copy(A1)))
     end
     geom = multi_point
     for A in (A1, A2), 
-        geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection, poly_collection),
+        geom in (table, pointvec, pointtable, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection, poly_collection),
         threaded in (true, false)
 
         rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3), threaded)
@@ -94,7 +98,7 @@ st = RasterStack((A1, copy(A1)))
 
 
     for A in (A1, A2), 
-        geom in (table, pointvec, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon),
+        geom in (table, pointvec, pointtable, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon),
         threaded in (true, false)
 
         st[:layer1] .= 0; st[:layer2] .= 0
@@ -180,11 +184,11 @@ end
 
 @testset "from geometries, tables and features of points" begin
     A = A1
-    data = DataFrame(pointfc)
+    data = DataFrame(pointtable)
     data = multi_point
     data = pointfc
 
-    for data in (pointfc, DataFrame(pointfc), multi_point, pointvec, reverse(pointvec))
+    for data in (pointtable, pointfc, DataFrame(pointtable), multi_point, pointvec, reverse(pointvec))
         @test sum(skipmissing(rasterize(sum, data; to=A, fill=1))) == 5
         @testset "to and fill Keywords are required" begin
             @test_throws ArgumentError R = rasterize(data; fill=1) 
@@ -206,8 +210,7 @@ end
     end
 
     @testset "a single feature" begin
-        feature = pointfc[4]
-        GeoInterface.isfeature(feature)
+        feature = pointtable[4]
         @testset "NTuple of Symbol fill makes an stack" begin
             rst = rasterize(feature; to=A, fill=(:val1, :val2))
             @test parent(rst.val1) isa Array{Union{Missing,Int},2}
@@ -225,9 +228,9 @@ end
     end
 
     @testset "feature collection, table from fill of Symbol keys" begin
+        data = pointtable
         data = pointfc
-        Tables.istable(data)
-        for data in (pointfc, DataFrame(pointfc)), threaded in (true, false)
+        for data in (pointfc, pointtable, DataFrame(pointtable)), threaded in (true, false)
             @testset "NTuple of Symbol fill makes an stack" begin
                 rst = rasterize(sum, data; to=A, fill=(:val1, :val2), threaded)
                 @test parent(rst.val1) isa Array{Union{Missing,Int},2}
@@ -241,7 +244,8 @@ end
                 @test parent(ra) isa Array{Union{Missing,Int},2}
                 @test ra isa Raster
                 @test name(ra) == :val1
-                @test_throws ArgumentError rasterize(data; to=A, fill=:not_a_column)
+                @test_throws ArgumentError 
+                rasterize(data; to=A, fill=:not_a_column)
             end
         end
     end
