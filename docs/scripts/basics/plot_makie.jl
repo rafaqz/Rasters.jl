@@ -10,12 +10,12 @@ using CairoMakie, Makie
 using Rasters, RasterDataSources, ArchGDAL
 A = Raster(WorldClim{BioClim}, 5) # this is a 3D raster, so is not accepted.
 
-fig = Figure()
+fig = Figure();
 plot(fig[1, 1], A)
 contour(fig[1, 2], A)
 ax = Axis(fig[2, 1]; aspect = DataAspect())
 contourf!(ax, A)
-surface(fig[2, 2], A) # even a 3D plot works!
+# TODO: broken in DimensionalData.jl surface(fig[2, 2], A)
 fig
 
 # ### 3-D rasters in Makie
