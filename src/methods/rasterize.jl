@@ -294,22 +294,25 @@ _iterable_fill(trait, data, fill::NamedTuple) = begin
     map(f -> _iterable_fill(trait, data, f), fill)
 end
 function _iterable_fill(trait, data, fill)
-    trait isa Union{GI.AbstractGeometryTrait,GI.FeatureTrait} && return fill
-    fill isa Number && return Iterators.cycle(fill)
-
-    # Collect other iterators
-    fillvec = fill isa AbstractVector ? fill : collect(fill)
-    l = length(fillvec)
+    # trait isa Union{GI.AbstractGeometryTrait,GI.FeatureTrait} && return fill
+    if trait isa GI.AbstractGeometryTrait || trait isa GI.FeatureTrait
+        return fill
+    elseif fill isa Number 
+        return Iterators.cycle(fill)
+    elseif Tables.istable(typeof(data))
+        # we don't need the keys, just the column length
+        data = first(Tables.columns(data))
+    end
 
     if trait isa GI.FeatureCollectionTrait
         n = GI.nfeature(data)
-    elseif Tables.istable(typeof(data))
-        n = length(first(Tables.columns(data)))
     elseif Base.IteratorSize(data) isa Union{Base.HasShape,Base.HasLength}
         n = length(data)
     else
         return fill
     end
+    fillvec = collect(fill)
+    l = length(fillvec)
     if l == 1
         # Cycle all length one iterables to fill every row
         return Iterators.cycle(fillvec[1])
@@ -662,7 +665,7 @@ _rasterize_points!(A, geom, fillitr, r::Rasterizer) =
 
 function _rasterize_points!(A, trait::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer)
     points = GI.getpoint(geom)
-    fill1 =_iterable_fill(trait, points, fill)
+    fill1 =_iterable_fill(nothing, points, fill)
     _rasterize_points!(A, nothing, points, fill1, r)
 end
 function _rasterize_points!(A, ::GI.GeometryCollectionTrait, collection, fill, r::Rasterizer)
