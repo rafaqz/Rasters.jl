@@ -148,7 +148,7 @@ function Rasterizer(data::T; fill, geomcolumn=nothing, kw...) where T
         schema = Tables.schema(data)
         cols = Tables.columns(data)
         colnames = Tables.columnnames(Tables.columns(data))
-        fillitr = _iterable_fill(cols, fill)
+        fillitr = _iterable_fill(nothing, cols, fill)
         # If fill is a symbol or tuple of Symbol we need to allocate based on the column type
         geomcolname = if isnothing(geomcolumn)
             geomcols = GI.geometrycolumns(data)
@@ -171,27 +171,27 @@ function Rasterizer(data::T; fill, geomcolumn=nothing, kw...) where T
         Rasterizer(GeoInterface.trait(data), data; fill, kw...)
     end
 end
-function Rasterizer(::GI.AbstractFeatureCollectionTrait, fc; name, fill, kw...)
-    # TODO: how to handle when there are fillvals with different types
-    # fillval = _featurefillval(GI.getfeature(fc, 1), fill)
-    fillitr = _iterable_fill(fc, fill)
-    geometries = map(f -> GI.geometry(f), GI.getfeature(fc))
-    Rasterizer(geometries; kw..., fill, fillitr)
-end
-function Rasterizer(::GI.AbstractFeatureTrait, feature; fill, kw...)
-    fillitr = _iterable_fill(feature, fill)
-    # fillval = _featurefillval(feature, fill)
-    Rasterizer(GI.geometry(feature), fill, fillitr; kw...)
-end
-function Rasterizer(::GI.GeometryCollectionTrait, collection; kw...)
-    Rasterizer(collect(GI.getgeom(collection)); kw...)
-end
-function Rasterizer(::Nothing, geoms; fill, kw...)
-    fillitr = _iterable_fill(geoms, fill)
+function Rasterizer(trait::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
+    fillitr = _iterable_fill(trait, fc, fill)
+    geoms = map(f -> GI.geometry(f), GI.getfeature(fc))
     Rasterizer(geoms, fill, fillitr; kw...)
 end
-function Rasterizer(::GI.AbstractGeometryTrait, geom; fill, kw...)
-    Rasterizer(geom, fill, _iterable_fill(geom, fill); kw...)
+function Rasterizer(trait::GI.AbstractFeatureTrait, feature; fill, kw...)
+    fillitr = _iterable_fill(trait, feature, fill)
+    geom = GI.geometry(feature)
+    Rasterizer(geom, fill, fillitr; kw...)
+end
+function Rasterizer(trait::GI.GeometryCollectionTrait, collection; kw...)
+    geoms = collect(GI.getgeom(collection))
+    Rasterizer(geoms; kw...)
+end
+function Rasterizer(trait::Nothing, geoms; fill, kw...)
+    fillitr = _iterable_fill(trait, geoms, fill)
+    Rasterizer(geoms, fill, fillitr; kw...)
+end
+function Rasterizer(trait::GI.AbstractGeometryTrait, geom; fill, kw...)
+    fillitr = _iterable_fill(trait, geom, fill)
+    Rasterizer(geom, fill, fillitr; kw...)
 end
 
 function get_eltype_missingval(eltype, missingval, fill, fillitr, init, filename, op, reducer)
@@ -274,12 +274,14 @@ function _filter_name(name, fill)
 end
 
 # A Tuple of `Symbol` is multiple keys to make a RasterStack
-_iterable_fill(data, keys::Tuple{Symbol,Vararg}) =
-    NamedTuple{keys}(map(k -> _iterable_fill(data, k), keys))
+_iterable_fill(trait, data, keys::Tuple{Symbol,Vararg}) =
+    NamedTuple{keys}(map(k -> _iterable_fill(trait, data, k), keys))
 # A Symbol is a Table or FeatureCollection key, it cant be used as fill itself
-function _iterable_fill(data, key::Symbol)
+function _iterable_fill(trait, data, key::Symbol)
     if GI.isfeature(data)
-        return get(x -> error("feature has no key $key"), GI.properties(data), key)
+        return get(() -> throw(ArgumentError("feature has no property `:$key`")), GI.properties(data), key)
+    elseif trait isa GI.FeatureCollectionTrait
+        return [get(() -> throw(ArgumentError("feature has no property `:$key`")), GI.properties(f), key) for f in GI.getfeature(data)]
     end
     cols = Tables.columns(data)
     # For column tables, get the column now
@@ -287,37 +289,37 @@ function _iterable_fill(data, key::Symbol)
     key in names || _fill_key_error(names, key)
     return Tables.getcolumn(cols, key)
 end
-_iterable_fill(data, fill::Function) = fill
-_iterable_fill(data, fill::NamedTuple) = begin
-    map(f -> _iterable_fill(data, f), fill)
+_iterable_fill(trait, data, fill::Function) = fill
+_iterable_fill(trait, data, fill::NamedTuple) = begin
+    map(f -> _iterable_fill(trait, data, f), fill)
 end
-# Inspect our data and fill as much as possible to check they match
-# and cycle any fill of known length one
-function _iterable_fill(data, fill)
-    if GI.isgeometry(data) || GI.isfeature(data)
+function _iterable_fill(trait, data, fill)
+    # trait isa Union{GI.AbstractGeometryTrait,GI.FeatureTrait} && return fill
+    if trait isa GI.AbstractGeometryTrait || trait isa GI.FeatureTrait
         return fill
-    end
-    if fill isa Number
+    elseif fill isa Number 
         return Iterators.cycle(fill)
-    end
-    if Tables.istable(typeof(data))
+    elseif Tables.istable(typeof(data))
         # we don't need the keys, just the column length
         data = first(Tables.columns(data))
     end
-    if Base.IteratorSize(data) isa Union{Base.HasShape,Base.HasLength}
-        fillvec = collect(fill)
-        l = length(fillvec)
+
+    if trait isa GI.FeatureCollectionTrait
+        n = GI.nfeature(data)
+    elseif Base.IteratorSize(data) isa Union{Base.HasShape,Base.HasLength}
         n = length(data)
-        if l == 1
-            # Cycle all length one iterables to fill every row
-            return Iterators.cycle(fillvec[1])
-        elseif !(l == n)
-            throw(ArgumentError("Length of fill $l does not match length of iterator $n"))
-        else
-            return fillvec
-        end
     else
         return fill
+    end
+    fillvec = collect(fill)
+    l = length(fillvec)
+    if l == 1
+        # Cycle all length one iterables to fill every row
+        return Iterators.cycle(fillvec[1])
+    elseif !(l == n)
+        throw(ArgumentError("Length of fill $l does not match length of iterator $n"))
+    else
+        return fillvec
     end
 end
 
@@ -660,9 +662,10 @@ end
 _rasterize_points!(A, r::Rasterizer) = _rasterize_points!(A, r.geom, r.fillitr, r)
 _rasterize_points!(A, geom, fillitr, r::Rasterizer) =
     _rasterize_points!(A, GI.trait(geom), geom, fillitr, r)
-function _rasterize_points!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer)
+
+function _rasterize_points!(A, trait::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer)
     points = GI.getpoint(geom)
-    fill1 =_iterable_fill(points, fill)
+    fill1 =_iterable_fill(nothing, points, fill)
     _rasterize_points!(A, nothing, points, fill1, r)
 end
 function _rasterize_points!(A, ::GI.GeometryCollectionTrait, collection, fill, r::Rasterizer)
