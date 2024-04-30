@@ -278,10 +278,6 @@ end
               [(9.0, 0.1) (9.0, 0.2); (10.0, 0.1) (10.0, 0.2)])
 end
 
-# Idea for generic constructors
-# Polygon(mod, values) = Polygon(Val{Symbol(mod)}(), values)
-# Polygon(::Val{:ArchGDAL}, values) = ArchGDAL.createpolygon(values)
-
 createpoint(args...) = ArchGDAL.createpoint(args...)
 
 @testset "extract" begin
@@ -294,30 +290,33 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
     @testset "from Raster" begin
         # Tuple points
         ex = extract(rast, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
-        @test eltype(ex) == NamedTuple{(:geometry,:test)}
-        @test all(ex .=== [
+        T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
+        @test eltype(ex) == T
+        @test all(ex .=== T[
             (geometry = missing, test = missing)
-            (geometry = (9.0, 0.1), test = 1)
-            (geometry = (9.0, 0.2), test = 2)
-            (geometry = (10.0, 0.3), test = missing)
+            (geometry = (9.0, 0.1), test=1)
+            (geometry = (9.0, 0.2), test=2)
+            (geometry = (10.0, 0.3), test=missing)
         ])
         ex = extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true)
-        @test eltype(ex) == NamedTuple{(:geometry,:test),Tuple{Tuple{Float64,Float64},Int}}
-        @test all(ex .=== [(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2)])
+        T = @NamedTuple{geometry::Tuple{Float64, Float64}, test::Int64}
+        @test eltype(ex) == T
+        @test all(ex .=== T[(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2)])
         ex = extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false)
-        @test eltype(ex) == NamedTuple{(:test,),Tuple{Int}}
-        @test all(ex .=== [(test = 1,), (test = 2,)])
+        T = @NamedTuple{test::Int64}
+        @test eltype(ex) == T
+        @test all(ex .=== T[(test = 1,), (test = 2,)])
         @test all(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) .=== [
             (index = (1, 1), test = 1,)
             (index = (1, 2), test = 2,)
         ])
         # NamedTuple (reversed) points - tests a Table that iterates over points
-        @test all(extract(rast, [(Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) .=== [
+        T = @NamedTuple{geometry::Union{Missing,@NamedTuple{Y::Float64,X::Float64}},test::Union{Missing,Int64}}
+        @test all(extract(rast, [(Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) .=== T[
             (geometry = (Y = 0.1, X = 9.0), test = 1)
             (geometry = (Y = 0.2, X = 10.0), test = 4)
             (geometry = (Y = 0.3, X = 10.0), test = missing)
         ])
-
         # Vector points
         @test all(extract(rast, [[9.0, 0.1], [10.0, 0.2]]) .== [
             (geometry = [9.0, 0.1], test = 1)
@@ -325,15 +324,16 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         ])
         # Extract a polygon
         p = ArchGDAL.createpolygon([[[8.0, 0.0], [11.0, 0.0], [11.0, 0.4], [8.0, 0.0]]])
-        @test all(extract(rast_m, p) .=== [
+        T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
+        @test all(extract(rast_m, p) .=== T[
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (10.0, 0.1), test = 3)
             (geometry = (10.0, 0.2), test = missing)
         ])
         # Extract a vector of polygons
         ex = extract(rast_m, [p, p])
-        @test eltype(ex) == NamedTuple{(:geometry,:test)}
-        @test all(ex .=== [
+        @test eltype(ex) == T
+        @test all(ex .=== T[
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (10.0, 0.1), test = 3)
             (geometry = (10.0, 0.2), test = missing)
@@ -342,25 +342,28 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (geometry = (10.0, 0.2), test = missing)
         ])
         # Test all the keyword combinations
-        @test all(extract(rast_m, p) .=== [
+        @test all(extract(rast_m, p) .=== T[
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (10.0, 0.1), test = 3)
             (geometry = (10.0, 0.2), test = missing)
         ])
-        @test all(extract(rast_m, p; geometry=false) .=== [
+        T = @NamedTuple{test::Union{Missing,Int64}}
+        @test all(extract(rast_m, p; geometry=false) .=== T[
             (test = 1,)
             (test = 3,)
             (test = missing,)
         ])
-        @test all(extract(rast_m, p; geometry=false, index=true) .=== [
-            (index = CartesianIndex(1, 1), test = 1)
-            (index = CartesianIndex(2, 1), test = 3)
-            (index = CartesianIndex(2, 2), test = missing)
+        T = @NamedTuple{index::Union{Missing,Tuple{Int,Int}},test::Union{Missing,Int64}}
+        @test all(extract(rast_m, p; geometry=false, index=true) .=== T[
+            (index = (1, 1), test = 1)
+            (index = (2, 1), test = 3)
+            (index = (2, 2), test = missing)
         ])
-        @test all(extract(rast_m, p; index=true) .=== [
-             (geometry = (9.0, 0.1), index = CartesianIndex(1, 1), test = 1)
-             (geometry = (10.0, 0.1), index = CartesianIndex(2, 1), test = 3)
-             (geometry = (10.0, 0.2), index = CartesianIndex(2, 2), test = missing)
+        T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},index::Union{Missing,Tuple{Int,Int}},test::Union{Missing,Int64}}
+        @test all(extract(rast_m, p; index=true) .=== T[
+             (geometry = (9.0, 0.1), index = (1, 1), test = 1)
+             (geometry = (10.0, 0.1), index = (2, 1), test = 3)
+             (geometry = (10.0, 0.2), index = (2, 2), test = missing)
         ])
         @test extract(rast_m, p; skipmissing=true) == [
             (geometry = (9.0, 0.1), test = 1)
@@ -371,12 +374,12 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (test = 3,)
         ]                                                         
         @test extract(rast_m, p; skipmissing=true, geometry=false, index=true) == [
-            (index = CartesianIndex(1, 1), test = 1)
-            (index = CartesianIndex(2, 1), test = 3)
+            (index = (1, 1), test = 1)
+            (index = (2, 1), test = 3)
         ]                                                         
         @test extract(rast_m, p; skipmissing=true, index=true) == [
-            (geometry = (9.0, 0.1), index = CartesianIndex(1, 1), test = 1)
-            (geometry = (10.0, 0.1), index = CartesianIndex(2, 1), test = 3)
+            (geometry = (9.0, 0.1), index = (1, 1), test = 1)
+            (geometry = (10.0, 0.1), index = (2, 1), test = 3)
         ]          
         @test extract(rast2, p; skipmissing=true) == [
             (geometry = (10.0, 0.1), test2 = 7)
@@ -392,7 +395,8 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
     end
 
     @testset "with table" begin
-        @test all(extract(rast, table) .=== [
+        T = @NamedTuple{geometry::Union{Missing, Tuple{Float64, Float64}}, test::Union{Missing, Int64}}
+        @test all(extract(rast, table) .=== T[
             (geometry = missing, test = missing)
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (9.0, 0.2), test = 2)
@@ -414,8 +418,9 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         @test_throws ArgumentError extract(rast, (foo = zeros(4),))
     end
 
-     @testset "from stack" begin
-        @test all(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]) .=== [
+    @testset "from stack" begin
+        T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64},test2::Union{Missing,Int64}}
+        @test all(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]) .=== T[
             (geometry = missing, test = missing, test2 = missing)
             (geometry = (9.0, 0.1), test = 1, test2 = 5)
             (geometry = (10.0, 0.2), test = 4, test2 = 8)
@@ -424,27 +429,29 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true) == [
             (geometry = (10.0, 0.2), test = 4, test2 = 8)
         ]
-        @test extract(st2, [missing, (2, 2), (2,1)]; skipmissing=true) == [
+        @test extract(st2, [missing, (2, 2), (2, 1)]; skipmissing=true) == [
             (geometry = (2, 1), a = 7.0, b = 2.0)
         ]
         @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false) == [
             (test = 4, test2 = 8)
         ]
-        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) == [
+        T = @NamedTuple{index::Union{Missing, Tuple{Int,Int}}, test::Union{Missing, Int64}, test2::Union{Missing, Int64}}
+        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) == T[
             (index = (2, 2), test = 4, test2 = 8)
         ]
         # Subset with `names`
-        @test all(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; names=(:test2,)) .=== [
+        T = @NamedTuple{geometry::Union{Missing, Tuple{Float64, Float64}}, test2::Union{Missing, Int64}}
+        @test all(extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; name=(:test2,)) .=== T[
             (geometry = missing, test2 = missing)
             (geometry = (9.0, 0.1), test2 = 5)
             (geometry = (10.0, 0.2), test2 = 8)
             (geometry = (10.0, 0.3), test2 = missing)
         ])
         # Subset with `names` and `skipmissing` with mixed missingvals
-        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; names=(:test2,), skipmissing = true) == [
+        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; name=(:test2,), skipmissing=true) == [
             (geometry = (10.0, 0.2), test2 = 8)
         ]
-        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; names=(:test,), skipmissing = true) == [
+        @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; name=(:test,), skipmissing=true) == [
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (10.0, 0.2), test = 4)
         ]
