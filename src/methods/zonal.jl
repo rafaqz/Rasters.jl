@@ -24,7 +24,7 @@ These can be used when `of` is a GeoInterface.jl compatible object:
 
 # Example
 
- ``jldoctest
+```jldoctest
 using Rasters, RasterDataSources, ArchGDAL, Shapefile, DataFrames, Downloads, Statistics, Dates
 
 # Download a borders shapefile
