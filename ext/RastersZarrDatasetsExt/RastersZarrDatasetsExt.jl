@@ -1,10 +1,7 @@
 module RastersZarrDatasetsExt
 
-@static if isdefined(Base, :get_extension) # julia < 1.9
-    using Rasters, ZarrDatasets, CommonDataModel
-else    
-    using ..Rasters, ..GRIBDatasets, ..CommonDataModel
-end
+using Rasters, CommonDataModel
+using ZarrDatasets: ZarrDatasets as ZD
 
 import DiskArrays,
     FillArrays,
