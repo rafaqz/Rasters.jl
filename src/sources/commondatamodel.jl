@@ -122,6 +122,8 @@ end
 
 function _open(f, ::CDMsource, ds::AbstractDataset; name=nokw, group=nothing, kw...)
     g = _getgroup(ds, group)
+    #@show g
+    @show name
     x = isnokw(name) ? g : CFDiskArray(g[_firstname(g, name)])
     cleanreturn(f(x))
 end
@@ -169,10 +171,17 @@ function _nondimnames(ds)
         end
         union(dimnames, boundsnames)::Vector{String}
     else
-        collect(dimkeys)::Vector{String}
+        #@show dimnames
+        collect(dimnames)::Vector{String}
     end
     # Maybe this should be fixed in ZarrDatasets but it works with this patch.
     nondim = collect(setdiff(keys(ds), toremove))
+    return nondim
+end
+
+
+function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
+    nondim = _nondimnames(ds)
     grid_mapping = String[]
     vars = map(k -> ds[k], nondim)
     attrs = map(CDM.attribs, vars)
@@ -188,6 +197,7 @@ function _nondimnames(ds)
         attrs=attrs[bitinds],
     )
 end
+
 function _layers(ds::AbstractDataset, names, ::NoKW)
     vars = map(k -> ds[k], names)
     attrs = map(CDM.attribs, vars)
@@ -244,7 +254,9 @@ end
 _firstname(ds::AbstractDataset, name) = Symbol(name)
 function _firstname(ds::AbstractDataset, name::NoKW=nokw)
     names = _nondimnames(ds)
+    @show typeof(names)
     if length(names) > 0
+        @show first(names)
         Symbol(first(names))
     else
         throw(ArgumentError("No non-dimension layers found in dataset with keys: $(keys(ds))"))
