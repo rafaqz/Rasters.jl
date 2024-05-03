@@ -385,12 +385,16 @@ end
 function _cdmspan(index, order)
     # Handle a length 1 index
     length(index) == 1 && return Regular(zero(eltype(index))), Points()
-    
-    # Calculate step, avoiding as many floating point errors as possible
-    st = Float64(Base.step(Base.range(first(index), last(index); length = length(index))))
-    st_rd = round(st, digits = Base.floor(Int,-log10(eps(eltype(index))))) # round to nearest digit within machine epsilon
-    step = st_rd ≈ st ? st_rd : st # keep the rounded number if it is very close to the original
 
+    step = if eltype(index) <: AbstractFloat
+        # Calculate step, avoiding as many floating point errors as possible
+        st = Float64(Base.step(Base.range(first(index), last(index); length = length(index))))
+        st_rd = round(st, digits = Base.floor(Int,-log10(eps(eltype(index))))) # round to nearest digit within machine epsilon
+        st_rd ≈ st ? st_rd : st # keep the rounded number if it is very close to the original
+    else
+        index[2] - index[1]
+    end
+    
     for i in 2:length(index)-1
         # If any step sizes don't match, its Irregular
         if !(index[i+1] - index[i] ≈ step)
