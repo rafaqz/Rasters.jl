@@ -308,7 +308,7 @@ end
 # Generate a `Lookup` from a nCDM dim.
 function _cdmlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs)
     var = ds[dimname]
-    index = var[:]
+    index = Missings.disallowmissing(var[:])
     attr = CDM.attribs(var)
     metadata = _metadatadict(_sourcetrait(ds), attr)
     return _cdmlookup(ds, var, attr, dimname, D, index, metadata, crs, mappedcrs)
