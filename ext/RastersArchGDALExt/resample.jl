@@ -26,11 +26,13 @@ function resample(A::RasterStackOrArray;
             flags[:te] = [xmin, ymin, xmax, ymax]
         end
     else
-        all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` must have both `XDim` and `YDim` dimensions to resize with GDAL"))
+        all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` must have both `XDim` and `YDim` dimensions to resample with GDAL"))
 
         # Set res from `to` if it was not already set
         if isnothing(res) && isnothing(size)
-            ysize, xsize = length.(dims(to, (XDim, YDim)))
+            todims = dims(to, (XDim, YDim))
+            all(isregular, todims) || throw(ArgumentError("`to` has irregular dimensions. Provide regular dimensions, or explicitly provide `res` or `size`."))
+            ysize, xsize = length.(todims)
             flags[:ts] = [ysize, xsize]
         end
         (xmin, xmax), (ymin, ymax) = bounds(to, (XDim, YDim))
@@ -97,7 +99,7 @@ function resample(A::RasterStackOrArray;
     if isnothing(res) && isnothing(size) && !isnothing(dims(to))
         resampled = rebuild(resampled; dims = dims(to))
     end
-    
+
     return resampled
 end
 
