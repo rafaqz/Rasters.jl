@@ -30,8 +30,8 @@ function resample(A::RasterStackOrArray;
 
         # Set res from `to` if it was not already set
         if isnothing(res) && isnothing(size)
-            xres, yres = map(abs ∘ step, span(to, (XDim, YDim)))
-            flags[:tr] = [yres, xres]
+            ysize, xsize = length.(dims(to, (XDim, YDim)))
+            flags[:ts] = [ysize, xsize]
         end
         (xmin, xmax), (ymin, ymax) = bounds(to, (XDim, YDim))
         flags[:te] = [xmin, ymin, xmax, ymax]
@@ -90,10 +90,15 @@ function resample(A::RasterStackOrArray;
 
     # Return crs to the original type, from GDAL it will always be WellKnownText
     if isnothing(crs)
-        return setcrs(resampled, Rasters.crs(A))
-    else
-        return setcrs(resampled, crs)
+        resampled = setcrs(resampled, Rasters.crs(A))
     end
+
+    # if only to is provided and it has dims, make sure dims are the exact same 
+    if isnothing(res) && isnothing(size) && !isnothing(dims(to))
+        resampled = rebuild(resampled; dims = dims(to))
+    end
+    
+    return resampled
 end
 
 _size_and_res_error() = throw(ArgumentError("Include only `size` or `res` keywords, not both"))
