@@ -388,7 +388,7 @@ function _cdmspan(index, order)
 
     step = if eltype(index) <: AbstractFloat
         # Calculate step, avoiding as many floating point errors as possible
-        st = Float64(Base.step(Base.range(first(index), last(index); length = length(index))))
+        st = Base.step(Base.range(Float64(first(index)), Float64(last(index)); length = length(index)))
         st_rd = round(st, digits = Base.floor(Int,-log10(eps(eltype(index))))) # round to nearest digit within machine epsilon
         st_rd ≈ st ? st_rd : st # keep the rounded number if it is very close to the original
     else
