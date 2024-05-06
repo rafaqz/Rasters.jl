@@ -159,12 +159,13 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     end
 
     @testset "dimensions matcha after resampling with only `to`" begin
+        import DimensionalData: @dim, YDim
         @dim Lat YDim "Lat"
-        # some nonsensical dimensions that maybe should be illegal
+        # some weird dimensions
         to = (
-            Lat(Projected(1:10, span = Regular(2), crs = nothing, order = ForwardOrdered(), sampling = Intervals(Center()))),
-            X(Sampled([1,2,3], span = Regular(1), order = ReverseOrdered(), sampling = Intervals(Start())))
-            )
+            Lat(Projected(1:10, span = Regular(1 + eps()), crs = nothing, order = ForwardOrdered(), sampling = Intervals(Center()))),
+            X(Sampled([1,2,3], span = Regular(1), order = ForwardOrdered(), sampling = Intervals(Start())))
+        )
 
         resampled = resample(cea; to)
         @test dims(resampled) == to
