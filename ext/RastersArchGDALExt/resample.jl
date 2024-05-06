@@ -100,10 +100,16 @@ function resample(A::RasterStackOrArray;
 
     # if only to is provided and it has dims, make sure dims are the exact same 
     if onlyto
-        resampled = rebuild(resampled; dims = dims(to))
+        newdims = (commondims(to, XDim, YDim)..., otherdims(A, (XDim, YDim))...)
+        resampled = rebuild(resampled; dims =newdims)
     end
 
     return resampled
 end
 
 _size_and_res_error() = throw(ArgumentError("Include only `size` or `res` keywords, not both"))
+
+resampled
+
+ds = (Y(1:10), (X(1:10)))
+commondims(ds, (X, Y))
