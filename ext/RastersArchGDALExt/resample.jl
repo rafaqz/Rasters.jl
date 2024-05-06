@@ -108,8 +108,3 @@ function resample(A::RasterStackOrArray;
 end
 
 _size_and_res_error() = throw(ArgumentError("Include only `size` or `res` keywords, not both"))
-
-resampled
-
-ds = (Y(1:10), (X(1:10)))
-commondims(ds, (X, Y))
