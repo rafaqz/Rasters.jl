@@ -17,6 +17,9 @@ function resample(A::RasterStackOrArray;
     # Method
     flags[:r] = method
 
+    # check if only to has been provided before overwriting arguments
+    onlyto = !isnothing(to) && !isnothing(dims(to)) && !(to isa Extents.Extent) && isnothing(res) && isnothing(size) && isnothing(crs)
+
     # Extent
     if to isa Extents.Extent || isnothing(to) || isnothing(dims(to))
         to = isnothing(to) || to isa Extents.Extent ? to : GeoInterface.extent(to)
@@ -26,12 +29,14 @@ function resample(A::RasterStackOrArray;
             flags[:te] = [xmin, ymin, xmax, ymax]
         end
     else
-        all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` must have both `XDim` and `YDim` dimensions to resize with GDAL"))
+        all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` must have both `XDim` and `YDim` dimensions to resample with GDAL"))
 
         # Set res from `to` if it was not already set
         if isnothing(res) && isnothing(size)
-            xres, yres = map(abs ∘ step, span(to, (XDim, YDim)))
-            flags[:tr] = [yres, xres]
+            todims = dims(to, (XDim, YDim))
+            isregular(todims) || throw(ArgumentError("`to` has irregular dimensions. Provide regular dimensions, or explicitly provide `res` or `size`."))
+            ysize, xsize = length.(todims)
+            flags[:ts] = [ysize, xsize]
         end
         (xmin, xmax), (ymin, ymax) = bounds(to, (XDim, YDim))
         flags[:te] = [xmin, ymin, xmax, ymax]
@@ -89,11 +94,17 @@ function resample(A::RasterStackOrArray;
     resampled = warp(A, flags; kw...)
 
     # Return crs to the original type, from GDAL it will always be WellKnownText
-    if isnothing(crs)
-        return setcrs(resampled, Rasters.crs(A))
-    else
-        return setcrs(resampled, crs)
+    if !isnothing(crs)
+        resampled = setcrs(resampled, crs)
     end
+
+    # if only to is provided and it has dims, make sure dims are the exact same 
+    if onlyto
+        newdims = (commondims(to, XDim, YDim)..., otherdims(A, (XDim, YDim))...)
+        resampled = rebuild(resampled; dims =newdims)
+    end
+
+    return resampled
 end
 
 _size_and_res_error() = throw(ArgumentError("Include only `size` or `res` keywords, not both"))

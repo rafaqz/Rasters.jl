@@ -1,6 +1,8 @@
 using Rasters, ArchGDAL, GeoInterface, Extents
 using Test
 using Rasters.Lookups
+import DimensionalData: @dim, YDim
+@dim Lat YDim "Lat"
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
@@ -156,5 +158,22 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
             @test resampled_res == resampled_size == raster
             @test dims(resampled_res) == dims(resampled_size) == dims(raster)
         end
+    end
+
+    @testset "dimensions matcha after resampling with only `to`" begin
+        # some weird dimensions
+        to = (
+            Lat(Projected(1:10, span = Regular(1 + eps()), crs = nothing, order = ForwardOrdered(), sampling = Intervals(Center()))),
+            X(Sampled([1,2,3], span = Regular(1), order = ForwardOrdered(), sampling = Intervals(Start())))
+        )
+
+        resampled = resample(cea; to)
+        @test dims(resampled) == to
+
+        # test with 3d
+        resampled_3D = resample(cat(cea, cea; dims = Z(1:2)); to)
+        @test length(dims(resampled_3D)) == 3
+        @test dims(resampled_3D, (1,2)) == to
+        @test dims(resampled_3D, Z) == Z(1:2)
     end
 end
