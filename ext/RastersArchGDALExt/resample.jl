@@ -17,6 +17,9 @@ function resample(A::RasterStackOrArray;
     # Method
     flags[:r] = method
 
+    # check if only to has been provided before overwriting arguments
+    onlyto = !isnothing(to) && !isnothing(dims(to)) && !(to isa Extents.Extent) && isnothing(res) && isnothing(size) && isnothing(crs)
+
     # Extent
     if to isa Extents.Extent || isnothing(to) || isnothing(dims(to))
         to = isnothing(to) || to isa Extents.Extent ? to : GeoInterface.extent(to)
@@ -91,12 +94,12 @@ function resample(A::RasterStackOrArray;
     resampled = warp(A, flags; kw...)
 
     # Return crs to the original type, from GDAL it will always be WellKnownText
-    if isnothing(crs)
-        resampled = setcrs(resampled, Rasters.crs(A))
+    if !isnothing(crs)
+        resampled = setcrs(resampled, crs)
     end
 
     # if only to is provided and it has dims, make sure dims are the exact same 
-    if isnothing(res) && isnothing(size) && !isnothing(dims(to))
+    if onlyto
         resampled = rebuild(resampled; dims = dims(to))
     end
 
