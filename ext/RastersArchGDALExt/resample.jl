@@ -34,7 +34,7 @@ function resample(A::RasterStackOrArray;
         # Set res from `to` if it was not already set
         if isnothing(res) && isnothing(size)
             todims = dims(to, (XDim, YDim))
-            all(isregular, todims) || throw(ArgumentError("`to` has irregular dimensions. Provide regular dimensions, or explicitly provide `res` or `size`."))
+            isregular(todims) || throw(ArgumentError("`to` has irregular dimensions. Provide regular dimensions, or explicitly provide `res` or `size`."))
             ysize, xsize = length.(todims)
             flags[:ts] = [ysize, xsize]
         end
