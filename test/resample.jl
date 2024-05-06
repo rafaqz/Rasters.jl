@@ -157,4 +157,15 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
             @test dims(resampled_res) == dims(resampled_size) == dims(raster)
         end
     end
+
+    @testset "dimensions matcha after resampling with only `to`" begin
+        # some nonsensical dimensions that maybe should be illegal
+        to = (
+            X(Projected(1:10, span = Regular(2), crs = nothing, order = ForwardOrdered(), sampling = Intervals(Center()))),
+            Y(Sampled([1,2,3], span = Regular(1), order = ReverseOrdered(), sampling = Intervals(Start())))
+            )
+
+        resampled = resample(cea; to)
+        @test dims(resampled) === to
+    end
 end
