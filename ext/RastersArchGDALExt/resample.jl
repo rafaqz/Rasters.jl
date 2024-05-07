@@ -93,6 +93,10 @@ function resample(A::RasterStackOrArray;
     # resample with `warp`
     resampled = warp(A, flags; kw...)
 
+    if !isnothing(to)
+        resampled = rebuild(resampled; dims=dims(to))
+    end
+
     # Return crs to the original type, from GDAL it will always be WellKnownText
     if !isnothing(crs)
         resampled = setcrs(resampled, crs)

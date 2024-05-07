@@ -162,6 +162,12 @@ function _extract(A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom;
     rows = (_extract_point(T, A, p, skipmissing; kw...) for p in GI.getpoint(geom))
     return skipmissing isa _True ? collect(_skip_missing_rows(rows, _missingval_or_missing(A), names)) : collect(rows)
 end
+function _extract(A::RasterStackOrArray, ::GI.PointTrait, geom; 
+    skipmissing, kw...
+)
+    T = _rowtype(A, geom; names, skipmissing, kw...)
+    _extract_point(T, A, geom, skipmissing; kw...)
+end
 function _extract(A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom;
     names, skipmissing, kw...
 )
@@ -239,16 +245,17 @@ end
         end
         selectors = map(val, DD.dims(selector_dims, DD.dims(x)))
         # Check the selector is in bounds / actually selectable
-        I = DD.selectindices(x, selectors; err=_False())::Union{Nothing,Tuple{Int,Int}}
+        I = DD.selectindices(DD.dims(x, dims), selectors; err=_False())::Union{Nothing,Tuple{Int,Int}}
         if isnothing(I)
             return missing
         else
+            D = map(rebuild, selector_dims, I)
             if x isa Raster 
-                prop = x[I...]
+                prop = x[D]
                 _ismissingval(missingval(x), prop) && return missing
                 props = NamedTuple{K,Tuple{eltype(x)}}((prop,))
             else
-                props = x[I...][K]
+                props = x[D][K]
                 _ismissingval(missingval(x), props) && return missing
             end
             return _maybe_add_fields(T, props, point, I)
@@ -271,14 +278,15 @@ end
         end
         selectors = map(val, DD.dims(selector_dims, DD.dims(x)))
         # Check the selector is in bounds / actually selectable
-        I = DD.selectindices(x, selectors; err=_False())::Union{Nothing,Tuple{Int,Int}}
+        I = DD.selectindices(DD.dims(x, dims), selectors; err=_False())::Union{Nothing,Tuple{Int,Int}}
         if isnothing(I)
             return _maybe_add_fields(T, map(_ -> missing, names), point, missing)
         else
+            D = map(rebuild, selector_dims, I)
             props = if x isa Raster 
-                NamedTuple{K,Tuple{eltype(x)}}((x[I...],))
+                NamedTuple{K,Tuple{eltype(x)}}((x[D],))
             else
-                x[I...][K]
+                NamedTuple(x[D])[K]
             end
             return _maybe_add_fields(T, props, point, I)
         end
