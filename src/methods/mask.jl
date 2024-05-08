@@ -1,6 +1,6 @@
 
-const INVERSE_KEYWORD = """
-- `inverse`: invert the mask, so that areas no missing in `with` are
+const INVERT_KEYWORD = """
+- `invert`: invert the mask, so that areas no missing in `with` are
     masked, and areas missing in `with` are masked.
 """
 
@@ -19,7 +19,7 @@ or by the shape of `with`, if `with` is a geometric object.
 
 - `with`: an `AbstractRaster`, or any GeoInterface.jl compatible objects
     or table. The coordinate reference system of the point must match `crs(A)`.
-$INVERSE_KEYWORD
+$INVERT_KEYWORD
 - `missingval`: the missing value to use in the returned file.
 $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
@@ -117,7 +117,7 @@ or by a polygon.
 - `with`: another `AbstractRaster`, a `AbstractVector` of `Tuple` points,
     or any GeoInterface.jl `AbstractGeometry`. The coordinate reference system
     of the point must match `crs(A)`.
-$INVERSE_KEYWORD
+$INVERT_KEYWORD
 - `missingval`: the missing value to write to A in masked areas,
     by default `missingval(A)`.
 
@@ -180,12 +180,12 @@ end
 function _mask!(A::AbstractRaster, with::AbstractRaster; 
     missingval=missingval(A), 
     values=A,
-    inverse=false,
+    invert=false,
 )
     missingval isa Nothing && _nomissingerror()
     missingval = convert(eltype(A), missingval)
 
-    if inverse
+    if invert
         broadcast_dims!(A, values, with) do x, w
             if (ismissing(w) || isequal(w, Rasters.missingval(with))) && 
                 !(ismissing(x) || isequal(x, Rasters.missingval(values)))
@@ -228,7 +228,7 @@ The array returned from calling `boolmask` on a `AbstractRaster` is a
 
 # `Raster` / `RasterStack` Keywords
 
-$INVERSE_KEYWORD
+$INVERT_KEYWORD
 - `missingval`: The missing value of the source array, with default `missingval(raster)`.
 
 # Keywords
@@ -286,31 +286,31 @@ function boolmask(series::AbstractRasterSeries; alllayers = true, to = first(ser
     end
 end
 
-function boolmask(source::AbstractRaster; inverse::Bool=false, kw...)
-    dest = _init_bools(source, BitArray, nothing; kw..., missingval=inverse)
+function boolmask(source::AbstractRaster; invert::Bool=false, kw...)
+    dest = _init_bools(source, BitArray, nothing; kw..., missingval=invert)
     return boolmask!(dest, source; kw...)
 end
 # this method is used where x is a geometry
-function boolmask(x; to=nothing, inverse::Bool=false, kw...)
+function boolmask(x; to=nothing, invert::Bool=false, kw...)
     if to isa Union{AbstractDimArray,AbstractDimStack,DimTuple}
         to = dims(to, DEFAULT_POINT_ORDER)
     end
-    A = _init_bools(to, BitArray, x; kw..., missingval=inverse)
-    return boolmask!(A, x; inverse, kw...)
+    A = _init_bools(to, BitArray, x; kw..., missingval=invert)
+    return boolmask!(A, x; invert, kw...)
 end
 
 function boolmask!(dest::AbstractRaster, src::AbstractRaster;
     missingval=_missingval_or_missing(src),
-    inverse=false,
+    invert=false,
 )
-    if inverse
+    if invert
         broadcast_dims!(x -> isequal(x, missingval), dest, src)
     else
         broadcast_dims!(x -> !isequal(x, missingval), dest, src)
     end
 end
 function boolmask!(dest::AbstractRaster, geoms;
-    inverse=false
+    invert=false,
     lock=nothing, 
     progress=true, 
     threaded=false, 
@@ -324,11 +324,11 @@ function boolmask!(dest::AbstractRaster, geoms;
             ismissing(geom) && return nothing
             slice = view(dest, Dim{:geometry}(i))
             # We don't need locks - these are independent slices
-            burn_geometry!(slice, geom; kw..., fill=!inverse, allocs=_get_alloc(allocs))
+            burn_geometry!(slice, geom; kw..., fill=!invert, allocs=_get_alloc(allocs))
             return nothing
         end
     else
-        burn_geometry!(dest, geoms; kw..., allocs, lock, progress, threaded, fill=!inverse)
+        burn_geometry!(dest, geoms; kw..., allocs, lock, progress, threaded, fill=!invert)
     end
     return dest
 end
@@ -350,7 +350,7 @@ The array returned from calling `missingmask` on a `AbstractRaster` is a
 
 # Keywords
 
-$INVERSE_KEYWORD
+$INVERT_KEYWORD
 $GEOM_KEYWORDS
 
 # Example
