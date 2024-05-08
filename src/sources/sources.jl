@@ -38,7 +38,7 @@ const SOURCE2PACKAGENAME = Dict(
     GDALsource() => "ArchGDAL",
     NCDsource() => "NCDatasets",
     GRIBsource() => "GRIBDatasets",
-    Zarrsource() => "ZarrDataset",
+    Zarrsource() => "ZarrDatasets",
 )
 
 const EXT2SOURCE = Dict(
