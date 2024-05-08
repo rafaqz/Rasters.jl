@@ -18,7 +18,7 @@ using Rasters.Dimensions
 using Rasters: Zarrsource
 
 using ZarrDatasets
-using CommonDataModel: AbstractDataset
+using CommonDataModel: AbstractDataset, CommonDataModel as CDM
 
 const RA = Rasters
 const DD = DimensionalData
