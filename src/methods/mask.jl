@@ -212,7 +212,7 @@ _nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `miss
 """
     boolmask(obj::Raster; [missingval])
     boolmask(obj; [to, res, size])
-    boolmask(obj::RasterStack; alllayers = true, kw...)
+    boolmask(obj::RasterStack; alllayers=true, kw...)
 
 Create a mask array of `Bool` values, from another `Raster`.
 `AbstractRasterStack` or `AbstractRasterSeries` are also accepted, if `alllayers` is `true` (the default),
@@ -270,33 +270,56 @@ $EXPERIMENTAL
 """
 function boolmask end
 
-function boolmask(stack::AbstractRasterStack; alllayers = true, to = dims(stack), kw...) 
+function boolmask(stack::AbstractRasterStack; 
+    alllayers=true, 
+    invert=false,
+    to=dims(stack), 
+    kw...
+) 
     if alllayers
-        _mask_multilayer(stack, to; kw..., _dest_missingval = false)
+        _mask_multilayer(stack, to; 
+            invert, kw..., _dest_presentval=!invert, _dest_missingval=invert
+        )
     else
-        boolmask(layers(stack, 1); kw...)
+        boolmask(layers(stack, 1); invert, kw...)
     end
 end
 
-function boolmask(series::AbstractRasterSeries; alllayers = true, to = first(series), kw...)
+function boolmask(series::AbstractRasterSeries; 
+    alllayers=true, 
+    to=first(series), 
+    invert=false,
+    kw...
+)
     if alllayers
-        _mask_multilayer(series, to; kw..., _dest_missingval = false)
+        _mask_multilayer(series, to; 
+            invert, kw..., _dest_presentval=!invert, _dest_missingval=invert
+        )
     else
-        boolmask(first(series); kw...)
+        boolmask(first(series); invert, kw...)
     end
 end
 
-function boolmask(source::AbstractRaster; invert::Bool=false, kw...)
+function boolmask(source::AbstractRaster; 
+    invert::Bool=false, 
+    kw...
+)
     dest = _init_bools(source, BitArray, nothing; kw..., missingval=invert)
-    return boolmask!(dest, source; kw...)
+    boolmask!(dest, source; invert, kw...)
+    return rebuild(dest; missingval=false)
 end
 # this method is used where x is a geometry
-function boolmask(x; to=nothing, invert::Bool=false, kw...)
+function boolmask(x; 
+    to=nothing, 
+    invert::Bool=false, 
+    kw...
+)
     if to isa Union{AbstractDimArray,AbstractDimStack,DimTuple}
         to = dims(to, DEFAULT_POINT_ORDER)
     end
-    A = _init_bools(to, BitArray, x; kw..., missingval=invert)
-    return boolmask!(A, x; invert, kw...)
+    dest = _init_bools(to, BitArray, x; kw..., missingval=invert)
+    boolmask!(dest, x; invert, kw...)
+    return rebuild(dest; missingval=false)
 end
 
 function boolmask!(dest::AbstractRaster, src::AbstractRaster;
@@ -324,11 +347,15 @@ function boolmask!(dest::AbstractRaster, geoms;
             ismissing(geom) && return nothing
             slice = view(dest, Dim{:geometry}(i))
             # We don't need locks - these are independent slices
+            @show slice
             burn_geometry!(slice, geom; kw..., fill=!invert, allocs=_get_alloc(allocs))
+            @show slice
             return nothing
         end
     else
+        @show dest
         burn_geometry!(dest, geoms; kw..., allocs, lock, progress, threaded, fill=!invert)
+        @show dest
     end
     return dest
 end
@@ -369,52 +396,49 @@ savefig("docs/build/missingmask_example.png"); nothing
 
 $EXPERIMENTAL
 """
-function missingmask(stack::AbstractRasterStack; alllayers=true, to=dims(stack), kw...) 
-    if alllayers
-        _mask_multilayer(stack, to; kw..., _dest_missingval = missing)
-    else
-        missingmask(layers(stack, 1); kw...)
-    end
+function missingmask(x; kw...)
+    B = boolmask(x; kw...)
+    M = Array{Union{Missing,Bool}}(undef, size(B))
+    M .= _false_to_missing.(B)
+    return rebuild(B; data=M, missingval=missing)
 end
-
-function missingmask(series::AbstractRasterSeries; alllayers=true, to=first(series), kw...)
-    if alllayers
-        _mask_multilayer(series, to; kw..., _dest_missingval = missing)
-    else
-        missingmask(first(series); kw...)
-    end
-end
-
 function missingmask(source::AbstractRaster; kw...)
     dest = _init_bools(source, Array{Union{Missing,Bool}}, nothing; kw..., missingval=missing)
-    return missingmask!(dest, source; kw...)
-end
-# this method is used where x is a geometry
-function missingmask(x; to=nothing, kw...)
-    B = _init_bools(to, Array{Union{Missing,Bool}}, x; kw..., missingval=missing)
-    return missingmask!(B, x; kw...)
+    return rebuild(missingmask!(dest, source; kw...); missingval=missing)
 end
 
 function missingmask!(dest::AbstractRaster, src::AbstractRaster;
+    invert=false,
     missingval=_missingval_or_missing(src)
 )
-    broadcast_dims!(dest, src) do x
-        isequal(x, missingval) ? missing : true
+    if invert
+        broadcast_dims!(dest, src) do x
+            isequal(x, missingval) ? true : missing
+        end
+    else
+        broadcast_dims!(dest, src) do x
+            isequal(x, missingval) ? missing : true
+        end
     end
 end
 function missingmask!(dest::AbstractRaster, geom; kw...)
-    B = boolmask!(dest, geom; kw...)
-    dest .= (b -> b ? true : missing).(B)
+    B = boolmask!(dest, geom; kw...) 
+    # boolmask! handles `invert` keyword here
+    dest .= _false_to_missing.(B)
     return dest
 end
 
-function _mask_multilayer(
-    layers::Union{<:AbstractRasterStack, <:AbstractRasterSeries}, to; 
-    _dest_missingval, missingval = nothing, kw...
+_false_to_missing(b::Bool) = (b ? true : missing)::Union{Missing,Bool}
+
+function _mask_multilayer(layers::Union{<:AbstractRasterStack,<:AbstractRasterSeries}, to; 
+    _dest_presentval,
+    _dest_missingval, 
+    missingval=nothing, 
+    kw...
 )
     T = Union{typeof(_dest_missingval),Bool}
-    dest = _init_bools(to, Array{T}, layers; kw..., missingval = _dest_missingval)
-    dest .= true
+    dest = _init_bools(to, Array{T}, layers; kw..., missingval=_dest_missingval)
+    dest .= _dest_presentval
 
     missingval = if isnothing(missingval)
         map(_missingval_or_missing, layers)
@@ -426,7 +450,7 @@ function _mask_multilayer(
 
     map(layers, missingval) do layer, mv
         broadcast_dims!(dest, dest, layer) do d, x
-            isequal(d, _dest_missingval) || isequal(x, mv) ? _dest_missingval : true
+            isequal(d, _dest_missingval) || isequal(x, mv) ? _dest_missingval : _dest_presentval
         end
     end
    return dest

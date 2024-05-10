@@ -31,9 +31,10 @@ function _init_bools(to, dims::DimTuple, T::Type, data; collapse::Union{Bool,Not
     end
 end
 
-function _alloc_bools(to, dims::DimTuple, ::Type{BitArray}; missingval=false, metadata=NoMetadata(), kw...)
+function _alloc_bools(to, dims::DimTuple, ::Type{BitArray}; missingval::Bool=false, metadata=NoMetadata(), kw...)
     # Use a BitArray
-    return Raster(falses(size(dims)), dims; missingval, metadata)
+    vals = missingval == false ? falses(size(dims)) : trues(size(dims))
+    return Raster(vals, dims; missingval, metadata)
 end
 function _alloc_bools(to, dims::DimTuple, ::Type{<:Array{T}}; missingval=false, metadata=NoMetadata(), kw...) where T
     # Use an `Array`
