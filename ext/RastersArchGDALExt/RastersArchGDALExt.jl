@@ -18,7 +18,8 @@ using Rasters.Lookups
 using Rasters.Dimensions
 using Rasters: GDALsource, AbstractProjected, RasterStackOrArray, FileArray, NoKW,
     RES_KEYWORD, SIZE_KEYWORD, CRS_KEYWORD, FILENAME_KEYWORD, SUFFIX_KEYWORD, EXPERIMENTAL,
-    GDAL_EMPTY_TRANSFORM, GDAL_TOPLEFT_X, GDAL_WE_RES, GDAL_ROT1, GDAL_TOPLEFT_Y, GDAL_ROT2, GDAL_NS_RES
+    GDAL_EMPTY_TRANSFORM, GDAL_TOPLEFT_X, GDAL_WE_RES, GDAL_ROT1, GDAL_TOPLEFT_Y, GDAL_ROT2, GDAL_NS_RES,
+    _no_crs_error
 
 import Rasters: reproject, resample, warp, cellsize, nokw
 
