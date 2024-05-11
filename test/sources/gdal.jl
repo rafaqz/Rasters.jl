@@ -92,6 +92,11 @@ gdalpath = maybedownload(url)
         @test gdalarray isa Raster{UInt8,2}
     end
 
+    @testset "name" begin
+        @test name(Raster(gdalpath; name=:testname)) == :testname
+        @test name(Raster(gdalpath)) == Symbol("")
+    end
+
     @testset "dimensions" begin
         @test length(dims(gdalarray, X)) == 514
         @test ndims(gdalarray) == 2

@@ -326,7 +326,8 @@ function Raster(ds, filename::AbstractString;
         dims1 = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data)
         data, dims1, metadata1, missingval2
     end
-    raster = Raster(data1, dims1, refdims, Symbol(name1), metadata1, missingval1)
+    name2 = name1 isa Union{NoKW,Nothing} ? Symbol("") : Symbol(name1)
+    raster = Raster(data1, dims1, refdims, name2, metadata1, missingval1)
     return dropband ? _drop_single_band(raster, lazy) : raster
 end
 
@@ -356,6 +357,7 @@ function _replace_missing(A::AbstractArray{T}, missingval) where T
 end
 
 filekey(ds, name) = name
+filekey(ds, name::NoKW) = nothing
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
 DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = Raster
