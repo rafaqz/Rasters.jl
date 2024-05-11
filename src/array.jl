@@ -357,7 +357,6 @@ function _replace_missing(A::AbstractArray{T}, missingval) where T
 end
 
 filekey(ds, name) = name
-filekey(ds, name::NoKW) = nothing
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
 DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = Raster
