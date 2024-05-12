@@ -120,13 +120,13 @@ end
 function _union_coverage!(A::AbstractRaster, geoms, buffers; 
     scale, subpixel_dims, progress=true, threaded=false
 )
-    n = _nthreads()
+    _check_buffer_mem(A, scale)
+    threaded, n = _check_buffer_thread_mem(A, scale, threaded)
+    buffer_size = size(A) .* scale
     centeracc = [_init_bools(A, BitArray; missingval=false) for _ in 1:n]
     lineacc = [_init_bools(A, BitArray; missingval=false) for _ in 1:n]
-    subpixel_buffer = [falses(size(A) .* scale) for _ in 1:n]
-
+    subpixel_buffer = [falses(buffer_size) for _ in 1:n]
     allbuffers = merge(buffers, (; centeracc, lineacc, subpixel_buffer))
-
     range = _geomindices(geoms)
     _run(range, threaded, progress, "Calculating coverage buffers...") do i
         geom = _getgeom(geoms, i)
@@ -137,6 +137,7 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
         fill!(thread_buffers.linebuffer, false)
         fill!(thread_buffers.centerbuffer, false) # Is this necessary?
     end
+
     # Merge downscaled BitArray (with a function barrier)
     subpixel_union = _do_broadcast!(|, subpixel_buffer[1], subpixel_buffer...)
     subpixel_raster = Raster(subpixel_union, subpixel_dims)
@@ -176,7 +177,7 @@ function _union_coverage!(A::AbstractRaster, geom;
     linebuffer=_init_bools(A, BitArray; missingval=false),
     centerbuffer=_init_bools(A, BitArray; missingval=false),
     allocs=Allocs(linebuffer),
-    subpixel_buffer=falses(size(A) .* scale),
+    subpixel_buffer=nothing,
     centeracc=_init_bools(A, BitArray; missingval=false),
     lineacc=_init_bools(A, BitArray; missingval=false),
     burnstatus=[BurnStatus() for _ in 1:scale],
@@ -185,6 +186,11 @@ function _union_coverage!(A::AbstractRaster, geom;
     subpixel_dims=_subpixel_dims(A, scale),
     ncrossings=fill(0, scale),
 )
+
+    if isnothing(subpixel_buffer)
+        _check_buffer_mem(A, scale)
+        subpixel_buffer = falses(size(A) .* scale)
+    end
     GI.isgeometry(geom) || error("not a geometry")
     crossings = allocs.crossings
     boolmask!(linebuffer, geom; shape=:line, allocs)
@@ -375,6 +381,21 @@ function _subpixel_dims(A, scale)
         sublookup = Sampled(range, ForwardOrdered(), Regular(substep), Intervals(Start()), NoMetadata())
         rebuild(d, sublookup)
     end
+end
+
+_buffer_bytes(A, scale) = prod(size(A) .* scale) / 8
+function _check_buffer_mem(A, scale)
+    buffer_bytes = _buffer_bytes(A, scale)
+    Sys.free_memory() < buffer_bytes && throw(ArgumentError("Not enought memory for `coverage` at `scale=$scale`. Try a smaller number for the `scale` keyword."))
+end
+function _check_buffer_thread_mem(A, scale, threaded::Bool)
+    n = threaded ? _nthreads() : 1
+    if Sys.free_memory() < _buffer_bytes(A, scale) * n
+        @warn "Not enough memory to use `threaded=true` with `scale=$scale`. Using `threaded=false`"
+        threaded = false
+        n = 1
+    end
+    return threaded, n
 end
 
 function _check_missed_pixels(missed_pixels::Int, scale::Int)
