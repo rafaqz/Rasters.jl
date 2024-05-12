@@ -501,10 +501,10 @@ gdalpath = maybedownload(url)
 
     @testset "nodatavalue type matches the array type" begin
         # Handle WorldClim/ucdavis unreliability
+        A = nothing
         try
             A = Raster(WorldClim{Climate}, :tavg; res="10m", month=1)
         catch
-            A = nothing
         end
         if !isnothing(A)
             @test typeof(missingval(A)) === eltype(A)
