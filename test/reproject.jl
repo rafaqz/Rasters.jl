@@ -41,6 +41,10 @@ using Rasters: reproject, convertlookup
 
     @test_throws ArgumentError reproject(cea, EPSG(32618), Y(), [-3.658789324855012e6])
     @test_throws ArgumentError reproject(cea, EPSG(32618), X(), [-3.658789324855012e6])
+
+    # reproject with no crs errors
+    nocrsdims = setcrs((x,y), nothing)
+    @test_throws ArgumentError reproject(nocrsdims; crs=projcea)
 end
 
 @testset "convertlookup" begin

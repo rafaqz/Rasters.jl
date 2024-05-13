@@ -197,6 +197,8 @@ _progress(args...; kw...) = ProgressMeter.Progress(args...; color=:blue, barlen=
 
 _size_and_res_error() = throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
 
+_no_crs_error() = throw(ArgumentError("The provided object does not have a CRS. Use `setcrs` to set one."))
+
 _type_missingval(::Type{T}) where T = typemin(T)
 _type_missingval(::Type{T}) where T<:Unsigned = typemax(T) 
 

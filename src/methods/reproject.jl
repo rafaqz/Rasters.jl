@@ -27,6 +27,7 @@ reproject(target::GeoFormat, l::Lookup) = l
 reproject(target::GeoFormat, dim::Dimension) = rebuild(dim, reproject(target, lookup(dim)))
 function reproject(target::GeoFormat, l::AbstractProjected)
     source = crs(l)
+    isnothing(source) && _no_crs_error()
     newdata = reproject(source, target, l.dim, parent(l))
     newlookup = rebuild(l; data=newdata, crs=target)
     if _checkregular(newdata)
