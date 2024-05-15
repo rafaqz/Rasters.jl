@@ -353,7 +353,14 @@ function _cdmlookup(
         else
             boundskey = var.attrib["bounds"]
             boundsmatrix = Array(ds[boundskey])
-            Explicit(boundsmatrix), Intervals(Center())
+            locus = if all(boundsmatrix[1,:] .== index)
+                Start()
+            elseif all(boundsmatrix[2,:] .== index)
+                End()
+            else
+                Center()
+            end
+            Explicit(boundsmatrix), Intervals(locus)
         end
     end
 
