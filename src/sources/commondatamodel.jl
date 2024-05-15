@@ -171,7 +171,6 @@ function _nondimnames(ds)
         end
         union(dimnames, boundsnames)::Vector{String}
     else
-        #@show dimnames
         collect(dimnames)::Vector{String}
     end
     # Maybe this should be fixed in ZarrDatasets but it works with this patch.
@@ -353,9 +352,9 @@ function _cdmlookup(
         else
             boundskey = var.attrib["bounds"]
             boundsmatrix = Array(ds[boundskey])
-            locus = if all(boundsmatrix[1,:] .== index)
+            locus = if mapredreduce(==, &, view(boundsmatrix, 1, :), index)
                 Start()
-            elseif all(boundsmatrix[2,:] .== index)
+            elseif mapredreduce(==, &, view(boundsmatrix, 2, :), index)
                 End()
             else
                 Center()
