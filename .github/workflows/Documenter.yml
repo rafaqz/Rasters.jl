@@ -22,7 +22,7 @@ jobs:
         with:
           cache-registries: "true"
       - name: Install documentation dependencies
-        run: julia --project=docs -e 'using Pkg; pkg"dev ."; Pkg.instantiate()'
+        run: julia --project=docs -e 'using Pkg; Pkg.Registry.update(); pkg"dev ."; Pkg.instantiate()'
       - name: Build and deploy
         env:
           RASTERDATASOURCES_PATH: "/tmp"
