@@ -352,9 +352,9 @@ function _cdmlookup(
         else
             boundskey = var.attrib["bounds"]
             boundsmatrix = Array(ds[boundskey])
-            locus = if mapredreduce(==, &, view(boundsmatrix, 1, :), index)
+            locus = if mapreduce(==, &, view(boundsmatrix, 1, :), index)
                 Start()
-            elseif mapredreduce(==, &, view(boundsmatrix, 2, :), index)
+            elseif mapreduce(==, &, view(boundsmatrix, 2, :), index)
                 End()
             else
                 Center()
