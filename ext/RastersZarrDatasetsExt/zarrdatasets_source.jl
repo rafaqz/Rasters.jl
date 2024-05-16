@@ -17,7 +17,8 @@ function Base.write(filename::AbstractString, ::Zarrsource, A::AbstractRaster;
     kw...
 )
     writeable = RA.check_can_write(filename, force)
-    ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(A)))
+    mode="c"
+    ds = ZarrDataset(filename, mode; attrib=RA._attribdict(metadata(A)))
     try
         _writevar!(ds, A; kw...)
     finally

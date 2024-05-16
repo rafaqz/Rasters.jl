@@ -493,3 +493,77 @@ function _cdmshiftlocus(lookup::AbstractSampled, dim::Dimension)
 end
 
 _unuseddimerror(dimname) = error("Dataset contains unused dimension $dimname")
+
+
+# Add a var array to a dataset before writing it.
+function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
+    verbose=true,
+    missingval=nokw,
+    chunks=nokw,
+    chunksizes=_chunks_to_tuple(A, dims(A), chunks),
+    kw...
+) where {T,N}
+    missingval = missingval isa NoKW ? Rasters.missingval(A) : missingval
+    _def_dim_var!(ds, A)
+    attrib = _attribdict(metadata(A))
+    # Set _FillValue
+    eltyp = Missings.nonmissingtype(T)
+    eltyp <: NCDAllowedType || throw(ArgumentError("""
+       Element type $eltyp cannot be written to NetCDF. Convert it to one of $(Base.uniontypes(NCDAllowedType)),
+       usually by broadcasting the desired type constructor over the `Raster`, e.g. `newrast = Float32.(rast)`"))
+       """
+    ))
+    if ismissing(missingval)
+        fillval = if haskey(attrib, "_FillValue") && attrib["_FillValue"] isa eltyp
+            attrib["_FillValue"]
+        else
+            CDM.fillvalue(eltyp)
+        end
+        attrib["_FillValue"] = fillval
+        A = replace_missing(A, fillval)
+    elseif Rasters.missingval(A) isa T
+        attrib["_FillValue"] = missingval
+    else
+        verbose && !(missingval isa Nothing) && @warn "`missingval` $(missingval) is not the same type as your data $T."
+    end
+
+    key = if string(DD.name(A)) == ""
+        UNNAMED_NCD_FILE_KEY
+    else
+        string(DD.name(A))
+    end
+
+    dimnames = lowercase.(string.(map(name, dims(A))))
+    var = CDM.defVar(ds, key, eltyp, dimnames; attrib=attrib, chunksizes, kw...) |> CFDiskArray
+
+    # Write with a DiskArrays.jl broadcast
+    var .= A
+
+    return nothing
+end
+
+_def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
+function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
+    dimname = lowercase(string(DD.name(dim)))
+    haskey(ds.dim, dimname) && return nothing
+    CDM.defDim(ds, dimname, length(dim))
+    lookup(dim) isa NoLookup && return nothing
+
+    # Shift index before conversion to Mapped
+    dim = _cdmshiftlocus(dim)
+    if dim isa Y || dim isa X
+        dim = convertlookup(Mapped, dim)
+    end
+    # Attributes
+    attrib = _attribdict(metadata(dim))
+    _cdm_set_axis_attrib!(attrib, dim)
+    # Bounds variables
+    if sampling(dim) isa Intervals
+        bounds = Dimensions.dim2boundsmatrix(dim)
+        boundskey = get(metadata(dim), :bounds, string(dimname, "_bnds"))
+        push!(attrib, "bounds" => boundskey)
+        CDM.defVar(ds, boundskey, bounds, ("bnds", dimname))
+    end
+    CDM.defVar(ds, dimname, Vector(index(dim)), (dimname,); attrib=attrib)
+    return nothing
+end
