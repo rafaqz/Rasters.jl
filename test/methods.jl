@@ -105,9 +105,9 @@ end
     @test sum(x) == 400
     @test parent(x) isa BitMatrix
     for poly in (polygon, multi_polygon) 
-        @test boolmask(poly; to=polytemplate) == .!boolmask(poly; to=a1, invert=true)
-        @test boolmask(poly; to=polytemplate, shape=:line) == .!boolmask(poly; to=a1, shape=:line, invert=true)
-        @test boolmask(poly; to=polytemplate, shape=:point) == .!boolmask(poly; to=a1, shape=:point, invert=true)
+        @test boolmask(poly; to=polytemplate) == .!boolmask(poly; to=polytemplate, invert=true)
+        @test boolmask(poly; to=polytemplate, shape=:line) == .!boolmask(poly; to=polytemplate, shape=:line, invert=true)
+        @test boolmask(poly; to=polytemplate, shape=:point) == .!boolmask(poly; to=polytemplate, shape=:point, invert=true)
     end
 end
 
@@ -148,11 +148,11 @@ end
     @test parent(x) isa Array{Union{Missing,Bool},2}
     for poly in (polygon, multi_polygon) 
         @test all(missingmask(poly; to=polytemplate) .=== 
-                  replace(missingmask(poly; to=a1, invert=true), missing=>true, true=>missing))
+                  replace(missingmask(poly; to=polytemplate, invert=true), missing=>true, true=>missing))
         @test all(missingmask(poly; to=polytemplate, shape=:line) .=== 
-                  replace(missingmask(poly; to=a1, shape=:line, invert=true), missing=>true, true=>missing))
+                  replace(missingmask(poly; to=polytemplate, shape=:line, invert=true), missing=>true, true=>missing))
         @test all(missingmask(poly; to=polytemplate, shape=:point) .=== 
-                  replace(missingmask(poly; to=a1, shape=:point, invert=true), missing=>true, true=>missing))
+                  replace(missingmask(poly; to=polytemplate, shape=:point, invert=true), missing=>true, true=>missing))
     end
 end
 
@@ -185,30 +185,30 @@ end
             st1 = RasterStack(polytemplate, polytemplate)
             ser1 = RasterSeries([polytemplate, polytemplate], Ti(1:2))
             @test all(
-                mask(a1; with=polygon) .===
+                mask(polytemplate; with=polygon) .===
                 mask(st1; with=polygon)[:layer1] .===
                 mask(ser1; with=polygon)[1]
             )
             @test all(
-                mask(a1; with=polygon, invert=true) .===
+                mask(polytemplate; with=polygon, invert=true) .===
                 mask(st1; with=polygon, invert=true)[:layer1] .===
                 mask(ser1; with=polygon, invert=true)[1] .===
-                replace(replace(mask(a1; with=polygon), missing => 0.0, 1.0 => missing), 0.0 => 1.0)
+                replace(replace(mask(polytemplate; with=polygon), missing => 0.0, 1.0 => missing), 0.0 => 1.0)
             )
             @test all(
-                mask(a1; with=polygon, invert=true, shape=:line) .===
+                mask(polytemplate; with=polygon, invert=true, shape=:line) .===
                 mask(st1; with=polygon, invert=true, shape=:line)[:layer1] .===
                 mask(ser1; with=polygon, invert=true, shape=:line)[1] .===
-                replace(replace(mask(a1; with=polygon, shape=:line), missing => 0.0, 1.0 => missing), 0.0 => 1.0)
+                replace(replace(mask(polytemplate; with=polygon, shape=:line), missing => 0.0, 1.0 => missing), 0.0 => 1.0)
             )
             # TODO: investigate this more for Points/Intervals
             # Exactly how do we define when boundary values are inside/outside a polygon
-            @test sum(skipmissing(mask(a1; with=polygon, boundary=:inside))) == 19 * 19
-            @test sum(skipmissing(mask(a1; with=polygon, boundary=:inside, invert=true))) == prod(size(a1)) - 19 * 19
-            @test sum(skipmissing(mask(a1; with=polygon, boundary=:center))) == 20 * 20
-            @test sum(skipmissing(mask(a1; with=polygon, boundary=:center, invert=true))) == prod(size(a1)) - 20 * 20
-            @test sum(skipmissing(mask(a1; with=polygon, boundary=:touches))) == 21 * 21
-            @test sum(skipmissing(mask(a1; with=polygon, boundary=:touches, invert=true))) == prod(size(a1)) - 21 * 21
+            @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:inside))) == 19 * 19
+            @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:inside, invert=true))) == prod(size(polytemplate)) - 19 * 19
+            @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:center))) == 20 * 20
+            @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:center, invert=true))) == prod(size(polytemplate)) - 20 * 20
+            @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:touches))) == 21 * 21
+            @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:touches, invert=true))) == prod(size(polytemplate)) - 21 * 21
         end
     end
 end
