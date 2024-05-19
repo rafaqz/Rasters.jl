@@ -19,7 +19,7 @@ function _burn_polygon!(B::AbstractDimArray, trait, geom;
     allocs = _get_alloc(allocs)
     edges = Edges(geom, dims(B); allocs)
     
-    hasburned::Bool = _burn_polygon!(B, edges, allocs.crossings)
+    hasburned::Bool = _burn_polygon!(B, edges, allocs.crossings; fill)
 
     # Lines
     n_on_line = 0
@@ -48,7 +48,7 @@ function _burn_polygon!(B::AbstractDimArray, trait, geom;
     return hasburned
 end
 function _burn_polygon!(A::AbstractDimArray, edges::Edges, crossings::Vector{Float64};
-    offset=nothing, verbose=true
+    offset=nothing, verbose=true, fill=true
 )::Bool
     local prev_ypos = 0
     hasburned = false
@@ -57,7 +57,7 @@ function _burn_polygon!(A::AbstractDimArray, edges::Edges, crossings::Vector{Flo
         # Calculate where on the x axis iy is crossed
         ncrossings, prev_ypos = _set_crossings!(crossings, edges, iy, prev_ypos)
         # Burn between alternate crossings
-        status = _burn_crossings!(A, crossings, ncrossings, iy)
+        status = _burn_crossings!(A, crossings, ncrossings, iy; fill)
         hasburned |= status.hasburned
     end
     return hasburned
@@ -95,7 +95,7 @@ function _set_crossings!(crossings::Vector{Float64}, edges::Edges, iy::Int, prev
 end
 
 function _burn_crossings!(A, crossings, ncrossings, iy; 
-    status::BurnStatus=BurnStatus()
+    status::BurnStatus=BurnStatus(), fill::Bool=true
 ) 
     stop = false
     # Start burning loop from outside any rings
@@ -111,7 +111,7 @@ function _burn_crossings!(A, crossings, ncrossings, iy;
                 break
             end
             if burn
-                @inbounds A[X(ix), Y(iy)] = true
+                @inbounds A[X(ix), Y(iy)] = fill
                 hasburned = true
             end
             ix += 1
@@ -127,7 +127,7 @@ function _burn_crossings!(A, crossings, ncrossings, iy;
     # Maybe fill in the end of the row
     if burn
         for x in ix:lastindex(A, X())
-            @inbounds A[X(ix), Y(iy)] = true
+            @inbounds A[X(ix), Y(iy)] = fill
         end
     end
     return BurnStatus(ic, burn, hasburned)

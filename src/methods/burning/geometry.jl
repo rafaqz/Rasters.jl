@@ -23,8 +23,14 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait,
 end
 # Where geoms is an iterator
 function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; 
-    collapse::Union{Bool,Nothing}=nothing, lock=Threads.SpinLock(), verbose=true, progress=true, threaded=true,
-    allocs=_burning_allocs(B; threaded), kw...
+    collapse::Union{Bool,Nothing}=nothing, 
+    lock=Threads.SpinLock(), 
+    verbose=true, 
+    progress=true, 
+    threaded=true,
+    fill=true,
+    allocs=_burning_allocs(B; threaded), 
+    kw...
 )::Bool
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
@@ -34,14 +40,25 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
             ismissing(geom) && return nothing
             a = _get_alloc(allocs)
             B1 = a.buffer
-            burnchecks[i] = _burn_geometry!(B1, geom; allocs=a, lock, kw...)
+            burnchecks[i] = _burn_geometry!(B1, geom; fill, allocs=a, lock, kw...)
             return nothing
         end
-        if allocs isa Allocs
-            _do_broadcast!(|, B, allocs.buffer)
+        if fill
+            # combine true values with |
+            if allocs isa Allocs
+                _do_broadcast!(|, B, allocs.buffer)
+            else
+                buffers = map(a -> a.buffer, allocs)
+                _do_broadcast!(|, B, buffers...)
+            end
         else
-            buffers = map(a -> a.buffer, allocs)
-            _do_broadcast!(|, B, buffers...)
+            # combine false values with &
+            if allocs isa Allocs
+                _do_broadcast!(&, B, allocs.buffer)
+            else
+                buffers = map(a -> a.buffer, allocs)
+                _do_broadcast!(&, B, buffers...)
+            end
         end
     else
         _run(range, threaded, progress, "") do i
@@ -59,16 +76,21 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
 end
 
 function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom; 
-    shape=nothing, verbose=true, boundary=:center, allocs=nothing, kw...
+    shape=nothing, 
+    verbose=true, 
+    boundary=:center, 
+    allocs=nothing, 
+    fill=true, 
+    kw...
 )::Bool
     hasburned = false
     GI.npoint(geom) > 0 || return hasburned
     # Use the specified shape or detect it
     shape = shape isa Symbol ? shape : _geom_shape(geom)
     if shape === :point
-        hasburned = _fill_point!(B, geom; fill=true, shape, kw...)
+        hasburned = _fill_point!(B, geom; fill, shape, kw...)
     elseif shape === :line
-        n_on_line = _burn_lines!(B, geom; shape, kw...)
+        n_on_line = _burn_lines!(B, geom; fill, shape, kw...)
         hasburned = n_on_line > 0
     elseif shape === :polygon
         # Get the extents of the geometry and array
@@ -81,13 +103,13 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
         end
         # Take a view of the geometry extent
         B1 = view(B, Touches(geomextent))
-        buf1 = _init_bools(B1)
+        buf1 = _init_bools(B1; missingval=false)
         # Burn the polygon into the buffer
         allocs = isnothing(allocs) ? Allocs(B) : allocs
         hasburned = _burn_polygon!(buf1, geom; shape, geomextent, allocs, boundary, kw...)
         @inbounds for i in eachindex(B1)
             if buf1[i]
-                B1[i] = true
+                B1[i] = fill
             end
         end
     else
