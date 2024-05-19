@@ -106,6 +106,8 @@ end
     @test parent(x) isa BitMatrix
     for poly in (polygon, multi_polygon) 
         @test boolmask(poly; to=polytemplate) == .!boolmask(poly; to=a1, invert=true)
+        @test boolmask(poly; to=polytemplate, shape=:line) == .!boolmask(poly; to=a1, shape=:line, invert=true)
+        @test boolmask(poly; to=polytemplate, shape=:point) == .!boolmask(poly; to=a1, shape=:point, invert=true)
     end
 end
 
@@ -145,7 +147,12 @@ end
     @test sum(x) == 400
     @test parent(x) isa Array{Union{Missing,Bool},2}
     for poly in (polygon, multi_polygon) 
-        @test all(missingmask(poly; to=polytemplate) .=== replace(missingmask(poly; to=a1, invert=true), missing=>true, true=>missing))
+        @test all(missingmask(poly; to=polytemplate) .=== 
+                  replace(missingmask(poly; to=a1, invert=true), missing=>true, true=>missing))
+        @test all(missingmask(poly; to=polytemplate, shape=:line) .=== 
+                  replace(missingmask(poly; to=a1, shape=:line, invert=true), missing=>true, true=>missing))
+        @test all(missingmask(poly; to=polytemplate, shape=:point) .=== 
+                  replace(missingmask(poly; to=a1, shape=:point, invert=true), missing=>true, true=>missing))
     end
 end
 
@@ -187,6 +194,12 @@ end
                 mask(st1; with=polygon, invert=true)[:layer1] .===
                 mask(ser1; with=polygon, invert=true)[1] .===
                 replace(replace(mask(a1; with=polygon), missing => 0.0, 1.0 => missing), 0.0 => 1.0)
+            )
+            @test all(
+                mask(a1; with=polygon, invert=true, shape=:line) .===
+                mask(st1; with=polygon, invert=true, shape=:line)[:layer1] .===
+                mask(ser1; with=polygon, invert=true, shape=:line)[1] .===
+                replace(replace(mask(a1; with=polygon, shape=:line), missing => 0.0, 1.0 => missing), 0.0 => 1.0)
             )
             # TODO: investigate this more for Points/Intervals
             # Exactly how do we define when boundary values are inside/outside a polygon

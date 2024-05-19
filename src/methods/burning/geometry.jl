@@ -43,7 +43,6 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
             burnchecks[i] = _burn_geometry!(B1, geom; fill, allocs=a, lock, kw...)
             return nothing
         end
-        @show fill
         if fill
             # combine true values with |
             if allocs isa Allocs

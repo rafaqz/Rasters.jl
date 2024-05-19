@@ -41,7 +41,6 @@ function _burn_polygon!(B::AbstractDimArray, trait, geom;
         if verbose
             (n_on_line > 0) || @info "$n_on_line pixels were on lines"
         end
-        @show B
     end
 
     hasburned |= (n_on_line > 0)

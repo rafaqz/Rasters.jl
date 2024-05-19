@@ -347,15 +347,11 @@ function boolmask!(dest::AbstractRaster, geoms;
             ismissing(geom) && return nothing
             slice = view(dest, Dim{:geometry}(i))
             # We don't need locks - these are independent slices
-            @show slice
             burn_geometry!(slice, geom; kw..., fill=!invert, allocs=_get_alloc(allocs))
-            @show slice
             return nothing
         end
     else
-        @show dest
         burn_geometry!(dest, geoms; kw..., allocs, lock, progress, threaded, fill=!invert)
-        @show dest
     end
     return dest
 end
