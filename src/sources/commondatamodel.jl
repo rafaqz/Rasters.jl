@@ -390,11 +390,10 @@ function _cdmspan(index, order)
         # Calculate step, avoiding as many floating point errors as possible
         st = Base.step(Base.range(Float64(first(index)), Float64(last(index)); length = length(index)))
         st_rd = round(st, digits = Base.floor(Int,-log10(eps(eltype(index))))) # round to nearest digit within machine epsilon
-        st_rd ≈ st ? st_rd : st # keep the rounded number if it is very close to the original
+        isapprox(st_rd, st; atol = eps(eltype(index))) ? st_rd : st # keep the rounded number if it is very close to the original
     else
         index[2] - index[1]
     end
-    
     for i in 2:length(index)-1
         # If any step sizes don't match, its Irregular
         if !(index[i+1] - index[i] ≈ step)
