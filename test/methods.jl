@@ -28,6 +28,7 @@ linearring = ArchGDAL.createlinearring(pointvec)
 pointfc = map(GeoInterface.getpoint(polygon), vals) do geom, v
     (geometry=geom, val1=v, val2=2.0f0v)
 end
+polytemplate = Raster(ones(X(-20:5; sampling=Intervals(Center())), Y(0:30; sampling=Intervals(Center()))))
 
 test_shape_dir = realpath(joinpath(dirname(pathof(Shapefile)), "..", "test", "shapelib_testcases"))
 shp_paths = filter(x -> occursin("shp", x), readdir(test_shape_dir; join=true))
@@ -103,6 +104,9 @@ end
     @test size(x) == (20, 20)
     @test sum(x) == 400
     @test parent(x) isa BitMatrix
+    for poly in (polygon, multi_polygon) 
+        @test boolmask(poly; to=polytemplate) == .!boolmask(poly; to=a1, invert=true)
+    end
 end
 
 @testset "missingmask" begin
@@ -140,6 +144,9 @@ end
     @test size(x) == (20, 20)
     @test sum(x) == 400
     @test parent(x) isa Array{Union{Missing,Bool},2}
+    for poly in (polygon, multi_polygon) 
+        @test all(missingmask(poly; to=polytemplate) .=== replace(missingmask(poly; to=a1, invert=true), missing=>true, true=>missing))
+    end
 end
 
 @testset "mask" begin
@@ -168,28 +175,27 @@ end
     poly = polygon
     @testset "to polygon" begin
         for poly in (polygon, multi_polygon) 
-            a1 = Raster(ones(X(-20:5; sampling=Intervals(Center())), Y(0:30; sampling=Intervals(Center()))))
-            st1 = RasterStack(a1, a1)
-            ser1 = RasterSeries([a1, a1], Ti(1:2))
+            st1 = RasterStack(polygtemplate, polygtemplate)
+            ser1 = RasterSeries([polygtemplate, polygtemplate], Ti(1:2))
             @test all(
                 mask(a1; with=polygon) .===
                 mask(st1; with=polygon)[:layer1] .===
                 mask(ser1; with=polygon)[1]
+            )
+            @test all(
+                mask(a1; with=polygon, invert=true) .===
+                mask(st1; with=polygon, invert=true)[:layer1] .===
+                mask(ser1; with=polygon, invert=true)[1] .===
+                replace(replace(mask(a1; with=polygon), missing => 0.0, 1.0 => missing), 0.0 => 1.0)
             )
             # TODO: investigate this more for Points/Intervals
             # Exactly how do we define when boundary values are inside/outside a polygon
             @test sum(skipmissing(mask(a1; with=polygon, boundary=:inside))) == 19 * 19
             @test sum(skipmissing(mask(a1; with=polygon, boundary=:inside, invert=true))) == prod(size(a1)) - 19 * 19
             @test sum(skipmissing(mask(a1; with=polygon, boundary=:center))) == 20 * 20
+            @test sum(skipmissing(mask(a1; with=polygon, boundary=:center, invert=true))) == prod(size(a1)) - 20 * 20
             @test sum(skipmissing(mask(a1; with=polygon, boundary=:touches))) == 21 * 21
             @test sum(skipmissing(mask(a1; with=polygon, boundary=:touches, invert=true))) == prod(size(a1)) - 21 * 21
-            Makie.plot(mask(a1; with=polygon, boundary=:touches))
-            Makie.plot(mask(a1; with=polygon, boundary=:touches, invert=true))
-            boolmask(polygon; to=a1, boundary=:touches, invert=true))
-            mask(a1; with=polygon, boundary=:touches)
-            mask(a1; with=polygon, boundary=:touches, shape=:line)
-            mask(a1; with=polygon, boundary=:inside)
-            mask(a1; with=polygon)
         end
     end
 end

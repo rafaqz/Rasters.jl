@@ -104,10 +104,10 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
         end
         # Take a view of the geometry extent
         B1 = view(B, Touches(geomextent))
-        buf1 = _init_bools(B1; missingval=!fill)
+        buf1 = _init_bools(B1; missingval=false)
         # Burn the polygon into the buffer
         allocs = isnothing(allocs) ? Allocs(B) : allocs
-        hasburned = _burn_polygon!(buf1, geom; fill, shape, geomextent, allocs, boundary, kw...)
+        hasburned = _burn_polygon!(buf1, geom; shape, geomextent, allocs, boundary, kw...)
         @inbounds for i in eachindex(B1)
             if buf1[i]
                 B1[i] = fill
