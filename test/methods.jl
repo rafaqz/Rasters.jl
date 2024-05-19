@@ -182,8 +182,8 @@ end
     poly = polygon
     @testset "to polygon" begin
         for poly in (polygon, multi_polygon) 
-            st1 = RasterStack(polygtemplate, polygtemplate)
-            ser1 = RasterSeries([polygtemplate, polygtemplate], Ti(1:2))
+            st1 = RasterStack(polytemplate, polytemplate)
+            ser1 = RasterSeries([polytemplate, polytemplate], Ti(1:2))
             @test all(
                 mask(a1; with=polygon) .===
                 mask(st1; with=polygon)[:layer1] .===
