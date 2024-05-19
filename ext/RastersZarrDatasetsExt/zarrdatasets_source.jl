@@ -20,7 +20,7 @@ function Base.write(filename::AbstractString, ::Zarrsource, A::AbstractRaster;
     mode="c"
     ds = ZarrDataset(filename, mode; attrib=RA._attribdict(metadata(A)))
     try
-        _writevar!(ds, A; kw...)
+        RA._writevar!(ds, A; kw...)
     finally
         close(ds)
     end

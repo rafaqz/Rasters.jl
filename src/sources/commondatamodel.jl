@@ -31,6 +31,9 @@ const CDM_STANDARD_NAME_MAP = Dict(
     "time" => Ti,
 )
 
+const UNNAMED_CDM_FILE_KEY = "unnamed"
+
+
 
 # CFDiskArray ########################################################################
 
@@ -508,11 +511,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     attrib = _attribdict(metadata(A))
     # Set _FillValue
     eltyp = Missings.nonmissingtype(T)
-    eltyp <: NCDAllowedType || throw(ArgumentError("""
-       Element type $eltyp cannot be written to NetCDF. Convert it to one of $(Base.uniontypes(NCDAllowedType)),
-       usually by broadcasting the desired type constructor over the `Raster`, e.g. `newrast = Float32.(rast)`"))
-       """
-    ))
+    _check_allowed_type(eltyp)
     if ismissing(missingval)
         fillval = if haskey(attrib, "_FillValue") && attrib["_FillValue"] isa eltyp
             attrib["_FillValue"]
@@ -528,7 +527,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     end
 
     key = if string(DD.name(A)) == ""
-        UNNAMED_NCD_FILE_KEY
+        UNNAMED_CDM_FILE_KEY
     else
         string(DD.name(A))
     end
@@ -541,6 +540,8 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
 
     return nothing
 end
+
+_check_allowed_type(eltyp) = nothing
 
 _def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
