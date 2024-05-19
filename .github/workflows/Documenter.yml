@@ -1,4 +1,5 @@
-name: Documenter
+name: Documentation
+
 on:
   push:
     branches: [main]
@@ -16,13 +17,11 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: julia-actions/setup-julia@v1
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
       - uses: julia-actions/cache@v1
-        with:
-          cache-registries: "true"
       - name: Install documentation dependencies
-        run: julia --project=docs -e 'using Pkg; pkg"dev ."; Pkg.instantiate()'
+        run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
       - name: Build and deploy
         env:
           RASTERDATASOURCES_PATH: "/tmp"
