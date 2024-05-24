@@ -63,7 +63,9 @@ function extract end
    names=_names(x), name=names, skipmissing=false, geometry=true, index=false, kw...
 )
     n = DD._astuple(name)
-    _extract(x, data, NamedTuple{n}(n); 
+    _extract(x, data;
+         dims=DD.dims(x, DEFAULT_POINT_ORDER),
+         names=NamedTuple{n}(n),
          # These keywords are converted to _True/_False for type stability later on
          # The @inline above helps constant propagation of the Bools
          geometry=_booltype(geometry), 
@@ -71,20 +73,6 @@ function extract end
          skipmissing=_booltype(skipmissing), 
          kw...
     )
-end
-function _extract(x::RasterStackOrArray, data, names::NamedTuple{Names};
-    dims=DD.dims(x, DEFAULT_POINT_ORDER), kw...
-) where Names
-    if !(data isa AbstractVector{<:GeoInterface.NamedTuplePoint}) && Tables.istable(data)
-        geomcolnames = GI.geometrycolumns(data)
-        if isnothing(geomcolnames) || !in(first(geomcolnames), Tables.columnnames(Tables.columns(data)))
-            throw(ArgumentError("No `:geometry` column and `GeoInterface.geometrycolums(::$(typeof(data)))` does not define alternate columns"))
-        end
-        geometries = Tables.getcolumn(Tables.columns(data), first(geomcolnames))
-        _extract(x, geometries; dims, names, kw...)
-    else
-        _extract(x, data; dims, names, kw...)
-    end
 end
 
 function _extract(A::RasterStackOrArray, geom::Missing, names, kw...)
@@ -94,11 +82,10 @@ end
 function _extract(A::RasterStackOrArray, geom; names, kw...)
     _extract(A, GI.geomtrait(geom), geom; names, kw...)
 end
-_extract(A::RasterStackOrArray, ::Nothing, geom; kw...) =
-    throw(ArgumentError("$geom is not a valid GeoInterface.jl geometry"))
-function _extract(A::RasterStackOrArray, ::Nothing, geoms::AbstractArray; 
+function _extract(A::RasterStackOrArray, ::Nothing, data; 
     names, skipmissing, kw...
 )
+    geoms = _get_geometries(data; geometrycolumn=nothing)
     T = if istrue(skipmissing)
         _rowtype(A, nonmissingtype(eltype(geoms)); names, skipmissing, kw...)
     else

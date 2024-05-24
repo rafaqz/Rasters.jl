@@ -186,6 +186,27 @@ function _as_intervals(ds::Tuple)
     return setdims(ds, interval_dims)
 end
 
+# get geometries from what may be a table with a geometrycolumn or an interable of geometries
+# if it has no geometry column and does not iterate valid geometries, error informatively
+function _get_geometries(data; geometrycolumn=nothing)
+    # if it's a table, get the geometry column
+    geoms = if !(data isa AbstractVector{<:GeoInterface.NamedTuplePoint}) && Tables.istable(data)
+        geomcol = isnothing(geometrycolumn) ? first(GI.geometrycolumns(data)) : geometrycolumn
+        if isnothing(geomcol) || !in(geomcol, Tables.columnnames(Tables.columns(data)))
+            throw(ArgumentError("Expected geometries in the column `$geomcol`, but no such column found."))
+        end
+        Tables.getcolumn(Tables.columns(data), geomcol)
+    else # otherwise it's an iterable of geometries
+        data
+    end
+    # check if data iterates valid geometries before returning
+    for g in geoms
+        ismissing(g) || GI.geomtrait(g) !== nothing || 
+        throw(ArgumentError("$g is not a valid GeoInterface.jl geometry"))
+    end
+    return geoms
+end
+
 _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
 
 _filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not found"))

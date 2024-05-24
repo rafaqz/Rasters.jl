@@ -144,32 +144,7 @@ function Rasterizer(geom, fill, fillitr;
     return Rasterizer(eltype, geom, fillitr, reducer, op, init, missingval, lock, shape, boundary, verbose, progress, threaded, threadsafe_op)
 end
 function Rasterizer(data::T; fill, geomcolumn=nothing, kw...) where T
-    if Tables.istable(T) # typeof so we dont check iterable table fallback in Tables.jl
-        schema = Tables.schema(data)
-        cols = Tables.columns(data)
-        colnames = Tables.columnnames(Tables.columns(data))
-        fillitr = _iterable_fill(nothing, cols, fill)
-        # If fill is a symbol or tuple of Symbol we need to allocate based on the column type
-        geomcolname = if isnothing(geomcolumn)
-            geomcols = GI.geometrycolumns(data)
-            isnothing(geomcols) ? nothing : first(geomcols)
-        else
-            geomcolumn
-        end
-
-        geometries = if geomcolname isa Symbol && geomcolname in Tables.columnnames(cols)
-            # Its a geometry table
-            Tables.getcolumn(cols, geomcolname)
-        else
-            # Its a point table
-            pointcolnames = isnothing(geomcolumn) ? map(name, _auto_dim_columns(data, DEFAULT_POINT_ORDER)) : geomcolumn
-            pointcols = map(k -> Tables.getcolumn(cols, k), pointcolnames)
-            zip(pointcols...)
-        end
-        Rasterizer(geometries, fill, fillitr; kw...)
-    else
-        Rasterizer(GeoInterface.trait(data), data; fill, kw...)
-    end
+    Rasterizer(GI.trait(data), data; fill, kw...)
 end
 function Rasterizer(trait::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
     fillitr = _iterable_fill(trait, fc, fill)
@@ -185,8 +160,9 @@ function Rasterizer(trait::GI.GeometryCollectionTrait, collection; kw...)
     geoms = collect(GI.getgeom(collection))
     Rasterizer(geoms; kw...)
 end
-function Rasterizer(trait::Nothing, geoms; fill, kw...)
-    fillitr = _iterable_fill(trait, geoms, fill)
+function Rasterizer(trait::Nothing, data; fill, kw...)
+    geoms = _get_geometries(data)
+    fillitr = _iterable_fill(trait, data, fill)
     Rasterizer(geoms, fill, fillitr; kw...)
 end
 function Rasterizer(trait::GI.AbstractGeometryTrait, geom; fill, kw...)
@@ -299,13 +275,12 @@ function _iterable_fill(trait, data, fill)
         return fill
     elseif fill isa Number 
         return Iterators.cycle(fill)
-    elseif Tables.istable(typeof(data))
-        # we don't need the keys, just the column length
-        data = first(Tables.columns(data))
     end
 
     if trait isa GI.FeatureCollectionTrait
         n = GI.nfeature(data)
+    elseif Tables.istable(data)
+        n = length(Tables.rows(data))
     elseif Base.IteratorSize(data) isa Union{Base.HasShape,Base.HasLength}
         n = length(data)
     else

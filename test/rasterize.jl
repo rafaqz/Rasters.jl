@@ -20,7 +20,6 @@ pointvec = [
 vals = [1, 2, 3, 4, 5]
 polygon = ArchGDAL.createpolygon(pointvec)
 multi_polygon = ArchGDAL.createmultipolygon([[pointvec]])
-multi_polygon = ArchGDAL.createmultipolygon([[pointvec]])
 multi_point = ArchGDAL.createmultipoint(pointvec)
 linestring = ArchGDAL.createlinestring(pointvec)
 multi_linestring = ArchGDAL.createmultilinestring([pointvec])
@@ -33,7 +32,11 @@ end
 pointfc = map(GI.getpoint(polygon), vals) do geom, v
     GI.Feature(geom; properties=(val1=v, val2=2.0f0v))
 end |> GI.FeatureCollection
+pointdf = DataFrame(pointtable)
 table = (X=first.(pointvec), Y=last.(pointvec), othercol=zero.(last.(pointvec)))
+
+geoms = (pointvec, pointtable, pointfc, pointdf, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon)#, table)
+collections = (line_collection, poly_collection)
 
 test_shape_dir = realpath(joinpath(dirname(pathof(Shapefile)), "..", "test", "shapelib_testcases"))
 shp_paths = filter(x -> occursin("shp", x), readdir(test_shape_dir; join=true))
@@ -45,17 +48,9 @@ A2 = Raster(zeros(Y(0:30; sampling=Intervals()), X(-20:5; sampling=Intervals()))
 st = RasterStack((A1, copy(A1)))
 
 @testset "all geoms work as :point" begin
-    A = A2
-    geom = polygon
-    geom = linearring
-    geom = pointvec
-    geom = line_collection
-    geom = poly_collection
-    geom = pointfc
-    threaded = true
     
     for A in (A1, A2), 
-        geom in (pointvec, pointtable, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, table, line_collection, poly_collection),
+        geom in (geoms..., collections...),
         threaded in (true, false)
 
         fill!(A, 0)
@@ -69,16 +64,12 @@ st = RasterStack((A1, copy(A1)))
         @test sum(rasterize(last, geom; to=A, shape=:point, fill=1, missingval=0, threaded)) == 4.0
         fill!(A, 0)
         if !(Tables.istable(geom) || GI.isfeaturecollection(geom))
-            rasterize!(count, A, [geom, geom]; shape=:point, threaded)
+            rasterize!(count, A, [geom; geom]; shape=:point, threaded)
             @test sum(A) == 10.0
             fill!(A, 0)
         end
-    end
-    geom = multi_point
-    for A in (A1, A2), 
-        geom in (table, pointvec, pointtable, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection, poly_collection),
-        threaded in (true, false)
 
+        # stack
         rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3), threaded)
         st.layer1 .= st.layer2 .= 0
         rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3), threaded)
@@ -96,9 +87,8 @@ st = RasterStack((A1, copy(A1)))
         st.layer1 .= 0; st.layer2 .= 0
     end
 
-
     for A in (A1, A2), 
-        geom in (table, pointvec, pointtable, pointfc, multi_point, linestring, multi_linestring, linearring, polygon, multi_polygon),
+        geom in geoms,
         threaded in (true, false)
 
         st[:layer1] .= 0; st[:layer2] .= 0
@@ -120,9 +110,6 @@ st = RasterStack((A1, copy(A1)))
 end
 
 @testset "all line and polygon geoms work as :line" begin
-    A = A1
-    geom = linestring
-    geom = line_collection
     for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection, poly_collection),
         threaded in (true, false)
         A .= 0
@@ -143,10 +130,6 @@ end
 end
 
 @testset "polygon geoms work as :polygon" begin
-    A = A1
-    poly = polygon
-    poly = poly_collection
-    threaded = false
     for A in (A1, A2), poly in (polygon, multi_polygon, poly_collection), threaded in (true, false)
         A .= 0
         ra = rasterize(last, poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center, threaded)
@@ -183,12 +166,7 @@ end
 end
 
 @testset "from geometries, tables and features of points" begin
-    A = A1
-    data = DataFrame(pointtable)
-    data = multi_point
-    data = pointfc
-
-    for data in (pointtable, pointfc, DataFrame(pointtable), multi_point, pointvec, reverse(pointvec))
+   for data in (pointtable, pointfc, DataFrame(pointtable), multi_point, pointvec, reverse(pointvec))
         @test sum(skipmissing(rasterize(sum, data; to=A, fill=1))) == 5
         @testset "to and fill Keywords are required" begin
             @test_throws ArgumentError R = rasterize(data; fill=1) 
@@ -228,8 +206,6 @@ end
     end
 
     @testset "feature collection, table from fill of Symbol keys" begin
-        data = pointtable
-        data = pointfc
         for data in (pointfc, pointtable, DataFrame(pointtable)), threaded in (true, false)
             @testset "NTuple of Symbol fill makes an stack" begin
                 rst = rasterize(sum, data; to=A, fill=(:val1, :val2), threaded)
