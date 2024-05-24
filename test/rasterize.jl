@@ -48,6 +48,14 @@ A2 = Raster(zeros(Y(0:30; sampling=Intervals()), X(-20:5; sampling=Intervals()))
 st = RasterStack((A1, copy(A1)))
 
 @testset "all geoms work as :point" begin
+    A = A2
+    geom = polygon
+    geom = linearring
+    geom = pointvec
+    geom = line_collection
+    geom = poly_collection
+    geom = pointfc
+    threaded = true
     
     for A in (A1, A2), 
         geom in (geoms..., collections...),
@@ -110,6 +118,9 @@ st = RasterStack((A1, copy(A1)))
 end
 
 @testset "all line and polygon geoms work as :line" begin
+    A = A1
+    geom = linestring
+    geom = line_collection
     for A in (A1, A2), geom in (linestring, multi_linestring, linearring, polygon, multi_polygon, line_collection, poly_collection),
         threaded in (true, false)
         A .= 0
@@ -130,6 +141,10 @@ end
 end
 
 @testset "polygon geoms work as :polygon" begin
+    A = A1
+    poly = polygon
+    poly = poly_collection
+    threaded = false
     for A in (A1, A2), poly in (polygon, multi_polygon, poly_collection), threaded in (true, false)
         A .= 0
         ra = rasterize(last, poly; to=A, missingval=0, shape=:polygon, fill=1, boundary=:center, threaded)
@@ -166,6 +181,11 @@ end
 end
 
 @testset "from geometries, tables and features of points" begin
+    A = A1
+    data = DataFrame(pointtable)
+    data = multi_point
+    data = pointfc
+
    for data in (pointtable, pointfc, DataFrame(pointtable), multi_point, pointvec, reverse(pointvec))
         @test sum(skipmissing(rasterize(sum, data; to=A, fill=1))) == 5
         @testset "to and fill Keywords are required" begin
@@ -206,6 +226,8 @@ end
     end
 
     @testset "feature collection, table from fill of Symbol keys" begin
+        data = pointtable
+        data = pointfc
         for data in (pointfc, pointtable, DataFrame(pointtable)), threaded in (true, false)
             @testset "NTuple of Symbol fill makes an stack" begin
                 rst = rasterize(sum, data; to=A, fill=(:val1, :val2), threaded)
