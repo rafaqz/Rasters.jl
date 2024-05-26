@@ -41,7 +41,7 @@ makedocs(
     sitename = "Rasters.jl",
     authors="Rafael Schouten et al.",
     clean=true,
-    doctest=false,
+    doctest=true,
     checkdocs=:all,
     format=DocumenterVitepress.MarkdownVitepress(
         repo = "github.com/rafaqz/Rasters.jl", # this must be the full URL!
