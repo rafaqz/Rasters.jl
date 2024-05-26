@@ -68,31 +68,43 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     missingval=nokw,
     chunks=nokw,
     chunksizes=RA._chunks_to_tuple(A, dims(A), chunks),
+    scale=nokw,
+    offset=nokw,
+    eltype=Missings.nonmissingtype(T),
     kw...
 ) where {T,N}
-    missingval = missingval isa NoKW ? Rasters.missingval(A) : missingval
     _def_dim_var!(ds, A)
     attrib = RA._attribdict(metadata(A))
-    # Set _FillValue
-    eltyp = Missings.nonmissingtype(T)
-    eltyp <: NCDAllowedType || throw(ArgumentError("""
+    # Scale and offset
+    scale = if isnokw(scale) || isnothing(scale)
+        delete!(attrib, "scale_factor")
+        nothing
+    else
+        attrib["scale_factor"] = scale
+    end
+    offset = if isnokw(offset) || isnothing(offset)
+        delete!(attrib, "add_offset")
+        nothing
+    else
+        attrib["add_offset"] = offset
+    end
+    maskingval1 = begin
+        mv = maskingval isa NoKW ? Rasters.missingval(A) : maskingval
+        mv === missingval ? nothing : mv
+    end
+    mod = _mod(missingval1, maskingval1, scale, offset)
+
+    eltype <: NCDAllowedType || throw(ArgumentError("""
        Element type $eltyp cannot be written to NetCDF. Convert it to one of $(Base.uniontypes(NCDAllowedType)),
        usually by broadcasting the desired type constructor over the `Raster`, e.g. `newrast = Float32.(rast)`"))
        """
     ))
-    if ismissing(missingval)
-        fillval = if haskey(attrib, "_FillValue") && attrib["_FillValue"] isa eltyp
-            attrib["_FillValue"]
-        else
-            NCD.fillvalue(eltyp)
-        end
-        attrib["_FillValue"] = fillval
-        A = replace_missing(A, fillval)
-    elseif Rasters.missingval(A) isa T
+
+    # Set _FillValue
+    if !isnothing(maskingval1) && Rasters.missingval(A) isa T
         attrib["_FillValue"] = missingval
-    else
-        verbose && !(missingval isa Nothing) && @warn "`missingval` $(missingval) is not the same type as your data $T."
     end
+    verbose && !(maskingval isa Nothing) && @warn "`maskingval` $(maskingval) is not the same type as your data $T."
 
     key = if string(DD.name(A)) == ""
         UNNAMED_NCD_FILE_KEY
@@ -101,8 +113,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     end
 
     dimnames = lowercase.(string.(map(RA.name, dims(A))))
-    var = NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, chunksizes, kw...) |> RA.CFDiskArray
-
+    var = _maybe_modify(NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, chunksizes, kw...), mod)
     # Write with a DiskArays.jl broadcast
     var .= A
 
@@ -134,10 +145,6 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
     NCD.defVar(ds, dimname, Vector(index(dim)), (dimname,); attrib=attrib)
     return nothing
 end
-
-# Hack to get the inner DiskArrays chunks as they are not exposed at the top level
-RA._get_eachchunk(var::NCD.Variable) = DiskArrays.eachchunk(var)
-RA._get_haschunks(var::NCD.Variable) = DiskArrays.haschunks(var)
 
 RA._sourcetrait(::NCD.Dataset) = NCDsource()
 RA._sourcetrait(::NCD.Variable) = NCDsource()

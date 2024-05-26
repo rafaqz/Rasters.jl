@@ -55,9 +55,9 @@ gaMi = replace_missing(ga)
     @test all(map(values(replace_missing(st, NaN32)), (a=[NaN32 7.0f0; 2.0f0 NaN32], b=[1.0 0.4; 2.0 NaN])) do x, y
         all(x .=== y)
     end)
-    dNaN = replace_missing(ga, NaN32; filename="test.tif")
+    testfile = tempname() * ".tif"
+    dNaN = replace_missing(ga, NaN32; filename=testfile)
     @test all(isequal.(dNaN, [NaN32 7.0f0; 2.0f0 NaN32]))
-    rm("test.tif")
     stNaN = replace_missing(st, NaN32; filename="teststack.tif")
     @test all(map(stNaN[Band(1)], (a=[NaN32 7.0f0; 2.0f0 NaN32], b=[1.0 0.4; 2.0 NaN])) do x, y
         all(x .=== y)
@@ -172,9 +172,9 @@ end
     ga4 = replace_missing(ga1; missingval=-9999)
     mask!(ga4; with=ga, invert=true)
     @test all(ga4 .=== [-9999 -9999; -9999 3])
-    dmask = mask(ga3; with=ga, filename="mask.tif")
+    maskfile = tempname() * ".tif"
+    dmask = mask(ga3; with=ga, filename=maskfile)
     @test Rasters.isdisk(dmask)
-    rm("mask.tif")
     stmask = mask(replace_missing(st, NaN); with=ga, filename="mask.tif")
     @test Rasters.isdisk(stmask)
     rm("mask_a.tif")
@@ -541,7 +541,8 @@ end
         extended = extend(cropped, ga)[1]
         extended_r = extend(cropped_r; to=ga_r)
         extended1 = extend(extend(cropped; to=dims(ga, X)); to=dims(ga, Y))
-        extended_d = extend(cropped; to=ga, filename="extended.tif")
+        filename = tempname() * ".tif"
+        extended_d = extend(cropped; to=ga, filename)
         @test all(extended .=== extended1 .=== replace_missing(extended_d) .=== ga) 
         @test all(extended_r .=== ga_r)
         @test all(map(==, lookup(extended_d), lookup(extended)))

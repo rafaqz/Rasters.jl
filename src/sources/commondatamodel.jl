@@ -31,121 +31,41 @@ const CDM_STANDARD_NAME_MAP = Dict(
     "time" => Ti,
 )
 
-
-# CFDiskArray ########################################################################
-
-struct CFDiskArray{T,N,TV,TA,TSA} <: DiskArrays.AbstractDiskArray{T,N}
-    var::CDM.CFVariable{T,N,TV,TA,TSA}
-end
-
-# Rasters methods
-FileArray{source}(var::CFDiskArray, filename::AbstractString; kw...) where source =
-    FileArray{source}(parent(var), filename; kw...)
-
-cleanreturn(A::CFDiskArray) = Array(A)
-missingval(A::CFDiskArray) = missingval(parent(A))
-
-# DimensionalData methods
-_dims(var::CFDiskArray, args...) = _dims(parent(var), args...)
-_metadata(var::CFDiskArray, args...) = _metadata(parent(var), args...)
-
-# Base methods
-Base.parent(A::CFDiskArray) = A.var
-
 Base.getindex(os::OpenStack{<:CDMsource}, name::Symbol) = CFDiskArray(dataset(os)[name])
 
-# DiskArrays.jl methods
-function DiskArrays.readblock!(A::CFDiskArray, aout, i::AbstractUnitRange...)
-    aout .= getindex(parent(A), i...)
-end
-function DiskArrays.writeblock!(A::CFDiskArray, data, i::AbstractUnitRange...)
-    setindex!(parent(A), data, i...)
-    return data
-end
-
-# We have to dig down to find the chunks as they are not implemented
-# in the CDM, but they are in their internal objects.
-DiskArrays.eachchunk(var::CFDiskArray) = _get_eachchunk(var)
-DiskArrays.haschunks(var::CFDiskArray) = _get_haschunks(var)
-
-_get_eachchunk(var::CFDiskArray) = _get_eachchunk(parent(var))
-_get_eachchunk(var::CDM.CFVariable) = _get_eachchunk(var.var)
-_get_haschunks(var::CFDiskArray) = _get_haschunks(parent(var))
-_get_haschunks(var::CDM.CFVariable) = _get_haschunks(var.var)
-
-_sourcetrait(var::CFDiskArray) = _sourcetrait(parent(var))
 _sourcetrait(var::CDM.CFVariable) = _sourcetrait(var.var)
-
-# CommonDataModel.jl methods
-for method in (:size, :name, :dimnames, :dataset, :attribnames)
-    @eval begin
-        CDM.$(method)(var::CFDiskArray) = CDM.$(method)(parent(var))
-    end
-end
-
-for method in (:attrib, :dim)
-    @eval begin
-        CDM.$(method)(var::CFDiskArray, name::CDM.SymbolOrString) = CDM.$(method)(parent(var), name)
-    end
-end
 
 # Rasters methods for CDM types ###############################
 
-function FileArray{source}(var::AbstractVariable, filename::AbstractString; kw...) where source<:CDMsource
-    eachchunk = DA.eachchunk(var)
-    haschunks = DA.haschunks(var)
-    T = eltype(var)
-    N = ndims(var)
-    FileArray{source,T,N}(filename, size(var); eachchunk, haschunks, kw...)
-end
-
-function FileStack{source}(
-    ds::AbstractDataset, filename::AbstractString;
+function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
     write::Bool=false, 
     group=nokw,
     name::NTuple{N,Symbol}, 
+    mods,
     vars
 ) where {source<:CDMsource,N}
-    T = NamedTuple{name,Tuple{map(var -> Union{Missing,eltype(var)}, vars)...}}
+    T = NamedTuple{name,Tuple{map(_mod_eltype, vars, mods)...}}
     layersizes = map(size, vars)
     eachchunk = map(_get_eachchunk, vars)
     haschunks = map(_get_haschunks, vars)
     group = isnokw(group) ? nothing : group
-    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, write)
+    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, cdf, write)
 end
 
-function Base.open(f::Function, A::FileArray{source}; write=A.write, kw...) where source<:CDMsource
-    _open(source(), filename(A); name=name(A), group=A.group, write, kw...) do var
-        f(var)
-    end
-end
-
-function _open(f, ::CDMsource, ds::AbstractDataset; name=nokw, group=nothing, kw...)
+function _open(f, ::CDMsource, ds::AbstractDataset; 
+    name=nokw, group=nothing, mod=NoMod(), kw...
+)
     g = _getgroup(ds, group)
-    x = isnokw(name) ? g : CFDiskArray(g[_firstname(g, name)])
-    cleanreturn(f(x))
+    x = isnokw(name) ? g : _maybe_modify(CDM.variable(g, _firstname(g, name)), mod)
+    return cleanreturn(f(x)) 
 end
-_open(f, ::CDMsource, var::CFDiskArray; kw...) = cleanreturn(f(var))
+_open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) = 
+    cleanreturn(f(_maybe_modify(var, mod)))
 
 # This allows arbitrary group nesting
 _getgroup(ds, ::Union{Nothing,NoKW}) = ds
 _getgroup(ds, group::Union{Symbol,AbstractString}) = ds.group[String(group)]
 _getgroup(ds, group::Pair) = _getgroup(ds.group[String(group[1])], group[2])
-
-function create(filename, source::CDMsource, T::Type, dims::DimTuple;
-    name=nokw,
-    missingval=nokw,
-    metadata=nokw,
-    lazy=true,
-    verbose=true,
-    chunks=nokw,
-)
-    # Create layers of zero arrays
-    A = FillArrays.Zeros{T}(map(length, dims))
-    rast = Raster(A, dims; name, missingval, metadata)
-    write(filename, source, rast; chunks)
-    return Raster(filename; metadata, source, lazy)
-end
 
 filekey(ds::AbstractDataset, name) = _firstname(ds, name)
 missingval(var::AbstractDataset) = missing
@@ -240,6 +160,8 @@ function _layermetadata(ds::AbstractDataset; layers)
         md
     end
 end
+
+_fix_missingval(::CDM.AbstractVariable, ::Nothing, metadata) = get(metadata, "_FillValue", nothing)
 
 
 # Utils ########################################################################

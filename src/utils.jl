@@ -23,16 +23,16 @@ nolookup_to_sampled(dims::DimTuple) = map(nolookup_to_sampled, dims)
 nolookup_to_sampled(d::Dimension) =
     lookup(d) isa NoLookup ? set(d, Sampled(; sampling=Points())) : d
 
-function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source, missingval=nokw) where T
-    if ismissing(Rasters.missingval(A))
-        newmissingval = missingval isa NoKW ? _type_missingval(Missings.nonmissingtype(T)) : missingval
-        A1 = replace_missing(A, newmissingval)
-        @warn "`missing` cant be written with $(SOURCE2SYMBOL[source]), missinval for `$(eltype(A1))` of `$newmissingval` used instead"
-        return A1
-    else
-        return A
-    end
-end
+# function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source, missingval=nokw) where T
+#     if ismissing(Rasters.missingval(A))
+#         newmissingval = missingval isa NoKW ? _type_missingval(Missings.nonmissingtype(T)) : missingval
+#         A1 = replace_missing(A, newmissingval)
+#         @warn "`missing` cant be written with $(SOURCE2SYMBOL[source]), missinval for `$(eltype(A1))` of `$newmissingval` used instead"
+#         return A1
+#     else
+#         return A
+#     end
+# end
 
 # Create a standardised Metadata object of source T, containing a `Dict{String,Any}`
 _metadatadict(s::Source, p1::Pair, pairs::Pair...) = 
@@ -87,11 +87,16 @@ maybe_eps(dim::Dimension) = maybe_eps(eltype(dim))
 maybe_eps(::Type) = nothing
 maybe_eps(T::Type{<:AbstractFloat}) = _default_atol(T)
 
-_writeable_missing(filename::Nothing, T) = missing
-_writeable_missing(filename::AbstractString, T) = _writeable_missing(T)
-function _writeable_missing(T)
+_writeable_missing(filename::Nothing, T; kw...) = missing
+_writeable_missing(filename::AbstractString, T; kw...) = _writeable_missing(T; kw...)
+function _writeable_missing(::Type{Missing}; verbose=true)
+    missingval = _type_missingval(UInt8)
+    verbose && @info "`missingval` set to $missingval"
+    return missingval
+end
+function _writeable_missing(T; verbose=true)
     missingval = _type_missingval(Missings.nonmissingtype(T))
-    @info "`missingval` set to $missingval"
+    verbose && @info "`missingval` set to $missingval"
     return missingval
 end
 
@@ -275,4 +280,16 @@ function _checkregular(A::AbstractArray)
         end
     end
     return true
+end
+
+_maybe_add_suffix(filename::Nothing, suffix) = nothing
+_maybe_add_suffix(filename::Nothing, suffix::Union{Nothing,NoKW}) = nothing
+_maybe_add_suffix(filename, suffix::Union{Nothing,NoKW}) = filename
+function _maybe_add_suffix(filename, suffix)
+    base, ext = splitext(filename)
+    if string(suffix) == ""
+        filename
+    else
+        return string(base, "_", suffix, ext)
+    end
 end

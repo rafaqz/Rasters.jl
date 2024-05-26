@@ -133,16 +133,6 @@ end
 _sizeof(A::GRDdataset{T}) where T = sizeof(T) * prod(size(A))
 _sizeof(A::RasterDiskArray{GRDsource}) = _sizeof(A.attrib)
 
-
-# Array ########################################################################
-
-function FileArray{GRDsource}(A::RasterDiskArray{<:Any,T}, filename=filename(A.attrib); kw...) where T
-    filename = first(splitext(filename))
-    eachchunk = DiskArrays.eachchunk(A)
-    haschunks = DiskArrays.haschunks(A)
-    FileArray{GRDsource,T,3}(filename, size(A); eachchunk, haschunks, kw...)
-end
-
 # Base methods
 
 """
@@ -263,7 +253,7 @@ function Base.open(f::Function, A::FileArray{GRDsource}, args...; write=A.write)
     _mmapgrd(mm -> f(RasterDiskArray{GRDsource}(mm, A.eachchunk, A.haschunks)), A; write)
 end
 
-function _open(f, ::GRDsource, filename::AbstractString; write=false, name=nokw, group=nokw)
+function _open(f, ::GRDsource, filename::AbstractString; write=false, kw...)
     isfile(filename) || _filenotfound_error(filename)
     attr = GRDdataset(filename)
     _mmapgrd(attr; write) do mm

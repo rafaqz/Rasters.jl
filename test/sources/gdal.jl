@@ -11,7 +11,7 @@ gdalpath = maybedownload(url)
     @test_throws ArgumentError Raster("notafile.tif")
 
     @time gdalarray = Raster(gdalpath; name=:test)
-    @time lazyarray = Raster(gdalpath; lazy=true);
+    @time lazyarray = Raster(gdalpath; cf=false, lazy=true);
     @time eagerarray = Raster(gdalpath; lazy=false);
 
     @testset "lazyness" begin
@@ -25,6 +25,31 @@ gdalpath = maybedownload(url)
         end
     end
     
+    @testset "cf" begin
+        # This file has no scale/offset so cf does nothing
+        @time cfarray = Raster(gdalpath; cf=true)
+        @time cf_nomask_array = Raster(gdalpath; cf=true, maskingval=nothing)
+        @time nocfarray = Raster(gdalpath; cf=false)
+        @time lazycfarray = Raster(gdalpath; cf=true, lazy=true)
+        @time lazynocfarray = Raster(gdalpath; cf=false, lazy=true)
+        @time lazynocfnomaskarray = Raster(gdalpath; cf=false, lazy=true, maskingval=nothing)
+        @test parent(cfarray) isa Array{UInt8,2}
+        @test parent(cf_nomask_array) isa Array{UInt8,2}
+        @test parent(nocfarray) isa Array{UInt8,2}
+        open(lazycfarray) do A
+            @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
+            @test parent(parent(A)) isa Rasters.ModifiedDiskArray{UInt8}
+        end
+        open(lazynocfarray) do A
+            @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
+            @test parent(parent(A)) isa Rasters.ModifiedDiskArray{UInt8}
+        end
+        open(lazynocfnomaskarray) do A
+            @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
+            @test parent(parent(A)) isa ArchGDAL.RasterDataset{UInt8}
+        end
+    end
+
     @testset "load from url" begin
         A = Raster("/vsicurl/" * url)
         B = Raster(url; source=:gdal)
@@ -53,6 +78,22 @@ gdalpath = maybedownload(url)
         A3 = zero(A)
         @time read!(gdalpath, A3);
         @test A == A2 == A3
+    end
+
+    @testset "create" begin
+        created = Rasters.create("created.tif", Int16, (X(1:10), Y(1:10)); 
+            missingval=255, maskingval=missing, scale=0.1, offset=5.0, force=true, cooerce=trunc
+        )
+        open(created; write=true) do O
+            O .= 2.0
+        end
+        read(created)
+        Raster("created.tif"; cf=false) .* 1
+        created = Rasters.create("created.tif", UInt8, (X(1:10), Y(1:10)); 
+            missingval=255, maskingval=UInt8(0), force=true
+        ) 
+        read(created)
+        rm("created.tif")
     end
 
     @testset "custom filename" begin
@@ -292,7 +333,7 @@ gdalpath = maybedownload(url)
 
         @testset "2d asc" begin
             filename = tempname() * ".asc"
-            @time write(filename, gdalarray; force = true)
+            @time write(filename, gdalarray; force=true)
             saved1 = Raster(filename);
             @test all(saved1 .== gdalarray)
             # @test typeof(saved1) == typeof(geoA)

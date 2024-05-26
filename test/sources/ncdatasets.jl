@@ -33,14 +33,14 @@ stackkeys = (
 @testset "grid mapping" begin
     stack = RasterStack(joinpath(testdir, "data/grid_mapping_test.nc"))
     @test metadata(stack.mask)["grid_mapping"]  == Dict{String, Any}(
-      "straight_vertical_longitude_from_pole" => 0.0,
-      "false_easting"                         => 0.0,
-      "standard_parallel"                     => -71.0,
-      "inverse_flattening"                    => 298.27940504282,
-      "latitude_of_projection_origin"         => -90.0,
-      "grid_mapping_name"                     => "polar_stereographic",
-      "semi_major_axis"                       => 6.378273e6,
-      "false_northing"                        => 0.0,
+        "straight_vertical_longitude_from_pole" => 0.0,
+        "false_easting"                         => 0.0,
+        "standard_parallel"                     => -71.0,
+        "inverse_flattening"                    => 298.27940504282,
+        "latitude_of_projection_origin"         => -90.0,
+        "grid_mapping_name"                     => "polar_stereographic",
+        "semi_major_axis"                       => 6.378273e6,
+        "false_northing"                        => 0.0,
     )
 end
 
@@ -57,6 +57,32 @@ end
         @test parent(lazyarray) isa FileArray
         @test parent(eagerarray) isa Array
         @time read(lazyarray);
+    end
+
+    @testset "cf" begin
+        @time cfarray = Raster(ncsingle; cf=true)
+        @time cf_nomask_array = Raster(ncsingle; cf=true, maskingval=nothing)
+        @time nocfarray = Raster(ncsingle; cf=false)
+        @time nocf_nomask_array = Raster(ncsingle; cf=false, maskingval=nothing)
+        @time lazycfarray = Raster(ncsingle; lazy=true, cf=false)
+        @time lazynocfarray = Raster(ncsingle; lazy=true, cf=false)
+        @time lazynocf_nomask_array = Raster(ncsingle; lazy=true, cf=false, maskingval=nothing)
+        @test missingval(cfarray) === missing
+        @test missingval(nocfarray) === missing
+        @test missingval(cf_nomask_array) === 1.0f20
+        @test missingval(nocf_nomask_array) === 1.0f20
+        @test all(skipmissing(cfarray) .=== skipmissing(nocfarray))
+        @test parent(cfarray) isa Array{Union{Float32,Missing}}
+        @test parent(nocfarray) isa Array{Union{Float32,Missing}}
+        open(lazycfarray) do A
+            @test parent(A) isa Rasters.ModifiedDiskArray{Union{Missing,Float32}}
+        end
+        open(lazynocfarray) do A
+            @test parent(A) isa Rasters.ModifiedDiskArray{Union{Missing,Float32}}
+        end
+        open(lazynocf_nomask_array) do A
+            @test parent(parent(A)) isa NCDatasets.Variable{Float32}
+        end
     end
 
     # @testset "from url" begin

@@ -174,8 +174,11 @@ end
 _extend_to(x::RasterStackOrArray, to::Dimension; kw...) = _extend_to(x, (to,); kw...)
 
 function _extend_to(A::AbstractRaster, to::DimTuple;
-    filename=nothing, suffix=nothing, touches=false,
-    missingval=(isnothing(missingval(A)) ? missing : missingval(A))
+    filename=nothing, 
+    suffix=nothing, 
+    missingval=(isnothing(missingval(A)) ? nokw : missingval(A)),
+    touches=false,
+    force=false
 )
     others = otherdims(to, A)
     # Allow not specifying all dimensions
@@ -194,7 +197,7 @@ function _extend_to(A::AbstractRaster, to::DimTuple;
     # Create a new extended array
     newA = create(filename, eltype(A), final_to;
         suffix, parent=parent(A), missingval,
-        name=name(A), metadata=metadata(A)
+        name=name(A), metadata=metadata(A), force
     )
     # Input checks
     map(dims(A, to), dims(newA, to)) do d1, d2
