@@ -416,13 +416,13 @@ china = rasterize(last, china_border; res=0.1, missingval=0, fill=1, boundary=:t
 p = plot(china; color=:spring, legend=false)
 plot!(p, china_border; fillalpha=0, linewidth=0.6)
 
-savefig("docs/build/.documenter/china_rasterized.png"); nothing
+savefig("src/assets/api/china_rasterized.png"); nothing
 
 # output
 
 ```
 
-![rasterize](china_rasterized.png)
+![rasterize](assets/api/china_rasterized.png)
 
 $EXPERIMENTAL
 """
@@ -558,13 +558,13 @@ rasterize!(last, A, islands; fill=1:length(islands), progress=false)
 p = plot(Rasters.trim(A); color=:spring)
 plot!(p, indonesia_border; fillalpha=0, linewidth=0.7)
 
-savefig("docs/build/.documenter/indonesia_rasterized.png"); nothing
+savefig("src/assets/api/indonesia_rasterized.png"); nothing
 
 # output
 
 ```
 
-![rasterize](indonesia_rasterized.png)
+![rasterize](assets/api/indonesia_rasterized.png)
 
 $EXPERIMENTAL
 """

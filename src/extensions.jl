@@ -78,19 +78,19 @@ B = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 a = plot(A)
 b = plot(resample(A; to=B))
 
-savefig(a, "docs/build/.documenter/resample_example_before.png");
-savefig(b, "docs/build/.documenter/resample_example_after.png"); nothing
+savefig(a, "src/assets/api/resample_example_before.png");
+savefig(b, "src/assets/api/resample_example_after.png"); nothing
 
 # output
 ```
 
 ### Before `resample`:
 
-![before resample](resample_example_before.png)
+![before resample](assets/api/resample_example_before.png)
 
 ### After `resample`:
 
-![after resample](resample_example_after.png)
+![after resample](assets/api/resample_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -135,8 +135,8 @@ flags = Dict(
 )
 b = plot(warp(A, flags))
 
-savefig(a, "docs/build/.documenter/warp_example_before.png");
-savefig(b, "docs/build/.documenter/warp_example_after.png"); nothing
+savefig(a, "src/assets/api/warp_example_before.png");
+savefig(b, "src/assets/api/warp_example_after.png"); nothing
 
 # output
 
@@ -144,11 +144,11 @@ savefig(b, "docs/build/.documenter/warp_example_after.png"); nothing
 
 ### Before `warp`:
 
-![before warp](warp_example_before.png)
+![before warp](assets/api/warp_example_before.png)
 
 ### After `warp`:
 
-![after warp](warp_example_after.png)
+![after warp](assets/api/warp_example_after.png)
 
 In practise, prefer [`resample`](@ref) for this. But `warp` may be more flexible.
 

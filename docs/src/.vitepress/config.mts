@@ -5,12 +5,12 @@ import footnote from "markdown-it-footnote";
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  base: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
+  base: '/Rasters.jl/',
   title: "Rasters",
-  description: "Maps",
+  description: "Manipulating rasterized spatial data",
   lastUpdated: true,
   cleanUrls: true,
-  outDir: 'REPLACE_ME_DOCUMENTER_VITEPRESS', // This is required for MarkdownVitepress to work correctly...
+  outDir: '../final_site', // This is required for MarkdownVitepress to work correctly...
   head: [['link', { rel: 'icon', href: '/public/favicon.ico' }]],
   ignoreDeadLinks: true,
 
@@ -38,15 +38,23 @@ export default defineConfig({
     },
     nav: [
       { text: 'Home', link: '/' },
-      { text: 'Getting Started', link: '/getting_started' },
-      { text: 'Guide',
+      { text: 'Get Started', link: '/get_started' },
+      { text: 'Methods',
+        items: [
+          { text: 'Overview', link: '/methods' },
+          { text: 'Array Operations', link: '/array_operations' },
+        ]
+       },
+       { text: 'Data Sources',
+       items: [
+         { text: 'Overview', link: '/data_sources' },
+         { text: 'GBIF', link: '/gbif_wflow' }
+        ]
+      },
+      { text: 'Plots',
       items: [
-        { text: 'Data Sources', link: '/data_sources' },
-        { text: 'Methods', link: '/methods' },
-        { text: 'Array Operations', link: '/array_operations' },
-        { text: 'Plots, Plots.jl', link: '/plotting' },
-        { text: 'Plots, Makie.jl', link: '/plot_makie' },
-        { text: 'GBIF', link: '/gbif_wflow' }
+        { text: 'Plots.jl', link: '/plotting' },
+        { text: 'Makie.jl', link: '/plot_makie' },
       ]
      },
 
@@ -54,14 +62,27 @@ export default defineConfig({
     ],
 
     sidebar: [
-          { text: 'Getting Started', link: '/getting_started'},
-          { text: 'Data Sources', link: '/data_sources' },
-          { text: 'Methods', link: '/methods' },
+      { text: 'Get Started', link: '/get_started' },
+      { text: 'Methods',
+        items: [
+          { text: 'Overview', link: '/methods' },
           { text: 'Array Operations', link: '/array_operations' },
-          { text: 'Plots, Plots.jl', link: '/plotting' },
-          { text: 'Plots, Makie.jl', link: '/plot_makie' },
-          { text: 'GBIF', link: '/gbif_wflow' },
-          { text: 'API', link: '/api' }
+        ]
+       },
+       { text: 'Data Sources',
+       items: [
+         { text: 'Overview', link: '/data_sources' },
+         { text: 'GBIF', link: '/gbif_wflow' }
+        ]
+      },
+      { text: 'Plots',
+      items: [
+        { text: 'Plots.jl', link: '/plotting' },
+        { text: 'Makie.jl', link: '/plot_makie' },
+      ]
+     },
+
+      { text: 'API', link: '/api' }
     ],
     editLink: {
       pattern: 'https://github.com/MakieOrg/Tyler.jl/edit/master/docs/src/:path'

@@ -42,12 +42,12 @@ using Rasters: Center
 st = read(RasterStack(WorldClim{Climate}; month=1))
 ag = aggregate(Center(), st, (Y(20), X(20)); skipmissingval=true, progress=false)
 plot(ag)
-savefig("docs/build/.documenter/aggregate_example.png"); nothing
+savefig("src/assets/api/aggregate_example.png"); nothing
 # output
 
 ```
 
-![aggregate](aggregate_example.png)
+![aggregate](assets/api/aggregate_example.png)
 
 Note: currently it is faster to aggregate over memory-backed arrays.
 Use [`read`](@ref) on `src` before use where required.

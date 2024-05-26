@@ -5,7 +5,7 @@ layout: home
 
 hero:
   name: "Rasters.jl"
-  text: "Manipulating rasterized spatial data"
+  tagline: "Manipulating rasterized spatial data"
   image:
     src: /logo.png
     alt: Rasters

@@ -59,9 +59,10 @@ Makie.set_theme!()
 `Rasters.rplot` should support Observable input out of the box, but the dimensions of that input
 must remain the same - i.e., the element names of a RasterStack must remain the same.
 
-````@example makie
+````julia
 Makie.set_theme!(Rasters.theme_rasters())
 # `stack` is the WorldClim climate data for January
+# observables not working here, same error as for contourf: ERROR: MethodError: no method matching typemax(::Type{ColorTypes.RGBA{Float32}})
 stack_obs = Observable(stack)
 fig = Rasters.rplot(stack_obs;
     Colorbar=(; height=Relative(0.75), width=5)
@@ -71,7 +72,7 @@ record(fig, "rplot.mp4", 1:12; framerate = 3) do i
 end 
 ````
 
-<video src="./rplot.mp4" controls="controls" autoplay="autoplay"></video>
+<!-- <video src="./rplot.mp4" controls="controls" autoplay="autoplay"></video> -->
 
 ````@example makie
 Makie.set_theme!() # reset theme

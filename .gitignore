@@ -7,6 +7,7 @@ Manifest.toml
 *.shp
 *.nc
 *.tif
+*.dbf
 
 tmp
 generated
@@ -23,3 +24,4 @@ Manifest.toml
 node_modules
 *.zip
 EarthEnv
+docs/src/assets/api
