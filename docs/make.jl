@@ -1,3 +1,5 @@
+ENV["RASTERDATASOURCES_PATH"] = "/Users/lalonso/Data/"
+
 using Documenter, Rasters, Plots, Logging, Statistics, Dates, 
     RasterDataSources, ArchGDAL, NCDatasets, CoordinateTransformations
 import Makie, CairoMakie
@@ -9,7 +11,6 @@ CairoMakie.activate!(type = "png")
 
 # Fix some GR.jl CI bug
 ENV["GKSwstype"] = "100"
-# ENV["RASTERDATASOURCES_PATH"] = "/Users/lalonso/Data/"
 
 # Plots warnings are brWarn doctests. They dont warn the second time.
 # Downloads also show op in doctests. So download everything first.

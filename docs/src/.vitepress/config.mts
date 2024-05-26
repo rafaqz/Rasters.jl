@@ -38,7 +38,6 @@ export default defineConfig({
     },
     nav: [
       { text: 'Home', link: '/' },
-      { text: 'Introduction', link: '/introduction' },
       { text: 'Getting Started', link: '/getting_started' },
       { text: 'Guide',
       items: [
@@ -55,9 +54,6 @@ export default defineConfig({
     ],
 
     sidebar: [
-      {
-        text: 'Introduction', link: '/introduction',
-        items: [
           { text: 'Getting Started', link: '/getting_started'},
           { text: 'Data Sources', link: '/data_sources' },
           { text: 'Methods', link: '/methods' },
@@ -66,8 +62,6 @@ export default defineConfig({
           { text: 'Plots, Makie.jl', link: '/plot_makie' },
           { text: 'GBIF', link: '/gbif_wflow' },
           { text: 'API', link: '/api' }
-        ]
-      }
     ],
     editLink: {
       pattern: 'https://github.com/MakieOrg/Tyler.jl/edit/master/docs/src/:path'

@@ -6,9 +6,8 @@
   },
   "devDependencies": {
     "markdown-it-mathjax3": "^4.3.2",
-    "vitepress": "^1.0.0-rc.41",
-    "vitepress-plugin-tabs": "^0.5.0",
-    "vitest": "^1.2.0"
+    "vitepress": "^1.2.2",
+    "vitepress-plugin-tabs": "^0.5.0"
   },
   "dependencies": {
     "markdown-it": "^14.0.0",

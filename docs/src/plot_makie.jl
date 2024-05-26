@@ -13,15 +13,18 @@ A = Raster(WorldClim{BioClim}, 5) # this is a 3D raster, so is not accepted.
 ````
 
 ````@example makie
-fig = Figure()
-plot(fig[1, 1], A)
+fig, ax, _ = plot(A)
 contour(fig[1, 2], A)
 ax = Axis(fig[2, 1]; aspect = DataAspect())
 contourf!(ax, A)
-# surface(fig[2, 2], A) # even a 3D plot works! # broken, maybe up DD
+# surface(fig[2, 2], A) # even a 3D plot works! # broken mutating method
 fig
 ````
 
+even a 3D plot works!
+````@example makie
+surface(A)
+````
 ## 3-D rasters in Makie
 
 !!! warning
