@@ -25,3 +25,4 @@ node_modules
 *.zip
 EarthEnv
 docs/src/assets/api
+package-lock.json
