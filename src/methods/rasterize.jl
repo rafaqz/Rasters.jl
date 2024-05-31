@@ -68,7 +68,7 @@ function RasterCreator(to::DimTuple;
 end
 RasterCreator(to::AbstractRaster, data; kw...) = RasterCreator(dims(to); kw...)
 RasterCreator(to::AbstractRasterStack, data; kw...) = RasterCreator(dims(to); name, kw...)
-RasterCreator(to::Nothing, data; kw...) = RasterCreator(_extent(data); kw...)
+RasterCreator(to::Nothing, data; kw...) = RasterCreator(_extent(data; kw...); kw...)
 RasterCreator(to, data; kw...) = RasterCreator(_extent(to); kw...)
 function RasterCreator(to::Extents.Extent;
     res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing,
@@ -342,11 +342,11 @@ $DATA_ARGUMENT
 """
 
 """
-    rasterize([reducer], data; kw...)
+    rasterize([reducer], data; geometrycolumn, kw...)
 
 Rasterize a GeoInterface.jl compatable geometry or feature,
 or a Tables.jl table with a `:geometry` column of GeoInterface.jl objects,
-or `X`, `Y` points columns.
+or points columns specified by `geometrycolumn`
 
 # Arguments
 
@@ -356,6 +356,7 @@ $RASTERIZE_ARGUMENTS
 
 These are detected automatically from `data` where possible.
 
+$GEOMETRYCOLUMN_KEYWORD
 $GEOM_KEYWORDS
 $RASTERIZE_KEYWORDS
 $FILENAME_KEYWORD
@@ -424,9 +425,9 @@ function rasterize(reducer::typeof(DD.Statistics.mean), data; fill, kw...)
     counts = rasterize(count, data; kw..., fill=nothing)
     rebuild(sums ./ counts; name=:mean)
 end
-function rasterize(data; to=nothing, fill, threaded=false, kw...)
+function rasterize(data; to=nothing, fill, threaded=false, geometrycolumn=nothing, kw...)
     r = Rasterizer(data; fill, threaded, kw...)
-    rc = RasterCreator(to, data; kw..., eltype=r.eltype, fill, missingval=r.missingval)
+    rc = RasterCreator(to, data; geometrycolumn, kw..., eltype=r.eltype, fill, missingval=r.missingval)
     allocs = r.shape == :points ? nothing : _burning_allocs(rc.to; threaded)
     return create_rasterize_dest(rc) do dest
         _rasterize!(dest, r; allocs)
