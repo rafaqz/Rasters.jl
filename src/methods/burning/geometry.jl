@@ -25,10 +25,11 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, data;
     threaded=true,
     fill=true,
     allocs=_burning_allocs(B; threaded), 
+    geometrycolumn=nothing,
     kw...
 )::Bool
-    geoms = _get_geometries(data; geometrycolumn=nothing)
-    range = _geomindices(geoms)
+    geoms = _get_geometries(data, geometrycolumn)
+    range = eachindex(geoms)
     burnchecks = _alloc_burnchecks(range)
     if isnothing(collapse) || collapse
         _run(range, threaded, progress, "") do i

@@ -8,19 +8,18 @@ covered by the `of` object/s.
 
 - `f`: any function that reduces an iterable to a single value, such as `sum` or `Statistics.mean`
 - `x`: A `Raster` or `RasterStack`
-- `of`: A `Raster`, `RasterStack`, dim tuple, extent, GeoInterface.jl compatible geometry,
-    Tables.jl compatible table of a `:geometry` column, or an `AbstractVector` of
-    any of these objects..
+- `of`: A `DimTuple`, `Extent`, $OBJ_ARGUMENT
 
 # Keywords
-
-These can be used when `of` is a GeoInterface.jl compatible object:
+$GEOMETRYCOLUMN_KEYWORD
+These can be used when `of` is or contains (a) GeoInterface.jl compatible object(s):
 
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`, where possible.
 - `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
     where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
     The default is `:center`.
 - `progress`: show a progress bar, `true` by default, `false` to hide..
+
 
 # Example
 
@@ -105,8 +104,8 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; kw
         f(skipmissing(A))
     end
 end
-function _zonal(f, x::RasterStackOrArray, ::Nothing, data; progress=true, threaded=true, kw...)
-    geoms = _get_geometries(data)
+function _zonal(f, x::RasterStackOrArray, ::Nothing, data; progress=true, threaded=true, geometrycolumn=nothing, kw...)
+    geoms = _get_geometries(data, geometrycolumn)
     n = length(geoms)
     n == 0 && return []
     zs = _alloc_zonal(f, x, first(geoms), n; kw...)

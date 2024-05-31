@@ -143,8 +143,8 @@ function Rasterizer(geom, fill, fillitr;
 
     return Rasterizer(eltype, geom, fillitr, reducer, op, init, missingval, lock, shape, boundary, verbose, progress, threaded, threadsafe_op)
 end
-function Rasterizer(data::T; fill, geomcolumn=nothing, kw...) where T
-    Rasterizer(GI.trait(data), data; fill, kw...)
+function Rasterizer(data::T; fill, geometrycolumn=nothing, kw...) where T
+    Rasterizer(GI.trait(data), data; fill, geometrycolumn, kw...)
 end
 function Rasterizer(trait::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
     fillitr = _iterable_fill(trait, fc, fill)
@@ -160,8 +160,8 @@ function Rasterizer(trait::GI.GeometryCollectionTrait, collection; kw...)
     geoms = collect(GI.getgeom(collection))
     Rasterizer(geoms; kw...)
 end
-function Rasterizer(trait::Nothing, data; fill, kw...)
-    geoms = _get_geometries(data)
+function Rasterizer(trait::Nothing, data; fill, geometrycolumn, kw...)
+    geoms = _get_geometries(data, geometrycolumn)
     fillitr = _iterable_fill(trait, data, fill)
     Rasterizer(geoms, fill, fillitr; kw...)
 end
@@ -338,8 +338,7 @@ const RASTERIZE_ARGUMENTS = """
     including `sum`, `first`, `last`, `minimum`, `maximum`, `extrema` and `Statistics.mean`.
     These may be an order of magnitude or more faster than
     `count` is a special-cased as it does not need a fill value.
-- `data`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
-    or a Tables.jl compatible object containing a `:geometry` column or points and values columns.
+$DATA_ARGUMENT
 """
 
 """
@@ -551,12 +550,12 @@ function rasterize!(reducer::typeof(count), x::RasterStackOrArray, data; fill=no
     isnothing(init) || @info _count_init_info(init)
     rasterize!(x::RasterStackOrArray, data; kw..., reducer=nothing, op=nothing, fill=_count_fill, init=0)
 end
-function rasterize!(x::RasterStackOrArray, data; threaded=false, kw...)
+function rasterize!(x::RasterStackOrArray, data; threaded=false, geometrycolumn=nothing,kw...)
     if prod(size(x)) == 0  
         @warn "Destination is empty, rasterization skipped"
         return x
     end
-    r = Rasterizer(data; eltype=eltype(x), threaded, kw...)
+    r = Rasterizer(data; eltype=eltype(x), threaded, geometrycolumn, kw...)
     allocs = r.shape == :points ? nothing : _burning_allocs(dims(x); threaded)
     return _rasterize!(x, r; allocs)
 end

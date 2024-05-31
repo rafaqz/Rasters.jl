@@ -5,7 +5,7 @@ istrue(::_True) = true
 istrue(::_False) = false
 
 """
-    extract(x, geoms; atol)
+    extract(x, data; atol)
 
 Extracts the value of `Raster` or `RasterStack` at given points, returning
 an iterable of `NamedTuple` with properties for `:geometry` and raster or
@@ -17,7 +17,7 @@ sliced arrays or stacks will be returned instead of single values.
 # Arguments
 
 - `x`: a `Raster` or `RasterStack` to extract values from.
-- `geoms`: GeoInterface.jl compatible geometries, or tables or iterables of geometries.
+$DATA_ARGUMENT
 
 # Keywords
 
@@ -27,6 +27,7 @@ sliced arrays or stacks will be returned instead of single values.
 - `skipmissing`: skip missing points automatically.
 - `atol`: a tolorerance for floating point lookup values for when the `Lookup`
     contains `Points`. `atol` is ignored for `Intervals`.
+-$GEOMETRYCOLUMN_KEYWORD
 
 # Example
 
@@ -60,7 +61,7 @@ containing a mix of points and other geometries has undefined results.
 """
 function extract end
 @inline function extract(x::RasterStackOrArray, data;
-   names=_names(x), name=names, skipmissing=false, geometry=true, index=false, kw...
+   names=_names(x), name=names, skipmissing=false, geometry=true, index=false, geometrycolumn=nothing, kw...
 )
     n = DD._astuple(name)
     _extract(x, data;
@@ -71,6 +72,7 @@ function extract end
          geometry=_booltype(geometry), 
          index=_booltype(index), 
          skipmissing=_booltype(skipmissing), 
+         geometrycolumn,
          kw...
     )
 end
@@ -83,9 +85,9 @@ function _extract(A::RasterStackOrArray, geom; names, kw...)
     _extract(A, GI.geomtrait(geom), geom; names, kw...)
 end
 function _extract(A::RasterStackOrArray, ::Nothing, data; 
-    names, skipmissing, kw...
+    names, skipmissing, geometrycolumn, kw...
 )
-    geoms = _get_geometries(data; geometrycolumn=nothing)
+    geoms = _get_geometries(data, geometrycolumn)
     T = if istrue(skipmissing)
         _rowtype(A, nonmissingtype(eltype(geoms)); names, skipmissing, kw...)
     else

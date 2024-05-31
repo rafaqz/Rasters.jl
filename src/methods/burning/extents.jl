@@ -2,8 +2,8 @@ const XYExtent = Extents.Extent{(:X,:Y),Tuple{Tuple{Float64,Float64},Tuple{Float
 
 # Get the bounds of a geometry
 _extent(geom; kw...)::XYExtent = _extent(GI.trait(geom), geom; kw...)
-function _extent(::Nothing, data; kw...)::XYExtent
-    geoms = _get_geometries(data; geometrycolumn=nothing)
+function _extent(::Nothing, data; geometrycolumn, kw...)::XYExtent
+    geoms = _get_geometries(data, geometrycolumn)
 
     g1 = first(geoms)
     if GI.trait(g1) isa GI.PointTrait 
