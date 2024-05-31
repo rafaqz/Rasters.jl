@@ -188,23 +188,44 @@ end
 
 # get geometries from what may be a table with a geometrycolumn or an interable of geometries
 # if it has no geometry column and does not iterate valid geometries, error informatively
-function _get_geometries(data; geometrycolumn=nothing)
+function _get_geometries(data, ::Nothing)
     # if it's a table, get the geometry column
     geoms = if !(data isa AbstractVector{<:GeoInterface.NamedTuplePoint}) && Tables.istable(data)
-        geomcol = isnothing(geometrycolumn) ? first(GI.geometrycolumns(data)) : geometrycolumn
-        if isnothing(geomcol) || !in(geomcol, Tables.columnnames(Tables.columns(data)))
+        geomcol = first(GI.geometrycolumns(data))
+        !in(geomcol, Tables.columnnames(Tables.columns(data))) &&
             throw(ArgumentError("Expected geometries in the column `$geomcol`, but no such column found."))
-        end
+        isnothing(geomcol) && throw(ArgumentError("No default `geometrycolumn` for this type, please specify it manually."))
         Tables.getcolumn(Tables.columns(data), geomcol)
     else # otherwise it's an iterable of geometries
-        data
+        vec(collect(data))
     end
     # check if data iterates valid geometries before returning
+    _check_geometries(geoms)
+    return geoms
+end
+function _get_geometries(data, geometrycolumn::Symbol)
+    Tables.istable(data) || throw(ArgumentError("`geometrycolumn` was specified, but `data` is not a table."))
+    geoms = Tables.getcolumn(Tables.columns(data), geometrycolumn)
+    _check_geometries(geoms)
+    return geoms
+end
+function _get_geometries(data, geometrycolumn::NTuple{<:Any, <:Symbol})
+    Tables.istable(data) || throw(ArgumentError("`geometrycolumn` was specified, but `data` is not a table."))
+    cols = Tables.columns(data)
+    geomcols = (Tables.getcolumn(cols, col) for col in geometrycolumn)
+    return map(geomcols...) do (row...)
+        for r in row
+            ismissing(r) && return missing
+        end
+        return row
+    end     
+end
+function _check_geometries(geoms)
     for g in geoms
         ismissing(g) || GI.geomtrait(g) !== nothing || 
         throw(ArgumentError("$g is not a valid GeoInterface.jl geometry"))
     end
-    return geoms
+    return
 end
 
 _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
