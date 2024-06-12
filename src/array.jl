@@ -192,9 +192,10 @@ methods will _not_ load data from disk; they will be applied later, lazily.
 
 # Keywords
 
-- `name`: a `Symbol` name for the array, which will also retreive named layers if `Raster`
-    is used on a multi-layered file like a NetCDF. `name` becomes the layer name if the `Raster`
-    is combined into a `RasterStack`.
+- `name`: a `Symbol` name for the array, which will also retreive the, alphabetically first, 
+    named layer if `Raster` is used on a multi-layered file like a NetCDF. 
+    If instead `RasterStack` is used to read the multi-layered file, by default, all variables 
+    will be added to the stack.
 $GROUP_KEYWORD 
 - `missingval`: value reprsenting missing data, normally detected from the file. Set manually
     when you know the value is not specified or is incorrect. This will *not* change any
