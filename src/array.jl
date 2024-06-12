@@ -172,26 +172,19 @@ end
 # Concrete implementation ######################################################
 
 """
-    Raster <: AbsractRaster
+    Raster <: AbstractRaster
 
     Raster(filepath::String; kw...)
     Raster(A::AbstractDimArray; kw...)
     Raster(A::AbstractArray, dims; kw...)
 
-A generic [`AbstractRaster`](@ref) for spatial/raster array data. It may hold
-memory-backed arrays or [`FileArray`](@ref), that simply holds the `String` path
-to an unopened file. This will only be opened lazily when it is indexed with `getindex`
-or when `read(A)` is called. Broadcasting, taking a view, reversing and most other
-methods _do not_ load data from disk: they are applied later, lazily.
+A generic [`AbstractRaster`](@ref) for spatial/raster array data. It can hold 
+either memory-backed arrays or, if `lazy=true`, a [`FileArray`](@ref), 
+which stores the `String` path to an unopened file. 
 
-An `AbatractArray` for spatial/raster data.
-
-It may hold memory-backed arrays or, when `lazy=true` a [`FileArray`](@ref)
-that simply holds the `String` path to an unopened file.
-
-WIth `lazy=true` the file will be opened lazily when it is indexed with `getindex`
-or when `read(A)` is called. Broadcasting, taking a view, reversing and most other
-methods _will not_ load data from disk: they are applied later, lazily.
+If `lazy=true`, the file will only be opened lazily when it is indexed with `getindex` 
+or when `read(A)` is called. Broadcasting, taking a view, reversing, and most other 
+methods will _not_ load data from disk; they will be applied later, lazily.
 
 # Arguments
 
