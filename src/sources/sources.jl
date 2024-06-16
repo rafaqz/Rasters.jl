@@ -28,7 +28,7 @@ const SOURCE2SYMBOL = Dict(map(reverse, collect(pairs(SYMBOL2SOURCE))))
 # File extensions. GDAL is the catch-all for everything else
 const SOURCE2EXT = Dict(
     GRDsource() => (".grd", ".gri"), 
-    NCDsource() => (".nc", ".h5",), 
+    NCDsource() => (".nc", ".nc4", ".h5",), 
     GRIBsource() => (".grib",), 
 )
 const SOURCE2PACKAGENAME = Dict(
@@ -41,6 +41,7 @@ const EXT2SOURCE = Dict(
     ".grd" => GRDsource(), 
     ".gri" => GRDsource(), 
     ".nc" => NCDsource(), 
+    ".nc4" => NCDsource(), 
     ".h5" => NCDsource(),
     ".grib" => GRIBsource(), 
 )
