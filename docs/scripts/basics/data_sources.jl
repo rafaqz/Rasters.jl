@@ -13,7 +13,7 @@
 
 # NetCDF `.nc` files are loaded using
 # [NCDatasets.jl](https://github.com/Alexander-Barth/NCDatasets.jl). Layers from
-# files can be loaded as `Raster("filename.nc"; key=:layername)`. Without `key`
+# files can be loaded as `Raster("filename.nc"; name=:layername)`. Without `name`
 # the first layer is used. `RasterStack("filename.nc")` will use all netcdf variables
 # in the file that are not dimensions as layers. 
 
@@ -39,7 +39,7 @@
 # HDF5 format. Layers are always 2 dimensional, with `Y` and `X` dimensions.
 
 # These can be loaded as multi-layered `RasterStack("filename.h5")`. Individual
-# layers can be loaded as `Raster("filename.h5"; key=:layerkey)`, without `key`
+# layers can be loaded as `Raster("filename.h5"; name=:layername)`, without `name`
 # the first layer is used.
 
 #md # ```@docs
