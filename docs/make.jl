@@ -12,7 +12,7 @@ ENV["GKSwstype"] = "100"
 
 DocMeta.setdocmeta!(Rasters, :DocTestSetup, :(begin
     using Rasters, RasterDataSources
-    ENV["RASTERDATASOURCES_PATH"] = "~/.julia/artifacts"
+    ENV["RASTERDATASOURCES_PATH"] = "."
 end); recursive=true)
 
 # Plots warnings are brWarn doctests. They dont warn the second time.
