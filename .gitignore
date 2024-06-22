@@ -7,6 +7,7 @@ Manifest.toml
 *.shp
 *.nc
 *.tif
+*.dbf
 
 tmp
 generated
@@ -22,3 +23,6 @@ deps/build.jl
 Manifest.toml
 node_modules
 *.zip
+EarthEnv
+docs/src/assets/api
+package-lock.json

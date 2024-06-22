@@ -33,13 +33,13 @@ nz_evenness = evenness[nz_bounds...]
 nz_range = crop(rnge; to=nz_evenness)
 plot(nz_range)
 
-savefig("docs/build/nz_crop_example.png")
+savefig("build/nz_crop_example.png")
 nothing
 
 # output
 ```
 
-![new zealand evenness cropped](../build/nz_crop_example.png)
+![new zealand evenness cropped](nz_crop_example.png)
 
 Crop to a polygon:
 
@@ -56,12 +56,12 @@ evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 argentina_evenness = crop(evenness; to=shp)
 plot(argentina_evenness)
 
-savefig("docs/build/argentina_crop_example.png"); nothing
+savefig("build/argentina_crop_example.png"); nothing
 
 # output
 ```
 
-![argentina evenness cropped](../build/argentina_crop_example.png)
+![argentina evenness cropped](argentina_crop_example.png)
 
 $EXPERIMENTAL
 """
@@ -142,12 +142,12 @@ sa_evenness = evenness[sa_bounds...]
 sa_range = extend(sa_evenness; to=rnge)
 plot(sa_range)
 
-savefig("docs/build/extend_example.png")
+savefig("build/extend_example.png")
 nothing
 # output
 ```
 
-![extend](../build/extend_example.png)
+![extend](extend_example.png)
 
 $EXPERIMENTAL
 """
