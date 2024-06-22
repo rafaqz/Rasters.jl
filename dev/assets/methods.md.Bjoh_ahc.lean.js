@@ -1,0 +1,1 @@
+import{_ as t,c as e,o as a,a6 as s}from"./chunks/framework.D_1tuuen.js";const y=JSON.parse('{"title":"","description":"","frontmatter":{},"headers":[],"relativePath":"methods.md","filePath":"methods.md","lastUpdated":null}'),o={name:"methods.md"},r=s("",10),d=[r];function l(i,n,c,h,f,g){return a(),e("div",null,d)}const b=t(o,[["render",l]]);export{y as __pageData,b as default};
