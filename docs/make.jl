@@ -7,14 +7,6 @@ using Rasters.LookupArrays, Rasters.Dimensions
 # Don't output huge svgs for Makie plots
 CairoMakie.activate!(type = "png")
 
-# Fix some GR.jl CI bug
-ENV["GKSwstype"] = "100"
-
-DocMeta.setdocmeta!(Rasters, :DocTestSetup, :(begin
-    using Rasters, RasterDataSources
-    ENV["RASTERDATASOURCES_PATH"] = "."
-end); recursive=true)
-
 # Plots warnings are brWarn doctests. They dont warn the second time.
 # Downloads also show op in doctests. So download everything first.
 function flush_info_and_warnings()
