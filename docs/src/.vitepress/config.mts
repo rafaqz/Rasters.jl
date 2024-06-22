@@ -57,7 +57,14 @@ export default defineConfig({
         { text: 'Makie.jl', link: '/plot_makie' },
       ]
      },
-
+     { text: 'Ecosystem',
+      items: [
+        { text: 'DimensionalData.jl', link: 'https://rafaqz.github.io/DimensionalData.jl/dev/' },
+        { text: 'NCDatasets.jl', link: 'https://alexander-barth.github.io/NCDatasets.jl/stable/' },
+        { text: 'ArchGDAL.jl', link: 'https://yeesian.com/ArchGDAL.jl/stable/' },
+        { text: 'HDF5.jl', link: 'https://juliaio.github.io/HDF5.jl/stable/' },
+       ]
+     },
       { text: 'API', link: '/api' }
     ],
 
