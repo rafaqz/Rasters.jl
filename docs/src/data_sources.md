@@ -44,7 +44,7 @@ the first layer is used.
 using Rasters
 ````
 
-````@docs data_sources
+````@docs
 smapseries
 ````
 
