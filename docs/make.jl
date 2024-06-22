@@ -1,4 +1,3 @@
-# ENV["RASTERDATASOURCES_PATH"] = "/Users/lalonso/Data/"
 using Documenter, Rasters, Plots, Logging, Statistics, Dates, 
     RasterDataSources, ArchGDAL, NCDatasets, CoordinateTransformations
 import Makie, CairoMakie
