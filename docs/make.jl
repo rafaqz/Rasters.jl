@@ -1,3 +1,6 @@
+# ENV["RASTERDATASOURCES_PATH"] = "/Users/lalonso/data/"
+# ENV["DATADEPS_ALWAYS_ACCEPT"] = "true"
+
 using Documenter, Rasters, Plots, Logging, Statistics, Dates, 
     RasterDataSources, ArchGDAL, NCDatasets, CoordinateTransformations
 import Makie, CairoMakie
