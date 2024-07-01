@@ -210,9 +210,12 @@ end
 
 _ismissingval(A::Union{Raster,RasterStack}, props) = 
     _ismissingval(missingval(A), props)
+_ismissingval(A::Union{Raster,RasterStack}, props::NamedTuple) = 
+    _ismissingval(missingval(A), props)
 _ismissingval(mvs::NamedTuple, props::NamedTuple{K}) where K = 
-    any(map((x, mv) -> ismissing(x) || x === mv, props, mvs[K]))
-_ismissingval(mv, props) = any(map(x -> ismissing(x) || x === mv, props))
+    any(k -> ismissing(props[k]) || props[k] === mvs[k], K)
+_ismissingval(mv, props::NamedTuple) = any(x -> ismissing(x) || x === mv, props)
+_ismissingval(mv, prop) = (mv === prop)
 
 @inline _prop_nt(st::AbstractRasterStack, I, ::NamedTuple{K}) where K = st[I...][K]
 @inline _prop_nt(A::AbstractRaster, I, ::NamedTuple{K}) where K = NamedTuple{K}((A[I...],))
