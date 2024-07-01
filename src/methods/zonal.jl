@@ -8,19 +8,18 @@ covered by the `of` object/s.
 
 - `f`: any function that reduces an iterable to a single value, such as `sum` or `Statistics.mean`
 - `x`: A `Raster` or `RasterStack`
-- `of`: A `Raster`, `RasterStack`, dim tuple, extent, GeoInterface.jl compatible geometry,
-    Tables.jl compatible table of a `:geometry` column, or an `AbstractVector` of
-    any of these objects..
+- `of`: A `DimTuple`, `Extent`, $OBJ_ARGUMENT
 
 # Keywords
-
-These can be used when `of` is a GeoInterface.jl compatible object:
+$GEOMETRYCOLUMN_KEYWORD
+These can be used when `of` is or contains (a) GeoInterface.jl compatible object(s):
 
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`, where possible.
 - `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
     where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
     The default is `:center`.
 - `progress`: show a progress bar, `true` by default, `false` to hide..
+
 
 # Example
 
@@ -84,15 +83,8 @@ function _zonal(f, x::RasterStack, ext::Extents.Extent)
     end
 end
 # Otherwise of is a geom, table or vector
-function _zonal(f, x::RasterStackOrArray, of::T; kw...) where T
-    if Tables.istable(T)
-        ctbl = Tables.columntable(of)
-        geoms = Tables.getcolumn(ctbl, first(GI.geometrycolumns(of)))
-        _zonal(f, x, nothing, geoms; kw...)
-    else
-        _zonal(f, x, GI.trait(of), of; kw...)
-    end
-end
+_zonal(f, x::RasterStackOrArray, of; kw...) = _zonal(f, x, GI.trait(of), of; kw...)
+
 _zonal(f, x, ::GI.AbstractFeatureCollectionTrait, fc; kw...) =
     _zonal(f, x, nothing, fc; kw...)
 _zonal(f, x::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...) =
@@ -112,13 +104,13 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; kw
         f(skipmissing(A))
     end
 end
-function _zonal(f, x::RasterStackOrArray, ::Nothing, geoms; progress=true, threaded=true, kw...)
-    range = _geomindices(geoms)
-    n = length(range)
+function _zonal(f, x::RasterStackOrArray, ::Nothing, data; progress=true, threaded=true, geometrycolumn=nothing, kw...)
+    geoms = _get_geometries(data, geometrycolumn)
+    n = length(geoms)
     n == 0 && return []
     zs = _alloc_zonal(f, x, first(geoms), n; kw...)
-    _run(range, threaded, progress, "Applying $f to each geometry...") do i
-        zs[i] = _zonal(f, x, _getgeom(geoms, i); kw...)
+    _run(1:n, threaded, progress, "Applying $f to each geometry...") do i
+        zs[i] = _zonal(f, x, geoms[i]; kw...)
     end
     return zs
 end

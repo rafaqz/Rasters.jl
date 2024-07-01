@@ -39,11 +39,12 @@ $COVERAGE_DOC
 
 $COVERAGE_KEYWORDS
 $TO_KEYWORD
+$GEOMETRYCOLUMN_KEYWORD
 $SIZE_KEYWORD
 $RES_KEYWORD
 """
-coverage(data; to=nothing, mode=union, scale=10, kw...) = _coverage(to, data; mode, scale, kw...)
-coverage(f::Union{typeof(sum),typeof(union)}, data; kw...) = coverage(data; kw..., mode=f)
+coverage(data; to=nothing, mode=union, scale=10,geometrycolumn=nothing, kw...) = _coverage(to, data; mode, scale, geometrycolumn, kw...)
+coverage(f::Union{typeof(sum),typeof(union)}, data; geometrycolumn=nothing, kw...) = coverage(data; geometrycolumn, kw..., mode=f)
 
 function _coverage(to, data; mode, scale, kw...)
     name = if GI.isgeometry(data) || GI.isfeature(data)

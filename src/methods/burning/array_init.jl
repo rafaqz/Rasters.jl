@@ -11,7 +11,7 @@ _init_bools(to::Extents.Extent, T::Type, data; kw...) = _init_bools(to, _extent2
 _init_bools(to::DimTuple, T::Type, data; kw...) = _init_bools(to, to, T, data; kw...)
 function _init_bools(to::Nothing, T::Type, data; kw...)
     # Get the extent of the geometries
-    ext = _extent(data)
+    ext = _extent(data; kw...)
     isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
     # Convert the extent to dims (there must be `res` or `size` in `kw`)
     dims = _extent2dims(ext; kw...)

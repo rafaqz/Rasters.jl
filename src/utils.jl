@@ -186,6 +186,57 @@ function _as_intervals(ds::Tuple)
     return setdims(ds, interval_dims)
 end
 
+# get geometries from what may be a table with a geometrycolumn or an interable of geometries
+# if it has no geometry column and does not iterate valid geometries, error informatively
+function _get_geometries(data, ::Nothing)
+    # if it's a table, get the geometry column
+    geoms = if !(data isa AbstractVector{<:GeoInterface.NamedTuplePoint}) && Tables.istable(data)
+        geomcol = first(GI.geometrycolumns(data))
+        !in(geomcol, Tables.columnnames(Tables.columns(data))) &&
+            throw(ArgumentError("Expected geometries in the column `$geomcol`, but no such column found."))
+        isnothing(geomcol) && throw(ArgumentError("No default `geometrycolumn` for this type, please specify it manually."))
+        Tables.getcolumn(Tables.columns(data), geomcol)
+    elseif data isa AbstractVector
+        data
+    else
+        trait = GI.trait(data)
+        if GI.trait(data) isa GI.FeatureCollectionTrait
+            [GI.geometry(f) for f in GI.getfeature(data)]
+        else
+            collect(data)
+        end
+    end
+    # check if data iterates valid geometries before returning
+    _check_geometries(geoms)
+    return geoms
+end
+function _get_geometries(data, geometrycolumn::Symbol)
+    Tables.istable(data) || throw(ArgumentError("`geometrycolumn` was specified, but `data` is not a table."))
+    geoms = Tables.getcolumn(Tables.columns(data), geometrycolumn)
+    _check_geometries(geoms)
+    return geoms
+end
+function _get_geometries(data, geometrycolumn::NTuple{<:Any, <:Symbol})
+    Tables.istable(data) || throw(ArgumentError("`geometrycolumn` was specified, but `data` is not a table."))
+    cols = Tables.columns(data)
+    geomcols = (Tables.getcolumn(cols, col) for col in geometrycolumn)
+    points = map(geomcols...) do (row...)
+        for r in row
+            ismissing(r) && return missing
+        end
+        return row
+    end     
+    return points
+end
+function _check_geometries(geoms)
+    for g in geoms
+        ismissing(g) || GI.geomtrait(g) !== nothing || 
+        throw(ArgumentError("$g is not a valid GeoInterface.jl geometry"))
+    end
+    return
+end
+# to distinguish between objects returned by _get_geometries and other objects
+struct IterableOfGeometries end
 _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
 
 _filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not found"))
