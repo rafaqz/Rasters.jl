@@ -313,14 +313,15 @@ end
 function boolmask(x; 
     to=nothing, 
     invert::Bool=false,
-    geometrycolumn=nothing, 
+    geometrycolumn=nothing,
     kw...
 )
     if to isa Union{AbstractDimArray,AbstractDimStack,DimTuple}
         to = dims(to, DEFAULT_POINT_ORDER)
     end
-    dest = _init_bools(to, BitArray, x; geometrycolumn, kw..., missingval=invert)
-    boolmask!(dest, x; invert, kw...)
+    data = isnothing(GI.geomtrait(x)) ? _get_geometries(x, geometrycolumn) : x
+    dest = _init_bools(to, BitArray, data; kw..., missingval=invert)
+    boolmask!(dest, data; invert, kw...)
     return rebuild(dest; missingval=false)
 end
 

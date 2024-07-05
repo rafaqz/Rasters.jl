@@ -34,7 +34,7 @@ function _extent(::GI.AbstractGeometryTrait, geom; kw...)::XYExtent
         return _float64_xy_extent(geomextent)
     end
 end
-_extent(::GI.AbstractFeatureTrait, feature; kw...)::XYExtent = _extent(GI.geometry(feature))
+_extent(::GI.AbstractFeatureTrait, feature; kw...)::XYExtent = _extent(GI.geometry(feature); kw...)
 function _extent(::GI.GeometryCollectionTrait, collection; kw...)::XYExtent
     geometries = GI.getgeom(collection)
     init = _float64_xy_extent(_extent(first(geometries)))

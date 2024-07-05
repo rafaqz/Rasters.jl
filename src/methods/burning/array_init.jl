@@ -9,9 +9,9 @@ _init_bools(to::AbstractRasterStack, T::Type, data; kw...) = _init_bools(first(t
 _init_bools(to::AbstractRaster, T::Type, data; kw...) = _init_bools(to, dims(to), T, data; kw...)
 _init_bools(to::Extents.Extent, T::Type, data; kw...) = _init_bools(to, _extent2dims(to; kw...), T, data; kw...)
 _init_bools(to::DimTuple, T::Type, data; kw...) = _init_bools(to, to, T, data; kw...)
-function _init_bools(to::Nothing, T::Type, data; kw...)
+function _init_bools(to::Nothing, T::Type, data; geometrycolumn=nothing,kw...)
     # Get the extent of the geometries
-    ext = _extent(data; kw...)
+    ext = _extent(data; geometrycolumn, kw...)
     isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
     # Convert the extent to dims (there must be `res` or `size` in `kw`)
     dims = _extent2dims(ext; kw...)
