@@ -10,7 +10,7 @@ using Rasters, Statistics, RasterDataSources
 A = Raster(WorldClim{BioClim}, 5)
 ````
 
-Then we do the meand over the `X` dimension
+Then we do the mean over the `X` dimension
 
 ````@example operations
 mean(A, dims=X) # Ti if time were available would also be possible
@@ -60,7 +60,7 @@ A = Raster(WorldClim{BioClim}, 5)
 rebuild(A; missingval=-9999)
 ````
 
-(`replace_missing` will actualy replace the current values).
+(`replace_missing` will actually replace the current values).
 
 Or if you need to change the name of the layer:
 

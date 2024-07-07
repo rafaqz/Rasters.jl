@@ -20,7 +20,7 @@ This is the most important thing in the issue, we cant fix bugs without it.
 ```julia
 The full complete error from start to finish goes here
 
-This is the second most imortant thing in the issue, we can't be sure we fixed the same problem unless we can see this.
+This is the second most important thing in the issue, we can't be sure we fixed the same problem unless we can see this.
 ```
 
 ```julia
