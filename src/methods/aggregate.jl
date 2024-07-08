@@ -29,7 +29,7 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 
 - `skipmissingval`: if `true`, any `missingval` will be skipped during aggregation, so that
     only areas of all missing values will be aggregated to `missingval`. If `false`, any
-    aggegrated area containing a `missingval` will be assigned `missingval`.
+    aggregated area containing a `missingval` will be assigned `missingval`.
 $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
 $PROGRESS_KEYWORD
@@ -121,7 +121,7 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 - `progress`: show a progress bar.
 - `skipmissingval`: if `true`, any `missingval` will be skipped during aggregation, so that
     only areas of all missing values will be aggregated to `missingval`. If `false`, any
-    aggegrated area containing a `missingval` will be assigned `missingval`.
+    aggregated area containing a `missingval` will be assigned `missingval`.
 
 Note: currently it is _much_ faster to aggregate over memory-backed arrays.
 Use [`read`](@ref) on `src` before use where required.
@@ -314,11 +314,11 @@ function ag_eltype(method::Tuple{<:Any}, A)
     promote_type(eltype(A), method_returntype)
 end
 
-# Convert indicies from the aggregated array to the larger original array.
+# Convert indices from the aggregated array to the larger original array.
 upsample(index::Int, scale::Int) = (index - 1) * scale + 1
 upsample(index::Int, scale::Colon) = index
 
-# Convert indicies from the original array to the aggregated array.
+# Convert indices from the original array to the aggregated array.
 downsample(index::Int, scale::Int) = (index - 1) ÷ scale + 1
 downsample(index::Int, scale::Colon) = index
 

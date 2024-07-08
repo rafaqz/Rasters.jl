@@ -112,7 +112,7 @@ gdalpath = maybedownload(url)
     end
 
     @testset "other fields" begin
-        # This file has an inorrect missing value
+        # This file has an incorrect missing value
         @test missingval(gdalarray) === nothing
         @test metadata(gdalarray) isa Metadata{GDALsource,Dict{String,Any}} 
         @test basename(metadata(gdalarray)["filepath"]) == "cea.tif"
@@ -441,7 +441,7 @@ gdalpath = maybedownload(url)
             @test all(bounds(saved, Y) .≈ bounds(clat))
             @test projectedindex(clon) ≈ projectedindex(saved, X)
             @test all(projectedbounds(clon) .≈ projectedbounds(saved, X))
-            # reason lat crs conversion is less accrurate than lon TODO investigate further
+            # reason lat crs conversion is less accurate than lon TODO investigate further
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6),
                 projectedindex(gdalarray, Y),
                 projectedindex(DimensionalData.shiftlocus(Start(), dims(saved, Y)))

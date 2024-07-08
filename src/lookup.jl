@@ -142,7 +142,7 @@ end
 function Mapped(l::Sampled;
     order=order(l), span=span(l), sampling=sampling(l),
     metadata=metadata(l),
-    crs::Union{GeoFormat,Nothing}=nothng,
+    crs::Union{GeoFormat,Nothing}=nothing,
     mappedcrs::Union{GeoFormat,Nothing},
     dim=AutoDim()
 )
@@ -220,7 +220,7 @@ end
 
 Get the bounds converted to the [`mappedcrs`](@ref) value.
 
-Whithout ArchGDAL loaded, this is just the regular bounds.
+Without ArchGDAL loaded, this is just the regular bounds.
 """
 function mappedbounds end
 
@@ -249,7 +249,7 @@ _sort((a, b)) = a <= b ? (a, b) : (b, a)
 
 Get the index value of a dimension converted to the `mappedcrs` value.
 
-Whithout ArchGDAL loaded, this is just the regular dim value.
+Without ArchGDAL loaded, this is just the regular dim value.
 """
 function mappedindex end
 

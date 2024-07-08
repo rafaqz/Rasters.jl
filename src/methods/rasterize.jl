@@ -136,7 +136,7 @@ function Rasterizer(geom, fill, fillitr;
         !GI.isgeometry(geom) &&
         !GI.trait(first(geom)) isa GI.PointTrait &&
         !(reducer in stable_reductions)
-        @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be innaccurate for `reducer` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
+        @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be inaccurate for `reducer` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
     end
     eltype, missingval, init = get_eltype_missingval(eltype, missingval, fill, fillitr, init, filename, op, reducer)
     lock = threaded ? Threads.SpinLock() : nothing
@@ -144,7 +144,7 @@ function Rasterizer(geom, fill, fillitr;
     return Rasterizer(eltype, geom, fillitr, reducer, op, init, missingval, lock, shape, boundary, verbose, progress, threaded, threadsafe_op)
 end
 function Rasterizer(data::T; fill, geomcolumn=nothing, kw...) where T
-    if Tables.istable(T) # typeof so we dont check iterable table fallback in Tables.jl
+    if Tables.istable(T) # typeof so we don't check iterable table fallback in Tables.jl
         schema = Tables.schema(data)
         cols = Tables.columns(data)
         colnames = Tables.columnnames(Tables.columns(data))
@@ -344,7 +344,7 @@ const RASTERIZE_KEYWORDS = """
     when `data` is a Tables.jl compatible table, or a tuple of `Symbol` for columns of
     point coordinates.
 - `progress`: show a progress bar, `true` by default, `false` to hide..
-- `verbose`: print information and warnings whne there are problems with the rasterisation.
+- `verbose`: print information and warnings when there are problems with the rasterisation.
     `true` by default.
 $THREADED_KEYWORD
 - `threadsafe`: specify that custom `reducer` and/or `op` functions are thread-safe, 
@@ -444,7 +444,7 @@ function rasterize(reducer::typeof(count), data; fill=nothing, init=nothing, kw.
     rasterize(data; kw..., name=:count, init=0, reducer=nothing, fill=_count_fill, missingval=0)
 end
 # `mean` is sum ./ count. This is actually optimal with threading, 
-# as its means order is irrelivent so its threadsafe.
+# as its means order is irrelevant so its threadsafe.
 function rasterize(reducer::typeof(DD.Statistics.mean), data; fill, kw...)
     sums = rasterize(sum, data; kw..., fill)
     counts = rasterize(count, data; kw..., fill=nothing)
@@ -465,7 +465,7 @@ end
 # create_rasterize_dest
 # We create a Raster or RasterStack and apply f to it.
 # This may be on disk, which is the reason for applying f rather than just
-# returning the initiallised object - we may need to open it to be able to write.
+# returning the initialised object - we may need to open it to be able to write.
 create_rasterize_dest(f, r::RasterCreator) = create_rasterize_dest(f, r.eltype, r)
 # function _create_rasterize_dest(f, dims; fill, name=nothing, init=nothing, kw...)
     # _create_rasterize_dest(f, fill, init, name, dims; fill, kw...)
@@ -902,7 +902,7 @@ end
 
 # _apply_reduction!
 #
-# Apply a reducing functin over an iterable
+# Apply a reducing function over an iterable
 # This is applied for all reducing methods that don't have a matching `op` method
 @inline function _apply_reduction!(::Type{T}, f, fill, pixel_geom_list) where T
     any(pixel_geom_list) || return nothing
@@ -950,7 +950,7 @@ Base.@assume_effects :total _choose_fill(op::Nothing, a, fc::FillChooser{<:Funct
 # No op fill is a function, no init fill a (repeated to avoid ambiguity)
 Base.@assume_effects :total _choose_fill(op::Nothing, a, fc::FillChooser{<:Function,Nothing,Missing}) = fc.fill(a)
 # Op is a function, fill is not, missingval===missing
-# apply retudcing op to a and fill, or to init and fill if a equals missing and init exists
+# apply reducing op to a and fill, or to init and fill if a equals missing and init exists
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser{<:Any,<:Any,Missing}) where F<:Function
     a1 = ismissing(a) ? fc.init : a
     _apply_op(op, a1, fc.fill)
@@ -967,7 +967,7 @@ Base.@assume_effects :total function _choose_fill(op, a, fc::FillChooser)
     fc.fill
 end
 # Op is a function, fill is not, missingval===missing
-# apply retudcing op to a and fill, or to init and fill if a equals missingval and init exists
+# apply reducing op to a and fill, or to init and fill if a equals missingval and init exists
 # @inline function _choose_fill(a, fill, op::F, init::Nothing, missingval) where F<:Function
 #     _apply_op(op, a, fill)
 # end

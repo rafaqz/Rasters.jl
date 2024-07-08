@@ -142,9 +142,9 @@ function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw)
     mappedcrs = mappedcrs isa NoKW ? nothing : mappedcrs
     xy_metadata = metadata(raster)
 
-    # Output Sampled index dims when the transformation is lat/lon alligned,
+    # Output Sampled index dims when the transformation is lat/lon aligned,
     # otherwise use Transformed index, with an affine map.
-    if _isalligned(gt)
+    if _isaligned(gt)
         # Get step sizes
         xstep = gt[GDAL_WE_RES]
         ystep = gt[GDAL_NS_RES] # Usually a negative number
@@ -433,7 +433,7 @@ function _process_options(driver::String, options::Dict;
             else
                 xchunksize == 1 || @warn "X and Y chunk size do not match. Columns are used and X size $xchunksize is ignored"
             end
-            # dont overwrite user specified values
+            # don't overwrite user specified values
             if !("BLOCKXSIZE" in keys(options_str))
                 options_str["BLOCKXSIZE"] = block_x
             end
@@ -469,7 +469,7 @@ function _process_options(driver::String, options::Dict;
     return options_vec
 end
 
-# Bands can have text names, but usually dont
+# Bands can have text names, but usually don't
 function _bandnames(rds::AG.RasterDataset, nbands=AG.nraster(rds))
     map(1:nbands) do b
         AG.getband(rds.ds, b) do band
@@ -553,7 +553,7 @@ function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval)
     return dataset
 end
 
-# Detect the driver string from the extention
+# Detect the driver string from the extension
 _extensiondriver(filename::Nothing) = "MEM"
 function _extensiondriver(filename::AbstractString)
     # TODO move this check to ArchGDAL
@@ -625,7 +625,7 @@ end
 RA.geotransform2affine(gt) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)
 RA.affine2geotransform(am) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)
 
-_isalligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
+_isaligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
 
 # precompilation
 # function _precompile(::Type{GDALsource})

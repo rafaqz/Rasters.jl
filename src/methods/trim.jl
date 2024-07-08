@@ -84,7 +84,7 @@ end
 
 # Tracks the status of an index for some subset of dimensions of an Array
 # This lets us track e.g. the X/Y indices that have only missing values
-# accross all other dimensions.
+# across all other dimensions.
 # This is a hack to work with DiskArrays broadcast chunking without allocations.
 struct AxisTrackers{N,Tr,D,TD} <: AbstractArray{Bool,N}
     tracking::Tr
