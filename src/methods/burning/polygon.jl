@@ -133,7 +133,7 @@ function _burn_crossings!(A, crossings, ncrossings, iy;
     return BurnStatus(ic, burn, hasburned)
 end
 
-const INTERVALS_INFO = "makes more sense on `Intervals` than `Points` and will have more correct results. You can construct dimensions with a `X(values; sampling=Intervals(Center()))` to acheive this"
+const INTERVALS_INFO = "makes more sense on `Intervals` than `Points` and will have more correct results. You can construct dimensions with a `X(values; sampling=Intervals(Center()))` to achieve this"
 
 @noinline _check_intervals(B) = 
     _chki(B) ? true : (@info "burning lines $INTERVALS_INFO"; false)

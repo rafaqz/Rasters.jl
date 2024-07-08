@@ -34,7 +34,7 @@ function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source, missin
     end
 end
 
-# Create a standardisted Metadata object of source T, containing a `Dict{String,Any}`
+# Create a standardised Metadata object of source T, containing a `Dict{String,Any}`
 _metadatadict(s::Source, p1::Pair, pairs::Pair...) = 
     _metadatadict(s, (p1, pairs...))
 _metadatadict(::S) where S<:Source = Metadata{S}(Dict{String,Any}())

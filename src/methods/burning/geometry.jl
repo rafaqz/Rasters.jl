@@ -96,7 +96,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
         # Get the extents of the geometry and array
         geomextent = _extent(geom)
         arrayextent = Extents.extent(B, DEFAULT_POINT_ORDER)
-        # Only fill if the gemoetry bounding box overlaps the array bounding box
+        # Only fill if the geometry bounding box overlaps the array bounding box
         if !Extents.intersects(geomextent, arrayextent) 
             verbose && _verbose_extent_info(geomextent, arrayextent)
             return false

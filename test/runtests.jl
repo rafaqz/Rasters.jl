@@ -32,7 +32,7 @@ if !Sys.iswindows()
     @time @safetestset "gribdatasets" begin include("sources/gribdatasets.jl") end
 end
 
-# Only test SMAP locally for now, also RasterDataSources because CI dowloads keep breaking
+# Only test SMAP locally for now, also RasterDataSources because CI downloads keep breaking
 if !haskey(ENV, "CI")
     @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
 end

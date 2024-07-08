@@ -203,7 +203,7 @@ function dims2geotransform end
 function affine2geotransform end
 function geotransform2affine end
 
-# Shared between ArchGDAL and CoordinateTransformations extenstions
+# Shared between ArchGDAL and CoordinateTransformations extensions
 const GDAL_EMPTY_TRANSFORM = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 const GDAL_TOPLEFT_X = 1
 const GDAL_WE_RES = 2

@@ -192,7 +192,7 @@ methods will _not_ load data from disk; they will be applied later, lazily.
 
 # Keywords
 
-- `name`: a `Symbol` name for the array, which will also retreive the, alphabetically first, 
+- `name`: a `Symbol` name for the array, which will also retrieve the, alphabetically first, 
     named layer if `Raster` is used on a multi-layered file like a NetCDF. 
     If instead `RasterStack` is used to read the multi-layered file, by default, all variables 
     will be added to the stack.

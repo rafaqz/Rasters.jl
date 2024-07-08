@@ -35,7 +35,7 @@ function _extent(::Nothing, data::T; geometrycolumn=nothing)::XYExtent where T
                     acc
                 end
             end
-            return _float64_xy_extent(Extensts.Extent(bounds))
+            return _float64_xy_extent(Extents.Extent(bounds))
         end
     else
         ext = Extents.extent(data)

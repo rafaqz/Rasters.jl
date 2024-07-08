@@ -5,13 +5,13 @@
 Crop one or multiple [`AbstractRaster`](@ref) or [`AbstractRasterStack`](@ref) `x`
 to match the size of the object `to`, or smallest of any dimensions that are shared.
 
-`crop` is lazy, using a `view` into the object rather than alocating new memory.
+`crop` is lazy, using a `view` into the object rather than allocating new memory.
 
 # Keywords
 
 - `to`: the object to crop to. If no `to` keyword is passed, the smallest shared
     area of all `xs` is used.
-- `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
+- `touches`: `true` or `false`. Whether to use `Touches` wrapper on the object extent.
    When lines need to be included in e.g. zonal statistics, `true` should be used.
 
 As `crop` is lazy, `filename` and `suffix` keywords are not used.
@@ -124,7 +124,7 @@ covered by all `xs`, or by the keyword argument `to`.
 
 - `to`: the Raster or dims to extend to. If no `to` keyword is passed, the largest
     shared area of all `xs` is used.
-- `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
+- `touches`: `true` or `false`. Whether to use `Touches` wrapper on the object extent.
    When lines need to be included in e.g. zonal statistics, `true` shoudle be used.
 $FILENAME_KEYWORD
 $SUFFIX_KEYWORD

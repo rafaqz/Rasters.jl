@@ -199,8 +199,8 @@ function _mosaic(span::Regular, lookup::AbstractSampled, lookups::LookupTuple)
         mi = minimum(map(first, lookups))
         ma = maximum(map(last, lookups))
         if mi isa AbstractFloat
-            # Handle slight range erorrs to make sure
-            # we dont drop one step of the range
+            # Handle slight range errors to make sure
+            # we don't drop one step of the range
             mi:step(span):ma + 2eps(ma)
         else
             mi:step(span):ma
@@ -222,7 +222,7 @@ function _mosaic(::Irregular, lookup::AbstractSampled, lookups::LookupTuple)
     return rebuild(lookup; data=newindex)
 end
 function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::LookupTuple)
-    # TODO make this less fragile to floating point innaccuracy
+    # TODO make this less fragile to floating point inaccuracy
     newindex = sort(union(map(parent, lookups)...); order=LA.ordering(order(lookup)))
     bounds = map(val ∘ DD.span, lookups)
     lower = map(b -> view(b, 1, :), bounds)
