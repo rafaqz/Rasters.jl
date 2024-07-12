@@ -44,6 +44,25 @@ $CRS_KEYWORD
 $SHAPE_KEYWORDS
 """
 
+const DATA_ARGUMENT = """
+- `data`: a GeoInterface.jl `AbstractGeometry`, a nested `Vector` of `AbstractGeometry`,
+    or a Tables.jl compatible object containing a `:geometry` column or points and values columns,
+    in which case `geometrycolumn` must be specified.
+"""
+
+const OBJ_ARGUMENT = """
+a [`Raster`](@ref) or one or multiple geometries. Geometries can be
+    a GeoInterface.jl `AbstractGeometry`, a nested `Vector` of `AbstractGeometry`,
+    or a Tables.jl compatible object containing a `:geometry` column or points and values columns,
+    in which case `geometrycolumn` must be specified."""
+
+const GEOMETRYCOLUMN_KEYWORD = """
+- `geometrycolumn`: `Symbol` to manually select the column the geometries are in
+    when `data` is a Tables.jl compatible table, or a tuple of `Symbol` for columns of
+    point coordinates.
+"""
+
+
 const LAZY_KEYWORD = """
 - `lazy`: A `Bool` specifying if to load data lazily from disk. `false` by default.
 """
