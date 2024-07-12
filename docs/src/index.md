@@ -1,21 +1,34 @@
-<img src="https://rafaqz.github.io/Rasters.jl/dev/scripts/generated/basics/aus_trim.png" align="center" style="padding-right:10px"; width="100%"></img>
+```@raw html
+---
+# https://vitepress.dev/reference/default-theme-home-page
+layout: home
 
+hero:
+  name: "Rasters.jl"
+  tagline: "Manipulating rasterized spatial data"
+  image:
+    src: /logo.png
+    alt: Rasters
+  actions:
+    - theme: brand
+      text: Get Started
+      link: /get_started
+    - theme: alt
+      text: View on Github
+      link: https://github.com/rafaqz/Rasters.jl
+    - theme: alt
+      text: API Reference
+      link: /api
+      
 
-## Rasters.jl
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/rafaqz/Rasters.jl/blob/main/LICENSE)
-[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://rafaqz.github.io/Rasters.jl/stable)
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://rafaqz.github.io/Rasters.jl/dev)
-[![CI](https://github.com/rafaqz/Rasters.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaqz/Rasters.jl/actions/workflows/ci.yml)
-[![Codecov](https://codecov.io/gh/rafaqz/Rasters.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/rafaqz/Rasters.jl)
-[![Aqua.jl Quality Assurance](https://img.shields.io/badge/Aquajl-%F0%9F%8C%A2-aqua.svg)](https://github.com/JuliaTesting/Aqua.jl)
-[![Downloads](https://shields.io/endpoint?url=https://pkgs.genieframework.com/api/v1/badge/Rasters&label=Downloads)](https://pkgs.genieframework.com?packages=Rasters)
-
-[Rasters.jl](https://rafaqz.github.io/Rasters.jl/dev) defines common types and methods for reading, writing and
-manipulating rasterized spatial data. 
-
-These currently include raster arrays like `GeoTIFF` and `NetCDF`, `R grd` files, 
-multi-layered stacks, and multi-file series of arrays and stacks. 
+features:
+  - title: Rasters.jl
+    details: Defines common types and methods for reading, writing and manipulating rasterized spatial data.
+    link: /markdown-examples
+  - title: Data Formats
+    details: These currently include raster arrays like <strong>GeoTIF</strong> and <strong>NetCDF</strong>, <strong>R grd</strong> files, multi-layered stacks, and multi-file series of arrays and stacks.
+---
+```
 
 
 !!! info "Data-source abstraction"
@@ -35,7 +48,15 @@ multi-layered stacks, and multi-file series of arrays and stacks.
     projection, the conversion is handled automatically. This means lat/lon
     `EPSG(4326)` can be used seamlessly if you need that.
 
-!!! warning "Packages extensions and Rasters 0.8 and onwards"
+## Installation
+
+````julia
+] add Rasters
+````
+
+## Packages extensions
+
+!!! tip "Packages extensions and Rasters 0.8 and onwards"
 
     On Julia 1.9 we can put additional packages in extensions, so the code only loads when
     you load a specific package. Rasters.jl was always intended to work like this,
@@ -65,21 +86,22 @@ Other functionality in extensions:
 - Makie plots: `using Makie`
 - Coordinate transformations for gdal rasters: `using CoordinateTransformations`
 
+## Bugs and errors
 
-```@raw html
-??? warning "Bugs, errors and making issues for Rasters.jl"
+::: warning Bugs, errors and making issues for Rasters.jl
 
-    Raster data is complicated and there are many places for subtle or not-so-subtle bugs to creep in.
+Raster data is complicated and there are many places for subtle or not-so-subtle bugs to creep in.
 
-    We need bug reports to reduce how often they occur over time. But also, we need issues that are easy to reproduce or it isn't practically possible to fix them.
+We need bug reports to reduce how often they occur over time. But also, we need issues that are easy to reproduce or it isn't practically possible to fix them.
 
-    Because there are so many raster file types and variations of them, most of the time we need the *exact file* that caused your problem to know how to fix it, and be sure that we have actually fixed it when we are done. So fixing a Rasters.jl bug nearly always involves downloading some file and running some code that breaks with it (if you can trigger the bug without a file, thats great! but its not always possible).
+Because there are so many raster file types and variations of them, most of the time we need the *exact file* that caused your problem to know how to fix it, and be sure that we have actually fixed it when we are done. So fixing a Rasters.jl bug nearly always involves downloading some file and running some code that breaks with it (if you can trigger the bug without a file, that's great! but its not always possible).
 
-    To make an issue we can fix quickly (or at all) there are three key steps:
+To make an issue we can fix quickly (or at all) there are three key steps:
 
-    1. Include the file in an accessible place on web *without autentication* or any other work on our part, so we can just get it and find your bug. You can put it on a file hosting platform (e.g. google drive, drop box, whatever you use) and share the url.
-    2. Add a minimum working example to the issue template that first downloads the file, then runs the function that triggers the bug.
-    3. Paste the complete stack trace of the error it produces, right to the bottom, into the issue template. Then we can be sure we reproduced the same problem.
+1. Include the file in an accessible place on web *without authentication* or any other work on our part, so we can just get it and find your bug. You can put it on a file hosting platform (e.g. google drive, drop box, whatever you use) and share the url.
+2. Add a minimum working example to the issue template that first downloads the file, then runs the function that triggers the bug.
+3. Paste the complete stack trace of the error it produces, right to the bottom, into the issue template. Then we can be sure we reproduced the same problem.
 
-    Good issues are really appreciated, but they do take just a little extra effort with Rasters.jl because of this need for files.
-```
+Good issues are really appreciated, but they do take just a little extra effort with Rasters.jl because of this need for files.
+
+:::

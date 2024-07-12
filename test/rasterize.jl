@@ -349,7 +349,7 @@ end
      0 0 0 0 0 0 0
      0 0 0 0 0 0 0]
 end
-# GDAL doesnt do inside / not touching rasterization, so we have no test against GDAL
+# GDAL doesn't do inside / not touching rasterization, so we have no test against GDAL
 @testset "line inside rasterization" begin
     @time gdal_raster = gdal_read_rasterize(shppath, "-at")
     rasters_inside_raster = rasterize(last, shphandle.shapes; 

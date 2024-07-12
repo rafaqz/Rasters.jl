@@ -21,17 +21,17 @@ $DATA_ARGUMENT
 
 # Keywords
 
-- `geometry`: include `:geometry` in retured `NamedTuple`, `true` by default.
-- `index`: include `:index` of the `CartesianIndex` in retured `NamedTuple`, `false` by default.
+- `geometry`: include `:geometry` in returned `NamedTuple`, `true` by default.
+- `index`: include `:index` of the `CartesianIndex` in returned `NamedTuple`, `false` by default.
 - `name`: a `Symbol` or `Tuple` of `Symbol` corresponding to layer/s of a `RasterStack` to extract. All layers by default.
 - `skipmissing`: skip missing points automatically.
-- `atol`: a tolorerance for floating point lookup values for when the `Lookup`
+- `atol`: a tolerance for floating point lookup values for when the `Lookup`
     contains `Points`. `atol` is ignored for `Intervals`.
 -$GEOMETRYCOLUMN_KEYWORD
 
 # Example
 
-Here we extact points matching the occurrence of the Mountain Pygmy Possum,
+Here we extract points matching the occurrence of the Mountain Pygmy Possum,
 _Burramis parvus_. This could be used to fit a species distribution model.
 
 ```julia
@@ -307,7 +307,7 @@ end
 end
 
 # _rowtype returns the complete NamedTuple type for a point row
-# This code is entrirely for types stability and performance.
+# This code is entirely for types stability and performance.
 _rowtype(x, g; kw...) = _rowtype(x, typeof(g); kw...)
 _rowtype(x, g::Type; geometry, index, skipmissing, names, kw...) = 
     _rowtype(x, g, geometry, index, skipmissing, names)

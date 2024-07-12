@@ -32,8 +32,8 @@ const THREADED_KEYWORD = """
     can give large speedups over single-threaded operation. This can be true for complicated 
     geometries written into low-resolution rasters, but may not be for simple geometries with 
     high-resolution rasters. With very large rasters threading may be counter productive due 
-    to excessing memory use. Caution should also be used: `threaded` should not be used in in-place 
-    functions wrinting to `BitArray` or other arrays where race conditions can occur. 
+    to excessive memory use. Caution should also be used: `threaded` should not be used in in-place 
+    functions writing to `BitArray` or other arrays where race conditions can occur. 
 """
 
 const GEOM_KEYWORDS = """
@@ -98,7 +98,7 @@ const DROPBAND_KEYWORD = """
 
 const CONSTRUCTOR_CRS_KEYWORD = """
 - `crs`: the coordinate reference system of  the objects `XDim`/`YDim` dimensions.
-    Only set this if you know the detected crs is incrorrect, or it is not present in
+    Only set this if you know the detected crs is incorrect, or it is not present in
     the file. The `crs` is expected to be a GeoFormatTypes.jl `CRS` or `Mixed` mode `GeoFormat` object,
     like `EPSG(4326)`.
 """

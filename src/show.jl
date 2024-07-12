@@ -43,7 +43,7 @@ function print_geo(io, mime, A; blockwidth)
 end
 
 
-# Stack types can be enourmous. Just use nameof(T)
+# Stack types can be enormous. Just use nameof(T)
 function Base.summary(io::IO, ser::AbstractRasterSeries{T,N}) where {T,N}
     if N == 0  
         print(io, "0-dimensional ")

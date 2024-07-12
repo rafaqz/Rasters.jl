@@ -18,7 +18,6 @@ function _extent(::Nothing, data; geometrycolumn, kw...)::XYExtent
     end
 end
 _extent(::Nothing, data::RasterStackOrArray; kw...)::XYExtent = _float64_xy_extent(Extents.extent(data))
-
 function _extent(::GI.AbstractPointTrait, point; kw...)::XYExtent
     x, y = Float64(GI.x(point)), Float64(GI.y(point))
     Extents.Extent(X=(x, x), Y=(y, y))

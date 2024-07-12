@@ -1,11 +1,11 @@
 const COVERAGE_DOC = """
-Calculate the area of a raster covered by GeoInterface.jl compatible geomtry `geom`,
+Calculate the area of a raster covered by GeoInterface.jl compatible geometry `geom`,
 as a fraction.
 
 Each pixel is assigned a grid of points (by default 10 x 10) that are each checked
 to be inside the geometry. The sum divided by the number of points to give coverage.
 
-In pracice, most pixel coverage is not calculated this way - shortcuts that 
+In practice, most pixel coverage is not calculated this way - shortcuts that 
 produce the same result are taken wherever possible.
 
 If `geom` is an `AbstractVector` or table, the `mode` keyword will determine how coverage is combined.
@@ -387,7 +387,7 @@ end
 _buffer_bytes(A, scale) = prod(size(A) .* scale) / 8
 function _check_buffer_mem(A, scale)
     buffer_bytes = _buffer_bytes(A, scale)
-    Sys.free_memory() < buffer_bytes && throw(ArgumentError("Not enought memory for `coverage` at `scale=$scale`. Try a smaller number for the `scale` keyword."))
+    Sys.free_memory() < buffer_bytes && throw(ArgumentError("Not enough memory for `coverage` at `scale=$scale`. Try a smaller number for the `scale` keyword."))
 end
 function _check_buffer_thread_mem(A, scale, threaded::Bool)
     n = threaded ? _nthreads() : 1
