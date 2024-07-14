@@ -88,7 +88,7 @@ gdalpath = maybedownload(url)
             O .= 2.0
         end
         read(created)
-        Raster("created.tif"; cf=false) .* 1
+        Raster("created.tif"; scale=nothing, offset=nothing) .* 1
         created = Rasters.create("created.tif", UInt8, (X(1:10), Y(1:10)); 
             missingval=255, maskingval=UInt8(0), force=true
         ) 
