@@ -19,10 +19,22 @@ struct Mod{Mi,Ma,S,O,F} <: AbstractModifications
      end
 end
 
-function _mod(cf::Bool, metadata; missingval, maskingval, coerce=convert)
-    scale = cf ? get(metadata, "scale", nothing) : nothing
-    offset = cf ? get(metadata, "offset", nothing) : nothing
-    _mod(missingval, maskingval, scale, offset, coerce)
+function _mod(metadata; scale, offset, missingval, maskingval, coerce=convert)
+    scale1 = if isnokw(scale) 
+        s = get(metadata, "scale", nothing) 
+        # Dont convert types for scale of one (gdal default)
+        s == 1.0 ? nothing : s
+    else
+        scale
+    end
+    offset1 = if isnokw(offset)
+        o = get(metadata, "offset", nothing)
+        # Dont convert types for offset of zero (gdal default)
+        o == 0.0 ? nothing : o
+    else
+        offset
+    end
+    return _mod(missingval, maskingval, scale, offset, coerce)
 end
 function _mod(missingval, maskingval, scale, offset, coerce=convert)
     if isnothing(maskingval) && isnothing(scale) && isnothing(offset)

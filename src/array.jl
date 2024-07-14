@@ -303,10 +303,11 @@ function Raster(ds, filename::AbstractString;
     mappedcrs=nokw,
     coerce=nokw,
     source=nokw,
+    scale=nokw,
+    offset=nokw,
     write=false,
     lazy=false,
     dropband=true,
-    cf=true,
 )::Raster
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
@@ -314,7 +315,7 @@ function Raster(ds, filename::AbstractString;
         metadata1 = isnokw(metadata) ? _metadata(var) : metadata
         missingval1 = _fix_missingval(var, missingval, metadata1)
         maskingval1 = isnokw(maskingval) ? missing : maskingval
-        mod = _mod(cf, metadata1; missingval=missingval1, maskingval=maskingval1, coerce)
+        mod = _mod(metadata1; scale, offset, missingval=missingval1, maskingval=maskingval1, coerce)
         data = if lazy
             FileArray{typeof(source)}(var, filename; 
                 name=name1, group, mod, write

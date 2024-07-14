@@ -60,13 +60,13 @@ end
     end
 
     @testset "cf" begin
-        @time cfarray = Raster(ncsingle; cf=true)
-        @time cf_nomask_array = Raster(ncsingle; cf=true, maskingval=nothing)
-        @time nocfarray = Raster(ncsingle; cf=false)
-        @time nocf_nomask_array = Raster(ncsingle; cf=false, maskingval=nothing)
-        @time lazycfarray = Raster(ncsingle; lazy=true, cf=false)
-        @time lazynocfarray = Raster(ncsingle; lazy=true, cf=false)
-        @time lazynocf_nomask_array = Raster(ncsingle; lazy=true, cf=false, maskingval=nothing)
+        @time cfarray = Raster(ncsingle)
+        @time cf_nomask_array = Raster(ncsingle; maskingval=nothing)
+        @time nocfarray = Raster(ncsingle; scale=nothing, offset=nothing)
+        @time nocf_nomask_array = Raster(ncsingle; scale=nothing, offset=nothing, maskingval=nothing)
+        @time lazycfarray = Raster(ncsingle; lazy=true, scale=nothing, offset=nothing)
+        @time lazynocfarray = Raster(ncsingle; lazy=true, , scale=nothing, offset=nothing)
+        @time lazynocf_nomask_array = Raster(ncsingle; lazy=true, scale=nothing, offset=nothing, maskingval=nothing)
         @test missingval(cfarray) === missing
         @test missingval(nocfarray) === missing
         @test missingval(cf_nomask_array) === 1.0f20

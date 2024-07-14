@@ -11,7 +11,7 @@ gdalpath = maybedownload(url)
     @test_throws ArgumentError Raster("notafile.tif")
 
     @time gdalarray = Raster(gdalpath; name=:test)
-    @time lazyarray = Raster(gdalpath; cf=false, lazy=true);
+    @time lazyarray = Raster(gdalpath; scale=nothing, offset=nothing, lazy=true);
     @time eagerarray = Raster(gdalpath; lazy=false);
 
     @testset "lazyness" begin
@@ -27,12 +27,12 @@ gdalpath = maybedownload(url)
     
     @testset "cf" begin
         # This file has no scale/offset so cf does nothing
-        @time cfarray = Raster(gdalpath; cf=true)
-        @time cf_nomask_array = Raster(gdalpath; cf=true, maskingval=nothing)
-        @time nocfarray = Raster(gdalpath; cf=false)
-        @time lazycfarray = Raster(gdalpath; cf=true, lazy=true)
-        @time lazynocfarray = Raster(gdalpath; cf=false, lazy=true)
-        @time lazynocfnomaskarray = Raster(gdalpath; cf=false, lazy=true, maskingval=nothing)
+        @time cfarray = Raster(gdalpath)
+        @time cf_nomask_array = Raster(gdalpath; maskingval=nothing)
+        @time nocfarray = Raster(gdalpath; scale=nothing, offset=nothing)
+        @time lazycfarray = Raster(gdalpath; lazy=true)
+        @time lazynocfarray = Raster(gdalpath; lazy=true,  scale=nothing, offset=nothing)
+        @time lazynocfnomaskarray = Raster(gdalpath; lazy=true, scale=nothing, offset=nothing, maskingval=nothing)
         @test parent(cfarray) isa Array{UInt8,2}
         @test parent(cf_nomask_array) isa Array{UInt8,2}
         @test parent(nocfarray) isa Array{UInt8,2}
