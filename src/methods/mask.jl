@@ -50,8 +50,8 @@ wc_mask = resample(wc; to=awap)
 awap_masked = mask(awap; with=wc_mask)
 b = plot(awap_masked; clims=(10, 45))
 
-savefig(a, "src/assets/api/mask_example_before.png");
-savefig(b, "src/assets/api/mask_example_after.png"); nothing
+savefig(a, "build/mask_example_before.png");
+savefig(b, "build/mask_example_after.png"); nothing
 # output
 
 ```
@@ -139,8 +139,8 @@ wc_mask = resample(wc; to=awap)
 mask!(awap; with=wc_mask)
 b = plot(awap; clims=(10, 45))
 
-savefig(a, "src/assets/api/mask_bang_example_before.png");
-savefig(b, "src/assets/api/mask_bang_example_after.png"); nothing
+savefig(a, "build/mask_bang_example_before.png");
+savefig(b, "build/mask_bang_example_after.png"); nothing
 
 # output
 
@@ -255,12 +255,12 @@ using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 boolmask(wc) |> plot
 
-savefig("src/assets/api/boolmask_example.png"); nothing
+savefig("build/boolmask_example.png"); nothing
 
 # output
 ```
 
-![boolmask](assets/api/boolmask_example.png)
+![boolmask](boolmask_example.png)
 
 $EXPERIMENTAL
 """
@@ -379,12 +379,12 @@ using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 missingmask(wc) |> plot
 
-savefig("src/assets/api/missingmask_example.png"); nothing
+savefig("build/missingmask_example.png"); nothing
 
 # output
 ```
 
-![missingmask](assets/api/missingmask_example.png)
+![missingmask](missingmask_example.png)
 
 $EXPERIMENTAL
 """

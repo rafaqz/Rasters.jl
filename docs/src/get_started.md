@@ -78,7 +78,7 @@ with an `Array`. `view` is always lazy, and reads from disk are deferred until
 way to subset an object, making use of the objects index to find values at 
 e.g. certain `X/Y` coordinates. The available selectors are listed here:
 
-| <div style="width:120px">Selectors</div> |              Description                                                           |
+| Selectors |              Description                                                           |
 | :--------------------- | :----------------------------------------------------------------- |
 | `At(x)`                | get the index exactly matching the passed in value(s).             |
 | `Near(x)`              | get the closest index to the passed in value(s).                   |

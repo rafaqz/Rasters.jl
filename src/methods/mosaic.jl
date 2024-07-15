@@ -41,9 +41,9 @@ b = plot(aus)
 mos = mosaic(first, aus, africa)
 c = plot(mos)
 
-savefig(a, "src/assets/api/mosaic_example_africa.png")
-savefig(b, "src/assets/api/mosaic_example_aus.png")
-savefig(c, "src/assets/api/mosaic_example_combined.png")
+savefig(a, "build/mosaic_example_africa.png")
+savefig(b, "build/mosaic_example_aus.png")
+savefig(c, "build/mosaic_example_combined.png")
 nothing
 # output
 
@@ -51,13 +51,13 @@ nothing
 
 ### Individual continents
 
-![arica](assets/api/mosaic_example_africa.png)
+![arica](mosaic_example_africa.png)
 
-![aus](assets/api/mosaic_example_aus.png)
+![aus](mosaic_example_aus.png)
 
 ### Mosaic of continents
 
-![mosaic](assets/api/mosaic_example_combined.png)
+![mosaic](mosaic_example_combined.png)
 
 $EXPERIMENTAL
 """
@@ -125,13 +125,13 @@ aus = st[X=100.0 .. 160.0, Y=-50.0 .. -10.0]
 africa = st[X=-20.0 .. 60.0, Y=-40.0 .. 35.0]
 mosaic!(first, st, aus, africa)
 plot(st)
-savefig("src/assets/api/mosaic_bang_example.png")
+savefig("build/mosaic_bang_example.png")
 nothing
 # output
 
 ```
 
-![mosaic](assets/api/mosaic_bang_example.png)
+![mosaic](mosaic_bang_example.png)
 
 $EXPERIMENTAL
 """

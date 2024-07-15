@@ -5,12 +5,12 @@ import footnote from "markdown-it-footnote";
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  base: '/Rasters.jl/',
-  title: "Rasters",
+  base: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
+  title: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
   description: "Manipulating rasterized spatial data",
   lastUpdated: true,
   cleanUrls: true,
-  outDir: '../final_site', // This is required for MarkdownVitepress to work correctly...
+  outDir: 'REPLACE_ME_DOCUMENTER_VITEPRESS', // This is required for MarkdownVitepress to work correctly...
   head: [['link', { rel: 'icon', href: '/public/favicon.ico' }]],
   ignoreDeadLinks: true,
 
@@ -29,7 +29,7 @@ export default defineConfig({
   themeConfig: {
     outline: 'deep',
     // https://vitepress.dev/reference/default-theme-config
-    logo: { src: '/logo.png', width: 24, height: 24 },
+    logo: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
     search: {
       provider: 'local',
       options: {
@@ -57,7 +57,14 @@ export default defineConfig({
         { text: 'Makie.jl', link: '/plot_makie' },
       ]
      },
-
+     { text: 'Ecosystem',
+      items: [
+        { text: 'DimensionalData.jl', link: 'https://rafaqz.github.io/DimensionalData.jl/dev/' },
+        { text: 'NCDatasets.jl', link: 'https://alexander-barth.github.io/NCDatasets.jl/stable/' },
+        { text: 'ArchGDAL.jl', link: 'https://yeesian.com/ArchGDAL.jl/stable/' },
+        { text: 'HDF5.jl', link: 'https://juliaio.github.io/HDF5.jl/stable/' },
+       ]
+     },
       { text: 'API', link: '/api' }
     ],
 
@@ -85,10 +92,10 @@ export default defineConfig({
       { text: 'API', link: '/api' }
     ],
     editLink: {
-      pattern: 'https://github.com/MakieOrg/Tyler.jl/edit/master/docs/src/:path'
+      pattern: 'REPLACE_ME_DOCUMENTER_VITEPRESS'
     },
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/MakieOrg/Tyler.jl' }
+      { icon: 'github', link: 'REPLACE_ME_DOCUMENTER_VITEPRESS' }
     ],
     footer: {
       message: 'Made with <a href="https://luxdl.github.io/DocumenterVitepress.jl/" target="_blank"><strong>DocumenterVitepress.jl</strong></a> <br>',
