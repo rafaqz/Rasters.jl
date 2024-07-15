@@ -333,7 +333,7 @@ function _checkobjmem(obj)
         required memory $(bytes) is greater than system memory $(Sys.free_memory()). 
         Use `lazy=true` if you are loading dataset, and only call `read` on a subset after `view`.
         """
-    _checkmem(f, obj) 
+    _checkobjmem(f, obj) 
 end
 _checkobjmem(f, obj) = _checkmem(f, _sizeof(obj))
 
