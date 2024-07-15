@@ -120,3 +120,8 @@ const REPLACE_MISSING_KEYWORD = """
     Note that currently for NetCDF and GRIB files `replace_missing` is always true. 
     In future `replace_missing=false` will also work for these data sources.
 """
+
+const CHECKMEMORY_KEYWORD = """
+- `checkmemory`: If `true` (the default), check if there is enough memory for the operation. 
+    `false` will ignore memory needs.
+"""

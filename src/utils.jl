@@ -327,3 +327,20 @@ function _checkregular(A::AbstractArray)
     end
     return true
 end
+
+function _checkobjmem(obj) 
+    f = bytes -> """
+        required memory $(bytes) is greater than system memory $(Sys.free_memory()). 
+        Use `lazy=true` if you are loading dataset, and only call `read` on a subset after `view`.
+        If you beleive this is not correct, set `Rasters.checkmem!(false)` and try again. This may crash your system.
+        """
+    _checkmem(f, obj) 
+end
+_checkobjmem(f, obj) = _checkmem(f, _sizeof(obj))
+
+_checkmem(f, bytes::Int) = Sys.free_memory() > required_mem || error(f(bytes))
+
+_sizeof(A::AbstractArray{T}) where T = sizeof(T) * prod(size(A))
+_sizeof(st::AbstractRasterStack) = sum(_sizeof, layers(st))
+_sizeof(s::AbstractRasterSeries) =
+    length(s) == 0 ? 0 : _sizeof(first(s)) * prod(size(s))
