@@ -102,7 +102,7 @@ function mapargs(f, st::AbstractRasterStack, args...)
     end
     return DD.rebuild_from_arrays(st, Tuple(layers))
 end
-r hyjmans raster
+
 _without_mapped_crs(f, x) = _without_mapped_crs(f, x, mappedcrs(x))
 _without_mapped_crs(f, x, ::Nothing) = f(x)
 function _without_mapped_crs(f, dims::DimTuple, mappedcrs::GeoFormat)
