@@ -388,7 +388,7 @@ _buffer_bytes(A, scale) = prod(size(A) .* scale) / 8
 
 function _check_buffer_thread_mem(A, scale, threaded::Bool, checkmem)
     n = threaded ? _nthreads() : 1
-    if checkmem if n > 1 && if Sys.free_memory() < _buffer_bytes(A, scale) * n
+    if checkmem && n > 1 && Sys.free_memory() < _buffer_bytes(A, scale) * n
         @warn "Not enough memory to use `threaded=true` with `scale=$scale`. Using `threaded=false`"
         threaded = false
         n = 1

@@ -332,15 +332,19 @@ function _checkobjmem(obj)
     f = bytes -> """
         required memory $(bytes) is greater than system memory $(Sys.free_memory()). 
         Use `lazy=true` if you are loading dataset, and only call `read` on a subset after `view`.
-        If you beleive this is not correct, set `Rasters.checkmem!(false)` and try again. This may crash your system.
         """
     _checkmem(f, obj) 
 end
 _checkobjmem(f, obj) = _checkmem(f, _sizeof(obj))
 
-_checkmem(f, bytes::Int) = Sys.free_memory() > required_mem || error(f(bytes))
+_checkmem(f, bytes::Int) = Sys.free_memory() > required_mem || _no_memory_error(f, bytes)
 
 _sizeof(A::AbstractArray{T}) where T = sizeof(T) * prod(size(A))
 _sizeof(st::AbstractRasterStack) = sum(_sizeof, layers(st))
 _sizeof(s::AbstractRasterSeries) =
     length(s) == 0 ? 0 : _sizeof(first(s)) * prod(size(s))
+
+_no_memory_error(f, bytes) = f(bytes) * """
+    If you beleive this is not correct, pass the keyword `checkmem=false` or set `Rasters.checkmem!(false)` 
+    and try again. These options may crash your system if the file is actually larger than memory.
+    """
