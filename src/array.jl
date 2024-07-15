@@ -332,7 +332,7 @@ function Raster(ds, filename::AbstractString;
             A = FileArray{typeof(source)}(var, filename; name=name1, group, write)
             rm ? _replace_missing(A, missingval1) : A
         else
-            checkmem && _checkmem(var)
+            checkmem && _checkobjmem(var)
             x = Array(rm ? _replace_missing(var, missingval1) : var)
             x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
         end

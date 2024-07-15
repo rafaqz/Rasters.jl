@@ -418,11 +418,11 @@ gdalpath = maybedownload(url)
 
         @testset "to netcdf" begin
             filename2 = tempname() * ".nc"
-            write(filename2, gdalarray[Band(1)]; force = true)
-            @test (@allocations write(filename2, gdalarray[Band(1)]; force = true)) < 1e4
+            write(filename2, gdalarray; force=true)
+            @test (@allocations write(filename2, gdalarray; force=true)) < 1e4
             saved = Raster(filename2; crs=crs(gdalarray), mappedcrs=crs(gdalarray))
-            @test size(saved) == size(gdalarray[Band(1)])
-            @test saved ≈ gdalarray[Band(1)]
+            @test size(saved) == size(gdalarray)
+            @test saved ≈ gdalarray
             clat, clon = DimensionalData.shiftlocus.(Ref(Center()), dims(gdalarray, (Y, X)))
             @test index(clat) ≈ index(saved, Y)
             @test index(clon) ≈ index(saved, X)

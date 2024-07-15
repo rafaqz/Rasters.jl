@@ -121,7 +121,7 @@ end
 function _union_coverage!(A::AbstractRaster, geoms, buffers; 
     scale, subpixel_dims, progress=true, threaded=false, checkmem=CHECKMEM[],
 )
-    threaded, n = _check_buffer_thread_mem(A, scale; threaded, checkmem)
+    threaded, n = _check_buffer_thread_mem(A; scale, threaded, checkmem)
     buffer_size = size(A) .* scale
     centeracc = [_init_bools(A, BitArray; missingval=false) for _ in 1:n]
     lineacc = [_init_bools(A, BitArray; missingval=false) for _ in 1:n]
@@ -384,9 +384,9 @@ function _subpixel_dims(A, scale)
     end
 end
 
-_buffer_bytes(A, scale) = prod(size(A) .* scale) / 8
+_buffer_bytes(A, scale) = prod(size(A) .* scale) ÷ 8 # bits to bytes
 
-function _check_buffer_thread_mem(A, scale, threaded::Bool, checkmem)
+function _check_buffer_thread_mem(A; scale, threaded, checkmem)
     n = threaded ? _nthreads() : 1
     if checkmem && n > 1 && Sys.free_memory() < _buffer_bytes(A, scale) * n
         @warn "Not enough memory to use `threaded=true` with `scale=$scale`. Using `threaded=false`"
@@ -398,11 +398,11 @@ function _check_buffer_thread_mem(A, scale, threaded::Bool, checkmem)
 end
 
 function _check_buffer_mem(A, scale)
-    buffer_bytes = _buffer_bytes(A, scale)
+    bytes = _buffer_bytes(A, scale)
     f = x -> let scale=scale
         "Not enough memory for `coverage` at `scale=$scale`. Try a smaller number for the `scale` keyword."
     end
-    _checkmem(f, buffer_bytes)
+    _checkmem(f, bytes)
 end
 
 function _check_missed_pixels(missed_pixels::Int, scale::Int)

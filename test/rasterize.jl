@@ -505,7 +505,7 @@ end
     @test !all(mask(covunion; with=insidecount) .=== covunion)
     # TODO test coverage along all the lines is correct somehow
     
-    @test_throws ArgumentError coverage(union, shphandle.shapes; threaded=false, res=1, scale=10000)
+    @test_throws ErrorException coverage(union, shphandle.shapes; threaded=false, res=1, scale=10000)
     # Too slow and unreliable to test in CI, but it warns and uses one thread given 32gb of RAM: 
     # coverage(union, shphandle.shapes; threaded=true, res=1, scale=1000)
 end
