@@ -102,7 +102,7 @@ function mapargs(f, st::AbstractRasterStack, args...)
     end
     return DD.rebuild_from_arrays(st, Tuple(layers))
 end
-
+r hyjmans raster
 _without_mapped_crs(f, x) = _without_mapped_crs(f, x, mappedcrs(x))
 _without_mapped_crs(f, x, ::Nothing) = f(x)
 function _without_mapped_crs(f, dims::DimTuple, mappedcrs::GeoFormat)
@@ -337,7 +337,7 @@ function _checkobjmem(obj)
 end
 _checkobjmem(f, obj) = _checkmem(f, _sizeof(obj))
 
-_checkmem(f, bytes::Int) = Sys.free_memory() > required_mem || _no_memory_error(f, bytes)
+_checkmem(f, bytes::Int) = Sys.free_memory() > bytes || _no_memory_error(f, bytes)
 
 _sizeof(A::AbstractArray{T}) where T = sizeof(T) * prod(size(A))
 _sizeof(st::AbstractRasterStack) = sum(_sizeof, layers(st))
