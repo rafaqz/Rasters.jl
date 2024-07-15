@@ -55,7 +55,8 @@ _maybe_collapse_missingval(mv) = mv
 # DimensionalData methods ######################################################
 
 # Always read a stack before loading it as a table.
-DD.DimTable(stack::AbstractRasterStack) = invoke(DD.DimTable, Tuple{DD.AbstractDimStack}, read(stack))
+DD.DimTable(stack::AbstractRasterStack; checkmem=CHECKMEM[]) =
+    invoke(DD.DimTable, Tuple{DD.AbstractDimStack}, read(stack; checkmem))
 
 function DD.layers(s::AbstractRasterStack{<:Any,<:Any,<:Any,<:FileStack{<:Any,Keys}}) where Keys
     NamedTuple{Keys}(map(K -> s[K], Keys))
