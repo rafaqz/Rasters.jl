@@ -1,3 +1,21 @@
+const CHECKMEM = Ref(true)
+
+"""
+    checkmem!(x::Bool)
+
+Set `checkmem` to `true` or `false`.
+
+In some architectures memory reporting may be wrong and you may
+wish to disable memory checks.
+
+This setting can be overridden with the `checkmem` keyword, where applicable.
+"""
+function checkmem!(checkmem::Bool) 
+    !checkmem || @warn "Setting `checkmem` to `false` globally may lead to out-of-memory errors or system crashes"
+    CHECKMEM[] = checkmem
+    return checkmem
+end
+
 const FLATTEN_SELECT = FileArray
 const FLATTEN_IGNORE = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
 
@@ -308,6 +326,7 @@ function Raster(ds, filename::AbstractString;
     write=false,
     lazy=false,
     dropband=true,
+    checkmem=CHECKMEM[],
 )::Raster
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
@@ -322,10 +341,9 @@ function Raster(ds, filename::AbstractString;
             )
         else
             modvar = _maybe_modify(var, mod)
-            _checkmem(modvar)
+            checkmem && _checkobjmem(var)
             x = Array(modvar)
-            # Catch an NCDatasets zero dimensional bug
-            x isa AbstractArray ? x : fill(x) 
+            x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
         end
         dims1 = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data)
         data, dims1, metadata1, maskingval1

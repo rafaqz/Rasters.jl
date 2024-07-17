@@ -275,7 +275,7 @@ end
     a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
     pointvec_empty = [(-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0)]
     polygon_empty = ArchGDAL.createpolygon(pointvec_empty)
-    zonal(sum, a; of=polygon) ==
+    @test zonal(sum, a; of=polygon) ==
         zonal(sum, a; of=[polygon, polygon])[1] ==
         zonal(sum, a; of=[polygon, polygon_empty])[1] ==
         zonal(sum, a; of=(geometry=polygon, x=:a, y=:b)) ==
@@ -339,11 +339,12 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
     rast = Raster(Union{Int,Missing}[1 2; 3 4], dimz; name=:test, missingval=missing)
     rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=5)
     rast_m = Raster([1 2; 3 missing], dimz; name=:test, missingval=missing)
-    table = (geometry=[missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)], foo=zeros(4))
+    mypoints = [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3), (10.0, 0.2)]
+    table = (geometry=mypoints, foo=zeros(4))
     st = RasterStack(rast, rast2)
     @testset "from Raster" begin
         # Tuple points
-        ex = extract(rast, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
+        ex = extract(rast, mypoints)
         T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
         @test eltype(ex) == T
         @test all(ex .=== T[
@@ -351,16 +352,17 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (geometry = (9.0, 0.1), test=1)
             (geometry = (9.0, 0.2), test=2)
             (geometry = (10.0, 0.3), test=missing)
+            (geometry = (10.0, 0.2), test=4)
         ])
-        ex = extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true)
+        ex = extract(rast_m, mypoints; skipmissing=true)
         T = @NamedTuple{geometry::Tuple{Float64, Float64}, test::Int64}
         @test eltype(ex) == T
         @test all(ex .=== T[(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2)])
-        ex = extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false)
+        ex = extract(rast_m, mypoints; skipmissing=true, geometry=false)
         T = @NamedTuple{test::Int64}
         @test eltype(ex) == T
         @test all(ex .=== T[(test = 1,), (test = 2,)])
-        @test all(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) .=== [
+        @test all(extract(rast_m, mypoints; skipmissing=true, geometry=false, index=true) .=== [
             (index = (1, 1), test = 1,)
             (index = (1, 2), test = 2,)
         ])
@@ -455,18 +457,22 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (9.0, 0.2), test = 2)
             (geometry = (10.0, 0.3), test = missing)
+            (geometry = (10.0, 0.2), test = 4)
         ])
         @test extract(rast, table; skipmissing=true) == [
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (9.0, 0.2), test = 2)
+            (geometry = (10.0, 0.2), test = 4)
         ]
         @test extract(rast, table; skipmissing=true, geometry=false) == [
             (test = 1,)
             (test = 2,)
+            (test = 4,)
         ]
         @test extract(rast, table; skipmissing=true, geometry=false, index=true) == [
             (index = (1, 1), test = 1,)
             (index = (1, 2), test = 2,)
+            (index = (2, 2), test = 4,)
         ]
 
         @test_throws ArgumentError extract(rast, (foo = zeros(4),))

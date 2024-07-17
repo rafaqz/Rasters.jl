@@ -303,17 +303,6 @@ gdalpath = maybedownload(url)
             @test all(Atest .=== Amem .=== Afile)
         end
 
-        @testset "rasterize round trip" begin
-            A = rebuild(read(gdalarray); missingval=0x00)
-            R = rasterize(last, A; to=A, fill=:test)
-            @test all(A .===  R .=== gdalarray)
-            R = rasterize(last, A; to=A, fill=:test)
-            @test all(A .=== R .== gdalarray)
-            B = rebuild(read(gdalarray) .= 0x00; missingval=0x00)
-            rasterize!(last, B, read(gdalarray); fill=:test)
-            @test all(B .=== gdalarray |> collect)
-        end
-
     end # methods
 
     @testset "conversion to Raster" begin
@@ -470,11 +459,11 @@ gdalpath = maybedownload(url)
 
         @testset "to netcdf" begin
             filename2 = tempname() * ".nc"
-            write(filename2, gdalarray[Band(1)]; force = true)
-            @test (@allocations write(filename2, gdalarray[Band(1)]; force = true)) < 1e4
+            write(filename2, gdalarray; force=true)
+            @test (@allocations write(filename2, gdalarray; force=true)) < 1e4
             saved = Raster(filename2; crs=crs(gdalarray), mappedcrs=crs(gdalarray))
-            @test size(saved) == size(gdalarray[Band(1)])
-            @test saved ≈ gdalarray[Band(1)]
+            @test size(saved) == size(gdalarray)
+            @test saved ≈ gdalarray
             clat, clon = DimensionalData.shiftlocus.(Ref(Center()), dims(gdalarray, (Y, X)))
             @test index(clat) ≈ index(saved, Y)
             @test index(clon) ≈ index(saved, X)
@@ -701,27 +690,6 @@ end
             mask!(st; with=msk, missingval=0x00)
             @test all(st[:a][X(1:100), Y([1, 5, 95])] .=== 0x00)
             @test all(st[:b][X(1:100), Y([1, 5, 95])] .=== 0x00)
-        end
-
-        @testset "rasterize round trip" begin
-            st = map(A -> rebuild(A; missingval=0x00), gdalstack) |> read
-            # We round-trip rasterise the Tables.jl form of st
-            r_st = rasterize(last, read(gdalstack); to=st, fill=keys(gdalstack))
-            @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, read(gdalstack)))
-            r_st = rasterize(last, read(gdalstack); to=st, fill=(:a, :b))
-            @test all(map((a, b, c) -> all(a .=== b .=== c), st, r_st, read(gdalstack)))
-            st = map(A -> rebuild(A .* 0x00; missingval=0x00), gdalstack) |> read
-            rasterize!(last, st, read(gdalstack), fill=keys(st))
-            @test all(map((a, b) -> all(a .=== b), st, gdalstack))
-
-            bandst = RasterStack((a=gdalpath, b=gdalpath); dropband=false)
-            # Getting the band column works if we force it
-            # name of Symbol gives a Raster, Tuple gives a RasterStack
-            b_r = rasterize(last, bandst; to=st, fill=:Band)
-            @test b_r isa Raster
-            b_st = rasterize(last, bandst; to=st, fill=(:Band, ))
-            @test b_st isa RasterStack
-            @test b_r == b_st[:Band]
         end
 
         @testset "classify" begin

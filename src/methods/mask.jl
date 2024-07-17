@@ -29,6 +29,7 @@ $SUFFIX_KEYWORD
 These can be used when `with` is a GeoInterface.jl compatible object:
 
 $SHAPE_KEYWORDS
+$GEOMETRYCOLUMN_KEYWORD
 
 # Example
 
@@ -211,8 +212,7 @@ _nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `miss
     boolmask(obj::RasterStack; alllayers=true, kw...)
 
 Create a mask array of `Bool` values, from another `Raster`.
-`AbstractRasterStack` or `AbstractRasterSeries` are also accepted, if `alllayers` is `true` (the default),
-a mask is taken for all layers, otherwise only the first layer is used.
+`AbstractRasterStack` or `AbstractRasterSeries` are also accepted. 
 
 The array returned from calling `boolmask` on a `AbstractRaster` is a
 [`Raster`](@ref) with the same dimensions as the original array and a
@@ -220,7 +220,7 @@ The array returned from calling `boolmask` on a `AbstractRaster` is a
 
 # Arguments
 
-- `obj`: a [`Raster`](@ref), a GeoInterface.jl geometry, or a vector or table of geometries.
+- $OBJ_ARGUMENT
 
 # `Raster` / `RasterStack` Keywords
 
@@ -229,9 +229,10 @@ $INVERT_KEYWORD
 
 # Keywords
 
-- `alllayers`
+- `alllayers`: if `true` a mask is taken for all layers, otherwise only the first layer is used. Defaults to `true`
 
 $GEOM_KEYWORDS
+$GEOMETRYCOLUMN_KEYWORD
 $THREADED_KEYWORD
 $PROGRESS_KEYWORD
 
@@ -307,14 +308,16 @@ end
 # this method is used where x is a geometry
 function boolmask(x; 
     to=nothing, 
-    invert::Bool=false, 
+    invert::Bool=false,
+    geometrycolumn=nothing,
     kw...
 )
     if to isa Union{AbstractDimArray,AbstractDimStack,DimTuple}
         to = dims(to, DEFAULT_POINT_ORDER)
     end
-    dest = _init_bools(to, BitArray, x; kw..., missingval=invert)
-    boolmask!(dest, x; invert, kw...)
+    data = isnothing(GI.geomtrait(x)) ? _get_geometries(x, geometrycolumn) : x
+    dest = _init_bools(to, BitArray, data; kw..., missingval=invert)
+    boolmask!(dest, data; invert, kw...)
     return rebuild(dest; missingval=false)
 end
 
@@ -328,18 +331,20 @@ function boolmask!(dest::AbstractRaster, src::AbstractRaster;
         broadcast_dims!(x -> !isequal(x, missingval), dest, src)
     end
 end
-function boolmask!(dest::AbstractRaster, geoms;
+function boolmask!(dest::AbstractRaster, data;
     invert=false,
     lock=nothing, 
     progress=true, 
     threaded=false, 
     allocs=_burning_allocs(dest; threaded), 
+    geometrycolumn=nothing,
     kw...
 )
     if hasdim(dest, :geometry)
-        range = _geomindices(geoms)
+        geoms = _get_geometries(data, geometrycolumn)
+        range = eachindex(geoms)
         _run(range, threaded, progress, "Burning each geometry to a BitArray slice...") do i
-            geom = _getgeom(geoms, i)
+            geom = geoms[i]
             ismissing(geom) && return nothing
             slice = view(dest, Dim{:geometry}(i))
             # We don't need locks - these are independent slices
@@ -347,7 +352,7 @@ function boolmask!(dest::AbstractRaster, geoms;
             return nothing
         end
     else
-        burn_geometry!(dest, geoms; kw..., allocs, lock, progress, threaded, fill=!invert)
+        burn_geometry!(dest, data; kw..., allocs, lock, progress, threaded, geometrycolumn, fill=!invert)
     end
     return dest
 end
@@ -358,8 +363,7 @@ end
     missingmask(obj::RasterStack; alllayers = true, kw...)
 
 Create a mask array of `missing` and `true` values, from another `Raster`.
-`AbstractRasterStack` or `AbstractRasterSeries` are also accepted, if alllayers is `true` (the default),
-a mask is taken for all layers, otherwise only the first layer is used.
+`AbstractRasterStack` or `AbstractRasterSeries` are also accepted-
 
 For [`AbstractRaster`](@ref) the default `missingval` is `missingval(A)`,
 but others can be chosen manually.
@@ -367,10 +371,15 @@ but others can be chosen manually.
 The array returned from calling `missingmask` on a `AbstractRaster` is a
 [`Raster`](@ref) with the same size and fields as the original array.
 
-# Keywords
+# Arguments
 
+- `obj`: $OBJ_ARGUMENT
+
+# Keywords
+- `alllayers`: if `true` a mask is taken for all layers, otherwise only the first layer is used. Defaults to `true`
 $INVERT_KEYWORD
 $GEOM_KEYWORDS
+$GEOMETRYCOLUMN_KEYWORD
 
 # Example
 
