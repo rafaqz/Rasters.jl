@@ -209,30 +209,19 @@ methods will _not_ load data from disk; they will be applied later, lazily.
 
 # Keywords
 
-- `name`: a `Symbol` name for the array, which will also retrieve the, alphabetically first, 
-    named layer if `Raster` is used on a multi-layered file like a NetCDF. 
-    If instead `RasterStack` is used to read the multi-layered file, by default, all variables 
-    will be added to the stack.
+$NAME_KEYWORD
 $GROUP_KEYWORD 
-- `missingval`: value reprsenting missing data, normally detected from the file. Set manually
-    when you know the value is not specified or is incorrect. This will *not* change any
-    values in the raster, it simply assigns which value is treated as missing. To replace all of
-    the missing values in the raster, use [`replace_missing`](@ref).
-- `maskingval`: A value to convert `missingval` to, by default `missing`. If this is set it 
-    will be the return value of `missingval(raster)` - `maskingval` becomes the new `missingval`.
-    Setting `maskingval` to `nothing` means no masking will occur, and the original `missingval` 
-    will be the final `missingval`. This can give better performance than using `missing`. 
-    Another efficient option is to use e.g. `zero(eltype(raster))` to replace missing values with zero.
-- `metadata`: `Dict` or `Metadata` object for the array, or `NoMetadata()`.
+$MISSINGVAL_KEYWORD
+$MASKINGVAL_KEYWORD
+$METADATA_KEYWORD
 $CONSTRUCTOR_CRS_KEYWORD 
 $CONSTRUCTOR_MAPPEDCRS_KEYWORD 
-- `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
-    Usually not needed.
+$REFDIMS_KEYWORD
+$SCALED_KEYWORD
 
 When a filepath `String` is used:
 $DROPBAND_KEYWORD
 $LAZY_KEYWORD
-$REPLACE_MISSING_KEYWORD
 $SOURCE_KEYWORD
 - `write`: defines the default `write` keyword value when calling `open` on the Raster. `false` by default.
     Only makes sense to use when `lazy=true`.
@@ -319,37 +308,41 @@ function Raster(ds, filename::AbstractString;
     maskingval=nokw,
     crs=nokw,
     mappedcrs=nokw,
-    coerce=nokw,
     source=nokw,
-    scale=nokw,
-    offset=nokw,
+    replace_missing=nokw,
+    coerce=convert,
+    scaled=true,
     write=false,
     lazy=false,
     dropband=true,
     checkmem=CHECKMEM[],
+    mod=nokw,
 )::Raster
+    _maybewarn_replace_missing(replace_missing)
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
-    data1, dims1, metadata1, maskingval1 = _open(source, ds; name=name1, group, mod=NoMod()) do var
+    data1, dims1, metadata1, missingval2 = _open(source, ds; name=name1, group, mod=NoMod()) do var
         metadata1 = isnokw(metadata) ? _metadata(var) : metadata
         missingval1 = _fix_missingval(var, missingval, metadata1)
         maskingval1 = isnokw(maskingval) ? missing : maskingval
-        mod = _mod(metadata1; scale, offset, missingval=missingval1, maskingval=maskingval1, coerce)
+        # If maskingval is `nothing` use  missingval as missingval
+        missingval2 = isnothing(maskingval1) ? missingval1 : maskingval1
+        mod = isnokw(mod) ? _mod(metadata1, missingval1, maskingval1; scaled, coerce) : mod
         data = if lazy
             FileArray{typeof(source)}(var, filename; 
                 name=name1, group, mod, write
             )
         else
             modvar = _maybe_modify(var, mod)
-            checkmem && _checkobjmem(var)
+            checkmem && _checkobjmem(modvar)
             x = Array(modvar)
             x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
         end
         dims1 = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data)
-        data, dims1, metadata1, maskingval1
+        data, dims1, metadata1, missingval2
     end
     name2 = name1 isa Union{NoKW,Nothing} ? Symbol("") : Symbol(name1)
-    raster = Raster(data1, dims1, refdims, name2, metadata1, maskingval1)
+    raster = Raster(data1, dims1, refdims, name2, metadata1, missingval2)
     return dropband ? _drop_single_band(raster, lazy) : raster
 end
 

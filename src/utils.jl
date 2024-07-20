@@ -136,17 +136,17 @@ function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
 end
 
 function _extent2dims(to; size=nothing, res=nothing, crs=nothing, kw...) 
-    _extent2dims(to, size, res, crs)
+    _extent2dims(to, size, res, crs; kw...)
 end
-function _extent2dims(to::Extents.Extent, size::Nothing, res::Nothing, crs)
+function _extent2dims(to::Extents.Extent, size::Nothing, res::Nothing, crs; kw...)
     isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
 end
-function _extent2dims(to::Extents.Extent, size, res, crs)
+function _extent2dims(to::Extents.Extent, size, res, crs; kw...)
     isnothing(res) || _size_and_res_error()
 end
-function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) where K
+function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs; kw...) where K
     tuple_res = ntuple(_ -> res, length(K))
-    _extent2dims(to, size, tuple_res, crs)
+    _extent2dims(to, size, tuple_res, crs; kw...)
 end
 function _extent2dims(to::Extents.Extent{K}, size::Nothing, res, crs) where K
     ranges = map(values(to), res) do bounds, r
@@ -155,9 +155,9 @@ function _extent2dims(to::Extents.Extent{K}, size::Nothing, res, crs) where K
         step = (outer - start) / length
         range(; start, step, length)
     end
-    return _extent2dims(to, ranges, crs)
+    return _extent2dims(to, ranges, crs; kw...)
 end
-function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs) where K
+function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs; kw...) where K
     if size isa Int
         size = ntuple(_ -> size, length(K))
     end
@@ -168,15 +168,26 @@ function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs) where K
     end
     return _extent2dims(to, ranges, crs)
 end
-function _extent2dims(to::Extents.Extent{K}, ranges, crs) where K
+function _extent2dims(to::Extents.Extent{K}, ranges, crs; 
+    sampling=Intervals(Start()),
+    kw...
+) where K
     emptydims = map(name2dim, K)
-    lookups = map(ranges) do range
-        Projected(range;
-            order=ForwardOrdered(),
-            sampling=Intervals(Start()),
-            span=Regular(step(range)),
-            crs,
-        )
+    lookups = map(emptydims, ranges) do d, range
+        if d isa SpatialDim && !isnothing(crs)
+            Projected(range;
+                sampling,
+                order=ForwardOrdered(),
+                span=Regular(step(range)),
+                crs,
+            )
+        else
+            Sampled(range;
+                sampling,
+                order=ForwardOrdered(),
+                span=Regular(step(range)),
+            )
+        end
     end
     d = map(rebuild, emptydims, lookups)
     return d
@@ -367,4 +378,9 @@ function _no_memory_error(f, bytes)
     and try again. These options may crash your system if the file is actually larger than memory.
     """
     return error(msg)
+end
+
+_maybewarn_replace_missing(replace_missing::NoKW) = nothing
+function _maybewarn_replace_missing(replace_missing)
+    @warn "`replace_missing` keyword no longer used. Set `maskingval` to nothing for no replacement, to `missing` to mask `missingval` with `missing`, or any other value"
 end

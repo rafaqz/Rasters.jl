@@ -19,29 +19,48 @@ struct Mod{Mi,Ma,S,O,F} <: AbstractModifications
      end
 end
 
-function _mod(metadata; scale, offset, missingval, maskingval, coerce=convert)
-    scale1 = if isnokw(scale) 
-        s = get(metadata, "scale", nothing) 
-        # Dont convert types for scale of one (gdal default)
-        s == 1.0 ? nothing : s
-    else
-        scale
+function _stack_mods(metadata::Vector, missingval::Vector, maskingval; scaled, coerce)
+    map(metadata, missingval) do md, mv
+        scale, offset = _get_scale_offset(md, scaled)
+        _mod(mv, maskingval, scale, offset, coerce)
     end
-    offset1 = if isnokw(offset)
-        o = get(metadata, "offset", nothing)
-        # Dont convert types for offset of zero (gdal default)
-        o == 0.0 ? nothing : o
-    else
-        offset
-    end
-    return _mod(missingval, maskingval, scale, offset, coerce)
 end
-function _mod(missingval, maskingval, scale, offset, coerce=convert)
+function _stack_mods(metadata::Vector, missingval, maskingval::Vector; scaled::Bool, coerce)
+    map(metadata, maskingval) do md, mk
+        scale, offset = _get_scale_offset(md, scaled)
+        _mod(missingval, mk, scale, offset, coerce)
+    end
+end
+function _stack_mods(metadata::Vector, missingval::Vector, maskingval::Vector; scaled::Bool, coerce)
+    map(metadata, missingval, maskingval) do md, mv, mk
+        scale, offset = _get_scale_offset(md, scaled)
+        _mod(mv, mk, scale, offset, coerce)
+    end
+end
+function _stack_mods(metadata::Vector, missingval, maskingval; scaled::Bool, coerce)
+    map(metadata) do md
+        scale, offset = _get_scale_offset(md, scaled)
+        _mod(missingval, maskingval, scale, offset, coerce)
+    end
+end
+
+function _mod(metadata, missingval, maskingval; scaled::Bool, coerce)
+    scale, offset = _get_scale_offset(metadata, scaled)
+    _mod(missingval, maskingval, scale, offset, coerce)
+end
+function _mod(missingval, maskingval, scale, offset, coerce)
     if isnothing(maskingval) && isnothing(scale) && isnothing(offset)
         return NoMod(missingval)
     else
         return Mod(missingval, maskingval, scale, offset, coerce)
     end
+end
+
+@inline _get_scale_offset(metadata::NoKW, scaled) = (nothing, nothing)
+@inline function _get_scale_offset(metadata, scaled)
+    scale = scaled ? get(metadata, "scale", nothing) : nothing
+    offset = scaled ? get(metadata, "offset", nothing) : nothing
+    return scale, offset
 end
 
 _mod_eltype(::AbstractArray{T}, ::NoMod) where T = T
@@ -98,7 +117,7 @@ _ismissing(x, mv) = isequal(x, mv)
 _ismissing(_, ::Nothing) = false
 
 _scaleoffset(x, m::Mod) = _scaleoffset(x, m.scale, m.offset)
-_scaleoffset(x, scale, offset) = muladd(x, scale, offset)
+_scaleoffset(x, scale, offset) = x * scale + offset
 _scaleoffset(x, ::Nothing, offset) = x + offset
 _scaleoffset(x, scale, ::Nothing) = x * scale
 _scaleoffset(x, ::Nothing, ::Nothing) = x

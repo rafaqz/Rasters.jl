@@ -125,3 +125,56 @@ const CHECKMEMORY_KEYWORD = """
 - `checkmemory`: If `true` (the default), check if there is enough memory for the operation. 
     `false` will ignore memory needs.
 """
+
+const SCALE_KEYWORD = """
+- `scale`: set `scale` for `x * scale + offset` transformations. 
+"""
+
+const OFFSET_KEYWORD = """
+- `offset`: set `offset` for `x * scale + offset` transformations. 
+"""
+
+const SCALED_KEYWORD = """
+- `scaled`: apply scale and offset as `x * scale + offset`. `true` by default.
+    This is common where data has been convert to e.g. UInt8 to save disk space.
+    To ignore `scale` and `offset` metadata, use `scaled=false`. If `scale` and
+    Note: `offset` are `1.0` and `0.0` they will be ignored and the original type will 
+    be used even when `scaled=true`. This is because these values may be fallback 
+    defaults and we do not want to convert every `Real` array to larger `Float64` values.
+"""
+
+const COERCE_KEYWORD = """
+- `coerce`: where `scale` and/or `offset` are present during `setindex!` to disk, 
+    coerce values to the disk type. `convert` is the default, but `round`, `trunc` or
+    or `ceil` may be needed where the values are not exact.
+"""
+
+const MISSINGVAL_KEYWORD = """
+- `missingval`: value representing missing data, normally detected from the file. Set manually
+    when you know the value is not specified or is incorrect. This will *not* change any
+    values in the raster, it simply assigns which value is treated as missing. 
+"""
+
+const MASKINGVAL_KEYWORD = """
+- `maskingval`: A value to convert `missingval` to, by default `missing`. If this is set it 
+    will be the return value of `missingval(raster)` - `maskingval` becomes the new `missingval`.
+    Setting `maskingval` to `nothing` means no masking will occur, and the original `missingval` 
+    will be the final `missingval`. This can give better performance than using `missing`. 
+    Another efficient option is to use e.g. `zero(eltype(raster))` to replace missing values with zero.
+"""
+
+const NAME_KEYWORD = """
+- `name`: a `Symbol` name for the array, which will also retrieve the, alphabetically first, 
+    named layer if `Raster` is used on a multi-layered file like a NetCDF. 
+    If instead `RasterStack` is used to read the multi-layered file, by default, all variables 
+    will be added to the stack.
+"""
+
+const METADATA_KEYWORD = """
+- `metadata`: `Dict` or `Metadata` object for the array, or `NoMetadata()`.
+"""
+
+const REFDIMS_KEYWORD = """
+- `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
+    Usually not needed.
+"""

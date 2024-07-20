@@ -234,12 +234,12 @@ function RA.Raster(ds::AG.RasterDataset;
     maskingval=missing,
     lazy=false,
     dropband=false,
-    scale=nokw,
-    offset=nokw,
+    scaled=true,
+    coerce=convert,
 )
     kw = (; refdims, name, metadata, missingval)
     filelist = AG.filelist(ds)
-    mod = RA._mod(metadata; scale, offset, missingval, maskingval)
+    mod = RA._mod(metadata, missingval, maskingval; scaled, coerce)
     raster = if lazy && length(filelist) > 0
         filename = first(filelist)
         Raster(FileArray{GDALsource}(ds, filename; mod), dims, kw...)

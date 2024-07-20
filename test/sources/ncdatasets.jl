@@ -31,7 +31,13 @@ stackkeys = (
 )
 
 @testset "grid mapping" begin
-    stack = RasterStack(joinpath(testdir, "data/grid_mapping_test.nc"))
+    using ProfileView
+    using SnoopCompile
+    @profview 1 + 2
+    stack = 
+    tinf = @snoopi_deep RasterStack(joinpath(testdir, "data/grid_mapping_test.nc"))
+    fg = flamegraph(tinf)
+    ProfileView.view(fg)
     @test metadata(stack.mask)["grid_mapping"]  == Dict{String, Any}(
         "straight_vertical_longitude_from_pole" => 0.0,
         "false_easting"                         => 0.0,
@@ -62,11 +68,11 @@ end
     @testset "cf" begin
         @time cfarray = Raster(ncsingle)
         @time cf_nomask_array = Raster(ncsingle; maskingval=nothing)
-        @time nocfarray = Raster(ncsingle; scale=nothing, offset=nothing)
-        @time nocf_nomask_array = Raster(ncsingle; scale=nothing, offset=nothing, maskingval=nothing)
-        @time lazycfarray = Raster(ncsingle; lazy=true, scale=nothing, offset=nothing)
-        @time lazynocfarray = Raster(ncsingle; lazy=true, , scale=nothing, offset=nothing)
-        @time lazynocf_nomask_array = Raster(ncsingle; lazy=true, scale=nothing, offset=nothing, maskingval=nothing)
+        @time nocfarray = Raster(ncsingle; scaled=false)
+        @time nocf_nomask_array = Raster(ncsingle; scaled=false, maskingval=nothing)
+        @time lazycfarray = Raster(ncsingle; lazy=true, scaled=false)
+        @time lazynocfarray = Raster(ncsingle; lazy=true, scaled=false)
+        @time lazynocf_nomask_array = Raster(ncsingle; lazy=true, scaled=false, maskingval=nothing)
         @test missingval(cfarray) === missing
         @test missingval(nocfarray) === missing
         @test missingval(cf_nomask_array) === 1.0f20

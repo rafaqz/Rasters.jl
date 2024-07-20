@@ -70,6 +70,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     chunksizes=RA._chunks_to_tuple(A, dims(A), chunks),
     scale=nokw,
     offset=nokw,
+    coerce=convert,
     eltype=Missings.nonmissingtype(T),
     kw...
 ) where {T,N}
@@ -92,7 +93,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
         mv = maskingval isa NoKW ? Rasters.missingval(A) : maskingval
         mv === missingval ? nothing : mv
     end
-    mod = _mod(missingval1, maskingval1, scale, offset)
+    mod = _mod(missingval1, maskingval1, scale, offset, coerce)
 
     eltype <: NCDAllowedType || throw(ArgumentError("""
        Element type $eltyp cannot be written to NetCDF. Convert it to one of $(Base.uniontypes(NCDAllowedType)),
