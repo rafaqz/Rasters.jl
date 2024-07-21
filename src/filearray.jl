@@ -1,4 +1,3 @@
-
 """
     FileArray{S} <: DiskArrays.AbstractDiskArray
 
@@ -6,38 +5,56 @@ Filearray is a DiskArrays.jl `AbstractDiskArray`. Instead of holding
 an open object, it just holds a filename string that is opened lazily
 when it needs to be read.
 """
-struct FileArray{S,T,N,Na,G,EC,HC} <: DiskArrays.AbstractDiskArray{T,N}
+struct FileArray{S,T,N,Na,G,EC,HC,M<:AbstractModifications} <: DiskArrays.AbstractDiskArray{T,N}
     filename::String
     size::NTuple{N,Int}
     name::Na
     group::G
     eachchunk::EC
     haschunks::HC
+    mod::M
     write::Bool
 end
 function FileArray{S,T,N}(
     filename,
-    size,
+    size::NTuple{N,Int},
     name::Na,
-    group::G=nothing,
-    eachchunk::EC=size,
-    haschunks::HC=DA.Unchunked(),
-    write=false
-) where {S,T,N,Na,G,EC,HC}
-    FileArray{S,T,N,Na,G,EC,HC}(filename, size, name, group, eachchunk, haschunks, write)
+    group::G,
+    eachchunk::EC,
+    haschunks::HC,
+    mod::M,
+    write::Bool,
+) where {S,T,N,Na,G,EC,HC,M}
+    FileArray{S,T,N,Na,G,EC,HC,M}(
+        String(filename), size, name, group, eachchunk, haschunks, mod, write
+    )
 end
-function FileArray{S,T,N}(filename::String, size::Tuple;
-    name=nokw, group=nokw, eachchunk=size, haschunks=DA.Unchunked(), write=false
+function FileArray{S,T,N}(filename::AbstractString, size::Tuple;
+    name=nokw,
+    group=nokw,
+    eachchunk=size,
+    haschunks=DA.Unchunked(),
+    mod,
+    write=false
 ) where {S,T,N}
     name = isnokw(name) ? nothing : name
     group = isnokw(group) ? nothing : group
-    FileArray{S,T,N}(filename, size, name, group, eachchunk, haschunks, write)
+    FileArray{S,T,N}(filename, size, name, group, eachchunk, haschunks, mod, write)
+end
+function FileArray{S}(
+    var::AbstractArray{<:Any,N}, filename; mod, kw...
+) where {S,N}
+    eachchunk = DA.eachchunk(var)
+    haschunks = DA.haschunks(var)
+    T = _mod_eltype(var, mod)
+    return FileArray{S,T,N}(filename, size(var); eachchunk, haschunks, mod, kw...)
 end
 
 # FileArray has S, T and N parameters not recoverable from fields
 ConstructionBase.constructorof(::Type{<:FileArray{S,T,N}}) where {S,T,N} = FileArray{S,T,N}
 
 filename(A::FileArray) = A.filename
+mod(A::FileArray) = A.mod
 DD.name(A::FileArray) = A.name
 Base.size(A::FileArray) = A.size
 DA.eachchunk(A::FileArray) = A.eachchunk
@@ -45,7 +62,7 @@ DA.haschunks(A::FileArray) = A.haschunks
 
 # Run function `f` on the result of _open for the file type
 function Base.open(f::Function, A::FileArray{S}; write=A.write, kw...) where S
-    _open(f, S(), filename(A); name=name(A), write, kw...)
+    _open(f, S(), filename(A); name=name(A), group=A.group, write, mod=mod(A), kw...)
 end
 
 function DA.readblock!(A::FileArray, dst, r::AbstractUnitRange...)

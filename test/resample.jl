@@ -23,26 +23,36 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         end
     end
 
-    # Resample cea.tif using resample
-    cea = Raster(raster_path; missingval=0x00, name = :cea)
-    raster_output = resample(cea; res=output_res, crs=output_crs, method)
-    disk_output = resample(cea; res=output_res, crs=output_crs, method, filename="resample.tif")
+    maskingval = missing
+    for maskingval in (nothing, missing, Rasters.nokw)
+        # Resample cea.tif using resample
+        cea = Raster(raster_path; missingval=0x00, name=:cea, maskingval)
+        raster_output = resample(cea; res=output_res, crs=output_crs, method, maskingval)
+        disk_output = resample(cea; res=output_res, crs=output_crs, method, filename="resample.tif")
 
-    cea_permuted = permutedims(Raster(raster_path), (Y, X))
-    permuted_output = resample(cea_permuted, output_res; crs=output_crs, method)
+        cea_permuted = permutedims(Raster(raster_path), (Y, X); missingval=0x00, name=:cea_permuted, maskingval)
+        permuted_output = resample(cea_permuted, output_res; crs=output_crs, method)
 
-    # Compare ArchGDAL, resample and permuted resample 
-    @test AG_output ==
-        raster_output[Band(1)] ==
-        disk_output[Band(1)] ==
-        permutedims(permuted_output, (X, Y))
-    @test abs(step(dims(raster_output, Y))) ≈
-        abs(step(dims(raster_output, X))) ≈ 
-        abs(step(dims(disk_output, X))) ≈ 
-        abs(step(dims(permuted_output, X))) ≈ output_res
-    @test name(cea) == name(raster_output)
+        AG_output1 = if maskingval === missing || maskingval === Rasters.nokw
+            replace(AG_output, 0x00 => missing)
+        else
+            AG_output
+        end
+        # Compare ArchGDAL, resample and permuted resample 
+        AG_output1
+        .=== 
+        raster_output
+        @test all(AG_output1 .===
+            raster_output .===
+            read(disk_output .=== permutedims(permuted_output, (X, Y)))
+        @test abs(step(dims(raster_output, Y))) ≈
+            abs(step(dims(raster_output, X))) ≈ 
+            abs(step(dims(disk_output, X))) ≈ 
+            abs(step(dims(permuted_output, X))) ≈ output_res
+        @test name(cea) == name(raster_output)
 
-    rm("resample.tif")
+        rm("resample.tif")
+    end
 
     @testset "missingval propagates" begin
         @test missingval(resample(cea; res=output_res, crs=output_crs, method)) == 0x00

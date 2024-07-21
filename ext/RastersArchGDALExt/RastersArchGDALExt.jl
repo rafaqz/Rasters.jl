@@ -1,9 +1,9 @@
 module RastersArchGDALExt
 
 @static if isdefined(Base, :get_extension) # julia < 1.9
-    using Rasters, ArchGDAL
+    using Rasters, ArchGDAL, CommonDataModel
 else    
-    using ..Rasters, ..ArchGDAL
+    using ..Rasters, ..ArchGDAL, ..CommonDataModel
 end
 
 import DiskArrays,
@@ -28,6 +28,7 @@ const DD = DimensionalData
 const DA = DiskArrays
 const GI = GeoInterface
 const LA = Lookups
+const CDM = CommonDataModel
 
 include("cellsize.jl")
 include("gdal_source.jl")

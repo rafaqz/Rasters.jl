@@ -125,3 +125,75 @@ const CHECKMEMORY_KEYWORD = """
 - `checkmemory`: If `true` (the default), check if there is enough memory for the operation. 
     `false` will ignore memory needs.
 """
+
+const SCALE_KEYWORD = """
+- `scale`: set `scale` for `x * scale + offset` transformations. 
+"""
+
+const OFFSET_KEYWORD = """
+- `offset`: set `offset` for `x * scale + offset` transformations. 
+"""
+
+const SCALED_KEYWORD = """
+- `scaled`: apply scale and offset as `x * scale + offset`. `true` by default.
+    This is common where data has been convert to e.g. UInt8 to save disk space.
+    To ignore `scale` and `offset` metadata, use `scaled=false`. If `scale` and
+    Note: `offset` are `1.0` and `0.0` they will be ignored and the original type will 
+    be used even when `scaled=true`. This is because these values may be fallback 
+    defaults and we do not want to convert every `Real` array to larger `Float64` values.
+"""
+
+const COERCE_KEYWORD = """
+- `coerce`: where `scale` and/or `offset` are present during `setindex!` to disk, 
+    coerce values to the disk type. `convert` is the default, but `round`, `trunc` or
+    or `ceil` may be needed where the values are not exact.
+"""
+
+const MISSINGVAL_KEYWORD = """
+- `missingval`: value representing missing data, normally detected from the file. Set manually
+    when you know the value is not specified or is incorrect. This will *not* change any
+    values in the raster, it simply assigns which value is treated as missing. 
+"""
+
+const MASKINGVAL_KEYWORD = """
+- `maskingval`: A value to convert `missingval` to, by default `missing`. If this is set it 
+    will be the return value of `missingval(raster)` - `maskingval` becomes the new `missingval`.
+    Setting `maskingval` to `nothing` means no masking will occur, and the original `missingval` 
+    will be the final `missingval`. This can give better performance than using `missing`. 
+    Another efficient option is to use e.g. `zero(eltype(raster))` to replace missing values with zero.
+"""
+
+const NAME_KEYWORD = """
+- `name`: a `Symbol` name for a Raster, which will also retrieve the 
+    a named layer if `Raster` is used on a multi-layered file like a NetCDF. 
+"""
+
+const METADATA_KEYWORD = """
+- `metadata`: `Dict` or `Metadata` object for the array, or `NoMetadata()`.
+"""
+
+const REFDIMS_KEYWORD = """
+- `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
+    Usually not needed.
+"""
+
+const GROUP_KEYWORD = """
+- `group`: the group in the dataset where `name` can be found. Only needed for nested datasets.
+    A `String` or `Symbol` will select a single group. Pairs can also used to access groups
+    at any nested depth, i.e `group=:group1 => :group2 => :group3`.
+"""
+
+const CHUNKS_KEYWORD = """
+- `chunks`: a `NTuple{N,Int}` specifying the chunk size for each dimension. 
+    To specify only specific dimensions, a Tuple of `Dimension` wrapping `Int` 
+    or a `NamedTuple` of `Int` can be used. Other dimensions will have a chunk
+    size of `1`. `true` can be used to mean: use the original 
+    chunk size of the lazy `Raster` being written or X and Y of 256 by 256.
+    `false` means don't use chunks at all.
+"""
+
+const WRITE_MISSINGVAL_KEYWORD = """
+- `missingval`: set the missing value (i.e. FillValue / nodataval) of the written raster,
+    as Julias `missing` cannot be stored. If not passed in, `missingval` will be detected 
+    from metadata or a default will be chosen.
+"""
