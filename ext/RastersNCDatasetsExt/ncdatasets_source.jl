@@ -66,16 +66,26 @@ end
 function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     verbose=true,
     missingval=nokw,
+    maskingval=nokw,
+    metadata=nokw,
     chunks=nokw,
     chunksizes=RA._chunks_to_tuple(A, dims(A), chunks),
     scale=nokw,
     offset=nokw,
     coerce=convert,
     eltype=Missings.nonmissingtype(T),
+    write=true,
+    name=DD.name(A),
     kw...
 ) where {T,N}
+    eltype <: NCDAllowedType || throw(ArgumentError("""
+       Element type $eltype cannot be written to NetCDF. Convert it to one of $(Base.uniontypes(NCDAllowedType)),
+       usually by broadcasting the desired type constructor over the `Raster`, e.g. `newrast = Float32.(rast)`"))
+       """
+    ))
     _def_dim_var!(ds, A)
-    attrib = RA._attribdict(metadata(A))
+    metadata = isnokw(metadata) ? NoMetadata() : metadata
+    attrib = RA._attribdict(metadata)
     # Scale and offset
     scale = if isnokw(scale) || isnothing(scale)
         delete!(attrib, "scale_factor")
@@ -89,34 +99,27 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     else
         attrib["add_offset"] = offset
     end
-    maskingval1 = begin
-        mv = maskingval isa NoKW ? Rasters.missingval(A) : maskingval
-        mv === missingval ? nothing : mv
-    end
-    mod = _mod(missingval1, maskingval1, scale, offset, coerce)
 
-    eltype <: NCDAllowedType || throw(ArgumentError("""
-       Element type $eltyp cannot be written to NetCDF. Convert it to one of $(Base.uniontypes(NCDAllowedType)),
-       usually by broadcasting the desired type constructor over the `Raster`, e.g. `newrast = Float32.(rast)`"))
-       """
-    ))
+    mod = RA._writer_mod(eltype; missingval, maskingval, scale, offset, coerce)
 
-    # Set _FillValue
-    if !isnothing(maskingval1) && Rasters.missingval(A) isa T
+    if !isnothing(mod.missingval)
         attrib["_FillValue"] = missingval
     end
-    verbose && !(maskingval isa Nothing) && @warn "`maskingval` $(maskingval) is not the same type as your data $T."
 
-    key = if string(DD.name(A)) == ""
+    key = if isnokw(name) || string(name) == ""
         UNNAMED_NCD_FILE_KEY
     else
-        string(DD.name(A))
+        string(name)
     end
 
     dimnames = lowercase.(string.(map(RA.name, dims(A))))
-    var = _maybe_modify(NCD.defVar(ds, key, eltyp, dimnames; attrib=attrib, chunksizes, kw...), mod)
-    # Write with a DiskArays.jl broadcast
-    var .= A
+    var = NCD.defVar(ds, key, eltype, dimnames; attrib=attrib, chunksizes, kw...)
+
+    if write
+        modvar = RA._maybe_modify(var, mod)
+        # Write with a DiskArays.jl broadcast
+        modvar .= A
+    end
 
     return nothing
 end

@@ -42,6 +42,10 @@ RA.cleanreturn(A::AG.RasterDataset) = Array(A)
 RA.haslayers(::GDALsource) = false
 RA._sourcetrait(A::AG.RasterDataset) = GDALsource()
 
+function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRasterStack; kw...)
+    ext = splitext(filename)[2]
+    throw(ArgumentError("Cant write a RasterStack to $ext with gdal")) 
+end
 function Base.write(
     filename::AbstractString, ::GDALsource, A::AbstractRaster{T};
     force=false, 
@@ -51,25 +55,24 @@ function Base.write(
     scale=nokw,
     offset=nokw,
     coerce=nokw,
+    eltype=Missings.nonmissingtype(T),
+    write=true,
     kw...
 ) where T
     RA.check_can_write(filename, force)
     A1 = _maybe_correct_to_write(A, missingval)
-    missingval = missingval isa NoKW ? RA._writeable_missing(T; verbose) : missingval
-    mod = RA._mod(missingval, maskingval, scale, offset, coerce)
-    _create_with_driver(filename, dims(A1), eltype(A1); 
-        missingval, _block_template=A1, scale, offset, kw...
+    mod = RA._writer_mod(eltype; missingval, maskingval, scale, offset, coerce)
+    _create_with_driver(filename, dims(A1), T; 
+        missingval, _block_template=A1, scale, offset, verbose, kw...
    ) do dataset
         verbose && _maybe_warn_south_up(A, verbose, "Writing South-up. Use `reverse(myrast; dims=Y)` first to write conventional North-up")
-        open(A1; write=true) do O
-            RA._maybe_modify(AG.RasterDataset(dataset), mod) .= parent(O)
+        if write
+            open(A1; write=true) do O
+                RA._maybe_modify(AG.RasterDataset(dataset), mod) .= parent(O)
+            end
         end
     end
     return filename
-end
-
-function _maybe_warn_south_up(A, verbose, msg)
-    verbose && lookup(A, Y) isa AbstractSampled && order(A, Y) isa ForwardOrdered && @warn msg
 end
 
 function RA._open(f, ::GDALsource, filename::AbstractString; 
@@ -292,25 +295,12 @@ function AG.RasterDataset(f::Function, A::AbstractRaster;
     coerce=nokw,
     verbose=false,
     eltype=Missings.nonmissingtype(eltype(A)),
-    maskingval=nokw,
     missingval=nokw,
+    maskingval=nokw,
     kw...
 )
     A1 = _maybe_correct_to_write(A)
-    mv = RA.missingval(A1)
-    if RA.isnokw(missingval) 
-        missingval = (ismissing(mv) || typeof(mv) <: eltype) ? RA._type_missingval(eltype) : mv
-    end
-    if RA.isnokw(maskingval)
-        if ismissing(mv)
-            maskingval = missing
-        elseif maskingval === missingval
-            maskingval = nothing
-        else
-            maskingval = mv
-        end
-    end
-    mod = RA._mod(missingval, maskingval, scale, offset, coerce)
+    mod = _writer_mod(A, missingval, maskingval)
     return _create_with_driver(filename, dims(A1), eltype; 
         _block_template=A1, missingval, scale, offset, verbose, kw...
     ) do dataset
@@ -620,6 +610,14 @@ function _maybe_reorder(A, dims)
         A
     end
 end
+
+function _maybe_warn_south_up(A, verbose, msg)
+    if hasdim(A, Y())
+        verbose && lookup(A, Y()) isa AbstractSampled && order(A, Y()) isa ForwardOrdered && @warn msg
+    end
+    return nothing
+end
+
 #= Geotranforms ########################################################################
 
 See https://lists.osgeo.org/pipermail/gdal-dev/2011-July/029449.html

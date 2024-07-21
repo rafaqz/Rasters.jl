@@ -30,7 +30,6 @@ function _warp(A::AbstractRaster, flags::Dict; filename=nothing, suffix="", kw..
             return isnothing(filename) ? read(raster) : raster
         end
     end
-    @show missingval(out)
     # And permute the dimensions back to what they were in A
     out1 = _maybe_restore_from_gdal(out, dims(A))
     out2 = _reset_gdalwarp_sampling(out1, A)

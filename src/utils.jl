@@ -35,7 +35,7 @@ nolookup_to_sampled(d::Dimension) =
 # end
 
 # Create a standardised Metadata object of source T, containing a `Dict{String,Any}`
-_metadatadict(s::Source, p1::Pair, pairs::Pair...) = 
+_metadatadict(s::Source, p1::Pair, pairs::Pair...) =
     _metadatadict(s, (p1, pairs...))
 _metadatadict(::S) where S<:Source = Metadata{S}(Dict{String,Any}())
 function _metadatadict(::S, pairs) where S<:Source
@@ -91,12 +91,12 @@ _writeable_missing(filename::Nothing, T; kw...) = missing
 _writeable_missing(filename::AbstractString, T; kw...) = _writeable_missing(T; kw...)
 function _writeable_missing(::Type{Missing}; verbose=true)
     missingval = _type_missingval(UInt8)
-    verbose && @info "`missingval` set to $missingval"
+    verbose && @info "`missingval` set to $missingval on disk"
     return missingval
 end
 function _writeable_missing(T; verbose=true)
     missingval = _type_missingval(Missings.nonmissingtype(T))
-    verbose && @info "`missingval` set to $missingval"
+    verbose && @info "`missingval` set to $missingval on disk"
     return missingval
 end
 
@@ -135,62 +135,78 @@ function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
     return x
 end
 
-function _extent2dims(to; size=nothing, res=nothing, crs=nothing, kw...) 
-    _extent2dims(to, size, res, crs; kw...)
+function _extent2dims(to::Extents.Extent; 
+    size=nothing, res=nothing, crs=nothing,
+    sampling=Intervals(Start()), 
+)
+    _extent2dims(to, size, res; crs, sampling=_match_to_extent(to, sampling))
 end
-function _extent2dims(to::Extents.Extent, size::Nothing, res::Nothing, crs; kw...)
+function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Union{Nothing,NoKW}; kw...)
     isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
 end
-function _extent2dims(to::Extents.Extent, size, res, crs; kw...)
+function _extent2dims(to::Extents.Extent, size, res; kw...)
     isnothing(res) || _size_and_res_error()
 end
-function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs; kw...) where K
-    tuple_res = ntuple(_ -> res, length(K))
-    _extent2dims(to, size, tuple_res, crs; kw...)
+function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res; kw...)
+    _extent2dims(to, size, _match_to_extent(to, res); kw...)
 end
-function _extent2dims(to::Extents.Extent{K}, size::Nothing, res, crs) where K
-    ranges = map(values(to), res) do bounds, r
-        start, outer = bounds
-        length = ceil(Int, (outer - start) / r)
-        step = (outer - start) / length
-        range(; start, step, length)
-    end
-    return _extent2dims(to, ranges, crs; kw...)
-end
-function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs; kw...) where K
-    if size isa Int
-        size = ntuple(_ -> size, length(K))
-    end
-    ranges = map(values(to), size) do bounds, length
-        start, outer = bounds
-        step = (outer - start) / length
-        range(; start, step, length)
-    end
-    return _extent2dims(to, ranges, crs)
-end
-function _extent2dims(to::Extents.Extent{K}, ranges, crs; 
-    sampling=Intervals(Start()),
-    kw...
-) where K
-    emptydims = map(name2dim, K)
-    lookups = map(emptydims, ranges) do d, range
-        if d isa SpatialDim && !isnothing(crs)
-            Projected(range;
-                sampling,
-                order=ForwardOrdered(),
-                span=Regular(step(range)),
-                crs,
-            )
+function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Tuple; sampling, kw...)
+    ranges = map(values(to), res, sampling) do (start, stop), step, s
+        if s isa Points
+            range(; start, step, stop)
         else
-            Sampled(range;
-                sampling,
-                order=ForwardOrdered(),
-                span=Regular(step(range)),
-            )
+            r = range(; start, step, stop)
+            if locus(s) isa Start
+                r[1:end-1]
+            elseif locus(s) isa End
+                r[2:end]
+            else # Center
+                r .+ step / 2
+            end
+        end
+    end
+    return _extent2dims(to, ranges; sampling, kw...)
+end
+function _extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW}; kw...)
+    _extent2dims(to, _match_to_extent(to, size), res; kw...)
+end
+function _extent2dims(to::Extents.Extent, size::Tuple, res::Union{Nothing,NoKW};
+    sampling, kw...
+)
+    ranges = map(values(to), size, sampling) do (start, stop), length, s
+        if s isa Points
+            range(; start, stop, length)
+        else
+            range(; start, stop, length=length+1)[1:end-1]
+        end
+    end
+    return _extent2dims(to, ranges; sampling, kw...)
+end
+function _extent2dims(::Extents.Extent{K}, ranges; crs, sampling) where K
+    emptydims = map(name2dim, K)
+    order = ForwardOrdered()
+    lookups = map(emptydims, ranges, sampling) do d, range, s
+        span = Regular(step(range))
+        if d isa SpatialDim && !isnothing(crs)
+            Projected(range; sampling=s, order, span, crs)
+        else
+            Sampled(range; sampling=s, order, span)
         end
     end
     d = map(rebuild, emptydims, lookups)
     return d
+end
+
+function _match_to_extent(::Extents.Extent{K}, x) where K
+    if x isa DimTuple 
+        map(val, dims(x, map(name2dim, K)))
+    elseif x isa NamedTuple 
+        values(x[K])
+    elseif x isa Tuple 
+        x
+    else
+        map(_ -> x, K)
+    end
 end
 
 function _as_intervals(ds::Tuple)
@@ -241,12 +257,12 @@ function _get_geometries(data, geometrycolumn::NTuple{<:Any, <:Symbol})
             ismissing(r) && return missing
         end
         return row
-    end     
+    end
     return points
 end
 function _check_geometries(geoms)
     for g in geoms
-        ismissing(g) || GI.geomtrait(g) !== nothing || 
+        ismissing(g) || GI.geomtrait(g) !== nothing ||
         throw(ArgumentError("$g is not a valid GeoInterface.jl geometry"))
     end
     return
@@ -267,7 +283,7 @@ _size_and_res_error() = throw(ArgumentError("Both `size` and `res` keywords are 
 _no_crs_error() = throw(ArgumentError("The provided object does not have a CRS. Use `setcrs` to set one."))
 
 _type_missingval(::Type{T}) where T = typemin(T)
-_type_missingval(::Type{T}) where T<:Unsigned = typemax(T) 
+_type_missingval(::Type{T}) where T<:Unsigned = typemax(T)
 
 # Modified from IsURL.jl, many thanks to @zlatanvasovic
 const WINDOWSREGEX = r"^[a-zA-Z]:[\\]"
@@ -276,7 +292,7 @@ const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
 _isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)
 
 # Run `f` threaded or not, w
-function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String) 
+function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String)
     p = progress ? _progress(length(range); desc) : nothing
     if threaded
         Threads.@threads :static for i in range
@@ -306,8 +322,8 @@ end
     end
 end
 @inline function _chunks_to_tuple(template, dimorder, chunks::NTuple{N,Integer}) where N
-    n = length(dimorder) 
-    if n < N 
+    n = length(dimorder)
+    if n < N
         throw(ArgumentError("Length $n tuple needed for `chunks`, got $N"))
     elseif n > N
         (chunks..., ntuple(_ -> 1, Val{n-N}())...)
@@ -338,7 +354,7 @@ function _checkregular(A::AbstractArray)
     step = stepof(A)
     for i in eachindex(A)[2:end]
         if !(A[i] - A[i-1] ≈ step)
-            return false 
+            return false
         end
     end
     return true
@@ -356,12 +372,12 @@ function _maybe_add_suffix(filename, suffix)
     end
 end
 
-function _checkobjmem(obj) 
+function _checkobjmem(obj)
     f = bytes -> """
-        required memory $(bytes) is greater than system memory $(Sys.free_memory()). 
+        required memory $(bytes) is greater than system memory $(Sys.free_memory()).
         Use `lazy=true` if you are loading dataset, and only call `read` on a subset after `view`.
         """
-    _checkobjmem(f, obj) 
+    _checkobjmem(f, obj)
 end
 _checkobjmem(f, obj) = _checkmem(f, _sizeof(obj))
 
@@ -374,7 +390,7 @@ _sizeof(s::AbstractRasterSeries) =
 
 function _no_memory_error(f, bytes)
     msg = f(bytes) * """
-    If you beleive this is not correct, pass the keyword `checkmem=false` or set `Rasters.checkmem!(false)` 
+    If you beleive this is not correct, pass the keyword `checkmem=false` or set `Rasters.checkmem!(false)`
     and try again. These options may crash your system if the file is actually larger than memory.
     """
     return error(msg)
@@ -384,3 +400,4 @@ _maybewarn_replace_missing(replace_missing::NoKW) = nothing
 function _maybewarn_replace_missing(replace_missing)
     @warn "`replace_missing` keyword no longer used. Set `maskingval` to nothing for no replacement, to `missing` to mask `missingval` with `missing`, or any other value"
 end
+

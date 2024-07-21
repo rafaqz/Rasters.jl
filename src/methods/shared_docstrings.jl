@@ -164,10 +164,8 @@ const MASKINGVAL_KEYWORD = """
 """
 
 const NAME_KEYWORD = """
-- `name`: a `Symbol` name for the array, which will also retrieve the, alphabetically first, 
-    named layer if `Raster` is used on a multi-layered file like a NetCDF. 
-    If instead `RasterStack` is used to read the multi-layered file, by default, all variables 
-    will be added to the stack.
+- `name`: a `Symbol` name for a Raster, which will also retrieve the 
+    a named layer if `Raster` is used on a multi-layered file like a NetCDF. 
 """
 
 const METADATA_KEYWORD = """
@@ -177,4 +175,25 @@ const METADATA_KEYWORD = """
 const REFDIMS_KEYWORD = """
 - `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
     Usually not needed.
+"""
+
+const GROUP_KEYWORD = """
+- `group`: the group in the dataset where `name` can be found. Only needed for nested datasets.
+    A `String` or `Symbol` will select a single group. Pairs can also used to access groups
+    at any nested depth, i.e `group=:group1 => :group2 => :group3`.
+"""
+
+const CHUNKS_KEYWORD = """
+- `chunks`: a `NTuple{N,Int}` specifying the chunk size for each dimension. 
+    To specify only specific dimensions, a Tuple of `Dimension` wrapping `Int` 
+    or a `NamedTuple` of `Int` can be used. Other dimensions will have a chunk
+    size of `1`. `true` can be used to mean: use the original 
+    chunk size of the lazy `Raster` being written or X and Y of 256 by 256.
+    `false` means don't use chunks at all.
+"""
+
+const WRITE_MISSINGVAL_KEYWORD = """
+- `missingval`: set the missing value (i.e. FillValue / nodataval) of the written raster,
+    as Julias `missing` cannot be stored. If not passed in, `missingval` will be detected 
+    from metadata or a default will be chosen.
 """

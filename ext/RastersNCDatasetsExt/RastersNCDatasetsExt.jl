@@ -18,7 +18,7 @@ using Dates,
 
 using Rasters.Lookups
 using Rasters.Dimensions
-using Rasters: CDMsource, NCDsource, nokw, NoKW
+using Rasters: CDMsource, NCDsource, NoKW, nokw, isnokw
 
 using CommonDataModel: AbstractDataset
 

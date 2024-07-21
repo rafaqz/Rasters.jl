@@ -42,14 +42,14 @@ function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
     group=nokw,
     name::NTuple{N,Symbol}, 
     mods,
-    vars
+    vars,
 ) where {source<:CDMsource,N}
     T = NamedTuple{name,Tuple{map(_mod_eltype, vars, mods)...}}
     layersizes = map(size, vars)
-    eachchunk = map(_get_eachchunk, vars)
-    haschunks = map(_get_haschunks, vars)
+    eachchunk = map(DiskArrays.eachchunk, vars)
+    haschunks = map(DiskArrays.haschunks, vars)
     group = isnokw(group) ? nothing : group
-    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, cdf, write)
+    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, mods, write)
 end
 
 function _open(f, ::CDMsource, ds::AbstractDataset; 
@@ -67,6 +67,7 @@ _getgroup(ds, ::Union{Nothing,NoKW}) = ds
 _getgroup(ds, group::Union{Symbol,AbstractString}) = ds.group[String(group)]
 _getgroup(ds, group::Pair) = _getgroup(ds.group[String(group[1])], group[2])
 
+filekey(ds::AbstractDataset, name::Union{String,Symbol}) = Symbol(name)
 filekey(ds::AbstractDataset, name) = _firstname(ds, name)
 missingval(var::AbstractDataset) = missing
 missingval(var::AbstractVariable{T}) where T = missing isa T ? missing : nothing
@@ -98,7 +99,7 @@ end
 function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
     nondim = _nondimnames(ds)
     grid_mapping = String[]
-    vars = map(k -> ds[k], nondim)
+    vars = map(k -> CDM.variable(ds, k), nondim)
     attrs = map(CDM.attribs, vars)
     for attr in attrs
         if haskey(attr, "grid_mapping")
@@ -113,7 +114,7 @@ function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
     )
 end
 function _layers(ds::AbstractDataset, names, ::NoKW)
-    vars = map(k -> ds[k], names)
+    vars = map(k -> CDM.variable(ds, k), names)
     attrs = map(CDM.attribs, vars)
     (; names, vars, attrs)
 end
@@ -168,10 +169,10 @@ _fix_missingval(::CDM.AbstractVariable, ::Nothing, metadata) = get(metadata, "_F
 
 # TODO don't load all keys here with _layers
 _firstname(ds::AbstractDataset, name) = Symbol(name)
-function _firstname(ds::AbstractDataset, name::NoKW=nokw)
+function _firstname(ds::AbstractDataset, name::Union{Nothing,NoKW}=nokw)
     names = _nondimnames(ds)
     if length(names) > 0
-        Symbol(first(names))
+        return Symbol(first(names))
     else
         throw(ArgumentError("No non-dimension layers found in dataset with keys: $(keys(ds))"))
     end

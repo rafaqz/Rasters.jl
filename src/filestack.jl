@@ -9,7 +9,7 @@ typically netcdf or hdf5.
 
 `S` is a backend type like `NCDsource`, and `Na` is a tuple of `Symbol` keys.
 """
-struct FileStack{S,Na,T,SZ,G<:Union{AbstractString,Symbol,Nothing},EC,HC,M<:AbstractModifications}
+struct FileStack{S,Na,T,SZ,G<:Union{AbstractString,Symbol,Nothing},EC,HC,M}
     filename::String
     sizes::SZ
     group::G
