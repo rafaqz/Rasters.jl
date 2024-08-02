@@ -116,7 +116,9 @@ Run `using ArchGDAL` to make this method available.
 
 $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
-
+- `missingval`: the missing value to use during warping, will default to
+    `Rasters.missingval(A).
+- `maskingval`: the missing value to mask with after warping 
 Any additional keywords are passed to `ArchGDAL.Dataset`.
 
 ## Example

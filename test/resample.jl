@@ -23,36 +23,8 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         end
     end
 
-    maskingval = missing
-    for maskingval in (nothing, missing, Rasters.nokw)
-        # Resample cea.tif using resample
-        cea = Raster(raster_path; missingval=0x00, name=:cea, maskingval)
-        raster_output = resample(cea; res=output_res, crs=output_crs, method, maskingval)
-        disk_output = resample(cea; res=output_res, crs=output_crs, method, filename="resample.tif")
-
-        cea_permuted = permutedims(Raster(raster_path), (Y, X); missingval=0x00, name=:cea_permuted, maskingval)
-        permuted_output = resample(cea_permuted, output_res; crs=output_crs, method)
-
-        AG_output1 = if maskingval === missing || maskingval === Rasters.nokw
-            replace(AG_output, 0x00 => missing)
-        else
-            AG_output
-        end
-        # Compare ArchGDAL, resample and permuted resample 
-        AG_output1
-        .=== 
-        raster_output
-        @test all(AG_output1 .===
-            raster_output .===
-            read(disk_output .=== permutedims(permuted_output, (X, Y)))
-        @test abs(step(dims(raster_output, Y))) ≈
-            abs(step(dims(raster_output, X))) ≈ 
-            abs(step(dims(disk_output, X))) ≈ 
-            abs(step(dims(permuted_output, X))) ≈ output_res
-        @test name(cea) == name(raster_output)
-
-        rm("resample.tif")
-    end
+    cea = Raster(raster_path; missingval=0x00, name=:cea, maskingval=nothing)
+    raster_output = resample(cea; res=output_res, crs=output_crs, method, missingval=0x00, maskingval=nothing)
 
     @testset "missingval propagates" begin
         @test missingval(resample(cea; res=output_res, crs=output_crs, method)) == 0x00
@@ -73,9 +45,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         resampled = resample(cea; method)
         @test crs(cea) == crs(resampled)
         @test cea == resampled
-        # There is some floating point error here after Rasters -> GDAL -> Rasterss...
-        # Should we correct it by detecting almost identical extent and using the original?
-        # @test_broken extent(cea) == extent(resampled)
+        @test extent(cea) == extent(resampled)
     end
 
     @testset "only `res` kw changes the array size predictably" begin
@@ -185,5 +155,30 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         @test length(dims(resampled_3D)) == 3
         @test dims(resampled_3D, (1,2)) == to
         @test dims(resampled_3D, Z) == Z(1:2)
+    end
+
+    for maskingval in (nothing, missing, Rasters.nokw)
+        # Resample cea.tif using resample
+        cea = Raster(raster_path; missingval=0x00, name=:cea, maskingval)
+        raster_output = resample(cea; res=output_res, crs=output_crs, method, missingval=0x00, maskingval)
+        disk_output = resample(cea; res=output_res, crs=output_crs, method, missingval=0x00, maskingval, filename="resample.tif")
+
+        cea_permuted = permutedims(Raster(raster_path; missingval=0x00, name=:cea_permuted, maskingval), (Y, X))
+        permuted_output = resample(cea_permuted, output_res; missingval=0x00, maskingval, crs=output_crs, method)
+
+        AG_output1 = if maskingval === missing
+            replace(AG_output, 0x00 => missing)
+        else
+            AG_output
+        end
+        # Compare ArchGDAL, resample and permuted resample 
+        @test all(AG_output1 .=== raster_output .=== read(disk_output) .=== permutedims(permuted_output, (X, Y)))
+        @test abs(step(dims(raster_output, Y))) ≈
+            abs(step(dims(raster_output, X))) ≈ 
+            abs(step(dims(disk_output, X))) ≈ 
+            abs(step(dims(permuted_output, X))) ≈ output_res
+        @test name(cea) == name(raster_output)
+
+        rm("resample.tif")
     end
 end

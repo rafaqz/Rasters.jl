@@ -1,9 +1,29 @@
 
+# File paths, urls and strings
+
 filter_ext(path, ext::AbstractString) =
     filter(fn -> splitext(fn)[2] == ext, readdir(path; join=true))
 filter_ext(path, exts::Union{Tuple,AbstractArray}) =
     filter(fn -> splitext(fn)[2] in exts, readdir(path; join=true))
 filter_ext(path, ext::Nothing) = readdir(path; join=true)
+
+_maybe_add_suffix(filename::Nothing, suffix) = nothing
+_maybe_add_suffix(filename::Nothing, suffix::Union{Nothing,NoKW}) = nothing
+_maybe_add_suffix(filename, suffix::Union{Nothing,NoKW}) = filename
+function _maybe_add_suffix(filename, suffix)
+    base, ext = splitext(filename)
+    if string(suffix) == ""
+        filename
+    else
+        return string(base, "_", suffix, ext)
+    end
+end
+
+# Modified from IsURL.jl, many thanks to @zlatanvasovic
+const WINDOWSREGEX = r"^[a-zA-Z]:[\\]"
+const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
+
+_isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)
 
 cleankeys(name) = (_cleankey(name),)
 function cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray})
@@ -16,34 +36,6 @@ function _cleankey(name::Union{Symbol,AbstractString,Name,NoName}, i=1)
     else
         Symbol(name)
     end
-end
-
-nolookup_to_sampled(A) = rebuild(A; dims=nolookup_to_sampled(dims(A)))
-nolookup_to_sampled(dims::DimTuple) = map(nolookup_to_sampled, dims)
-nolookup_to_sampled(d::Dimension) =
-    lookup(d) isa NoLookup ? set(d, Sampled(; sampling=Points())) : d
-
-# function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source, missingval=nokw) where T
-#     if ismissing(Rasters.missingval(A))
-#         newmissingval = missingval isa NoKW ? _type_missingval(Missings.nonmissingtype(T)) : missingval
-#         A1 = replace_missing(A, newmissingval)
-#         @warn "`missing` cant be written with $(SOURCE2SYMBOL[source]), missinval for `$(eltype(A1))` of `$newmissingval` used instead"
-#         return A1
-#     else
-#         return A
-#     end
-# end
-
-# Create a standardised Metadata object of source T, containing a `Dict{String,Any}`
-_metadatadict(s::Source, p1::Pair, pairs::Pair...) =
-    _metadatadict(s, (p1, pairs...))
-_metadatadict(::S) where S<:Source = Metadata{S}(Dict{String,Any}())
-function _metadatadict(::S, pairs) where S<:Source
-    dict = Dict{String,Any}()
-    for (k, v) in pairs
-        dict[String(k)] = v
-    end
-    return Metadata{S}(dict)
 end
 
 # We often need to convert the locus and the lookup in the same step,
@@ -74,18 +66,12 @@ end
 # _convert_by_lookup(::Type{Projected}, dim) = shiftlocus(Center(), convertlookup(Projected, dim))
 
 
-_unwrap(::Val{X}) where X = X
-_unwrap(x) = x
+# Missing values
 
-_missingval_or_missing(x) = _maybe_nothing_to_missing(missingval(x))
+_missingval_or_missing(x) = _maybe_to_missing(missingval(x))
 
-_maybe_nothing_to_missing(::Nothing) = missing
-_maybe_nothing_to_missing(missingval) = missingval
-
-maybe_eps(dims::DimTuple) = map(maybe_eps, dims)
-maybe_eps(dim::Dimension) = maybe_eps(eltype(dim))
-maybe_eps(::Type) = nothing
-maybe_eps(T::Type{<:AbstractFloat}) = _default_atol(T)
+_maybe_to_missing(::Union{Nothing,NoKW}) = missing
+_maybe_to_missing(missingval) = missingval
 
 _writeable_missing(filename::Nothing, T; kw...) = missing
 _writeable_missing(filename::AbstractString, T; kw...) = _writeable_missing(T; kw...)
@@ -100,57 +86,48 @@ function _writeable_missing(T; verbose=true)
     return missingval
 end
 
-# Map filename suffix over a stack
-function mapargs(f, st::AbstractRasterStack, args...)
-    layers = map(values(st), args...) do A, mappedargs...
-        f(A, mappedargs...)
+_type_missingval(::Type{T}) where T = typemin(T)
+_type_missingval(::Type{T}) where T<:Unsigned = typemax(T)
+
+_fix_missingval(::Type, ::Union{NoKW,Nothing}) = nothing
+_fix_missingval(::AbstractArray, ::Nothing) = nothing
+_fix_missingval(A::AbstractArray, ::NoKW) = _fix_missingval(A, Rasters.missingval(A))
+_fix_missingval(::AbstractArray{T}, missingval) where T = _fix_missingval(T, missingval)
+function _fix_missingval(::Type{T}, missingval::M) where {T,M}
+    T1 = nonmissingtype(T)
+    if missingval isa T
+        missingval
+    elseif hasmethod(convert, Tuple{Type{T1},M}) && isreal(missingval) && 
+            missingval <= typemax(T1) && missingval >= typemin(T1)
+        if T1 <: Integer && !isinteger(missingval) 
+            nothing
+        else
+            convert(T, missingval)
+        end
+    else
+        nothing
     end
-    return DD.rebuild_from_arrays(st, Tuple(layers))
 end
 
-_without_mapped_crs(f, x) = _without_mapped_crs(f, x, mappedcrs(x))
-_without_mapped_crs(f, x, ::Nothing) = f(x)
-function _without_mapped_crs(f, dims::DimTuple, mappedcrs::GeoFormat)
-    dims1 = setmappedcrs(dims, nothing)
-    x = f(dims1)
-    if x isa DimTuple
-        x = setmappedcrs(x, mappedcrs)
-    end
-    return x
-end
-function _without_mapped_crs(f, A::AbstractRaster, mappedcrs::GeoFormat)
-    A = setmappedcrs(A, nothing)
-    x = f(A)
-    if x isa AbstractRaster
-        x = setmappedcrs(x, mappedcrs)
-    end
-    return x
-end
-function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
-    st1 = map(A -> setmappedcrs(A, nothing), st)
-    x = f(st1)
-    if x isa AbstractRasterStack
-        x = map(A -> setmappedcrs(A, mappedcrs(st)), x)
-    end
-    return x
-end
+
+# Extents
 
 function _extent2dims(to::Extents.Extent; 
-    size=nothing, res=nothing, crs=nothing,
-    sampling=Intervals(Start()), 
+    size=nokw, res=nokw, crs=nokw, sampling=nokw,
 )
-    _extent2dims(to, size, res; crs, sampling=_match_to_extent(to, sampling))
+    sampling = _match_to_extent(to, isnokw(sampling) ? Intervals(Start()) : sampling)
+    _extent2dims(to, size, res; crs, sampling)
 end
 function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Union{Nothing,NoKW}; kw...)
-    isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
+    throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
 end
-function _extent2dims(to::Extents.Extent, size, res; kw...)
-    isnothing(res) || _size_and_res_error()
-end
+_extent2dims(to::Extents.Extent, size, res; kw...) = _size_and_res_error()
 function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res; kw...)
     _extent2dims(to, size, _match_to_extent(to, res); kw...)
 end
-function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Tuple; sampling, kw...)
+function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Tuple; 
+    sampling::Tuple, kw...
+)
     ranges = map(values(to), res, sampling) do (start, stop), step, s
         if s isa Points
             range(; start, step, stop)
@@ -167,11 +144,10 @@ function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Tuple;
     end
     return _extent2dims(to, ranges; sampling, kw...)
 end
-function _extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW}; kw...)
+_extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW}; kw...) =
     _extent2dims(to, _match_to_extent(to, size), res; kw...)
-end
 function _extent2dims(to::Extents.Extent, size::Tuple, res::Union{Nothing,NoKW};
-    sampling, kw...
+    sampling::Tuple, crs
 )
     ranges = map(values(to), size, sampling) do (start, stop), length, s
         if s isa Points
@@ -180,9 +156,10 @@ function _extent2dims(to::Extents.Extent, size::Tuple, res::Union{Nothing,NoKW};
             range(; start, stop, length=length+1)[1:end-1]
         end
     end
-    return _extent2dims(to, ranges; sampling, kw...)
+    return _extent2dims(to, ranges; sampling, crs)
 end
-function _extent2dims(::Extents.Extent{K}, ranges; crs, sampling) where K
+function _extent2dims(::Extents.Extent{K}, ranges; crs, sampling::Tuple) where K
+    crs = isnokw(crs) ? nothing : crs 
     emptydims = map(name2dim, K)
     order = ForwardOrdered()
     lookups = map(emptydims, ranges, sampling) do d, range, s
@@ -209,14 +186,7 @@ function _match_to_extent(::Extents.Extent{K}, x) where K
     end
 end
 
-function _as_intervals(ds::Tuple)
-    # Rasterization only makes sense on Sampled Intervals
-    interval_dims = map(dims(ds, DEFAULT_POINT_ORDER)) do d
-        l = parent(d)
-        rebuild(d, rebuild(l; sampling=Intervals(locus(l))))
-    end
-    return setdims(ds, interval_dims)
-end
+# Geometries
 
 # get geometries from what may be a table with a geometrycolumn or an interable of geometries
 # if it has no geometry column and does not iterate valid geometries, error informatively
@@ -269,43 +239,9 @@ function _check_geometries(geoms)
 end
 # to distinguish between objects returned by _get_geometries and other objects
 struct IterableOfGeometries end
-_warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
 
-_filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not found"))
 
-_progress(args...; kw...) = ProgressMeter.Progress(args...; color=:blue, barlen=50, kw...)
-
-# Function barrier for splatted vector broadcast
-@noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
-
-_size_and_res_error() = throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
-
-_no_crs_error() = throw(ArgumentError("The provided object does not have a CRS. Use `setcrs` to set one."))
-
-_type_missingval(::Type{T}) where T = typemin(T)
-_type_missingval(::Type{T}) where T<:Unsigned = typemax(T)
-
-# Modified from IsURL.jl, many thanks to @zlatanvasovic
-const WINDOWSREGEX = r"^[a-zA-Z]:[\\]"
-const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
-
-_isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)
-
-# Run `f` threaded or not, w
-function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String)
-    p = progress ? _progress(length(range); desc) : nothing
-    if threaded
-        Threads.@threads :static for i in range
-            f(i)
-            isnothing(p) || ProgressMeter.next!(p)
-        end
-    else
-        for i in range
-            f(i)
-            isnothing(p) || ProgressMeter.next!(p)
-        end
-    end
-end
+# Chunking
 
 # NoKW means true
 @inline function _chunks_to_tuple(template, dims, chunks::Bool)
@@ -348,7 +284,6 @@ end
 @inline _chunks_to_tuple(template, dimorder, chunks::Nothing) = nothing
 @inline _chunks_to_tuple(template, dims, chunks::NoKW) = nothing
 
-
 _checkregular(A::AbstractRange) = true
 function _checkregular(A::AbstractArray)
     step = stepof(A)
@@ -360,17 +295,8 @@ function _checkregular(A::AbstractArray)
     return true
 end
 
-_maybe_add_suffix(filename::Nothing, suffix) = nothing
-_maybe_add_suffix(filename::Nothing, suffix::Union{Nothing,NoKW}) = nothing
-_maybe_add_suffix(filename, suffix::Union{Nothing,NoKW}) = filename
-function _maybe_add_suffix(filename, suffix)
-    base, ext = splitext(filename)
-    if string(suffix) == ""
-        filename
-    else
-        return string(base, "_", suffix, ext)
-    end
-end
+
+# Memory
 
 function _checkobjmem(obj)
     f = bytes -> """
@@ -396,8 +322,112 @@ function _no_memory_error(f, bytes)
     return error(msg)
 end
 
+
+# Lookups
+
+function _as_intervals(ds::Tuple)
+    # Rasterization only makes sense on Sampled Intervals
+    interval_dims = map(dims(ds, DEFAULT_POINT_ORDER)) do d
+        l = parent(d)
+        rebuild(d, rebuild(l; sampling=Intervals(locus(l))))
+    end
+    return setdims(ds, interval_dims)
+end
+
+nolookup_to_sampled(A) = rebuild(A; dims=nolookup_to_sampled(dims(A)))
+nolookup_to_sampled(dims::DimTuple) = map(nolookup_to_sampled, dims)
+nolookup_to_sampled(d::Dimension) =
+    lookup(d) isa NoLookup ? set(d, Sampled(; sampling=Points())) : d
+
+
+# Metadata
+
+# Create a standardised Metadata object of source T, containing a `Dict{String,Any}`
+_metadatadict(s::Source, p1::Pair, pairs::Pair...) =
+    _metadatadict(s, (p1, pairs...))
+_metadatadict(::S) where S<:Source = Metadata{S}(Dict{String,Any}())
+function _metadatadict(::S, pairs) where S<:Source
+    dict = Dict{String,Any}()
+    for (k, v) in pairs
+        dict[String(k)] = v
+    end
+    return Metadata{S}(dict)
+end
+
+
+# Other
+
+_progress(args...; kw...) = ProgressMeter.Progress(args...; color=:blue, barlen=50, kw...)
+
+# Function barrier for splatted vector broadcast
+@noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
+
+# Run `f` threaded or not, w
+function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String)
+    p = progress ? _progress(length(range); desc) : nothing
+    if threaded
+        Threads.@threads :static for i in range
+            f(i)
+            isnothing(p) || ProgressMeter.next!(p)
+        end
+    else
+        for i in range
+            f(i)
+            isnothing(p) || ProgressMeter.next!(p)
+        end
+    end
+end
+
+_unwrap(::Val{X}) where X = X
+_unwrap(x) = x
+
+# Map filename suffix over a stack
+function mapargs(f, st::AbstractRasterStack, args...)
+    layers = map(values(st), args...) do A, mappedargs...
+        f(A, mappedargs...)
+    end
+    return DD.rebuild_from_arrays(st, Tuple(layers))
+end
+
+_without_mapped_crs(f, x) = _without_mapped_crs(f, x, mappedcrs(x))
+_without_mapped_crs(f, x, ::Nothing) = f(x)
+function _without_mapped_crs(f, dims::DimTuple, mappedcrs::GeoFormat)
+    dims1 = setmappedcrs(dims, nothing)
+    x = f(dims1)
+    if x isa DimTuple
+        x = setmappedcrs(x, mappedcrs)
+    end
+    return x
+end
+function _without_mapped_crs(f, A::AbstractRaster, mappedcrs::GeoFormat)
+    A = setmappedcrs(A, nothing)
+    x = f(A)
+    if x isa AbstractRaster
+        x = setmappedcrs(x, mappedcrs)
+    end
+    return x
+end
+function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
+    st1 = map(A -> setmappedcrs(A, nothing), st)
+    x = f(st1)
+    if x isa AbstractRasterStack
+        x = map(A -> setmappedcrs(A, mappedcrs(st)), x)
+    end
+    return x
+end
+
+
+# Warnings and erros
+
 _maybewarn_replace_missing(replace_missing::NoKW) = nothing
 function _maybewarn_replace_missing(replace_missing)
     @warn "`replace_missing` keyword no longer used. Set `maskingval` to nothing for no replacement, to `missing` to mask `missingval` with `missing`, or any other value"
 end
 
+@noinline _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
+
+_filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not found"))
+
+_size_and_res_error() = throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
+
+_no_crs_error() = throw(ArgumentError("The provided object does not have a CRS. Use `setcrs` to set one."))

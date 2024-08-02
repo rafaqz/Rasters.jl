@@ -82,7 +82,7 @@ function DD.rebuild(
     A::AbstractRaster, data, dims::Tuple, refdims, name,
     metadata, missingval=missingval(A)
 )
-    missingval1 = _fix_missingval(eltype(data), missingval, NoMetadata())
+    missingval1 = _fix_missingval(eltype(data), missingval)
     Raster(data, dims, refdims, name, metadata, missingval1)
 end
 function DD.rebuild(A::AbstractRaster;
@@ -240,7 +240,7 @@ struct Raster{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi<:Union{T,Noth
         data::A, dims::D, refdims::R, name::Na, metadata::Me, missingval::Mi
     ) where {D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi} where {T,N}
         DD.checkdims(data, dims)
-        missingval1 = _fix_missingval(T, missingval, metadata)
+        missingval1 = _fix_missingval(T, missingval)
         new{T,N,D,R,A,Na,Me,typeof(missingval1)}(data, dims, refdims, name, metadata, missingval1)
     end
 end
@@ -323,11 +323,11 @@ function Raster(ds, filename::AbstractString;
     source = _sourcetrait(filename, source)
     data1, dims1, metadata1, missingval2 = _open(source, ds; name=name1, group, mod=NoMod()) do var
         metadata1 = isnokw(metadata) ? _metadata(var) : metadata
-        missingval1 = _fix_missingval(var, missingval, metadata1)
-        maskingval1 = isnokw(maskingval) ? missing : maskingval
+        missingval1 = _fix_missingval(var, missingval)
+        maskingval1 = isnokw(maskingval) && !isnothing(missingval1) ? missing : maskingval
         # If maskingval is `nothing` use  missingval as missingval
         missingval2 = isnothing(maskingval1) ? missingval1 : maskingval1
-        mod = isnokw(mod) ? _mod(metadata1, missingval1, maskingval1; scaled, coerce) : mod
+        mod = isnokw(mod) ? _mod(eltype(var), metadata1, missingval1, maskingval1; scaled, coerce) : mod
         data = if lazy
             FileArray{typeof(source)}(var, filename; 
                 name=name1, group, mod, write
@@ -346,31 +346,10 @@ function Raster(ds, filename::AbstractString;
     return dropband ? _drop_single_band(raster, lazy) : raster
 end
 
-_fix_missingval(::Type, ::Union{NoKW,Nothing}, metadata) = nothing
-_fix_missingval(::AbstractArray, ::Nothing, metadata) = nothing
-_fix_missingval(A::AbstractArray, ::NoKW, metadata) = _fix_missingval(A, Rasters.missingval(A), metadata)
-_fix_missingval(::AbstractArray{T}, missingval, metadata) where T = _fix_missingval(T, missingval, metadata)
-function _fix_missingval(::Type{T}, missingval::M, metadata) where {T,M}
-    T1 = nonmissingtype(T)
-    if missingval isa T
-        missingval
-    elseif hasmethod(convert, Tuple{Type{T1},M}) && isreal(missingval) && 
-            missingval <= typemax(T1) && missingval >= typemin(T1)
-        if T1 <: Integer && !isinteger(missingval) 
-            nothing
-        else
-            convert(T, missingval)
-        end
-    else
-        nothing
-    end
-end
-
 filekey(ds, name) = name
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
 DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = Raster
-
 
 function _drop_single_band(raster, lazy::Bool)
     if hasdim(raster, Band()) && size(raster, Band()) < 2

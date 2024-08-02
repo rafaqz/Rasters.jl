@@ -7,18 +7,28 @@ _init_bools(to, T::Type; kw...) = _init_bools(to, T, nothing; kw...)
 _init_bools(to::AbstractRasterSeries, T::Type, data; kw...) = _init_bools(first(to), T, data; kw...)
 _init_bools(to::AbstractRasterStack, T::Type, data; kw...) = _init_bools(first(to), T, data; kw...)
 _init_bools(to::AbstractRaster, T::Type, data; kw...) = _init_bools(to, dims(to), T, data; kw...)
-_init_bools(to::Extents.Extent, T::Type, data; kw...) = _init_bools(to, _extent2dims(to; kw...), T, data; kw...)
 _init_bools(to::DimTuple, T::Type, data; kw...) = _init_bools(to, to, T, data; kw...)
-function _init_bools(to::Nothing, T::Type, data; geometrycolumn=nothing,kw...)
+function _init_bools(to::Nothing, T::Type, data; 
+    geometrycolumn=nothing, 
+    collapse=nokw, 
+    res=nokw,
+    size=nokw,
+    kw...
+)
     # Get the extent of the geometries
-    ext = _extent(data; geometrycolumn, kw...)
+    ext = _extent(data; geometrycolumn)
     isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
-    # Convert the extent to dims (there must be `res` or `size` in `kw`)
-    dims = _extent2dims(ext; kw...)
-    return _init_bools(to, dims, T, data; kw...)
+    return _init_bools(ext, T, data; collapse, res, size)
 end
-function _init_bools(to, dims::DimTuple, T::Type, data; collapse::Union{Bool,Nothing}=nothing, kw...)
-    if isnothing(data) || isnothing(collapse) || collapse
+function _init_bools(to::Extents.Extent, T::Type, data;
+    collapse=nokw, size=nokw, res=nokw, sampling=nokw, kw...
+)
+    # Convert the extent to dims (there must be `res` or `size` in `kw`)
+    ext = _extent2dims(to; size, res, sampling, kw...)
+    _init_bools(to, ext, T, data; kw...)
+end
+function _init_bools(to, dims::DimTuple, T::Type, data; collapse::Union{Bool,Nothing,NoKW}=nokw, kw...)
+    if isnothing(data) || isnothing(collapse) || isnokw(collapse) || collapse
         _alloc_bools(to, dims, T; kw...)
     else
         n = if Base.IteratorSize(data) isa Base.HasShape

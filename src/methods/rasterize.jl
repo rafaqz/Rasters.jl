@@ -72,9 +72,10 @@ RasterCreator(to::Nothing, data; kw...) = RasterCreator(_extent(data; kw...); kw
 RasterCreator(to, data; kw...) = RasterCreator(_extent(to); kw...)
 function RasterCreator(to::Extents.Extent;
     res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing,
-    size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing, kw...
+    size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing, 
+    kw...
 )
-    to_as_dims = _extent2dims(to; size, res, kw...)
+    to_as_dims = _extent2dims(to; size, res)
     return RasterCreator(to_as_dims; kw...)
 end
 

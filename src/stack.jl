@@ -524,7 +524,6 @@ function _layer_stack(filename;
     lazy=false,
     kw...
 )
-    @show maskingval
     _maybewarn_replace_missing(replace_missing)
     data, field_kw = _open(filename; source) do ds
         layers = _layers(ds, name, group)

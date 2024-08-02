@@ -240,12 +240,12 @@ function RA.Raster(ds::AG.RasterDataset;
     scaled=true,
     coerce=convert,
 )
-    kw = (; refdims, name, metadata, missingval)
     filelist = AG.filelist(ds)
-    mod = RA._mod(metadata, missingval, maskingval; scaled, coerce)
+    mod = RA._mod(eltype(ds), metadata, missingval, maskingval; scaled, coerce)
+    kw = (; refdims, name, metadata, missingval=Rasters.maskingval(mod))
     raster = if lazy && length(filelist) > 0
         filename = first(filelist)
-        Raster(FileArray{GDALsource}(ds, filename; mod), dims, kw...)
+        Raster(FileArray{GDALsource}(ds, filename; mod), dims; kw...)
     else
         Raster(Array(RA._maybe_modify(ds, mod)), dims; kw...)
     end
@@ -295,16 +295,16 @@ function AG.RasterDataset(f::Function, A::AbstractRaster;
     coerce=nokw,
     verbose=false,
     eltype=Missings.nonmissingtype(eltype(A)),
-    missingval=nokw,
-    maskingval=nokw,
+    missingval=Rasters.missingval(A),
+    maskingval=Rasters.missingval(A),
     kw...
 )
     A1 = _maybe_correct_to_write(A)
-    mod = _writer_mod(A, missingval, maskingval)
     return _create_with_driver(filename, dims(A1), eltype; 
         _block_template=A1, missingval, scale, offset, verbose, kw...
     ) do dataset
         rds = AG.RasterDataset(dataset)
+        mod = RA._writer_mod(eltype; missingval=RA.missingval(rds), maskingval, scale, offset, coerce)
         open(A1) do O
             RA._maybe_modify(rds, mod) .= parent(O)
         end

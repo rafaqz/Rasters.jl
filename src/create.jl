@@ -221,8 +221,9 @@ function create(filename::AbstractString, source::Source, layertypes::NamedTuple
     name=keys(layertypes),
     missingval=nokw,
     maskingval=missing,
-    fillval=nokw,
     metadata=nokw,
+    layerdims=nokw,
+    layermetadata=nokw,
     chunks=nokw,
     scale=nokw,
     offset=nokw,
@@ -245,12 +246,16 @@ function create(filename::AbstractString, source::Source, layertypes::NamedTuple
         end
         FillArrays.Zeros{eltype}(size)
     end
-    layerdims = map(layertypes) do x
-        if x isa Type
-            DD.basedims(dims)
-        else
-            ds = DD._astuple(DD.basedims(x[2]))
+    layerdims = if isnokw(layerdims) 
+        map(layertypes) do x
+            if x isa Type
+                DD.basedims(dims)
+            else
+                ds = DD._astuple(DD.basedims(x[2]))
+            end
         end
+    else
+        layerdims
     end
     # if isnokw(fillval) || isnothing(fillval)
     #     write = false # Leave fill undefined
@@ -261,9 +266,9 @@ function create(filename::AbstractString, source::Source, layertypes::NamedTuple
     #     A = FillArrays.Fill{eltype}(fillval, map(length, dims))
     # end
     # Create layers of zero arrays
-    stack = RasterStack(layers, dims; layerdims, missingval)
+    stack = RasterStack(layers, dims; layerdims, layermetadata, missingval)
     fn = Rasters.write(filename, stack;
         chunks, metadata, scale, offset, missingval, maskingval, verbose, force, coerce, write=false
     )
-    return RasterStack(fn; source, lazy, metadata, maskingval, dropband, coerce)
+    return RasterStack(fn; source, lazy, metadata, layerdims, maskingval, dropband, coerce)
 end
