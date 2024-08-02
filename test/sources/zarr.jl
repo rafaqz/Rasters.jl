@@ -68,7 +68,4 @@ end
     @test zraster[Ti(At(DateTime(1979,1,9))), X(At(-178.75)), Y(At(-88.75))] == -28.866226f0
 end
 
-@testset "GeoZarr roundtrip netcdf" begin
-    ncarray = Raster(ncsingle)
-end
 end

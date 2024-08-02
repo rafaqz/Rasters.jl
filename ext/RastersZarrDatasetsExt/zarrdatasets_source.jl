@@ -11,22 +11,6 @@ function RA._open(f, ::Zarrsource, filename::AbstractString; write=false, kw...)
     RA._open(f, Zarrsource(), ds; kw...)
 end
 
-function Base.write(filename::AbstractString, ::Zarrsource, A::AbstractRaster;
-    append=false,
-    force=false,
-    kw...
-)
-    writeable = RA.check_can_write(filename, force)
-    mode="c"
-    ds = ZarrDataset(filename, mode; attrib=RA._attribdict(metadata(A)))
-    try
-        RA._writevar!(ds, A; kw...)
-    finally
-        close(ds)
-    end
-    return filename
-end
-
 
 # Hack to get the inner DiskArrays chunks as they are not exposed at the top level
 RA._get_eachchunk(var::ZD.ZarrVariable) = DiskArrays.eachchunk(var.zarray)
