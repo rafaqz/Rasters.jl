@@ -1,4 +1,4 @@
-# Accept either Symbol or String keys, but allways convert to Symbol
+# Accept either Symbol or String keys, but always convert to Symbol
 const Key = Union{Symbol,AbstractString}
 
 const MAX_STACK_SIZE = 200
@@ -55,7 +55,8 @@ _maybe_collapse_missingval(mv) = mv
 # DimensionalData methods ######################################################
 
 # Always read a stack before loading it as a table.
-DD.DimTable(stack::AbstractRasterStack) = invoke(DD.DimTable, Tuple{DD.AbstractDimStack}, read(stack))
+DD.DimTable(stack::AbstractRasterStack; checkmem=CHECKMEM[]) =
+    invoke(DD.DimTable, Tuple{DD.AbstractDimStack}, read(stack; checkmem))
 
 function DD.layers(s::AbstractRasterStack{<:Any,<:Any,<:Any,<:FileStack{<:Any,Keys}}) where Keys
     NamedTuple{Keys}(map(K -> s[K], Keys))
@@ -239,7 +240,7 @@ function RasterStack(data::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}, d
 )
     if isnokw(layerdims)
         # TODO: make this more sophisticated and match dimension length to axes?
-        # We dont worry about Raster keywords because these rasters will be deconstructed 
+        # We don't worry about Raster keywords because these rasters will be deconstructed 
         # again later, and `kw` will define the RasterStack keywords
         layers = map(data) do A
             Raster(A, dims[1:ndims(A)])
@@ -552,7 +553,7 @@ end
 
 
 function _layerkeysfromdim(A, dim)
-    hasdim(A, dim) || throw(ArgumentError("`layersrom` dim `$(name(dim))` not found in `$(map(basetypeof, dims(A)))`"))
+    hasdim(A, dim) || throw(ArgumentError("`layersfrom` dim `$(name(dim))` not found in `$(map(basetypeof, dims(A)))`"))
     vals = parent(lookup(A, dim))
     l = length(vals)
     if l > MAX_STACK_SIZE

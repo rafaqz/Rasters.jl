@@ -1,3 +1,21 @@
+const CHECKMEM = Ref(true)
+
+"""
+    checkmem!(x::Bool)
+
+Set `checkmem` to `true` or `false`.
+
+In some architectures memory reporting may be wrong and you may
+wish to disable memory checks.
+
+This setting can be overridden with the `checkmem` keyword, where applicable.
+"""
+function checkmem!(checkmem::Bool) 
+    !checkmem || @warn "Setting `checkmem` to `false` globally may lead to out-of-memory errors or system crashes"
+    CHECKMEM[] = checkmem
+    return checkmem
+end
+
 const FLATTEN_SELECT = FileArray
 const FLATTEN_IGNORE = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
 
@@ -172,26 +190,19 @@ end
 # Concrete implementation ######################################################
 
 """
-    Raster <: AbsractRaster
+    Raster <: AbstractRaster
 
     Raster(filepath::String; kw...)
     Raster(A::AbstractDimArray; kw...)
     Raster(A::AbstractArray, dims; kw...)
 
-A generic [`AbstractRaster`](@ref) for spatial/raster array data. It may hold
-memory-backed arrays or [`FileArray`](@ref), that simply holds the `String` path
-to an unopened file. This will only be opened lazily when it is indexed with `getindex`
-or when `read(A)` is called. Broadcasting, taking a view, reversing and most other
-methods _do not_ load data from disk: they are applied later, lazily.
+A generic [`AbstractRaster`](@ref) for spatial/raster array data. It can hold 
+either memory-backed arrays or, if `lazy=true`, a [`FileArray`](@ref), 
+which stores the `String` path to an unopened file. 
 
-An `AbatractArray` for spatial/raster data.
-
-It may hold memory-backed arrays or, when `lazy=true` a [`FileArray`](@ref)
-that simply holds the `String` path to an unopened file.
-
-WIth `lazy=true` the file will be opened lazily when it is indexed with `getindex`
-or when `read(A)` is called. Broadcasting, taking a view, reversing and most other
-methods _will not_ load data from disk: they are applied later, lazily.
+If `lazy=true`, the file will only be opened lazily when it is indexed with `getindex` 
+or when `read(A)` is called. Broadcasting, taking a view, reversing, and most other 
+methods will _not_ load data from disk; they will be applied later, lazily.
 
 # Arguments
 
@@ -199,9 +210,10 @@ methods _will not_ load data from disk: they are applied later, lazily.
 
 # Keywords
 
-- `name`: a `Symbol` name for the array, which will also retreive named layers if `Raster`
-    is used on a multi-layered file like a NetCDF. `name` becomes the layer name if the `Raster`
-    is combined into a `RasterStack`.
+- `name`: a `Symbol` name for the array, which will also retrieve the, alphabetically first, 
+    named layer if `Raster` is used on a multi-layered file like a NetCDF. 
+    If instead `RasterStack` is used to read the multi-layered file, by default, all variables 
+    will be added to the stack.
 $GROUP_KEYWORD 
 - `missingval`: value reprsenting missing data, normally detected from the file. Set manually
     when you know the value is not specified or is incorrect. This will *not* change any
@@ -307,6 +319,7 @@ function Raster(ds, filename::AbstractString;
     write=false,
     lazy=false,
     dropband=true,
+    checkmem=CHECKMEM[],
 )::Raster
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
@@ -319,7 +332,7 @@ function Raster(ds, filename::AbstractString;
             A = FileArray{typeof(source)}(var, filename; name=name1, group, write)
             rm ? _replace_missing(A, missingval1) : A
         else
-            _checkmem(var)
+            checkmem && _checkobjmem(var)
             x = Array(rm ? _replace_missing(var, missingval1) : var)
             x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
         end

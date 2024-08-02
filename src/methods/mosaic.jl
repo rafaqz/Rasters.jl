@@ -41,9 +41,9 @@ b = plot(aus)
 mos = mosaic(first, aus, africa)
 c = plot(mos)
 
-savefig(a, "docs/build/mosaic_example_africa.png")
-savefig(b, "docs/build/mosaic_example_aus.png")
-savefig(c, "docs/build/mosaic_example_combined.png")
+savefig(a, "build/mosaic_example_africa.png")
+savefig(b, "build/mosaic_example_aus.png")
+savefig(c, "build/mosaic_example_combined.png")
 nothing
 # output
 
@@ -51,13 +51,13 @@ nothing
 
 ### Individual continents
 
-![arica](../build/mosaic_example_africa.png)
+![arica](mosaic_example_africa.png)
 
-![aus](../build/mosaic_example_aus.png)
+![aus](mosaic_example_aus.png)
 
 ### Mosaic of continents
 
-![mosaic](../build/mosaic_example_combined.png)
+![mosaic](mosaic_example_combined.png)
 
 $EXPERIMENTAL
 """
@@ -125,13 +125,13 @@ aus = st[X=100.0 .. 160.0, Y=-50.0 .. -10.0]
 africa = st[X=-20.0 .. 60.0, Y=-40.0 .. 35.0]
 mosaic!(first, st, aus, africa)
 plot(st)
-savefig("docs/build/mosaic_bang_example.png")
+savefig("build/mosaic_bang_example.png")
 nothing
 # output
 
 ```
 
-![mosaic](../build/mosaic_bang_example.png)
+![mosaic](mosaic_bang_example.png)
 
 $EXPERIMENTAL
 """
@@ -199,8 +199,8 @@ function _mosaic(span::Regular, lookup::AbstractSampled, lookups::LookupTuple)
         mi = minimum(map(first, lookups))
         ma = maximum(map(last, lookups))
         if mi isa AbstractFloat
-            # Handle slight range erorrs to make sure
-            # we dont drop one step of the range
+            # Handle slight range errors to make sure
+            # we don't drop one step of the range
             mi:step(span):ma + 2eps(ma)
         else
             mi:step(span):ma
@@ -222,7 +222,7 @@ function _mosaic(::Irregular, lookup::AbstractSampled, lookups::LookupTuple)
     return rebuild(lookup; data=newindex)
 end
 function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::LookupTuple)
-    # TODO make this less fragile to floating point innaccuracy
+    # TODO make this less fragile to floating point inaccuracy
     newindex = sort(union(map(parent, lookups)...); order=LA.ordering(order(lookup)))
     bounds = map(val ∘ DD.span, lookups)
     lower = map(b -> view(b, 1, :), bounds)

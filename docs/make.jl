@@ -1,16 +1,13 @@
 using Documenter, Rasters, Plots, Logging, Statistics, Dates, 
     RasterDataSources, ArchGDAL, NCDatasets, CoordinateTransformations
 import Makie, CairoMakie
-using DocumenterMarkdown
+using DocumenterVitepress
 using Rasters.LookupArrays, Rasters.Dimensions
 
 # Don't output huge svgs for Makie plots
 CairoMakie.activate!(type = "png")
 
-# Fix some GR.jl CI bug
-ENV["GKSwstype"] = "100"
-
-# Plots warnings are brWarn doctests. They dont warn the second time.
+# Plots warnings are brWarn doctests. They don't warn the second time.
 # Downloads also show op in doctests. So download everything first.
 function flush_info_and_warnings()
     # RasterStack(AWAP, (:tmin, :tmax); date=DateTime(2001, 1, 1))
@@ -26,6 +23,7 @@ Logging.disable_logging(Logging.Warn)
 
 # Make the docs, without running the tests again
 # We need to explicitly add all the extensions here
+
 makedocs(
     modules = [
         Rasters,
@@ -39,23 +37,24 @@ makedocs(
     authors="Rafael Schouten et al.",
     clean=true,
     doctest=true,
-    strict=[
-        :doctest,
-        :linkcheck,
-        :parse_error,
-        :example_block,
-        # Other available options are
-        # :autodocs_block, :cross_references, :docs_block, :eval_block, :example_block,
-        # :footnote, :meta_block, :missing_docs, :setup_block
-    ], checkdocs=:all, format=Markdown(), draft=false,
-    build=joinpath(@__DIR__, "docs")
+    checkdocs=:all,
+    format=DocumenterVitepress.MarkdownVitepress(
+        repo = "github.com/rafaqz/Rasters.jl", # this must be the full URL!
+        devbranch = "main",
+        devurl = "dev";
+    ),
+    draft = false,
+    source = "src",
+    build = "build",
+    warnonly=true,
 )
 
 # Enable logging to console again
 Logging.disable_logging(Logging.BelowMinLevel)
 
-deploydocs(; repo="github.com/rafaqz/Rasters.jl.git", push_preview=true,
-    deps=Deps.pip("mkdocs", "pygments", "python-markdown-math", "mkdocs-material",
-        "pymdown-extensions", "mkdocstrings", "mknotebooks",
-        "pytkdocs_tweaks", "mkdocs_include_exclude_files", "jinja2", "mkdocs-video"),
-    make=() -> run(`mkdocs build`), target="site", devbranch="main")
+deploydocs(; repo="github.com/rafaqz/Rasters.jl.git",
+    target = "build", # this is where Vitepress stores its output
+    branch = "gh-pages",
+    devbranch = "main",
+    push_preview = true
+    )

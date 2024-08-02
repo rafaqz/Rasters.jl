@@ -1,11 +1,11 @@
 const COVERAGE_DOC = """
-Calculate the area of a raster covered by GeoInterface.jl compatible geomtry `geom`,
+Calculate the area of a raster covered by GeoInterface.jl compatible geometry `geom`,
 as a fraction.
 
 Each pixel is assigned a grid of points (by default 10 x 10) that are each checked
 to be inside the geometry. The sum divided by the number of points to give coverage.
 
-In pracice, most pixel coverage is not calculated this way - shortcuts that 
+In practice, most pixel coverage is not calculated this way - shortcuts that 
 produce the same result are taken wherever possible.
 
 If `geom` is an `AbstractVector` or table, the `mode` keyword will determine how coverage is combined.
@@ -39,11 +39,12 @@ $COVERAGE_DOC
 
 $COVERAGE_KEYWORDS
 $TO_KEYWORD
+$GEOMETRYCOLUMN_KEYWORD
 $SIZE_KEYWORD
 $RES_KEYWORD
 """
-coverage(data; to=nothing, mode=union, scale=10, kw...) = _coverage(to, data; mode, scale, kw...)
-coverage(f::Union{typeof(sum),typeof(union)}, data; kw...) = coverage(data; kw..., mode=f)
+coverage(data; to=nothing, mode=union, scale=10,geometrycolumn=nothing, kw...) = _coverage(to, data; mode, scale, geometrycolumn, kw...)
+coverage(f::Union{typeof(sum),typeof(union)}, data; geometrycolumn=nothing, kw...) = coverage(data; geometrycolumn, kw..., mode=f)
 
 function _coverage(to, data; mode, scale, kw...)
     name = if GI.isgeometry(data) || GI.isfeature(data)
@@ -118,10 +119,9 @@ end
 
 # Combines coverage at the sub-pixel level for a final value 0-1
 function _union_coverage!(A::AbstractRaster, geoms, buffers; 
-    scale, subpixel_dims, progress=true, threaded=false
+    scale, subpixel_dims, progress=true, threaded=false, checkmem=CHECKMEM[],
 )
-    _check_buffer_mem(A, scale)
-    threaded, n = _check_buffer_thread_mem(A, scale, threaded)
+    threaded, n = _check_buffer_thread_mem(A; scale, threaded, checkmem)
     buffer_size = size(A) .* scale
     centeracc = [_init_bools(A, BitArray; missingval=false) for _ in 1:n]
     lineacc = [_init_bools(A, BitArray; missingval=false) for _ in 1:n]
@@ -185,10 +185,11 @@ function _union_coverage!(A::AbstractRaster, geom;
     subbuffer=falses(scale, scale),
     subpixel_dims=_subpixel_dims(A, scale),
     ncrossings=fill(0, scale),
+    checkmem=CHECKMEM[],
 )
 
     if isnothing(subpixel_buffer)
-        _check_buffer_mem(A, scale)
+        checkmem && _check_buffer_mem(A, scale)
         subpixel_buffer = falses(size(A) .* scale)
     end
     GI.isgeometry(geom) || error("not a geometry")
@@ -383,19 +384,25 @@ function _subpixel_dims(A, scale)
     end
 end
 
-_buffer_bytes(A, scale) = prod(size(A) .* scale) / 8
-function _check_buffer_mem(A, scale)
-    buffer_bytes = _buffer_bytes(A, scale)
-    Sys.free_memory() < buffer_bytes && throw(ArgumentError("Not enought memory for `coverage` at `scale=$scale`. Try a smaller number for the `scale` keyword."))
-end
-function _check_buffer_thread_mem(A, scale, threaded::Bool)
+_buffer_bytes(A, scale) = prod(size(A) .* scale) ÷ 8 # bits to bytes
+
+function _check_buffer_thread_mem(A; scale, threaded, checkmem)
     n = threaded ? _nthreads() : 1
-    if Sys.free_memory() < _buffer_bytes(A, scale) * n
+    if checkmem && n > 1 && Sys.free_memory() < _buffer_bytes(A, scale) * n
         @warn "Not enough memory to use `threaded=true` with `scale=$scale`. Using `threaded=false`"
         threaded = false
         n = 1
     end
+    checkmem && _check_buffer_mem(A, scale)
     return threaded, n
+end
+
+function _check_buffer_mem(A, scale)
+    bytes = _buffer_bytes(A, scale)
+    f = x -> let scale=scale
+        "Not enough memory for `coverage` at `scale=$scale`. Try a smaller number for the `scale` keyword."
+    end
+    _checkmem(f, bytes)
 end
 
 function _check_missed_pixels(missed_pixels::Int, scale::Int)

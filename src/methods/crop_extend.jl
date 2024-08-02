@@ -1,18 +1,20 @@
 """
-    crop(x; to)
+    crop(x; to, touches=false, [geometrycolumn])
     crop(xs...; to)
 
 Crop one or multiple [`AbstractRaster`](@ref) or [`AbstractRasterStack`](@ref) `x`
 to match the size of the object `to`, or smallest of any dimensions that are shared.
 
-`crop` is lazy, using a `view` into the object rather than alocating new memory.
+`crop` is lazy, using a `view` into the object rather than allocating new memory.
 
 # Keywords
 
-- `to`: the object to crop to. If no `to` keyword is passed, the smallest shared
-    area of all `xs` is used.
+- `to`: the object to crop to. This can be $OBJ_ARGUMENT 
+  If no `to` keyword is passed, the smallest shared area of all `xs` is used.
 - `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
+
    When lines need to be included in e.g. zonal statistics, `true` should be used.
+$GEOMETRYCOLUMN_KEYWORD
 
 As `crop` is lazy, `filename` and `suffix` keywords are not used.
 
@@ -33,13 +35,13 @@ nz_evenness = evenness[nz_bounds...]
 nz_range = crop(rnge; to=nz_evenness)
 plot(nz_range)
 
-savefig("docs/build/nz_crop_example.png")
+savefig("build/nz_crop_example.png")
 nothing
 
 # output
 ```
 
-![new zealand evenness cropped](../build/nz_crop_example.png)
+![new zealand evenness cropped](nz_crop_example.png)
 
 Crop to a polygon:
 
@@ -56,15 +58,16 @@ evenness = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 argentina_evenness = crop(evenness; to=shp)
 plot(argentina_evenness)
 
-savefig("docs/build/argentina_crop_example.png"); nothing
+savefig("build/argentina_crop_example.png"); nothing
 
 # output
 ```
 
-![argentina evenness cropped](../build/argentina_crop_example.png)
+![argentina evenness cropped](argentina_crop_example.png)
 
 $EXPERIMENTAL
 """
+
 function crop end
 function crop(l1::RasterStackOrArray, l2::RasterStackOrArray, ls::RasterStackOrArray...; kw...)
     crop((l1, l2, ls...); kw...)
@@ -77,11 +80,11 @@ function crop(xs; to=nothing, kw...)
         map(l -> crop(l; to, kw...), xs)
     end
 end
-crop(x::RasterStackOrArray; to, kw...) = _crop_to(x, to; kw...)
+crop(x::RasterStackOrArray; to, geometrycolumn=nothing, kw...) = _crop_to(x, to; geometrycolumn, kw...)
 
 # crop `A` to values of dims of `to`
-function _crop_to(x, to; kw...)
-    ext = _extent(to)
+function _crop_to(x, to; geometrycolumn, kw...)
+    ext = _extent(to; geometrycolumn)
     if isnothing(ext)
         if isnothing(dims(to))
             throw(ArgumentError("No dims or extent available on `to` object of type $(typeof(to))"))
@@ -94,14 +97,14 @@ function _crop_to(x, to; kw...)
 end
 _crop_to(A, to::RasterStackOrArray; dims=DD.dims(to), kw...) = _crop_to(A, DD.dims(to, dims); kw...)
 _crop_to(x, to::Dimension; kw...) = _crop_to(x, (to,); kw...)
-function _crop_to(x, to::DimTuple; kw...)
+function _crop_to(x, to::DimTuple; touches=false, kw...)
     # We can only crop to sampled dims (e.g. not categorical dims like Band)
     sampled = reduce(to; init=()) do acc, d
         lookup(d) isa AbstractSampled ? (acc..., d) : acc
     end
-    return _crop_to(x, Extents.extent(sampled); kw...)
+    return _crop_to(x, Extents.extent(sampled); touches)
 end
-function _crop_to(x, to::Extents.Extent; touches=false)
+function _crop_to(x, to::Extents.Extent; touches=false, kw...)
     # Take a view over the bounds
     _without_mapped_crs(x) do x1
         if touches
@@ -124,7 +127,7 @@ covered by all `xs`, or by the keyword argument `to`.
 
 - `to`: the Raster or dims to extend to. If no `to` keyword is passed, the largest
     shared area of all `xs` is used.
-- `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
+- `touches`: `true` or `false`. Whether to use `Touches` wrapper on the object extent.
    When lines need to be included in e.g. zonal statistics, `true` shoudle be used.
 $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
@@ -142,12 +145,12 @@ sa_evenness = evenness[sa_bounds...]
 sa_range = extend(sa_evenness; to=rnge)
 plot(sa_range)
 
-savefig("docs/build/extend_example.png")
+savefig("build/extend_example.png")
 nothing
 # output
 ```
 
-![extend](../build/extend_example.png)
+![extend](extend_example.png)
 
 $EXPERIMENTAL
 """

@@ -68,7 +68,7 @@ function RasterCreator(to::DimTuple;
 end
 RasterCreator(to::AbstractRaster, data; kw...) = RasterCreator(dims(to); kw...)
 RasterCreator(to::AbstractRasterStack, data; kw...) = RasterCreator(dims(to); name, kw...)
-RasterCreator(to::Nothing, data; kw...) = RasterCreator(_extent(data); kw...)
+RasterCreator(to::Nothing, data; kw...) = RasterCreator(_extent(data; kw...); kw...)
 RasterCreator(to, data; kw...) = RasterCreator(_extent(to); kw...)
 function RasterCreator(to::Extents.Extent;
     res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing,
@@ -136,40 +136,15 @@ function Rasterizer(geom, fill, fillitr;
         !GI.isgeometry(geom) &&
         !GI.trait(first(geom)) isa GI.PointTrait &&
         !(reducer in stable_reductions)
-        @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be innaccurate for `reducer` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
+        @warn "currently `:points` rasterization of multiple non-`PointTrait` geometries may be inaccurate for `reducer` methods besides $stable_reductions. Make a Rasters.jl github issue if you need this to work"
     end
     eltype, missingval, init = get_eltype_missingval(eltype, missingval, fill, fillitr, init, filename, op, reducer)
     lock = threaded ? Threads.SpinLock() : nothing
 
     return Rasterizer(eltype, geom, fillitr, reducer, op, init, missingval, lock, shape, boundary, verbose, progress, threaded, threadsafe_op)
 end
-function Rasterizer(data::T; fill, geomcolumn=nothing, kw...) where T
-    if Tables.istable(T) # typeof so we dont check iterable table fallback in Tables.jl
-        schema = Tables.schema(data)
-        cols = Tables.columns(data)
-        colnames = Tables.columnnames(Tables.columns(data))
-        fillitr = _iterable_fill(nothing, cols, fill)
-        # If fill is a symbol or tuple of Symbol we need to allocate based on the column type
-        geomcolname = if isnothing(geomcolumn)
-            geomcols = GI.geometrycolumns(data)
-            isnothing(geomcols) ? nothing : first(geomcols)
-        else
-            geomcolumn
-        end
-
-        geometries = if geomcolname isa Symbol && geomcolname in Tables.columnnames(cols)
-            # Its a geometry table
-            Tables.getcolumn(cols, geomcolname)
-        else
-            # Its a point table
-            pointcolnames = isnothing(geomcolumn) ? map(name, _auto_dim_columns(data, DEFAULT_POINT_ORDER)) : geomcolumn
-            pointcols = map(k -> Tables.getcolumn(cols, k), pointcolnames)
-            zip(pointcols...)
-        end
-        Rasterizer(geometries, fill, fillitr; kw...)
-    else
-        Rasterizer(GeoInterface.trait(data), data; fill, kw...)
-    end
+function Rasterizer(data::T; fill, geometrycolumn=nothing, kw...) where T
+    Rasterizer(GI.trait(data), data; fill, geometrycolumn, kw...)
 end
 function Rasterizer(trait::GI.AbstractFeatureCollectionTrait, fc; fill, kw...)
     fillitr = _iterable_fill(trait, fc, fill)
@@ -185,8 +160,9 @@ function Rasterizer(trait::GI.GeometryCollectionTrait, collection; kw...)
     geoms = collect(GI.getgeom(collection))
     Rasterizer(geoms; kw...)
 end
-function Rasterizer(trait::Nothing, geoms; fill, kw...)
-    fillitr = _iterable_fill(trait, geoms, fill)
+function Rasterizer(trait::Nothing, data; fill, geometrycolumn, kw...)
+    geoms = _get_geometries(data, geometrycolumn)
+    fillitr = _iterable_fill(trait, data, fill)
     Rasterizer(geoms, fill, fillitr; kw...)
 end
 function Rasterizer(trait::GI.AbstractGeometryTrait, geom; fill, kw...)
@@ -299,13 +275,12 @@ function _iterable_fill(trait, data, fill)
         return fill
     elseif fill isa Number 
         return Iterators.cycle(fill)
-    elseif Tables.istable(typeof(data))
-        # we don't need the keys, just the column length
-        data = first(Tables.columns(data))
     end
 
     if trait isa GI.FeatureCollectionTrait
         n = GI.nfeature(data)
+    elseif Tables.istable(data)
+        n = length(Tables.rows(data))
     elseif Base.IteratorSize(data) isa Union{Base.HasShape,Base.HasLength}
         n = length(data)
     else
@@ -344,7 +319,7 @@ const RASTERIZE_KEYWORDS = """
     when `data` is a Tables.jl compatible table, or a tuple of `Symbol` for columns of
     point coordinates.
 - `progress`: show a progress bar, `true` by default, `false` to hide..
-- `verbose`: print information and warnings whne there are problems with the rasterisation.
+- `verbose`: print information and warnings when there are problems with the rasterisation.
     `true` by default.
 $THREADED_KEYWORD
 - `threadsafe`: specify that custom `reducer` and/or `op` functions are thread-safe, 
@@ -363,16 +338,15 @@ const RASTERIZE_ARGUMENTS = """
     including `sum`, `first`, `last`, `minimum`, `maximum`, `extrema` and `Statistics.mean`.
     These may be an order of magnitude or more faster than
     `count` is a special-cased as it does not need a fill value.
-- `data`: a GeoInterface.jl `AbstractGeometry`, or a nested `Vector` of `AbstractGeometry`,
-    or a Tables.jl compatible object containing a `:geometry` column or points and values columns.
+$DATA_ARGUMENT
 """
 
 """
-    rasterize([reducer], data; kw...)
+    rasterize([reducer], data; geometrycolumn, kw...)
 
 Rasterize a GeoInterface.jl compatable geometry or feature,
 or a Tables.jl table with a `:geometry` column of GeoInterface.jl objects,
-or `X`, `Y` points columns.
+or points columns specified by `geometrycolumn`
 
 # Arguments
 
@@ -382,6 +356,7 @@ $RASTERIZE_ARGUMENTS
 
 These are detected automatically from `data` where possible.
 
+$GEOMETRYCOLUMN_KEYWORD
 $GEOM_KEYWORDS
 $RASTERIZE_KEYWORDS
 $FILENAME_KEYWORD
@@ -416,13 +391,13 @@ china = rasterize(last, china_border; res=0.1, missingval=0, fill=1, boundary=:t
 p = plot(china; color=:spring, legend=false)
 plot!(p, china_border; fillalpha=0, linewidth=0.6)
 
-savefig("docs/build/china_rasterized.png"); nothing
+savefig("build/china_rasterized.png"); nothing
 
 # output
 
 ```
 
-![rasterize](../build/china_rasterized.png)
+![rasterize](china_rasterized.png)
 
 $EXPERIMENTAL
 """
@@ -444,15 +419,15 @@ function rasterize(reducer::typeof(count), data; fill=nothing, init=nothing, kw.
     rasterize(data; kw..., name=:count, init=0, reducer=nothing, fill=_count_fill, missingval=0)
 end
 # `mean` is sum ./ count. This is actually optimal with threading, 
-# as its means order is irrelivent so its threadsafe.
+# as its means order is irrelevant so its threadsafe.
 function rasterize(reducer::typeof(DD.Statistics.mean), data; fill, kw...)
     sums = rasterize(sum, data; kw..., fill)
     counts = rasterize(count, data; kw..., fill=nothing)
     rebuild(sums ./ counts; name=:mean)
 end
-function rasterize(data; to=nothing, fill, threaded=false, kw...)
+function rasterize(data; to=nothing, fill, threaded=false, geometrycolumn=nothing, kw...)
     r = Rasterizer(data; fill, threaded, kw...)
-    rc = RasterCreator(to, data; kw..., eltype=r.eltype, fill, missingval=r.missingval)
+    rc = RasterCreator(to, data; geometrycolumn, kw..., eltype=r.eltype, fill, missingval=r.missingval)
     allocs = r.shape == :points ? nothing : _burning_allocs(rc.to; threaded)
     return create_rasterize_dest(rc) do dest
         _rasterize!(dest, r; allocs)
@@ -465,7 +440,7 @@ end
 # create_rasterize_dest
 # We create a Raster or RasterStack and apply f to it.
 # This may be on disk, which is the reason for applying f rather than just
-# returning the initiallised object - we may need to open it to be able to write.
+# returning the initialised object - we may need to open it to be able to write.
 create_rasterize_dest(f, r::RasterCreator) = create_rasterize_dest(f, r.eltype, r)
 # function _create_rasterize_dest(f, dims; fill, name=nothing, init=nothing, kw...)
     # _create_rasterize_dest(f, fill, init, name, dims; fill, kw...)
@@ -558,13 +533,13 @@ rasterize!(last, A, islands; fill=1:length(islands), progress=false)
 p = plot(Rasters.trim(A); color=:spring)
 plot!(p, indonesia_border; fillalpha=0, linewidth=0.7)
 
-savefig("docs/build/indonesia_rasterized.png"); nothing
+savefig("build/indonesia_rasterized.png"); nothing
 
 # output
 
 ```
 
-![rasterize](../build/indonesia_rasterized.png)
+![rasterize](indonesia_rasterized.png)
 
 $EXPERIMENTAL
 """
@@ -576,12 +551,12 @@ function rasterize!(reducer::typeof(count), x::RasterStackOrArray, data; fill=no
     isnothing(init) || @info _count_init_info(init)
     rasterize!(x::RasterStackOrArray, data; kw..., reducer=nothing, op=nothing, fill=_count_fill, init=0)
 end
-function rasterize!(x::RasterStackOrArray, data; threaded=false, kw...)
+function rasterize!(x::RasterStackOrArray, data; threaded=false, geometrycolumn=nothing,kw...)
     if prod(size(x)) == 0  
         @warn "Destination is empty, rasterization skipped"
         return x
     end
-    r = Rasterizer(data; eltype=eltype(x), threaded, kw...)
+    r = Rasterizer(data; eltype=eltype(x), threaded, geometrycolumn, kw...)
     allocs = r.shape == :points ? nothing : _burning_allocs(dims(x); threaded)
     return _rasterize!(x, r; allocs)
 end
@@ -902,7 +877,7 @@ end
 
 # _apply_reduction!
 #
-# Apply a reducing functin over an iterable
+# Apply a reducing function over an iterable
 # This is applied for all reducing methods that don't have a matching `op` method
 @inline function _apply_reduction!(::Type{T}, f, fill, pixel_geom_list) where T
     any(pixel_geom_list) || return nothing
@@ -950,7 +925,7 @@ Base.@assume_effects :total _choose_fill(op::Nothing, a, fc::FillChooser{<:Funct
 # No op fill is a function, no init fill a (repeated to avoid ambiguity)
 Base.@assume_effects :total _choose_fill(op::Nothing, a, fc::FillChooser{<:Function,Nothing,Missing}) = fc.fill(a)
 # Op is a function, fill is not, missingval===missing
-# apply retudcing op to a and fill, or to init and fill if a equals missing and init exists
+# apply reducing op to a and fill, or to init and fill if a equals missing and init exists
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser{<:Any,<:Any,Missing}) where F<:Function
     a1 = ismissing(a) ? fc.init : a
     _apply_op(op, a1, fc.fill)
@@ -967,7 +942,7 @@ Base.@assume_effects :total function _choose_fill(op, a, fc::FillChooser)
     fc.fill
 end
 # Op is a function, fill is not, missingval===missing
-# apply retudcing op to a and fill, or to init and fill if a equals missingval and init exists
+# apply reducing op to a and fill, or to init and fill if a equals missingval and init exists
 # @inline function _choose_fill(a, fill, op::F, init::Nothing, missingval) where F<:Function
 #     _apply_op(op, a, fill)
 # end

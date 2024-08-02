@@ -34,8 +34,8 @@ a = plot(aus)
 # Trim missing values and plot
 b = plot(trim(aus))
 
-savefig(a, "docs/build/trim_example_before.png");
-savefig(b, "docs/build/trim_example_after.png"); nothing
+savefig(a, "build/trim_example_before.png");
+savefig(b, "build/trim_example_after.png"); nothing
 
 # output
 
@@ -43,11 +43,11 @@ savefig(b, "docs/build/trim_example_after.png"); nothing
 
 ### Before `trim`:
 
-![before trim](../build/trim_example_before.png)
+![before trim](trim_example_before.png)
 
 ### After `trim`:
 
-![after trim](../build/trim_example_after.png)
+![after trim](trim_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -84,7 +84,7 @@ end
 
 # Tracks the status of an index for some subset of dimensions of an Array
 # This lets us track e.g. the X/Y indices that have only missing values
-# accross all other dimensions.
+# across all other dimensions.
 # This is a hack to work with DiskArrays broadcast chunking without allocations.
 struct AxisTrackers{N,Tr,D,TD} <: AbstractArray{Bool,N}
     tracking::Tr

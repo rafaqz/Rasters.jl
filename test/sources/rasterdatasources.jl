@@ -96,7 +96,7 @@ if Sys.islinux()
         A = Raster(AWAP, :rainfall; date=DateTime(2019, 10, 19), lazy=true)
         @test crs(A) == EPSG(4326)
         # ALWB :solar has a broken index - the size is different and the
-        # points dont exactly match the other layers.
+        # points don't exactly match the other layers.
         # Need to work out how to best resolve this kind of problem so that we can
         # still use the layers in stacks.
         layers = (:rainfall, :vprpress09, :vprpress15, :tmin, :tmax)

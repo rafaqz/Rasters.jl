@@ -28,6 +28,7 @@ linearring = ArchGDAL.createlinearring(pointvec)
 pointfc = map(GeoInterface.getpoint(polygon), vals) do geom, v
     (geometry=geom, val1=v, val2=2.0f0v)
 end
+polytemplate = Raster(ones(X(-20:5; sampling=Intervals(Center())), Y(0:30; sampling=Intervals(Center()))))
 
 test_shape_dir = realpath(joinpath(dirname(pathof(Shapefile)), "..", "test", "shapelib_testcases"))
 shp_paths = filter(x -> occursin("shp", x), readdir(test_shape_dir; join=true))
@@ -67,52 +68,76 @@ end
 
 @testset "boolmask" begin
     @test boolmask(ga) == [false true; true false]
+    @test boolmask(ga; invert=true) == [true false; false true]
     @test parent(boolmask(ga)) isa BitMatrix
     @test boolmask(ga99) == [false true; true false]
+    @test boolmask(ga99; invert=true) == [true false; false true]
     @test boolmask(gaNaN) == [false true; true false]
-    @test all(boolmask(st[(:b, :a)], alllayers = true) .=== [false true; true false])
-    @test all(boolmask(st[(:b, :a)], alllayers = false) .=== [true true; true false])    
-    @test all(boolmask(st[(:b, :a)], alllayers = false, missingval = 7.0) .=== [true true; true true])    
-    @test all(boolmask(st[(:b, :a)], alllayers = true, missingval = 7.0) .=== [true false; true true])    
-    @test all(boolmask(st, alllayers = true, missingval = (a = missing, b = 0.4)) .=== [false false; true false])    
-    @test_throws ArgumentError boolmask(st, alllayers = true, missingval = (b = missing, a = 0.4))  
+    @test boolmask(gaNaN; invert=true) == [true false; false true]
+    @test all(boolmask(st[(:b, :a)], alllayers=true) .=== [false true; true false])
+    @test all(boolmask(st[(:b, :a)], alllayers=true, invert=true) .=== [true false; false true])
+    @test all(boolmask(st[(:b, :a)], alllayers=false) .=== [true true; true false])    
+    @test all(boolmask(st[(:b, :a)], alllayers=false, invert=true) .=== [false false; false true])    
+    @test all(boolmask(st[(:b, :a)], alllayers=false, missingval=7.0) .=== [true true; true true])    
+    @test all(boolmask(st[(:b, :a)], alllayers=false, missingval=7.0, invert=true) .=== [false false; false false])    
+    @test all(boolmask(st[(:b, :a)], alllayers=true, missingval=7.0) .=== [true false; true true])    
+    @test all(boolmask(st[(:b, :a)], alllayers=true, missingval=7.0, invert=true) .=== [false true; false false])    
+    @test all(boolmask(st, alllayers=true, missingval=(a=missing, b=0.4)) .=== [false false; true false])    
+    @test_throws ArgumentError boolmask(st, alllayers=true, missingval=(b=missing, a=0.4))  
     se2 = RasterSeries([st.b, st.a], Rasters.Band(1:2))
-    @test all(boolmask(se2, alllayers = true) .=== [false true; true false])
-    @test all(boolmask(se2, alllayers = false) .=== [true true; true false])    
+    @test all(boolmask(se2, alllayers=true) .=== [false true; true false])
+    @test all(boolmask(se2, alllayers=false) .=== [true true; true false])    
     @test dims(boolmask(ga)) === dims(ga)
     x = boolmask(polygon; res=1.0) 
     @test x == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
+    @test all(x .!= boolmask(polygon; res=1.0, invert=true))
     @test parent(x) isa BitMatrix
     # With a :geometry axis
     x = boolmask([polygon, polygon]; collapse=false, res=1.0)
+    @test all(x .!= boolmask([polygon, polygon]; collapse=false, res=1.0, invert=true))
     @test eltype(x) == Bool
     @test size(x) == (20, 20, 2)
     @test sum(x) == 800
     @test parent(x) isa BitArray{3}
     x = boolmask([polygon, polygon]; collapse=true, res=1.0)
+    @test all(x .!= boolmask([polygon, polygon]; collapse=true, res=1.0, invert=true))
     @test size(x) == (20, 20)
     @test sum(x) == 400
     @test parent(x) isa BitMatrix
+    for poly in (polygon, multi_polygon) 
+        @test boolmask(poly; to=polytemplate) == .!boolmask(poly; to=polytemplate, invert=true)
+        @test boolmask(poly; to=polytemplate, shape=:line) == .!boolmask(poly; to=polytemplate, shape=:line, invert=true)
+        @test boolmask(poly; to=polytemplate, shape=:point) == .!boolmask(poly; to=polytemplate, shape=:point, invert=true)
+    end
 end
 
 @testset "missingmask" begin
     @test all(missingmask(ga) .=== [missing true; true missing])
+    @test all(missingmask(ga; invert=true) .=== [true missing; missing true])
     @test all(missingmask(ga99) .=== [missing true; true missing])
+    @test all(missingmask(ga99; invert=true) .=== [true missing; missing true])
     @test all(missingmask(gaNaN) .=== [missing true; true missing])
-    @test all(missingmask(st[(:b, :a)], alllayers = true) .=== [missing true; true missing])
-    @test all(missingmask(st[(:b, :a)], alllayers = false) .=== [true true; true missing])  
-    @test all(missingmask(st[(:b, :a)], alllayers = false, missingval = 7.0) .=== [true true; true true])    
-    @test all(missingmask(st[(:b, :a)], alllayers = true, missingval = 7.0) .=== [true missing; true true])      
+    @test all(missingmask(gaNaN; invert=true) .=== [true missing; missing true])
+
+    @test all(missingmask(st[(:b, :a)], alllayers=true) .=== [missing true; true missing])
+    @test all(missingmask(st[(:b, :a)], alllayers=true, invert=true) .=== [true missing; missing true])
+    @test all(missingmask(st[(:b, :a)], alllayers=false) .=== [true true; true missing])  
+    @test all(missingmask(st[(:b, :a)], alllayers=false, missingval = 7.0) .=== [true true; true true])    
+    @test all(missingmask(st[(:b, :a)], alllayers=true, missingval = 7.0) .=== [true missing; true true])      
     @test dims(missingmask(ga)) == dims(ga)
     @test all(missingmask(st[(:b, :a)], alllayers = true) .=== [missing true; true missing])
     @test all(missingmask(st[(:b, :a)], alllayers = false) .=== [true true; true missing])    
     mm_st2 = missingmask(st2)
-    @test dims(mm_st2) == dims(st2)
+    mm_st2_inverted = missingmask(st2; invert=true)
+    @test dims(mm_st2) == dims(mm_st2_inverted) == dims(st2)
     @test all(mm_st2 .=== [missing missing; true missing])    
+    @test all(mm_st2_inverted .=== [true true; missing true])    
     @test all(missingmask(st2, alllayers = false) .=== [missing; true])    
     @test all(missingmask(se) .=== missingmask(ga))
     @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
     x = missingmask([polygon, polygon]; collapse=false, res=1.0)
+    x_inverted = missingmask([polygon, polygon]; collapse=false, res=1.0, invert=true)
+    @test all(ismissing.(x_inverted))
     @test eltype(x) == Union{Bool,Missing}
     @test size(x) == (20, 20, 2)
     @test sum(x) == 800
@@ -120,6 +145,15 @@ end
     x = missingmask([polygon, polygon]; collapse=true, res=1.0)
     @test size(x) == (20, 20)
     @test sum(x) == 400
+    @test parent(x) isa Array{Union{Missing,Bool},2}
+    for poly in (polygon, multi_polygon) 
+        @test all(missingmask(poly; to=polytemplate) .=== 
+                  replace(missingmask(poly; to=polytemplate, invert=true), missing=>true, true=>missing))
+        @test all(missingmask(poly; to=polytemplate, shape=:line) .=== 
+                  replace(missingmask(poly; to=polytemplate, shape=:line, invert=true), missing=>true, true=>missing))
+        @test all(missingmask(poly; to=polytemplate, shape=:point) .=== 
+                  replace(missingmask(poly; to=polytemplate, shape=:point, invert=true), missing=>true, true=>missing))
+    end
 end
 
 @testset "mask" begin
@@ -128,11 +162,16 @@ end
     ga1 = Raster(A1, (X, Y); missingval=missing)
     ga2 = Raster(A2, (X, Y); missingval=missing)
     @test all(mask(ga1; with=ga) .=== mask(ga2; with=ga) .=== [missing 1; 2 missing])
+    @test all(mask(ga1; with=ga, invert=true) .=== mask(ga2; with=ga, invert=true) .=== [missing missing; missing 3])
     ga2 = replace_missing(ga1 .* 1.0; missingval=NaN)
     @test all(mask(ga2; with=ga) .=== [NaN 1.0; 2.0 NaN])
+    @test all(mask(ga2; with=ga, invert=true) .=== [NaN NaN; NaN 3.0])
     ga3 = replace_missing(ga1; missingval=-9999)
     mask!(ga3; with=ga)
     @test all(ga3 .=== [-9999 1; 2 -9999])
+    ga4 = replace_missing(ga1; missingval=-9999)
+    mask!(ga4; with=ga, invert=true)
+    @test all(ga4 .=== [-9999 -9999; -9999 3])
     dmask = mask(ga3; with=ga, filename="mask.tif")
     @test Rasters.isdisk(dmask)
     rm("mask.tif")
@@ -143,46 +182,61 @@ end
     poly = polygon
     @testset "to polygon" begin
         for poly in (polygon, multi_polygon) 
-            a1 = Raster(ones(X(-20:5; sampling=Intervals(Center())), Y(0:30; sampling=Intervals(Center()))))
-            st1 = RasterStack(a1, a1)
-            ser1 = RasterSeries([a1, a1], Ti(1:2))
+            st1 = RasterStack(polytemplate, polytemplate)
+            ser1 = RasterSeries([polytemplate, polytemplate], Ti(1:2))
             @test all(
-                mask(a1; with=polygon) .===
+                mask(polytemplate; with=polygon) .===
                 mask(st1; with=polygon)[:layer1] .===
                 mask(ser1; with=polygon)[1]
             )
+            @test all(
+                mask(polytemplate; with=polygon, invert=true) .===
+                mask(st1; with=polygon, invert=true)[:layer1] .===
+                mask(ser1; with=polygon, invert=true)[1] .===
+                replace(replace(mask(polytemplate; with=polygon), missing => 0.0, 1.0 => missing), 0.0 => 1.0)
+            )
+            @test all(
+                mask(polytemplate; with=polygon, invert=true, shape=:line) .===
+                mask(st1; with=polygon, invert=true, shape=:line)[:layer1] .===
+                mask(ser1; with=polygon, invert=true, shape=:line)[1] .===
+                replace(replace(mask(polytemplate; with=polygon, shape=:line), missing => 0.0, 1.0 => missing), 0.0 => 1.0)
+            )
             # TODO: investigate this more for Points/Intervals
             # Exactly how do we define when boundary values are inside/outside a polygon
-            @test sum(skipmissing(mask(a1; with=polygon, boundary=:inside))) == 19 * 19
-            @test sum(skipmissing(mask(a1; with=polygon, boundary=:center))) == 20 * 20
-            @test sum(skipmissing(mask(a1; with=polygon, boundary=:touches))) == 21 * 21
-            mask(a1; with=polygon, boundary=:touches)
-            mask(a1; with=polygon, boundary=:touches, shape=:line)
-            mask(a1; with=polygon, boundary=:inside)
-            mask(a1; with=polygon)
+            @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:inside))) == 19 * 19
+            @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:inside, invert=true))) == prod(size(polytemplate)) - 19 * 19
+            @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:center))) == 20 * 20
+            @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:center, invert=true))) == prod(size(polytemplate)) - 20 * 20
+            @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:touches))) == 21 * 21
+            @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:touches, invert=true))) == prod(size(polytemplate)) - 21 * 21
         end
     end
 end
 
 @testset "mask_replace_missing" begin
     # Floating point rasters
-    a = Raster([1.0 0.0; 1.0 1.0], dims=(X, Y), missingval=0)
-    b = Raster([1.0 1.0; 1.0 0.0], dims=(X, Y), missingval=0)
+    a = Raster([1.0 0.0; 1.0 1.0], dims=(X, Y), missingval=0.0)
+    b = Raster([1.0 1.0; 1.0 0.0], dims=(X, Y), missingval=0.0)
 
     # Integer rasters
     c = Raster([1 0; 1 1], dims=(X, Y), missingval=0)
     d = Raster([1 1; 1 0], dims=(X, Y), missingval=0)
 
     # Test that missingval is replaced in source mask (Floats)
-    @test isequal(mask(a, with=b, missingval=3.14), [1.0 3.14; 1.0 3.14]) # Test missingval = 3.14
-    @test isequal(mask(a, with=b, missingval=missing), [1.0 missing; 1.0 missing]) # Test missingval = missing
-    @test isequal(mask(a, with=b, missingval=NaN), [1.0 NaN; 1.0 NaN]) # Test missingval = NaN
-    @test isequal(mask(a, with=b, missingval=NaN32), [1.0 NaN; 1.0 NaN]) # Test convert NaN32 to NaN
-    @test isequal(mask(a, with=b, missingval=Inf), [1.0 Inf; 1.0 Inf]) # Test missingval = Inf
+    @test isequal(mask(a; with=b, missingval=3.14), [1.0 3.14; 1.0 3.14]) # Test missingval = 3.14
+    @test isequal(mask(a; with=b, missingval=3.14, invert=true), [3.14 3.14; 3.14 1.0]) # Test missingval = 3.14
+    @test isequal(mask(a; with=b, missingval=missing), [1.0 missing; 1.0 missing]) # Test missingval = missing
+    @test isequal(mask(a; with=b, missingval=missing, invert=true), [missing missing; missing 1.0]) # Test missingval = missing
+    @test isequal(mask(a; with=b, missingval=NaN), [1.0 NaN; 1.0 NaN]) # Test missingval = NaN
+    @test isequal(mask(a; with=b, missingval=NaN, invert=true), [NaN NaN; NaN 1.0]) # Test missingval = NaN
+    @test isequal(mask(a; with=b, missingval=NaN32), [1.0 NaN; 1.0 NaN]) # Test convert NaN32 to NaN
+    @test isequal(mask(a; with=b, missingval=Inf), [1.0 Inf; 1.0 Inf]) # Test missingval = Inf
     @test_throws MethodError mask(a, with=b, missingval=nothing)
 
     # Test that missingval is replaced in source mask (Ints)
     @test isequal(mask(c, with=d, missingval=missing), [1 missing; 1 missing]) # Test missingval = missing
+    @test isequal(mask(c, with=d, missingval=missing, invert=true), [missing missing; missing 1]) # Test missingval = missing
+    @test isequal(mask(c, with=d, missingval=-1.0), [1 -1; 1 -1])
     @test isequal(mask(c, with=d, missingval=-1.0), [1 -1; 1 -1])
     @test_throws MethodError mask(c, with=d, missingval=nothing)
     @test_throws InexactError mask(c, with=d, missingval=NaN)
@@ -221,7 +275,7 @@ end
     a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
     pointvec_empty = [(-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0)]
     polygon_empty = ArchGDAL.createpolygon(pointvec_empty)
-    zonal(sum, a; of=polygon) ==
+    @test zonal(sum, a; of=polygon) ==
         zonal(sum, a; of=[polygon, polygon])[1] ==
         zonal(sum, a; of=[polygon, polygon_empty])[1] ==
         zonal(sum, a; of=(geometry=polygon, x=:a, y=:b)) ==
@@ -285,11 +339,12 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
     rast = Raster(Union{Int,Missing}[1 2; 3 4], dimz; name=:test, missingval=missing)
     rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=5)
     rast_m = Raster([1 2; 3 missing], dimz; name=:test, missingval=missing)
-    table = (geometry=[missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)], foo=zeros(4))
+    mypoints = [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3), (10.0, 0.2)]
+    table = (geometry=mypoints, foo=zeros(4))
     st = RasterStack(rast, rast2)
     @testset "from Raster" begin
         # Tuple points
-        ex = extract(rast, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
+        ex = extract(rast, mypoints)
         T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
         @test eltype(ex) == T
         @test all(ex .=== T[
@@ -297,16 +352,17 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (geometry = (9.0, 0.1), test=1)
             (geometry = (9.0, 0.2), test=2)
             (geometry = (10.0, 0.3), test=missing)
+            (geometry = (10.0, 0.2), test=4)
         ])
-        ex = extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true)
+        ex = extract(rast_m, mypoints; skipmissing=true)
         T = @NamedTuple{geometry::Tuple{Float64, Float64}, test::Int64}
         @test eltype(ex) == T
         @test all(ex .=== T[(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2)])
-        ex = extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false)
+        ex = extract(rast_m, mypoints; skipmissing=true, geometry=false)
         T = @NamedTuple{test::Int64}
         @test eltype(ex) == T
         @test all(ex .=== T[(test = 1,), (test = 2,)])
-        @test all(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) .=== [
+        @test all(extract(rast_m, mypoints; skipmissing=true, geometry=false, index=true) .=== [
             (index = (1, 1), test = 1,)
             (index = (1, 2), test = 2,)
         ])
@@ -401,18 +457,22 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (9.0, 0.2), test = 2)
             (geometry = (10.0, 0.3), test = missing)
+            (geometry = (10.0, 0.2), test = 4)
         ])
         @test extract(rast, table; skipmissing=true) == [
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (9.0, 0.2), test = 2)
+            (geometry = (10.0, 0.2), test = 4)
         ]
         @test extract(rast, table; skipmissing=true, geometry=false) == [
             (test = 1,)
             (test = 2,)
+            (test = 4,)
         ]
         @test extract(rast, table; skipmissing=true, geometry=false, index=true) == [
             (index = (1, 1), test = 1,)
             (index = (1, 2), test = 2,)
+            (index = (2, 2), test = 4,)
         ]
 
         @test_throws ArgumentError extract(rast, (foo = zeros(4),))

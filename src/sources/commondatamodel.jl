@@ -66,7 +66,7 @@ function DiskArrays.writeblock!(A::CFDiskArray, data, i::AbstractUnitRange...)
     return data
 end
 
-# We have to dig down to find the chunks as they are not immplemented
+# We have to dig down to find the chunks as they are not implemented
 # in the CDM, but they are in their internal objects.
 DiskArrays.eachchunk(var::CFDiskArray) = _get_eachchunk(var)
 DiskArrays.haschunks(var::CFDiskArray) = _get_haschunks(var)
@@ -252,7 +252,7 @@ end
 
 # Utils ########################################################################
 
-# TODO dont load all keys here with _layers
+# TODO don't load all keys here with _layers
 _firstname(ds::AbstractDataset, name) = Symbol(name)
 function _firstname(ds::AbstractDataset, name::NoKW=nokw)
     names = _nondimnames(ds)
@@ -290,7 +290,7 @@ function _cdmfinddimlen(ds, dimname)
             return size(var)[findfirst(==(dimname), dimnames)]
         end
     end
-    return nothsng
+    return nothing
 end
 
 # Find the matching dimension constructor. If its an unknown name
@@ -402,7 +402,15 @@ end
 function _cdmspan(index, order)
     # Handle a length 1 index
     length(index) == 1 && return Regular(zero(eltype(index))), Points()
-    step = index[2] - index[1]
+
+    step = if eltype(index) <: AbstractFloat
+        # Calculate step, avoiding as many floating point errors as possible
+        st = Base.step(Base.range(Float64(first(index)), Float64(last(index)); length = length(index)))
+        st_rd = round(st, digits = Base.floor(Int,-log10(eps(eltype(index))))) # round to nearest digit within machine epsilon
+        isapprox(st_rd, st; atol = eps(eltype(index))) ? st_rd : st # keep the rounded number if it is very close to the original
+    else
+        index[2] - index[1]
+    end
     for i in 2:length(index)-1
         # If any step sizes don't match, its Irregular
         if !(index[i+1] - index[i] ≈ step)
@@ -467,7 +475,7 @@ end
 _attribdict(md::Metadata{<:CDMsource}) = Dict{String,Any}(string(k) => v for (k, v) in md)
 _attribdict(md) = Dict{String,Any}()
 
-# Add axis and standard name attributes to dimension variabls
+# Add axis and standard name attributes to dimension variables
 # We need to get better at guaranteeing if X/Y is actually measured in `longitude/latitude`
 # CF standards requires that we specify "units" if we use these standard names
 _cdm_set_axis_attrib!(atr, dim::X) = atr["axis"] = "X" # at["standard_name"] = "longitude";

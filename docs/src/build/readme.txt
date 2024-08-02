@@ -1,1 +1,0 @@
-This folder is suppose to contain only images from tests

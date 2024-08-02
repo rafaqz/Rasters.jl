@@ -1,4 +1,9 @@
 
+const INVERT_KEYWORD = """
+- `invert`: invert the mask, so that areas no missing in `with` are
+    masked, and areas missing in `with` are masked.
+"""
+
 """
     mask(A:AbstractRaster; with, missingval=missingval(A))
     mask(x; with)
@@ -14,6 +19,7 @@ or by the shape of `with`, if `with` is a geometric object.
 
 - `with`: an `AbstractRaster`, or any GeoInterface.jl compatible objects
     or table. The coordinate reference system of the point must match `crs(A)`.
+$INVERT_KEYWORD
 - `missingval`: the missing value to use in the returned file.
 $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
@@ -23,6 +29,7 @@ $SUFFIX_KEYWORD
 These can be used when `with` is a GeoInterface.jl compatible object:
 
 $SHAPE_KEYWORDS
+$GEOMETRYCOLUMN_KEYWORD
 
 # Example
 
@@ -44,19 +51,17 @@ wc_mask = resample(wc; to=awap)
 awap_masked = mask(awap; with=wc_mask)
 b = plot(awap_masked; clims=(10, 45))
 
-savefig(a, "docs/build/mask_example_before.png");
-savefig(b, "docs/build/mask_example_after.png"); nothing
+savefig(a, "build/mask_example_before.png");
+savefig(b, "build/mask_example_after.png"); nothing
 # output
 
 ```
 
 ### Before `mask`:
 
-![before mask](../build/mask_example_before.png)
 
 ### After `mask`:
 
-![after mask](../build/mask_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -80,7 +85,7 @@ function _mask(A::AbstractRaster, with::AbstractRaster;
     A1 = create(filename, A; suffix, missingval)
     open(A1; write=true) do a
         # The values array will be be written to A1 in `mask!`
-        mask!(a; with, missingval, values=A)
+        mask!(a; with, missingval, values=A, kw...)
     end
     return A1
 end
@@ -111,6 +116,7 @@ or by a polygon.
 - `with`: another `AbstractRaster`, a `AbstractVector` of `Tuple` points,
     or any GeoInterface.jl `AbstractGeometry`. The coordinate reference system
     of the point must match `crs(A)`.
+$INVERT_KEYWORD
 - `missingval`: the missing value to write to A in masked areas,
     by default `missingval(A)`.
 
@@ -134,8 +140,8 @@ wc_mask = resample(wc; to=awap)
 mask!(awap; with=wc_mask)
 b = plot(awap; clims=(10, 45))
 
-savefig(a, "docs/build/mask_bang_example_before.png");
-savefig(b, "docs/build/mask_bang_example_after.png"); nothing
+savefig(a, "build/mask_bang_example_before.png");
+savefig(b, "build/mask_bang_example_after.png"); nothing
 
 # output
 
@@ -143,11 +149,9 @@ savefig(b, "docs/build/mask_bang_example_after.png"); nothing
 
 ### Before `mask!`:
 
-![before mask!](../build/mask_bang_example_before.png)
 
 ### After `mask!`:
 
-![after mask!](../build/mask_bang_example_after.png)
 
 $EXPERIMENTAL
 """
@@ -170,17 +174,31 @@ function _mask!(st::RasterStack, with::AbstractRaster; kw...)
     return st
 end
 
-function _mask!(A::AbstractRaster, with::AbstractRaster; missingval=missingval(A), values=A)
+function _mask!(A::AbstractRaster, with::AbstractRaster; 
+    missingval=missingval(A), 
+    values=A,
+    invert=false,
+)
     missingval isa Nothing && _nomissingerror()
     missingval = convert(eltype(A), missingval)
 
-    broadcast_dims!(A, values, with) do x, w
-        if ismissing(w) || ismissing(x)
-            return missingval
-        elseif isequal(w, Rasters.missingval(with)) || isequal(x, Rasters.missingval(values))
-            missingval
-        else
-            convert(eltype(A), x)
+    if invert
+        broadcast_dims!(A, values, with) do x, w
+            if (ismissing(w) || isequal(w, Rasters.missingval(with))) && 
+                !(ismissing(x) || isequal(x, Rasters.missingval(values)))
+                convert(eltype(A), x)
+            else
+                missingval
+            end
+        end
+    else
+        broadcast_dims!(A, values, with) do x, w
+            if (ismissing(w) || isequal(w, Rasters.missingval(with))) || 
+                (ismissing(x) || isequal(x, Rasters.missingval(values)))
+                missingval
+            else
+                convert(eltype(A), x)
+            end
         end
     end
     return rebuild(A, missingval=missingval)
@@ -191,11 +209,10 @@ _nomissingerror() = throw(ArgumentError("Array has no `missingval`. Pass a `miss
 """
     boolmask(obj::Raster; [missingval])
     boolmask(obj; [to, res, size])
-    boolmask(obj::RasterStack; alllayers = true, kw...)
+    boolmask(obj::RasterStack; alllayers=true, kw...)
 
 Create a mask array of `Bool` values, from another `Raster`.
-`AbstractRasterStack` or `AbstractRasterSeries` are also accepted, if alllayers is `true` (the default),
-a mask is taken for all layers, otherwise only the first layer is used.
+`AbstractRasterStack` or `AbstractRasterSeries` are also accepted. 
 
 The array returned from calling `boolmask` on a `AbstractRaster` is a
 [`Raster`](@ref) with the same dimensions as the original array and a
@@ -203,17 +220,19 @@ The array returned from calling `boolmask` on a `AbstractRaster` is a
 
 # Arguments
 
-- `obj`: a [`Raster`](@ref), a GeoInterface.jl geometry, or a vector or table of geometries.
+- $OBJ_ARGUMENT
 
 # `Raster` / `RasterStack` Keywords
 
+$INVERT_KEYWORD
 - `missingval`: The missing value of the source array, with default `missingval(raster)`.
 
 # Keywords
 
-- `alllayers`
+- `alllayers`: if `true` a mask is taken for all layers, otherwise only the first layer is used. Defaults to `true`
 
 $GEOM_KEYWORDS
+$GEOMETRYCOLUMN_KEYWORD
 $THREADED_KEYWORD
 $PROGRESS_KEYWORD
 
@@ -237,72 +256,103 @@ using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 boolmask(wc) |> plot
 
-savefig("docs/build/boolmask_example.png"); nothing
+savefig("build/boolmask_example.png"); nothing
 
 # output
 ```
 
-![boolmask](../build/boolmask_example.png)
+![boolmask](boolmask_example.png)
 
 $EXPERIMENTAL
 """
 function boolmask end
 
-function boolmask(stack::AbstractRasterStack; alllayers = true, to = dims(stack), kw...) 
+function boolmask(stack::AbstractRasterStack; 
+    alllayers=true, 
+    invert=false,
+    to=dims(stack), 
+    kw...
+) 
     if alllayers
-        _mask_multilayer(stack, to; kw..., _dest_missingval = false)
+        _mask_multilayer(stack, to; 
+            invert, kw..., _dest_presentval=!invert, _dest_missingval=invert
+        )
     else
-        boolmask(layers(stack, 1); kw...)
+        boolmask(layers(stack, 1); invert, kw...)
     end
 end
 
-function boolmask(series::AbstractRasterSeries; alllayers = true, to = first(series), kw...)
+function boolmask(series::AbstractRasterSeries; 
+    alllayers=true, 
+    to=first(series), 
+    invert=false,
+    kw...
+)
     if alllayers
-        _mask_multilayer(series, to; kw..., _dest_missingval = false)
+        _mask_multilayer(series, to; 
+            invert, kw..., _dest_presentval=!invert, _dest_missingval=invert
+        )
     else
-        boolmask(first(series); kw...)
+        boolmask(first(series); invert, kw...)
     end
 end
 
-function boolmask(source::AbstractRaster; kw...)
-    dest = _init_bools(source, BitArray, nothing; kw..., missingval=false)
-    return boolmask!(dest, source; kw...)
+function boolmask(source::AbstractRaster; 
+    invert::Bool=false, 
+    kw...
+)
+    dest = _init_bools(source, BitArray, nothing; kw..., missingval=invert)
+    boolmask!(dest, source; invert, kw...)
+    return rebuild(dest; missingval=false)
 end
 # this method is used where x is a geometry
-function boolmask(x; to=nothing, kw...)
+function boolmask(x; 
+    to=nothing, 
+    invert::Bool=false,
+    geometrycolumn=nothing,
+    kw...
+)
     if to isa Union{AbstractDimArray,AbstractDimStack,DimTuple}
         to = dims(to, DEFAULT_POINT_ORDER)
     end
-    A = _init_bools(to, BitArray, x; kw..., missingval=false)
-    return boolmask!(A, x; kw...)
+    data = isnothing(GI.geomtrait(x)) ? _get_geometries(x, geometrycolumn) : x
+    dest = _init_bools(to, BitArray, data; kw..., missingval=invert)
+    boolmask!(dest, data; invert, kw...)
+    return rebuild(dest; missingval=false)
 end
 
 function boolmask!(dest::AbstractRaster, src::AbstractRaster;
-    missingval=_missingval_or_missing(src)
+    missingval=_missingval_or_missing(src),
+    invert=false,
 )
-    broadcast_dims!(dest, src) do a
-        !isequal(a, missingval)
+    if invert
+        broadcast_dims!(x -> isequal(x, missingval), dest, src)
+    else
+        broadcast_dims!(x -> !isequal(x, missingval), dest, src)
     end
 end
-function boolmask!(dest::AbstractRaster, geoms;
+function boolmask!(dest::AbstractRaster, data;
+    invert=false,
     lock=nothing, 
     progress=true, 
     threaded=false, 
     allocs=_burning_allocs(dest; threaded), 
+    geometrycolumn=nothing,
     kw...
 )
     if hasdim(dest, :geometry)
-        range = _geomindices(geoms)
+        geoms = _get_geometries(data, geometrycolumn)
+        range = eachindex(geoms)
         _run(range, threaded, progress, "Burning each geometry to a BitArray slice...") do i
-            geom = _getgeom(geoms, i)
+            geom = geoms[i]
             ismissing(geom) && return nothing
             slice = view(dest, Dim{:geometry}(i))
             # We don't need locks - these are independent slices
-            burn_geometry!(slice, geom; kw..., fill=true, allocs=_get_alloc(allocs))
+            burn_geometry!(slice, geom; kw..., fill=!invert, allocs=_get_alloc(allocs))
             return nothing
         end
     else
-        burn_geometry!(dest, geoms; kw..., allocs, lock, progress, threaded, fill=true)
+        burn_geometry!(dest, data; kw..., allocs, lock, progress, threaded, geometrycolumn, fill=!invert)
     end
     return dest
 end
@@ -313,8 +363,7 @@ end
     missingmask(obj::RasterStack; alllayers = true, kw...)
 
 Create a mask array of `missing` and `true` values, from another `Raster`.
-`AbstractRasterStack` or `AbstractRasterSeries` are also accepted, if alllayers is `true` (the default),
-a mask is taken for all layers, otherwise only the first layer is used.
+`AbstractRasterStack` or `AbstractRasterSeries` are also accepted-
 
 For [`AbstractRaster`](@ref) the default `missingval` is `missingval(A)`,
 but others can be chosen manually.
@@ -322,9 +371,15 @@ but others can be chosen manually.
 The array returned from calling `missingmask` on a `AbstractRaster` is a
 [`Raster`](@ref) with the same size and fields as the original array.
 
-# Keywords
+# Arguments
 
+- `obj`: $OBJ_ARGUMENT
+
+# Keywords
+- `alllayers`: if `true` a mask is taken for all layers, otherwise only the first layer is used. Defaults to `true`
+$INVERT_KEYWORD
 $GEOM_KEYWORDS
+$GEOMETRYCOLUMN_KEYWORD
 
 # Example
 
@@ -333,61 +388,58 @@ using Rasters, RasterDataSources, ArchGDAL, Plots, Dates
 wc = Raster(WorldClim{Climate}, :prec; month=1)
 missingmask(wc) |> plot
 
-savefig("docs/build/missingmask_example.png"); nothing
+savefig("build/missingmask_example.png"); nothing
 
 # output
 ```
 
-![missingmask](../build/missingmask_example.png)
+![missingmask](missingmask_example.png)
 
 $EXPERIMENTAL
 """
-function missingmask(stack::AbstractRasterStack; alllayers = true, to = dims(stack), kw...) 
-    if alllayers
-        _mask_multilayer(stack, to; kw..., _dest_missingval = missing)
-    else
-        missingmask(layers(stack, 1); kw...)
-    end
+function missingmask(x; kw...)
+    B = boolmask(x; kw...)
+    M = Array{Union{Missing,Bool}}(undef, size(B))
+    M .= _false_to_missing.(B)
+    return rebuild(B; data=M, missingval=missing)
 end
-
-function missingmask(series::AbstractRasterSeries; alllayers = true, to = first(series), kw...)
-    if alllayers
-        _mask_multilayer(series, to; kw..., _dest_missingval = missing)
-    else
-        missingmask(first(series); kw...)
-    end
-end
-
 function missingmask(source::AbstractRaster; kw...)
     dest = _init_bools(source, Array{Union{Missing,Bool}}, nothing; kw..., missingval=missing)
-    return missingmask!(dest, source; kw...)
-end
-# this method is used where x is a geometry
-function missingmask(x; to=nothing, kw...)
-    B = _init_bools(to, Array{Union{Missing,Bool}}, x; kw..., missingval=missing)
-    return missingmask!(B, x; kw...)
+    return rebuild(missingmask!(dest, source; kw...); missingval=missing)
 end
 
 function missingmask!(dest::AbstractRaster, src::AbstractRaster;
+    invert=false,
     missingval=_missingval_or_missing(src)
 )
-    broadcast_dims!(dest, src) do x
-        isequal(x, missingval) ? missing : true
+    if invert
+        broadcast_dims!(dest, src) do x
+            isequal(x, missingval) ? true : missing
+        end
+    else
+        broadcast_dims!(dest, src) do x
+            isequal(x, missingval) ? missing : true
+        end
     end
 end
 function missingmask!(dest::AbstractRaster, geom; kw...)
-    B = boolmask!(dest, geom; kw...)
-    dest .= (b -> b ? true : missing).(B)
+    B = boolmask!(dest, geom; kw...) 
+    # boolmask! handles `invert` keyword here
+    dest .= _false_to_missing.(B)
     return dest
 end
 
-function _mask_multilayer(
-    layers::Union{<:AbstractRasterStack, <:AbstractRasterSeries}, to; 
-    _dest_missingval, missingval = nothing, kw...
+_false_to_missing(b::Bool) = (b ? true : missing)::Union{Missing,Bool}
+
+function _mask_multilayer(layers::Union{<:AbstractRasterStack,<:AbstractRasterSeries}, to; 
+    _dest_presentval,
+    _dest_missingval, 
+    missingval=nothing, 
+    kw...
 )
     T = Union{typeof(_dest_missingval),Bool}
-    dest = _init_bools(to, Array{T}, layers; kw..., missingval = _dest_missingval)
-    dest .= true
+    dest = _init_bools(to, Array{T}, layers; kw..., missingval=_dest_missingval)
+    dest .= _dest_presentval
 
     missingval = if isnothing(missingval)
         map(_missingval_or_missing, layers)
@@ -399,7 +451,7 @@ function _mask_multilayer(
 
     map(layers, missingval) do layer, mv
         broadcast_dims!(dest, dest, layer) do d, x
-            isequal(d, _dest_missingval) || isequal(x, mv) ? _dest_missingval : true
+            isequal(d, _dest_missingval) || isequal(x, mv) ? _dest_missingval : _dest_presentval
         end
     end
    return dest

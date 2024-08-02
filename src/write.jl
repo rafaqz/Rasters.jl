@@ -5,7 +5,7 @@ const CHUNKS_KEYWORD = """
     or a `NamedTuple` of `Int` can be used. Other dimensions will have a chunk
     size of `1`. `true` can be used to mean: use the original 
     chunk size of the lazy `Raster` being written or X and Y of 256 by 256.
-    `false` means dont use chunks at all.
+    `false` means don't use chunks at all.
 """
 
 const MISSINGVAL_KEYWORD = """
