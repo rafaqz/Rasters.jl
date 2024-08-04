@@ -108,9 +108,8 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data; progress=true, thread
     geoms = _get_geometries(data, geometrycolumn)
     n = length(geoms)
     n == 0 && return []
-    zs = _alloc_zonal(f, x, geoms, n; kw...)
-    start_index = findfirst(x -> !ismissing(x), zs)
-    isnothing(start_index) && return zs
+    zs, start_index = _alloc_zonal(f, x, geoms, n; kw...)
+    start_index == n + 1 && return zs
     _run(start_index:n, threaded, progress, "Applying $f to each geometry...") do i
         zs[i] = _zonal(f, x, geoms[i]; kw...)
     end
@@ -118,7 +117,7 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data; progress=true, thread
 end
 
 function _alloc_zonal(f, x, geoms, n; kw...)
-    # Find first non-missing entry
+    # Find first non-missing entry and count number of missing entries
     n_missing::Int = 0
     z1 = _zonal(f, x, first(geoms); kw...)
     for geom in geoms
@@ -130,9 +129,10 @@ function _alloc_zonal(f, x, geoms, n; kw...)
     end
     zs = Vector{Union{Missing,typeof(z1)}}(undef, n)
     zs[1:n_missing] .= missing
+    # Exit early when all elements are missing
     if n_missing == n
-        return zs
+        return zs, n_missing + 1
     end
     zs[n_missing + 1] = z1
-    return zs
+    return zs, n_missing + 1
 end
