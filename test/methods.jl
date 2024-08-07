@@ -301,6 +301,18 @@ end
         sum(st)
 end
 
+@testset "zonal return missing" begin
+    a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
+    out_bounds_pointvec = [(-40.0, -40.0), (-40.0, -35.0), (-35.0, -35.0), (-35.0, -40.0)]
+    out_bounds_polygon = ArchGDAL.createpolygon(out_bounds_pointvec)
+    @test ismissing(zonal(sum, a; of=[polygon, out_bounds_polygon, polygon])[2]) &&
+        ismissing(zonal(sum, a; of=[out_bounds_polygon, polygon])[1]) &&
+        ismissing(zonal(sum, a; of=(geometry=out_bounds_polygon, x=:a, y=:b))) &&
+        ismissing(zonal(sum, a; of=[(geometry=out_bounds_polygon, x=:a, y=:b)])[1])
+    @test zonal(sum, a; of=[out_bounds_polygon, out_bounds_polygon, polygon])[3] == 
+        sum(skipmissing(mask(a; with=polygon)))
+end
+
 @testset "classify" begin
     A1 = [missing 1; 2 3]
     ga1 = Raster(A1, (X, Y); missingval=missing)
