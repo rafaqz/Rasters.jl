@@ -299,7 +299,9 @@ end
         zonal(sum, st; of=dims(st)) == 
         zonal(sum, st; of=Extents.extent(st)) == 
         sum(st)
+end
 
+@testset "zonal_return_missing" begin
     a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
     out_bounds_pointvec = [(-40.0, -40.0), (-40.0, -35.0), (-35.0, -35.0), (-35.0, -40.0)]
     out_bounds_polygon = ArchGDAL.createpolygon(out_bounds_pointvec)
