@@ -60,12 +60,11 @@ function Base.write(
     kw...
 ) where T
     RA.check_can_write(filename, force)
-    A1 = _maybe_correct_to_write(A, missingval)
+    A1 = _maybe_correct_to_write(A)
     mod = RA._writer_mod(eltype; missingval, maskingval, scale, offset, coerce)
     _create_with_driver(filename, dims(A1), T; 
         missingval, _block_template=A1, scale, offset, verbose, kw...
    ) do dataset
-        verbose && _maybe_warn_south_up(A, verbose, "Writing South-up. Use `reverse(myrast; dims=Y)` first to write conventional North-up")
         if write
             open(A1; write=true) do O
                 RA._maybe_modify(AG.RasterDataset(dataset), mod) .= parent(O)
@@ -76,7 +75,9 @@ function Base.write(
 end
 
 function RA._open(f, ::GDALsource, filename::AbstractString; 
-    write=false, mod=NoMod(), kw...
+    write=false, 
+    mod=RA.NoMod(), 
+    kw...
 )
     # Check the file actually exists because the GDAL error is unhelpful
     if !isfile(filename)
@@ -95,11 +96,11 @@ function RA._open(f, ::GDALsource, filename::AbstractString;
     end
     flags = write ? AG.OF_UPDATE : AG.OF_READONLY
     return AG.readraster(filename; flags) do A
-        C = RA._maybe_modify(A, mod)
-        RA.cleanreturn(f(C)) 
+        A1 = RA._maybe_modify(A, mod)
+        RA.cleanreturn(f(A1)) 
     end
 end
-RA._open(f, ::GDALsource, A::AG.RasterDataset; mod=NoMod(), kw...) =
+RA._open(f, ::GDALsource, A::AG.RasterDataset; mod=RA.NoMod(), kw...) =
     RA.cleanreturn(f(RA._maybe_modify(A, mod)))
 
 
@@ -372,9 +373,9 @@ function _create_with_driver(f, filename, dims::Tuple, T;
     offset=nokw,
     kw...
 )
-    verbose && _maybe_warn_south_up(dims, verbose, "Creating a South-up raster. Use `reverse(myrast; dims=Y)` first to write conventional North-up")
+    verbose && _maybe_warn_south_up(dims, verbose, "Creating a South-up raster. You may wish to reverse the `Y` dimension to use conventional North-up")
 
-    missingval = RA.isnokw(missingval) || ismissing(missingval) ? RA._writeable_missing(T; verbose) : missingval
+    missingval = ismissing(missingval) ? RA._writeable_missing(T; verbose) : missingval
     _gdal_validate(dims)
 
     x, y = map(DD.dims(dims, (XDim, YDim))) do d
@@ -545,7 +546,7 @@ function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval, 
     gt = RA.dims2geotransform(x, y)
     AG.setgeotransform!(dataset, gt)
 
-    if !isnothing(missingval)
+    if !RA.isnokwornothing(missingval)
         bands = hasdim(dims, Band) ? axes(DD.dims(dims, Band), 1) : 1
         for i in bands
             rasterband = AG.getband(dataset, i)

@@ -59,7 +59,12 @@ DiskArrays.haschunks(::GRDdataset) = DiskArrays.Unchunked()
 
 function _dims(A::RasterDiskArray{GRDsource}, crs=nokw, mappedcrs=nokw)
     attrib = A.attrib.attrib
-    crs = crs isa NoKW ? ProjString(attrib["projection"]) : crs
+    crs = if crs isa NoKW 
+        str = attrib["projection"]
+        str == "" ? nothing : ProjString(str)
+    else
+        crs
+    end
     mappedcrs = mappedcrs isa NoKW ? nothing : mappedcrs
 
     xsize, ysize, nbands = size(A)
@@ -115,7 +120,7 @@ function _metadata(A::RasterDiskArray{GRDsource}, args...)
     metadata
 end
 
-function missingval(A::RasterDiskArray{GRDsource,T}) where T
+function missingval(A::RasterDiskArray{GRDsource,T}, args...) where T
     if haskey(A.attrib.attrib, "nodatavalue")
         ndv = A.attrib.attrib["nodatavalue"]
         ndv === "nothing" && return nothing
@@ -155,11 +160,14 @@ function Base.write(filename::String, ::GRDsource, A::AbstractRaster;
     force=false, 
     missingval=nokw,
     chunks=nokw,
+    scale=nokw,
+    offset=nokw,
     kw...
 )
+    isnokwornothing(scale) && isnokwornothing(offset) || throw(ArgumentError("Cant write scale or offset to .grd files"))
     chunks isa NoKW || @warn "specifying chunks not supported for .grd files"
     check_can_write(filename, force)
-    A = _maybe_use_type_missingval(A, GRDsource(), missingval)
+    missingval = ismissing(missingval) ? RA._writeable_missing(T; verbose) : missingval
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
             a -> reorder(a, (X(GRD_X_ORDER), Y(GRD_Y_ORDER), Band(GRD_BAND_ORDER)))
@@ -194,7 +202,7 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
     ncols, nrows = length(x), length(y)
     xmin, xmax = bounds(x)
     ymin, ymax = bounds(y)
-    proj = convert(String, convert(ProjString, crs(x)))
+    proj = isnothing(crs(x)) ? "" : convert(String, convert(ProjString, crs(x)))
     datatype = REVGRD_DATATYPE_TRANSLATION[T]
     nodatavalue = missingval
 
@@ -227,23 +235,23 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
     end
 end
 
-function create(filename, ::GRDsource, T::Type, dims::DD.DimTuple; 
-    name="layer", metadata=nothing, missingval=nothing, lazy=true, 
-)
-    # Remove extension
-    basename = splitext(filename)[1]
-    minvalue = maxvalue = zero(T)
-    sze = map(length, DD.dims(dims, (XDim, YDim, Band)))
+# function create(filename, ::GRDsource, T::Type, dims::DD.DimTuple; 
+#     name="layer", metadata=nothing, missingval=nothing, lazy=true, 
+# )
+#     # Remove extension
+#     basename = splitext(filename)[1]
+#     minvalue = maxvalue = zero(T)
+#     sze = map(length, DD.dims(dims, (XDim, YDim, Band)))
 
-    # Metadata: grd file
-    _write_grd(basename, T, dims, missingval, minvalue, maxvalue, name)
+#     # Metadata: grd file
+#     _write_grd(basename, T, dims, missingval, minvalue, maxvalue, name)
 
-    # Data: gri file
-    open(basename * ".gri", write=true) do IO
-        write(IO, FillArrays.Zeros(sze))
-    end
-    return Raster(filename; source=GRDsource(), lazy)
-end
+#     # Data: gri file
+#     open(basename * ".gri", write=true) do IO
+#         write(IO, FillArrays.Zeros(sze))
+#     end
+#     return Raster(filename; source=GRDsource(), lazy)
+# end
 
 # AbstractRasterStack methods
 
@@ -253,15 +261,22 @@ function Base.open(f::Function, A::FileArray{GRDsource}, args...; write=A.write)
     _mmapgrd(mm -> f(RasterDiskArray{GRDsource}(mm, A.eachchunk, A.haschunks)), A; write)
 end
 
-function _open(f, ::GRDsource, filename::AbstractString; write=false, kw...)
+function _open(f, ::GRDsource, filename::AbstractString; 
+    mod=RA.NoMod(), 
+    write=false, 
+    kw...
+)
     isfile(filename) || _filenotfound_error(filename)
     attr = GRDdataset(filename)
     _mmapgrd(attr; write) do mm
         A = RasterDiskArray{GRDsource}(mm, DA.eachchunk(attr), DA.haschunks(attr), attr)
-        f(A)
+        A1 = _maybe_modify(A, mod)
+        f(A1)
     end
 end
 _open(f, ::GRDsource, attrib::GRDdataset; kw...) = f(attrib)
+_open(f, ::GRDsource, A::RasterDiskArray; mod=RA.NoMod(), kw...) =
+    cleanreturn(f(_maybe_modify(A, mod)))
 
 haslayers(::GRDsource) = false
 

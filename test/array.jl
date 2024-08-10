@@ -1,6 +1,7 @@
 using Rasters, Test, Dates, DiskArrays
 using Rasters.Lookups, Rasters.Dimensions
 using Rasters: isdisk, ismem, filename
+using ArchGDAL
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
@@ -77,7 +78,7 @@ end
 
 
 @testset "collect and Array" begin
-    @test collect(ga1) isa Array
+    @test collect(ga1) isa Array{Float64,2}
     @test collect(ga1) == data1
     @test Array(ga1) isa Array{Float64,2}
     @test Array(ga1) == data1

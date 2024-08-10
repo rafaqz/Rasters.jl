@@ -22,7 +22,7 @@ using Rasters: GDALsource, AbstractProjected, AbstractRaster, AbstractRasterStac
     GDAL_EMPTY_TRANSFORM, GDAL_TOPLEFT_X, GDAL_WE_RES, GDAL_ROT1, GDAL_TOPLEFT_Y, GDAL_ROT2, GDAL_NS_RES,
     _no_crs_error
 
-import Rasters: reproject, resample, warp, cellsize, nokw
+import Rasters: reproject, resample, warp, cellsize, nokw, isnokw, isnokwornothing
 
 const RA = Rasters
 const DD = DimensionalData

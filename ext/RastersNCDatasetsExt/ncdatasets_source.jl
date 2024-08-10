@@ -39,7 +39,7 @@ function Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStac
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
     try
         if missingval isa NamedTuple
-            map(k -> _writevar!(ds, s[k]; missinval=missingval[k], kw...), keys(s))
+            map(k -> _writevar!(ds, s[k]; missingval=missingval[k], kw...), keys(s))
         else
             map(k -> _writevar!(ds, s[k]; missingval, kw...), keys(s))
         end
@@ -152,6 +152,12 @@ end
 
 RA._sourcetrait(::NCD.Dataset) = NCDsource()
 RA._sourcetrait(::NCD.Variable) = NCDsource()
+
+@inline function RA.get_scale(metadata::Metadata{NCDsource}, scaled::Bool)
+    scale = scaled ? get(metadata, "scale_factor", nothing) : nothing
+    offset = scaled ? get(metadata, "add_offset", nothing) : nothing
+    return scale, offset
+end
 
 # precompilation
 

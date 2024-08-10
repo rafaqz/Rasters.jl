@@ -323,10 +323,10 @@ function Raster(ds, filename::AbstractString;
     source = _sourcetrait(filename, source)
     data1, dims1, metadata1, missingval2 = _open(source, ds; name=name1, group, mod=NoMod()) do var
         metadata1 = isnokw(metadata) ? _metadata(var) : metadata
-        missingval1 = _fix_missingval(var, missingval)
+        missingval1 = isnokwornothing(missingval) ? Rasters.missingval(var, metadata1) : missingval 
         maskingval1 = isnokw(maskingval) && !isnothing(missingval1) ? missing : maskingval
         # If maskingval is `nothing` use  missingval as missingval
-        missingval2 = isnothing(maskingval1) ? missingval1 : maskingval1
+        missingval2 = isnokwornothing(maskingval1) ? missingval1 : maskingval1
         mod = isnokw(mod) ? _mod(eltype(var), metadata1, missingval1, maskingval1; scaled, coerce) : mod
         data = if lazy
             FileArray{typeof(source)}(var, filename; 

@@ -1,5 +1,5 @@
 
-# Like `create` but without disk writes, mostly for Bool/Union{Missing,Boo},
+# Like `create` but without disk writes, mostly for Bool or Union{Missing,Bool},
 # and uses `similar` where possible
 # TODO merge this with `create` somehow
 _init_bools(to; kw...) = _init_bools(to, BitArray; kw...)
@@ -25,10 +25,12 @@ function _init_bools(to::Extents.Extent, T::Type, data;
 )
     # Convert the extent to dims (there must be `res` or `size` in `kw`)
     ext = _extent2dims(to; size, res, sampling, kw...)
-    _init_bools(to, ext, T, data; kw...)
+    _init_bools(to, ext, T, data; collapse, kw...)
 end
-function _init_bools(to, dims::DimTuple, T::Type, data; collapse::Union{Bool,Nothing,NoKW}=nokw, kw...)
-    if isnothing(data) || isnothing(collapse) || isnokw(collapse) || collapse
+function _init_bools(to, dims::DimTuple, T::Type, data; 
+    collapse::Union{Bool,Nothing,NoKW}=nokw, kw...
+)
+    if isnothing(data) || isnokwornothing(collapse) || collapse
         _alloc_bools(to, dims, T; kw...)
     else
         n = if Base.IteratorSize(data) isa Base.HasShape
@@ -47,7 +49,7 @@ function _alloc_bools(to, dims::DimTuple, ::Type{BitArray}; missingval::Bool=fal
     return Raster(vals, dims; missingval, metadata)
 end
 function _alloc_bools(to, dims::DimTuple, ::Type{<:Array{T}}; missingval=false, metadata=NoMetadata(), kw...) where T
-    # Use an `Array`
+    # Use an Array
     data = fill!(Raster{T}(undef, dims), missingval) 
     return rebuild(data; missingval, metadata)
 end

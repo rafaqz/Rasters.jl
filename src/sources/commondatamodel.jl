@@ -69,8 +69,8 @@ _getgroup(ds, group::Pair) = _getgroup(ds.group[String(group[1])], group[2])
 
 filekey(ds::AbstractDataset, name::Union{String,Symbol}) = Symbol(name)
 filekey(ds::AbstractDataset, name) = _firstname(ds, name)
-missingval(var::AbstractDataset) = missing
-missingval(var::AbstractVariable{T}) where T = missing isa T ? missing : nothing
+missingval(var::AbstractVariable, args...) = get(CDM.attribs(var), "_FillValue", nothing)
+missingval(var::AbstractVariable, md::Metadata{<:CDMsource}) = get(md, "_FillValue", nothing)
 cleanreturn(A::AbstractVariable) = Array(A)
 haslayers(::CDMsource) = true
 defaultcrs(::CDMsource) = EPSG(4326)
@@ -161,8 +161,6 @@ function _layermetadata(ds::AbstractDataset; layers)
         md
     end
 end
-
-_fix_missingval(::CDM.AbstractVariable, ::Nothing, metadata) = get(metadata, "_FillValue", nothing)
 
 
 # Utils ########################################################################

@@ -35,10 +35,12 @@ Other keyword arguments are passed to the `write` method for the backend.
 $FORCE_KEYWORD
 - `driver`: A GDAL driver name `String` or a GDAL driver retrieved via `ArchGDAL.getdriver(drivername)`. 
     By default `driver` is guessed from the filename extension.
+
 - `options::Dict{String,String}`: A dictionary containing the dataset creation options passed to the driver. 
     For example: `Dict("COMPRESS" => "DEFLATE")`. 
 
-Valid `options` for each specific `driver` can be found at: https://gdal.org/drivers/raster/index.html
+Valid `driver` names and the `options` for each can be found at: 
+[https://gdal.org/drivers/raster/index.html](https://gdal.org/drivers/raster/index.html)
 
 
 ## Source comments
@@ -83,7 +85,7 @@ function Base.write(
     filename::AbstractString, source::Source, A::Union{AbstractRaster,AbstractRasterStack}; kw...
 )
     missing_package = SOURCE2PACKAGENAME[source]
-    error("Missing package extension for $source. Run `using $missing_package` before useing `write` for this file.")
+    error("Missing package extension for $source. Run `using $missing_package` before using `write` for this file extension.")
 end
 
 """
@@ -196,10 +198,12 @@ end
 haslayers(T) = false
 
 #  This is used in source `write` methods
+check_can_write(filename::Union{Nothing,NoKW}, force) = true
 function check_can_write(filename, force)
     if !check_can_write(Bool, filename, force)
         throw(ArgumentError("filename already exists at $filename. use the keyword `force=true` to write anyway"))
     end
     return true
 end
+check_can_write(::Type{Bool}, filename::Union{Nothing,NoKW}, force) = true
 check_can_write(::Type{Bool}, filename, force) = (force || !isfile(filename))

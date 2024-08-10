@@ -9,7 +9,7 @@ to match the size of the object `to`, or smallest of any dimensions that are sha
 
 # Keywords
 
-- `to`: the object to crop to. This can be $OBJ_ARGUMENT 
+- `to`: the object to crop to. This can be $OBJ_ARGUMENT
   If no `to` keyword is passed, the smallest shared area of all `xs` is used.
 - `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
 
@@ -158,12 +158,12 @@ function extend end
 function extend(l1::RasterStackOrArray, l2::RasterStackOrArray, ls::RasterStackOrArray...; kw...)
     extend((l1, l2, ls...); kw...)
 end
-function extend(xs; to=nothing)
+function extend(xs; to=nothing, kw...)
     if isnothing(to)
         to = _subsetbounds((min, max), xs)
-        map(l -> _extend_to(l, to), xs)
+        map(l -> _extend_to(l, to, kw...), xs)
     else
-        map(l -> extend(l; to), xs)
+        map(l -> extend(l; to, kw...), xs)
     end
 end
 extend(x::RasterStackOrArray; to=dims(x), kw...) = _extend_to(x, to; kw...)
@@ -177,11 +177,13 @@ end
 _extend_to(x::RasterStackOrArray, to::Dimension; kw...) = _extend_to(x, (to,); kw...)
 
 function _extend_to(A::AbstractRaster, to::DimTuple;
-    filename=nothing, 
-    suffix=nothing, 
+    filename=nothing,
+    suffix=nothing,
     missingval=(isnothing(missingval(A)) ? nokw : missingval(A)),
+    fill=nokw,
     touches=false,
-    force=false
+    force=false,
+    verbose=true,
 )
     others = otherdims(to, A)
     # Allow not specifying all dimensions
@@ -197,10 +199,26 @@ function _extend_to(A::AbstractRaster, to::DimTuple;
     end
     others1 = otherdims(to, A)
     final_to = (set(dims(A), map(=>, dims(A, to), to)...)..., others1...)
+
+    # If we are writing to disk swap missingval to something writeable
+    if ismissing(missingval) 
+        missingval = _writeable_missing(filename, eltype(A); verbose)
+    end
+    # If no `fill` is passed use `missingval` or zero
+    if isnokw(fill)
+        fill = isnokwornothing(missingval) ? zero(Missings.nonmissingtype(eltype(A))) : missingval
+    end
     # Create a new extended array
     newA = create(filename, eltype(A), final_to;
-        suffix, parent=parent(A), missingval,
-        name=name(A), metadata=metadata(A), force
+        suffix, 
+        parent=parent(A), 
+        missingval,
+        name=name(A), 
+        metadata=metadata(A), 
+        maskingval=Rasters.missingval(A),
+        fill,
+        force,
+        verbose,
     )
     # Input checks
     map(dims(A, to), dims(newA, to)) do d1, d2
@@ -219,9 +237,6 @@ function _extend_to(A::AbstractRaster, to::DimTuple;
         A = replace_missing(A, Rasters.missingval(newA))
     end
     open(newA; write=true) do O
-        # Fill it with missing/nodata values
-        O .= Rasters.missingval(O)
-        # Copy the original data to the new array
         # Somehow this is slow from disk?
         broadcast_dims!(identity, view(O, rangedims...), A)
     end

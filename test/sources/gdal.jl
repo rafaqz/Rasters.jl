@@ -80,23 +80,6 @@ gdalpath = maybedownload(url)
         @test A == A2 == A3
     end
 
-    @testset "create" begin
-        created = Rasters.create("created.tif", Int16, (X(1:10), Y(1:10)); 
-            missingval=255, maskingval=missing, scale=0.1, offset=5.0, force=true, coerce=trunc
-        )
-        open(created; write=true) do O
-            O .= 2.0
-        end
-        read(created)
-        @test all(Raster("created.tif") .== 2.0)
-        @test all(Raster("created.tif"; scaled=false) .=== -30)
-        created = Rasters.create("created.tif", UInt8, (X(1:10), Y(1:10)); 
-            missingval=255, maskingval=UInt8(0), force=true
-        ) 
-        read(created)
-        rm("created.tif")
-    end
-
     @testset "custom filename" begin
         gdal_custom = replace(gdalpath, "tif" => "foo")
         cp(gdalpath, gdal_custom, force=true)

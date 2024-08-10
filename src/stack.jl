@@ -387,8 +387,7 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     fn = collect(filenames)
     layermetadata = layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
     layerdims = layerdims isa NamedTuple ? collect(layerdims) : map(_ -> NoKW(), fn)
-    mods = _stack_mods(layermetadata, missingval1, maskingval1; scaled, coerce)
-    layers = map(K, fn, layermetadata, layerdims, mods) do name, fn, md, d, mod
+    layers = map(K, fn, layermetadata, layerdims) do name, fn, md, d, mod
         Raster(fn; source=_sourcetrait(fn, source), name, metadata=md, dims=d, mod, kw...)
     end
     return RasterStack(NamedTuple{K}(layers); resize, metadata)
@@ -538,12 +537,15 @@ function _layer_stack(filename;
         else
             layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
         end
-        missingval1 = if missingval isa NamedTuple
+        missingval1 = if isnokw(missingval)
+            map(Rasters.missingval, layers.vars, layermetadata1)
+        elseif missingval isa NamedTuple
             collect(missingval)
         else
             missingval
         end
-        mods = _stack_mods(layermetadata1, missingval1, maskingval; scaled, coerce)
+        eltypes = map(eltype, layers.vars)
+        mods = _stack_mods(eltypes, layermetadata1, missingval1, maskingval; scaled, coerce)
         name = Tuple(map(Symbol, layers.names))
         NT = NamedTuple{name}
         data = if lazy
@@ -563,12 +565,10 @@ function _layer_stack(filename;
                 nothing
             elseif isnothing(Rasters.maskingval(mod))
                 Rasters.missingval(mod)
-                @show mod Rasters.missingval(mod)
             else
                 Rasters.maskingval(mod)
             end
         end |> NT
-        @show missingval 
         return data, (; dims, refdims, layerdims, metadata, layermetadata=NT(layermetadata1), missingval)
     end
     return RasterStack(data; field_kw..., kw...)

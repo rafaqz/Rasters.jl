@@ -129,16 +129,18 @@ function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Tuple;
     sampling::Tuple, kw...
 )
     ranges = map(values(to), res, sampling) do (start, stop), step, s
-        if s isa Points
+        r = if step >= zero(step)
             range(; start, step, stop)
         else
-            r = range(; start, step, stop)
+            range(; start=stop, step, stop=start)
+        end
+        r = if s isa Intervals
             if locus(s) isa Start
                 r[1:end-1]
             elseif locus(s) isa End
                 r[2:end]
             else # Center
-                r .+ step / 2
+                r .+ abs(step) / 2
             end
         end
     end
@@ -161,8 +163,8 @@ end
 function _extent2dims(::Extents.Extent{K}, ranges; crs, sampling::Tuple) where K
     crs = isnokw(crs) ? nothing : crs 
     emptydims = map(name2dim, K)
-    order = ForwardOrdered()
     lookups = map(emptydims, ranges, sampling) do d, range, s
+        order = Lookups.orderof(range)
         span = Regular(step(range))
         if d isa SpatialDim && !isnothing(crs)
             Projected(range; sampling=s, order, span, crs)
@@ -244,14 +246,14 @@ struct IterableOfGeometries end
 # Chunking
 
 # NoKW means true
-@inline function _chunks_to_tuple(template, dims, chunks::Bool)
+@inline function _chunks_to_tuple(template, dimorder, chunks::Bool)
     if chunks == true
         if template isa AbstractArray && DA.haschunks(template) == DA.Chunked()
             # Get chunks from the template
             DA.max_chunksize(DA.eachchunk(template))
         else
             # Use defaults
-            _chunks_to_tuple(template, dims, (X(512), Y(512)))
+            _chunks_to_tuple(template, dimorder, (X(512), Y(512)))
         end
     else
         nothing

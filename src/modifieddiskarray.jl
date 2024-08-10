@@ -101,33 +101,33 @@ _scaleoffset_inv(x, ::Nothing, offset) = x - offset
 _scaleoffset_inv(x, ::Nothing, ::Nothing) = x
 
 
-function _stack_mods(metadata::Vector, missingval::Vector, maskingval; scaled, coerce)
-    map(metadata, missingval) do md, mv
-        scale, offset = _get_scale_offset(md, scaled)
-        _mod(mv, maskingval, scale, offset, coerce)
+function _stack_mods(eltypes::Vector, metadata::Vector, missingval::Vector, maskingval; scaled, coerce)
+    map(eltypes, metadata, missingval) do T, md, mv
+        scale, offset = get_scale(md, scaled)
+        _mod(T, mv, maskingval, scale, offset, coerce)
     end
 end
-function _stack_mods(metadata::Vector, missingval, maskingval::Vector; scaled::Bool, coerce)
-    map(metadata, maskingval) do md, mk
-        scale, offset = _get_scale_offset(md, scaled)
-        _mod(missingval, mk, scale, offset, coerce)
+function _stack_mods(eltypes::Vector, metadata::Vector, missingval, maskingval::Vector; scaled::Bool, coerce)
+    map(eltypes, metadata, maskingval) do T, md, mk
+        scale, offset = get_scale(md, scaled)
+        _mod(T, missingval, mk, scale, offset, coerce)
     end
 end
-function _stack_mods(metadata::Vector, missingval::Vector, maskingval::Vector; scaled::Bool, coerce)
-    map(metadata, missingval, maskingval) do md, mv, mk
-        scale, offset = _get_scale_offset(md, scaled)
+function _stack_mods(eltypes::Vector, metadata::Vector, missingval::Vector, maskingval::Vector; scaled::Bool, coerce)
+    map(eltypes, metadata, missingval, maskingval) do T, md, mv, mk
+        scale, offset = get_scale(md, scaled)
         _mod(mv, mk, scale, offset, coerce)
     end
 end
-function _stack_mods(metadata::Vector, missingval, maskingval; scaled::Bool, coerce)
-    map(metadata) do md
-        scale, offset = _get_scale_offset(md, scaled)
-        _mod(missingval, maskingval, scale, offset, coerce)
+function _stack_mods(eltypes::Vector, metadata::Vector, missingval, maskingval; scaled::Bool, coerce)
+    map(eltypes, metadata) do T, md
+        scale, offset = get_scale(md, scaled)
+        _mod(T, missingval, maskingval, scale, offset, coerce)
     end
 end
 
-function _mod(T, metadata, missingval, maskingval; scaled::Bool, coerce)
-    scale, offset = _get_scale_offset(metadata, scaled)
+function _mod(::Type{T}, metadata, missingval, maskingval; scaled::Bool, coerce) where T
+    scale, offset = get_scale(metadata, scaled)
     _mod(T, missingval, maskingval, scale, offset, coerce)
 end
 function _mod(::Type{T}, missingval, maskingval, scale, offset, coerce) where T
@@ -138,8 +138,8 @@ function _mod(::Type{T}, missingval, maskingval, scale, offset, coerce) where T
     end
 end
 
-@inline _get_scale_offset(metadata::NoKW, scaled) = (nothing, nothing)
-@inline function _get_scale_offset(metadata, scaled)
+@inline get_scale(metadata::NoKW, scaled::Bool) = nothing, nothing
+@inline function get_scale(metadata, scaled::Bool)
     scale = scaled ? get(metadata, "scale", nothing) : nothing
     offset = scaled ? get(metadata, "offset", nothing) : nothing
     return scale, offset

@@ -1,18 +1,21 @@
-
+const TypeNamedTuple = NamedTuple{<:Any,<:Tuple{Vararg{Type}}}
 
 """
     create([filename], template::Raster; kw...)
-    create([filename], T, template; kw...)
+    create([filename], type, template; kw...)
 
-Create a new Raster. If `filename` is a `String` it will be created on disk,
-and opened lazily. If it is `nothing` of not passed, a regular in-memory `Raster`
-will be created. When written to disk, the values will be `missingval`,
-if in-memory values will be `undef`.
+Create a new, uninitialised [`Raster`](@ref) or [`RasterStack`](@ref).
 
-The return value is a `Raster`. The `eltype` will usually be `T`, except
-where `scale` and/or `offset` keywords are used, in which case `T` will
-depend on the tyepe promotion of `scale` and `offset` with `T`.
-`maskingval` will also affect the `eltype`.
+If `filename` is a `String` it will be created on disk, and opened lazily.
+If it is `nothing` or not passed, an in-memory `Raster` will be created.
+
+If type is a `Type` return value is a `Raster`. The `eltype` will usually be `T`, except
+where `scale` and/or `offset` keywords are used or a `missingval` of a different type is specified, 
+in which case `T` will depend on the tyepe promotion of `scale`, `offset` and `missingval` with `T`.
+`maskingval` will also affect the `eltype` of the openeded raster if you `create` to a file.
+
+If types is a `NamedTuple` of types, the result will be a `RasterStack`. In this case `fill` and 
+`missingval` can be single values (for all layers) or `NamedTuple` with the same names to specify per-layer.
 
 ## Arguments
 
@@ -21,7 +24,8 @@ depend on the tyepe promotion of `scale` and `offset` with `T`.
 - `template`: a `Raster`, `Tuple` of `Dimension` or `Extents.Extent` to use as a template.
     If an `Extent` is used, a `size` or `res` keyword must be passed.
     If a `T` argument is not used, it is taken from the `template` eltype.
-- `T`: the element type to use in the created array.
+- `type`: the element type to use in the created array. A `NamedTuple` of types
+    will create a `RasterStack`
 
 ## Keywords
 
@@ -29,9 +33,10 @@ $NAME_KEYWORD
 $REFDIMS_KEYWORD
 $METADATA_KEYWORD
 $WRITE_MISSINGVAL_KEYWORD
-- `fillval`: A value to fill the array with. By default this will be
-    `missingval`. If there is no `missingval` set or `fillval` is set to nothing
-    disk values will remain undefined.
+- `fill`: A value to fill the array with, before `scale` and `offset` are applied. 
+    If there is no `fill`, raster values may remain undefined. They may be set to 
+    `missingval` on disk, but this is not guaranteed. It us often more efficient to 
+    use `fill` than to fill manually after `create`.
 $MASKINGVAL_KEYWORD
 $SOURCE_KEYWORD
 - `lazy`: A `Bool` specifying if to load data lazily from disk. For `create`
@@ -46,10 +51,10 @@ $RES_KEYWORD
 $SIZE_KEYWORD
 $CRS_KEYWORD
 $CHUNKS_KEYWORD
-- `reverse_y`: usually we want to write `Y` dimensions in reverse.
-    When building dimensions from an `Extents.Extent` we do this by
-    default, unless `reverse_y=false`. With template `Raster` or dimensions,
-    the existing order is used.
+- `reverse_y`: often we want to write `Y` dimensions in reverse.
+    When building dimensions from an `Extents.Extent` and `size` or `res` we can do this by
+    using `reverse_y=true`. Using a negative value in `res` will acheive the same result.
+    With a template `Raster` or a `Tuple` of `Dimension`, the existing order is used.
 
 ## Example
 
@@ -114,18 +119,36 @@ RasterStack("created.nc")
 └───────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 """
-create(A::AbstractRaster; kw...) = create(nothing, A; kw...)
-create(T::Union{Type,NamedTuple}, dims::Tuple; kw...) = create(nothing, T, dims; kw...)
-create(T::Union{Type,NamedTuple}, extent::Extents.Extent; kw...) = create(nothing, T, dims; kw...)
-create(filename::Union{AbstractString,Nothing}, A::AbstractRaster{T}; kw...) where T =
-    create(filename, T, A; kw...)
-function create(filename::Union{AbstractString,Nothing}, T::Union{Type,NamedTuple}, A::AbstractRaster;
-    name=name(A),
-    metadata=metadata(A),
-    missingval=missingval(A),
+create(A::Union{AbstractRaster,AbstractRasterStack}; kw...) = create(nothing, A; kw...)
+create(T::Union{Type,TypeNamedTuple}, A::Union{Tuple,Extents.Extent,AbstractRaster,AbstractRasterStack}; kw...) =
+    create(nothing, T, A; kw...)
+function create(filename::Union{AbstractString,Nothing}, A::AbstractRaster{T}; 
+    missingval=missingval(A), # Only take missingval here when types are not specified
+    kw...
+) where T
+    create(filename, T, A; missingval, kw...)
+end
+function create(filename::Union{AbstractString,Nothing}, st::AbstractRasterStack; 
+    missingval=missingval(st), # Only take missingval here when types are not specified
     kw...
 )
-    return create(filename, T, dims(A); parent=parent(A), name, metadata, missingval, kw...)
+    create(filename, map(eltype, layers(st)), st; missingval, kw...)
+end
+create(filename::Union{AbstractString,Nothing}, T::Union{Type,TypeNamedTuple}, A::AbstractRaster; kw...) =
+    create(filename, T, dims(A); parent=parent(A), kw...)
+function create(filename::Union{AbstractString,Nothing}, T::NamedTuple{K1}, st::AbstractRasterStack{K2};
+    metadata=metadata(st),
+    layerdims=nokw,
+    layermetadata=nokw,
+    kw...
+) where {K1,K2}
+    if all(map(in(K2), K1))
+        layerdims = isnokw(layerdims) ? DD.layerdims(st)[K1] : layerdims
+        layermetadata = isnokw(layermetadata) ? DD.layermetadata(st)[K1] : layermetadata
+    end
+    return create(filename, T, dims(st);
+        parent=first(parent(st)), metadata, missingval, layerdims, layermetadata, kw...
+    )
 end
 function create(filename::AbstractString, T::Union{Type,NamedTuple}, dims::Tuple;
     lazy=true,
@@ -139,16 +162,16 @@ function create(filename::AbstractString, T::Union{Type,NamedTuple}, dims::Tuple
     # This calls `create` in the /sources file for this `source`
     return create(filename, source, T, dims; lazy, missingval, kw...)
 end
-function create(filename::AbstractString, T::Union{Type,NamedTuple}, extent::Extents.Extent;
+function create(filename::Union{AbstractString,Nothing}, T::Union{Type,NamedTuple}, extent::Extents.Extent;
     res=nokw,
     size=nokw,
     crs=nothing,
     sampling=Points(),
-    reverse_y=true,
+    reverse_y=nokw,
     kw...
 )
     ds = _extent2dims(extent; size, res, crs, sampling)
-    ds = if reverse_y && hasdim(ds, Y())
+    ds = if reverse_y isa Bool && reverse_y && hasdim(ds, Y())
         DD.setdims(ds, reverse(dims(ds, Y())))
     else
         ds
@@ -156,71 +179,92 @@ function create(filename::AbstractString, T::Union{Type,NamedTuple}, extent::Ext
     return create(filename, T, ds; kw...)
 end
 function create(filename::Nothing, ::Type{T}, dims::Tuple;
+    missingval=nokw,
+    maskingval=nothing,
+    fill=nokw,
     parent=nokw,
+    verbose=true,
+    # Not used but here for consistency
     suffix=nokw,
     force=false,
-    missingval,
+    chunks=nokw,
     kw...
 ) where T
-    eltype = isnothing(missingval) ? T : promote_type(T, typeof(missingval))
+    if verbose
+        isnokw(chunks) || @warn "`chunks` of `$chunks` found. But `chunks` are not used for in-memory rasters"
+    end
+    missingval = isnokw(maskingval) || isnothing(maskingval) ? missingval : maskingval 
+    eltype = isnokw(missingval) || isnothing(missingval) ? T : promote_type(T, typeof(missingval))
     data = if isnokw(parent) || isnothing(parent)
         Array{eltype}(undef, dims)
     else
         similar(parent, eltype, size(dims))
     end
+    if !(isnokw(fill) || isnothing(fill))
+        fill!(data, fill)
+    end
     return Raster(data, dims; missingval, kw...)
 end
 function create(filename::Nothing, types::NamedTuple, dims::Tuple;
-    suffix=nokw,
+    suffix=keys(types),
     force=false,
-    missingval,
+    chunks=nokw,
+    verbose=true,
+    parent=nokw,
+    missingval=nokw,
+    maskingval=nothing,
+    fill=nokw,
+    layerdims=nokw,
+    layermetadata=nokw,
     kw...
 )
-    layers = map(types) do T
-        # eltype = isnothing(missingval) ? T : promote_type(T, typeof(missingval))
-        data = if isnokw(parent) || isnothing(parent)
-            Array{eltype}(undef, dims)
-        else
-            similar(parent, eltype, size(dims))
-        end
+    missingval = isnokw(maskingval) || isnothing(maskingval) ? missingval : maskingval
+    layerdims = isnokw(layerdims) ? map(_ -> basedims(dims), types) : layerdims
+    layermetadata = layermetadata isa NamedTuple ? layermetadata : map(_ -> layermetadata, types)
+    layerfill = fill isa NamedTuple ? fill : map(_ -> fill, types)
+    layermissingvals = missingval isa NamedTuple ? missingval : map(_ -> missingval, types)
+    layers = map(types, layermissingvals, layerfill, layerdims, layermetadata) do T, lmv, lfv, ld, lm
+        create(nothing, T, DD.dims(dims, ld); parent, missingval=lmv, fill=lfv, metadata=lm)
     end
-    return RasterStack(layers, dims; missingval, kw...)
+    return RasterStack(layers; kw...)
 end
 function create(filename::AbstractString, source::Source, ::Type{T}, dims::DimTuple;
     name=nokw,
     missingval=nokw,
-    maskingval=missing,
-    fillval=nokw,
+    maskingval=nothing,
+    fill=nokw,
     metadata=nokw,
     chunks=nokw,
     scale=nokw,
     offset=nokw,
-    dropband=!hasdim(dims, Band),
+    dropband=!hasdim(dims, Band()),
     lazy=true,
     verbose=true,
     force=false,
     coerce=nokw,
+    kw...
 ) where T
     eltype = Missings.nonmissingtype(T)
-    if isnokw(fillval) || isnothing(fillval)
+
+    if isnokw(fill) || isnothing(fill)
         write = false # Leave fill undefined
         A = FillArrays.Zeros{eltype}(map(length, dims))
     else
-        fillval isa T || throw(ArgumentError("fillval must be of type $T, got $fillval"))
+        fill isa T || throw(ArgumentError("fill must be of type $T, got $fill"))
         write = true # Write fill to disk
-        A = FillArrays.Fill{eltype}(fillval, map(length, dims))
+        A = FillArrays.Fill{eltype}(fill, map(length, dims))
     end
     # Create layers of zero arrays
     rast = Raster(A, dims; name, missingval)
     Rasters.write(filename, source, rast;
-        eltype, chunks, metadata, scale, offset, missingval, verbose, force, coerce, write
+        eltype, chunks, metadata, scale, offset, missingval, verbose, force, coerce, write, kw...
     )
     return Raster(filename; source, lazy, metadata, missingval, maskingval, dropband, coerce)
 end
 function create(filename::AbstractString, source::Source, layertypes::NamedTuple, dims::DimTuple;
-    name=keys(layertypes),
     missingval=nokw,
-    maskingval=missing,
+    maskingval=nothing,
+    fill=nokw,
     metadata=nokw,
     layerdims=nokw,
     layermetadata=nokw,
@@ -232,43 +276,37 @@ function create(filename::AbstractString, source::Source, layertypes::NamedTuple
     verbose=true,
     force=false,
     coerce=nokw,
+    kw...
 )
-    layers = map(layertypes) do x
-        if x isa Type
-            eltype = Missings.nonmissingtype(x)
-            size = map(length, dims)
-        elseif x isa Pair{<:Type}
-            eltype = Missings.nonmissingtype(x[1])
-            ds = x[2]
-            size = map(length, DD.dims(dims, DD._astuple(ds)))
-        else
-            throw(ArgumentError("Must be a Type or a Pair of Type and Dimension/Symbol"))
-        end
-        FillArrays.Zeros{eltype}(size)
-    end
-    layerdims = if isnokw(layerdims) 
+    write = Ref(false)
+    fill = fill isa NamedTuple ? fill : map(_ -> fill, layertypes)
+    layerdims = if isnokw(layerdims)
         map(layertypes) do x
             if x isa Type
                 DD.basedims(dims)
             else
-                ds = DD._astuple(DD.basedims(x[2]))
+                DD._astuple(DD.basedims(x[2]))
             end
         end
     else
         layerdims
     end
-    # if isnokw(fillval) || isnothing(fillval)
-    #     write = false # Leave fill undefined
-    #     A = FillArrays.Zeros{eltype}(map(length, dims))
-    # else
-    #     fillval isa T || throw(ArgumentError("fillval must be of type $T, got $fillval"))
-    #     write = true # Write fill to disk
-    #     A = FillArrays.Fill{eltype}(fillval, map(length, dims))
-    # end
+    layers = map(layertypes, layerdims, fill) do T, ld, f
+        lks = lookup(dims, ld)
+        eltype = Missings.nonmissingtype(T)
+        size = map(length, lks)
+        if isnokwornothing(f)
+            A = FillArrays.Zeros{eltype}(size)
+        else
+            write[] = true # Write fill to disk
+            A = FillArrays.Fill{eltype}(f, size)
+        end
+    end
     # Create layers of zero arrays
     stack = RasterStack(layers, dims; layerdims, layermetadata, missingval)
     fn = Rasters.write(filename, stack;
-        chunks, metadata, scale, offset, missingval, maskingval, verbose, force, coerce, write=false
+        chunks, metadata, scale, offset, missingval, maskingval, verbose, force, coerce, write=write[], kw...
     )
-    return RasterStack(fn; source, lazy, metadata, layerdims, maskingval, dropband, coerce)
+    st = RasterStack(fn; source, lazy, metadata, layerdims, maskingval, dropband, coerce)
+    return st
 end
