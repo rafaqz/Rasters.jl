@@ -49,10 +49,11 @@ function Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStac
     return filename
 end
 
+Base.close(os::RA.OpenStack{NCDsource}) = NCD.close(RA.dataset(os))
+
 function RA.OpenStack(fs::RA.FileStack{NCDsource,K}) where K
     RA.OpenStack{NCDsource,K}(NCD.Dataset(RA.filename(fs)))
 end
-Base.close(os::RA.OpenStack{NCDsource}) = NCD.close(RA.dataset(os))
 
 function RA._open(f, ::NCDsource, filename::AbstractString; write=false, kw...)
     isfile(filename) || RA._isurl(filename) || RA._filenotfound_error(filename)
@@ -61,6 +62,18 @@ function RA._open(f, ::NCDsource, filename::AbstractString; write=false, kw...)
         RA._open(f, NCDsource(), ds; kw...)
     end
 end
+
+RA._sourcetrait(::NCD.Dataset) = NCDsource()
+RA._sourcetrait(::NCD.Variable) = NCDsource()
+
+@inline function RA.get_scale(metadata::Metadata{NCDsource}, scaled::Bool)
+    scale = scaled ? get(metadata, "scale_factor", nothing) : nothing
+    offset = scaled ? get(metadata, "add_offset", nothing) : nothing
+    return scale, offset
+end
+
+RA.missingval(var::NCD.Variable, args...) = missingval(CDM.attribs(var), "_FillValue", nothing)
+RA.missingval(var::NCD.Variable, md::Metadata{<:NCDsource}) = get(md, "_FillValue", nothing)
 
 # Add a var array to a dataset before writing it.
 function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
@@ -148,15 +161,6 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
     end
     NCD.defVar(ds, dimname, Vector(index(dim)), (dimname,); attrib=attrib)
     return nothing
-end
-
-RA._sourcetrait(::NCD.Dataset) = NCDsource()
-RA._sourcetrait(::NCD.Variable) = NCDsource()
-
-@inline function RA.get_scale(metadata::Metadata{NCDsource}, scaled::Bool)
-    scale = scaled ? get(metadata, "scale_factor", nothing) : nothing
-    offset = scaled ? get(metadata, "add_offset", nothing) : nothing
-    return scale, offset
 end
 
 # precompilation

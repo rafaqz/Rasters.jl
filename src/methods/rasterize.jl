@@ -30,7 +30,7 @@ _reduce_init(::typeof(sum), ::Type{T}, missingval) where T = zero(nonmissingtype
 _reduce_init(::typeof(prod), ::Type{T}, missingval) where T = oneunit(nonmissingtype(T))
 _reduce_init(::typeof(minimum), ::Type{T}, missingval) where T = typemax(nonmissingtype(T))
 _reduce_init(::typeof(maximum), ::Type{T}, missingval) where T = typemin(nonmissingtype(T))
-_reduce_init(::typeof(last), ::Type{T}, missingval) where T = _maybe_nothing_to_missing(missingval)
+_reduce_init(::typeof(last), ::Type{T}, missingval) where T = _maybe_to_missing(missingval)
 
 struct FillChooser{F,I,M}
     fill::F
@@ -73,10 +73,12 @@ RasterCreator(to, data; kw...) = RasterCreator(_extent(to); kw...)
 function RasterCreator(to::Extents.Extent;
     res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing,
     size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing, 
+    crs=nokw,
+    mappedcrs=nokw,
     kw...
 )
-    to_as_dims = _extent2dims(to; size, res)
-    return RasterCreator(to_as_dims; kw...)
+    to_as_dims = _extent2dims(to; size, res, crs, mappedcrs)
+    return RasterCreator(to_as_dims; crs, mappedcrs, kw...)
 end
 
 

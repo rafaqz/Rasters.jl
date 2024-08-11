@@ -53,10 +53,18 @@ function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
 end
 
 function _open(f, ::CDMsource, ds::AbstractDataset; 
-    name=nokw, group=nothing, mod=NoMod(), kw...
+    name=nokw, 
+    group=nothing, 
+    mod=NoMod(), 
+    kw...
 )
     g = _getgroup(ds, group)
-    x = isnokw(name) ? g : _maybe_modify(CDM.variable(g, _firstname(g, name)), mod)
+    x = if isnokw(name) 
+        g 
+    else
+        v = CDM.variable(g, string(_name_or_firstname(g, name)))
+        _maybe_modify(v, mod)
+    end
     return cleanreturn(f(x)) 
 end
 _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) = 
@@ -68,9 +76,7 @@ _getgroup(ds, group::Union{Symbol,AbstractString}) = ds.group[String(group)]
 _getgroup(ds, group::Pair) = _getgroup(ds.group[String(group[1])], group[2])
 
 filekey(ds::AbstractDataset, name::Union{String,Symbol}) = Symbol(name)
-filekey(ds::AbstractDataset, name) = _firstname(ds, name)
-missingval(var::AbstractVariable, args...) = get(CDM.attribs(var), "_FillValue", nothing)
-missingval(var::AbstractVariable, md::Metadata{<:CDMsource}) = get(md, "_FillValue", nothing)
+filekey(ds::AbstractDataset, name) = _name_or_firstname(ds, name)
 cleanreturn(A::AbstractVariable) = Array(A)
 haslayers(::CDMsource) = true
 defaultcrs(::CDMsource) = EPSG(4326)
@@ -166,8 +172,8 @@ end
 # Utils ########################################################################
 
 # TODO don't load all keys here with _layers
-_firstname(ds::AbstractDataset, name) = Symbol(name)
-function _firstname(ds::AbstractDataset, name::Union{Nothing,NoKW}=nokw)
+_name_or_firstname(ds::AbstractDataset, name) = Symbol(name)
+function _name_or_firstname(ds::AbstractDataset, name::Union{Nothing,NoKW}=nokw)
     names = _nondimnames(ds)
     if length(names) > 0
         return Symbol(first(names))

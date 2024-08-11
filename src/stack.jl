@@ -544,8 +544,9 @@ function _layer_stack(filename;
         else
             missingval
         end
+        maskingval1 = isnokw(maskingval) && !isnothing(missingval1) ? missing : maskingval
         eltypes = map(eltype, layers.vars)
-        mods = _stack_mods(eltypes, layermetadata1, missingval1, maskingval; scaled, coerce)
+        mods = _stack_mods(eltypes, layermetadata1, missingval1, maskingval1; scaled, coerce)
         name = Tuple(map(Symbol, layers.names))
         NT = NamedTuple{name}
         data = if lazy

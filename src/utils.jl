@@ -113,10 +113,10 @@ end
 # Extents
 
 function _extent2dims(to::Extents.Extent; 
-    size=nokw, res=nokw, crs=nokw, sampling=nokw,
+    size=nokw, res=nokw, crs=nokw, mappedcrs=nokw, sampling=nokw,
 )
     sampling = _match_to_extent(to, isnokw(sampling) ? Intervals(Start()) : sampling)
-    _extent2dims(to, size, res; crs, sampling)
+    _extent2dims(to, size, res; crs, mappedcrs, sampling)
 end
 function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Union{Nothing,NoKW}; kw...)
     throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
@@ -149,7 +149,7 @@ end
 _extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW}; kw...) =
     _extent2dims(to, _match_to_extent(to, size), res; kw...)
 function _extent2dims(to::Extents.Extent, size::Tuple, res::Union{Nothing,NoKW};
-    sampling::Tuple, crs
+    sampling::Tuple, crs, mappedcrs
 )
     ranges = map(values(to), size, sampling) do (start, stop), length, s
         if s isa Points
@@ -158,16 +158,17 @@ function _extent2dims(to::Extents.Extent, size::Tuple, res::Union{Nothing,NoKW};
             range(; start, stop, length=length+1)[1:end-1]
         end
     end
-    return _extent2dims(to, ranges; sampling, crs)
+    return _extent2dims(to, ranges; sampling, crs, mappedcrs)
 end
-function _extent2dims(::Extents.Extent{K}, ranges; crs, sampling::Tuple) where K
+function _extent2dims(::Extents.Extent{K}, ranges; crs, mappedcrs, sampling::Tuple) where K
     crs = isnokw(crs) ? nothing : crs 
+    mappedcrs = isnokw(mappedcrs) ? nothing : mappedcrs 
     emptydims = map(name2dim, K)
     lookups = map(emptydims, ranges, sampling) do d, range, s
         order = Lookups.orderof(range)
         span = Regular(step(range))
         if d isa SpatialDim && !isnothing(crs)
-            Projected(range; sampling=s, order, span, crs)
+            Projected(range; sampling=s, order, span, crs, mappedcrs)
         else
             Sampled(range; sampling=s, order, span)
         end

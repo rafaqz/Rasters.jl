@@ -1,4 +1,5 @@
 const GDS = GRIBDatasets
+const CDM = CommonDataModel
 
 function RA.OpenStack(fs::RA.FileStack{GRIBsource,K}) where K
     RA.OpenStack{GRIBsource,K}(GDS.GRIBDataset(RA.filename(fs)))
@@ -13,9 +14,11 @@ function RA._open(f, ::GRIBsource, filename::AbstractString; write=false, kw...)
     RA._open(f, GRIBsource(), ds; kw...)
 end
 
-# Hack to get the inner DiskArrays chunks as they are not exposed at the top level
-RA._get_eachchunk(var::GDS.Variable) = DiskArrays.eachchunk(var.values)
-RA._get_haschunks(var::GDS.Variable) = DiskArrays.haschunks(var.values)
-
 RA._sourcetrait(::GDS.Variable) = GRIBsource()
 RA._sourcetrait(::GDS.GRIBDataset) = GRIBsource()
+
+function RA.missingval(var::GDS.Variable{T}, args...) where T
+    mv = GDS.missing_value(var)
+    T1 = promote_type(typeof(mv), T)
+    return T1(mv)
+end
