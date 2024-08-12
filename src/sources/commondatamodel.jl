@@ -519,7 +519,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     attrib = _attribdict(metadata(A))
     # Set _FillValue
     eltyp = Missings.nonmissingtype(T)
-    _check_allowed_type(eltyp)
+    _check_allowed_type(_sourcetrait(ds), eltyp)
     if ismissing(missingval)
         fillval = if haskey(attrib, "_FillValue") && attrib["_FillValue"] isa eltyp
             attrib["_FillValue"]
@@ -549,7 +549,7 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     return nothing
 end
 
-_check_allowed_type(eltyp) = nothing
+_check_allowed_type(trait, eltyp) = nothing
 
 _def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
