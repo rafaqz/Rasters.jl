@@ -125,8 +125,6 @@ end
 
 function _open(f, ::CDMsource, ds::AbstractDataset; name=nokw, group=nothing, kw...)
     g = _getgroup(ds, group)
-    #@show g
-    @show name
     x = isnokw(name) ? g : CFDiskArray(g[_firstname(g, name)])
     cleanreturn(f(x))
 end
@@ -256,9 +254,7 @@ end
 _firstname(ds::AbstractDataset, name) = Symbol(name)
 function _firstname(ds::AbstractDataset, name::NoKW=nokw)
     names = _nondimnames(ds)
-    @show typeof(names)
     if length(names) > 0
-        @show first(names)
         Symbol(first(names))
     else
         throw(ArgumentError("No non-dimension layers found in dataset with keys: $(keys(ds))"))
