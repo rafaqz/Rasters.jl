@@ -86,8 +86,9 @@ function _writeable_missing(T; verbose=true)
     return missingval
 end
 
-_type_missingval(::Type{T}) where T = typemin(T)
-_type_missingval(::Type{T}) where T<:Unsigned = typemax(T)
+_type_missingval(::Type{T}) where T = _type_missingval1(Missings.nonmissingtype(T))
+_type_missingval1(::Type{T}) where T = typemin(T)
+_type_missingval1(::Type{T}) where T<:Unsigned = typemax(T)
 
 _fix_missingval(::Type, ::Union{NoKW,Nothing}) = nothing
 _fix_missingval(::AbstractArray, ::Nothing) = nothing

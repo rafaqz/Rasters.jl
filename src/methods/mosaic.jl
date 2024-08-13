@@ -65,22 +65,45 @@ function mosaic(f::Function, r1::RasterStackOrArray, rs::RasterStackOrArray...; 
     mosaic(f, (r1, rs...); kw...)
 end
 mosaic(f::Function, regions; kw...) = _mosaic(f, first(regions), regions; kw...)
-function _mosaic(f::Function, ::AbstractRaster, regions;
-    missingval=missingval(first(regions)), filename=nothing, suffix=nothing, kw...
+function _mosaic(f::Function, A1::AbstractRaster, regions;
+    missingval=nokw,
+    maskingval=nokw,
+    filename=nothing,
+    suffix=nothing,
+    driver=nokw,
+    options=nokw,
+    force=false,
+    kw...
 )
-    missingval = missingval isa Nothing ? missing : missingval
+    maskingval = isnokw(maskingval) ? Rasters.missingval(first(regions)) : maskingval
+    missingval = isnokw(missingval) ? Rasters.missingval(first(regions)) : missingval
+    # missingval is not ooptional here
+    missingval = ismissing(missingval) || isnothing(missingval) ? _type_missingval(eltype(A1)) : missingval
     T = Base.promote_type(typeof(missingval), Base.promote_eltype(regions...))
     dims = _mosaic(Tuple(map(DD.dims, regions)))
     l1 = first(regions)
-    A = create(filename, T, dims; name=name(l1), missingval, metadata=metadata(l1))
-    open(A; write=true) do a
-        mosaic!(f, a, regions; missingval, kw...)
+
+    A = create(filename, T, dims; 
+        name=name(l1), 
+        fill=missingval, 
+        metadata=metadata(l1), 
+        missingval, 
+        maskingval, 
+        driver, 
+        options,
+        force
+    )
+    open(A; write=true) do O
+        mosaic!(f, O, regions; missingval, kw...)
     end
     return A
 end
 function _mosaic(f::Function, ::AbstractRasterStack, regions;
-    filename=nothing, suffix=keys(first(regions)), kw...
+    filename=nothing,
+    suffix=keys(first(regions)),
+    kw...
 )
+    # TODO make this write inside a single netcdf
     layers = map(suffix, map(values, regions)...) do s, A...
         mosaic(f, A...; filename, suffix=s, kw...)
     end
@@ -135,12 +158,15 @@ nothing
 
 $EXPERIMENTAL
 """
-mosaic!(f::Function, x::RasterStackOrArray, regions::RasterStackOrArray...; kw...) = mosaic!(f, x, regions; kw...)
+mosaic!(f::Function, x::RasterStackOrArray, regions::RasterStackOrArray...; kw...) =
+    mosaic!(f, x, regions; kw...)
 function mosaic!(f::Function, A::AbstractRaster{T}, regions;
-    missingval=missingval(A), atol=_default_atol(T)
+    missingval=Rasters.missingval(A), 
+    atol=_default_atol(T)
 ) where T
+    isnokwornothing(missingval) && throw(ArgumentError("destination array must have a `missingval`"))
     _without_mapped_crs(A) do A1
-        broadcast!(A1, DimKeys(A1; atol)) do ds
+        broadcast!(A1, DimSelectors(A1; atol)) do ds
             # Get all the regions that have this point
             ls = foldl(regions; init=()) do acc, l
                 if DD.hasselection(l, ds)

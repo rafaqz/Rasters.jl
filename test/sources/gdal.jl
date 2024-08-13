@@ -27,24 +27,19 @@ gdalpath = maybedownload(url)
     
     @testset "cf" begin
         # This file has no scale/offset so cf does nothing
-        @time cfarray = Raster(gdalpath)
+        @time cfarray = Raster(gdalpath; missingval=0x00)
         @time cf_nomask_array = Raster(gdalpath; maskingval=nothing)
         @time nocfarray = Raster(gdalpath; scaled=false)
-        @time lazycfarray = Raster(gdalpath; lazy=true)
+        @time lazycfarray = Raster(gdalpath; lazy=true, missingval=0x00)
         @time lazynocfarray = Raster(gdalpath; lazy=true, scaled=false)
-        @time lazynocfnomaskarray = Raster(gdalpath; lazy=true, scaled=false, maskingval=nothing)
-        @test parent(cfarray) isa Array{UInt8,2}
+        @test parent(cfarray) isa Base.ReshapedArray{Union{UInt8,Missing},2}
         @test parent(cf_nomask_array) isa Array{UInt8,2}
         @test parent(nocfarray) isa Array{UInt8,2}
         open(lazycfarray) do A
-            @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
-            @test parent(parent(A)) isa Rasters.ModifiedDiskArray{UInt8}
+            @test parent(A) isa DiskArrays.SubDiskArray{Union{Missing,UInt8}}
+            @test parent(parent(A)) isa Rasters.ModifiedDiskArray{false,Union{Missing,UInt8}}
         end
         open(lazynocfarray) do A
-            @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
-            @test parent(parent(A)) isa Rasters.ModifiedDiskArray{UInt8}
-        end
-        open(lazynocfnomaskarray) do A
             @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
             @test parent(parent(A)) isa ArchGDAL.RasterDataset{UInt8}
         end
@@ -200,7 +195,7 @@ gdalpath = maybedownload(url)
         @testset "trim, crop, extend" begin
             a = read(replace_missing(gdalarray, zero(eltype(gdalarray))))
             a[X(1:100)] .= missingval(a)
-            trimmed = trim(a)
+            trimmed = Rasters.trim(a)
             @test size(trimmed) == (414, 514)
             cropped = Rasters.crop(a; to=trimmed)
             @test size(cropped) == (414, 514)
@@ -278,13 +273,21 @@ gdalpath = maybedownload(url)
             @time gdalarray = Raster(gdalpath; name=:test)
             A1 = gdalarray[X(1:300), Y(1:200)]
             A2 = gdalarray[X(57:500), Y(101:301)]
-            tempfile = tempname() * ".tif"
-            Afile = mosaic(first, A1, A2; missingval=0x00, atol=1e-8, filename=tempfile)
+            tempfile1 = tempname() * ".tif"
+            tempfile2 = tempname() * ".tif"
+            tempfile3 = tempname() * ".tif"
+            Afile = mosaic(first, A1, A2; missingval=0x00, atol=1e-8, filename=tempfile1)
+            Afile2 = mosaic(first, A1, A2; 
+                missingval=0x00, atol=1e-8, filename=tempfile2, maskingval=missing
+            )
+            @test missingval(Afile2) === missing
             Amem = mosaic(first, A1, A2; missingval=0x00, atol=1e-8)
             Atest = gdalarray[X(1:500), Y(1:301)]
             Atest[X(1:56), Y(201:301)] .= 0x00
             Atest[X(301:500), Y(1:100)] .= 0x00
-            @test all(Atest .=== Amem .=== Afile)
+            @test all(Atest .=== Amem .=== Afile .== replace_missing(Afile2, 0x00))
+            Afile3 = mosaic(first, A1, A2; atol=1e-8, filename=tempfile3)
+            @test missingval(Afile3) === 0xff
         end
 
     end # methods
@@ -464,10 +467,11 @@ gdalpath = maybedownload(url)
         end
 
         @testset "write missing" begin
-            A = read(replace_missing(gdalarray, missing))
+            A = replace_missing(gdalarray, missing)
             filename = tempname() * ".tif"
             write(filename, A)
-            @test missingval(Raster(filename)) === typemax(UInt8)
+            @test missingval(Raster(filename)) === missing
+            @test missingval(Raster(filename; maskingval=nothing)) === typemax(UInt8)
             rm(filename)
         end
 
@@ -513,11 +517,11 @@ gdalpath = maybedownload(url)
         gdalarray[Y(1)] |> plot
     end
 
-    @testset "nodatavalue type matches the array type" begin
+    @testset "unmasked missingval type matches the array type" begin
         # Handle WorldClim/ucdavis unreliability
         A = nothing
         try
-            A = Raster(WorldClim{Climate}, :tavg; res="10m", month=1)
+            A = Raster(WorldClim{Climate}, :tavg; res="10m", month=1, maskingval=nothing)
         catch
         end
         if !isnothing(A)
@@ -921,7 +925,7 @@ end
             mv = zero(eltype(gdalser[1]))
             ser = read(replace_missing(gdalser, mv))
             ser = map(A -> (view(A, X(1:100)) .= mv; A), ser)
-            trimmed = trim(ser)
+            trimmed = Rasters.trim(ser)
             @test size(trimmed[1]) == (414, 514)
             cropped = crop(ser; to=trimmed[1])
             @test size(cropped[1]) == (414, 514)

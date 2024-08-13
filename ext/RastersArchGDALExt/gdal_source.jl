@@ -46,28 +46,39 @@ function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRasterSta
     ext = splitext(filename)[2]
     throw(ArgumentError("Cant write a RasterStack to $ext with gdal")) 
 end
-function Base.write(
-    filename::AbstractString, ::GDALsource, A::AbstractRaster{T};
+function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster{T};
     force=false, 
     verbose=true, 
+    write=true,
     missingval=nokw,
-    maskingval=RA.missingval(A),
+    maskingval=nokw,
     scale=nokw,
     offset=nokw,
     coerce=nokw,
     eltype=Missings.nonmissingtype(T),
-    write=true,
     kw...
 ) where T
     RA.check_can_write(filename, force)
-    A1 = _maybe_correct_to_write(A)
-    mod = RA._writer_mod(eltype; missingval, maskingval, scale, offset, coerce)
-    _create_with_driver(filename, dims(A1), T; 
+    A1 = _maybe_permute_to_gdal(A)
+
+    # Missing values
+    maskingval = isnokw(maskingval) ? RA.missingval(A) : maskingval
+    missingval = isnokw(missingval) ? maskingval : missingval
+    missingval = if ismissing(missingval) 
+        # See if there is a missing value in metadata
+        # But only use it if its the right type
+        RA._writeable_missing(eltype; verbose=true)
+    else
+        missingval
+    end
+
+    _create_with_driver(filename, dims(A1), eltype; 
         missingval, _block_template=A1, scale, offset, verbose, kw...
-   ) do dataset
+    ) do dataset
         if write
+            mod = RA._writer_mod(eltype; missingval, maskingval, scale, offset, coerce)
             open(A1; write=true) do O
-                RA._maybe_modify(AG.RasterDataset(dataset), mod) .= parent(O)
+                AG.RasterDataset(dataset) .= RA._maybe_modify(parent(O), mod; invert=true)
             end
         end
     end
@@ -96,8 +107,7 @@ function RA._open(f, ::GDALsource, filename::AbstractString;
     end
     flags = write ? AG.OF_UPDATE : AG.OF_READONLY
     return AG.readraster(filename; flags) do A
-        A1 = RA._maybe_modify(A, mod)
-        RA.cleanreturn(f(A1)) 
+        RA.cleanreturn(f(RA._maybe_modify(A, mod))) 
     end
 end
 RA._open(f, ::GDALsource, A::AG.RasterDataset; mod=RA.NoMod(), kw...) =
@@ -300,7 +310,7 @@ function AG.RasterDataset(f::Function, A::AbstractRaster;
     maskingval=Rasters.missingval(A),
     kw...
 )
-    A1 = _maybe_correct_to_write(A)
+    A1 = _maybe_permute_to_gdal(A)
     return _create_with_driver(filename, dims(A1), eltype; 
         _block_template=A1, missingval, scale, offset, verbose, kw...
     ) do dataset
@@ -335,19 +345,11 @@ function _missingval_from_gdal(T::Type{<:Integer}, x::Integer; verbose=true)
 end
 _missingval_from_gdal(T, x) = x
 
-# Fix array and dimension configuration before writing with GDAL
-_maybe_correct_to_write(A::AbstractDimArray, args...) =
-    _maybe_correct_to_write(lookup(A, X()), A, args...)
-_maybe_correct_to_write(::Lookup, A::AbstractDimArray, args...) = A
-function _maybe_correct_to_write(
-    lookup::Union{AbstractSampled,NoLookup}, A::AbstractDimArray, args...
-)
-    _maybe_permute_to_gdal(A)
+function _check_driver(::Nothing, driver) 
+    isnokwornothing(driver) || isempty(driver) ? "MEM" : driver
 end
-
-_check_driver(filename::Nothing, driver) = "MEM"
 function _check_driver(filename::AbstractString, driver)
-    if isempty(driver)
+    if isnokwornothing(driver) || isempty(driver)
         if isempty(filename)
             driver = "MEM"
         else
@@ -365,15 +367,16 @@ end
 function _create_with_driver(f, filename, dims::Tuple, T;
     verbose=true,
     missingval=nokw,
-    options=Dict{String,String}(), 
-    driver="", 
-    _block_template=nothing, 
+    options=nokw,
+    driver=nokw, 
     chunks=nokw,
     scale=nokw,
     offset=nokw,
+    _block_template=nothing, 
     kw...
 )
     verbose && _maybe_warn_south_up(dims, verbose, "Creating a South-up raster. You may wish to reverse the `Y` dimension to use conventional North-up")
+    options = isnokwornothing(options) ? Dict{String,String}() : options
 
     missingval = ismissing(missingval) ? RA._writeable_missing(T; verbose) : missingval
     _gdal_validate(dims)

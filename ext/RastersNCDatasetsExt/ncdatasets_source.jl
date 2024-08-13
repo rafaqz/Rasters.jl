@@ -28,6 +28,7 @@ function Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStac
     append=false,
     force=false,
     missingval=nokw,
+    maskingval=nokw,
     kw...
 )
     mode = if append
@@ -37,11 +38,16 @@ function Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStac
         "c"
     end
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
+
+    maskingval = RA._stack_nt(s, isnokw(maskingval) ? Rasters.missingval(s) : maskingval)
+    missingval = RA._stack_missingvals(s, isnokw(missingval) ? maskingval : missingval)
     try
-        if missingval isa NamedTuple
-            map(k -> _writevar!(ds, s[k]; missingval=missingval[k], kw...), keys(s))
-        else
-            map(k -> _writevar!(ds, s[k]; missingval, kw...), keys(s))
+        map(keys(s)) do k
+            _writevar!(ds, s[k]; 
+                missingval=missingval[k], 
+                maskingval=maskingval[k], 
+                kw...
+            )
         end
     finally
         close(ds)
@@ -72,8 +78,27 @@ RA._sourcetrait(::NCD.Variable) = NCDsource()
     return scale, offset
 end
 
-RA.missingval(var::NCD.Variable, args...) = missingval(CDM.attribs(var), "_FillValue", nothing)
-RA.missingval(var::NCD.Variable, md::Metadata{<:NCDsource}) = get(md, "_FillValue", nothing)
+RA.missingval(var::NCD.Variable, args...) = _mv(CDM.attribs(var))
+RA.missingval(var::NCD.Variable, md::Metadata{<:NCDsource}) = _mv(md)
+
+# TODO: handle multiple missing values
+function _mv(md)
+    fv = get(md, "_FillValue", nothing)
+    mv = get(md, "missing_value", nothing)
+    if isnothing(fv)
+        if mv isa Vector
+            length(mv) > 1 && @warn "'missing_value' $mv has multiple values. Currently we only uses the first."
+            return first(mv)
+        else
+            return mv
+        end
+    else
+        if isnothing(mv) 
+            fv == mv || @warn "Both '_FillValue' $fv and 'missing_value' $mv were found. Currently we only use the first."
+        end
+        return fv
+    end
+end
 
 # Add a var array to a dataset before writing it.
 function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
@@ -89,6 +114,8 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     eltype=Missings.nonmissingtype(T),
     write=true,
     name=DD.name(A),
+    options=nokw,
+    driver=nokw,
     kw...
 ) where {T,N}
     eltype <: NCDAllowedType || throw(ArgumentError("""
@@ -97,7 +124,25 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
        """
     ))
     _def_dim_var!(ds, A)
-    metadata = isnokw(metadata) ? NoMetadata() : metadata
+    metadata = if isnokw(metadata) 
+        DD.metadata(A)
+    elseif isnothing(metadata)
+        NoMetadata()
+    else
+        metadata
+    end
+
+    maskingval = isnokw(maskingval) ? RA.missingval(A) : maskingval
+    missingval = isnokw(missingval) ? RA.missingval(A) : missingval
+    missingval = if ismissing(missingval) 
+        # See if there is a missing value in metadata
+        mv = _mv(metadata)
+        # But only use it if its the right type
+        mv isa eltype ? mv : RA._writeable_missing(eltype; verbose=true)
+    else
+        missingval
+    end
+
     attrib = RA._attribdict(metadata)
     # Scale and offset
     scale = if isnokw(scale) || isnothing(scale)
@@ -129,9 +174,8 @@ function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
     var = NCD.defVar(ds, key, eltype, dimnames; attrib=attrib, chunksizes, kw...)
 
     if write
-        modvar = RA._maybe_modify(var, mod)
         # Write with a DiskArays.jl broadcast
-        modvar .= A
+        RA._maybe_modify(var.var, mod) .= A
     end
 
     return nothing

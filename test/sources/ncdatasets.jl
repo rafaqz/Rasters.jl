@@ -31,14 +31,8 @@ stackkeys = (
 )
 
 @testset "grid mapping" begin
-    using ProfileView
-    using SnoopCompile
-    @profview 1 + 2
-    stack = 
-    tinf = @snoopi_deep RasterStack(joinpath(testdir, "data/grid_mapping_test.nc"))
-    fg = flamegraph(tinf)
-    ProfileView.view(fg)
-    @test metadata(stack.mask)["grid_mapping"]  == Dict{String, Any}(
+    st = RasterStack(joinpath(testdir, "data/grid_mapping_test.nc"))
+    @test metadata(st.mask)["grid_mapping"]  == Dict{String, Any}(
         "straight_vertical_longitude_from_pole" => 0.0,
         "false_easting"                         => 0.0,
         "standard_parallel"                     => -71.0,
@@ -52,7 +46,6 @@ end
 
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle)
-
     @time lazyarray = Raster(ncsingle; lazy=true)
     @time eagerarray = Raster(ncsingle; lazy=false)
     @test_throws ArgumentError Raster("notafile.nc")
@@ -65,7 +58,7 @@ end
         @time read(lazyarray);
     end
 
-    @testset "cf" begin
+    @testset "cf" begin @time cfarray = Raster(ncsingle)
         @time cfarray = Raster(ncsingle)
         @time cf_nomask_array = Raster(ncsingle; maskingval=nothing)
         @time nocfarray = Raster(ncsingle; scaled=false)
@@ -81,10 +74,10 @@ end
         @test parent(cfarray) isa Array{Union{Float32,Missing}}
         @test parent(nocfarray) isa Array{Union{Float32,Missing}}
         open(lazycfarray) do A
-            @test parent(A) isa Rasters.ModifiedDiskArray{Union{Missing,Float32}}
+            @test parent(A) isa Rasters.ModifiedDiskArray{false,Union{Missing,Float32}}
         end
         open(lazynocfarray) do A
-            @test parent(A) isa Rasters.ModifiedDiskArray{Union{Missing,Float32}}
+            @test parent(A) isa Rasters.ModifiedDiskArray{false,Union{Missing,Float32}}
         end
         open(lazynocf_nomask_array) do A
             @test parent(parent(A)) isa NCDatasets.Variable{Float32}
@@ -210,7 +203,7 @@ end
             A1 = ncarray[X(1:80), Y(1:100)]
             A2 = ncarray[X(50:150), Y(90:150)]
             tempfile = tempname() * ".nc"
-            Afile = mosaic(first, read(A1), read(A2); missingval=missing, atol=1e-7, filename=tempfile)
+            Afile = mosaic(first, read(A1), read(A2); missingval=missing, atol=1e-7, filename=tempfile, force=true)
             Amem = mosaic(first, A1, A2; missingval=missing, atol=1e-7)
             Atest = ncarray[X(1:150), Y(1:150)]
             Atest[X(1:49), Y(101:150)] .= missing
@@ -288,7 +281,8 @@ end
                 all(s .== g)
             end |> all
             @test metadata(saved) == metadata(ncarray)
-            @test_broken all(metadata(dims(saved))[2] == metadata.(dims(ncarray))[2])
+            # Dimension names are renamed so metadata is different
+            @test_broken all( metadata(dims(saved)) == metadata.(dims(ncarray)))
             @test Rasters.name(saved) == Rasters.name(ncarray)
             @test all(lookup.(dims(saved)) .== lookup.(dims(ncarray)))
             @test all(order.(dims(saved)) .== order.(dims(ncarray)))
@@ -354,7 +348,7 @@ end
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write(gdalfilename, nccleaned; force=true)
             @test (@allocations write(gdalfilename, nccleaned; force=true)) < 1e4
-            gdalarray = Raster(gdalfilename)
+            gdalarray = Raster(gdalfilename; maskingval=nothing)
             # gdalarray WKT is missing one AUTHORITY
             # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
             # But the Proj representation is the same
@@ -365,18 +359,19 @@ end
             @test index(gdalarray, X) .+ 1.0  ≈ index(nccleaned, X)
             @test gdalarray ≈ nccleaned
         end
+
         @testset "to grd" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write("testgrd.gri", nccleaned; force=true)
             @test (@allocations write("testgrd.gri", nccleaned; force=true)) < 1e4
-            grdarray = Raster("testgrd.gri");
+            grdarray = Raster("testgrd.gri", maskingval=nothing);
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == bounds(nccleaned)
             @test index(grdarray, Y) ≈ reverse(index(nccleaned, Y)) .- 0.5
             @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
             @test reverse(grdarray; dims=Y) ≈ nccleaned
-            # rm("testgrd.gri")
-            # rm("testgrd.grd")
+            rm("testgrd.gri")
+            rm("testgrd.grd")
         end
 
         @testset "write points" begin
@@ -463,7 +458,7 @@ end
 
     @testset "load ncstack" begin
         @test ncstack isa RasterStack
-        @test ismissing(missingval(ncstack))
+        @test isnothing(missingval(ncstack))
         @test dims(ncstack[:abso4]) == dims(ncstack, (X, Y, Ti)) 
         @test refdims(ncstack) == ()
         # Loads child as a regular Raster
@@ -574,14 +569,15 @@ end
     rm("test_2.nc")
 end
 
-# Groups
 if !haskey(ENV, "CI")
-    path = joinpath(testdir, "data/SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5")
-    stack = RasterStack(path; group="Geophysical_Data")
-    lazy_stack = RasterStack(path; group="Geophysical_Data", lazy=true)
-    rast = Raster(path; name=:surface_temp, group="Geophysical_Data")
-    lazy_rast = Raster(path; name=:surface_temp, group="Geophysical_Data", lazy=true)
-    @test all(stack[:surface_temp] .=== read(lazy_stack[:surface_temp]) .=== rast .=== read(lazy_rast))
+    @testset "HDF5 with Groups" begin
+        path = joinpath(testdir, "data/SMAP_L4_SM_gph_20160101T223000_Vv4011_001.h5")
+        stack = RasterStack(path; group="Geophysical_Data")
+        lazy_stack = RasterStack(path; group="Geophysical_Data", lazy=true)
+        rast = Raster(path; name=:surface_temp, group="Geophysical_Data")
+        lazy_rast = Raster(path; name=:surface_temp, group="Geophysical_Data", lazy=true)
+        @test all(stack[:surface_temp] .=== read(lazy_stack[:surface_temp]) .=== rast .=== read(lazy_rast))
+    end
 end
 
 nothing

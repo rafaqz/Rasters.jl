@@ -59,7 +59,7 @@ function _open(f, ::CDMsource, ds::AbstractDataset;
     kw...
 )
     g = _getgroup(ds, group)
-    x = if isnokw(name) 
+    x = if isnokw(name)
         g 
     else
         v = CDM.variable(g, string(_name_or_firstname(g, name)))
@@ -119,8 +119,10 @@ function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
         attrs=attrs[bitinds],
     )
 end
-function _layers(ds::AbstractDataset, names, ::NoKW)
-    vars = map(k -> CDM.variable(ds, k), names)
+_layers(ds::AbstractDataset, names, ::NoKW) = 
+    _layers(ds, collect(names), nokw)
+function _layers(ds::AbstractDataset, names::Vector, ::NoKW)
+    vars = map(n -> CDM.variable(ds, n), names)
     attrs = map(CDM.attribs, vars)
     (; names, vars, attrs)
 end

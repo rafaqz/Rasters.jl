@@ -188,13 +188,16 @@ function create(filename::Nothing, ::Type{T}, dims::Tuple;
     suffix=nokw,
     force=false,
     chunks=nokw,
+    driver=nokw,
+    options=nokw,
     kw...
 ) where T
     if verbose
         isnokw(chunks) || @warn "`chunks` of `$chunks` found. But `chunks` are not used for in-memory rasters"
     end
-    missingval = isnokw(maskingval) || isnothing(maskingval) ? missingval : maskingval 
-    eltype = isnokw(missingval) || isnothing(missingval) ? T : promote_type(T, typeof(missingval))
+    # maskingval determines missingval here as we don't use both
+    missingval = isnokwornothing(maskingval) ? missingval : maskingval 
+    eltype = isnokwornothing(missingval) ? T : promote_type(T, typeof(missingval))
     data = if isnokw(parent) || isnothing(parent)
         Array{eltype}(undef, dims)
     else
@@ -210,28 +213,33 @@ function create(filename::Nothing, types::NamedTuple, dims::Tuple;
     force=false,
     chunks=nokw,
     verbose=true,
+    driver=nokw,
+    options=nokw,
     parent=nokw,
     missingval=nokw,
-    maskingval=nothing,
+    maskingval=nokw,
     fill=nokw,
     layerdims=nokw,
     layermetadata=nokw,
     kw...
 )
-    missingval = isnokw(maskingval) || isnothing(maskingval) ? missingval : maskingval
+    missingval = isnokwornothing(missingval) ? maskingval : missingval
     layerdims = isnokw(layerdims) ? map(_ -> basedims(dims), types) : layerdims
     layermetadata = layermetadata isa NamedTuple ? layermetadata : map(_ -> layermetadata, types)
     layerfill = fill isa NamedTuple ? fill : map(_ -> fill, types)
     layermissingvals = missingval isa NamedTuple ? missingval : map(_ -> missingval, types)
-    layers = map(types, layermissingvals, layerfill, layerdims, layermetadata) do T, lmv, lfv, ld, lm
-        create(nothing, T, DD.dims(dims, ld); parent, missingval=lmv, fill=lfv, metadata=lm)
+    layermaskingvals = maskingval isa NamedTuple ? maskingval : map(_ -> maskingval, types)
+    layers = map(types, layermissingvals, layermaskingvals, layerfill, layerdims, layermetadata) do T, lmv, lma, lfv, ld, lm
+        create(nothing, T, DD.dims(dims, ld); 
+            parent, missingval=lmv, maskingval=lma, fill=lfv, metadata=lm, driver, options,
+        )
     end
     return RasterStack(layers; kw...)
 end
 function create(filename::AbstractString, source::Source, ::Type{T}, dims::DimTuple;
     name=nokw,
     missingval=nokw,
-    maskingval=nothing,
+    maskingval=nokw,
     fill=nokw,
     metadata=nokw,
     chunks=nokw,
@@ -257,13 +265,17 @@ function create(filename::AbstractString, source::Source, ::Type{T}, dims::DimTu
     # Create layers of zero arrays
     rast = Raster(A, dims; name, missingval)
     Rasters.write(filename, source, rast;
-        eltype, chunks, metadata, scale, offset, missingval, verbose, force, coerce, write, kw...
+        eltype, chunks, metadata, scale, offset, missingval, maskingval, verbose, force, coerce, write, kw...
     )
-    return Raster(filename; source, lazy, metadata, missingval, maskingval, dropband, coerce)
+    # Don't pass in `missingval`, read it again from disk in case it changed
+    return Raster(filename; source, lazy, metadata, maskingval, dropband, coerce)
 end
 function create(filename::AbstractString, source::Source, layertypes::NamedTuple, dims::DimTuple;
+    lazy=true,
+    verbose=true,
+    force=false,
     missingval=nokw,
-    maskingval=nothing,
+    maskingval=nokw,
     fill=nokw,
     metadata=nokw,
     layerdims=nokw,
@@ -272,25 +284,20 @@ function create(filename::AbstractString, source::Source, layertypes::NamedTuple
     scale=nokw,
     offset=nokw,
     dropband=!hasdim(dims, Band),
-    lazy=true,
-    verbose=true,
-    force=false,
     coerce=nokw,
     kw...
 )
-    write = Ref(false)
-    fill = fill isa NamedTuple ? fill : map(_ -> fill, layertypes)
-    layerdims = if isnokw(layerdims)
-        map(layertypes) do x
-            if x isa Type
-                DD.basedims(dims)
-            else
-                DD._astuple(DD.basedims(x[2]))
-            end
-        end
+    layerdims = if isnokwornothing(layerdims)
+        # Use the same dims for all layers by default
+        map(_ -> DD.basedims(dims), layertypes)
     else
         layerdims
     end
+    # Define no-allocation layers with FillArrays
+    # We need a fill value for each layer
+    fill = fill isa NamedTuple ? fill : map(_ -> fill, layertypes)
+    # We update `write` in the closure below
+    write = Ref(false)
     layers = map(layertypes, layerdims, fill) do T, ld, f
         lks = lookup(dims, ld)
         eltype = Missings.nonmissingtype(T)
@@ -307,6 +314,7 @@ function create(filename::AbstractString, source::Source, layertypes::NamedTuple
     fn = Rasters.write(filename, stack;
         chunks, metadata, scale, offset, missingval, maskingval, verbose, force, coerce, write=write[], kw...
     )
+    # Don't pass in `missingval`, read it again from disk in case it changed
     st = RasterStack(fn; source, lazy, metadata, layerdims, maskingval, dropband, coerce)
     return st
 end
