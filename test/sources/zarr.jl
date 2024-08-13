@@ -1,15 +1,15 @@
-using Rasters, Zarr
+using Rasters
+using Zarr
 using ZarrDatasets
 using Rasters: FileArray, FileStack, Zarrsource, crs, bounds, name, trim
 
 path = "https://s3.bgc-jena.mpg.de:9000/esdl-esdc-v3.0.2/esdc-16d-2.5deg-46x72x1440-3.0.2.zarr"
 
 @testset "Zarr Raster open" begin
-    
 
-zraster = Raster(path, name="air_temperature_2m")
-lazyarray = Raster(path, lazy=true, name="air_temperature_2m")
-eagerarray = Raster(path, lazy=false, name="air_temperature_2m")
+zraster = Raster(path; name="air_temperature_2m")
+lazyarray = Raster(path; lazy=true, name="air_temperature_2m")
+eagerarray = Raster(path; lazy=false, name="air_temperature_2m")
 @test_throws ArgumentError Raster("notafile.zarr/")
 
 @testset "lazyness" begin

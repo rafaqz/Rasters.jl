@@ -116,9 +116,6 @@ RA._open(f, ::GDALsource, A::AG.RasterDataset; mod=RA.NoMod(), kw...) =
 
 # These methods are type piracy on DimensionalData/ArchGDAL and may have to move some day
 
-
-RA._dims(var::CDM.CFVariable{<:Any,<:Any,<:AG.RasterDataset}, crs=nokw, mappedcrs=nokw) =
-    RA._dims(var.var, crs, mappedcrs)
 # We allow passing in crs and mappedcrs manually
 function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw)
     gt_dims = try

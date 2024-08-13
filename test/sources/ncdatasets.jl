@@ -46,7 +46,6 @@ end
 
 @testset "Raster" begin
     @time ncarray = Raster(ncsingle);
-    @time ncarray = Raster(ncsingle; maskingval=nothing);
     @time lazyarray = Raster(ncsingle; lazy=true)
     @time eagerarray = Raster(ncsingle; lazy=false)
     @test_throws ArgumentError Raster("notafile.nc")
@@ -115,14 +114,14 @@ end
     @testset "handle empty variables" begin
         st = RasterStack((empty=view(ncarray, 1, 1, 1), full=ncarray))
         empty_test = tempname() * ".nc"
-        using ProfileView
-        @profview write(empty_test, st)
+        write(empty_test, st)
 
         rast = Raster(empty_test)
         st = RasterStack(empty_test)
-        @test name(rast) == name(st[:empty]) == :empty
-        @test size(rast) == size(st[:empty]) == ()
-        @test all(st[:full] .=== ncarray)
+        @test name(rast) == name(st.empty) == :empty
+        @test size(rast) == size(st.empty) == ()
+        @test st.empty[] === missing
+        @test all(st.full .=== ncarray)
         st = RasterStack(empty_test; lazy=true)
     end
 
@@ -210,11 +209,12 @@ end
             A1 = ncarray[X(1:80), Y(1:100)]
             A2 = ncarray[X(50:150), Y(90:150)]
             tempfile = tempname() * ".nc"
-            Afile = mosaic(first, read(A1), read(A2); missingval=missing, atol=1e-7, filename=tempfile, force=true)
-            Amem = mosaic(first, A1, A2; missingval=missing, atol=1e-7)
+            Afile = mosaic(first, read(A1), read(A2); atol=1e-7, filename=tempfile, force=true)
+            Amem = mosaic(first, A1, A2; atol=1e-7)
             Atest = ncarray[X(1:150), Y(1:150)]
             Atest[X(1:49), Y(101:150)] .= missing
             Atest[X(81:150), Y(1:89)] .= missing
+            read(Afile)
             @test all(Atest .=== Afile .=== Amem)
         end
         @testset "slice" begin

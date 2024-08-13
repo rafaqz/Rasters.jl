@@ -75,9 +75,7 @@ end
 function DiskArrays.readblock!(
     A::ModifiedDiskArray{false}, out_block, I::AbstractVector...
 )
-    inner_block = similar(out_block, eltype(parent(A)))
-    DiskArrays.readblock!(parent(A), inner_block, I...)
-    out_block .= _applymod.(inner_block, (A.mod,))
+    out_block .= _applymod.(parent(A)[I...], (A.mod,))
     return out_block
 end
 function DiskArrays.readblock!(

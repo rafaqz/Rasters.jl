@@ -258,7 +258,7 @@ function create(filename::AbstractString, source::Source, ::Type{T}, dims::DimTu
         write = false # Leave fill undefined
         A = FillArrays.Zeros{eltype}(map(length, dims))
     else
-        fill isa T || throw(ArgumentError("fill must be of type $T, got $fill"))
+        fill isa eltype || throw(ArgumentError("fill must be of type $eltype, got $fill"))
         write = true # Write fill to disk
         A = FillArrays.Fill{eltype}(fill, map(length, dims))
     end

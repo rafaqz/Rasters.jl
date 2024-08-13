@@ -78,18 +78,19 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
     maskingval = isnokw(maskingval) ? Rasters.missingval(first(regions)) : maskingval
     missingval = isnokw(missingval) ? Rasters.missingval(first(regions)) : missingval
     # missingval is not ooptional here
-    missingval = ismissing(missingval) || isnothing(missingval) ? _type_missingval(eltype(A1)) : missingval
+    if !isnothing(filename) && (ismissing(missingval) || isnothing(missingval))
+        missingval = _type_missingval(eltype(A1))
+    end
     T = Base.promote_type(typeof(missingval), Base.promote_eltype(regions...))
     dims = _mosaic(Tuple(map(DD.dims, regions)))
     l1 = first(regions)
 
-    A = create(filename, T, dims; 
-        name=name(l1), 
-        fill=missingval, 
-        metadata=metadata(l1), 
-        missingval, 
-        maskingval, 
-        driver, 
+    A = create(filename, T, dims;
+        name=name(l1),
+        fill=missingval,
+        missingval,
+        maskingval,
+        driver,
         options,
         force
     )
@@ -161,7 +162,7 @@ $EXPERIMENTAL
 mosaic!(f::Function, x::RasterStackOrArray, regions::RasterStackOrArray...; kw...) =
     mosaic!(f, x, regions; kw...)
 function mosaic!(f::Function, A::AbstractRaster{T}, regions;
-    missingval=Rasters.missingval(A), 
+    missingval=Rasters.missingval(A),
     atol=_default_atol(T)
 ) where T
     isnokwornothing(missingval) && throw(ArgumentError("destination array must have a `missingval`"))

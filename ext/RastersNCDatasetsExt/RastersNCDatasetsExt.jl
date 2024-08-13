@@ -4,7 +4,7 @@ using Rasters
 using NCDatasets
 using CommonDataModel
 using Dates 
-using DimensionalData,
+using DimensionalData
 
 import Missings
 

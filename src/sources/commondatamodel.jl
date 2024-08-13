@@ -1,5 +1,7 @@
 const CDM = CommonDataModel
 
+const UNNAMED_FILE_KEY = "unnamed"
+
 const CDM_DIM_MAP = Dict(
     "lat" => Y,
     "latitude" => Y,
@@ -426,46 +428,79 @@ end
 
 _unuseddimerror(dimname) = error("Dataset contains unused dimension $dimname")
 
-
 # Add a var array to a dataset before writing it.
-function _writevar!(ds::AbstractDataset, A::AbstractRaster{T,N};
+function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N};
     verbose=true,
     missingval=nokw,
+    maskingval=nokw,
+    metadata=nokw,
     chunks=nokw,
     chunksizes=_chunks_to_tuple(A, dims(A), chunks),
+    scale=nokw,
+    offset=nokw,
+    coerce=convert,
+    eltype=Missings.nonmissingtype(T),
+    write=true,
+    name=DD.name(A),
+    options=nokw,
+    driver=nokw,
     kw...
 ) where {T,N}
-    missingval = missingval isa NoKW ? Rasters.missingval(A) : missingval
+    _check_allowed_type(source, eltype)
     _def_dim_var!(ds, A)
-    attrib = _attribdict(metadata(A))
-    # Set _FillValue
-    eltyp = Missings.nonmissingtype(T)
-    _check_allowed_type(_sourcetrait(ds), eltyp)
-    if ismissing(missingval)
-        fillval = if haskey(attrib, "_FillValue") && attrib["_FillValue"] isa eltyp
-            attrib["_FillValue"]
-        else
-            CDM.fillvalue(eltyp)
-        end
-        attrib["_FillValue"] = fillval
-        A = replace_missing(A, fillval)
-    elseif Rasters.missingval(A) isa T
+    metadata = if isnokw(metadata) 
+        DD.metadata(A)
+    elseif isnothing(metadata)
+        NoMetadata()
+    else
+        metadata
+    end
+
+    maskingval = isnokw(maskingval) ? Rasters.missingval(A) : maskingval
+    missingval = isnokw(missingval) ? Rasters.missingval(A) : missingval
+    missingval = if ismissing(missingval) 
+        # See if there is a missing value in metadata
+        mv = _mv(metadata)
+        # But only use it if its the right type
+        mv isa eltype ? mv : _writeable_missing(eltype; verbose=true)
+    else
+        missingval
+    end
+
+    attrib = _attribdict(metadata)
+    # Scale and offset
+    scale = if isnokw(scale) || isnothing(scale)
+        delete!(attrib, "scale_factor")
+        nothing
+    else
+        attrib["scale_factor"] = scale
+    end
+    offset = if isnokw(offset) || isnothing(offset)
+        delete!(attrib, "add_offset")
+        nothing
+    else
+        attrib["add_offset"] = offset
+    end
+
+    mod = _writer_mod(eltype; missingval, maskingval, scale, offset, coerce)
+
+    if !isnothing(mod.missingval)
         attrib["_FillValue"] = missingval
-    else
-        verbose && !(missingval isa Nothing) && @warn "`missingval` $(missingval) is not the same type as your data $T."
     end
 
-    key = if string(DD.name(A)) == ""
-        UNNAMED_CDM_FILE_KEY
+    key = if isnokw(name) || string(name) == ""
+        UNNAMED_FILE_KEY
     else
-        string(DD.name(A))
+        string(name)
     end
 
-    dimnames = lowercase.(string.(map(name, dims(A))))
-    var = CDM.defVar(ds, key, eltyp, dimnames; attrib=attrib, chunksizes, kw...) |> CFDiskArray
+    dimnames = lowercase.(string.(map(Rasters.name, dims(A))))
+    var = CDM.defVar(ds, key, eltype, dimnames; attrib=attrib, chunksizes, kw...)
 
-    # Write with a DiskArrays.jl broadcast
-    var .= A
+    if write
+        # Write with a DiskArays.jl broadcast
+        _maybe_modify(var.var, mod) .= A
+    end
 
     return nothing
 end
