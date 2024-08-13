@@ -371,7 +371,7 @@ function RasterStack(filename::AbstractString;
     kw...
 )
     source = _sourcetrait(filename, source)
-    st = if isdir(filename)
+    st = if isdir(filename) && !(source isa Zarrsource)
         # Load as a whole directory
         filenames = readdir(filename)
         length(filenames) > 0 || throw(ArgumentError("No files in directory $filename"))
