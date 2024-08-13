@@ -239,4 +239,4 @@ function check_can_write(filename, force)
     return true
 end
 check_can_write(::Type{Bool}, filename::Union{Nothing,NoKW}, force) = true
-check_can_write(::Type{Bool}, filename, force) = (force || !isfile(filename))
+check_can_write(::Type{Bool}, filename, force) = (force || (!isfile(filename) && !isdir(filename)))
