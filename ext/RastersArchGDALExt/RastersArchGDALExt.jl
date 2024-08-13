@@ -1,10 +1,7 @@
 module RastersArchGDALExt
 
-@static if isdefined(Base, :get_extension) # julia < 1.9
-    using Rasters, ArchGDAL, CommonDataModel
-else    
-    using ..Rasters, ..ArchGDAL, ..CommonDataModel
-end
+using Rasters
+using ArchGDAL
 
 import DiskArrays,
     Extents,
@@ -24,12 +21,12 @@ using Rasters: GDALsource, AbstractProjected, AbstractRaster, AbstractRasterStac
 
 import Rasters: reproject, resample, warp, cellsize, nokw, isnokw, isnokwornothing
 
+const AG = ArchGDAL
 const RA = Rasters
 const DD = DimensionalData
 const DA = DiskArrays
 const GI = GeoInterface
 const LA = Lookups
-const CDM = CommonDataModel
 
 include("cellsize.jl")
 include("gdal_source.jl")

@@ -1,6 +1,3 @@
-const GDS = GRIBDatasets
-const CDM = CommonDataModel
-
 function RA.OpenStack(fs::RA.FileStack{GRIBsource,K}) where K
     RA.OpenStack{GRIBsource,K}(GDS.GRIBDataset(RA.filename(fs)))
 end

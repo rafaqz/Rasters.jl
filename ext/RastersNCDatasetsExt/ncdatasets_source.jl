@@ -1,9 +1,12 @@
-const NCD = NCDatasets
-
-const UNNAMED_NCD_FILE_KEY = "unnamed"
-
 const NCDAllowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
 
+function RA._check_allowed_type(::RA.NCDsource, eltyp)
+    eltyp <: NCDAllowedType || throw(ArgumentError("""
+    Element type $eltyp cannot be written to NetCDF. Convert it to one of $(Base.uniontypes(NCDAllowedType)),
+    usually by broadcasting the desired type constructor over the `Raster`, e.g. `newrast = Float32.(rast)`"))
+    """
+    ))
+end
 function Base.write(filename::AbstractString, ::NCDsource, A::AbstractRaster;
     append=false,
     force=false,
@@ -18,7 +21,7 @@ function Base.write(filename::AbstractString, ::NCDsource, A::AbstractRaster;
     mode  = !isfile(filename) || !append ? "c" : "a";
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(A)))
     try
-        _writevar!(ds, A; kw...)
+        RA._writevar!(ds, A; kw...)
     finally
         close(ds)
     end
