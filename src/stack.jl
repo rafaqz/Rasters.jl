@@ -166,7 +166,6 @@ $GROUP_KEYWORD
 - `missingval`: a single value for all layers or a `NamedTuple` of
     missingval for each layer. `nothing` specifies no missing value.
 $MASKINGVAL_KEYWORD
-$SCALED_KEYWORD
 $CONSTRUCTOR_CRS_KEYWORD
 $CONSTRUCTOR_MAPPEDCRS_KEYWORD
 - `refdims`: `Tuple` of `Dimension` that the stack was sliced from.
@@ -175,6 +174,8 @@ For when one or multiple filepaths are used:
 
 $DROPBAND_KEYWORD
 $LAZY_KEYWORD
+$RAW_KEYWORD
+$SCALED_KEYWORD
 $SOURCE_KEYWORD
 
 For when a single `Raster` is used:
@@ -368,17 +369,23 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     layerdims::Union{NoKW,NamedTuple{K}}=nokw,
     missingval=nokw,
     maskingval=nokw,
+    replace_missing=nokw,
+    scaled=nokw,
+    raw=false,
     kw...
 ) where K
-    missingval1 = collect(_stack_nt(filenames, missingval))
-    maskingval1 = collect(_stack_nt(filenames, maskingval))
+    _maybe_warn_replace_missing(replace_missing)
+    scaled, maskingval = _raw_check(raw, scaled, maskingval)
+
+    layermissingval = collect(_stack_nt(filenames, missingval))
+    layermaskingval = collect(_stack_nt(filenames, maskingval))
     fn = collect(filenames)
     layermetadata = layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
     layerdims = layerdims isa NamedTuple ? collect(layerdims) : map(_ -> NoKW(), fn)
-    layers = map(K, fn, layermetadata, layerdims, missingval1, maskingval1) do name, fn, md, d, mv, ma
+    layers = map(K, fn, layermetadata, layerdims, layermissingval, layermaskingval) do name, fn, md, d, mv, ma
         Raster(fn; 
             source=_sourcetrait(fn, source), 
-            dims=d, name, metadata=md, missingval=mv, maskingval=ma, kw...
+            dims=d, name, metadata=md, missingval=mv, maskingval=ma, scaled, kw...
        )
     end
     return RasterStack(NamedTuple{K}(layers); resize, metadata)
@@ -387,15 +394,20 @@ end
 function RasterStack(filename::AbstractString;
     lazy::Bool=false,
     dropband::Bool=true,
+    raw::Bool=false,
     source::Union{Symbol,Source,NoKW}=nokw,
     missingval=nokw,
     maskingval=nokw,
     name=nokw,
-    group=nokw,
-    scaled=true,
-    coerce=convert,
+    group::Union{Symbol,AbstractString,NoKW}=nokw,
+    scaled::Union{Bool,NoKW}=nokw,
+    coerce=nokw,
+    replace_missing=nokw,
     kw...
 )
+    _maybe_warn_replace_missing(replace_missing)
+    scaled, maskingval = _raw_check(raw, scaled, maskingval)
+
     source = _sourcetrait(filename, source)
     st = if isdir(filename)
         # Load as a whole directory
@@ -427,22 +439,14 @@ function RasterStack(filename::AbstractString;
         else
             # With bands actings as layers
             raster = Raster(filename; 
-                source, lazy, missingval, maskingval, scaled, coerce, dropband=false
+                source, lazy, missingval, maskingval, scaled, coerce, dropband=false,
             )
             RasterStack(raster; kw...)
         end
     end
 
     # Maybe drop the Band dimension
-    if dropband && hasdim(st, Band()) && size(st, Band()) == 1
-         if lazy
-             return view(st, Band(1)) # TODO fix dropdims in DiskArrays
-         else
-             return dropdims(st; dims=Band())
-         end
-    else
-         return st
-    end
+    return _maybe_drop_single_band(st, dropband, lazy)
 end
 
 function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
@@ -508,7 +512,7 @@ function _layer_stack(filename;
     crs=nokw,
     mappedcrs=nokw,
     coerce=convert,
-    scaled=true,
+    scaled=nokw,
     checkmem=true,
     lazy=false,
     kw...
@@ -564,11 +568,6 @@ function _layer_stack(filename;
     return RasterStack(data; field_kw..., kw...)
 end
 
-        # _return_lifted(NamedTuple{name}, source, dims, refdims, layerdims, metadata, layermetadata1, missingval, lazy, layers, mods, checkmem, group)
-# function _return_lifted(
-#     ::Type{NT}, source, dims, refdims, layerdims, metadata, layermetadata, missingval, lazy, layers, mods, checkmem, group
-# ) where NT<:NamedTuple{K} where K
-# end
 
 # Try to sort the dimensions by layer dimension into a sensible
 # order that applies without permutation, preferencing the layers

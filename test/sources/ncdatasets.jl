@@ -45,7 +45,8 @@ stackkeys = (
 end
 
 @testset "Raster" begin
-    @time ncarray = Raster(ncsingle)
+    @time ncarray = Raster(ncsingle);
+    @time ncarray = Raster(ncsingle; maskingval=nothing);
     @time lazyarray = Raster(ncsingle; lazy=true)
     @time eagerarray = Raster(ncsingle; lazy=false)
     @test_throws ArgumentError Raster("notafile.nc")
@@ -58,11 +59,12 @@ end
         @time read(lazyarray);
     end
 
-    @testset "cf" begin @time cfarray = Raster(ncsingle)
+    @testset "scaling and maskign" begin @time cfarray = Raster(ncsingle)
         @time cfarray = Raster(ncsingle)
         @time cf_nomask_array = Raster(ncsingle; maskingval=nothing)
         @time nocfarray = Raster(ncsingle; scaled=false)
         @time nocf_nomask_array = Raster(ncsingle; scaled=false, maskingval=nothing)
+        @time raw_array = Raster(ncsingle; raw=true)
         @time lazycfarray = Raster(ncsingle; lazy=true, scaled=false)
         @time lazynocfarray = Raster(ncsingle; lazy=true, scaled=false)
         @time lazynocf_nomask_array = Raster(ncsingle; lazy=true, scaled=false, maskingval=nothing)
@@ -70,9 +72,12 @@ end
         @test missingval(nocfarray) === missing
         @test missingval(cf_nomask_array) === 1.0f20
         @test missingval(nocf_nomask_array) === 1.0f20
+        @test missingval(raw_array) === 1.0f20
         @test all(skipmissing(cfarray) .=== skipmissing(nocfarray))
         @test parent(cfarray) isa Array{Union{Float32,Missing}}
         @test parent(nocfarray) isa Array{Union{Float32,Missing}}
+        @test parent(nocf_nomask_array) isa Array{Float32}
+        @test parent(raw_array) isa Array{Float32}
         open(lazycfarray) do A
             @test parent(A) isa Rasters.ModifiedDiskArray{false,Union{Missing,Float32}}
         end
@@ -110,7 +115,9 @@ end
     @testset "handle empty variables" begin
         st = RasterStack((empty=view(ncarray, 1, 1, 1), full=ncarray))
         empty_test = tempname() * ".nc"
-        write(empty_test, st)
+        using ProfileView
+        @profview write(empty_test, st)
+
         rast = Raster(empty_test)
         st = RasterStack(empty_test)
         @test name(rast) == name(st[:empty]) == :empty

@@ -26,6 +26,7 @@ struct Mod{T1,T2,Mi,Ma,S,O,F} <: AbstractModifications
          new{T1,T,map(typeof, vals)...,typeof(coerce)}(vals..., coerce)
      end
 end
+
 Base.eltype(::Mod{T1}) where T1 = T1
 source_eltype(::Mod{<:Any,T2}) where T2 = T2
 
@@ -62,50 +63,53 @@ DiskArrays.eachchunk(A::ModifiedDiskArray) = DiskArrays.eachchunk(parent(A))
 function DiskArrays.readblock!(
     A::ModifiedDiskArray{false,<:Any,0}, out_block, I::AbstractVector...
 )
-    out_block[] = _applymod(parent(A)[I...], A.mod)
-    return nothing
+    out_block[] = _applymod(parent(A)[I...][], A.mod)
+    return out_block
 end
 function DiskArrays.readblock!(
     A::ModifiedDiskArray{true,T,<:Any,0}, out_block, I::AbstractVector...
 ) where T
     out_block[] = _invertmod(Val{T}(), parent(A)[I...], A.mod)
-    return nothing
+    return out_block
 end
 function DiskArrays.readblock!(
     A::ModifiedDiskArray{false}, out_block, I::AbstractVector...
 )
-    out_block .= _applymod.(parent(A)[I...], (A.mod,))
-    return nothing
+    inner_block = similar(out_block, eltype(parent(A)))
+    DiskArrays.readblock!(parent(A), inner_block, I...)
+    out_block .= _applymod.(inner_block, (A.mod,))
+    return out_block
 end
 function DiskArrays.readblock!(
     A::ModifiedDiskArray{true,T}, out_block, I::AbstractVector...
 ) where T
-    out_block .= _invertmod.(Ref(Val{T}()), view(parent(A), I...), Ref(A.mod))
-    return nothing
+    out_block .= _invertmod.((Val{T}(),), parent(A)[I...], (A.mod,))
+    return out_block
 end
 
 function DiskArrays.writeblock!(
     A::ModifiedDiskArray{false,<:Any,0,<:AbstractArray{T}}, block, I::AbstractVector...
 ) where T
-    A.var[I...] = _invertmod(Val{source_eltype(A.mod)}(), block[], A.mod)
+
+    parent(A)[I...] = _invertmod(Val{source_eltype(A.mod)}(), block[], A.mod)
     return nothing
 end
 function DiskArrays.writeblock!(
     A::ModifiedDiskArray{true,<:Any,0,<:AbstractArray{T}}, _block, I::AbstractVector...
 ) where T
-    A.var[I...] = _applymod(Val{eltype(A.mod)}(), block[], A.mod)
+    parent(A)[I...] = _applymod(Val{eltype(A.mod)}(), block[], A.mod)
     return nothing
 end
 function DiskArrays.writeblock!(
-    A::ModifiedDiskArray{false,<:Any,<:Any,<:AbstractArray{T}}, block, I::AbstractVector...
+    A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:AbstractArray{T}}, block, I::AbstractVector...
 ) where T
-    A.var[I...] .= _invertmod.(Val{source_eltype(A.mod)}(), block, Ref(A.mod))
+    parent(A)[I...] = _invertmod.((Val{source_eltype(A.mod)}(),), block, (A.mod,))
     return nothing
 end
 function DiskArrays.writeblock!(
     A::ModifiedDiskArray{true,<:Any,<:Any,<:AbstractArray{T}}, _block, I::AbstractVector...
 ) where T
-A.var[I...] .= _applymod.((Val{eltype(A.mod)}(),), block, (A.mod,))
+    parent(A)[I...] = _applymod.((Val{eltype(A.mod)}(),), block, (A.mod,))
     return nothing
 end
 
@@ -116,7 +120,7 @@ Base.@assume_effects :foldable function _applymod(x, m::Mod)
         _scaleoffset(x, m)
     end
 end
-_applymod(x, m::NoMod) = x
+Base.@assume_effects :foldable _applymod(x, m::NoMod) = x
 
 _ismissing(x, mv) = isequal(x, mv)
 _ismissing(_, ::Nothing) = false
@@ -139,16 +143,17 @@ Base.@assume_effects :foldable function _invertmod(::Val{T}, x, m::Mod) where T
     end
     return _scaleoffset_inv(T, tm, m)
 end
-_invertmod(v, x, m::NoMod) = x
+Base.@assume_effects :foldable _invertmod(v, x, m::NoMod) = x
 
-_scaleoffset_inv(::Type{T}, x, m::Mod) where T = _scaleoffset_inv(m.coerce, T, x, m)
-_scaleoffset_inv(coerce::Base.Callable, ::Type{T}, x, m::Mod) where T =
-    coerce(T, _scaleoffset_inv1(x, m.scale, m.offset))
+Base.@assume_effects :foldable _scaleoffset_inv(::Type{T}, x, m::Mod) where T = 
+    _scaleoffset_inv(m.coerce, T, x, m)::T
+Base.@assume_effects :foldable _scaleoffset_inv(coerce::Base.Callable, ::Type{T}, x, m::Mod) where T =
+    coerce(T, _scaleoffset_inv1(x, m.scale, m.offset))::T
 
-_scaleoffset_inv1(x, scale, offset) = (x - offset) / scale
-_scaleoffset_inv1(x, scale, ::Nothing) = x / scale
-_scaleoffset_inv1(x, ::Nothing, offset) = x - offset
-_scaleoffset_inv1(x, ::Nothing, ::Nothing) = x
+Base.@assume_effects :foldable _scaleoffset_inv1(x, scale, offset) = (x - offset) / scale
+Base.@assume_effects :foldable _scaleoffset_inv1(x, scale, ::Nothing) = x / scale
+Base.@assume_effects :foldable _scaleoffset_inv1(x, ::Nothing, offset) = x - offset
+Base.@assume_effects :foldable _scaleoffset_inv1(x, ::Nothing, ::Nothing) = x
 
 
 function _stack_mods(

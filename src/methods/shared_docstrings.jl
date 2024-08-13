@@ -134,6 +134,13 @@ const OFFSET_KEYWORD = """
 - `offset`: set `offset` for `x * scale + offset` transformations. 
 """
 
+const RAW_KEYWORD = """
+- `raw`: Turn of all scaling and masking and load the raw values from disk.
+    `false` by default. If `true`, `scaled` will be set to `false` and `maskingval`
+    will be set to `nothing`. A warning will be printed if `scaled` or `maskingval`
+    are manually set to another value.
+"""
+
 const SCALED_KEYWORD = """
 - `scaled`: apply scale and offset as `x * scale + offset`. `true` by default.
     This is common where data has been convert to e.g. UInt8 to save disk space.

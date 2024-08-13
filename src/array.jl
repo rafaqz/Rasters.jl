@@ -217,14 +217,13 @@ $METADATA_KEYWORD
 $CONSTRUCTOR_CRS_KEYWORD 
 $CONSTRUCTOR_MAPPEDCRS_KEYWORD 
 $REFDIMS_KEYWORD
-$SCALED_KEYWORD
 
 When a filepath `String` is used:
 $DROPBAND_KEYWORD
 $LAZY_KEYWORD
 $SOURCE_KEYWORD
-- `write`: defines the default `write` keyword value when calling `open` on the Raster. `false` by default.
-    Only makes sense to use when `lazy=true`.
+$SCALED_KEYWORD
+$RAW_KEYWORD
 
 When A is an `AbstractDimArray`:
 - `data`: can replace the data in an existing `AbstractRaster`
@@ -311,24 +310,24 @@ function Raster(ds, filename::AbstractString;
     source=nokw,
     replace_missing=nokw,
     coerce=convert,
-    scaled=true,
+    scaled=nokw,
     write=false,
     lazy=false,
     dropband=true,
     checkmem=CHECKMEM[],
     mod=nokw,
+    raw=false,
 )::Raster
-    _maybewarn_replace_missing(replace_missing)
+    scaled, maskingval = _raw_check(raw, scaled, maskingval)
+    _maybe_warn_replace_missing(replace_missing)
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
-    data1, dims1, metadata1, missingval2 = _open(source, ds; name=name1, group, mod=NoMod()) do var
-        metadata1 = isnokw(metadata) ? _metadata(var) : metadata
-        missingval1 = isnokwornothing(missingval) ? Rasters.missingval(var, metadata1) : missingval 
+    data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=NoMod()) do var
+        metadata_out = isnokw(metadata) ? _metadata(var) : metadata
+        missingval1 = isnokw(missingval) ? Rasters.missingval(var, metadata_out) : missingval 
         maskingval1 = isnokw(maskingval) && !isnothing(missingval1) ? missing : maskingval
-        # If maskingval is `nothing` use  missingval as missingval
-        missingval2 = isnokwornothing(maskingval1) ? missingval1 : maskingval1
-        mod = isnokw(mod) ? _mod(eltype(var), metadata1, missingval1, maskingval1; scaled, coerce) : mod
-        data = if lazy
+        mod = isnokw(mod) ? _mod(eltype(var), metadata_out, missingval1, maskingval1; scaled, coerce) : mod
+        data_out = if lazy
             FileArray{typeof(source)}(var, filename; 
                 name=name1, group, mod, write
             )
@@ -338,27 +337,17 @@ function Raster(ds, filename::AbstractString;
             x = Array(modvar)
             x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
         end
-        dims1 = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data)
-        data, dims1, metadata1, missingval2
+        # If maskingval is `nothing` use  missingval as missingval
+        dims_out = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data)
+        missingval_out = isnokwornothing(maskingval1) ? missingval1 : maskingval1
+        data_out, dims_out, metadata_out, missingval_out
     end
-    name2 = name1 isa Union{NoKW,Nothing} ? Symbol("") : Symbol(name1)
-    raster = Raster(data1, dims1, refdims, name2, metadata1, missingval2)
-    return dropband ? _drop_single_band(raster, lazy) : raster
+    name_out = name1 isa Union{NoKW,Nothing} ? Symbol("") : Symbol(name1)
+    raster = Raster(data_out, dims_out, refdims, name_out, metadata_out, missingval_out)
+    return _maybe_drop_single_band(raster, dropband, lazy)
 end
 
 filekey(ds, name) = name
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
 DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = Raster
-
-function _drop_single_band(raster, lazy::Bool)
-    if hasdim(raster, Band()) && size(raster, Band()) < 2
-         if lazy
-             return view(raster, Band(1)) # TODO fix dropdims in DiskArrays
-         else
-             return dropdims(raster; dims=Band())
-         end
-    else
-         return raster
-    end
-end

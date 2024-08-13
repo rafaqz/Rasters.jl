@@ -299,6 +299,32 @@ function _checkregular(A::AbstractArray)
     return true
 end
 
+# Constructor helpers
+
+function _raw_check(raw, scaled, maskingval)
+    if raw
+        scaled isa Bool && scaled && @warn "`scaled=true` set to `false` because of `raw=true`"
+        isnokwornothing(maskingval) || @warn "`maskingval=$maskingval` set to `nothing` because of `raw=true`"
+        return false, nothing
+    else
+        scaled = isnokw(scaled) ? true : scaled
+        return scaled, maskingval 
+    end
+end
+
+function _maybe_drop_single_band(x, dropband::Bool, lazy::Bool)
+    dropband || return x
+    if hasdim(x, Band()) && size(x, Band()) < 2
+         if lazy
+             return view(x, Band(1)) # TODO fix dropdims in DiskArrays
+         else
+             return dropdims(x; dims=Band())
+         end
+    else
+         return x
+    end
+end
+
 
 # Memory
 
@@ -423,8 +449,8 @@ end
 
 # Warnings and erros
 
-_maybewarn_replace_missing(replace_missing::NoKW) = nothing
-function _maybewarn_replace_missing(replace_missing)
+_maybe_warn_replace_missing(replace_missing::NoKW) = nothing
+function _maybe_warn_replace_missing(replace_missing)
     @warn "`replace_missing` keyword no longer used. Set `maskingval` to nothing for no replacement, to `missing` to mask `missingval` with `missing`, or any other value"
 end
 
