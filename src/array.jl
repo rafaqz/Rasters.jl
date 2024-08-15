@@ -42,7 +42,7 @@ abstract type AbstractRaster{T,N,D,A} <: AbstractDimArray{T,N,D,A} end
 Returns the value representing missing data in the dataset
 """
 function missingval end
-missingval(_) = missing
+missingval(_) = nothing
 missingval(::AbstractArray{T}) where T = Missing <: T ? missing : nothing
 missingval(A::AbstractRaster) = A.missingval
 
@@ -338,7 +338,7 @@ function Raster(ds, filename::AbstractString;
             x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
         end
         # If maskingval is `nothing` use  missingval as missingval
-        dims_out = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data)
+        dims_out = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data_out)
         missingval_out = isnokwornothing(maskingval1) ? missingval1 : maskingval1
         data_out, dims_out, metadata_out, missingval_out
     end

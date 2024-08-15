@@ -225,7 +225,7 @@ grdpath = stem * ".gri"
             # 1 band is added again on save
             @test size(saved) == size(grdarray[Band(1)])
             @test parent(saved) == parent(grdarray[Band(1)])
-            @test_broken (@allocations write(filename2, view(grdarray, Band(1)); force = true)) < 1e3
+            @test (@allocations write(filename2, view(grdarray, Band(1)); force = true)) < 1e3
         end
 
         @testset "3d with subset" begin
@@ -251,7 +251,7 @@ grdpath = stem * ".gri"
             @test all(parent(saved) .=== parent(geoA))
             @test saved isa typeof(geoA)
             @test parent(saved) == parent(geoA)
-            @test_broken (@allocations write(filename, GRDsource(), geoA; force = true)) < 1e3
+            @test (@allocations write(filename, GRDsource(), geoA; force = true)) < 1e3
         end
 
         @testset "to netcdf" begin
@@ -265,7 +265,7 @@ grdpath = stem * ".gri"
             @test index(saved, Y) ≈ index(grdarray, Y) .+ 0.5
             @test bounds(saved, Y) == bounds(grdarray, Y)
             @test bounds(saved, X) == bounds(grdarray, X)
-            @test_broken (@allocations write(filename2, grdarray[Band(1)]; force = true)) < 1e3
+            @test (@allocations write(filename2, grdarray[Band(1)]; force = true)) < 1e3
         end
 
         @testset "to gdal" begin

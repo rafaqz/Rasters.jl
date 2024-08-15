@@ -221,10 +221,20 @@ function _write_gri(filename, v, ::NoMod, A::Array)
         write(io, A)
     end
 end
-function _write_gri(filename, v, mod, A)
+function _write_gri(filename, v, mod, A::AbstractArray)
     open(filename; write=true, lock=false) do io
         for x in A # We are modifying the source array so invert the modifications
             write(io, _invertmod(v, x, mod))
+        end
+    end
+end
+# Specialise to avoid `Ref` allocations
+function _write_gri(filename, v, mod, A::AbstractArray{Union{Int16,UInt16,Int32,UInt32,Int64,UInt64,Float16,Float32,Float64}})
+    open(filename; write=true, lock=false) do io
+        ref = Ref(first(A))
+        for x in A # We are modifying the source array so invert the modifications
+            ref[] = _invertmod(v, x, mod)
+            write(io, ref)
         end
     end
 end
@@ -245,7 +255,7 @@ function _write_grd(filename, T, dims, missingval, name)
     nodatavalue = missingval
 
     # Metadata: grd file
-    open(filename * ".grd"; write=true) do IO
+    open(filename * ".grd"; write=true, lock=false) do IO
         write(IO,
             """
             [general]

@@ -13,12 +13,12 @@ using Rasters, RasterDataSources, Test, Dates, ArchGDAL, NCDatasets
 
 @testset "load WorldClim Climate" begin
     # Weather time-series
-    ser = RasterSeries(WorldClim{Climate}, :prec; res="10m", month=Jan:March, mappedcrs=EPSG(4326))
+    ser = RasterSeries(WorldClim{Climate}, :prec; res="10m", month=Jan:March, mappedcrs=EPSG(4326), raw=true)
     # Select Australia, using regular lat/lon selectors
     A = ser[month=Jan]
     @test A isa Raster
     A[Y(Between(-10, -45)), X(Between(110, 160))]
-    st = RasterStack(WorldClim{Climate}, (:prec, :tmax); month=1)
+    st = RasterStack(WorldClim{Climate}, (:prec, :tmax); month=1, raw=true)
     @test st[:prec] == A
     @test missingval(st) == (prec=-32768, tmax=-3.4f38)
     @test st isa RasterStack{(:prec,:tmax),@NamedTuple{prec::Int16,tmax::Float32},2}
@@ -28,8 +28,9 @@ end
     A = Raster(WorldClim{BioClim}, :Bio_1; mappedcrs=EPSG(4326))
     A[Y(Between(-10, -45)), X(Between(110, 160))]
     @test A isa Raster
+    @test missingval(A) === missing
     st = RasterStack(WorldClim{BioClim}, (1, 2))
-    st[:bio1]
+    @test all(st.bio1 .=== A)
     @test st isa RasterStack
     @test A isa Raster
 end
@@ -39,19 +40,27 @@ end
     @test Rasters.name(A) == :bio1
     st = RasterStack(CHELSA{BioClim}, (:bio1, :BIO2); lazy=true)
     @test keys(st) == (:bio1, :bio2)
-    @test A isa Raster
+    @test A isa Raster{Float64,2}
     @test st isa RasterStack
-    @test st[:bio2] isa Raster
+    @test st.bio2 isa Raster{Float64,2}
+
+    A = Raster(CHELSA{BioClim}, 1; lazy=true, raw=true)
+    st = RasterStack(CHELSA{BioClim}, (:bio1, :BIO2); lazy=true, raw=true)
+    @test A isa Raster{UInt16,2}
+    @test st isa RasterStack{(:bio1, :bio2),@NamedTuple{bio1::UInt16, bio2::UInt16}}
+    @test st.bio2 isa Raster{UInt16,2}
+
     # Allow forcing keywords
     st = RasterStack(CHELSA{BioClim}, (1, 2); 
          lazy=true, 
          missingval=-Int16(9999), 
+         maskingval=nothing,
          metadata=Rasters.NoMetadata(), 
          crs=nothing, 
          mappedcrs=EPSG(4326),
     )
-    @test missingval(st) === Int16(-9999)
-    @test missingval(st.bio1) == Int16(-9999)
+    @test missingval(st) === -9999.0
+    @test missingval(st.bio1) == -9999.0
     @test metadata(st) == Rasters.NoMetadata()
 end
 

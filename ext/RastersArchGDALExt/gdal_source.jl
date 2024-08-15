@@ -255,7 +255,7 @@ function RA.Raster(ds::AG.RasterDataset;
     else
         Raster(Array(RA._maybe_modify(ds, mod)), dims; kw...)
     end
-    return dropband ? RA._drop_single_band(raster, lazy) : raster
+    return RA._maybe_drop_single_band(raster, dropband, lazy)
 end
 
 RA.missingval(ds::AG.Dataset, args...) = RA.missingval(AG.RasterDataset(ds))

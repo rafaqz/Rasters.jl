@@ -460,7 +460,7 @@ function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,
     missingval = isnokw(missingval) ? Rasters.missingval(A) : missingval
     missingval = if ismissing(missingval) 
         # See if there is a missing value in metadata
-        mv = _mv(metadata)
+        mv = Rasters.missingval(metadata)
         # But only use it if its the right type
         mv isa eltype ? mv : _writeable_missing(eltype; verbose=true)
     else
