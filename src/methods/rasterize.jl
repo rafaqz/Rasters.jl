@@ -476,15 +476,12 @@ function alloc_rasterize(f, r::RasterCreator;
     metadata=r.metadata,
     suffix=r.suffix,
 )
+    maskingval = nothing
     if prod(size(r.to)) == 0  
         throw(ArgumentError("Destination array is is empty, with size $(size(r.to))). Rasterization is not possible"))
     end
-    A = create(r.filename, eltype, r.to; name, missingval, metadata, suffix)
-    # TODO f should apply to the file when it is initially created
-    # instead of reopening but we need a `create(f, filename, ...)` method
-    open(A; write=true) do A
-        A .= Ref(missingval)
-        f(A)
+    A = create(r.filename, fill=missingval, eltype, r.to; name, missingval, maskingval, metadata, suffix) do O
+        f(O)
     end
     return A
 end

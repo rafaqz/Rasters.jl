@@ -28,13 +28,13 @@ function Base.write(filename::AbstractString, source::NCDsource, A::AbstractRast
     end
     return filename
 end
-function Base.write(filename::AbstractString, source::NCDsource, s::AbstractRasterStack;
+function Base.write(filename::AbstractString, source::Source, s::AbstractRasterStack{K,T};
     append=false,
     force=false,
     missingval=nokw,
     maskingval=nokw,
     kw...
-)
+) where {Source<:NCDsource,K,T}
     mode = if append
         isfile(filename) ? "a" : "c"
     else
@@ -53,6 +53,7 @@ function Base.write(filename::AbstractString, source::NCDsource, s::AbstractRast
                 kw...
             )
         end
+        f(RA.OpenStack{Source,K,T}(ds))
     finally
         close(ds)
     end

@@ -89,12 +89,10 @@ function _mask(A::AbstractRaster, with::AbstractRaster;
     filename=nothing, suffix=nothing, missingval=_missingval_or_missing(A), kw...
 )
     missingval = ismissing(missingval) ? missing : convert(eltype(A), missingval)
-    A1 = create(filename, A; suffix, missingval)
-    open(A1; write=true) do a
+    return create(filename, A; suffix, missingval) do C
         # The values array will be be written to A1 in `mask!`
-        mask!(a; with, missingval, values=A, kw...)
+        mask!(C; with, missingval, values=A, kw...)
     end
-    return A1
 end
 function _mask(xs::AbstractRasterStack, with::AbstractRaster; suffix=keys(xs), kw...)
     mapargs((x, s) -> mask(x; with, suffix=s, kw...), xs, suffix)

@@ -75,17 +75,22 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
     force=false,
     kw...
 )
+    isnothing(missingval) && throw(ArgumentError("missingval cannot be `nothing` for `mosaic`"))
     maskingval = isnokw(maskingval) ? Rasters.missingval(first(regions)) : maskingval
-    missingval = isnokw(missingval) ? Rasters.missingval(first(regions)) : missingval
-    # missingval is not ooptional here
-    if !isnothing(filename) && (ismissing(missingval) || isnothing(missingval))
+    missingval = if isnokw(missingval)
+        mv = Rasters.missingval(first(regions)) 
+        isnokwornothing(mv) ? missing : mv
+    else
+        missingval
+    end
+    if !isnothing(filename) && (ismissing(missingval) || isnokwornothing(missingval))
         missingval = _type_missingval(eltype(A1))
     end
     T = Base.promote_type(typeof(missingval), Base.promote_eltype(regions...))
     dims = _mosaic(Tuple(map(DD.dims, regions)))
     l1 = first(regions)
 
-    A = create(filename, T, dims;
+    return create(filename, T, dims;
         name=name(l1),
         fill=missingval,
         missingval,
@@ -93,11 +98,9 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
         driver,
         options,
         force
-    )
-    open(A; write=true) do O
-        mosaic!(f, O, regions; missingval, kw...)
+    ) do C
+        mosaic!(f, C, regions; missingval, kw...)
     end
-    return A
 end
 function _mosaic(f::Function, ::AbstractRasterStack, regions;
     filename=nothing,

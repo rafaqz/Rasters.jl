@@ -51,6 +51,7 @@ end
 
 
 @testset "create RasterStack" begin
+
     st = Rasters.create((a=Int32, b=Float64, c=Bool), Extents.Extent(X=(0, 10), Y=(0, 5));
         size=(X=1024, Y=1024),
         sampling=(X=Points(), Y=Intervals()),
@@ -123,6 +124,7 @@ for ext in (".nc", ".tif", ".grd")
         fn = "created$ext"
         created = Rasters.create(fn, UInt8, (X(1:10), Y(1:10));
             missingval=0xff,
+            maskingval=nothing,
             fill=0x01,
             force=true
         )
@@ -162,11 +164,26 @@ end
 @testset "create .nc stack" begin
     created = Rasters.create("created.nc", (a=UInt8, b=Float32), (X(1:10), Y(1:10));
         missingval=(a=0xff, b=typemax(Float32)),
+        maskingval=nothing,
         fill=(a=0x01, b=1.0f0),
         layerdims=(a=(X,), b=(X, Y)),
         force=true,
     )
     @test missingval(created) == (a=0xff, b=typemax(Float32))
+    @test size(created.a) == (10,)
+    @test size(created.b) == (10, 10)
+    @test all(created.a .=== 0x01)
+    @test all(created.b .=== 1.0f0)
+    st = RasterStack("created.nc"; maskingval=nothing)
+    @test missingval(st) == (a=0xff, b=typemax(Float32))
+
+    created = Rasters.create("created.nc", (a=UInt8, b=Float32), (X(1:10), Y(1:10));
+        missingval=(a=0xff, b=typemax(Float32)),
+        fill=(a=0x01, b=1.0f0),
+        layerdims=(a=(X,), b=(X, Y)),
+        force=true,
+    )
+    @test missingval(created) === missing
     @test size(created.a) == (10,)
     @test size(created.b) == (10, 10)
     @test all(created.a .=== 0x01)

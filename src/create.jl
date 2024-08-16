@@ -119,6 +119,7 @@ RasterStack("created.nc")
 └───────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 """
+create(f::Base.Callable, args...; kw...) = create(args...; kw..., f)
 create(A::Union{AbstractRaster,AbstractRasterStack}; kw...) = create(nothing, A; kw...)
 create(T::Union{Type,TypeNamedTuple}, A::Union{Tuple,Extents.Extent,AbstractRaster,AbstractRasterStack}; kw...) =
     create(nothing, T, A; kw...)
@@ -170,13 +171,13 @@ function create(filename::Union{AbstractString,Nothing}, T::Union{Type,NamedTupl
     reverse_y=nokw,
     kw...
 )
-    ds = _extent2dims(extent; size, res, crs, sampling)
-    ds = if reverse_y isa Bool && reverse_y && hasdim(ds, Y())
-        DD.setdims(ds, reverse(dims(ds, Y())))
+    dims = _extent2dims(extent; size, res, crs, sampling)
+    dims = if reverse_y isa Bool && reverse_y && hasdim(ds, Y())
+        DD.setdims(ds, reverse(DD.dims(ds, Y())))
     else
-        ds
+        dims
     end
-    return create(filename, T, ds; kw...)
+    return create(filename, T, dims; kw...)
 end
 function create(filename::Nothing, ::Type{T}, dims::Tuple;
     missingval=nokw,
@@ -190,6 +191,7 @@ function create(filename::Nothing, ::Type{T}, dims::Tuple;
     chunks=nokw,
     driver=nokw,
     options=nokw,
+    f=identity,
     kw...
 ) where T
     if verbose
@@ -203,10 +205,15 @@ function create(filename::Nothing, ::Type{T}, dims::Tuple;
     else
         similar(parent, eltype, size(dims))
     end
+    # Maybe fill the array
     if !(isnokw(fill) || isnothing(fill))
         fill!(data, fill)
     end
-    return Raster(data, dims; missingval, kw...)
+
+    # Apply `f` before returning
+    rast = Raster(data, dims; missingval, kw...)
+    f(rast)
+    return rast
 end
 function create(filename::Nothing, types::NamedTuple, dims::Tuple;
     suffix=keys(types),
@@ -221,6 +228,7 @@ function create(filename::Nothing, types::NamedTuple, dims::Tuple;
     fill=nokw,
     layerdims=nokw,
     layermetadata=nokw,
+    f=identity,
     kw...
 )
     missingval = isnokwornothing(missingval) ? maskingval : missingval
@@ -234,7 +242,9 @@ function create(filename::Nothing, types::NamedTuple, dims::Tuple;
             parent, missingval=lmv, maskingval=lma, fill=lfv, metadata=lm, driver, options,
         )
     end
-    return RasterStack(layers; kw...)
+    st = RasterStack(layers; kw...)
+    f(st)
+    return st
 end
 function create(filename::AbstractString, source::Source, ::Type{T}, dims::DimTuple;
     name=nokw,
@@ -250,6 +260,7 @@ function create(filename::AbstractString, source::Source, ::Type{T}, dims::DimTu
     verbose=true,
     force=false,
     coerce=nokw,
+    f=identity,
     kw...
 ) where T
     eltype = Missings.nonmissingtype(T)
@@ -264,9 +275,12 @@ function create(filename::AbstractString, source::Source, ::Type{T}, dims::DimTu
     end
     # Create layers of zero arrays
     rast = Raster(A, dims; name, missingval)
-    Rasters.write(filename, source, rast;
+    Rasters.write(f, filename, source, rast;
         eltype, chunks, metadata, scale, offset, missingval, maskingval, verbose, force, coerce, write, kw...
-    )
+    ) do W
+        # write returns a variable, wrap it as a Raster
+        f(rebuild(rast, W))
+    end
     # Don't pass in `missingval`, read it again from disk in case it changed
     return Raster(filename; source, lazy, metadata, maskingval, dropband, coerce)
 end
@@ -285,6 +299,7 @@ function create(filename::AbstractString, source::Source, layertypes::NamedTuple
     offset=nokw,
     dropband=!hasdim(dims, Band),
     coerce=nokw,
+    f=identity,
     kw...
 )
     layerdims = if isnokwornothing(layerdims)
@@ -313,7 +328,9 @@ function create(filename::AbstractString, source::Source, layertypes::NamedTuple
     stack = RasterStack(layers, dims; layerdims, layermetadata, missingval)
     fn = Rasters.write(filename, stack;
         chunks, metadata, scale, offset, missingval, maskingval, verbose, force, coerce, write=write[], kw...
-    )
+    ) do W
+        f(rebuild(stack; data=W))
+    end
     # Don't pass in `missingval`, read it again from disk in case it changed
     st = RasterStack(fn; source, lazy, metadata, layerdims, maskingval, dropband, coerce)
     return st

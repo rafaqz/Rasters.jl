@@ -23,7 +23,7 @@ missing
 """
 replace_missing(x; missingval=missing, kw...) = replace_missing(x, missingval; kw...)
 function replace_missing(A::AbstractRaster{T}, missingval::MV;
-    filename=nothing, suffix=nothing
+    filename=nothing, kw...
 ) where {T,MV}
     MT = if ismissing(missingval)
         promote_type(T, Missing)
@@ -32,18 +32,17 @@ function replace_missing(A::AbstractRaster{T}, missingval::MV;
     end
     old_missingval = Rasters.missingval(A)
     missingval = convert(MT, missingval)
+    maskingval = nothing
     repmissing(x) = isequal(x, old_missingval) || ismissing(x) ? missingval : x
     # Disk-backed arrays need to be lazy, memory-backed don't.
     # But in both cases we make sure we return an array with the missingval
     # in the eltype, even if there are no missing values in the array.
     if !isnothing(filename)
-        A1 = create(filename, MT, dims(A); 
-            parent=parent(A), suffix, missingval, name=name(A), metadata=metadata(A)
-        )
-        open(A1; write=true) do O
+        return create(filename, MT, dims(A); 
+            parent=parent(A), missingval, maskingval, name=name(A), metadata=metadata(A), kw...
+        ) do O
             O .= repmissing.(A)
         end
-        return A1
     else
         # We need to force T of Union{T,Missing} for DiskArrays broadcasts
         if isdisk(A)

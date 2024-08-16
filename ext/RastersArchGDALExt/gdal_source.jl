@@ -54,9 +54,11 @@ function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster{T}
     offset=nokw,
     coerce=nokw,
     eltype=Missings.nonmissingtype(T),
+    f=identity,
     kw...
 ) where T
     RA.check_can_write(filename, force)
+    write = f === identity ? write : true
     A1 = _maybe_permute_to_gdal(A)
 
     # Missing values
@@ -76,7 +78,13 @@ function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster{T}
         if write
             mod = RA._writer_mod(eltype; missingval, maskingval, scale, offset, coerce)
             open(A1; write=true) do O
-                AG.RasterDataset(dataset) .= RA._maybe_modify(parent(O), mod; invert=true)
+                R = RA._maybe_modify(AG.RasterDataset(dataset), mod)
+                R .= parent(O)
+                if hasdim(A, Band())
+                    f(R)
+                else
+                    f(view(R, :, :, 1))
+                end
             end
         end
     end

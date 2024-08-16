@@ -171,9 +171,11 @@ function Base.write(filename::String, ::GRDsource, A::AbstractRaster;
     offset=nokw,
     coerce=nokw,
     eltype=Missings.nonmissingtype(eltype(A)),
+    f=identity,
     kw...
 )
     check_can_write(filename, force)
+    write = f === identity ? write : true
     haskey(REVGRD_DATATYPE_TRANSLATION, eltype) || throw(ArgumentError("""
        Element type $eltype cannot be written to grd file. Convert it to one of $(keys(REVGRD_DATATYPE_TRANSLATION)),
        usually by broadcasting the desired type constructor over the `Raster`, e.g. `newrast = Float32.(rast)`"))
@@ -210,28 +212,26 @@ function Base.write(filename::String, ::GRDsource, A::AbstractRaster;
     gri_filename = filename * ".gri"
     isfile(gri_filename) && rm(gri_filename)
     _write_gri(gri_filename, Val{source_eltype(mod)}(), mod, parent(correctedA))
-
     _write_grd(filename, eltype, dims(A), missingval, name(A))
+
+    if write
+        _mmapgrd(filename, source_eltype(mod), size(A); write=true) do M
+            f(rebuild(A, _maybe_modify(M, mod)))
+        end
+    end
 
     return filename * ".grd"
 end
 
-function _write_gri(filename, v, ::NoMod, A::Array)
+function _write_gri(filename, v, ::NoMod, A::Array{T}) where T
     open(filename; write=true, lock=false) do io
         write(io, A)
     end
 end
 function _write_gri(filename, v, mod, A::AbstractArray)
     open(filename; write=true, lock=false) do io
-        for x in A # We are modifying the source array so invert the modifications
-            write(io, _invertmod(v, x, mod))
-        end
-    end
-end
-# Specialise to avoid `Ref` allocations
-function _write_gri(filename, v, mod, A::AbstractArray{Union{Int16,UInt16,Int32,UInt32,Int64,UInt64,Float16,Float32,Float64}})
-    open(filename; write=true, lock=false) do io
-        ref = Ref(first(A))
+        # Avoid `Ref` allocations
+        ref = Ref{source_eltype(mod)}(_invertmod(v, first(A), mod))
         for x in A # We are modifying the source array so invert the modifications
             ref[] = _invertmod(v, x, mod)
             write(io, ref)

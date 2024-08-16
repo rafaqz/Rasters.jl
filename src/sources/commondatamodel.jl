@@ -444,9 +444,11 @@ function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,
     name=DD.name(A),
     options=nokw,
     driver=nokw,
+    f=identity,
     kw...
 ) where {T,N}
     _check_allowed_type(source, eltype)
+    write = f === identity ? write : true
     _def_dim_var!(ds, A)
     metadata = if isnokw(metadata) 
         DD.metadata(A)
@@ -498,8 +500,11 @@ function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,
     var = CDM.defVar(ds, key, eltype, dimnames; attrib=attrib, chunksizes, kw...)
 
     if write
+        m = _maybe_modify(var.var, mod)
         # Write with a DiskArays.jl broadcast
-        _maybe_modify(var.var, mod) .= A
+        m .= A
+        # Apply `f` while the variable is open
+        f(m)
     end
 
     return nothing

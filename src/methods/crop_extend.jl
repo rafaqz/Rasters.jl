@@ -178,12 +178,11 @@ _extend_to(x::RasterStackOrArray, to::Dimension; kw...) = _extend_to(x, (to,); k
 
 function _extend_to(A::AbstractRaster, to::DimTuple;
     filename=nothing,
-    suffix=nothing,
     missingval=(isnothing(missingval(A)) ? nokw : missingval(A)),
     fill=nokw,
     touches=false,
-    force=false,
     verbose=true,
+    kw...
 )
     others = otherdims(to, A)
     # Allow not specifying all dimensions
@@ -209,38 +208,35 @@ function _extend_to(A::AbstractRaster, to::DimTuple;
         fill = isnokwornothing(missingval) ? zero(Missings.nonmissingtype(eltype(A))) : missingval
     end
     # Create a new extended array
-    newA = create(filename, eltype(A), final_to;
-        suffix, 
+    return create(filename, eltype(A), final_to;
         parent=parent(A), 
         missingval,
         name=name(A), 
         metadata=metadata(A), 
         maskingval=Rasters.missingval(A),
-        fill,
-        force,
         verbose,
-    )
-    # Input checks
-    map(dims(A, to), dims(newA, to)) do d1, d2
-        if lookup(d1) isa Union{AbstractSampled,NoLookup}
-            b1, b2 = bounds(d1), bounds(d2)
-            b1[1] >= b2[1] || throw(ArgumentError("Lower bound of $(basetypeof(d1)) lookup of `$(b2[1])` are not larger than the original `$(b1[1])`"))
-            b1[2] <= b2[2] || throw(ArgumentError("Upper bound of $(basetypeof(d2)) lookup of `$(b2[2])` is not larger than the original `$(b1[2])`"))
-        elseif lookup(d1) isa Categorical
-            map(lookup(d1)) do x
-                x in d2 || throw(ArgumentError("category $x not in new dimension"))
+        fill,
+        kw...
+    ) do C
+        # Input checks
+        map(dims(A, to), dims(C, to)) do d1, d2
+            if lookup(d1) isa Union{AbstractSampled,NoLookup}
+                b1, b2 = bounds(d1), bounds(d2)
+                b1[1] >= b2[1] || throw(ArgumentError("Lower bound of $(basetypeof(d1)) lookup of `$(b2[1])` are not larger than the original `$(b1[1])`"))
+                b1[2] <= b2[2] || throw(ArgumentError("Upper bound of $(basetypeof(d2)) lookup of `$(b2[2])` is not larger than the original `$(b1[2])`"))
+            elseif lookup(d1) isa Categorical
+                map(lookup(d1)) do x
+                    x in d2 || throw(ArgumentError("category $x not in new dimension"))
+                end
             end
         end
-    end
-    # The missingval may have changed for disk-based arrays
-    if !isequal(missingval, Rasters.missingval(newA))
-        A = replace_missing(A, Rasters.missingval(newA))
-    end
-    open(newA; write=true) do O
+        # The missingval may have changed for disk-based arrays
+        if !isequal(Rasters.missingval(A), Rasters.missingval(C))
+            A = replace_missing(A, Rasters.missingval(C))
+        end
         # Somehow this is slow from disk?
-        broadcast_dims!(identity, view(O, rangedims...), A)
+        broadcast_dims!(identity, view(C, rangedims...), A)
     end
-    return newA
 end
 function _extend_to(st::AbstractRasterStack, to::DimTuple; suffix=keys(st), kw...)
     mapargs((A, s) -> _extend_to(A, to; suffix=s, kw...), st, suffix)

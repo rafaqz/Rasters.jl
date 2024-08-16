@@ -57,6 +57,7 @@ gaMi = replace_missing(ga)
     end)
     testfile = tempname() * ".tif"
     dNaN = replace_missing(ga, NaN32; filename=testfile)
+    read(dNaN)
     @test all(isequal.(dNaN, [NaN32 7.0f0; 2.0f0 NaN32]))
     stNaN = replace_missing(st, NaN32; filename="teststack.tif")
     @test all(map(stNaN[Band(1)], (a=[NaN32 7.0f0; 2.0f0 NaN32], b=[1.0 0.4; 2.0 NaN])) do x, y
@@ -213,7 +214,7 @@ end
     end
 end
 
-@testset "mask_replace_missing" begin
+@testset "mask" begin
     # Floating point rasters
     a = Raster([1.0 0.0; 1.0 1.0], dims=(X, Y), missingval=0.0)
     b = Raster([1.0 1.0; 1.0 0.0], dims=(X, Y), missingval=0.0)
@@ -331,7 +332,8 @@ end
     @test_throws ArgumentError classify(ga1, [1, 2, 3])
 end
 
-@testset "points" begin    dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
+@testset "points" begin    
+    dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
     rast = Raster([1 2; 3 4], dimz; name=:test)
     rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=5)
     rast_m = Raster([1 2; 3 missing], dimz; name=:test)
@@ -621,7 +623,7 @@ end
               [missing 0.2 0.1; 
                1.2 1.1 0.3; 
                1.4 1.3 missing]
-             )
+    )
 
     # 3 dimensions
     A1 = Raster(ones(2, 2, 2), (X(2.0:-1.0:1.0), Y(5.0:1.0:6.0), Ti(DateTime(2001):Year(1):DateTime(2002))))

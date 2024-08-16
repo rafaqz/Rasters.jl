@@ -58,11 +58,9 @@ function classify(A::AbstractRaster, pairs::Union{Tuple,AbstractArray};
     # We use `Val{T}` to force type stability through the closure
     valT = Val{T}()
     f(x) = _convert_val(valT, _classify(x, pairs, lower, upper, others, Rasters.missingval(A), missingval))
-    A1 = create(filename, T, A; suffix, missingval)
-    open(A1; write=true) do O
-        broadcast!(f, O, A)
+    return create(filename, T, A; suffix, missingval) do C
+        broadcast!(f, C, A)
     end
-    return A1
 end
 function classify(xs::AbstractRasterStack, pairs...; suffix=keys(xs), kw...)
     mapargs(xs, suffix) do x, s
