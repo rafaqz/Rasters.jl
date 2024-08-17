@@ -8,8 +8,12 @@ using Rasters: isdisk, ismem, filename
         crs=EPSG(4326),
         chunks=(X=128, Y=128),
         force=true,
-        name=:testname
-    )
+        name=:testname,
+        fill=Int32(2),
+    ) do A
+        A .*= 3
+    end
+    @test all(rast .=== Int32(6))
     @test crs(rast) == EPSG(4326)
     @test size(rast) == (1024, 1024)
     @test Rasters.name(rast) == :testname
@@ -24,7 +28,11 @@ using Rasters: isdisk, ismem, filename
         name=:testname,
         missingval=missing,
         reverse_y=false,
-    )
+        fill=2.0,
+    ) do A
+        A .*= 3
+    end
+    @test all(rast .=== 6.0)
     @test crs(rast) == EPSG(4326)
     @test size(rast) == (50, 50, 12)
     @test Rasters.name(rast) == :testname
@@ -49,9 +57,7 @@ using Rasters: isdisk, ismem, filename
     @test eltype(rast1) == eltype(rast)
 end
 
-
 @testset "create RasterStack" begin
-
     st = Rasters.create((a=Int32, b=Float64, c=Bool), Extents.Extent(X=(0, 10), Y=(0, 5));
         size=(X=1024, Y=1024),
         sampling=(X=Points(), Y=Intervals()),
@@ -60,7 +66,9 @@ end
         verbose=false,
         missingval=(a=Int32(-9999), b=Float64(-9999), c=false),
         fill=(a=Int32(-9999), b=0, c=false),
-    )
+    ) do st
+        st.c .= true
+    end
     @test crs(st) == EPSG(4326)
     @test size(st) == (1024, 1024)
     @test Rasters.name(st) == (:a, :b, :c)
@@ -70,7 +78,7 @@ end
     @test isintervals(st, Y)
     @test all(x -> x === Int32(-9999), st.a)
     @test all(x -> x === 0.0, st.b)
-    @test all(x -> x === false, st.c)
+    @test all(x -> x === true, st.c)
 
     st2 = Rasters.create((a=UInt8, b=Float32), st;
         layerdims=(a=(X(), Y()), b=(Y(),)),
@@ -80,7 +88,6 @@ end
     @test basedims(st2.b) == (Y(),)
     @test eltype(st2) === @NamedTuple{a::UInt8, b::Float32}
     @test missingval(st2) === (a=UInt8(0), b=1.0f0)
-
 
     @testset "from template with new dims" begin
         st1 = Rasters.create(st;
@@ -96,6 +103,7 @@ end
         @test basedims(st1.b) == (Y(),)
         @test basedims(st1.c) == (X(),)
     end
+
     @testset "from template with new layers" begin
         st1 = Rasters.create((c=UInt8, d=Int16), st;
             missingval=(c=0x00, d=Int16(1)),
@@ -106,6 +114,7 @@ end
         @test eltype(st1) == @NamedTuple{c::UInt8,d::Int16}
         @test missingval(st1) === (c=0x00, d=Int16(1))
     end
+
     @testset "from template with new dims and layers" begin
         st1 = Rasters.create((c=UInt8, d=Int16), st;
             layerdims=(c=(X, Y), d=(Y,)),
@@ -147,14 +156,13 @@ for ext in (".nc", ".tif", ".grd")
                 missingval=typemax(Int16),
                 scale=0.1,
                 offset=5.0,
+                fill=Int16(1),
                 force=true,
-            );
-            open(created; write=true) do O
-                O .= 2
-                nothing
+            ) do C
+                C .*= 3
             end
-            @test all(Raster(fn) .=== 2.0)
-            @test all(Raster(fn; scaled=false) .== Int16(-30))
+            @test all(Raster(fn) .=== 3.0)
+            @test all(Raster(fn; scaled=false) .== Int16(-20))
             @test missingval(Raster(fn; maskingval=nothing, scaled=false)) === typemax(Int16)
         end
     end
@@ -190,4 +198,22 @@ end
     @test all(created.b .=== 1.0f0)
     st = RasterStack("created.nc"; maskingval=nothing)
     @test missingval(st) == (a=0xff, b=typemax(Float32))
+
+    @testset "with a function" begin
+        created = Rasters.create("created.nc", (a=UInt8, b=Float32), (X(1:10), Y(1:10));
+            missingval=(a=0xff, b=typemax(Float32)),
+            maskingval=nothing,
+            fill=(a=0x01, b=1.0f0),
+            layerdims=(a=(X,), b=(X, Y)),
+            force=true,
+        ) do st
+             map(layers(st)) do A
+                 A .*= 2
+             end
+        end
+        @test all(read(created.a) .=== 0x02)
+        @test all(read(created.b) .=== 2.0f0)
+    end
 end
+
+

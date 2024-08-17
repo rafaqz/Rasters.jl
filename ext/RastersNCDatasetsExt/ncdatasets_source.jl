@@ -64,7 +64,7 @@ end
 Base.close(os::RA.OpenStack{NCDsource}) = NCD.close(RA.dataset(os))
 
 function RA.OpenStack(fs::RA.FileStack{NCDsource,K}) where K
-    RA.OpenStack{NCDsource,K}(NCD.Dataset(RA.filename(fs)))
+    RA.OpenStack{NCDsource,K}(NCD.Dataset(RA.filename(fs)), fs.mods)
 end
 
 function RA._open(f, ::NCDsource, filename::AbstractString; write=false, kw...)

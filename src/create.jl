@@ -1,8 +1,7 @@
 const TypeNamedTuple = NamedTuple{<:Any,<:Tuple{Vararg{Type}}}
 
 """
-    create([filename], template::Raster; kw...)
-    create([filename], type, template; kw...)
+    create([f!], [filename], template; kw...)
 
 Create a new, uninitialised [`Raster`](@ref) or [`RasterStack`](@ref).
 
@@ -16,6 +15,10 @@ in which case `T` will depend on the tyepe promotion of `scale`, `offset` and `m
 
 If types is a `NamedTuple` of types, the result will be a `RasterStack`. In this case `fill` and 
 `missingval` can be single values (for all layers) or `NamedTuple` with the same names to specify per-layer.
+
+`f!` will be applied to the `Raster` or `RasterStack` while it is stil open after creation, 
+to avoid opening it twice. The return value of `f!` is disguarded but modifications
+to the `Raster` or the `RasterStack` layers will be written to disk or changd in memory.
 
 ## Arguments
 
@@ -73,32 +76,36 @@ We use standard lat/lon (EPSG:4326) as the crs, and force writing if the file ex
 using Rasters, NCDatasets, ArchGDAL, Extents, Dates
 using Rasters.Lookups
 rast = Rasters.create("created.tif", UInt8, Extents.Extent(X=(0, 120), Y=(-80, 80), Band=(0, 12));
-    res=(X=1.0, Y=1.0, Band=1),
+    res=(X=10.0, Y=10.0, Band=1),
     # size=(X=100, Y=100, Band=12),
     maskingval=nothing,
     name=:myraster,
     crs=EPSG(4326),
     force=true,
+    fill=0x01,
     sampling=(X=Intervals(Start()), Y=Intervals(Start()), Band=Intervals(Start())),
-)
-using ProfileView
-@profview open(rast; write=true) do A
-    A .= Rasters.Missings.nonmissingtype(eltype(A))(1)
-    nothing
+) do A
+    # While we have the newly created raster open, we can write to it
+    A[X=1:10, Y=1:10] .= 0xff
 end
-Raster("created.tif"; maskingval=nothing)
-rm("created.tif")
 
-extent = Extents.Extent(X=(0, 120), Y=(-80, 80))#, Band=(1, 3))
-types = (a=UInt8, b=Int32, c=Float64=>Y)
-rast = Rasters.create("created.nc", types, extent;
+read(rast)
+```
+
+We can also create a `RasterStack` by passing a `NamedTuple` of types:
+
+```julia
+ext = Extents.Extent(X=(0, 120), Y=(-80, 80))#, Band=(1, 3))
+types = (a=UInt8, b=Int32, c=Float64)
+rast = Rasters.create("created.nc", types, ext;
     # res=(X=1.0, Y=1.0, Band=1),
     maskingval=nothing,
     size=(X=100, Y=100),
     crs=EPSG(4326),
     force=true,
-    sampling=(X=Intervals(Start()), Y=Intervals(Start()), Band=Points()),
-)
+    # sampling=(X=Intervals(Start()), Y=Intervals(Start()), Band=Points()),
+end
+
 RasterStack("created.nc")
 
 ╭───────────────────────────────────────────╮

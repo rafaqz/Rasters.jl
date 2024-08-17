@@ -1,5 +1,5 @@
 function RA.OpenStack(fs::RA.FileStack{Zarrsource,K}) where K
-    RA.OpenStack{Zarrsource,K}(ZD.ZarrDataset(RA.filename(fs)))
+    RA.OpenStack{Zarrsource,K}(ZD.ZarrDataset(RA.filename(fs)), fs.mods)
 end
 
 # In ZarrDatasets, the file is open for reading the values and closed afterwards. 

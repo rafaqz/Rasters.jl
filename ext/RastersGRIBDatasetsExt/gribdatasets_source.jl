@@ -1,5 +1,5 @@
 function RA.OpenStack(fs::RA.FileStack{GRIBsource,K}) where K
-    RA.OpenStack{GRIBsource,K}(GDS.GRIBDataset(RA.filename(fs)))
+    RA.OpenStack{GRIBsource,K}(GDS.GRIBDataset(RA.filename(fs)), fs.mods)
 end
 
 # In GRIBDatasets, the file is open for reading the values and closed afterwards. 

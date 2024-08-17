@@ -33,8 +33,6 @@ const CDM_STANDARD_NAME_MAP = Dict(
     "time" => Ti,
 )
 
-Base.getindex(os::OpenStack{<:CDMsource}, name::Symbol) = CFDiskArray(dataset(os)[name])
-
 _sourcetrait(var::CDM.CFVariable) = _sourcetrait(var.var)
 
 # Rasters methods for CDM types ###############################
