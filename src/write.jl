@@ -226,7 +226,7 @@ function Base.write(path::AbstractString, A::AbstractRasterSeries;
         written_paths
     end
 end
-Base.write(f::Base.Callable, args...; kw...) = write(args...; f, kw...)
+Base.write(f::Function, args...; kw...) = write(args...; f, kw...)
 
 # Trait for source data that has stack layers
 haslayers(T) = false

@@ -33,6 +33,7 @@ function Base.write(filename::AbstractString, source::Source, s::AbstractRasterS
     force=false,
     missingval=nokw,
     maskingval=nokw,
+    f=identity,
     kw...
 ) where {Source<:NCDsource,K,T}
     mode = if append

@@ -119,7 +119,7 @@ RasterStack("created.nc")
 └───────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 """
-create(f::Base.Callable, args...; kw...) = create(args...; kw..., f)
+create(f::Function, args...; kw...) = create(args...; kw..., f)
 create(A::Union{AbstractRaster,AbstractRasterStack}; kw...) = create(nothing, A; kw...)
 create(T::Union{Type,TypeNamedTuple}, A::Union{Tuple,Extents.Extent,AbstractRaster,AbstractRasterStack}; kw...) =
     create(nothing, T, A; kw...)
