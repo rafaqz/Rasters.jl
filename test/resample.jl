@@ -157,6 +157,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         @test dims(resampled_3D, Z) == Z(1:2)
     end
 
+    maskingval = Rasters.nokw
     for maskingval in (nothing, missing, Rasters.nokw)
         # Resample cea.tif using resample
         cea = Raster(raster_path; missingval=0x00, name=:cea, maskingval)
@@ -166,18 +167,19 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         cea_permuted = permutedims(Raster(raster_path; missingval=0x00, name=:cea_permuted, maskingval), (Y, X))
         permuted_output = resample(cea_permuted, output_res; missingval=0x00, maskingval, crs=output_crs, method)
 
-        AG_output1 = if maskingval === missing
-            replace(AG_output, 0x00 => missing)
-        else
+        AG_output1 = if isnothing(maskingval)
             AG_output
+        else
+            replace(AG_output, 0x00 => missing)
         end
         # Compare ArchGDAL, resample and permuted resample 
+        @test all(AG_output1 .=== raster_output .=== read(disk_output) .=== permutedims(permuted_output, (X, Y)))
         @test all(AG_output1 .=== raster_output .=== read(disk_output) .=== permutedims(permuted_output, (X, Y)))
         @test abs(step(dims(raster_output, Y))) ≈
             abs(step(dims(raster_output, X))) ≈ 
             abs(step(dims(disk_output, X))) ≈ 
             abs(step(dims(permuted_output, X))) ≈ output_res
-        @test name(cea) == name(raster_output)
+        @test Rasters.name(cea) == Rasters.name(raster_output)
 
         rm("resample.tif")
     end
