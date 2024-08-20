@@ -42,8 +42,11 @@ If `lazy`, concatenate lazily. The default is to concatenate lazily for lazy `Ra
 
 $EXPERIMENTAL
 """
-combine(ser::AbstractRasterSeries, dims; kw...) = combine(ser; dims, kw...)
-function combine(ser::AbstractRasterSeries; dims, lazy = isdisk(ser))
+function combine(ser::AbstractRasterSeries; dims=nokw, kw...)
+    isnokw(dims) ? _combine(ser; kw...) : _combine(ser, dims; kw...)
+end
+combine(ser::AbstractRasterSeries, dims; kw...) = _combine(ser, dims; kw...)
+function _combine(ser::AbstractRasterSeries, dims; lazy=isdisk(ser))
     ods = otherdims(ser, dims)
     if length(ods) > 0
         map(x -> combine(x; lazy), eachslice(ser; dims = ods))
@@ -51,7 +54,7 @@ function combine(ser::AbstractRasterSeries; dims, lazy = isdisk(ser))
         combine(ser; lazy)
     end
 end
-function combine(ser::AbstractRasterSeries; lazy = isdisk(ser))
+function _combine(ser::AbstractRasterSeries; lazy = isdisk(ser))
     ras1 = first(ser)
     alldims = (dims(ras1)..., dims(ser)...)
     ser_res = DD._insert_length_one_dims(ser, alldims)
