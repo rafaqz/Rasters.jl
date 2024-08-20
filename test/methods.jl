@@ -564,6 +564,20 @@ end
         @test all(extended_r .=== ga_r)
         @test all(map(==, lookup(extended_d), lookup(extended)))
 
+        @testset "unformatted dimension works in crop" begin
+            xdim, ydim = X(1.0:0.2:2.0), Y(1.0:1:2.0)
+            A = Raster(rand((X(1.0:0.2:4.0), ydim)))
+            @test lookup(crop(A; to=xdim), X) == 1.0:0.2:2.0
+
+            A = Raster(rand((X(1.0:0.2:4.0), ydim)))
+            @test lookup(crop(A; to=xdim), X) == 1.0:0.2:2.0
+
+            A = Raster(ones((X(1.0:0.2:1.4), ydim)); missingval=0.0)
+            extend(A; to=xdim)
+            @test lookup(extend(A; to=xdim), X) == 1.0:0.2:2.0
+            @test extend(A; to=xdim) == [1.0 1.0; 1.0 1.0; 1.0 1.0; 0.0 0.0; 0.0 0.0; 0.0 0.0]  
+        end
+
         @testset "to polygons" begin
             A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
             A2 = Raster(ones(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))

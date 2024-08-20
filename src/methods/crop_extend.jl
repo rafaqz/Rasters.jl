@@ -80,10 +80,10 @@ function crop(xs; to=nothing, kw...)
         map(l -> crop(l; to, kw...), xs)
     end
 end
-crop(x::RasterStackOrArray; to, geometrycolumn=nothing, kw...) = _crop_to(x, to; geometrycolumn, kw...)
+crop(x::RasterStackOrArray; to, kw...) = _crop_to(x, to; kw...)
 
 # crop `A` to values of dims of `to`
-function _crop_to(x, to; geometrycolumn, kw...)
+function _crop_to(x, to; geometrycolumn=nothing, kw...)
     ext = _extent(to; geometrycolumn)
     if isnothing(ext)
         if isnothing(dims(to))
@@ -99,7 +99,7 @@ _crop_to(A, to::RasterStackOrArray; dims=DD.dims(to), kw...) = _crop_to(A, DD.di
 _crop_to(x, to::Dimension; kw...) = _crop_to(x, (to,); kw...)
 function _crop_to(x, to::DimTuple; touches=false, kw...)
     # We can only crop to sampled dims (e.g. not categorical dims like Band)
-    sampled = reduce(to; init=()) do acc, d
+    sampled = reduce(format(to); init=()) do acc, d
         lookup(d) isa AbstractSampled ? (acc..., d) : acc
     end
     return _crop_to(x, Extents.extent(sampled); touches)
