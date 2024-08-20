@@ -67,7 +67,6 @@ savefig("build/argentina_crop_example.png"); nothing
 
 $EXPERIMENTAL
 """
-
 function crop end
 function crop(l1::RasterStackOrArray, l2::RasterStackOrArray, ls::RasterStackOrArray...; kw...)
     crop((l1, l2, ls...); kw...)
