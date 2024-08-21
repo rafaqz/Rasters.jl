@@ -60,5 +60,13 @@ function _combine(ser::AbstractRasterSeries; lazy = isdisk(ser))
     ser_res = DD._insert_length_one_dims(ser, alldims)
     data = DA.ConcatDiskArray(ser_res)
     data = lazy ? data : collect(data)
-    return rebuild(ras1; data, dims = alldims)
+    rebuild(ras1; data, dims = alldims, refdims = otherdims(dims(ras1, alldims)))
+end
+function _combine(ser::AbstractRasterSeries{<:AbstractRasterStack{K}}; kw...) where K
+    r1 = first(ser)
+    new_layers = map(K) do k
+        _combine(map(s -> s[k], ser); kw...)
+    end |> NamedTuple{K}
+    newdims = combinedims(new_layers...)
+    rebuild(r1; data = new_layers, dims = newdims, refdims = otherdims(dims(r1), newdims))
 end

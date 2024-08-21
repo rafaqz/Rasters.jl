@@ -91,11 +91,11 @@ end
     ser = slice(stack, Ti)
     @test size(ser) == (10,)
     combined = Rasters.combine(ser, Ti)
+    dims(first(combined))
     ser = slice(stack, (Y, Ti))
     @test size(ser) == (5, 10,)
     combined = Rasters.combine(ser, (Y, Ti))
 end
-
 
 @testset "show" begin
     # 2d
