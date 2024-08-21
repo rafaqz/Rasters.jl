@@ -68,5 +68,5 @@ function _combine(ser::AbstractRasterSeries{<:AbstractRasterStack{K}}; kw...) wh
         _combine(map(s -> s[k], ser); kw...)
     end |> NamedTuple{K}
     newdims = combinedims(new_layers...)
-    rebuild(r1; data = new_layers, dims = newdims, refdims = otherdims(dims(r1), newdims))
+    DimensionalData.rebuild_from_arrays(r1, new_layers; refdims=otherdims(dims(r1), newdims))
 end
