@@ -296,7 +296,7 @@ function Makie.convert_arguments(t::Makie.PointBased, A::AbstractRaster{<:Number
 end
 @static if isdefined(Makie, :SurfaceLike)
 
-    function Makie.convert_arguments(t::SurfaceLikeCompat, A::AbstractRaster{var"#s115", 2, D}) where {var"#s115", D<:Tuple}
+    function Makie.convert_arguments(t::SurfaceLike, A::AbstractRaster{var"#s115", 2, D}) where {var"#s115", D<:Tuple}
         return Makie.convert_arguments(t, _prepare_dimarray(A))
     end
 else # surfacelike is not a thing
