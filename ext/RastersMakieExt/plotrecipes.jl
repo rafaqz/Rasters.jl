@@ -294,9 +294,17 @@ end
 function Makie.convert_arguments(t::Makie.PointBased, A::AbstractRaster{<:Number,2})
     return Makie.convert_arguments(t, _prepare_dimarray(A))
 end
-function Makie.convert_arguments(t::SurfaceLikeCompat, A::AbstractRaster{<:Any,2})
-    return Makie.convert_arguments(t, _prepare_dimarray(A))
+@static if isdefined(Makie, :SurfaceLike)
+
+    function Makie.convert_arguments(t::SurfaceLikeCompat, A::AbstractRaster{var"#s115", 2, D}) where {var"#s115", D<:Tuple}
+        return Makie.convert_arguments(t, _prepare_dimarray(A))
+    end
+else # surfacelike is not a thing
+    Makie.convert_arguments(t::Makie.VertexGrid, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
+    Makie.convert_arguments(t::Makie.CellGrid, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
+    Makie.convert_arguments(t::Makie.ImageLike, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
 end
+
 function Makie.convert_arguments(t::Makie.DiscreteSurface, A::AbstractRaster{<:Any,2})
     return Makie.convert_arguments(t, _prepare_dimarray(A))
 end
