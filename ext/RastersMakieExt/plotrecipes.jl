@@ -295,8 +295,7 @@ function Makie.convert_arguments(t::Makie.PointBased, A::AbstractRaster{<:Number
     return Makie.convert_arguments(t, _prepare_dimarray(A))
 end
 @static if isdefined(Makie, :SurfaceLike)
-
-    function Makie.convert_arguments(t::SurfaceLike, A::AbstractRaster{var"#s115", 2, D}) where {var"#s115", D<:Tuple}
+    function Makie.convert_arguments(t::SurfaceLike, A::AbstractRaster{T, 2, D}) where {T, D<:Tuple}
         return Makie.convert_arguments(t, _prepare_dimarray(A))
     end
 else # surfacelike is not a thing
@@ -305,9 +304,9 @@ else # surfacelike is not a thing
     Makie.convert_arguments(t::Makie.ImageLike, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
 end
 
-function Makie.convert_arguments(t::Makie.DiscreteSurface, A::AbstractRaster{<:Any,2})
-    return Makie.convert_arguments(t, _prepare_dimarray(A))
-end
+# function Makie.convert_arguments(t::Makie.DiscreteSurface, A::AbstractRaster{<:Any,2})
+#     return Makie.convert_arguments(t, _prepare_dimarray(A))
+# end
 function Makie.convert_arguments(t::Makie.VolumeLike, A::AbstractRaster{<:Any,3}) 
     return Makie.convert_arguments(t, _prepare_dimarray(A))
 end

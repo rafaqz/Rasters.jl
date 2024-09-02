@@ -19,7 +19,7 @@ end
 flush_info_and_warnings()
 
 
-Logging.disable_logging(Logging.Warn)
+# Logging.disable_logging(Logging.Warn)
 
 # Make the docs, without running the tests again
 # We need to explicitly add all the extensions here
@@ -46,11 +46,11 @@ makedocs(
     draft = false,
     source = "src",
     build = "build",
-    warnonly=true,
+    # warnonly=true,
 )
 
 # Enable logging to console again
-Logging.disable_logging(Logging.BelowMinLevel)
+# Logging.disable_logging(Logging.BelowMinLevel)
 
 deploydocs(; repo="github.com/rafaqz/Rasters.jl.git",
     target = "build", # this is where Vitepress stores its output
