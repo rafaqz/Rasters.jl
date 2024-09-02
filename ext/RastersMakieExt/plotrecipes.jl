@@ -299,6 +299,10 @@ end
         return Makie.convert_arguments(t, _prepare_dimarray(A))
     end
 else # surfacelike is not a thing
+    function Makie.convert_arguments(t::Makie.VertexGrid, A::AbstractRaster{T, 2, D}) where {T, D<:Tuple}
+        return Makie.convert_arguments(t, _prepare_dimarray(A))
+    end
+    
     Makie.convert_arguments(t::Makie.VertexGrid, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
     Makie.convert_arguments(t::Makie.CellGrid, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
     Makie.convert_arguments(t::Makie.ImageLike, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
