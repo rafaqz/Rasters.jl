@@ -1,7 +1,7 @@
 name = "Rasters"
 uuid = "a3a2b9e3-a471-40c9-b274-f788e487c689"
 authors = ["Rafael Schouten <rafaelschouten@gmail.com>"]
-version = "0.11.7"
+version = "0.11.8"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
