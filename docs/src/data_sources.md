@@ -70,7 +70,7 @@ directly to download and load data as a `Raster`, `RasterStack`, or `RasterSerie
 using Rasters, CairoMakie, Dates
 using RasterDataSources
 A = Raster(WorldClim{Climate}, :tavg; month=June)
-Makie.plot(A)
+# Makie.plot(A)
 ````
 
 See the docs for [`Raster`](@ref), [`RasterStack`](@ref) and [`RasterSeries`](@ref),
