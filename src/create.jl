@@ -10,15 +10,15 @@ If it is `nothing` or not passed, an in-memory `Raster` will be created.
 
 If type is a `Type` return value is a `Raster`. The `eltype` will usually be `T`, except
 where `scale` and/or `offset` keywords are used or a `missingval` of a different type is specified, 
-in which case `T` will depend on the tyepe promotion of `scale`, `offset` and `missingval` with `T`.
+in which case `T` will depend on the type promotion of `scale`, `offset` and `missingval` with `T`.
 `maskingval` will also affect the `eltype` of the openeded raster if you `create` to a file.
 
 If types is a `NamedTuple` of types, the result will be a `RasterStack`. In this case `fill` and 
 `missingval` can be single values (for all layers) or `NamedTuple` with the same names to specify per-layer.
 
 `f!` will be applied to the `Raster` or `RasterStack` while it is stil open after creation, 
-to avoid opening it twice. The return value of `f!` is disguarded but modifications
-to the `Raster` or the `RasterStack` layers will be written to disk or changd in memory.
+to avoid opening it twice. The return value of `f!` is disregarded but modifications
+to the `Raster` or the `RasterStack` layers will be written to disk or changed in memory.
 
 ## Arguments
 
