@@ -34,7 +34,7 @@ missingval(s::AbstractRasterStack, name::Symbol) = _singlemissingval(missingval(
 filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}) = map(s -> filename(s), stack)
 filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:Union{FileStack,OpenStack}}) = filename(parent(stack))
 
-isdisk(st::AbstractRasterStack) = isdisk(layers(st, 1))
+isdisk(st::AbstractRasterStack) = any(isdisk, layers(st))
 
 setcrs(x::AbstractRasterStack, crs) = set(x, setcrs(dims(x), crs)...)
 setmappedcrs(x::AbstractRasterStack, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
