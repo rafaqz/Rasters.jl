@@ -123,6 +123,7 @@ end
         first_dims = dims(first(series))
         @test all(dims(r) == first_dims for r in series)
         @test Rasters.isdisk(series)
+        @test !Rasters.isdisk(read(series))
         @test Rasters.isdisk(Rasters.combine(series))
         end
 end
