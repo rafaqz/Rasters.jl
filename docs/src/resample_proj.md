@@ -1,6 +1,6 @@
-## resample and Projections with ProjString
+## `resample` and projections with `ProjString`
 
-Geospatial datasets will come in different [projections](https://proj.org/en/9.4/operations/projections/index.html) for whaever reasons. Here, we will focus in some of the most used ones, e.g., `MODIS SINUSOIDAL` and `EPSG`, as well as transformations between them.
+Geospatial datasets will come in different [projections](https://proj.org/en/9.4/operations/projections/index.html) or coordinate reference systems (CRS) for many reasons. Here, we will focus on `MODIS SINUSOIDAL` and `EPSG`, and transformations between them.
 
 Let's start by loading the neccesary packages:
 
@@ -73,7 +73,7 @@ nansum(ras_m), nansum(locus_resampled)
 fig = plot(ras_epsg; colorrange=(0,100))
 ````
 
-### Assemble a Raster from scratch nativily in the sinusoidal projection
+### Construct a Raster from scratch natively in the sinusoidal projection
 
 ````@example modis
 x_range = range(-2.0015109355797417e7, 1.998725401355172e7, 1440)
