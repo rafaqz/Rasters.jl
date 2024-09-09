@@ -17,14 +17,10 @@ fig, ax, _ = plot(A)
 contour(fig[1, 2], A)
 ax = Axis(fig[2, 1]; aspect = DataAspect())
 contourf!(ax, A)
-# surface(fig[2, 2], A) # even a 3D plot works! # broken mutating method
+surface(fig[2, 2], A) # even a 3D plots work!
 fig
 ````
 
-even a 3D plot works!
-````@example makie
-surface(A)
-````
 ## 3-D rasters in Makie
 
 !!! warning
@@ -62,7 +58,6 @@ must remain the same - i.e., the element names of a RasterStack must remain the 
 ````julia
 Makie.set_theme!(Rasters.theme_rasters())
 # `stack` is the WorldClim climate data for January
-# observables not working here, same error as for contourf: ERROR: MethodError: no method matching typemax(::Type{ColorTypes.RGBA{Float32}})
 stack_obs = Observable(stack)
 fig = Rasters.rplot(stack_obs;
     Colorbar=(; height=Relative(0.75), width=5)
@@ -72,7 +67,9 @@ record(fig, "rplot.mp4", 1:12; framerate = 3) do i
 end 
 ````
 
-<!-- <video src="./rplot.mp4" controls="controls" autoplay="autoplay"></video> -->
+```@raw html
+<video src="./rplot.mp4" controls="controls" autoplay="autoplay"></video>
+```
 
 ````@example makie
 Makie.set_theme!() # reset theme
