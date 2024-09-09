@@ -303,6 +303,9 @@ Makie.convert_arguments(t::Makie.CellGrid, A::AbstractRaster{<: Any, 2}) = Makie
 Makie.convert_arguments(t::Makie.ImageLike, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
 
 # 3d
+function Makie.convert_arguments(t::Makie.VolumeLike, A::AbstractRaster{T, 3, D}) where {T<:Union{Missing, Real}, D<:Tuple}
+    return Makie.convert_arguments(t, _prepare_dimarray(A))
+end
 Makie.convert_arguments(t::Makie.VolumeLike, A::AbstractRaster{<:Any,3}) = Makie.convert_arguments(t, _prepare_dimarray(A))
 Makie.convert_arguments(t::Makie.VolumeSlices, A::AbstractRaster{<:Any,3}) = Makie.convert_arguments(t, _prepare_dimarray(A))
 

@@ -17,7 +17,7 @@ fig, ax, _ = plot(A)
 contour(fig[1, 2], A)
 ax = Axis(fig[2, 1]; aspect = DataAspect())
 contourf!(ax, A)
-surface(fig[2, 2], A) # even a 3D plots work!
+surface(fig[2, 2], A) # even a 3D plot work!
 fig
 ````
 
