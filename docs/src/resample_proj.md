@@ -77,7 +77,7 @@ fig = plot(ras_epsg; colorrange=(0,100))
 
 ````@example modis
 x_range = range(-2.0015109355797417e7, 1.998725401355172e7, 1440)
-y_range = range(9.979756529777847e6, -1.0007111969122082e7, 720)
+y_range = range(9.979756529777847e6, -1.0007554677898709, 720)
 ra_data = ras_sin.data;
 nothing # hide
 ````
