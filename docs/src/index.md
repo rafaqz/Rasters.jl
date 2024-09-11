@@ -36,17 +36,11 @@ features:
     Rasters provides a standardised interface that allows many source data types to
     be used with identical syntax.
 
-    - Scripts and packages building on Rasters.jl can treat `Raster`,
-    `RasterStack`, and `RasterSeries` as black boxes.
-    - The data could hold GeoTiff or NetCDF files, `Array`s in memory or
-        `CuArray`s on the GPU - they will all behave in the same way.
-    - `RasterStack` can be backed by a Netcdf or HDF5 file, or a `NamedTuple` of
-        `Raster` holding `.tif` files, or all `Raster` in memory.
+    - Scripts and packages building on Rasters.jl can treat `Raster`, `RasterStack`, and `RasterSeries` as black boxes.
+    - The data could hold GeoTiff or NetCDF files, `Array`s in memory or `CuArray`s on the GPU - they will all behave in the same way.
+    - `RasterStack` can be backed by a Netcdf or HDF5 file, or a `NamedTuple` of `Raster` holding `.tif` files, or all `Raster` in memory.
     - Users do not have to deal with the specifics of spatial file types.
-    - `Projected` lookups with Cylindrical projections can by indexed using other Cylindrical projections
-    by setting the `mappedcrs` keyword on construction. You don't need to know the underlying
-    projection, the conversion is handled automatically. This means lat/lon
-    `EPSG(4326)` can be used seamlessly if you need that.
+    - `Projected` lookups with Cylindrical projections can by indexed using other Cylindrical projections by setting the `mappedcrs` keyword on construction. You don't need to know the underlying projection, the conversion is handled automatically. This means lat/lon `EPSG(4326)` can be used seamlessly if you need that.
 
 ## Installation
 
