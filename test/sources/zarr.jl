@@ -68,4 +68,67 @@ end
     @test zraster[Ti(At(DateTime(1979,1,9))), X(At(-178.75)), Y(At(-88.75))] == -28.866226f0
 end
 
+@testset "CF conventions" begin
+    path = tempname() * ".zarr"
+    global_attrs = Dict(
+        "Conventions" => "CF-1.7",
+        "_FillValue" => -999.0,
+        "units" => "K",
+        "project" => "GOES",
+    )
+    zg = zgroup(path; attrs = global_attrs)
+    x_attrs = Dict(
+        "units"             => "rad",
+        "add_offset"        => 0,
+        "_ARRAY_DIMENSIONS" => ["x"],
+        "axis"              => "X",
+        "long_name"         => "GOES fixed grid projection x-coordinate",
+        "scale_factor"      => 1,
+        "_Netcdf4Dimid"     => 1,
+        "standard_name"     => "projection_x_coordinate",
+        "NAME"              => "x",
+    )
+    xs = zcreate(Float64, zg, "x", 100; attrs = x_attrs)
+    xs .= LinRange(-5.434177815866809e6, 5.322929839864517e6, 100)
+
+    y_attrs = Dict(
+        "units"             => "rad",
+        "add_offset"        => 5.258454335331338e6,
+        "_ARRAY_DIMENSIONS" => ["y"],
+        "axis"              => "Y",
+        "long_name"         => "GOES fixed grid projection y-coordinate",
+        "scale_factor"      => -1.0625617981243342e7,
+        "_Netcdf4Dimid"     => 1,
+        "standard_name"     => "projection_y_coordinate",
+        "NAME"              => "y",
+    )
+    ys = zcreate(Float64, zg, "y", 100; attrs = y_attrs)
+    ys .= LinRange(0, 1, 100)
+
+    val_attrs = Dict(
+        "_Netcdf4Dimid" => 0,
+        "scale_factor" => 2.0,
+        "add_offset" => 180.0,
+        "_FillValue" => -1, 
+        "units" => "K", 
+        "_ARRAY_DIMENSIONS" => ["y", "x"], 
+        "grid_mapping" => "goes_imager_projection",
+        "valid_range" => [0, -6],
+    )
+    vals = zcreate(Float64, zg, "values", 100, 100; attrs = val_attrs)
+    vals .= (data = rand(100, 100))
+    vals[1, 1] = 1.0
+    vals[end, end] = 0.0
+
+
+    ra = Raster(path)
+
+    @test extrema(ra) == (180.0, 182.0) # test scale and offset
+    @test Rasters.GeoInterface.extent(ra) == Rasters.GeoInterface.Extent(X = (-5.434177815866809e6, 5.322929839864517e6), Y = (-5.367163645912004e6, 5.258454335331338e6))
+    @test Rasters.isreverse(ra.dims[2])
+    @test Rasters.isforward(ra.dims[1])
+    @test extrema(ra.dims[1]) == extrema(xs)
+    @test extrema(ra.dims[2]) == reverse(extrema(ys)) .* y_attrs["scale_factor"] .+ y_attrs["add_offset"]
+end
+
 end
