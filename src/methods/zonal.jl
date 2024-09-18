@@ -19,7 +19,10 @@ These can be used when `of` is or contains (a) GeoInterface.jl compatible object
     where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
     The default is `:center`.
 - `progress`: show a progress bar, `true` by default, `false` to hide..
-
+- `skipmissing`: wether to apply `f` to the result of `skipmissing(A)` or not. If `true`
+    `f` will be passed an iterator over the values, which loses all spatial information.
+    if `false` `f` will be passes a masked `Raster` or `RasterStack`, and will be responsible
+    for handling missing values itself. The default value is `true`.
 
 # Example
 
@@ -71,15 +74,18 @@ insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Z
 """
 zonal(f, x::RasterStackOrArray; of, kw...) = _zonal(f, x, of; kw...)
 
-_zonal(f, x::RasterStackOrArray, of::RasterStackOrArray) = _zonal(f, x, Extents.extent(of))
-_zonal(f, x::RasterStackOrArray, of::DimTuple) = _zonal(f, x, Extents.extent(of))
+_zonal(f, x::RasterStackOrArray, of::RasterStackOrArray; kw...) = 
+    _zonal(f, x, Extents.extent(of); kw...)
+_zonal(f, x::RasterStackOrArray, of::DimTuple; kw...) = 
+    _zonal(f, x, Extents.extent(of); kw...)
 # We don't need to `mask` with an extent, it's square so `crop` will do enough.
-_zonal(f, x::Raster, of::Extents.Extent) = f(skipmissing(crop(x; to=of, touches=true)))
-function _zonal(f, x::RasterStack, ext::Extents.Extent)
+_zonal(f, x::Raster, of::Extents.Extent; skipmissing=true) =
+    _maybe_skipmissing_call(f, crop(x; to=of, touches=true), skipmissing)
+function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing=true)
     cropped = crop(x; to=ext, touches=true)
     prod(size(cropped)) > 0 || return missing
     return map(cropped) do A
-        f(skipmissing(A))
+        _maybe_skipmissing_call(f, A, skipmissing)
     end
 end
 # Otherwise of is a geom, table or vector
@@ -89,22 +95,28 @@ _zonal(f, x, ::GI.AbstractFeatureCollectionTrait, fc; kw...) =
     _zonal(f, x, nothing, fc; kw...)
 _zonal(f, x::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...) =
     _zonal(f, x, GI.geometry(feature); kw...)
-function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom; kw...)
+function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom; 
+    skipmissing=true, kw...
+)
     cropped = crop(x; to=geom, touches=true)
     prod(size(cropped)) > 0 || return missing
     masked = mask(cropped; with=geom, kw...)
-    return f(skipmissing(masked))
+    return _maybe_skipmissing_call(f, masked, skipmissing)
 end
-function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; kw...)
+function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; 
+    skipmissing=true, kw...
+)
     cropped = crop(st; to=geom, touches=true)
     prod(size(cropped)) > 0 || return map(_ -> missing, st)
     masked = mask(cropped; with=geom, kw...)
     return map(masked) do A
         prod(size(A)) > 0 || return missing
-        f(skipmissing(A))
+        _maybe_skipmissing_call(f, A, skipmissing)
     end
 end
-function _zonal(f, x::RasterStackOrArray, ::Nothing, data; progress=true, threaded=true, geometrycolumn=nothing, kw...)
+function _zonal(f, x::RasterStackOrArray, ::Nothing, data; 
+    progress=true, threaded=true, geometrycolumn=nothing, kw...
+)
     geoms = _get_geometries(data, geometrycolumn)
     n = length(geoms)
     n == 0 && return []
@@ -136,3 +148,5 @@ function _alloc_zonal(f, x, geoms, n; kw...)
     zs[n_missing + 1] = z1
     return zs, n_missing + 1
 end
+
+_maybe_skipmissing_call(f, A, sm) = sm ? f(skipmissing(A)) : f(A)
