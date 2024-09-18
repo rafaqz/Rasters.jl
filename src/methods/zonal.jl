@@ -74,12 +74,14 @@ insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Z
 """
 zonal(f, x::RasterStackOrArray; of, kw...) = _zonal(f, x, of; kw...)
 
-_zonal(f, x::RasterStackOrArray, of::RasterStackOrArray) = _zonal(f, x, Extents.extent(of))
-_zonal(f, x::RasterStackOrArray, of::DimTuple) = _zonal(f, x, Extents.extent(of))
+_zonal(f, x::RasterStackOrArray, of::RasterStackOrArray; kw...) = 
+    _zonal(f, x, Extents.extent(of); kw...)
+_zonal(f, x::RasterStackOrArray, of::DimTuple; kw...) = 
+    _zonal(f, x, Extents.extent(of); kw...)
 # We don't need to `mask` with an extent, it's square so `crop` will do enough.
 _zonal(f, x::Raster, of::Extents.Extent; skipmissing=true) =
     _maybe_skipmissing_call(f, crop(x; to=of, touches=true), skipmissing)
-function _zonal(f, x::RasterStack, ext::Extents.Extent)
+function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing=true)
     cropped = crop(x; to=ext, touches=true)
     prod(size(cropped)) > 0 || return missing
     return map(cropped) do A
@@ -93,13 +95,17 @@ _zonal(f, x, ::GI.AbstractFeatureCollectionTrait, fc; kw...) =
     _zonal(f, x, nothing, fc; kw...)
 _zonal(f, x::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...) =
     _zonal(f, x, GI.geometry(feature); kw...)
-function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom; skipmissing=true, kw...)
+function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom; 
+    skipmissing=true, kw...
+)
     cropped = crop(x; to=geom, touches=true)
     prod(size(cropped)) > 0 || return missing
     masked = mask(cropped; with=geom, kw...)
     return _maybe_skipmissing_call(f, masked, skipmissing)
 end
-function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; skipmissing=true, kw...)
+function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; 
+    skipmissing=true, kw...
+)
     cropped = crop(st; to=geom, touches=true)
     prod(size(cropped)) > 0 || return map(_ -> missing, st)
     masked = mask(cropped; with=geom, kw...)
@@ -108,7 +114,9 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; sk
         _maybe_skipmissing_call(f, A, skipmissing)
     end
 end
-function _zonal(f, x::RasterStackOrArray, ::Nothing, data; progress=true, threaded=true, geometrycolumn=nothing, kw...)
+function _zonal(f, x::RasterStackOrArray, ::Nothing, data; 
+    progress=true, threaded=true, geometrycolumn=nothing, kw...
+)
     geoms = _get_geometries(data, geometrycolumn)
     n = length(geoms)
     n == 0 && return []
