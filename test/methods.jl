@@ -299,6 +299,18 @@ end
         zonal(sum, st; of=dims(st)) == 
         zonal(sum, st; of=Extents.extent(st)) == 
         sum(st)
+    end
+
+    @testset "skipmissing" begin
+        a = Array{Union{Missing,Int}}(undef, 26, 31)
+        a .= (1:26) * (1:31)'
+        a[1:10, 3:10] .= missing
+        rast = Raster(a, (X(-20:5), Y(0:30)))
+        @test zonal(sum, rast; of=polygon, skipmissing=false) === missing
+        @test zonal(sum, rast; of=polygon, skipmissing=true) isa Int
+        @test !zonal(x -> x isa Raster, rast; of=polygon, skipmissing=true)
+        @test zonal(x -> x isa Raster, rast; of=polygon, skipmissing=false)
+    end
 end
 
 @testset "zonal return missing" begin
