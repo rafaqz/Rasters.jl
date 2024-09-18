@@ -22,7 +22,7 @@ These can be used when `of` is or contains (a) GeoInterface.jl compatible object
 - `skipmissing`: wether to apply `f` to the result of `skipmissing(A)` or not. If `true`
     `f` will be passed an iterator over the values, which loses all spatial information.
     if `false` `f` will be passes a masked `Raster` or `RasterStack`, and will be responsible
-    for handling missing values itself.
+    for handling missing values itself. The default value is `true`.
 
 # Example
 
