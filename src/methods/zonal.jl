@@ -83,7 +83,7 @@ function _zonal(f, x::RasterStack, ext::Extents.Extent)
     cropped = crop(x; to=ext, touches=true)
     prod(size(cropped)) > 0 || return missing
     return map(cropped) do A
-        _maybe_skipmissing_call(f, masked, skipmissing)
+        _maybe_skipmissing_call(f, A, skipmissing)
     end
 end
 # Otherwise of is a geom, table or vector
@@ -105,7 +105,7 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; sk
     masked = mask(cropped; with=geom, kw...)
     return map(masked) do A
         prod(size(A)) > 0 || return missing
-        _maybe_skipmissing_call(f, masked, skipmissing)
+        _maybe_skipmissing_call(f, A, skipmissing)
     end
 end
 function _zonal(f, x::RasterStackOrArray, ::Nothing, data; progress=true, threaded=true, geometrycolumn=nothing, kw...)
