@@ -299,7 +299,6 @@ end
         zonal(sum, st; of=dims(st)) == 
         zonal(sum, st; of=Extents.extent(st)) == 
         sum(st)
-    end
 
     @testset "skipmissing" begin
         a = Array{Union{Missing,Int}}(undef, 26, 31)
