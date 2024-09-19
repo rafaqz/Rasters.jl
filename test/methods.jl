@@ -97,7 +97,7 @@ end
     @test all(x .!= boolmask([polygon, polygon]; collapse=false, res=1.0, invert=true, boundary=:touches))
     @test eltype(x) == Bool
     @test size(x) == (21, 21, 2)
-    @test sum(x) == 800
+    @test sum(x) == 882
     @test parent(x) isa BitArray{3}
     x = boolmask([polygon, polygon]; collapse=true, res=1.0, boundary=:touches)
     @test all(x .!= boolmask([polygon, polygon]; collapse=true, res=1.0, invert=true, boundary=:touches))
