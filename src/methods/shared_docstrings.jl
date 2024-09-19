@@ -136,8 +136,8 @@ const OFFSET_KEYWORD = """
 
 const RAW_KEYWORD = """
 - `raw`: Turn of all scaling and masking and load the raw values from disk.
-    `false` by default. If `true`, `scaled` will be set to `false` and `maskingval`
-    will be set to `nothing`. A warning will be printed if `scaled` or `maskingval`
+    `false` by default. If `true`, `scaled` will be set to `false` and `coalesceval`
+    will be set to `nothing`. A warning will be printed if `scaled` or `coalesceval`
     are manually set to another value.
 """
 
@@ -163,9 +163,9 @@ const MISSINGVAL_KEYWORD = """
 """
 
 const MASKINGVAL_KEYWORD = """
-- `maskingval`: A value to convert `missingval` to, by default `missing`. If this is set it 
-    will be the return value of `missingval(raster)` - `maskingval` becomes the new `missingval`.
-    Setting `maskingval` to `nothing` means no masking will occur, and the original `missingval` 
+- `coalesceval`: A value to convert `missingval` to, by default `missing`. If this is set it 
+    will be the return value of `missingval(raster)` - `coalesceval` becomes the new `missingval`.
+    Setting `coalesceval` to `nothing` means no masking will occur, and the original `missingval` 
     will be the final `missingval`. This can give better performance than using `missing`. 
     Another efficient option is to use e.g. `zero(eltype(raster))` to replace missing values with zero.
 """

@@ -32,14 +32,14 @@ function replace_missing(A::AbstractRaster{T}, missingval::MV;
     end
     old_missingval = Rasters.missingval(A)
     missingval = convert(MT, missingval)
-    maskingval = nothing
+    coalesceval = nothing
     repmissing(x) = isequal(x, old_missingval) || ismissing(x) ? missingval : x
     # Disk-backed arrays need to be lazy, memory-backed don't.
     # But in both cases we make sure we return an array with the missingval
     # in the eltype, even if there are no missing values in the array.
     if !isnothing(filename)
         return create(filename, MT, dims(A); 
-            parent=parent(A), missingval, maskingval, name=name(A), metadata=metadata(A), kw...
+            parent=parent(A), missingval, coalesceval, name=name(A), metadata=metadata(A), kw...
         ) do O
             O .= repmissing.(A)
         end

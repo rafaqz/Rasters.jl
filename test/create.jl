@@ -133,11 +133,11 @@ for ext in (".nc", ".tif", ".grd")
         fn = "created$ext"
         created = Rasters.create(fn, UInt8, (X(1:10), Y(1:10));
             missingval=0xff,
-            maskingval=nothing,
+            coalesceval=nothing,
             fill=0x01,
             force=true
         )
-        @test all(Raster(fn; maskingval=nothing) .=== 0x01)
+        @test all(Raster(fn; coalesceval=nothing) .=== 0x01)
         @test missingval(created) === 0xff
 
         if ext == ".grd"
@@ -150,7 +150,7 @@ for ext in (".nc", ".tif", ".grd")
                 nothing
             end
             @test all(Raster(fn) .=== Int16(2))
-            @test missingval(Raster(fn; maskingval=nothing)) === typemax(Int16)
+            @test missingval(Raster(fn; coalesceval=nothing)) === typemax(Int16)
         else
             @time created = Rasters.create(fn, Int16, (X(1:10), Y(1:10));
                 missingval=typemax(Int16),
@@ -163,7 +163,7 @@ for ext in (".nc", ".tif", ".grd")
             end
             @test all(Raster(fn) .=== 3.0)
             @test all(Raster(fn; scaled=false) .== Int16(-20))
-            @test missingval(Raster(fn; maskingval=nothing, scaled=false)) === typemax(Int16)
+            @test missingval(Raster(fn; coalesceval=nothing, scaled=false)) === typemax(Int16)
         end
     end
 end
@@ -172,7 +172,7 @@ end
 @testset "create .nc stack" begin
     created = Rasters.create("created.nc", (a=UInt8, b=Float32), (X(1:10), Y(1:10));
         missingval=(a=0xff, b=typemax(Float32)),
-        maskingval=nothing,
+        coalesceval=nothing,
         fill=(a=0x01, b=1.0f0),
         layerdims=(a=(X,), b=(X, Y)),
         force=true,
@@ -182,7 +182,7 @@ end
     @test size(created.b) == (10, 10)
     @test all(created.a .=== 0x01)
     @test all(created.b .=== 1.0f0)
-    st = RasterStack("created.nc"; maskingval=nothing)
+    st = RasterStack("created.nc"; coalesceval=nothing)
     @test missingval(st) == (a=0xff, b=typemax(Float32))
 
     created = Rasters.create("created.nc", (a=UInt8, b=Float32), (X(1:10), Y(1:10));
@@ -196,13 +196,13 @@ end
     @test size(created.b) == (10, 10)
     @test all(created.a .=== 0x01)
     @test all(created.b .=== 1.0f0)
-    st = RasterStack("created.nc"; maskingval=nothing)
+    st = RasterStack("created.nc"; coalesceval=nothing)
     @test missingval(st) == (a=0xff, b=typemax(Float32))
 
     @testset "with a function" begin
         created = Rasters.create("created.nc", (a=UInt8, b=Float32), (X(1:10), Y(1:10));
             missingval=(a=0xff, b=typemax(Float32)),
-            maskingval=nothing,
+            coalesceval=nothing,
             fill=(a=0x01, b=1.0f0),
             layerdims=(a=(X,), b=(X, Y)),
             force=true,

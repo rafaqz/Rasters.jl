@@ -301,14 +301,14 @@ end
 
 # Constructor helpers
 
-function _raw_check(raw, scaled, maskingval)
+function _raw_check(raw, scaled, coalesceval)
     if raw
         scaled isa Bool && scaled && @warn "`scaled=true` set to `false` because of `raw=true`"
-        isnokwornothing(maskingval) || @warn "`maskingval=$maskingval` set to `nothing` because of `raw=true`"
+        isnokwornothing(coalesceval) || @warn "`coalesceval=$coalesceval` set to `nothing` because of `raw=true`"
         return false, nothing
     else
         scaled = isnokw(scaled) ? true : scaled
-        return scaled, maskingval 
+        return scaled, coalesceval 
     end
 end
 
@@ -451,7 +451,7 @@ end
 
 _maybe_warn_replace_missing(replace_missing::NoKW) = nothing
 function _maybe_warn_replace_missing(replace_missing)
-    @warn "`replace_missing` keyword no longer used. Set `maskingval` to nothing for no replacement, to `missing` to mask `missingval` with `missing`, or any other value"
+    @warn "`replace_missing` keyword no longer used. Set `coalesceval` to nothing for no replacement, to `missing` to mask `missingval` with `missing`, or any other value"
 end
 
 @noinline _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."

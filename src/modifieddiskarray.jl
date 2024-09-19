@@ -12,16 +12,16 @@ source_eltype(::NoMod{T}) where T = T
 
 struct Mod{T1,T2,Mi,Ma,S,O,F} <: AbstractModifications
      missingval::Mi
-     maskingval::Ma
+     coalesceval::Ma
      scale::S
      offset::O
      coerce::F
-     function Mod(::Type{T}, missingval, maskingval, scale, offset, coerce) where T
-         maskingval = maskingval === missingval ? nothing : maskingval
+     function Mod(::Type{T}, missingval, coalesceval, scale, offset, coerce) where T
+         coalesceval = coalesceval === missingval ? nothing : coalesceval
          if isnokw(coerce) || isnothing(coerce)
              coerce = convert
          end
-         vals = map(_nokw2nothing, (missingval, maskingval, scale, offset))
+         vals = map(_nokw2nothing, (missingval, coalesceval, scale, offset))
          T1 = _resolve_mod_eltype(T, vals...)
          new{T1,T,map(typeof, vals)...,typeof(coerce)}(vals..., coerce)
      end
@@ -31,17 +31,17 @@ Base.eltype(::Mod{T1}) where T1 = T1
 source_eltype(::Mod{<:Any,T2}) where T2 = T2
 
 
-function _resolve_mod_eltype(::Type{T}, missingval, maskingval, scale, offset) where T
-    T1 = isnothing(maskingval) ? T : promote_type(T, typeof(maskingval))
+function _resolve_mod_eltype(::Type{T}, missingval, coalesceval, scale, offset) where T
+    T1 = isnothing(coalesceval) ? T : promote_type(T, typeof(coalesceval))
     T2 = isnothing(scale) ? T1 : promote_type(T1, typeof(scale))
     T3 = isnothing(offset) ? T2 : promote_type(T2, typeof(offset))
     return T3
 end
 
 missingval(m::Mod) = m.missingval
-maskingval(m::Mod) = isnothing(m.maskingval) ? m.missingval : m.maskingval
+coalesceval(m::Mod) = isnothing(m.coalesceval) ? m.missingval : m.coalesceval
 missingval(m::NoMod) = m.missingval
-maskingval(m::NoMod) = missingval(m)
+coalesceval(m::NoMod) = missingval(m)
 
 struct ModifiedDiskArray{I,T,N,V,M} <: DiskArrays.AbstractDiskArray{T,N}
     var::V
@@ -56,7 +56,7 @@ Base.parent(A::ModifiedDiskArray) = A.var
 Base.size(A::ModifiedDiskArray, args...) = size(parent(A), args...)
 filename(A::ModifiedDiskArray) = filename(parent(A))
 missingval(A::ModifiedDiskArray) = A.missingval
-maskingval(A::ModifiedDiskArray) = A.maskingval
+coalesceval(A::ModifiedDiskArray) = A.coalesceval
 DiskArrays.haschunks(A::ModifiedDiskArray) = DiskArrays.haschunks(parent(A))
 DiskArrays.eachchunk(A::ModifiedDiskArray) = DiskArrays.eachchunk(parent(A))
 
@@ -113,7 +113,7 @@ end
 
 Base.@assume_effects :foldable function _applymod(x, m::Mod)
     if _ismissing(x, missingval(m))
-        maskingval(m)
+        coalesceval(m)
     else
         _scaleoffset(x, m)
     end
@@ -133,7 +133,7 @@ Base.@assume_effects :foldable function _invertmod(::Val{T}, x, m::Mod) where T
     tm = if isnothing(m.missingval)
         x
     else
-        if _ismissing(x, m.maskingval)
+        if _ismissing(x, m.coalesceval)
             return m.missingval
         else
             x
@@ -155,58 +155,58 @@ Base.@assume_effects :foldable _scaleoffset_inv1(x, ::Nothing, ::Nothing) = x
 
 
 function _stack_mods(
-    eltypes::Vector, metadata::Vector, missingval::Vector, maskingval;
+    eltypes::Vector, metadata::Vector, missingval::Vector, coalesceval;
     scaled, coerce
 )
     map(eltypes, metadata, missingval) do T, md, mv
         scale, offset = get_scale(md, scaled)
-        _mod(T, mv, maskingval, scale, offset, coerce)
+        _mod(T, mv, coalesceval, scale, offset, coerce)
     end
 end
 function _stack_mods(
-    eltypes::Vector, metadata::Vector, missingval, maskingval::Vector;
+    eltypes::Vector, metadata::Vector, missingval, coalesceval::Vector;
     scaled::Bool, coerce
 )
-    map(eltypes, metadata, maskingval) do T, md, mk
+    map(eltypes, metadata, coalesceval) do T, md, mk
         scale, offset = get_scale(md, scaled)
         _mod(T, missingval, mk, scale, offset, coerce)
     end
 end
 function _stack_mods(
-    eltypes::Vector, metadata::Vector, missingval::Vector, maskingval::Vector;
+    eltypes::Vector, metadata::Vector, missingval::Vector, coalesceval::Vector;
     scaled::Bool, coerce
 )
-    map(eltypes, metadata, missingval, maskingval) do T, md, mv, mk
+    map(eltypes, metadata, missingval, coalesceval) do T, md, mv, mk
         scale, offset = get_scale(md, scaled)
         _mod(mv, mk, scale, offset, coerce)
     end
 end
 function _stack_mods(
-    eltypes::Vector, metadata::Vector, missingval, maskingval;
+    eltypes::Vector, metadata::Vector, missingval, coalesceval;
     scaled::Bool, coerce
 )
     map(eltypes, metadata) do T, md
         scale, offset = get_scale(md, scaled)
-        _mod(T, missingval, maskingval, scale, offset, coerce)
+        _mod(T, missingval, coalesceval, scale, offset, coerce)
     end
 end
 
-function _mod(::Type{T}, metadata, missingval, maskingval; scaled::Bool, coerce) where T
+function _mod(::Type{T}, metadata, missingval, coalesceval; scaled::Bool, coerce) where T
     scale, offset = get_scale(metadata, scaled)
-    _mod(T, missingval, maskingval, scale, offset, coerce)
+    _mod(T, missingval, coalesceval, scale, offset, coerce)
 end
-function _mod(::Type{T}, missingval, maskingval, scale, offset, coerce) where T
-    maskingval = if isnokw(maskingval)
+function _mod(::Type{T}, missingval, coalesceval, scale, offset, coerce) where T
+    coalesceval = if isnokw(coalesceval)
         # If there is no missingval dont mask
         isnokwornothing(missingval) ? nothing : missing
     else
-        # Unless maskingval was passed explicitly
-        maskingval === missingval ? nothing : maskingval
+        # Unless coalesceval was passed explicitly
+        coalesceval === missingval ? nothing : coalesceval
     end
-    if isnokwornothing(maskingval) && isnokwornothing(scale) && isnokwornothing(offset)
+    if isnokwornothing(coalesceval) && isnokwornothing(scale) && isnokwornothing(offset)
         return NoMod{T}(missingval)
     else
-        return Mod(T, missingval, maskingval, scale, offset, coerce)
+        return Mod(T, missingval, coalesceval, scale, offset, coerce)
     end
 end
 
@@ -217,9 +217,9 @@ end
     return scale, offset
 end
 
-function _writer_mod(::Type{T}; missingval, maskingval, scale, offset, coerce) where T
+function _writer_mod(::Type{T}; missingval, coalesceval, scale, offset, coerce) where T
     missingval1 = if isnokw(missingval) || isnothing(missingval)
-        if isnokw(maskingval) || isnothing(maskingval)
+        if isnokw(coalesceval) || isnothing(coalesceval)
             nothing
         else
             _type_missingval(T)
@@ -229,16 +229,16 @@ function _writer_mod(::Type{T}; missingval, maskingval, scale, offset, coerce) w
     else
         missingval
     end
-    maskingval1 = if isnokw(maskingval)
+    coalesceval1 = if isnokw(coalesceval)
         if Missing <: T
             missing
         else
             nothing
         end
     else
-        maskingval
+        coalesceval
     end
-    return _mod(T, missingval1, maskingval1, scale, offset, coerce)
+    return _mod(T, missingval1, coalesceval1, scale, offset, coerce)
 end
 
 _mod_eltype(::AbstractArray{T}, ::NoMod) where T = T

@@ -476,11 +476,11 @@ function alloc_rasterize(f, r::RasterCreator;
     metadata=r.metadata,
     suffix=r.suffix,
 )
-    maskingval = nothing
+    coalesceval = nothing
     if prod(size(r.to)) == 0  
         throw(ArgumentError("Destination array is is empty, with size $(size(r.to))). Rasterization is not possible"))
     end
-    A = create(r.filename, fill=missingval, eltype, r.to; name, missingval, maskingval, metadata, suffix) do O
+    A = create(r.filename, fill=missingval, eltype, r.to; name, missingval, coalesceval, metadata, suffix) do O
         f(O)
     end
     return A

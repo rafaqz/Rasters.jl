@@ -76,12 +76,12 @@ Returns `filename`.
 function Base.write(filename::AbstractString, A::AbstractRaster;
     source=_sourcetrait(filename),
     missingval=nokw,
-    maskingval=nokw,
+    coalesceval=nokw,
     kw...
 )
     missingval = isnokw(missingval) ? Rasters.missingval(A) : missingval
-    maskingval = isnokw(maskingval) ? missingval : maskingval
-    write(filename, _sourcetrait(source), A; missingval, maskingval, kw...)
+    coalesceval = isnokw(coalesceval) ? missingval : coalesceval
+    write(filename, _sourcetrait(source), A; missingval, coalesceval, kw...)
 end
 Base.write(A::AbstractRaster; kw...) = write(filename(A), A; kw...)
 # Fallback
@@ -120,14 +120,14 @@ function Base.write(path::AbstractString, s::AbstractRasterStack;
     source=_sourcetrait(path, ext),
     verbose=true,
     missingval=nokw,
-    maskingval=nokw,
+    coalesceval=nokw,
     kw...
 )
     source = _sourcetrait(source)
-    maskingval = _stack_nt(s, isnokw(maskingval) ? Rasters.missingval(s) : maskingval)
-    missingval = _stack_missingvals(s, isnokw(missingval) ? maskingval : missingval)
+    coalesceval = _stack_nt(s, isnokw(coalesceval) ? Rasters.missingval(s) : coalesceval)
+    missingval = _stack_missingvals(s, isnokw(missingval) ? coalesceval : missingval)
     if haslayers(source)
-        write(path, source, s; missingval, maskingval, kw...)
+        write(path, source, s; missingval, coalesceval, kw...)
     else
         # Otherwise write separate files for each layer
         if isnothing(ext)
@@ -146,9 +146,9 @@ function Base.write(path::AbstractString, s::AbstractRasterStack;
         if verbose
             @warn string("Cannot write complete stacks to \"", ext, "\", writing layers as individual files")
         end
-        map(keys(s), suffix1, missingval, maskingval) do key, suf, mv, ma
+        map(keys(s), suffix1, missingval, coalesceval) do key, suf, mv, ma
             fn = string(base, suf, ext)
-            write(fn, source, s[key]; missingval=mv, maskingval=ma, kw...)
+            write(fn, source, s[key]; missingval=mv, coalesceval=ma, kw...)
         end |> NamedTuple{keys(s)}
     end
 end

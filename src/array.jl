@@ -304,7 +304,7 @@ function Raster(ds, filename::AbstractString;
     group=nokw,
     metadata=nokw,
     missingval=nokw,
-    maskingval=nokw,
+    coalesceval=nokw,
     crs=nokw,
     mappedcrs=nokw,
     source=nokw,
@@ -318,15 +318,15 @@ function Raster(ds, filename::AbstractString;
     mod=nokw,
     raw=false,
 )::Raster
-    scaled, maskingval = _raw_check(raw, scaled, maskingval)
+    scaled, coalesceval = _raw_check(raw, scaled, coalesceval)
     _maybe_warn_replace_missing(replace_missing)
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
     data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=NoMod()) do var
         metadata_out = isnokw(metadata) ? _metadata(var) : metadata
         missingval1 = isnokw(missingval) ? Rasters.missingval(var, metadata_out) : missingval 
-        maskingval1 = isnokw(maskingval) && !isnothing(missingval1) ? missing : maskingval
-        mod = isnokw(mod) ? _mod(eltype(var), metadata_out, missingval1, maskingval1; scaled, coerce) : mod
+        coalesceval1 = isnokw(coalesceval) && !isnothing(missingval1) ? missing : coalesceval
+        mod = isnokw(mod) ? _mod(eltype(var), metadata_out, missingval1, coalesceval1; scaled, coerce) : mod
         data_out = if lazy
             FileArray{typeof(source)}(var, filename; 
                 name=name1, group, mod, write
@@ -337,9 +337,9 @@ function Raster(ds, filename::AbstractString;
             x = Array(modvar)
             x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
         end
-        # If maskingval is `nothing` use  missingval as missingval
+        # If coalesceval is `nothing` use  missingval as missingval
         dims_out = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data_out)
-        missingval_out = isnokwornothing(maskingval1) ? missingval1 : maskingval1
+        missingval_out = isnokwornothing(coalesceval1) ? missingval1 : coalesceval1
         data_out, dims_out, metadata_out, missingval_out
     end
     name_out = name1 isa Union{NoKW,Nothing} ? Symbol("") : Symbol(name1)

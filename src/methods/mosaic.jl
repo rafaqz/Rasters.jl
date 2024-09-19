@@ -67,7 +67,7 @@ end
 mosaic(f::Function, regions; kw...) = _mosaic(f, first(regions), regions; kw...)
 function _mosaic(f::Function, A1::AbstractRaster, regions;
     missingval=nokw,
-    maskingval=nokw,
+    coalesceval=nokw,
     filename=nothing,
     suffix=nothing,
     driver=nokw,
@@ -76,7 +76,7 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
     kw...
 )
     isnothing(missingval) && throw(ArgumentError("missingval cannot be `nothing` for `mosaic`"))
-    maskingval = isnokw(maskingval) ? Rasters.missingval(first(regions)) : maskingval
+    coalesceval = isnokw(coalesceval) ? Rasters.missingval(first(regions)) : coalesceval
     missingval = if isnokw(missingval)
         mv = Rasters.missingval(first(regions)) 
         isnokwornothing(mv) ? missing : mv
@@ -94,7 +94,7 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
         name=name(l1),
         fill=missingval,
         missingval,
-        maskingval,
+        coalesceval,
         driver,
         options,
         force

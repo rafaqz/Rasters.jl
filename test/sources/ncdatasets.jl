@@ -60,13 +60,13 @@ end
 
     @testset "scaling and maskign" begin @time cfarray = Raster(ncsingle)
         @time cfarray = Raster(ncsingle)
-        @time cf_nomask_array = Raster(ncsingle; maskingval=nothing)
+        @time cf_nomask_array = Raster(ncsingle; coalesceval=nothing)
         @time nocfarray = Raster(ncsingle; scaled=false)
-        @time nocf_nomask_array = Raster(ncsingle; scaled=false, maskingval=nothing)
+        @time nocf_nomask_array = Raster(ncsingle; scaled=false, coalesceval=nothing)
         @time raw_array = Raster(ncsingle; raw=true)
         @time lazycfarray = Raster(ncsingle; lazy=true, scaled=false)
         @time lazynocfarray = Raster(ncsingle; lazy=true, scaled=false)
-        @time lazynocf_nomask_array = Raster(ncsingle; lazy=true, scaled=false, maskingval=nothing)
+        @time lazynocf_nomask_array = Raster(ncsingle; lazy=true, scaled=false, coalesceval=nothing)
         @test missingval(cfarray) === missing
         @test missingval(nocfarray) === missing
         @test missingval(cf_nomask_array) === 1.0f20
@@ -355,7 +355,7 @@ end
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write(gdalfilename, nccleaned; force=true)
             @test (@allocations write(gdalfilename, nccleaned; force=true)) < 1e4
-            gdalarray = Raster(gdalfilename; maskingval=nothing)
+            gdalarray = Raster(gdalfilename; coalesceval=nothing)
             # gdalarray WKT is missing one AUTHORITY
             # @test_broken crs(gdalarray) == convert(WellKnownText, EPSG(4326))
             # But the Proj representation is the same
@@ -371,7 +371,7 @@ end
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write("testgrd.gri", nccleaned; force=true)
             @test (@allocations write("testgrd.gri", nccleaned; force=true)) < 1e4
-            grdarray = Raster("testgrd.gri", maskingval=nothing);
+            grdarray = Raster("testgrd.gri", coalesceval=nothing);
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == bounds(nccleaned)
             @test index(grdarray, Y) ≈ reverse(index(nccleaned, Y)) .- 0.5

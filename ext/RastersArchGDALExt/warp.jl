@@ -18,7 +18,7 @@ function _warp(A::AbstractRaster, flags::Dict;
     filename=nothing, 
     suffix="", 
     missingval=nokw,
-    maskingval=Rasters.missingval(A),
+    coalesceval=Rasters.missingval(A),
     name=Rasters.name(A),
     kw...
 )
@@ -44,7 +44,7 @@ function _warp(A::AbstractRaster, flags::Dict;
     out = AG.Dataset(A1; filename=tempfile, missingval, kw...) do dataset
         AG.gdalwarp([dataset], flagvect; warp_kw...) do warped
             # Read the raster lazily, dropping Band if there is none in `A`
-            raster = Raster(warped; lazy=true, dropband=!hasdim(A, Band()), name, maskingval)
+            raster = Raster(warped; lazy=true, dropband=!hasdim(A, Band()), name, coalesceval)
             # Either read the MEM dataset to an Array, or keep a filename base raster lazy
             return isnothing(filename) ? read(raster) : raster
         end
