@@ -522,5 +522,5 @@ end
     DataFrames.metadata!(fancy_table, "GEOINTERFACE:geometrycolumns", (:geom,); style = :note)
     # Test that we don't have to provide the geometry column explicitly
     @test_nowarn rasterize(last, fancy_table; to = A1, fill = 1)
-    @test rasterize(last, pointtable; to = A1, fill = 1) == rasterize(last, fancy_table; to = A1, fill = 1) # sanity check
+    @test replace_missing(rasterize(last, pointtable; to = A1, fill = 1), 0) == replace_missing(rasterize(last, fancy_table; to = A1, fill = 1), 0) # sanity check
 end
