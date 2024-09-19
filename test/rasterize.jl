@@ -512,8 +512,8 @@ end
 
 @testset "`geometrycolumn` kwarg and detection works" begin
     # Replicate pointtable
-    fancy_table = deepcopy(pointtable)
-    fancy_table.geom = pointtable.geometry
+    fancy_table = deepcopy(pointdf)
+    fancy_table.geom = pointdf.geometry
     delete!(fancy_table, :geometry)
     # Test that rasterization works with provided geometry column
     # Just test that it works and does not warn.
