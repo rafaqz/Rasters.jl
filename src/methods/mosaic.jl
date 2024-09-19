@@ -137,7 +137,7 @@ $EXPERIMENTAL
 """
 mosaic!(f::Function, x::RasterStackOrArray, regions::RasterStackOrArray...; kw...) = mosaic!(f, x, regions; kw...)
 function mosaic!(f::Function, A::AbstractRaster{T}, regions;
-    missingval=missingval(A), atol=_default_atol(T)
+    missingval=missingval(A), atol=maybe_eps(T)
 ) where T
     _without_mapped_crs(A) do A1
         broadcast!(A1, DimKeys(A1; atol)) do ds
@@ -232,9 +232,3 @@ function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::LookupTuple)
     newbounds = vcat(permutedims(newlower), permutedims(newupper))
     return rebuild(lookup; data=newindex, span=Explicit(newbounds))
 end
-
-# These are pretty random default, but seem to work
-_default_atol(T::Type{<:Float32}) = 100eps(T)
-_default_atol(T::Type{<:Float64}) = 1000eps(T)
-_default_atol(T::Type{<:Integer}) = T(1)
-_default_atol(::Type) = nothing
