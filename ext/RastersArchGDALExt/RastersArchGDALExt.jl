@@ -1,10 +1,7 @@
 module RastersArchGDALExt
 
-@static if isdefined(Base, :get_extension) # julia < 1.9
-    using Rasters, ArchGDAL
-else    
-    using ..Rasters, ..ArchGDAL
-end
+using Rasters
+using ArchGDAL
 
 import DiskArrays,
     Extents,
@@ -16,13 +13,15 @@ using DimensionalData,
 
 using Rasters.Lookups
 using Rasters.Dimensions
-using Rasters: GDALsource, AbstractProjected, RasterStackOrArray, FileArray, NoKW,
+using Rasters: GDALsource, AbstractProjected, AbstractRaster, AbstractRasterStack, 
+    RasterStackOrArray, FileArray, NoKW,
     RES_KEYWORD, SIZE_KEYWORD, CRS_KEYWORD, FILENAME_KEYWORD, SUFFIX_KEYWORD, EXPERIMENTAL,
     GDAL_EMPTY_TRANSFORM, GDAL_TOPLEFT_X, GDAL_WE_RES, GDAL_ROT1, GDAL_TOPLEFT_Y, GDAL_ROT2, GDAL_NS_RES,
     _no_crs_error
 
-import Rasters: reproject, resample, warp, cellsize, nokw
+import Rasters: reproject, resample, warp, cellsize, nokw, isnokw, isnokwornothing
 
+const AG = ArchGDAL
 const RA = Rasters
 const DD = DimensionalData
 const DA = DiskArrays
