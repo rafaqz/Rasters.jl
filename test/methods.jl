@@ -88,21 +88,21 @@ end
     @test all(boolmask(se2, alllayers=true) .=== [false true; true false])
     @test all(boolmask(se2, alllayers=false) .=== [true true; true false])    
     @test dims(boolmask(ga)) === dims(ga)
-    x = boolmask(polygon; res=1.0) 
-    @test x == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
-    @test all(x .!= boolmask(polygon; res=1.0, invert=true))
+    x = boolmask(polygon; res=1.0, boundary=:touches) 
+    @test x == trues(X(Projected(-20:1.0:0.0; sampling=Intervals(Start()), crs=nothing)), Y(Projected(10.0:1.0:30.0; sampling=Intervals(Start()), crs=nothing)))
+    @test all(x .!= boolmask(polygon; res=1.0, invert=true, boundary=:touches))
     @test parent(x) isa BitMatrix
     # With a :geometry axis
-    x = boolmask([polygon, polygon]; collapse=false, res=1.0)
-    @test all(x .!= boolmask([polygon, polygon]; collapse=false, res=1.0, invert=true))
+    x = boolmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches)
+    @test all(x .!= boolmask([polygon, polygon]; collapse=false, res=1.0, invert=true, boundary=:touches))
     @test eltype(x) == Bool
-    @test size(x) == (20, 20, 2)
+    @test size(x) == (21, 21, 2)
     @test sum(x) == 800
     @test parent(x) isa BitArray{3}
-    x = boolmask([polygon, polygon]; collapse=true, res=1.0)
-    @test all(x .!= boolmask([polygon, polygon]; collapse=true, res=1.0, invert=true))
-    @test size(x) == (20, 20)
-    @test sum(x) == 400
+    x = boolmask([polygon, polygon]; collapse=true, res=1.0, boundary=:touches)
+    @test all(x .!= boolmask([polygon, polygon]; collapse=true, res=1.0, invert=true, boundary=:touches))
+    @test size(x) == (21, 21)
+    @test sum(x) == 441
     @test parent(x) isa BitMatrix
     for poly in (polygon, multi_polygon) 
         @test boolmask(poly; to=polytemplate) == .!boolmask(poly; to=polytemplate, invert=true)

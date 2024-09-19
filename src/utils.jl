@@ -155,8 +155,7 @@ function _extent2dims(to::Extents.Extent{K}, size::Nothing, res, crs) where K
         start, stop_open = bounds
         stop_closed = stop_open + maybe_eps(stop_open; grow=false)
         length = ceil(Int, (stop_closed - start) / r)
-        step = (stop_closed - start) / length
-        range(; start, step, length)
+        range(; start, step=r, length)
     end
     return _extent2dims(to, ranges, crs)
 end
