@@ -142,17 +142,18 @@ end
     @test all(mm_st2_inverted .=== [true true; missing true])    
     @test all(missingmask(st2, alllayers = false) .=== [missing; true])    
     @test all(missingmask(se) .=== missingmask(ga))
-    @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
-    x = missingmask([polygon, polygon]; collapse=false, res=1.0)
-    x_inverted = missingmask([polygon, polygon]; collapse=false, res=1.0, invert=true)
+    @test missingmask(polygon; res=1.0, boundary=:touches) == 
+        fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:0.0; crs=nothing)), Y(Projected(10.0:1.0:30.0; crs=nothing))), true)
+    x = missingmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches)
+    x_inverted = missingmask([polygon, polygon]; collapse=false, res=1.0, invert=true, boundary=:touches)
     @test all(ismissing.(x_inverted))
     @test eltype(x) == Union{Bool,Missing}
-    @test size(x) == (20, 20, 2)
-    @test sum(x) == 800
+    @test size(x) == (21, 21, 2)
+    @test sum(x) == 882
     @test parent(x) isa Array{Union{Missing,Bool},3}
-    x = missingmask([polygon, polygon]; collapse=true, res=1.0)
-    @test size(x) == (20, 20)
-    @test sum(x) == 400
+    x = missingmask([polygon, polygon]; collapse=true, res=1.0, boundary=:touches)
+    @test size(x) == (21, 21)
+    @test sum(x) == 441
     @test parent(x) isa Array{Union{Missing,Bool},2}
     for poly in (polygon, multi_polygon) 
         @test all(missingmask(poly; to=polytemplate) .=== 
