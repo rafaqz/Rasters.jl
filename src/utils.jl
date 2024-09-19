@@ -152,9 +152,9 @@ function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) wher
 end
 function _extent2dims(to::Extents.Extent{K}, size::Nothing, res, crs) where K
     ranges = map(values(to), res) do bounds, r
-        start, stop_open = bounds
-        stop_closed = stop_open + maybe_eps(stop_open; grow=false)
-        length = ceil(Int, (stop_closed - start) / r)
+        start, stop_closed = bounds
+        stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
+        length = ceil(Int, (stop_open - start) / r)
         range(; start, step=r, length)
     end
     return _extent2dims(to, ranges, crs)
@@ -165,7 +165,7 @@ function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs) where K
     end
     ranges = map(values(to), size) do bounds, length
         start, stop_closed = bounds
-        stop_open = stop_closed + maybe_eps(stop_open; grow=false)
+        stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
         length = ceil(Int, (stop_open - start) / r)
         step = (stop_open - start) / length
         range(; start, step, length)
