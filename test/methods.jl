@@ -109,6 +109,14 @@ end
         @test boolmask(poly; to=polytemplate, shape=:line) == .!boolmask(poly; to=polytemplate, shape=:line, invert=true)
         @test boolmask(poly; to=polytemplate, shape=:point) == .!boolmask(poly; to=polytemplate, shape=:point, invert=true)
     end
+    # TODO: use explicit intervals in Extents.jl to make this exact?
+    @testset "slightly larger extent" begin
+        rast = boolmask([polygon, polygon]; shape=:line, collapse=false, res=1.0)
+        @test GeoInterface.extent(rast).X[1] == GeoInterface.extent(polygon).X[1]
+        @test GeoInterface.extent(rast).X[2] > GeoInterface.extent(polygon).X[2]
+        @test GeoInterface.extent(rast).Y[1] == GeoInterface.extent(polygon).Y[1]
+        @test GeoInterface.extent(rast).Y[2] > GeoInterface.extent(polygon).Y[2]
+    end
 end
 
 @testset "missingmask" begin
