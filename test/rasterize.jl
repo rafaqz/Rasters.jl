@@ -1,4 +1,5 @@
-using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, GeoDataFrames, Extents, Shapefile, GeometryBasics
+using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
+import GeoDataFrames
 import GeoInterface as GI
 using Rasters.Lookups, Rasters.Dimensions 
 using Rasters: bounds
