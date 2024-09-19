@@ -514,7 +514,7 @@ end
     # Replicate pointtable
     fancy_table = deepcopy(pointdf)
     fancy_table.geom = pointdf.geometry
-    delete!(fancy_table, :geometry)
+    select!(fancy_table, Not(:geometry))
     # Test that rasterization works with provided geometry column
     # Just test that it works and does not warn.
     @test_nowarn rasterize(last, fancy_table; to = A1, geometrycolumn = :geom)
