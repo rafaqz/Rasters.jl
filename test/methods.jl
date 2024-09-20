@@ -88,26 +88,34 @@ end
     @test all(boolmask(se2, alllayers=true) .=== [false true; true false])
     @test all(boolmask(se2, alllayers=false) .=== [true true; true false])    
     @test dims(boolmask(ga)) === dims(ga)
-    x = boolmask(polygon; res=1.0) 
-    @test x == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
-    @test all(x .!= boolmask(polygon; res=1.0, invert=true))
+    x = boolmask(polygon; res=1.0, boundary=:touches) 
+    @test x == trues(X(Projected(-20:1.0:0.0; sampling=Intervals(Start()), crs=nothing)), Y(Projected(10.0:1.0:30.0; sampling=Intervals(Start()), crs=nothing)))
+    @test all(x .!= boolmask(polygon; res=1.0, invert=true, boundary=:touches))
     @test parent(x) isa BitMatrix
     # With a :geometry axis
-    x = boolmask([polygon, polygon]; collapse=false, res=1.0)
-    @test all(x .!= boolmask([polygon, polygon]; collapse=false, res=1.0, invert=true))
+    x = boolmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches)
+    @test all(x .!= boolmask([polygon, polygon]; collapse=false, res=1.0, invert=true, boundary=:touches))
     @test eltype(x) == Bool
-    @test size(x) == (20, 20, 2)
-    @test sum(x) == 800
+    @test size(x) == (21, 21, 2)
+    @test sum(x) == 882
     @test parent(x) isa BitArray{3}
-    x = boolmask([polygon, polygon]; collapse=true, res=1.0)
-    @test all(x .!= boolmask([polygon, polygon]; collapse=true, res=1.0, invert=true))
-    @test size(x) == (20, 20)
-    @test sum(x) == 400
+    x = boolmask([polygon, polygon]; collapse=true, res=1.0, boundary=:touches)
+    @test all(x .!= boolmask([polygon, polygon]; collapse=true, res=1.0, invert=true, boundary=:touches))
+    @test size(x) == (21, 21)
+    @test sum(x) == 441
     @test parent(x) isa BitMatrix
     for poly in (polygon, multi_polygon) 
         @test boolmask(poly; to=polytemplate) == .!boolmask(poly; to=polytemplate, invert=true)
         @test boolmask(poly; to=polytemplate, shape=:line) == .!boolmask(poly; to=polytemplate, shape=:line, invert=true)
         @test boolmask(poly; to=polytemplate, shape=:point) == .!boolmask(poly; to=polytemplate, shape=:point, invert=true)
+    end
+    # TODO: use explicit intervals in Extents.jl to make this exact?
+    @testset "slightly larger extent" begin
+        rast = boolmask([polygon, polygon]; shape=:line, collapse=false, res=1.0)
+        @test GeoInterface.extent(rast).X[1] == GeoInterface.extent(polygon).X[1]
+        @test GeoInterface.extent(rast).X[2] > GeoInterface.extent(polygon).X[2]
+        @test GeoInterface.extent(rast).Y[1] == GeoInterface.extent(polygon).Y[1]
+        @test GeoInterface.extent(rast).Y[2] > GeoInterface.extent(polygon).Y[2]
     end
 end
 
@@ -134,17 +142,18 @@ end
     @test all(mm_st2_inverted .=== [true true; missing true])    
     @test all(missingmask(st2, alllayers = false) .=== [missing; true])    
     @test all(missingmask(se) .=== missingmask(ga))
-    @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
-    x = missingmask([polygon, polygon]; collapse=false, res=1.0)
-    x_inverted = missingmask([polygon, polygon]; collapse=false, res=1.0, invert=true)
+    @test missingmask(polygon; res=1.0, boundary=:touches) == 
+        fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:0.0; crs=nothing)), Y(Projected(10.0:1.0:30.0; crs=nothing))), true)
+    x = missingmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches)
+    x_inverted = missingmask([polygon, polygon]; collapse=false, res=1.0, invert=true, boundary=:touches)
     @test all(ismissing.(x_inverted))
     @test eltype(x) == Union{Bool,Missing}
-    @test size(x) == (20, 20, 2)
-    @test sum(x) == 800
+    @test size(x) == (21, 21, 2)
+    @test sum(x) == 882
     @test parent(x) isa Array{Union{Missing,Bool},3}
-    x = missingmask([polygon, polygon]; collapse=true, res=1.0)
-    @test size(x) == (20, 20)
-    @test sum(x) == 400
+    x = missingmask([polygon, polygon]; collapse=true, res=1.0, boundary=:touches)
+    @test size(x) == (21, 21)
+    @test sum(x) == 441
     @test parent(x) isa Array{Union{Missing,Bool},2}
     for poly in (polygon, multi_polygon) 
         @test all(missingmask(poly; to=polytemplate) .=== 
