@@ -65,7 +65,7 @@ function cellsize(dims::Tuple{<:XDim, <:YDim})
             ]))
             for xb in xbnds, yb in ybnds]
     else 
-        areas = ArchGDAL.crs2transform(crs(dims), EPSG(4326)) do transform
+        areas = ArchGDAL.crs2transform(crs(dims), EPSG(4326), order = :trad) do transform
             [_area_from_coords(
                 transform,         
                 GI.LinearRing([
