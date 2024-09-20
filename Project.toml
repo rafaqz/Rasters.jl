@@ -82,6 +82,7 @@ ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
 CFTime = "179af706-886a-5703-950a-314cd64e0468"
 CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+GeoDataFrames = "62cb38b5-d8d2-4862-a48e-6a340996859f"
 GRIBDatasets = "82be9cdb-ee19-4151-bdb3-b400788d9abc"
 GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
@@ -94,4 +95,4 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "ArchGDAL", "CFTime", "CoordinateTransformations", "DataFrames", "GeometryBasics", "GRIBDatasets", "NCDatasets", "Plots", "RasterDataSources", "SafeTestsets", "Shapefile", "Statistics", "Test", "ZarrDatasets"]
+test = ["Aqua", "ArchGDAL", "CFTime", "CoordinateTransformations", "DataFrames", "GeoDataFrames", "GeometryBasics", "GRIBDatasets", "NCDatasets", "Plots", "RasterDataSources", "SafeTestsets", "Shapefile", "Statistics", "Test", "ZarrDatasets"]

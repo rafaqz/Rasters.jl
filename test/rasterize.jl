@@ -1,4 +1,5 @@
 using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
+import GeoDataFrames
 import GeoInterface as GI
 using Rasters.Lookups, Rasters.Dimensions 
 using Rasters: bounds
@@ -508,4 +509,19 @@ end
     @test_throws ErrorException coverage(union, shphandle.shapes; threaded=false, res=1, scale=10000)
     # Too slow and unreliable to test in CI, but it warns and uses one thread given 32gb of RAM: 
     # coverage(union, shphandle.shapes; threaded=true, res=1, scale=1000)
+end
+
+@testset "`geometrycolumn` kwarg and detection works" begin
+    # Replicate pointtable
+    fancy_table = deepcopy(pointdf)
+    fancy_table.geom = pointdf.geometry
+    select!(fancy_table, Not(:geometry))
+    # Test that rasterization works with provided geometry column
+    # Just test that it works and does not warn.
+    @test_nowarn rasterize(last, fancy_table; to = A1, geometrycolumn = :geom, fill = 1)
+    # Now add GeoDataFrames blessed metadata keys
+    DataFrames.metadata!(fancy_table, "GEOINTERFACE:geometrycolumns", (:geom,); style = :note)
+    # Test that we don't have to provide the geometry column explicitly
+    @test_nowarn rasterize(last, fancy_table; to = A1, fill = 1)
+    @test replace_missing(rasterize(last, pointtable; to = A1, fill = 1), 0) == replace_missing(rasterize(last, fancy_table; to = A1, fill = 1), 0) # sanity check
 end
