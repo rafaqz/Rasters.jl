@@ -82,10 +82,17 @@ _missingval_or_missing(x) = _maybe_nothing_to_missing(missingval(x))
 _maybe_nothing_to_missing(::Nothing) = missing
 _maybe_nothing_to_missing(missingval) = missingval
 
-maybe_eps(dims::DimTuple) = map(maybe_eps, dims)
-maybe_eps(dim::Dimension) = maybe_eps(eltype(dim))
-maybe_eps(::Type) = nothing
-maybe_eps(T::Type{<:AbstractFloat}) = _default_atol(T)
+maybe_eps(dims::DimTuple; kw...) = map(maybe_eps, dims; kw...)
+maybe_eps(dim::Dimension; kw...) = maybe_eps(eltype(dim); kw...)
+maybe_eps(x; kw...) = maybe_eps(typeof(x); kw...)
+maybe_eps(::Type; kw...) = nothing
+maybe_eps(T::Type{<:AbstractFloat}; kw...) = _default_eps(T; kw...)
+
+# These are pretty random defaults, but seem to work
+_default_eps(T::Type{<:Float32}; grow=true) = grow ? eps(T) : 100eps(T)
+_default_eps(T::Type{<:Float64}; grow=true) = grow ? eps(T) : 1000eps(T)
+_default_eps(T::Type{<:Integer}) = T(1)
+_default_eps(::Type) = nothing
 
 _writeable_missing(filename::Nothing, T) = missing
 _writeable_missing(filename::AbstractString, T) = _writeable_missing(T)
@@ -145,10 +152,10 @@ function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) wher
 end
 function _extent2dims(to::Extents.Extent{K}, size::Nothing, res, crs) where K
     ranges = map(values(to), res) do bounds, r
-        start, outer = bounds
-        length = ceil(Int, (outer - start) / r)
-        step = (outer - start) / length
-        range(; start, step, length)
+        start, stop_closed = bounds
+        stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
+        length = ceil(Int, (stop_open - start) / r)
+        range(; start, step=r, length)
     end
     return _extent2dims(to, ranges, crs)
 end
@@ -157,8 +164,9 @@ function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs) where K
         size = ntuple(_ -> size, length(K))
     end
     ranges = map(values(to), size) do bounds, length
-        start, outer = bounds
-        step = (outer - start) / length
+        start, stop_closed = bounds
+        stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
+        step = (stop_open - start) / length
         range(; start, step, length)
     end
     return _extent2dims(to, ranges, crs)
