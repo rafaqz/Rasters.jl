@@ -44,6 +44,7 @@ using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
 
 import GeoInterface: crs
+import Extents: extent
 
 using Setfield: @set, @set!
 using ColorTypes: RGB
@@ -64,7 +65,7 @@ export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        coverage, coverage!, setcrs, setmappedcrs, smapseries, cellsize
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertlookup
-
+export extent
 
 const DD = DimensionalData
 const DA = DiskArrays
