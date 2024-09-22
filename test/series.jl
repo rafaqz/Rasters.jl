@@ -91,11 +91,11 @@ end
     ser = slice(stack, Ti)
     @test size(ser) == (10,)
     combined = Rasters.combine(ser, Ti)
+    dims(first(combined))
     ser = slice(stack, (Y, Ti))
     @test size(ser) == (5, 10,)
     combined = Rasters.combine(ser, (Y, Ti))
 end
-
 
 @testset "show" begin
     # 2d
@@ -122,5 +122,8 @@ end
         @test all(Rasters.filename.(series) .== filenames)
         first_dims = dims(first(series))
         @test all(dims(r) == first_dims for r in series)
-    end
+        @test Rasters.isdisk(series)
+        @test !Rasters.isdisk(read(series))
+        @test Rasters.isdisk(Rasters.combine(series))
+        end
 end

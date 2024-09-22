@@ -1,42 +1,42 @@
 
 # File paths, urls and strings
 
-filter_ext(path, ext::AbstractString) =
-    filter(fn -> splitext(fn)[2] == ext, readdir(path; join=true))
-filter_ext(path, exts::Union{Tuple,AbstractArray}) =
-    filter(fn -> splitext(fn)[2] in exts, readdir(path; join=true))
-filter_ext(path, ext::Nothing) = readdir(path; join=true)
+# filter_ext(path, ext::AbstractString) =
+#     filter(fn -> splitext(fn)[2] == ext, readdir(path; join=true))
+# filter_ext(path, exts::Union{Tuple,AbstractArray}) =
+#     filter(fn -> splitext(fn)[2] in exts, readdir(path; join=true))
+# filter_ext(path, ext::Nothing) = readdir(path; join=true)
 
-_maybe_add_suffix(filename::Nothing, suffix) = nothing
-_maybe_add_suffix(filename::Nothing, suffix::Union{Nothing,NoKW}) = nothing
-_maybe_add_suffix(filename, suffix::Union{Nothing,NoKW}) = filename
-function _maybe_add_suffix(filename, suffix)
-    base, ext = splitext(filename)
-    if string(suffix) == ""
-        filename
-    else
-        return string(base, "_", suffix, ext)
-    end
-end
+# _maybe_add_suffix(filename::Nothing, suffix) = nothing
+# _maybe_add_suffix(filename::Nothing, suffix::Union{Nothing,NoKW}) = nothing
+# _maybe_add_suffix(filename, suffix::Union{Nothing,NoKW}) = filename
+# function _maybe_add_suffix(filename, suffix)
+#     base, ext = splitext(filename)
+#     if string(suffix) == ""
+#         filename
+#     else
+#         return string(base, "_", suffix, ext)
+#     end
+# end
 
-# Modified from IsURL.jl, many thanks to @zlatanvasovic
-const WINDOWSREGEX = r"^[a-zA-Z]:[\\]"
-const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
+# # Modified from IsURL.jl, many thanks to @zlatanvasovic
+# const WINDOWSREGEX = r"^[a-zA-Z]:[\\]"
+# const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
 
-_isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)
+# _isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)
 
-cleankeys(name) = (_cleankey(name),)
-function cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray})
-    Tuple(map(_cleankey, keys, ntuple(i -> i, length(keys))))
-end
+# cleankeys(name) = (_cleankey(name),)
+# function cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray})
+#     Tuple(map(_cleankey, keys, ntuple(i -> i, length(keys))))
+# end
 
-function _cleankey(name::Union{Symbol,AbstractString,Name,NoName}, i=1)
-    if name in (NoName(), Symbol(""), Name(Symbol("")))
-        Symbol("layer$i")
-    else
-        Symbol(name)
-    end
-end
+# function _cleankey(name::Union{Symbol,AbstractString,Name,NoName}, i=1)
+#     if name in (NoName(), Symbol(""), Name(Symbol("")))
+#         Symbol("layer$i")
+#     else
+#         Symbol(name)
+#     end
+# end
 
 # We often need to convert the locus and the lookup in the same step,
 # as doing it in the wrong order can give errors.
@@ -75,11 +75,7 @@ _maybe_to_missing(missingval) = missingval
 
 _writeable_missing(filename::Nothing, T; kw...) = missing
 _writeable_missing(filename::AbstractString, T; kw...) = _writeable_missing(T; kw...)
-function _writeable_missing(::Type{Missing}; verbose=true)
-    missingval = _type_missingval(UInt8)
-    verbose && @info "`missingval` set to $missingval on disk"
-    return missingval
-end
+_writeable_missing(::Type{Missing}; verbose=true) = _writeable_missing(UInt8; verbose=true)
 function _writeable_missing(T; verbose=true)
     missingval = _type_missingval(Missings.nonmissingtype(T))
     verbose && @info "`missingval` set to $missingval on disk"
@@ -87,6 +83,7 @@ function _writeable_missing(T; verbose=true)
 end
 
 _type_missingval(::Type{T}) where T = _type_missingval1(Missings.nonmissingtype(T))
+
 _type_missingval1(::Type{T}) where T = typemin(T)
 _type_missingval1(::Type{T}) where T<:Unsigned = typemax(T)
 
@@ -111,6 +108,19 @@ function _fix_missingval(::Type{T}, missingval::M) where {T,M}
 end
 
 
+# EPS
+
+maybe_eps(dims::DimTuple; kw...) = map(maybe_eps, dims; kw...)
+maybe_eps(dim::Dimension; kw...) = maybe_eps(eltype(dim); kw...)
+maybe_eps(x; kw...) = maybe_eps(typeof(x); kw...)
+maybe_eps(::Type; kw...) = nothing
+maybe_eps(T::Type{<:AbstractFloat}; kw...) = _default_eps(T; kw...)
+
+_default_eps(T::Type{<:Float32}; grow=true) = grow ? 100eps(T) : eps(T)
+_default_eps(T::Type{<:Float64}; grow=true) = grow ? 1000eps(T) : eps(T)
+_default_eps(T::Type{<:Integer}) = T(1)
+_default_eps(::Type) = nothing
+
 # Extents
 
 function _extent2dims(to::Extents.Extent; 
@@ -119,23 +129,25 @@ function _extent2dims(to::Extents.Extent;
     sampling = _match_to_extent(to, isnokw(sampling) ? Intervals(Start()) : sampling)
     _extent2dims(to, size, res; crs, mappedcrs, sampling)
 end
-function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Union{Nothing,NoKW}; kw...)
+_extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Union{Nothing,NoKW}; kw...) =
     throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
-end
 _extent2dims(to::Extents.Extent, size, res; kw...) = _size_and_res_error()
-function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res; kw...)
+_extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res; kw...) =
     _extent2dims(to, size, _match_to_extent(to, res); kw...)
-end
+_extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW}; kw...) =
+    _extent2dims(to, _match_to_extent(to, size), res; kw...)
 function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Tuple; 
     sampling::Tuple, kw...
 )
-    ranges = map(values(to), res, sampling) do (start, stop), step, s
+    ranges = map(values(to), res, sampling) do (start, stop_closed), step, s
+        stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
+        length = ceil(Int, (stop_open - start) / r)
         r = if step >= zero(step)
-            range(; start, step, stop)
+            range(; start, step, stop=stop_open)
         else
-            range(; start=stop, step, stop=start)
+            range(; start=stop_open, step, stop=start)
         end
-        r = if s isa Intervals
+        if s isa Intervals
             if locus(s) isa Start
                 r[1:end-1]
             elseif locus(s) isa End
@@ -147,13 +159,14 @@ function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Tuple;
     end
     return _extent2dims(to, ranges; sampling, kw...)
 end
-_extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW}; kw...) =
-    _extent2dims(to, _match_to_extent(to, size), res; kw...)
 function _extent2dims(to::Extents.Extent, size::Tuple, res::Union{Nothing,NoKW};
     sampling::Tuple, crs, mappedcrs
 )
-    ranges = map(values(to), size, sampling) do (start, stop), length, s
-        if s isa Points
+    ranges = map(values(to), size, sampling) do (start, stop_closed), length, sa
+        stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
+        step = (stop_open - start) / length
+        range(; start, step, length)
+        if sa isa Points
             range(; start, stop, length)
         else
             range(; start, stop, length=length+1)[1:end-1]

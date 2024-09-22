@@ -429,7 +429,7 @@ function rasterize(reducer::typeof(DD.Statistics.mean), data; fill, kw...)
     rebuild(sums ./ counts; name=:mean)
 end
 function rasterize(data; to=nothing, fill, threaded=false, geometrycolumn=nothing, kw...)
-    r = Rasterizer(data; fill, threaded, kw...)
+    r = Rasterizer(data; fill, threaded, geometrycolumn, kw...)
     rc = RasterCreator(to, data; geometrycolumn, kw..., eltype=r.eltype, fill, missingval=r.missingval)
     allocs = r.shape == :points ? nothing : _burning_allocs(rc.to; threaded)
     return create_rasterize_dest(rc) do dest

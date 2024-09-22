@@ -1,19 +1,4 @@
 
-const CHUNKS_KEYWORD = """
-- `chunks`: a `NTuple{N,Int}` specifying the chunk size for each dimension.
-    To specify only specific dimensions, a Tuple of `Dimension` wrapping `Int`
-    or a `NamedTuple` of `Int` can be used. Other dimensions will have a chunk
-    size of `1`. `true` can be used to mean: use the original
-    chunk size of the lazy `Raster` being written or X and Y of 256 by 256.
-    `false` means don't use chunks at all.
-"""
-
-const MISSINGVAL_KEYWORD = """
-- `missingval`: set the missing value (i.e. FillValue / nodataval) of the written raster,
-    as Julias `missing` cannot be stored. If not passed in, `missingval` will be detected
-    from metadata or a default will be chosen.
-"""
-
 const SOURCE_WRITE_DOCSTRING = """
 Other keyword arguments are passed to the `write` method for the backend.
 
@@ -66,7 +51,7 @@ file extension or using the `source` keyword.
 
 $CHUNKS_KEYWORD
 $FORCE_KEYWORD
-$MISSINGVAL_KEYWORD
+$WRITE_MISSINGVAL_KEYWORD
 $SOURCE_KEYWORD
 
 $SOURCE_WRITE_DOCSTRING

@@ -55,7 +55,16 @@ function resample(A::RasterStackOrArray;
             # get crs from `to` or `x` if none was passed in
             isnothing(Rasters.crs(to)) ? Rasters.crs(A) : Rasters.crs(to)
         end
-    else
+    else # issomething(crs)
+        if crs isa String
+            error("""
+                Strings as CRS aren't yet supported.  
+                Please pass a `GeoFormatTypes.jl` CRS format, like `ESRIWellKnownText`, `ProjString`, or similar.
+
+                You can find out more about GeoFormatTypes.jl at https://juliageo.org/GeoFormatTypes.jl/stable/.
+                """
+            )
+        end
         crs
     end
     if !isnothing(crs)
