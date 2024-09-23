@@ -116,8 +116,9 @@ Base.copy(stack::AbstractRasterStack) = map(copy, stack)
 
 #### Stack getindex ####
 # Different to DimensionalData as we construct a Raster
-Base.getindex(s::AbstractRasterStack, name::AbstractString) = s[Symbol(name)]
-function Base.getindex(s::AbstractRasterStack, name::Symbol)
+Base.@constprop :aggressive @propagate_inbounds Base.getindex(s::AbstractRasterStack, name::AbstractString) = 
+    s[Symbol(name)]
+Base.@constprop :aggressive @propagate_inbounds function Base.getindex(s::AbstractRasterStack, name::Symbol)
     data_ = parent(s)[name]
     dims_ = dims(s, DD.layerdims(s, name))
     metadata = DD.layermetadata(s, name)
