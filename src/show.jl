@@ -52,28 +52,15 @@ function Base.summary(io::IO, ser::AbstractRasterSeries{T,N}) where {T,N}
     else
         print(io, join(size(ser), "×"), " ")
     end
-    print(io, _series_eltype_string(ser))
-    return nothing
+    print(io, string(nameof(typeof(ser)), "{$(nameof(T)),$N}"))
 end
 
-function DD.show_after(io::IO, mime, ser::AbstractRasterSeries; kw...) 
-    if length(ser) > 0
+function DD.show_after(io::IO, mime, series::AbstractRasterSeries; kw...) 
+    if length(series) > 0
         blockwidth = get(io, :blockwidth, 0)
-    end
-    if length(ser) > 0
-        DD.print_block_separator(io, "holding objects", blockwidth)
-        println(io)
-        show(io, mime, first(ser))
-        println(io)
-        println(io)
-        DD.print_block_close(io, blockwidth)
-        println(io)
-        T = _series_eltype_string(ser)
-        DD.print_array(io, mime, map(_ -> true, ser))
-    else
+        print_geo(io, mime, first(series); blockwidth)
         DD.print_block_close(io, blockwidth)
     end
+    ndims(series) > 0 && println(io)
+    DD.print_array(io, mime, series)
 end
-
-_series_eltype_string(ser::AbstractRasterSeries{T,N}) where {T,N} =
-    string(nameof(typeof(ser)), "{$(nameof(T)),$N}")
