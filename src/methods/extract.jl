@@ -225,7 +225,7 @@ end
         _dimcoord(d, point)
     end
     # If any are coordinates missing, also return missing for everything
-    if any(ismissing, coords)
+    if any(map(ismissing, coords))
         return missing
     else
         selector_dims = map(dims, coords) do d, c
@@ -258,7 +258,7 @@ end
         _dimcoord(d, point)
     end
     # If any are coordinates missing, also return missing for everything
-    if any(ismissing, coords)
+    if any(map(ismissing, coords))
         return _maybe_add_fields(T, map(_ -> missing, names), missing, missing)
     else
         selector_dims = map(dims, coords) do d, c

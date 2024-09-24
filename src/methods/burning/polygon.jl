@@ -140,4 +140,4 @@ const INTERVALS_INFO = "makes more sense on `Intervals` than `Points` and will h
 @noinline _check_intervals(B, boundary) =
     _chki(B) ? true : (@info "`boundary=:$boundary` $INTERVALS_INFO"; false)
 
-_chki(B) = all(map(s -> s isa Intervals, sampling(dims(B))))
+_chki(B) = all(map(s -> s isa Intervals, sampling(dims(B)))) 
