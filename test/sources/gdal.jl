@@ -11,17 +11,6 @@ gdalpath = maybedownload(url)
     @test_throws ArgumentError Raster("notafile.tif")
 
     @time gdalarray = Raster(gdalpath; name=:test)
-
-open(gdalarray) do o
-    mysum(parent(o))
-end
-
-function mysum(v)
-    sum(eachchunk(DiskArrays.eachchunk(v))) do chunk
-        sum(v[chunk...])
-    end
-end
-
     @time lazyarray = Raster(gdalpath; lazy=true);
     @time eagerarray = Raster(gdalpath; lazy=false);
 
