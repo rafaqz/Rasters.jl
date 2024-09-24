@@ -262,7 +262,7 @@ function _subsetbounds(fs, layers)
     # Search through all the dimensions choosing the shortest
     alldims = map(DD.dims, layers)
     bounds = reduce(dims; init=()) do acc, d
-        all(l -> hasdim(l, d), layers) || return acc
+        all(map(l -> hasdim(l, d), layers)) || return acc
         matchingdims = map(ds -> DD.dims(ds, (d,)), alldims)
         bounds = reduce(matchingdims) do a, b
             _choosebounds(fs, a, b)
