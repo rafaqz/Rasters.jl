@@ -312,7 +312,7 @@ end
     alldims = (chunks..., size_one_chunk_axes...)
     int_chunks = map(val, dims(alldims, dimorder))
     if !isnothing(template)
-        if !all(map(>=, size(template), int_chunks))
+        if !all(>=, size(template), int_chunks)
             @warn "Chunks $int_chunks larger than array size $(size(template)). Using defaults."
             return nothing
         end

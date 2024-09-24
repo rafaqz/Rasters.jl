@@ -578,8 +578,8 @@ _maybe_restore_from_gdal(A, dims::Union{Tuple{<:XDim,<:YDim,<:Band},Tuple{<:XDim
     _maybe_reorder(A, dims)
 
 function _maybe_reorder(A, dims)
-    if all(map(l -> l isa AbstractSampled, lookup(dims, (XDim, YDim)))) &&
-        all(map(l -> l isa AbstractSampled, lookup(A, (XDim, YDim))))
+    if all(l -> l isa AbstractSampled, lookup(dims, (XDim, YDim))) &&
+        all(l -> l isa AbstractSampled, lookup(A, (XDim, YDim)))
         reorder(A, dims)
     else
         A

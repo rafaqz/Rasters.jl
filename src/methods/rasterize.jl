@@ -172,9 +172,9 @@ end
 
 function get_eltype_missingval(eltype, missingval, fill, fillitr, init, filename, op, reducer)
     filleltype = if fillitr isa NamedTuple
-        if all(map(x -> x isa Number, fillitr))
+        if all(x -> x isa Number, fillitr)
             map(typeof, fillitr)
-        elseif all(map(x -> Base.IteratorEltype(x) isa Base.HasEltype, fillitr))
+        elseif all(x -> Base.IteratorEltype(x) isa Base.HasEltype, fillitr)
             map(Base.eltype, fillitr)
         else
             map(typeof ∘ first, fillitr) # This is not really correct.
