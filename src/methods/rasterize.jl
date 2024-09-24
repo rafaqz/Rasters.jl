@@ -577,12 +577,10 @@ function _rasterize!(A, ::GI.AbstractGeometryTrait, geom, fill, r::Rasterizer; a
     else
         ext = _extent(geom)
         V = view(A, Touches(ext))
-        # TODO use length when this is fixed in DimensionalData
-        prod(size(V)) > 0 || return false
+        length(V) > 0 || return false
 
         bools = _init_bools(commondims(V, DEFAULT_POINT_ORDER), BitArray; metadata=metadata(A))
-        boolmask!(bools, geom; allocs, lock, shape, boundary, verbose, progress)
-        hasburned = any(bools)
+        hasburned = _burn_geometry!(bools, geom; allocs, lock, shape, boundary, verbose, progress)
         if hasburned
             # Avoid race conditions
             isnothing(lock) || Base.lock(lock)
