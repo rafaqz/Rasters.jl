@@ -165,7 +165,6 @@ $GROUP_KEYWORD
 - `metadata`: A `Dict` or `DimensionalData.Metadata` object.
 - `missingval`: a single value for all layers or a `NamedTuple` of
     missingval for each layer. `nothing` specifies no missing value.
-$MASKINGVAL_KEYWORD
 $CONSTRUCTOR_CRS_KEYWORD
 $CONSTRUCTOR_MAPPEDCRS_KEYWORD
 - `refdims`: `Tuple` of `Dimension` that the stack was sliced from.
@@ -368,24 +367,22 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     layermetadata::Union{NoKW,NamedTuple{K}}=nokw,
     layerdims::Union{NoKW,NamedTuple{K}}=nokw,
     missingval=nokw,
-    coalesceval=nokw,
     replace_missing=nokw,
     scaled=nokw,
     raw=false,
     kw...
 ) where K
     _maybe_warn_replace_missing(replace_missing)
-    scaled, coalesceval = _raw_check(raw, scaled, coalesceval)
+    scaled, missingval = _raw_check(raw, scaled, missingval)
 
     layermissingval = collect(_stack_nt(filenames, missingval))
-    layercoalesceval = collect(_stack_nt(filenames, coalesceval))
     fn = collect(filenames)
     layermetadata = layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
     layerdims = layerdims isa NamedTuple ? collect(layerdims) : map(_ -> NoKW(), fn)
-    layers = map(K, fn, layermetadata, layerdims, layermissingval, layercoalesceval) do name, fn, md, d, mv, ma
+    layers = map(K, fn, layermetadata, layerdims, layermissingval) do name, fn, md, d, mv
         Raster(fn; 
             source=_sourcetrait(fn, source), 
-            dims=d, name, metadata=md, missingval=mv, coalesceval=ma, scaled, kw...
+            dims=d, name, metadata=md, missingval=mv, scaled, kw...
        )
     end
     return RasterStack(NamedTuple{K}(layers); resize, metadata)
@@ -397,7 +394,6 @@ function RasterStack(filename::AbstractString;
     raw::Bool=false,
     source::Union{Symbol,Source,NoKW}=nokw,
     missingval=nokw,
-    coalesceval=nokw,
     name=nokw,
     group::Union{Symbol,AbstractString,NoKW}=nokw,
     scaled::Union{Bool,NoKW}=nokw,
@@ -406,7 +402,7 @@ function RasterStack(filename::AbstractString;
     kw...
 )
     _maybe_warn_replace_missing(replace_missing)
-    scaled, coalesceval = _raw_check(raw, scaled, coalesceval)
+    scaled, missingval = _raw_check(raw, scaled, missingval)
 
     source = _sourcetrait(filename, source)
     st = if isdir(filename) && !(source isa Zarrsource)
@@ -421,14 +417,14 @@ function RasterStack(filename::AbstractString;
             name
         end
         RasterStack(joinpath.(Ref(filename), filenames);
-            missingval, coalesceval, scaled, coerce, lazy, dropband, group, kw...
+            missingval, scaled, coerce, lazy, dropband, group, kw...
         )
     else
         # Load as a single file
         if haslayers(source)
             # With multiple named layers
             l_st = _layer_stack(filename; 
-                source, name, lazy, group, missingval, coalesceval, scaled, coerce, kw...
+                source, name, lazy, group, missingval, scaled, coerce, kw...
             )
             # Maybe split the stack into separate arrays to remove extra dims.
             if !isnokw(name)
@@ -439,7 +435,7 @@ function RasterStack(filename::AbstractString;
         else
             # With bands actings as layers
             raster = Raster(filename; 
-                source, lazy, missingval, coalesceval, scaled, coerce, dropband=false,
+                source, lazy, missingval, scaled, coerce, dropband=false,
             )
             RasterStack(raster; kw...)
         end
@@ -508,7 +504,6 @@ function _layer_stack(filename;
     layermetadata=nokw,
     layerdims=nokw,
     missingval=nokw,
-    coalesceval=nokw,
     crs=nokw,
     mappedcrs=nokw,
     coerce=convert,
@@ -541,7 +536,7 @@ function _layer_stack(filename;
             missingval
         end
         eltypes = map(eltype, layers.vars)
-        mods = _stack_mods(eltypes, layermetadata1, missingval1, coalesceval; scaled, coerce)
+        mods = _stack_mods(eltypes, layermetadata1, missingval1; scaled, coerce)
         data = if lazy
             vars = ntuple(i -> layers.vars[i], length(name))
             mods = ntuple(i -> mods[i], length(name))
@@ -554,15 +549,7 @@ function _layer_stack(filename;
                 x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
             end |> NT
         end
-        missingval = map(mods) do mod
-            if isnothing(Rasters.missingval(mod))
-                nothing
-            elseif isnothing(Rasters.coalesceval(mod))
-                Rasters.missingval(mod)
-            else
-                Rasters.coalesceval(mod)
-            end
-        end |> NT
+        missingval = map(_outer_missingval, mods) |> NT
         return data, (; dims, refdims, layerdims, metadata, layermetadata=NT(layermetadata1), missingval)
     end
     return RasterStack(data; field_kw..., kw...)

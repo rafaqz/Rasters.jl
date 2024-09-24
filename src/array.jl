@@ -10,7 +10,7 @@ wish to disable memory checks.
 
 This setting can be overridden with the `checkmem` keyword, where applicable.
 """
-function checkmem!(checkmem::Bool) 
+function checkmem!(checkmem::Bool)
     !checkmem || @warn "Setting `checkmem` to `false` globally may lead to out-of-memory errors or system crashes"
     CHECKMEM[] = checkmem
     return checkmem
@@ -195,12 +195,12 @@ end
     Raster(A::AbstractDimArray; kw...)
     Raster(A::AbstractArray, dims; kw...)
 
-A generic [`AbstractRaster`](@ref) for spatial/raster array data. It can hold 
-either memory-backed arrays or, if `lazy=true`, a [`FileArray`](@ref), 
-which stores the `String` path to an unopened file. 
+A generic [`AbstractRaster`](@ref) for spatial/raster array data. It can hold
+either memory-backed arrays or, if `lazy=true`, a [`FileArray`](@ref),
+which stores the `String` path to an unopened file.
 
-If `lazy=true`, the file will only be opened lazily when it is indexed with `getindex` 
-or when `read(A)` is called. Broadcasting, taking a view, reversing, and most other 
+If `lazy=true`, the file will only be opened lazily when it is indexed with `getindex`
+or when `read(A)` is called. Broadcasting, taking a view, reversing, and most other
 methods will _not_ load data from disk; they will be applied later, lazily.
 
 # Arguments
@@ -210,12 +210,11 @@ methods will _not_ load data from disk; they will be applied later, lazily.
 # Keywords
 
 $NAME_KEYWORD
-$GROUP_KEYWORD 
+$GROUP_KEYWORD
 $MISSINGVAL_KEYWORD
-$MASKINGVAL_KEYWORD
 $METADATA_KEYWORD
-$CONSTRUCTOR_CRS_KEYWORD 
-$CONSTRUCTOR_MAPPEDCRS_KEYWORD 
+$CONSTRUCTOR_CRS_KEYWORD
+$CONSTRUCTOR_MAPPEDCRS_KEYWORD
 $REFDIMS_KEYWORD
 
 When a filepath `String` is used:
@@ -288,8 +287,8 @@ function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Va
 )::Raster
     Raster(filename; dims, kw...)
 end
-function Raster(filename::AbstractString; 
-    source=nokw, 
+function Raster(filename::AbstractString;
+    source=nokw,
     kw...
 )
     source = _sourcetrait(filename, source)
@@ -304,7 +303,6 @@ function Raster(ds, filename::AbstractString;
     group=nokw,
     metadata=nokw,
     missingval=nokw,
-    coalesceval=nokw,
     crs=nokw,
     mappedcrs=nokw,
     source=nokw,
@@ -318,17 +316,26 @@ function Raster(ds, filename::AbstractString;
     mod=nokw,
     raw=false,
 )::Raster
-    scaled, coalesceval = _raw_check(raw, scaled, coalesceval)
+    scaled, missingval = _raw_check(raw, scaled, missingval)
     _maybe_warn_replace_missing(replace_missing)
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
     data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=NoMod()) do var
         metadata_out = isnokw(metadata) ? _metadata(var) : metadata
-        missingval1 = isnokw(missingval) ? Rasters.missingval(var, metadata_out) : missingval 
-        coalesceval1 = isnokw(coalesceval) && !isnothing(missingval1) ? missing : coalesceval
-        mod = isnokw(mod) ? _mod(eltype(var), metadata_out, missingval1, coalesceval1; scaled, coerce) : mod
+        missingval_out = if isnokw(missingval)
+            # Detect missingval and convert it to missing
+            Rasters.missingval(var, metadata_out) => missing
+        elseif missingval isa Pair && missingval[1] == Rasters.missingval 
+            # Autodetect first missingval
+            Rasters.missingval(var, metadata_out) => missingval[2]
+        else
+            # Use whatever the user passed in
+            missingval
+        end
+        @show missingval missingval_out
+        mod = isnokw(mod) ? _mod(eltype(var), metadata_out, missingval_out; scaled, coerce) : mod
         data_out = if lazy
-            FileArray{typeof(source)}(var, filename; 
+            FileArray{typeof(source)}(var, filename;
                 name=name1, group, mod, write
             )
         else
@@ -337,10 +344,8 @@ function Raster(ds, filename::AbstractString;
             x = Array(modvar)
             x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
         end
-        # If coalesceval is `nothing` use  missingval as missingval
         dims_out = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data_out)
-        missingval_out = isnokwornothing(coalesceval1) ? missingval1 : coalesceval1
-        data_out, dims_out, metadata_out, missingval_out
+        data_out, dims_out, metadata_out, missingval
     end
     name_out = name1 isa Union{NoKW,Nothing} ? Symbol("") : Symbol(name1)
     raster = Raster(data_out, dims_out, refdims, name_out, metadata_out, missingval_out)

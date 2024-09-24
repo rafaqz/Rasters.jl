@@ -212,7 +212,6 @@ function _extend_to(A::AbstractRaster, to::DimTuple;
         missingval,
         name=name(A), 
         metadata=metadata(A), 
-        coalesceval=Rasters.missingval(A),
         verbose,
         fill,
         kw...

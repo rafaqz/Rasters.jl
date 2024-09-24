@@ -136,9 +136,9 @@ const OFFSET_KEYWORD = """
 
 const RAW_KEYWORD = """
 - `raw`: Turn of all scaling and masking and load the raw values from disk.
-    `false` by default. If `true`, `scaled` will be set to `false` and `coalesceval`
-    will be set to `nothing`. A warning will be printed if `scaled` or `coalesceval`
-    are manually set to another value.
+    `false` by default. If `true`, `scaled` will be set to `false` and `missingval`
+    will to the existing missing value in the file. A warning will be printed if 
+    `scaled` or `missingval` are manually set to another value.
 """
 
 const SCALED_KEYWORD = """
@@ -160,14 +160,10 @@ const MISSINGVAL_KEYWORD = """
 - `missingval`: value representing missing data, normally detected from the file. Set manually
     when you know the value is not specified or is incorrect. This will *not* change any
     values in the raster, it simply assigns which value is treated as missing. 
-"""
-
-const MASKINGVAL_KEYWORD = """
-- `coalesceval`: A value to convert `missingval` to, by default `missing`. If this is set it 
-    will be the return value of `missingval(raster)` - `coalesceval` becomes the new `missingval`.
-    Setting `coalesceval` to `nothing` means no masking will occur, and the original `missingval` 
-    will be the final `missingval`. This can give better performance than using `missing`. 
-    Another efficient option is to use e.g. `zero(eltype(raster))` to replace missing values with zero.
+    To specify the outer missing value of a file, use a `Pair`: `missingval=innerval => outerval`.
+    By default `innerval` will be detected, and `outerval` will be `missing`.
+    If you want the `innerval` detected automatically, but a custom `outerval`, 
+    pass the `Rasters.missingval` function as the first argument, `missingval=missingval => outerval`.
 """
 
 const NAME_KEYWORD = """

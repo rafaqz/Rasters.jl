@@ -54,7 +54,6 @@ end
     st = RasterStack(CHELSA{BioClim}, (1, 2); 
          lazy=true, 
          missingval=-Int16(9999), 
-         coalesceval=nothing,
          metadata=Rasters.NoMetadata(), 
          crs=nothing, 
          mappedcrs=EPSG(4326),

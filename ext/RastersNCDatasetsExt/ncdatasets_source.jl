@@ -32,7 +32,7 @@ function Base.write(filename::AbstractString, source::Source, s::AbstractRasterS
     append=false,
     force=false,
     missingval=nokw,
-    coalesceval=nokw,
+    maskingval=nokw,
     f=identity,
     kw...
 ) where {Source<:NCDsource,K,T}
@@ -44,13 +44,13 @@ function Base.write(filename::AbstractString, source::Source, s::AbstractRasterS
     end
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
 
-    coalesceval = RA._stack_nt(s, isnokw(coalesceval) ? Rasters.missingval(s) : coalesceval)
-    missingval = RA._stack_missingvals(s, isnokw(missingval) ? coalesceval : missingval)
+    maskingval = RA._stack_nt(s, isnokw(maskingval) ? Rasters.missingval(s) : maskingval)
+    missingval = RA._stack_missingvals(s, isnokw(missingval) ? maskingval : missingval)
     try
         map(keys(s)) do k
             RA._writevar!(ds, source, s[k]; 
                 missingval=missingval[k], 
-                coalesceval=coalesceval[k], 
+                maskingval=maskingval[k], 
                 kw...
             )
         end

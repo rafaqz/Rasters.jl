@@ -28,7 +28,7 @@ gdalpath = maybedownload(url)
     @testset "cf" begin
         # This file has no scale/offset so cf does nothing
         @time cfarray = Raster(gdalpath; missingval=0x00)
-        @time cf_nomask_array = Raster(gdalpath; coalesceval=nothing)
+        @time cf_nomask_array = Raster(gdalpath; maskingval=nothing)
         @time nocfarray = Raster(gdalpath; scaled=false)
         @time lazycfarray = Raster(gdalpath; lazy=true, missingval=0x00)
         @time lazynocfarray = Raster(gdalpath; lazy=true, scaled=false)
@@ -278,7 +278,7 @@ gdalpath = maybedownload(url)
             tempfile3 = tempname() * ".tif"
             Afile = mosaic(first, A1, A2; missingval=0x00, atol=1e-8, filename=tempfile1)
             Afile2 = mosaic(first, A1, A2; 
-                missingval=0x00, atol=1e-8, filename=tempfile2, coalesceval=missing
+                missingval=0x00, atol=1e-8, filename=tempfile2, maskingval=missing
             )
             @test missingval(Afile2) === missing
             Amem = mosaic(first, A1, A2; missingval=0x00, atol=1e-8)
@@ -471,7 +471,7 @@ gdalpath = maybedownload(url)
             filename = tempname() * ".tif"
             write(filename, A)
             @test missingval(Raster(filename)) === missing
-            @test missingval(Raster(filename; coalesceval=nothing)) === typemax(UInt8)
+            @test missingval(Raster(filename; maskingval=nothing)) === typemax(UInt8)
             rm(filename)
         end
 
@@ -521,7 +521,7 @@ gdalpath = maybedownload(url)
         # Handle WorldClim/ucdavis unreliability
         A = nothing
         try
-            A = Raster(WorldClim{Climate}, :tavg; res="10m", month=1, coalesceval=nothing)
+            A = Raster(WorldClim{Climate}, :tavg; res="10m", month=1, maskingval=nothing)
         catch
         end
         if !isnothing(A)

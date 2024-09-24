@@ -430,7 +430,6 @@ _unuseddimerror(dimname) = error("Dataset contains unused dimension $dimname")
 function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N};
     verbose=true,
     missingval=nokw,
-    coalesceval=nokw,
     metadata=nokw,
     chunks=nokw,
     chunksizes=_chunks_to_tuple(A, dims(A), chunks),
@@ -456,13 +455,12 @@ function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,
         metadata
     end
 
-    coalesceval = isnokw(coalesceval) ? Rasters.missingval(A) : coalesceval
     missingval = isnokw(missingval) ? Rasters.missingval(A) : missingval
     missingval = if ismissing(missingval) 
         # See if there is a missing value in metadata
         mv = Rasters.missingval(metadata)
         # But only use it if its the right type
-        mv isa eltype ? mv : _writeable_missing(eltype; verbose=true)
+        mv isa eltype ? mv : _writeable_missing(eltype; verbose=true) => missing
     else
         missingval
     end
@@ -482,7 +480,7 @@ function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,
         attrib["add_offset"] = offset
     end
 
-    mod = _writer_mod(eltype; missingval, coalesceval, scale, offset, coerce)
+    mod = _writer_mod(eltype; missingval, scale, offset, coerce)
 
     if !isnothing(mod.missingval)
         attrib["_FillValue"] = missingval

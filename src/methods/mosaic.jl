@@ -67,7 +67,6 @@ end
 mosaic(f::Function, regions; kw...) = _mosaic(f, first(regions), regions; kw...)
 function _mosaic(f::Function, A1::AbstractRaster, regions;
     missingval=nokw,
-    coalesceval=nokw,
     filename=nothing,
     suffix=nothing,
     driver=nokw,
@@ -76,7 +75,6 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
     kw...
 )
     isnothing(missingval) && throw(ArgumentError("missingval cannot be `nothing` for `mosaic`"))
-    coalesceval = isnokw(coalesceval) ? Rasters.missingval(first(regions)) : coalesceval
     missingval = if isnokw(missingval)
         mv = Rasters.missingval(first(regions)) 
         isnokwornothing(mv) ? missing : mv
@@ -84,9 +82,13 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
         missingval
     end
     if !isnothing(filename) && (ismissing(missingval) || isnokwornothing(missingval))
-        missingval = _type_missingval(eltype(A1))
+        missingval = _type_missingval(eltype(A1)) => missing
     end
-    T = Base.promote_type(typeof(missingval), Base.promote_eltype(regions...))
+    T = if missingval isa Pair
+        Base.promote_type(typeof(last(missingval)), Base.promote_eltype(regions...))
+    else
+        Base.promote_type(typeof(missingval), Base.promote_eltype(regions...))
+    end
     dims = _mosaic(Tuple(map(DD.dims, regions)))
     l1 = first(regions)
 
@@ -94,7 +96,6 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
         name=name(l1),
         fill=missingval,
         missingval,
-        coalesceval,
         driver,
         options,
         force

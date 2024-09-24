@@ -29,12 +29,15 @@ grdpath = stem * ".gri"
         @test parent(eagerarray) isa Array
     end
 
-    @testset "coalesceval keyword" begin
+    @testset "maskingval" begin
         @time missingarray = Raster(grdpath)
         @test missingval(missingarray) === missing
         @test eltype(missingarray) === Union{Missing,Float32}
-        @time missingarray = Raster(grdpath; coalesceval=nothing)
+        @time missingarray = Raster(grdpath; missingval)
         @test missingval(missingarray) === -3.4f38
+        @test eltype(missingarray) === Float32
+        @time missingarray = Raster(grdpath; missingval=missingval => NaN32)
+        @test missingval(missingarray) === NaN32
         @test eltype(missingarray) === Float32
     end
 
@@ -178,7 +181,7 @@ grdpath = stem * ".gri"
             tn = tempname()
             tempgrd = tn * ".grd"
             tempgri = tn * ".gri"
-            Afile = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1, filename=tempgrd, coalesceval=nothing)
+            Afile = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1, filename=tempgrd, maskingval=nothing)
             Amem = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1)
             Atest = grdarray[X(1:80), Y(1:60)]
             Atest[X(1:26), Y(31:60)] .= 0.0f0
@@ -274,7 +277,7 @@ grdpath = stem * ".gri"
             gdalfilename = tempname() * ".tif"
             write(gdalfilename, GDALsource(), grdarray[Band(1)]; force = true)
             @test (@allocations write(gdalfilename, GDALsource(), grdarray[Band(1)]; force = true)) < 1e4
-            gdalarray = Raster(gdalfilename; coalesceval=nothing)
+            gdalarray = Raster(gdalfilename; maskingval=nothing)
             # @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test val(dims(gdalarray, X)) ≈ val(dims(grdarray, X))
             @test val(dims(gdalarray, Y)) ≈ val(dims(grdarray, Y))
@@ -294,7 +297,7 @@ grdpath = stem * ".gri"
             @test missingval(Raster(filename)) === missing
             filename = tempname() * ".grd"
             write(filename, A)
-            @test missingval(Raster(filename; coalesceval=nothing)) === typemin(Float32)
+            @test missingval(Raster(filename; maskingval=nothing)) === typemin(Float32)
         end
 
     end

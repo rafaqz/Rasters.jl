@@ -165,7 +165,6 @@ function Base.write(filename::String, ::GRDsource, A::AbstractRaster;
     verbose=true,
     write=true,
     missingval=nokw,
-    coalesceval=nokw,
     chunks=nokw,
     scale=nokw,
     offset=nokw,
@@ -185,12 +184,15 @@ function Base.write(filename::String, ::GRDsource, A::AbstractRaster;
     chunks isa NoKW || @warn "specifying chunks not supported for .grd files"
 
     missingval = isnokw(missingval) ? Rasters.missingval(A) : missingval
-    coalesceval = isnokw(coalesceval) ? Rasters.missingval(A) : coalesceval
-    missingval = if ismissing(missingval) || isnothing(missingval) && !isnothing(coalesceval)
+    missingval = if ismissing(missingval)
         # See if there is a missing value in metadata
         mv = _grd_mv(eltype, metadata(A); verbose=false)
         # Otherwise define one
-        isnothing(mv) ? _writeable_missing(eltype; verbose) : mv
+        (isnothing(mv) ? _writeable_missing(eltype; verbose) : mv) => missing
+    elseif missingval isa Pair && first(missingval) == Rasters.missingval
+        mv = _grd_mv(eltype, metadata(A); verbose=false)
+        # Otherwise define one
+        (isnothing(mv) ? _writeable_missing(eltype; verbose) : mv) => missingval[2]
     else
         missingval
     end
@@ -208,7 +210,7 @@ function Base.write(filename::String, ::GRDsource, A::AbstractRaster;
     filename = splitext(filename)[1]
 
     # Data: write a raw gri file from the array
-    mod = _writer_mod(eltype; missingval, coalesceval, scale, offset, coerce)
+    mod = _writer_mod(eltype; missingval, scale, offset, coerce)
     gri_filename = filename * ".gri"
     isfile(gri_filename) && rm(gri_filename)
     _write_gri(gri_filename, Val{source_eltype(mod)}(), mod, parent(correctedA))

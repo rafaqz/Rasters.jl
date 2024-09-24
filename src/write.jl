@@ -61,12 +61,10 @@ Returns `filename`.
 function Base.write(filename::AbstractString, A::AbstractRaster;
     source=_sourcetrait(filename),
     missingval=nokw,
-    coalesceval=nokw,
     kw...
 )
     missingval = isnokw(missingval) ? Rasters.missingval(A) : missingval
-    coalesceval = isnokw(coalesceval) ? missingval : coalesceval
-    write(filename, _sourcetrait(source), A; missingval, coalesceval, kw...)
+    write(filename, _sourcetrait(source), A; missingval, kw...)
 end
 Base.write(A::AbstractRaster; kw...) = write(filename(A), A; kw...)
 # Fallback
@@ -105,14 +103,12 @@ function Base.write(path::AbstractString, s::AbstractRasterStack;
     source=_sourcetrait(path, ext),
     verbose=true,
     missingval=nokw,
-    coalesceval=nokw,
     kw...
 )
     source = _sourcetrait(source)
-    coalesceval = _stack_nt(s, isnokw(coalesceval) ? Rasters.missingval(s) : coalesceval)
-    missingval = _stack_missingvals(s, isnokw(missingval) ? coalesceval : missingval)
+    missingval = _stack_missingvals(s, missingval)
     if haslayers(source)
-        write(path, source, s; missingval, coalesceval, kw...)
+        write(path, source, s; missingval, kw...)
     else
         # Otherwise write separate files for each layer
         if isnothing(ext)
@@ -131,9 +127,9 @@ function Base.write(path::AbstractString, s::AbstractRasterStack;
         if verbose
             @warn string("Cannot write complete stacks to \"", ext, "\", writing layers as individual files")
         end
-        map(keys(s), suffix1, missingval, coalesceval) do key, suf, mv, ma
+        map(keys(s), suffix1, missingval) do key, suf, mv
             fn = string(base, suf, ext)
-            write(fn, source, s[key]; missingval=mv, coalesceval=ma, kw...)
+            write(fn, source, s[key]; missingval=mv, kw...)
         end |> NamedTuple{keys(s)}
     end
 end

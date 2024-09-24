@@ -49,7 +49,6 @@ function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster{T}
     verbose=true, 
     write=true,
     missingval=nokw,
-    coalesceval=nokw,
     scale=nokw,
     offset=nokw,
     coerce=nokw,
@@ -62,8 +61,7 @@ function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster{T}
     A1 = _maybe_permute_to_gdal(A)
 
     # Missing values
-    coalesceval = isnokw(coalesceval) ? RA.missingval(A) : coalesceval
-    missingval = isnokw(missingval) ? coalesceval : missingval
+    missingval = isnokw(missingval) ? RA.missingval(A) : missingval
     missingval = if ismissing(missingval) 
         # See if there is a missing value in metadata
         # But only use it if its the right type
@@ -76,7 +74,7 @@ function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster{T}
         missingval, _block_template=A1, scale, offset, verbose, kw...
     ) do dataset
         if write
-            mod = RA._writer_mod(eltype; missingval, coalesceval, scale, offset, coerce)
+            mod = RA._writer_mod(eltype; missingval, scale, offset, coerce)
             open(A1; write=true) do O
                 R = RA._maybe_modify(AG.RasterDataset(dataset), mod)
                 R .= parent(O)
@@ -247,16 +245,15 @@ function RA.Raster(ds::AG.RasterDataset;
     refdims=(),
     name=nokw,
     metadata=RA._metadata(ds),
-    missingval=RA.missingval(ds),
-    coalesceval=missing,
+    missingval=RA.missingval(ds) => missing,
     lazy=false,
     dropband=false,
     scaled=true,
     coerce=convert,
 )
     filelist = AG.filelist(ds)
-    mod = RA._mod(eltype(ds), metadata, missingval, coalesceval; scaled, coerce)
-    kw = (; refdims, name, metadata, missingval=Rasters.coalesceval(mod))
+    mod = RA._mod(eltype(ds), metadata, missingval; scaled, coerce)
+    kw = (; refdims, name, metadata, missingval=Rasters._outer_missingval(mod))
     raster = if lazy && length(filelist) > 0
         filename = first(filelist)
         Raster(FileArray{GDALsource}(ds, filename; mod), dims; kw...)
@@ -310,7 +307,6 @@ function AG.RasterDataset(f::Function, A::AbstractRaster;
     verbose=false,
     eltype=Missings.nonmissingtype(eltype(A)),
     missingval=Rasters.missingval(A),
-    coalesceval=Rasters.missingval(A),
     kw...
 )
     A1 = _maybe_permute_to_gdal(A)
@@ -318,7 +314,7 @@ function AG.RasterDataset(f::Function, A::AbstractRaster;
         _block_template=A1, missingval, scale, offset, verbose, kw...
     ) do dataset
         rds = AG.RasterDataset(dataset)
-        mod = RA._writer_mod(eltype; missingval=RA.missingval(rds), coalesceval, scale, offset, coerce)
+        mod = RA._writer_mod(eltype; missingval=RA.missingval(rds), scale, offset, coerce)
         open(A1) do O
             RA._maybe_modify(rds, mod) .= parent(O)
         end

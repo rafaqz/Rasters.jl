@@ -23,8 +23,8 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         end
     end
 
-    cea = Raster(raster_path; missingval=0x00, name=:cea, coalesceval=nothing)
-    raster_output = resample(cea; res=output_res, crs=output_crs, method, missingval=0x00, coalesceval=nothing)
+    cea = Raster(raster_path; missingval=0x00, name=:cea, missingval)
+    raster_output = resample(cea; res=output_res, crs=output_crs, method, missingval=0x00)
 
     @testset "missingval propagates" begin
         @test missingval(resample(cea; res=output_res, crs=output_crs, method)) == 0x00
@@ -157,17 +157,17 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         @test dims(resampled_3D, Z) == Z(1:2)
     end
 
-    coalesceval = Rasters.nokw
-    for coalesceval in (nothing, missing, Rasters.nokw)
+    maskingval = Rasters.nokw
+    for maskingval in (nothing, missing, Rasters.nokw)
         # Resample cea.tif using resample
-        cea = Raster(raster_path; missingval=0x00, name=:cea, coalesceval)
-        raster_output = resample(cea; res=output_res, crs=output_crs, method, missingval=0x00, coalesceval)
-        disk_output = resample(cea; res=output_res, crs=output_crs, method, missingval=0x00, coalesceval, filename="resample.tif")
+        cea = Raster(raster_path; missingval=0x00=>maskingval, name=:cea)
+        raster_output = resample(cea; res=output_res, crs=output_crs, method, missingval=0x00 => maskingval)
+        disk_output = resample(cea; res=output_res, crs=output_crs, method, missingval=0x00 => maskingval, filename="resample.tif")
 
-        cea_permuted = permutedims(Raster(raster_path; missingval=0x00, name=:cea_permuted, coalesceval), (Y, X))
-        permuted_output = resample(cea_permuted, output_res; missingval=0x00, coalesceval, crs=output_crs, method)
+        cea_permuted = permutedims(Raster(raster_path; missingval=0x00 => maskingval, name=:cea_permuted), (Y, X))
+        permuted_output = resample(cea_permuted, output_res; missingval=0x00 => maskingval, crs=output_crs, method)
 
-        AG_output1 = if isnothing(coalesceval)
+        AG_output1 = if isnothing(maskingval)
             AG_output
         else
             replace(AG_output, 0x00 => missing)
