@@ -227,7 +227,7 @@ Because there are so many raster file types and variations of them, most of the 
 
 To make an issue we can fix quickly (or at all) there are three key steps:
 
-1. Use a RasterDataSources.jl file if you can there are no download hassles.
+1. Use a RasterDataSources.jl file if you can, so there are no download hassles.
    Otherwise store a file in an accessible place on web *without authentication* and preferably where you
    can use `dowload` directly, so we just run the script can spend our time finding your bug.
 2. Add a minimum working example to the issue template that first downloads the file with `download`, then runs the function that triggers the bug.
