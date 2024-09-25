@@ -65,7 +65,7 @@ export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        coverage, coverage!, setcrs, setmappedcrs, smapseries, cellsize
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertlookup
-export extent
+export Extent, extent
 
 const DD = DimensionalData
 const DA = DiskArrays
