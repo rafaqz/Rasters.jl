@@ -38,12 +38,12 @@ Sources and packages needed:
 - `:gdal`: `using ArchGDAL`
 - `:netcdf`: `using NCDatasets`
 - `:grd`: built-in.
-- `:smap`: `using HDF5`
 - `:grib`: `using GRIBDatasets`.
+- `:zarr`: `using ZarrDatasets`.
 
 Other functionality in extensions:
 - Raster data downloads, like `Worldclim{Climate}`: `using RasterDataSources`
-- Makie plots: `using Makie`
+- Makie plots: `using GLMakie` (opengl interactive) or `using CairoMakie` (print) etc.
 - Coordinate transformations for gdal rasters: `using CoordinateTransformations`
 
 # Quick start
@@ -54,6 +54,7 @@ Install the package by typing:
 add Rasters
 ```
 
+Then to use it:
 ```julia
 using Rasters
 ```
@@ -226,8 +227,11 @@ Because there are so many raster file types and variations of them, most of the 
 
 To make an issue we can fix quickly (or at all) there are three key steps:
 
-1. Include the file in an accessible place on web *without authentication* or any other work on our part, so we can just get it and find your bug. You can put it on a file hosting platform (e.g. google drive, drop box, whatever you use) and share the url.
-2. Add a minimum working example to the issue template that first downloads the file, then runs the function that triggers the bug.
-3. Paste the complete stack trace of the error it produces, right to the bottom, into the issue template. Then we can be sure we reproduced the same problem.
+1. Use a RasterDataSources.jl file if you can there are no download hassles.
+   Otherwise store a file in an accessible place on web *without authentication* and preferably where you
+   can use `dowload` directly, so we just run the script can spend our time finding your bug.
+2. Add a minimum working example to the issue template that first downloads the file with `download`, then runs the function that triggers the bug.
+3. Paste the complete stack trace of the error it produces, right to the bottom, into the issue template.
+   Then we can be sure we have reproduced the same problem.
 
 Good issues are really appreciated, but they do take just a little extra effort with Rasters.jl because of this need for files.
