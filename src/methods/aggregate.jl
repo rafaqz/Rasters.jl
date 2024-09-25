@@ -433,5 +433,5 @@ end
         n += 1
         agg += x
     end
-    return found ? _missingval_or_missing(dst) : agg / n
+    return found ? agg / n : _missingval_or_missing(dst)
 end
