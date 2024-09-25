@@ -155,7 +155,7 @@ function aggregate!(f, dst::AbstractRaster, src, scale;
     checkbounds(src, l...)
     checkbounds(src, u...)
     # If a disk array, cache the src so we don't read too many times
-    src_parent = isdisk(src) ? cache(parent(src)) : parent(src)
+    src_parent = isdisk(src) ? DiskArrays.cache(parent(src)) : parent(src)
     @inbounds broadcast!(dst, CartesianIndices(dst)) do I
         upper = upsample.(Tuple(I), intscale)
         lower = upper .+ intscale .- 1
