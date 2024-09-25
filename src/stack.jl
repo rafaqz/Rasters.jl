@@ -368,14 +368,12 @@ function RasterStack(filename::AbstractString;
     source::Union{Symbol,Source,NoKW}=nokw,
     name=nokw,
     group=nokw,
-    ext::Union{AbstractString,NoKW}=nokw,
     kw...
 )
     source = _sourcetrait(filename, source)
     st = if isdir(filename) && !(source isa Zarrsource)
         # Load as a whole directory
         filenames = readdir(filename)
-        filenames = isnokw(ext) ? filenames : filter(endswith(ext), filenames)
         length(filenames) > 0 || throw(ArgumentError("No files in directory $filename"))
         # Detect keys from names
         name = if isnokw(name)
@@ -387,7 +385,6 @@ function RasterStack(filename::AbstractString;
         end
         RasterStack(joinpath.(Ref(filename), filenames); lazy, replace_missing, dropband, group, kw...)
     else
-        isnothing(ext) || endswith(filenam, ext) || @warn "`ext` keyword $ext ignored for $filename"
         # Load as a single file
         if haslayers(source)
             # With multiple named layers
