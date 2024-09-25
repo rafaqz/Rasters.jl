@@ -16,31 +16,6 @@ manipulating rasterized spatial data.
 These currently include raster arrays like GeoTIFF and NetCDF, R grd files, 
 multi-layered stacks, and multi-file series of arrays and stacks. 
 
-
-## Packages that work with Rasters
-
-Rasters reduces its dependencies to keep the `using` time low.
-But, it means you have to manually load packages you need for each 
-backend or additional functionality.
-
-For example, to use the GDAL backend, and download RasterDataSources files, you now need to do:
-
-```julia
-using Rasters, ArchGDAL, RasterDataSources
-```
-
-Sources and packages needed:
-- `:gdal`: `using ArchGDAL`
-- `:netcdf`: `using NCDatasets`
-- `:grd`: built-in.
-- `:grib`: `using GRIBDatasets`.
-- `:zarr`: `using ZarrDatasets`.
-
-Other functionality in extensions:
-- Raster data downloads, like `Worldclim{Climate}`: `using RasterDataSources`
-- Makie plots: `using GLMakie` (opengl interactive) or `using CairoMakie` (print) etc.
-- Coordinate transformations for gdal rasters: `using CoordinateTransformations`
-
 # Quick start
 Install the package by typing:
 
@@ -83,6 +58,29 @@ values: [:, :, 1]
  30   0.334152   0.136551    0.183555    0.941133   0.450484    0.461862
 [and 12 more slices...]
 ```
+## Packages that work with Rasters
+
+Rasters reduces its dependencies to keep the `using` time low.
+But, it means you have to manually load packages you need for each 
+backend or additional functionality.
+
+For example, to use the GDAL backend, and download RasterDataSources files, you now need to do:
+
+```julia
+using Rasters, ArchGDAL, RasterDataSources
+```
+
+Sources and packages needed:
+- `:gdal`: `using ArchGDAL`
+- `:netcdf`: `using NCDatasets`
+- `:grd`: built-in.
+- `:grib`: `using GRIBDatasets`.
+- `:zarr`: `using ZarrDatasets`.
+
+Other functionality in extensions:
+- Raster data downloads, like `Worldclim{Climate}`: `using RasterDataSources`
+- Makie plots: `using GLMakie` (opengl interactive) or `using CairoMakie` (print) etc.
+- Coordinate transformations for gdal rasters: `using CoordinateTransformations`
 
 ## Getting the `lookup` array from dimensions
 
@@ -210,6 +208,13 @@ be used with identical syntax.
   by setting the `mappedcrs` keyword on construction. You don't need to know the underlying
   projection, the conversion is handled automatically. This means lat/lon
   `EPSG(4326)` can be used seamlessly if you need that.
+
+# Performance
+
+Rasters should be the fastest tool available for most tasks. If you find 
+something is faster in another package, it's likely a bug - so make an issue!
+
+![](https://private-user-images.githubusercontent.com/32143268/370486277-2ab271ae-0654-4335-a622-2b73f6be29e9.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MjcyNjUwNTAsIm5iZiI6MTcyNzI2NDc1MCwicGF0aCI6Ii8zMjE0MzI2OC8zNzA0ODYyNzctMmFiMjcxYWUtMDY1NC00MzM1LWE2MjItMmI3M2Y2YmUyOWU5LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDA5MjUlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQwOTI1VDExNDU1MFomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTRjNmJiZjU0ZGJkN2Y0YzY4MTM3MWU5YjM3YTgwOGEzOTYyZWMxMWUyYWVlNzAyZGQ0NGYwODcwZmE3OTNiMmEmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.-agrYzT34gn4DFsOZ1qTx63IN2G3Ur7HgNiRleqXpO4)
 
 
 # Bugs, errors and making issues for Rasters.jl
