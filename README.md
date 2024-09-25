@@ -17,22 +17,17 @@ These currently include raster arrays like GeoTIFF and NetCDF, R grd files,
 multi-layered stacks, and multi-file series of arrays and stacks. 
 
 
-## :warning: Packages extensions and Rasters 0.8 and onwards 
+## Packages that work with Rasters
 
-On Julia 1.9 we can put additional packages in extensions, so the code only loads when
-you load a specific package. Rasters.jl was always intended to work like this,
-and its finally possible. This reduced package `using` time from many seconds to well under a second.
+Rasters reduces its dependencies to keep the `using` time low.
+But, it means you have to manually load packages you need for each 
+backend or additional functionality.
 
-But, it means you have to manually load packages you need for each backend or additional
-functionality.
-
-For example, to use the GDAL backend, and download files, you now need to do:
+For example, to use the GDAL backend, and download RasterDataSources files, you now need to do:
 
 ```julia
 using Rasters, ArchGDAL, RasterDataSources
 ```
-
-where previously it was just `using Rasters`.
 
 Sources and packages needed:
 - `:gdal`: `using ArchGDAL`
