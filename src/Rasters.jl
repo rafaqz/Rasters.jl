@@ -44,7 +44,7 @@ using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
 
 import GeoInterface: crs
-import Extents: extent
+import Extents: Extent, extent
 
 using Setfield: @set, @set!
 using ColorTypes: RGB
