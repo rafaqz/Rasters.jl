@@ -34,7 +34,7 @@ function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source, missin
     end
 end
 
-# Create a standardisted Metadata object of source T, containing a `Dict{String,Any}`
+# Create a standardised Metadata object of source T, containing a `Dict{String,Any}`
 _metadatadict(s::Source, p1::Pair, pairs::Pair...) = 
     _metadatadict(s, (p1, pairs...))
 _metadatadict(::S) where S<:Source = Metadata{S}(Dict{String,Any}())
@@ -82,10 +82,17 @@ _missingval_or_missing(x) = _maybe_nothing_to_missing(missingval(x))
 _maybe_nothing_to_missing(::Nothing) = missing
 _maybe_nothing_to_missing(missingval) = missingval
 
-maybe_eps(dims::DimTuple) = map(maybe_eps, dims)
-maybe_eps(dim::Dimension) = maybe_eps(eltype(dim))
-maybe_eps(::Type) = nothing
-maybe_eps(T::Type{<:AbstractFloat}) = _default_atol(T)
+maybe_eps(dims::DimTuple; kw...) = map(maybe_eps, dims; kw...)
+maybe_eps(dim::Dimension; kw...) = maybe_eps(eltype(dim); kw...)
+maybe_eps(x; kw...) = maybe_eps(typeof(x); kw...)
+maybe_eps(::Type; kw...) = nothing
+maybe_eps(T::Type{<:AbstractFloat}; kw...) = _default_eps(T; kw...)
+
+# These are pretty random defaults, but seem to work
+_default_eps(T::Type{<:Float32}; grow=true) = grow ? eps(T) : 100eps(T)
+_default_eps(T::Type{<:Float64}; grow=true) = grow ? eps(T) : 1000eps(T)
+_default_eps(T::Type{<:Integer}) = T(1)
+_default_eps(::Type) = nothing
 
 _writeable_missing(filename::Nothing, T) = missing
 _writeable_missing(filename::AbstractString, T) = _writeable_missing(T)
@@ -145,10 +152,10 @@ function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) wher
 end
 function _extent2dims(to::Extents.Extent{K}, size::Nothing, res, crs) where K
     ranges = map(values(to), res) do bounds, r
-        start, outer = bounds
-        length = ceil(Int, (outer - start) / r)
-        step = (outer - start) / length
-        range(; start, step, length)
+        start, stop_closed = bounds
+        stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
+        length = ceil(Int, (stop_open - start) / r)
+        range(; start, step=r, length)
     end
     return _extent2dims(to, ranges, crs)
 end
@@ -157,8 +164,9 @@ function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs) where K
         size = ntuple(_ -> size, length(K))
     end
     ranges = map(values(to), size) do bounds, length
-        start, outer = bounds
-        step = (outer - start) / length
+        start, stop_closed = bounds
+        stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
+        step = (stop_open - start) / length
         range(; start, step, length)
     end
     return _extent2dims(to, ranges, crs)
@@ -186,6 +194,57 @@ function _as_intervals(ds::Tuple)
     return setdims(ds, interval_dims)
 end
 
+# get geometries from what may be a table with a geometrycolumn or an interable of geometries
+# if it has no geometry column and does not iterate valid geometries, error informatively
+function _get_geometries(data, ::Nothing)
+    # if it's a table, get the geometry column
+    geoms = if !(data isa AbstractVector{<:GeoInterface.NamedTuplePoint}) && Tables.istable(data)
+        geomcol = first(GI.geometrycolumns(data))
+        !in(geomcol, Tables.columnnames(Tables.columns(data))) &&
+            throw(ArgumentError("Expected geometries in the column `$geomcol`, but no such column found."))
+        isnothing(geomcol) && throw(ArgumentError("No default `geometrycolumn` for this type, please specify it manually."))
+        Tables.getcolumn(Tables.columns(data), geomcol)
+    elseif data isa AbstractVector
+        data
+    else
+        trait = GI.trait(data)
+        if GI.trait(data) isa GI.FeatureCollectionTrait
+            [GI.geometry(f) for f in GI.getfeature(data)]
+        else
+            collect(data)
+        end
+    end
+    # check if data iterates valid geometries before returning
+    _check_geometries(geoms)
+    return geoms
+end
+function _get_geometries(data, geometrycolumn::Symbol)
+    Tables.istable(data) || throw(ArgumentError("`geometrycolumn` was specified, but `data` is not a table."))
+    geoms = Tables.getcolumn(Tables.columns(data), geometrycolumn)
+    _check_geometries(geoms)
+    return geoms
+end
+function _get_geometries(data, geometrycolumn::NTuple{<:Any, <:Symbol})
+    Tables.istable(data) || throw(ArgumentError("`geometrycolumn` was specified, but `data` is not a table."))
+    cols = Tables.columns(data)
+    geomcols = (Tables.getcolumn(cols, col) for col in geometrycolumn)
+    points = map(geomcols...) do (row...)
+        for r in row
+            ismissing(r) && return missing
+        end
+        return row
+    end     
+    return points
+end
+function _check_geometries(geoms)
+    for g in geoms
+        ismissing(g) || GI.geomtrait(g) !== nothing || 
+        throw(ArgumentError("$g is not a valid GeoInterface.jl geometry"))
+    end
+    return
+end
+# to distinguish between objects returned by _get_geometries and other objects
+struct IterableOfGeometries end
 _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` first."
 
 _filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not found"))
@@ -275,4 +334,28 @@ function _checkregular(A::AbstractArray)
         end
     end
     return true
+end
+
+function _checkobjmem(obj) 
+    f = bytes -> """
+        required memory $(bytes) is greater than system memory $(Sys.free_memory()). 
+        Use `lazy=true` if you are loading dataset, and only call `read` on a subset after `view`.
+        """
+    _checkobjmem(f, obj) 
+end
+_checkobjmem(f, obj) = _checkmem(f, _sizeof(obj))
+
+_checkmem(f, bytes::Int) = Sys.free_memory() > bytes || _no_memory_error(f, bytes)
+
+_sizeof(A::AbstractArray{T}) where T = sizeof(T) * prod(size(A))
+_sizeof(st::AbstractRasterStack) = sum(_sizeof, layers(st))
+_sizeof(s::AbstractRasterSeries) =
+    length(s) == 0 ? 0 : _sizeof(first(s)) * prod(size(s))
+
+function _no_memory_error(f, bytes)
+    msg = f(bytes) * """
+    If you beleive this is not correct, pass the keyword `checkmem=false` or set `Rasters.checkmem!(false)` 
+    and try again. These options may crash your system if the file is actually larger than memory.
+    """
+    return error(msg)
 end

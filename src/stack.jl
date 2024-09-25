@@ -1,4 +1,4 @@
-# Accept either Symbol or String keys, but allways convert to Symbol
+# Accept either Symbol or String keys, but always convert to Symbol
 const Key = Union{Symbol,AbstractString}
 
 const MAX_STACK_SIZE = 200
@@ -34,7 +34,7 @@ missingval(s::AbstractRasterStack, name::Symbol) = _singlemissingval(missingval(
 filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}) = map(s -> filename(s), stack)
 filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:Union{FileStack,OpenStack}}) = filename(parent(stack))
 
-isdisk(st::AbstractRasterStack) = isdisk(layers(st, 1))
+isdisk(st::AbstractRasterStack) = any(isdisk, layers(st))
 
 setcrs(x::AbstractRasterStack, crs) = set(x, setcrs(dims(x), crs)...)
 setmappedcrs(x::AbstractRasterStack, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
@@ -55,7 +55,8 @@ _maybe_collapse_missingval(mv) = mv
 # DimensionalData methods ######################################################
 
 # Always read a stack before loading it as a table.
-DD.DimTable(stack::AbstractRasterStack) = invoke(DD.DimTable, Tuple{DD.AbstractDimStack}, read(stack))
+DD.DimTable(stack::AbstractRasterStack; checkmem=CHECKMEM[]) =
+    invoke(DD.DimTable, Tuple{DD.AbstractDimStack}, read(stack; checkmem))
 
 function DD.layers(s::AbstractRasterStack{<:Any,<:Any,<:Any,<:FileStack{<:Any,Keys}}) where Keys
     NamedTuple{Keys}(map(K -> s[K], Keys))
@@ -115,8 +116,9 @@ Base.copy(stack::AbstractRasterStack) = map(copy, stack)
 
 #### Stack getindex ####
 # Different to DimensionalData as we construct a Raster
-Base.getindex(s::AbstractRasterStack, name::AbstractString) = s[Symbol(name)]
-function Base.getindex(s::AbstractRasterStack, name::Symbol)
+Base.@constprop :aggressive @propagate_inbounds Base.getindex(s::AbstractRasterStack, name::AbstractString) = 
+    s[Symbol(name)]
+Base.@constprop :aggressive @propagate_inbounds function Base.getindex(s::AbstractRasterStack, name::Symbol)
     data_ = parent(s)[name]
     dims_ = dims(s, DD.layerdims(s, name))
     metadata = DD.layermetadata(s, name)
@@ -239,7 +241,7 @@ function RasterStack(data::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}, d
 )
     if isnokw(layerdims)
         # TODO: make this more sophisticated and match dimension length to axes?
-        # We dont worry about Raster keywords because these rasters will be deconstructed 
+        # We don't worry about Raster keywords because these rasters will be deconstructed 
         # again later, and `kw` will define the RasterStack keywords
         layers = map(data) do A
             Raster(A, dims[1:ndims(A)])
@@ -370,7 +372,7 @@ function RasterStack(filename::AbstractString;
     kw...
 )
     source = _sourcetrait(filename, source)
-    st = if isdir(filename)
+    st = if isdir(filename) && !(source isa Zarrsource)
         # Load as a whole directory
         filenames = readdir(filename)
         length(filenames) > 0 || throw(ArgumentError("No files in directory $filename"))
@@ -552,7 +554,7 @@ end
 
 
 function _layerkeysfromdim(A, dim)
-    hasdim(A, dim) || throw(ArgumentError("`layersrom` dim `$(name(dim))` not found in `$(map(basetypeof, dims(A)))`"))
+    hasdim(A, dim) || throw(ArgumentError("`layersfrom` dim `$(name(dim))` not found in `$(map(basetypeof, dims(A)))`"))
     vals = parent(lookup(A, dim))
     l = length(vals)
     if l > MAX_STACK_SIZE

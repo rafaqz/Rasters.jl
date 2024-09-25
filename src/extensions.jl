@@ -78,8 +78,8 @@ B = Raster(EarthEnv{HabitatHeterogeneity}, :evenness)
 a = plot(A)
 b = plot(resample(A; to=B))
 
-savefig(a, "docs/build/resample_example_before.png");
-savefig(b, "docs/build/resample_example_after.png"); nothing
+savefig(a, "build/resample_example_before.png");
+savefig(b, "build/resample_example_after.png"); nothing
 
 # output
 ```
@@ -135,8 +135,8 @@ flags = Dict(
 )
 b = plot(warp(A, flags))
 
-savefig(a, "docs/build/warp_example_before.png");
-savefig(b, "docs/build/warp_example_after.png"); nothing
+savefig(a, "build/warp_example_before.png");
+savefig(b, "build/warp_example_after.png"); nothing
 
 # output
 
@@ -203,7 +203,7 @@ function dims2geotransform end
 function affine2geotransform end
 function geotransform2affine end
 
-# Shared between ArchGDAL and CoordinateTransformations extenstions
+# Shared between ArchGDAL and CoordinateTransformations extensions
 const GDAL_EMPTY_TRANSFORM = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 const GDAL_TOPLEFT_X = 1
 const GDAL_WE_RES = 2

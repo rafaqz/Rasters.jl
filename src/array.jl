@@ -1,3 +1,21 @@
+const CHECKMEM = Ref(true)
+
+"""
+    checkmem!(x::Bool)
+
+Set `checkmem` to `true` or `false`.
+
+In some architectures memory reporting may be wrong and you may
+wish to disable memory checks.
+
+This setting can be overridden with the `checkmem` keyword, where applicable.
+"""
+function checkmem!(checkmem::Bool) 
+    !checkmem || @warn "Setting `checkmem` to `false` globally may lead to out-of-memory errors or system crashes"
+    CHECKMEM[] = checkmem
+    return checkmem
+end
+
 const FLATTEN_SELECT = FileArray
 const FLATTEN_IGNORE = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
 
@@ -192,7 +210,7 @@ methods will _not_ load data from disk; they will be applied later, lazily.
 
 # Keywords
 
-- `name`: a `Symbol` name for the array, which will also retreive the, alphabetically first, 
+- `name`: a `Symbol` name for the array, which will also retrieve the, alphabetically first, 
     named layer if `Raster` is used on a multi-layered file like a NetCDF. 
     If instead `RasterStack` is used to read the multi-layered file, by default, all variables 
     will be added to the stack.
@@ -301,6 +319,7 @@ function Raster(ds, filename::AbstractString;
     write=false,
     lazy=false,
     dropband=true,
+    checkmem=CHECKMEM[],
 )::Raster
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
@@ -313,7 +332,7 @@ function Raster(ds, filename::AbstractString;
             A = FileArray{typeof(source)}(var, filename; name=name1, group, write)
             rm ? _replace_missing(A, missingval1) : A
         else
-            _checkmem(var)
+            checkmem && _checkobjmem(var)
             x = Array(rm ? _replace_missing(var, missingval1) : var)
             x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
         end

@@ -6,7 +6,7 @@ Reproject the lookups of `obj` to a different crs.
 
 This is a lossless operation for the raster data, as only the 
 lookup values change. This is only possible when the axes of source
-and destination projections are alligned: the change is usually from
+and destination projections are aligned: the change is usually from
 a [`Regular`](@ref) and an [`Irregular`](@ref) lookup spans.
 
 For converting between projections that are rotated, 
@@ -59,7 +59,7 @@ _reproject(source::Nothing, target::Nothing, dim, val) = val
 
 function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim}, val::Number)
     # This is a dumb way to do this. But it save having to inspect crs, 
-    # and prevents reprojections that dont make sense from working.
+    # and prevents reprojections that don't make sense from working.
     # A better method for this should be implemented in future.
     return first(reproject(source, target, dim, [val]))
 end

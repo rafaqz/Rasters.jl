@@ -1,18 +1,13 @@
 # _burn_geometry!
 # Fill a raster with `fill` where it interacts with a geometry.
-function burn_geometry!(B::AbstractRaster, data::T; kw...) where T
-    if Tables.istable(T)
-        geomcolname = first(GI.geometrycolumns(data))::Symbol
-        geoms = Tables.getcolumn(data, geomcolname)
-        _burn_geometry!(B, nothing, geoms; kw...)
-    else
-        _burn_geometry!(B, GI.trait(data), data; kw...)
-    end
+function burn_geometry!(B::AbstractRaster, data; kw...) 
+    _burn_geometry!(B, GI.trait(data), data; kw...)
     return B
 end
 
 # This feature filling is simplistic in that it does not use any feature properties.
 # This is suitable for masking. See `rasterize` for a version using properties.
+burn_geometry!(B, obj; kw...) = _burn_geometry!(B, GI.trait(obj), obj; kw...)::Bool
 _burn_geometry!(B, obj; kw...) = _burn_geometry!(B, GI.trait(obj), obj; kw...)::Bool
 function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureTrait, feature; kw...)::Bool
     _burn_geometry!(B, GI.geometry(feature); kw...)
@@ -22,7 +17,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractFeatureCollectionTrait,
     _burn_geometry!(B, nothing, geoms; kw...)
 end
 # Where geoms is an iterator
-function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms; 
+function _burn_geometry!(B::AbstractRaster, trait::Nothing, data; 
     collapse::Union{Bool,Nothing}=nothing, 
     lock=Threads.SpinLock(), 
     verbose=true, 
@@ -30,9 +25,11 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, geoms;
     threaded=true,
     fill=true,
     allocs=_burning_allocs(B; threaded), 
+    geometrycolumn=nothing,
     kw...
 )::Bool
-    range = _geomindices(geoms)
+    geoms = _get_geometries(data, geometrycolumn)
+    range = eachindex(geoms)
     burnchecks = _alloc_burnchecks(range)
     if isnothing(collapse) || collapse
         _run(range, threaded, progress, "") do i
@@ -96,7 +93,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
         # Get the extents of the geometry and array
         geomextent = _extent(geom)
         arrayextent = Extents.extent(B, DEFAULT_POINT_ORDER)
-        # Only fill if the gemoetry bounding box overlaps the array bounding box
+        # Only fill if the geometry bounding box overlaps the array bounding box
         if !Extents.intersects(geomextent, arrayextent) 
             verbose && _verbose_extent_info(geomextent, arrayextent)
             return false

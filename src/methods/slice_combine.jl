@@ -30,7 +30,7 @@ slice(ser::AbstractRasterSeries, dims) = cat(map(x -> slice(x, dims), ser)...; d
     throw(ArgumentError("Dimensions $(map(name, targets)) were not found in $(map(name, dims))"))
 
 """
-    combine(A::Union{AbstractRaster,AbstractRasterStack,AbstracRasterSeries}, [dims]) => Raster
+    combine(A::AbstracRasterSeries; [dims], [lazy]) => Raster
 
 Combine a `RasterSeries` along some dimension/s, creating a new `Raster` or `RasterStack`,
 depending on the contents of the series.
@@ -38,61 +38,35 @@ depending on the contents of the series.
 If `dims` are passed, only the specified dimensions will be combined
 with a `RasterSeries` returned, unless `dims` is all the dims in the series.
 
+If `lazy`, concatenate lazily. The default is to concatenate lazily for lazy `Raster`s and eagerly otherwise.
+
 $EXPERIMENTAL
 """
-function combine(ser::AbstractRasterSeries, dims)
+function combine(ser::AbstractRasterSeries; dims=nokw, kw...)
+    isnokw(dims) ? _combine(ser; kw...) : _combine(ser, dims; kw...)
+end
+combine(ser::AbstractRasterSeries, dims; kw...) = _combine(ser, dims; kw...)
+function _combine(ser::AbstractRasterSeries, dims; lazy=isdisk(ser))
     ods = otherdims(ser, dims)
     if length(ods) > 0
-        map(DimIndices(ods)) do D
-            combine(view(ser, D...))
-        end |> RasterSeries
+        map(x -> combine(x; lazy), eachslice(ser; dims = ods))
     else
-        combine(ser)
+        combine(ser; lazy)
     end
 end
-function combine(ser::AbstractRasterSeries{<:Any,N}) where N
+function _combine(ser::AbstractRasterSeries; lazy = isdisk(ser))
+    ras1 = first(ser)
+    alldims = (dims(ras1)..., dims(ser)...)
+    ser_res = DD._insert_length_one_dims(ser, alldims)
+    data = DA.ConcatDiskArray(ser_res)
+    data = lazy ? data : collect(data)
+    rebuild(ras1; data, dims = alldims, refdims = otherdims(dims(ras1, alldims)))
+end
+function _combine(ser::AbstractRasterSeries{<:AbstractRasterStack{K}}; kw...) where K
     r1 = first(ser)
-    dest = _alloc_combine_dest(ser)
-    for sD in DimIndices(ser)
-        rD = map(d -> rebuild(d, :), DD.dims(r1))
-        source = ser[sD...]
-        if dest isa RasterStack
-            foreach(layers(source), layers(dest)) do source_r, dest_r
-                view(dest_r, rD..., sD...) .= source_r
-            end
-        else
-            # TODO we shouldn't need a view here??
-            view(dest, rD..., sD...) .= source
-        end
-    end
-    return dest
-end
-
-_alloc_combine_dest(s::AbstractRasterSeries) = _alloc_combine_dest(first(s), s)
-_alloc_combine_dest(r::AbstractRaster, s) = similar(r, (dims(r)..., dims(s)...))
-_alloc_combine_dest(r::AbstractRasterStack, s) = map(r -> _alloc_combine_dest(r, s), first(s))
-
-function _maybereshape(A::AbstractRaster{<:Any,N}, acc, dim) where N
-    if ndims(acc) != ndims(A)
-        newdata = reshape(parent(A), Val{N+1}())
-        d = if hasdim(refdims(A), dim)
-            dims(refdims(A), dim)
-        else
-            DD.basetypeof(dim)(1:1; lookup=NoLookup())
-        end
-        newdims = (DD.dims(A)..., d)
-        return rebuild(A; data=newdata, dims=newdims)
-    else
-        return A
-    end
-end
-function _maybereshape(st::AbstractRasterStack, acc, dim)
-    map((s, a) -> _maybereshape(s, a, dim), st, acc)
-end
-
-# See iterate(::GridChunks) in Diskarrays.jl
-function _chunk_inds(g, ichunk)
-    outinds = map(ichunk.I, g.chunksize, g.parentsize, g.offset) do ic, cs, ps, of
-        max((ic - 1) * cs + 1 -of, 1):min(ic * cs - of, ps)
-    end
+    new_layers = map(K) do k
+        _combine(map(s -> s[k], ser); kw...)
+    end |> NamedTuple{K}
+    newdims = combinedims(new_layers...)
+    DimensionalData.rebuild_from_arrays(r1, new_layers; refdims=otherdims(dims(r1), newdims))
 end

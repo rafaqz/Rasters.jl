@@ -5,7 +5,7 @@ istrue(::_True) = true
 istrue(::_False) = false
 
 """
-    extract(x, geoms; atol)
+    extract(x, data; atol)
 
 Extracts the value of `Raster` or `RasterStack` at given points, returning
 an iterable of `NamedTuple` with properties for `:geometry` and raster or
@@ -17,20 +17,21 @@ sliced arrays or stacks will be returned instead of single values.
 # Arguments
 
 - `x`: a `Raster` or `RasterStack` to extract values from.
-- `geoms`: GeoInterface.jl compatible geometries, or tables or iterables of geometries.
+$DATA_ARGUMENT
 
 # Keywords
 
-- `geometry`: include `:geometry` in retured `NamedTuple`, `true` by default.
-- `index`: include `:index` of the `CartesianIndex` in retured `NamedTuple`, `false` by default.
+- `geometry`: include `:geometry` in returned `NamedTuple`, `true` by default.
+- `index`: include `:index` of the `CartesianIndex` in returned `NamedTuple`, `false` by default.
 - `name`: a `Symbol` or `Tuple` of `Symbol` corresponding to layer/s of a `RasterStack` to extract. All layers by default.
 - `skipmissing`: skip missing points automatically.
-- `atol`: a tolorerance for floating point lookup values for when the `Lookup`
+- `atol`: a tolerance for floating point lookup values for when the `Lookup`
     contains `Points`. `atol` is ignored for `Intervals`.
+-$GEOMETRYCOLUMN_KEYWORD
 
 # Example
 
-Here we extact points matching the occurrence of the Mountain Pygmy Possum,
+Here we extract points matching the occurrence of the Mountain Pygmy Possum,
 _Burramis parvus_. This could be used to fit a species distribution model.
 
 ```julia
@@ -60,31 +61,20 @@ containing a mix of points and other geometries has undefined results.
 """
 function extract end
 @inline function extract(x::RasterStackOrArray, data;
-   names=_names(x), name=names, skipmissing=false, geometry=true, index=false, kw...
+   names=_names(x), name=names, skipmissing=false, geometry=true, index=false, geometrycolumn=nothing, kw...
 )
     n = DD._astuple(name)
-    _extract(x, data, NamedTuple{n}(n); 
+    _extract(x, data;
+         dims=DD.dims(x, DEFAULT_POINT_ORDER),
+         names=NamedTuple{n}(n),
          # These keywords are converted to _True/_False for type stability later on
          # The @inline above helps constant propagation of the Bools
          geometry=_booltype(geometry), 
          index=_booltype(index), 
          skipmissing=_booltype(skipmissing), 
+         geometrycolumn,
          kw...
     )
-end
-function _extract(x::RasterStackOrArray, data, names::NamedTuple{Names};
-    dims=DD.dims(x, DEFAULT_POINT_ORDER), kw...
-) where Names
-    if !(data isa AbstractVector{<:GeoInterface.NamedTuplePoint}) && Tables.istable(data)
-        geomcolnames = GI.geometrycolumns(data)
-        if isnothing(geomcolnames) || !in(first(geomcolnames), Tables.columnnames(Tables.columns(data)))
-            throw(ArgumentError("No `:geometry` column and `GeoInterface.geometrycolums(::$(typeof(data)))` does not define alternate columns"))
-        end
-        geometries = Tables.getcolumn(Tables.columns(data), first(geomcolnames))
-        _extract(x, geometries; dims, names, kw...)
-    else
-        _extract(x, data; dims, names, kw...)
-    end
 end
 
 function _extract(A::RasterStackOrArray, geom::Missing, names, kw...)
@@ -94,11 +84,10 @@ end
 function _extract(A::RasterStackOrArray, geom; names, kw...)
     _extract(A, GI.geomtrait(geom), geom; names, kw...)
 end
-_extract(A::RasterStackOrArray, ::Nothing, geom; kw...) =
-    throw(ArgumentError("$geom is not a valid GeoInterface.jl geometry"))
-function _extract(A::RasterStackOrArray, ::Nothing, geoms::AbstractArray; 
-    names, skipmissing, kw...
+function _extract(A::RasterStackOrArray, ::Nothing, data; 
+    names, skipmissing, geometrycolumn, kw...
 )
+    geoms = _get_geometries(data, geometrycolumn)
     T = if istrue(skipmissing)
         _rowtype(A, nonmissingtype(eltype(geoms)); names, skipmissing, kw...)
     else
@@ -106,11 +95,7 @@ function _extract(A::RasterStackOrArray, ::Nothing, geoms::AbstractArray;
     end
     # Handle empty / all missing cases
     (length(geoms) > 0 && any(!ismissing, geoms)) || return T[]
-
-    # Handle cases with some invalid geometries
-    invalid_geom_idx = findfirst(g -> !ismissing(g) && GI.geomtrait(g) === nothing, geoms)
-    invalid_geom_idx === nothing || throw(ArgumentError("$(geoms[invalid_geom_idx]) is not a valid GeoInterface.jl geometry"))
-
+    
     geom1 = first(Base.skipmissing(geoms))
     trait1 = GI.trait(geom1)
     # We need to split out points from other geoms
@@ -210,9 +195,12 @@ end
 
 _ismissingval(A::Union{Raster,RasterStack}, props) = 
     _ismissingval(missingval(A), props)
+_ismissingval(A::Union{Raster,RasterStack}, props::NamedTuple) = 
+    _ismissingval(missingval(A), props)
 _ismissingval(mvs::NamedTuple, props::NamedTuple{K}) where K = 
-    any(map((x, mv) -> ismissing(x) || x === mv, props, mvs[K]))
-_ismissingval(mv, props) = any(map(x -> ismissing(x) || x === mv, props))
+    any(k -> ismissing(props[k]) || props[k] === mvs[k], K)
+_ismissingval(mv, props::NamedTuple) = any(x -> ismissing(x) || x === mv, props)
+_ismissingval(mv, prop) = (mv === prop)
 
 @inline _prop_nt(st::AbstractRasterStack, I, ::NamedTuple{K}) where K = st[I...][K]
 @inline _prop_nt(A::AbstractRaster, I, ::NamedTuple{K}) where K = NamedTuple{K}((A[I...],))
@@ -322,7 +310,7 @@ end
 end
 
 # _rowtype returns the complete NamedTuple type for a point row
-# This code is entrirely for types stability and performance.
+# This code is entirely for types stability and performance.
 _rowtype(x, g; kw...) = _rowtype(x, typeof(g); kw...)
 _rowtype(x, g::Type; geometry, index, skipmissing, names, kw...) = 
     _rowtype(x, g, geometry, index, skipmissing, names)

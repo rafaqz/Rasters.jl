@@ -250,7 +250,7 @@ end
 - `Z = YDim`: The Y dimension of the raster.
 - `draw_colorbar = true`: Whether to draw a colorbar for the axis or not.
 - `colorbar_position = Makie.Right()`: Indicates which side of the axis the colorbar should be placed on.  Can be `Makie.Top()`, `Makie.Bottom()`, `Makie.Left()`, or `Makie.Right()`.
-- `colorbar_padding = Makie.automatic`: The amound of padding between the colorbar and its axis.  If `automatic`, then this is set to the width of the colorbar.
+- `colorbar_padding = Makie.automatic`: The amount of padding between the colorbar and its axis.  If `automatic`, then this is set to the width of the colorbar.
 - `title = Makie.automatic`: The titles of each plot. If `automatic`, these are set to the name of the band.
 - `xlabel = Makie.automatic`: The x-label for the axis. If `automatic`, set to the dimension name of the X-dimension of the raster.
 - `ylabel = Makie.automatic`: The y-label for the axis. If `automatic`, set to the dimension name of the Y-dimension of the raster.

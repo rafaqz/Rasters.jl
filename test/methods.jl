@@ -88,26 +88,34 @@ end
     @test all(boolmask(se2, alllayers=true) .=== [false true; true false])
     @test all(boolmask(se2, alllayers=false) .=== [true true; true false])    
     @test dims(boolmask(ga)) === dims(ga)
-    x = boolmask(polygon; res=1.0) 
-    @test x == trues(X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing)))
-    @test all(x .!= boolmask(polygon; res=1.0, invert=true))
+    x = boolmask(polygon; res=1.0, boundary=:touches) 
+    @test x == trues(X(Projected(-20:1.0:0.0; sampling=Intervals(Start()), crs=nothing)), Y(Projected(10.0:1.0:30.0; sampling=Intervals(Start()), crs=nothing)))
+    @test all(x .!= boolmask(polygon; res=1.0, invert=true, boundary=:touches))
     @test parent(x) isa BitMatrix
     # With a :geometry axis
-    x = boolmask([polygon, polygon]; collapse=false, res=1.0)
-    @test all(x .!= boolmask([polygon, polygon]; collapse=false, res=1.0, invert=true))
+    x = boolmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches)
+    @test all(x .!= boolmask([polygon, polygon]; collapse=false, res=1.0, invert=true, boundary=:touches))
     @test eltype(x) == Bool
-    @test size(x) == (20, 20, 2)
-    @test sum(x) == 800
+    @test size(x) == (21, 21, 2)
+    @test sum(x) == 882
     @test parent(x) isa BitArray{3}
-    x = boolmask([polygon, polygon]; collapse=true, res=1.0)
-    @test all(x .!= boolmask([polygon, polygon]; collapse=true, res=1.0, invert=true))
-    @test size(x) == (20, 20)
-    @test sum(x) == 400
+    x = boolmask([polygon, polygon]; collapse=true, res=1.0, boundary=:touches)
+    @test all(x .!= boolmask([polygon, polygon]; collapse=true, res=1.0, invert=true, boundary=:touches))
+    @test size(x) == (21, 21)
+    @test sum(x) == 441
     @test parent(x) isa BitMatrix
     for poly in (polygon, multi_polygon) 
         @test boolmask(poly; to=polytemplate) == .!boolmask(poly; to=polytemplate, invert=true)
         @test boolmask(poly; to=polytemplate, shape=:line) == .!boolmask(poly; to=polytemplate, shape=:line, invert=true)
         @test boolmask(poly; to=polytemplate, shape=:point) == .!boolmask(poly; to=polytemplate, shape=:point, invert=true)
+    end
+    # TODO: use explicit intervals in Extents.jl to make this exact?
+    @testset "slightly larger extent" begin
+        rast = boolmask([polygon, polygon]; shape=:line, collapse=false, res=1.0)
+        @test GeoInterface.extent(rast).X[1] == GeoInterface.extent(polygon).X[1]
+        @test GeoInterface.extent(rast).X[2] > GeoInterface.extent(polygon).X[2]
+        @test GeoInterface.extent(rast).Y[1] == GeoInterface.extent(polygon).Y[1]
+        @test GeoInterface.extent(rast).Y[2] > GeoInterface.extent(polygon).Y[2]
     end
 end
 
@@ -134,17 +142,18 @@ end
     @test all(mm_st2_inverted .=== [true true; missing true])    
     @test all(missingmask(st2, alllayers = false) .=== [missing; true])    
     @test all(missingmask(se) .=== missingmask(ga))
-    @test missingmask(polygon; res=1.0) == fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:-1.0; crs=nothing)), Y(Projected(10.0:1.0:29.0; crs=nothing))), true)
-    x = missingmask([polygon, polygon]; collapse=false, res=1.0)
-    x_inverted = missingmask([polygon, polygon]; collapse=false, res=1.0, invert=true)
+    @test missingmask(polygon; res=1.0, boundary=:touches) == 
+        fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:0.0; crs=nothing)), Y(Projected(10.0:1.0:30.0; crs=nothing))), true)
+    x = missingmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches)
+    x_inverted = missingmask([polygon, polygon]; collapse=false, res=1.0, invert=true, boundary=:touches)
     @test all(ismissing.(x_inverted))
     @test eltype(x) == Union{Bool,Missing}
-    @test size(x) == (20, 20, 2)
-    @test sum(x) == 800
+    @test size(x) == (21, 21, 2)
+    @test sum(x) == 882
     @test parent(x) isa Array{Union{Missing,Bool},3}
-    x = missingmask([polygon, polygon]; collapse=true, res=1.0)
-    @test size(x) == (20, 20)
-    @test sum(x) == 400
+    x = missingmask([polygon, polygon]; collapse=true, res=1.0, boundary=:touches)
+    @test size(x) == (21, 21)
+    @test sum(x) == 441
     @test parent(x) isa Array{Union{Missing,Bool},2}
     for poly in (polygon, multi_polygon) 
         @test all(missingmask(poly; to=polytemplate) .=== 
@@ -275,7 +284,7 @@ end
     a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
     pointvec_empty = [(-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0)]
     polygon_empty = ArchGDAL.createpolygon(pointvec_empty)
-    zonal(sum, a; of=polygon) ==
+    @test zonal(sum, a; of=polygon) ==
         zonal(sum, a; of=[polygon, polygon])[1] ==
         zonal(sum, a; of=[polygon, polygon_empty])[1] ==
         zonal(sum, a; of=(geometry=polygon, x=:a, y=:b)) ==
@@ -299,6 +308,29 @@ end
         zonal(sum, st; of=dims(st)) == 
         zonal(sum, st; of=Extents.extent(st)) == 
         sum(st)
+
+    @testset "skipmissing" begin
+        a = Array{Union{Missing,Int}}(undef, 26, 31)
+        a .= (1:26) * (1:31)'
+        a[1:10, 3:10] .= missing
+        rast = Raster(a, (X(-20:5), Y(0:30)))
+        @test zonal(sum, rast; of=polygon, skipmissing=false) === missing
+        @test zonal(sum, rast; of=polygon, skipmissing=true) isa Int
+        @test !zonal(x -> x isa Raster, rast; of=polygon, skipmissing=true)
+        @test zonal(x -> x isa Raster, rast; of=polygon, skipmissing=false)
+    end
+end
+
+@testset "zonal return missing" begin
+    a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
+    out_bounds_pointvec = [(-40.0, -40.0), (-40.0, -35.0), (-35.0, -35.0), (-35.0, -40.0)]
+    out_bounds_polygon = ArchGDAL.createpolygon(out_bounds_pointvec)
+    @test ismissing(zonal(sum, a; of=[polygon, out_bounds_polygon, polygon])[2]) &&
+        ismissing(zonal(sum, a; of=[out_bounds_polygon, polygon])[1]) &&
+        ismissing(zonal(sum, a; of=(geometry=out_bounds_polygon, x=:a, y=:b))) &&
+        ismissing(zonal(sum, a; of=[(geometry=out_bounds_polygon, x=:a, y=:b)])[1])
+    @test zonal(sum, a; of=[out_bounds_polygon, out_bounds_polygon, polygon])[3] == 
+        sum(skipmissing(mask(a; with=polygon)))
 end
 
 @testset "classify" begin
@@ -339,11 +371,12 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
     rast = Raster(Union{Int,Missing}[1 2; 3 4], dimz; name=:test, missingval=missing)
     rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=5)
     rast_m = Raster([1 2; 3 missing], dimz; name=:test, missingval=missing)
-    table = (geometry=[missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)], foo=zeros(4))
+    mypoints = [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3), (10.0, 0.2)]
+    table = (geometry=mypoints, foo=zeros(4))
     st = RasterStack(rast, rast2)
     @testset "from Raster" begin
         # Tuple points
-        ex = extract(rast, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)])
+        ex = extract(rast, mypoints)
         T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
         @test eltype(ex) == T
         @test all(ex .=== T[
@@ -351,16 +384,17 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (geometry = (9.0, 0.1), test=1)
             (geometry = (9.0, 0.2), test=2)
             (geometry = (10.0, 0.3), test=missing)
+            (geometry = (10.0, 0.2), test=4)
         ])
-        ex = extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true)
+        ex = extract(rast_m, mypoints; skipmissing=true)
         T = @NamedTuple{geometry::Tuple{Float64, Float64}, test::Int64}
         @test eltype(ex) == T
         @test all(ex .=== T[(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2)])
-        ex = extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false)
+        ex = extract(rast_m, mypoints; skipmissing=true, geometry=false)
         T = @NamedTuple{test::Int64}
         @test eltype(ex) == T
         @test all(ex .=== T[(test = 1,), (test = 2,)])
-        @test all(extract(rast_m, [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) .=== [
+        @test all(extract(rast_m, mypoints; skipmissing=true, geometry=false, index=true) .=== [
             (index = (1, 1), test = 1,)
             (index = (1, 2), test = 2,)
         ])
@@ -455,18 +489,22 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (9.0, 0.2), test = 2)
             (geometry = (10.0, 0.3), test = missing)
+            (geometry = (10.0, 0.2), test = 4)
         ])
         @test extract(rast, table; skipmissing=true) == [
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (9.0, 0.2), test = 2)
+            (geometry = (10.0, 0.2), test = 4)
         ]
         @test extract(rast, table; skipmissing=true, geometry=false) == [
             (test = 1,)
             (test = 2,)
+            (test = 4,)
         ]
         @test extract(rast, table; skipmissing=true, geometry=false, index=true) == [
             (index = (1, 1), test = 1,)
             (index = (1, 2), test = 2,)
+            (index = (2, 2), test = 4,)
         ]
 
         @test_throws ArgumentError extract(rast, (foo = zeros(4),))
@@ -545,6 +583,20 @@ end
         @test all(extended .=== extended1 .=== replace_missing(extended_d) .=== ga) 
         @test all(extended_r .=== ga_r)
         @test all(map(==, lookup(extended_d), lookup(extended)))
+
+        @testset "unformatted dimension works in crop" begin
+            xdim, ydim = X(1.0:0.2:2.0), Y(1.0:1:2.0)
+            A = Raster(rand((X(1.0:0.2:4.0), ydim)))
+            @test lookup(crop(A; to=xdim), X) == 1.0:0.2:2.0
+
+            A = Raster(rand((X(1.0:0.2:4.0), ydim)))
+            @test lookup(crop(A; to=xdim), X) == 1.0:0.2:2.0
+
+            A = Raster(ones((X(1.0:0.2:1.4), ydim)); missingval=0.0)
+            extend(A; to=xdim)
+            @test lookup(extend(A; to=xdim), X) == 1.0:0.2:2.0
+            @test extend(A; to=xdim) == [1.0 1.0; 1.0 1.0; 1.0 1.0; 0.0 0.0; 0.0 0.0; 0.0 0.0]  
+        end
 
         @testset "to polygons" begin
             A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))

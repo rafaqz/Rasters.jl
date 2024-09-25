@@ -1,13 +1,14 @@
 # Source dispatch singletons
 abstract type Source end
 
-struct GRDsource <: Source end
-struct GDALsource <: Source end
-
 abstract type CDMsource <: Source end
 
 struct GRIBsource <: CDMsource end
 struct NCDsource <: CDMsource end
+struct Zarrsource <: CDMsource end
+
+struct GRDsource <: Source end
+struct GDALsource <: Source end
 
 # Deprecations
 const CDMfile = CDMsource
@@ -21,6 +22,7 @@ const SYMBOL2SOURCE = Dict(
     :grd => GRDsource(),
     :netcdf => NCDsource(), 
     :grib => GRIBsource(), 
+    :zarr => Zarrsource(),
 )
 
 const SOURCE2SYMBOL = Dict(map(reverse, collect(pairs(SYMBOL2SOURCE))))
@@ -28,21 +30,25 @@ const SOURCE2SYMBOL = Dict(map(reverse, collect(pairs(SYMBOL2SOURCE))))
 # File extensions. GDAL is the catch-all for everything else
 const SOURCE2EXT = Dict(
     GRDsource() => (".grd", ".gri"), 
-    NCDsource() => (".nc", ".h5",), 
+    NCDsource() => (".nc", ".nc4", ".h5",), 
     GRIBsource() => (".grib",), 
+    Zarrsource() => (".zarr", ".zarr/"),
 )
 const SOURCE2PACKAGENAME = Dict(
     GDALsource() => "ArchGDAL",
     NCDsource() => "NCDatasets",
     GRIBsource() => "GRIBDatasets",
+    Zarrsource() => "ZarrDatasets",
 )
 
 const EXT2SOURCE = Dict(
     ".grd" => GRDsource(), 
     ".gri" => GRDsource(), 
     ".nc" => NCDsource(), 
+    ".nc4" => NCDsource(), 
     ".h5" => NCDsource(),
     ".grib" => GRIBsource(), 
+    ".zarr" => Zarrsource(),
 )
 
 # exception to be raised when backend extension is not satisfied

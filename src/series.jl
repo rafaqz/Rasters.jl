@@ -24,6 +24,7 @@ abstract type AbstractRasterSeries{T,N,D,A} <: AbstractDimArray{T,N,D,A} end
 DD.metadata(A::AbstractRasterSeries) = NoMetadata()
 DD.name(A::AbstractRasterSeries) = NoName()
 DD.label(A::AbstractRasterSeries) = ""
+isdisk(A::AbstractRasterSeries) = any(isdisk, A)
 
 """
     modify(f, series::AbstractRasterSeries)
@@ -32,7 +33,7 @@ Apply function `f` to the data of the child object.
 If the child is an `AbstractRasterStack` the function will
 be passed on to its child `AbstractRaster`s.
 
-`f` must return an idenically sized array.
+`f` must return an identically sized array.
 
 This method triggers a complete rebuild of all objects,
 and disk based objects will be transferred to memory.
@@ -77,7 +78,7 @@ julia> ser = RasterSeries("series_dir/myseries.tif", Ti(DateTime))
   Ti Sampled{DateTime} DateTime[DateTime("2001-01-01T00:00:00"), DateTime("2002-01-01T00:00:00")] ForwardOrdered Irregular Points
 ```
 
-The `DateTime` suffix is parsed from the filenames. Using `Ti(Int)` would try to parse integers intead.
+The `DateTime` suffix is parsed from the filenames. Using `Ti(Int)` would try to parse integers instead.
 
 Just using the directory will also work, unless there are other files mixed in it:
 
