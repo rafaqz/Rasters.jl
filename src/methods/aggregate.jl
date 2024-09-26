@@ -331,6 +331,10 @@ downsample(index::Int, scale::Colon) = index
 function _scale2int(x, dims::DimTuple, scale::Tuple)
     map((d, s) -> _scale2int(x, d, s), dims, DD.dims2indices(dims, scale))
 end
+_scale2int(x, dims::DimTuple, scale::Tuple{<:Pair,Vararg{Pair}}) =
+    _scale2int(x, dims, Dimensions.pairs2dims(scale...))
+_scale2int(x, dims::DimTuple, scale::NamedTuple) = 
+    _scale2int(x, dims, Dimensions.kw2dims(scale))
 _scale2int(x, dims::DimTuple, scale::Int) = map(d -> _scale2int(x, d, scale), dims)
 _scale2int(x, dims::DimTuple, scale::Colon) = map(d -> _scale2int(x, d, scale), dims)
 _scale2int(x, dim::Dimension, scale::Int) = _scale2int(x, lookup(dim), scale)

@@ -156,6 +156,15 @@ end
     @test length.(dims(A)) == size(A)
 end
 
+@testset "test all scale modes" begin
+    @test aggregate(sum, array1, (3, 2)) == 
+        aggregate(sum, array1, (Y(2), X(3))) == 
+        aggregate(sum, array1, (Y=2, X=3)) == 
+        aggregate(sum, array1, (Y=>2, X=>3)) == 
+        aggregate(sum, array1, (:Y=>2, :X=>3)) == 
+        [45 57 69]
+end
+
 @testset "Aggregate with a function with missing values" begin
     data_m = [ 1  2  3  4  5  6 -1
                7  8  9 10 11 12 -1
