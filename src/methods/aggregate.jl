@@ -67,11 +67,10 @@ function aggregate end
 function aggregate(method, series::AbstractRasterSeries, scale, args...;
     progress=true, threaded=false, kw...
 )
-    f(A) = aggregate(method, A, scale, args...; progress=false, kw...)
-
-    T = Base.return_type(f, eltype(series))
-    dest = similar(series, T)
-
+    f(A) = aggregate(method, A, scale; progress=false, kw...)
+    A1 = f(first(series))
+    dest = similar(series, typeof(A1))
+    dest[1] = A1
     _run(eachindex(series), threaded, progress, "Aggregating series...") do i
         dest[i] = f(series[i])
     end
@@ -81,21 +80,21 @@ end
 function aggregate(method, stack::AbstractRasterStack{K}, scale;
     keys=keys(stack), filename=nothing, suffix=keys, progress=true, threaded=false, kw...
 ) where K
-    f(A, suffix) = aggregate(method, A, scale; filename, suffix, kw...)
-
-    srcs = layers(stack)
-    dests_vec = Vector{Raster}(undef, length(K))
+    src = layers(stack)
+    dst_vec = Vector{Raster}(undef, length(K)) # Intentionally type unstable
     _run(1:length(K), threaded, progress, "Aggregating stack...") do i
-        dests_vec[i] = f(srcs[i], suffix[i])
+        dst_vec[i] = aggregate(method, src[i], scale; filename, suffix=suffix[i], kw...)
     end
-    dests_tuple = ntuple(i -> dests_vec[i], Val{length(K)}())
-    return DD.rebuild_from_arrays(stack, dests_tuple)
+    dst_tuple = ntuple(i -> dst_vec[i], Val{length(K)}())
+
+    return DD.rebuild_from_arrays(stack, dst_tuple)
 end
 function aggregate(method, src::AbstractRaster, scale;
     suffix=nothing, filename=nothing, progress=true, kw...
 )
     dst = alloc_ag(method, src, scale; filename, suffix, kw...)
     aggregate!(method, dst, src, scale; progress, kw...)
+    return dst
 end
 aggregate(method, d::Dimension, scale) = rebuild(d, aggregate(method, lookup(d), scale))
 function aggregate(method, lookup::Lookup, scale)
@@ -143,6 +142,7 @@ function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractRaster, src, scale; 
         val = src[(upsample.(Tuple(I), intscale) .+ offsets)...]
         val === missingval(src) ? missingval(dst) : val
     end
+    return dst
 end
 # Function/functor methods
 function aggregate!(f, dst::AbstractRaster, src, scale;
@@ -162,11 +162,12 @@ function aggregate!(f, dst::AbstractRaster, src, scale;
         I = map(:, upper, lower)
         block = isdisk(src) ? src_parent[I...] : Base.unsafe_view(src_parent, I...)
         if skipmissing
-            _reduce_skip(f, block, mv, dst)
+            _reduce_skip(f, block, missingval(src), dst)
         else
-            _reduce_noskip(f, block, mv, dst)
+            _reduce_noskip(f, block, missingval(src), dst)
         end
     end
+    return dst
 end
 
 """
@@ -202,23 +203,24 @@ disaggregate(_, x, scale) = disaggregate(x, scale) # legacy
 function disaggregate(series::AbstractRasterSeries, scale;
     progress=true, threaded=false, kw...
 )
-    f(i) = disaggregate(series[i], scale; progress=false, kw...)
-
-    _run(eachindex(series), threaded, progress, "Disaggregating series...") do i
-        dest[i] = f(series[i])
+    A1 = disaggregate(series[1], scale; progress=false, kw...)
+    dst = similar(series, typeof(A1))
+    dst[1] = A1
+    _run(eachindex(series)[2:end], threaded, progress, "Disaggregating series...") do i
+        dst[i] = disaggregate(series[i], scale; progress=false, kw...)
     end
+    return dst
 end
-function disaggregate(stack::AbstractRasterStack, scale;
+function disaggregate(stack::AbstractRasterStack{K}, scale;
     keys=keys(stack), suffix=keys, filename=nothing, progress=true, threaded=false
-)
-    f(A, suffix) = disaggregate(A, scale; filename, suffix)
-
-    dests_vec = Vector{Raster}(undef, length(K))
+) where K
+    dst_vec = Vector{Raster}(undef, length(K))
+    ls = layers(stack)
     _run(1:length(K), threaded, progress, "Disaggregating stack...") do i
-        dests_vec[i] = f(srcs[i], suffix[i])
+        dst_vec[i] = disaggregate(ls[i], scale; filename, suffix=suffix[i])
     end
-    dests_tuple = ntuple(i -> dests_vec[i], Val{length(K)}())
-    return DD.rebuild_from_arrays(stack, dests_tuple)
+    dst_tuple = ntuple(i -> dst_vec[i], Val{length(K)}())
+    return DD.rebuild_from_arrays(stack, dst_tuple)
 end
 function disaggregate(src::AbstractRaster, scale;
     suffix=nothing, filename=nothing, kw...
@@ -235,7 +237,7 @@ function disaggregate(lookup::Lookup, scale)
 
     len = length(lookup) * intscale
     step_ = step(lookup) / intscale
-    start = lookup[1] - _agoffset(locus, intscale) * step_
+    start = lookup[1] - _agoffset(Start(), intscale) * step_
     stop = start + (len - 1)  * step_
     index = LinRange(start, stop, len)
     if lookup isa AbstractSampled
@@ -351,7 +353,7 @@ end
 # Fallback iterator
 @propagate_inbounds function _reduce_noskip(f, block, mv, dst)
     for x in block
-        x === mv && return _missingval_or_missing(dst)
+        _ismissing(x, mv) && return _missingval_or_missing(dst)
     end
     return f(block)
 end
@@ -362,16 +364,16 @@ end
 end
 @propagate_inbounds function _reduce_noskip(::typeof(first), block, mv, dst)
     x = first(block)
-    return x === mv ? _missingval_or_missing(dst) : x
+    return _ismissing(x, mv) ? _missingval_or_missing(dst) : x
 end
 @propagate_inbounds function _reduce_noskip(::typeof(last), block, mv, dst)
     x = last(block)
-    return x === mv ? _missingval_or_missing(dst) : x
+    return _ismissing(x, mv) ? _missingval_or_missing(dst) : x
 end
 @propagate_inbounds function _reduce_noskip(::typeof(sum), block, mv, dst)
     agg = zero(eltype(block))
     for x in block
-        x === mv && return _missingval_or_missing(dst)
+        _ismissing(x, mv) && return _missingval_or_missing(dst)
         agg += x
     end
     return agg
@@ -380,7 +382,7 @@ end
     agg = zero(eltype(block))
     n = 0
     for x in block
-        x === mv && return _missingval_or_missing(dst)
+        _ismissing(x, mv) && return _missingval_or_missing(dst)
         n += 1
         agg += x
     end
@@ -390,7 +392,7 @@ end
 # Fallback iterator
 @propagate_inbounds function _reduce_skip(f, block, mv, dst)
     for x in block
-        x === mv || return f((x for x in block if x !== mv))
+        _ismissing(x, mv) || return f((x for x in block if x !== mv))
     end
     return _missingval_or_missing(dst)
 end
@@ -401,14 +403,14 @@ end
 end
 @propagate_inbounds function _reduce_skip(::typeof(first), block, mv, dst)
     for x in block
-        x === mv && continue
+        _ismissing(x, mv) && continue
         return x
     end
     return _missingval_or_missing(dst)
 end
 @propagate_inbounds function _reduce_skip(::typeof(last), block, mv, dst)
     for x in Iterators.reverse(block)
-        x === mv && continue
+        _ismissing(x, mv) && continue
         return x
     end
     return _missingval_or_missing(dst)
@@ -417,7 +419,7 @@ end
     agg = zero(eltype(block))
     found = false
     for x in block
-        x === mv && continue
+        _ismissing(x, mv) && continue
         found = true
         agg += x
     end
@@ -428,10 +430,12 @@ end
     found = false
     n = 0
     for x in block
-        x === mv && continue
+        _ismissing(x, mv) && continue
         found = true
         n += 1
         agg += x
     end
     return found ? agg / n : _missingval_or_missing(dst)
 end
+
+_ismissing(x, mv) = ismissing(x) || x === mv 
