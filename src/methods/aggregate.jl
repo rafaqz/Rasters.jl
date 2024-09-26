@@ -362,14 +362,6 @@ end
     Missings.nonmissingtype(eltype(block)) <: Bool || throw(ArgumentError("`count` can only reduce rasters of Bool"))
     return _reduce_noskip(sum, block, mv, dst)
 end
-@propagate_inbounds function _reduce_noskip(::typeof(first), block, mv, dst)
-    x = first(block)
-    return _ismissing(x, mv) ? _missingval_or_missing(dst) : x
-end
-@propagate_inbounds function _reduce_noskip(::typeof(last), block, mv, dst)
-    x = last(block)
-    return _ismissing(x, mv) ? _missingval_or_missing(dst) : x
-end
 @propagate_inbounds function _reduce_noskip(::typeof(sum), block, mv, dst)
     agg = zero(eltype(block))
     for x in block
@@ -400,20 +392,6 @@ end
 @propagate_inbounds function _reduce_skip(::typeof(count), block, mv, dst)
     Missings.nonmissingtype(eltype(block)) <: Bool || throw(ArgumentError("`count` can only reduce rasters of Bool"))
     return _reduce_skip(sum, block, mv, dst)
-end
-@propagate_inbounds function _reduce_skip(::typeof(first), block, mv, dst)
-    for x in block
-        _ismissing(x, mv) && continue
-        return x
-    end
-    return _missingval_or_missing(dst)
-end
-@propagate_inbounds function _reduce_skip(::typeof(last), block, mv, dst)
-    for x in Iterators.reverse(block)
-        _ismissing(x, mv) && continue
-        return x
-    end
-    return _missingval_or_missing(dst)
 end
 @propagate_inbounds function _reduce_skip(::typeof(sum), block, mv, dst)
     agg = zero(eltype(block))
