@@ -214,7 +214,7 @@ be used with identical syntax.
 Rasters should be the fastest tool available for most tasks. If you find 
 something is faster in another package, it's likely a bug - so make an issue!
 
-![](https://private-user-images.githubusercontent.com/32143268/370486277-2ab271ae-0654-4335-a622-2b73f6be29e9.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MjcyNjUwNTAsIm5iZiI6MTcyNzI2NDc1MCwicGF0aCI6Ii8zMjE0MzI2OC8zNzA0ODYyNzctMmFiMjcxYWUtMDY1NC00MzM1LWE2MjItMmI3M2Y2YmUyOWU5LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDA5MjUlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQwOTI1VDExNDU1MFomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTRjNmJiZjU0ZGJkN2Y0YzY4MTM3MWU5YjM3YTgwOGEzOTYyZWMxMWUyYWVlNzAyZGQ0NGYwODcwZmE3OTNiMmEmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.-agrYzT34gn4DFsOZ1qTx63IN2G3Ur7HgNiRleqXpO4)
+![image](https://github.com/user-attachments/assets/1c6c56ac-4c5a-4096-984d-15bf2783682c)
 
 
 # Bugs, errors and making issues for Rasters.jl
