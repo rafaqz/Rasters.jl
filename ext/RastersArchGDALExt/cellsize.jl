@@ -47,25 +47,32 @@ function _area_from_coords(transform::ArchGDAL.CoordTransform, ::GI.LinearRingTr
     end
     return _area_from_rads(GI.LinearRing(points))
 end
+# For lat-lon projections. Get the area of each latitudinal band, then multiply by the width
+function _area_from_lonlat(lon::XDim, lat::YDim; R = 6371.0088)
+    two_pi_R2 = 2 * pi * R * R
+    band_area = broadcast(DD.intervalbounds(lat)) do yb
+        upper = Rasters.DD.order(lat) == ForwardOrdered() ? yb[1] : yb[2]
+        lower = Rasters.DD.order(lat) == ForwardOrdered() ? yb[2] : yb[1]
+        two_pi_R2 * (sin(deg2rad(upper)) - sin(deg2rad(lower)))
+    end
+    
+    xwidths = broadcast(DD.intervalbounds(lon)) do xb
+        abs(xb[2] - xb[1]) / 360
+    end
+    
+    xwidths .* band_area'    
+end
 
 function cellsize(dims::Tuple{<:XDim, <:YDim})
     # check the dimensions 
     isnothing(crs(dims)) && _no_crs_error()
     any(d -> d isa Points, sampling.(dims)) && throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
 
-    xbnds, ybnds = DD.intervalbounds(dims)
-    if convert(CoordSys, crs(dims)) == CoordSys("Earth Projection 1, 104") # check if need to reproject
-        areas = [_area_from_coords(
-            GI.LinearRing([
-                (xb[1], yb[1]), 
-                (xb[2], yb[1]), 
-                (xb[2], yb[2]), 
-                (xb[1], yb[2]),
-                (xb[1], yb[1])
-            ]))
-            for xb in xbnds, yb in ybnds]
+    areas = if convert(CoordSys, crs(dims)) == CoordSys("Earth Projection 1, 104") # check if need to reproject
+        _area_from_lonlat(dims...)
     else 
-        areas = ArchGDAL.crs2transform(crs(dims), EPSG(4326), order = :trad) do transform
+        xbnds, ybnds = DD.intervalbounds(dims)
+        ArchGDAL.crs2transform(crs(dims), EPSG(4326), order = :trad) do transform
             [_area_from_coords(
                 transform,         
                 GI.LinearRing([
