@@ -54,11 +54,9 @@ function _area_from_lonlat(lon::XDim, lat::YDim; R = 6371.0088)
         two_pi_R2 * (sin(deg2rad(yb[2])) - sin(deg2rad(yb[1])))
     end
     
-    xwidths = broadcast(DD.intervalbounds(lon)) do xb
-        abs(xb[2] - xb[1]) / 360
+    broadcast(DD.intervalbounds(lon), band_area') do xb, ba
+        abs(xb[2] - xb[1]) / 360 * ba
     end
-    
-    xwidths .* band_area'    
 end
 
 function cellsize(dims::Tuple{<:XDim, <:YDim})
