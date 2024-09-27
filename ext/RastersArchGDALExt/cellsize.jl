@@ -51,9 +51,7 @@ end
 function _area_from_lonlat(lon::XDim, lat::YDim; R = 6371.0088)
     two_pi_R2 = 2 * pi * R * R
     band_area = broadcast(DD.intervalbounds(lat)) do yb
-        upper = Rasters.DD.order(lat) == ForwardOrdered() ? yb[1] : yb[2]
-        lower = Rasters.DD.order(lat) == ForwardOrdered() ? yb[2] : yb[1]
-        two_pi_R2 * (sin(deg2rad(upper)) - sin(deg2rad(lower)))
+        two_pi_R2 * (sin(deg2rad(yb[2])) - sin(deg2rad(yb[1])))
     end
     
     xwidths = broadcast(DD.intervalbounds(lon)) do xb
