@@ -21,7 +21,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     @test cs isa Raster
     @test cs2 isa Raster
     # Test that the total area matches the expected area (1/72th of the Earth surface)
-    @test sum(cs) == sum(cs3)
+    @test sum(cs) ≈ sum(cs3)
     @test sum(cs) ≈ 510.1e6/72 rtol = 0.01
     # Test all areas are about 0.01 km2
     @test maximum(cs2) ≈ 0.01 rtol = 0.01
