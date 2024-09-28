@@ -18,7 +18,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     cs3 = cellarea((x, y_rev))
 
     # check cellsize still works
-    @test_warn "deprecated" csold = cellsize(dimz)
+    csold = @test_warn "deprecated" cellsize(dimz)
     @test all(csold .≈ (cs ./ 1e6))
 
     # Check the output is a raster 
