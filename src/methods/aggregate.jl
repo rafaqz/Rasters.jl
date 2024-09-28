@@ -54,7 +54,7 @@ $VERBOSE_KEYWORD
 
 ```jldoctest
 using Rasters, ArchGDAL, RasterDataSources, Statistics, Plots
-st = read(RasterStack(WorldClim{Climate}; month=1))
+st = RasterStack(WorldClim{Climate}; month=1)
 ag = aggregate(Rasters.Center(), st, (Y(20), X(20)); skipmissing=true, progress=false)
 plot(ag)
 savefig("build/aggregate_example.png"); nothing
@@ -381,7 +381,7 @@ end
         scaleddims = join((v[1] for v in vals if v[2] isa Int), ", ", " and ")
         skippeddims = join((v[1] for v in vals if isnothing(v[2])), ", ", " and ")
         @info """
-            Aggregating $scaleddims by $scale. $(skippeddims == "" ? "" : skippeddims) were skippped because they were Categorical or Unordered. 
+            Aggregating $scaleddims by $scale. $(skippeddims == "" ? "" : skippeddims) skipped due to being Categorical or Unordered. 
             Specify all scales explicitly in a Tuple or NamedTuple to aggregate these anyway.  
             """
     end
