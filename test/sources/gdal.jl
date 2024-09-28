@@ -239,14 +239,23 @@ gdalpath = maybedownload(url)
 
         @testset "aggregate" begin
             ag = aggregate(mean, gdalarray, 4)
-            @test ag == aggregate(mean, gdalarray, (X(4), Y(4), Band(1)))
+            @test ag == aggregate(mean, lazyarray, 4)
+            @test ag == aggregate(mean, gdalarray, (X(4), Y(4)))
             tempfile = tempname() * ".tif"
             write(tempfile, ag)
-            open(Raster(tempfile); write=true) do dst
+            open(Raster(tempfile; lazy=true); write=true) do dst
                 aggregate!(mean, dst, gdalarray, 4)
             end
             @test Raster(tempfile) == ag
-            rm(tempfile)
+            disag = disaggregate(gdalarray, 2)
+            @test disag == disaggregate(lazyarray, 2)
+            @test disag == disaggregate(gdalarray, (X(2), Y(2)))
+            tempfile = tempname() * ".tif"
+            write(tempfile, disag)
+            open(Raster(tempfile; lazy=true); write=true) do dst
+                disaggregate!(dst, 2 .* gdalarray, 4)
+            end
+            @test Raster(tempfile) == 2 .* ag
         end
 
         @testset "mosaic" begin

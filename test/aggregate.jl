@@ -26,8 +26,8 @@ data1 = [ 1  2  3  4  5  6 -1
 data2 = 2 * data1
 data3 = 3 * data1
 data4 = 4 * data1
-dimz = X(Sampled([30., 40., 50.]; order=ForwardOrdered(), span=Regular(10.0), sampling=Points())), 
-       Y(Sampled(LinRange(-10., 20., 7); order=ForwardOrdered(), span=Regular(5.0), sampling=Points()))
+dimz = X(Projected([30., 40., 50.]; order=ForwardOrdered(), span=Regular(10.0), sampling=Points(), crs=EPSG(4326))), 
+       Y(Projected(LinRange(-10., 20., 7); order=ForwardOrdered(), span=Regular(5.0), sampling=Points(), crs=EPSG(4326)))
 array1 = Raster(data1, dimz)
 array2 = Raster(data2, dimz)
 array1a = Raster(data3, dimz)
@@ -63,11 +63,11 @@ series = RasterSeries([stack1, stack2], (Ti(dates),))
 end
 
 @testset "aggregate a single dim" begin 
-    ag = aggregate(Start(), series, (X(3), ))
+    ag = aggregate(Start(), series, (X(3),))
     @test size(first(ag)) == (1, 7)
-    ag = aggregate(Start(), series, (Y(5), ))
+    ag = aggregate(Start(), series, (Y(5),))
     @test size(first(ag)) == (3, 1)
-    ag = aggregate(Start(), series, (Y(2), ))
+    ag = aggregate(Start(), series, (Y(2),))
     @test size(first(ag)) == (3, 3)
 end
 
@@ -142,10 +142,16 @@ end
         agg = aggregate(Start(), array1, (X(1), Y(Near(-4)))) 
         @test agg == aggregate(Start(), array1, (1, 2))
         @testset "scale 1 dims are unchanged" begin
-            @test dims(agg, X) === dims(array1, X)
+            @test dims(agg, X) == dims(array1, X)
         end
     end
 
+end
+
+@testset "Aggregate with Colon" begin
+    @test aggregate(sum, array1, :) == [sum(array1);;]
+    @test aggregate(sum, array1, (1, :)) == sum(array1; dims=2)
+    @test aggregate(sum, array1, (X=1, Y=:)) == sum(array1; dims=2)
 end
 
 @testset "Aggregate with a function" begin
@@ -191,9 +197,19 @@ end
 end
 
 @testset "Aggregate different index lookups" begin
-    dimz = Band(1:3), Dim{:category}([:a, :b, :c]), X([10, 20, 30, 40])
+    dimz = Y([1, 3, 2]), Dim{:category}([:a, :b, :c]), X([10, 20, 30, 40])
     a1 = [1 2 3; 4 5 6; 7 8 9]
     A = cat(a1, a1 .+ 10, a1 .+ 20, a1 .+ 30, dims=3)
     da = Raster(A, dimz)
     @test vec(aggregate(sum, da, (3, 2, 2))) == [114, 354]
+    @test size(aggregate(sum, da, 3)) == (3, 3, 1) 
 end
+
+@testset "Aggregate ignores categorical by default" begin
+    rast = Raster(rand(X(1:10), Y(1:10), Z([:a, :b, :c]))) 
+    @test size(aggregate(sum, rast, 2)) == (5, 5, 3)
+    # Unless specified explicitly
+    @test size(aggregate(sum, rast, (X=5, Y=5, Z=3))) == (2, 2, 1)
+    @test_throws ArgumentError aggregate(sum, rast[X=1, Y=1], 2)
+end
+

@@ -7,8 +7,10 @@ struct DisAg end
 
 const SKIPMISSING_KEYWORD = """
 - `skipmissing`: if `true`, any `missingval` will be skipped during aggregation, so that
-    only areas of all missing values will be aggregated to `missingval`. If `false`, any
-    aggregated area containing a `missingval` will be assigned `missingval`.
+    only areas of all missing values will be aggregated to `missingval(dst)`. If `false`,
+    aggregated areas containing one or more `missingval` will be assigned `missingval`. 
+    `false` by default. `skipmissing` behaviour is independent of function `f`, which is
+    only applied to completely non-missing values.
 """
 const METHOD_ARGUMENT = """
 - `method`: a function such as `mean` or `sum` that can combine the
@@ -16,10 +18,12 @@ const METHOD_ARGUMENT = """
   like `Start()` or `Center()` that species where to sample from in the interval.
 """
 const SCALE_ARGUMENT = """
-- `scale`: the aggregation factor, which can be an integer, a tuple of integers
-  for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
-  usually use in `getindex`. Using a `Selector` will determine the scale by the
-  distance from the start of the index in the `src` array.
+- `scale`: the aggregation factor, which can be an `Int`, a `Tuple` of `Int`
+  for each dimension, or a `:` colon to mean the whole dimension. 
+  You can also use any `Dimension`, `Selector` or `Int` combination you can
+  usually use in `getindex`. `Tuple` of `Pair` or `NamedTuple` where keys are dimension names
+  will also work. Using a `Selector` will determine the scale by the distance from the start 
+  of the index. Selectors will find the first offset and repeat the same aggregation size for the rest.
 """
 
 """
@@ -44,14 +48,14 @@ $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
 $PROGRESS_KEYWORD
 $THREADED_KEYWORD
+$VERBOSE_KEYWORD
 
 # Example
 
 ```jldoctest
-using Rasters, RasterDataSources, Statistics, Plots
-using Rasters: Center
+using Rasters, ArchGDAL, RasterDataSources, Statistics, Plots
 st = read(RasterStack(WorldClim{Climate}; month=1))
-ag = aggregate(Center(), st, (Y(20), X(20)); skipmissing=true, progress=false)
+ag = aggregate(Rasters.Center(), st, (Y(20), X(20)); skipmissing=true, progress=false)
 plot(ag)
 savefig("build/aggregate_example.png"); nothing
 # output
@@ -64,7 +68,7 @@ Note: currently it is faster to aggregate over memory-backed arrays.
 Use [`read`](@ref) on `src` before use where required.
 """
 function aggregate end
-function aggregate(method, series::AbstractRasterSeries, scale, args...;
+function aggregate(method, series::AbstractRasterSeries, scale;
     progress=true, threaded=false, kw...
 )
     f(A) = aggregate(method, A, scale; progress=false, kw...)
@@ -97,16 +101,20 @@ function aggregate(method, src::AbstractRaster, scale;
     return dst
 end
 aggregate(method, d::Dimension, scale) = rebuild(d, aggregate(method, lookup(d), scale))
-function aggregate(method, lookup::Lookup, scale)
-    intscale = _scale2int(Ag(), lookup, scale)
-    intscale == 1 && return lookup
-    start, stop = _endpoints(method, lookup, intscale)
-    newlookup = lookup[start:scale:stop]
-    if lookup isa AbstractSampled
-        sp = aggregate(method, span(lookup), scale)
-        return rebuild(newlookup; span=sp)
+aggregate(method, l::Lookup, scale::Colon) = aggregate(method, l, length(l)) 
+aggregate(method, l::Lookup, scale::Nothing) = aggregate(method, l, 1) 
+function aggregate(method, l::Lookup, scale::Int)
+    intscale = _scale2int(Ag(), l, scale)
+    # This is not type-stable
+    start, stop = _endpoints(method, l, intscale)
+    if issampled(l) && isordered(l)
+        newl = l[start:scale:stop]
+        sp = aggregate(method, span(l), scale)
+        return rebuild(newl; span=sp)
     else
-        return newlookup
+        # Cateorical and Unordered lookups are just broken 
+        # by aggregate, so use NoLookup
+        return NoLookup(Base.OneTo(length(start:scale:stop)))
     end
 end
 aggregate(method, span::Span, scale) = span
@@ -128,39 +136,49 @@ When the aggregation `scale` of is larger than the array axis, the length of the
 
 $SKIPMISSING_KEYWORD
 $PROGRESS_KEYWORD
+$VERBOSE_KEYWORD
 
-Note: currently it is _much_ faster to aggregate over memory-backed arrays.
-Use [`read`](@ref) on `src` before use where required.
+Note: currently it is _much_ faster to aggregate over memory-backed source
+arrays. Use [`read`](@ref) on `src` before use where required.
 """
 function aggregate!(locus::Locus, dst::AbstractRaster, src, scale; kw...)
     aggregate!((locus,), dst, src, scale)
 end
-function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractRaster, src, scale; kw...)
-    intscale = _scale2int(Ag(), dims(src), scale)
+function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractRaster, src, scale; 
+    verbose=true, kw...
+)
+    comparedims(dst, src; length=false)
+    intscale = _scale2int(Ag(), dims(src), scale; verbose)
     offsets = _agoffset.(loci, intscale)
     broadcast!(dst, CartesianIndices(dst)) do I
-        val = src[(upsample.(Tuple(I), intscale) .+ offsets)...]
-        val === missingval(src) ? missingval(dst) : val
+        J = upsample.(Tuple(I), intscale) .+ offsets
+        val = src[J...]
+        _ismissing(val, missingval(src)) ? missingval(dst) : val
     end
     return dst
 end
 # Function/functor methods
 function aggregate!(f, dst::AbstractRaster, src, scale;
-    skipmissingval=false, skipmissing=skipmissingval, progress=true
+    skipmissingval=false, skipmissing=skipmissingval, progress=true, verbose=true
 )
-    intscale = _scale2int(Ag(), dims(src), scale)
-    # len = prod(intscale)
+    comparedims(dst, src; length=false)
+    all(Lookups.isaligned, lookup(src)) || 
+        throw(ArgumentError("Currently only grid-alligned dimensions can be aggregated. Make a Rasters.jl Github issue if you need to aggregate with transformed dims"))
+
+    intscale = _scale2int(Ag(), dims(src), scale; verbose)
     l = upsample.(map(firstindex, axes(dst)), intscale)
     u = upsample.(map(lastindex, axes(dst)), intscale)
     checkbounds(src, l...)
     checkbounds(src, u...)
     # If a disk array, cache the src so we don't read too many times
-    src_parent = isdisk(src) ? DiskArrays.cache(parent(src)) : parent(src)
+
     @inbounds broadcast!(dst, CartesianIndices(dst)) do I
         upper = upsample.(Tuple(I), intscale)
-        lower = upper .+ intscale .- 1
+        lower = map(upper, intscale) do u, i
+            isnothing(i) ? u : u + i - 1
+        end
         I = map(:, upper, lower)
-        block = isdisk(src) ? src_parent[I...] : Base.unsafe_view(src_parent, I...)
+        block = isdisk(src) ? parent(src)[I...] : Base.view(parent(src), I...)
         if skipmissing
             _reduce_skip(f, block, missingval(src), dst)
         else
@@ -177,15 +195,9 @@ Disaggregate array, or all arrays in a stack or series, by some scale.
 
 # Arguments
 
-- `method`: a function such as `mean` or `sum` that can combine the
-  value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
-  like `Start()` or `Center()` that species where to sample from in the interval.
 - `object`: Object to aggregate, like `AbstractRasterSeries`, `AbstractStack`,
-  `AbstractRaster` or a `Dimension`.
-- `scale`: the aggregation factor, which can be an integer, a tuple of integers
-  for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
-  usually use in `getindex`. Using a `Selector` will determine the scale by the
-  distance from the start of the index.
+  `AbstractRaster`, `Dimension` or `Lookup`.
+$SCALE_ARGUMENT
 
 # Keywords
 
@@ -194,9 +206,8 @@ $SUFFIX_KEYWORD
 $PROGRESS_KEYWORD
 $THREADED_KEYWORD
 
-Note: currently it is faster to aggregate over memory-backed arrays.
-Use [`read`](@ref) on `src` before use where required.
-
+Note: currently it is _much_ faster to disaggregate over a memory-backed 
+source array. Use [`read`](@ref) on `src` before use where required.
 """
 function disaggregate end
 disaggregate(_, x, scale) = disaggregate(x, scale) # legacy
@@ -227,6 +238,8 @@ function disaggregate(src::AbstractRaster, scale;
 )
     dst = alloc_disag(Center(), src, scale; filename, suffix, kw...)
     disaggregate!(dst, src, scale)
+
+    return dst
 end
 function disaggregate(dim::Dimension, scale)
     rebuild(dim, disaggregate(locus, lookup(dim), scale))
@@ -252,35 +265,35 @@ disaggregate(span::Span, scale) = span
 disaggregate(span::Regular, scale) = Regular(val(span) / scale)
 
 """
-    disaggregate!(dst::AbstractRaster, src::AbstractRaster, filename, scale)
+    disaggregate!(dst::AbstractRaster, src::AbstractRaster, scale)
 
 Disaggregate array `src` to array `dst` by some scale.
 
-- `scale`: the aggregation factor, which can be an integer, a tuple of integers
-  for each dimension, or any `Dimension`, `Selector` or `Int` combination you can
-  usually use in `getindex`. Using a `Selector` will determine the scale by the
-  distance from the start of the index in the `src` array.
-
-Note: currently it is faster to aggregate over memory-backed arrays.
-Use [`read`](@ref) on `src` before use where required.
+$SCALE_ARGUMENT
 """
 function disaggregate!(dst::AbstractRaster, src, scale)
-    disaggregate!((locus,), dst, src, scale)
-end
-function disaggregate!(dst::AbstractRaster, src, scale)
     intscale = _scale2int(DisAg(), dims(src), scale)
-    broadcast!(dst, CartesianIndices(dst)) do I
-        val = src[(downsample.(Tuple(I), intscale))...]
-        val === missingval(src) ? missingval(dst) : val
+    # For now we just read a DiskArray
+    src = isdisk(src) ? read(src) : src
+    # Fast path for Array backed data
+    for I in CartesianIndices(src)
+        upper = upsample.(Tuple(I), intscale)
+        lower = upper .+ intscale .- 1
+        val = src[I]
+        val1 = _ismissing(src, missingval(src)) ? missingval(dst) : val
+        for J in CartesianIndices(map(:, upper, lower)) 
+            dst[J] = val1
+        end
     end
+    return dst
 end
 
 # Allocate an array of the correct size to aggregate `A` by `scale`
 alloc_ag(method, A::AbstractRaster, scale; kw...) = alloc_ag((method,), A, scale; kw...)
 function alloc_ag(method::Tuple, A::AbstractRaster, scale;
-    filename=nokw, suffix=nokw, skipmissingval=false, skipmissing=false, progress=false
+    filename=nokw, suffix=nokw, skipmissingval=false, skipmissing=false, progress=false, verbose=false
 )
-    intscale = _scale2int(Ag(), dims(A), scale)
+    intscale = _scale2int(Ag(), dims(A), scale; verbose=false)
     # Aggregate the dimensions
     dims_ = aggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size
@@ -303,7 +316,7 @@ end
 function alloc_disag(method::Tuple, A::AbstractRaster, scale;
     filename=nokw, suffix=nokw
 )
-    intscale = _scale2int(DisAg(), dims(A), scale)
+    intscale = _scale2int(DisAg(), dims(A), scale; verbose=false)
     dims_ = disaggregate.(method, dims(A), intscale)
     # Dim aggregation determines the array size
     sze = map(length, dims_)
@@ -321,34 +334,77 @@ end
 
 # Convert indices from the aggregated array to the larger original array.
 upsample(index::Int, scale::Int) = (index - 1) * scale + 1
-upsample(index::Int, scale::Colon) = index
+upsample(index::Int, scale::Nothing) = index
 
 # Convert indices from the original array to the aggregated array.
 downsample(index::Int, scale::Int) = (index - 1) ÷ scale + 1
-downsample(index::Int, scale::Colon) = index
+downsample(index::Int, scale::Nothing) = index
 
 # Convert scale or tuple of scale to integer using dims2indices
-function _scale2int(x, dims::DimTuple, scale::Tuple)
-    map((d, s) -> _scale2int(x, d, s), dims, DD.dims2indices(dims, scale))
+@inline function _scale2int(x, dims::DimTuple, scale::DimTuple; verbose=true)
+    map(dims, DD.sortdims(scale, dims)) do d, s
+        if isnothing(s) 
+            1
+        else
+            i = dims2indices(d, s)
+            # Swap Colon as all to Colon as 1 (1 is the no-change option here)
+            s = i isa Colon ? length(d) : i
+            _scale2int(x, d, s)
+        end
+    end
 end
-_scale2int(x, dims::DimTuple, scale::Tuple{<:Pair,Vararg{Pair}}) =
-    _scale2int(x, dims, Dimensions.pairs2dims(scale...))
-_scale2int(x, dims::DimTuple, scale::NamedTuple) = 
-    _scale2int(x, dims, Dimensions.kw2dims(scale))
-_scale2int(x, dims::DimTuple, scale::Int) = map(d -> _scale2int(x, d, scale), dims)
-_scale2int(x, dims::DimTuple, scale::Colon) = map(d -> _scale2int(x, d, scale), dims)
-_scale2int(x, dim::Dimension, scale::Int) = _scale2int(x, lookup(dim), scale)
-_scale2int(::Ag, l::Lookup, scale::Int) = scale > length(l) ? length(l) : scale
-_scale2int(::DisAg, l::Lookup, scale::Int) = scale
-_scale2int(x, dim::Dimension, scale::Colon) = 1
+@inline function _scale2int(x, dims::DimTuple, scale::Tuple; verbose=true)
+    map(dims, DD.dims2indices(dims, scale)) do d, s
+        _scale2int(x, d, s)
+    end
+end
+@inline _scale2int(x, dims::DimTuple, scale::Tuple{<:Pair,Vararg{Pair}}; verbose=true) =
+    _scale2int(x, dims, Dimensions.pairs2dims(scale...); verbose)
+@inline _scale2int(x, dims::DimTuple, scale::NamedTuple; verbose=true) = 
+    _scale2int(x, dims, Dimensions.kw2dims(scale); verbose)
+@inline function _scale2int(x, dims::DimTuple, scale::Int; verbose=true) 
+    # If there are other dimensions, we skip categorical dims
+    vals = map(dims) do d
+        if iscategorical(d) || !isordered(d) 
+            name(d), nothing
+        else
+            name(d), _scale2int(x, d, scale)
+        end
+    end
+    nskipped = count(isnothing ∘ last, vals)
+    if nskipped == length(dims)
+        example = join(map(((n, d),) -> "$(name(d))=$(n + 1),", enumerate(dims)), ' ')
+        # If all dims are categorical we error
+        throw(ArgumentError("All dimensions are Categorical. To aggregate anyway, list scale explicity for each dimension, e.g. ($example)"))
+    end
+    if verbose && nskipped > 0
+        scaleddims = join((v[1] for v in vals if v[2] isa Int), ", ", " and ")
+        skippeddims = join((v[1] for v in vals if isnothing(v[2])), ", ", " and ")
+        @info """
+            Aggregating $scaleddims by $scale. $(skippeddims == "" ? "" : skippeddims) were skippped because they were Categorical or Unordered. 
+            Specify all scales explicitly in a Tuple or NamedTuple to aggregate these anyway.  
+            """
+    end
+    return map(last, vals)
+end
+@inline _scale2int(x, dims::DimTuple, scale::Colon; verbose=true) = 
+    _scale2int(x, dims, map(_ -> Colon(), dims)) 
+@inline _scale2int(x, d, scale::Colon) = length(d)
+@inline _scale2int(x, dim::Dimension, scale::Int) = _scale2int(x, lookup(dim), scale)
+@inline _scale2int(::Ag, l::Lookup, scale::Int) = scale > length(l) ? length(l) : scale
+@inline _scale2int(::DisAg, l::Lookup, scale::Int) = scale
 
-_agoffset(locus::Locus, l::Lookup, scale) = _agoffset(locus, scale)
-_agoffset(method, l::Lookup, scale) = _agoffset(locus(l), scale)
-_agoffset(locus::Start, scale) = 0
-_agoffset(locus::End, scale) = scale - 1
-_agoffset(locus::Center, scale) = scale ÷ 2
+_agoffset(method, scale::Colon) = 0
+_agoffset(locus::Locus, l::Lookup, scale::Int) = _agoffset(locus, scale)
+_agoffset(method, l::Lookup, scale::Int) = _agoffset(locus(l), scale)
+_agoffset(locus, scale::Colon) = 0
+_agoffset(locus::Start, scale::Int) = 0
+_agoffset(locus::End, scale::Int) = scale - 1
+_agoffset(locus::Center, scale::Int) = scale ÷ 2
 
-function _endpoints(method, l::Lookup, scale)
+_endpoints(method, l::Lookup, scale::Colon) = firstindex(l), lastindex(l)
+_endpoints(method, l::Lookup, scale::Nothing) = firstindex(l), lastindex(l)
+function _endpoints(method, l::Lookup, scale::Int)
     start = firstindex(l) + _agoffset(method, l, scale)
     stop = (length(l) ÷ scale) * scale
     return start, stop
