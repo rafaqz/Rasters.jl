@@ -3,16 +3,6 @@ using Test
 using DimensionalData: @dim, YDim
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
-xdim = X(Projected(0:1:10; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(1), crs=EPSG(4326)))
-xdim = dims(rand(xdim), X)
-Rasters.reproject(EPSG(3857), xdim)
-
-convert(CoordSys, EPSG(3857))
-
-using Rasters
-import Rasters: XDim
-xdim = X(Projected(1:10; crs = EPSG(4326)))
-
 @testset "cellarea" begin
     x = X(Projected(90.0:0.1:99.9; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326), dim = X()))
     y = Y(Projected(0.0:0.1:89.9; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326), dim = Y()))
