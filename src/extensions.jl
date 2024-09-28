@@ -157,10 +157,11 @@ $EXPERIMENTAL
 warp(args...; kw...) = throw_extension_error(warp, "ArchGDAL", :RastersArchGDALExt, args)
 
 """
-    cellsize(x)
+    cellarea(x; R = 6371008.8)
 
-Gives the approximate size of each cell in square km.
-This function works for any projection, using an algorithm for polygons on a sphere. It approximates the true size to about 0.1%, depending on latitude.
+Gives the approximate size of each cell in square m.
+This function works for any projection, using an algorithm for polygons on a sphere with radius R. It approximates the true size to about 0.1%, depending on latitude.
+R defaults to the arithmetic mean radius of the earth.
 
 Run `using ArchGDAL` to make this method available.
 
@@ -175,25 +176,35 @@ using Rasters, ArchGDAL, Rasters.Lookups
 dimz = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), order=ForwardOrdered(), span=Regular(10.0), crs=EPSG(4326))),
        Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), order=ForwardOrdered(), span=Regular(10.0), crs=EPSG(4326)))
 
-cs = cellsize(dimz)
+cs = cellarea(dimz)
 
 # output
-4×6 Raster{Float64,2} with dimensions:
-  X Projected{Float64} 90.0:10.0:120.0 ForwardOrdered Regular Intervals{Start} crs: EPSG,
-  Y Projected{Float64} 0.0:10.0:50.0 ForwardOrdered Regular Intervals{Start} crs: EPSG
-extent: Extent(X = (90.0, 130.0), Y = (0.0, 60.0))
-missingval: missing
-crs: EPSG:4326
-parent:
-        0.0       10.0       20.0        30.0        40.0            50.0
-  90.0  1.2332e6   1.1952e6   1.12048e6   1.01158e6   8.72085e5  706488.0
- 100.0  1.2332e6   1.1952e6   1.12048e6   1.01158e6   8.72085e5  706488.0
- 110.0  1.2332e6   1.1952e6   1.12048e6   1.01158e6   8.72085e5  706488.0
- 120.0  1.2332e6   1.1952e6   1.12048e6   1.01158e6   8.72085e5  706488.0
+╭───────────────────────╮
+│ 4×6 Raster{Float64,2} │
+├───────────────────────┴─────────────────────────────────────────────────── dims ┐
+  ↓ X Projected{Float64} 90.0:10.0:120.0 ForwardOrdered Regular Intervals{Start},
+  → Y Projected{Float64} 0.0:10.0:50.0 ForwardOrdered Regular Intervals{Start}
+├───────────────────────────────────────────────────────────────────────── raster ┤
+  extent: Extent(X = (90.0, 130.0), Y = (0.0, 60.0))
+
+  crs: EPSG:4326
+└─────────────────────────────────────────────────────────────────────────────────┘
+   ↓ →  0.0        10.0        20.0        30.0            40.0      50.0
+  90.0  1.23017e6   1.19279e6   1.11917e6   1.01154e6  873182.0  708290.0
+ 100.0  1.23017e6   1.19279e6   1.11917e6   1.01154e6  873182.0  708290.0
+ 110.0  1.23017e6   1.19279e6   1.11917e6   1.01154e6  873182.0  708290.0
+ 120.0  1.23017e6   1.19279e6   1.11917e6   1.01154e6  873182.0  708290.0
 ```
 $EXPERIMENTAL
 """
-cellsize(args...; kw...) = throw_extension_error(cellsize, "ArchGDAL", :RastersArchGDALExt, args)
+cellarea(args...; kw...) = throw_extension_error(cellarea, "ArchGDAL", :RastersArchGDALExt, args)
+function cellsize(args...; kw...) 
+    @warn """
+cellsize is deprecated and will be removed in a future version, use cellarea instead. 
+Note that cellarea returns the area in square m, while cellsize still uses square km.
+"""
+    return cellarea(args...; kw..., R = 6371.0088)
+end
 
 # Other shared stubs
 function layerkeys end

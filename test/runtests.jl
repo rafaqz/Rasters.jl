@@ -23,7 +23,7 @@ end
 @time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "warp" begin include("warp.jl") end
 @time @safetestset "resample" begin include("resample.jl") end
-@time @safetestset "cellsize" begin include("cellsize.jl") end
+@time @safetestset "cellarea" begin include("cellarea.jl") end
 
 # CommondataModel sources
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end

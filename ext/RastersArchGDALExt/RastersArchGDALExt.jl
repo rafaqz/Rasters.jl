@@ -21,7 +21,7 @@ using Rasters: GDALsource, AbstractProjected, RasterStackOrArray, FileArray, NoK
     GDAL_EMPTY_TRANSFORM, GDAL_TOPLEFT_X, GDAL_WE_RES, GDAL_ROT1, GDAL_TOPLEFT_Y, GDAL_ROT2, GDAL_NS_RES,
     _no_crs_error
 
-import Rasters: reproject, resample, warp, cellsize, nokw
+import Rasters: reproject, resample, warp, cellsize, cellarea, nokw
 
 const RA = Rasters
 const DD = DimensionalData
@@ -29,7 +29,7 @@ const DA = DiskArrays
 const GI = GeoInterface
 const LA = Lookups
 
-include("cellsize.jl")
+include("cellarea.jl")
 include("gdal_source.jl")
 include("reproject.jl")
 include("resample.jl")
