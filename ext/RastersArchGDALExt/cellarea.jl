@@ -58,7 +58,9 @@ function cellarea(dims::Tuple{<:XDim, <:YDim}; R = 6371008.8)
 
     areas = if convert(CoordSys, crs(dims)) == CoordSys("Earth Projection 1, 104") # check if need to reproject
         _area_from_lonlat(dims...; R)
-    else 
+    elseif !isnothing(mappedcrs(dims)) && convert(CoordSys, mappedcrs(dims)) == CoordSys("Earth Projection 1, 104")
+        _area_from_lonlat(reproject(dims; crs = mappedcrs(dims))...; R)
+    else
         xbnds, ybnds = DD.intervalbounds(dims)
         ArchGDAL.crs2transform(crs(dims), EPSG(4326), order = :trad) do transform
             [_area_from_coords(

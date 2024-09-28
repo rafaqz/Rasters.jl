@@ -3,10 +3,20 @@ using Test
 using DimensionalData: @dim, YDim
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
+xdim = X(Projected(0:1:10; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(1), crs=EPSG(4326)))
+xdim = dims(rand(xdim), X)
+Rasters.reproject(EPSG(3857), xdim)
+
+convert(CoordSys, EPSG(3857))
+
+using Rasters
+import Rasters: XDim
+xdim = X(Projected(1:10; crs = EPSG(4326)))
+
 @testset "cellarea" begin
-    x = X(Projected(90.0:0.1:99.9; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326)))
-    y = Y(Projected(0.0:0.1:89.9; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326)))
-    y_rev = Y(Projected(89.9:-0.1:0; sampling=Intervals(Start()), order = ReverseOrdered(), span = Regular(-0.1), crs=EPSG(4326)))
+    x = X(Projected(90.0:0.1:99.9; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326), dim = X()))
+    y = Y(Projected(0.0:0.1:89.9; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326), dim = Y()))
+    y_rev = Y(Projected(89.9:-0.1:0; sampling=Intervals(Start()), order = ReverseOrdered(), span = Regular(-0.1), crs=EPSG(4326), dim = Y()))
     dimz = (x,y)
 
     dimz_25832 = X(Projected(0.0:100:10000.0; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(100), crs=EPSG(25832))),
@@ -38,9 +48,16 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     @dim Lat YDim "latitude"
     lat = Lat(Projected(0.0:0.1:89.9; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326)))
     cs_lat = cellarea((x, lat))
-    @test parent(cs_lat) == parent(cs)
+    @test parent(cs_lat) == parent(cs)rent(cs)rent(cs)
     @test dims(cs_lat) == (x, lat)
 
+    # test using mapped dims to calculate cellsize
+    x_3857 = X(Projected(0:1e5:1e7; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(1e5), crs=EPSG(3857), dim = X()))
+    y_3857 = Y(Projected(0:1e5:1e7; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(1e5), crs=EPSG(3857), dim = Y()))
+    dimz_3857 = (x_3857, y_3857)
+    mappeddimz = setmappedcrs(dimz_3857, EPSG(4326))
+    @test all(isapprox.(cellarea((dimz_3857)), cellarea((mappeddimz)); rtol = 0.001))
+    @test parent(cellarea((dimz_3857))) != parent(cellarea((mappeddimz))) # to make sure it actually used the mapped dims
     # test point sampling throws an error
     pointsy = set(y, Points())
     @test_throws ArgumentError cellarea((x, pointsy))
