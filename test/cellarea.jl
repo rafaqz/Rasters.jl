@@ -48,7 +48,7 @@ xdim = X(Projected(1:10; crs = EPSG(4326)))
     @dim Lat YDim "latitude"
     lat = Lat(Projected(0.0:0.1:89.9; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326)))
     cs_lat = cellarea((x, lat))
-    @test parent(cs_lat) == parent(cs)rent(cs)rent(cs)
+    @test parent(cs_lat) == parent(cs)
     @test dims(cs_lat) == (x, lat)
 
     # test using mapped dims to calculate cellsize
