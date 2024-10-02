@@ -32,9 +32,9 @@ function _linearring_area(ring; radius)
 end
 
 _area_from_coords(transform, geom; radius) = _area_from_coords(transform, GI.trait(geom), geom; radius)
-function _area_from_coords(transform::ArchGDAL.CoordTransform, ::GI.LinearRingTrait, ring; radius)
+function _area_from_coords(transform::AG.CoordTransform, ::GI.LinearRingTrait, ring; radius)
     points = map(GI.getpoint(ring)) do p 
-        t = ArchGDAL.transform!(ArchGDAL.createpoint(p...), transform)
+        t = AG.transform!(AG.createpoint(p...), transform)
         (GI.x(t), GI.y(t))
     end
     return _linearring_area(GI.LinearRing(points); radius)
@@ -63,7 +63,7 @@ function cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8)
         _area_from_lonlat(reproject(dims; crs = mappedcrs(dims))...; radius)
     else
         xbnds, ybnds = DD.intervalbounds(dims)
-        ArchGDAL.crs2transform(crs(dims), EPSG(4326), order = :trad) do transform
+        AG.crs2transform(crs(dims), EPSG(4326), order = :trad) do transform
             [_area_from_coords(
                 transform,         
                 GI.LinearRing([
@@ -86,10 +86,10 @@ function cellarea(x::Union{<:AbstractRaster, <:AbstractRasterStack, <:RA.DimTupl
 end
 
 # TODO: put these in ArchGDAL
-_isgeographic(crs) = _isgeographic(ArchGDAL.importCRS(crs))
+_isgeographic(crs) = _isgeographic(AG.importCRS(crs))
 _isgeographic(crs::AG.ISpatialRef) = AG.GDAL.osrisgeographic(crs) |> Bool
 
-_isdegrees(crs) = _isdegrees(ArchGDAL.importCRS(crs))
+_isdegrees(crs) = _isdegrees(AG.importCRS(crs))
 function _isdegrees(crs::AG.ISpatialRef)
     _isgeographic(crs) || return false
     pointer = Ref{Cstring}()
