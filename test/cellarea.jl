@@ -34,6 +34,14 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     cs_ras = cellarea(ras)
     @test cs == cs_ras
 
+    ## test with area_in_crs true
+    cs_planar = cellarea(dimz; area_in_crs = true)
+    cs_planar2 = cellarea(dimz_25832; area_in_crs = true)
+    cs_planar3 = cellarea((x, y_rev); area_in_crs = true)
+    @test all(≈(0.01), cs_planar)
+    @test all(≈(10_000), cs_planar2)
+    @test all(≈(0.01), cs_planar3)
+
     # test a YDim other than Y is handled correctly
     @dim Lat YDim "latitude"
     lat = Lat(Projected(0.0:0.1:89.9; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(0.1), crs=EPSG(4326)))

@@ -21,7 +21,7 @@ using Rasters: GDALsource, AbstractProjected, RasterStackOrArray, FileArray, NoK
     GDAL_EMPTY_TRANSFORM, GDAL_TOPLEFT_X, GDAL_WE_RES, GDAL_ROT1, GDAL_TOPLEFT_Y, GDAL_ROT2, GDAL_NS_RES,
     _no_crs_error
 
-import Rasters: reproject, resample, warp, cellsize, cellarea, nokw
+import Rasters: reproject, resample, warp, _spherical_cellarea, nokw
 
 const RA = Rasters
 const AG = ArchGDAL

@@ -157,17 +157,19 @@ $EXPERIMENTAL
 warp(args...; kw...) = throw_extension_error(warp, "ArchGDAL", :RastersArchGDALExt, args)
 
 """
-    cellarea(x; radius = 6371008.8)
+    cellarea(x; radius = 6371008.8, area_in_crs = false)
 
-Gives the approximate area of each cell.
+Gives the approximate area of each gridcell of `x`.
 By assuming the earth is a sphere, it approximates the true size to about 0.1%, depending on latitude.
-`radius` defaults to the arithmetic mean radius of the earth in meters.
 
-Run `using ArchGDAL` to make this method available.
+Run `using ArchGDAL` to make this method fully available.
 
-# Arguments
-
-- `x`: A `Raster` or a `Tuple` of `X` and `Y` dimensions.
+# Keywords
+- `radius`: the radius of the sphere of the coordinates. 
+    Defaults to the arithmetic mean radius of the earth in meters.
+- `area_in_crs`: if `true`, returns the area in the units of the crs of `x`, without any reprojection. 
+    This is equal to the distance between the bounds of each gridcell. `ArchGDAL` does not to be loaded if this is set to `true`.
+    `false` by default.
 
 ## Example
 
@@ -197,7 +199,25 @@ cs = cellarea(dimz)
 ```
 $EXPERIMENTAL
 """
-cellarea(args...; kw...) = throw_extension_error(cellarea, "ArchGDAL", :RastersArchGDALExt, args)
+cellarea(x; kw...) = cellarea(dims(x, (XDim, YDim)); kw...)
+function cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8, area_in_crs = false)
+    isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
+    areas = if area_in_crs
+        _planar_cellarea(dims)
+    else
+       _spherical_cellarea(dims; radius)
+    end
+    return Raster(areas; dims)
+
+end
+
+_spherical_cellarea(args...; kw...) = throw_extension_error(_spherical_cellarea, "ArchGDAL", :RastersArchGDALExt, args)
+
+function _planar_cellarea(dims::Tuple{<:XDim, <:YDim})
+    xbnds, ybnds = DD.intervalbounds(dims)
+    broadcast(xb -> xb[2] - xb[1], xbnds) .* broadcast(yb -> yb[2] - yb[1], ybnds)'
+end
+
 function cellsize(args...; kw...) 
     @warn """
 cellsize is deprecated and will be removed in a future version, use cellarea instead. 

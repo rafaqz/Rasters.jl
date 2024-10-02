@@ -52,10 +52,9 @@ function _area_from_lonlat(lon::XDim, lat::YDim; radius)
     end
 end
 
-function cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8)
+function _spherical_cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8)
     # check the dimensions 
     isnothing(crs(dims)) && _no_crs_error()
-    isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
 
     areas = if _isdegrees(crs(dims)) # check if need to reproject
         _area_from_lonlat(dims...; radius)
@@ -78,11 +77,6 @@ function cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8)
                 for xb in xbnds, yb in ybnds]
         end
     end
-
-    return Raster(areas, dims)
-end
-function cellarea(x::Union{<:AbstractRaster, <:AbstractRasterStack, <:RA.DimTuple}; kw...)
-    cellarea(dims(x, (XDim, YDim)); kw...)
 end
 
 # TODO: put these in ArchGDAL
