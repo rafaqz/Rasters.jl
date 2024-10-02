@@ -57,9 +57,9 @@ function cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8)
     isnothing(crs(dims)) && _no_crs_error()
     any(d -> d isa Points, sampling.(dims)) && throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
 
-    areas = if _isgeographic(crs(dims)) # check if need to reproject
+    areas = if _isdegrees(crs(dims)) # check if need to reproject
         _area_from_lonlat(dims...; radius)
-    elseif !isnothing(mappedcrs(dims)) && _isgeographic(mappedcrs(dims))
+    elseif !isnothing(mappedcrs(dims)) && _isdegrees(mappedcrs(dims))
         _area_from_lonlat(reproject(dims; crs = mappedcrs(dims))...; radius)
     else
         xbnds, ybnds = DD.intervalbounds(dims)
@@ -86,4 +86,13 @@ function cellarea(x::Union{<:AbstractRaster, <:AbstractRasterStack, <:RA.DimTupl
 end
 
 # TODO: put these in ArchGDAL
-_isgeographic(crs) = ArchGDAL.GDAL.osrisgeographic(ArchGDAL.importCRS(crs)) |> Bool
+_isgeographic(crs) = _isgeographic(ArchGDAL.importCRS(crs))
+_isgeographic(crs::AG.ISpatialRef) = AG.GDAL.osrisgeographic(crs) |> Bool
+
+_isdegrees(crs) = _isdegrees(ArchGDAL.importCRS(crs))
+function _isdegrees(crs::AG.ISpatialRef)
+    _isgeographic(crs) || return false
+    pointer = Ref{Cstring}()
+    result = AG.GDAL.osrgetangularunits(crs, pointer)
+    return unsafe_string(pointer[]) == "degree"
+end
