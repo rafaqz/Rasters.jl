@@ -1,15 +1,15 @@
 function _great_circle_bearing(lon1::AbstractFloat, lat1::AbstractFloat, lon2::AbstractFloat, lat2::AbstractFloat)
     dLong = lon1 - lon2
 
-    s = cos(lat2)*sin(dLong)
-    c = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(dLong)
+    s = cosd(lat2)*sind(dLong)
+    c = cosd(lat1)*sind(lat2) - sind(lat1)*cosd(lat2)*cosd(dLong)
 
     return atan(s, c)
 end
 
 ## Get the area of a LinearRing with coordinates in radians
 # Using Gidard's theorem
-function _area_from_rads(ring; radius)
+function _linearring_area(ring; radius)
     n = GI.npoint(ring)
     area = -(n-3)*pi
 
@@ -35,16 +35,16 @@ _area_from_coords(transform, geom; radius) = _area_from_coords(transform, GI.tra
 function _area_from_coords(transform::ArchGDAL.CoordTransform, ::GI.LinearRingTrait, ring; radius)
     points = map(GI.getpoint(ring)) do p 
         t = ArchGDAL.transform!(ArchGDAL.createpoint(p...), transform)
-        (deg2rad(GI.x(t)), deg2rad(GI.y(t)))
+        (GI.x(t), GI.y(t))
     end
-    return _area_from_rads(GI.LinearRing(points); radius)
+    return _linearring_area(GI.LinearRing(points); radius)
 end
 
 # For lat-lon projections. Get the area of each latitudinal band, then multiply by the width
 function _area_from_lonlat(lon::XDim, lat::YDim; radius)
     two_pi_R2 = 2 * pi * radius * radius
     band_area = broadcast(DD.intervalbounds(lat)) do yb
-        two_pi_R2 * (sin(deg2rad(yb[2])) - sin(deg2rad(yb[1])))
+        two_pi_R2 * (sind(yb[2]) - sind(yb[1]))
     end
     
     broadcast(DD.intervalbounds(lon), band_area') do xb, ba
