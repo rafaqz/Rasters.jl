@@ -24,13 +24,14 @@ using Rasters: GDALsource, AbstractProjected, RasterStackOrArray, FileArray, NoK
 import Rasters: reproject, resample, warp, cellsize, cellarea, nokw
 
 const RA = Rasters
+const AG = ArchGDAL
 const DD = DimensionalData
 const DA = DiskArrays
 const GI = GeoInterface
 const LA = Lookups
 
-include("cellarea.jl")
 include("gdal_source.jl")
+include("cellarea.jl")
 include("reproject.jl")
 include("resample.jl")
 include("warp.jl")
