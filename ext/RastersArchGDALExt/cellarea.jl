@@ -39,6 +39,7 @@ function _area_from_coords(transform::ArchGDAL.CoordTransform, ::GI.LinearRingTr
     end
     return _area_from_rads(GI.LinearRing(points); radius)
 end
+
 # For lat-lon projections. Get the area of each latitudinal band, then multiply by the width
 function _area_from_lonlat(lon::XDim, lat::YDim; radius)
     two_pi_R2 = 2 * pi * radius * radius
@@ -56,9 +57,9 @@ function cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8)
     isnothing(crs(dims)) && _no_crs_error()
     any(d -> d isa Points, sampling.(dims)) && throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
 
-    areas = if convert(CoordSys, crs(dims)) == CoordSys("Earth Projection 1, 104") # check if need to reproject
+    areas = if _isgeographic(crs(dims)) # check if need to reproject
         _area_from_lonlat(dims...; radius)
-    elseif !isnothing(mappedcrs(dims)) && convert(CoordSys, mappedcrs(dims)) == CoordSys("Earth Projection 1, 104")
+    elseif !isnothing(mappedcrs(dims)) && _isgeographic(mappedcrs(dims))
         _area_from_lonlat(reproject(dims; crs = mappedcrs(dims))...; radius)
     else
         xbnds, ybnds = DD.intervalbounds(dims)
@@ -80,7 +81,9 @@ function cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8)
 
     return Raster(areas, dims)
 end
-
 function cellarea(x::Union{<:AbstractRaster, <:AbstractRasterStack, <:RA.DimTuple}; kw...)
     cellarea(dims(x, (XDim, YDim)); kw...)
 end
+
+# TODO: put these in ArchGDAL
+_isgeographic(crs) = ArchGDAL.GDAL.osrisgeographic(ArchGDAL.importCRS(crs)) |> Bool
