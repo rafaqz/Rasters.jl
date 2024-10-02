@@ -305,9 +305,6 @@ else # surfacelike is not a thing
     Makie.convert_arguments(t::Makie.ImageLike, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
 end
 
-function Makie.convert_arguments(t::Makie.DiscreteSurface, A::AbstractRaster{<:Any,2})
-    return Makie.convert_arguments(t, _prepare_dimarray(A))
-end
 function Makie.convert_arguments(t::Makie.VolumeLike, A::AbstractRaster{<:Any,3}) 
     return Makie.convert_arguments(t, _prepare_dimarray(A))
 end
