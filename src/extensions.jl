@@ -157,11 +157,11 @@ $EXPERIMENTAL
 warp(args...; kw...) = throw_extension_error(warp, "ArchGDAL", :RastersArchGDALExt, args)
 
 """
-    cellarea(x; R = 6371008.8)
+    cellarea(x; radius = 6371008.8)
 
-Gives the approximate size of each cell in square m.
-This function works for any projection, using an algorithm for polygons on a sphere with radius R. It approximates the true size to about 0.1%, depending on latitude.
-R defaults to the arithmetic mean radius of the earth.
+Gives the approximate area of each cell.
+By assuming the earth is a sphere, it approximates the true size to about 0.1%, depending on latitude.
+`radius` defaults to the arithmetic mean radius of the earth in meters.
 
 Run `using ArchGDAL` to make this method available.
 
@@ -203,7 +203,7 @@ function cellsize(args...; kw...)
 cellsize is deprecated and will be removed in a future version, use cellarea instead. 
 Note that cellarea returns the area in square m, while cellsize still uses square km.
 """
-    return cellarea(args...; kw..., R = 6371.0088)
+    return cellarea(args...; kw..., radius = 6371.0088)
 end
 
 # Other shared stubs
