@@ -302,17 +302,9 @@ Makie.convert_arguments(t::Makie.VertexGrid, A::AbstractRaster{<: Any, 2}) = Mak
 Makie.convert_arguments(t::Makie.CellGrid, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
 Makie.convert_arguments(t::Makie.ImageLike, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
 
-# 3d
-function Makie.convert_arguments(t::Makie.VolumeLike, A::AbstractRaster{T, 3, D}) where {T<:Union{Missing, Real}, D<:Tuple}
+function Makie.convert_arguments(t::Makie.VolumeLike, A::AbstractRaster{<:Any,3}) 
     return Makie.convert_arguments(t, _prepare_dimarray(A))
 end
-Makie.convert_arguments(t::Makie.VolumeLike, A::AbstractRaster{<:Any,3}) = Makie.convert_arguments(t, _prepare_dimarray(A))
-Makie.convert_arguments(t::Makie.VolumeSlices, A::AbstractRaster{<:Any,3}) = Makie.convert_arguments(t, _prepare_dimarray(A))
-
-# Note that we don't need to implement the `expand_dimensions` signatures here,
-# because they will be forwarded to the relevant convert_arguments methods above
-# by the DimensionalData overloads to `expand_dimensions`.
-
 # allow plotting 3d rasters with singleton third dimension (basically 2d rasters)
 function Makie.convert_arguments(x::Makie.ConversionTrait, raster::AbstractRaster{<:Union{Real,Missing},3})
     D = _series_dim(raster)
