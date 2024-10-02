@@ -55,7 +55,7 @@ end
 function cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8)
     # check the dimensions 
     isnothing(crs(dims)) && _no_crs_error()
-    any(d -> d isa Points, sampling.(dims)) && throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
+    isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
 
     areas = if _isdegrees(crs(dims)) # check if need to reproject
         _area_from_lonlat(dims...; radius)
