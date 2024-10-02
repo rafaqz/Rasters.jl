@@ -139,6 +139,7 @@ include("methods/reproject.jl")
 include("methods/slice_combine.jl")
 include("methods/trim.jl")
 include("methods/zonal.jl")
+include("methods/mapzonal.jl")
 
 include("sources/grd.jl")
 include("sources/commondatamodel.jl")

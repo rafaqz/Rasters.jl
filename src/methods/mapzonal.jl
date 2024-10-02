@@ -1,5 +1,3 @@
-import Rasters: DD, Extents, GI
-import Rasters: OBJ_ARGUMENT, GEOMETRYCOLUMN_KEYWORD, _get_geometries, _run, RasterStackOrArray
 """
     mapzonal(reducer, operator, data::RasterStack; of, kw...)
 
