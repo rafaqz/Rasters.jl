@@ -157,19 +157,16 @@ $EXPERIMENTAL
 warp(args...; kw...) = throw_extension_error(warp, "ArchGDAL", :RastersArchGDALExt, args)
 
 """
-    cellarea(x; radius = 6371008.8, area_in_crs = false)
+    cellarea([method], x)
 
 Gives the approximate area of each gridcell of `x`.
 By assuming the earth is a sphere, it approximates the true size to about 0.1%, depending on latitude.
 
 Run `using ArchGDAL` to make this method fully available.
 
-# Keywords
-- `radius`: the radius of the sphere of the coordinates. 
-    Defaults to the arithmetic mean radius of the earth in meters.
-- `area_in_crs`: if `true`, returns the area in the units of the crs of `x`, without any reprojection. 
-    This is equal to the distance between the bounds of each gridcell. `ArchGDAL` does not to be loaded if this is set to `true`.
-    `false` by default.
+`method` can be `Spherical(; radius)` (the default) or `Linear()`.
+- `Spherical` will compute cell area on the sphere, by transforming all points back to long-lat.  You can specify the radius by the `radius` keyword argument here.  By default, this is `6371008.8`, the mean radius of the Earth.
+- `Linear` will compute cell area in the plane of the CRS you have chosen.  Be warned that this will likely be incorrect for non-equal-area projections.
 
 ## Example
 
@@ -199,16 +196,19 @@ cs = cellarea(myraster)
 ```
 $EXPERIMENTAL
 """
-cellarea(x; kw...) = cellarea(dims(x, (XDim, YDim)); kw...)
-function cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8, area_in_crs = false)
-    isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
-    areas = if area_in_crs
-        _planar_cellarea(dims)
-    else
-       _spherical_cellarea(dims; radius)
-    end
-    return Raster(areas; dims)
+cellarea(x; kw...) = cellarea(Spherical(), x; kw...)
+cellarea(method::GeometryOpsCore.Manifold, x; kw...) = cellarea(method, dims(x, (XDim, YDim)); kw...)
 
+function cellarea(method::GeometryOpsCore.Linear, dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8, area_in_crs = false)
+    isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
+    _planar_cellarea(dims)
+    return Raster(areas; dims)
+end
+
+function cellarea(method::GeometryOpsCore.Spherical, dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8, area_in_crs = false)
+    isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
+    _spherical_cellarea(dims; radius = method.radius)
+    return Raster(areas; dims)
 end
 
 _spherical_cellarea(args...; kw...) = throw_extension_error(_spherical_cellarea, "ArchGDAL", :RastersArchGDALExt, args)
