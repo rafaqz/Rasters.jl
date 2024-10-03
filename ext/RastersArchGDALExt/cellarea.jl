@@ -76,7 +76,7 @@ function _spherical_cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8)
     else
         xbnds, ybnds = DD.intervalbounds(dims)
         R2 = radius * radius
-        AG.crs2transform(crs(dims), EPSG(4326)) do transform
+        AG.crs2transform(crs(dims), EPSG(4326); order = :trad) do transform
             [_area_from_coords(
                 transform,         
                 GI.LinearRing([
