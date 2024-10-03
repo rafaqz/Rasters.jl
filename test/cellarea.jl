@@ -16,8 +16,6 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     smallspan_25832 = X(Projected(0.0:5:100.0; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(5), crs=EPSG(25832))),
        Y(Projected(0.0:5:100.0; sampling=Intervals(Start()), order = ForwardOrdered(), span = Regular(5), crs=EPSG(25832)))
 
-    @btime cs2 = cellarea($dimz_25832)
-
     cs = cellarea(dimz)
     cs2 = cellarea(dimz_25832)
     cs3 = cellarea((x, y_rev))
@@ -72,5 +70,4 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     # test missing crs throws an error
     nocrsdimz = setcrs(dimz, nothing)
     @test_throws ArgumentError cellarea(nocrsdimz)
-
 end
