@@ -1,43 +1,56 @@
-function _great_circle_bearing(lon1::AbstractFloat, lat1::AbstractFloat, lon2::AbstractFloat, lat2::AbstractFloat)
-    dLong = lon1 - lon2
-
-    s = cosd(lat2)*sind(dLong)
-    c = cosd(lat1)*sind(lat2) - sind(lat1)*cosd(lat2)*cosd(dLong)
-
-    return atan(s, c)
-end
-
 ## Get the area of a LinearRing with coordinates in radians
-# Using Gidard's theorem
-function _linearring_area(ring; radius)
-    n = GI.npoint(ring)
-    area = -(n-3)*pi
+struct SphericalPoint{T <: Real}
+	data::NTuple{3, T}
+end
+SphericalPoint(x, y, z) = SphericalPoint((x, y, z))
 
-    prevpoint = GI.getpoint(ring, n-1)
-    point = GI.getpoint(ring, 1)
-    
-    for i in 2:n
-        nextpoint = GI.getpoint(ring, i)
+# define the 4 basic mathematical operators elementwise on the data tuple
+Base.:+(p::SphericalPoint, q::SphericalPoint) = SphericalPoint(p.data .+ q.data)
+Base.:-(p::SphericalPoint, q::SphericalPoint) = SphericalPoint(p.data .- q.data)
+Base.:*(p::SphericalPoint, q::SphericalPoint) = SphericalPoint(p.data .* q.data)
+Base.:/(p::SphericalPoint, q::SphericalPoint) = SphericalPoint(p.data ./ q.data)
+# Define sum on a SphericalPoint to sum across its data
+Base.sum(p::SphericalPoint) = sum(p.data)
 
-        beta1 = _great_circle_bearing(GI.x(point), GI.y(point), GI.x(prevpoint), GI.y(prevpoint)) 
-        beta2 = _great_circle_bearing(GI.x(point), GI.y(point), GI.x(nextpoint), GI.y(nextpoint)) 
-        angle = acos(cos(-beta1)*cos(-beta2) + sin(-beta1)*sin(-beta2))
-        area += angle
-
-        prevpoint = point
-        point = nextpoint
-    end
-    
-    return area*radius^2
+# define dot and cross products
+dot(p::SphericalPoint, q::SphericalPoint) = sum(p * q)
+function cross(a::SphericalPoint, b::SphericalPoint)
+	a1, a2, a3 = a.data
+    b1, b2, b3 = b.data
+	SphericalPoint((a2*b3-a3*b2, a3*b1-a1*b3, a1*b2-a2*b1))
 end
 
-_area_from_coords(transform, geom; radius) = _area_from_coords(transform, GI.trait(geom), geom; radius)
-function _area_from_coords(transform::AG.CoordTransform, ::GI.LinearRingTrait, ring; radius)
+function _spherical_quadrilateral_area(ring)
+    ps = GI.getpoint(ring)
+    (p1, p2, p3, p4) = _lonlat_to_sphericalpoint.((ps[1], ps[2], ps[3], ps[4]))
+    area = 0.0
+    area += _spherical_triangle_area(p1, p2, p3)
+    area += _spherical_triangle_area(p3, p4, p1)
+end
+
+# Using Eriksson's formula for the area of spherical triangles: https://www.jstor.org/stable/2691141
+function _spherical_triangle_area(a, b, c)
+    #t = abs(dot(a, cross(b, c)))
+    #t /= 1 + dot(b,c) + dot(c, a) + dot(a, b)
+    t = abs(dot(a, (cross(b - a, c - a))) / dot(b + a, c + a))
+    2*atan(t)
+end
+
+_lonlat_to_sphericalpoint(args) = _lonlat_to_sphericalpoint(args...)
+function _lonlat_to_sphericalpoint(lon, lat)
+    x = cosd(lat) * cosd(lon)
+    y = cosd(lat) * sind(lon)
+    z = sind(lat)
+    return SphericalPoint(x,y,z)
+end
+
+_area_from_coords(transform, geom) = _area_from_coords(transform, GI.trait(geom), geom)
+function _area_from_coords(transform::AG.CoordTransform, ::GI.LinearRingTrait, ring)
     points = map(GI.getpoint(ring)) do p 
         t = AG.transform!(AG.createpoint(p...), transform)
         (GI.x(t), GI.y(t))
     end
-    return _linearring_area(GI.LinearRing(points); radius)
+    return _spherical_quadrilateral_area(GI.LinearRing(points))
 end
 
 # For lat-lon projections. Get the area of each latitudinal band, then multiply by the width
@@ -48,7 +61,7 @@ function _area_from_lonlat(lon::XDim, lat::YDim; radius)
     end
     
     broadcast(DD.intervalbounds(lon), band_area') do xb, ba
-        abs(xb[2] - xb[1]) / 360 * ba
+        abs((xb[2] - xb[1]) / 360 * ba)
     end
 end
 
@@ -62,7 +75,8 @@ function _spherical_cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8)
         _area_from_lonlat(reproject(dims; crs = mappedcrs(dims))...; radius)
     else
         xbnds, ybnds = DD.intervalbounds(dims)
-        AG.crs2transform(crs(dims), EPSG(4326), order = :trad) do transform
+        R2 = radius * radius
+        AG.crs2transform(crs(dims), EPSG(4326)) do transform
             [_area_from_coords(
                 transform,         
                 GI.LinearRing([
@@ -71,9 +85,8 @@ function _spherical_cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8)
                     (xb[2], yb[2]), 
                     (xb[1], yb[2]),
                     (xb[1], yb[1])
-                ]); 
-                radius
-                )
+                ])
+                ) * R2
                 for xb in xbnds, yb in ybnds]
         end
     end

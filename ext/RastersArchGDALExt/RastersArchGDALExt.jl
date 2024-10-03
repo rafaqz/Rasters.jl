@@ -23,6 +23,8 @@ using Rasters: GDALsource, AbstractProjected, RasterStackOrArray, FileArray, NoK
 
 import Rasters: reproject, resample, warp, _spherical_cellarea, nokw
 
+import LinearAlgebra: dot, cross
+
 const RA = Rasters
 const AG = ArchGDAL
 const DD = DimensionalData
