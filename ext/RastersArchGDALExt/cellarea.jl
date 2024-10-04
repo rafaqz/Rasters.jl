@@ -21,8 +21,7 @@ function cross(a::SphericalPoint, b::SphericalPoint)
 end
 
 function _spherical_quadrilateral_area(ring)
-    ps = GI.getpoint(ring)
-    (p1, p2, p3, p4) = _lonlat_to_sphericalpoint.((ps[1], ps[2], ps[3], ps[4]))
+    (p1, p2, p3, p4) = _lonlat_to_sphericalpoint.(GI.getpoint(ring))
     area = 0.0
     area += _spherical_triangle_area(p1, p2, p3)
     area += _spherical_triangle_area(p3, p4, p1)
@@ -45,12 +44,9 @@ function _lonlat_to_sphericalpoint(lon, lat)
 end
 
 _area_from_coords(transform, geom) = _area_from_coords(transform, GI.trait(geom), geom)
-function _area_from_coords(transform::AG.CoordTransform, ::GI.LinearRingTrait, ring)
-    points = map(GI.getpoint(ring)) do p 
-        t = AG.transform!(AG.createpoint(p...), transform)
-        (GI.x(t), GI.y(t))
-    end
-    return _spherical_quadrilateral_area(GI.LinearRing(points))
+function _area_from_coords(transform::AG.CoordTransform, trait::GI.AbstractCurveTrait, ring)
+    t = AG.transform!(GI.convert(AG.geointerface_geomtype(trait), ring), transform)
+    return _spherical_quadrilateral_area(t)
 end
 
 # For lat-lon projections. Get the area of each latitudinal band, then multiply by the width
@@ -84,7 +80,6 @@ function _spherical_cellarea(dims::Tuple{<:XDim, <:YDim}; radius = 6371008.8)
                     (xb[2], yb[1]), 
                     (xb[2], yb[2]), 
                     (xb[1], yb[2]),
-                    (xb[1], yb[1])
                 ])
                 ) * R2
                 for xb in xbnds, yb in ybnds]
