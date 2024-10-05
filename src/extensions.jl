@@ -199,15 +199,15 @@ $EXPERIMENTAL
 cellarea(x; kw...) = cellarea(Spherical(), x; kw...)
 cellarea(method::GeometryOpsCore.Manifold, x; kw...) = cellarea(method, dims(x, (XDim, YDim)); kw...)
 
-function cellarea(method::GeometryOpsCore.Linear, dims::Tuple{<:XDim, <:YDim})
+function cellarea(method::GeometryOpsCore.Linear, dims::Tuple{<:XDim, <:YDim}; kw...)
     isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
-    _planar_cellarea(dims)
+    areas = _planar_cellarea(dims; kw...)
     return Raster(areas; dims)
 end
 
-function cellarea(method::GeometryOpsCore.Spherical, dims::Tuple{<:XDim, <:YDim})
+function cellarea(method::GeometryOpsCore.Spherical, dims::Tuple{<:XDim, <:YDim}; kw...)
     isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
-    _spherical_cellarea(dims; radius = method.radius)
+    areas = _spherical_cellarea(dims; radius = method.radius, kw...)
     return Raster(areas; dims)
 end
 
