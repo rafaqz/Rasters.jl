@@ -55,7 +55,7 @@ Makie.set_theme!()
 `Rasters.rplot` should support Observable input out of the box, but the dimensions of that input
 must remain the same - i.e., the element names of a RasterStack must remain the same.
 
-````julia
+````@example makie
 Makie.set_theme!(Rasters.theme_rasters())
 # `stack` is the WorldClim climate data for January
 stack_obs = Observable(stack)
