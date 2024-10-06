@@ -53,8 +53,8 @@ using CommonDataModel: AbstractDataset, AbstractVariable
 
 using DiskArrays: @implement_diskarray
 
-using GeometryOpsCore: Linear, Spherical
-export Linear, Spherical
+using GeometryOpsCore: Planar, Spherical
+export Planar, Spherical
 
 export AbstractRaster, Raster
 export AbstractRasterStack, RasterStack
