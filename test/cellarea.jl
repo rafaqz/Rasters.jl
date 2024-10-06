@@ -42,9 +42,9 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     @test cs == cs_ras
 
     ## test with area_in_crs true
-    cs_planar = cellarea(dimz; area_in_crs = true)
-    cs_planar2 = cellarea(dimz_25832; area_in_crs = true)
-    cs_planar3 = cellarea((x, y_rev); area_in_crs = true)
+    cs_planar = cellarea(Planar(), dimz)
+    cs_planar2 = cellarea(Planar(), dimz_25832)
+    cs_planar3 = cellarea(Planar(), (x, y_rev))
     @test all(≈(0.01), cs_planar)
     @test all(≈(10_000), cs_planar2)
     @test all(≈(0.01), cs_planar3)
