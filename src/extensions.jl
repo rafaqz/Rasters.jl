@@ -164,9 +164,9 @@ By assuming the earth is a sphere, it approximates the true size to about 0.1%, 
 
 Run `using ArchGDAL` to make this method fully available.
 
-`method` can be `Spherical(; radius)` (the default) or `Linear()`.
+`method` can be `Spherical(; radius)` (the default) or `Planar()`.
 - `Spherical` will compute cell area on the sphere, by transforming all points back to long-lat.  You can specify the radius by the `radius` keyword argument here.  By default, this is `6371008.8`, the mean radius of the Earth.
-- `Linear` will compute cell area in the plane of the CRS you have chosen.  Be warned that this will likely be incorrect for non-equal-area projections.
+- `Planar` will compute cell area in the plane of the CRS you have chosen.  Be warned that this will likely be incorrect for non-equal-area projections.
 
 ## Example
 
@@ -199,7 +199,7 @@ $EXPERIMENTAL
 cellarea(x; kw...) = cellarea(Spherical(), x; kw...)
 cellarea(method::GeometryOpsCore.Manifold, x; kw...) = cellarea(method, dims(x, (XDim, YDim)); kw...)
 
-function cellarea(method::GeometryOpsCore.Linear, dims::Tuple{<:XDim, <:YDim}; kw...)
+function cellarea(method::GeometryOpsCore.Planar, dims::Tuple{<:XDim, <:YDim}; kw...)
     isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
     areas = _planar_cellarea(dims; kw...)
     return Raster(areas; dims)
