@@ -422,7 +422,7 @@ gdalpath = maybedownload(url)
             @test (@allocations write(filename2, gdalarray; force=true)) < 1e4
             saved = Raster(filename2; crs=crs(gdalarray), mappedcrs=crs(gdalarray))
             @test size(saved) == size(gdalarray)
-            @test saved ≈ gdalarray
+            @test parent(saved) ≈ parent(gdalarray)
             clat, clon = DimensionalData.shiftlocus.(Ref(Center()), dims(gdalarray, (Y, X)))
             @test index(clat) ≈ index(saved, Y)
             @test index(clon) ≈ index(saved, X)

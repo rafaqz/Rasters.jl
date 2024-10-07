@@ -342,7 +342,7 @@ end
             @test bounds(grdarray) == bounds(nccleaned)
             @test index(grdarray, Y) ≈ reverse(index(nccleaned, Y)) .- 0.5
             @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
-            @test reverse(grdarray; dims=Y) ≈ nccleaned
+            @test parent(reverse(grdarray; dims=Y)) ≈ parent(nccleaned)
             # rm("testgrd.gri")
             # rm("testgrd.grd")
         end
