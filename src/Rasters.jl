@@ -21,6 +21,7 @@ import Adapt,
        FillArrays,
        Flatten,
        GeoInterface,
+       GeometryOpsCore,
        OffsetArrays,
        ProgressMeter,
        Missings,
@@ -51,6 +52,9 @@ using ColorTypes: RGB
 using CommonDataModel: AbstractDataset, AbstractVariable
 
 using DiskArrays: @implement_diskarray
+
+using GeometryOpsCore: Planar, Spherical
+export Planar, Spherical
 
 export AbstractRaster, Raster
 export AbstractRasterStack, RasterStack
