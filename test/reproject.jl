@@ -36,8 +36,8 @@ using Rasters: reproject, convertlookup
     reprojected_raster = reproject(raster; crs=projcea)
     # Dims have changed
     @test dims(reprojected_raster) == (x1, y1)
-    # Raster has not changed
-    @test reprojected_raster == raster
+    # Parent data has not changed
+    @test parent(reprojected_raster) == parent(raster)
 
     @test_throws ArgumentError reproject(cea, EPSG(32618), Y(), [-3.658789324855012e6])
     @test_throws ArgumentError reproject(cea, EPSG(32618), X(), [-3.658789324855012e6])
