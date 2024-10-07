@@ -1,6 +1,6 @@
 
-const DimOrDimTuple = Union{Dimension,Tuple{Vararg{<:Dimension}}}
-const IntOrIntTuple = Union{Int,Tuple{Vararg{<:Int}}}
+const DimOrDimTuple = Union{Dimension,Tuple{Vararg{Dimension}}}
+const IntOrIntTuple = Union{Int,Tuple{Vararg{Int}}}
 
 struct Ag end
 struct DisAg end
