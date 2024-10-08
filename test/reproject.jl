@@ -3,7 +3,7 @@ using Rasters.Lookups, Rasters.Dimensions
 using Rasters: reproject, convertlookup
 
 @testset "reproject" begin
-    cea = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
+    cea = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0 +type=crs")
     wktcea = convert(WellKnownText, Proj.CRS(cea))
     projcea = convert(ProjString, Proj.CRS(cea))
     wkt4326 = convert(WellKnownText, Proj.CRS(EPSG(4326)))
@@ -49,7 +49,7 @@ using Rasters: reproject, convertlookup
 end
 
 @testset "convertlookup" begin
-    projcea = ProjString("+proj=cea")
+    projcea = ProjString("+proj=cea +type=crs")
     proj4326 = convert(ProjString, Proj.CRS(EPSG(4326)))
 
     lonstart, lonend = 0.5, 179.5

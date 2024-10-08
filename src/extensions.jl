@@ -156,6 +156,8 @@ $EXPERIMENTAL
 """
 warp(args...; kw...) = throw_extension_error(warp, "ArchGDAL", :RastersArchGDALExt, args)
 
+# stubs that need Proj
+
 """
     cellarea([method], x)
 
@@ -211,7 +213,7 @@ function cellarea(method::GeometryOpsCore.Spherical, dims::Tuple{<:XDim, <:YDim}
     return Raster(areas; dims)
 end
 
-_spherical_cellarea(args...; kw...) = throw_extension_error(_spherical_cellarea, "ArchGDAL", :RastersArchGDALExt, args)
+_spherical_cellarea(args...; kw...) = throw_extension_error(_spherical_cellarea, "Proj", :RastersProjExt, args)
 
 function _planar_cellarea(dims::Tuple{<:XDim, <:YDim})
     xbnds, ybnds = DD.intervalbounds(dims)
