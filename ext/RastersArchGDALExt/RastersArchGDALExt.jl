@@ -33,8 +33,6 @@ const GI = GeoInterface
 const LA = Lookups
 
 include("gdal_source.jl")
-include("cellarea.jl")
-# include("reproject.jl")
 include("resample.jl")
 include("warp.jl")
 

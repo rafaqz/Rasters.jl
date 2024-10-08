@@ -28,5 +28,6 @@ const DA = DiskArrays
 const GI = GeoInterface
 const LA = Lookups
 
+include("cellarea.jl")
 include("reproject.jl")
 end
