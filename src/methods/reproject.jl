@@ -74,7 +74,7 @@ function _reproject(source::Nothing, target::GeoFormat, dim::Union{XDim,YDim}, v
     reshape(reproject(source, target, dim, vec(vals)), size(vals))
 end
 function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim}, vals::AbstractVector) 
-    error("Rasters.jl requires backends to be loaded externally as of version 0.8. Run `using ArchGDAL` to use `reproject`")
+    throw_extension_error(_reproject, "Proj", :RastersProjExt, (source, target, dim, vals))
 end
 
 # Guess the step for arrays
