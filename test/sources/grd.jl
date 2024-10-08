@@ -224,6 +224,7 @@ grdpath = stem * ".gri"
             # 1 band is added again on save
             @test size(saved) == size(grdarray[Band(1)])
             @test parent(saved) == parent(grdarray[Band(1)])
+            write(filename2, grdarray; force = true)
             @test (@allocations write(filename2, grdarray; force = true)) < 1e3
         end
 
@@ -250,6 +251,7 @@ grdpath = stem * ".gri"
             @test all(parent(saved) .=== parent(geoA))
             @test saved isa typeof(geoA)
             @test parent(saved) == parent(geoA)
+            write(filename, GRDsource(), geoA; force = true)
             @test (@allocations write(filename, GRDsource(), geoA; force = true)) < 1e3
         end
 
@@ -264,6 +266,7 @@ grdpath = stem * ".gri"
             @test index(saved, Y) ≈ index(grdarray, Y) .+ 0.5
             @test bounds(saved, Y) == bounds(grdarray, Y)
             @test bounds(saved, X) == bounds(grdarray, X)
+            write(filename2, grdarray; force = true)
             @test (@allocations write(filename2, grdarray; force = true)) < 1e3
 
         end
