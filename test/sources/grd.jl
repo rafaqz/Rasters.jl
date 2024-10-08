@@ -224,7 +224,7 @@ grdpath = stem * ".gri"
             # 1 band is added again on save
             @test size(saved) == size(grdarray[Band(1)])
             @test parent(saved) == parent(grdarray[Band(1)])
-            @test (@allocations write(filename2, grdarray[Band(1)]; force = true)) < 1e3
+            @test (@allocations write(filename2, grdarray; force = true)) < 1e3
         end
 
         @testset "3d with subset" begin
