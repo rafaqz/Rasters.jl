@@ -264,7 +264,7 @@ grdpath = stem * ".gri"
             @test index(saved, Y) ≈ index(grdarray, Y) .+ 0.5
             @test bounds(saved, Y) == bounds(grdarray, Y)
             @test bounds(saved, X) == bounds(grdarray, X)
-            @test (@allocations write(filename2, grdarray[Band(1)]; force = true)) < 1e3
+            @test (@allocations write(filename2, grdarray; force = true)) < 1e3
 
         end
 
