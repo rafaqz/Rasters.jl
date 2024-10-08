@@ -1,4 +1,4 @@
-using Rasters, DimensionalData, Rasters.Lookups, ArchGDAL
+using Rasters, DimensionalData, Rasters.Lookups, Proj
 using Test
 using DimensionalData: @dim, YDim
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
