@@ -58,9 +58,9 @@ function _combine(ser::AbstractRasterSeries; lazy = isdisk(ser))
     ras1 = first(ser)
     alldims = (dims(ras1)..., dims(ser)...)
     ser_res = DD._insert_length_one_dims(ser, alldims)
-    data = DA.ConcatDiskArray(parent(ser_res))
+    data = DA.ConcatDiskArray(map(parent, parent(ser_res)))
     data = lazy ? data : collect(data)
-    rebuild(ras1; data, dims = alldims, refdims = otherdims(dims(ras1, alldims)))
+    rebuild(ras1; data, dims=alldims, refdims=otherdims(dims(ras1, alldims)))
 end
 function _combine(ser::AbstractRasterSeries{<:AbstractRasterStack{K}}; kw...) where K
     r1 = first(ser)

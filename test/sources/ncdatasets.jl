@@ -331,8 +331,9 @@ end
             # Tiff locus = Start, Netcdf locus = Center
             @test index(gdalarray, Y) .+ 0.5 ≈ index(nccleaned, Y)
             @test index(gdalarray, X) .+ 1.0  ≈ index(nccleaned, X)
-            @test gdalarray ≈ nccleaned
+            @test parent(gdalarray) ≈ parent(nccleaned)
         end
+
         @testset "to grd" begin
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             write("testgrd.gri", nccleaned; force=true)
@@ -343,8 +344,8 @@ end
             @test index(grdarray, Y) ≈ reverse(index(nccleaned, Y)) .- 0.5
             @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
             @test parent(reverse(grdarray; dims=Y)) ≈ parent(nccleaned)
-            # rm("testgrd.gri")
-            # rm("testgrd.grd")
+            rm("testgrd.gri")
+            rm("testgrd.grd")
         end
 
         @testset "write points" begin

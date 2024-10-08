@@ -700,7 +700,7 @@ end
             # Test forcing
             write(filename, gdalstack; force=true);
             saved = RasterStack(filename);
-            @test all(read(saved[:a]) .== geoA)
+            @test all(parent(read(saved[:a])) .== parent(geoA))
             rm(filename)
         end
 

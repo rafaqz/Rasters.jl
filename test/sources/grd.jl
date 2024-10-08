@@ -259,7 +259,7 @@ grdpath = stem * ".gri"
             write(filename2, grdarray[Band(1)]; force = true)
             saved = Raster(filename2; crs=crs(grdarray))
             @test size(saved) == size(grdarray[Band(1)])
-            @test all(replace_missing(saved, missingval(grdarray)) .≈ grdarray[Band(1)])
+            @test all(parent(replace_missing(saved, missingval(grdarray))) .≈ parent(grdarray[Band(1)]))
             @test index(saved, X) ≈ index(grdarray, X) .+ 0.5
             @test index(saved, Y) ≈ index(grdarray, Y) .+ 0.5
             @test bounds(saved, Y) == bounds(grdarray, Y)
