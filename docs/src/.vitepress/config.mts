@@ -29,7 +29,7 @@ export default defineConfig({
   themeConfig: {
     outline: 'deep',
     // https://vitepress.dev/reference/default-theme-config
-    logo: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
+    logo: '/logo.png',
     search: {
       provider: 'local',
       options: {

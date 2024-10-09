@@ -105,7 +105,7 @@ function DD.modify(f, A::AbstractRaster)
     return rebuild(A, newdata)
 end
 
-function DD.DimTable(As::Tuple{<:AbstractRaster,Vararg{<:AbstractRaster}}...)
+function DD.DimTable(As::Tuple{<:AbstractRaster,Vararg{AbstractRaster}}...)
     DD.DimTable(DimStack(map(read, As...)))
 end
 
@@ -372,7 +372,7 @@ end
 filekey(ds, name) = name
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
-DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = Raster
+DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{Dimension}}) = Raster
 
 
 function _drop_single_band(raster, lazy::Bool)

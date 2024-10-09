@@ -8,7 +8,7 @@ function _auto_dim_columns(table, dims::Tuple)
 end
 
 _not_a_dimcol(table, dimcols::DimTuple) = _not_a_dimcol(table, map(name, dimcols))
-_not_a_dimcol(table, dimcols::Tuple{Vararg{<:Pair}}) = _not_a_dimcol(table, map(last, dimcols))
+_not_a_dimcol(table, dimcols::Tuple{Vararg{Pair}}) = _not_a_dimcol(table, map(last, dimcols))
 _not_a_dimcol(table, dimcols::Tuple{}) = ()
 function _not_a_dimcol(table, dimcols::Tuple{Vararg{Symbol}})
     dimcols = (dimcols..., :Band) # TODO deal with how annoying `Band` is 
