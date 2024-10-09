@@ -21,7 +21,7 @@ using Rasters: GDALsource, AbstractProjected, RasterStackOrArray, FileArray, NoK
     GDAL_EMPTY_TRANSFORM, GDAL_TOPLEFT_X, GDAL_WE_RES, GDAL_ROT1, GDAL_TOPLEFT_Y, GDAL_ROT2, GDAL_NS_RES,
     _no_crs_error
 
-import Rasters: reproject, resample, warp, _spherical_cellarea, nokw
+import Rasters: reproject, resample, warp, nokw
 
 import LinearAlgebra: dot, cross
 
