@@ -26,7 +26,21 @@ function RA.Raster(T::Type{<:RDS.RasterDataSource}, layer; crs=_source_crs(T), k
     filename = getraster(T, layer; rds_kw...)
     Raster(filename; name=RDS.layerkeys(T, layer), crs, ra_kw...)
 end
-
+function RA.Raster(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}; crs=_source_crs(T), kw...)
+    rds_kw, ra_kw = _filterkw(T, kw)
+    filename = getraster(T; rds_kw...)
+    Raster(filename; crs, ra_kw...)
+end
+function RA.Raster(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}, layer; crs=_source_crs(T), lazy = false, kw...)
+    rds_kw, ra_kw = _filterkw(T, kw)
+    filename = getraster(T, layer; rds_kw...)
+    ras_all = Raster(filename; name=RDS.bioclim_key(layer), crs, ra_kw...)
+    ras = view(ras_all, Band(RDS.bioclim_int(layer)))
+    if ~lazy
+        read(ras)
+    end
+    return ras
+end
 """
     RasterStack(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => RasterStack
 
