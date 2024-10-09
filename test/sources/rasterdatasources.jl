@@ -32,6 +32,20 @@ end
     st[:bio1]
     @test st isa RasterStack
     @test A isa Raster
+    # Future Bioclim works
+    st = RasterStack(WorldClim{Future{BioClim, CMIP6, GFDL_ESM4, SSP370}}, (1, 2); 
+        date = Date(2050), res = "10m",
+        lazy=true, 
+        missingval=Inf, 
+        crs=nothing, 
+        mappedcrs=EPSG(4326),
+    )
+    @test missingval(st) === Inf32
+    @test missingval(st.bio1) === Inf32
+    ra = Raster(WorldClim{Future{BioClim, CMIP6, GFDL_ESM4, SSP370}}, 2; 
+        date = Date(2050), res = "10m"
+    )
+    @test Rasters.name(ra) == :bio2    
 end
 
 @testset "load CHELSA BioClim" begin
