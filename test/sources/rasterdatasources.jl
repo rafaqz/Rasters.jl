@@ -1,4 +1,4 @@
-using Rasters, RasterDataSources, Test, Dates, ArchGDAL, NCDatasets
+using Rasters, RasterDataSources, Test, Dates, ArchGDAL, NCDatasets, Proj
 
 # Too big to test on CI
 # if !haskey(ENV, "CI")
