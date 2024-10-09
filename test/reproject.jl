@@ -1,13 +1,13 @@
-using Rasters, Test, ArchGDAL
+using Rasters, Test, Proj
 using Rasters.Lookups, Rasters.Dimensions
 using Rasters: reproject, convertlookup
 
 @testset "reproject" begin
-    cea = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
-    wktcea = convert(WellKnownText, cea)
-    projcea = convert(ProjString, cea)
-    wkt4326 = convert(WellKnownText, EPSG(4326))
-    proj4326 = convert(ProjString, EPSG(4326))
+    cea = ProjString("+proj=cea +lon_0=0 +lat_ts=30 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0 +type=crs")
+    wktcea = convert(WellKnownText, Proj.CRS(cea))
+    projcea = convert(ProjString, Proj.CRS(cea))
+    wkt4326 = convert(WellKnownText, Proj.CRS(EPSG(4326)))
+    proj4326 = convert(ProjString, Proj.CRS(EPSG(4326)))
 
 
     @test reproject(proj4326, cea, Y(), -30.0) ≈ -3.658789324855012e6
@@ -37,6 +37,7 @@ using Rasters: reproject, convertlookup
     # Dims have changed
     @test dims(reprojected_raster) == (x1, y1)
     # Parent data has not changed
+    # NOTE: this test only works because both rasters are in memory.
     @test parent(reprojected_raster) == parent(raster)
 
     @test_throws ArgumentError reproject(cea, EPSG(32618), Y(), [-3.658789324855012e6])
@@ -48,8 +49,8 @@ using Rasters: reproject, convertlookup
 end
 
 @testset "convertlookup" begin
-    projcea = ProjString("+proj=cea")
-    proj4326 = convert(ProjString, EPSG(4326))
+    projcea = ProjString("+proj=cea +type=crs")
+    proj4326 = convert(ProjString, Proj.CRS(EPSG(4326)))
 
     lonstart, lonend = 0.5, 179.5
     cealonstart, cealonend = reproject(proj4326, projcea, X(), [lonstart, lonend])

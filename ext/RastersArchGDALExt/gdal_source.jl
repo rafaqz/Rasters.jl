@@ -1,5 +1,3 @@
-const AG = ArchGDAL
-
 const GDAL_LOCUS = Start()
 
 const GDAL_DIM_ORDER = (X(), Y(), Band())
