@@ -57,6 +57,17 @@ function RA.RasterStack(T::Type{<:RDS.RasterDataSource}, layers::Tuple; crs=_sou
     filenames = map(l -> RDS.getraster(T, l; rds_kw...), layers)
     RasterStack(filenames; name=RDS.layerkeys(T, layers), crs, ra_kw...)
 end
+# WorldClim future has all layers in one .tif file - format this as a rasterdatastack in a dedicated dispatch
+function RA.RasterStack(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}, layers::Tuple; crs=_source_crs(T), lazy = false, kw...)
+    rds_kw, ra_kw = _filterkw(T, kw)
+    filename = RDS.getraster(T, layers; rds_kw...)
+    raster = Raster(filename; lazy = true)
+    stack = RasterStack(eachslice(raster; dims = Band)...; name=RDS.layerkeys(T), crs, ra_kw...)[layers]
+    if ~lazy
+        stack = read(stack)
+    end
+    return stack
+end
 
 """
     RasterSeries(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => AbstractRasterSeries
