@@ -36,7 +36,7 @@ using Rasters: reproject, convertlookup
     reprojected_raster = reproject(raster; crs=projcea)
     # Dims have changed
     @test dims(reprojected_raster) == (x1, y1)
-    # Raster has not changed
+    # Parent data has not changed
     # NOTE: this test only works because both rasters are in memory.
     @test parent(reprojected_raster) == parent(raster)
 

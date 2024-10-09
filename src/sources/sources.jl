@@ -58,7 +58,10 @@ end
 
 # error message to show when backend is not loaded
 function Base.showerror(io::IO, e::BackendException)
-    print(io, "`Rasters.jl` requires backends to be loaded externally as of version 0.8. Run `import $(e.backend)` to fix this error.")
+    printstyled(io, "Rasters.jl"; underline = true)
+    printstyled(io, " requires backends to be loaded manually.  Run ")
+    printstyled(io, "`import $(e.backend)`"; bold = true)
+    print(io, "to fix this error.")
 end
 
 # Get the source backend for a file extension, falling back to GDALsource

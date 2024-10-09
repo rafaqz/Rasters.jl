@@ -76,6 +76,7 @@ end
     r1 = Raster(ones(4, 5, 10), (X(), Y(), Ti(10:10:100))) .* reshape(1:10, (1, 1, 10))
     r2 = r1 .* 2
     ser = slice(r1, Ti)
+
     @test size(ser) == (10,)
     combined = Rasters.combine(ser, Ti())
     @test combined == r1

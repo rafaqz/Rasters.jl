@@ -1,8 +1,6 @@
 
 const HIDE_DEC = (; label=true, grid=false, minorgrid=false, minorticks=false)
 
-const SurfaceLikeCompat = isdefined(Makie, :SurfaceLike) ? Makie.SurfaceLike : Union{Makie.VertexGrid,Makie.CellGrid,Makie.ImageLike}
-
 function Rasters.style_rasters()
     Makie.Attributes(
         Axis=(
@@ -288,22 +286,21 @@ function Makie.plottype(raster::AbstractRaster{<:Union{Missing,Real},3})
     end
 end
 
+# ## `convert_arguments`
+# We need to handle missing values properly here, which DimensionalData.jl can't.  
+# That's why we have the `_prepare_dimarray` function, and also why this extension is necessary.
+
+# 1d
 function Makie.convert_arguments(t::Makie.PointBased, A::AbstractRaster{<:Any,1})
     return Makie.convert_arguments(t, _prepare_dimarray(A))
 end
 function Makie.convert_arguments(t::Makie.PointBased, A::AbstractRaster{<:Number,2})
     return Makie.convert_arguments(t, _prepare_dimarray(A))
 end
-@static if isdefined(Makie, :SurfaceLike)
 
-    function Makie.convert_arguments(t::SurfaceLike, A::AbstractRaster{var"#s115", 2, D}) where {var"#s115", D<:Tuple}
-        return Makie.convert_arguments(t, _prepare_dimarray(A))
-    end
-else # surfacelike is not a thing
-    Makie.convert_arguments(t::Makie.VertexGrid, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
-    Makie.convert_arguments(t::Makie.CellGrid, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
-    Makie.convert_arguments(t::Makie.ImageLike, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
-end
+Makie.convert_arguments(t::Makie.VertexGrid, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
+Makie.convert_arguments(t::Makie.CellGrid, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
+Makie.convert_arguments(t::Makie.ImageLike, A::AbstractRaster{<: Any, 2}) = Makie.convert_arguments(t, _prepare_dimarray(A))
 
 function Makie.convert_arguments(t::Makie.VolumeLike, A::AbstractRaster{<:Any,3}) 
     return Makie.convert_arguments(t, _prepare_dimarray(A))
@@ -319,9 +316,12 @@ function Makie.convert_arguments(x::Makie.ConversionTrait, raster::AbstractRaste
         return Makie.convert_arguments(x, view(raster, rebuild(D, 1)))
     end
 end
+
 function Makie.convert_arguments(x::Makie.ConversionTrait, series::AbstractRasterSeries)
     return Makie.convert_arguments(x, first(series))
 end
+
+# ## Utility / helper functions
 
 function _series_dim(A)
     spatialdims = (X(), Y(), Z())
