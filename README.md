@@ -16,36 +16,6 @@ manipulating rasterized spatial data.
 These currently include raster arrays like GeoTIFF and NetCDF, R grd files, 
 multi-layered stacks, and multi-file series of arrays and stacks. 
 
-
-## :warning: Packages extensions and Rasters 0.8 and onwards 
-
-On Julia 1.9 we can put additional packages in extensions, so the code only loads when
-you load a specific package. Rasters.jl was always intended to work like this,
-and its finally possible. This reduced package `using` time from many seconds to well under a second.
-
-But, it means you have to manually load packages you need for each backend or additional
-functionality.
-
-For example, to use the GDAL backend, and download files, you now need to do:
-
-```julia
-using Rasters, ArchGDAL, RasterDataSources
-```
-
-where previously it was just `using Rasters`.
-
-Sources and packages needed:
-- `:gdal`: `using ArchGDAL`
-- `:netcdf`: `using NCDatasets`
-- `:grd`: built-in.
-- `:smap`: `using HDF5`
-- `:grib`: `using GRIBDatasets`.
-
-Other functionality in extensions:
-- Raster data downloads, like `Worldclim{Climate}`: `using RasterDataSources`
-- Makie plots: `using Makie`
-- Coordinate transformations for gdal rasters: `using CoordinateTransformations`
-
 # Quick start
 Install the package by typing:
 
@@ -54,6 +24,7 @@ Install the package by typing:
 add Rasters
 ```
 
+Then to use it:
 ```julia
 using Rasters
 ```
@@ -87,6 +58,29 @@ values: [:, :, 1]
  30   0.334152   0.136551    0.183555    0.941133   0.450484    0.461862
 [and 12 more slices...]
 ```
+## Packages that work with Rasters
+
+Rasters reduces its dependencies to keep the `using` time low.
+But, it means you have to manually load packages you need for each 
+backend or additional functionality.
+
+For example, to use the GDAL backend, and download RasterDataSources files, you now need to do:
+
+```julia
+using Rasters, ArchGDAL, RasterDataSources
+```
+
+Sources and packages needed:
+- `:gdal`: `using ArchGDAL`
+- `:netcdf`: `using NCDatasets`
+- `:grd`: built-in.
+- `:grib`: `using GRIBDatasets`.
+- `:zarr`: `using ZarrDatasets`.
+
+Other functionality in extensions:
+- Raster data downloads, like `Worldclim{Climate}`: `using RasterDataSources`
+- Makie plots: `using GLMakie` (opengl interactive) or `using CairoMakie` (print) etc.
+- Coordinate transformations for gdal rasters: `using CoordinateTransformations`
 
 ## Getting the `lookup` array from dimensions
 
@@ -215,6 +209,13 @@ be used with identical syntax.
   projection, the conversion is handled automatically. This means lat/lon
   `EPSG(4326)` can be used seamlessly if you need that.
 
+# Performance
+
+Rasters should be the fastest tool available for most tasks. If you find 
+something is faster in another package, it's likely a bug - so make an issue!
+
+![image](https://github.com/user-attachments/assets/1c6c56ac-4c5a-4096-984d-15bf2783682c)
+
 
 # Bugs, errors and making issues for Rasters.jl
 
@@ -226,8 +227,11 @@ Because there are so many raster file types and variations of them, most of the 
 
 To make an issue we can fix quickly (or at all) there are three key steps:
 
-1. Include the file in an accessible place on web *without authentication* or any other work on our part, so we can just get it and find your bug. You can put it on a file hosting platform (e.g. google drive, drop box, whatever you use) and share the url.
-2. Add a minimum working example to the issue template that first downloads the file, then runs the function that triggers the bug.
-3. Paste the complete stack trace of the error it produces, right to the bottom, into the issue template. Then we can be sure we reproduced the same problem.
+1. Use a RasterDataSources.jl file if you can, so there are no download hassles.
+   Otherwise store a file in an accessible place on web *without authentication* and preferably where you
+   can use `dowload` directly, so we just run the script can spend our time finding your bug.
+2. Add a minimum working example to the issue template that first downloads the file with `download`, then runs the function that triggers the bug.
+3. Paste the complete stack trace of the error it produces, right to the bottom, into the issue template.
+   Then we can be sure we have reproduced the same problem.
 
 Good issues are really appreciated, but they do take just a little extra effort with Rasters.jl because of this need for files.

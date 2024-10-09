@@ -129,7 +129,7 @@ Then load raster data. We load some worldclim layers using `RasterDataSources` v
 
 ````@example plots
 using Rasters, RasterDataSources
-
+using Dates
 climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
 ````
 
