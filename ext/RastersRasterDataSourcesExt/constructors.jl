@@ -60,9 +60,10 @@ end
 # WorldClim future has all layers in one .tif file - format this as a rasterdatastack in a dedicated dispatch
 function RA.RasterStack(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}, layers::Tuple; crs=_source_crs(T), lazy = false, kw...)
     rds_kw, ra_kw = _filterkw(T, kw)
+    keys = map(RDS.bioclim_key, layers)
     filename = RDS.getraster(T, layers; rds_kw...)
-    raster = Raster(filename; lazy = true)
-    stack = RasterStack(eachslice(raster; dims = Band)...; name=RDS.layerkeys(T), crs, ra_kw...)[layers]
+    raster = Raster(filename; lazy = true, ra_kw...)
+    stack = RasterStack(eachslice(raster; dims = Band)...; name=RDS.layerkeys(T), crs)[keys]
     if ~lazy
         stack = read(stack)
     end
