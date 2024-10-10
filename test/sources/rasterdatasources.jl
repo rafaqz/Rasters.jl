@@ -59,13 +59,13 @@ end
     # Allow forcing keywords
     st = RasterStack(CHELSA{BioClim}, (1, 2); 
          lazy=true, 
-         missingval=-Int16(9999), 
+         missingval= Int16(9999), 
          metadata=Rasters.NoMetadata(), 
          crs=nothing, 
          mappedcrs=EPSG(4326),
     )
-    @test missingval(st) === Int16(-9999)
-    @test missingval(st.bio1) == Int16(-9999)
+    @test missingval(st) === UInt16(9999)
+    @test missingval(st.bio1) === UInt16(9999)
     @test metadata(st) == Rasters.NoMetadata()
 end
 
