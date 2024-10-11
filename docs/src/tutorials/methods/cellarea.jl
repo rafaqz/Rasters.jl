@@ -98,3 +98,14 @@ bad_total_precip = sum(skipmissing(masked_precip))
 bad_avg_precip = bad_total_precip / length(collect(skipmissing(masked_precip)))
 # This is misestimated!  This is why it's important to account for cell areas when computing averages.
 
+#=
+!!! note
+    If you made it this far, congratulations!  
+
+    It's interesting to note that we've replicated the workflow of `zonal` here.  
+    `zonal` is a more general function that can be used to compute any function over geometries, 
+    and it has multithreading built in.  
+    
+    But fundamentally, this is all that `zonal` is doing under the hood - 
+    masking and cropping the raster to the geometry, and then computing the statistic.
+=#
