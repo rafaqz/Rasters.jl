@@ -269,6 +269,7 @@ function Raster(A::AbstractArray{T,1}, dims::Tuple{<:Dimension,<:Dimension,Varar
 )::Raster{T,length(dims)} where T
     Raster(reshape(A, map(length, dims)), dims; kw...)
 end
+Raster(A::AbstractArray{<:Any,1}, dim::Dimension; kw...) = Raster(A, (dim,); kw...)
 function Raster(table, dims::Tuple;
     name=nokw,
     kw...
