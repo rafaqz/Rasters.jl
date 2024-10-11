@@ -2,7 +2,7 @@
 """
     reproject(obj; crs)
 
-Reproject the lookups of `obj` to a different crs. 
+Reproject the lookups (axes) of `obj` to a different crs. 
 
 This is a lossless operation for the raster data, as only the 
 lookup values change. This is only possible when the axes of source
@@ -10,7 +10,8 @@ and destination projections are aligned: the change is usually from
 a [`Regular`](@ref) and an [`Irregular`](@ref) lookup spans.
 
 For converting between projections that are rotated, 
-skewed or warped in any way, use [`resample`](@ref).
+skewed or warped in any way, *or* if you want to re-sample the 
+_data_, use [`resample`](@ref).
 
 Dimensions without an `AbstractProjected` lookup (such as a `Ti` dimension)
 are silently returned without modification.
@@ -41,8 +42,9 @@ end
 """
     reproject(source::GeoFormat, target::GeoFormat, dim::Dimension, val)
 
-`reproject` uses ArchGDAL.reproject, but implemented for a reprojecting
-a value array of values, a single dimension at a time.
+`reproject` uses Proj.jl's `Transformation` interface, 
+but implemented for reprojecting a lookup / axis array, 
+a single dimension at a time.
 """
 function reproject(source, target, dim, val)
     if source == target
