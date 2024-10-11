@@ -1,8 +1,15 @@
 Rasters.sample(x::RA.RasterStackOrArray, n::Integer; kw...) = Rasters.sample(Random.GLOBAL_RNG, x, n; kw...)
 @inline function Rasters.sample(
     rng::Random.AbstractRNG, x::RA.RasterStackOrArray, n::Integer; 
-    geometry = true, index = false, names=RA._names(x), name=names, skipmissing = false,
-    replace = true, ordered = false, weights = nothing, weightstype::Type{<:StatsBase.AbstractWeights} = StatsBase.Weights
+    geometry=true,
+    index = false, 
+    names=RA._names(x), 
+    name=names, 
+    skipmissing=false,
+    replace=true, 
+    ordered=false, 
+    weights=nothing, 
+    weightstype::Type{<:StatsBase.AbstractWeights}=StatsBase.Weights
 )
     na = DD._astuple(name)
     _sample(rng, x, n;
