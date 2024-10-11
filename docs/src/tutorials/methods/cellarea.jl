@@ -1,7 +1,11 @@
 #=
 # `cellarea` tutorial
 
-```@docs collapsed=true, canonical=false
+```@meta
+CollapsedDocStrings=true
+```
+
+```@docs; canonical=false
 cellarea
 ```
 
@@ -45,3 +49,52 @@ heatmap(ras; axis = (; aspect = DataAspect()))
 # We can also try this using the planar method, which simply computes the area of the rectangle using `area = x_side_length * y_side_length`:
 cellarea(ras, Planar())
 # Note that this is of course wildly inaccurate for a geographic dataset - but if you're working in a projected coordinate system, like polar stereographic or Mercator, this can be very useful (and a _lot_ faster)!
+
+#=
+## Usage example
+Let's get the rainfall over Chile, and compute the average rainfall per meter squared across the country for the month of June.
+
+We'll get the precipitation data across the globe from [WorldClim](https://www.worldclim.org/data/index.html), via [RasterDataSources.jl](https://github.com/EcoJulia/RasterDataSources.jl), and use the `month` keyword argument to get the June data.
+
+Then, we can get the geometry of Chile from [NaturalEarth.jl](https://github.com/JuliaGeo/NaturalEarth.jl), and use `Rasters.mask` to get the data just for Chile.
+=#
+
+using RasterDataSources, NaturalEarth
+
+precip = Raster(WorldClim{Climate}, :prec; month = 6)
+#
+all_countries = naturalearth("admin_0_countries", 10)
+chile = all_countries.geometry[findfirst(==("Chile"), all_countries.NAME)]
+# Let's plot the precipitation on the world map, and highlight Chile:
+f, a, p = heatmap(precip; colorrange = Makie.zscale(replace_missing(precip, NaN)), axis = (; aspect = DataAspect()))
+p2 = poly!(a, chile; color = (:red, 0.5))
+f
+# You can see Chile highlighted in red, in the bottom left quadrant.
+#
+# First, let's make sure that we only have the data that we care about, and crop and mask the raster so it only has values in Chile.
+# We can crop by the geometry, which really just generates a view into the raster that is bounded by the geometry's bounding box.
+cropped_precip = crop(precip; to = chile)
+# Now, we mask the data such that any data outside the geometry is set to `missing`.
+masked_precip = mask(cropped_precip; with = chile)
+heatmap(masked_precip)
+# This is a lot of missing data, but that's mainly because the Chile geometry we have encompasses the Easter Islands as well, in the middle of the Pacific.
+
+# Now, let's compute the average precipitation per square meter across Chile.
+# First, we need to get the area of each cell in square meters.  We'll use the spherical method, since we're working with a geographic coordinate system.  This is the default.
+areas = cellarea(masked_precip)
+masked_areas = mask(areas; with = chile)
+heatmap(masked_areas; axis = (; title = "Cell area in square meters"))
+# Now we can compute the average precipitation per square meter.  First, we compute total precipitation per grid cell:
+precip_per_area = masked_precip .* masked_areas
+# We can sum this to get the total precipitation per square meter across Chile:
+total_precip = sum(skipmissing(precip_per_area))
+# We can also sum the areas to get the total area of Chile (in this raster, at least).
+total_area = sum(skipmissing(masked_areas))
+# And we can convert that to an average by dividing by the total area:
+avg_precip = total_precip / total_area
+# So on average, Chile gets about 100mm of rain per square meter in June.
+# Let's see what happens if we don't account for cell areas:
+bad_total_precip = sum(skipmissing(masked_precip))
+bad_avg_precip = bad_total_precip / length(collect(skipmissing(masked_precip)))
+# This is misestimated!  This is why it's important to account for cell areas when computing averages.
+
