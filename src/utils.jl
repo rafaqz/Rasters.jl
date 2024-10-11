@@ -27,7 +27,7 @@ function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source, missin
     if ismissing(Rasters.missingval(A))
         newmissingval = missingval isa NoKW ? _type_missingval(Missings.nonmissingtype(T)) : missingval
         A1 = replace_missing(A, newmissingval)
-        @warn "`missing` cant be written with $(SOURCE2SYMBOL[source]), missinval for `$(eltype(A1))` of `$newmissingval` used instead"
+        @warn "`missing` cant be written with $(SOURCE2SYMBOL[source]), missingval for `$(eltype(A1))` of `$newmissingval` used instead"
         return A1
     else
         return A

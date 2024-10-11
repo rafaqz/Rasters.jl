@@ -45,7 +45,7 @@ function Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStac
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
     try
         if missingval isa NamedTuple
-            map(k -> RA._writevar!(ds, s[k]; missinval=missingval[k], kw...), keys(s))
+            map(k -> RA._writevar!(ds, s[k]; missingval=missingval[k], kw...), keys(s))
         else
             map(k -> RA._writevar!(ds, s[k]; missingval, kw...), keys(s))
         end
