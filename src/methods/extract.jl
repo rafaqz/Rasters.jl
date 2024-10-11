@@ -5,7 +5,7 @@ istrue(::_True) = true
 istrue(::_False) = false
 
 """
-    extract(x, data; [geometry, index, name, skipmissing, atol])
+    extract(x, data; kw...)
 
 Extracts the value of `Raster` or `RasterStack` at given points, returning
 an iterable of `NamedTuple` with properties for `:geometry` and raster or
