@@ -742,13 +742,3 @@ test = rebuild(ga; name = :test)
     @test_throws "strictly positive" Rasters.sample(StableRNG(123), test, 3, skipmissing = true, replace = false)
     @test_throws "Cannot draw" Rasters.sample(StableRNG(123), test, 5, replace = false)
 end
-
-eltype(test)
-test2 = replace_missing(test, 0.0)
-
-
-
-Rasters._nametypes(test2, (test = :test,), Rasters._False())
-typeof((a = 1,))
-concretent((a = 1,))
-concretent(nt::T) where T <: NamedTuple{StackNames,Types} where {StackNames,Types} = NamedTuple{StackNames}(Types.parameters)
