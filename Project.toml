@@ -102,7 +102,8 @@ RasterDataSources = "3cb90ccd-e1b6-4867-9617-4276c8b2ca36"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Shapefile = "8e980c4a-a4fe-5da2-b3a7-4b4b0353a2f4"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "ArchGDAL", "CFTime", "CoordinateTransformations", "DataFrames", "GeoDataFrames", "GeometryBasics", "GRIBDatasets", "NCDatasets", "Plots", "Proj", "RasterDataSources", "SafeTestsets", "Shapefile", "Statistics", "Test", "ZarrDatasets"]
+test = ["Aqua", "ArchGDAL", "CFTime", "CoordinateTransformations", "DataFrames", "GeoDataFrames", "GeometryBasics", "GRIBDatasets", "NCDatasets", "Plots", "Proj", "RasterDataSources", "SafeTestsets", "Shapefile", "Statistics", "Test", "Unitful", "ZarrDatasets"]
