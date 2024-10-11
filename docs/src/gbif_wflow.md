@@ -1,6 +1,8 @@
-Load occurrences for the Mountain Pygmy Possum using GBIF.jl
+# GBIF workflow
 
-## Load GBIF
+In this example, we'll load occurrences for the Mountain Pygmy Possum species using [GBIF2.jl](https://github.com/rafaqz/GBIF2.jl), an interface to the [Global Biodiversity Information Facility](https://www.gbif.org/), and extract environmental variables using BioClim data from [RasterDataSources.jl](https://github.com/EcoJulia/RasterDataSources.jl).
+
+## Load GBIF species data
 
 ````@example gbif
 using Rasters, GBIF2
@@ -38,10 +40,15 @@ foreach(i -> scatter!(p, coords; subplot=i, kw...), 1:4)
 p
 ````
 
-Then extract predictor variables and write to CSV.
+Then extract predictor variables.
+````@example gbif
+predictors = collect(extract(se_aus, coords))
+````
+
+These are recognized as a table format in Julia, so we can write them to file using CSV.jl:
+
 ````@example gbif
 using CSV
-predictors = collect(extract(se_aus, coords))
 CSV.write("burramys_parvus_predictors.csv", predictors)
 ````
 
