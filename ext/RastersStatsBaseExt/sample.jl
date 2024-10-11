@@ -20,7 +20,10 @@ Rasters.sample(x::RA.RasterStackOrArray, n::Integer; kw...) = Rasters.sample(Ran
     )
 
 end
-function _sample(rng, x, n; dims, names::NamedTuple{K}, geometry, index, skipmissing, weights, replace, ordered, weightstype) where K
+function _sample(
+    rng, x, n; 
+    dims, names::NamedTuple{K}, geometry, index, skipmissing, weights, replace, ordered, weightstype
+) where K
     indices = sample_indices(rng, x, n, skipmissing, weights, replace, ordered, weightstype)
     tuplepoint = map(first, dims)
     T = _srowtype(x, tuplepoint; geometry, index, skipmissing, names)
@@ -68,20 +71,29 @@ function _srowtype(x, g::Type; geometry, index, skipmissing, names, kw...)
     types = _srowtypes(x, g, geometry, index, skipmissing, names)
     NamedTuple{keys,types}
 end
-function _srowtypes(x, ::Type{G}, geometry::_True, index::_True, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
+function _srowtypes(
+    x, ::Type{G}, geometry::_True, index::_True, skipmissing::_False, names::NamedTuple{Names}
+) where {G,Names}
     Tuple{G,Tuple{Int,Int},_nametypes(x, names)...}
 end
-function _srowtypes(x, ::Type{G}, geometry::_False, index::_True, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
+function _srowtypes(
+    x, ::Type{G}, geometry::_False, index::_True, skipmissing::_False, names::NamedTuple{Names}
+) where {G,Names}
     Tuple{Tuple{Int,Int},_nametypes(x, names)...}
 end
-function _srowtypes(x, ::Type{G}, geometry::_True, index::_False, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
+function _srowtypes(
+    x, ::Type{G}, geometry::_True, index::_False, skipmissing::_False, names::NamedTuple{Names}
+) where {G,Names}
     Tuple{G,_nametypes(x, names)...}
 end
-function _srowtypes(x, ::Type{G}, geometry::_False, index::_False, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
+function _srowtypes(
+    x, ::Type{G}, geometry::_False, index::_False, skipmissing::_False, names::NamedTuple{Names}
+) where {G,Names}
     Tuple{_nametypes(x, names)...}
 end
 # fallback
-_srowtypes(x, T, geometry, index, skipmissing::_True, names) = RA._rowtypes(x, T, geometry, index, skipmissing, names)
+_srowtypes(x, T, geometry, index, skipmissing::_True, names) = 
+    RA._rowtypes(x, T, geometry, index, skipmissing, names)
 # adapted from extract code
 @inline _nametypes(::Raster{T}, ::NamedTuple{Names}) where {T,Names} = (T,)
 function _nametypes(::RasterStack{<:Any,T}, ::NamedTuple{PropNames}) where 
