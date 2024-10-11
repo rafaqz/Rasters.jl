@@ -671,3 +671,84 @@ end
                    0.0     0.0     missing    
                    missing missing missing], dims=3))
 end
+
+using StableRNGs, StatsBase
+test = rebuild(ga; name = :test)
+@testset "sample" begin
+    # test that all keywords work and return the same thing as extract
+    @test all(Rasters.sample(StableRNG(123), test, 2) .=== extract(test, [(2.0,2.0), (1.0,2.0)]))
+    @test all(Rasters.sample(StableRNG(123), st2, 2) .=== extract(st2, [(2,2), (1,2)]))
+    @test all(Rasters.sample(StableRNG(123), test, 2; geometry = false) .=== extract(test, [(2.0,2.0), (1.0,2.0)]; geometry = false))
+    @test all(Rasters.sample(StableRNG(123), st2, 2; geometry = false) .=== extract(st2, [(2,2), (1,2)]; geometry = false))
+    
+    @test all(Rasters.sample(StableRNG(123), test, 2, skipmissing = true) .=== extract(test, [(2.0,1.0), (2.0,1.0)], skipmissing = true))
+    @test all(Rasters.sample(StableRNG(123), st2, 2, skipmissing = true) .=== extract(st2, [(2,1), (2,1)], skipmissing = true))
+
+    @test all(
+        Rasters.sample(StableRNG(123), test, 2, skipmissing = true, index = true) .=== 
+        extract(test, [(2.0,1.0), (2.0,1.0)], skipmissing = true, index = true))
+    @test all(
+        Rasters.sample(StableRNG(123), st2, 2, skipmissing = true, index = true) .=== 
+        extract(st2, [(2,1), (2,1)], skipmissing = true, index = true))
+
+    kws = [(:geometry => false,), (:index => true,), ()]
+    for kw in kws
+        @test all(        
+            Rasters.sample(StableRNG(123), test, 2; skipmissing = true, kw...) .=== 
+            extract(test, [(2.0,1.0), (2.0,1.0)]; skipmissing = true, kw...)
+            )
+            
+        @test all(
+            Rasters.sample(StableRNG(123), st2, 2; skipmissing = true, kw...) .== 
+            extract(st2, [(2,1), (2,1)]; skipmissing = true, kw...)
+        )
+    end
+    @test all(Rasters.sample(StableRNG(123), st2, 2, name = (:a,)) .=== extract(st2, [(2,2), (1,2)], name = (:a,)))
+
+    # in this case extract and sample always return different types
+    @test eltype(Rasters.sample(StableRNG(123), test, 2, index = true)) != eltype(extract(test, [(2.0,1.0), (2.0,1.0)], index = true))
+    @test eltype(Rasters.sample(StableRNG(123), st2, 2, index = true)) != eltype(extract(st2, [(2,1), (2,1)], index = true))
+
+    @test all(
+        Rasters.sample(StableRNG(123), test, 2, weights = DimArray([1,1000], X(1:2)), skipmissing = true) .===
+        [
+            (geometry = (2.0,1.0), test = 2.0f0)
+            (geometry = (2.0,1.0), test = 2.0f0)
+        ]
+    )
+
+    @test all(
+        Rasters.sample(StableRNG(123), test, 2, weights = DimArray([1,1000], X(1:2)), skipmissing = true, weightstype = StatsBase.FrequencyWeights) .===
+        [
+            (geometry = (2.0,1.0), test = 2.0f0)
+            (geometry = (2.0,1.0), test = 2.0f0)
+        ]
+    )
+
+    @test all(
+        Rasters.sample(StableRNG(123), test, 2, skipmissing = true, replace = false) .===
+        [
+            (geometry = (2.0,1.0), test = 2.0f0)
+            (geometry = (1.0,2.0), test = 7.0f0)
+        ]
+    )
+    @test all(
+        Rasters.sample(StableRNG(123), test, 2, skipmissing = true, replace = false, ordered = true) .===
+        [
+            (geometry = (2.0,1.0), test = 2.0f0)
+            (geometry = (1.0,2.0), test = 7.0f0)
+        ]
+    )
+    @test_throws "strictly positive" Rasters.sample(StableRNG(123), test, 3, skipmissing = true, replace = false)
+    @test_throws "Cannot draw" Rasters.sample(StableRNG(123), test, 5, replace = false)
+end
+
+eltype(test)
+test2 = replace_missing(test, 0.0)
+
+
+
+Rasters._nametypes(test2, (test = :test,), Rasters._False())
+typeof((a = 1,))
+concretent((a = 1,))
+concretent(nt::T) where T <: NamedTuple{StackNames,Types} where {StackNames,Types} = NamedTuple{StackNames}(Types.parameters)

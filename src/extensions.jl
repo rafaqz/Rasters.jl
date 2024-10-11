@@ -228,6 +228,48 @@ Note that cellarea returns the area in square m, while cellsize still uses squar
     return cellarea(args...; kw..., radius = 6371.0088)
 end
 
+"""
+Rasters.sample([rng], x, n; [geometry, index, name, skipmissing, replace, ordered, weights])
+
+Sample from a `Raster` or `RasterStack` with additional options that match those provided by [`extract`](@ref)
+
+Run `using StatsBase` to make this method available.
+Note that this function is not exported to avoid confusion with StatsBase.sample
+
+# Keywords
+
+- `geometry`: include `:geometry` in returned `NamedTuple`, `true` by default.
+- `index`: include `:index` of the `CartesianIndex` in returned `NamedTuple`, `false` by default.
+- `name`: a `Symbol` or `Tuple` of `Symbol` corresponding to layer/s of a `RasterStack` to extract. All layers by default.
+- `skipmissing`: skip missing points automatically.
+- `replace`: sample with replacement, `true` by default.
+- `ordered`: sample in order, `false` by default.
+- `weights`: A DimArray that matches one or more of the dimensions of `x` with weights for sampling.
+- `weightstype`: a `StatsBase.AbstractWeights`. Defaults to `StatsBase.Weights`.
+
+# Example
+This code draws 10 samples from the raster `myraster`, with weights adjusted by cell size.
+```julia
+using Rasters, Rasters.Lookups, Proj, StatsBase
+xdim = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), crs=EPSG(4326)))
+ydim = Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), crs=EPSG(4326)))
+myraster = rand(xdim, ydim)
+Rasters.sample(myraster, 5; weights = cellarea(myraster))
+
+# output
+
+5-element Vector{@NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}}:
+ @NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}(((90.0, 10.0), 0.7360504790189618))
+ @NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}(((90.0, 30.0), 0.5447657183842469))
+ @NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}(((90.0, 30.0), 0.5447657183842469))
+ @NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}(((90.0, 10.0), 0.7360504790189618))
+ @NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}(((110.0, 10.0), 0.5291143028176258))
+```
+"""
+sample(args...; kw...) = throw_extension_error(sample, "StatsBase", :RastersStatsBaseExt, args)
+
+
+
 # Other shared stubs
 function layerkeys end
 function smapseries end
