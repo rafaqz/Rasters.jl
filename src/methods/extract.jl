@@ -1,9 +1,3 @@
-using DimensionalData.Lookups: _True, _False
-
-_booltype(x) = x ? _True() : _False()
-istrue(::_True) = true
-istrue(::_False) = false
-
 """
     extract(x, data; [geometry, index, name, skipmissing, atol])
 
@@ -78,7 +72,7 @@ function extract end
 end
 
 function _extract(A::RasterStackOrArray, geom::Missing, names, kw...)
-    T = _rowtype(A, geom; names, kw...)
+    T = _extractrowtype(A, geom; names, kw...)
     [_maybe_add_fields(T, map(_ -> missing, names), missing, missing)]
 end
 function _extract(A::RasterStackOrArray, geom; names, kw...)
@@ -89,9 +83,9 @@ function _extract(A::RasterStackOrArray, ::Nothing, data;
 )
     geoms = _get_geometries(data, geometrycolumn)
     T = if istrue(skipmissing)
-        _rowtype(A, nonmissingtype(eltype(geoms)); names, skipmissing, kw...)
+        _extractrowtype(A, nonmissingtype(eltype(geoms)); names, skipmissing, kw...)
     else
-        _rowtype(A, eltype(geoms); names, skipmissing, kw...)
+        _extractrowtype(A, eltype(geoms); names, skipmissing, kw...)
     end
     # Handle empty / all missing cases
     (length(geoms) > 0 && any(!ismissing, geoms)) || return T[]
@@ -143,14 +137,14 @@ end
 function _extract(A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom; 
     skipmissing, kw...
 )
-    T = _rowtype(A, GI.getpoint(geom, 1); names, skipmissing, kw...)
+    T = _extractrowtype(A, GI.getpoint(geom, 1); names, skipmissing, kw...)
     rows = (_extract_point(T, A, p, skipmissing; kw...) for p in GI.getpoint(geom))
     return skipmissing isa _True ? collect(_skip_missing_rows(rows, _missingval_or_missing(A), names)) : collect(rows)
 end
 function _extract(A::RasterStackOrArray, ::GI.PointTrait, geom; 
     skipmissing, kw...
 )
-    T = _rowtype(A, geom; names, skipmissing, kw...)
+    T = _extractrowtype(A, geom; names, skipmissing, kw...)
     _extract_point(T, A, geom, skipmissing; kw...)
 end
 function _extract(A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom;
@@ -168,7 +162,7 @@ function _extract(A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom;
     else
         GI.x(p), GI.y(p)
     end
-    T = _rowtype(A, tuplepoint; names, skipmissing, kw...)
+    T = _extractrowtype(A, tuplepoint; names, skipmissing, kw...)
     B = boolmask(geom; to=template, kw...)
     offset = CartesianIndex(map(x -> first(x) - 1, parentindices(parent(template))))
     # Add a row for each pixel that is `true` in the mask
@@ -309,45 +303,24 @@ end
     return values(nt[PropNames])
 end
 
-# _rowtype returns the complete NamedTuple type for a point row
-# This code is entirely for types stability and performance.
-function _rowtype(x, g; geometry, index, skipmissing, names, kw...)
-    G = if skipmissing isa _True
+function _extractrowtype(x, g; geometry, index, skipmissing, names, kw...)
+    I = if istrue(skipmissing)
+        Tuple{Int, Int}
+    else
+        Union{Missing, Tuple{Int, Int}}
+    end
+    _extractrowtype(x, g, I; geometry, index, skipmissing, names, kw...)
+end
+function _extractrowtype(x, g, ::Type{I}; geometry, index, skipmissing, names, kw...) where I
+    G = if istrue(skipmissing)
         nonmissingtype(typeof(g))
     else
         typeof(g)
     end
-    _rowtype(x, G; geometry, index, skipmissing, names)
+    _extractrowtype(x, G, I; geometry, index, skipmissing, names, kw...)
 end
-function _rowtype(x, g::Type; geometry, index, skipmissing, names, kw...)
-    keys = _rowkeys(geometry, index, names)
-    types = _rowtypes(x, g, geometry, index, skipmissing, names)
-    NamedTuple{keys,types}
-end
-
-function _rowtypes(x, ::Type{G}, geometry::_True, index::_True, skipmissing::_True, names::NamedTuple{Names}) where {G,Names}
-    types = Tuple{G,Tuple{Int,Int},_nametypes(x, names, skipmissing)...}
-end
-function _rowtypes(x, ::Type{G}, geometry::_True, index::_False, skipmissing, names::NamedTuple{Names}) where {G,Names}
-    types = Tuple{G,_nametypes(x, names, skipmissing)...}
-end
-function _rowtypes(x, ::Type{G}, geometry::_False, index::_True, skipmissing::_True, names::NamedTuple{Names}) where {G,Names}
-    types = Tuple{Tuple{Int,Int},_nametypes(x, names, skipmissing)...}
-end
-function _rowtypes(x, ::Type{G}, geometry::_True, index::_True, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
-    types = Tuple{G,Union{Missing,Tuple{Int,Int}},_nametypes(x, names, skipmissing)...}
-end
-function _rowtypes(x, ::Type{G}, geometry::_False, index::_True, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
-    types = Tuple{Union{Missing,Tuple{Int,Int}},_nametypes(x, names, skipmissing)...}
-end
-function _rowtypes(x, ::Type{G}, geometry::_False, index::_False, skipmissing, names::NamedTuple{Names}) where {G,Names}
-    types = Tuple{_nametypes(x, names, skipmissing)...}
-end
-
-_rowkeys(geometry::_False, index::_False, names::NamedTuple{Names}) where Names = Names
-_rowkeys(geometry::_True, index::_False, names::NamedTuple{Names}) where Names = (:geometry, Names...)
-_rowkeys(geometry::_True, index::_True, names::NamedTuple{Names}) where Names = (:geometry, :index, Names...)
-_rowkeys(geometry::_False, index::_True, names::NamedTuple{Names}) where Names = (:index, Names...)
+_extractrowtype(x, ::Type{G}, ::Type{I}; geometry, index, skipmissing, names, kw...) where {G, I} =
+    _rowtype(x, G, I; geometry, index, skipmissing, names)
 
 @inline _skip_missing_rows(rows, ::Missing, names) = 
     Iterators.filter(row -> !any(ismissing, row), rows)

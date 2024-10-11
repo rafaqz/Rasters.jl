@@ -26,7 +26,8 @@ function _sample(
 ) where K
     indices = sample_indices(rng, x, n, skipmissing, weights, replace, ordered, weightstype)
     tuplepoint = map(first, dims)
-    T = _srowtype(x, tuplepoint; geometry, index, skipmissing, names)
+    indextype = typeof(size(x))
+    T = _samplerowtype(x, tuplepoint, indextype; geometry, index, skipmissing, names)
     rows = Vector{T}(undef, n)
     points = DimPoints(dims)
     
@@ -65,40 +66,11 @@ function sample_indices(rng, x, n, skipmissing::_True, weights::AbstractDimArray
 end
 
 # Determine the row type, making use of some of extract machinery
-_srowtype(x, g; kw...) = _srowtype(x, typeof(g); kw...)
-function _srowtype(x, g::Type; geometry, index, skipmissing, names, kw...)
-    keys = RA._rowkeys(geometry, index, names)
-    types = _srowtypes(x, g, geometry, index, skipmissing, names)
-    NamedTuple{keys,types}
-end
-function _srowtypes(
-    x, ::Type{G}, geometry::_True, index::_True, skipmissing::_False, names::NamedTuple{Names}
-) where {G,Names}
-    Tuple{G,Tuple{Int,Int},_nametypes(x, names)...}
-end
-function _srowtypes(
-    x, ::Type{G}, geometry::_False, index::_True, skipmissing::_False, names::NamedTuple{Names}
-) where {G,Names}
-    Tuple{Tuple{Int,Int},_nametypes(x, names)...}
-end
-function _srowtypes(
-    x, ::Type{G}, geometry::_True, index::_False, skipmissing::_False, names::NamedTuple{Names}
-) where {G,Names}
-    Tuple{G,_nametypes(x, names)...}
-end
-function _srowtypes(
-    x, ::Type{G}, geometry::_False, index::_False, skipmissing::_False, names::NamedTuple{Names}
-) where {G,Names}
-    Tuple{_nametypes(x, names)...}
-end
-# fallback
-_srowtypes(x, T, geometry, index, skipmissing::_True, names) = 
-    RA._rowtypes(x, T, geometry, index, skipmissing, names)
-# adapted from extract code
-@inline _nametypes(::Raster{T}, ::NamedTuple{Names}) where {T,Names} = (T,)
-function _nametypes(::RasterStack{<:Any,T}, ::NamedTuple{PropNames}) where 
-        {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
-    nt = NamedTuple{StackNames}(Types.parameters)
-    return values(nt[PropNames])
+_samplerowtype(x, g, i; kw...) = _samplerowtype(x, typeof(g), i; kw...)
+_samplerowtype(x, ::Type{G}, i; kw...) where G = _samplerowtype(x, G, typeof(i); kw...)
+function _samplerowtype(
+    x, ::Type{G}, ::Type{I}; geometry, index, skipmissing, names, kw...
+) where {G, I}
+    RA._rowtype(x, G, I; geometry, index, skipmissing, names)
 end
 
