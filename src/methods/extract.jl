@@ -319,9 +319,9 @@ function _rowtype(x, g; geometry, index, skipmissing, names, kw...)
     end
     _rowtype(x, G; geometry, index, skipmissing, names)
 end
-function _rowtype(x, g::Type; geometry, index, skipmissing, names, kw...)
+function _rowtype(x, ::Type{G}; geometry, index, skipmissing, names, kw...)
     keys = _rowkeys(geometry, index, names)
-    types = _rowtypes(x, g, geometry, index, skipmissing, names)
+    types = _rowtypes(x, G, geometry, index, skipmissing, names)
     NamedTuple{keys,types}
 end
 
