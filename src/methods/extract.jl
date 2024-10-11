@@ -5,7 +5,7 @@ istrue(::_True) = true
 istrue(::_False) = false
 
 """
-    extract(x, data; atol)
+    extract(x, data; [geometry, index, name, skipmissing, atol])
 
 Extracts the value of `Raster` or `RasterStack` at given points, returning
 an iterable of `NamedTuple` with properties for `:geometry` and raster or
@@ -311,49 +311,43 @@ end
 
 # _rowtype returns the complete NamedTuple type for a point row
 # This code is entirely for types stability and performance.
-_rowtype(x, g; kw...) = _rowtype(x, typeof(g); kw...)
-_rowtype(x, g::Type; geometry, index, skipmissing, names, kw...) = 
-    _rowtype(x, g, geometry, index, skipmissing, names)
-function _rowtype(x, ::Type{G}, geometry::_True, index::_True, skipmissing::_True, names::NamedTuple{Names}) where {G,Names}
-    keys = (:geometry, :index, Names...,) 
+function _rowtype(x, g; geometry, index, skipmissing, names, kw...)
+    G = if skipmissing isa _True
+        nonmissingtype(typeof(g))
+    else
+        typeof(g)
+    end
+    _rowtype(x, G; geometry, index, skipmissing, names)
+end
+function _rowtype(x, g::Type; geometry, index, skipmissing, names, kw...)
+    keys = _rowkeys(geometry, index, names)
+    types = _rowtypes(x, g, geometry, index, skipmissing, names)
+    NamedTuple{keys,types}
+end
+
+function _rowtypes(x, ::Type{G}, geometry::_True, index::_True, skipmissing::_True, names::NamedTuple{Names}) where {G,Names}
     types = Tuple{G,Tuple{Int,Int},_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
 end
-function _rowtype(x, ::Type{G}, geometry::_True, index::_False, skipmissing::_True, names::NamedTuple{Names}) where {G,Names}
-    keys = (:geometry, Names...,)
+function _rowtypes(x, ::Type{G}, geometry::_True, index::_False, skipmissing, names::NamedTuple{Names}) where {G,Names}
     types = Tuple{G,_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
 end
-function _rowtype(x, ::Type{G}, geometry::_False, index::_True, skipmissing::_True, names::NamedTuple{Names}) where {G,Names}
-    keys = (:index, Names...,) 
+function _rowtypes(x, ::Type{G}, geometry::_False, index::_True, skipmissing::_True, names::NamedTuple{Names}) where {G,Names}
     types = Tuple{Tuple{Int,Int},_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
 end
-function _rowtype(x, ::Type{G}, geometry::_False, index::_False, skipmissing::_True, names::NamedTuple{Names}) where {G,Names}
-    keys = Names
-    types = Tuple{_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
+function _rowtypes(x, ::Type{G}, geometry::_True, index::_True, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
+    types = Tuple{G,Union{Missing,Tuple{Int,Int}},_nametypes(x, names, skipmissing)...}
 end
-function _rowtype(x, ::Type{G}, geometry::_True, index::_True, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
-    keys = (:geometry, :index, names...,) 
-    types = Tuple{Union{Missing,G},Union{Missing,Tuple{Int,Int}},_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
-end
-function _rowtype(x, ::Type{G}, geometry::_True, index::_False, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
-    keys = (:geometry, Names...,)
-    types = Tuple{Union{Missing,G},_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
-end
-function _rowtype(x, ::Type{G}, geometry::_False, index::_True, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
-    keys = (:index, Names...,) 
+function _rowtypes(x, ::Type{G}, geometry::_False, index::_True, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
     types = Tuple{Union{Missing,Tuple{Int,Int}},_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
 end
-function _rowtype(x, ::Type{G}, geometry::_False, index::_False, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
-    keys = Names
+function _rowtypes(x, ::Type{G}, geometry::_False, index::_False, skipmissing, names::NamedTuple{Names}) where {G,Names}
     types = Tuple{_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
 end
+
+_rowkeys(geometry::_False, index::_False, names::NamedTuple{Names}) where Names = Names
+_rowkeys(geometry::_True, index::_False, names::NamedTuple{Names}) where Names = (:geometry, Names...)
+_rowkeys(geometry::_True, index::_True, names::NamedTuple{Names}) where Names = (:geometry, :index, Names...)
+_rowkeys(geometry::_False, index::_True, names::NamedTuple{Names}) where Names = (:index, Names...)
 
 @inline _skip_missing_rows(rows, ::Missing, names) = 
     Iterators.filter(row -> !any(ismissing, row), rows)

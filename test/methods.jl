@@ -399,7 +399,7 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (index = (1, 2), test = 2,)
         ])
         # NamedTuple (reversed) points - tests a Table that iterates over points
-        T = @NamedTuple{geometry::Union{Missing,@NamedTuple{Y::Float64,X::Float64}},test::Union{Missing,Int64}}
+        T = @NamedTuple{geometry::Union{@NamedTuple{Y::Float64,X::Float64}},test::Union{Missing,Int64}}
         @test all(extract(rast, [(Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) .=== T[
             (geometry = (Y = 0.1, X = 9.0), test = 1)
             (geometry = (Y = 0.2, X = 10.0), test = 4)
@@ -412,7 +412,7 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         ])
         # Extract a polygon
         p = ArchGDAL.createpolygon([[[8.0, 0.0], [11.0, 0.0], [11.0, 0.4], [8.0, 0.0]]])
-        T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
+        T = @NamedTuple{geometry::Union{Tuple{Float64,Float64}},test::Union{Missing,Int64}}
         @test all(extract(rast_m, p) .=== T[
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (10.0, 0.1), test = 3)
@@ -447,7 +447,7 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (index = (2, 1), test = 3)
             (index = (2, 2), test = missing)
         ])
-        T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},index::Union{Missing,Tuple{Int,Int}},test::Union{Missing,Int64}}
+        T = @NamedTuple{geometry::Union{Tuple{Float64,Float64}},index::Union{Missing,Tuple{Int,Int}},test::Union{Missing,Int64}}
         @test all(extract(rast_m, p; index=true) .=== T[
              (geometry = (9.0, 0.1), index = (1, 1), test = 1)
              (geometry = (10.0, 0.1), index = (2, 1), test = 3)
