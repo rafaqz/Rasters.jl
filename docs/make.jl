@@ -18,6 +18,20 @@ function flush_info_and_warnings()
 end
 flush_info_and_warnings()
 
+# Convert the tutorials from .jl to .md
+# Note that this converts every file in the `docs/src/tutorials/` directory,
+# so be careful when adding new tutorials.
+
+# One could add a filtering statement when looping over the files to filter out certain names.
+
+tutorials_dir = joinpath(@__DIR__, "src", "tutorials")
+for (root, dirs, files) in walkdir(tutorials_dir)
+    for file in files
+        if splitext(file)[2] == ".jl"
+            Literate.markdown(joinpath(root, file), root; flavor = Literate.DocumenterFlavor())
+        end
+    end
+end
 
 Logging.disable_logging(Logging.Warn)
 
