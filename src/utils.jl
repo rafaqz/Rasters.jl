@@ -359,3 +359,44 @@ function _no_memory_error(f, bytes)
     """
     return error(msg)
 end
+
+
+# _rowtype returns the complete NamedTuple type for a point row
+# This code is entirely for types stability and performance.
+# It is used in extract and Rasters.sample
+using DimensionalData.Lookups: _True, _False
+_booltype(x) = x ? _True() : _False()
+istrue(::_True) = true
+istrue(::_False) = false
+
+function _rowtype(x, ::Type{G}, ::Type{I}; geometry, index, skipmissing, names) where {G, I}
+    keys = _rowkeys(geometry, index, names)
+    types = _rowtypes(x, G, I, geometry, index, skipmissing, names)
+    NamedTuple{keys,types}
+end
+
+function _rowtypes(
+    x, ::Type{G}, ::Type{I}, geometry::_True, index::_True, skipmissing, names::NamedTuple{Names}
+) where {G,I,Names}
+    Tuple{G,I,_nametypes(x, names, skipmissing)...}
+end
+function _rowtypes(
+    x, ::Type{G}, ::Type{I}, geometry::_True, index::_False, skipmissing, names::NamedTuple{Names}
+) where {G,I,Names}
+    Tuple{G,_nametypes(x, names, skipmissing)...}
+end
+function _rowtypes(
+    x, ::Type{G}, ::Type{I}, geometry::_False, index::_True, skipmissing, names::NamedTuple{Names}
+) where {G,I,Names}
+    Tuple{I,_nametypes(x, names, skipmissing)...}
+end
+function _rowtypes(
+    x, ::Type{G}, ::Type{I}, geometry::_False, index::_False, skipmissing, names::NamedTuple{Names}
+) where {G,I,Names}
+    Tuple{_nametypes(x, names, skipmissing)...}
+end
+
+_rowkeys(geometry::_False, index::_False, names::NamedTuple{Names}) where Names = Names
+_rowkeys(geometry::_True, index::_False, names::NamedTuple{Names}) where Names = (:geometry, Names...)
+_rowkeys(geometry::_True, index::_True, names::NamedTuple{Names}) where Names = (:geometry, :index, Names...)
+_rowkeys(geometry::_False, index::_True, names::NamedTuple{Names}) where Names = (:index, Names...)
