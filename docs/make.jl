@@ -1,7 +1,7 @@
 using Documenter, Rasters, Plots, Logging, Statistics, Dates, 
-    RasterDataSources, ArchGDAL, NCDatasets, CoordinateTransformations
+    RasterDataSources, ArchGDAL, Proj, NCDatasets, CoordinateTransformations
 import Makie, CairoMakie
-using DocumenterVitepress
+using DocumenterVitepress, Documenter, Literate
 using Rasters.LookupArrays, Rasters.Dimensions
 
 # Don't output huge svgs for Makie plots
@@ -44,8 +44,6 @@ makedocs(
         devurl = "dev";
     ),
     draft = false,
-    source = "src",
-    build = "build",
     warnonly=true,
 )
 
