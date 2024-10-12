@@ -374,7 +374,6 @@ istrue(::_False) = false
 
 # skipinvalid: can G and I be missing. skipmissing: can nametypes be missing
 _rowtype(x, g, args...; kw...) = _rowtype(x, typeof(g), args...; kw...)
-_rowtype(x, g::AbstractVector{G}, args...; kw...) where G = _rowtype(x, G, args...; kw...)
 function _rowtype(
     x, ::Type{G}, i::Type{I} = typeof(size(x)); 
     geometry, index, skipmissing, skipinvalid = skipmissing, names, kw...

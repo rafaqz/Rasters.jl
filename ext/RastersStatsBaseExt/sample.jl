@@ -33,8 +33,7 @@ function _sample(
 ) where K
     indices = sample_indices(rng, x, n, skipmissing, weights, replace, ordered, weightstype)
     tuplepoint = map(first, dims)
-    indextype = typeof(size(x))
-    T = _samplerowtype(x, tuplepoint, indextype; geometry, index, skipmissing, names)
+    T = RA._rowtype(x, tuplepoint; geometry, index, skipmissing, skipinvalid = _True(), names)
     rows = Vector{T}(undef, n)
     points = DimPoints(dims)
     
@@ -71,13 +70,3 @@ function sample_indices(rng, x, n, skipmissing::_True, weights::AbstractDimArray
     wts = weightstype(vec(@d boolmask(x) .* weights))
     StatsBase.sample(rng, CartesianIndices(x), wts, n; replace, ordered)
 end
-
-# Determine the row type, making use of some of extract machinery
-_samplerowtype(x, g, i; kw...) = _samplerowtype(x, typeof(g), i; kw...)
-_samplerowtype(x, ::Type{G}, i; kw...) where G = _samplerowtype(x, G, typeof(i); kw...)
-function _samplerowtype(
-    x, ::Type{G}, ::Type{I}; geometry, index, skipmissing, names, kw...
-) where {G, I}
-    RA._rowtype(x, G, I; geometry, index, skipmissing, names)
-end
-
