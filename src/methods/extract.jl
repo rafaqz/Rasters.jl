@@ -72,7 +72,7 @@ function extract end
 end
 
 function _extract(A::RasterStackOrArray, geom::Missing, names, kw...)
-    T = _rowtype(A, geom; names, kw...)
+    T = _extractrowtype(A, geom; names, kw...)
     [_maybe_add_fields(T, map(_ -> missing, names), missing, missing)]
 end
 function _extract(A::RasterStackOrArray, geom; names, kw...)
@@ -137,14 +137,14 @@ end
 function _extract(A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom; 
     skipmissing, kw...
 )
-    T = _rowtype(A, GI.getpoint(geom, 1); names, skipmissing, kw...)
+    T = _extractrowtype(A, GI.getpoint(geom, 1); names, skipmissing, kw...)
     rows = (_extract_point(T, A, p, skipmissing; kw...) for p in GI.getpoint(geom))
     return skipmissing isa _True ? collect(_skip_missing_rows(rows, _missingval_or_missing(A), names)) : collect(rows)
 end
 function _extract(A::RasterStackOrArray, ::GI.PointTrait, geom; 
     skipmissing, kw...
 )
-    T = _rowtype(A, geom; names, skipmissing, kw...)
+    T = _extractrowtype(A, geom; names, skipmissing, kw...)
     _extract_point(T, A, geom, skipmissing; kw...)
 end
 function _extract(A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom;
@@ -162,7 +162,7 @@ function _extract(A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom;
     else
         GI.x(p), GI.y(p)
     end
-    T = _rowtype(A, tuplepoint; names, skipmissing, kw...)
+    T = _extractrowtype(A, tuplepoint; names, skipmissing, kw...)
     B = boolmask(geom; to=template, kw...)
     offset = CartesianIndex(map(x -> first(x) - 1, parentindices(parent(template))))
     # Add a row for each pixel that is `true` in the mask

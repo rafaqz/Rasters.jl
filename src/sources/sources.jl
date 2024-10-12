@@ -61,7 +61,7 @@ function Base.showerror(io::IO, e::BackendException)
     printstyled(io, "Rasters.jl"; underline = true)
     printstyled(io, " requires backends to be loaded manually.  Run ")
     printstyled(io, "`import $(e.backend)`"; bold = true)
-    print(io, "to fix this error.")
+    print(io, " to fix this error.")
 end
 
 # Get the source backend for a file extension, falling back to GDALsource

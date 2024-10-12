@@ -38,9 +38,11 @@ end
 
 _lonlat_to_sphericalpoint(args) = _lonlat_to_sphericalpoint(args...)
 function _lonlat_to_sphericalpoint(lon, lat)
-    x = cosd(lat) * cosd(lon)
-    y = cosd(lat) * sind(lon)
-    z = sind(lat)
+    lonsin, loncos = sincosd(lon)
+    latsin, latcos = sincosd(lat)
+    x = latcos * loncos
+    y = latcos * lonsin
+    z = latsin
     return SphericalPoint(x,y,z)
 end
 
