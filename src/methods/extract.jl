@@ -1,5 +1,5 @@
 """
-    extract(x, data; [geometry, index, name, skipmissing, atol])
+    extract(x, data; kw...)
 
 Extracts the value of `Raster` or `RasterStack` at given points, returning
 an iterable of `NamedTuple` with properties for `:geometry` and raster or
@@ -82,11 +82,7 @@ function _extract(A::RasterStackOrArray, ::Nothing, data;
     names, skipmissing, geometrycolumn, kw...
 )
     geoms = _get_geometries(data, geometrycolumn)
-    T = if istrue(skipmissing)
-        _extractrowtype(A, nonmissingtype(eltype(geoms)); names, skipmissing, kw...)
-    else
-        _extractrowtype(A, eltype(geoms); names, skipmissing, kw...)
-    end
+    T = _rowtype(A, geoms; names, skipmissing, kw...)
     # Handle empty / all missing cases
     (length(geoms) > 0 && any(!ismissing, geoms)) || return T[]
     
@@ -95,13 +91,15 @@ function _extract(A::RasterStackOrArray, ::Nothing, data;
     # We need to split out points from other geoms
     # TODO this will fail with mixed point/geom vectors
     if trait1 isa GI.PointTrait
-        rows = Vector{T}(undef, length(geoms))
         if istrue(skipmissing)
+            T2 = _rowtype(A, geoms; 
+                names, skipinvalid = _True(), skipmissing = _False(), kw...)
+            rows = Vector{T2}(undef, length(geoms))
             j = 1
             for i in eachindex(geoms)
                 g = geoms[i]
                 ismissing(g) && continue
-                e = _extract_point(T, A, g, skipmissing; names, kw...)
+                e = _extract_point(T2, A, g, skipmissing; names, kw...)
                 if !ismissing(e) 
                     rows[j] = e
                     j += 1
@@ -109,7 +107,9 @@ function _extract(A::RasterStackOrArray, ::Nothing, data;
                 nothing
             end
             deleteat!(rows, j:length(rows))
+            rows = T === T2 ? rows : T.(rows)
         else
+            rows = Vector{T}(undef, length(geoms))
             for i in eachindex(geoms)
                 g = geoms[i]
                 rows[i] = _extract_point(T, A, g, skipmissing; names, kw...)::T
@@ -283,44 +283,6 @@ Base.@assume_effects :total function _maybe_add_fields(::Type{T}, props::NamedTu
         :index in K ? merge((; index=I), props) : props
     end
 end
-
-_names(A::AbstractRaster) = (Symbol(name(A)),)
-_names(A::AbstractRasterStack) = keys(A)
-
-@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, skipmissing::_True) where {T,Names} = (nonmissingtype(T),)
-@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, skipmissing::_False) where {T,Names} = (Union{Missing,T},)
-# This only compiles away when generated
-@generated function _nametypes(
-    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_True
-) where {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
-    nt = NamedTuple{StackNames}(map(nonmissingtype, Types.parameters))
-    return values(nt[PropNames])
-end
-@generated function _nametypes(
-    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_False
-) where {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
-    nt = NamedTuple{StackNames}(map(T -> Union{Missing,T}, Types.parameters))
-    return values(nt[PropNames])
-end
-
-function _extractrowtype(x, g; geometry, index, skipmissing, names, kw...)
-    I = if istrue(skipmissing)
-        Tuple{Int, Int}
-    else
-        Union{Missing, Tuple{Int, Int}}
-    end
-    _extractrowtype(x, g, I; geometry, index, skipmissing, names, kw...)
-end
-function _extractrowtype(x, g, ::Type{I}; geometry, index, skipmissing, names, kw...) where I
-    G = if istrue(skipmissing)
-        nonmissingtype(typeof(g))
-    else
-        typeof(g)
-    end
-    _extractrowtype(x, G, I; geometry, index, skipmissing, names, kw...)
-end
-_extractrowtype(x, ::Type{G}, ::Type{I}; geometry, index, skipmissing, names, kw...) where {G, I} =
-    _rowtype(x, G, I; geometry, index, skipmissing, names)
 
 @inline _skip_missing_rows(rows, ::Missing, names) = 
     Iterators.filter(row -> !any(ismissing, row), rows)
