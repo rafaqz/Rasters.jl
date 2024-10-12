@@ -385,8 +385,7 @@ function _rowtype(
     types = _rowtypes(x, _G, _I, geometry, index, skipmissing, names)
     NamedTuple{keys,types}
 end
-_geomtype(g, skipmissing::_False) = typeof(g)
-_geomtype(g, skipmissing::_False) = typeof(g)
+
 
 function _rowtypes(
     x, ::Type{G}, ::Type{I}, geometry::_True, index::_True, skipmissing, names::NamedTuple{Names}
