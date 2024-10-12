@@ -72,7 +72,7 @@ function extract end
 end
 
 function _extract(A::RasterStackOrArray, geom::Missing, names, kw...)
-    T = _extractrowtype(A, geom; names, kw...)
+    T = _rowtype(A, geom; names, kw...)
     [_maybe_add_fields(T, map(_ -> missing, names), missing, missing)]
 end
 function _extract(A::RasterStackOrArray, geom; names, kw...)
@@ -82,11 +82,7 @@ function _extract(A::RasterStackOrArray, ::Nothing, data;
     names, skipmissing, geometrycolumn, kw...
 )
     geoms = _get_geometries(data, geometrycolumn)
-    T = if istrue(skipmissing)
-        _extractrowtype(A, nonmissingtype(eltype(geoms)); names, skipmissing, kw...)
-    else
-        _extractrowtype(A, eltype(geoms); names, skipmissing, kw...)
-    end
+    T = _rowtype(A, geoms; names, skipmissing, kw...)
     # Handle empty / all missing cases
     (length(geoms) > 0 && any(!ismissing, geoms)) || return T[]
     
@@ -96,8 +92,8 @@ function _extract(A::RasterStackOrArray, ::Nothing, data;
     # TODO this will fail with mixed point/geom vectors
     if trait1 isa GI.PointTrait
         if istrue(skipmissing)
-            T2 = _extractrowtype(A, eltype(geoms), Tuple{Int64, Int64}; 
-                names, skipmissing = _False(), kw...)
+            T2 = _rowtype(A, geoms; 
+                names, skipinvalid = _True(), skipmissing = _False(), kw...)
             rows = Vector{T2}(undef, length(geoms))
             j = 1
             for i in eachindex(geoms)
@@ -141,14 +137,14 @@ end
 function _extract(A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom; 
     skipmissing, kw...
 )
-    T = _extractrowtype(A, GI.getpoint(geom, 1); names, skipmissing, kw...)
+    T = _rowtype(A, GI.getpoint(geom, 1); names, skipmissing, kw...)
     rows = (_extract_point(T, A, p, skipmissing; kw...) for p in GI.getpoint(geom))
     return skipmissing isa _True ? collect(_skip_missing_rows(rows, _missingval_or_missing(A), names)) : collect(rows)
 end
 function _extract(A::RasterStackOrArray, ::GI.PointTrait, geom; 
     skipmissing, kw...
 )
-    T = _extractrowtype(A, geom; names, skipmissing, kw...)
+    T = _rowtype(A, geom; names, skipmissing, kw...)
     _extract_point(T, A, geom, skipmissing; kw...)
 end
 function _extract(A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom;
@@ -166,7 +162,7 @@ function _extract(A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom;
     else
         GI.x(p), GI.y(p)
     end
-    T = _extractrowtype(A, tuplepoint; names, skipmissing, kw...)
+    T = _rowtype(A, tuplepoint; names, skipmissing, kw...)
     B = boolmask(geom; to=template, kw...)
     offset = CartesianIndex(map(x -> first(x) - 1, parentindices(parent(template))))
     # Add a row for each pixel that is `true` in the mask
@@ -287,25 +283,6 @@ Base.@assume_effects :total function _maybe_add_fields(::Type{T}, props::NamedTu
         :index in K ? merge((; index=I), props) : props
     end
 end
-
-function _extractrowtype(x, g; geometry, index, skipmissing, names, kw...)
-    I = if istrue(skipmissing)
-        Tuple{Int, Int}
-    else
-        Union{Missing, Tuple{Int, Int}}
-    end
-    _extractrowtype(x, g, I; geometry, index, skipmissing, names, kw...)
-end
-function _extractrowtype(x, g, ::Type{I}; geometry, index, skipmissing, names, kw...) where I
-    G = if istrue(skipmissing)
-        nonmissingtype(typeof(g))
-    else
-        typeof(g)
-    end
-    _extractrowtype(x, G, I; geometry, index, skipmissing, names, kw...)
-end
-_extractrowtype(x, ::Type{G}, ::Type{I}; geometry, index, skipmissing, names, kw...) where {G, I} =
-    _rowtype(x, G, I; geometry, index, skipmissing, names)
 
 @inline _skip_missing_rows(rows, ::Missing, names) = 
     Iterators.filter(row -> !any(ismissing, row), rows)
