@@ -27,7 +27,9 @@ Let's construct a raster and see what this looks like!  We'll keep it in memory.
 The spherical <!-- and geodetic --> method relies on the [Proj.jl](https://github.com/JuliaGeo/Proj.jl) package to perform coordinate transformation, so that has to be loaded explicitly.
 =#
 
-using Rasters, Proj
+using Rasters
+import Proj # to activate the spherical `cellarea` method
+import ArchGDAL # purely for data loading
 
 # To construct a raster, we'll need to specify the x and y dimensions.  These are called "lookups" in Rasters.jl.
 using Rasters.Lookups
@@ -44,10 +46,10 @@ ras = Raster(ones(x, y); crs = EPSG(4326))
 # We can just call `cellarea` on this raster, which returns cell areas in meters, on Earth, assuming it's a sphere:
 cellarea(ras)
 # and if we plot it, you can see the difference in cell area as we go from the equator to the poles:
-using Makie, CairoMakie# , GeoMakie
-heatmap(ras; axis = (; aspect = DataAspect()))
+using Makie, CairoMakie
+heatmap(cellarea(ras); axis = (; aspect = DataAspect()))
 # We can also try this using the planar method, which simply computes the area of the rectangle using `area = x_side_length * y_side_length`:
-cellarea(ras, Planar())
+cellarea(Planar(), ras)
 # Note that this is of course wildly inaccurate for a geographic dataset - but if you're working in a projected coordinate system, like polar stereographic or Mercator, this can be very useful (and a _lot_ faster)!
 
 #=
@@ -67,7 +69,7 @@ all_countries = naturalearth("admin_0_countries", 10)
 chile = all_countries.geometry[findfirst(==("Chile"), all_countries.NAME)]
 # Let's plot the precipitation on the world map, and highlight Chile:
 f, a, p = heatmap(precip; colorrange = Makie.zscale(replace_missing(precip, NaN)), axis = (; aspect = DataAspect()))
-p2 = poly!(a, chile; color = (:red, 0.5))
+p2 = poly!(a, chile; color = (:red, 0.3), strokecolor = :red, strokewidth = 0.5)
 f
 # You can see Chile highlighted in red, in the bottom left quadrant.
 #
@@ -92,7 +94,8 @@ total_precip = sum(skipmissing(precip_per_area))
 total_area = sum(skipmissing(masked_areas))
 # And we can convert that to an average by dividing by the total area:
 avg_precip = total_precip / total_area
-# So on average, Chile gets about 100mm of rain per square meter in June.
+# According to the internet, Chile gets about 100mm of rain per square meter in June, so our statistic seems pretty close.
+#
 # Let's see what happens if we don't account for cell areas:
 bad_total_precip = sum(skipmissing(masked_precip))
 bad_avg_precip = bad_total_precip / length(collect(skipmissing(masked_precip)))
