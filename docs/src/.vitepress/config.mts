@@ -45,7 +45,12 @@ export default defineConfig({
           { text: 'Array Operations', link: '/array_operations' },
         ]
        },
-       { text: 'Data Sources',
+      {text: 'Tutorials',
+      items: [
+        {text: 'cellarea tutorial', link: '/tutorials/methods/cellarea'}
+      ]
+      },
+      { text: 'Data Sources',
        items: [
          { text: 'Overview', link: '/data_sources' },
          { text: 'GBIF', link: '/gbif_wflow' }
