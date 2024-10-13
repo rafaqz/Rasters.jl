@@ -12,6 +12,7 @@ Rasters.sample(x::RA.RasterStackOrArray, n::Integer; kw...) = Rasters.sample(Ran
     weightstype::Type{<:StatsBase.AbstractWeights}=StatsBase.Weights
 )
     na = DD._astuple(name)
+ #   x = x isa RA.AbstractRasterStack ? x[na] : x
     _sample(rng, x, n;
         dims=DD.dims(x, RA.DEFAULT_POINT_ORDER),
         names=NamedTuple{na}(na),
@@ -34,22 +35,20 @@ function _sample(
     indices = sample_indices(rng, x, n, skipmissing, weights, replace, ordered, weightstype)
     tuplepoint = map(first, dims)
     T = RA._rowtype(x, tuplepoint; geometry, index, skipmissing, skipinvalid = _True(), names)
-    rows = Vector{T}(undef, n)
+    T2 = RA._rowtype(x, tuplepoint; geometry, index, skipmissing = _False(), skipinvalid = _True(), names)
     points = DimPoints(dims)
-    
-    for i in 1:n
-        idx = indices[i]
-        props = if x isa Raster 
-            NamedTuple{K,Tuple{eltype(x)}}((x[idx],))
-        else
-            NamedTuple(x[idx])[K]
-        end
-        point = geometry isa _True ? points[idx] : nothing
-        rows[i] = RA._maybe_add_fields(T, props, point, idx)
+    rows = Vector{T}(undef, n)
+    for (i, I) in enumerate(indices)
+        rows[i] = _getindex(T, x, points, I, names)
     end
-
+    rows = T === T2 ? rows : T.(rows)
     return rows
 end
+
+_getindex(::Type{T}, x::AbstractRaster{U}, points, idx, ::NamedTuple{K}) where {T, U, K} = 
+    RA._maybe_add_fields(T, NamedTuple{K, Tuple{U}}((x[idx],)), points[idx], idx)
+_getindex(::Type{T}, x::AbstractRasterStack{<:Any, K}, points, idx, ::NamedTuple{L}) where {T, K, L} = 
+    RA._maybe_add_fields(T, K(x[idx])[L], points[idx], idx)
 
 function sample_indices(rng, x, n, skipmissing::_False, weights::Nothing, replace, ordered, weightstype)
     StatsBase.sample(rng, CartesianIndices(x), n; replace, ordered)
