@@ -90,7 +90,7 @@ Let's plot the precipitation on the world map, and highlight Chile:
 
 ````@example cella
 f, a, p = heatmap(precip; colorrange = Makie.zscale(replace_missing(precip, NaN)), axis = (; aspect = DataAspect()))
-p2 = poly!(a, chile; color = (:red, 0.5))
+p2 = poly!(a, chile; color = (:red, 0.3), strokecolor = :red, strokewidth = 0.5)
 f
 ````
 
