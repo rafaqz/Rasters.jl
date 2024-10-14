@@ -47,7 +47,7 @@ export default defineConfig({
        },
       {text: 'Tutorials',
       items: [
-        {text: 'cellarea tutorial', link: '/tutorials/spatial_mean'}
+        {text: 'Computing spatial means', link: '/tutorials/spatial_mean'}
       ]
       },
       { text: 'Data Sources',
