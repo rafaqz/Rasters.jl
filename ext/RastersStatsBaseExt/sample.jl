@@ -40,13 +40,9 @@ function _sample(
     x2 = x isa AbstractRasterStack ? x[K] : RasterStack(NamedTuple{K}((x,)))
     _getindices(T, x2, points, indices)
 end
-function _getindices(::Type{T}, x, points, indices) where T
-    rows = Vector{T}(undef, size(indices))
-    for (i, I) in enumerate(indices)
-        rows[i] = _getindex(T, x, points, I)
-    end
-    return rows
-end
+
+_getindices(::Type{T}, x, points, indices) where T = 
+    broadcast(I -> _getindex(T, x, points, I), indices)
 
 _getindex(::Type{T}, x::AbstractRasterStack{<:Any, NT}, points, idx) where {T, NT} = 
     RA._maybe_add_fields(T, NT(x[RA.commondims(idx, x)]), points[RA.commondims(idx, points)], val(idx))
