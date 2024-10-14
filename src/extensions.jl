@@ -238,7 +238,8 @@ Note that this function is not exported to avoid confusion with StatsBase.sample
 
 # Keywords
 
-- `geometry`: include `:geometry` in returned `NamedTuple`, `true` by default.
+- `geometry`: include `:geometry` in returned `NamedTuple`. Specify the type and dimensions of the returned geometry by
+    providing a `Tuple` or `NamedTuple` of dimensions. Defaults to `(X,Y)`
 - `index`: include `:index` of the `CartesianIndex` in returned `NamedTuple`, `false` by default.
 - `name`: a `Symbol` or `Tuple` of `Symbol` corresponding to layer/s of a `RasterStack` to extract. All layers by default.
 - `skipmissing`: skip missing points automatically.

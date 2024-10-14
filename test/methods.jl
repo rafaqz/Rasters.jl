@@ -672,10 +672,14 @@ end
                    missing missing missing], dims=3))
 end
 
+@time Rasters.sample(StableRNG(123), test, 1000_000, skipmissing = true, index = true);
+
 using StableRNGs, StatsBase
 test = rebuild(ga; name = :test)
 @testset "sample" begin
     # test that all keywords work and return the same thing as extract
+    
+
     @test all(Rasters.sample(StableRNG(123), test, 2) .=== extract(test, [(2.0,2.0), (1.0,2.0)]))
     @test all(Rasters.sample(StableRNG(123), st2, 2) .=== extract(st2, [(2,2), (1,2)]))
     @test all(Rasters.sample(StableRNG(123), test, 2; geometry = false) .=== extract(test, [(2.0,2.0), (1.0,2.0)]; geometry = false))
@@ -739,6 +743,11 @@ test = rebuild(ga; name = :test)
             (geometry = (1.0,2.0), test = 7.0f0)
         ]
     )
+
+    @test typeof(first(
+        Rasters.sample(StableRNG(123), test, 2, geometry = (X = X, Y = Y))
+    ).geometry) <: NamedTuple{(:X, :Y)}
+
     @test_throws "strictly positive" Rasters.sample(StableRNG(123), test, 3, skipmissing = true, replace = false)
     @test_throws "Cannot draw" Rasters.sample(StableRNG(123), test, 5, replace = false)
 end
