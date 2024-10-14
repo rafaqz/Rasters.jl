@@ -1,10 +1,6 @@
 module RastersStatsBaseExt
 
-@static if isdefined(Base, :get_extension) # julia < 1.9
-    using Rasters, StatsBase
-else    
-    using ..Rasters, ..StatsBase
-end
+using Rasters, StatsBase
 using StatsBase.Random
 
 const RA = Rasters
