@@ -1,7 +1,7 @@
 using Documenter, Rasters, Plots, Logging, Statistics, Dates, 
     RasterDataSources, ArchGDAL, Proj, NCDatasets, CoordinateTransformations
 import Makie, CairoMakie
-using DocumenterVitepress, Documenter, Literate
+using DocumenterVitepress, Documenter
 using Rasters.LookupArrays, Rasters.Dimensions
 
 # Don't output huge svgs for Makie plots
@@ -17,21 +17,6 @@ function flush_info_and_warnings()
     plot(st)
 end
 flush_info_and_warnings()
-
-# Convert the tutorials from .jl to .md
-# Note that this converts every file in the `docs/src/tutorials/` directory,
-# so be careful when adding new tutorials.
-
-# One could add a filtering statement when looping over the files to filter out certain names.
-
-tutorials_dir = joinpath(@__DIR__, "src", "tutorials")
-for (root, dirs, files) in walkdir(tutorials_dir)
-    for file in files
-        if splitext(file)[2] == ".jl"
-            Literate.markdown(joinpath(root, file), root; flavor = Literate.DocumenterFlavor())
-        end
-    end
-end
 
 Logging.disable_logging(Logging.Warn)
 
