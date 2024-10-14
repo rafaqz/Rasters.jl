@@ -84,6 +84,8 @@ masked_areas = mask(areas; with = chile)
 heatmap(masked_areas; axis = (; title = "Cell area in square meters"))
 ````
 
+You can see here that cells are largest towards the equator, and smallest away from it.  This means that cells away from the equator should have a smaller contribution to the average than cells nearer the equator.
+
 ## Computing the spatial mean
 
 Now we can compute the average precipitation per square meter.  First, we compute total precipitation per grid cell:
@@ -112,7 +114,7 @@ avg_precip = total_precip / total_area
 
 According to the internet, Chile gets about 100mm of rain per square meter in June, so our statistic seems pretty close.
 
-Let's see what happens if we don't account for cell areas:
+Let's see what happens if we don't account for cell areas.  An equivalent assumption would be that all cells have the same area.
 
 ````@example cellarea
 bad_total_precip = sum(skipmissing(masked_precip))
