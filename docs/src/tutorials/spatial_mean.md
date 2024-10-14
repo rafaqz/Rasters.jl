@@ -24,6 +24,8 @@ import Proj # to activate the spherical `cellarea` method
 
 using ArchGDAL, RasterDataSources, NaturalEarth # purely for data loading
 
+using CairoMakie # for plotting
+
 precip = Raster(WorldClim{Climate}, :prec; month = 6)
 ````
 
