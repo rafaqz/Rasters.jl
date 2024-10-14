@@ -35,27 +35,27 @@ function _sample(
     indices = sample_indices(rng, x, n, skipmissing, weights, replace, ordered, weightstype)
     tuplepoint = map(first, dims)
     T = RA._rowtype(x, tuplepoint; geometry, index, skipmissing, skipinvalid = _True(), names)
-    T2 = RA._rowtype(x, tuplepoint; geometry, index, skipmissing = _False(), skipinvalid = _True(), names)
     points = DimPoints(dims)
-    rows = Vector{T}(undef, n)
+    x2 = x isa AbstractRasterStack ? x[K] : RasterStack(NamedTuple{K}((x,)))
+    _getindices(T, x2, points, indices)
+end
+function _getindices(::Type{T}, x, points, indices) where T
+    rows = Vector{T}(undef, size(indices))
     for (i, I) in enumerate(indices)
-        rows[i] = _getindex(T, x, points, I, names)
+        rows[i] = _getindex(T, x, points, I)
     end
-    rows = T === T2 ? rows : T.(rows)
     return rows
 end
 
-_getindex(::Type{T}, x::AbstractRaster{U}, points, idx, ::NamedTuple{K}) where {T, U, K} = 
-    RA._maybe_add_fields(T, NamedTuple{K, Tuple{U}}((x[idx],)), points[idx], idx)
-_getindex(::Type{T}, x::AbstractRasterStack{<:Any, K}, points, idx, ::NamedTuple{L}) where {T, K, L} = 
-    RA._maybe_add_fields(T, K(x[idx])[L], points[idx], idx)
+_getindex(::Type{T}, x::AbstractRasterStack{<:Any, NT}, points, idx) where {T, NT} = 
+    RA._maybe_add_fields(T, NT(x[RA.commondims(idx, x)]), points[RA.commondims(idx, points)], val(idx))
 
 function sample_indices(rng, x, n, skipmissing::_False, weights::Nothing, replace, ordered, weightstype)
-    StatsBase.sample(rng, CartesianIndices(x), n; replace, ordered)
+    StatsBase.sample(rng, RA.DimIndices(x), n; replace, ordered)
 end
 function sample_indices(rng, x, n, skipmissing::_True, weights::Nothing, replace, ordered, weightstype)
     wts = weightstype(vec(boolmask(x)))
-    StatsBase.sample(rng, CartesianIndices(x), wts, n; replace, ordered)
+    StatsBase.sample(rng, RA.DimIndices(x), wts, n; replace, ordered)
 end
 function sample_indices(rng, x, n, skipmissing::_False, weights::AbstractDimArray, replace, ordered, weightstype)
     wts = if dims(weights) == dims(x)
@@ -63,9 +63,9 @@ function sample_indices(rng, x, n, skipmissing::_False, weights::AbstractDimArra
     else
         @d ones(eltype(weights), dims(x)) .* weights
     end |> vec |> weightstype
-    StatsBase.sample(rng, CartesianIndices(x), wts, n; replace, ordered)
+    StatsBase.sample(rng, RA.DimIndices(x), wts, n; replace, ordered)
 end
 function sample_indices(rng, x, n, skipmissing::_True, weights::AbstractDimArray, replace, ordered, weightstype)
     wts = weightstype(vec(@d boolmask(x) .* weights))
-    StatsBase.sample(rng, CartesianIndices(x), wts, n; replace, ordered)
+    StatsBase.sample(rng, RA.DimIndices(x), wts, n; replace, ordered)
 end
