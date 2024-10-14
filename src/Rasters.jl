@@ -31,6 +31,8 @@ import Adapt,
        Setfield
 
 Reexport.@reexport using DimensionalData, GeoFormatTypes
+import GeoFormatTypes: CRS
+export CRS
 
 using DimensionalData.Tables,
       DimensionalData.Lookups,
