@@ -11,6 +11,12 @@ function RA._open(f, ::GRIBsource, filename::AbstractString; write=false, kw...)
     RA._open(f, GRIBsource(), ds; kw...)
 end
 
+@inline function RA.get_scale(metadata::RA.Metadata{<: GRIBsource}, scaled::Bool)
+    scale = scaled ? get(metadata, "scale_factor", nothing) : nothing
+    offset = scaled ? get(metadata, "add_offset", nothing) : nothing
+    return scale, offset
+end
+
 RA._sourcetrait(::GDS.Variable) = GRIBsource()
 RA._sourcetrait(::GDS.GRIBDataset) = GRIBsource()
 
