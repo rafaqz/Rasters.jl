@@ -26,6 +26,8 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
+      - name: add GDAL
+        run: julia --project=. -e 'using Pkg; Pkg.add(; name = "GDAL_jll", version = "301.901.201")'
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
         env:
