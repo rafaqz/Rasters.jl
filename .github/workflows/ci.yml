@@ -8,6 +8,9 @@ defaults:
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
+    permissions:
+      actions: write
+      contents: read
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
@@ -26,6 +29,7 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
+      - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
         env:
