@@ -13,60 +13,62 @@ Rasters.sample(x::RA.RasterStackOrArray, n::Integer; kw...) = Rasters.sample(Ran
 )
     na = DD._astuple(name)
     geometry, geometrytype, dims = _geometrytype(x, geometry)
- #   x = x isa RA.AbstractRasterStack ? x[na] : x
-    _sample(rng, x, n;
-        dims=DD.dims(x, RA.DEFAULT_POINT_ORDER),
-        names=NamedTuple{na}(na),
+
+    _sample(rng, x, n,
+        dims,
+        NamedTuple{na}(na),
+        geometry,
+        geometrytype,  
         # These keywords are converted to _True/_False for type stability later on
-        # The @inline above helps constant propagation of the Bools
-        geometry=geometry,
-        geometrytype=geometrytype,  
-        index=_booltype(index), 
-        skipmissing=_booltype(skipmissing), 
+        _booltype(index), 
+        _booltype(skipmissing), 
         weights,
+        weightstype,
         replace, 
-        ordered,
-        weightstype
+        ordered
     )
 
 end
 function _sample(
-    rng, x, n; 
-    dims, names::NamedTuple{K}, geometry, geometrytype, index, skipmissing, weights, replace, ordered, weightstype
-) where K
+    rng, x, n, 
+    dims, names::NamedTuple{K}, geometry, ::Type{G}, index, skipmissing, weights, weightstype, replace, ordered, 
+) where {K, G}
     indices = sample_indices(rng, x, n, skipmissing, weights, replace, ordered, weightstype)
-    points = DimPoints(dims)
-    T = RA._rowtype(x, geometrytype; geometry, index, skipmissing, skipinvalid = _True(), names)
+    T = RA._rowtype(x, G; geometry, index, skipmissing, skipinvalid = _True(), names)
     x2 = x isa AbstractRasterStack ? x[K] : RasterStack(NamedTuple{K}((x,)))
-    _getindices(T, x2, points, indices)
+    return _getindices(T, x2, dims, indices)
 end
 
-_getindices(::Type{T}, x, points, indices) where T = 
-    broadcast(I -> _getindex(T, x, points, I), indices)
+_getindices(::Type{T}, x, dims, indices) where {T} = 
+    broadcast(I -> _getindex(T, x, dims, I), indices)
 
-_getindex(::Type{T}, x::AbstractRasterStack{<:Any, NT}, points, idx) where {T, NT} = 
-    RA._maybe_add_fields(T, NT(x[RA.commondims(idx, x)]), points[RA.commondims(idx, points)], val(idx))
+function _getindex(::Type{T}, x::AbstractRasterStack{<:Any, NT}, dims, idx) where {T, NT}
+    RA._maybe_add_fields(
+        T, 
+        NT(x[RA.commondims(idx, x)]), 
+        DimPoints(dims)[RA.commondims(idx, dims)], 
+        val(idx)
+    )
+end
 
-function sample_indices(rng, x, n, skipmissing::_False, weights::Nothing, replace, ordered, weightstype)
-    StatsBase.sample(rng, RA.DimIndices(x), n; replace, ordered)
+function sample_indices(rng, x, n, skipmissing, weights::Nothing, replace, ordered, _)
+    if istrue(skipmissing)
+        wts = StatsBase.Weights(vec(boolmask(x)))
+        StatsBase.sample(rng, RA.DimIndices(x), wts, n; replace, ordered)
+    else
+        StatsBase.sample(rng, RA.DimIndices(x), n; replace, ordered)
+    end
 end
-function sample_indices(rng, x, n, skipmissing::_True, weights::Nothing, replace, ordered, weightstype)
-    wts = weightstype(vec(boolmask(x)))
-    StatsBase.sample(rng, RA.DimIndices(x), wts, n; replace, ordered)
-end
-function sample_indices(rng, x, n, skipmissing::_False, weights::AbstractDimArray, replace, ordered, weightstype)
-    wts = if dims(weights) == dims(x)
+function sample_indices(rng, x, n, skipmissing, weights::AbstractDimArray, replace, ordered, ::Type{W}) where W
+    wts = if istrue(skipmissing) 
+        @d boolmask(x) .* weights
+    elseif dims(weights) == dims(x)
         weights
     else
         @d ones(eltype(weights), dims(x)) .* weights
-    end |> vec |> weightstype
+    end |> vec |> W
     StatsBase.sample(rng, RA.DimIndices(x), wts, n; replace, ordered)
 end
-function sample_indices(rng, x, n, skipmissing::_True, weights::AbstractDimArray, replace, ordered, weightstype)
-    wts = weightstype(vec(@d boolmask(x) .* weights))
-    StatsBase.sample(rng, RA.DimIndices(x), wts, n; replace, ordered)
-end
-
 function _geometrytype(x, geometry::Bool)
     if geometry
         error("Specify a geometry type by setting `geometry` to a Tuple or NamedTuple of Dimensions. E.g. `geometry = (X, Y)`")

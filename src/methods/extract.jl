@@ -91,15 +91,13 @@ function _extract(A::RasterStackOrArray, ::Nothing, data;
     # We need to split out points from other geoms
     # TODO this will fail with mixed point/geom vectors
     if trait1 isa GI.PointTrait
+    rows = Vector{T}(undef, length(geoms))
         if istrue(skipmissing)
-            T2 = _rowtype(A, eltype(geoms); 
-                names, skipinvalid = _True(), skipmissing = _False(), kw...)
-            rows = Vector{T2}(undef, length(geoms))
             j = 1
             for i in eachindex(geoms)
                 g = geoms[i]
                 ismissing(g) && continue
-                e = _extract_point(T2, A, g, skipmissing; names, kw...)
+                e = _extract_point(T, A, g, skipmissing; names, kw...)
                 if !ismissing(e) 
                     rows[j] = e
                     j += 1
@@ -107,9 +105,7 @@ function _extract(A::RasterStackOrArray, ::Nothing, data;
                 nothing
             end
             deleteat!(rows, j:length(rows))
-            rows = T === T2 ? rows : T.(rows)
         else
-            rows = Vector{T}(undef, length(geoms))
             for i in eachindex(geoms)
                 g = geoms[i]
                 rows[i] = _extract_point(T, A, g, skipmissing; names, kw...)::T
@@ -281,7 +277,7 @@ Base.@assume_effects :total function _maybe_add_fields(::Type{T}, props::NamedTu
         :index in K ? merge((; geometry=point, index=I), props) : merge((; geometry=point), props)
     else
         :index in K ? merge((; index=I), props) : props
-    end
+    end |> T
 end
 
 @inline _skip_missing_rows(rows, ::Missing, names) = 
