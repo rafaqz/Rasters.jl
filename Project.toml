@@ -25,6 +25,7 @@ ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
+GDAL_jll = "a7073274-a066-55f0-b90d-d619367d196c"
 
 [weakdeps]
 ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
@@ -47,6 +48,7 @@ RastersRasterDataSourcesExt = "RasterDataSources"
 RastersZarrDatasetsExt = "ZarrDatasets"
 
 [compat]
+GDAL_jll = "=301.901.201"
 Adapt = "2, 3.0, 4"
 Aqua = "0.8"
 ArchGDAL = "0.9, 0.10"
