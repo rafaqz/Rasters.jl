@@ -306,10 +306,10 @@ _getfill(itr, i) = itr
 
 const RASTERIZE_KEYWORDS = """
 - `fill`: the value or values to fill a polygon with. A `Symbol` or tuple of `Symbol` will
-    be used to retrieve properties from features or column values from table rows. An array
-    or other iterable will be used for each geometry, in order. `fill` can also be a function of 
-    the current value, e.g. `x -> x + 1`.
-- `op`: A reducing function that accepts two values and returns one, like `min` to `minimum`.
+    be used to retrieve properties from features or table rows. An array or other iterable 
+    will be used for each geometry, in order. `fill` can also be a function of the current 
+    value, e.g. `x -> x + 1`.
+- `op`: a function that accepts two values and returns one, like `min` to `minimum`.
     For common methods this will be assigned for you, or is not required. But you can use it
     instead of a `reducer` as it will usually be faster.
 - `shape`: force `data` to be treated as `:polygon`, `:line` or `:point`, where possible
@@ -325,18 +325,18 @@ $THREADED_KEYWORD
 - `threadsafe`: specify that custom `reducer` and/or `op` functions are thread-safe, 
     in that the order of operation or blocking does not matter. For example, 
     `sum` and `maximum` are thread-safe, because the answer is approximately (besides
-    floating point error) the same after running on nested blocks, or on all the data.
+    floating point error) the same after running on nested blocks, or on all of the data.
     In contrast, `median` or `last` are not, because the blocking (`median`) or order (`last`) 
     matters.
 """
 
 const RASTERIZE_ARGUMENTS = """
-- `reducer`: a reducing function to reduce the fill value for all geometries that
-    cover or touch a pixel down to a single value. The default is `last`.
-    Any  that takes an iterable and returns a single value will work, including
-    custom functions. However, there are optimisations for built-in methods
-    including `sum`, `first`, `last`, `minimum`, `maximum`, `extrema` and `Statistics.mean`.
-    These may be an order of magnitude or more faster than
+- `reducer`: a function to reduce the fill value for all geometries that
+    cover or touch a pixel. The default is `last`. Any function that takes an 
+    iterable and returns a single value will work, including custom functions. 
+    However, there are optimisations for built-in methods including 
+    `sum`, `first`, `last`, `minimum`, `maximum`, `extrema` and `Statistics.mean`.
+    These may be an order of magnitude or more faster than custom methods that do the same thing.
     `count` is a special-cased as it does not need a fill value.
 $DATA_ARGUMENT
 """
