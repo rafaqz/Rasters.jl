@@ -740,9 +740,13 @@ test = rebuild(ga; name = :test)
         ]
     )
 
+    # test providing a geometry type works
     @test typeof(first(
         Rasters.sample(StableRNG(123), test, 2, geometry = (X = X, Y = Y))
     ).geometry) <: NamedTuple{(:X, :Y)}
+
+    # test this works without providing n
+    @test Rasters.sample(test, geometry = (X = X, Y = Y)) isa NamedTuple{(:geometry, :test)}
 
     @test_throws "strictly positive" Rasters.sample(StableRNG(123), test, 3, skipmissing = true, replace = false)
     @test_throws "Cannot draw" Rasters.sample(StableRNG(123), test, 5, replace = false)

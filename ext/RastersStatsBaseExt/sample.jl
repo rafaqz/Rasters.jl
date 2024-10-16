@@ -1,42 +1,48 @@
-Rasters.sample(x::RA.RasterStackOrArray, n::Integer; kw...) = Rasters.sample(Random.GLOBAL_RNG, x, n; kw...)
+Rasters.sample(x::RA.RasterStackOrArray, args...; kw...) = Rasters.sample(Random.GLOBAL_RNG, x, args...; kw...)
 @inline function Rasters.sample(
-    rng::Random.AbstractRNG, x::RA.RasterStackOrArray, n::Integer; 
+    rng::Random.AbstractRNG, x::RA.RasterStackOrArray, args...; 
     geometry=(X,Y),
     index = false, 
     names=RA._names(x), 
     name=names, 
     skipmissing=false,
-    replace=true, 
-    ordered=false, 
     weights=nothing, 
-    weightstype::Type{<:StatsBase.AbstractWeights}=StatsBase.Weights
+    weightstype::Type{<:StatsBase.AbstractWeights}=StatsBase.Weights,
+    kw...
 )
     na = DD._astuple(name)
     geometry, geometrytype, dims = _geometrytype(x, geometry)
 
-    _sample(rng, x, n,
+    _sample(rng, x, args...;
         dims,
-        NamedTuple{na}(na),
+        names = NamedTuple{na}(na),
         geometry,
         geometrytype,  
         # These keywords are converted to _True/_False for type stability later on
-        _booltype(index), 
-        _booltype(skipmissing), 
+        index = _booltype(index), 
+        skipmissing = _booltype(skipmissing), 
         weights,
         weightstype,
-        replace, 
-        ordered
+        kw... # passed to StatsBase.sample, could be replace or ordered
     )
-
 end
 function _sample(
-    rng, x, n, 
-    dims, names::NamedTuple{K}, geometry, ::Type{G}, index, skipmissing, weights, weightstype, replace, ordered, 
+    rng, x, n::Integer;
+    dims, names::NamedTuple{K}, geometry, geometrytype::Type{G}, index, skipmissing, weights, weightstype, kw..., 
 ) where {K, G}
-    indices = sample_indices(rng, x, n, skipmissing, weights, replace, ordered, weightstype)
+    indices = sample_indices(rng, x, skipmissing, weights, weightstype, n; kw...)
     T = RA._rowtype(x, G; geometry, index, skipmissing, skipinvalid = _True(), names)
     x2 = x isa AbstractRasterStack ? x[K] : RasterStack(NamedTuple{K}((x,)))
     return _getindices(T, x2, dims, indices)
+end
+function _sample(
+    rng, x;
+    dims, names::NamedTuple{K}, geometry, geometrytype::Type{G}, index, skipmissing, weights, weightstype, kw..., 
+) where {K, G}
+    indices = sample_indices(rng, x, skipmissing, weights, weightstype)
+    T = RA._rowtype(x, G; geometry, index, skipmissing, skipinvalid = _True(), names)
+    x2 = x isa AbstractRasterStack ? x[K] : RasterStack(NamedTuple{K}((x,)))
+    return _getindex(T, x2, dims, indices)
 end
 
 _getindices(::Type{T}, x, dims, indices) where {T} = 
@@ -51,15 +57,16 @@ function _getindex(::Type{T}, x::AbstractRasterStack{<:Any, NT}, dims, idx) wher
     )
 end
 
-function sample_indices(rng, x, n, skipmissing, weights::Nothing, replace, ordered, _)
+# args may be an integer or nothing
+function sample_indices(rng, x, skipmissing, weights::Nothing, weightstype, args...; kw...)
     if istrue(skipmissing)
         wts = StatsBase.Weights(vec(boolmask(x)))
-        StatsBase.sample(rng, RA.DimIndices(x), wts, n; replace, ordered)
+        StatsBase.sample(rng, RA.DimIndices(x), wts, args...; kw...)
     else
-        StatsBase.sample(rng, RA.DimIndices(x), n; replace, ordered)
+        StatsBase.sample(rng, RA.DimIndices(x), args...; kw...)
     end
 end
-function sample_indices(rng, x, n, skipmissing, weights::AbstractDimArray, replace, ordered, ::Type{W}) where W
+function sample_indices(rng, x, skipmissing, weights::AbstractDimArray, ::Type{W}, args...; kw...) where W
     wts = if istrue(skipmissing) 
         @d boolmask(x) .* weights
     elseif dims(weights) == dims(x)
@@ -67,7 +74,7 @@ function sample_indices(rng, x, n, skipmissing, weights::AbstractDimArray, repla
     else
         @d ones(eltype(weights), dims(x)) .* weights
     end |> vec |> W
-    StatsBase.sample(rng, RA.DimIndices(x), wts, n; replace, ordered)
+    StatsBase.sample(rng, RA.DimIndices(x), wts, args...; kw...)
 end
 function _geometrytype(x, geometry::Bool)
     if geometry
