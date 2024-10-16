@@ -1,15 +1,6 @@
 using Rasters, Test, Aqua, SafeTestsets
 
-if VERSION >= v"1.9.0"
-    # Aqua.test_ambiguities([Rasters, Base, Core])
-    Aqua.test_unbound_args(Rasters)
-    Aqua.test_stale_deps(Rasters)
-    Aqua.test_undefined_exports(Rasters)
-    Aqua.test_project_extras(Rasters)
-    # Aqua.test_deps_compat(Rasters) # This breaks GDAL downstream tests
-    # Aqua.test_project_toml_formatting(Rasters) # This seems to change between versions for extensions
-    @time @safetestset "extensions" begin include("extensions.jl") end
-end
+@testset "Rasters" begin
 
 @time @safetestset "methods" begin include("methods.jl") end
 @time @safetestset "array" begin include("array.jl") end
@@ -46,3 +37,17 @@ end
 @time @safetestset "plot recipes" begin include("plotrecipes.jl") end
 
 @time @safetestset "resample" begin include("resample.jl") end
+
+    
+if VERSION >= v"1.9.0"
+    # Aqua.test_ambiguities([Rasters, Base, Core])
+    Aqua.test_unbound_args(Rasters)
+    Aqua.test_stale_deps(Rasters)
+    Aqua.test_undefined_exports(Rasters)
+    Aqua.test_project_extras(Rasters)
+    # Aqua.test_deps_compat(Rasters) # This breaks GDAL downstream tests
+    # Aqua.test_project_toml_formatting(Rasters) # This seems to change between versions for extensions
+    @time @safetestset "extensions" begin include("extensions.jl") end
+end
+
+end
