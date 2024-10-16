@@ -372,11 +372,19 @@ _booltype(x) = x ? _True() : _False()
 istrue(::_True) = true
 istrue(::_False) = false
 
-function _rowtype(x, ::Type{G}, ::Type{I}; geometry, index, skipmissing, names) where {G, I}
+# skipinvalid: can G and I be missing. skipmissing: can nametypes be missing
+_rowtype(x, g, args...; kw...) = _rowtype(x, typeof(g), args...; kw...)
+function _rowtype(
+    x, ::Type{G}, i::Type{I} = typeof(size(x)); 
+    geometry, index, skipmissing, skipinvalid = skipmissing, names, kw...
+) where {G, I}
+    _G = istrue(skipinvalid) ? nonmissingtype(G) : G
+    _I = istrue(skipinvalid) ? I : Union{Missing, I}
     keys = _rowkeys(geometry, index, names)
-    types = _rowtypes(x, G, I, geometry, index, skipmissing, names)
+    types = _rowtypes(x, _G, _I, geometry, index, skipmissing, names)
     NamedTuple{keys,types}
 end
+
 
 function _rowtypes(
     x, ::Type{G}, ::Type{I}, geometry::_True, index::_True, skipmissing, names::NamedTuple{Names}
