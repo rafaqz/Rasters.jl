@@ -229,9 +229,10 @@ Note that cellarea returns the area in square m, while cellsize still uses squar
 end
 
 """
-Rasters.sample([rng], x, n; [geometry, index, name, skipmissing, replace, ordered, weights])
+Rasters.sample([rng], x, [n::Integer]; kw...)
 
-Sample from a `Raster` or `RasterStack` with additional options that match those provided by [`extract`](@ref)
+Sample `n` random and optionally weighted points from from a `Raster` or `RasterStack`.
+Returns a `Vector` of `NamedTuple`, closely resembling the return type of [`extract`](@ref).
 
 Run `using StatsBase` to make this method available.
 Note that this function is not exported to avoid confusion with StatsBase.sample
@@ -243,13 +244,13 @@ Note that this function is not exported to avoid confusion with StatsBase.sample
 - `index`: include `:index` of the `CartesianIndex` in returned `NamedTuple`, `false` by default.
 - `name`: a `Symbol` or `Tuple` of `Symbol` corresponding to layer/s of a `RasterStack` to extract. All layers by default.
 - `skipmissing`: skip missing points automatically.
-- `replace`: sample with replacement, `true` by default.
-- `ordered`: sample in order, `false` by default.
 - `weights`: A DimArray that matches one or more of the dimensions of `x` with weights for sampling.
-- `weightstype`: a `StatsBase.AbstractWeights`. Defaults to `StatsBase.Weights`.
+- `weightstype`: a `StatsBase.AbstractWeights` specifying the type of weights. Defaults to `StatsBase.Weights`.
+- `replace`: sample with replacement, `true` by default. See `StatsBase.sample`
+- `ordered`: sample in order, `false` by default. See `StatsBase.sample`
 
 # Example
-This code draws 10 samples from the raster `myraster`, with weights adjusted by cell size.
+This code draws 5 random points from a raster, weighted by cell area.
 ```julia
 using Rasters, Rasters.Lookups, Proj, StatsBase
 xdim = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), crs=EPSG(4326)))
