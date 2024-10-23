@@ -132,7 +132,7 @@ function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
     st1 = map(A -> setmappedcrs(A, nothing), st)
     x = f(st1)
     if x isa AbstractRasterStack
-        x = map(A -> setmappedcrs(A, mappedcrs(st)), x)
+        x = map(A -> setmappedcrs(A, mappedcrs), x)
     end
     return x
 end
