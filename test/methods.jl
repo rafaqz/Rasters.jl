@@ -556,11 +556,16 @@ end
          missing 1.0     missing]
 
     r_fwd = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing)
+    r_crs = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing, crs = EPSG(4326))
+    r_mcrs = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing, crs = EPSG(4326), mappedcrs = EPSG(4326))
     r_revX = reverse(r_fwd; dims=X)
     r_revY = reverse(r_fwd; dims=Y)
+    st1 = RasterStack((a = r_fwd, b = r_fwd))
+    st2 = RasterStack((a = r_fwd, b = r_fwd), crs = EPSG(4326))
+    st3 = RasterStack((a = r_fwd, b = r_fwd), crs = EPSG(4326), mappedcrs = EPSG(4326))
 
-    ga = r_revY
-    for ga in (r_fwd, r_revX, r_revY)
+    ga = r_fwd
+    for ga in (r_fwd, r_crs, r_mcrs, r_revX, r_revY, st1, st2, st3)
         # Test with missing on all sides
         ga_r = rot180(ga)
         trimmed = trim(ga)
@@ -574,55 +579,55 @@ end
         cropped1 = crop(crop(ga; to=dims(trimmed, X)); to=dims(trimmed, Y))
         _, cropped2 = crop(trimmed, ga)
         cropped_r = crop(ga_r; to=trimmed_r)
-        @test all(cropped .=== cropped1 .=== trimmed)
-        @test all(cropped_r .=== trimmed_r)
+        @test map(identicalelements, maybe_layers.((cropped, cropped1, trimmed))...) |> all
+        @test map(identicalelements, maybe_layers.((cropped_r, trimmed_r))...) |> all
         extended = extend(cropped, ga)[1]
         extended_r = extend(cropped_r; to=ga_r)
         extended1 = extend(extend(cropped; to=dims(ga, X)); to=dims(ga, Y))
         extended_d = extend(cropped; to=ga, filename="extended.tif")
-        @test all(extended .=== extended1 .=== replace_missing(extended_d) .=== ga) 
-        @test all(extended_r .=== ga_r)
+        @test map(identicalelements, maybe_layers.((extended, extended1, replace_missing(extended_d), ga))...) |> all
+        @test map(identicalelements, maybe_layers.((extended_r, ga_r))...) |> all
         @test all(map(==, lookup(extended_d), lookup(extended)))
+    end
 
-        @testset "unformatted dimension works in crop" begin
-            xdim, ydim = X(1.0:0.2:2.0), Y(1.0:1:2.0)
-            A = Raster(rand((X(1.0:0.2:4.0), ydim)))
-            @test lookup(crop(A; to=xdim), X) == 1.0:0.2:2.0
+    @testset "unformatted dimension works in crop" begin
+        xdim, ydim = X(1.0:0.2:2.0), Y(1.0:1:2.0)
+        A = Raster(rand((X(1.0:0.2:4.0), ydim)))
+        @test lookup(crop(A; to=xdim), X) == 1.0:0.2:2.0
 
-            A = Raster(rand((X(1.0:0.2:4.0), ydim)))
-            @test lookup(crop(A; to=xdim), X) == 1.0:0.2:2.0
+        A = Raster(rand((X(1.0:0.2:4.0), ydim)))
+        @test lookup(crop(A; to=xdim), X) == 1.0:0.2:2.0
 
-            A = Raster(ones((X(1.0:0.2:1.4), ydim)); missingval=0.0)
-            extend(A; to=xdim)
-            @test lookup(extend(A; to=xdim), X) == 1.0:0.2:2.0
-            @test extend(A; to=xdim) == [1.0 1.0; 1.0 1.0; 1.0 1.0; 0.0 0.0; 0.0 0.0; 0.0 0.0]  
+        A = Raster(ones((X(1.0:0.2:1.4), ydim)); missingval=0.0)
+        extend(A; to=xdim)
+        @test lookup(extend(A; to=xdim), X) == 1.0:0.2:2.0
+        @test extend(A; to=xdim) == [1.0 1.0; 1.0 1.0; 1.0 1.0; 0.0 0.0; 0.0 0.0; 0.0 0.0]  
+    end
+
+    @testset "to polygons" begin
+        A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
+        A2 = Raster(ones(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
+        A1crop1 = crop(A1; to=polygon)
+        A1crop2, A2crop = crop(A1, A2; to=polygon)
+        size(A1crop1)
+        @test size(A1crop1) == size(A1crop2) == size(A2crop) == (16, 21)
+        @test bounds(A1crop1) == bounds(A1crop2) == bounds(A2crop) == ((-20, -5), (10, 30))
+        A1extend1 = extend(A1; to=polygon)
+        A1extend2, A2extend = extend(A1, A2; to=polygon)
+        @test all(A1extend1 .=== A1extend2)
+        @test size(A1extend1) == size(A1extend2) == size(A2extend) == (21, 31)
+        @test bounds(A1extend1) == bounds(A1extend2) == bounds(A2extend) == ((-20.0, 0.0), (0, 30))
+    end
+    @testset "to featurecollection and table" begin
+        A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
+        featurecollection = map(GeoInterface.getpoint(polygon), vals) do geometry, v
+            (; geometry, val1=v, val2=2.0f0v)
         end
-
-        @testset "to polygons" begin
-            A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
-            A2 = Raster(ones(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
-            A1crop1 = crop(A1; to=polygon)
-            A1crop2, A2crop = crop(A1, A2; to=polygon)
-            size(A1crop1)
-            @test size(A1crop1) == size(A1crop2) == size(A2crop) == (16, 21)
-            @test bounds(A1crop1) == bounds(A1crop2) == bounds(A2crop) == ((-20, -5), (10, 30))
-            A1extend1 = extend(A1; to=polygon)
-            A1extend2, A2extend = extend(A1, A2; to=polygon)
-            @test all(A1extend1 .=== A1extend2)
-            @test size(A1extend1) == size(A1extend2) == size(A2extend) == (21, 31)
-            @test bounds(A1extend1) == bounds(A1extend2) == bounds(A2extend) == ((-20.0, 0.0), (0, 30))
-        end
-        @testset "to featurecollection and table" begin
-            A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
-            featurecollection = map(GeoInterface.getpoint(polygon), vals) do geometry, v
-                (; geometry, val1=v, val2=2.0f0v)
-            end
-            fccrop = crop(A1; to=featurecollection)
-            table = DataFrame(featurecollection)
-            tablecrop = crop(A1; to=table)
-            @test size(fccrop) == size(tablecrop) == (16, 21)
-            @test bounds(fccrop) == bounds(tablecrop) == ((-20, -5), (10, 30))
-        end
+        fccrop = crop(A1; to=featurecollection)
+        table = DataFrame(featurecollection)
+        tablecrop = crop(A1; to=table)
+        @test size(fccrop) == size(tablecrop) == (16, 21)
+        @test bounds(fccrop) == bounds(tablecrop) == ((-20, -5), (10, 30))
     end
 
 end
