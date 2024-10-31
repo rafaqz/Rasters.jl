@@ -37,7 +37,6 @@ stack2 = RasterStack(array1a, array2a; name=(:array1, :array2))
 dates = DateTime(2017):Year(1):DateTime(2018)
 series = RasterSeries([stack1, stack2], (Ti(dates),))
 
-
 @testset "Aggregate a dimension" begin
     lat = Y(Sampled(LinRange(3, 13, 6), ForwardOrdered(), Regular(2.0), Intervals(Start()), NoMetadata()))
     aglat = aggregate(Start(), lat, 3)
@@ -157,19 +156,28 @@ end
     @test length.(dims(A)) == size(A)
 end
 
+@testset "test all scale modes" begin
+    @test aggregate(sum, array1, (3, 2)) == 
+        aggregate(sum, array1, (Y(2), X(3))) == 
+        aggregate(sum, array1, (Y=2, X=3)) == 
+        aggregate(sum, array1, (Y=>2, X=>3)) == 
+        aggregate(sum, array1, (:Y=>2, :X=>3)) == 
+        [45 57 69]
+end
+
 @testset "Aggregate with a function with missing values" begin
     data_m = [ 1  2  3  4  5  6 -1
                7  8  9 10 11 12 -1
               13 14 15 16 missing 18 -1]
     array_m = Raster(data_m, dimz)
     @test all(aggregate(sum, array_m, 3) .=== [72 missing])
-    @test all(aggregate(sum, array_m, 3; skipmissingval=true) .=== [72 82])
+    @test all(aggregate(sum, array_m, 3; skipmissing=true) .=== [72 82])
     data_m0 = [ 1  2  3  4  5  6 -1
                 7  8  0 10 11 12 -1
                13 14 15 16 17 18 -1]
     array_m0 = Raster(data_m0, dimz; missingval=0)
     @test aggregate(sum, array_m0, 3) == [0 99]
-    @test aggregate(sum, array_m0, 3; skipmissingval=true) == [63 99]
+    @test aggregate(sum, array_m0, 3; skipmissing=true) == [63 99]
     @test all(aggregate(mean, array_m0, 3) .=== [0.0 11.0])
 end
 
