@@ -7,11 +7,13 @@ assignees: ''
 
 ---
 
-Raster data is complicated, there are a lot of formats and a lot of things that can go wrong. So we can't usually fix your problem unless you help us by filling out the code blocks below. 
+########################
+Pleas fill all code blocks below, then read and remove this message.
 
-Its important that your example just runs, and we can copy and paste the code into Julia and it does that same thing for us that it does for you. That means either generating or downloading data inside the script, e.g. with `download`. 
+Its important that your example *just runs*, and we can copy and paste the code into Julia and it does that same thing for us that it does for you. 
 
-The faster we can get to your problem, the more likely it will be fixed quickly. If we have 15 minutes of free dev time for your issue, you want all 15 to be looking at code, not 10 trying to download some file from a website and making sure the file path matches in the script, leaving 5 minutes to look at the error and fix it.
+That means either generating or downloading data inside the script, e.g. with `download`. 
+########################
 
 ```julia
 All the julia code needed to make the error goes here including download or generation of all data used
