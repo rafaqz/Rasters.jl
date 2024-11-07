@@ -328,7 +328,7 @@ end
     end
 
     @testset "geometry encompassing raster" begin
-        geom = GeoInterface.Polygon([GeoInterface.LinearRing([(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0), (0.0, 0.0)] |> reverse)])
+        geom = GeoInterface.Polygon([GeoInterface.LinearRing([(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0), (0.0, 0.0)])])
         raster = Raster(ones(11, 11), (X(1:0.1:2), Y(1:0.1:2)))
         @test zonal(sum, raster; of=geom) == 10 * 11 # this fails?
     end
