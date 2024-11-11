@@ -89,17 +89,27 @@ GeoInterface.crs(lookup::Projected) = lookup.crs
 mappedcrs(lookup::Projected) = lookup.mappedcrs
 dim(lookup::Projected) = lookup.dim
 
-function LA.selectindices(l::Projected, sel::Contains)
-    selval = reproject(mappedcrs(l), crs(l), dim(l), val(sel))
-    LA.contains(l, rebuild(sel; val=selval))
+for T in (At, Contains, Near)
+    @eval function LA.selectindices(l::Projected, sel::$T)
+        selval = reproject(mappedcrs(l), crs(l), dim(l), val(sel))
+        LA.contains(l, rebuild(sel; val=selval))
+    end
+    @eval function LA.selectindices(l::Projected, sel::$T{<:AbstractVector})
+        selval = reproject(mappedcrs(l), crs(l), dim(l), val(sel))
+        _selectvec(l, rebuild(sel; val=selval)sel; kw...)
+    end
+    @eval function LA.selectindices(l::Projected, sel::$T{<:Tuple})
+        selval = reproject(mappedcrs(l), crs(l), dim(l), val(sel))
+        _selecttuple(l, rebuild(sel; val=selval); kw...)
+    end
 end
-function LA.selectindices(l::Projected, sel::At)
-    selval = reproject(mappedcrs(l), crs(l), dim(l), val(sel))
-    LA.at(l, rebuild(sel; val=selval))
-end
-function LA.selectindices(l::Projected, sel::Between)
+function LA.selectindices(l::Projected, sel::Between{<:Tuple})
     selval = map(v -> reproject(mappedcrs(l), crs(l), dim(l), v), val(sel))
     LA.between(l, rebuild(sel; val=selval))
+end
+function LA.selectindices(l::Projected, sel::T) where T<:IntervalSets.Interval
+    left, right = map(v -> reproject(mappedcrs(l), crs(l), dim(l), v), (sel.left, sel.right))
+    LA.between(l, T(left, right))
 end
 
 """

@@ -420,7 +420,7 @@ function rasterize(reducer::typeof(count), data; fill=nothing, init=nothing, kw.
 end
 # `mean` is sum ./ count. This is actually optimal with threading, 
 # as its means order is irrelevant so its threadsafe.
-function rasterize(reducer::typeof(DD.Statistics.mean), data; fill, kw...)
+function rasterize(reducer::typeof(Statistics.mean), data; fill, kw...)
     sums = rasterize(sum, data; kw..., fill)
     counts = rasterize(count, data; kw..., fill=nothing)
     rebuild(sums ./ counts; name=:mean)

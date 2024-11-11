@@ -61,6 +61,9 @@ nothing
 
 $EXPERIMENTAL
 """
+function mosaic(last, r1::RasterStackOrArray, rs::RasterStackOrArray...; kw...)
+    mosaic(f, (r1, rs...); kw...)
+end
 function mosaic(f::Function, r1::RasterStackOrArray, rs::RasterStackOrArray...; kw...)
     mosaic(f, (r1, rs...); kw...)
 end
@@ -69,7 +72,8 @@ function _mosaic(f::Function, ::AbstractRaster, regions;
     missingval=missingval(first(regions)), filename=nothing, suffix=nothing, kw...
 )
     missingval = missingval isa Nothing ? missing : missingval
-    T = Base.promote_type(typeof(missingval), Base.promote_eltype(regions...))
+    zeros = map(r -> zero(Missings.nonmissingtype(eltype(r))), regions)
+    T = Base.promote_type(typeof(missingval), typeof(f(zeros)))
     dims = _mosaic(Tuple(map(DD.dims, regions)))
     l1 = first(regions)
     A = create(filename, T, dims; name=name(l1), missingval, metadata=metadata(l1))
@@ -135,43 +139,120 @@ nothing
 
 $EXPERIMENTAL
 """
-mosaic!(f::Function, x::RasterStackOrArray, regions::RasterStackOrArray...; kw...) = mosaic!(f, x, regions; kw...)
-function mosaic!(f::Function, A::AbstractRaster{T}, regions;
-    missingval=missingval(A), atol=maybe_eps(T)
-) where T
-    _without_mapped_crs(A) do A1
-        broadcast!(A1, DimKeys(A1; atol)) do ds
-            # Get all the regions that have this point
-            ls = foldl(regions; init=()) do acc, l
-                if DD.hasselection(l, ds)
-                    v = l[ds...]
-                    (acc..., l)
-                else
-                    acc
-                end
-            end
-            values = foldl(ls; init=()) do acc, l
-                v = l[ds...]
-                if isnothing(Rasters.missingval(l))
-                    (acc..., v)
-                elseif ismissing(Rasters.missingval(l))
-                    ismissing(v) ? acc : (acc..., v)
-                else
-                    v === Rasters.missingval(l) ? acc : (acc..., v)
-                end
-            end
-            if length(values) === 0
-                missingval
-            else
-                f(values)
-            end
+mosaic!(dest::RasterStackOrArray, regions::RasterStackOrArray...; kw...) =
+    mosaic!(last, dest, regions; kw...)
+mosaic!(f::Function, dest::RasterStackOrArray, regions::RasterStackOrArray...; kw...) =
+    mosaic!(f, dest, regions; kw...)
+mosaic!(f, dest::RasterStackOrArray, regions::RasterStackOrArray...; kw...) =
+    mosaic!(f, dest, regions; kw...)
+function mosaic!(f::Function, dest::AbstractRaster, regions; kw...)
+    any_intersect = any(enumerate(regions)) do (i, r)
+        any(i:length(regions)) do i
+            Extents.intersects(extent(r), extent(regions[i]))
         end
     end
-    return A
+    if any_intersect
+        _mosaic!(f, dest, regions; kw...)
+    else
+        _no_ovelap_mosaic!(f, dest, regions; kw...)
+    end
 end
-function mosaic!(f::Function, st::AbstractRasterStack, regions::Tuple; kw...)
+
+_mosaic!(f::typeof(first), dest::AbstractRaster, regions; kw...) =
+    _mosaic!(last, dest, reverse(regions); kw...)
+function _mosaic!(f::typeof(last), dest::AbstractRaster, regions;
+    missingval=missingval(A), selectors=Near()
+)
+    # For `last` we write each region in sequence
+    map(regions) do r
+        # View the dest with the extent of the region
+        v = view(dest, extent(r))
+        # Then use nearest neighbor selector indexing to update it
+        v .= parent(view(r, DimSelectors(v; selectors)))
+    end
+
+    return dest
+end
+function _mosaic!(f::typeof(sum), dest::AbstractRaster, regions;
+    missingval=missingval(A), selectors=Near()
+)
+    # For `sum` we first zero the mosaic regions of dest
+    map(regions) do r
+        # View the dest of the extent with zeros
+        view(dest, extent(r)) .+= zero(eltype(dest))
+    end
+    # Then sum into them
+    map(regions) do r
+        # Use nearest neighbor selector indexing to update dest
+        v = view(dest, extent(r))
+        v .+= parent(view(r, DimSelectors(v; selectors)))
+    end
+    return dest
+end
+function _mosaic!(f::typeof(mean), dest::AbstractRaster, regions; kw...)
+    # First sum
+    _mosaic!(sum, dest, regions; kw...)
+
+    # Then count
+    counts = similar(dest, UInt8)
+    fill!(counts, 0x00)
+    map(regions) do r
+        view(dest, extent(r)) .+= 0x01
+    end
+    # Then divide the sums by the counts
+    dest ./= counts
+
+    return dest
+end
+function _mosaic!(f::Function, st::AbstractRasterStack, regions::Tuple; 
+    dims=(Val{XDim}(), Val{YDim}()),
+    pixel_done=falses(size(st, dims)),
+    region_done=falses(length(regions)),
+    region_intersects=falses(length(regions)),
+    kw...
+)
     map(st, regions...) do A, r...
-        mosaic!(f, A, r; kw...)
+        pixel_done .= false
+        region_done .= false
+        mosaic!(f, A, r; dims, pixel_done, region_done, region_intersects, kw...)
+    end
+end
+function _mosaic!(f::Function, A::AbstractRaster, regions;
+    missingval=missingval(A),
+    selectors=Near(),
+    dims=(Val{XDim}(), Val{YDim}()),
+    pixel_done=falses(size(A, dims)),
+    region_done=falses(length(regions)),
+    region_intersects=falses(length(regions)),
+)
+    region_vect = collect(regions)
+    for (i1, r1) in enumerate(regions)
+        region_intersects .= false
+        region_done[i1] && continue
+        for (i2, r2) in  enumerate(regions)
+            region_done[i2] && continue
+            region_intersects[i2] = intersects(extent(r1), extent(r2))
+            if contains(extent(r1), extent(r2))
+                region_done[i2] = true
+            end
+        end
+        intersecting = region_vec[region_intersects]
+        _mosaic_intersecting!(f, dest, pixel_done, intersecting)
+    end
+end
+
+function _mosaic_intersecting!(f, dest, intersecting)
+    n = length(intersecting)
+    ext = mapreduce(extent, Extents.intersection, view(intersecting, j:n))
+end
+
+# Nothing overlaps, just write
+function _no_ovelap_mosaic!(f, dest, regions; kw...)
+    g(x) = f((x,))
+    map(regions) do r
+        # Use nearest neighbor selector indexing to update dest
+        v = view(dest, extent(r))
+        v += g.(parent(view(r, DimSelectors(v; selectors))))
     end
 end
 
