@@ -111,10 +111,16 @@ When loading a series from a single `String` path:
 Others:
 - `refdims`: existing reference dimension/s, normally not required.
 """
-struct RasterSeries{T,N,D,R,A<:AbstractArray{T,N}} <: AbstractRasterSeries{T,N,D,A}
+struct RasterSeries{T<:Union{AbstractRaster,AbstractRasterStack},N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N}} <: AbstractRasterSeries{T,N,D,A}
     data::A
     dims::D
     refdims::R
+    # Needed for ambiguity with DD
+    function RasterSeries{T,N,D,R,A}(
+        data::AbstractArray, dims::Tuple, refdims::Tuple
+    ) where {T,N,D,R,A}
+        new{T,N,D,R,A}(data, dims, refdims)
+    end
 end
 function RasterSeries(data::AbstractArray{<:Union{AbstractRasterStack,AbstractRaster}}, dims;
     refdims=()
