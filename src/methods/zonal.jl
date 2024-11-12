@@ -12,6 +12,12 @@ covered by the `of` object/s.
 
 # Keywords
 $GEOMETRYCOLUMN_KEYWORD
+- `bylayer`: **Only relevant if `x` is a `RasterStack`.** `false` (default) to apply `f` to the stack as a whole 
+  (so `f` sees an iterator over NamedTuples), or `true` to apply `f` to each layer of a `RasterStack` individually. 
+  In this case, `f` gets each layer separately, and the results are recombined into a NamedTuple.
+  Generally, it's more powerful to set `bylayer = false`, since you can perform statistics on one layer weighted by another.  
+  Functions like `Statistics.mean` cannot handle NamedTuple input, so you will want to set `bylayer = true` for those.
+
 These can be used when `of` is or contains (a) GeoInterface.jl compatible object(s):
 
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`, where possible.
@@ -81,11 +87,17 @@ _zonal(f, x::RasterStackOrArray, of::DimTuple; kw...) =
 # We don't need to `mask` with an extent, it's square so `crop` will do enough.
 _zonal(f, x::Raster, of::Extents.Extent; skipmissing=true) =
     _maybe_skipmissing_call(f, crop(x; to=of, touches=true), skipmissing)
-function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing=true)
+function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing=true, bylayer = false)
     cropped = crop(x; to=ext, touches=true)
     prod(size(cropped)) > 0 || return missing
-    return map(cropped) do A
-        _maybe_skipmissing_call(f, A, skipmissing)
+    if bylayer # apply f to each layer
+        return maplayers(cropped) do A
+            prod(size(A)) > 0 || return missing
+            _maybe_skipmissing_call(f, A, skipmissing)
+        end
+    else # apply f to the whole stack
+        prod(size(cropped)) > 0 || return missing
+        return _maybe_skipmissing_call(f, cropped, skipmissing)
     end
 end
 # Otherwise of is a geom, table or vector
@@ -104,14 +116,19 @@ function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
     return _maybe_skipmissing_call(f, masked, skipmissing)
 end
 function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; 
-    skipmissing=true, kw...
+    skipmissing=true, bylayer = false, kw...
 )
     cropped = crop(st; to=geom, touches=true)
     prod(size(cropped)) > 0 || return map(_ -> missing, st)
     masked = mask(cropped; with=geom, kw...)
-    return map(masked) do A
-        prod(size(A)) > 0 || return missing
-        _maybe_skipmissing_call(f, A, skipmissing)
+    if bylayer # apply f to each layer
+        return maplayers(masked) do A
+            prod(size(A)) > 0 || return missing
+            _maybe_skipmissing_call(f, A, skipmissing)
+        end
+    else # apply f to the whole stack
+        prod(size(masked)) > 0 || return missing
+        return _maybe_skipmissing_call(f, masked, skipmissing)
     end
 end
 function _zonal(f, x::RasterStackOrArray, ::Nothing, data; 
@@ -131,6 +148,13 @@ end
 function _alloc_zonal(f, x, geoms, n; kw...)
     # Find first non-missing entry and count number of missing entries
     n_missing::Int = 0
+    # TODO: wrap this in try-catch, so that we can throw an intelligent error.
+    # There are a couple of scenarios where this can fail:
+    # 1. The function cannot accept an empty iterator
+    # 2. If passed a RasterStack, the function may not be able to handle layers.  
+    #    In this case you'll get a method error, where one of the arguments is a NamedTuple
+    #    that is the same as eltype(rs).  We should check for that and throw an informative error,
+    #    that tells you to set `bylayer = true`.
     z1 = _zonal(f, x, first(geoms); kw...)
     for geom in geoms
         z1 = _zonal(f, x, geom; kw...)
