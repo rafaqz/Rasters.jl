@@ -22,11 +22,12 @@ end
 @time @safetestset "adapt" begin include("adapt.jl") end
 @time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "warp" begin include("warp.jl") end
-@time @safetestset "resample" begin include("resample.jl") end
 @time @safetestset "cellarea" begin include("cellarea.jl") end
 
 # CommondataModel sources
+@time @safetestset "commondatamodel" begin include("sources/commondatamodel.jl") end
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
+# @time @safetestset "zarr" begin include("sources/zarr.jl") end # TODO: FIXME
 if !Sys.iswindows()
     # GRIBDatasets doesn't work on Windows for now
     @time @safetestset "gribdatasets" begin include("sources/gribdatasets.jl") end
@@ -43,3 +44,5 @@ if !Sys.iswindows()
     @time @safetestset "grd" begin include("sources/grd.jl") end
 end
 @time @safetestset "plot recipes" begin include("plotrecipes.jl") end
+
+@time @safetestset "resample" begin include("resample.jl") end

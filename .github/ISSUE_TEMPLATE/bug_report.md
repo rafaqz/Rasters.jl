@@ -1,15 +1,19 @@
 ---
-name: Bug Report
-about: Describe your issue here, including a minimum working example and all file downloads without authentication.
-We cant fix your problem unless you help us by filling out the code blocks below.
-
+name: Bug report
+about: Describe your issue here, including a minimum working example all files.
 title: ''
-labels: ''
+labels: bug
 assignees: ''
 
 ---
 
-Your problem. You don't have to write anything here for a bug, the code and error are what is important.
+########################
+Pleas fill all code blocks below, then read and remove this message.
+
+Its important that your example *just runs*, and we can copy and paste the code into Julia and it does that same thing for us that it does for you. 
+
+That means either generating or downloading data inside the script, e.g. with `download`. 
+########################
 
 ```julia
 All the julia code needed to make the error goes here including download or generation of all data used
