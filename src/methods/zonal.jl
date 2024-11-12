@@ -12,10 +12,10 @@ covered by the `of` object/s.
 
 # Keywords
 $GEOMETRYCOLUMN_KEYWORD
-- `bylayer`: **Only relevant if `x` is a `RasterStack`.** `false` (default) to apply `f` to the stack as a whole 
-  (so `f` sees an iterator over NamedTuples), or `true` to apply `f` to each layer of a `RasterStack` individually. 
+- `bylayer`: **Only relevant if `x` is a `RasterStack`.** `true` (default) to apply `f` to each layer of a `RasterStack` individually. 
   In this case, `f` gets each layer separately, and the results are recombined into a NamedTuple.
-  Generally, it's more powerful to set `bylayer = false`, since you can perform statistics on one layer weighted by another.  
+  If `false`, `f` gets a cropped and masked `RasterStack` as a whole, and must be able to handle that.  This is useful for performing e.g
+  weighted statistics or multi-layer operations.
   Functions like `Statistics.mean` cannot handle NamedTuple input, so you will want to set `bylayer = true` for those.
 
 These can be used when `of` is or contains (a) GeoInterface.jl compatible object(s):
@@ -87,7 +87,7 @@ _zonal(f, x::RasterStackOrArray, of::DimTuple; kw...) =
 # We don't need to `mask` with an extent, it's square so `crop` will do enough.
 _zonal(f, x::Raster, of::Extents.Extent; skipmissing=true) =
     _maybe_skipmissing_call(f, crop(x; to=of, touches=true), skipmissing)
-function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing=true, bylayer = false)
+function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing=true, bylayer=true)
     cropped = crop(x; to=ext, touches=true)
     prod(size(cropped)) > 0 || return missing
     if bylayer # apply f to each layer
@@ -116,7 +116,7 @@ function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
     return _maybe_skipmissing_call(f, masked, skipmissing)
 end
 function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; 
-    skipmissing=true, bylayer = false, kw...
+    skipmissing=true, bylayer=true, kw...
 )
     cropped = crop(st; to=geom, touches=true)
     prod(size(cropped)) > 0 || return map(_ -> missing, st)
