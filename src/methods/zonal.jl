@@ -91,10 +91,10 @@ function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing=true, bylaye
     cropped = crop(x; to=ext, touches=true)
     prod(size(cropped)) > 0 || return missing
     if bylayer # apply f to each layer
-        return maplayers(cropped) do A
+        return DD._maybestack(cropped, map(values(cropped)) do A
             prod(size(A)) > 0 || return missing
             _maybe_skipmissing_call(f, A, skipmissing)
-        end
+        end)
     else # apply f to the whole stack
         prod(size(cropped)) > 0 || return missing
         return _maybe_skipmissing_call(f, cropped, skipmissing)
@@ -122,10 +122,10 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom;
     prod(size(cropped)) > 0 || return map(_ -> missing, st)
     masked = mask(cropped; with=geom, kw...)
     if bylayer # apply f to each layer
-        return maplayers(masked) do A
+        return DD._maybestack(masked, map(values(masked)) do A # TODO: replace this with `maplayers` once DD v0.29 is available
             prod(size(A)) > 0 || return missing
             _maybe_skipmissing_call(f, A, skipmissing)
-        end
+        end)
     else # apply f to the whole stack
         prod(size(masked)) > 0 || return missing
         return _maybe_skipmissing_call(f, masked, skipmissing)
