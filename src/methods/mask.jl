@@ -170,7 +170,7 @@ function _mask!(x::RasterStackOrArray, geom; kw...)
 end
 # Array mask
 function _mask!(st::RasterStack, with::AbstractRaster; kw...)
-    map(A -> mask!(A; with, kw...), st)
+    maplayers(A -> mask!(A; with, kw...), st)
     return st
 end
 

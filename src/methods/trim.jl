@@ -131,5 +131,5 @@ end
 
 # Broadcast over the array and tracker to mark axis indices as being missing or not
 _update!(tr::AxisTrackers, A::AbstractRaster) = tr .= A .!== missingval(A)
-_update!(tr::AxisTrackers, st::AbstractRasterStack) = map(A -> tr .= A .!== missingval(A), st)
+_update!(tr::AxisTrackers, st::AbstractRasterStack) = maplayers(A -> tr .= A .!== missingval(A), st)
 

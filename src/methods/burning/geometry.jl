@@ -33,7 +33,7 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, data;
     burnchecks = _alloc_burnchecks(range)
     if isnothing(collapse) || collapse
         _run(range, threaded, progress, "") do i
-            geom = getgeom(geoms, i)
+            geom = _getgeom(geoms, i)
             ismissing(geom) && return nothing
             a = _get_alloc(allocs)
             B1 = a.buffer
@@ -59,7 +59,7 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, data;
         end
     else
         _run(range, threaded, progress, "") do i
-            geom = getgeom(geoms, i)
+            geom = _getgeom(geoms, i)
             ismissing(geom) && return nothing
             B1 = view(B, Dim{:geometry}(i))
             a = _get_alloc(allocs)

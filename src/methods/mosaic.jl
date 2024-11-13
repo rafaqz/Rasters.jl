@@ -136,7 +136,7 @@ nothing
 $EXPERIMENTAL
 """
 mosaic!(f::Function, x::RasterStackOrArray, regions::RasterStackOrArray...; kw...) =
-    mosaic!(f, x, regions; kw...)
+    _mosaic!(f, x, regions; kw...)
 function _mosaic!(f::Function, A::AbstractRaster{T}, regions::Tuple;
     missingval=missingval(A), atol=maybe_eps(T)
 ) where T

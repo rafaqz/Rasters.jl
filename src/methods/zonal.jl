@@ -109,7 +109,7 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom;
     cropped = crop(st; to=geom, touches=true)
     prod(size(cropped)) > 0 || return map(_ -> missing, st)
     masked = mask(cropped; with=geom, kw...)
-    return map(masked) do A
+    return maplayers(masked) do A
         prod(size(A)) > 0 || return missing
         _maybe_skipmissing_call(f, A, skipmissing)
     end
