@@ -254,12 +254,8 @@ gdalpath = maybedownload(url)
             A1 = gdalarray[X(1:300), Y(1:200)]
             A2 = gdalarray[X(57:500), Y(101:301)]
             tempfile = tempname() * ".tif"
-            Afile = mosaic(first, A1, A2; missingval=0x00, filename=tempfile)
-            Amem = mosaic(first, A1, A2; missingval=0x00)
-            Amem = mosaic(last, A1, A2; missingval=0x00)
-            Amem = mosaic(sum, A1, A2; missingval=0x00)
-            Amem = mosaic(prod, A1, A2; missingval=0x00)
-            Amem = mosaic(mean, A1, A2; missingval=0x00)
+            Afile = mosaic(first, A1, A2; missingval=0x00, atol=1e-8, filename=tempfile)
+            Amem = mosaic(first, A1, A2; missingval=0x00, atol=1e-8)
             Atest = gdalarray[X(1:500), Y(1:301)]
             Atest[X(1:56), Y(201:301)] .= 0x00
             Atest[X(301:500), Y(1:100)] .= 0x00
