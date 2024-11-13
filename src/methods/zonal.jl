@@ -145,19 +145,49 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data;
     return zs
 end
 
+function _zonal_error_check(f, x, geom; kw...)
+    try
+        return _zonal(f, x, geom; kw...)
+    catch e
+        # Check if the error is because the function doesn't accept empty iterators
+        if e isa ArgumentError && occursin("reducing over an empty collection is not allowed", e.msg)
+            @warn("""
+                The function cannot handle empty iterators. You need to supply an `init` value.
+                If your original call was `zonal(f, x; of, kw...)`, try:
+                `zonal(x -> f(x; init=...), x; of, kw...)`
+                """
+            )
+        # Check if the error is because the function doesn't accept NamedTuples
+        elseif e isa MethodError && 
+            x isa AbstractRasterStack &&
+            get(kw, :bylayer, true) == false
+            namedtuple_arg_idx = findfirst(
+                a -> a isa NamedTuple &&
+                ((eltype(a) <: Missing) || (a isa eltype(x))),
+                e.args
+            )
+            if !isnothing(namedtuple_arg_idx)
+                @warn("""
+                The function you passed to `zonal` cannot handle a RasterStack's values directly,
+                as they are NamedTuples of the form `(; varname = value, ...)`.
+
+                Set `bylayer=true` to apply the function to each layer of the stack separately, 
+                or change the function to accept NamedTuple input.
+                """)
+            end
+        end
+
+        rethrow(e)
+    end
+end
+
 function _alloc_zonal(f, x, geoms, n; kw...)
     # Find first non-missing entry and count number of missing entries
     n_missing::Int = 0
-    # TODO: wrap this in try-catch, so that we can throw an intelligent error.
-    # There are a couple of scenarios where this can fail:
-    # 1. The function cannot accept an empty iterator
-    # 2. If passed a RasterStack, the function may not be able to handle layers.  
-    #    In this case you'll get a method error, where one of the arguments is a NamedTuple
-    #    that is the same as eltype(rs).  We should check for that and throw an informative error,
-    #    that tells you to set `bylayer = true`.
-    z1 = _zonal(f, x, first(geoms); kw...)
+    
+    z1 = _zonal_error_check(f, x, first(geoms); kw...)
     for geom in geoms
-        z1 = _zonal(f, x, geom; kw...)
+        z1 = _zonal_error_check(f, x, geom; kw...)
         if !ismissing(z1)
             break
         end
