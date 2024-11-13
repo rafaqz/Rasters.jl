@@ -303,7 +303,7 @@ end
         zonal(sum, st; of=(geometry=polygon, x=:a, y=:b)) ==
         zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
         zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
-        map(sum ∘ skipmissing, mask(st; with=polygon))  
+        maplayers(sum ∘ skipmissing, mask(st; with=polygon))  
     @test zonal(sum, st; of=st) == 
         zonal(sum, st; of=dims(st)) == 
         zonal(sum, st; of=Extents.extent(st)) == 

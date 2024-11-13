@@ -115,26 +115,29 @@ _without_mapped_crs(f, x, ::Nothing) = f(x)
 function _without_mapped_crs(f, dims::DimTuple, mappedcrs::GeoFormat)
     dims1 = setmappedcrs(dims, nothing)
     x = f(dims1)
-    if x isa DimTuple
-        x = setmappedcrs(x, mappedcrs)
+    return if x isa DimTuple
+        setmappedcrs(x, mappedcrs)
+    else
+        x
     end
-    return x
 end
 function _without_mapped_crs(f, A::AbstractRaster, mappedcrs::GeoFormat)
     A = setmappedcrs(A, nothing)
     x = f(A)
-    if x isa AbstractRaster
-        x = setmappedcrs(x, mappedcrs)
+    return if x isa AbstractRaster
+        setmappedcrs(x, mappedcrs)
+    else
+        x
     end
-    return x
 end
 function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
-    st1 = map(A -> setmappedcrs(A, nothing), st)
+    st1 = maplayers(A -> setmappedcrs(A, nothing), st)
     x = f(st1)
-    if x isa AbstractRasterStack
-        x = map(A -> setmappedcrs(A, mappedcrs), x)
+    return if x isa AbstractRasterStack
+        setmappedcrs(x, mappedcrs)
+    else
+        x
     end
-    return x
 end
 
 function _extent2dims(to; size=nothing, res=nothing, crs=nothing, kw...) 

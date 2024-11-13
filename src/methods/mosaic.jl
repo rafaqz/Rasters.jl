@@ -74,7 +74,7 @@ function _mosaic(f::Function, ::AbstractRaster, regions;
     l1 = first(regions)
     A = create(filename, T, dims; name=name(l1), missingval, metadata=metadata(l1))
     open(A; write=true) do a
-        mosaic!(f, a, regions; missingval, kw...)
+        _mosaic!(f, a, regions; missingval, kw...)
     end
     return A
 end
@@ -135,9 +135,10 @@ nothing
 
 $EXPERIMENTAL
 """
-mosaic!(f::Function, x::RasterStackOrArray, regions::RasterStackOrArray...; kw...) =
-    _mosaic!(f, x, regions; kw...)
-function _mosaic!(f::Function, A::AbstractRaster{T}, regions::Tuple;
+mosaic!(f::Function, dest::RasterStackOrArray, regions::RasterStackOrArray...; kw...) =
+    _mosaic!(f, dest, regions; kw...)
+
+function _mosaic!(f::Function, A::AbstractRaster{T}, regions::Union{Tuple,AbstractArray};
     missingval=missingval(A), atol=maybe_eps(T)
 ) where T
     _without_mapped_crs(A) do A1
@@ -170,7 +171,7 @@ function _mosaic!(f::Function, A::AbstractRaster{T}, regions::Tuple;
     end
     return A
 end
-function _mosaic!(f::Function, st::AbstractRasterStack, regions::Tuple; kw...)
+function _mosaic!(f::Function, st::AbstractRasterStack, regions::Union{Tuple,AbstractArray}; kw...)
     map(st, regions...) do A, r...
         mosaic!(f, A, r; kw...)
     end
