@@ -122,6 +122,11 @@ struct RasterSeries{T<:Union{AbstractRaster,AbstractRasterStack},N,D<:Tuple,R<:T
         new{T,N,D,R,A}(data, dims, refdims)
     end
 end
+function RasterSeries(
+    data::A, dims::D, refdims::R
+) where {A<:AbstractArray{T,N},D<:Tuple,R<:Tuple} where {T,N}
+    RasterSeries{T,N,D,R,A}(data, dims, refdims)
+end
 function RasterSeries(data::AbstractArray{<:Union{AbstractRasterStack,AbstractRaster}}, dims;
     refdims=()
 )
@@ -215,10 +220,20 @@ end
     RasterSeries(data, dims, refdims)
 end
 @inline function DD.rebuild(
+    A::RasterSeries, 
+    data::AbstractArray{<:Union{AbstractRaster,AbstractRasterStack}}, 
+    dims::Tuple,
+    refdims=(),
+    name=nothing,
+    metadata=nothing,
+)
+    RasterSeries(data, dims, refdims)
+end
+@inline function DD.rebuild(
     A::RasterSeries;
     data=parent(A), dims=dims(A), refdims=refdims(A), name=nothing, metadata=nothing,
 )
-    RasterSeries(data, dims, refdims)
+    rebuild(A, data, dims, refdims)
 end
 
 function Base.map(f, series::RasterSeries)
