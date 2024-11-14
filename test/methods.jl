@@ -310,10 +310,10 @@ end
         sum(st)
 
     @testset "skipmissing" begin
-        a = Array{Union{Missing,Int}}(undef, 26, 31)
-        a .= (1:26) * (1:31)'
-        a[1:10, 3:10] .= missing
-        rast = Raster(a, (X(-20:5), Y(0:30)))
+        _arr = Array{Union{Missing,Int}}(undef, 26, 31)
+        _arr .= (1:26) * (1:31)'
+        _arr[1:10, 3:10] .= missing
+        rast = Raster(_arr, (X(-20:5), Y(0:30)))
         @test zonal(sum, rast; of=polygon, skipmissing=false) === missing
         @test zonal(sum, rast; of=polygon, skipmissing=true) isa Int
         @test !zonal(x -> x isa Raster, rast; of=polygon, skipmissing=true)
