@@ -401,7 +401,7 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (index = (1, 2), test = 2,)
         ])
         # NamedTuple (reversed) points - tests a Table that iterates over points
-        T = @NamedTuple{geometry::Union{Missing,@NamedTuple{Y::Float64,X::Float64}},test::Union{Missing,Int64}}
+        T = @NamedTuple{geometry::Union{@NamedTuple{Y::Float64,X::Float64}},test::Union{Missing,Int64}}
         @test all(extract(rast, [(Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) .=== T[
             (geometry = (Y = 0.1, X = 9.0), test = 1)
             (geometry = (Y = 0.2, X = 10.0), test = 4)
@@ -414,7 +414,7 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         ])
         # Extract a polygon
         p = ArchGDAL.createpolygon([[[8.0, 0.0], [11.0, 0.0], [11.0, 0.4], [8.0, 0.0]]])
-        T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
+        T = @NamedTuple{geometry::Union{Tuple{Float64,Float64}},test::Union{Missing,Int64}}
         @test all(extract(rast_m, p) .=== T[
             (geometry = (9.0, 0.1), test = 1)
             (geometry = (10.0, 0.1), test = 3)
@@ -449,7 +449,7 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
             (index = (2, 1), test = 3)
             (index = (2, 2), test = missing)
         ])
-        T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},index::Union{Missing,Tuple{Int,Int}},test::Union{Missing,Int64}}
+        T = @NamedTuple{geometry::Union{Tuple{Float64,Float64}},index::Union{Missing,Tuple{Int,Int}},test::Union{Missing,Int64}}
         @test all(extract(rast_m, p; index=true) .=== T[
              (geometry = (9.0, 0.1), index = (1, 1), test = 1)
              (geometry = (10.0, 0.1), index = (2, 1), test = 3)
@@ -558,11 +558,16 @@ end
          missing 1.0     missing]
 
     r_fwd = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing)
+    r_crs = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing, crs = EPSG(4326))
+    r_mcrs = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing, crs = EPSG(4326), mappedcrs = EPSG(4326))
     r_revX = reverse(r_fwd; dims=X)
     r_revY = reverse(r_fwd; dims=Y)
+    st1 = RasterStack((a = r_fwd, b = r_fwd))
+    st2 = RasterStack((a = r_fwd, b = r_fwd), crs = EPSG(4326))
+    st3 = RasterStack((a = r_fwd, b = r_fwd), crs = EPSG(4326), mappedcrs = EPSG(4326))
 
-    ga = r_revY
-    for ga in (r_fwd, r_revX, r_revY)
+    ga = r_fwd
+    for ga in (r_fwd, r_crs, r_mcrs, r_revX, r_revY, st1, st2, st3)
         # Test with missing on all sides
         ga_r = rot180(ga)
         trimmed = trim(ga)
@@ -576,8 +581,8 @@ end
         cropped1 = crop(crop(ga; to=dims(trimmed, X)); to=dims(trimmed, Y))
         _, cropped2 = crop(trimmed, ga)
         cropped_r = crop(ga_r; to=trimmed_r)
-        @test all(cropped .=== cropped1 .=== trimmed)
-        @test all(cropped_r .=== trimmed_r)
+        @test map(identicalelements, maybe_layers.((cropped, cropped1, trimmed))...) |> all
+        @test map(identicalelements, maybe_layers.((cropped_r, trimmed_r))...) |> all
         extended = extend(cropped, ga)[1]
         extended_r = extend(cropped_r; to=ga_r)
         extended1 = extend(extend(cropped; to=dims(ga, X)); to=dims(ga, Y))
@@ -586,46 +591,46 @@ end
         @test all(extended .=== extended1 .=== replace_missing(extended_d) .=== ga) 
         @test all(extended_r .=== ga_r)
         @test all(map(==, lookup(extended_d), lookup(extended)))
+    end
 
-        @testset "unformatted dimension works in crop" begin
-            xdim, ydim = X(1.0:0.2:2.0), Y(1.0:1:2.0)
-            A = Raster(rand((X(1.0:0.2:4.0), ydim)))
-            @test lookup(crop(A; to=xdim), X) == 1.0:0.2:2.0
+    @testset "unformatted dimension works in crop" begin
+        xdim, ydim = X(1.0:0.2:2.0), Y(1.0:1:2.0)
+        A = Raster(rand((X(1.0:0.2:4.0), ydim)))
+        @test lookup(crop(A; to=xdim), X) == 1.0:0.2:2.0
 
-            A = Raster(rand((X(1.0:0.2:4.0), ydim)))
-            @test lookup(crop(A; to=xdim), X) == 1.0:0.2:2.0
+        A = Raster(rand((X(1.0:0.2:4.0), ydim)))
+        @test lookup(crop(A; to=xdim), X) == 1.0:0.2:2.0
 
-            A = Raster(ones((X(1.0:0.2:1.4), ydim)); missingval=0.0)
-            extend(A; to=xdim)
-            @test lookup(extend(A; to=xdim), X) == 1.0:0.2:2.0
-            @test extend(A; to=xdim) == [1.0 1.0; 1.0 1.0; 1.0 1.0; 0.0 0.0; 0.0 0.0; 0.0 0.0]  
+        A = Raster(ones((X(1.0:0.2:1.4), ydim)); missingval=0.0)
+        extend(A; to=xdim)
+        @test lookup(extend(A; to=xdim), X) == 1.0:0.2:2.0
+        @test extend(A; to=xdim) == [1.0 1.0; 1.0 1.0; 1.0 1.0; 0.0 0.0; 0.0 0.0; 0.0 0.0]  
+    end
+
+    @testset "to polygons" begin
+        A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
+        A2 = Raster(ones(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
+        A1crop1 = crop(A1; to=polygon)
+        A1crop2, A2crop = crop(A1, A2; to=polygon)
+        size(A1crop1)
+        @test size(A1crop1) == size(A1crop2) == size(A2crop) == (16, 21)
+        @test bounds(A1crop1) == bounds(A1crop2) == bounds(A2crop) == ((-20, -5), (10, 30))
+        A1extend1 = extend(A1; to=polygon)
+        A1extend2, A2extend = extend(A1, A2; to=polygon)
+        @test all(A1extend1 .=== A1extend2)
+        @test size(A1extend1) == size(A1extend2) == size(A2extend) == (21, 31)
+        @test bounds(A1extend1) == bounds(A1extend2) == bounds(A2extend) == ((-20.0, 0.0), (0, 30))
+    end
+    @testset "to featurecollection and table" begin
+        A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
+        featurecollection = map(GeoInterface.getpoint(polygon), vals) do geometry, v
+            (; geometry, val1=v, val2=2.0f0v)
         end
-
-        @testset "to polygons" begin
-            A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
-            A2 = Raster(ones(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
-            A1crop1 = crop(A1; to=polygon)
-            A1crop2, A2crop = crop(A1, A2; to=polygon)
-            size(A1crop1)
-            @test size(A1crop1) == size(A1crop2) == size(A2crop) == (16, 21)
-            @test bounds(A1crop1) == bounds(A1crop2) == bounds(A2crop) == ((-20, -5), (10, 30))
-            A1extend1 = extend(A1; to=polygon)
-            A1extend2, A2extend = extend(A1, A2; to=polygon)
-            @test all(A1extend1 .=== A1extend2)
-            @test size(A1extend1) == size(A1extend2) == size(A2extend) == (21, 31)
-            @test bounds(A1extend1) == bounds(A1extend2) == bounds(A2extend) == ((-20.0, 0.0), (0, 30))
-        end
-        @testset "to featurecollection and table" begin
-            A1 = Raster(zeros(X(-20:-5; sampling=Points()), Y(0:30; sampling=Points())))
-            featurecollection = map(GeoInterface.getpoint(polygon), vals) do geometry, v
-                (; geometry, val1=v, val2=2.0f0v)
-            end
-            fccrop = crop(A1; to=featurecollection)
-            table = DataFrame(featurecollection)
-            tablecrop = crop(A1; to=table)
-            @test size(fccrop) == size(tablecrop) == (16, 21)
-            @test bounds(fccrop) == bounds(tablecrop) == ((-20, -5), (10, 30))
-        end
+        fccrop = crop(A1; to=featurecollection)
+        table = DataFrame(featurecollection)
+        tablecrop = crop(A1; to=table)
+        @test size(fccrop) == size(tablecrop) == (16, 21)
+        @test bounds(fccrop) == bounds(tablecrop) == ((-20, -5), (10, 30))
     end
 
 end
@@ -673,4 +678,84 @@ end
                    [0.0     0.0     missing
                    0.0     0.0     missing    
                    missing missing missing], dims=3))
+end
+
+using StableRNGs, StatsBase
+test = rebuild(ga; name = :test)
+@testset "sample" begin
+    # test that all keywords work and return the same thing as extract
+    @test all(Rasters.sample(StableRNG(123), test, 2) .=== extract(test, [(2.0,2.0), (1.0,2.0)]))
+    @test all(Rasters.sample(StableRNG(123), st2, 2) .=== extract(st2, [(2,2), (1,2)]))
+    @test all(Rasters.sample(StableRNG(123), test, 2; geometry = false) .=== extract(test, [(2.0,2.0), (1.0,2.0)]; geometry = false))
+    @test all(Rasters.sample(StableRNG(123), st2, 2; geometry = false) .=== extract(st2, [(2,2), (1,2)]; geometry = false))
+    
+    @test all(Rasters.sample(StableRNG(123), test, 2, skipmissing = true) .=== extract(test, [(2.0,1.0), (2.0,1.0)], skipmissing = true))
+    @test all(Rasters.sample(StableRNG(123), st2, 2, skipmissing = true) .=== extract(st2, [(2,1), (2,1)], skipmissing = true))
+
+    @test all(
+        Rasters.sample(StableRNG(123), test, 2, skipmissing = true, index = true) .=== 
+        extract(test, [(2.0,1.0), (2.0,1.0)], skipmissing = true, index = true))
+    @test all(
+        Rasters.sample(StableRNG(123), st2, 2, skipmissing = true, index = true) .=== 
+        extract(st2, [(2,1), (2,1)], skipmissing = true, index = true))
+
+    kws = [(:geometry => false,), (:index => true,), ()]
+    for kw in kws
+        @test all(        
+            Rasters.sample(StableRNG(123), test, 2; skipmissing = true, kw...) .=== 
+            extract(test, [(2.0,1.0), (2.0,1.0)]; skipmissing = true, kw...)
+            )
+            
+        @test all(
+            Rasters.sample(StableRNG(123), st2, 2; skipmissing = true, kw...) .== 
+            extract(st2, [(2,1), (2,1)]; skipmissing = true, kw...)
+        )
+    end
+    @test all(Rasters.sample(StableRNG(123), st2, 2, name = (:a,)) .=== extract(st2, [(2,2), (1,2)], name = (:a,)))
+
+    # in this case extract and sample always return different types
+    @test eltype(Rasters.sample(StableRNG(123), test, 2, index = true)) != eltype(extract(test, [(2.0,1.0), (2.0,1.0)], index = true))
+    @test eltype(Rasters.sample(StableRNG(123), st2, 2, index = true)) != eltype(extract(st2, [(2,1), (2,1)], index = true))
+
+    @test all(
+        Rasters.sample(StableRNG(123), test, 2, weights = DimArray([1,1000], X(1:2)), skipmissing = true) .===
+        [
+            (geometry = (2.0,1.0), test = 2.0f0)
+            (geometry = (2.0,1.0), test = 2.0f0)
+        ]
+    )
+
+    @test all(
+        Rasters.sample(StableRNG(123), test, 2, weights = DimArray([1,1000], X(1:2)), skipmissing = true, weightstype = StatsBase.FrequencyWeights) .===
+        [
+            (geometry = (2.0,1.0), test = 2.0f0)
+            (geometry = (2.0,1.0), test = 2.0f0)
+        ]
+    )
+
+    @test all(
+        Rasters.sample(StableRNG(123), test, 2, skipmissing = true, replace = false) .===
+        [
+            (geometry = (2.0,1.0), test = 2.0f0)
+            (geometry = (1.0,2.0), test = 7.0f0)
+        ]
+    )
+    @test all(
+        Rasters.sample(StableRNG(123), test, 2, skipmissing = true, replace = false, ordered = true) .===
+        [
+            (geometry = (2.0,1.0), test = 2.0f0)
+            (geometry = (1.0,2.0), test = 7.0f0)
+        ]
+    )
+
+    # test providing a geometry type works
+    @test typeof(first(
+        Rasters.sample(StableRNG(123), test, 2, geometry = (X = X, Y = Y))
+    ).geometry) <: NamedTuple{(:X, :Y)}
+
+    # test this works without providing n
+    @test Rasters.sample(test, geometry = (X = X, Y = Y)) isa NamedTuple{(:geometry, :test)}
+
+    @test_throws "strictly positive" Rasters.sample(StableRNG(123), test, 3, skipmissing = true, replace = false)
+    @test_throws "Cannot draw" Rasters.sample(StableRNG(123), test, 5, replace = false)
 end

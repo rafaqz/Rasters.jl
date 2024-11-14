@@ -1,11 +1,5 @@
-using DimensionalData.Lookups: _True, _False
-
-_booltype(x) = x ? _True() : _False()
-istrue(::_True) = true
-istrue(::_False) = false
-
 """
-    extract(x, data; atol)
+    extract(x, data; kw...)
 
 Extracts the value of `Raster` or `RasterStack` at given points, returning
 an iterable of `NamedTuple` with properties for `:geometry` and raster or
@@ -88,11 +82,7 @@ function _extract(A::RasterStackOrArray, ::Nothing, data;
     names, skipmissing, geometrycolumn, kw...
 )
     geoms = _get_geometries(data, geometrycolumn)
-    T = if istrue(skipmissing)
-        _rowtype(A, nonmissingtype(eltype(geoms)); names, skipmissing, kw...)
-    else
-        _rowtype(A, eltype(geoms); names, skipmissing, kw...)
-    end
+    T = _rowtype(A, eltype(geoms); names, skipmissing, kw...)
     # Handle empty / all missing cases
     (length(geoms) > 0 && any(!ismissing, geoms)) || return T[]
     
@@ -101,7 +91,7 @@ function _extract(A::RasterStackOrArray, ::Nothing, data;
     # We need to split out points from other geoms
     # TODO this will fail with mixed point/geom vectors
     if trait1 isa GI.PointTrait
-        rows = Vector{T}(undef, length(geoms))
+    rows = Vector{T}(undef, length(geoms))
         if istrue(skipmissing)
             j = 1
             for i in eachindex(geoms)
@@ -287,72 +277,7 @@ Base.@assume_effects :total function _maybe_add_fields(::Type{T}, props::NamedTu
         :index in K ? merge((; geometry=point, index=I), props) : merge((; geometry=point), props)
     else
         :index in K ? merge((; index=I), props) : props
-    end
-end
-
-_names(A::AbstractRaster) = (Symbol(name(A)),)
-_names(A::AbstractRasterStack) = keys(A)
-
-@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, skipmissing::_True) where {T,Names} = (nonmissingtype(T),)
-@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, skipmissing::_False) where {T,Names} = (Union{Missing,T},)
-# This only compiles away when generated
-@generated function _nametypes(
-    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_True
-) where {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
-    nt = NamedTuple{StackNames}(map(nonmissingtype, Types.parameters))
-    return values(nt[PropNames])
-end
-@generated function _nametypes(
-    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_False
-) where {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
-    nt = NamedTuple{StackNames}(map(T -> Union{Missing,T}, Types.parameters))
-    return values(nt[PropNames])
-end
-
-# _rowtype returns the complete NamedTuple type for a point row
-# This code is entirely for types stability and performance.
-_rowtype(x, g; kw...) = _rowtype(x, typeof(g); kw...)
-_rowtype(x, g::Type; geometry, index, skipmissing, names, kw...) = 
-    _rowtype(x, g, geometry, index, skipmissing, names)
-function _rowtype(x, ::Type{G}, geometry::_True, index::_True, skipmissing::_True, names::NamedTuple{Names}) where {G,Names}
-    keys = (:geometry, :index, Names...,) 
-    types = Tuple{G,Tuple{Int,Int},_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
-end
-function _rowtype(x, ::Type{G}, geometry::_True, index::_False, skipmissing::_True, names::NamedTuple{Names}) where {G,Names}
-    keys = (:geometry, Names...,)
-    types = Tuple{G,_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
-end
-function _rowtype(x, ::Type{G}, geometry::_False, index::_True, skipmissing::_True, names::NamedTuple{Names}) where {G,Names}
-    keys = (:index, Names...,) 
-    types = Tuple{Tuple{Int,Int},_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
-end
-function _rowtype(x, ::Type{G}, geometry::_False, index::_False, skipmissing::_True, names::NamedTuple{Names}) where {G,Names}
-    keys = Names
-    types = Tuple{_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
-end
-function _rowtype(x, ::Type{G}, geometry::_True, index::_True, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
-    keys = (:geometry, :index, names...,) 
-    types = Tuple{Union{Missing,G},Union{Missing,Tuple{Int,Int}},_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
-end
-function _rowtype(x, ::Type{G}, geometry::_True, index::_False, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
-    keys = (:geometry, Names...,)
-    types = Tuple{Union{Missing,G},_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
-end
-function _rowtype(x, ::Type{G}, geometry::_False, index::_True, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
-    keys = (:index, Names...,) 
-    types = Tuple{Union{Missing,Tuple{Int,Int}},_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
-end
-function _rowtype(x, ::Type{G}, geometry::_False, index::_False, skipmissing::_False, names::NamedTuple{Names}) where {G,Names}
-    keys = Names
-    types = Tuple{_nametypes(x, names, skipmissing)...}
-    NamedTuple{keys,types}
+    end |> T
 end
 
 @inline _skip_missing_rows(rows, ::Missing, names) = 

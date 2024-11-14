@@ -26,7 +26,21 @@ function RA.Raster(T::Type{<:RDS.RasterDataSource}, layer; crs=_source_crs(T), k
     filename = getraster(T, layer; rds_kw...)
     Raster(filename; name=RDS.layerkeys(T, layer), crs, ra_kw...)
 end
-
+function RA.Raster(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}; crs=_source_crs(T), kw...)
+    rds_kw, ra_kw = _filterkw(T, kw)
+    filename = getraster(T; rds_kw...)
+    Raster(filename; crs, ra_kw...)
+end
+function RA.Raster(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}, layer; crs=_source_crs(T), lazy = false, kw...)
+    rds_kw, ra_kw = _filterkw(T, kw)
+    filename = getraster(T, layer; rds_kw...)
+    ras_all = Raster(filename; name=RDS.bioclim_key(layer), crs, ra_kw...)
+    ras = view(ras_all, Band(RDS.bioclim_int(layer)))
+    if ~lazy
+        read(ras)
+    end
+    return ras
+end
 """
     RasterStack(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => RasterStack
 
@@ -56,6 +70,18 @@ function RA.RasterStack(T::Type{<:RDS.RasterDataSource}, layers::Tuple; crs=_sou
     rds_kw, ra_kw = _filterkw(T, kw)
     filenames = map(l -> RDS.getraster(T, l; rds_kw...), layers)
     RasterStack(filenames; name=RDS.layerkeys(T, layers), crs, ra_kw...)
+end
+# WorldClim future has all layers in one .tif file - format this as a rasterdatastack in a dedicated dispatch
+function RA.RasterStack(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}, layers::Tuple; crs=_source_crs(T), lazy = false, kw...)
+    rds_kw, ra_kw = _filterkw(T, kw)
+    keys = map(RDS.bioclim_key, layers)
+    filename = RDS.getraster(T, layers; rds_kw...)
+    raster = Raster(filename; lazy = true, ra_kw...)
+    stack = RasterStack(eachslice(raster; dims = Band)...; name=RDS.layerkeys(T), crs)[keys]
+    if ~lazy
+        stack = read(stack)
+    end
+    return stack
 end
 
 """

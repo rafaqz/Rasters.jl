@@ -206,7 +206,7 @@ function mosaic!(f::Function, st::AbstractRasterStack, regions::Tuple; kw...)
     end
 end
 
-_mosaic(alldims::Tuple{<:DimTuple,Vararg{<:DimTuple}}) = map(_mosaic, alldims...)
+_mosaic(alldims::Tuple{<:DimTuple,Vararg{DimTuple}}) = map(_mosaic, alldims...)
 function _mosaic(dims::Dimension...)
     map(dims) do d
         DD.comparedims(first(dims), d; val=false, length=false, valtype=true)

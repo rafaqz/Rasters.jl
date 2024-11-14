@@ -23,6 +23,11 @@ ga1 = Raster(data1; dims=dims1, refdims=refdimz, name=nme, metadata=meta, missin
     @test_throws ArgumentError Raster("notafile", dims1)
 end
 
+@testset "Single dim vector constructor" begin
+    A = [1, 2, 3]
+    @test Raster(A, X()) === Raster(A, (X(),))
+end
+
 @testset "array properties" begin
     @test name(ga1) == :test
     @test missingval(ga1) == -9999.0

@@ -166,7 +166,14 @@ function _layermetadata(ds::AbstractDataset; layers)
     map(layers.attrs) do attr
         md = _metadatadict(_sourcetrait(ds), attr)
         if haskey(attr, "grid_mapping")
-            md["grid_mapping"] = Dict(CDM.attribs(ds[attr["grid_mapping"]]))
+            if haskey(ds, attr["grid_mapping"])
+                md["grid_mapping"] = Dict(CDM.attribs(ds[attr["grid_mapping"]]))
+            else
+                global_attrs = CDM.attribs(ds)
+                if haskey(global_attrs, attr["grid_mapping"])
+                    md["grid_mapping"] = global_attrs["grid_mapping"]
+                end
+            end     
         end
         md
     end

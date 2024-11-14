@@ -1,6 +1,7 @@
 using Rasters
 using Zarr
 using ZarrDatasets
+using ZarrDatasets.Zarr
 using Rasters: FileArray, FileStack, Zarrsource, crs, bounds, name, trim
 
 path = "https://s3.bgc-jena.mpg.de:9000/esdl-esdc-v3.0.2/esdc-16d-2.5deg-46x72x1440-3.0.2.zarr"

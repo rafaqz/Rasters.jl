@@ -25,7 +25,6 @@ gdalpath = maybedownload(url)
     # now compute mean squared error of the back transformation
     warped_back = Rasters.trim(warp(warped, Dict(:t_srs => crs_), res=map(step, lookup(r))))
     # subtracting UInts brings us into hell -> Int
-    # we also need to shrink the range because of some bleed during warp
-    diff_ = Int.(warped_back[2:end-1, 2:end-1]) .- r
+    diff_ = parent(Int.(cropped[2:end-1, 2:end-1])) .- parent(r)
     @test sum(x->x^2, diff_) / prod(size(diff_)) < 600
 end

@@ -104,7 +104,7 @@ function DD.modify(f, A::AbstractRaster)
     return rebuild(A, newdata)
 end
 
-function DD.DimTable(As::Tuple{<:AbstractRaster,Vararg{<:AbstractRaster}}...)
+function DD.DimTable(As::Tuple{<:AbstractRaster,Vararg{AbstractRaster}}...)
     DD.DimTable(DimStack(map(read, As...)))
 end
 
@@ -260,6 +260,7 @@ function Raster(A::AbstractArray{T,1}, dims::Tuple{<:Dimension,<:Dimension,Varar
 )::Raster{T,length(dims)} where T
     Raster(reshape(A, map(length, dims)), dims; kw...)
 end
+Raster(A::AbstractArray{<:Any,1}, dim::Dimension; kw...) = Raster(A, (dim,); kw...)
 function Raster(table, dims::Tuple;
     name=nokw,
     kw...
@@ -355,4 +356,4 @@ end
 filekey(ds, name) = name
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
-DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = Raster
+DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{Dimension}}) = Raster
