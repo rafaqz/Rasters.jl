@@ -217,7 +217,8 @@ end
 @inline function DD.rebuild(
     A::RasterSeries, data, dims::Tuple, refdims=(), name=nothing, metadata=nothing,
 )
-    RasterSeries(data, dims, refdims)
+    # if `data` is not an AbstractArray of Raster or RasterStacks, return a Raster
+    Raster(data, dims; refdims, name, metadata)
 end
 @inline function DD.rebuild(
     A::RasterSeries, 
