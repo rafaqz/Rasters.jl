@@ -71,6 +71,7 @@ function extract end
     )
 end
 
+# TODO use a GeometryOpsCore method like `applyreduce` here?
 function _extract(A::RasterStackOrArray, geom::Missing, names, kw...)
     T = _rowtype(A, geom; names, kw...)
     [_maybe_add_fields(T, map(_ -> missing, names), missing, missing)]
@@ -91,7 +92,7 @@ function _extract(A::RasterStackOrArray, ::Nothing, data;
     # We need to split out points from other geoms
     # TODO this will fail with mixed point/geom vectors
     if trait1 isa GI.PointTrait
-    rows = Vector{T}(undef, length(geoms))
+        rows = Vector{T}(undef, length(geoms))
         if istrue(skipmissing)
             j = 1
             for i in eachindex(geoms)
@@ -172,6 +173,47 @@ function _extract(A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom;
 end
 _extract(::Type{T}, A::RasterStackOrArray, trait::GI.PointTrait, point; skipmissing, kw...) where T =
     _extract_point(T, A, point, skipmissing; kw...)
+# function _extract(A::RasterStackOrArray, t::GI.AbstractLineStringTrait, geom;
+#     names, skipmissing, kw...
+# )
+#     # Make a raster mask of the geometry
+#     ods = otherdims(A, DEFAULT_POINT_ORDER)
+#     p = first(GI.getpoint(geom))
+#     tuplepoint = if GI.is3d(geom) 
+#         GI.x(p), GI.y(p), GI.z(p)
+#     else
+#         GI.x(p), GI.y(p)
+#     end
+#     template = view(A, Touches(GI.extent(geom)))
+#     offset = CartesianIndex(map(x -> first(x) - 1, parentindices(parent(template))))
+#     B = _init_bools(template, BitArray; kw...)
+#     T = _rowtype(A, tuplepoint; names, skipmissing, kw...)
+#     # Add a row for each pixel that is `true` in the mask
+#     rows = _direct_extract(T, B, geom, offset, names, skipmissing)
+
+#     # Maybe skip missing rows
+#     if istrue(skipmissing)
+#         return collect(Base.skipmissing(rows)) 
+#     else
+#         return collect(rows)
+#     end
+# end
+
+# Skip defining a Bool template for all kinds of lines, 
+# and just push result rows directly to a vector.
+function _direct_extract(::Type{T}, B::AbstractRaster, geom, offset, names, skipmissing) where T
+    rows = T[]
+    _burn_lines!(dims(B), geom) do D
+        # Make sure we only hit this pixel once
+        B[D] && return nothing
+        B[D] = true
+        I = Tuple(CartesianIndex(map(val, D)) + offset)
+        row = _missing_or_fields(T, B, I, names, skipmissing)
+        push!(rows, row)
+        return nothing
+    end
+    return rows
+end
 
 function _missing_or_fields(::Type{T}, A, I, names, skipmissing) where T
     props = _prop_nt(A, I, names)
@@ -192,13 +234,16 @@ _ismissingval(mvs::NamedTuple, props::NamedTuple{K}) where K =
 _ismissingval(mv, props::NamedTuple) = any(x -> ismissing(x) || x === mv, props)
 _ismissingval(mv, prop) = (mv === prop)
 
+# We always return NamedTuple
 @inline _prop_nt(st::AbstractRasterStack, I, ::NamedTuple{K}) where K = st[I...][K]
 @inline _prop_nt(A::AbstractRaster, I, ::NamedTuple{K}) where K = NamedTuple{K}((A[I...],))
 
 # Extract a single point
+# Missing point to remove
 @inline function _extract_point(::Type, x::RasterStackOrArray, point::Missing, skipmissing::_True; kw...)
     return missing
 end
+# Missing point to keep
 @inline function _extract_point(::Type{T}, x::RasterStackOrArray, point::Missing, skipmissing::_False;
     names, kw...
 ) where T
@@ -207,6 +252,7 @@ end
     I = missing
     return _maybe_add_fields(T, props, geom, I)
 end
+# Normal point with missing / out of bounds data removed
 @inline function _extract_point(::Type{T}, x::RasterStackOrArray, point, skipmissing::_True;
     dims, names::NamedTuple{K}, atol=nothing, kw...
 ) where {T,K}
@@ -240,6 +286,7 @@ end
         end
     end
 end
+# Normal point with missing / out of bounds data kept with `missing` fields
 @inline function _extract_point(::Type{T}, x::RasterStackOrArray, point, skipmissing::_False;
     dims, names::NamedTuple{K}, atol=nothing, kw...
 ) where {T,K}
@@ -272,6 +319,7 @@ end
 end
 
 # Maybe add optional fields
+# It is critically important for performance that this is type stable
 Base.@assume_effects :total function _maybe_add_fields(::Type{T}, props::NamedTuple, point, I)::T where {T<:NamedTuple{K}} where K
     if :geometry in K
         :index in K ? merge((; geometry=point, index=I), props) : merge((; geometry=point), props)
