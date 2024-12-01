@@ -7,7 +7,7 @@ _init_bools(to, T::Type; kw...) = _init_bools(to, T, nothing; kw...)
 _init_bools(to::AbstractRasterSeries, T::Type, data; kw...) =
     _init_bools(dims(first(to)), T, data; kw...)
 _init_bools(to::AbstractRasterStack, T::Type, data; kw...) =
-    _init_bools(first(to), dims(to), T, data; kw...)
+    _init_bools(dims(to), dims(to), T, data; kw...)
 _init_bools(to::AbstractRaster, T::Type, data; kw...) =
     _init_bools(to, dims(to), T, data; kw...)
 _init_bools(to::Extents.Extent, T::Type, data; kw...) =

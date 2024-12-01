@@ -1,6 +1,6 @@
 # _burn_lines!
 # Fill a raster with `fill` where pixels touch lines in a geom
-# Separated for a type stability function barrier
+# Usually `fill` is `true` of `false`
 function _burn_lines!(
     B::AbstractRaster, geom; fill=true, verbose=false, kw...
 )
@@ -19,8 +19,7 @@ function _burn_lines!(
         """
     all(regular) || throw(ArgumentError(msg))
 
-    # For arbitrary dimension indexing
-    
+    # Set indices of B as `fill` when a cell is found to burn.
     _burn_lines!(identity, dims(B), geom) do D
         @inbounds B[D] = fill
     end
@@ -87,8 +86,11 @@ end
 # Line-burning algorithm
 # Burns a single line into a raster with value where pixels touch a line
 #
+# Function `f` does the actual work when passed a Dimension Tuple of a pixel to burn, 
+# and `c` is an initialisation callback that is passed the maximyum 
+# number of times `f` will be called. It may be called less than that.
+#
 # TODO: generalise to Irregular spans?
-
 function _burn_line!(f::Function, c::Function, dims::Tuple, line::NamedTuple)
     xdim, ydim = dims
     @show xdim ydim
@@ -135,7 +137,8 @@ function _burn_line!(f::Function, c::Function, dims::Tuple, line::NamedTuple)
 
     n_on_line = 0
     
-    # inform m of number of runs of `f`
+    # Pass of number of runs of `f` to callback `c`
+    # This can help with e.g. allocating a vector
     c(manhattan_distance + 1)
 
     if manhattan_distance == 0
