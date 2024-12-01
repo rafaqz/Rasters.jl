@@ -67,11 +67,9 @@ function _set_crossings!(crossings::Vector{Float64}, edges::Edges, iy::Int, prev
     # max_ylen tells us how big the largest y edge is.
     # We can use this to jump back from the last y position
     # rather than iterating from the start of the edges
-    # TODO fix this optimisation
-    # ypos = max(1, prev_ypos - edges.max_ylen - 1)
-    # start_ypos = searchsortedlast(edges, ypos)
+    ypos = max(edges.min_y, prev_ypos - edges.max_ylen - 1)
+    start_ypos = searchsortedfirst(edges, ypos)
     # We know the maximum size on y, so we can start from ypos 
-    start_ypos = 1
     prev_ypos = start_ypos
     ncrossings = 0
     for i in start_ypos:lastindex(edges)
