@@ -180,16 +180,29 @@ function _extract(A::RasterStackOrArray, ::Nothing, geoms::AbstractArray, e::Ext
         i = 1
         rows = Vector{T}(undef, length(geoms))
         if istrue(e.skipmissing)
-            i = 1
-            for i in eachindex(geoms)
-                g = geoms[i]
-                ismissing(g) && continue
-                geomtrait(g) isa GI.PointTrait || break
-                i += _extract_point!(rows, A, g, e, i; kw...)
+            if threaded
+                nonmissing = Vector{Bool}(undef, length(geoms))
+                _run(1:length(geoms), threaded, progress, "Extracting points...") do i
+                    g = geoms[i]
+                    geomtrait(g) isa GI.PointTrait || return nothing
+                    nonmissing[i] = _extract_point!(rows, A, g, e, i; kw...)::T
+                    return nothing
+                end
+                # This could use less memory if we reuse `rows` and shorten it
+                rows = rows[nonmissing]
+            else
+                j = Ref(1)
+                # For non-threaded be more memory efficient
+                _run(1:length(geoms), threaded, progress, "Extracting points...") do _
+                    g = geoms[j[]]
+                    geomtrait(g) isa GI.PointTrait || return nothing
+                    j[] += _extract_point!(rows, A, g, e, i; kw...)::T
+                    return nothing
+                end
+                deleteat!(rows, j[]:length(rows))
             end
-            deleteat!(rows, i:length(rows))
         else
-            _run(1:length(geoms)) do i
+            _run(1:length(geoms), threaded, progress, "Extracting points...") do i
                 g = geoms[i]
                 geomtrait(g) isa GI.PointTrait || return nothing
                 _extract_point!(rows, A, g, e, i; kw...)::T
@@ -241,14 +254,18 @@ end
     kw...
 ) where T
     _initialise!(line_refs)
-    offset = CartesianIndex((0, 0))
+    # Subset/offst is not really needed for line buring
+    # But without it we can get different fp errors
+    # to polygons and eng up with lines in different 
+    # places when they are right on the line.
+    dims, offset = _template(A, geom)
     dp = DimPoints(A)
     function _length_callback(n) 
         rows = line_refs.rows
         resize!(rows, n + line_refs.i - 1)
     end
 
-    _burn_lines!(_length_callback, dims(A), geom) do D
+    _burn_lines!(_length_callback, dims, geom) do D
         I = CartesianIndex(map(val, D))
         # Avoid duplicates from adjacent line segments
         line_refs.prev == I && return nothing
@@ -259,7 +276,7 @@ end
         return nothing
     end
     rows = line_refs.rows
-    deleteat!(rows, line_refs.i+1:length(rows))
+    deleteat!(rows, line_refs.i:length(rows))
     return rows
 end
 @noinline function _extract(
@@ -294,18 +311,18 @@ function _template(x, geom)
     end
     I = dims2indices(dims(t2), Touches(GI.extent(geom)))
     t3 = view(t2, I...)
-    offset = CartesianIndex(map(first, I))
+    offset = CartesianIndex(map(i -> first(i) - 1, I))
     return dims(t3), offset
 end
 
 Base.@assume_effects :foldable function _maybe_set_row!(
     rows, skipmissing::_True, e, A, dp, offset, I, i;
-    props=_prop_nt(e, A, I)
 )
-    return if !_ismissingval(A, props)
-        _maybe_set_row!(rows, _False(), e, A, dp, offset, I; props)
-    else
+    props = _prop_nt(e, A, I)
+    return if _ismissingval(A, props)
         0
+    else
+        _maybe_set_row!(rows, _False(), e, A, dp, offset, I, i; props)
     end
 end
 Base.@assume_effects :foldable function _maybe_set_row!(
@@ -314,7 +331,6 @@ Base.@assume_effects :foldable function _maybe_set_row!(
 ) where T
     Ioff = I + offset
     geom = dp[Ioff]
-    i <= length(rows) || @show i length(rows)
     rows[i] = _maybe_add_fields(T, props, geom, Tuple(Ioff))
     return 1
 end
@@ -333,11 +349,11 @@ Base.@assume_effects :foldable _ismissingval(mv, prop)::Bool = (mv === prop)
 
 # We always return NamedTuple
 Base.@assume_effects :foldable _prop_nt(::Extractor{<:Any,P,K}, st::AbstractRasterStack, I) where {P,K} =
-    P(st[K][I])::P
+    st[K][I]
 Base.@assume_effects :foldable _prop_nt(::Extractor{<:Any,P,K}, st::AbstractRasterStack{K}, I) where {P,K} =
-    P(st[I])::P
+    st[I]
 Base.@assume_effects :foldable _prop_nt(::Extractor{<:Any,P,K}, A::AbstractRaster, I) where {P,K} =
-    P((A[I],))::P
+    NamedTuple{K}((A[I],))
 
 # Extract a single point
 # Missing point to remove
@@ -345,7 +361,7 @@ Base.@assume_effects :foldable _prop_nt(::Extractor{<:Any,P,K}, A::AbstractRaste
     rows::Vector{T}, x::RasterStackOrArray, skipmissing::_True, point::Missing, i;
     kw...
 ) where T
-    return 0
+    return false
 end
 # Missing point to keep
 @inline function _extract_point!(
@@ -355,7 +371,8 @@ end
     props = map(_ -> missing, names)
     geom = missing
     I = missing
-    return _maybe_add_fields(T, props, geom, I)
+    rows[i] = _maybe_add_fields(T, props, geom, I)
+    return true
 end
 # Normal point with missing / out of bounds data removed
 @inline function _extract_point!(
@@ -381,17 +398,17 @@ end
             D = map(rebuild, selector_dims, I)
             if x isa Raster
                 prop = x[D]
-                _ismissingval(missingval(x), prop) && return 0
+                _ismissingval(missingval(x), prop) && return false
                 props = NamedTuple{K,Tuple{eltype(x)}}((prop,))
             else
                 props = x[D][K]
-                _ismissingval(missingval(x), props) && return 0
+                _ismissingval(missingval(x), props) && return false
             end
             rows[i] = _maybe_add_fields(T, props, point, I)
-            return 1
+            return true
         end
     end
-    return 0
+    return false
 end
 # Normal point with missing / out of bounds data kept with `missing` fields
 @inline function _extract_point!(

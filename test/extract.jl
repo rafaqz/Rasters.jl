@@ -12,8 +12,8 @@ st = RasterStack(rast, rast2)
 
 points = [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3), (10.0, 0.2)]
 poly = GI.Polygon([[(8.0, 0.0), (11.0, 0.0), (11.0, 0.4), (8.0, 0.0)]])
-linestring = GI.LineString([(8.0, 0.0), (11.0, 0.0), (11.0, 0.4)])
-line = GI.Line([(8.0, 0.0), (12.0, 4.0)])
+linestring = GI.LineString([(8.0, 0.0), (9.5, 0.0), (10.0, 0.4)])
+line = GI.Line([(8.0, 0.0), (12.0, 0.4)])
 table = (geometry=points, foo=zeros(4))
 
 @testset "Points" begin
@@ -173,24 +173,132 @@ end
             (geometry = (10.0, 0.2), test = missing)
         ])
     end
-
-    @testset "LineString" begin
-        @test extract(rast, linestring) == T[
-            (geometry=(9.0, 0.1), test=1)
-            (geometry=(10.0, 0.1), test=3)
-        ]
-    end
 end
 
 @testset "Extract a linestring" begin
     T = @NamedTuple{geometry::Tuple{Float64,Float64},test::Union{Missing,Int64}}
     Tsm = @NamedTuple{geometry::Tuple{Float64,Float64},test::Int64}
+    linestrings = [linestring, linestring]
+    fc = GI.FeatureCollection(map(GI.Feature, [linestring, linestring]))
 
-    @test all(extract(rast, l) .=== T[
+    # Single LineString
+    @test extract(rast, linestring) isa Vector{T}
+    @test all(extract(rast_m, linestring) .=== T[
         (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
         (geometry = (10.0, 0.2), test = missing)
     ])
+    @test all(extract(rast_m, linestring; skipmissing=true) .=== Tsm[
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (10.0, 0.1), test = 3)
+    ])
+
+    # Multiple linstrings
+    # Test all combinations of skipmissing, flatten and threaded
+    @test extract(rast_m, linestrings; skipmissing=true) isa Vector{Tsm}
+    @test extract(rast_m, fc; skipmissing=true) == 
+          extract(rast_m, fc; skipmissing=true, threaded=true) == 
+          extract(rast_m, linestrings; skipmissing=true) == 
+          extract(rast_m, linestrings; skipmissing=true, threaded=true) == Tsm[
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (10.0, 0.1), test = 3)
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (10.0, 0.1), test = 3)
+    ]
+
+    @test extract(rast_m, linestrings; skipmissing=false) isa Vector{T}
+    @test all(
+              extract(rast_m, fc; skipmissing=false) .=== 
+              extract(rast_m, fc; skipmissing=false, threaded=true) .===
+              extract(rast_m, linestrings; skipmissing=false) .=== 
+              extract(rast_m, linestrings; skipmissing=false, threaded=true) .=== T[
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (10.0, 0.1), test = 3)
+        (geometry = (10.0, 0.2), test = missing)
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (10.0, 0.1), test = 3)
+        (geometry = (10.0, 0.2), test = missing)
+    ])
+
+    @test extract(rast_m, linestrings; skipmissing=true, flatten=false) isa Vector{Vector{Tsm}}
+    @test extract(rast_m, linestrings; skipmissing=true, flatten=false) == 
+        extract(rast_m, linestrings; skipmissing=true, flatten=false, threaded=true) == Vector{Tsm}[
+        [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3)],
+        [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3)],
+    ]
+
+    # Nested Vector holding missing needs special handling to check equality
+    @test extract(rast_m, linestrings; skipmissing=false, flatten=false) isa Vector{Vector{T}}
+    ref = Vector{T}[
+        [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3), (geometry = (10.0, 0.2), test = missing)] ,
+        [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3), (geometry = (10.0, 0.2), test = missing)],
+    ]
+    matching(a, b) = all(map(===, a, b))
+    @test all(map(matching, extract(rast_m, linestrings; skipmissing=false, flatten=false, threaded=false), ref))
+    @test all(map(matching, extract(rast_m, linestrings; skipmissing=false, flatten=false, threaded=true), ref))
+end
+
+@testset "Extract a line" begin
+    T = @NamedTuple{geometry::Tuple{Float64,Float64},test::Union{Missing,Int64}}
+    Tsm = @NamedTuple{geometry::Tuple{Float64,Float64},test::Int64}
+    lines = [line, line]
+    fc = GI.FeatureCollection(map(GI.Feature, [line, line]))
+
+    # Single LineString
+    @test extract(rast, line) isa Vector{T}
+    @test all(extract(rast_m, line) .=== T[
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (9.0, 0.2), test = 2)
+        (geometry = (10.0, 0.2), test = missing)
+    ])
+    @test all(extract(rast_m, line; skipmissing=true) .=== Tsm[
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (9.0, 0.2), test = 2)
+    ])
+
+    # Multiple linstrings
+    # Test all combinations of skipmissing, flatten and threaded
+    @test extract(rast_m, lines; skipmissing=true) isa Vector{Tsm}
+    @test extract(rast_m, fc; skipmissing=true) == 
+          extract(rast_m, fc; skipmissing=true, threaded=true) == 
+          extract(rast_m, lines; skipmissing=true) == 
+          extract(rast_m, lines; skipmissing=true, threaded=true) == Tsm[
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (9.0, 0.2), test = 2)
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (9.0, 0.2), test = 2)
+    ]
+
+    @test extract(rast_m, lines; skipmissing=false) isa Vector{T}
+    @test all(
+              extract(rast_m, fc; skipmissing=false) .=== 
+              extract(rast_m, fc; skipmissing=false, threaded=true) .===
+              extract(rast_m, lines; skipmissing=false) .=== 
+              extract(rast_m, lines; skipmissing=false, threaded=true) .=== T[
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (9.0, 0.2), test = 2)
+        (geometry = (10.0, 0.2), test = missing)
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (9.0, 0.2), test = 2)
+        (geometry = (10.0, 0.2), test = missing)
+    ])
+
+    @test extract(rast_m, lines; skipmissing=true, flatten=false) isa Vector{Vector{Tsm}}
+    @test extract(rast_m, lines; skipmissing=true, flatten=false) == 
+        extract(rast_m, lines; skipmissing=true, flatten=false, threaded=true) == Vector{Tsm}[
+        [(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2)],
+        [(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2)],
+    ]
+
+    # Nested Vector holding missing needs special handling to check equality
+    @test extract(rast_m, lines; skipmissing=false, flatten=false) isa Vector{Vector{T}}
+    ref = Vector{T}[
+        [(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2), (geometry = (10.0, 0.2), test = missing)] ,
+        [(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2), (geometry = (10.0, 0.2), test = missing)],
+    ]
+    matching(a, b) = all(map(===, a, b))
+    @test all(map(matching, extract(rast_m, lines; skipmissing=false, flatten=false, threaded=false), ref))
+    @test all(map(matching, extract(rast_m, lines; skipmissing=false, flatten=false, threaded=true), ref))
 end
 
 @testset "Table" begin
@@ -226,8 +334,11 @@ end
 end
 
 #=
+Some benchmark and plotting code
+
 using BenchmarkTools
 using ProfileView
+using Chairmarks
 using Rasters
 using DataFrames
 import GeoInterface as GI
@@ -237,7 +348,6 @@ dimz = (X(5.0:0.1:15.0; sampling=Intervals(Start())), Y(-0.1:0.01:0.5; sampling=
 rast_m = Raster(rand([missing, 1, 2], dimz); name=:test, missingval=missing)
 rast = Raster(rand(Int, dimz); name=:test2, missingval=5)
 st = RasterStack((a=rast, b=rast, c=Float32.(rast)))
-
 ks = ntuple(x -> gensym(), 100)
 st100 = RasterStack(NamedTuple{ks}(ntuple(x -> rast, length(ks))))
 
@@ -279,7 +389,6 @@ extract(st100, poly)
 @b extract(st26, linestring)
 @b extract(st26, poly)
 
-
 f(rast, ls, n; skipmissing=true) = for _ in 1:n extract(rast, ls; skipmissing) end
 @profview f(rast2, polies, 10000; skipmissing=false)
 @profview f(rast2, poly, 10000; skipmissing=false)
@@ -296,22 +405,34 @@ f(rast, ls, n; skipmissing=true) = for _ in 1:n extract(rast, ls; skipmissing) e
 @profview f(st26, linestring, 1000; skipmissing=true)
 @profview f(st26, linestring, 1000; skipmissing=false)
 
+
+
 # Demo plots
 using GLMakie
+using GeoInterfaceMakie
 
 Makie.plot(rast; colormap=:Reds)
-Makie.plot!(polys)
-points = getindex.(extract(rast, poly; index=true, flatten=true), :geometry)
-Makie.scatter!(points; color=(:yellow, 0.5))
+Makie.plot!(rast[Touches(GI.extent(first(polys)))] ; colormap=:Greens)
+Makie.plot!(polys; alpha=0.2)
+ps = getindex.(extract(rast, poly; index=true, flatten=true), :geometry)
+Makie.scatter!(ps; color=:yellow)
 
 Makie.plot(rast; colormap=:Reds)
-Makie.plot!(polys)
-points = getindex.(extract(rast, poly; index=true, flatten=true, boundary=:touches), :geometry)
-Makie.scatter!(points; color=(:yellow, 0.5))
+Makie.plot!(rast[Touches(GI.extent(first(polys)))] ; colormap=:Greens)
+Makie.plot!(poly; alpha=0.7)
+ps = getindex.(extract(rast, poly; index=true, flatten=true, boundary=:touches), :geometry);
+Makie.scatter!(ps; color=:pink)
 
 Makie.plot(rast; colormap=:Reds)
+Makie.plot!(rast[Touches(GI.extent(first(polys)))] ; colormap=:Greens)
+Makie.plot!(polys; alpha=0.7)
+ps = getindex.(extract(rast, poly; index=true, flatten=true, boundary=:inside), :geometry)
+Makie.scatter!(ps; color=:pink)
+
+Makie.plot(rast; colormap=:Reds)
+Makie.plot!(rast[Touches(GI.extent(first(polys)))] ; colormap=:Greens)
 Makie.plot!(linestring; color=:violet, linewidth=5)
-points = getindex.(extract(rast, linestring; index=true), :geometry)
-Makie.scatter!(points; color=:yellow)
+ps = getindex.(extract(rast, linestring; index=true), :geometry);
+Makie.scatter!(ps; color=:yellow)
 
 =#
