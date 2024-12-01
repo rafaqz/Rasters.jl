@@ -171,8 +171,8 @@ function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw)
         xorder = xstep > 0 ? ForwardOrdered() : ReverseOrdered()
         yorder = ystep > 0 ? ForwardOrdered() : ReverseOrdered()
         # Create lookup index. LinRange is easiest always the right size after fp error
-        xindex = range(; start=xmin, stop=xmax, len=xlen)
-        yindex = range(; start=ymax, stop=ymin, len=ylen)
+        xindex = range(; start=xmin, stop=xmax, len=xsize)
+        yindex = range(; start=ymax, stop=ymin, len=ysize)
 
         # Define `Projected` lookups fo X and Y dimensions
         xlookup = Projected(xindex;
