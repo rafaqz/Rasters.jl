@@ -107,7 +107,7 @@ function LA.selectindices(l::Projected, sel::Between{<:Tuple})
     selval = map(v -> reproject(mappedcrs(l), crs(l), dim(l), v), val(sel))
     LA.between(l, rebuild(sel; val=selval))
 end
-function LA.selectindices(l::Projected, sel::T) where T<:IntervalSets.Interval
+function LA.selectindices(l::Projected, sel::T) where T<:DD.IntervalSets.Interval
     left, right = map(v -> reproject(mappedcrs(l), crs(l), dim(l), v), (sel.left, sel.right))
     LA.between(l, T(left, right))
 end
