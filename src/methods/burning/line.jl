@@ -1,7 +1,9 @@
 # _burn_lines!
 # Fill a raster with `fill` where pixels touch lines in a geom
 # Separated for a type stability function barrier
-function _burn_lines!(B::AbstractRaster, geom; fill=true, verbose=false, kw...)
+function _burn_lines!(
+    B::AbstractRaster, geom; fill=true, verbose=false, kw...
+)
     _check_intervals(B, verbose)
     B1 = _prepare_for_burning(B)
 
@@ -19,34 +21,34 @@ function _burn_lines!(B::AbstractRaster, geom; fill=true, verbose=false, kw...)
 
     # For arbitrary dimension indexing
     
-    _burn_lines!(dims(B), geom) do D
+    _burn_lines!(identity, dims(B), geom) do D
         @inbounds B[D] = fill
     end
 end
 
-_burn_lines!(f::F, dims::Tuple, geom) where F<:Function =
-    _burn_lines!(f, dims, GI.geomtrait(geom), geom)
+_burn_lines!(f::F, c::C, dims::Tuple, geom) where {F<:Function,C<:Function} =
+    _burn_lines!(f, c, dims, GI.geomtrait(geom), geom)
 function _burn_lines!(
-    f::F, dims::Tuple, ::Union{GI.MultiLineStringTrait}, geom
-) where F<:Function
+    f::F, c::C, dims::Tuple, ::Union{GI.MultiLineStringTrait}, geom
+) where {F<:Function,C<:Function}
     n_on_line = 0
     for linestring in GI.getlinestring(geom)
-        n_on_line += _burn_lines!(f, dims, linestring)
+        n_on_line += _burn_lines!(f, c, dims, linestring)
     end
     return n_on_line
 end
 function _burn_lines!(
-    f::F, dims::Tuple, ::Union{GI.MultiPolygonTrait,GI.PolygonTrait}, geom
-) where F<:Function
+    f::F, c::C, dims::Tuple, ::Union{GI.MultiPolygonTrait,GI.PolygonTrait}, geom
+) where {F<:Function,C<:Function}
     n_on_line = 0
     for ring in GI.getring(geom)
-        n_on_line += _burn_lines!(f, dims, ring)
+        n_on_line += _burn_lines!(f, c, dims, ring)
     end
     return n_on_line
 end
 function _burn_lines!(
-    f::F, dims::Tuple, ::GI.AbstractCurveTrait, linestring
-) where F<:Function
+    f::F, c::C, dims::Tuple, ::GI.AbstractCurveTrait, linestring
+) where {F<:Function,C<:Function}
     isfirst = true
     local firstpoint, laststop
     n_on_line = 0
@@ -65,19 +67,19 @@ function _burn_lines!(
             stop=(x=GI.x(point), y=GI.y(point)),
         )
         laststop = line.stop
-        n_on_line += _burn_line!(f, dims, line)
+        n_on_line += _burn_line!(f, c, dims, line)
     end
     return n_on_line
 end
 function _burn_lines!(
-    f::F, dims::Tuple, t::GI.LineTrait, line
-) where F<:Function
+    f::F, c::C, dims::Tuple, t::GI.LineTrait, line
+) where {F<:Function,C<:Function}
     p1, p2 = GI.getpoint(t, line)
     line1 = (
         start=(x=GI.x(p1), y=GI.y(p1)),
         stop=(x=GI.x(p2), y=GI.y(p2)),
     )
-    return _burn_line!(f, dims, line1)
+    return _burn_line!(f, c, dims, line1)
 end
 
 # _burn_line!
@@ -87,8 +89,9 @@ end
 #
 # TODO: generalise to Irregular spans?
 
-function _burn_line!(f::Function, dims::Tuple, line::NamedTuple)
+function _burn_line!(f::Function, c::Function, dims::Tuple, line::NamedTuple)
     xdim, ydim = dims
+    di = DimIndices(dims)
 
     @assert xdim isa XDim
     @assert ydim isa YDim
@@ -130,10 +133,13 @@ function _burn_line!(f::Function, dims::Tuple, line::NamedTuple)
     j, i = trunc(Int, relstart.x) + 1, trunc(Int, relstart.y) + 1 # Int
 
     n_on_line = 0
+    
+    # inform m of number of runs of `f`
+    c(manhattan_distance + 1)
 
     if manhattan_distance == 0
         D = map(rebuild, dims, (j, i))
-        if checkbounds(Bool, DimIndices(dims), D...)
+        if checkbounds(Bool, di, D...)
             f(D)
             n_on_line += 1
         end
@@ -171,7 +177,7 @@ function _burn_line!(f::Function, dims::Tuple, line::NamedTuple)
     # Travel one grid cell at a time. Start at zero for the current cell
     for _ in 0:manhattan_distance
         D = map(rebuild, dims, (j, i))
-        if checkbounds(Bool, DimIndices(dims), D...)
+        if checkbounds(Bool, di, D...)
             f(D)
             n_on_line += 1
         end

@@ -249,7 +249,7 @@ _warn_disk() = @warn "Disk-based objects may be very slow here. User `read` firs
 
 _filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not found"))
 
-_progress(args...; kw...) = ProgressMeter.Progress(args...; color=:blue, barlen=50, kw...)
+_progress(args...; kw...) = ProgressMeter.Progress(args...; dt=0.1, color=:blue, barlen=50, kw...)
 
 # Function barrier for splatted vector broadcast
 @noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
@@ -376,7 +376,7 @@ istrue(::_False) = false
 _rowtype(x, g, args...; kw...) = _rowtype(x, typeof(g), args...; kw...)
 function _rowtype(
     x, ::Type{G}, i::Type{I} = typeof(size(x)); 
-    geometry, index, skipmissing, skipinvalid = skipmissing, names, kw...
+    geometry, index, skipmissing, skipinvalid=skipmissing, names, kw...
 ) where {G, I}
     _G = istrue(skipinvalid) ? nonmissingtype(G) : G
     _I = istrue(skipinvalid) ? I : Union{Missing, I}
@@ -384,7 +384,6 @@ function _rowtype(
     types = _rowtypes(x, _G, _I, geometry, index, skipmissing, names)
     NamedTuple{keys,types}
 end
-
 
 function _rowtypes(
     x, ::Type{G}, ::Type{I}, geometry::_True, index::_True, skipmissing, names::NamedTuple{Names}
@@ -407,8 +406,10 @@ function _rowtypes(
     Tuple{_nametypes(x, names, skipmissing)...}
 end
 
-@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, skipmissing::_True) where {T,Names} = (nonmissingtype(T),)
-@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, skipmissing::_False) where {T,Names} = (Union{Missing,T},)
+@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_True) where {T,Names} = 
+    (nonmissingtype(T),)
+@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_False) where {T,Names} = 
+    (Union{Missing,T},)
 # This only compiles away when generated
 @generated function _nametypes(
     ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_True

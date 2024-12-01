@@ -1,14 +1,19 @@
 
-# Like `create` but without disk writes, mostly for Bool/Union{Missing,Boo},
+# Like `create` but without disk writes, mostly for Bool or Union{Missing,Bool},
 # and uses `similar` where possible
 # TODO merge this with `create` somehow
 _init_bools(to; kw...) = _init_bools(to, BitArray; kw...)
 _init_bools(to, T::Type; kw...) = _init_bools(to, T, nothing; kw...)
-_init_bools(to::AbstractRasterSeries, T::Type, data; kw...) = _init_bools(first(to), T, data; kw...)
-_init_bools(to::AbstractRasterStack, T::Type, data; kw...) = _init_bools(first(to), T, data; kw...)
-_init_bools(to::AbstractRaster, T::Type, data; kw...) = _init_bools(to, dims(to), T, data; kw...)
-_init_bools(to::Extents.Extent, T::Type, data; kw...) = _init_bools(to, _extent2dims(to; kw...), T, data; kw...)
-_init_bools(to::DimTuple, T::Type, data; kw...) = _init_bools(to, to, T, data; kw...)
+_init_bools(to::AbstractRasterSeries, T::Type, data; kw...) =
+    _init_bools(dims(first(to)), T, data; kw...)
+_init_bools(to::AbstractRasterStack, T::Type, data; kw...) =
+    _init_bools(first(to), dims(to), T, data; kw...)
+_init_bools(to::AbstractRaster, T::Type, data; kw...) =
+    _init_bools(to, dims(to), T, data; kw...)
+_init_bools(to::Extents.Extent, T::Type, data; kw...) =
+    _init_bools(to, _extent2dims(to; kw...), T, data; kw...)
+_init_bools(to::DimTuple, T::Type, data; kw...) =
+    _init_bools(to, to, T, data; kw...)
 function _init_bools(to::Nothing, T::Type, data; geometrycolumn=nothing,kw...)
     # Get the extent of the geometries
     ext = _extent(data; geometrycolumn, kw...)
@@ -38,7 +43,7 @@ function _alloc_bools(to, dims::DimTuple, ::Type{BitArray}; missingval::Bool=fal
 end
 function _alloc_bools(to, dims::DimTuple, ::Type{<:Array{T}}; missingval=false, metadata=NoMetadata(), kw...) where T
     # Use an `Array`
-    data = fill!(Raster{T}(undef, dims), missingval) 
+    data = fill!(Raster{T}(undef, dims), missingval)
     return rebuild(data; missingval, metadata)
 end
 
@@ -53,7 +58,9 @@ function _prepare_for_burning(B, locus=Center())
 end
 
 # Convert to Array if its not one already
-_lookup_as_array(d::Dimension) = parent(lookup(d)) isa Array ? d : modify(Array, d) 
+_lookup_as_array(x) = setdims(x, _lookup_as_array(dims(x)))
+_lookup_as_array(dims::Tuple) = map(_lookup_as_array, dims)
+_lookup_as_array(d::Dimension) = parent(lookup(d)) isa Array ? d : modify(Array, d)
 
 function _forward_ordered(B)
     reduce(dims(B); init=B) do A, d
