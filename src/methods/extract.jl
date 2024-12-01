@@ -6,7 +6,7 @@ struct Extractor{T,P,K,N<:NamedTuple{K},G,I,S,F}
     skipmissing::S
     flatten::F
 end
-function Extractor(x, data;
+Base.@constprop :aggressive @inline function Extractor(x, data;
     name::NTuple{<:Any,Symbol},
     skipmissing,
     flatten,
@@ -19,13 +19,18 @@ function Extractor(x, data;
     i = _booltype(index)
     sm = _booltype(skipmissing)
     f = _booltype(flatten)
-    T = _geom_rowtype(x, data; geometry=g, index=i, names=nt, skipmissing=sm)
+    Extractor(x, data, nt, g, i, sm, f)
+end
+function Extractor(x, data, nt::N, g::G, i::I, sm::S, f::F) where {N<:NamedTuple{K},G,I,S,F} where K
     P = _proptype(x; skipmissing=sm, names=nt)
-    Extractor{T,P,name,typeof(nt),typeof(g),typeof(i),typeof(sm),typeof(f)}(nt, g, i, sm, f)
+    T = _geom_rowtype(x, data; geometry=g, index=i, names=nt, skipmissing=sm)
+    Extractor{T,P,K,N,G,I,S,F}(nt, g, i, sm, f)
 end
 
 Base.eltype(::Extractor{T}) where T = T
 
+# This mutable object is passed into closures as 
+# fields are type-stable in clusores but variables are not
 mutable struct LineRefs{T}
     i::Int
     prev::CartesianIndex{2}
@@ -67,12 +72,12 @@ end
 """
     extract(x, geometries; kw...)
 
-Extracts the value of `Raster` or `RasterStack` for the passed in geometries, 
+Extracts the value of `Raster` or `RasterStack` for the passed in geometries,
 returning an `Vector{NamedTuple}` with properties for `:geometry` and `Raster`
 or `RasterStack` layer values.
 
 For lines, linestrings and linear rings points are extracted for each pixel that
-the line touches. 
+the line touches.
 
 For polygons, all cells witih centers covered by the polygon are returned.
 
@@ -86,13 +91,18 @@ $DATA_ARGUMENT
 
 # Keywords
 
-- `geometry`: include `:geometry` column in rows. `true` by default.
-- `index`: include `:index` of the `CartesianIndex` in rows, `false` by default.
-- `name`: a `Symbol` or `Tuple` of `Symbol` corresponding to layer/s of a `RasterStack` to extract.
-    All layers are extracted by default.
+- `geometry`: include a `:geometry` field in rows, which will be a
+    tuple point. Either the original point for points or the pixel
+    center point for line and polygon extract. `true` by default.
+- `index`: include `:index` field of extracted points in rows, `false` by default.
+- `name`: a `Symbol` or `Tuple` of `Symbol` corresponding to layer/s
+    of a `RasterStack` to extract. All layers are extracted by default.
 - `skipmissing`: skip missing points automatically.
-- `flatten`: flatten extracted points from multiple geometries into a single 
-    vector. `true` by default. Unmixed point geometries are always flattened.
+- `flatten`: flatten extracted points from multiple 
+    geometries into a single vector. `true` by default. 
+    Unmixed point geometries are always flattened.
+    Flattening is slow and single threaded, `flatten=false` may be a 
+    large performance improvement in combination with `threaded=true`.
 - `atol`: a tolerance for floating point lookup values for when the `Lookup`
     contains `Points`. `atol` is ignored for `Intervals`.
 $BOUNDARY_KEYWORD
@@ -129,7 +139,7 @@ Note: passing in arrays, geometry collections or feature collections
 containing a mix of points and other geometries has undefined results.
 """
 function extract end
-@inline function extract(x::RasterStackOrArray, data;
+Base.@constprop :aggressive @inline function extract(x::RasterStackOrArray, data;
     geometrycolumn=nothing,
     names::NTuple{<:Any,Symbol}=_names(x),
     name::NTuple{<:Any,Symbol}=names,
@@ -214,26 +224,40 @@ function _extract(A::RasterStackOrArray, ::Nothing, geoms::AbstractArray, e::Ext
         allpoints && return rows
     end
 
-    row_vecs = Vector{Vector{T}}(undef, length(geoms))
-    _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
-        row_vecs[i] = _extract(A, geoms[i], e; kw...)
+    
+        row_vecs = Vector{Vector{T}}(undef, length(geoms))
+    if threaded
+        thread_line_refs = [LineRefs{T}() for _ in 1:Threads.nthreads()]
+        _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
+            line_refs = thread_line_refs[Threads.threadid()]
+            row_vecs[i] = _extract(A, geoms[i], e; line_refs, kw...)
+        end
+    else
+        line_refs = LineRefs{T}()
+        _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
+            row_vecs[i] = _extract(A, geoms[i], e; line_refs, kw...)
+        end
     end
+
+    # TODO this is a bit slow and only on one thread
     if istrue(e.flatten)
         n = sum(map(length, row_vecs))
-        rows = Vector{T}(undef, n)
-        i = 1
-        for rs in row_vecs
-            for r in rs
-                rows[i] = r 
-                i += 1
+        out_rows = Vector{T}(undef, n)
+        k::Int = 1
+        for row_vec in row_vecs
+            for row in row_vec
+                out_rows[k] = row
+                k += 1
             end
         end
-        return rows
+        return out_rows
     else
         return row_vecs
     end
 end
-function _extract(A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom, e; kw...)
+function _extract(
+    A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom, e::Extractor{T}; kw...
+)::Vector{T} where T
     n = GI.npoint(geom)
     rows = _init_rows(e, n)
     for p in GI.getpoint(geom)
@@ -246,21 +270,22 @@ function _extract(A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom, e; 
     return rows
 end
 function _extract(A::RasterStackOrArray, ::GI.PointTrait, p, e; kw...)
-    _extract_point!(rows, A, e, p, length(rows); kw...)
+    rows = _init_rows(e, 1)
+    _extract_point!(rows, A, e, p, 1; kw...)
 end
 @noinline function _extract(
     A::RasterStackOrArray, trait::GI.AbstractLineStringTrait, geom, e::Extractor{T};
-    line_refs=LineRefs{T}(), 
+    line_refs=LineRefs{T}(),
     kw...
-) where T
+)::Vector{T} where T
     _initialise!(line_refs)
     # Subset/offst is not really needed for line buring
     # But without it we can get different fp errors
-    # to polygons and eng up with lines in different 
+    # to polygons and eng up with lines in different
     # places when they are right on the line.
     dims, offset = _template(A, geom)
     dp = DimPoints(A)
-    function _length_callback(n) 
+    function _length_callback(n)
         rows = line_refs.rows
         resize!(rows, n + line_refs.i - 1)
     end
@@ -280,8 +305,8 @@ end
     return rows
 end
 @noinline function _extract(
-    A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom, e; kw...
-)
+    A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom, e::Extractor{T}; kw...
+)::Vector{T} where T
     # Make a raster mask of the geometry
     dims, offset = _template(A, geom)
     B = boolmask(geom; to=dims, burncheck_metadata=NoMetadata(), kw...)
@@ -318,8 +343,8 @@ end
 Base.@assume_effects :foldable function _maybe_set_row!(
     rows, skipmissing::_True, e, A, dp, offset, I, i;
 )
-    props = _prop_nt(e, A, I)
-    return if _ismissingval(A, props)
+    props = _prop_nt(e, A, I, skipmissing)
+    return if ismissing(props)
         0
     else
         _maybe_set_row!(rows, _False(), e, A, dp, offset, I, i; props)
@@ -327,7 +352,7 @@ Base.@assume_effects :foldable function _maybe_set_row!(
 end
 Base.@assume_effects :foldable function _maybe_set_row!(
     rows::Vector{T}, skipmissing::_False, e, A, dp, offset, I, i;
-    props=_prop_nt(e, A, I)
+    props=_prop_nt(e, A, I, skipmissing)
 ) where T
     Ioff = I + offset
     geom = dp[Ioff]
@@ -348,12 +373,39 @@ Base.@assume_effects :foldable _ismissingval(mv, props::NamedTuple)::Bool =
 Base.@assume_effects :foldable _ismissingval(mv, prop)::Bool = (mv === prop)
 
 # We always return NamedTuple
-Base.@assume_effects :foldable _prop_nt(::Extractor{<:Any,P,K}, st::AbstractRasterStack, I) where {P,K} =
-    st[K][I]
-Base.@assume_effects :foldable _prop_nt(::Extractor{<:Any,P,K}, st::AbstractRasterStack{K}, I) where {P,K} =
-    st[I]
-Base.@assume_effects :foldable _prop_nt(::Extractor{<:Any,P,K}, A::AbstractRaster, I) where {P,K} =
-    NamedTuple{K}((A[I],))
+Base.@assume_effects :foldable function _prop_nt(
+    ::Extractor{<:Any,P,K}, st::AbstractRasterStack, I, sm::_False
+)::P where {P,K}
+    P(st[K][I])
+end
+Base.@assume_effects :foldable function _prop_nt(
+    ::Extractor{<:Any,P,K}, st::AbstractRasterStack{K}, I, sm::_False
+)::P where {P,K}
+    P(st[I])
+end
+Base.@assume_effects :foldable function _prop_nt(
+    ::Extractor{<:Any,P,K}, A::AbstractRaster, I, sm::_False
+)::P where {P,K}
+    P(NamedTuple{K}((A[I],)))
+end
+Base.@assume_effects :foldable function _prop_nt(
+    ::Extractor{<:Any,P,K}, st::AbstractRasterStack, I, sm::_True
+)::Union{P,Missing} where {P,K}
+    x = st[K][I]
+    _ismissingval(A, x) ? missing : x::P
+end
+Base.@assume_effects :foldable function _prop_nt(
+    ::Extractor{<:Any,P,K}, st::AbstractRasterStack{K}, I, sm::_True
+)::Union{P,Missing} where {P,K}
+    x = st[I]
+    _ismissingval(st, x) ? missing : x::P
+end
+Base.@assume_effects :foldable function _prop_nt(
+    ::Extractor{<:Any,P,K}, A::AbstractRaster, I, sm::_True
+)::Union{P,Missing} where {P,K}
+    x = A[I]
+    _ismissingval(A, x) ? missing : NamedTuple{K}((x,))::P
+end
 
 # Extract a single point
 # Missing point to remove

@@ -368,7 +368,11 @@ _names(A::AbstractRaster) = (Symbol(name(A)),)
 _names(A::AbstractRasterStack) = keys(A)
 
 using DimensionalData.Lookups: _True, _False
+
+_booltype(::_True) = _True()
+_booltype(::_False) = _False()
 _booltype(x) = x ? _True() : _False()
+
 istrue(::_True) = true
 istrue(::_False) = false
 

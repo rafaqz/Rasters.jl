@@ -339,6 +339,7 @@ Some benchmark and plotting code
 using BenchmarkTools
 using ProfileView
 using Chairmarks
+using Cthulhu
 using Rasters
 using DataFrames
 import GeoInterface as GI
@@ -363,9 +364,13 @@ extract(rast, polys; threaded=false)
 @time extract(rast, polys; geometry=false, threaded=true, flatten=true) |> length
 @time extract(rast, lines; geometry=false, threaded=true, flatten=true) |> length
 @time extract(st, polys; geometry=false, threaded=true, flatten=true) |> length
-@time extract(st, lines; geometry=false, threaded=true, flatten=true) |> length
+@time extract(st, lines; geometry=false, threaded=false, flatten=true) |> length
 
 @time extract(rast_m, lines; geometry=false, threaded=true, flatten=false) |> length
+@time extract(rast, lines; geometry=false, threaded=true, flatten=false) |> length
+@time extract(rast_m, lines; skipmissing=true, geometry=false, threaded=true, flatten=false) |> length
+@time extract(rast,   lines; skipmissing=true, geometry=false, threaded=true, flatten=false) |> length
+@time extract(st,     lines; skipmissing=true, geometry=false, threaded=true, flatten=false) |> length
 @time extract(st100, lines; geometry=false, threaded=false, flatten=false) |> length
 @time extract(st100, lines; geometry=false, threaded=true, flatten=false) |> length
 @time extract(rast, lines; geometry=false, threaded=true, flatten=true) |> length
@@ -375,35 +380,40 @@ extract(rast, polys; threaded=false)
 @benchmark extract(rast, lines; threaded=true, flatten=true)
 @benchmark extract(rast, lines; threaded=false, flatten=false)
 @benchmark extract(rast, lines; threaded=true, flatten=false)
-@profview 
 @time extract(rast, polys; flatten=false);
 extract(rast, polys; flatten=true);
 extract(st100, linestring)
 extract(st100, poly)
 
-@b extract(rast2, linestring)
-@b extract(rast, linestring)
-@b extract(rast, poly)
-@b extract(rast, polies)
-@b extract(rast, polies; flatten=false)
-@b extract(st26, linestring)
-@b extract(st26, poly)
+@profview extract(rast, lines)
+@profview extract(rast, lines; threaded=true)
+@profview extract(rast, linestrings)
+@profview extract(rast_m, linestrings)
+@profview extract(rast, polys)
+@profview extract(rast, polys; flatten=false)
+@profview extract(st, linestring)
+@profview extract(st, poly)
 
+# Profile running one function a lot. 
+# People will do this
 f(rast, ls, n; skipmissing=true) = for _ in 1:n extract(rast, ls; skipmissing) end
-@profview f(rast2, polies, 10000; skipmissing=false)
-@profview f(rast2, poly, 10000; skipmissing=false)
+@profview f(rast, polies, 10; skipmissing=false)
 @profview f(rast, poly, 10000; skipmissing=false)
-@profview f(rast2, linestring, 10000; skipmissing=false)
+@profview f(rast_m, poly, 10000; skipmissing=false)
 @profview f(rast, linestring, 10000; skipmissing=false)
-@profview f(rast2, linestring, 10000)
+@profview f(rast_m, linestring, 10000; skipmissing=false)
+@profview f(st, linestring, 10000; skipmissing=false)
+@profview f(rast, linestring, 10000)
 @profview f(st, linestring, 100000; skipmissing=false)
 @profview f(st, linestring, 100000; skipmissing=true)
-@profview f(st2, linestring, 100000)
-@profview f(st26, linestring, 1000)
-@profview f(st26, line, 1000)
-@profview f(st26, poly, 10000; skipmissing=true)
-@profview f(st26, linestring, 1000; skipmissing=true)
-@profview f(st26, linestring, 1000; skipmissing=false)
+@profview f(st100, linestring, 1000)
+@profview f(st100, line, 1000)
+@profview f(st100, poly, 10000; skipmissing=true)
+
+@profview f(st100, linestring, 1000; skipmissing=true)
+@profview f(st100, linestring, 1000; skipmissing=false)
+@profview f(st100, linestring, 1000; names=skipmissing=false)
+keys(st100)[1:50]
 
 
 

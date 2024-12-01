@@ -93,7 +93,6 @@ end
 # TODO: generalise to Irregular spans?
 function _burn_line!(f::Function, c::Function, dims::Tuple, line::NamedTuple)
     xdim, ydim = dims
-    @show xdim ydim
     di = DimIndices(dims)
 
     @assert xdim isa XDim
