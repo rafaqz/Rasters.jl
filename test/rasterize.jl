@@ -198,7 +198,7 @@ end
             @test eltype(rst) == @NamedTuple{fill1::Union{Missing,Int64}, fill2::Union{Missing,Float32}}
             @test keys(rst) == (:fill1, :fill2)
             @test dims(rst) == dims(A)
-            @test map(sum ∘ skipmissing, rst) === (fill1=15, fill2=30.0f0)
+            @test maplayers(sum ∘ skipmissing, rst) === (fill1=15, fill2=30.0f0)
         end
         @testset "Single value fill makes an array (ignoring table vals)" begin
             ra = rasterize(sum, data; to=A, fill=0x03, missingval=0x00)
@@ -216,7 +216,7 @@ end
             @test parent(rst.val2) isa Array{Union{Missing,Float32},2}
             @test keys(rst) == (:val1, :val2)
             @test dims(rst) == dims(A)
-            @test map(sum ∘ skipmissing, rst) === (val1=4, val2=8.0f0)
+            @test maplayers(sum ∘ skipmissing, rst) === (val1=4, val2=8.0f0)
         end
         @testset "Symbol fill makes an array" begin
             ra = rasterize(feature; to=A, fill=:val1)
@@ -235,7 +235,7 @@ end
                 @test parent(rst.val1) isa Array{Union{Missing,Int},2}
                 @test parent(rst.val2) isa Array{Union{Missing,Float32},2}
                 @test keys(rst) == (:val1, :val2)
-                @test map(sum ∘ skipmissing, rst) === (val1=15, val2=30.0f0)
+                @test maplayers(sum ∘ skipmissing, rst) === (val1=15, val2=30.0f0)
                 @test_throws ArgumentError rasterize(data; to=A, fill=(:val1, :not_a_column), threaded)
             end
             @testset "Symbol fill makes an array" begin

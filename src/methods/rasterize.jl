@@ -831,6 +831,7 @@ end
 # We get 64 Bool values to a regular `Int` meaning this doesn't scale too
 # badly for large tables of geometries. 64k geometries and a 1000 * 1000
 # raster needs 1GB of memory just for the `BitArray`.
+# TODO combine these theyre nearly the same
 function _reduce_bitarray!(f, st::AbstractRasterStack, geoms, fill::NamedTuple, r::Rasterizer, allocs)
     (; lock, shape, boundary, verbose, progress, threaded) = r
     # Define mask dimensions, the same size as the spatial dims of x
@@ -840,7 +841,7 @@ function _reduce_bitarray!(f, st::AbstractRasterStack, geoms, fill::NamedTuple, 
     # Use a generator over the array axis in case the iterator has no length
     geom_axis = axes(masks, Dim{:geometry}())
     fill = map(itr -> [v for (_, v) in zip(geom_axis, itr)], fill)
-    T = NamedTuple{keys(st),Tuple{map(eltype, st)...}}
+    T = eltype(st)
     range = axes(st, Y())
     _run(range, threaded, progress, "Reducing...") do y
         _reduce_bitarray_loop(f, st, T, fill, masks, y)
