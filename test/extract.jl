@@ -49,10 +49,10 @@ table = (geometry=points, foo=zeros(4))
             (geometry = (Y = 0.3, X = 10.0), test = missing)
         ])
         # Vector points
-        @test all(extract(rast, [[9.0, 0.1], [10.0, 0.2]]) .== [
+        @test extract(rast, [[9.0, 0.1], [10.0, 0.2]] == [
             (geometry = [9.0, 0.1], test = 1)
             (geometry = [10.0, 0.2], test = 4)
-        ])
+        ]
     end
 
     @testset "From RasterStack" begin
@@ -225,9 +225,13 @@ end
     @test extract(rast, []; geometry=false) == NamedTuple{(:test,),Tuple{Missing}}[]
 end
 
-#= =#
+#=
 using BenchmarkTools
 using ProfileView
+using Rasters
+using DataFrames
+import GeoInterface as GI
+using Rasters.Lookups, Rasters.Dimensions 
 
 dimz = (X(5.0:0.1:15.0; sampling=Intervals(Start())), Y(-0.1:0.01:0.5; sampling=Intervals(Start())))
 rast_m = Raster(rand([missing, 1, 2], dimz); name=:test, missingval=missing)
@@ -235,28 +239,28 @@ rast = Raster(rand(Int, dimz); name=:test2, missingval=5)
 st = RasterStack((a=rast, b=rast, c=Float32.(rast)))
 
 ks = ntuple(x -> gensym(), 100)
-layers = NamedTuple{ks}(ntuple(x -> rast2, length(ks)))
-st100 = RasterStack(layers)
+st100 = RasterStack(NamedTuple{ks}(ntuple(x -> rast, length(ks))))
 
 poly = GI.Polygon([[(8.0, 0.0), (11.0, 0.0), (11.0, 0.4), (8.0, 0.0)]])
 linestring = GI.LineString([(8.0, 0.0), (11.0, 0.0), (11.0, 0.4), (8.0, 0.0)])
 line = GI.Line([(8.0, 0.0), (12.0, 4.0)])
-polys = [poly for i in 1:2]
-lines = [line for i in 1:2]
-linestrings = [linestring for i in 1:2]
+polys = [poly for i in 1:10000]
+lines = [line for i in 1:100000]
+linestrings = [linestring for i in 1:100000]
 
 extract(rast, linestring)
-extract(rast, poly)
-@time extract(rast, lines; geometry=false, threaded=true, flatten=true)
-@time extract(st, lines; geometry=false, threaded=true, flatten=false)
-@time extract(st, lines; geometry=false, threaded=false, flatten=false) |> length
+extract(rast, polys; threaded=false)
+@time extract(rast, polys; geometry=false, threaded=true, flatten=true) |> length
+@time extract(rast, lines; geometry=false, threaded=true, flatten=true) |> length
+@time extract(st, polys; geometry=false, threaded=true, flatten=true) |> length
+@time extract(st, lines; geometry=false, threaded=true, flatten=true) |> length
+
 @time extract(rast_m, lines; geometry=false, threaded=true, flatten=false) |> length
-@time extract(st, lines; geometry=false, threaded=false, flatten=false) |> length
 @time extract(st100, lines; geometry=false, threaded=false, flatten=false) |> length
 @time extract(st100, lines; geometry=false, threaded=true, flatten=false) |> length
-@time extract(rast, lines; geometry=false, threaded=true, flatten=true)
-@time extract(rast, lines; threaded=true, flatten=true, progress=false)
-@time extract(rast, lines; threaded=false, flatten=false, progress=false);
+@time extract(rast, lines; geometry=false, threaded=true, flatten=true) |> length
+@time extract(rast, lines; threaded=true, flatten=true, progress=false) |> length
+@time extract(rast, lines; threaded=false, flatten=false, progress=false) |> length
 @benchmark extract(rast, lines; threaded=false, flatten=true)
 @benchmark extract(rast, lines; threaded=true, flatten=true)
 @benchmark extract(rast, lines; threaded=false, flatten=false)
@@ -310,5 +314,4 @@ Makie.plot!(linestring; color=:violet, linewidth=5)
 points = getindex.(extract(rast, linestring; index=true), :geometry)
 Makie.scatter!(points; color=:yellow)
 
-
-#= =#
+=#

@@ -201,40 +201,23 @@ function _extract(A::RasterStackOrArray, ::Nothing, geoms::AbstractArray, e::Ext
         allpoints && return rows
     end
 
-    return if istrue(e.flatten)
-        if threaded
-            thread_rows = [T[] for _ in 1:Threads.nthreads()]
-            # thread_line_refs = [LineRefs{eltype(e)}() for _ in 1:Threads.nthreads()]
-            _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
-                id = Threads.threadid()
-                # line_refs = thread_line_refs[id]
-                rows = _extract(A, geoms[i], e; kw...)
-                append!(thread_rows[id], rows)
+    row_vecs = Vector{Vector{T}}(undef, length(geoms))
+    _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
+        row_vecs[i] = _extract(A, geoms[i], e; kw...)
+    end
+    if istrue(e.flatten)
+        n = sum(map(length, row_vecs))
+        rows = Vector{T}(undef, n)
+        i = 1
+        for rs in row_vecs
+            for r in rs
+                rows[i] = r 
+                i += 1
             end
-            l = sum(map(length, thread_rows))
-            rows = Vector{T}(undef, l)
-            i = 1
-            for rs in thread_rows
-                for r in rs
-                    rows[i] = r 
-                    i += 1
-                end
-            end
-            rows
-        else
-            line_refs = LineRefs{eltype(e)}()
-            rows_ref = Ref{Vector{T}}()
-            _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
-                rows_ref[] = _extract(A, geoms[i], e; line_refs, kw...)
-            end
-            rows_ref[]
         end
+        return rows
     else
-        row_vecs = Vector{Vector{T}}(undef, length(geoms))
-        _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
-            row_vecs[i] = _extract(A, geoms[i], e; kw...)
-        end
-        row_vecs
+        return row_vecs
     end
 end
 function _extract(A::RasterStackOrArray, ::GI.AbstractMultiPointTrait, geom, e; kw...)
@@ -283,14 +266,9 @@ end
     A::RasterStackOrArray, t::GI.AbstractGeometryTrait, geom, e; kw...
 )
     # Make a raster mask of the geometry
-    ods = otherdims(A, DEFAULT_POINT_ORDER)
-    template = view(A, Touches(GI.extent(geom)))
-    if length(ods) > 0
-        template = view(template, map(d -> rebuild(d, firstindex(d)), ods))
-    end
-    B = boolmask(geom; to=template, burncheck_metadata=NoMetadata(), kw...)
+    dims, offset = _template(A, geom)
+    B = boolmask(geom; to=dims, burncheck_metadata=NoMetadata(), kw...)
     n = count(B)
-    offset = _offset(template)
     dp = DimPoints(A)
     i = 1
     rows = _init_rows(e, n)
@@ -302,6 +280,22 @@ end
     # Cleanup
     deleteat!(rows, i:length(rows))
     return rows
+end
+
+function _template(x, geom)
+    ods = otherdims(x, DEFAULT_POINT_ORDER)
+    # Build a dummy raster in case this is a stack
+    # views are just easier on an array than dims
+    t1 = Raster(FillArrays.Zeros(size(x)), dims(x))
+    t2 = if length(ods) > 0
+        view(t1, map(d -> rebuild(d, firstindex(d)), ods))
+    else
+        t1
+    end
+    I = dims2indices(dims(t2), Touches(GI.extent(geom)))
+    t3 = view(t2, I...)
+    offset = CartesianIndex(map(first, I))
+    return dims(t3), offset
 end
 
 Base.@assume_effects :foldable function _maybe_set_row!(
@@ -447,6 +441,3 @@ Base.@assume_effects :total function _maybe_add_fields(
         :index in K ? merge((; index=I), props) : props
     end |> T
 end
-
-_offset(template) =
-    CartesianIndex(map(x -> first(x) - 1, parent(template).indices))
