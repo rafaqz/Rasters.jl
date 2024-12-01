@@ -178,8 +178,8 @@ end
 @testset "Extract a linestring" begin
     T = @NamedTuple{geometry::Tuple{Float64,Float64},test::Union{Missing,Int64}}
     Tsm = @NamedTuple{geometry::Tuple{Float64,Float64},test::Int64}
-    linestrings = [linestring, linestring]
-    fc = GI.FeatureCollection(map(GI.Feature, [linestring, linestring]))
+    linestrings = [linestring, linestring, linestring]
+    fc = GI.FeatureCollection(map(GI.Feature, linestrings))
 
     # Single LineString
     @test extract(rast, linestring) isa Vector{T}
@@ -204,6 +204,8 @@ end
         (geometry = (10.0, 0.1), test = 3)
         (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (10.0, 0.1), test = 3)
     ]
 
     @test extract(rast_m, linestrings; skipmissing=false) isa Vector{T}
@@ -218,11 +220,15 @@ end
         (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
         (geometry = (10.0, 0.2), test = missing)
+        (geometry = (9.0, 0.1), test = 1)
+        (geometry = (10.0, 0.1), test = 3)
+        (geometry = (10.0, 0.2), test = missing)
     ])
 
     @test extract(rast_m, linestrings; skipmissing=true, flatten=false) isa Vector{Vector{Tsm}}
     @test extract(rast_m, linestrings; skipmissing=true, flatten=false) == 
         extract(rast_m, linestrings; skipmissing=true, flatten=false, threaded=true) == Vector{Tsm}[
+        [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3)],
         [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3)],
         [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3)],
     ]
@@ -231,6 +237,7 @@ end
     @test extract(rast_m, linestrings; skipmissing=false, flatten=false) isa Vector{Vector{T}}
     ref = Vector{T}[
         [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3), (geometry = (10.0, 0.2), test = missing)] ,
+        [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3), (geometry = (10.0, 0.2), test = missing)],
         [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3), (geometry = (10.0, 0.2), test = missing)],
     ]
     matching(a, b) = all(map(===, a, b))
@@ -242,7 +249,7 @@ end
     T = @NamedTuple{geometry::Tuple{Float64,Float64},test::Union{Missing,Int64}}
     Tsm = @NamedTuple{geometry::Tuple{Float64,Float64},test::Int64}
     lines = [line, line]
-    fc = GI.FeatureCollection(map(GI.Feature, [line, line]))
+    fc = GI.FeatureCollection(map(GI.Feature, lines))
 
     # Single LineString
     @test extract(rast, line) isa Vector{T}
