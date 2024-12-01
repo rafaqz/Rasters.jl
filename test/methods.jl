@@ -224,8 +224,7 @@ end
     @testset "geometry encompassing raster" begin
         geom = GeoInterface.Polygon([GeoInterface.LinearRing([(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0), (0.0, 0.0)])])
         raster = Raster(ones(X(1:0.1:2), Y(1:0.1:2)), missingval=false)
-        @test 
-        sum(mask(raster; with=geom)) == sum(raster)
+        @test sum(mask(raster; with=geom)) == sum(raster)
     end
 end
 
