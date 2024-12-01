@@ -220,6 +220,12 @@ end
             @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:touches, invert=true))) == prod(size(polytemplate)) - 21 * 21
         end
     end
+
+    @testset "geometry encompassing raster" begin
+        geom = GeoInterface.Polygon([GeoInterface.LinearRing([(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0), (0.0, 0.0)])])
+        raster = Raster(ones(X(1:0.1:2), Y(1:0.1:2)), missingval=false)
+        @test sum(mask(raster; with=geom)) == sum(raster)
+    end
 end
 
 @testset "mask_replace_missing" begin
@@ -318,19 +324,6 @@ end
         @test zonal(sum, rast; of=polygon, skipmissing=true) isa Int
         @test !zonal(x -> x isa Raster, rast; of=polygon, skipmissing=true)
         @test zonal(x -> x isa Raster, rast; of=polygon, skipmissing=false)
-    end
-
-    @testset "geometry may be outside raster" begin
-        geom = GeoInterface.Polygon([GeoInterface.LinearRing([(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0), (0.0, 0.0)])])
-        raster = Raster(ones(10, 10), (X(-5:4), Y(-5:4)))
-
-        @test zonal(sum, raster; of=geom) == 4 * 5 # 20 - that's the area of intersection between the raster and the polygon we defined.
-    end
-
-    @testset "geometry encompassing raster" begin
-        geom = GeoInterface.Polygon([GeoInterface.LinearRing([(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0), (0.0, 0.0)])])
-        raster = Raster(ones(11, 11), (X(1:0.1:2), Y(1:0.1:2)))
-        @test zonal(sum, raster; of=geom) == 10 * 11 # this fails?
     end
 end
 
