@@ -1,3 +1,5 @@
+# Array operations
+
 Most base methods work as for regular julia `Array`s, such as `reverse` and
 rotations like `rotl90`. Base, statistics and linear algebra methods like `mean`
 that take a `dims` argument can also use the dimension name. 
