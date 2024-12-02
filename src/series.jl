@@ -116,6 +116,8 @@ struct RasterSeries{T,N,D,R,A<:AbstractArray{T,N}} <: AbstractRasterSeries{T,N,D
     dims::D
     refdims::R
 end
+RasterSeries(data::DD.AbstractBasicDimArray; kw...) = 
+    RasterSeries(data, dims(data); kw...)
 function RasterSeries(data::AbstractArray{<:Union{AbstractRasterStack,AbstractRaster}}, dims;
     refdims=()
 )
