@@ -220,6 +220,12 @@ end
             @test sum(skipmissing(mask(polytemplate; with=polygon, boundary=:touches, invert=true))) == prod(size(polytemplate)) - 21 * 21
         end
     end
+
+    @testset "geometry encompassing raster" begin
+        geom = GeoInterface.Polygon([GeoInterface.LinearRing([(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0), (0.0, 0.0)])])
+        raster = Raster(ones(X(1:0.1:2), Y(1:0.1:2)), missingval=false)
+        @test sum(mask(raster; with=geom)) == sum(raster)
+    end
 end
 
 @testset "mask_replace_missing" begin
