@@ -316,8 +316,8 @@ function Raster(ds, filename::AbstractString;
     mod=nokw,
     raw=false,
 )::Raster
-    scaled, missingval = _raw_check(raw, scaled, missingval)
     _maybe_warn_replace_missing(replace_missing)
+    scaled, missingval = _raw_check(raw, scaled, missingval)
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
     data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=NoMod()) do var
@@ -325,14 +325,13 @@ function Raster(ds, filename::AbstractString;
         missingval_out = if isnokw(missingval)
             # Detect missingval and convert it to missing
             Rasters.missingval(var, metadata_out) => missing
-        elseif missingval isa Pair && missingval[1] == Rasters.missingval 
-            # Autodetect first missingval
-            Rasters.missingval(var, metadata_out) => missingval[2]
-        else
-            # Use whatever the user passed in
+        elseif missingval isa Pair
             missingval
+        elseif missingval == Rastesr.missingval
+            Rasters.missingval(var, metadata_out)
+        else
+            Rasters.missingval(var, metadata_out) => missingval
         end
-        @show missingval missingval_out
         mod = isnokw(mod) ? _mod(eltype(var), metadata_out, missingval_out; scaled, coerce) : mod
         data_out = if lazy
             FileArray{typeof(source)}(var, filename;

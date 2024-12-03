@@ -115,12 +115,6 @@ const GROUP_KEYWORD = """
     at any nested depth, i.e `group=:group1 => :group2 => :group3`.
 """
 
-const REPLACE_MISSING_KEYWORD = """
-- `replace_missing`: replace `missingval` with `missing`. This is done lazily if `lazy=true`.
-    Note that currently for NetCDF and GRIB files `replace_missing` is always true. 
-    In future `replace_missing=false` will also work for these data sources.
-"""
-
 const CHECKMEMORY_KEYWORD = """
 - `checkmemory`: If `true` (the default), check if there is enough memory for the operation. 
     `false` will ignore memory needs.
@@ -157,13 +151,14 @@ const COERCE_KEYWORD = """
 """
 
 const MISSINGVAL_KEYWORD = """
-- `missingval`: value representing missing data, normally detected from the file. Set manually
-    when you know the value is not specified or is incorrect. This will *not* change any
-    values in the raster, it simply assigns which value is treated as missing. 
-    To specify the outer missing value of a file, use a `Pair`: `missingval=innerval => outerval`.
-    By default `innerval` will be detected, and `outerval` will be `missing`.
-    If you want the `innerval` detected automatically, but a custom `outerval`, 
-    pass the `Rasters.missingval` function as the first argument, `missingval=missingval => outerval`.
+- `missingval`: value representing missing data, normally detected from the file and 
+    automatically converted to `missing`. Setting to an alternate value, such as `0` 
+    or `NaN` may be desirable for improved perfomance. `nothing` specifies no missing value. 
+    Using the same `missingval` the file already has removes the overhead of replacing it. 
+    If the file has an incorrect value, we can manually define the transformation
+    as a pair e.g. `correct_value => missing`, `correct_value => NaN` or 
+    `correct_value => correct_value` to keep it the same and remove the overhead of changing it. 
+    When `raw=true` is set, `missingval` is not changed from the value specified in the file.
 """
 
 const NAME_KEYWORD = """

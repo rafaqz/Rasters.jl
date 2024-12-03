@@ -163,8 +163,9 @@ Load a file path or a `NamedTuple` of paths as a `RasterStack`, or convert argum
     Has no effect when `NameTuple` is used - the `NamedTuple` keys are the layer names.
 $GROUP_KEYWORD
 - `metadata`: A `Dict` or `DimensionalData.Metadata` object.
-- `missingval`: a single value for all layers or a `NamedTuple` of
-    missingval for each layer. `nothing` specifies no missing value.
+$MISSINGVAL_KEYWORD
+    For `RasterStack` a `NamedTuple` can also be passed if layers
+    should have different `missingval`.
 $CONSTRUCTOR_CRS_KEYWORD
 $CONSTRUCTOR_MAPPEDCRS_KEYWORD
 - `refdims`: `Tuple` of `Dimension` that the stack was sliced from.
