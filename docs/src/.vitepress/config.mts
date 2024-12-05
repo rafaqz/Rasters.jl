@@ -54,7 +54,7 @@ export default defineConfig({
       },  
       { text: 'Examples',
         items: [
-          { text: 'Species Distribution Modelling', link: '/gbif_workflow' },
+          { text: 'Species Distribution Modelling', link: '/gbif_wflow' },
         ]
       },
       { text: 'Ecosystem',
@@ -78,20 +78,19 @@ export default defineConfig({
           { text: 'Overview', link: '/methods' },
           { text: 'Array Operations', link: '/array_operations' },
         ]
-       },
-       { text: 'Data Sources',
-       items: [
-         { text: 'Overview', link: '/data_sources' },
-         { text: 'GBIF', link: '/gbif_wflow' }
+      },
+      { text: 'Data Sources', link: '/data_sources' },
+      { text: 'Plots',
+        items: [
+          { text: 'Plots.jl', link: '/plotting' },
+          { text: 'Makie.jl', link: '/plot_makie' },
         ]
       },
-      { text: 'Plots',
-      items: [
-        { text: 'Plots.jl', link: '/plotting' },
-        { text: 'Makie.jl', link: '/plot_makie' },
-      ]
-     },
-
+      { text: 'Examples',
+        items: [
+          { text: 'Species Distribution Modelling', link: '/gbif_wflow' },
+        ]
+      },
       { text: 'API', link: '/api' }
     ],
     editLink: {
