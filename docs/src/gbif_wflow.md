@@ -1,12 +1,17 @@
-Load occurrences for the Mountain Pygmy Possum using GBIF.jl
+# Species distribution modelling workflow
 
-## Load GBIF
+This example show how to load Bioclim data as a RasterStack 
+and extract species occurrences points from it, a common use-case in ecology.
+
+## Load Rasters, RasterDataSources and GBIF
 
 ````@example gbif
 using Rasters, GBIF2
 using RasterDataSources
 const RS = Rasters
 ````
+
+Load occurrences for the Mountain Pygmy Possum using GBIF.jl
 
 ````@example gbif
 records = GBIF2.occurrence_search("Burramys parvus"; limit=300)
@@ -52,3 +57,5 @@ using DataFrames
 df = DataFrame(predictors)
 df[1:5,:]
 ````
+
+From here you can use [SpeciesDistributionModels.jl](https://github.com/tiemvanderdeure/SpeciesDistributionModels.jl) for analysis.
