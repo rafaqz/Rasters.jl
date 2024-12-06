@@ -1,4 +1,5 @@
-using Rasters, ArchGDAL, GeoInterface, Extents
+using Rasters, ArchGDAL, GeoInterface
+using Extents
 using Test
 using Rasters.Lookups
 import DimensionalData: @dim, YDim
@@ -135,31 +136,6 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         @test eltype(r1) == UInt8
     end
 
-    @testset "resample to the same size or resolution leaves raster unchanged" begin
-        res = 2
-        ys = range(; start=(90 - res / 2), step=-res, stop=(-90 + res / 2))
-        xs = range(; start=(-180 + res / 2), step=res, stop=(180 - res / 2))
-
-        point_dims = Y(ys), X(xs)
-        interval_dims = Y(ys; sampling=Intervals(Center())), X(xs; sampling=Intervals(Center()))
-        rev_y_point_dims = Y(reverse(ys)), X(xs)
-        rev_y_interval_dims = reverse(interval_dims[1]), interval_dims[2]
-        rev_x_point_dims = Y(ys), X(reverse(xs))
-        rev_x_interval_dims = interval_dims[1], reverse(interval_dims[2])
-        test_dims = (point_dims, interval_dims, rev_x_point_dims, rev_x_interval_dims, rev_y_point_dims, rev_y_interval_dims)
-        ds_fwd = point_dims; f = identity
-        ds_fwd = point_dims; f = reverse
-
-        for ds_fwd in test_dims, f in (identity, reverse)
-            ds = f(ds_fwd)
-            raster = Raster(rand(ds), crs=EPSG(4326), missingval=NaN)
-            resampled_res = resample(raster; res)
-            resampled_size = resample(raster; size=size(raster), method=:near)
-            @test resampled_res == resampled_size == raster
-            @test dims(resampled_res) == dims(resampled_size) == dims(raster)
-        end
-    end
-
     @testset "dimensions matcha after resampling with only `to`" begin
         # some weird dimensions
         to = (
@@ -176,4 +152,35 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         @test dims(resampled_3D, (1,2)) == to
         @test dims(resampled_3D, Z) == Z(1:2)
     end
+
+    @testset "resample to the same size or resolution leaves raster unchanged" begin
+        res = 2
+        ys = range(; start=(90 - res / 2), step=-res, stop=(-90 + res / 2))
+        xs = range(; start=(-180 + res / 2), step=res, stop=(180 - res / 2))
+
+        point_dims = Y(ys), X(xs)
+        interval_dims = Y(ys; sampling=Intervals(Center())), X(xs; sampling=Intervals(Center()))
+        rev_y_point_dims = Y(reverse(ys)), X(xs)
+        rev_y_interval_dims = reverse(interval_dims[1]), interval_dims[2]
+        rev_x_point_dims = Y(ys), X(reverse(xs))
+        rev_x_interval_dims = interval_dims[1], reverse(interval_dims[2])
+        test_dims = (point_dims, interval_dims, rev_x_point_dims, rev_x_interval_dims, rev_y_point_dims, rev_y_interval_dims)
+        ds_fwd = point_dims; f = identity
+        ds_fwd = point_dims; f = reverse
+
+        ds = ds_fwd
+        raster = Raster(rand(ds), crs=EPSG(4326), missingval=NaN)
+        resampled_res = resample(raster; res)
+        resampled_size = resample(raster; size=size(raster), method=:near)
+        @test resampled_res == resampled_size == raster
+        @test dims(resampled_res) == dims(resampled_size) == dims(raster)
+
+        ds = reverse(ds_fwd)
+        raster = Raster(rand(ds), crs=EPSG(4326), missingval=NaN)
+        resampled_res = resample(raster; res)
+        resampled_size = resample(raster; size=size(raster), method=:near)
+        @test resampled_res == resampled_size == raster
+        @test dims(resampled_res) == dims(resampled_size) == dims(raster)
+    end
+
 end
