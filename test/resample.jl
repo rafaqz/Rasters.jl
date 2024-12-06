@@ -137,8 +137,8 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
     @testset "resample to the same size or resolution leaves raster unchanged" begin
         res = 2
-        ys = LinRange((90 - res / 2):-res:(-90 + res / 2))
-        xs = LinRange((-180 + res / 2):res:(180 - res / 2))
+        ys = range(; start=(90 - res / 2), step=-res, stop=(-90 + res / 2))
+        xs = range(; start=(-180 + res / 2), step=res, stop=(180 - res / 2))
 
         point_dims = Y(ys), X(xs)
         interval_dims = Y(ys; sampling=Intervals(Center())), X(xs; sampling=Intervals(Center()))
