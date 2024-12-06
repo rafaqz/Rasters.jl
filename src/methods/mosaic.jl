@@ -172,8 +172,8 @@ function _mosaic!(f::Function, A::AbstractRaster{T}, regions::Union{Tuple,Abstra
     return A
 end
 function _mosaic!(f::Function, st::AbstractRasterStack, regions::Union{Tuple,AbstractArray}; kw...)
-    map(values(st), regions...) do A, r...
-        mosaic!(f, A, r; kw...)
+    map(values(st), map(values, regions)...) do A, r...
+        mosaic!(f, A, r...; kw...)
     end
     return st
 end
