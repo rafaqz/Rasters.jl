@@ -859,7 +859,7 @@ end
         read!([(a=gdalpath, b=gdalpath), (a=gdalpath, b=gdalpath)], ser2)
         read!(ser1, ser3)
         @test map(ser1, ser2, ser3) do st1, st2, st3
-            map(st1, st2, st3) do A1, A2, A3
+            maplayers(st1, st2, st3) do A1, A2, A3
                 (A2 .=== A2 .=== A3) |> all
             end |> all
         end |> all
