@@ -166,14 +166,14 @@ Base.@constprop :aggressive @inline function extract(x::RasterStackOrArray, data
 end
 
 # TODO use a GeometryOpsCore method like `applyreduce` here?
-function _extract(A::RasterStackOrArray, geom::Missing, e; kw...) where T
+function _extract(A::RasterStackOrArray, geom::Missing, e; kw...)
     return if istrue(e.skipmissing)
         T[]
     else
         T[_maybe_add_fields(e, map(_ -> missing, e.names), missing, missing)]
     end
 end
-function _extract(A::RasterStackOrArray, geom, e; kw...) where T
+function _extract(A::RasterStackOrArray, geom, e; kw...)
     _extract(A, GI.geomtrait(geom), geom, e; kw...)
 end
 function _extract(A::RasterStackOrArray, ::Nothing, geoms::AbstractArray, e::Extractor{T};
@@ -269,7 +269,7 @@ function _extract(
     end
     return rows
 end
-function _extract(A::RasterStackOrArray, ::GI.PointTrait, p, e; kw...)
+function _extract(A::RasterStackOrArray, ::GI.PointTrait, p, e::Extractor{T}; kw...) where T
     rows = _init_rows(e, 1)
     _extract_point!(rows, A, e, p, 1; kw...)
 end
