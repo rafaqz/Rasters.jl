@@ -178,7 +178,7 @@ function _burn_line!(A::AbstractRaster, line, fill)
     end
     return n_on_line
 end
-function _burn_line!(A::AbstractRaster, line, fill, order::Tuple{Vararg{<:Dimension}})
+function _burn_line!(A::AbstractRaster, line, fill, order::Tuple{Vararg{Dimension}})
     msg = """"
         Converting a `:line` geometry to raster is currently only implemented for 2d lines.
         Make a Rasters.jl github issue if you need this for more dimensions.

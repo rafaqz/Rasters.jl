@@ -29,7 +29,7 @@ export default defineConfig({
   themeConfig: {
     outline: 'deep',
     // https://vitepress.dev/reference/default-theme-config
-    logo: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
+    logo: '/logo.png',
     search: {
       provider: 'local',
       options: {
@@ -44,27 +44,30 @@ export default defineConfig({
           { text: 'Overview', link: '/methods' },
           { text: 'Array Operations', link: '/array_operations' },
         ]
-       },
-       { text: 'Data Sources',
-       items: [
-         { text: 'Overview', link: '/data_sources' },
-         { text: 'GBIF', link: '/gbif_wflow' }
+      },
+      { text: 'Data Sources', link: '/data_sources' },
+      { text: 'Plots',
+        items: [
+          { text: 'Plots.jl', link: '/plotting' },
+          { text: 'Makie.jl', link: '/plot_makie' },
+        ]
+      },  
+      { text: 'Examples',
+        items: [
+          { text: 'Species Distribution Modelling', link: '/gbif_wflow' },
         ]
       },
-      { text: 'Plots',
-      items: [
-        { text: 'Plots.jl', link: '/plotting' },
-        { text: 'Makie.jl', link: '/plot_makie' },
-      ]
-     },
-     { text: 'Ecosystem',
-      items: [
-        { text: 'DimensionalData.jl', link: 'https://rafaqz.github.io/DimensionalData.jl/dev/' },
-        { text: 'NCDatasets.jl', link: 'https://alexander-barth.github.io/NCDatasets.jl/stable/' },
-        { text: 'ArchGDAL.jl', link: 'https://yeesian.com/ArchGDAL.jl/stable/' },
-        { text: 'HDF5.jl', link: 'https://juliaio.github.io/HDF5.jl/stable/' },
-       ]
-     },
+      { text: 'Ecosystem',
+        items: [
+          { text: 'DimensionalData.jl', link: 'https://rafaqz.github.io/DimensionalData.jl' },
+          { text: 'DiskArrays.jl', link: 'https://github.com/JuliaIO/DiskArrays.jl' },
+          { text: 'GeoInterface.jl', link: 'https://github.com/JuliaGeo/GeoInterface.jl' },
+          { text: 'NCDatasets.jl', link: 'https://alexander-barth.github.io/NCDatasets.jl/stable/' },
+          { text: 'ArchGDAL.jl', link: 'https://github.com/yeesian/ArchGDAL.jl' },
+          { text: 'GRIBDatasets.jl', link: 'https://github.com/JuliaGeo/GRIBDatasets.jl' },
+          { text: 'ZarrDatasets.jl', link: 'https://github.com/JuliaGeo/ZarrDatasets.jl' },
+        ]
+      },
       { text: 'API', link: '/api' }
     ],
 
@@ -75,20 +78,19 @@ export default defineConfig({
           { text: 'Overview', link: '/methods' },
           { text: 'Array Operations', link: '/array_operations' },
         ]
-       },
-       { text: 'Data Sources',
-       items: [
-         { text: 'Overview', link: '/data_sources' },
-         { text: 'GBIF', link: '/gbif_wflow' }
+      },
+      { text: 'Data Sources', link: '/data_sources' },
+      { text: 'Plots',
+        items: [
+          { text: 'Plots.jl', link: '/plotting' },
+          { text: 'Makie.jl', link: '/plot_makie' },
         ]
       },
-      { text: 'Plots',
-      items: [
-        { text: 'Plots.jl', link: '/plotting' },
-        { text: 'Makie.jl', link: '/plot_makie' },
-      ]
-     },
-
+      { text: 'Examples',
+        items: [
+          { text: 'Species Distribution Modelling', link: '/gbif_wflow' },
+        ]
+      },
       { text: 'API', link: '/api' }
     ],
     editLink: {

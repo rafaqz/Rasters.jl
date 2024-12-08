@@ -19,6 +19,7 @@ stack1 = RasterStack(r1, r2; name=(:r1, :r2))
 stack2 = RasterStack(r1a, r2a; name=(:r1, :r2))
 dates = [DateTime(2017), DateTime(2018)]
 ser = RasterSeries([stack1, stack2], Ti(dates))
+@test RasterSeries(DimArray([stack1, stack2],Ti(dates))) == ser
 @test issorted(dates)
 
 @testset "getindex returns the currect types" begin
@@ -76,6 +77,7 @@ end
     r1 = Raster(ones(4, 5, 10), (X(), Y(), Ti(10:10:100))) .* reshape(1:10, (1, 1, 10))
     r2 = r1 .* 2
     ser = slice(r1, Ti)
+
     @test size(ser) == (10,)
     combined = Rasters.combine(ser, Ti())
     @test combined == r1

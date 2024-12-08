@@ -7,7 +7,7 @@ gdalpath = maybedownload(url)
 
 @testset "warp" begin
     # test that warp actually does *something*
-    r = Raster(gdalpath)[:,:,1]
+    r = Raster(gdalpath)
     crs_ = crs(r).val
     warped = warp(r, Dict(:t_srs => "EPSG:25832"))
     @test warped isa Raster
@@ -20,6 +20,6 @@ gdalpath = maybedownload(url)
     ex = extrema(findall(>(0), warped_back))
     cropped = warped_back[ex[1]:ex[2]]
     # subtracting UInts brings us into hell -> Int
-    diff_ = Int.(cropped[2:end-1, 2:end-1]) .- r
+    diff_ = parent(Int.(cropped[2:end-1, 2:end-1])) .- parent(r)
     @test sum(x->x^2, diff_) / prod(size(diff_)) < 600
 end

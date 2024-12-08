@@ -21,29 +21,33 @@ import Adapt,
        FillArrays,
        Flatten,
        GeoInterface,
+       GeometryOpsCore,
        OffsetArrays,
        ProgressMeter,
        Missings,
        Mmap,
        RecipesBase,
        Reexport,
-       Setfield
+       Setfield,
+       Statistics
 
 Reexport.@reexport using DimensionalData, GeoFormatTypes
 
 using DimensionalData.Tables,
       DimensionalData.Lookups,
-      DimensionalData.Dimensions
+      DimensionalData.Dimensions,
       DimensionalData.Lookups.IntervalSets
 
 using DimensionalData: Name, NoName
 using .Dimensions: StandardIndices, DimTuple
 using .Lookups: LookupTuple
 
+using Statistics: mean
 using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
 
 import GeoInterface: crs
+import Extents: Extent, extent
 
 using Setfield: @set, @set!
 using ColorTypes: RGB
@@ -51,6 +55,9 @@ using ColorTypes: RGB
 using CommonDataModel: AbstractDataset, AbstractVariable
 
 using DiskArrays: @implement_diskarray
+
+using GeometryOpsCore: Planar, Spherical
+export Planar, Spherical
 
 export AbstractRaster, Raster
 export AbstractRasterStack, RasterStack
@@ -61,10 +68,10 @@ export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!,
        resample, warp, zonal, crop, extend, trim, slice, combine, points,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
-       coverage, coverage!, setcrs, setmappedcrs, smapseries, cellsize
+       coverage, coverage!, setcrs, setmappedcrs, smapseries, cellsize, cellarea
 export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
 export reproject, convertlookup
-
+export Extent, extent
 
 const DD = DimensionalData
 const DA = DiskArrays

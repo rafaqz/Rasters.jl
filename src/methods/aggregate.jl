@@ -1,6 +1,6 @@
 
-const DimOrDimTuple = Union{Dimension,Tuple{Vararg{<:Dimension}}}
-const IntOrIntTuple = Union{Int,Tuple{Vararg{<:Int}}}
+const DimOrDimTuple = Union{Dimension,Tuple{Vararg{Dimension}}}
+const IntOrIntTuple = Union{Int,Tuple{Vararg{Int}}}
 
 struct Ag end
 struct DisAg end
@@ -53,9 +53,11 @@ $VERBOSE_KEYWORD
 # Example
 
 ```jldoctest
-using Rasters, ArchGDAL, RasterDataSources, Statistics, Plots
+using Rasters, RasterDataSources, Statistics, Plots
+import ArchGDAL
+using Rasters: Center
 st = RasterStack(WorldClim{Climate}; month=1)
-ag = aggregate(Rasters.Center(), st, (Y(20), X(20)); skipmissing=true, progress=false)
+ag = aggregate(Center(), st, (Y(20), X(20)); skipmissingval=true, progress=false)
 plot(ag)
 savefig("build/aggregate_example.png"); nothing
 # output

@@ -1,5 +1,3 @@
-const AG = ArchGDAL
-
 const GDAL_LOCUS = Start()
 
 const GDAL_DIM_ORDER = (X(), Y(), Band())
@@ -173,8 +171,8 @@ function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw)
         xorder = xstep > 0 ? ForwardOrdered() : ReverseOrdered()
         yorder = ystep > 0 ? ForwardOrdered() : ReverseOrdered()
         # Create lookup index. LinRange is easiest always the right size after fp error
-        xindex = LinRange(xmin, xmax, xsize)
-        yindex = LinRange(ymax, ymin, ysize)
+        xindex = range(; start=xmin, stop=xmax, length=xsize)
+        yindex = range(; start=ymax, stop=ymin, length=ysize)
 
         # Define `Projected` lookups fo X and Y dimensions
         xlookup = Projected(xindex;

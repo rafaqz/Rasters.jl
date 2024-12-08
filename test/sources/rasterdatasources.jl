@@ -1,4 +1,4 @@
-using Rasters, RasterDataSources, Test, Dates, ArchGDAL, NCDatasets
+using Rasters, RasterDataSources, Test, Dates, ArchGDAL, NCDatasets, Proj
 
 # Too big to test on CI
 # if !haskey(ENV, "CI")
@@ -32,6 +32,20 @@ end
     st[:bio1]
     @test st isa RasterStack
     @test A isa Raster
+    # Future Bioclim works
+    st = RasterStack(WorldClim{Future{BioClim, CMIP6, GFDL_ESM4, SSP370}}, (1, 2); 
+        date = Date(2050), res = "10m",
+        lazy=true, 
+        missingval=Inf, 
+        crs=nothing, 
+        mappedcrs=EPSG(4326),
+    )
+    @test missingval(st) === Inf32
+    @test missingval(st.bio1) === Inf32
+    ra = Raster(WorldClim{Future{BioClim, CMIP6, GFDL_ESM4, SSP370}}, 2; 
+        date = Date(2050), res = "10m"
+    )
+    @test Rasters.name(ra) == :bio2    
 end
 
 @testset "load CHELSA BioClim" begin
@@ -45,13 +59,13 @@ end
     # Allow forcing keywords
     st = RasterStack(CHELSA{BioClim}, (1, 2); 
          lazy=true, 
-         missingval=-Int16(9999), 
+         missingval= Int16(9999), 
          metadata=Rasters.NoMetadata(), 
          crs=nothing, 
          mappedcrs=EPSG(4326),
     )
-    @test missingval(st) === Int16(-9999)
-    @test missingval(st.bio1) == Int16(-9999)
+    @test missingval(st) === UInt16(9999)
+    @test missingval(st.bio1) === UInt16(9999)
     @test metadata(st) == Rasters.NoMetadata()
 end
 

@@ -1,8 +1,16 @@
+## Point, polygon and table operations
+   
+| Methods                   | Description                                                                  |
+| :------------------------ | :--------------------------------------------------------------------------- |
+| [`rasterize`](@ref)       | rasterize points and geometries.                                             |
+| [`extract`](@ref)         | extract values from points or geometries.                                    |
+| [`zonal`](@ref)           | calculate zonal statistics for an object masked by geometries.               |    
+    
 ## Methods that change the resolution or extent of an object
 
 Click through to the function documentation for more in-depth descriptions and examples.
    
-| Methods |              Description                                        |
+| Methods                   | Description                                                                  |
 | :------------------------ | :--------------------------------------------------------------------------- |
 | [`aggregate`](@ref)       | aggregate data by the same or different amounts for each axis.               |
 | [`disaggregate`](@ref)    | similarly disaggregate data.                                                 |
@@ -16,32 +24,22 @@ Click through to the function documentation for more in-depth descriptions and e
     
 ## Methods that change an objects values
    
-!!! info
-      Note that most regular Julia methods, such as `replace`, work as for a standard
-      `Array`. These additional methods are commonly required in GIS applications.
-   
-| Methods |              Description                                        |
+| Methods                   | Description                                                                  |
 | :------------------------ | :--------------------------------------------------------------------------- |
 | [`classify`](@ref)        | classify values into categories.                                             |
 | [`mask`](@ref)            | mask an object by a polygon or `Raster` along `X/Y`, or other dimensions.    |
 | [`replace_missing`](@ref) | replace all missing values in an object and update `missingval`.             |
    
-   
-## Point, polygon and table operation
-   
-| Methods |              Description                                        |
-| :------------------------ | :--------------------------------------------------------------------------- |
-| [`rasterize`](@ref)       | rasterize points and geometries.                                             |
-| [`extract`](@ref)         | extract values from points or geometries.                                    |
-| [`zonal`](@ref)           | calculate zonal statistics for an object masked by geometries.               |    
+!!! info
+      Note that most regular Julia methods, such as `replace`, work as for a standard
+      `Array`. These additional methods are commonly required in GIS applications.
    
 ## Methods to load, write and modify data sources
    
-| Methods  |              Description                                   |
+| Methods                   | Description                                                             |
 | :------------------------ | :---------------------------------------------------------------------- |
 | [`modify`](@ref)          | replace the data in objects. Useful to e.g. move objects to/from a GPU. |
 | [`read`](@ref)            | read data to memory if it is on disk.                                   |
 | [`read!`](@ref)           | read data to predefined memory.                                         |
 | [`open`](@ref)            | open the underlying data for manually reading or writing.               |
 | [`write`](@ref)           | write objects to file.                                                  |
-    

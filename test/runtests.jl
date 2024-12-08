@@ -1,16 +1,15 @@
 using Rasters, Test, Aqua, SafeTestsets
 
-if VERSION >= v"1.9.0"
-    # Aqua.test_ambiguities([Rasters, Base, Core])
+@testset "Aqua" begin
+    Aqua.test_ambiguities(Rasters)
     Aqua.test_unbound_args(Rasters)
     Aqua.test_stale_deps(Rasters)
     Aqua.test_undefined_exports(Rasters)
     Aqua.test_project_extras(Rasters)
     # Aqua.test_deps_compat(Rasters) # This breaks GDAL downstream tests
-    # Aqua.test_project_toml_formatting(Rasters) # This seems to change between versions for extensions
-    @time @safetestset "extensions" begin include("extensions.jl") end
 end
 
+@time @safetestset "extensions" begin include("extensions.jl") end
 @time @safetestset "methods" begin include("methods.jl") end
 @time @safetestset "array" begin include("array.jl") end
 @time @safetestset "stack" begin include("stack.jl") end
@@ -22,11 +21,12 @@ end
 @time @safetestset "adapt" begin include("adapt.jl") end
 @time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "warp" begin include("warp.jl") end
-@time @safetestset "resample" begin include("resample.jl") end
-@time @safetestset "cellsize" begin include("cellsize.jl") end
+@time @safetestset "cellarea" begin include("cellarea.jl") end
 
 # CommondataModel sources
+@time @safetestset "commondatamodel" begin include("sources/commondatamodel.jl") end
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
+# @time @safetestset "zarr" begin include("sources/zarr.jl") end # TODO: FIXME
 if !Sys.iswindows()
     # GRIBDatasets doesn't work on Windows for now
     @time @safetestset "gribdatasets" begin include("sources/gribdatasets.jl") end
@@ -43,3 +43,5 @@ if !Sys.iswindows()
     @time @safetestset "grd" begin include("sources/grd.jl") end
 end
 @time @safetestset "plot recipes" begin include("plotrecipes.jl") end
+
+@time @safetestset "resample" begin include("resample.jl") end
