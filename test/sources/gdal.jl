@@ -635,9 +635,9 @@ end
             @test size(trimmed) == (414, 514)
             cropped = crop(st; to=trimmed)
             @test size(cropped) == (414, 514)
-            @test map((c, t) -> all(collect(c .=== t)), cropped, trimmed) |> all
+            @test all(maplayers((c, t) -> all(collect(c .=== t)), cropped, trimmed))
             extended = extend(read(cropped); to=st)
-            @test all(map((s, e) -> all(s .=== e), st, extended))
+            @test all(maplayers((s, e) -> all(s .=== e), st, extended))
         end
         @testset "mask and mask!" begin
             st = read(gdalstack)
