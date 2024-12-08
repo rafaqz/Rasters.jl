@@ -624,13 +624,13 @@ end
 
     @testset "methods" begin
         @testset "mean" begin
-            means = map(A -> mean(parent(A); dims=2), gdalstack)
-            @test map((a, b) -> all(a .== b), mean(gdalstack; dims=Y), means) |> all
+            means = maplayers(A -> mean(parent(A); dims=2), gdalstack)
+            @test maplayers((a, b) -> all(a .== b), mean(gdalstack; dims=Y), means) |> all
         end
         @testset "trim, crop, extend" begin
             mv = zero(eltype(gdalstack[:a]))
             st = read(replace_missing(gdalstack, mv))
-            st = map(A -> (view(A, X(1:100)) .= mv; A), st)
+            st = maplayers(A -> (view(A, X(1:100)) .= mv; A), st)
             trimmed = trim(st)
             @test size(trimmed) == (414, 514)
             cropped = crop(st; to=trimmed)
