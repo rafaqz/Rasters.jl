@@ -28,19 +28,21 @@ import Adapt,
        Mmap,
        RecipesBase,
        Reexport,
-       Setfield
+       Setfield,
+       Statistics
 
 Reexport.@reexport using DimensionalData, GeoFormatTypes
 
 using DimensionalData.Tables,
       DimensionalData.Lookups,
-      DimensionalData.Dimensions
+      DimensionalData.Dimensions,
       DimensionalData.Lookups.IntervalSets
 
 using DimensionalData: Name, NoName
 using .Dimensions: StandardIndices, DimTuple
 using .Lookups: LookupTuple
 
+using Statistics: mean
 using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
 
