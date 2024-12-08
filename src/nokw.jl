@@ -5,3 +5,8 @@ struct NoKW end
 const nokw = NoKW()
 @inline isnokw(::NoKW) = true
 @inline isnokw(_) = false
+@inline isnokwornothing(::Union{NoKW,Nothing}) = true
+@inline isnokwornothing(_) = false
+
+_nokw2nothing(::NoKW) = nothing
+_nokw2nothing(x) = x

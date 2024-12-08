@@ -25,6 +25,9 @@ gribexamples_dir = abspath(joinpath(dirname(pathof(GRIBDatasets)), "..", "test",
 
 era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
 
+ds = GRIBDatasets.GRIBDataset(era5)
+v = ds[:z]
+
 @testset "Raster" begin
     @time gribarray = Raster(era5)
     @time lazyarray = Raster(era5; lazy=true)
@@ -87,8 +90,8 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
     end
 
     @testset "cf attributes" begin
-        z = lazystack[:z]
-        @test metadata(z)["standard_name"] == "geopotential"
+        z = lazystack.z
+        @test metadata(z)["cfName"] == "geopotential"
 
         @test metadata(lazystack)["Conventions"] == "CF-1.7"
         x = dims(lazystack, :X)

@@ -19,9 +19,8 @@ function print_geo(io, mime, A; blockwidth)
     DD.print_block_separator(io, "raster", blockwidth)
     printstyled(io, "\n  extent: "; color=:light_black)
     show(io, mime, Extents.extent(A))
-    println(io)
     if missingval(A) !== nothing
-        printstyled(io, "  missingval: "; color=:light_black)
+        printstyled(io, "\n  missingval: "; color=:light_black)
         show(io, mime, missingval(A))
     end
     if crs(A) !== nothing
@@ -36,7 +35,7 @@ function print_geo(io, mime, A; blockwidth)
         fn = filename(A)
         if !(fn == "")
             printstyled(io, "\n  filename: "; color=:light_black)
-            print(io, )
+            print(io, fn)
         end
     end
     println(io)

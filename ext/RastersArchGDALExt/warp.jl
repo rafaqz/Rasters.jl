@@ -14,19 +14,37 @@ function warp(st::AbstractRasterStack, flags::Dict; filename=nothing, suffix=key
     RA.mapargs((A, s) -> warp(A, flags; filename, suffix=s), st, suffix; kw...)
 end
 
-function _warp(A::AbstractRaster, flags::Dict; filename=nothing, suffix="", kw...)
+function _warp(A::AbstractRaster, flags::Dict; 
+    filename=nothing, 
+    suffix="", 
+    missingval=nokw,
+    maskingval=Rasters.missingval(A),
+    name=Rasters.name(A),
+    kw...
+)
     A1 = _set_gdalwarp_sampling(A)
     filename = RA._maybe_add_suffix(filename, suffix)
     flagvect = reduce([flags...]; init=String[]) do acc, (key, val)
         append!(acc, String[_asflag(key), _stringvect(val)...])
     end
+    # TODO: detect if `A` already holds a lazy GDAL FileArray. 
+    # If it does, we can just open it and use it directly.
     tempfile = isnothing(filename) ? nothing : tempname() * ".tif"
     warp_kw = isnothing(filename) || filename == "/vsimem/tmp" ? () : (; dest=filename)
-    out = AG.Dataset(A1; filename=tempfile, kw...) do dataset
-        rds = Raster(dataset)
+    # We really need a missingval for `warp`, as it may rotate and add missing value
+    missingval = if RA.isnokw(missingval) 
+        if RA.missingval(A) isa Union{Missing,Nothing} 
+            RA._type_missingval(Missings.nonmissingtype(eltype(A)))
+        else
+            RA.missingval(A)
+        end
+    else
+        missingval
+    end
+    out = AG.Dataset(A1; filename=tempfile, missingval, kw...) do dataset
         AG.gdalwarp([dataset], flagvect; warp_kw...) do warped
             # Read the raster lazily, dropping Band if there is none in `A`
-            raster = Raster(warped; lazy=true, dropband=!hasdim(A, Band()), name = name(A))
+            raster = Raster(warped; lazy=true, dropband=!hasdim(A, Band()), name, maskingval)
             # Either read the MEM dataset to an Array, or keep a filename base raster lazy
             return isnothing(filename) ? read(raster) : raster
         end
