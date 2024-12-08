@@ -21,3 +21,9 @@ function temporary_random_rasters(f, N, size, type=UInt8)
         rm.(filenames; force=true)
     end
 end
+
+maybe_layers(r::AbstractRaster) = (r,)
+maybe_layers(r::AbstractRasterStack) = layers(r)
+
+identicalelements(x,y,args...) = all(x .=== y) && identicalelements(x, args...)
+identicalelements(x,y) = all(x .=== y)

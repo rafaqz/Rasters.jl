@@ -115,26 +115,29 @@ _without_mapped_crs(f, x, ::Nothing) = f(x)
 function _without_mapped_crs(f, dims::DimTuple, mappedcrs::GeoFormat)
     dims1 = setmappedcrs(dims, nothing)
     x = f(dims1)
-    if x isa DimTuple
-        x = setmappedcrs(x, mappedcrs)
+    return if x isa DimTuple
+        setmappedcrs(x, mappedcrs)
+    else
+        x
     end
-    return x
 end
 function _without_mapped_crs(f, A::AbstractRaster, mappedcrs::GeoFormat)
     A = setmappedcrs(A, nothing)
     x = f(A)
-    if x isa AbstractRaster
-        x = setmappedcrs(x, mappedcrs)
+    return if x isa AbstractRaster
+        setmappedcrs(x, mappedcrs)
+    else
+        x
     end
-    return x
 end
 function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
-    st1 = map(A -> setmappedcrs(A, nothing), st)
+    st1 = maplayers(A -> setmappedcrs(A, nothing), st)
     x = f(st1)
-    if x isa AbstractRasterStack
-        x = map(A -> setmappedcrs(A, mappedcrs(st)), x)
+    return if x isa AbstractRasterStack
+        setmappedcrs(x, mappedcrs)
+    else
+        x
     end
-    return x
 end
 
 function _extent2dims(to; size=nothing, res=nothing, crs=nothing, kw...) 
@@ -372,11 +375,19 @@ _booltype(x) = x ? _True() : _False()
 istrue(::_True) = true
 istrue(::_False) = false
 
-function _rowtype(x, ::Type{G}, ::Type{I}; geometry, index, skipmissing, names) where {G, I}
+# skipinvalid: can G and I be missing. skipmissing: can nametypes be missing
+_rowtype(x, g, args...; kw...) = _rowtype(x, typeof(g), args...; kw...)
+function _rowtype(
+    x, ::Type{G}, i::Type{I} = typeof(size(x)); 
+    geometry, index, skipmissing, skipinvalid = skipmissing, names, kw...
+) where {G, I}
+    _G = istrue(skipinvalid) ? nonmissingtype(G) : G
+    _I = istrue(skipinvalid) ? I : Union{Missing, I}
     keys = _rowkeys(geometry, index, names)
-    types = _rowtypes(x, G, I, geometry, index, skipmissing, names)
+    types = _rowtypes(x, _G, _I, geometry, index, skipmissing, names)
     NamedTuple{keys,types}
 end
+
 
 function _rowtypes(
     x, ::Type{G}, ::Type{I}, geometry::_True, index::_True, skipmissing, names::NamedTuple{Names}
