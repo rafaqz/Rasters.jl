@@ -52,6 +52,8 @@ DD.modify(f, A::AbstractRasterSeries) = map(child -> modify(f, child), values(A)
     RasterSeries(paths::AbstractArray{<:AbstractString}, dims; child, duplicate_first, kw...)
     RasterSeries(path:::AbstractString, dims; ext, separator, child, duplicate_first, kw...)
 
+    RasterSeries(objects::AbstractBasicDimArray; kw...)
+
 Concrete implementation of [`AbstractRasterSeries`](@ref).
 
 A `RasterSeries` is an array of `Raster`s or `RasterStack`s, along some dimension(s).
@@ -127,6 +129,8 @@ function RasterSeries(
 ) where {A<:AbstractArray{T,N},D<:Tuple,R<:Tuple} where {T,N}
     RasterSeries{T,N,D,R,A}(data, dims, refdims)
 end
+RasterSeries(data::DD.AbstractBasicDimArray; kw...) = 
+    RasterSeries(data, dims(data); kw...)
 function RasterSeries(data::AbstractArray{<:Union{AbstractRasterStack,AbstractRaster}}, dims;
     refdims=()
 )

@@ -19,6 +19,7 @@ stack1 = RasterStack(r1, r2; name=(:r1, :r2))
 stack2 = RasterStack(r1a, r2a; name=(:r1, :r2))
 dates = [DateTime(2017), DateTime(2018)]
 ser = RasterSeries([stack1, stack2], Ti(dates))
+@test RasterSeries(DimArray([stack1, stack2],Ti(dates))) == ser
 @test issorted(dates)
 
 @testset "getindex returns the currect types" begin
