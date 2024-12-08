@@ -150,7 +150,11 @@ function classify!(A::AbstractRaster, pairs;
     end
     return rebuild(out; missingval=missingval)
 end
-function classify!(xs::RasterSeriesOrStack, pairs...; kw...)
+function classify!(xs::RasterStack, pairs...; kw...)
+    maplayers(x -> classify!(x, pairs...; kw...),  xs)
+    return xs
+end
+function classify!(xs::RasterSeries, pairs...; kw...)
     map(x -> classify!(x, pairs...; kw...),  xs)
     return xs
 end

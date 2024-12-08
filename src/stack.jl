@@ -31,8 +31,10 @@ abstract type AbstractRasterStack{K,T,N,L} <: AbstractDimStack{K,T,N,L} end
 missingval(stack::AbstractRasterStack) = getfield(stack, :missingval)
 missingval(s::AbstractRasterStack, name::Symbol) = _singlemissingval(missingval(s), name)
 
-filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}) = map(s -> filename(s), stack)
-filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:Union{FileStack,OpenStack}}) = filename(parent(stack))
+filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}) = 
+    map(s -> filename(s), layers(stack))
+filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:Union{FileStack,OpenStack}}) = 
+    filename(parent(stack))
 
 isdisk(st::AbstractRasterStack) = any(isdisk, layers(st))
 
@@ -92,12 +94,15 @@ function DD.rebuild(s::AbstractRasterStack;
 end
 
 function DD.rebuild_from_arrays(
-    s::AbstractRasterStack{<:Union{FileStack{<:Any,Keys},OpenStack{<:Any,Keys}}}, das::Tuple{Vararg{<:AbstractDimArray}}; kw...
+    s::AbstractRasterStack{<:Union{FileStack{<:Any,Keys},OpenStack{<:Any,Keys}}}, 
+    das::Tuple{Vararg{AbstractDimArray}}; 
+    kw...
 ) where Keys
     DD.rebuild_from_arrays(s, NamedTuple{Keys}(das); kw...)
 end
 function DD.rebuild_from_arrays(
-    s::AbstractRasterStack, das::NamedTuple{<:Any,<:Tuple{Vararg{AbstractDimArray}}};
+    s::AbstractRasterStack, 
+    das::NamedTuple{<:Any,<:Tuple{Vararg{AbstractDimArray}}};
     refdims=refdims(s),
     metadata=DD.metadata(s),
     dims=nothing,
@@ -121,12 +126,13 @@ end
 
 DD.name(s::AbstractRasterStack) = keys(s)
 Base.names(s::AbstractRasterStack) = keys(s)
-Base.copy(stack::AbstractRasterStack) = map(copy, stack)
+Base.copy(stack::AbstractRasterStack) = maplayers(copy, stack)
 
 #### Stack getindex ####
 # Different to DimensionalData as we construct a Raster
-Base.getindex(s::AbstractRasterStack, name::AbstractString) = s[Symbol(name)]
-function Base.getindex(s::AbstractRasterStack, name::Symbol)
+Base.@constprop :aggressive @propagate_inbounds Base.getindex(s::AbstractRasterStack, name::AbstractString) = 
+    s[Symbol(name)]
+Base.@constprop :aggressive @propagate_inbounds function Base.getindex(s::AbstractRasterStack, name::Symbol)
     data_ = parent(s)[name]
     dims_ = dims(s, DD.layerdims(s, name))
     metadata = DD.layermetadata(s, name)
@@ -215,7 +221,7 @@ function RasterStack(
     data::Union{FileStack,OpenStack,NamedTuple};
     dims::Tuple,
     refdims::Tuple=(),
-    layerdims,
+    layerdims::NamedTuple,
     metadata=nokw,
     layermetadata=nokw,
     missingval=nokw,
@@ -243,7 +249,7 @@ function RasterStack(
     return _postprocess_stack(st, dims; kw...)
 end
 # Convert Tuple/Array of array to NamedTuples using name/key
-function RasterStack(data::Tuple{Vararg{<:AbstractArray}}, dims::Tuple;
+function RasterStack(data::Tuple{Vararg{AbstractArray}}, dims::Tuple;
     name::Union{Tuple,AbstractArray,NamedTuple,Nothing}=nokw,
     kw...
 )
@@ -251,7 +257,7 @@ function RasterStack(data::Tuple{Vararg{<:AbstractArray}}, dims::Tuple;
     return RasterStack(NamedTuple{cleankeys(name)}(data), dims; kw...)
 end
 # Multi Raster stack from NamedTuple of AbstractArray
-function RasterStack(data::NamedTuple{<:Any,<:Tuple{Vararg{<:AbstractArray}}}, dims::Tuple;
+function RasterStack(data::NamedTuple{<:Any,<:Tuple{Vararg{AbstractArray}}}, dims::Tuple; 
     layerdims=nokw,
     kw...
 )
@@ -270,7 +276,7 @@ end
 # Multi Raster stack from AbstractDimArray splat
 RasterStack(layers::AbstractDimArray...; kw...) = RasterStack(layers; kw...)
 # Multi Raster stack from tuple with `name` keyword
-function RasterStack(layers::Tuple{Vararg{<:AbstractDimArray}};
+function RasterStack(layers::Tuple{Vararg{AbstractDimArray}};
     name=map(name, layers),
     kw...
 )
@@ -278,7 +284,7 @@ function RasterStack(layers::Tuple{Vararg{<:AbstractDimArray}};
 end
 # Multi RasterStack from NamedTuple
 # This method is called after most other RasterStack methods.
-function RasterStack(layers::NamedTuple{K,<:Tuple{Vararg{<:AbstractDimArray}}};
+function RasterStack(layers::NamedTuple{K,<:Tuple{Vararg{AbstractDimArray}}};
     resize::Union{Function,NoKW}=nokw,
     _layers=resize isa NoKW ? layers : resize(layers),
     dims::Tuple=DD.combinedims(_layers...),
@@ -428,10 +434,10 @@ function RasterStack(filename::AbstractString;
                 source, name, lazy, group, missingval, scaled, coerce, kw...
             )
             # Maybe split the stack into separate arrays to remove extra dims.
-            if !isnokw(name)
-                map(identity, l_st)
-            else
+            if isnokw(name)
                 l_st
+            else
+                maplayers(identity, l_st)
             end
         else
             # With bands actings as layers
@@ -446,12 +452,14 @@ function RasterStack(filename::AbstractString;
     return _maybe_drop_single_band(st, dropband, lazy)
 end
 
+# TODO test this properly
 function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
-    open(s) do o
+    data = open(s) do o
         map(K) do k
-            Array(parent(ost)[k])
+            f(parent(ost)[k])
         end
     end
+    rebuild(s; data)
 end
 
 # Open a single file stack

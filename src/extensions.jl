@@ -159,44 +159,121 @@ $EXPERIMENTAL
 """
 warp(args...; kw...) = throw_extension_error(warp, "ArchGDAL", :RastersArchGDALExt, args)
 
+# stubs that need Proj
+
 """
-    cellsize(x)
+    cellarea([method], x)
 
-Gives the approximate size of each cell in square km.
-This function works for any projection, using an algorithm for polygons on a sphere. It approximates the true size to about 0.1%, depending on latitude.
+Gives the approximate area of each gridcell of `x`.
+By assuming the earth is a sphere, it approximates the true size to about 0.1%, depending on latitude.
 
-Run `using ArchGDAL` to make this method available.
+Run `using ArchGDAL` to make this method fully available.
 
-# Arguments
-
-- `x`: A `Raster` or a `Tuple` of `X` and `Y` dimensions.
+`method` can be `Spherical(; radius)` (the default) or `Planar()`.
+- `Spherical` will compute cell area on the sphere, by transforming all points back to long-lat.  You can specify the radius by the `radius` keyword argument here.  By default, this is `6371008.8`, the mean radius of the Earth.
+- `Planar` will compute cell area in the plane of the CRS you have chosen.  Be warned that this will likely be incorrect for non-equal-area projections.
 
 ## Example
 
 ```julia
 using Rasters, ArchGDAL, Rasters.Lookups
-dimz = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), order=ForwardOrdered(), span=Regular(10.0), crs=EPSG(4326))),
-       Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), order=ForwardOrdered(), span=Regular(10.0), crs=EPSG(4326)))
-
-cs = cellsize(dimz)
+xdim = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), crs=EPSG(4326)))
+ydim = Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), crs=EPSG(4326)))
+myraster = rand(xdim, ydim)
+cs = cellarea(myraster)
 
 # output
-4×6 Raster{Float64,2} with dimensions:
-  X Projected{Float64} 90.0:10.0:120.0 ForwardOrdered Regular Intervals{Start} crs: EPSG,
-  Y Projected{Float64} 0.0:10.0:50.0 ForwardOrdered Regular Intervals{Start} crs: EPSG
-extent: Extent(X = (90.0, 130.0), Y = (0.0, 60.0))
-missingval: missing
-crs: EPSG:4326
-parent:
-        0.0       10.0       20.0        30.0        40.0            50.0
-  90.0  1.2332e6   1.1952e6   1.12048e6   1.01158e6   8.72085e5  706488.0
- 100.0  1.2332e6   1.1952e6   1.12048e6   1.01158e6   8.72085e5  706488.0
- 110.0  1.2332e6   1.1952e6   1.12048e6   1.01158e6   8.72085e5  706488.0
- 120.0  1.2332e6   1.1952e6   1.12048e6   1.01158e6   8.72085e5  706488.0
+╭───────────────────────╮
+│ 4×6 Raster{Float64,2} │
+├───────────────────────┴─────────────────────────────────────────────────── dims ┐
+  ↓ X Projected{Float64} 90.0:10.0:120.0 ForwardOrdered Regular Intervals{Start},
+  → Y Projected{Float64} 0.0:10.0:50.0 ForwardOrdered Regular Intervals{Start}
+├───────────────────────────────────────────────────────────────────────── raster ┤
+  extent: Extent(X = (90.0, 130.0), Y = (0.0, 60.0))
+
+  crs: EPSG:4326
+└─────────────────────────────────────────────────────────────────────────────────┘
+   ↓ →  0.0        10.0        20.0        30.0            40.0      50.0
+  90.0  1.23017e6   1.19279e6   1.11917e6   1.01154e6  873182.0  708290.0
+ 100.0  1.23017e6   1.19279e6   1.11917e6   1.01154e6  873182.0  708290.0
+ 110.0  1.23017e6   1.19279e6   1.11917e6   1.01154e6  873182.0  708290.0
+ 120.0  1.23017e6   1.19279e6   1.11917e6   1.01154e6  873182.0  708290.0
 ```
 $EXPERIMENTAL
 """
-cellsize(args...; kw...) = throw_extension_error(cellsize, "ArchGDAL", :RastersArchGDALExt, args)
+cellarea(x; kw...) = cellarea(Spherical(), x; kw...)
+cellarea(method::GeometryOpsCore.Manifold, x; kw...) = cellarea(method, dims(x, (XDim, YDim)); kw...)
+
+function cellarea(method::GeometryOpsCore.Planar, dims::Tuple{<:XDim, <:YDim}; kw...)
+    isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
+    areas = _planar_cellarea(dims; kw...)
+    return Raster(areas; dims)
+end
+
+function cellarea(method::GeometryOpsCore.Spherical, dims::Tuple{<:XDim, <:YDim}; kw...)
+    isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
+    areas = _spherical_cellarea(dims; radius = method.radius, kw...)
+    return Raster(areas; dims)
+end
+
+_spherical_cellarea(args...; kw...) = throw_extension_error(_spherical_cellarea, "Proj", :RastersProjExt, args)
+
+function _planar_cellarea(dims::Tuple{<:XDim, <:YDim})
+    xbnds, ybnds = DD.intervalbounds(dims)
+    broadcast(xb -> xb[2] - xb[1], xbnds) .* broadcast(yb -> yb[2] - yb[1], ybnds)'
+end
+
+function cellsize(args...; kw...) 
+    @warn """
+cellsize is deprecated and will be removed in a future version, use cellarea instead. 
+Note that cellarea returns the area in square m, while cellsize still uses square km.
+"""
+    return cellarea(args...; kw..., radius = 6371.0088)
+end
+
+"""
+Rasters.sample([rng], x, [n::Integer]; kw...)
+
+Sample `n` random and optionally weighted points from from a `Raster` or `RasterStack`.
+Returns a `Vector` of `NamedTuple`, closely resembling the return type of [`extract`](@ref).
+
+Run `using StatsBase` to make this method available.
+Note that this function is not exported to avoid confusion with StatsBase.sample
+
+# Keywords
+
+- `geometry`: include `:geometry` in returned `NamedTuple`. Specify the type and dimensions of the returned geometry by
+    providing a `Tuple` or `NamedTuple` of dimensions. Defaults to `(X,Y)`
+- `index`: include `:index` of the `CartesianIndex` in returned `NamedTuple`, `false` by default.
+- `name`: a `Symbol` or `Tuple` of `Symbol` corresponding to layer/s of a `RasterStack` to extract. All layers by default.
+- `skipmissing`: skip missing points automatically.
+- `weights`: A DimArray that matches one or more of the dimensions of `x` with weights for sampling.
+- `weightstype`: a `StatsBase.AbstractWeights` specifying the type of weights. Defaults to `StatsBase.Weights`.
+- `replace`: sample with replacement, `true` by default. See `StatsBase.sample`
+- `ordered`: sample in order, `false` by default. See `StatsBase.sample`
+
+# Example
+This code draws 5 random points from a raster, weighted by cell area.
+```julia
+using Rasters, Rasters.Lookups, Proj, StatsBase
+xdim = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), crs=EPSG(4326)))
+ydim = Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), crs=EPSG(4326)))
+myraster = rand(xdim, ydim)
+Rasters.sample(myraster, 5; weights = cellarea(myraster))
+
+# output
+
+5-element Vector{@NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}}:
+ @NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}(((90.0, 10.0), 0.7360504790189618))
+ @NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}(((90.0, 30.0), 0.5447657183842469))
+ @NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}(((90.0, 30.0), 0.5447657183842469))
+ @NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}(((90.0, 10.0), 0.7360504790189618))
+ @NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}(((110.0, 10.0), 0.5291143028176258))
+```
+"""
+sample(args...; kw...) = throw_extension_error(sample, "StatsBase", :RastersStatsBaseExt, args)
+
+
 
 # Other shared stubs
 function layerkeys end

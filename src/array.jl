@@ -104,20 +104,17 @@ function DD.modify(f, A::AbstractRaster)
     return rebuild(A, newdata)
 end
 
-function DD.DimTable(As::Tuple{<:AbstractRaster,Vararg{<:AbstractRaster}}...)
-    DD.DimTable(DimStack(map(read, As...)))
-end
+DD.DimTable(As::Tuple{<:AbstractRaster,Vararg{AbstractRaster}}) =
+    DD.DimTable(DimStack(map(read, As)))
 
 # DiskArrays methods
 
 DiskArrays.eachchunk(A::AbstractRaster) = DiskArrays.eachchunk(parent(A))
 DiskArrays.haschunks(A::AbstractRaster) = DiskArrays.haschunks(parent(A))
-function DA.readblock!(A::AbstractRaster, dst, r::AbstractUnitRange...)
+DA.readblock!(A::AbstractRaster, dst, r::AbstractUnitRange...) =
     DA.readblock!(parent(A), dst, r...)
-end
-function DA.writeblock!(A::AbstractRaster, src, r::AbstractUnitRange...)
+DA.writeblock!(A::AbstractRaster, src, r::AbstractUnitRange...) =
     DA.writeblock!(parent(A), src, r...)
-end
 
 # Base methods
 
@@ -260,6 +257,7 @@ function Raster(A::AbstractArray{T,1}, dims::Tuple{<:Dimension,<:Dimension,Varar
 )::Raster{T,length(dims)} where T
     Raster(reshape(A, map(length, dims)), dims; kw...)
 end
+Raster(A::AbstractArray{<:Any,1}, dim::Dimension; kw...) = Raster(A, (dim,); kw...)
 function Raster(table, dims::Tuple;
     name=nokw,
     kw...
@@ -354,4 +352,4 @@ end
 filekey(ds, name) = name
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
-DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{<:Dimension}}) = Raster
+DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{Dimension}}) = Raster

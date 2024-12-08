@@ -58,7 +58,7 @@ end
     @test collect(values(st)) == [raster1, raster2]
 end
 
-@testset "st fields " begin
+@testset "stack fields" begin
     @test DimensionalData.layerdims(st, :r1) == DimensionalData.format(dims1, data1)
     @test metadata(st) == NoMetadata()
     @test metadata(st, :r1) == NoMetadata()
@@ -87,7 +87,7 @@ end
         @test dims(s[:r2]) == (X(Sampled(10.0:10.0:100.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
                                Y(Sampled(-10.0:10.0:10.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())))
         @test refdims(s[:r2]) == 
-            (Ti(Sampled([DateTime(2019)], ForwardOrdered(), Irregular((DateTime(2019), DateTime(2019))), Points(), NoMetadata())),)
+            (Ti(Sampled([DateTime(2019)], ForwardOrdered(), Irregular(nothing, nothing), Points(), NoMetadata())),)
         @test isnothing(missingval(s, :r2)) && isnothing(missingval(s[:r2]))
     end
 
@@ -101,7 +101,7 @@ end
         @test dims(sv.r2) == (X(Sampled(10.0:10:100.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())),
                                Y(Sampled(0.0:10:20.0, ForwardOrdered(), Regular(10.0), Points(), NoMetadata())))
         @test refdims(sv[:r2])[1] == 
-            Ti(Sampled(view([DateTime(2019)], 1:1), ForwardOrdered(), Irregular((DateTime(2019), DateTime(2019))), Points(), NoMetadata()))
+            Ti(Sampled(view([DateTime(2019)], 1:1), ForwardOrdered(), Irregular(nothing, nothing), Points(), NoMetadata()))
         # Stack of view-based Rasters
         v = view(st, X(2:4), Y(5:6))
         # @inferred view(st, X(2:4), Y(5:6))

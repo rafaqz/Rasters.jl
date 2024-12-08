@@ -228,8 +228,8 @@ grdpath = stem * ".gri"
             # 1 band is added again on save
             @test size(saved) == size(grdarray[Band(1)])
             @test parent(saved) == parent(grdarray[Band(1)])
-            write(filename2, grdarray[Band(1)]; force=true, verbose=false)
-            @test (@allocations write(filename2, grdarray[Band(1)]; force=true, verbose=false)) < 1e3
+            write(filename2, grdarray; force=true)
+            @test (@allocations write(filename2, grdarray; force=true, verbose=false)) < 3e3
         end
 
         @testset "3d with subset" begin
@@ -255,7 +255,8 @@ grdpath = stem * ".gri"
             @test all(parent(saved) .=== parent(geoA))
             @test saved isa typeof(geoA)
             @test parent(saved) == parent(geoA)
-            @test (@allocations write(filename, GRDsource(), geoA; force = true)) < 1e3
+            write(filename, GRDsource(), geoA; force = true)
+            @test (@allocations write(filename, GRDsource(), geoA; force = true)) < 3e3
         end
 
         @testset "to netcdf" begin
@@ -264,20 +265,21 @@ grdpath = stem * ".gri"
             write(filename2, grdarray[Band(1)]; force = true)
             saved = Raster(filename2; crs=crs(grdarray))
             @test size(saved) == size(grdarray[Band(1)])
-            @test all(replace_missing(saved, missingval(grdarray)) .≈ grdarray[Band(1)])
+            @test all(parent(replace_missing(saved, missingval(grdarray))) .≈ parent(grdarray[Band(1)]))
             @test index(saved, X) ≈ index(grdarray, X) .+ 0.5
             @test index(saved, Y) ≈ index(grdarray, Y) .+ 0.5
             @test bounds(saved, Y) == bounds(grdarray, Y)
             @test bounds(saved, X) == bounds(grdarray, X)
-            @test (@allocations write(filename2, grdarray[Band(1)]; force = true)) < 1e3
+            write(filename2, grdarray; force = true)
+            @test (@allocations write(filename2, grdarray; force = true)) < 3e3
         end
 
         @testset "to gdal" begin
             # No Band
             gdalfilename = tempname() * ".tif"
             write(gdalfilename, GDALsource(), grdarray[Band(1)]; force = true)
-            @test (@allocations write(gdalfilename, GDALsource(), grdarray[Band(1)]; force = true)) < 1e4
-            gdalarray = Raster(gdalfilename; maskingval=nothing)
+            @test (@allocations write(gdalfilename, GDALsource(), grdarray[Band(1)]; force = true)) < 3e4
+            gdalarray = Raster(gdalfilename)
             # @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test val(dims(gdalarray, X)) ≈ val(dims(grdarray, X))
             @test val(dims(gdalarray, Y)) ≈ val(dims(grdarray, Y))

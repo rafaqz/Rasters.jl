@@ -79,8 +79,8 @@ function _dims(A::RasterDiskArray{GRDsource}, crs=nokw, mappedcrs=nokw)
     # Not fully implemented yet
     xy_metadata = _metadatadict(GRDsource())
 
-    xindex = LinRange(xbounds[1], xbounds[2] - xspan, xsize)
-    yindex = LinRange(ybounds[2] + yspan, ybounds[1], ysize)
+    xindex = range(; start=xbounds[1], stop=xbounds[2] - xspan, length=xsize)
+    yindex = range(; start=ybounds[2] + yspan, stop=ybounds[1], length=ysize)
 
     xlookup = Projected(xindex;
         order=GRD_X_ORDER,

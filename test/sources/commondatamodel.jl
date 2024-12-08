@@ -22,3 +22,24 @@ import Rasters: ForwardOrdered, ReverseOrdered, Regular
     @test steps[2] == 1/3
 
 end
+
+@testset "faulty / no grid mapping" begin
+    # Construct a NetCDF dataset
+    filepath = joinpath(tempdir(), "test.nc")
+    ds = NCDataset(filepath, "c")
+    data = [Float32(i + j) for i = 1:100, j = 1:110]
+    v = defVar(ds, "temperature", data, ("lon", "lat"))
+    # Give `v` a "grid_mapping" attribute
+    # that points to a non-existent variable
+    v.attrib["grid_mapping"] = "non_existent_variable"
+    close(ds)
+    
+    # try loading raster
+    @test_nowarn Raster(filepath)
+    # make sure we don't magically materialize a CRS
+    @test isnothing(Rasters.crs(Raster(filepath)))
+
+    # Once Rasters has better CF-CRS support,
+    # we should be able to load a splatted global CRS,
+    # or a CRS as a global attribute a la Zarr.
+end

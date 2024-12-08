@@ -450,7 +450,7 @@ gdalpath = maybedownload(url)
             @test (@allocations write(filename2, gdalarray; force=true)) < 1e4
             saved = Raster(filename2; crs=crs(gdalarray), mappedcrs=crs(gdalarray))
             @test size(saved) == size(gdalarray)
-            @test saved ≈ gdalarray
+            @test parent(saved) ≈ parent(gdalarray)
             clat, clon = DimensionalData.shiftlocus.(Ref(Center()), dims(gdalarray, (Y, X)))
             @test index(clat) ≈ index(saved, Y)
             @test index(clon) ≈ index(saved, X)
@@ -580,7 +580,7 @@ gdalpath = maybedownload(url)
         @test order(dims(rast)) == (ForwardOrdered(), ForwardOrdered())
         @test span(rast) == (Regular(1.0), Regular(1.0))
         @test sampling(rast) == (Intervals(Start()), Intervals(Start()))
-        @test index(rast) == (LinRange(0.0, 239.0, 240), LinRange(0.0, 179.0, 180))
+        @test index(rast) == (range(; start=0.0, stop=239.0, length=240), range(start=0.0, stop=179.0, length=180))
     end
 
 end
@@ -653,20 +653,20 @@ end
 
     @testset "methods" begin
         @testset "mean" begin
-            means = map(A -> mean(parent(A); dims=2), gdalstack)
-            @test map((a, b) -> all(a .== b), mean(gdalstack; dims=Y), means) |> all
+            means = maplayers(A -> mean(parent(A); dims=2), gdalstack)
+            @test maplayers((a, b) -> all(a .== b), mean(gdalstack; dims=Y), means) |> all
         end
         @testset "trim, crop, extend" begin
             mv = zero(eltype(gdalstack[:a]))
             st = read(replace_missing(gdalstack, mv))
-            st = map(A -> (view(A, X(1:100)) .= mv; A), st)
+            st = maplayers(A -> (view(A, X(1:100)) .= mv; A), st)
             trimmed = trim(st)
             @test size(trimmed) == (414, 514)
             cropped = crop(st; to=trimmed)
             @test size(cropped) == (414, 514)
-            @test map((c, t) -> all(collect(c .=== t)), cropped, trimmed) |> all
+            @test all(maplayers((c, t) -> all(collect(c .=== t)), cropped, trimmed))
             extended = extend(read(cropped); to=st)
-            @test all(map((s, e) -> all(s .=== e), st, extended))
+            @test all(maplayers((s, e) -> all(s .=== e), st, extended))
         end
         @testset "mask and mask!" begin
             st = read(gdalstack)
@@ -729,7 +729,7 @@ end
             # Test forcing
             write(filename, gdalstack; force=true);
             saved = RasterStack(filename);
-            @test all(read(saved[:a]) .== geoA)
+            @test all(parent(read(saved[:a])) .== parent(geoA))
             rm(filename)
         end
 
@@ -888,7 +888,7 @@ end
         read!([(a=gdalpath, b=gdalpath), (a=gdalpath, b=gdalpath)], ser2)
         read!(ser1, ser3)
         @test map(ser1, ser2, ser3) do st1, st2, st3
-            map(st1, st2, st3) do A1, A2, A3
+            maplayers(st1, st2, st3) do A1, A2, A3
                 (A2 .=== A2 .=== A3) |> all
             end |> all
         end |> all

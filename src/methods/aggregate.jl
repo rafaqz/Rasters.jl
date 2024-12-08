@@ -1,6 +1,6 @@
 
-const DimOrDimTuple = Union{Dimension,Tuple{Vararg{<:Dimension}}}
-const IntOrIntTuple = Union{Int,Tuple{Vararg{<:Int}}}
+const DimOrDimTuple = Union{Dimension,Tuple{Vararg{Dimension}}}
+const IntOrIntTuple = Union{Int,Tuple{Vararg{Int}}}
 
 struct Ag end
 struct DisAg end
@@ -38,6 +38,7 @@ $PROGRESS_KEYWORD
 
 ```jldoctest
 using Rasters, RasterDataSources, Statistics, Plots
+import ArchGDAL
 using Rasters: Center
 st = read(RasterStack(WorldClim{Climate}; month=1))
 ag = aggregate(Center(), st, (Y(20), X(20)); skipmissingval=true, progress=false)
@@ -150,7 +151,7 @@ function aggregate!(f, dst::AbstractRaster, src, scale; skipmissingval=false)
         end
         if skipmissingval
             # All missing values return a missing value
-            if all(map(x -> x === missingval(src), block))
+            if all(x -> x === missingval(src), block)
                 _missingval_or_missing(dst)
             else
                 # Skip missing values
@@ -158,7 +159,7 @@ function aggregate!(f, dst::AbstractRaster, src, scale; skipmissingval=false)
             end
         else
             # Any missing values return a missing value
-            if any(map(x -> x === missingval(src), block))
+            if any(x -> x === missingval(src), block)
                 _missingval_or_missing(dst)
             else
                 f(block)

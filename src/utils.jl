@@ -24,6 +24,16 @@
 # const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
 
 # _isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)
+function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source, missingval=nokw) where T
+    if ismissing(Rasters.missingval(A))
+        newmissingval = missingval isa NoKW ? _type_missingval(Missings.nonmissingtype(T)) : missingval
+        A1 = replace_missing(A, newmissingval)
+        @warn "`missing` cant be written with $(SOURCE2SYMBOL[source]), missingval for `$(eltype(A1))` of `$newmissingval` used instead"
+        return A1
+    else
+        return A
+    end
+end
 
 # cleankeys(name) = (_cleankey(name),)
 # function cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray})
@@ -482,3 +492,73 @@ _filenotfound_error(filename) = throw(ArgumentError("file \"$filename\" not foun
 _size_and_res_error() = throw(ArgumentError("Both `size` and `res` keywords are passed, but only one can be used"))
 
 _no_crs_error() = throw(ArgumentError("The provided object does not have a CRS. Use `setcrs` to set one."))
+
+
+# Rows for extraction etc
+
+# _rowtype returns the complete NamedTuple type for a point row
+# This code is entirely for types stability and performance.
+# It is used in extract and Rasters.sample
+_names(A::AbstractRaster) = (Symbol(name(A)),)
+_names(A::AbstractRasterStack) = keys(A)
+
+using DimensionalData.Lookups: _True, _False
+_booltype(x) = x ? _True() : _False()
+istrue(::_True) = true
+istrue(::_False) = false
+
+# skipinvalid: can G and I be missing. skipmissing: can nametypes be missing
+_rowtype(x, g, args...; kw...) = _rowtype(x, typeof(g), args...; kw...)
+function _rowtype(
+    x, ::Type{G}, i::Type{I} = typeof(size(x)); 
+    geometry, index, skipmissing, skipinvalid = skipmissing, names, kw...
+) where {G, I}
+    _G = istrue(skipinvalid) ? nonmissingtype(G) : G
+    _I = istrue(skipinvalid) ? I : Union{Missing, I}
+    keys = _rowkeys(geometry, index, names)
+    types = _rowtypes(x, _G, _I, geometry, index, skipmissing, names)
+    NamedTuple{keys,types}
+end
+
+
+function _rowtypes(
+    x, ::Type{G}, ::Type{I}, geometry::_True, index::_True, skipmissing, names::NamedTuple{Names}
+) where {G,I,Names}
+    Tuple{G,I,_nametypes(x, names, skipmissing)...}
+end
+function _rowtypes(
+    x, ::Type{G}, ::Type{I}, geometry::_True, index::_False, skipmissing, names::NamedTuple{Names}
+) where {G,I,Names}
+    Tuple{G,_nametypes(x, names, skipmissing)...}
+end
+function _rowtypes(
+    x, ::Type{G}, ::Type{I}, geometry::_False, index::_True, skipmissing, names::NamedTuple{Names}
+) where {G,I,Names}
+    Tuple{I,_nametypes(x, names, skipmissing)...}
+end
+function _rowtypes(
+    x, ::Type{G}, ::Type{I}, geometry::_False, index::_False, skipmissing, names::NamedTuple{Names}
+) where {G,I,Names}
+    Tuple{_nametypes(x, names, skipmissing)...}
+end
+
+@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, skipmissing::_True) where {T,Names} = (nonmissingtype(T),)
+@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, skipmissing::_False) where {T,Names} = (Union{Missing,T},)
+# This only compiles away when generated
+@generated function _nametypes(
+    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_True
+) where {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
+    nt = NamedTuple{StackNames}(map(nonmissingtype, Types.parameters))
+    return values(nt[PropNames])
+end
+@generated function _nametypes(
+    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_False
+) where {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
+    nt = NamedTuple{StackNames}(map(T -> Union{Missing,T}, Types.parameters))
+    return values(nt[PropNames])
+end
+
+_rowkeys(geometry::_False, index::_False, names::NamedTuple{Names}) where Names = Names
+_rowkeys(geometry::_True, index::_False, names::NamedTuple{Names}) where Names = (:geometry, Names...)
+_rowkeys(geometry::_True, index::_True, names::NamedTuple{Names}) where Names = (:geometry, :index, Names...)
+_rowkeys(geometry::_False, index::_True, names::NamedTuple{Names}) where Names = (:index, Names...)

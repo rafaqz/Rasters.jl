@@ -175,7 +175,7 @@ function _mask!(x::RasterStackOrArray, geom; kw...)
 end
 # Array mask
 function _mask!(st::RasterStack, with::AbstractRaster; kw...)
-    map(A -> mask!(A; with, kw...), st)
+    maplayers(A -> mask!(A; with, kw...), st)
     return st
 end
 
@@ -431,7 +431,9 @@ end
 
 _false_to_missing(b::Bool) = (b ? true : missing)::Union{Missing,Bool}
 
-function _mask_multilayer(layers::Union{<:AbstractRasterStack,<:AbstractRasterSeries}, to; 
+_mask_multilayer(st::AbstractRasterStack, to; kw...) =
+    _mask_multilayer(layers(st), to; kw...)
+function _mask_multilayer(layers::Union{<:NamedTuple,<:AbstractRasterSeries}, to; 
     _dest_presentval,
     _dest_missingval, 
     missingval=nothing, 
