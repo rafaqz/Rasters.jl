@@ -461,7 +461,7 @@ end
         cp(ncmulti, ncmulti_custom, force=true)
         @time ncstack_custom = RasterStack(ncmulti_custom, source=Rasters.NCDsource())
         @test ncstack_custom isa RasterStack
-        @test map(read(ncstack_custom), read(ncstack)) do a, b
+        @test maplayers(read(ncstack_custom), read(ncstack)) do a, b
             all(a .=== b)
         end |> all
     end

@@ -624,20 +624,20 @@ end
 
     @testset "methods" begin
         @testset "mean" begin
-            means = map(A -> mean(parent(A); dims=2), gdalstack)
-            @test map((a, b) -> all(a .== b), mean(gdalstack; dims=Y), means) |> all
+            means = maplayers(A -> mean(parent(A); dims=2), gdalstack)
+            @test maplayers((a, b) -> all(a .== b), mean(gdalstack; dims=Y), means) |> all
         end
         @testset "trim, crop, extend" begin
             mv = zero(eltype(gdalstack[:a]))
             st = read(replace_missing(gdalstack, mv))
-            st = map(A -> (view(A, X(1:100)) .= mv; A), st)
+            st = maplayers(A -> (view(A, X(1:100)) .= mv; A), st)
             trimmed = trim(st)
             @test size(trimmed) == (414, 514)
             cropped = crop(st; to=trimmed)
             @test size(cropped) == (414, 514)
-            @test map((c, t) -> all(collect(c .=== t)), cropped, trimmed) |> all
+            @test all(maplayers((c, t) -> all(collect(c .=== t)), cropped, trimmed))
             extended = extend(read(cropped); to=st)
-            @test all(map((s, e) -> all(s .=== e), st, extended))
+            @test all(maplayers((s, e) -> all(s .=== e), st, extended))
         end
         @testset "mask and mask!" begin
             st = read(gdalstack)
@@ -859,7 +859,7 @@ end
         read!([(a=gdalpath, b=gdalpath), (a=gdalpath, b=gdalpath)], ser2)
         read!(ser1, ser3)
         @test map(ser1, ser2, ser3) do st1, st2, st3
-            map(st1, st2, st3) do A1, A2, A3
+            maplayers(st1, st2, st3) do A1, A2, A3
                 (A2 .=== A2 .=== A3) |> all
             end |> all
         end |> all

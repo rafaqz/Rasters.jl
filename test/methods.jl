@@ -59,7 +59,7 @@ gaMi = replace_missing(ga)
     @test all(isequal.(dNaN, [NaN32 7.0f0; 2.0f0 NaN32]))
     rm("test.tif")
     stNaN = replace_missing(st, NaN32; filename="teststack.tif")
-    @test all(map(stNaN[Band(1)], (a=[NaN32 7.0f0; 2.0f0 NaN32], b=[1.0 0.4; 2.0 NaN])) do x, y
+    @test all(maplayers(stNaN[Band(1)], (a=[NaN32 7.0f0; 2.0f0 NaN32], b=[1.0 0.4; 2.0 NaN])) do x, y
         all(x .=== y)
     end)
     rm("teststack_a.tif")
@@ -309,7 +309,7 @@ end
         zonal(sum, st; of=(geometry=polygon, x=:a, y=:b)) ==
         zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
         zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
-        map(sum ∘ skipmissing, mask(st; with=polygon))  
+        maplayers(sum ∘ skipmissing, mask(st; with=polygon))  
     @test zonal(sum, st; of=st) == 
         zonal(sum, st; of=dims(st)) == 
         zonal(sum, st; of=Extents.extent(st)) == 
