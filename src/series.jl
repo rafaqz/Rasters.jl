@@ -52,6 +52,8 @@ DD.modify(f, A::AbstractRasterSeries) = map(child -> modify(f, child), values(A)
     RasterSeries(paths::AbstractArray{<:AbstractString}, dims; child, duplicate_first, kw...)
     RasterSeries(path:::AbstractString, dims; ext, separator, child, duplicate_first, kw...)
 
+    RasterSeries(objects::AbstractBasicDimArray; kw...)
+
 Concrete implementation of [`AbstractRasterSeries`](@ref).
 
 A `RasterSeries` is an array of `Raster`s or `RasterStack`s, along some dimension(s).
@@ -111,11 +113,24 @@ When loading a series from a single `String` path:
 Others:
 - `refdims`: existing reference dimension/s, normally not required.
 """
-struct RasterSeries{T,N,D,R,A<:AbstractArray{T,N}} <: AbstractRasterSeries{T,N,D,A}
+struct RasterSeries{T<:Union{AbstractRaster,AbstractRasterStack},N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N}} <: AbstractRasterSeries{T,N,D,A}
     data::A
     dims::D
     refdims::R
+    # Needed for ambiguity with DD
+    function RasterSeries{T,N,D,R,A}(
+        data::AbstractArray, dims::Tuple, refdims::Tuple
+    ) where {T,N,D,R,A}
+        new{T,N,D,R,A}(data, dims, refdims)
+    end
 end
+function RasterSeries(
+    data::A, dims::D, refdims::R
+) where {A<:AbstractArray{T,N},D<:Tuple,R<:Tuple} where {T,N}
+    RasterSeries{T,N,D,R,A}(data, dims, refdims)
+end
+RasterSeries(data::DD.AbstractBasicDimArray; kw...) = 
+    RasterSeries(data, dims(data); kw...)
 function RasterSeries(data::AbstractArray{<:Union{AbstractRasterStack,AbstractRaster}}, dims;
     refdims=()
 )
@@ -206,13 +221,24 @@ end
 @inline function DD.rebuild(
     A::RasterSeries, data, dims::Tuple, refdims=(), name=nothing, metadata=nothing,
 )
+    # if `data` is not an AbstractArray of Raster or RasterStacks, return a Raster
+    Raster(data, dims; refdims, name, metadata)
+end
+@inline function DD.rebuild(
+    A::RasterSeries, 
+    data::AbstractArray{<:Union{AbstractRaster,AbstractRasterStack}}, 
+    dims::Tuple,
+    refdims=(),
+    name=nothing,
+    metadata=nothing,
+)
     RasterSeries(data, dims, refdims)
 end
 @inline function DD.rebuild(
     A::RasterSeries;
     data=parent(A), dims=dims(A), refdims=refdims(A), name=nothing, metadata=nothing,
 )
-    RasterSeries(data, dims, refdims)
+    rebuild(A, data, dims, refdims)
 end
 
 function Base.map(f, series::RasterSeries)

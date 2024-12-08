@@ -50,6 +50,10 @@ function Base.read!(src::AbstractRasterSeries, dst::AbstractRasterSeries)
     map(read!, src, dst)
     return dst
 end
+Base.read!(::AbstractRaster{<:Union{AbstractString,NamedTuple},1}, ::AbstractRasterSeries) =
+    error("Cant read Raster to RasterSeries")
+Base.read!(::AbstractRaster, ::AbstractRasterSeries) =
+    error("Cant read Raster to RasterSeries")
 
 # Filename methods
 function Base.read!(filename::AbstractString, dst::AbstractRaster)

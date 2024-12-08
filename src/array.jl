@@ -105,20 +105,17 @@ function DD.modify(f, A::AbstractRaster)
     return rebuild(A, newdata)
 end
 
-function DD.DimTable(As::Tuple{<:AbstractRaster,Vararg{AbstractRaster}}...)
-    DD.DimTable(DimStack(map(read, As...)))
-end
+DD.DimTable(As::Tuple{<:AbstractRaster,Vararg{AbstractRaster}}) =
+    DD.DimTable(DimStack(map(read, As)))
 
 # DiskArrays methods
 
 DiskArrays.eachchunk(A::AbstractRaster) = DiskArrays.eachchunk(parent(A))
 DiskArrays.haschunks(A::AbstractRaster) = DiskArrays.haschunks(parent(A))
-function DA.readblock!(A::AbstractRaster, dst, r::AbstractUnitRange...)
+DA.readblock!(A::AbstractRaster, dst, r::AbstractUnitRange...) =
     DA.readblock!(parent(A), dst, r...)
-end
-function DA.writeblock!(A::AbstractRaster, src, r::AbstractUnitRange...)
+DA.writeblock!(A::AbstractRaster, src, r::AbstractUnitRange...) =
     DA.writeblock!(parent(A), src, r...)
-end
 
 # Base methods
 
