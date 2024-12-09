@@ -10,13 +10,13 @@ NoMod{T}(::NoKW) where T = NoMod{T}(nothing)
 Base.eltype(::NoMod{T}) where T = T
 source_eltype(::NoMod{T}) where T = T
 
-struct Mod{T1,T2,Mi,Ma,S,O,F} <: AbstractModifications
+struct Mod{T1,T2,Mi,S,O,F} <: AbstractModifications
      missingval::Mi
      scale::S
      offset::O
      coerce::F
      function Mod{T}(missingval, scale, offset, coerce) where T
-         missingval = missingval isa Pair && missingval[1] == missingval[2] ? missingval[1] : missingval
+         missingval = missingval isa Pair && missingval[1] === missingval[2] ? missingval[1] : missingval
          if isnokw(coerce) || isnothing(coerce)
              coerce = convert
          end
@@ -31,7 +31,7 @@ source_eltype(::Mod{<:Any,T2}) where T2 = T2
 
 function _resolve_mod_eltype(::Type{T}, missingval, scale, offset) where T
     omv = _outer_missingval(missingval)
-    T1 = isnothing(omv) ? T : promote_type(T, omv)
+    T1 = isnothing(omv) ? T : promote_type(T, typeof(omv))
     T2 = isnothing(scale) ? T1 : promote_type(T1, typeof(scale))
     T3 = isnothing(offset) ? T2 : promote_type(T2, typeof(offset))
     return T3
@@ -153,25 +153,6 @@ Base.@assume_effects :foldable _scaleoffset_inv1(x, scale, ::Nothing) = x / scal
 Base.@assume_effects :foldable _scaleoffset_inv1(x, ::Nothing, offset) = x - offset
 Base.@assume_effects :foldable _scaleoffset_inv1(x, ::Nothing, ::Nothing) = x
 
-
-function _stack_mods(
-    eltypes::Vector, metadata::Vector, missingval::Vector;
-    scaled, coerce
-)
-    map(eltypes, metadata, missingval) do T, md, mv
-        scale, offset = get_scale(md, scaled)
-        _mod(T, mv, scale, offset, coerce)
-    end
-end
-function _stack_mods(
-    eltypes::Vector, metadata::Vector, missingval;
-    scaled::Bool, coerce
-)
-    map(eltypes, metadata) do T, md, mk
-        scale, offset = get_scale(md, scaled)
-        _mod(T, missingval, mk, scale, offset, coerce)
-    end
-end
 function _stack_mods(
     eltypes::Vector, metadata::Vector, missingval::Vector;
     scaled::Bool, coerce

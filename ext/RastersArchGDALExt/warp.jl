@@ -17,8 +17,7 @@ end
 function _warp(A::AbstractRaster, flags::Dict; 
     filename=nothing, 
     suffix="", 
-    missingval=nokw,
-    maskingval=Rasters.missingval(A),
+    missingval=Rasters.missingval(A),
     name=Rasters.name(A),
     kw...
 )
@@ -32,19 +31,23 @@ function _warp(A::AbstractRaster, flags::Dict;
     tempfile = isnothing(filename) ? nothing : tempname() * ".tif"
     warp_kw = isnothing(filename) || filename == "/vsimem/tmp" ? () : (; dest=filename)
     # We really need a missingval for `warp`, as it may rotate and add missing value
-    missingval = if RA.isnokw(missingval) 
+    mv1, mv2 = if RA.isnokw(missingval) 
         if RA.missingval(A) isa Union{Missing,Nothing} 
             RA._type_missingval(Missings.nonmissingtype(eltype(A)))
         else
             RA.missingval(A)
         end
-    else
+    elseif missingval isa Pair
         missingval
+    elseif missingval isa Missing
+        RA._type_missingval(Missings.nonmissingtype(eltype(A))), missing
+    else
+        missingval, missingval
     end
-    out = AG.Dataset(A1; filename=tempfile, missingval, kw...) do dataset
+    out = AG.Dataset(A1; filename=tempfile, missingval=mv1, kw...) do dataset
         AG.gdalwarp([dataset], flagvect; warp_kw...) do warped
             # Read the raster lazily, dropping Band if there is none in `A`
-            raster = Raster(warped; lazy=true, dropband=!hasdim(A, Band()), name, maskingval)
+            raster = Raster(warped; lazy=true, dropband=!hasdim(A, Band()), name, missingval=mv2)
             # Either read the MEM dataset to an Array, or keep a filename base raster lazy
             return isnothing(filename) ? read(raster) : raster
         end

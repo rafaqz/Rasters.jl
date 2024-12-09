@@ -1,29 +1,30 @@
 
 # File paths, urls and strings
 
-# filter_ext(path, ext::AbstractString) =
-#     filter(fn -> splitext(fn)[2] == ext, readdir(path; join=true))
-# filter_ext(path, exts::Union{Tuple,AbstractArray}) =
-#     filter(fn -> splitext(fn)[2] in exts, readdir(path; join=true))
-# filter_ext(path, ext::Nothing) = readdir(path; join=true)
+filter_ext(path, ext::AbstractString) =
+    filter(fn -> splitext(fn)[2] == ext, readdir(path; join=true))
+filter_ext(path, exts::Union{Tuple,AbstractArray}) =
+    filter(fn -> splitext(fn)[2] in exts, readdir(path; join=true))
+filter_ext(path, ext::Nothing) = readdir(path; join=true)
 
-# _maybe_add_suffix(filename::Nothing, suffix) = nothing
-# _maybe_add_suffix(filename::Nothing, suffix::Union{Nothing,NoKW}) = nothing
-# _maybe_add_suffix(filename, suffix::Union{Nothing,NoKW}) = filename
-# function _maybe_add_suffix(filename, suffix)
-#     base, ext = splitext(filename)
-#     if string(suffix) == ""
-#         filename
-#     else
-#         return string(base, "_", suffix, ext)
-#     end
-# end
+_maybe_add_suffix(filename::Nothing, suffix) = nothing
+_maybe_add_suffix(filename::Nothing, suffix::Union{Nothing,NoKW}) = nothing
+_maybe_add_suffix(filename, suffix::Union{Nothing,NoKW}) = filename
+function _maybe_add_suffix(filename, suffix)
+    base, ext = splitext(filename)
+    if string(suffix) == ""
+        filename
+    else
+        return string(base, "_", suffix, ext)
+    end
+end
 
-# # Modified from IsURL.jl, many thanks to @zlatanvasovic
-# const WINDOWSREGEX = r"^[a-zA-Z]:[\\]"
-# const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
+# Modified from IsURL.jl, many thanks to @zlatanvasovic
+const WINDOWSREGEX = r"^[a-zA-Z]:[\\]"
+const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
 
-# _isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)
+_isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)
+
 function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source, missingval=nokw) where T
     if ismissing(Rasters.missingval(A))
         newmissingval = missingval isa NoKW ? _type_missingval(Missings.nonmissingtype(T)) : missingval
@@ -35,18 +36,18 @@ function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source, missin
     end
 end
 
-# cleankeys(name) = (_cleankey(name),)
-# function cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray})
-#     Tuple(map(_cleankey, keys, ntuple(i -> i, length(keys))))
-# end
+cleankeys(name) = (_cleankey(name),)
+function cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray})
+    Tuple(map(_cleankey, keys, ntuple(i -> i, length(keys))))
+end
 
-# function _cleankey(name::Union{Symbol,AbstractString,Name,NoName}, i=1)
-#     if name in (NoName(), Symbol(""), Name(Symbol("")))
-#         Symbol("layer$i")
-#     else
-#         Symbol(name)
-#     end
-# end
+function _cleankey(name::Union{Symbol,AbstractString,Name,NoName}, i=1)
+    if name in (NoName(), Symbol(""), Name(Symbol("")))
+        Symbol("layer$i")
+    else
+        Symbol(name)
+    end
+end
 
 # We often need to convert the locus and the lookup in the same step,
 # as doing it in the wrong order can give errors.
@@ -149,18 +150,18 @@ _extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW}; kw...) =
 function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Tuple; 
     sampling::Tuple, kw...
 )
-    ranges = map(values(to), res, sampling) do (start, stop_closed), step, s
+    ranges = map(values(to), res, sampling) do (start, stop_closed), step, samp
         stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
-        length = ceil(Int, (stop_open - start) / r)
+        length = ceil(Int, (stop_open - start) / step)
         r = if step >= zero(step)
             range(; start, step, stop=stop_open)
         else
             range(; start=stop_open, step, stop=start)
         end
-        if s isa Intervals
-            if locus(s) isa Start
+        if samp isa Intervals
+            if locus(samp) isa Start
                 r[1:end-1]
-            elseif locus(s) isa End
+            elseif locus(samp) isa End
                 r[2:end]
             else # Center
                 r .+ abs(step) / 2
@@ -172,14 +173,14 @@ end
 function _extent2dims(to::Extents.Extent, size::Tuple, res::Union{Nothing,NoKW};
     sampling::Tuple, crs, mappedcrs
 )
-    ranges = map(values(to), size, sampling) do (start, stop_closed), length, sa
+    ranges = map(values(to), size, sampling) do (start, stop_closed), length, samp
         stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
         step = (stop_open - start) / length
         range(; start, step, length)
-        if sa isa Points
-            range(; start, stop, length)
+        if samp isa Points
+            range(; start, step, length)
         else
-            range(; start, stop, length=length+1)[1:end-1]
+            range(; start, step, length=length+1)[1:end-1]
         end
     end
     return _extent2dims(to, ranges; sampling, crs, mappedcrs)
@@ -459,18 +460,20 @@ end
 function _without_mapped_crs(f, A::AbstractRaster, mappedcrs::GeoFormat)
     A = setmappedcrs(A, nothing)
     x = f(A)
-    if x isa AbstractRaster
-        x = setmappedcrs(x, mappedcrs)
+    return if x isa AbstractRaster
+        setmappedcrs(x, mappedcrs)
+    else
+        x
     end
-    return x
 end
 function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
-    st1 = map(A -> setmappedcrs(A, nothing), st)
+    st1 = maplayers(A -> setmappedcrs(A, nothing), st)
     x = f(st1)
-    if x isa AbstractRasterStack
-        x = map(A -> setmappedcrs(A, mappedcrs(st)), x)
+    return if x isa AbstractRasterStack
+        setmappedcrs(x, mappedcrs(st))
+    else
+        x
     end
-    return x
 end
 
 

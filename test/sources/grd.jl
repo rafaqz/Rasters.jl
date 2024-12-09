@@ -29,7 +29,7 @@ grdpath = stem * ".gri"
         @test parent(eagerarray) isa Array
     end
 
-    @testset "maskingval" begin
+    @testset "missingval" begin
         @time missingarray = Raster(grdpath)
         @test missingval(missingarray) === missing
         @test eltype(missingarray) === Union{Missing,Float32}
@@ -181,7 +181,7 @@ grdpath = stem * ".gri"
             tn = tempname()
             tempgrd = tn * ".grd"
             tempgri = tn * ".gri"
-            Afile = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1, filename=tempgrd, maskingval=nothing)
+            Afile = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1, filename=tempgrd, missingval=nothing)
             Amem = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1)
             Atest = grdarray[X(1:80), Y(1:60)]
             Atest[X(1:26), Y(31:60)] .= 0.0f0
@@ -299,7 +299,7 @@ grdpath = stem * ".gri"
             @test missingval(Raster(filename)) === missing
             filename = tempname() * ".grd"
             write(filename, A)
-            @test missingval(Raster(filename; maskingval=nothing)) === typemin(Float32)
+            @test missingval(Raster(filename; missingval=nothing)) === typemin(Float32)
         end
 
     end
