@@ -10,7 +10,7 @@ wish to disable memory checks.
 
 This setting can be overridden with the `checkmem` keyword, where applicable.
 """
-function checkmem!(checkmem::Bool) 
+function checkmem!(checkmem::Bool)
     !checkmem || @warn "Setting `checkmem` to `false` globally may lead to out-of-memory errors or system crashes"
     CHECKMEM[] = checkmem
     return checkmem
@@ -42,7 +42,7 @@ abstract type AbstractRaster{T,N,D,A} <: AbstractDimArray{T,N,D,A} end
 Returns the value representing missing data in the dataset
 """
 function missingval end
-missingval(_) = missing
+missingval(_) = nothing
 missingval(::AbstractArray{T}) where T = Missing <: T ? missing : nothing
 missingval(A::AbstractRaster) = A.missingval
 
@@ -93,8 +93,7 @@ function DD.rebuild(A::AbstractRaster;
 end
 
 function DD.modify(f, A::AbstractRaster)
-    # Have to avoid calling `open` on CFDiskArray
-    newdata = if isdisk(A) && !(parent(A) isa CFDiskArray)
+    newdata = if isdisk(A) # TODO may have to avoid calling `open` on DiskArray
         open(A) do O
             f(parent(O))
         end
@@ -193,12 +192,12 @@ end
     Raster(A::AbstractDimArray; kw...)
     Raster(A::AbstractArray, dims; kw...)
 
-A generic [`AbstractRaster`](@ref) for spatial/raster array data. It can hold 
-either memory-backed arrays or, if `lazy=true`, a [`FileArray`](@ref), 
-which stores the `String` path to an unopened file. 
+A generic [`AbstractRaster`](@ref) for spatial/raster array data. It can hold
+either memory-backed arrays or, if `lazy=true`, a [`FileArray`](@ref),
+which stores the `String` path to an unopened file.
 
-If `lazy=true`, the file will only be opened lazily when it is indexed with `getindex` 
-or when `read(A)` is called. Broadcasting, taking a view, reversing, and most other 
+If `lazy=true`, the file will only be opened lazily when it is indexed with `getindex`
+or when `read(A)` is called. Broadcasting, taking a view, reversing, and most other
 methods will _not_ load data from disk; they will be applied later, lazily.
 
 # Arguments
@@ -207,28 +206,20 @@ methods will _not_ load data from disk; they will be applied later, lazily.
 
 # Keywords
 
-- `name`: a `Symbol` name for the array, which will also retrieve the, alphabetically first, 
-    named layer if `Raster` is used on a multi-layered file like a NetCDF. 
-    If instead `RasterStack` is used to read the multi-layered file, by default, all variables 
-    will be added to the stack.
-$GROUP_KEYWORD 
-- `missingval`: value reprsenting missing data, normally detected from the file. Set manually
-    when you know the value is not specified or is incorrect. This will *not* change any
-    values in the raster, it simply assigns which value is treated as missing. To replace all of
-    the missing values in the raster, use [`replace_missing`](@ref).
-- `metadata`: `Dict` or `Metadata` object for the array, or `NoMetadata()`.
-$CONSTRUCTOR_CRS_KEYWORD 
-$CONSTRUCTOR_MAPPEDCRS_KEYWORD 
-- `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
-    Usually not needed.
+$NAME_KEYWORD
+$GROUP_KEYWORD
+$MISSINGVAL_KEYWORD
+$METADATA_KEYWORD
+$CONSTRUCTOR_CRS_KEYWORD
+$CONSTRUCTOR_MAPPEDCRS_KEYWORD
+$REFDIMS_KEYWORD
 
 When a filepath `String` is used:
 $DROPBAND_KEYWORD
 $LAZY_KEYWORD
-$REPLACE_MISSING_KEYWORD
 $SOURCE_KEYWORD
-- `write`: defines the default `write` keyword value when calling `open` on the Raster. `false` by default.
-    Only makes sense to use when `lazy=true`.
+$SCALED_KEYWORD
+$RAW_KEYWORD
 
 When A is an `AbstractDimArray`:
 - `data`: can replace the data in an existing `AbstractRaster`
@@ -294,12 +285,12 @@ function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Va
 )::Raster
     Raster(filename; dims, kw...)
 end
-function Raster(filename::AbstractString; 
-    source=nokw, 
+function Raster(filename::AbstractString;
+    source=nokw,
     kw...
 )
     source = _sourcetrait(filename, source)
-    _open(filename; source) do ds
+    _open(filename; source, mod=NoMod()) do ds
         Raster(ds, filename; source, kw...)
     end::Raster
 end
@@ -313,74 +304,52 @@ function Raster(ds, filename::AbstractString;
     crs=nokw,
     mappedcrs=nokw,
     source=nokw,
-    replace_missing=false,
+    replace_missing=nokw,
+    coerce=convert,
+    scaled=nokw,
     write=false,
     lazy=false,
     dropband=true,
     checkmem=CHECKMEM[],
+    mod=nokw,
+    raw=false,
 )::Raster
+    _maybe_warn_replace_missing(replace_missing)
+    scaled, missingval = _raw_check(raw, scaled, missingval)
     name1 = filekey(ds, name)
     source = _sourcetrait(filename, source)
-    data1, dims1, metadata1, missingval1 = _open(source, ds; name=name1, group) do var
-        metadata1 = isnokw(metadata) ? _metadata(var) : metadata
-        missingval1 = _fix_missingval(var, missingval)
-        rm = replace_missing && !isnothing(missingval1)
-        missingval2 = rm ? missing : missingval1
-        data = if lazy
-            A = FileArray{typeof(source)}(var, filename; name=name1, group, write)
-            rm ? _replace_missing(A, missingval1) : A
+    data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=NoMod()) do var
+        metadata_out = isnokw(metadata) ? _metadata(var) : metadata
+        missingval_out = if isnokw(missingval)
+            # Detect missingval and convert it to missing
+            Rasters.missingval(var, metadata_out) => missing
+        elseif missingval isa Pair
+            missingval
+        elseif missingval == Rastesr.missingval
+            Rasters.missingval(var, metadata_out)
         else
-            checkmem && _checkobjmem(var)
-            x = Array(rm ? _replace_missing(var, missingval1) : var)
+            Rasters.missingval(var, metadata_out) => missingval
+        end
+        mod = isnokw(mod) ? _mod(eltype(var), metadata_out, missingval_out; scaled, coerce) : mod
+        data_out = if lazy
+            FileArray{typeof(source)}(var, filename;
+                name=name1, group, mod, write
+            )
+        else
+            modvar = _maybe_modify(var, mod)
+            checkmem && _checkobjmem(modvar)
+            x = Array(modvar)
             x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
         end
-        dims1 = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data)
-        data, dims1, metadata1, missingval2
+        dims_out = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data_out)
+        data_out, dims_out, metadata_out, missingval
     end
-    name2 = name1 isa Union{NoKW,Nothing} ? Symbol("") : Symbol(name1)
-    raster = Raster(data1, dims1, refdims, name2, metadata1, missingval1)
-    return dropband ? _drop_single_band(raster, lazy) : raster
-end
-
-_fix_missingval(::Type, ::Union{NoKW,Nothing}) = nothing
-_fix_missingval(::AbstractArray, ::Nothing) = nothing
-_fix_missingval(A::AbstractArray, ::NoKW) = _fix_missingval(A, Rasters.missingval(A))
-_fix_missingval(::AbstractArray{T}, missingval) where T = _fix_missingval(T, missingval)
-function _fix_missingval(::Type{T}, missingval::M) where {T,M}
-    T1 = nonmissingtype(T)
-    if missingval isa T
-        missingval
-    elseif hasmethod(convert, Tuple{Type{T1},M}) && isreal(missingval) && 
-            missingval <= typemax(T1) && missingval >= typemin(T1)
-        if T1 <: Integer && !isinteger(missingval) 
-            nothing
-        else
-            convert(T, missingval)
-        end
-    else
-        nothing
-    end
-end
-
-function _replace_missing(A::AbstractArray{T}, missingval) where T
-    repmissing(x) = isequal(x, missingval) ? missing : x
-    return repmissing.(A)
+    name_out = name1 isa Union{NoKW,Nothing} ? Symbol("") : Symbol(name1)
+    raster = Raster(data_out, dims_out, refdims, name_out, metadata_out, missingval_out)
+    return _maybe_drop_single_band(raster, dropband, lazy)
 end
 
 filekey(ds, name) = name
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
 DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{Dimension}}) = Raster
-
-
-function _drop_single_band(raster, lazy::Bool)
-    if hasdim(raster, Band()) && size(raster, Band()) < 2
-         if lazy
-             return view(raster, Band(1)) # TODO fix dropdims in DiskArrays
-         else
-             return dropdims(raster; dims=Band())
-         end
-    else
-         return raster
-    end
-end
