@@ -194,7 +194,7 @@ function _extract(A::RasterStackOrArray, ::Nothing, geoms::AbstractArray, e::Ext
                 nonmissing = Vector{Bool}(undef, length(geoms))
                 _run(1:length(geoms), threaded, progress, "Extracting points...") do i
                     g = geoms[i]
-                    geomtrait(g) isa GI.PointTrait || return nothing
+                    GI.geomtrait(g) isa GI.PointTrait || return nothing
                     nonmissing[i] = _extract_point!(rows, A, g, e, i; kw...)::T
                     return nothing
                 end
@@ -205,7 +205,7 @@ function _extract(A::RasterStackOrArray, ::Nothing, geoms::AbstractArray, e::Ext
                 # For non-threaded be more memory efficient
                 _run(1:length(geoms), threaded, progress, "Extracting points...") do _
                     g = geoms[j[]]
-                    geomtrait(g) isa GI.PointTrait || return nothing
+                    GI.geomtrait(g) isa GI.PointTrait || return nothing
                     j[] += _extract_point!(rows, A, g, e, i; kw...)::T
                     return nothing
                 end
@@ -214,7 +214,7 @@ function _extract(A::RasterStackOrArray, ::Nothing, geoms::AbstractArray, e::Ext
         else
             _run(1:length(geoms), threaded, progress, "Extracting points...") do i
                 g = geoms[i]
-                geomtrait(g) isa GI.PointTrait || return nothing
+                GI.geomtrait(g) isa GI.PointTrait || return nothing
                 _extract_point!(rows, A, g, e, i; kw...)::T
                 return nothing
             end
