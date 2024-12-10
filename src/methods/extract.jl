@@ -159,10 +159,11 @@ Base.@constprop :aggressive @inline function extract(x::RasterStackOrArray, data
         gs = _get_geometries(data, geometrycolumn)
         gs, first(Base.skipmissing(gs))
     end
-
-    xp = _prepare_for_burning(x)
-    e = Extractor(xp, g1; name, skipmissing, flatten, geometry, index)
-    return _extract(xp, g, e; kw...)
+    open(x) do xo
+        xp = _prepare_for_burning(xo)
+        e = Extractor(xp, g1; name, skipmissing, flatten, geometry, index)
+        return _extract(xp, g, e; kw...)
+    end
 end
 
 # TODO use a GeometryOpsCore method like `applyreduce` here?
