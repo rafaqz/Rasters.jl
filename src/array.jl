@@ -294,13 +294,12 @@ function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Va
 )::Raster
     Raster(filename; dims, kw...)
 end
-Raster(ext::Extents.Extent; kw...) = Raster{Float64}(ext::Extents.Extent; kw...)
-function Raster{T}(ext::Extents.Extent; 
-    size=nothing, res=nothing, crs=nothing, mappedcrs=nothing, sampling=Points(),
-    kw...
+Raster(::UndefInitializer, ext::Extents.Extent; kw...) =
+    Raster{Float64}(undef, ext::Extents.Extent; kw...)
+function Raster{T}(::UndefInitializer, ext::Extents.Extent; 
+    size=nothing, res=nothing, crs=nothing, mappedcrs=nothing, sampling=Points(), closed=false, kw...
 ) where T
-@show sampling
-    dims = _extent2dims(ext; size, res, crs, mappedcrs, sampling)
+    dims = _extent2dims(ext; size, res, crs, mappedcrs, sampling, closed)
     Raster{T}(undef, dims; kw...)
 end
 function Raster(filename::AbstractString; 
