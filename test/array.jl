@@ -78,6 +78,21 @@ end
     A6 = falses(x, y)
     @test A6 isa Raster{Bool,2}
     @test A6 == [false false; false false] 
+
+    A7 = Raster(extent(A1); res=1.0)
+    @test A7 isa Raster{Float64,2}
+    @test size(A7) == (2, 2)
+    @test dims(A8) == dims(A1)
+
+    A8 = Raster{Int}(extent(A1); res=1.0)
+    @test A8 isa Raster{Int,2}
+    @test size(A8) == (2, 2)
+    @test dims(A8) == dims(A1)
+
+    A9 = Raster{Bool}(extent(A1); res=1.0, sampling=Intervals(Center()))
+    @test A9 isa Raster{Bool,2}
+    @test size(A9) == (2, 2)
+    @test sampling(A9, X) == Intervals(Center())
 end
 
 

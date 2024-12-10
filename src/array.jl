@@ -294,8 +294,17 @@ function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Va
 )::Raster
     Raster(filename; dims, kw...)
 end
+Raster(ext::Extents.Extent; kw...) = Raster{Float64}(ext::Extents.Extent; kw...)
+function Raster{T}(ext::Extents.Extent; 
+    size=nothing, res=nothing, crs=nothing, mappedcrs=nothing, sampling=Points(),
+    kw...
+) where T
+@show sampling
+    dims = _extent2dims(ext; size, res, crs, mappedcrs, sampling)
+    Raster{T}(undef, dims; kw...)
+end
 function Raster(filename::AbstractString; 
-    source=nokw, 
+    source=nokw,
     kw...
 )
     source = _sourcetrait(filename, source)

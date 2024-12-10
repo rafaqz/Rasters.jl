@@ -140,29 +140,31 @@ function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
     end
 end
 
-function _extent2dims(to; size=nothing, res=nothing, crs=nothing, kw...) 
-    _extent2dims(to, size, res, crs)
+function _extent2dims(to; 
+    size=nothing, res=nothing, crs=nothing, sampling=Intervals(Start()), kw...
+) 
+    _extent2dims(to, size, res, crs, sampling)
 end
-function _extent2dims(to::Extents.Extent, size::Nothing, res::Nothing, crs)
+function _extent2dims(to::Extents.Extent, size::Nothing, res::Nothing, crs, sampling)
     isnothing(res) && throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
 end
-function _extent2dims(to::Extents.Extent, size, res, crs)
+function _extent2dims(to::Extents.Extent, size, res, crs, sampling)
     isnothing(res) || _size_and_res_error()
 end
-function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs) where K
+function _extent2dims(to::Extents.Extent{K}, size::Nothing, res::Real, crs, sampling) where K
     tuple_res = ntuple(_ -> res, length(K))
-    _extent2dims(to, size, tuple_res, crs)
+    _extent2dims(to, size, tuple_res, crs, sampling)
 end
-function _extent2dims(to::Extents.Extent{K}, size::Nothing, res, crs) where K
+function _extent2dims(to::Extents.Extent{K}, size::Nothing, res, crs, sampling) where K
     ranges = map(values(to), res) do bounds, r
         start, stop_closed = bounds
         stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
         length = ceil(Int, (stop_open - start) / r)
         range(; start, step=r, length)
     end
-    return _extent2dims(to, ranges, crs)
+    return _extent2dims(to, ranges, crs, sampling)
 end
-function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs) where K
+function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs, sampling) where K
     if size isa Int
         size = ntuple(_ -> size, length(K))
     end
@@ -172,14 +174,14 @@ function _extent2dims(to::Extents.Extent{K}, size, res::Nothing, crs) where K
         step = (stop_open - start) / length
         range(; start, step, length)
     end
-    return _extent2dims(to, ranges, crs)
+    return _extent2dims(to, ranges, crs, sampling)
 end
-function _extent2dims(to::Extents.Extent{K}, ranges, crs) where K
+function _extent2dims(to::Extents.Extent{K}, ranges, crs, sampling) where K
     emptydims = map(name2dim, K)
     lookups = map(ranges) do range
         Projected(range;
             order=ForwardOrdered(),
-            sampling=Intervals(Start()),
+            sampling,
             span=Regular(step(range)),
             crs,
         )
