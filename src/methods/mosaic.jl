@@ -100,7 +100,7 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
         options,
         force
     ) do C
-        mosaic!(f, C, regions; missingval, kw...)
+        _mosaic!(f, C, regions; missingval, kw...)
     end
 end
 function _mosaic(f::Function, ::AbstractRasterStack, regions;
