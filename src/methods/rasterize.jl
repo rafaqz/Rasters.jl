@@ -69,7 +69,8 @@ end
 RasterCreator(to::AbstractRaster, data; kw...) = RasterCreator(dims(to); kw...)
 RasterCreator(to::AbstractRasterStack, data; kw...) = RasterCreator(dims(to); name, kw...)
 RasterCreator(to::Nothing, data; kw...) = RasterCreator(_extent(data; kw...); kw...)
-RasterCreator(to, data; kw...) = RasterCreator(_extent(to); kw...)
+RasterCreator(to, data; kw...) = 
+    RasterCreator(_extent(to; kw...); kw...)
 function RasterCreator(to::Extents.Extent;
     res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing,
     size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing, kw...
@@ -420,7 +421,7 @@ function rasterize(reducer::typeof(count), data; fill=nothing, init=nothing, kw.
 end
 # `mean` is sum ./ count. This is actually optimal with threading, 
 # as its means order is irrelevant so its threadsafe.
-function rasterize(reducer::typeof(DD.Statistics.mean), data; fill, kw...)
+function rasterize(reducer::typeof(Statistics.mean), data; fill, kw...)
     sums = rasterize(sum, data; kw..., fill)
     counts = rasterize(count, data; kw..., fill=nothing)
     rebuild(sums ./ counts; name=:mean)
@@ -831,6 +832,7 @@ end
 # We get 64 Bool values to a regular `Int` meaning this doesn't scale too
 # badly for large tables of geometries. 64k geometries and a 1000 * 1000
 # raster needs 1GB of memory just for the `BitArray`.
+# TODO combine these theyre nearly the same
 function _reduce_bitarray!(f, st::AbstractRasterStack, geoms, fill::NamedTuple, r::Rasterizer, allocs)
     (; lock, shape, boundary, verbose, progress, threaded) = r
     # Define mask dimensions, the same size as the spatial dims of x
@@ -840,7 +842,7 @@ function _reduce_bitarray!(f, st::AbstractRasterStack, geoms, fill::NamedTuple, 
     # Use a generator over the array axis in case the iterator has no length
     geom_axis = axes(masks, Dim{:geometry}())
     fill = map(itr -> [v for (_, v) in zip(geom_axis, itr)], fill)
-    T = NamedTuple{keys(st),Tuple{map(eltype, st)...}}
+    T = eltype(st)
     range = axes(st, Y())
     _run(range, threaded, progress, "Reducing...") do y
         _reduce_bitarray_loop(f, st, T, fill, masks, y)

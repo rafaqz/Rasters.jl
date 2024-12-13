@@ -42,6 +42,7 @@ _x_at_y(e::Edge, y) = (y - e.start[2]) * e.gradient + e.start[1]
 struct Edges <: AbstractVector{Edge}
     edges::Vector{Edge}
     max_ylen::Int
+    min_y::Int
     edge_count::Int
 end
 Edges(geom, dims; kw...) = Edges(GI.geomtrait(geom), geom, dims; kw...)
@@ -55,12 +56,14 @@ function Edges(
     # TODO fix bug that requires this to be redefined
     edges = Vector{Edge}(undef, 0)
     local edge_count = max_ylen = 0
+    local min_y = typemax(Int)
     if tr isa GI.AbstractCurveTrait
-        edge_count, max_ylen = _to_edges!(edges, geom, dims, edge_count)
+        edge_count, max_ylen, min_y = _to_edges!(edges, geom, dims, edge_count)
     else
         for ring in GI.getring(geom)
-             edge_count, ring_max_ylen = _to_edges!(edges, ring, dims, edge_count)
+             edge_count, ring_max_ylen, ring_min_y = _to_edges!(edges, ring, dims, edge_count)
              max_ylen = max(max_ylen, ring_max_ylen)
+             min_y = min(min_y, ring_min_y)
         end
     end
 
@@ -72,7 +75,7 @@ function Edges(
         sort!(edges1; scratch)
     end
 
-    return Edges(edges, max_ylen, edge_count)
+    return Edges(edges, max_ylen, min_y, edge_count)
 end
 
 Base.parent(edges::Edges) = edges.edges
@@ -99,8 +102,9 @@ end
     local firstpos = prevpos = nextpos = Position((0.0, 0.0), 0)
     isfirst = true
     local max_ylen = 0
+    local min_y = typemax(Int)
 
-    GI.npoint(geom) > 0 || return edge_count, max_ylen
+    GI.npoint(geom) > 0 || return edge_count, max_ylen, min_y
     xlookup, ylookup = lookup(dims, (X(), Y())) 
     (length(xlookup) > 0 && length(ylookup) > 0) || return edge_count, max_ylen
 
@@ -136,6 +140,7 @@ end
         edge = Edge(prevpos, nextpos)
         _add_edge!(edges, edge, edge_count)
         max_ylen = max(max_ylen, edge.iystop - edge.iystart)
+        min_y = min(min_y, edge.iystart)
         prevpos = nextpos
         prevpoint = p
     end
@@ -145,11 +150,12 @@ end
         edge = Edge(prevpos, firstpos)
         # Update the longest y distance of any edge
         max_ylen = max(max_ylen, edge.iystop - edge.iystart)
+        min_y = min(min_y, edge.iystart)
         # assign/push the edge to edges
         _add_edge!(edges, edge, edge_count)
     end
 
-    return edge_count, max_ylen
+    return edge_count, max_ylen, min_y
 end
 
 function _add_edge!(edges, edge, edge_count)
