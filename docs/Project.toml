@@ -12,9 +12,16 @@ GBIF2 = "dedd4f52-e074-43bf-924d-d6bce14ad628"
 GeoInterface = "cf35fbd7-0cd7-5166-be24-54bfbe79505f"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+MLJBase = "a7f614a8-145f-11e9-1d2a-a57a1082229d"
+MLJGLMInterface = "caf8df21-4939-456d-ac9c-5fefbfb04c0c"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+Maxnet = "81f79f80-22f2-4e41-ab86-00c11cf0f26f"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 RasterDataSources = "3cb90ccd-e1b6-4867-9617-4276c8b2ca36"
 Rasters = "a3a2b9e3-a471-40c9-b274-f788e487c689"
 Shapefile = "8e980c4a-a4fe-5da2-b3a7-4b4b0353a2f4"
+SpeciesDistributionModels = "3ef73bbf-0321-4d3b-9a2e-5fbebc8e35da"
+
+[sources]
+SpeciesDistributionModels = {url = "https://github.com/tiemvanderdeure/SpeciesDistributionModels.jl/"}

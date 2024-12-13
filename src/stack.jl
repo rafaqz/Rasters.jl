@@ -31,8 +31,10 @@ abstract type AbstractRasterStack{K,T,N,L} <: AbstractDimStack{K,T,N,L} end
 missingval(stack::AbstractRasterStack) = getfield(stack, :missingval)
 missingval(s::AbstractRasterStack, name::Symbol) = _singlemissingval(missingval(s), name)
 
-filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}) = map(s -> filename(s), stack)
-filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:Union{FileStack,OpenStack}}) = filename(parent(stack))
+filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}) = 
+    map(s -> filename(s), layers(stack))
+filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:Union{FileStack,OpenStack}}) = 
+    filename(parent(stack))
 
 isdisk(st::AbstractRasterStack) = any(isdisk, layers(st))
 
@@ -83,12 +85,15 @@ function DD.rebuild(s::AbstractRasterStack;
 end
 
 function DD.rebuild_from_arrays(
-    s::AbstractRasterStack{<:Union{FileStack{<:Any,Keys},OpenStack{<:Any,Keys}}}, das::Tuple{Vararg{AbstractDimArray}}; kw...
+    s::AbstractRasterStack{<:Union{FileStack{<:Any,Keys},OpenStack{<:Any,Keys}}}, 
+    das::Tuple{Vararg{AbstractDimArray}}; 
+    kw...
 ) where Keys
     DD.rebuild_from_arrays(s, NamedTuple{Keys}(das); kw...)
 end
 function DD.rebuild_from_arrays(
-    s::AbstractRasterStack, das::NamedTuple{<:Any,<:Tuple{Vararg{AbstractDimArray}}};
+    s::AbstractRasterStack, 
+    das::NamedTuple{<:Any,<:Tuple{Vararg{AbstractDimArray}}};
     refdims=refdims(s),
     metadata=DD.metadata(s),
     dims=nothing,
@@ -112,7 +117,7 @@ end
 
 DD.name(s::AbstractRasterStack) = keys(s)
 Base.names(s::AbstractRasterStack) = keys(s)
-Base.copy(stack::AbstractRasterStack) = map(copy, stack)
+Base.copy(stack::AbstractRasterStack) = maplayers(copy, stack)
 
 #### Stack getindex ####
 # Different to DimensionalData as we construct a Raster
@@ -205,17 +210,17 @@ function RasterStack(
     data::Union{FileStack,OpenStack,NamedTuple};
     dims::Tuple,
     refdims::Tuple=(),
-    layerdims,
+    layerdims::NamedTuple,
     metadata=nokw,
     layermetadata=nokw,
     missingval=nokw,
     kw...
 )
-    # Handle values that musbe be `NamedTuple`
+    # Handle values that must be be `NamedTuple`
     layermetadata = if layermetadata isa NamedTuple
         layermetadata
-    elseif layermetadata isa Union{Nothing,NoMetadata}
-        map(_ -> NoMetadata(), layers)
+    elseif layermetadata isa Union{NoKW,Nothing,NoMetadata}
+        map(_ -> NoMetadata(), layerdims)
     else
         throw(ArgumentError("$layermetadata is not a valid input for `layermetadata`. Try a `NamedTuple` of `Dict`, `MetaData` or `NoMetadata`"))
     end
@@ -392,10 +397,10 @@ function RasterStack(filename::AbstractString;
             l_st = _layer_stack(filename; source, name, lazy, group, replace_missing, kw...)
 
             # Maybe split the stack into separate arrays to remove extra dims.
-            if !isnokw(name)
-                map(identity, l_st)
-            else
+            if isnokw(name)
                 l_st
+            else
+                maplayers(identity, l_st)
             end
         else
             # With bands actings as layers
@@ -415,12 +420,14 @@ function RasterStack(filename::AbstractString;
     end
 end
 
+# TODO test this properly
 function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
-    open(s) do o
+    data = open(s) do o
         map(K) do k
-            Array(parent(ost)[k])
+            f(parent(ost)[k])
         end
     end
+    rebuild(s; data)
 end
 
 # Open a single file stack
