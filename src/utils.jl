@@ -378,39 +378,30 @@ _booltype(x) = x ? _True() : _False()
 
 istrue(::_True) = true
 istrue(::_False) = false
+istrue(::Type{_True}) = true
+istrue(::Type{_False}) = false
 
 # skipinvalid: can G and I be missing. skipmissing: can nametypes be missing
 _rowtype(x, g, args...; kw...) = _rowtype(x, typeof(g), args...; kw...)
 function _rowtype(
     x, ::Type{G}, i::Type{I} = typeof(size(x)); 
-    geometry, index, skipmissing, skipinvalid=skipmissing, names, kw...
+    id, geometry, index, skipmissing, skipinvalid=skipmissing, names, kw...
 ) where {G, I}
     _G = istrue(skipinvalid) ? nonmissingtype(G) : G
     _I = istrue(skipinvalid) ? I : Union{Missing, I}
-    keys = _rowkeys(geometry, index, names)
-    types = _rowtypes(x, _G, _I, geometry, index, skipmissing, names)
+    keys = _rowkeys(id, geometry, index, names)
+    types = _rowtypes(x, _G, _I, id, geometry, index, skipmissing, names)
     NamedTuple{keys,types}
 end
 
-function _rowtypes(
-    x, ::Type{G}, ::Type{I}, geometry::_True, index::_True, skipmissing, names::NamedTuple{Names}
+@generated function _rowtypes(
+    x, ::Type{G}, ::Type{I}, id, geometry, index, skipmissing, names::NamedTuple{Names}
 ) where {G,I,Names}
-    Tuple{G,I,_nametypes(x, names, skipmissing)...}
-end
-function _rowtypes(
-    x, ::Type{G}, ::Type{I}, geometry::_True, index::_False, skipmissing, names::NamedTuple{Names}
-) where {G,I,Names}
-    Tuple{G,_nametypes(x, names, skipmissing)...}
-end
-function _rowtypes(
-    x, ::Type{G}, ::Type{I}, geometry::_False, index::_True, skipmissing, names::NamedTuple{Names}
-) where {G,I,Names}
-    Tuple{I,_nametypes(x, names, skipmissing)...}
-end
-function _rowtypes(
-    x, ::Type{G}, ::Type{I}, geometry::_False, index::_False, skipmissing, names::NamedTuple{Names}
-) where {G,I,Names}
-    Tuple{_nametypes(x, names, skipmissing)...}
+    ts = Expr(:tuple)
+    istrue(id) && push!(ts.args, Int)
+    istrue(geometry) && push!(ts.args, G)
+    istrue(index) && push!(ts.args, I)
+    :(Tuple{$ts...,_nametypes(x, names, skipmissing)...})
 end
 
 @inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_True) where {T,Names} = 
@@ -431,7 +422,11 @@ end
     return values(nt[PropNames])
 end
 
-_rowkeys(geometry::_False, index::_False, names::NamedTuple{Names}) where Names = Names
-_rowkeys(geometry::_True, index::_False, names::NamedTuple{Names}) where Names = (:geometry, Names...)
-_rowkeys(geometry::_True, index::_True, names::NamedTuple{Names}) where Names = (:geometry, :index, Names...)
-_rowkeys(geometry::_False, index::_True, names::NamedTuple{Names}) where Names = (:index, Names...)
+_rowkeys(id::_True, geometry::_False, index::_False, names::NamedTuple{Names}) where Names = (:id, Names...)
+_rowkeys(id::_True, geometry::_True, index::_False, names::NamedTuple{Names}) where Names = (:id, :geometry, Names...)
+_rowkeys(id::_True, geometry::_True, index::_True, names::NamedTuple{Names}) where Names = (:id, :geometry, :index, Names...)
+_rowkeys(id::_True, geometry::_False, index::_True, names::NamedTuple{Names}) where Names = (:id, :index, Names...)
+_rowkeys(id::_False, geometry::_False, index::_False, names::NamedTuple{Names}) where Names = Names
+_rowkeys(id::_False, geometry::_True, index::_False, names::NamedTuple{Names}) where Names = (:geometry, Names...)
+_rowkeys(id::_False, geometry::_True, index::_True, names::NamedTuple{Names}) where Names = (:geometry, :index, Names...)
+_rowkeys(id::_False, geometry::_False, index::_True, names::NamedTuple{Names}) where Names = (:index, Names...)
