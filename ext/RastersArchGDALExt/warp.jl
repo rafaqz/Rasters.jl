@@ -23,7 +23,6 @@ function _warp(A::AbstractRaster, flags::Dict; filename=nothing, suffix="", kw..
     tempfile = isnothing(filename) ? nothing : tempname() * ".tif"
     warp_kw = isnothing(filename) || filename == "/vsimem/tmp" ? () : (; dest=filename)
     out = AG.Dataset(A1; filename=tempfile, kw...) do dataset
-        rds = Raster(dataset)
         AG.gdalwarp([dataset], flagvect; warp_kw...) do warped
             # Read the raster lazily, dropping Band if there is none in `A`
             raster = Raster(warped; lazy=true, dropband=!hasdim(A, Band()), name = name(A))
