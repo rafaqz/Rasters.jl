@@ -42,6 +42,7 @@ export default defineConfig({
       { text: 'Methods',
         items: [
           { text: 'Overview', link: '/methods' },
+          { text: 'Reprojection and resampling', link: '/resample_proj'},
           { text: 'Array Operations', link: '/array_operations' },
         ]
       },
@@ -76,6 +77,7 @@ export default defineConfig({
       { text: 'Methods',
         items: [
           { text: 'Overview', link: '/methods' },
+          { text: 'Reprojection and resampling', link: '/resample_proj'},
           { text: 'Array Operations', link: '/array_operations' },
         ]
       },
