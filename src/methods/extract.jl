@@ -58,7 +58,8 @@ function extract end
    names=_names(x), name=names, skipmissing=false, geometry=true, index=false, geometrycolumn=nothing, kw...
 )
     n = DD._astuple(name)
-    _extract(x, data;
+    geoms = _get_geometries(data, geometrycolumn)
+    _extract(x, geoms;
          dims=DD.dims(x, DEFAULT_POINT_ORDER),
          names=NamedTuple{n}(n),
          # These keywords are converted to _True/_False for type stability later on
@@ -66,7 +67,6 @@ function extract end
          geometry=_booltype(geometry), 
          index=_booltype(index), 
          skipmissing=_booltype(skipmissing), 
-         geometrycolumn,
          kw...
     )
 end
@@ -78,10 +78,9 @@ end
 function _extract(A::RasterStackOrArray, geom; names, kw...)
     _extract(A, GI.geomtrait(geom), geom; names, kw...)
 end
-function _extract(A::RasterStackOrArray, ::Nothing, data; 
-    names, skipmissing, geometrycolumn, kw...
+function _extract(A::RasterStackOrArray, ::Nothing, geoms; 
+    names, skipmissing, kw...
 )
-    geoms = _get_geometries(data, geometrycolumn)
     T = _rowtype(A, eltype(geoms); names, skipmissing, kw...)
     # Handle empty / all missing cases
     (length(geoms) > 0 && any(!ismissing, geoms)) || return T[]
