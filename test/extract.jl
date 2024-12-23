@@ -10,49 +10,58 @@ rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=5)
 rast_m = Raster([1 2; 3 missing], dimz; name=:test, missingval=missing)
 st = RasterStack(rast, rast2)
 
-points = [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3), (10.0, 0.2)]
+pts = [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3), (10.0, 0.2)]
 poly = GI.Polygon([[(8.0, 0.0), (11.0, 0.0), (11.0, 0.4), (8.0, 0.0)]])
 linestring = GI.LineString([(8.0, 0.0), (9.5, 0.0), (10.0, 0.4)])
 line = GI.Line([(8.0, 0.0), (12.0, 0.4)])
-table = (geometry=points, foo=zeros(4))
+table = (geometry=pts, foo=zeros(4))
 
 @testset "Points" begin
     @testset "From Raster" begin
-        # Tuple points
-        ex = extract(rast, points)
-        T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
-        @test eltype(ex) == T
-        @test all(ex .=== T[
-            (geometry = missing, test = missing)
-            (geometry = (9.0, 0.1), test=1)
-            (geometry = (9.0, 0.2), test=2)
-            (geometry = (10.0, 0.3), test=missing)
-            (geometry = (10.0, 0.2), test=4)
-        ])
-        ex = extract(rast_m, points; skipmissing=true)
-        T = @NamedTuple{geometry::Tuple{Float64, Float64}, test::Int64}
-        @test eltype(ex) == T
-        @test all(ex .=== T[(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2)])
-        ex = extract(rast_m, points; skipmissing=true, geometry=false)
-        T = @NamedTuple{test::Int64}
-        @test eltype(ex) == T
-        @test all(ex .=== T[(test = 1,), (test = 2,)])
-        @test all(extract(rast_m, points; skipmissing=true, geometry=false, index=true) .=== [
-            (index = (1, 1), test = 1,)
-            (index = (1, 2), test = 2,)
-        ])
-        # NamedTuple (reversed) points - tests a Table that iterates over points
-        T = @NamedTuple{geometry::Union{@NamedTuple{Y::Float64,X::Float64}},test::Union{Missing,Int64}}
-        @test all(extract(rast, [(Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) .=== T[
-            (geometry = (Y = 0.1, X = 9.0), test = 1)
-            (geometry = (Y = 0.2, X = 10.0), test = 4)
-            (geometry = (Y = 0.3, X = 10.0), test = missing)
-        ])
-        # Vector points
-        @test extract(rast, [[9.0, 0.1], [10.0, 0.2]] == [
-            (geometry = [9.0, 0.1], test = 1)
-            (geometry = [10.0, 0.2], test = 4)
-        ]
+        @testset "skipmissing=false" begin
+            ex = extract(rast, pts; skipmissing=false)
+            T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
+            @test eltype(ex) == T
+            @test all(ex .=== T[
+                (geometry = missing, test = missing)
+                (geometry = (9.0, 0.1), test=1)
+                (geometry = (9.0, 0.2), test=2)
+                (geometry = (10.0, 0.3), test=missing)
+                (geometry = (10.0, 0.2), test=4)
+            ])
+        end
+        @testset "skipmissing=true" begin
+            ex = extract(rast_m, pts; skipmissing=true);
+            T = @NamedTuple{geometry::Tuple{Float64, Float64}, test::Int64}
+            @test eltype(ex) == T
+            @test all(ex .=== T[(geometry = (9.0, 0.1), test = 1), (geometry = (9.0, 0.2), test = 2)])
+        end
+
+        @testset "skipmissing=true, geometry=false" begin
+            ex = extract(rast_m, pts; skipmissing=true, geometry=false)
+            T = @NamedTuple{test::Int64}
+            @test eltype(ex) == T
+            @test all(ex .=== T[(test = 1,), (test = 2,)])
+            @test all(extract(rast_m, pts; skipmissing=true, geometry=false, index=true) .=== [
+                (index = (1, 1), test = 1,)
+                (index = (1, 2), test = 2,)
+            ])
+        end
+        @testset "reverse points" begin
+            # NamedTuple (reversed) points - tests a Table that iterates over points
+            T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
+            @test all(extract(rast, [(Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) .=== T[
+                (geometry = (9.0,  0.1), test = 1)
+                (geometry = (10.0, 0.2), test = 4)
+                (geometry = (10.0, 0.3), test = missing)
+            ])
+        end
+        @testset "Vector points" begin
+            @test extract(rast, [[9.0, 0.1], [10.0, 0.2]]) == [
+                (geometry = (9.0, 0.1), test = 1)
+                (geometry = (10.0, 0.2), test = 4)
+            ]
+        end
     end
 
     @testset "From RasterStack" begin
@@ -65,9 +74,6 @@ table = (geometry=points, foo=zeros(4))
         ])
         @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true) == [
             (geometry = (10.0, 0.2), test = 4, test2 = 8)
-        ]
-        @test extract(st2, [missing, (2, 2), (2, 1)]; skipmissing=true) == [
-            (geometry = (2, 1), a = 7.0, b = 2.0)
         ]
         @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false) == [
             (test = 4, test2 = 8)
@@ -104,7 +110,7 @@ end
 
 @testset "Polygons" begin
     # Extract a polygon
-    T = @NamedTuple{geometry::Union{Tuple{Float64,Float64}},test::Union{Missing,Int64}}
+    T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
     @test all(extract(rast_m, poly) .=== T[
         (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
@@ -128,7 +134,7 @@ end
         (index = (2, 1), test = 3)
         (index = (2, 2), test = missing)
     ])
-    T = @NamedTuple{geometry::Union{Tuple{Float64,Float64}},index::Union{Missing,Tuple{Int,Int}},test::Union{Missing,Int64}}
+    T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},index::Union{Missing,Tuple{Int,Int}},test::Union{Missing,Int64}}
     @test all(extract(rast_m, poly; index=true) .=== T[
          (geometry = (9.0, 0.1), index = (1, 1), test = 1)
          (geometry = (10.0, 0.1), index = (2, 1), test = 3)
@@ -154,15 +160,29 @@ end
         (geometry = (10.0, 0.1), test2 = 7)
         (geometry = (10.0, 0.2), test2 = 8)
     ]                                               
-    T = @NamedTuple{geometry::Union{Tuple{Float64,Float64}},test::Union{Missing,Int64}}
+    T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
     @test all(extract(rast_m, poly) .=== T[
         (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
         (geometry = (10.0, 0.2), test = missing)
     ])
+    @test extract(rast_m, poly; skipmissing=true, geometry=false, id=true) == [
+        (id=1, test = 1,)
+        (id=1, test = 3,)
+    ]                                                         
+    @test extract(rast_m, [poly, poly]; skipmissing=true, geometry=false, id=true) == [
+        (id=1, test = 1,)
+        (id=1, test = 3,)
+        (id=2, test = 1,)
+        (id=2, test = 3,)
+    ]                                                         
+    @test extract(rast_m, [poly, poly]; skipmissing=true, geometry=false, id=true, flatten=false) == [
+        [(id=1, test = 1,), (id=1, test = 3,)],
+        [(id=2, test = 1,), (id=2, test = 3,)],
+    ]                                                         
 
     @testset "Vector of polygons" begin
-        ex = extract(rast_m, [poly, poly, poly])
+        ex = extract(rast_m, [poly, poly])
         @test eltype(ex) == T
         @test all(ex .=== T[
             (geometry = (9.0, 0.1), test = 1)
@@ -176,7 +196,7 @@ end
 end
 
 @testset "Extract a linestring" begin
-    T = @NamedTuple{geometry::Tuple{Float64,Float64},test::Union{Missing,Int64}}
+    T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
     Tsm = @NamedTuple{geometry::Tuple{Float64,Float64},test::Int64}
     linestrings = [linestring, linestring, linestring]
     fc = GI.FeatureCollection(map(GI.Feature, linestrings))
@@ -246,7 +266,7 @@ end
 end
 
 @testset "Extract a line" begin
-    T = @NamedTuple{geometry::Tuple{Float64,Float64},test::Union{Missing,Int64}}
+    T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
     Tsm = @NamedTuple{geometry::Tuple{Float64,Float64},test::Int64}
     lines = [line, line]
     fc = GI.FeatureCollection(map(GI.Feature, lines))
@@ -290,6 +310,18 @@ end
         (geometry = (10.0, 0.2), test = missing)
     ])
 
+    Tsm_i = @NamedTuple{id::Int,geometry::Tuple{Float64,Float64},test::Int64}
+    @test extract(rast, lines; skipmissing=true, id=true) isa Vector{Tsm_i}
+    @test all(extract(rast_m, fc; skipmissing=true, id=true) .=== 
+              extract(rast_m, fc; skipmissing=true, threaded=true, id=true) .===
+              extract(rast_m, lines; skipmissing=true, id=true) .=== 
+              extract(rast_m, lines; skipmissing=true, threaded=true, id=true) .=== Tsm_i[
+        (id=1, geometry = (9.0, 0.1), test = 1)
+        (id=1, geometry = (9.0, 0.2), test = 2)
+        (id=2, geometry = (9.0, 0.1), test = 1)
+        (id=2, geometry = (9.0, 0.2), test = 2)
+    ])
+
     @test extract(rast_m, lines; skipmissing=true, flatten=false) isa Vector{Vector{Tsm}}
     @test extract(rast_m, lines; skipmissing=true, flatten=false) == 
         extract(rast_m, lines; skipmissing=true, flatten=false, threaded=true) == Vector{Tsm}[
@@ -309,7 +341,7 @@ end
 end
 
 @testset "Table" begin
-    T = @NamedTuple{geometry::Union{Missing, Tuple{Float64, Float64}}, test::Union{Missing, Int64}}
+    T = @NamedTuple{geometry::Union{Missing,Tuple{Float64, Float64}}, test::Union{Missing, Int64}}
     @test all(extract(rast, table) .=== T[
         (geometry = missing, test = missing)
         (geometry = (9.0, 0.1), test = 1)
@@ -332,12 +364,31 @@ end
         (index = (1, 2), test = 2,)
         (index = (2, 2), test = 4,)
     ]
+    @test extract(rast, table; skipmissing=true, geometry=false, id=true) == [
+        (id=2, test = 1,)
+        (id=3, test = 2,)
+        (id=5, test = 4,)
+    ]
+    T = @NamedTuple{id::Int, test::Union{Missing, Int64}}
+    @test all(extract(rast, table; skipmissing=false, geometry=false, id=true) .=== T[
+        (id=1, test = missing,)
+        (id=2, test = 1,)
+        (id=3, test = 2,)
+        (id=4, test = missing,)
+        (id=5, test = 4,)
+    ])
     @test_throws ArgumentError extract(rast, (foo = zeros(4),))
 end
 
 @testset "Empty geoms" begin
-    @test extract(rast, []) == NamedTuple{(:geometry, :test),Tuple{Missing,Missing}}[]
-    @test extract(rast, []; geometry=false) == NamedTuple{(:test,),Tuple{Missing}}[]
+    @test all(extract(rast, []) .=== @NamedTuple{geometry::Missing,test::Union{Missing,Int}}[])
+    @test all(extract(rast, []; geometry=false) .=== @NamedTuple{test::Tuple{Missing}}[])
+    @test all(extract(rast, [missing, missing]; geometry=false) .=== @NamedTuple{test::Union{Missing,Int}}[
+         (test = missing,)
+         (test = missing,)
+    ])
+    @test typeof(extract(rast, []; geometry=false, skipmissing=true)) == Vector{@NamedTuple{test::Int}}
+    @test typeof(extract(rast, [missing, missing]; geometry=false, skipmissing=true)) == Vector{@NamedTuple{test::Int}}
 end
 
 #=

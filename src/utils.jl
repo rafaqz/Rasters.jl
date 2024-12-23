@@ -399,8 +399,13 @@ end
 ) where {G,I,Names}
     ts = Expr(:tuple)
     istrue(id) && push!(ts.args, Int)
-    istrue(geometry) && push!(ts.args, G)
-    istrue(index) && push!(ts.args, I)
+    if istrue(skipmissing)
+        istrue(geometry) && push!(ts.args, G)
+        istrue(index) && push!(ts.args, I)
+    else
+        istrue(geometry) && push!(ts.args, Union{Missing,G})
+        istrue(index) && push!(ts.args, Union{Missing,I})
+    end
     :(Tuple{$ts...,_nametypes(x, names, skipmissing)...})
 end
 
