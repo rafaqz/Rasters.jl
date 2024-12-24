@@ -100,43 +100,80 @@ function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
 )
     cropped = crop(x; to=geom, touches=true)
     prod(size(cropped)) > 0 || return missing
-    masked = mask(cropped; with=geom, kw...)
-    return _maybe_skipmissing_call(f, masked, skipmissing)
+    # Fast path for lines
+    if skipmissing && trait isa GI.AbstractLineStringTrait
+        # Read the lines directly and calculate stats on the fly
+        return _zonal_lines(f, _reduce_op(f), st, geom; kw...)
+    else
+        # Mask the cropped raster 
+        # TODO use mask! on re-used buffer where possible
+        masked = mask(cropped; with=geom, kw...)
+        # Calculate stats on whole raster or `skipmissing(raster)``    
+        return _maybe_skipmissing_call(f, masked, skipmissing)
+    end
 end
-function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; 
+function _zonal(f, st::AbstractRasterStack, trait::GI.AbstractGeometryTrait, geom; 
     skipmissing=true, kw...
 )
     cropped = crop(st; to=geom, touches=true)
     prod(size(cropped)) > 0 || return map(_ -> missing, layerdims(st))
-    masked = mask(cropped; with=geom, kw...)
-    return maplayers(masked) do A
-        prod(size(A)) > 0 || return missing
-        _maybe_skipmissing_call(f, A, skipmissing)
+    # Fast path for lines
+    if skipmissing && trait isa GI.AbstractLineStringTrait
+        # Read the lines directly and calculate stats on the fly
+        return _zonal_lines(f, _reduce_op(f), cropped, geom; kw...)
+    else
+        # Mask the cropped stack 
+        # TODO use mask! on re-used buffer where possible
+        masked = mask(cropped; with=geom, kw...)
+        # Calculate stats on whole stack or `skipmissing(raster)``    
+        return maplayers(masked) do A
+            prod(size(A)) > 0 || return missing
+            _maybe_skipmissing_call(f, A, skipmissing)
+        end
     end
 end
 function _zonal(f, x::RasterStackOrArray, ::Nothing, data; 
-    progress=true, threaded=true, geometrycolumn=nothing, kw...
+    geometrycolumn=nothing, kw...
 )
     geoms = _get_geometries(data, geometrycolumn)
+    _zonal(f, x, nothing, geoms; kw...) 
+end
+function _zonal(f, x::RasterStackOrArray, ::Nothing, geoms::AbstractArray; 
+    progress=true, threaded=true, geometrycolumn=nothing, kw...
+)
     n = length(geoms)
-    n == 0 && return []
+    n == 0 && return [] # TODO make this type stable
+    # Allocate vector by running _zonal on the first geoms
+    # until a non-missing value is returns
     zs, start_index = _alloc_zonal(f, x, geoms, n; kw...)
+    # If all geometries are missing, return a vector of missings
     start_index == n + 1 && return zs
+    # Otherwise run _zonal for the rest of the geometries, possibly threaded
     _run(start_index:n, threaded, progress, "Applying $f to each geometry...") do i
         zs[i] = _zonal(f, x, geoms[i]; kw...)
     end
     return zs
 end
 
+function _zonal_lines(f, op, r::RasterStackOrArray, geom; 
+    buffer, kw...
+)
+    burn_lines(rast, geom) do i
+        buffer[i] = rast[i]
+    end
+end
+function _zonal_lines(f, op::Nothing, st::RasterStackOrArray, geom; kw...)
+    # burn and count
+end
+
 function _alloc_zonal(f, x, geoms, n; kw...)
     # Find first non-missing entry and count number of missing entries
     n_missing::Int = 0
-    z1 = _zonal(f, x, first(geoms); kw...)
+    z1 = missing
+    # If the first stat is missing, repeat until we find one that is non-missing
     for geom in geoms
         z1 = _zonal(f, x, geom; kw...)
-        if !ismissing(z1)
-            break
-        end
+        ismissing(z1) || break
         n_missing += 1
     end
     zs = Vector{Union{Missing,typeof(z1)}}(undef, n)
