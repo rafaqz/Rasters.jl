@@ -47,17 +47,16 @@ mutable struct LineRefs{T}
     end
 end
 
-function _initialise!(lr::LineRefs)
+function _initialise!(lr::LineRefs{T}) where T
     lr.i = 1
     lr.prev = CartesianIndex((typemin(Int), typemin(Int)))
+    lr.rows = Vector{T}()
 end
 
 _geom_rowtype(A, geom; kw...) =
     _geom_rowtype(A, GI.trait(geom), geom; kw...)
 _geom_rowtype(A, ::Nothing, geoms; kw...) =
     _geom_rowtype(A, first(skipmissing(geoms)); kw...)
-_geom_rowtype(A, ::Nothing, geoms; kw...) =
-    _geom_rowtype(A, first(geoms); kw...)
 _geom_rowtype(A, ::GI.AbstractGeometryTrait, geom; kw...) =
     _geom_rowtype(A, first(GI.getpoint(geom)); kw...)
 _geom_rowtype(A, ::Nothing, geoms::Missing; kw...) =
@@ -301,7 +300,7 @@ end
     dims, offset = _template(A, geom)
     dp = DimPoints(A)
     function _length_callback(n)
-        line_refs.rows = Vector{T}(undef, n)
+        resize!(line_refs.rows, n)
     end
 
     _burn_lines!(_length_callback, dims, geom) do D
@@ -314,9 +313,8 @@ end
         line_refs.i += _maybe_set_row!(line_refs.rows, e.skipmissing, e, id, A, dp, offset, I, line_refs.i)
         return nothing
     end
-    rows = line_refs.rows
-    deleteat!(rows, line_refs.i:length(rows))
-    return rows
+    deleteat!(line_refs.rows, line_refs.i:length(line_refs.rows))
+    return line_refs.rows
 end
 @noinline function _extract(
     A::RasterStackOrArray, e::Extractor{T}, id::Int, ::GI.AbstractGeometryTrait, geom; kw...
@@ -429,9 +427,9 @@ end
     _extract_point!(rows, x, e, id, e.skipmissing, point, i; kw...)
 end
 @inline function _extract_point!(
-    rows::Vector{T}, x::RasterStackOrArray, e, id, skipmissing::_True, point::Missing, i;
+    rows::Vector{T}, x::RasterStackOrArray, e::Extractor{T,<:Any,K}, id, skipmissing::_True, point::Missing, i;
     kw...
-) where T
+) where {T,K}
     return false
 end
 # Normal point with missing / out of bounds data removed
