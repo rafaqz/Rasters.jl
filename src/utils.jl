@@ -385,7 +385,7 @@ istrue(::Type{_False}) = false
 _rowtype(x, g, args...; kw...) = _rowtype(x, typeof(g), args...; kw...)
 function _rowtype(
     x, ::Type{G}, i::Type{I} = typeof(size(x)); 
-    id, geometry, index, skipmissing, skipinvalid=skipmissing, names, kw...
+    id=_False(), geometry, index, skipmissing, skipinvalid=skipmissing, names, kw...
 ) where {G, I}
     _G = istrue(skipinvalid) ? nonmissingtype(G) : G
     _I = istrue(skipinvalid) ? I : Union{Missing, I}
