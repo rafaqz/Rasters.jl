@@ -68,14 +68,18 @@ mosaic(f::Function, regions; kw...) = _mosaic(f, first(regions), regions; kw...)
 function _mosaic(f::Function, r1::AbstractRaster, regions;
     missingval=missing, filename=nothing, suffix=nothing, kw...
 )
-    missingval = missingval isa Nothing ? missing : missingval
     V = Vector{promote_type(map(Missings.nonmissingtype ∘ eltype, regions)...)}
     T = Base.promote_op(f, V)
     dims = _mosaic(Tuple(map(DD.dims, regions)))
     A = create(filename, T, dims; name=name(r1), missingval)
-    A .= missingval
+    if isnothing(missingval)
+        A .= zero(eltype(A))
+    else
+        @show Rasters.missingval(A)
+        A .= Rasters.missingval(A)
+    end
     open(A; write=true) do a
-        mosaic!(f, a, regions; missingval, kw...)
+        mosaic!(f, a, regions; missingval=Rasters.missingval(A), kw...)
     end
     return A
 end
