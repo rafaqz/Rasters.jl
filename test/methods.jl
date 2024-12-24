@@ -17,6 +17,8 @@ pointvec = [(-20.0, 30.0),
             (0.0, 10.0),
             (0.0, 30.0),
             (-20.0, 30.0)]
+
+            
 vals = [1, 2, 3, 4, 5]
 polygon = ArchGDAL.createpolygon(pointvec)
 multi_polygon = ArchGDAL.createmultipolygon([[pointvec]])
@@ -409,7 +411,7 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         @test all(extract(rast, [(Y=0.1, X=9.0), (Y=0.2, X=10.0), (Y=0.3, X=10.0)]) .=== T[
             (geometry = (Y = 0.1, X = 9.0), test = 1)
             (geometry = (Y = 0.2, X = 10.0), test = 4)
-            (geometry = (Y = 0.3, X = 10.0), test = missing)
+            (geometry = (Y = .3, X = 10.0), test = missing)
         ])
         # Vector points
         @test all(extract(rast, [[9.0, 0.1], [10.0, 0.2]]) .== [
@@ -638,7 +640,7 @@ end
 
 end
 
-@testset "mosaic" begin
+#@testset "mosaic" begin
     reg1 = Raster([0.1 0.2; 0.3 0.4], (X(2.0:1.0:3.0), Y(5.0:1.0:6.0)))
     reg2 = Raster([1.1 1.2; 1.3 1.4], (X(3.0:1.0:4.0), Y(6.0:1.0:7.0)))
     irreg1 = Raster([0.1 0.2; 0.3 0.4], (X([2.0, 3.0]), Y([5.0, 6.0])))
@@ -662,25 +664,44 @@ end
                                              missing 1.3 1.4])
 
     @test all(mosaic(first, [reverse(reg2; dims=Y), reverse(reg1; dims=Y)]) .=== 
-              [missing 0.2 0.1; 
-               1.2 1.1 0.3; 
-               1.4 1.3 missing]
-             )
+        [missing 0.2 0.1; 
+         1.2 1.1 0.3; 
+         1.4 1.3 missing]
+    )
+            
+    @testset "Generic functions" begin
+        @test all(mosaic(xs -> count(x -> x > 0, xs), reg1, reg2) .===
+            [1 1 missing
+             1 2 1 
+             missing 1 1]
+        )
+    end
 
-    # 3 dimensions
-    A1 = Raster(ones(2, 2, 2), (X(2.0:-1.0:1.0), Y(5.0:1.0:6.0), Ti(DateTime(2001):Year(1):DateTime(2002))))
-    A2 = Raster(zeros(2, 2, 2), (X(3.0:-1.0:2.0), Y(4.0:1.0:5.0), Ti(DateTime(2002):Year(1):DateTime(2003))))
-    @test all(mosaic(mean, A1, A2) |> parent .=== 
-              mosaic(mean, RasterStack(A1), RasterStack(A2)).layer1 .===
-              cat([missing missing missing
-                   missing 1.0     1.0
-                   missing 1.0     1.0    ],
-                   [0.0     0.0 missing
-                   0.0     0.5     1.0   
-                   missing 1.0     1.0    ],
-                   [0.0     0.0     missing
-                   0.0     0.0     missing    
-                   missing missing missing], dims=3))
+    @testset "3 dimensions" begin
+        A1 = Raster(ones(2, 2, 2), (X(2.0:-1.0:1.0), Y(5.0:1.0:6.0), Ti(DateTime(2001):Year(1):DateTime(2002))))
+        A2 = Raster(zeros(2, 2, 2), (X(3.0:-1.0:2.0), Y(4.0:1.0:5.0), Ti(DateTime(2002):Year(1):DateTime(2003))))
+        mean_mos = cat([missing missing missing
+                    missing 1.0     1.0
+                    missing 1.0     1.0    ],
+                    [0.0     0.0 missing
+                    0.0     0.5     1.0   
+                    missing 1.0     1.0    ],
+                    [0.0     0.0     missing
+                    0.0     0.0     missing    
+                    missing missing missing], dims=3)
+        @test all(mosaic(mean, A1, A2) .=== 
+                mosaic(mean, RasterStack(A1), RasterStack(A2)).layer1 .===
+                mean_mos)
+        @test mosaic(length, A1, A2; missingval=0) == cat([0 0 0
+            0 1 1
+            0 1 1],
+            [1 1 0
+            1 2 1
+            0 1 1], 
+            [1 1 0
+            1 1 0
+            0 0 0], dims=3)
+    end
 end
 
 using StableRNGs, StatsBase
