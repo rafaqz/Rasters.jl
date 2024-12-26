@@ -3,7 +3,7 @@ using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
 using Rasters.Lookups, Rasters.Dimensions
 using Rasters.DiskArrays
 import ArchGDAL, NCDatasets
-using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name, trim
+using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name, trim, metadata
 testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))
 include(joinpath(testdir, "test_utils.jl"))
 
@@ -44,7 +44,7 @@ stackkeys = (
     )
 end
 
-@testset "Raster" begin
+#@testset "Raster" begin
     @time ncarray = Raster(ncsingle);
     @time lazyarray = Raster(ncsingle; lazy=true)
     @time eagerarray = Raster(ncsingle; lazy=false)
@@ -58,7 +58,8 @@ end
         @time read(lazyarray);
     end
 
-    @testset "scaling and maskign" begin @time cfarray = Raster(ncsingle)
+    @testset "scaling and maskign" begin 
+        @time cfarray = Raster(ncsingle)
         @time cfarray = Raster(ncsingle)
         @time cf_nomask_array = Raster(ncsingle; missingval=nothing)
         @time nocfarray = Raster(ncsingle; scaled=false)
@@ -69,8 +70,8 @@ end
         @time lazynocf_nomask_array = Raster(ncsingle; lazy=true, scaled=false, missingval=nothing)
         @test missingval(cfarray) === missing
         @test missingval(nocfarray) === missing
-        @test missingval(cf_nomask_array) === 1.0f20
-        @test missingval(nocf_nomask_array) === 1.0f20
+        @test missingval(cf_nomask_array) === nothing
+        @test missingval(nocf_nomask_array) === nothing
         @test missingval(raw_array) === 1.0f20
         @test all(skipmissing(cfarray) .=== skipmissing(nocfarray))
         @test parent(cfarray) isa Array{Union{Float32,Missing}}

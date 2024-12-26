@@ -239,6 +239,7 @@ struct Raster{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi<:Union{T,Noth
         new{T,N,D,R,A,Na,Me,typeof(missingval1)}(data, dims, refdims, name, metadata, missingval1)
     end
 end
+# Create a Raster from and AbstractArray and dims
 function Raster(A::AbstractArray{T,N}, dims::Tuple;
     refdims=(),
     name=Symbol(""),
@@ -252,12 +253,15 @@ function Raster(A::AbstractArray{T,N}, dims::Tuple;
     A = isnokw(mappedcrs) ? A : setmappedcrs(A, mappedcrs)
     return A
 end
+# Create a Raster from and AbstractVector and dims,
+# reshaping the Vector to match the dimensions
 function Raster(A::AbstractArray{T,1}, dims::Tuple{<:Dimension,<:Dimension,Vararg};
     kw...
 )::Raster{T,length(dims)} where T
     Raster(reshape(A, map(length, dims)), dims; kw...)
 end
 Raster(A::AbstractArray{<:Any,1}, dim::Dimension; kw...) = Raster(A, (dim,); kw...)
+# Load a Raster from a table
 function Raster(table, dims::Tuple;
     name=nokw,
     kw...
@@ -268,7 +272,9 @@ function Raster(table, dims::Tuple;
     A = reshape(cols[name], map(length, dims))
     return Raster(A, dims; name, kw...)
 end
+# Load a Raster from another AbstractArray with `dims` as keyword
 Raster(A::AbstractArray; dims, kw...) = Raster(A, dims; kw...)::Raster
+# Load a Raster from another AbstractDimArray
 function Raster(A::AbstractDimArray;
     data=parent(A),
     dims=dims(A),
@@ -280,11 +286,13 @@ function Raster(A::AbstractDimArray;
 )::Raster
     return Raster(data, dims; refdims, name, metadata, missingval, kw...)
 end
+# Load a Raster from a string filename and predefined dimensions
 function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Vararg};
     kw...
 )::Raster
     Raster(filename; dims, kw...)
 end
+# Load a Raster from a string filename
 function Raster(filename::AbstractString;
     source=nokw,
     kw...
@@ -294,6 +302,7 @@ function Raster(filename::AbstractString;
         Raster(ds, filename; source, kw...)
     end::Raster
 end
+# Load a Raster from an opened Dataset
 function Raster(ds, filename::AbstractString;
     dims=nokw,
     refdims=(),
@@ -306,50 +315,76 @@ function Raster(ds, filename::AbstractString;
     source=nokw,
     replace_missing=nokw,
     coerce=convert,
-    scaled=nokw,
-    write=false,
-    lazy=false,
-    dropband=true,
-    checkmem=CHECKMEM[],
+    scaled::Union{Bool,NoKW}=nokw,
+    verbose::Bool=true,
+    write::Bool=false,
+    lazy::Bool=false,
+    dropband::Bool=true,
+    checkmem::Bool=CHECKMEM[],
+    raw::Bool=false,
     mod=nokw,
-    raw=false,
 )::Raster
     _maybe_warn_replace_missing(replace_missing)
-    scaled, missingval = _raw_check(raw, scaled, missingval)
+    # `raw` option will ignore `scaled` and `missingval`
+    scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
+    # TODO use a clearer name for this
     name1 = filekey(ds, name)
+    # Detect the source from filename
     source = _sourcetrait(filename, source)
+    # Open the dataset and variable specified by `name`, at `group` level if provided
+    # At this level we do not apply `mod`.
     data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=NoMod()) do var
         metadata_out = isnokw(metadata) ? _metadata(var) : metadata
+        # Missingval input options
         missingval_out = if isnokw(missingval)
-            # Detect missingval and convert it to missing
-            Rasters.missingval(var, metadata_out) => missing
+            mv = Rasters.missingval(var, metadata_out) 
+            isnothing(mv) ? nothing : mv => missing
+        elseif isnothing(missingval)
+            nothing
         elseif missingval isa Pair
+            # Pair: inner and outer missing values are manually defined
             missingval
-        elseif missingval == Rastesr.missingval
-            Rasters.missingval(var, metadata_out)
+        elseif missingval == Rasters.missingval
+            # `missingval` func: detect missing value and keep it as-is
+            mv = Rasters.missingval(var, metadata_out)
+            mv => mv
         else
+            # Otherwise: detect missing value and convert it to `missingval`
             Rasters.missingval(var, metadata_out) => missingval
         end
+        # Generate mod for scaling
         mod = isnokw(mod) ? _mod(eltype(var), metadata_out, missingval_out; scaled, coerce) : mod
+        # Define or load the data array
         data_out = if lazy
+            # Define a lay FileArray
             FileArray{typeof(source)}(var, filename;
                 name=name1, group, mod, write
             )
         else
             modvar = _maybe_modify(var, mod)
+            # Check the data will fit in memory
             checkmem && _checkobjmem(modvar)
-            x = Array(modvar)
-            x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
+            # Move the modified array to memory
+            @show mod
+            Array(modvar)
         end
+        # Generate dims
         dims_out = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data_out)
-        data_out, dims_out, metadata_out, missingval
+        # Return the data to the parent function
+        mv_outer = _outer_missingval(mod)
+        data_out, dims_out, metadata_out, mv_outer
     end
+    # Use name or an empty Symbol
     name_out = name1 isa Union{NoKW,Nothing} ? Symbol("") : Symbol(name1)
+    # Define the raster
     raster = Raster(data_out, dims_out, refdims, name_out, metadata_out, missingval_out)
+    # Maybe drop a single band dimension
     return _maybe_drop_single_band(raster, dropband, lazy)
 end
 
 filekey(ds, name) = name
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])
 
+# Add a `dimconstructor` method so `AbstractProjected` lookups create a Raster
+# TODO this should be unwrapped to `DD.lookupconstructor` to avoid future ambiguities
 DD.dimconstructor(::Tuple{<:Dimension{<:AbstractProjected},Vararg{Dimension}}) = Raster

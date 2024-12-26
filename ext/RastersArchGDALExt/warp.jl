@@ -45,13 +45,15 @@ function _warp(A::AbstractRaster, flags::Dict;
         missingval, missingval
     end
     out = AG.Dataset(A1; filename=tempfile, missingval=mv1, kw...) do dataset
-        AG.gdalwarp([dataset], flagvect; warp_kw...) do warped
+        x = AG.gdalwarp([dataset], flagvect; warp_kw...) do warped
             # Read the raster lazily, dropping Band if there is none in `A`
             raster = Raster(warped; lazy=true, dropband=!hasdim(A, Band()), name, missingval=mv2)
             # Either read the MEM dataset to an Array, or keep a filename base raster lazy
             return isnothing(filename) ? read(raster) : raster
         end
+        return x
     end
+
     # And permute the dimensions back to what they were in A
     out1 = _maybe_restore_from_gdal(out, dims(A))
     out2 = _reset_gdalwarp_sampling(out1, A)

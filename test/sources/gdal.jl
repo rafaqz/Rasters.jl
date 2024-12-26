@@ -7,7 +7,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 gdalpath = maybedownload(url)
 
-@testset "Raster" begin
+#@testset "Raster" begin
     @test_throws ArgumentError Raster("notafile.tif")
 
     @time gdalarray = Raster(gdalpath; name=:test)
@@ -16,7 +16,7 @@ gdalpath = maybedownload(url)
 
     @testset "lazyness" begin
         # Eager is the default
-        @test parent(gdalarray) isa Array
+        @test parent(gdalarray) isa Array # its a reshaped array now
         @test parent(lazyarray) isa DiskArrays.AbstractDiskArray
         @test parent(eagerarray) isa Array
         @testset "lazy broadcast" begin
@@ -27,19 +27,19 @@ gdalpath = maybedownload(url)
     
     @testset "cf" begin
         # This file has no scale/offset so cf does nothing
-        @time cfarray = Raster(gdalpath; missingval=0x00)
+        @time cfarray = Raster(gdalpath)
         @time cf_nomask_array = Raster(gdalpath; missingval=nothing)
-        @time nocfarray = Raster(gdalpath; scaled=false)
-        @time lazycfarray = Raster(gdalpath; lazy=true, missingval=0x00)
-        @time lazynocfarray = Raster(gdalpath; lazy=true, scaled=false)
-        @test parent(cfarray) isa Base.ReshapedArray{Union{UInt8,Missing},2}
-        @test parent(cf_nomask_array) isa Array{UInt8,2}
-        @test parent(nocfarray) isa Array{UInt8,2}
+        @time rawarray = Raster(gdalpath; raw=true)
+        @time lazycfarray = Raster(gdalpath; lazy=true)
+        @time lazyrawarray = Raster(gdalpath; lazy=true, raw=true)
+        @test parent(cfarray) isa Matrix{UInt8}
+        @test parent(cf_nomask_array) isa Matrix{UInt8}
+        @test parent(rawarray) isa Matrix{UInt8}
         open(lazycfarray) do A
-            @test parent(A) isa DiskArrays.SubDiskArray{Union{Missing,UInt8}}
-            @test parent(parent(A)) isa Rasters.ModifiedDiskArray{false,Union{Missing,UInt8}}
+            @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
+            @test parent(parent(A)) isa ArchGDAL.RasterDataset{UInt8}
         end
-        open(lazynocfarray) do A
+        open(lazyrawarray) do A
             @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
             @test parent(parent(A)) isa ArchGDAL.RasterDataset{UInt8}
         end
@@ -133,7 +133,7 @@ gdalpath = maybedownload(url)
 
     @testset "other fields" begin
         # This file has an incorrect missing value
-        @test missingval(gdalarray) === nothing
+        @test missingval(gdalarray) === missing
         @test metadata(gdalarray) isa Metadata{GDALsource,Dict{String,Any}} 
         @test basename(metadata(gdalarray)["filepath"]) == "cea.tif"
         metadata(gdalarray)["filepath"]
@@ -151,7 +151,7 @@ gdalpath = maybedownload(url)
     @testset "custom keywords" begin
         customgdalarray = Raster(gdalpath; 
             name=:test, crs=EPSG(1000), mappedcrs=EPSG(4326), refdims=(Ti(),),
-            write=true, lazy=true, dropband=false, replace_missing=true,
+            write=true, lazy=true, dropband=false,
         )
         @test name(customgdalarray) == :test
         @test refdims(customgdalarray) == (Ti(),)
@@ -163,12 +163,12 @@ gdalpath = maybedownload(url)
         @test mappedcrs(dims(customgdalarray, Y)) == EPSG(4326)
         @test mappedcrs(dims(customgdalarray, X)) == EPSG(4326)
         @test parent(customgdalarray) isa FileArray
-        @test eltype(customgdalarray) == UInt8
+        @test eltype(customgdalarray) == Union{UInt8,Missing}
         # Needs to be separate as it overrides crs/mappedcrs 
         dimsgdalarray = Raster(gdalpath; 
             dims=(Z(), X(), Y()),
         )
-        @test dims(dimsgdalarray) isa Tuple{<:Z,X,Y}
+        @test dims(dimsgdalarray) isa Tuple{Z,X,Y}
     end
 
     @testset "indexing" begin
@@ -269,7 +269,7 @@ gdalpath = maybedownload(url)
             rm(tempfile)
         end
 
-        @testset "mosaic" begin
+        #@testset "mosaic" begin
             @time gdalarray = Raster(gdalpath; name=:test)
             A1 = gdalarray[X(1:300), Y(1:200)]
             A2 = gdalarray[X(57:500), Y(101:301)]
@@ -277,9 +277,7 @@ gdalpath = maybedownload(url)
             tempfile2 = tempname() * ".tif"
             tempfile3 = tempname() * ".tif"
             Afile = mosaic(first, A1, A2; missingval=0x00, atol=1e-8, filename=tempfile1)
-            Afile2 = mosaic(first, A1, A2; 
-                missingval=0x00, atol=1e-8, filename=tempfile2, missingval=missing
-            )
+            Afile2 = mosaic(first, A1, A2; atol=1e-8, filename=tempfile2)
             @test missingval(Afile2) === missing
             Amem = mosaic(first, A1, A2; missingval=0x00, atol=1e-8)
             Atest = gdalarray[X(1:500), Y(1:301)]
@@ -295,12 +293,12 @@ gdalpath = maybedownload(url)
     @testset "conversion to Raster" begin
         geoA = gdalarray[X(1:50), Y(1:1), Band(1)]
         @test size(geoA) == (50, 1)
-        @test eltype(geoA) <: UInt8
+        @test eltype(geoA) <: Union{UInt8,Missing}
         @time geoA isa Raster{UInt8,1}
-        @test dims(geoA) isa Tuple{<:X,Y}
-        @test refdims(geoA) isa Tuple{<:Band}
+        @test dims(geoA) isa Tuple{X,Y}
+        @test refdims(geoA) isa Tuple{Band}
         @test metadata(geoA) == metadata(gdalarray)
-        @test missingval(geoA) === nothing
+        @test missingval(geoA) === missing
         @test name(geoA) == :test
     end
 
@@ -311,7 +309,11 @@ gdalpath = maybedownload(url)
             filename = tempname() * ".asc"
             @time write(filename, gdalarray; force=true)
             saved1 = Raster(filename);
-            @test all(saved1 .== gdalarray)
+            @test all(
+                parent(saved1 .=== gdalarray)
+                parent(saved1)
+                parent(gdalarray)
+                )
             # @test typeof(saved1) == typeof(geoA)
             @test val(dims(saved1, X)) ≈ val(dims(gdalarray, X))
             @test val(dims(saved1, Y)) ≈ val(dims(gdalarray, Y))
@@ -585,7 +587,7 @@ gdalpath = maybedownload(url)
 
 end
 
-@testset "RasterStack" begin
+#@testset "RasterStack" begin
     @time gdalstack = RasterStack((a=gdalpath, b=gdalpath))
 
     @test length(layers(gdalstack)) == 2
@@ -711,7 +713,7 @@ end
             base, ext = splitext(filename)
             filename_b = string(base, "_b", ext)
             saved = read(Raster(filename_b))
-            @test all(saved .== geoA)
+            @test all(saved .=== geoA)
         end
 
         @testset "write multiple files with custom suffix" begin
@@ -740,7 +742,6 @@ end
             gdalstack2 = RasterStack(filenames; lazy=true)
             @test DiskArrays.eachchunk(gdalstack2[:b])[1] == (1:128, 1:128)
         end
-
     end
 
     @testset "show" begin
@@ -842,7 +843,7 @@ end
     end
 end
 
-@testset "series" begin
+#@testset "series" begin
     gdalser = RasterSeries([gdalpath, gdalpath], (Ti(),); mappedcrs=EPSG(4326), name=:test)
     @test read(gdalser[Ti(1)]) == read(Raster(gdalpath; mappedcrs=EPSG(4326), name=:test))
     @test read(gdalser[Ti(1)]) == read(Raster(gdalpath; mappedcrs=EPSG(4326), name=:test))

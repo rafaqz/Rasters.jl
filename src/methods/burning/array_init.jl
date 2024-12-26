@@ -18,14 +18,14 @@ function _init_bools(to::Nothing, T::Type, data;
     # Get the extent of the geometries
     ext = _extent(data; geometrycolumn)
     isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
-    return _init_bools(ext, T, data; collapse, res, size)
+    return _init_bools(ext, T, data; collapse, res, size, kw...)
 end
 function _init_bools(to::Extents.Extent, T::Type, data;
     collapse=nokw, size=nokw, res=nokw, sampling=nokw, kw...
 )
     # Convert the extent to dims (there must be `res` or `size` in `kw`)
-    ext = _extent2dims(to; size, res, sampling, kw...)
-    _init_bools(to, ext, T, data; collapse, kw...)
+    dims = _extent2dims(to; size, res, sampling, kw...)
+    _init_bools(to, dims, T, data; collapse, kw...)
 end
 function _init_bools(to, dims::DimTuple, T::Type, data; 
     collapse::Union{Bool,Nothing,NoKW}=nokw, kw...
@@ -43,12 +43,16 @@ function _init_bools(to, dims::DimTuple, T::Type, data;
     end
 end
 
-function _alloc_bools(to, dims::DimTuple, ::Type{BitArray}; missingval::Bool=false, metadata=NoMetadata(), kw...)
+function _alloc_bools(to, dims::DimTuple, ::Type{BitArray}; 
+    missingval::Bool=false, metadata=NoMetadata(), kw...
+)
     # Use a BitArray
     vals = missingval == false ? falses(size(dims)) : trues(size(dims))
     return Raster(vals, dims; missingval, metadata)
 end
-function _alloc_bools(to, dims::DimTuple, ::Type{<:Array{T}}; missingval=false, metadata=NoMetadata(), kw...) where T
+function _alloc_bools(to, dims::DimTuple, ::Type{<:Array{T}}; 
+    missingval=false, metadata=NoMetadata(), kw...
+) where T
     # Use an Array
     data = fill!(Raster{T}(undef, dims), missingval) 
     return rebuild(data; missingval, metadata)

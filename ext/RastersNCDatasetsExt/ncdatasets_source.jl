@@ -43,13 +43,11 @@ function Base.write(filename::AbstractString, source::Source, s::AbstractRasterS
     end
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
 
-    maskingval = RA._stack_nt(s, isnokw(maskingval) ? Rasters.missingval(s) : maskingval)
-    missingval = RA._stack_missingvals(s, isnokw(missingval) ? maskingval : missingval)
+    missingval = RA._stack_nt(s, isnokw(missingval) ? Rasters.missingval(s) : missingval)
     try
         map(keys(s)) do k
             RA._writevar!(ds, source, s[k]; 
                 missingval=missingval[k], 
-                maskingval=maskingval[k], 
                 kw...
             )
         end

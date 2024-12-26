@@ -462,6 +462,7 @@ function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,
         metadata
     end
 
+    @assert !(missingval isa Pair)
     missingval = isnokw(missingval) ? Rasters.missingval(A) : missingval
     missingval = if ismissing(missingval) 
         # See if there is a missing value in metadata

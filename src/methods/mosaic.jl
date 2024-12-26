@@ -167,7 +167,7 @@ mosaic!(f::Function, dest::RasterStackOrArray, regions::RasterStackOrArray...; k
     _mosaic!(f, dest, regions; kw...)
 
 function _mosaic!(f::Function, A::AbstractRaster{T}, regions::Union{Tuple,AbstractArray};
-    missingval=missingval(A), atol=maybe_eps(T)
+    missingval=missingval(A), atol=nothing
 ) where T
     isnokwornothing(missingval) && throw(ArgumentError("destination array must have a `missingval`"))
     _without_mapped_crs(A) do A1

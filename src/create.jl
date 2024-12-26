@@ -124,24 +124,32 @@ RasterStack("created.nc")
 └───────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 """
+# Create with a function that will be called to fill the raster
 create(f::Function, args...; kw...) = create(args...; kw..., f)
+# Create from Raster or RasterStack with no filename
 create(A::Union{AbstractRaster,AbstractRasterStack}; kw...) = create(nothing, A; kw...)
+# Create from type and Raster or RasterStack with no filename
 create(T::Union{Type,TypeNamedTuple}, A::Union{Tuple,Extents.Extent,AbstractRaster,AbstractRasterStack}; kw...) =
     create(nothing, T, A; kw...)
+# Create from filename and Raster
 function create(filename::Union{AbstractString,Nothing}, A::AbstractRaster{T}; 
     missingval=missingval(A), # Only take missingval here when types are not specified
     kw...
 ) where T
     create(filename, T, A; missingval, kw...)
 end
+# Create from filename and RasterStack
 function create(filename::Union{AbstractString,Nothing}, st::AbstractRasterStack; 
     missingval=missingval(st), # Only take missingval here when types are not specified
     kw...
 )
     create(filename, map(eltype, layers(st)), st; missingval, kw...)
 end
+# Create Raster from filename, type and a Raster, using its
+# parent as the parent type so e.g. CuArray will propagate
 create(filename::Union{AbstractString,Nothing}, T::Union{Type,TypeNamedTuple}, A::AbstractRaster; kw...) =
     create(filename, T, dims(A); parent=parent(A), kw...)
+# Create RasterStack from filename, NamedTuple type and dims
 function create(filename::Union{AbstractString,Nothing}, T::NamedTuple{K1}, st::AbstractRasterStack{K2};
     metadata=metadata(st),
     layerdims=nokw,
@@ -156,6 +164,7 @@ function create(filename::Union{AbstractString,Nothing}, T::NamedTuple{K1}, st::
         parent=first(parent(st)), metadata, missingval, layerdims, layermetadata, kw...
     )
 end
+# Create from filename, type and dims
 function create(filename::AbstractString, T::Union{Type,NamedTuple}, dims::Tuple;
     lazy=true,
     parent=nokw,
@@ -168,6 +177,7 @@ function create(filename::AbstractString, T::Union{Type,NamedTuple}, dims::Tuple
     # This calls `create` in the /sources file for this `source`
     return create(filename, source, T, dims; lazy, missingval, kw...)
 end
+# Create from filename, type and extent with res or size keywords
 function create(filename::Union{AbstractString,Nothing}, T::Union{Type,NamedTuple}, extent::Extents.Extent;
     res=nokw,
     size=nokw,
@@ -184,40 +194,46 @@ function create(filename::Union{AbstractString,Nothing}, T::Union{Type,NamedTupl
     end
     return create(filename, T, dims; kw...)
 end
+# Create in-memory Raster from type and dims
 function create(filename::Nothing, ::Type{T}, dims::Tuple;
     missingval=nokw,
     fill=nokw,
     parent=nokw,
     verbose=true,
+    f=identity,
     # Not used but here for consistency
     suffix=nokw,
     force=false,
     chunks=nokw,
     driver=nokw,
     options=nokw,
-    f=identity,
     kw...
 ) where T
     if verbose
-        isnokw(chunks) || @warn "`chunks` of `$chunks` found. But `chunks` are not used for in-memory rasters"
+        isnokw(chunks) || _warn_keyword_not_used("chunks", chunks)
+        isnokw(driver) || _warn_keyword_not_used("driver", driver)
+        isnokw(options) || _warn_keyword_not_used("options", options)
     end
-    missingval = missingval isa Pair ? last(missingval) : missingval
-    eltype = isnokwornothing(missingval) ? T : promote_type(T, typeof(missingval))
-    data = if isnokw(parent) || isnothing(parent)
+    # Split inner and outer missingval if needed
+    # For in-memory rasters we just ignore the inner value
+    mv_inner, mv_outer = missingval isa Pair ? missingval : (missingval, missingval)
+    # Get the element type from T and outer missingval
+    eltype = isnokwornothing(mv_outer) ? T : promote_type(T, typeof(mv_outer))
+    # Create the array
+    data = if isnokwornothing(parent)
         Array{eltype}(undef, dims)
     else
         similar(parent, eltype, size(dims))
     end
     # Maybe fill the array
-    if !(isnokw(fill) || isnothing(fill))
-        fill!(data, fill)
-    end
-
+    isnokwornothing(fill) || fill!(data, fill)
+    # Wrap as a Raster
+    rast = Raster(data, dims; missingval=mv_outer, kw...)
     # Apply `f` before returning
-    rast = Raster(data, dims; missingval, kw...)
     f(rast)
     return rast
 end
+# Create in-memory RasterStack from type and dims
 function create(filename::Nothing, types::NamedTuple, dims::Tuple;
     suffix=keys(types),
     force=false,
@@ -246,7 +262,8 @@ function create(filename::Nothing, types::NamedTuple, dims::Tuple;
     f(st)
     return st
 end
-function create(filename::AbstractString, source::Source, ::Type{T}, dims::DimTuple;
+# Create on-disk Raster from filename, source, type and dims
+function create(filename::AbstractString, source::Source, ::Type{T}, dims::Tuple;
     name=nokw,
     missingval=nokw,
     fill=nokw,
@@ -262,8 +279,8 @@ function create(filename::AbstractString, source::Source, ::Type{T}, dims::DimTu
     f=identity,
     kw...
 ) where T
+    mv_inner, mv_outer = _missingval_pair(missingval)
     eltype = Missings.nonmissingtype(T)
-
     if isnokw(fill) || isnothing(fill)
         write = false # Leave fill undefined
         A = FillArrays.Zeros{eltype}(map(length, dims))
@@ -273,17 +290,19 @@ function create(filename::AbstractString, source::Source, ::Type{T}, dims::DimTu
         A = FillArrays.Fill{eltype}(fill, map(length, dims))
     end
     # Create layers of zero arrays
-    rast = Raster(A, dims; name, missingval)
+    rast = Raster(A, dims; name, missingval=mv_inner)
     Rasters.write(f, filename, source, rast;
-        eltype, chunks, metadata, scale, offset, missingval, verbose, force, coerce, write, kw...
+        eltype, chunks, metadata, scale, offset, missingval=mv_inner, verbose, force, coerce, write, kw...
     ) do W
         # write returns a variable, wrap it as a Raster
-        f(rebuild(rast, W))
+        f(rebuild(rast; data=W))
     end
     # Don't pass in `missingval`, read it again from disk in case it changed
-    return Raster(filename; source, lazy, metadata, dropband, coerce)
+    r = Raster(filename; source, lazy, metadata, dropband, coerce, missingval=mv_outer)
+    return r
 end
-function create(filename::AbstractString, source::Source, layertypes::NamedTuple, dims::DimTuple;
+# Create on-disk RasterStack from filename, source, type and dims
+function create(filename::AbstractString, source::Source, layertypes::NamedTuple, dims::Tuple;
     lazy=true,
     verbose=true,
     force=false,
@@ -306,30 +325,34 @@ function create(filename::AbstractString, source::Source, layertypes::NamedTuple
     else
         layerdims
     end
+    mv_inner, mv_outer = _missingval_pair(missingval)
+    # Only write value to disk variables if fill is defined
+    write = !isnokwornothing(fill)
+    # Make sure fill is per-layer
+    fill_nt = fill isa NamedTuple ? fill : map(_ -> fill, layertypes)
     # Define no-allocation layers with FillArrays
-    # We need a fill value for each layer
-    fill = fill isa NamedTuple ? fill : map(_ -> fill, layertypes)
-    # We update `write` in the closure below
-    write = Ref(false)
-    layers = map(layertypes, layerdims, fill) do T, ld, f
+    layers = map(layertypes, layerdims, fill_nt) do T, ld, fi
         lks = lookup(dims, ld)
         eltype = Missings.nonmissingtype(T)
         size = map(length, lks)
-        if isnokwornothing(f)
+        if isnokwornothing(fi)
             A = FillArrays.Zeros{eltype}(size)
         else
-            write[] = true # Write fill to disk
-            A = FillArrays.Fill{eltype}(f, size)
+            A = FillArrays.Fill{eltype}(fi, size)
         end
     end
     # Create layers of zero arrays
-    stack = RasterStack(layers, dims; layerdims, layermetadata, missingval)
-    fn = Rasters.write(filename, stack;
-        chunks, metadata, scale, offset, missingval, verbose, force, coerce, write=write[], kw...
+    st1 = RasterStack(layers, dims; layerdims, layermetadata, missingval=mv_inner)
+    fn = Rasters.write(filename, st1;
+        chunks, metadata, scale, offset, missingval=mv_inner, verbose, force, coerce, write, kw...
     ) do W
-        f(rebuild(stack; data=W))
+        # write returns a variable, wrap it as a RasterStack
+        f(rebuild(st1; data=W))
     end
-    # Don't pass in `missingval`, read it again from disk in case it changed
-    st = RasterStack(fn; source, lazy, metadata, layerdims, dropband, coerce)
-    return st
+    st2 = RasterStack(fn; source, lazy, metadata, layerdims, dropband, coerce, missingval=mv_outer)
+    return st2
 end
+
+_warn_keyword_not_used(label, obj) = @warn "`$label` of `$obj` found. But `chunks` are not used for in-memory rasters"
+_missingval_pair(missingval::Pair) = missingval
+_missingval_pair(missingval) = missingval => missingval

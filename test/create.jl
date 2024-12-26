@@ -129,16 +129,17 @@ end
 
 ext = ".nc"
 for ext in (".nc", ".tif", ".grd")
-    @testset "create $ext" begin
-        fn = "created$ext"
+   @testset "create $ext" begin
+        fn = tempname() * ext
         created = Rasters.create(fn, UInt8, (X(1:10), Y(1:10));
-            missingval=0xff=>nothing,
+            missingval=0xff,
             fill=0x01,
             force=true
         )
-        @test all(Raster(fn; missingval=missingval=>nothing) .=== 0x01)
+        @test all(Raster(fn) .=== 0x01)
         @test missingval(created) === 0xff
 
+        fn = tempname() * ext
         if ext == ".grd"
             created = Rasters.create(fn, Int16, (X(1:10), Y(1:10));
                 missingval=typemax(Int16),
@@ -149,7 +150,7 @@ for ext in (".nc", ".tif", ".grd")
                 nothing
             end
             @test all(Raster(fn) .=== Int16(2))
-            @test missingval(Raster(fn; missingval=missingval=>nothing)) === typemax(Int16)
+            @test missingval(Raster(fn; missingval)) === typemax(Int16)
         else
             @time created = Rasters.create(fn, Int16, (X(1:10), Y(1:10));
                 missingval=typemax(Int16),
@@ -162,11 +163,10 @@ for ext in (".nc", ".tif", ".grd")
             end
             @test all(Raster(fn) .=== 3.0)
             @test all(Raster(fn; scaled=false) .== Int16(-20))
-            @test missingval(Raster(fn; missingval=missingval=>nothing, scaled=false)) === typemax(Int16)
+            @test missingval(Raster(fn; missingval, scaled=false)) === typemax(Int16)
         end
     end
 end
-
 
 @testset "create .nc stack" begin
     created = Rasters.create("created.nc", (a=UInt8, b=Float32), (X(1:10), Y(1:10));
@@ -184,11 +184,12 @@ end
     @test missingval(st) == (a=0xff, b=typemax(Float32))
 
     created = Rasters.create("created.nc", (a=UInt8, b=Float32), (X(1:10), Y(1:10));
-        missingval=(a=0xff, b=typemax(Float32)),
+        missingval=(a=0xff, b=typemax(Float32)) => missing,
         fill=(a=0x01, b=1.0f0),
         layerdims=(a=(X,), b=(X, Y)),
         force=true,
     )
+
     @test missingval(created) === missing
     @test size(created.a) == (10,)
     @test size(created.b) == (10, 10)

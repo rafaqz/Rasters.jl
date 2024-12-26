@@ -119,73 +119,85 @@ function _fix_missingval(::Type{T}, missingval::M) where {T,M}
 end
 
 
-# EPS
-
-maybe_eps(dims::DimTuple; kw...) = map(maybe_eps, dims; kw...)
-maybe_eps(dim::Dimension; kw...) = maybe_eps(eltype(dim); kw...)
-maybe_eps(x; kw...) = maybe_eps(typeof(x); kw...)
-maybe_eps(::Type; kw...) = nothing
-maybe_eps(T::Type{<:AbstractFloat}; kw...) = _default_eps(T; kw...)
-
-_default_eps(T::Type{<:Float32}; grow=true) = grow ? 100eps(T) : eps(T)
-_default_eps(T::Type{<:Float64}; grow=true) = grow ? 1000eps(T) : eps(T)
-_default_eps(T::Type{<:Integer}) = T(1)
-_default_eps(::Type) = nothing
-
 # Extents
 
 function _extent2dims(to::Extents.Extent; 
-    size=nokw, res=nokw, crs=nokw, mappedcrs=nokw, sampling=nokw,
+    size=nokw, res=nokw, crs=nokw, mappedcrs=nokw, sampling=nokw, kw...
 )
     sampling = _match_to_extent(to, isnokw(sampling) ? Intervals(Start()) : sampling)
-    _extent2dims(to, size, res; crs, mappedcrs, sampling)
+    _extent2dims(to, size, res; crs, mappedcrs, sampling, kw...)
 end
 _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Union{Nothing,NoKW}; kw...) =
     throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
 _extent2dims(to::Extents.Extent, size, res; kw...) = _size_and_res_error()
-_extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res; kw...) =
-    _extent2dims(to, size, _match_to_extent(to, res); kw...)
-_extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW}; kw...) =
-    _extent2dims(to, _match_to_extent(to, size), res; kw...)
-function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Tuple; 
-    sampling::Tuple, kw...
+function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res; 
+    sampling::Tuple, closed=true, kw...
 )
-    ranges = map(values(to), res, sampling) do (start, stop_closed), step, samp
-        stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
-        length = ceil(Int, (stop_open - start) / step)
-        r = if step >= zero(step)
-            range(; start, step, stop=stop_open)
-        else
-            range(; start=stop_open, step, stop=start)
-        end
+    res = _match_to_extent(to, res)
+    ranges = map(values(to), res, sampling) do (start, stop), step, samp
+        @assert step >= 0 "only positive `res` are supported, got $step"
         if samp isa Intervals
-            if locus(samp) isa Start
-                r[1:end-1]
-            elseif locus(samp) isa End
-                r[2:end]
-            else # Center
-                r .+ abs(step) / 2
+            if locus(samp) isa End
+                reverse(range(; start=stop+step, step=-step, stop=start+step))
+            else
+                r = range(; start, step, stop)
+                if locus(samp) isa Start
+                    r
+                else # Center
+                    r .+ step / 2
+                end
             end
+        else
+            range(; start, step, stop)
         end
     end
     return _extent2dims(to, ranges; sampling, kw...)
 end
-function _extent2dims(to::Extents.Extent, size::Tuple, res::Union{Nothing,NoKW};
-    sampling::Tuple, crs, mappedcrs
+function _extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW};
+    sampling::Tuple, crs, mappedcrs, closed=true, kw...
 )
-    ranges = map(values(to), size, sampling) do (start, stop_closed), length, samp
-        stop_open = stop_closed + maybe_eps(stop_closed; grow=false)
-        step = (stop_open - start) / length
-        range(; start, step, length)
+    size = _match_to_extent(to, size)
+    ranges = map(values(to), size, sampling) do (start, stop), length, samp
+        r1 = range(; start, stop, length)
         if samp isa Points
-            range(; start, step, length)
+            r1
         else
-            range(; start, step, length=length+1)[1:end-1]
+            # We need to buffer extent for a closed interval input so that e.g. 
+            # The raster will actually contain points of the extent, as raster
+            # pixels are closed/open intervals not closed/closed.
+            # Its hard to add a very small amount to any fp number and have 
+            # it propagate through to the final extent. But this setup seems to work. 
+            # We use the step or r1 to offset the end point of r, the buffer with 10 float
+            # steps, which seems to be enough. But it's arbitrary and count be revised.
+            nfloatsteps = 10
+            step = (stop - start) / length
+            if locus(samp) isa End
+                start_open = if (closed && start isa AbstractFloat) 
+                    prevfloat(start + step, nfloatsteps)
+                else
+                    start + step
+                end
+                reverse(range(; start=stop, stop=start_open, length))
+            else
+                stop_open = if closed && stop isa AbstractFloat 
+                    nextfloat(stop - step, nfloatsteps)
+                else
+                    stop - step
+                end
+                r = range(; start, stop=stop_open, length)
+                if locus(samp) isa Start
+                    r
+                else # Center
+                    r .+ (step / 2)
+                end
+            end
         end
     end
     return _extent2dims(to, ranges; sampling, crs, mappedcrs)
 end
-function _extent2dims(::Extents.Extent{K}, ranges; crs, mappedcrs, sampling::Tuple) where K
+function _extent2dims(::Extents.Extent{K}, ranges; 
+    crs, mappedcrs, sampling::Tuple, kw...
+) where K
     crs = isnokw(crs) ? nothing : crs 
     mappedcrs = isnokw(mappedcrs) ? nothing : mappedcrs 
     emptydims = map(name2dim, K)
@@ -325,16 +337,19 @@ end
 
 # Constructor helpers
 
-function _raw_check(raw, scaled, missingval)
+function _raw_check(raw, scaled, missingval, verbose)
     if raw
-        scaled isa Bool && scaled && @warn "`scaled=true` set to `false` because of `raw=true`"
-        if missingval isa Pair 
-            @warn "`missingval=$missingval` target value is not used because of `raw=true`"
-            return false, Rasters.missingval
-        else
-            return false, missingval
+        # Scaled is false if raw is true
+        scaled isa Bool && scaled && verbose && @warn "`scaled=true` set to `false` because of `raw=true`"
+        # Only missingval of `nothing` has a meaning with `raw=true`,
+        # it turns off missingval completely. Other msissingval values are
+        # ignored and a warning is thrown unless verbose=false
+        if !isnokwornothing(missingval)
+            verbose && @warn "`missingval=$missingval` target value is not used because of `raw=true`"
         end
+        return false, isnothing(missingval) ? nothing : Rasters.missingval
     else
+        # Otherwise scaled is true and missingval is unchanged
         scaled = isnokw(scaled) ? true : scaled
         return scaled, missingval 
     end
@@ -470,7 +485,7 @@ function _without_mapped_crs(f, st::AbstractRasterStack, mappedcrs::GeoFormat)
     st1 = maplayers(A -> setmappedcrs(A, nothing), st)
     x = f(st1)
     return if x isa AbstractRasterStack
-        setmappedcrs(x, mappedcrs(st))
+        setmappedcrs(x, mappedcrs)
     else
         x
     end

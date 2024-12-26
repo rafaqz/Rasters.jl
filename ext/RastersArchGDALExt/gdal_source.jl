@@ -34,8 +34,8 @@ const GDAL_VIRTUAL_FILESYSTEMS = "/vsi" .* (
     "sparse",
     )
 
-# Array ########################################################################
 
+# TODO more cases of return values here, like wrapped disk arrays
 RA.cleanreturn(A::AG.RasterDataset) = Array(A)
 RA.haslayers(::GDALsource) = false
 RA._sourcetrait(A::AG.RasterDataset) = GDALsource()
@@ -286,7 +286,7 @@ function RA.missingval(rasterds::AG.RasterDataset, args...)
     end
 end
 
-# GDAL always returns well known text
+# GDAL always returns well known text crs
 function RA.crs(raster::AG.RasterDataset, args...)
     WellKnownText(GeoFormatTypes.CRS(), string(AG.getproj(raster.ds)))
 end
@@ -344,6 +344,7 @@ function _missingval_from_gdal(T::Type{<:Integer}, x::Integer; verbose=true)
 end
 _missingval_from_gdal(T, x) = x
 
+# Make sure driver is sensible
 function _check_driver(::Nothing, driver) 
     isnokwornothing(driver) || isempty(driver) ? "MEM" : driver
 end
@@ -374,26 +375,36 @@ function _create_with_driver(f, filename, dims::Tuple, T;
     _block_template=nothing, 
     kw...
 )
+    # Allow but discourage south-up
     verbose && _maybe_warn_south_up(dims, verbose, "Creating a South-up raster. You may wish to reverse the `Y` dimension to use conventional North-up")
     options = isnokwornothing(options) ? Dict{String,String}() : options
 
+    # Pairs should not get this far
+    @assert !(missingval isa Pair)
+    # If missingval is missing, generate one GDAL can write
     missingval = ismissing(missingval) ? RA._writeable_missing(T; verbose) : missingval
+    # Make sure dimensions are valid for GDAL
     _gdal_validate(dims)
 
+    # Move x and y locus to start
     x, y = map(DD.dims(dims, (XDim, YDim))) do d
         maybeshiftlocus(Start(), RA.nolookup_to_sampled(d))
     end
 
+    # Band handling - a 2d raster has 1 band
     newdims = hasdim(dims, Band()) ? (x, y, DD.dims(dims, Band)) : (x, y)
     nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band())) : 1
 
+    # Driver detection
     driver = _check_driver(filename, driver)
     options_vec = _process_options(driver, options; _block_template, chunks, verbose)
     gdaldriver = driver isa String ? AG.getdriver(driver) : driver
 
+    # Keywords and filenames for AG.create
     create_kw = (; width=length(x), height=length(y), nbands, dtype=T,)
     filename = isnothing(filename) ? "" : filename
 
+    # Not all drivers can be directly created, some need an intermediate step
     if AG.shortname(gdaldriver) in GDAL_DRIVERS_SUPPORTING_CREATE
         AG.create(filename; driver=gdaldriver, options=options_vec, create_kw...) do dataset
             _set_dataset_properties!(dataset, newdims, missingval, scale, offset)
@@ -416,6 +427,7 @@ function _create_with_driver(f, filename, dims::Tuple, T;
     end
 end
 
+# Makie sure gdal can actually write this raster
 @noinline function _gdal_validate(dims)
     all(hasdim(dims, (XDim, YDim))) || throw(ArgumentError("`Raster` must have both an `X` and `Y` to be converted to an ArchGDAL `Dataset`"))
     if length(dims) === 3
@@ -605,7 +617,7 @@ _maybe_restore_from_gdal(A, dims::Tuple) = _maybe_reorder(permutedims(A, dims), 
 _maybe_restore_from_gdal(A, dims::Union{Tuple{<:XDim,<:YDim,<:Band},Tuple{<:XDim,<:YDim}}) =
     _maybe_reorder(A, dims)
 
-function _maybe_reorder(A, dims)
+function _maybe_reorder(A, dims::Tuple)
     if all(map(l -> l isa AbstractSampled, lookup(dims, (XDim, YDim)))) &&
         all(map(l -> l isa AbstractSampled, lookup(A, (XDim, YDim))))
         reorder(A, dims)

@@ -44,9 +44,9 @@ _inner_missingval(m::Mod) = _inner_missingval(m.missingval)
 _inner_missingval(mv) = mv
 _inner_missingval(mv::Pair) = mv[1]
 
-_outer_missingval(m::Mod) = _outer_missingval(m.missingval)
-_outer_missingval(mv) = mv
+_outer_missingval(m::AbstractModifications) = _outer_missingval(m.missingval)
 _outer_missingval(mv::Pair) = mv[2]
+_outer_missingval(mv) = mv
 
 struct ModifiedDiskArray{I,T,N,V,M} <: DiskArrays.AbstractDiskArray{T,N}
     var::V
@@ -153,17 +153,15 @@ Base.@assume_effects :foldable _scaleoffset_inv1(x, scale, ::Nothing) = x / scal
 Base.@assume_effects :foldable _scaleoffset_inv1(x, ::Nothing, offset) = x - offset
 Base.@assume_effects :foldable _scaleoffset_inv1(x, ::Nothing, ::Nothing) = x
 
-function _stack_mods(
-    eltypes::Vector, metadata::Vector, missingval::Vector;
+function _stack_mods(eltypes::Vector, metadata::Vector, missingval::AbstractVector;
     scaled::Bool, coerce
 )
-    map(eltypes, metadata, missingval) do T, md, mv, mk
+    map(eltypes, metadata, missingval) do T, md, mv
         scale, offset = get_scale(md, scaled)
-        _mod(mv, mk, scale, offset, coerce)
+        _mod(T, mv, scale, offset, coerce)
     end
 end
-function _stack_mods(
-    eltypes::Vector, metadata::Vector, missingval;
+function _stack_mods(eltypes::Vector, metadata::Vector, missingval::Pair;
     scaled::Bool, coerce
 )
     map(eltypes, metadata) do T, md
@@ -177,7 +175,8 @@ function _mod(::Type{T}, metadata, missingval; scaled::Bool, coerce) where T
     _mod(T, missingval, scale, offset, coerce)
 end
 function _mod(::Type{T}, missingval, scale, offset, coerce) where T
-    if (isnokwornothing(missingval) || !(missingval isa Pair)) && isnokwornothing(scale) && isnokwornothing(offset)
+    if (isnokwornothing(missingval) || !(missingval isa Pair && !(isnothing(last(missingval))))) && 
+        isnokwornothing(scale) && isnokwornothing(offset)
         return NoMod{T}(missingval)
     else
         return Mod{T}(missingval, scale, offset, coerce)

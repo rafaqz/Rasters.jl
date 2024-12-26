@@ -90,16 +90,51 @@ end
     @test all(boolmask(se2, alllayers=false) .=== [true true; true false])    
     @test dims(boolmask(ga)) === dims(ga)
     x = boolmask(polygon; res=1.0, boundary=:touches) 
-    @test x == trues(X(Projected(-20:1.0:0.0; sampling=Intervals(Start()), crs=nothing)), Y(Projected(10.0:1.0:30.0; sampling=Intervals(Start()), crs=nothing)))
+    @test x == trues(X(Projected(-20:1.0:0.0; sampling=Intervals(Start()), crs=nothing)),
+                     Y(Projected(10.0:1.0:30.0; sampling=Intervals(Start()), crs=nothing)))
     @test all(x .!= boolmask(polygon; res=1.0, invert=true, boundary=:touches))
     @test parent(x) isa BitMatrix
     # With a :geometry axis
-    x = boolmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches)
-    @test all(x .!= boolmask([polygon, polygon]; collapse=false, res=1.0, invert=true, boundary=:touches))
-    @test eltype(x) == Bool
-    @test size(x) == (21, 21, 2)
-    @test sum(x) == 882
-    @test parent(x) isa BitArray{3}
+    x1 = boolmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches)
+    x2 = boolmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches, sampling=Intervals(Center()))
+    x3 = boolmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches, sampling=Intervals(End()))
+    @test extent(x1) == extent(x2) == extent(x3) == Extent(X = (-20.0, 1.0), Y = (10.0, 31.0), geometry = (1, 2))
+    x4 = boolmask([polygon, polygon]; collapse=false, size=(21, 21), boundary=:touches)
+    x5 = boolmask([polygon, polygon]; collapse=false, size=(21, 21), boundary=:touches, sampling=Intervals(Center()))
+    x6 = boolmask([polygon, polygon]; collapse=false, size=(21, 21), boundary=:touches, sampling=Intervals(End()))
+    xs = (x1, x2, x3, x4, x5, x6)
+    @test all(x1 .!= boolmask([polygon, polygon]; collapse=false, res=1.0, invert=true, boundary=:touches))
+    @test sampling(x1, X) isa Intervals{Start}
+    @test sampling(x2, X) isa Intervals{Center}
+    @test sampling(x3, X) isa Intervals{End}
+    @test sampling(x4, X) isa Intervals{Start}
+    @test sampling(x5, X) isa Intervals{Center}
+    @test sampling(x6, X) isa Intervals{End}
+    for x in xs
+        @test eltype(x1) == Bool
+        @test size(x) == (21, 21, 2)
+        @test sum(x) == 882
+        @test parent(x) isa BitArray{3}
+        @test eltype(x) == Bool
+    end
+    @testset "size adds nextfloat" begin
+        s = boolmask([polygon, polygon]; collapse=false, size=(21, 21), boundary=:touches)
+        bounds(s, X)[1] == -20.0
+        bounds(s, X)[2] > 0.0
+        bounds(s, Y)[1] == 10.0
+        bounds(s, Y)[2] > 30.0
+        c = boolmask([polygon, polygon]; collapse=false, size=(21, 21), boundary=:touches, sampling=Intervals(Center()))
+        bounds(c, X)[1] == -20.0
+        bounds(c, X)[2] > 0.0
+        bounds(c, Y)[1] == 10.0
+        bounds(c, Y)[2] > 30.0
+        e = boolmask([polygon, polygon]; collapse=false, size=(21, 21), boundary=:touches, sampling=Intervals(End()))
+        bounds(e, X)[1] < -20.0
+        bounds(e, X)[2] == 0.0
+        bounds(e, Y)[1] < 10.0
+        bounds(e, Y)[2] == 30.0
+    end
+
     x = boolmask([polygon, polygon]; collapse=true, res=1.0, boundary=:touches)
     @test all(x .!= boolmask([polygon, polygon]; collapse=true, res=1.0, invert=true, boundary=:touches))
     @test size(x) == (21, 21)

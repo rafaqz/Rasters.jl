@@ -105,9 +105,6 @@ DA.eachchunk(A::RasterDiskArray) = A.eachchunk
 DA.readblock!(A::RasterDiskArray, aout, r::AbstractUnitRange...) = aout .= parent(A)[r...]
 DA.writeblock!(A::RasterDiskArray, v, r::AbstractUnitRange...) = parent(A)[r...] .= v
 
-# Already open, doesn't use `name`
-_open(f, ::Source, A::RasterDiskArray; name=nokw, group=nokw) = f(A)
-
 struct MissingDiskArray{T,N,V} <: DiskArrays.AbstractDiskArray{T,N}
     var::V
 end

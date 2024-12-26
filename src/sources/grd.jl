@@ -41,6 +41,16 @@ filename(grd::GRDdataset) = grd.filename
 filekey(grd::GRDdataset, name::NoKW) = get(attrib(grd), "layername", Symbol(""))
 filekey(A::RasterDiskArray{GRDsource}, name) = filekey(A.attrib, name)
 
+# Already open, doesn't use `name`
+function _open(f, ::GRDsource, A::RasterDiskArray{GRDsource}; 
+    name=nokw, 
+    group=nokw, 
+    mod=NoMod(), 
+    kw...
+) 
+    cleanreturn(f(_maybe_modify(A, mod)))
+end
+
 Base.eltype(::GRDdataset{T}) where T = T
 function Base.size(grd::GRDdataset)
     ncols = parse(Int, grd.attrib["ncols"])
