@@ -1,4 +1,4 @@
-using Rasters
+using Rasters, Dates, Statistics
 using Rasters.Lookups, Rasters.Dimensions 
 
 @testset "mosaic" begin
