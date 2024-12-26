@@ -75,7 +75,6 @@ function _mosaic(f::Function, r1::AbstractRaster, regions;
     if isnothing(missingval)
         A .= zero(eltype(A))
     else
-        @show Rasters.missingval(A)
         A .= Rasters.missingval(A)
     end
     open(A; write=true) do a
@@ -231,7 +230,6 @@ function _mosaic_mean!(dest, ::Type{T}, regions; kw...) where T
         _count_region!(counts, region; kw...)
     end
     # Divide dest by counts
-    @show parent(counts)
     # Avoid divide by zero for missing values
     dest .= ((d, c) -> d === missingval(dest) ? missingval(dest) : d / c).(dest, counts)
     return dest
@@ -250,7 +248,6 @@ function _mosaic_region!(op, dest, region; kw...)
     dest[extent(region)] .= skip_or_op.(view(dest, extent(region)), view(region, ds))
 end
 function _count_region!(count::AbstractRaster{T}, region::AbstractRaster; kw...) where T
-    @show missingval(count)
     function skip_or_count(a, b)
         if b === missingval(region)
             a

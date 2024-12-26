@@ -17,6 +17,7 @@ end
 @time @safetestset "utils" begin include("utils.jl") end
 @time @safetestset "set" begin include("set.jl") end
 @time @safetestset "aggregate" begin include("aggregate.jl") end
+@time @safetestset "mosaic" begin include("mosaic.jl") end
 @time @safetestset "rasterize" begin include("rasterize.jl") end
 @time @safetestset "adapt" begin include("adapt.jl") end
 @time @safetestset "reproject" begin include("reproject.jl") end
