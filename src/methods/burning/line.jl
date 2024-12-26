@@ -20,8 +20,8 @@ function _burn_lines!(
     all(regular) || throw(ArgumentError(msg))
 
     # Set indices of B as `fill` when a cell is found to burn.
-    _burn_lines!(identity, dims(B), geom) do D
-        @inbounds B[D] = fill
+    _burn_lines!(identity, dims(B1), geom) do D
+        @inbounds B1[D] = fill
     end
 end
 
@@ -92,12 +92,11 @@ end
 #
 # TODO: generalise to Irregular spans?
 function _burn_line!(f::Function, c::Function, dims::Tuple, line::NamedTuple)
-    xdim, ydim = dims
+    xdim, ydim = DD.dims(dims, DEFAULT_POINT_ORDER)
     di = DimIndices(dims)
 
     @assert xdim isa XDim
     @assert ydim isa YDim
-
     @assert order(xdim) == order(ydim) == Lookups.ForwardOrdered()
     @assert locus(xdim) == locus(ydim) == Lookups.Center()
 

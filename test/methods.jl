@@ -530,9 +530,9 @@ test = rebuild(ga; name = :test)
     end
     @test all(Rasters.sample(StableRNG(123), st2, 2, name = (:a,)) .=== extract(st2, [(2,2), (1,2)], name = (:a,)))
 
-    # in this case extract and sample always return different types
-    @test eltype(Rasters.sample(StableRNG(123), test, 2, index = true)) != eltype(extract(test, [(2.0,1.0), (2.0,1.0)], index = true))
-    @test eltype(Rasters.sample(StableRNG(123), st2, 2, index = true)) != eltype(extract(st2, [(2,1), (2,1)], index = true))
+    # extract and sample return the same type
+    @test eltype(Rasters.sample(StableRNG(123), test, 2, index = true)) == eltype(extract(test, [(2.0,1.0), (2.0,1.0)], index = true))
+    @test eltype(Rasters.sample(StableRNG(123), st2, 2, index = true)) == eltype(extract(st2, [(2,1), (2,1)], index = true))
 
     @test all(
         Rasters.sample(StableRNG(123), test, 2, weights = DimArray([1,1000], X(1:2)), skipmissing = true) .===
