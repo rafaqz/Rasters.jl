@@ -24,9 +24,10 @@ hero:
 features:
   - title: Rasters.jl
     details: Defines common types and methods for reading, writing and manipulating rasterized spatial data.
-    link: /markdown-examples
+    link: /methods
   - title: Data Formats
     details: These currently include raster arrays like <strong>GeoTIF</strong> and <strong>NetCDF</strong>, <strong>R grd</strong> files, multi-layered stacks, and multi-file series of arrays and stacks.
+    link: /data_sources
 ---
 ```
 
