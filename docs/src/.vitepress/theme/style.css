@@ -1,6 +1,3 @@
-@import url(https://fonts.googleapis.com/css?family=Space+Mono:regular,italic,700,700italic);
-@import url(https://fonts.googleapis.com/css?family=Space+Grotesk:regular,italic,700,700italic);
-
 /* Customize default theme styling by overriding CSS variables:
 https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/styles/vars.css
  */
@@ -11,6 +8,10 @@ https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/styles/var
  :root {
   --vp-layout-max-width: 1440px;
 } */
+.VPContent.is-home {
+  background-image: url("rect_pattern.png");
+  background-size: 20%;
+}
 
 .VPHero .clip {
   white-space: pre;
@@ -19,24 +20,41 @@ https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/styles/var
 
 /* Fonts */
 
- :root {
-  /* Typography */
-  --vp-font-family-base: "Barlow", "Inter var experimental", "Inter var",
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-    Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-
-  /* Code Snippet font */
-  --vp-font-family-mono: "Space Mono", Menlo, Monaco, Consolas, "Courier New",
-    monospace;
+@font-face {
+  font-family: JuliaMono-Regular;
+  src: url("https://cdn.jsdelivr.net/gh/cormullion/juliamono/webfonts/JuliaMono-Regular.woff2");
 }
 
-.mono {
-  /* 
-  Disable contextual alternates (kind of like ligatures but different) in monospace, 
-  which turns `/>` to an up arrow and `|>` (the Julia pipe symbol) to an up arrow as well.  
-  This is pretty bad for Julia folks reading even though copy+paste retains the same text.
-  */
-  font-feature-settings: 'calt' 0;
+:root {
+/* Typography */
+--vp-font-family-base: "Barlow", "Inter var experimental", "Inter var",
+  -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+  Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+
+/* Code Snippet font */
+--vp-font-family-mono: JuliaMono-Regular, monospace;
+}
+/* 
+Disable contextual alternates (kind of like ligatures but different) in monospace, 
+which turns `/>` to an up arrow and `|>` (the Julia pipe symbol) to an up arrow as well.  
+This is pretty bad for Julia folks reading even though copy+paste retains the same text.
+*/
+/* Target elements with class 'mono' */
+.mono-no-substitutions {
+font-family: "JuliaMono-Light", monospace;
+font-feature-settings: "calt" off;
+}
+
+/* Alternatively, you can use the following if you prefer: */
+.mono-no-substitutions-alt {
+font-family: "JuliaMono-Light", monospace;
+font-variant-ligatures: none;
+}
+
+/* If you want to apply this globally to all monospace text: */
+pre, code {
+font-family: "JuliaMono-Light", monospace;
+font-feature-settings: "calt" off;
 }
 
 /* Colors */
