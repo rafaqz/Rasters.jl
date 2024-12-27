@@ -32,7 +32,7 @@ const formattedStarCount = data ? formatPrefix(".1s", 1000)(data) : "";
     class="mobile"
     target="_blank"
     :title="data.toLocaleString('en-US').concat(' GitHub stars')"
-    href="https://rafaqz.github.io/Rasters.jl/stable/"
+    href="https://github.com/rafaqz/Rasters.jl"
   >
     <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 21 21" fill="none">
       <path
