@@ -31,17 +31,19 @@ jobs:
   # Build job
   build:
     runs-on: ubuntu-latest
+    env:
+      DISPLAY: ':0'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Julia
-        uses: julia-actions/setup-julia@v1
+        uses: julia-actions/setup-julia@v2
       - name: Pull Julia cache
-        uses: julia-actions/cache@v1
+        uses: julia-actions/cache@v2
+      - name: Install documentation dependencies # for GLMakie plots
+        run: sudo apt-get update && sudo apt-get install -y xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev
       - name: Install documentation dependencies
-        run: sudo apt-get update && sudo apt-get install -y xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libcairo2-dev libfreetype6-dev libffi-dev libjpeg-dev libpng-dev libz-dev
-      - name: Install custom documentation dependencies
-        run: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e 'using Pkg; pkg"dev ."; Pkg.instantiate(); Pkg.precompile(); Pkg.status()'
+        run: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e 'using Pkg; Pkg.Registry.update(); pkg"dev ."; Pkg.instantiate(); Pkg.precompile(); Pkg.status()'
       - name: Build and deploy
         env:
           RASTERDATASOURCES_PATH: "."
