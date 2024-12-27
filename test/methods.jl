@@ -286,59 +286,6 @@ end
     @test_throws InexactError mask!(deepcopy(c), with=d, missingval=Inf)
 end
 
-@testset "zonal" begin
-    a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
-    pointvec_empty = [(-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0), (-100.0, 0.0)]
-    polygon_empty = ArchGDAL.createpolygon(pointvec_empty)
-    @test zonal(sum, a; of=polygon) ==
-        zonal(sum, a; of=[polygon, polygon])[1] ==
-        zonal(sum, a; of=[polygon, polygon_empty])[1] ==
-        zonal(sum, a; of=(geometry=polygon, x=:a, y=:b)) ==
-        zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
-        zonal(sum, a; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
-        sum(skipmissing(mask(a; with=polygon)))
-    @test zonal(sum, a; of=a) == 
-        zonal(sum, a; of=dims(a)) ==
-        zonal(sum, a; of=Extents.extent(a)) == 
-        sum(a)
-
-    b = a .* 2
-    c = cat(a .* 3, a .* 3; dims=:newdim)
-    st = RasterStack((; a, b, c))
-    @test zonal(sum, st; of=polygon) == zonal(sum, st; of=[polygon])[1] ==
-        zonal(sum, st; of=(geometry=polygon, x=:a, y=:b)) ==
-        zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
-        zonal(sum, st; of=[(geometry=polygon, x=:a, y=:b)])[1] ==
-        maplayers(sum ∘ skipmissing, mask(st; with=polygon))  
-    @test zonal(sum, st; of=st) == 
-        zonal(sum, st; of=dims(st)) == 
-        zonal(sum, st; of=Extents.extent(st)) == 
-        sum(st)
-
-    @testset "skipmissing" begin
-        a = Array{Union{Missing,Int}}(undef, 26, 31)
-        a .= (1:26) * (1:31)'
-        a[1:10, 3:10] .= missing
-        rast = Raster(a, (X(-20:5), Y(0:30)))
-        @test zonal(sum, rast; of=polygon, skipmissing=false) === missing
-        @test zonal(sum, rast; of=polygon, skipmissing=true) isa Int
-        @test !zonal(x -> x isa Raster, rast; of=polygon, skipmissing=true)
-        @test zonal(x -> x isa Raster, rast; of=polygon, skipmissing=false)
-    end
-end
-
-@testset "zonal return missing" begin
-    a = Raster((1:26) * (1:31)', (X(-20:5), Y(0:30)))
-    out_bounds_pointvec = [(-40.0, -40.0), (-40.0, -35.0), (-35.0, -35.0), (-35.0, -40.0)]
-    out_bounds_polygon = ArchGDAL.createpolygon(out_bounds_pointvec)
-    @test ismissing(zonal(sum, a; of=[polygon, out_bounds_polygon, polygon])[2]) &&
-        ismissing(zonal(sum, a; of=[out_bounds_polygon, polygon])[1]) &&
-        ismissing(zonal(sum, a; of=(geometry=out_bounds_polygon, x=:a, y=:b))) &&
-        ismissing(zonal(sum, a; of=[(geometry=out_bounds_polygon, x=:a, y=:b)])[1])
-    @test zonal(sum, a; of=[out_bounds_polygon, out_bounds_polygon, polygon])[3] == 
-        sum(skipmissing(mask(a; with=polygon)))
-end
-
 @testset "classify" begin
     A1 = [missing 1; 2 3]
     ga1 = Raster(A1, (X, Y); missingval=missing)

@@ -34,25 +34,6 @@ end
 
 Base.eltype(::Extractor{T}) where T = T
 
-# This mutable object is passed into closures as 
-# fields are type-stable in clusores but variables are not
-mutable struct LineRefs{T}
-    i::Int
-    prev::CartesianIndex{2}
-    rows::Vector{T}
-    function LineRefs{T}() where T
-        i = 1
-        prev = CartesianIndex((typemin(Int), typemin(Int)))
-        new{T}(i, prev, Vector{T}())
-    end
-end
-
-function _initialise!(lr::LineRefs{T}) where T
-    lr.i = 1
-    lr.prev = CartesianIndex((typemin(Int), typemin(Int)))
-    lr.rows = Vector{T}()
-end
-
 _geom_rowtype(A, geom; kw...) =
     _geom_rowtype(A, GI.trait(geom), geom; kw...)
 _geom_rowtype(A, ::Nothing, geoms; kw...) =
@@ -297,9 +278,7 @@ end
     # places when they are right on the line.
     dims, offset = _template(A, geom)
     dp = DimPoints(A)
-    function _length_callback(n)
-        resize!(line_refs.rows, n)
-    end
+    _length_callback(n) = resize!(line_refs.vals, n)
 
     _burn_lines!(_length_callback, dims, geom) do D
         I = CartesianIndex(map(val, D))
@@ -308,11 +287,11 @@ end
         line_refs.prev = I
         # Make sure we only hit this pixel once
         # D is always inbounds
-        line_refs.i += _maybe_set_row!(line_refs.rows, e.skipmissing, e, id, A, dp, offset, I, line_refs.i)
+        line_refs.i += _maybe_set_row!(line_refs.vals, e.skipmissing, e, id, A, dp, offset, I, line_refs.i)
         return nothing
     end
-    deleteat!(line_refs.rows, line_refs.i:length(line_refs.rows))
-    return line_refs.rows
+    deleteat!(line_refs.vals, line_refs.i:length(line_refs.vals))
+    return line_refs.vals
 end
 @noinline function _extract(
     A::RasterStackOrArray, e::Extractor{T}, id::Int, ::GI.AbstractGeometryTrait, geom; kw...

@@ -1,3 +1,44 @@
+#= This mutable object is passed into line burning closures,
+as updating object fields is type-stable in closures but 
+updating variables is not
+i: number of valid pixels found while line burning so far
+prev: previous pixel index to avoid repeats at start/end of lines
+vals: vector for extracting values to
+acc: an optional accumulator for reductions
+=#
+mutable struct LineRefs{T}
+    i::Int
+    prev::CartesianIndex{2}
+    vals::Vector{T}
+    acc::T
+    function LineRefs{T}(; init::Union{T,Nothing}=nothing) where T
+        i = 1
+        prev = CartesianIndex((typemin(Int), typemin(Int)))
+        vals = Vector{T}()
+        if isnothing(init)
+            new{T}(i, prev, vals)
+        else
+            new{T}(i, prev, vals, init)
+        end
+    end
+end
+
+# Re-initialise line refs
+function _initialise!(lr::LineRefs{T}; 
+    vals=true, init::Union{T,Nothing}=nothing
+) where T
+    lr.i = 1
+    lr.prev = CartesianIndex((typemin(Int), typemin(Int)))
+    if !isnothing(init)
+        lr.acc = init
+    end
+    if vals 
+        lr.vals = Vector{T}()
+    end
+    return lr
+end
+
+
 # _burn_lines!
 # Fill a raster with `fill` where pixels touch lines in a geom
 # Usually `fill` is `true` of `false`

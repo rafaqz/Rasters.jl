@@ -131,6 +131,7 @@ include("methods/burning/line.jl")
 include("methods/burning/polygon.jl")
 include("methods/burning/extents.jl")
 include("methods/burning/utils.jl")
+include("methods/burning/reductions.jl")
 
 include("methods/mask.jl")
 include("methods/rasterize.jl")

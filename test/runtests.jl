@@ -20,6 +20,7 @@ end
 @time @safetestset "aggregate" begin include("aggregate.jl") end
 @time @safetestset "rasterize" begin include("rasterize.jl") end
 @time @safetestset "extract" begin include("extract.jl") end
+@time @safetestset "zonal" begin include("zonal.jl") end
 @time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "warp" begin include("warp.jl") end
 @time @safetestset "cellarea" begin include("cellarea.jl") end

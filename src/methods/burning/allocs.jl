@@ -11,30 +11,35 @@ function Allocs(buffer)
     return Allocs(buffer, edges, scratch, crossings)
 end
 
+function _burning_allocs(x::Nothing; 
+    nthreads=_nthreads(), 
+    threaded=true, 
+    burncheck_metadata=nothing,
+    kw...
+) 
+    threaded ? [Allocs(nothing) for _ in 1:nthreads] : [Allocs(nothing)]
+end
 function _burning_allocs(x; 
     nthreads=_nthreads(), 
     threaded=true, 
     burncheck_metadata=Metadata(),
     kw...
 ) 
+    dims = commondims(x, (XDim, YDim))
     if threaded
-        if isnothing(x)
-            [Allocs(nothing) for _ in 1:nthreads]
-        else
-            dims = commondims(x, DEFAULT_POINT_ORDER)
-            [Allocs(_init_bools(dims; metadata=deepcopy(burncheck_metadata))) for _ in 1:nthreads]
-        end
+        [Allocs(_init_bools(dims; metadata=deepcopy(burncheck_metadata))) for _ in 1:nthreads]
     else
-        if isnothing(x)
-            Allocs()
-        else
-            dims = commondims(x, DEFAULT_POINT_ORDER)
-            Allocs(_init_bools(dims; metadata=burncheck_metadata))
-        end
+        [Allocs(_init_bools(dims; metadata=burncheck_metadata))]
     end
 end
 
-_get_alloc(allocs::Vector{<:Allocs}) = _get_alloc(allocs[Threads.threadid()])
+function _get_alloc(allocs::Vector{<:Allocs}) 
+    if length(allocs) == 1
+        only(allocs)
+    else
+        allocs[Threads.threadid()]
+    end
+end
 _get_alloc(allocs::Allocs) = allocs
 
 # TODO include these in Allocs

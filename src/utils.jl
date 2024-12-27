@@ -274,9 +274,9 @@ const URLREGEX = r"^[a-zA-Z][a-zA-Z\d+\-.]*:"
 _isurl(str::AbstractString) = !occursin(WINDOWSREGEX, str) && occursin(URLREGEX, str)
 
 # Run `f` threaded or not, w
-function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String) 
-    p = progress ? _progress(length(range); desc) : nothing
-    if threaded
+function _run(f, range::OrdinalRange, threaded, progress, desc::String) 
+    p = istrue(progress) ? _progress(length(range); desc) : nothing
+    if istrue(threaded)
         Threads.@threads :static for i in range
             f(i)
             isnothing(p) || ProgressMeter.next!(p)
@@ -379,6 +379,7 @@ _booltype(::_True) = _True()
 _booltype(::_False) = _False()
 _booltype(x) = x ? _True() : _False()
 
+istrue(b::Bool) = true
 istrue(::_True) = true
 istrue(::_False) = false
 istrue(::Type{_True}) = true
