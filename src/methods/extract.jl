@@ -187,7 +187,7 @@ function _extract(A::RasterStackOrArray, e::Extractor, id::Int, geom; kw...)
     _extract(A, e, id, GI.geomtrait(geom), geom; kw...)
 end
 function _extract(A::RasterStackOrArray, e::Extractor{T}, id::Int, ::Nothing, geoms::AbstractArray;
-    threaded=false, progress=true, skipmissing, kw...
+    threaded=false, progress=true, kw...
 ) where T
     # Handle empty / all missing cases
     isempty(geoms) || all(ismissing, geoms) && return T[]
