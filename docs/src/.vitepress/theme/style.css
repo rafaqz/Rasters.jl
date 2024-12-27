@@ -9,7 +9,7 @@ https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/styles/var
   --vp-layout-max-width: 1440px;
 } */
 .VPContent.is-home {
-  background-image: url("rect_pattern.png");
+  background-image: url("../../assets/rect_pattern.png");
   background-size: 20%;
 }
 
