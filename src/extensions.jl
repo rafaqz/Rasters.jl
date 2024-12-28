@@ -164,7 +164,7 @@ warp(args...; kw...) = throw_extension_error(warp, "ArchGDAL", :RastersArchGDALE
 Gives the approximate area of each gridcell of `x`.
 By assuming the earth is a sphere, it approximates the true size to about 0.1%, depending on latitude.
 
-Run `using Proj` to make this method fully available.
+Run `using ArchGDAL` to make this method fully available.
 
 `method` can be `Spherical(; radius)` (the default) or `Planar()`.
 - `Spherical` will compute cell area on the sphere, by transforming all points back to long-lat.  You can specify the radius by the `radius` keyword argument here.  By default, this is `6371008.8`, the mean radius of the Earth.
@@ -172,13 +172,10 @@ Run `using Proj` to make this method fully available.
 
 ## Example
 
-```jldoctest cellarea
-using Rasters, Proj, Rasters.Lookups
-# First, we construct a raster with cell-based sampling (`Intervals`),
-# where the value represents the start of the cell in each dimension (`Start`).
-xdim = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), crs=EPSG(4326))) # construct cell-based sampling, 
+```julia
+using Rasters, ArchGDAL, Rasters.Lookups
+xdim = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), crs=EPSG(4326)))
 ydim = Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), crs=EPSG(4326)))
-# Now, we construct a raster from these dimensions, and compute the cell area.
 myraster = rand(xdim, ydim)
 cs = cellarea(myraster)
 
@@ -199,57 +196,6 @@ cs = cellarea(myraster)
  110.0  1.23017e6   1.19279e6   1.11917e6   1.01154e6  873182.0  708290.0
  120.0  1.23017e6   1.19279e6   1.11917e6   1.01154e6  873182.0  708290.0
 ```
-
-Note how the cell area decreases with increasing latitude, i.e., as we move away from the equator.
-
-Compare this to the output from `cellarea(Planar(), ...)`:
-```jldoctest cellarea
-cs = cellarea(Planar(), myraster)
-
-# output
-╭───────────────────────╮
-│ 4×6 Raster{Float64,2} │
-├───────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── dims ┐
-  ↓ X Projected{Float64} 90.0:10.0:120.0 ForwardOrdered Regular Intervals{Start},
-  → Y Projected{Float64} 0.0:10.0:50.0 ForwardOrdered Regular Intervals{Start}
-├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── raster ┤
-  extent: Extent(X = (90.0, 130.0), Y = (0.0, 60.0))
-
-  crs: EPSG:4326
-└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-   ↓ →    0.0   10.0   20.0   30.0   40.0   50.0
-  90.0  100.0  100.0  100.0  100.0  100.0  100.0
- 100.0  100.0  100.0  100.0  100.0  100.0  100.0
- 110.0  100.0  100.0  100.0  100.0  100.0  100.0
- 120.0  100.0  100.0  100.0  100.0  100.0  100.0
-```
-
-The output here is clearly incorrect - but you can see how it's calculated, and that in an equal-area projection, it could be useful. 
-
-Let's look at `cellarea` in the Web Mercator projection:
-```jldoctest cellarea
-mywebmerc = reproject(myraster; crs = EPSG(3857)) # this is the EPSG code for Web Mercator
-cs = cellarea(mywebmerc)
-
-# output
-╭───────────────────────╮
-│ 4×6 Raster{Float64,2} │
-├───────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── dims ┐
-  ↓ X Projected{Float64} [1.0018754171394622e7, 1.1131949079327356e7, 1.2245143987260092e7, 1.3358338895192828e7] ForwardOrdered Regular Intervals{Start},
-  → Y Projected{Float64} [0.0, 1.1188899748579594e6, …, 4.865942279503176e6, 6.446275841017159e6] ForwardOrdered Irregular Intervals{Start}
-├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── raster ┤
-  extent: Extent(X = (1.0018754171394622e7, 1.4471533803125564e7), Y = (0.0, 8.399737889818357e6))
-
-  crs: EPSG:3857
-└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
- ↓ →        0.0        1.11889e6  2.27303e6   3.50355e6   4.86594e6   6.44628e6
- 1.00188e7  1.2332e12  1.1952e12  1.12048e12  1.01158e12  8.72085e11  7.06488e11
- 1.11319e7  1.2332e12  1.1952e12  1.12048e12  1.01158e12  8.72085e11  7.06488e11
- 1.22451e7  1.2332e12  1.1952e12  1.12048e12  1.01158e12  8.72085e11  7.06488e11
- 1.33583e7  1.2332e12  1.1952e12  1.12048e12  1.01158e12  8.72085e11  7.06488e11
-```
-
-
 $EXPERIMENTAL
 """
 cellarea(x; kw...) = cellarea(Spherical(), x; kw...)
