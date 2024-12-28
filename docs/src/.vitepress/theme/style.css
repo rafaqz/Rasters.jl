@@ -74,8 +74,8 @@ font-feature-settings: "calt" off;
 
   --c-white-dark: #f8f8f8;
   --c-black-darker: #0d121b;
-  --c-black: #111827;
-  --c-black-light: #161f32;
+  --c-black: #070a10;
+  --c-black-light: #181b22;
   --c-black-lighter: #262a44;
 
   --c-green-1: #52ce63;
@@ -186,11 +186,12 @@ html.dark .DocSearch {
     var(--c-text-light-2) 50%,
     var(--c-green-2)
   );
-  /* --vp-home-hero-image-background-image: linear-gradient(
-    15deg,
-    var(--c-yellow-2) 35%,
-    var(--c-text-light-2) 15%
-  ); */
+  --vp-home-hero-image-background-image: linear-gradient(
+    -145deg,
+    rgba(144, 164, 183, 0.25) 75%,
+    var(--c-yellow-2) 10%,
+    var(--c-green-2)
+  );
   --vp-home-hero-image-filter: blur(40px);
 }
 
@@ -310,4 +311,8 @@ kbd {
   cursor: pointer;
   user-select: none;
   margin: 0 0 8px;
+}
+
+.highlight-link {
+  color: var(--vp-c-brand-3);
 }
