@@ -74,7 +74,7 @@ function _mosaic(f::Function, r1::AbstractRaster, regions;
     if isnothing(missingval)
         missingval = missing
     end
-    A = create(filename, T, dims; name=name(r1), missingval)
+    A = rebuild(create(filename, T, dims; name=name(r1), missingval); missingval)
     # TODO move this to the create block
     open(A; write=true) do O
         if isnothing(Rasters.missingval(O)) 
@@ -158,10 +158,12 @@ function mosaic!(
     regions::Union{Tuple,AbstractArray{<:RasterStackOrArray}};
     kw...
 )
-    if length(regions) < 256
+    if length(regions) <= typemax(UInt8)
         _mosaic_mean!(dest, UInt8, regions; kw...)
-    else
+    elseif length(regions) <= typemax(UInt16)
         _mosiac_mean!(dest, UInt16, regions; kw...)
+    else
+        _mosiac_mean!(dest, UInt32, regions; kw...)
     end
 end
 function mosaic!(
@@ -248,8 +250,10 @@ function _mosaic_region!(op, dest, region; kw...)
             op(a, b)
         end
     end
-    ds = DimSelectors(view(dest, extent(region)))
-    dest[extent(region)] .= skip_or_op.(view(dest, extent(region)), view(region, ds))
+    ext = extent(region)
+    ds = DimSelectors(view(dest, ext))
+    dest[ext] .= skip_or_op.(view(dest, ext), view(region, ds))
+    return dest
 end
 function _count_region!(count::AbstractRaster{T}, region::AbstractRaster; kw...) where T
     function skip_or_count(a, b)
@@ -264,6 +268,7 @@ function _count_region!(count::AbstractRaster{T}, region::AbstractRaster; kw...)
     ext = extent(region)
     ds = DimSelectors(view(count, ext))
     view(count, ext) .= skip_or_count.(view(count, ext), view(region, ds))
+    return count
 end
 
 _mosaic(alldims::Tuple{<:DimTuple,Vararg{DimTuple}}) = map(_mosaic, alldims...)
