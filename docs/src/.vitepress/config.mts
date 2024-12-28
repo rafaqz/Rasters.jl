@@ -16,22 +16,22 @@ const navTemp = {
   nav: [
     { text: 'Home', link: '/' },
     { text: 'Get Started', link: '/get_started' },
-    { text: 'Methods',
+    { text: 'Manual',
       items: [
-        { text: 'Overview', link: '/methods' },
-        { text: 'Array Operations', link: '/array_operations' },
+        { text: 'Methods', link: '/manual/methods' },
+        { text: 'Array Operations', link: '/manual/array_operations' },
+        { text: 'Data Sources', link: '/manual/data_sources' },
+        { text: 'Plots',
+          items: [
+            { text: 'Plots.jl', link: '/manual/plotting' },
+            { text: 'Makie.jl', link: 'manual/plot_makie' },
+          ]
+        },  
       ]
     },
-    { text: 'Data Sources', link: '/data_sources' },
-    { text: 'Plots',
+    { text: 'Tutorials',
       items: [
-        { text: 'Plots.jl', link: '/plotting' },
-        { text: 'Makie.jl', link: '/plot_makie' },
-      ]
-    },  
-    { text: 'Examples',
-      items: [
-        { text: 'Species Distribution Modelling', link: '/gbif_wflow' },
+        { text: 'Species Distribution Modelling', link: '/tutorials/gbif_wflow' },
       ]
     },
     { text: 'Ecosystem',
@@ -96,29 +96,27 @@ export default defineConfig({
     nav,
     sidebar: [
       { text: 'Get Started', link: '/get_started' },
-      { text: 'Methods',
+      { text: 'Manual',
         items: [
-          { text: 'Overview', link: '/methods' },
-          { text: 'Array Operations', link: '/array_operations' },
+          { text: 'Methods', link: '/manual/methods' },
+          { text: 'Array Operations', link: '/manual/array_operations' },
+          { text: 'Data Sources', link: '/manual/data_sources' },
+          { text: 'Plots',
+            items: [
+              { text: 'Plots.jl', link: '/manual/plotting' },
+              { text: 'Makie.jl', link: '/manual/plot_makie' },
+            ]
+          },  
         ]
       },
-      { text: 'Data Sources', link: '/data_sources' },
-      { text: 'Plots',
+      { text: 'Tutorials',
         items: [
-          { text: 'Plots.jl', link: '/plotting' },
-          { text: 'Makie.jl', link: '/plot_makie' },
-        ]
-      },
-      { text: 'Examples',
-        items: [
-          { text: 'Species Distribution Modelling', link: '/gbif_wflow' },
+          { text: 'Species Distribution Modelling', link: '/tutorials/gbif_wflow' },
         ]
       },
       { text: 'API', link: '/api' }
     ],
-    editLink: {
-      pattern: 'REPLACE_ME_DOCUMENTER_VITEPRESS'
-    },
+    editLink: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
     socialLinks: [
       // { icon: 'github', link: 'REPLACE_ME_DOCUMENTER_VITEPRESS' }
     ],
