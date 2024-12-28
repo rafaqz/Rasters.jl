@@ -1,4 +1,4 @@
-struct _TakeFirst{MV}
+struct _TakeFirst{MV} <: Function
     missingval::MV
 end
 (tf::_TakeFirst)(a, b) = a === tf.missingval ? b : a

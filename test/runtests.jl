@@ -18,6 +18,7 @@ end
 @time @safetestset "adapt" begin include("adapt.jl") end
 @time @safetestset "methods" begin include("methods.jl") end
 @time @safetestset "aggregate" begin include("aggregate.jl") end
+@time @safetestset "mosaic" begin include("mosaic.jl") end
 @time @safetestset "rasterize" begin include("rasterize.jl") end
 @time @safetestset "extract" begin include("extract.jl") end
 @time @safetestset "reproject" begin include("reproject.jl") end

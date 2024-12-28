@@ -17,7 +17,7 @@ function checkmem!(checkmem::Bool)
 end
 
 const FLATTEN_SELECT = FileArray
-const FLATTEN_IGNORE = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
+const FLATTEN_IGNORE = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse,Array}
 
 """
     AbstractRaster <: DimensionalData.AbstractDimArray
