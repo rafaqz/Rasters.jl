@@ -1,15 +1,16 @@
-#=
-# `resample` tutorial - warping a raster
+## `resample` warping a raster
 
 ```@meta
 CollapsedDocStrings=true
 ```
-=#
+
+````@example resample
 using Rasters, ArchGDAL
 using RasterDataSources
 using NaNStatistics
 using CairoMakie
-#=
+````
+
 ## What is resampling?
 
 **[`resample`](@ref)** "re-samples" the 
@@ -50,12 +51,6 @@ and is generally pretty robust.  However, it has the following limitations:
 resample
 ```
 
-
-
-
-
-
-
 Topics:
 - What is resampling?
     - When to resample vs reproject
@@ -68,5 +63,5 @@ Topics:
 - Show some different projections and ways of constructing them
 - Show how to use `size` and `res` to change the resolution of a raster
 - Show how to use `warp` to reproject a raster
-=#
+
 
