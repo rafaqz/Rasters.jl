@@ -25,10 +25,10 @@ hero:
 features:
   - title: 💥💠 Core Functionality
     details: Defines common types and methods for reading, writing, and manipulating rasterized spatial data. <a class="highlight-link">Rasters.jl</a> provides unified data handling through types like <a class="highlight-link">Raster</a>, <a class="highlight-link">RasterStack</a>, and <a class="highlight-link">RasterSeries</a>, offering seamless abstraction regardless of storage backend.
-    link: /methods
+    link: /manual/methods
   - title: ⚙️ Data-Source Abstraction
     details: Rasters provides a standardized interface that enables various data source types to be used with consistent syntax. The data can include <a class="highlight-link">GeoTIFF</a> or <a class="highlight-link">NetCDF</a> files, in-memory Arrays, or <a class="highlight-link">CuArrays</a> on the <a class="highlight-link">GPU</a>—all of which will behave in the same way.
-    link: /data_sources
+    link: /manual/data_sources
   - title: 🗂️🌐 Data Formats
     details: A <a class="highlight-link">RasterStack</a> can be backed by a <a class="highlight-link">NetCDF</a> or <a class="highlight-link">HDF5</a> file, a NamedTuple of Rasters holding <a class="highlight-link">.tif</a> files, or all Rasters in memory. Users do not need to worry about the specifics of spatial file types.
   - title: 🌍🔍 Effortless Spatial Lookups
