@@ -19,6 +19,7 @@ const navTemp = {
     { text: 'Manual',
       items: [
         { text: 'Methods', link: '/manual/methods' },
+        { text: 'cellarea', link: '/manual/cellarea' },
         { text: 'Array Operations', link: '/manual/array_operations' },
         { text: 'Data Sources', link: '/manual/data_sources' },
         { text: 'Plots',
@@ -31,6 +32,8 @@ const navTemp = {
     },
     { text: 'Tutorials',
       items: [
+        { text: 'Spatial mean', link: '/tutorials/spatial_mean' },
+        { text: 'Reprojection and resampling', link: '/tutorials/resample_warp'},
         { text: 'Species Distribution Modelling', link: '/tutorials/gbif_wflow' },
       ]
     },
@@ -99,6 +102,7 @@ export default defineConfig({
       { text: 'Manual',
         items: [
           { text: 'Methods', link: '/manual/methods' },
+          { text: 'cellarea', link: '/manual/cellarea' },
           { text: 'Array Operations', link: '/manual/array_operations' },
           { text: 'Data Sources', link: '/manual/data_sources' },
           { text: 'Plots',
@@ -111,6 +115,8 @@ export default defineConfig({
       },
       { text: 'Tutorials',
         items: [
+          { text: 'Spatial mean', link: '/tutorials/spatial_mean' },
+          { text: 'Reprojection and resampling', link: '/tutorials/resample_warp'},
           { text: 'Species Distribution Modelling', link: '/tutorials/gbif_wflow' },
         ]
       },

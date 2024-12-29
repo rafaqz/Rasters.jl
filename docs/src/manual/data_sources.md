@@ -43,10 +43,6 @@ They are always 3 dimensional, and have `Y`, `X` and [`Band`](@ref) dimensions.
 using Rasters
 ````
 
-````@docs
-smapseries
-````
-
 ## Writing file formats to disk
 
 Files can be written to disk with ArchGDAL.jl and NCDatasets.jl backends using
