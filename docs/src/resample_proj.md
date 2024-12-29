@@ -57,7 +57,7 @@ now, let's go back to `latitude` and `longitude`
 ras_epsg = resample(ras_sin; size=(1440,720), crs=EPSG(4326), method="sum")
 ````
 
-and let's apply `shiftlocus` such that we can harmonize coordinates, which might be needed when building bigger datasets:
+and let's apply `shiftlocus` such that the lookups share the exact same grid, which might be needed when building bigger datasets:
 
 ````@example modis
 locus_resampled = DimensionalData.shiftlocus(Center(), ras_epsg)
@@ -91,6 +91,8 @@ ras_scratch = Raster(ra_data, (X(x_range; sampling=Intervals(Start())), Y(y_rang
 
 ::: warning
 At the moment, you need to specify `sampling=Intervals(Start())` for `X` and `Y`.
+
+This requires that you run `using Rasters.Lookups`, where the `Intervals` and `Start` types are defined.
 :::
 
 and take a look
@@ -117,7 +119,7 @@ nansum(ras_m), nansum(locus_resampled)
 ````
 
 ::: danger
-Note that all counts are a little bit off. Could we mitigate this a some more?
+Note that all counts are a little bit off. Could we mitigate this some more?
 :::
 
 

@@ -22,14 +22,14 @@ This uses GDAL's `gdalwarp` algorithm under the hood.  You can call that via [`w
 if you need more control, but generally `resample` is sufficient. 
 
 Rasters.jl has a few other methods to change the lookups of a raster.  These are:
-- [`reproject`](@ref), which simply directly reprojects the lookup axes 
+- [`reproject`](@ref), which directly reprojects the lookup axes 
   (but is **only usable for specific cases**, where the source and destination 
   coordinate systems are both cylindrical, like the long-lat, Mercator, or Web-Mercator projections.) 
 
   This is a lossless operation and keeps the data exactly the same - only the axes are changed. 
 
 - [`aggregate`](@ref) and [`disaggregate`](@ref), which change the resolution of 
-  the raster by clumping ([`aggregate`](@ref)) or splitting ([`disaggregate`](@ref)) cells.
+  the raster by merging ([`aggregate`](@ref)) or splitting ([`disaggregate`](@ref)) cells.
 
   They can't change cells fractionally, and can't change the projection or coordinate system.
 

@@ -65,7 +65,7 @@ heatmap(ras; axis = (; aspect = DataAspect()))
 We can also try this using the planar method, which simply computes the area of the rectangle using `area = x_side_length * y_side_length`:
 
 ````@example cella
-cellarea(ras, Planar())
+cellarea(Planar(), ras)
 ````
 
 Note that this is of course wildly inaccurate for a geographic dataset - but if you're working in a projected coordinate system, like polar stereographic or Mercator, this can be very useful (and a _lot_ faster)!
