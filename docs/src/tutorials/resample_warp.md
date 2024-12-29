@@ -75,13 +75,16 @@ ras_m = replace_missing(ras, missingval=NaN)
 and let's also take a look
 
 ````@example modis
-fig = plot(ras_m; colorrange=(0,100))
+fig, ax, plt = heatmap(ras_m)
+Colorbar(fig[1,2], plt)
+fig
+
 ````
 
 ### MODIS SINUSOIDAL PROJECTION
 
 ````@example modis
-# ? is this the right ProjString ?, do we need to shift lat, lon?
+# ? is this the right ProjString ?
 # SINUSOIDAL_CRS = ProjString("+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs")
 SINUSOIDAL_CRS = ProjString("+proj=sinu +lon_0=0 +type=crs")
 ````
@@ -89,7 +92,9 @@ SINUSOIDAL_CRS = ProjString("+proj=sinu +lon_0=0 +type=crs")
 and hence the `resample` is performed with
 
 ````@example modis
-ras_sin = resample(ras_m; size=(1440,720), crs=SINUSOIDAL_CRS, method="sum")
+ras_sin = resample(ras_m; size=(2160, 1080), crs=SINUSOIDAL_CRS, method="average") # ? do again, failing locally on first try
+ras_sin = resample(ras_m; size=(2160, 1080), crs=SINUSOIDAL_CRS, method="average") # hide
+nothing # hide
 ````
 
 let's compare the total counts!
@@ -101,14 +106,15 @@ nansum(ras_m), nansum(ras_sin)
 and, how does this looks like?
 
 ````@example modis
-fig = plot(ras_sin; colorrange=(0,100))
+fig, ax, plt = heatmap(ras_sin)
+Colorbar(fig[1,2], plt)
+fig
 ````
 
-now, let's go back to `latitude` and `longitude`
+now, let's go back to `latitude` and `longitude` and reduce the resolution
 
 ````@example modis
-# ? also here, do we need to shift X, Y?
-ras_epsg = resample(ras_sin; size=(1440,720), crs=EPSG(4326), method="sum")
+ras_epsg = resample(ras_sin; size=(1440,720), crs=EPSG(4326), method="average")
 ````
 
 and let's apply `shiftlocus` such that the lookups share the exact same grid, which might be needed when building bigger datasets:
@@ -124,28 +130,31 @@ nansum(ras_m), nansum(locus_resampled)
 ````
 
 ````@example modis
-fig = plot(ras_epsg; colorrange=(0,100))
+fig, ax, plt = heatmap(ras_epsg)
+Colorbar(fig[1,2], plt)
+fig
 ````
 
 ### Construct a Raster from scratch natively in the sinusoidal projection
 
 ````@example modis
-x_range = range(-2.0015109355797417e7, 1.998725401355172e7, 1440)
-y_range = range(9.979756529777847e6, -1.0007554677898709, 720)
-ra_data = ras_sin.data;
+x_range = LinRange(-180, 179.75, 1440)
+y_range = LinRange(89.75, -90, 720)
+ras_data = ras_epsg.data
 nothing # hide
 ````
 
 create the raster
 
-````@example modis
-ras_scratch = Raster(ra_data, (X(x_range; sampling=Intervals(Start())), Y(y_range; sampling=Intervals(Start()))),
-    crs=SINUSOIDAL_CRS)
+````@ansi modis
+ras_scratch = Raster(ras_data, (X(x_range; sampling=Intervals(Start())),
+    Y(y_range; sampling=Intervals(Start()))), crs=EPSG(4326))
+
 ````
 
 ::: warning
 
-At the moment, you need to specify `sampling=Intervals(Start())` for `X` and `Y`.
+Note that you need to specify `sampling=Intervals(Start())` for `X` and `Y`.
 
 This requires that you run `using Rasters.Lookups`, where the `Intervals` and `Start` types are defined.
 
@@ -154,19 +163,34 @@ This requires that you run `using Rasters.Lookups`, where the `Intervals` and `S
 and take a look
 
 ````@example modis
-fig = plot(ras_scratch; colorrange=(0,100))
+fig, ax, plt = heatmap(ras_scratch)
+Colorbar(fig[1,2], plt)
+fig
 ````
 
 and the corresponding resampled projection
 
-````@example modis
-ras_latlon = resample(ras_scratch; size=(1440,720), crs=EPSG(4326), method="sum")
-locus_resampled  = DimensionalData.shiftlocus(Center(), ras_latlon)
+````@ansi modis
+ras_sin_s = resample(ras_scratch; size=(1440,720), crs=SINUSOIDAL_CRS, method="average")
 ````
 
 ````@example modis
-fig = plot(ras_latlon; colorrange=(0,100))
+fig, ax, plt = heatmap(ras_sin_s)
+Colorbar(fig[1,2], plt)
+fig
 ````
+
+and go back from `sin` to `epsg`:
+
+````@example modis
+ras_epsg = resample(ras_sin_s; size=(1440,720), crs=EPSG(4326), method="average")
+locus_resampled = DimensionalData.shiftlocus(Center(), ras_epsg)
+
+fig, ax, plt = heatmap(locus_resampled)
+Colorbar(fig[1,2], plt)
+fig
+````
+
 
 and compare the total counts again!
 
