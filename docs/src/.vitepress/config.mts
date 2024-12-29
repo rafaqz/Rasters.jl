@@ -18,7 +18,6 @@ const navTemp = {
     { text: 'Get Started', link: '/get_started' },
     { text: 'Manual',
       items: [
-        { text: 'Array Operations', link: '/manual/array_operations' },
         { text: 'Data Sources', link: '/manual/data_sources' }, 
         { text: 'Methods',
           items: [
@@ -51,10 +50,11 @@ const navTemp = {
       items: [
         { text: '',
           items: [
-            { text: 'Plots.jl', link: '/manual/plotting' },
-            { text: 'Makie.jl', link: 'manual/plot_makie' },
+            { text: 'Plots.jl', link: '/tutorials/plotting' },
+            { text: 'Makie.jl', link: '/tutorials/plot_makie' },
           ]
         }, 
+        { text: 'Array Operations', link: '/tutorials/array_operations' },
         { text: 'Spatial mean', link: '/tutorials/spatial_mean' },
         { text: 'Reprojection and resampling', link: '/tutorials/resample_warp'},
         { text: 'Species Distribution Modelling', link: '/tutorials/gbif_wflow' },
@@ -124,9 +124,9 @@ export default defineConfig({
       { text: 'Get Started', link: '/get_started' },
       { text: 'Manual',
         items: [
-          { text: 'Array Operations', link: '/manual/array_operations' },
           { text: 'Data Sources', link: '/manual/data_sources' },
           { text: 'Methods',
+            collapsed: true,
             items: [
               { text: 'Overview', link: '/manual/methods' },
               { text: 'rasterize', link: '/api#Rasters.rasterize' },
@@ -157,10 +157,11 @@ export default defineConfig({
         items: [
           { text: '',
             items: [
-              { text: 'Plots.jl', link: '/manual/plotting' },
-              { text: 'Makie.jl', link: 'manual/plot_makie' },
+              { text: 'Plots.jl', link: '/tutorials/plotting' },
+              { text: 'Makie.jl', link: '/tutorials/plot_makie' },
             ]
-          }, 
+          },
+          { text: 'Array Operations', link: '/tutorials/array_operations' },
           { text: 'Spatial mean', link: '/tutorials/spatial_mean' },
           { text: 'Reprojection and resampling', link: '/tutorials/resample_warp'},
           { text: 'Species Distribution Modelling', link: '/tutorials/gbif_wflow' },
