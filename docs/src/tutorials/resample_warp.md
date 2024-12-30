@@ -66,13 +66,13 @@ resampling to a given `size` or `res ≡ resolution` providing a `method` is don
 
 :::tabs
 
-== tab size
+== size
 
 ````@ansi resample
-ras_sample = resample(ras_m; size=(2160, 1080), method="average")
+ras_sample = resample(ras_m; size=(1440, 720), method="average")
 ````
 
-== tab resolution
+== resolution
 
 ````@ansi resample
 ras_sample = resample(ras_m; res=1.0, method="average")
@@ -93,7 +93,7 @@ nothing # hide
 
 :::tabs
 
-== tab sizes and methods
+== sizes and methods
 
 ````@example resample
 method_sizes = [resample(ras_m; size=size, method=method) for method in methods for size in sizes]
@@ -114,7 +114,7 @@ with_theme(Rasters.theme_rasters()) do
 end
 ````
 
-== tab resolutions and methods
+== resolutions and methods
 
 ````@example resample
 method_res = [resample(ras_m; res=res, method=method) for method in methods for res in resolutions]
@@ -168,9 +168,7 @@ SINUSOIDAL_CRS = ProjString("+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b
 and the `resample` is performed with
 
 ````@example resample
-ras_sin = resample(ras_m; size=(2160, 1080), crs=SINUSOIDAL_CRS, method="average") # ? do again, failing locally on first try
-ras_sin = resample(ras_m; size=(2160, 1080), crs=SINUSOIDAL_CRS, method="average") # hide
-nothing # hide
+ras_sin = resample(ras_m; size=(2160, 1080), crs=SINUSOIDAL_CRS, method="average")
 ````
 
 ::: tip
@@ -205,12 +203,6 @@ and let's apply `shiftlocus` such that the lookups share the exact same grid, wh
 locus_resampled = DimensionalData.shiftlocus(Center(), ras_epsg)
 ````
 
-and compare the total counts!
-
-````@example resample
-nansum(ras_m), nansum(locus_resampled)
-````
-
 ::: info Things to keep in mind
 
   - You can in fact resample to another raster `resample(ras; to=ref_ras)`, if you want perfect alignment. Contributions are welcome for this use case!
@@ -236,7 +228,9 @@ nothing # hide
 
 create the raster
 
-````@ansi modis
+````@ansi resample
+using Rasters.Lookups
+
 ras_scratch = Raster(ras_data, (X(x_range; sampling=Intervals(Start())),
     Y(y_range; sampling=Intervals(Start()))), crs=EPSG(4326), missingval=NaN)
 
@@ -281,11 +275,10 @@ Colorbar(fig[1,2], plt)
 fig
 ````
 
-
 and compare the total counts again!
 
 ````@example resample
-nansum(ras_m), nansum(locus_resampled)
+nansum(ras_sin_s), nansum(locus_resampled)
 ````
 
 ::: danger
