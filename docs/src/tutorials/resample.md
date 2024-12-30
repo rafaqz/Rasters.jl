@@ -254,7 +254,7 @@ fig
 
 and the corresponding resampled projection
 
-````@ansi modis
+````@ansi resample
 ras_sin_s = resample(ras_scratch; size=(1440,720), crs=SINUSOIDAL_CRS, method="average")
 ````
 

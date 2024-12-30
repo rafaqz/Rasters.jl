@@ -57,7 +57,7 @@ const navTemp = {
         }, 
         { text: 'Array Operations', link: '/tutorials/array_operations' },
         { text: 'Spatial mean', link: '/tutorials/spatial_mean' },
-        { text: 'Reprojection and resampling', link: '/tutorials/resample_warp'},
+        { text: 'Reprojection and resampling', link: '/tutorials/resample'},
         { text: 'Species Distribution Modelling', link: '/tutorials/gbif_wflow' },
       ]
     },
@@ -165,7 +165,7 @@ export default defineConfig({
           },
           { text: 'Array Operations', link: '/tutorials/array_operations' },
           { text: 'Spatial mean', link: '/tutorials/spatial_mean' },
-          { text: 'Reprojection and resampling', link: '/tutorials/resample_warp'},
+          { text: 'Reprojection and resampling', link: '/tutorials/resample'},
           { text: 'Species Distribution Modelling', link: '/tutorials/gbif_wflow' },
         ]
       },
