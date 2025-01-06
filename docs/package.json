@@ -5,12 +5,16 @@
     "docs:preview": "vitepress preview build/.documenter"
   },
   "devDependencies": {
+    "@types/d3-format": "^3.0.4",
+    "@types/node": "^22.10.1",
     "markdown-it-mathjax3": "^4.3.2",
-    "vitepress": "^1.2.3",
+    "rollup-plugin-delete": "^2.0.0",
+    "vitepress": "^1.5.0",
     "vitepress-plugin-tabs": "^0.5.0"
   },
   "dependencies": {
-    "markdown-it": "^14.0.0",
+    "d3-format": "^3.1.0",
+    "markdown-it": "^14.1.0",
     "markdown-it-footnote": "^4.0.0"
   }
 }
