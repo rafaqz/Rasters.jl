@@ -50,7 +50,7 @@ function _extent(::GI.AbstractFeatureCollectionTrait, features; kw...)::XYExtent
     end
     return _float64_xy_extent(ext)
 end
-_extent(ext::XYExtent; kw...) = ext
+_extent(ext::XYExtent; kw...) = _float64_xy_extent(ext)
 
 function _float64_xy_extent(ext::Extents.Extent)
     xbounds = map(Float64, ext.X)
