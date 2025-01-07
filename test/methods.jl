@@ -767,5 +767,5 @@ end
     ga = Raster(A, (X(1.0:1:2.0), Y(1.0:1:2.0)); missingval=missing) 
     ext = extent(ga)
     @test ext === Extent(X=(1.0,2.0), Y=(1.0,2.0))
-    @test extent(ext) === ext
+    @test Rasters._extent(ext) === ext
 end
