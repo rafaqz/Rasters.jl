@@ -200,6 +200,10 @@ end
 # get geometries from what may be a table with a geometrycolumn or an interable of geometries
 # if it has no geometry column and does not iterate valid geometries, error informatively
 function _get_geometries(data, ::Nothing)
+    # if GI.geometry is defined, just return that
+    geom = GI.geometry(data)
+    !isnothing(geom) && return geom
+
     # if it's a table, get the geometry column
     geoms = if !(data isa AbstractVector{<:GeoInterface.NamedTuplePoint}) && Tables.istable(data)
         geomcol = first(GI.geometrycolumns(data))
