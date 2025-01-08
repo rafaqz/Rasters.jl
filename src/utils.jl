@@ -219,10 +219,11 @@ function _get_geometries(data, ::Nothing)
             GI.geometry(data)
         elseif isnothing(trait)
             collect(data)
-        else
-            # if it has a trait but it is none of the above,
+        elseif trait isa GI.AbstractGeometryTrait
             # data is already a geometry, so return as-is
             data
+        else
+            ArgumentError("data has $trait, which is not handled")
         end
     end
     # check if data iterates valid geometries before returning
