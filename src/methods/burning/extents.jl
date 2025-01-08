@@ -12,7 +12,7 @@ function _extent(::Nothing, data; geometrycolumn, kw...)::XYExtent
         return _float64_xy_extent(Extents.Extent(X=xs, Y=ys))
     else
         ext = reduce(geoms; init=_extent(first(geoms))) do ext, geom
-            Extents.union(ext, _extent(geom))
+            Extents.union(ext, _extent(geom; kw...))
         end
         return _float64_xy_extent(ext)
     end
@@ -36,17 +36,17 @@ end
 _extent(::GI.AbstractFeatureTrait, feature; kw...)::XYExtent = _extent(GI.geometry(feature); kw...)
 function _extent(::GI.GeometryCollectionTrait, collection; kw...)::XYExtent
     geometries = GI.getgeom(collection)
-    init = _float64_xy_extent(_extent(first(geometries)))
+    init = _float64_xy_extent(_extent(first(geometries); kw...))
     ext = reduce(geometries; init) do acc, g
-        Extents.union(acc, _extent(g))
+        Extents.union(acc, _extent(g; kw...))
     end
     return _float64_xy_extent(ext)
 end
 function _extent(::GI.AbstractFeatureCollectionTrait, features; kw...)::XYExtent
     features = GI.getfeature(features)
-    init = _float64_xy_extent(_extent(first(features)))
+    init = _float64_xy_extent(_extent(first(features); kw...))
     ext = reduce(features; init) do acc, f
-        Extents.union(acc, _extent(f))
+        Extents.union(acc, _extent(f; kw...))
     end
     return _float64_xy_extent(ext)
 end
