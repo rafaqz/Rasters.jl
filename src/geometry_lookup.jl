@@ -2,8 +2,6 @@
     GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing)
 
 
-The other thing I'm thinking of is that we could have a feature collection in `data` so that you can persist per geom attrs
-
 A lookup type for geometry dimensions in vector data cubes.
 
 `GeometryLookup` provides efficient spatial indexing and lookup for geometries using an STRtree (Sort-Tile-Recursive tree).
@@ -61,6 +59,14 @@ function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing)
     GeometryLookup(geometries, tree, dims)
 end
 
+#=
+
+## DD methods for the lookup
+
+Here we define DimensionalData's methods for the lookup.
+This is broadly standard except for the `rebuild` method, which is used to update the tree accelerator when the data changes.
+=#
+
 DD.dims(l::GeometryLookup) = l.dims
 DD.dims(d::DD.Dimension{<: GeometryLookup}) = val(d).dims
  
@@ -70,6 +76,7 @@ DD.parent(lookup::GeometryLookup) = lookup.data
 
 DD.Dimensions.format(l::GeometryLookup, D::Type, values, axis::AbstractRange) = l
 
+# Make sure that the tree is rebuilt if the data changes
 function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nothing, dims = lookup.dims)
     new_tree = if data == lookup.data
         lookup.tree
@@ -78,6 +85,15 @@ function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nothing, 
     end
     GeometryLookup(data, new_tree, dims)
 end
+
+#=
+## Lookups methods
+
+Here we define the methods for the Lookups API.
+The main entry point is `selectindices`, which is used to select the indices of the geometries that match the selector.
+
+We need to define methods that take selectors and convert them to extents, then GeometryOps needs 
+=#
 
 # Return an `Int` or  Vector{Bool}
 Lookups.selectindices(lookup::GeometryLookup, sel::DD.DimTuple) =
@@ -97,6 +113,11 @@ function Lookups.selectindices(lookup::GeometryLookup, sel::Tuple)
     end
 end
 
+"""
+    _maybe_get_candidates(tree, selector_extent)
+
+Get the candidates for the selector extent.  If the selector extent is disjoint from the tree rootnode extent, return an error.
+"""
 function _maybe_get_candidates(tree, selector_extent)
     if Extents.disjoint(tree.rootnode.extent, selector_extent)
         return error("""
@@ -115,8 +136,7 @@ function _maybe_get_candidates(tree, selector_extent)
 end
 
 function Lookups.selectindices(lookup::GeometryLookup, sel::Contains)
-    lookup_ext = lookup.tree.rootnode.extent
-    sel_ext = GI.extent(val(sel))
+
     potential_candidates = _maybe_get_candidates(lookup.tree, sel_ext)
 
     for candidate in potential_candidates
@@ -194,33 +214,99 @@ end
 _val_or_nothing(::Nothing) = nothing
 _val_or_nothing(d::DD.Dimension) = val(d)
 
-#=
+
+# I/O utils
+function _geometry_cf_encode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, geoms)
+    n_points_per_geom_vec = GI.npoint.(geoms)
+    total_n_points = sum(n_points_per_geom_vec)
+
+    # Create a vector of the total number of points
+    xs = fill(0.0, total_n_points)
+    ys = fill(0.0, total_n_points)
+
+    ngeoms = length(geoms)
+    nrings = GO.applyreduce(GI.nring, +, GI.PolygonTrait(), geoms; init = 0)
+
+    node_count_vec = fill(0, ngeoms)
+    part_node_count_vec = fill(0, nrings)
+    interior_ring_vec = fill(0, nrings)
+
+    current_xy_index = 1
+    current_ring_index = 1
+
+    for (i, geom) in enumerate(geoms)
+
+        this_geom_npoints = GI.npoint(geom)
+        node_count_vec[i] = this_geom_npoints
+
+        # push individual components of the ring
+        for poly in GO.flatten(GI.PolygonTrait, geom)
+            exterior_ring = GI.getexterior(poly)
+            for point in GI.getpoint(exterior_ring)
+                xs[current_xy_index] = GI.x(point)
+                ys[current_xy_index] = GI.y(point)
+                current_xy_index += 1
+            end
+            part_node_count_vec[current_ring_index] = GI.npoint(exterior_ring)
+            interior_ring_vec[current_ring_index] = 0
+            current_ring_index += 1
+
+            if GI.nring(poly) == 1
+                continue
+            else
+                for hole in GI.gethole(poly)
+                    for point in GI.getpoint(hole)
+                        xs[current_xy_index] = GI.x(point)
+                        ys[current_xy_index] = GI.y(point)
+                        current_xy_index += 1
+                    end
+                    part_node_count_vec[current_ring_index] = GI.npoint(hole)
+                    interior_ring_vec[current_ring_index] = 1
+                    current_ring_index += 1
+                end
+            end
+        end
+    end
+
+    return xs, ys, node_count_vec, part_node_count_vec, interior_ring_vec
+
+end
+
+function _geometry_cf_encode(::Union{GI.LineStringTrait, GI.MultiLineStringTrait}, geoms)
+    error("Not implemented yet")
+end
+
+function _geometry_cf_encode(::Union{GI.PointTrait, GI.MultiPointTrait}, geoms)
+    error("Not implemented yet")
+end
 
 
+function _geometry_cf_decode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, xs, ys, node_count_vec, part_node_count_vec, interior_ring_vec)
+    current_xy_index = 1
+    current_ring_index = 1
+    current_geom_index = 1
 
-DD.@dim Geometry
+    geoms = Vector{GO.GeometryBasics.MultiPolygon{2, Float64}}(undef, length(node_count_vec))
 
-using NaturalEarth
-polygons = NaturalEarth.naturalearth("admin_0_countries", 110).geometry
+    for (i, npoints) in enumerate(node_count_vec)
 
-polygon_lookup = GeometryLookup(polygons, SortTileRecursiveTree.STRtree(polygons), (X(), Y()))
-
-dv = rand(Geometry(polygon_lookup))
-
-
-@test_throws ErrorException dv[Geometry=(X(At(1)), Y(At(2)))]
-@test dv[Geometry(Contains(GO.centroid(polygons[88])))] == dv[Geometry(88)]
-
-
+        this_geom_npoints = npoints
+        # this_geom_nholes = 
+    end
+end
 
 
-
-Geometry(Where(GO.contains(geom2)))
-
-X(At(1)), Y(At(2)), Ti(Near(2010))
-
-
-# TODO: 
-# metadata for crs
-# 
-=#
+# total_area_of_intersection = 0.0
+# current_area_of_intersection = 0.0
+# last_point = nothing
+# apply_with_signal(trait, geom) do subgeom, state
+#     if state == :start
+#         total_area_of_intersection += current_area_of_intersection
+#         current_area_of_intersection = 0.0
+#         last_point = nothing
+#     elseif state == :continue
+#         # shoelace formula for this point
+#     elseif state == :end
+#         # finish off the shoelace formula
+#     end
+# end
