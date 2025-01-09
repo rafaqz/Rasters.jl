@@ -31,13 +31,14 @@ dv[Geometry(Contains(GO.centroid(polygons[88])))] == dv[Geometry(88)] # true
 ```
 
 """
-struct GeometryLookup{T, D} <: Lookups.Lookup{T, 1}
+struct GeometryLookup{T, D, CRS} <: Lookups.Lookup{T, 1}
     data::Vector{T}
     tree::SortTileRecursiveTree.STRtree
     dims::D
+    crs::CRS
 end
 
-function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing)
+function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing, crs = nothing)
     # First, retrieve the geometries - from a table, vector of geometries, etc.
     geometries = _get_geometries(data, geometrycolumn)
     # Check that the geometries are actually geometries
@@ -56,7 +57,11 @@ function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing)
     end
     # Build the lookup accelerator tree
     tree = SortTileRecursiveTree.STRtree(geometries)
-    GeometryLookup(geometries, tree, dims)
+
+    true_crs = isnothing(crs) ? GI.crs(first(geometries)) : crs
+        
+
+    GeometryLookup(geometries, tree, dims, crs)
 end
 
 #=
@@ -68,6 +73,7 @@ This is broadly standard except for the `rebuild` method, which is used to updat
 =#
 
 DD.dims(l::GeometryLookup) = l.dims
+
 DD.dims(d::DD.Dimension{<: GeometryLookup}) = val(d).dims
  
 DD.order(::GeometryLookup) = Lookups.Unordered()
@@ -77,13 +83,19 @@ DD.parent(lookup::GeometryLookup) = lookup.data
 DD.Dimensions.format(l::GeometryLookup, D::Type, values, axis::AbstractRange) = l
 
 # Make sure that the tree is rebuilt if the data changes
-function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nothing, dims = lookup.dims)
+function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nokw, dims = lookup.dims, crs = nokw)
     new_tree = if data == lookup.data
         lookup.tree
     else
         SortTileRecursiveTree.STRtree(data)
     end
-    GeometryLookup(data, new_tree, dims)
+    new_crs = if isnokw(crs)
+        GI.crs(first(data))
+    else
+        crs
+    end
+
+    GeometryLookup(data, new_tree, dims, new_crs)
 end
 
 #=
@@ -214,6 +226,17 @@ end
 _val_or_nothing(::Nothing) = nothing
 _val_or_nothing(d::DD.Dimension) = val(d)
 
+
+#=
+## Reproject
+
+Reproject just forwards to `GO.reproject`.
+=#
+
+function reproject(target::GeoFormat, l::GeometryLookup)
+    source = crs(l)
+    return rebuild(l; data = GO.reproject(l.data; source_crs = source, target_crs = target, always_xy = true))
+end
 
 # I/O utils
 function _geometry_cf_encode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, geoms)
