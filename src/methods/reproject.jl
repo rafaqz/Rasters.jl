@@ -22,7 +22,7 @@ $CRS_KEYWORD
 """
 reproject(x; crs::GeoFormat) = reproject(crs, x)
 reproject(x, target::GeoFormat) = reproject(target, x)
-reproject(::GeoFormat, ::GeoFormat) = throw(ArgumentError("You need to provide a raster object to reproject. Got two coordinate reference systems.")
+reproject(::GeoFormat, ::GeoFormat) = throw(ArgumentError("You need to provide a raster object to reproject. Got two coordinate reference systems."))
 reproject(target::GeoFormat, x) = rebuild(x; dims=reproject(target, dims(x)))
 reproject(target::GeoFormat, dims::Tuple) = map(d -> reproject(target, d), dims)
 reproject(target::GeoFormat, l::Lookup) = l
