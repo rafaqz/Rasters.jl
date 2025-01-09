@@ -1,4 +1,8 @@
 using Rasters
+using DimensionalData
+using DimensionalData.Lookups
+using DimensionalData.Dimensions
+using Dates
 using ZarrDatasets
 using ZarrDatasets.Zarr
 using Rasters: FileArray, FileStack, Zarrsource, crs, bounds, name, trim
@@ -18,14 +22,15 @@ eagerarray = Raster(path; lazy=false, name="air_temperature_2m")
     @test parent(lazyarray) isa FileArray
     @test parent(eagerarray) isa Array
 end
+
 @testset "read" begin
     @time A = read(lazyarray);
     @test A isa Raster
     @test parent(A) isa Array
     A2 = copy(A) .= 0
-    @time read!(ncarray, A2);
+    @time read!(zraster, A2);
     A3 = copy(A) .= 0
-    @time read!(ncsingle, A3)
+    @time read!(zraster, A3)
     @test all(A .=== A2) 
     @test all(A .=== A3)
 end
@@ -36,24 +41,27 @@ end
     @test index(zraster,X) == collect(-178.75:2.5:178.75)
     # TODO the spatial bounds are strange, because the data is point data
     # We should find a dataset that has actual intervals
+
     @test bounds(zraster) == (
         (-178.75, 178.75),
-        (-88.75, 88,75),
+        (-88.75, 88.75),
         (DateTime("1979-01-09T00:00:00"), DateTime("2021-12-27T00:00:00")),
     )
 end
+
 @testset "dimensions" begin
     @test ndims(zraster) == 3
     @test length.(dims(zraster)) == (144, 72, 989)
     @test dims(zraster) isa Tuple{<:X,<:Y,<:Ti}
     @test refdims(zraster) == ()
-    @test val.(span(ncarray)) == (2.5, 2.5, (nothing, nothing))
-    @test typeof(lookup(ncarray)) <: Tuple{<:Mapped,<:Mapped,<:Sampled}
+    @test val.(span(zraster)) == (2.5, 2.5, (nothing, nothing))
+    @test typeof(lookup(zraster)) <: Tuple{<:Mapped,<:Mapped,<:Sampled}
 end
+
 @testset "other fields" begin
     @test ismissing(missingval(zraster))
-    @test metadata(r)["original_name"] == "t2m"
-    @test metadata(zraster) isa Metadata{<:Rasters.CDMsource, Dict{String, Any}}
+    @test metadata(zraster)["original_name"] == "t2m"
+    @test metadata(zraster) isa Rasters.Metadata{<:Rasters.CDMsource, Dict{String, Any}}
     @test name(zraster) == :air_temperature_2m
 end
 
@@ -119,7 +127,6 @@ end
     vals .= (data = rand(100, 100))
     vals[1, 1] = 1.0
     vals[end, end] = 0.0
-
 
     ra = Raster(path)
 

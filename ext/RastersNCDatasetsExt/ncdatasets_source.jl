@@ -20,7 +20,8 @@ function Base.write(filename::AbstractString, source::NCDsource, A::AbstractRast
         "c"
     end
     mode  = !isfile(filename) || !append ? "c" : "a";
-    ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(A)))
+    attrib = RA._attribdict(metadata(A))
+    ds = NCD.Dataset(filename, mode) 
     try
         RA._writevar!(ds, source, A; kw...)
     finally

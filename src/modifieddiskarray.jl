@@ -190,17 +190,6 @@ end
     return scale, offset
 end
 
-function _writer_mod(::Type{T}; missingval, scale, offset, coerce) where T
-    missingval1 = if missingval isa Pair
-        reverse(missingval)
-    elseif isnokw(missingval)
-        nothing
-    else
-        missingval
-    end
-    return _mod(T, missingval1, scale, offset, coerce)
-end
-
 _mod_eltype(::AbstractArray{T}, ::NoMod) where T = T
 _mod_eltype(::AbstractArray, m::Mod{T}) where T = T
 
@@ -210,3 +199,21 @@ _mod_inverse_eltype(::AbstractArray{T}, m::Mod) where T =
 
 _maybe_modify(var, m::Mod; kw...) = ModifiedDiskArray(var, m; kw...)
 _maybe_modify(var, ::NoMod; kw...) = var
+
+_write_missingval_pair(A, missingval::Pair; kw...) = missingval
+function _write_missingval_pair(A, missingval; verbose=true, eltype, metadata=metadata(A))::Pair
+    source_mv = Rasters.missingval(A)
+    if isnothing(mv)
+        # See if there is a missing value in metadata
+        source_mv = Rasters.missingval(metadata)
+    end
+    disk_mv = if isnothing(source_mv) 
+        nothing
+    elseif isnokw(missingval) || ismissing(missingval)
+        _writeable_missing(eltype; verbose)
+    else
+        missingval
+    end
+
+    return disk_mv => source_mv  
+end

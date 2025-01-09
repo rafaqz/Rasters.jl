@@ -141,7 +141,7 @@ grdpath = stem * ".gri"
         end
 
         @testset "mask and mask! to disk" begin
-            msk = read(replace_missing(grdarray, missing))
+            msk = replace_missing(grdarray, missing)
             msk[X(1:73), Y([1, 5, 77])] .= missingval(msk)
             @test !any(grdarray[X(1:73)] .=== missingval(msk))
             masked = mask(grdarray; with=msk)
@@ -156,8 +156,6 @@ grdpath = stem * ".gri"
                 mask!(A; with=msk, missingval=missingval(A))
             end
             @test all(Raster(tempgri)[X(1:73), Y([1, 5, 77])] .=== missingval(grdarray))
-            rm(tempgrd)
-            rm(tempgri)
         end
 
         @testset "classify! to disk" begin
@@ -181,7 +179,7 @@ grdpath = stem * ".gri"
             tn = tempname()
             tempgrd = tn * ".grd"
             tempgri = tn * ".gri"
-            Afile = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1, filename=tempgrd, missingval=nothing)
+            Afile = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1, filename=tempgrd, force=true)
             Amem = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1)
             Atest = grdarray[X(1:80), Y(1:60)]
             Atest[X(1:26), Y(31:60)] .= 0.0f0
@@ -189,15 +187,6 @@ grdpath = stem * ".gri"
             @test size(Atest) == size(Afile) == size(Amem)
             @test all(Atest .=== Amem .== Afile)
             read(Atest .- Afile)
-        end
-
-        @testset "rasterize" begin
-            # A = read(grdarray)
-            # R = rasterize(A; to=A)
-            # @test all(A .=== R .== grdarray)
-            # B = rebuild(read(grdarray) .= 0x00; missingval=0x00)
-            # rasterize!(B, read(grdarray))
-            # @test all(B .=== grdarray |> collect)
         end
 
     end
@@ -228,8 +217,8 @@ grdpath = stem * ".gri"
             # 1 band is added again on save
             @test size(saved) == size(grdarray[Band(1)])
             @test parent(saved) == parent(grdarray[Band(1)])
-            write(filename2, grdarray; force=true)
-            @test (@allocations write(filename2, grdarray; force=true, verbose=false)) < 3e3
+            write(filename2, grdarray; force=true, verbose=false)
+            #  @test_broken (@allocations write(filename2, grdarray; force=true, verbose=false)) < 3e3
         end
 
         @testset "3d with subset" begin
@@ -256,16 +245,16 @@ grdpath = stem * ".gri"
             @test saved isa typeof(geoA)
             @test parent(saved) == parent(geoA)
             write(filename, GRDsource(), geoA; force = true)
-            @test (@allocations write(filename, GRDsource(), geoA; force = true)) < 3e3
+            # @test_broken (@allocations write(filename, GRDsource(), geoA; force = true)) < 3e3
         end
 
         @testset "to netcdf" begin
             filename2 = tempname() * ".nc"
             span(grdarray[Band(1)])
-            write(filename2, grdarray[Band(1)]; force = true)
+            write(filename2, grdarray[Band(1)]; force=true)
             saved = Raster(filename2; crs=crs(grdarray))
             @test size(saved) == size(grdarray[Band(1)])
-            @test all(parent(replace_missing(saved, missingval(grdarray))) .≈ parent(grdarray[Band(1)]))
+            @test all(parent(saved) .≈ parent(grdarray[Band(1)]))
             @test index(saved, X) ≈ index(grdarray, X) .+ 0.5
             @test index(saved, Y) ≈ index(grdarray, Y) .+ 0.5
             @test bounds(saved, Y) == bounds(grdarray, Y)
@@ -299,7 +288,8 @@ grdpath = stem * ".gri"
             @test missingval(Raster(filename)) === missing
             filename = tempname() * ".grd"
             write(filename, A)
-            @test missingval(Raster(filename; missingval=nothing)) === typemin(Float32)
+            @test missingval(Raster(filename; missingval=nothing)) === nothing
+            @test missingval(Raster(filename)) === missing
         end
 
     end

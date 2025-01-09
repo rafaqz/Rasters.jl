@@ -7,7 +7,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 gdalpath = maybedownload(url)
 
-#@testset "Raster" begin
+@testset "Raster" begin
     @test_throws ArgumentError Raster("notafile.tif")
 
     @time gdalarray = Raster(gdalpath; name=:test)
@@ -122,8 +122,8 @@ gdalpath = maybedownload(url)
         @test ndims(gdalarray) == 2
         @test dims(gdalarray) isa Tuple{<:X,<:Y}
         @test lookup(refdims(gdalarray), Band) isa DimensionalData.Categorical;
-        # @test span(gdalarray, (Y, X)) ==
-            # (Regular(-60.02213698319351), Regular(60.02213698319374))
+        @test span(gdalarray, (Y, X)) ==
+            (Regular(-60.02213698319351), Regular(60.02213698319374))
         @test sampling(gdalarray, (Y, X)) ==
             (Intervals(Start()), Intervals(Start()))
         # Bounds calculated in python using rasterio
@@ -133,7 +133,7 @@ gdalpath = maybedownload(url)
 
     @testset "other fields" begin
         # This file has an incorrect missing value
-        @test missingval(gdalarray) === missing
+        @test missingval(gdalarray) === nothing
         @test metadata(gdalarray) isa Metadata{GDALsource,Dict{String,Any}} 
         @test basename(metadata(gdalarray)["filepath"]) == "cea.tif"
         metadata(gdalarray)["filepath"]
@@ -163,7 +163,7 @@ gdalpath = maybedownload(url)
         @test mappedcrs(dims(customgdalarray, Y)) == EPSG(4326)
         @test mappedcrs(dims(customgdalarray, X)) == EPSG(4326)
         @test parent(customgdalarray) isa FileArray
-        @test eltype(customgdalarray) == Union{UInt8,Missing}
+        @test eltype(customgdalarray) == UInt8
         # Needs to be separate as it overrides crs/mappedcrs 
         dimsgdalarray = Raster(gdalpath; 
             dims=(Z(), X(), Y()),
@@ -187,7 +187,7 @@ gdalpath = maybedownload(url)
         @test gdalarray[Y(4.224e6..4.226e6), Band(1)] isa Raster
     end
 
-    @testset "methods" begin
+   @testset "methods" begin
         @testset "mean" begin
             @test all(mean(gdalarray; dims=Y) .=== mean(parent(gdalarray); dims=2))
         end
@@ -269,23 +269,23 @@ gdalpath = maybedownload(url)
             rm(tempfile)
         end
 
-        #@testset "mosaic" begin
+        @testset "mosaic" begin
             @time gdalarray = Raster(gdalpath; name=:test)
             A1 = gdalarray[X(1:300), Y(1:200)]
             A2 = gdalarray[X(57:500), Y(101:301)]
             tempfile1 = tempname() * ".tif"
             tempfile2 = tempname() * ".tif"
             tempfile3 = tempname() * ".tif"
-            Afile = mosaic(first, A1, A2; missingval=0x00, atol=1e-8, filename=tempfile1)
+            Afile = mosaic(first, A1, A2; missingval=0xff, atol=1e-8, filename=tempfile1)
             Afile2 = mosaic(first, A1, A2; atol=1e-8, filename=tempfile2)
+            collect(Afile)
+            collect(Afile2)
             @test missingval(Afile2) === missing
-            Amem = mosaic(first, A1, A2; missingval=0x00, atol=1e-8)
+            Amem = mosaic(first, A1, A2; missingval=0xff, atol=1e-8)
             Atest = gdalarray[X(1:500), Y(1:301)]
-            Atest[X(1:56), Y(201:301)] .= 0x00
-            Atest[X(301:500), Y(1:100)] .= 0x00
-            @test all(Atest .=== Amem .=== Afile .== replace_missing(Afile2, 0x00))
-            Afile3 = mosaic(first, A1, A2; atol=1e-8, filename=tempfile3)
-            @test missingval(Afile3) === 0xff
+            Atest[X(1:56), Y(201:301)] .= 0xff
+            Atest[X(301:500), Y(1:100)] .= 0xff
+            @test all(Atest .=== Amem .=== Afile .=== replace_missing(Afile2, 0xff))
         end
 
     end # methods
@@ -293,12 +293,12 @@ gdalpath = maybedownload(url)
     @testset "conversion to Raster" begin
         geoA = gdalarray[X(1:50), Y(1:1), Band(1)]
         @test size(geoA) == (50, 1)
-        @test eltype(geoA) <: Union{UInt8,Missing}
+        @test eltype(geoA) <: UInt8
         @time geoA isa Raster{UInt8,1}
         @test dims(geoA) isa Tuple{X,Y}
         @test refdims(geoA) isa Tuple{Band}
         @test metadata(geoA) == metadata(gdalarray)
-        @test missingval(geoA) === missing
+        @test missingval(geoA) === nothing
         @test name(geoA) == :test
     end
 
@@ -309,11 +309,7 @@ gdalpath = maybedownload(url)
             filename = tempname() * ".asc"
             @time write(filename, gdalarray; force=true)
             saved1 = Raster(filename);
-            @test all(
-                parent(saved1 .=== gdalarray)
-                parent(saved1)
-                parent(gdalarray)
-                )
+            @test all(parent(saved1 .== gdalarray))
             # @test typeof(saved1) == typeof(geoA)
             @test val(dims(saved1, X)) ≈ val(dims(gdalarray, X))
             @test val(dims(saved1, Y)) ≈ val(dims(gdalarray, Y))
@@ -421,15 +417,15 @@ gdalpath = maybedownload(url)
         end
 
         @testset "to grd" begin
-            write("testgrd.gri", gdalarray; force=true)
-            @test (@allocations write("testgrd.gri", gdalarray; force=true)) < 1e4
-            grdarray = Raster("testgrd.gri")
+            fn = joinpath(tempdir(), tempname() * ".gri")
+            write(fn, gdalarray; force=true)
+            @test (@allocations write(fn, gdalarray; force=true)) < 1e4
+            grdarray = Raster(fn)
             @test crs(grdarray) == convert(ProjString, crs(gdalarray))
             @test all(map((a, b) -> all(a .≈ b), bounds(grdarray), bounds(gdalarray)))
             @test index(grdarray, Y) ≈ index(gdalarray, Y)
             @test val(dims(grdarray, X)) ≈ val(dims(gdalarray, X))
             @test grdarray == gdalarray
-            rm("testgrd.gri")
         end
 
         @testset "from Raster" begin
@@ -473,7 +469,7 @@ gdalpath = maybedownload(url)
             filename = tempname() * ".tif"
             write(filename, A)
             @test missingval(Raster(filename)) === missing
-            @test missingval(Raster(filename; missingval=nothing)) === typemax(UInt8)
+            @test missingval(Raster(filename; missingval)) === typemax(UInt8)
             rm(filename)
         end
 
@@ -587,7 +583,7 @@ gdalpath = maybedownload(url)
 
 end
 
-#@testset "RasterStack" begin
+@testset "RasterStack" begin
     @time gdalstack = RasterStack((a=gdalpath, b=gdalpath))
 
     @test length(layers(gdalstack)) == 2
@@ -712,7 +708,7 @@ end
             write(filename, gdalstack; force=true)
             base, ext = splitext(filename)
             filename_b = string(base, "_b", ext)
-            saved = read(Raster(filename_b))
+            saved = Raster(filename_b)
             @test all(saved .=== geoA)
         end
 
@@ -722,7 +718,7 @@ end
             base, ext = splitext(filename)
             filename_b = string(base, "_second", ext)
             saved = read(Raster(filename_b))
-            @test all(saved .== geoA)
+            @test all(saved .=== geoA)
         end
 
         @testset "write netcdf" begin
@@ -843,7 +839,7 @@ end
     end
 end
 
-#@testset "series" begin
+@testset "series" begin
     gdalser = RasterSeries([gdalpath, gdalpath], (Ti(),); mappedcrs=EPSG(4326), name=:test)
     @test read(gdalser[Ti(1)]) == read(Raster(gdalpath; mappedcrs=EPSG(4326), name=:test))
     @test read(gdalser[Ti(1)]) == read(Raster(gdalpath; mappedcrs=EPSG(4326), name=:test))
@@ -897,20 +893,19 @@ end
 
     @testset "detect dimension from file name" begin
         tifser = RasterSeries([gdalpath, gdalpath], Ti([DateTime(2001), DateTime(2002)]))
-        mkpath("tifseries")
-        write("tifseries/test.tif", tifser; force=true)
-        @test isfile("tifseries/test_2001-01-01T00:00:00.tif")
-        @test isfile("tifseries/test_2002-01-01T00:00:00.tif")
-        ser1 = RasterSeries("tifseries", Ti(DateTime))
-        ser2 = RasterSeries("tifseries", Ti(DateTime); lazy=true)
-        ser3 = RasterSeries("tifseries/test.tif", Ti(DateTime))
-        ser4 = RasterSeries("tifseries", Ti(DateTime; order=ForwardOrdered()); ext=".tif")
-        ser5 = RasterSeries("tifseries/test", Ti(DateTime); ext=".tif")
+        path = mkpath(joinpath(tempdir(), tempname(), "tifseries"))
+        write(joinpath(path, "test.tif"), tifser; force=true)
+        @test isfile(joinpath(path, "test_2001-01-01T00:00:00.tif"))
+        @test isfile(joinpath(path, "test_2002-01-01T00:00:00.tif"))
+        ser1 = RasterSeries(path, Ti(DateTime))
+        ser2 = RasterSeries(path, Ti(DateTime); lazy=true)
+        ser3 = RasterSeries(joinpath(path, "test.tif"), Ti(DateTime))
+        ser4 = RasterSeries(path, Ti(DateTime; order=ForwardOrdered()); ext=".tif")
+        ser5 = RasterSeries(joinpath(path, "test"), Ti(DateTime); ext=".tif")
         @test dims(ser1) == dims(ser2) == dims(ser3) == dims(ser3) == dims(ser5) == dims(tifser)
-        @test_throws ErrorException RasterSeries("tifseries", Ti(Int))
-        ser6 = RasterSeries("tifseries/test", Ti(DateTime; sampling=Intervals(Center())); ext=".tif")
+        @test_throws ErrorException RasterSeries(path, Ti(Int))
+        ser6 = RasterSeries(joinpath(path, "test"), Ti(DateTime; sampling=Intervals(Center())); ext=".tif")
         @test sampling(ser6) == (Intervals(Center()),)
-        rm("tifseries"; recursive=true)
     end
 
     @testset "methods" begin
@@ -973,6 +968,7 @@ end
         @test crs(gdalarray) == wkt
         @test crs(gdalarray[Y(1)]) == wkt
     end
+
 end
 
 

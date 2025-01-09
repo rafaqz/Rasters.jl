@@ -30,19 +30,11 @@ function _warp(A::AbstractRaster, flags::Dict;
     # If it does, we can just open it and use it directly.
     tempfile = isnothing(filename) ? nothing : tempname() * ".tif"
     warp_kw = isnothing(filename) || filename == "/vsimem/tmp" ? () : (; dest=filename)
-    # We really need a missingval for `warp`, as it may rotate and add missing value
-    mv1, mv2 = if RA.isnokw(missingval) 
-        if RA.missingval(A) isa Union{Missing,Nothing} 
-            RA._type_missingval(Missings.nonmissingtype(eltype(A)))
-        else
-            RA.missingval(A)
-        end
-    elseif missingval isa Pair
-        missingval
-    elseif missingval isa Missing
-        RA._type_missingval(Missings.nonmissingtype(eltype(A))), missing
+    # We really need a missingval for `warp`, as it may rotate and add missing values
+    mv1, mv2 = if RA.isnokw(missingval) && isnothing(RA.missingval(A1))
+        RA._type_missingval(Missings.nonmissingtype(eltype(A1))) => missing
     else
-        missingval, missingval
+        RA._write_missingval_pair(A1, missingval; verbose=false, eltype=eltype(A1))
     end
     out = AG.Dataset(A1; filename=tempfile, missingval=mv1, kw...) do dataset
         x = AG.gdalwarp([dataset], flagvect; warp_kw...) do warped

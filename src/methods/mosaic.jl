@@ -81,21 +81,21 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
     else
         missingval
     end
-    if !isnothing(filename) && (ismissing(missingval) || isnokwornothing(missingval))
-        missingval = _type_missingval(eltype(A1)) => missing
-    end
-    T = if missingval isa Pair
-        Base.promote_type(typeof(last(missingval)), Base.promote_eltype(regions...))
+    missingval_pair = if !isnothing(filename) && (ismissing(missingval) || isnokwornothing(missingval))
+        _type_missingval(eltype(A1)) => missing
+    elseif missingval isa Pair
+        missingval
     else
-        Base.promote_type(typeof(missingval), Base.promote_eltype(regions...))
+        missingval => missingval
     end
+    T = Base.promote_type(typeof(last(missingval_pair)), Base.promote_eltype(regions...))
     dims = _mosaic(Tuple(map(DD.dims, regions)))
     l1 = first(regions)
 
     return create(filename, T, dims;
         name=name(l1),
-        fill=missingval,
-        missingval,
+        fill=missingval_pair[1],
+        missingval=missingval_pair,
         driver,
         options,
         force

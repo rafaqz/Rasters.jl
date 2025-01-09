@@ -292,7 +292,7 @@ function create(filename::AbstractString, source::Source, ::Type{T}, dims::Tuple
     # Create layers of zero arrays
     rast = Raster(A, dims; name, missingval=mv_inner)
     Rasters.write(f, filename, source, rast;
-        eltype, chunks, metadata, scale, offset, missingval=mv_inner, verbose, force, coerce, write, kw...
+        eltype, chunks, metadata, scale, offset, missingval, verbose, force, coerce, write, kw...
     ) do W
         # write returns a variable, wrap it as a Raster
         f(rebuild(rast; data=W))

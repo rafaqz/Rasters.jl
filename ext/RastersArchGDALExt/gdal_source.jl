@@ -61,20 +61,13 @@ function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster{T}
     A1 = _maybe_permute_to_gdal(A)
 
     # Missing values
-    missingval = isnokw(missingval) ? RA.missingval(A) : missingval
-    missingval = if ismissing(missingval) 
-        # See if there is a missing value in metadata
-        # But only use it if its the right type
-        RA._writeable_missing(eltype; verbose=true)
-    else
-        missingval
-    end
+    missingval_pair = RA._write_missingval_pair(A, missingval; eltype, verbose)
 
     _create_with_driver(filename, dims(A1), eltype; 
-        missingval, _block_template=A1, scale, offset, verbose, kw...
+        missingval=missingval_pair[1], _block_template=A1, scale, offset, verbose, kw...
     ) do dataset
         if write
-            mod = RA._writer_mod(eltype; missingval, scale, offset, coerce)
+            mod = RA._mod(eltype, missingval_pair, scale, offset, coerce)
             open(A1; write=true) do O
                 R = RA._maybe_modify(AG.RasterDataset(dataset), mod)
                 R .= parent(O)
@@ -209,15 +202,15 @@ function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw)
 end
 
 # TODO make metadata optional, its slow to get
-function RA._metadata(raster::AG.RasterDataset, args...)
-    band = AG.getband(raster.ds, 1)
+function RA._metadata(rds::AG.RasterDataset, args...)
+    band = AG.getband(rds.ds, 1)
     metadata = RA._metadatadict(GDALsource())
     # color = AG.getname(AG.getcolorinterp(band))
     scale = AG.getscale(band)
     offset = AG.getoffset(band)
     # norvw = AG.noverview(band)
     units = AG.getunittype(band)
-    filelist = AG.filelist(raster)
+    filepath = _getfilepath(rds)
     # Set metadata if they are not default values
     if scale != oneunit(scale) 
         metadata["scale"] = scale 
@@ -228,8 +221,8 @@ function RA._metadata(raster::AG.RasterDataset, args...)
     if units != ""
         metadata["units"] = units
     end
-    if length(filelist) > 0
-        metadata["filepath"] = first(filelist)
+    if !isnothing(filepath)
+        metadata["filepath"] = filepath
     end
     return metadata
 end
@@ -238,41 +231,26 @@ end
 
 # Create a Raster from a dataset
 RA.Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
-function RA.Raster(ds::AG.RasterDataset;
-    crs=crs(ds),
-    mappedcrs=nokw,
-    dims=RA._dims(ds, crs, mappedcrs),
-    refdims=(),
-    name=nokw,
-    metadata=RA._metadata(ds),
-    missingval=RA.missingval(ds) => missing,
-    lazy=false,
-    dropband=false,
-    scaled=true,
-    coerce=convert,
-)
-    filelist = AG.filelist(ds)
-    mod = RA._mod(eltype(ds), metadata, missingval; scaled, coerce)
-    kw = (; refdims, name, metadata, missingval=Rasters._outer_missingval(mod))
-    raster = if lazy && length(filelist) > 0
-        filename = first(filelist)
-        Raster(FileArray{GDALsource}(ds, filename; mod), dims; kw...)
+function RA.Raster(ds::AG.RasterDataset; lazy=false, kw...) 
+    filepath = if lazy
+        fp = _getfilepath(ds)
+        isnothing(fp) ? "/vsimem" : fp
     else
-        Raster(Array(RA._maybe_modify(ds, mod)), dims; kw...)
+        ""
     end
-    return RA._maybe_drop_single_band(raster, dropband, lazy)
+    Raster(ds, filepath; kw...)
 end
 
 RA.missingval(ds::AG.Dataset, args...) = RA.missingval(AG.RasterDataset(ds))
-function RA.missingval(rasterds::AG.RasterDataset, args...)
+function RA.missingval(rds::AG.RasterDataset, args...)
     # All bands have the same missingval in GDAL
-    band = AG.getband(rasterds.ds, 1)
+    band = AG.getband(rds.ds, 1)
     # GDAL will set this
     hasnodataval = Ref(Cint(0))
     # Int64 and UInt64 need special casing in GDAL
-    nodataval = if eltype(rasterds) == Int64
+    nodataval = if eltype(rds) == Int64
         AG.GDAL.gdalgetrasternodatavalueasint64(band, hasnodataval)
-    elseif eltype(rasterds) == UInt64
+    elseif eltype(rds) == UInt64
         AG.GDAL.gdalgetrasternodatavalueasuint64(band, hasnodataval)
     else
         AG.GDAL.gdalgetrasternodatavalue(band, hasnodataval)
@@ -314,7 +292,7 @@ function AG.RasterDataset(f::Function, A::AbstractRaster;
         _block_template=A1, missingval, scale, offset, verbose, kw...
     ) do dataset
         rds = AG.RasterDataset(dataset)
-        mod = RA._writer_mod(eltype; missingval=RA.missingval(rds), scale, offset, coerce)
+        mod = RA._mod(eltype, RA.missingval(rds), scale, offset, coerce)
         open(A1) do O
             RA._maybe_modify(rds, mod) .= parent(O)
         end
@@ -675,6 +653,15 @@ RA.affine2geotransform(am) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)
 
 _isaligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
 
+function _getfilepath(ds)
+    filelist = AG.filelist(ds)
+    if length(filelist) == 0
+        return nothing
+    else
+        return first(filelist)
+    end
+end
+
 # precompilation
 # function _precompile(::Type{GDALsource})
 #     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
@@ -697,3 +684,4 @@ _isaligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT
 # end
 
 # _precompile(GRDsource)
+

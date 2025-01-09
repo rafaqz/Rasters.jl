@@ -192,20 +192,10 @@ function Base.write(filename::String, ::GRDsource, A::AbstractRaster;
     ))
     isnokwornothing(scale) && isnokwornothing(offset) || throw(ArgumentError("Cant write scale or offset to .grd files"))
     chunks isa NoKW || @warn "specifying chunks not supported for .grd files"
+    # Missing values
+    missingval_pair = _write_missingval_pair(A, missingval; eltype, verbose)
 
-    missingval = isnokw(missingval) ? Rasters.missingval(A) : missingval
-    missingval = if ismissing(missingval)
-        # See if there is a missing value in metadata
-        mv = _grd_mv(eltype, metadata(A); verbose=false)
-        # Otherwise define one
-        (isnothing(mv) ? _writeable_missing(eltype; verbose) : mv) => missing
-    elseif missingval isa Pair && first(missingval) == Rasters.missingval
-        mv = _grd_mv(eltype, metadata(A); verbose=false)
-        # Otherwise define one
-        (isnothing(mv) ? _writeable_missing(eltype; verbose) : mv) => missingval[2]
-    else
-        missingval
-    end
+    # Missing values
 
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
@@ -220,11 +210,11 @@ function Base.write(filename::String, ::GRDsource, A::AbstractRaster;
     filename = splitext(filename)[1]
 
     # Data: write a raw gri file from the array
-    mod = _writer_mod(eltype; missingval, scale, offset, coerce)
+    mod = _mod(eltype, missingval_pair, scale, offset, coerce)
     gri_filename = filename * ".gri"
     isfile(gri_filename) && rm(gri_filename)
     _write_gri(gri_filename, Val{source_eltype(mod)}(), mod, parent(correctedA))
-    _write_grd(filename, eltype, dims(A), missingval, name(A))
+    _write_grd(filename, eltype, dims(A), missingval_pair[1], name(A))
 
     if write
         _mmapgrd(filename, source_eltype(mod), size(A); write=true) do M
@@ -295,7 +285,7 @@ end
 
 # Rasters methods
 function _open(f, ::GRDsource, filename::AbstractString; 
-    mod=RA.NoMod(), 
+    mod=NoMod(), 
     write=false, 
     kw...
 )
@@ -309,7 +299,7 @@ function _open(f, ::GRDsource, filename::AbstractString;
 end
 _open(f, ::GRDsource, attrib::GRDdataset; kw...) = f(attrib)
 function _open(f, ::GRDsource, A::RasterDiskArray; 
-    mod=RA.NoMod(), 
+    mod=NoMod(), 
     kw...
 )
     cleanreturn(f(_maybe_modify(A, mod)))

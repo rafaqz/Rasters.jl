@@ -17,7 +17,7 @@ function checkmem!(checkmem::Bool)
 end
 
 const FLATTEN_SELECT = FileArray
-const FLATTEN_IGNORE = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
+const FLATTEN_IGNORE = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse,Array}
 
 """
     AbstractRaster <: DimensionalData.AbstractDimArray
@@ -239,6 +239,9 @@ struct Raster{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi<:Union{T,Noth
         new{T,N,D,R,A,Na,Me,typeof(missingval1)}(data, dims, refdims, name, metadata, missingval1)
     end
 end
+Raster(f::Function, args...; kw...) = Raster(args...; f, kw...)
+# For ambiguity with dataset methods
+Raster(f::Function, s::AbstractString; kw...) = Raster(s; f, kw...)
 # Create a Raster from and AbstractArray and dims
 function Raster(A::AbstractArray{T,N}, dims::Tuple;
     refdims=(),
@@ -323,6 +326,7 @@ function Raster(ds, filename::AbstractString;
     checkmem::Bool=CHECKMEM[],
     raw::Bool=false,
     mod=nokw,
+    f=identity,
 )::Raster
     _maybe_warn_replace_missing(replace_missing)
     # `raw` option will ignore `scaled` and `missingval`
@@ -338,13 +342,13 @@ function Raster(ds, filename::AbstractString;
         # Missingval input options
         missingval_out = if isnokw(missingval)
             mv = Rasters.missingval(var, metadata_out) 
-            isnothing(mv) ? nothing : mv => missing
+            isnothing(mv) ? nothing => nothing : mv => missing
         elseif isnothing(missingval)
-            nothing
+            nothing => nothing
         elseif missingval isa Pair
             # Pair: inner and outer missing values are manually defined
             missingval
-        elseif missingval == Rasters.missingval
+        elseif missingval === Rasters.missingval
             # `missingval` func: detect missing value and keep it as-is
             mv = Rasters.missingval(var, metadata_out)
             mv => mv
@@ -365,7 +369,6 @@ function Raster(ds, filename::AbstractString;
             # Check the data will fit in memory
             checkmem && _checkobjmem(modvar)
             # Move the modified array to memory
-            @show mod
             Array(modvar)
         end
         # Generate dims

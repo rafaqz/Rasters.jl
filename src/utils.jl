@@ -135,7 +135,7 @@ function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res;
 )
     res = _match_to_extent(to, res)
     ranges = map(values(to), res, sampling) do (start, stop), step, samp
-        @assert step >= 0 "only positive `res` are supported, got $step"
+        @assert step >= zero(step) "only positive `res` are supported, got $step"
         if samp isa Intervals
             if locus(samp) isa End
                 reverse(range(; start=stop+step, step=-step, stop=start+step))

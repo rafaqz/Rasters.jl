@@ -400,7 +400,14 @@ function _parse_period(period_str::String)
     end
 end
 
-_attribdict(md::Metadata{<:CDMsource}) = Dict{String,Any}(string(k) => v for (k, v) in md)
+function _attribdict(md::Metadata{<:CDMsource}) 
+    attrib = Dict{String,Any}()
+    for (k, v) in md
+        # v isa Tuple && continue
+        # attrib[string(k)] = v
+    end
+    return attrib
+end
 _attribdict(md) = Dict{String,Any}()
 
 # Add axis and standard name attributes to dimension variables
@@ -462,16 +469,7 @@ function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,
         metadata
     end
 
-    @assert !(missingval isa Pair)
-    missingval = isnokw(missingval) ? Rasters.missingval(A) : missingval
-    missingval = if ismissing(missingval) 
-        # See if there is a missing value in metadata
-        mv = Rasters.missingval(metadata)
-        # But only use it if its the right type
-        mv isa eltype ? mv : _writeable_missing(eltype; verbose=true) => missing
-    else
-        missingval
-    end
+    missingval_pair = _write_missingval_pair(A, missingval; eltype, verbose, metadata)
 
     attrib = _attribdict(metadata)
     # Scale and offset
@@ -488,10 +486,10 @@ function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,
         attrib["add_offset"] = offset
     end
 
-    mod = _writer_mod(eltype; missingval, scale, offset, coerce)
+    mod = _mod(eltype, missingval_pair, scale, offset, coerce)
 
-    if !isnothing(mod.missingval)
-        attrib["_FillValue"] = missingval
+    if !isnothing(missingval_pair[1])
+        attrib["_FillValue"] = missingval_pair[1]
     end
 
     key = if isnokw(name) || string(name) == ""
@@ -501,7 +499,7 @@ function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,
     end
 
     dimnames = lowercase.(string.(map(Rasters.name, dims(A))))
-    var = CDM.defVar(ds, key, eltype, dimnames; attrib=attrib, chunksizes, kw...)
+    var = CDM.defVar(ds, key, eltype, dimnames; attrib, chunksizes, kw...)
 
     if write
         m = _maybe_modify(var.var, mod)
