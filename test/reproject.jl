@@ -24,6 +24,7 @@ using Rasters: reproject, convertlookup
     y = Y(Projected(-80.0:1.0:80.0; crs=EPSG(4326), dim=Y(), order=ReverseOrdered(), span=Regular(1.0), sampling=Intervals(Start())))
 
     x1, y1 = reproject((x, y); crs=projcea)
+    @test reproject((x, y), projcea) == reproject(projcea, (x, y))
     @test span(x1) isa Irregular
     @test span(y1) isa Irregular
     x2, y2 = reproject((x, y); crs=EPSG(4326))
