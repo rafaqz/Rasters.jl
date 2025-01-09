@@ -5,7 +5,8 @@ layout: home
 
 hero:
   name: "Rasters.jl"
-  tagline: "Manipulating rasterized spatial data"
+  text: "Manipulating spatial data"
+  tagline: "a powerful package that simplifies the handling of rasterized spatial data in Julia."
   image:
     src: /logo.png
     alt: Rasters
@@ -22,79 +23,113 @@ hero:
       
 
 features:
-  - title: Rasters.jl
-    details: Defines common types and methods for reading, writing and manipulating rasterized spatial data.
-    link: /markdown-examples
-  - title: Data Formats
-    details: These currently include raster arrays like <strong>GeoTIF</strong> and <strong>NetCDF</strong>, <strong>R grd</strong> files, multi-layered stacks, and multi-file series of arrays and stacks.
+  - title: 💥💠 Core Functionality
+    details: Defines common types and methods for reading, writing, and manipulating rasterized spatial data. <a class="highlight-link">Rasters.jl</a> provides unified data handling through types like <a class="highlight-link">Raster</a>, <a class="highlight-link">RasterStack</a>, and <a class="highlight-link">RasterSeries</a>, offering seamless abstraction regardless of storage backend.
+    link: /manual/methods
+  - title: ⚙️ Data-Source Abstraction
+    details: Rasters provides a standardized interface that enables various data source types to be used with consistent syntax. The data can include <a class="highlight-link">GeoTIFF</a> or <a class="highlight-link">NetCDF</a> files, in-memory Arrays, or <a class="highlight-link">CuArrays</a> on the <a class="highlight-link">GPU</a>—all of which will behave in the same way.
+    link: /manual/data_sources
+  - title: 🗂️🌐 Data Formats
+    details: A <a class="highlight-link">RasterStack</a> can be backed by a <a class="highlight-link">NetCDF</a> or <a class="highlight-link">HDF5</a> file, a NamedTuple of Rasters holding <a class="highlight-link">.tif</a> files, or all Rasters in memory. Users do not need to worry about the specifics of spatial file types.
+  - title: 🌍🔍 Effortless Spatial Lookups
+    details: <a class="highlight-link">Projected</a> lookups with cylindrical projections can be indexed using other cylindrical projections by setting the <a class="highlight-link">mappedcrs</a> keyword during construction. You don’t need to know the underlying projection, as the conversion is handled automatically. This means that <a class="highlight-link">lat/lon EPSG(4326)</a> can be used seamlessly if needed.
+  - title: 🧩⚡ Modular Extensions with Faster Loading
+    details: From version 0.8, Rasters.jl uses Julia's package extension system. On Julia 1.9, packages can be placed in <a class="highlight-link">extensions</a> to load only when needed, reducing loading time to under a second. However, each backend or feature <a class="highlight-link">must be loaded manually</a>.
+    link: /#Package-extensions
+  - title: 🐞📌 Bug reports
+    details: Raster data is complex, and there are many opportunities for subtle or obvious bugs to appear. We need bug reports to reduce how often these issues occur over time. However, it's also crucial that issues are easy to reproduce; otherwise, it becomes impractical to fix them. Please follow <a href="#Bugs" class="highlight-link">these guidelines</a>!
+    link: /#Bugs
 ---
 ```
 
+## How to Install Rasters.jl?
 
-!!! info "Data-source abstraction"
+Since `Rasters.jl` is registered in the Julia General registry, you can simply run the following
+command in the Julia REPL:
 
-    Rasters provides a standardised interface that allows many source data types to
-    be used with identical syntax.
+```julia
+julia> using Pkg
+julia> Pkg.add("Rasters.jl")
+# or
+julia> ] # ']' should be pressed
+pkg> add Rasters
+```
 
-    - Scripts and packages building on Rasters.jl can treat `Raster`, `RasterStack`, and `RasterSeries` as black boxes.
-    - The data could hold GeoTiff or NetCDF files, `Array`s in memory or `CuArray`s on the GPU - they will all behave in the same way.
-    - `RasterStack` can be backed by a Netcdf or HDF5 file, or a `NamedTuple` of `Raster` holding `.tif` files, or all `Raster` in memory.
-    - Users do not have to deal with the specifics of spatial file types.
-    - `Projected` lookups with Cylindrical projections can by indexed using other Cylindrical projections by setting the `mappedcrs` keyword on construction. You don't need to know the underlying projection, the conversion is handled automatically. This means lat/lon `EPSG(4326)` can be used seamlessly if you need that.
+If you want to use the latest unreleased version, you can run the following command:
 
-## Installation
+```julia
+pkg> add Rasters#main
+```
 
-````julia
-] add Rasters
-````
 
-## Packages extensions
+## Package extensions
 
-!!! tip "Packages extensions and Rasters 0.8 and onwards"
+Before using a specific backend or feature, you must install and load its corresponding package,
 
-    On Julia 1.9 we can put additional packages in extensions, so the code only loads when
-    you load a specific package. Rasters.jl was always intended to work like this,
-    and its finally possible. This reduced package `using` time from many seconds to well under a second.
+::: code-group
 
-    But, it means you have to manually load packages you need for each backend or additional
-    functionality.
+```julia [ gdal ]
+using Pkg
+Pkg.add("ArchGDAL")
+```
 
-For example, to use the GDAL backend, and download files, you now need to do:
+```julia [ netcdf ]
+using Pkg
+Pkg.add("NCDatasets")
+```
+
+```julia [ grd ]
+# built-in
+```
+
+```julia [ smap ]
+using Pkg
+Pkg.add("HDF5")
+```
+
+```julia [ grib ]
+using Pkg
+Pkg.add("GRIBDatasets")
+```
+
+```julia [ Makie plots ]
+using Pkg
+Pkg.add(["GLMakie"])
+```
+
+```julia [ Data downloads ]
+using Pkg
+Pkg.add(["RasterDataSources"]) # which includes Worldclim{Climate}
+```
+
+```julia [ Coordinate transforms ]
+using Pkg
+Pkg.add(["CoordinateTransformations"]) # transformations for gdal rasters
+```
+
+:::
+
+
+and as an example, to use the GDAL backend and download files, you will need to do:
 
 ```julia
 using Rasters, ArchGDAL, RasterDataSources
-```
-where previously it was just using Rasters.
+```  
+  
 
-Sources and packages needed:
+## 🐞📌  Bugs
 
-- :gdal: `using ArchGDAL`
-- :netcdf: `using NCDatasets`
-- :grd: built-in.
-- :smap: `using HDF5`
-- :grib: not yet finished.
+::: info Bugs, errors and making issues for Rasters.jl
 
-Other functionality in extensions:
-
-- Raster data downloads, like Worldclim{Climate}: `using RasterDataSources`
-- Makie plots: `using Makie`
-- Coordinate transformations for gdal rasters: `using CoordinateTransformations`
-
-## Bugs and errors
-
-::: warning Bugs, errors and making issues for Rasters.jl
-
-Raster data is complicated and there are many places for subtle or not-so-subtle bugs to creep in.
-
-We need bug reports to reduce how often they occur over time. But also, we need issues that are easy to reproduce or it isn't practically possible to fix them.
-
-Because there are so many raster file types and variations of them, most of the time we need the *exact file* that caused your problem to know how to fix it, and be sure that we have actually fixed it when we are done. So fixing a Rasters.jl bug nearly always involves downloading some file and running some code that breaks with it (if you can trigger the bug without a file, that's great! but its not always possible).
+Because there are so many raster file types and variations of them, most of the time we need the `exact file` that caused your problem to know how to fix it, and be sure that we have actually fixed it when we are done. So fixing a Rasters.jl bug nearly always involves downloading some file and running some code that breaks with it (if you can trigger the bug without a file, that's great! but its not always possible).
 
 To make an issue we can fix quickly (or at all) there are three key steps:
-
-1. Include the file in an accessible place on web *without authentication* or any other work on our part, so we can just get it and find your bug. You can put it on a file hosting platform (e.g. google drive, drop box, whatever you use) and share the url.
-2. Add a minimum working example to the issue template that first downloads the file, then runs the function that triggers the bug.
-3. Paste the complete stack trace of the error it produces, right to the bottom, into the issue template. Then we can be sure we reproduced the same problem.
+1. Include the file in an accessible place on web `without authentication` or any other work on our part, so we can just get it and find your bug. You can put it on a file hosting platform (e.g. google drive, drop box, whatever you use) and share the url.
+  
+2. Add a [`minimum working example`](https://discourse.julialang.org/t/please-read-make-it-easier-to-help-you/14757) to the issue template that first downloads the file, then runs the function that triggers the bug.
+  
+3. Paste the `complete stack trace` of the error it produces, right to the bottom, into the issue template. Then we can be sure we reproduced the same problem.
+  
 
 Good issues are really appreciated, but they do take just a little extra effort with Rasters.jl because of this need for files.
 

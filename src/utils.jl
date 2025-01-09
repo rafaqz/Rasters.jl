@@ -88,15 +88,16 @@ _writeable_missing(filename::Nothing, T; kw...) = missing
 _writeable_missing(filename::AbstractString, T; kw...) = _writeable_missing(T; kw...)
 _writeable_missing(::Type{Missing}; verbose=true) = _writeable_missing(UInt8; verbose=true)
 function _writeable_missing(T; verbose=true)
-    missingval = _type_missingval(Missings.nonmissingtype(T))
+    missingval = _type_missingval(T)
     verbose && @info "`missingval` set to $missingval on disk"
     return missingval
 end
 
 _type_missingval(::Type{T}) where T = _type_missingval1(Missings.nonmissingtype(T))
 
-_type_missingval1(::Type{T}) where T = typemin(T)
+_type_missingval1(::Type{T}) where T<:Number = typemin(T)
 _type_missingval1(::Type{T}) where T<:Unsigned = typemax(T)
+_type_missingval1(::Type{<:AbstractString}) where T = T("")
 
 _fix_missingval(::Type, ::Union{NoKW,Nothing}) = nothing
 _fix_missingval(::AbstractArray, ::Nothing) = nothing
@@ -242,10 +243,12 @@ function _get_geometries(data, ::Nothing)
         data
     else
         trait = GI.trait(data)
-        if GI.trait(data) isa GI.FeatureCollectionTrait
+        if trait isa GI.FeatureCollectionTrait
             [GI.geometry(f) for f in GI.getfeature(data)]
-        else
+        elseif isnothing(trait)
             collect(data)
+        else
+            data
         end
     end
     # check if data iterates valid geometries before returning
@@ -271,9 +274,10 @@ function _get_geometries(data, geometrycolumn::NTuple{<:Any, <:Symbol})
     return points
 end
 function _check_geometries(geoms)
+    !isnothing(GI.trait(geoms)) && return
     for g in geoms
-        ismissing(g) || GI.geomtrait(g) !== nothing ||
-        throw(ArgumentError("$g is not a valid GeoInterface.jl geometry"))
+        ismissing(g) || !isnothing(GI.geomtrait(g)) || 
+            throw(ArgumentError("$g is not a valid GeoInterface.jl geometry"))
     end
     return
 end

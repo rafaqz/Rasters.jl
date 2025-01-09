@@ -217,3 +217,22 @@ function _write_missingval_pair(A, missingval; verbose=true, eltype, metadata=me
 
     return disk_mv => source_mv  
 end
+
+function _read_missingval_pair(var, metadata, missingval)
+    if isnokw(missingval)
+        mv = Rasters.missingval(var, metadata) 
+        isnothing(mv) ? nothing => nothing : mv => missing
+    elseif isnothing(missingval)
+        nothing => nothing
+    elseif missingval isa Pair
+        # Pair: inner and outer missing values are manually defined
+        missingval
+    elseif missingval === Rasters.missingval
+        # `missingval` func: detect missing value and keep it as-is
+        mv = Rasters.missingval(var, metadata)
+        mv => mv
+    else
+        # Otherwise: detect missing value and convert it to `missingval`
+        Rasters.missingval(var, metadata) => missingval
+    end
+end

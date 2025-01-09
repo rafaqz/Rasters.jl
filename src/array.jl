@@ -339,23 +339,7 @@ function Raster(ds, filename::AbstractString;
     # At this level we do not apply `mod`.
     data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=NoMod()) do var
         metadata_out = isnokw(metadata) ? _metadata(var) : metadata
-        # Missingval input options
-        missingval_out = if isnokw(missingval)
-            mv = Rasters.missingval(var, metadata_out) 
-            isnothing(mv) ? nothing => nothing : mv => missing
-        elseif isnothing(missingval)
-            nothing => nothing
-        elseif missingval isa Pair
-            # Pair: inner and outer missing values are manually defined
-            missingval
-        elseif missingval === Rasters.missingval
-            # `missingval` func: detect missing value and keep it as-is
-            mv = Rasters.missingval(var, metadata_out)
-            mv => mv
-        else
-            # Otherwise: detect missing value and convert it to `missingval`
-            Rasters.missingval(var, metadata_out) => missingval
-        end
+        missingval_out = _read_missingval_pair(var, metadata_out, missingval)
         # Generate mod for scaling
         mod = isnokw(mod) ? _mod(eltype(var), metadata_out, missingval_out; scaled, coerce) : mod
         # Define or load the data array

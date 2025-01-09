@@ -12,8 +12,9 @@ gdalpath = maybedownload(url)
     warped = warp(r, Dict(:t_srs => "EPSG:25832"); missingval=0xff)
     @test warped isa Raster
     @test size(warped) == (720, 721)
-    # the crs is rotatedso the image is rotated an all four corners should be black
-    missingval(warped) === nothing
+    # the crs is rotated so the image is rotated an all four corners should be missing
+    missingval(warped) === 0xff
+    parent(warped)
     @test warped[1, 1] === warped[1, end] === warped[end, 1] === warped[end, end] === 0xff == missingval(warped)
     # now compute mean squared error of the back transformation
     res = map(step, lookup(r))

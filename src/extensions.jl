@@ -165,13 +165,18 @@ warp(args...; kw...) = throw_extension_error(warp, "ArchGDAL", :RastersArchGDALE
     cellarea([method], x)
 
 Gives the approximate area of each gridcell of `x`.
-By assuming the earth is a sphere, it approximates the true size to about 0.1%, depending on latitude.
+By assuming the earth is a sphere, it approximates the true size to about 0.1%, depending on latitude. 
 
-Run `using ArchGDAL` to make this method fully available.
+Run `using ArchGDAL` or `using Proj` to make this method fully available.
 
-`method` can be `Spherical(; radius)` (the default) or `Planar()`.
+- `method`: You can specify whether you want to compute the area in the plane of your projection `Planar()` or on a sphere of some radius `Spherical(; radius=...)`(the default).
+
 - `Spherical` will compute cell area on the sphere, by transforming all points back to long-lat.  You can specify the radius by the `radius` keyword argument here.  By default, this is `6371008.8`, the mean radius of the Earth.
+
 - `Planar` will compute cell area in the plane of the CRS you have chosen.  Be warned that this will likely be incorrect for non-equal-area projections.
+
+Returns a Raster with the same x and y dimensions as the input, 
+where each value in the raster encodes the area of the cell (in meters by default).
 
 ## Example
 
