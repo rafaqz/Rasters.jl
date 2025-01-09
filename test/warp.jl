@@ -14,7 +14,6 @@ gdalpath = maybedownload(url)
     @test size(warped) == (720, 721)
     # the crs is rotated so the image is rotated an all four corners should be missing
     missingval(warped) === 0xff
-    parent(warped)
     @test warped[1, 1] === warped[1, end] === warped[end, 1] === warped[end, end] === 0xff == missingval(warped)
     # now compute mean squared error of the back transformation
     res = map(step, lookup(r))

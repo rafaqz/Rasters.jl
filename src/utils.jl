@@ -97,7 +97,7 @@ _type_missingval(::Type{T}) where T = _type_missingval1(Missings.nonmissingtype(
 
 _type_missingval1(::Type{T}) where T<:Number = typemin(T)
 _type_missingval1(::Type{T}) where T<:Unsigned = typemax(T)
-_type_missingval1(::Type{<:AbstractString}) where T = T("")
+_type_missingval1(::Type{T}) where T<:AbstractString = T("")
 
 _fix_missingval(::Type, ::Union{NoKW,Nothing}) = nothing
 _fix_missingval(::AbstractArray, ::Nothing) = nothing

@@ -239,9 +239,6 @@ struct Raster{T,N,D<:Tuple,R<:Tuple,A<:AbstractArray{T,N},Na,Me,Mi<:Union{T,Noth
         new{T,N,D,R,A,Na,Me,typeof(missingval1)}(data, dims, refdims, name, metadata, missingval1)
     end
 end
-Raster(f::Function, args...; kw...) = Raster(args...; f, kw...)
-# For ambiguity with dataset methods
-Raster(f::Function, s::AbstractString; kw...) = Raster(s; f, kw...)
 # Create a Raster from and AbstractArray and dims
 function Raster(A::AbstractArray{T,N}, dims::Tuple;
     refdims=(),
