@@ -64,6 +64,8 @@ function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing, crs =
     GeometryLookup(geometries, tree, dims, crs)
 end
 
+crs(l::GeometryLookup) = l.crs
+
 #=
 
 ## DD methods for the lookup

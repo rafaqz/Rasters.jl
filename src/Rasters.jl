@@ -64,7 +64,7 @@ export Planar, Spherical
 export AbstractRaster, Raster
 export AbstractRasterStack, RasterStack
 export AbstractRasterSeries, RasterSeries
-export Projected, Mapped
+export Projected, Mapped, GeometryLookup
 export Band
 export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!,
