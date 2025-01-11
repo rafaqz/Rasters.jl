@@ -19,9 +19,7 @@ function Base.write(filename::AbstractString, source::NCDsource, A::AbstractRast
         RA.check_can_write(filename, force)
         "c"
     end
-    mode  = !isfile(filename) || !append ? "c" : "a";
-    attrib = RA._attribdict(metadata(A))
-    ds = NCD.Dataset(filename, mode) 
+    ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(A)))
     try
         RA._writevar!(ds, source, A; kw...)
     finally
@@ -43,14 +41,10 @@ function Base.write(filename::AbstractString, source::Source, s::AbstractRasterS
         "c"
     end
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
-
     missingval = RA._stack_nt(s, isnokw(missingval) ? Rasters.missingval(s) : missingval)
     try
         map(keys(s)) do k
-            RA._writevar!(ds, source, s[k]; 
-                missingval=missingval[k], 
-                kw...
-            )
+            RA._writevar!(ds, source, s[k]; missingval=missingval[k], kw...)
         end
         f(RA.OpenStack{Source,K,T}(ds))
     finally

@@ -58,7 +58,7 @@ end
         @time read(lazyarray);
     end
 
-    @testset "scaling and maskin" begin 
+    @testset "scaling and masking" begin 
         @time cfarray = Raster(ncsingle)
         @time cfarray = Raster(ncsingle)
         @time cf_nomask_array = Raster(ncsingle; missingval=nothing)
@@ -288,20 +288,20 @@ end
             @test map(metadata.(dims(saved)), metadata.(dims(Raster))) do s, g
                 all(s .== g)
             end |> all
-            @test_broken metadata(saved) == metadata(ncarray)
-            # Dimension names are renamed so metadata is different
-            @test_broken all( metadata(dims(saved)) == metadata.(dims(ncarray)))
+            @test metadata(saved) == metadata(ncarray)
+            # Bounds variable names are renamed so metadata is different
+            @test_broken all(metadata(dims(saved))[1] == metadata(dims(ncarray))[1])
             @test Rasters.name(saved) == Rasters.name(ncarray)
             @test all(lookup.(dims(saved)) .== lookup.(dims(ncarray)))
             @test all(order.(dims(saved)) .== order.(dims(ncarray)))
             @test all(typeof.(span.(dims(saved))) .== typeof.(span.(dims(ncarray))))
             @test all(val.(span.(dims(saved))) .== val.(span.(dims(ncarray))))
             @test all(sampling.(dims(saved)) .== sampling.(dims(ncarray)))
-            @test_broken typeof(dims(saved)) <: typeof(dims(ncarray))
+            @test typeof(dims(saved)) <: typeof(dims(ncarray))
             @test index(saved, 3) == index(ncarray, 3)
             @test all(val.(dims(saved)) .== val.(dims(ncarray)))
             @test all(parent(saved) .=== parent(ncarray))
-            @test_broken saved isa typeof(ncarray)
+            @test saved isa typeof(ncarray)
             # TODO test crs
 
             @testset "chunks" begin
@@ -373,7 +373,7 @@ end
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             fn = tempname() * ".gri"
             write(fn, nccleaned; force=true)
-            @test_broken (@allocations write(fn, nccleaned; force=true)) < 1e4
+            @test (@allocations write(fn, nccleaned; force=true)) < 1e4
             grdarray = Raster(fn, missingval=nothing);
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == bounds(nccleaned)
@@ -420,7 +420,7 @@ end
 
 end
 
-@testset "Single file stack" begin
+# @testset "Single file stack" begin
     @time ncstack = RasterStack(ncmulti)
 
     @testset "lazyness" begin
@@ -538,10 +538,10 @@ end
         @test (@allocations write(fn, st; force=true)) < 1e6 # writing a rasterseries/stack has no force keyword
         saved = RasterStack(RasterStack(fn))
         @test keys(saved) == keys(st)
-        @test_broken metadata(saved)["advection"] == "Lin & Rood"
-        @test_broken metadata(saved) == metadata(st) == metadata(ncstack)
+        @test metadata(saved)["advection"] == "Lin & Rood"
+        @test metadata(saved) == metadata(st) == metadata(ncstack)
         @test all(first(DimensionalData.layers(saved)) .== first(DimensionalData.layers(st)))
-    end
+    nend
 
     @testset "show" begin
         ncstack = view(RasterStack(ncmulti), X(7:99), Y(3:90));

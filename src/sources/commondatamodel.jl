@@ -403,8 +403,8 @@ end
 function _attribdict(md::Metadata{<:CDMsource}) 
     attrib = Dict{String,Any}()
     for (k, v) in md
-        # v isa Tuple && continue
-        # attrib[string(k)] = v
+        v isa Tuple && continue
+        attrib[string(k)] = v
     end
     return attrib
 end

@@ -203,17 +203,20 @@ _maybe_modify(var, ::NoMod; kw...) = var
 _write_missingval_pair(A, missingval::Pair; kw...) = missingval
 function _write_missingval_pair(A, missingval; verbose=true, eltype, metadata=metadata(A))::Pair
     source_mv = Rasters.missingval(A)
-    if isnothing(mv)
-        # See if there is a missing value in metadata
-        source_mv = Rasters.missingval(metadata)
-    end
-    disk_mv = if isnothing(source_mv) 
+    disk_mv = if isnothing(source_mv) || isnothing(missingval)
         nothing
     elseif isnokw(missingval) || ismissing(missingval)
-        _writeable_missing(eltype; verbose)
+        # See if there is a missing value in metadata
+        md_mv = Rasters.missingval(metadata)
+        if isnothing(md_mv)
+            _writeable_missing(eltype; verbose)
+        else
+            md_mv
+        end
     else
         missingval
     end
+    @show source_mv disk_mv
 
     return disk_mv => source_mv  
 end
