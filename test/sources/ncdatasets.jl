@@ -541,7 +541,7 @@ end
         @test metadata(saved)["advection"] == "Lin & Rood"
         @test metadata(saved) == metadata(st) == metadata(ncstack)
         @test all(first(DimensionalData.layers(saved)) .== first(DimensionalData.layers(st)))
-    nend
+    end
 
     @testset "show" begin
         ncstack = view(RasterStack(ncmulti), X(7:99), Y(3:90));
