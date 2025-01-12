@@ -216,7 +216,6 @@ function _write_missingval_pair(A, missingval; verbose=true, eltype, metadata=me
     else
         missingval
     end
-    @show source_mv disk_mv
 
     return disk_mv => source_mv  
 end

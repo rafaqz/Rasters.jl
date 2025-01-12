@@ -154,11 +154,19 @@ const MISSINGVAL_KEYWORD = """
 - `missingval`: value representing missing data, normally detected from the file and 
     automatically converted to `missing`. Setting to an alternate value, such as `0` 
     or `NaN` may be desirable for improved perfomance. `nothing` specifies no missing value. 
-    Using the same `missingval` the file already has removes the overhead of replacing it. 
+    Using the same `missingval` the file already has removes the overhead of replacing it,
+    this can be done by passing the `missingval` function as `missingval`. 
     If the file has an incorrect value, we can manually define the transformation
-    as a pair e.g. `correct_value => missing`, `correct_value => NaN` or 
-    `correct_value => correct_value` to keep it the same and remove the overhead of changing it. 
+    as a pair like `correct_value => missing` or `correct_value => NaN`.
+    `correct_value => correct_value` will keep remove the overhead of changing it. 
     When `raw=true` is set, `missingval` is not changed from the value specified in the file.
+"""
+
+const WRITE_MISSINGVAL_KEYWORD = """
+- `missingval`: set the missing value (i.e. FillValue / nodataval) of the written raster,
+    as Julia's `missing` cannot be stored. If not passed in, an appropriate `missingval` 
+    will be detected from the objects `missingval`, its `metadata`, or a default will be 
+    chosen base on the array element type(s).
 """
 
 const NAME_KEYWORD = """
@@ -188,10 +196,4 @@ const CHUNKS_KEYWORD = """
     size of `1`. `true` can be used to mean: use the original 
     chunk size of the lazy `Raster` being written or X and Y of 256 by 256.
     `false` means don't use chunks at all.
-"""
-
-const WRITE_MISSINGVAL_KEYWORD = """
-- `missingval`: set the missing value (i.e. FillValue / nodataval) of the written raster,
-    as Julias `missing` cannot be stored. If not passed in, `missingval` will be detected 
-    from metadata or a default will be chosen.
 """
