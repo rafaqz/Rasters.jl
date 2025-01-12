@@ -201,10 +201,17 @@ _maybe_modify(var, m::Mod; kw...) = ModifiedDiskArray(var, m; kw...)
 _maybe_modify(var, ::NoMod; kw...) = var
 
 _write_missingval_pair(A, missingval::Pair; kw...) = missingval
-function _write_missingval_pair(A, missingval; verbose=true, eltype, metadata=metadata(A))::Pair
+function _write_missingval_pair(A, missingval; 
+    verbose=true, eltype, metadata=metadata(A), required=false
+)::Pair
     source_mv = Rasters.missingval(A)
     disk_mv = if isnothing(source_mv) || isnothing(missingval)
-        nothing
+        if required
+            source_mv = isnothing(source_mv) ? missing : source_mv
+            _writeable_missing(eltype; verbose)
+        else
+            nothing
+        end
     elseif isnokw(missingval) || ismissing(missingval)
         # See if there is a missing value in metadata
         md_mv = Rasters.missingval(metadata)

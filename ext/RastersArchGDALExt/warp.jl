@@ -31,7 +31,7 @@ function _warp(A::AbstractRaster, flags::Dict;
     tempfile = isnothing(filename) ? nothing : tempname() * ".tif"
     warp_kw = isnothing(filename) || filename == "/vsimem/tmp" ? () : (; dest=filename)
     mv_pair = RA._write_missingval_pair(A1, missingval; 
-        verbose=false, eltype=eltype(A1), metadata=metadata(A)
+        verbose=false, eltype=eltype(A1), metadata=metadata(A), required=true
     )
     # We really need a missingval for `warp`, as it may rotate and add missing values
     out = AG.Dataset(A1; filename=tempfile, missingval=mv_pair[1], kw...) do dataset

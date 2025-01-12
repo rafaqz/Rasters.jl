@@ -114,6 +114,7 @@ Run `using ArchGDAL` to make this method available.
 
 # Keywords
 
+$MISSINGVAL_KEYWORD
 $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
 - `missingval`: the missing value to use during warping, will default to
