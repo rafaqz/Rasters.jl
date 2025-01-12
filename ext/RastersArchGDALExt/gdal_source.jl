@@ -287,16 +287,16 @@ function AG.RasterDataset(f::Function, A::AbstractRaster;
     missingval=Rasters.missingval(A),
     kw...
 )
-    A1 = _maybe_permute_to_gdal(A)
-    return _create_with_driver(filename, dims(A1), eltype; 
-        _block_template=A1, missingval, scale, offset, verbose, kw...
-    ) do dataset
-        rds = AG.RasterDataset(dataset)
-        mod = RA._mod(eltype, RA.missingval(rds), scale, offset, coerce)
-        open(A1) do O
+    return open(_maybe_permute_to_gdal(A)) do O 
+        _create_with_driver(filename, dims(A), eltype; 
+            _block_template=A, missingval, scale, offset, verbose, kw...
+        ) do dataset
+            rds = AG.RasterDataset(dataset)
+            mv = RA.missingval(rds) => RA.missingval(O)
+            mod = RA._mod(eltype, mv, scale, offset, coerce)
             RA._maybe_modify(rds, mod) .= parent(O)
+            f(rds)
         end
-        f(rds)
     end
 end
 
