@@ -4,6 +4,13 @@ const INVERT_KEYWORD = """
     masked, and areas missing in `with` are masked.
 """
 
+const COLLAPSE_KEYWORD = """
+- `collapse`: if `true`, collapse all geometry masks into a single mask. Otherwise
+    return a Raster with an additional `geometry` dimension, so that each slice
+    along this axis is the mask of the `geometry` opbject of each row of the
+    table, feature in the feature collection, or just each geometry in the iterable.
+"""
+
 """
     mask(A:AbstractRaster; with, missingval=missingval(A))
     mask(x; with)
@@ -82,12 +89,10 @@ function _mask(A::AbstractRaster, with::AbstractRaster;
     filename=nothing, suffix=nothing, missingval=_missingval_or_missing(A), kw...
 )
     missingval = ismissing(missingval) ? missing : convert(eltype(A), missingval)
-    A1 = create(filename, A; suffix, missingval)
-    open(A1; write=true) do a
+    return create(filename, A; suffix, missingval) do C
         # The values array will be be written to A1 in `mask!`
-        mask!(a; with, missingval, values=A, kw...)
+        mask!(C; with, missingval, values=A, kw...)
     end
-    return A1
 end
 function _mask(xs::AbstractRasterStack, with::AbstractRaster; suffix=keys(xs), kw...)
     mapargs((x, s) -> mask(x; with, suffix=s, kw...), xs, suffix)
@@ -236,18 +241,9 @@ $GEOMETRYCOLUMN_KEYWORD
 $THREADED_KEYWORD
 $PROGRESS_KEYWORD
 
-And specifically for `shape=:polygon`:
-
-- `boundary`: include pixels where the `:center` is inside the polygon, where
-    the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
-    The default is `:center`.
-
 For tabular data, feature collections and other iterables
 
-- `collapse`: if `true`, collapse all geometry masks into a single mask. Otherwise
-    return a Raster with an additional `geometry` dimension, so that each slice
-    along this axis is the mask of the `geometry` opbject of each row of the
-    table, feature in the feature collection, or just each geometry in the iterable.
+$COLLAPSE_KEYWORD
 
 # Example
 
@@ -338,9 +334,10 @@ function boolmask!(dest::AbstractRaster, data;
     threaded=false, 
     allocs=_burning_allocs(dest; threaded), 
     geometrycolumn=nothing,
+    collapse=nokw,
     kw...
 )
-    if hasdim(dest, :geometry)
+    if collapse === false && hasdim(dest, :geometry)
         geoms = _get_geometries(data, geometrycolumn)
         range = eachindex(geoms)
         _run(range, threaded, progress, "Burning each geometry to a BitArray slice...") do i
@@ -351,16 +348,18 @@ function boolmask!(dest::AbstractRaster, data;
             burn_geometry!(slice, geom; kw..., fill=!invert, allocs=_get_alloc(allocs))
             return nothing
         end
-    else
+    elseif isnokw(collapse) || collapse === true
         burn_geometry!(dest, data; kw..., allocs, lock, progress, threaded, geometrycolumn, fill=!invert)
+    else
+        throw(ArgumentError("`collapse` must be `false` or not passed if there is no `:geometry` dimension in `dest`"))
     end
     return dest
 end
 
 """
     missingmask(obj::Raster; kw...)
-    missingmask(obj; [to, res, size, collapse])
-    missingmask(obj::RasterStack; alllayers = true, kw...)
+    missingmask(obj; [to, res, size])
+    missingmask(obj::RasterStack; alllayers=true, kw...)
 
 Create a mask array of `missing` and `true` values, from another `Raster`.
 `AbstractRasterStack` or `AbstractRasterSeries` are also accepted-
@@ -376,6 +375,7 @@ The array returned from calling `missingmask` on a `AbstractRaster` is a
 - `obj`: $OBJ_ARGUMENT
 
 # Keywords
+
 - `alllayers`: if `true` a mask is taken for all layers, otherwise only the first layer is used. Defaults to `true`
 $INVERT_KEYWORD
 $GEOM_KEYWORDS
@@ -423,8 +423,8 @@ function missingmask!(dest::AbstractRaster, src::AbstractRaster;
     end
 end
 function missingmask!(dest::AbstractRaster, geom; kw...)
-    B = boolmask!(dest, geom; kw...) 
     # boolmask! handles `invert` keyword here
+    B = boolmask!(dest, geom; kw...) 
     dest .= _false_to_missing.(B)
     return dest
 end

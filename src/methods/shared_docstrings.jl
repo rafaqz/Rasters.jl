@@ -1,5 +1,17 @@
 # Share common docstrings here to keep things consistent
 
+const NAME_KEYWORD = """
+- `name`: a `Symbol` name for a Raster, which will also retrieve the 
+    a named layer if `Raster` is used on a multi-layered file like a NetCDF. 
+"""
+const METADATA_KEYWORD = """
+- `metadata`: `Dict` or `Metadata` object for the array, or `NoMetadata()`.
+"""
+const REFDIMS_KEYWORD = """
+- `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
+    Usually not needed.
+"""
+
 const TO_KEYWORD = """
 - `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
     If no `to` object is provided the extent will be calculated from the geometries,
@@ -115,13 +127,71 @@ const GROUP_KEYWORD = """
     at any nested depth, i.e `group=:group1 => :group2 => :group3`.
 """
 
-const REPLACE_MISSING_KEYWORD = """
-- `replace_missing`: replace `missingval` with `missing`. This is done lazily if `lazy=true`.
-    Note that currently for NetCDF and GRIB files `replace_missing` is always true. 
-    In future `replace_missing=false` will also work for these data sources.
+const CHECKMEMORY_KEYWORD = """
+- `checkmemory`: if `true` (the default), check if there is enough memory for the operation. 
+    `false` will ignore memory needs.
 """
 
-const CHECKMEMORY_KEYWORD = """
-- `checkmemory`: If `true` (the default), check if there is enough memory for the operation. 
-    `false` will ignore memory needs.
+const SCALE_KEYWORD = """
+- `scale`: set `scale` for `x * scale + offset` transformations. 
+"""
+
+const OFFSET_KEYWORD = """
+- `offset`: set `offset` for `x * scale + offset` transformations. 
+"""
+
+const RAW_KEYWORD = """
+- `raw`: turn of all scaling and masking and load the raw values from disk.
+    `false` by default. If `true`, `scaled` will be set to `false` and `missingval`
+    will to the existing missing value in the file. A warning will be printed if 
+    `scaled` or `missingval` are manually set to another value.
+"""
+
+const SCALED_KEYWORD = """
+- `scaled`: apply scale and offset as `x * scale + offset` where 
+    `scale` and/or `offset` are found in file metadata. `true` by default.
+    This is common where data has been convert to e.g. UInt8 to save disk space.
+    To ignore `scale` and `offset` metadata, use `scaled=false`. 
+    Note 1: If `scale` and `offset` are `1.0` and `0.0` they will be ignored and the 
+    original type will be used even when `scaled=true`. This is because these values 
+    may be fallback defaults and we do not want to convert every `Real` array to larger
+    `Float64` values. 
+    Note 2: `raw=true` will ignore `scaled` and `missingval` and return
+    the raw values.
+"""
+
+const COERCE_KEYWORD = """
+- `coerce`: where `scale` and/or `offset` are present during `setindex!` to disk, 
+    coerce values to the element type used on dist. `convert` is the default, 
+    but `round`, `trunc` or or `ceil` or other functions with `f(::Type{T}, x)`
+    signature may be needed where the values are not exact.
+"""
+
+const MISSINGVAL_KEYWORD = """
+- `missingval`: value representing missing data, normally detected from the file and 
+    automatically converted to `missing`. Setting to an alternate value, such as `0` 
+    or `NaN` may be desirable for improved perfomance. `nothing` specifies no missing value. 
+    Using the same `missingval` the file already has removes the overhead of replacing it,
+    this can be done by passing the `missingval` function as `missingval`. 
+    If the file has an incorrect value, we can manually define the transformation
+    as a pair like `correct_value => missing` or `correct_value => NaN`.
+    `correct_value => correct_value` will keep remove the overhead of changing it. 
+    Note: When `raw=true` is set, `missingval` is not changed from the value specified
+    in the file.
+"""
+
+const WRITE_MISSINGVAL_KEYWORD = """
+- `missingval`: set the missing value (i.e. FillValue / nodataval) of the written raster,
+    as Julia's `missing` cannot be stored. If not passed in, an appropriate `missingval` 
+    will be detected from the objects `missingval`, its `metadata`, or a default will be 
+    chosen base on the array element type(s).
+"""
+
+const CHUNKS_KEYWORD = """
+- `chunks`: a `NTuple{N,Int}` specifying the chunk size for each dimension. 
+    To specify only specific dimensions, a Tuple of `Dimension` wrapping `Int` 
+    or a `NamedTuple` of `Int` can be used. Other dimensions will have a chunk
+    size of `1`. `true` can be used to mean: use the original 
+    chunk size of the lazy `Raster` being written or X and Y of 256 by 256.
+    `false` means don't use chunks at all.
 """
