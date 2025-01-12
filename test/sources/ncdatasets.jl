@@ -420,7 +420,7 @@ end
 
 end
 
-# @testset "Single file stack" begin
+@testset "Single file stack" begin
     @time ncstack = RasterStack(ncmulti)
 
     @testset "lazyness" begin

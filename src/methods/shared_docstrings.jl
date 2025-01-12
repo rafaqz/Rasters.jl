@@ -1,5 +1,17 @@
 # Share common docstrings here to keep things consistent
 
+const NAME_KEYWORD = """
+- `name`: a `Symbol` name for a Raster, which will also retrieve the 
+    a named layer if `Raster` is used on a multi-layered file like a NetCDF. 
+"""
+const METADATA_KEYWORD = """
+- `metadata`: `Dict` or `Metadata` object for the array, or `NoMetadata()`.
+"""
+const REFDIMS_KEYWORD = """
+- `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
+    Usually not needed.
+"""
+
 const TO_KEYWORD = """
 - `to`: a `Raster`, `RasterStack`, `Tuple` of `Dimension` or `Extents.Extent`.
     If no `to` object is provided the extent will be calculated from the geometries,
@@ -116,7 +128,7 @@ const GROUP_KEYWORD = """
 """
 
 const CHECKMEMORY_KEYWORD = """
-- `checkmemory`: If `true` (the default), check if there is enough memory for the operation. 
+- `checkmemory`: if `true` (the default), check if there is enough memory for the operation. 
     `false` will ignore memory needs.
 """
 
@@ -129,25 +141,30 @@ const OFFSET_KEYWORD = """
 """
 
 const RAW_KEYWORD = """
-- `raw`: Turn of all scaling and masking and load the raw values from disk.
+- `raw`: turn of all scaling and masking and load the raw values from disk.
     `false` by default. If `true`, `scaled` will be set to `false` and `missingval`
     will to the existing missing value in the file. A warning will be printed if 
     `scaled` or `missingval` are manually set to another value.
 """
 
 const SCALED_KEYWORD = """
-- `scaled`: apply scale and offset as `x * scale + offset`. `true` by default.
+- `scaled`: apply scale and offset as `x * scale + offset` where 
+    `scale` and/or `offset` are found in file metadata. `true` by default.
     This is common where data has been convert to e.g. UInt8 to save disk space.
-    To ignore `scale` and `offset` metadata, use `scaled=false`. If `scale` and
-    Note: `offset` are `1.0` and `0.0` they will be ignored and the original type will 
-    be used even when `scaled=true`. This is because these values may be fallback 
-    defaults and we do not want to convert every `Real` array to larger `Float64` values.
+    To ignore `scale` and `offset` metadata, use `scaled=false`. 
+    Note 1: If `scale` and `offset` are `1.0` and `0.0` they will be ignored and the 
+    original type will be used even when `scaled=true`. This is because these values 
+    may be fallback defaults and we do not want to convert every `Real` array to larger
+    `Float64` values. 
+    Note 2: `raw=true` will ignore `scaled` and `missingval` and return
+    the raw values.
 """
 
 const COERCE_KEYWORD = """
 - `coerce`: where `scale` and/or `offset` are present during `setindex!` to disk, 
-    coerce values to the disk type. `convert` is the default, but `round`, `trunc` or
-    or `ceil` may be needed where the values are not exact.
+    coerce values to the element type used on dist. `convert` is the default, 
+    but `round`, `trunc` or or `ceil` or other functions with `f(::Type{T}, x)`
+    signature may be needed where the values are not exact.
 """
 
 const MISSINGVAL_KEYWORD = """
@@ -159,7 +176,8 @@ const MISSINGVAL_KEYWORD = """
     If the file has an incorrect value, we can manually define the transformation
     as a pair like `correct_value => missing` or `correct_value => NaN`.
     `correct_value => correct_value` will keep remove the overhead of changing it. 
-    When `raw=true` is set, `missingval` is not changed from the value specified in the file.
+    Note: When `raw=true` is set, `missingval` is not changed from the value specified
+    in the file.
 """
 
 const WRITE_MISSINGVAL_KEYWORD = """
@@ -167,26 +185,6 @@ const WRITE_MISSINGVAL_KEYWORD = """
     as Julia's `missing` cannot be stored. If not passed in, an appropriate `missingval` 
     will be detected from the objects `missingval`, its `metadata`, or a default will be 
     chosen base on the array element type(s).
-"""
-
-const NAME_KEYWORD = """
-- `name`: a `Symbol` name for a Raster, which will also retrieve the 
-    a named layer if `Raster` is used on a multi-layered file like a NetCDF. 
-"""
-
-const METADATA_KEYWORD = """
-- `metadata`: `Dict` or `Metadata` object for the array, or `NoMetadata()`.
-"""
-
-const REFDIMS_KEYWORD = """
-- `refdims`: `Tuple of` position `Dimension`s the array was sliced from, defaulting to `()`.
-    Usually not needed.
-"""
-
-const GROUP_KEYWORD = """
-- `group`: the group in the dataset where `name` can be found. Only needed for nested datasets.
-    A `String` or `Symbol` will select a single group. Pairs can also used to access groups
-    at any nested depth, i.e `group=:group1 => :group2 => :group3`.
 """
 
 const CHUNKS_KEYWORD = """
