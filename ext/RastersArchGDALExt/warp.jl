@@ -11,7 +11,7 @@ function warp(A::AbstractRaster, flags::Dict; filename=nothing, kw...)
     end
 end
 function warp(st::AbstractRasterStack, flags::Dict; filename=nothing, suffix=keys(st), kw...)
-    RA.mapargs((A, s) -> warp(A, flags; filename, suffix=s), st, suffix; kw...)
+    RA.mapargs((A, s) -> warp(A, flags; filename, suffix=s, kw...), st, suffix)
 end
 
 function _warp(A::AbstractRaster, flags::Dict; 

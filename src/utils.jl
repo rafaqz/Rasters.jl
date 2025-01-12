@@ -459,9 +459,9 @@ _unwrap(::Val{X}) where X = X
 _unwrap(x) = x
 
 # Map filename suffix over a stack
-function mapargs(f, st::AbstractRasterStack, args...)
+function mapargs(f, st::AbstractRasterStack, args...; kw...)
     layers = map(values(st), args...) do A, mappedargs...
-        f(A, mappedargs...)
+        f(A, mappedargs...; kw...)
     end
     return DD.rebuild_from_arrays(st, Tuple(layers))
 end

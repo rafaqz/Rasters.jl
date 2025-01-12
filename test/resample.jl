@@ -113,7 +113,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     @testset "resample eltype propagates" begin
         r = Raster(rand(UInt8, X(1:10), Y(1:10)))
         r1 = resample(r; to=r)
-        @test eltype(r1) == UInt8
+        @test eltype(r1) == Union{UInt8,Missing}
     end
 
     @testset "dimensions matcha after resampling with only `to`" begin
@@ -133,23 +133,32 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         @test dims(resampled_3D, Z) == Z(1:2)
     end
 
-    mv = Rasters.nokw
-    for mv in (nothing, missing, Rasters.nokw)
+    mv = 0xff
+    for mv in (0xff, missing, Rasters.nokw)
         # Resample cea.tif using resample
         cea = Raster(raster_path; missingval=mv, name=:cea)
-        raster_output = resample(cea; res=output_res, crs=output_crs, method, missingval=mv)
-        disk_output = resample(cea; res=output_res, crs=output_crs, method, missingval=mv, filename="resample.tif")
+        raster_output = resample(cea;
+            res=output_res, crs=output_crs, method, missingval=mv
+        )
+        disk_output = resample(cea; 
+            res=output_res, crs=output_crs, method, missingval=mv, filename="resample.tif"
+        )
+        cea_permuted = permutedims(Raster(raster_path; 
+            missingval=mv, name=:cea_permuted), (Y, X)
+        )
+        permuted_output = resample(cea_permuted, output_res; 
+            missingval=mv, crs=output_crs, method
+        )
 
-        cea_permuted = permutedims(Raster(raster_path; missingval=mv, name=:cea_permuted), (Y, X))
-        permuted_output = resample(cea_permuted, output_res; missingval=mv, crs=output_crs, method)
-
-        AG_output1 = if isnothing(mv)
+        AG_output1 = if mv === 0xff
             AG_output
         else
             replace(AG_output, 0xff => missing)
         end
         # Compare ArchGDAL, resample and permuted resample 
-        @test all(AG_output1 .=== raster_output .=== read(disk_output) .=== permutedims(permuted_output, (X, Y)))
+        @test all(AG_output1 .=== parent(raster_output) .=== 
+            read(disk_output) .=== 
+            permutedims(permuted_output, (X, Y)))
         @test abs(step(dims(raster_output, Y))) ≈
             abs(step(dims(raster_output, X))) ≈ 
             abs(step(dims(disk_output, X))) ≈ 

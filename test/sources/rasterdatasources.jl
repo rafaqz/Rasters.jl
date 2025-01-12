@@ -2,13 +2,14 @@ using Rasters, RasterDataSources, Test, Dates, ArchGDAL, NCDatasets, Proj
 
 # Too big to test on CI
 # if !haskey(ENV, "CI")
-#     @testset "load WorldClim Weather" begin
-#         # Weather time-series
-#         dates = (Date(2001), Date(2002))
-#         ser = RasterSeries(WorldClim{Weather}, (:prec,); date=dates)
-#         ser[Date(2001, 1)][:prec]
-#         A = Raster(WorldClim{Weather}, :prec; date=DateTime(2001, 05), mappedcrs=EPSG(4326))
-#     end
+    # @testset "load WorldClim Weather" begin
+    #     # Weather time-series
+    #     ser = RasterSeries(WorldClim{Weather}, (:prec,); 
+    #         date=(Date(2001), Date(2002)), missingval=NaN32
+    #     )
+    #     @test all(ser[At(Date(2001, 1))].prec .===
+    #         Raster(WorldClim{Weather}, :prec; date=DateTime(2001), missingval=NaN32))
+    # end
 # end
 
 @testset "load WorldClim Climate" begin
@@ -37,7 +38,7 @@ end
     st = RasterStack(WorldClim{Future{BioClim, CMIP6, GFDL_ESM4, SSP370}}, (1, 2); 
         date = Date(2050), res = "10m",
         lazy=true, 
-        missingval=Inf, 
+        missingval=Inf32, 
         crs=nothing, 
         mappedcrs=EPSG(4326),
     )
@@ -64,16 +65,9 @@ end
     @test st isa RasterStack{(:bio1, :bio2),@NamedTuple{bio1::UInt16, bio2::UInt16}}
     @test st.bio2 isa Raster{UInt16,2}
 
-    # Allow forcing keywords
-    st = RasterStack(CHELSA{BioClim}, (1, 2); 
-         lazy=true, 
-         missingval= Int16(9999), 
-         metadata=Rasters.NoMetadata(), 
-         crs=nothing, 
-         mappedcrs=EPSG(4326),
-    )
-    @test missingval(st) === -9999.0
-    @test missingval(st.bio1) == -9999.0
+    st = RasterStack(CHELSA{BioClim}, (1, 2); lazy=true)
+
+    @test missingval(st) === missingval(st.bio1) === nothing
     @test metadata(st) == Rasters.NoMetadata()
 end
 
@@ -106,7 +100,6 @@ end
     @test crs(st[:s0_pct]) == EPSG(4326)
     dates = DateTime(2019, 10, 19), DateTime(2021, 11, 20)
     s = RasterSeries(ALWB{Values,Day}, (:s0_pct, :ss_pct); date=dates, lazy=true)
-    s[1]
     @test A isa Raster
     @test st isa RasterStack
     @test s isa RasterSeries

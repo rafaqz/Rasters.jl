@@ -373,6 +373,7 @@ end
             nccleaned = replace_missing(ncarray[Ti(1)], -9999.0)
             fn = tempname() * ".gri"
             write(fn, nccleaned; force=true)
+            fn = tempname() * ".gri"
             @test (@allocations write(fn, nccleaned; force=true)) < 1e4
             grdarray = Raster(fn, missingval=nothing);
             @test crs(grdarray) == convert(ProjString, EPSG(4326))

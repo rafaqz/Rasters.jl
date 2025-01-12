@@ -419,6 +419,7 @@ gdalpath = maybedownload(url)
         @testset "to grd" begin
             fn = joinpath(tempdir(), tempname() * ".gri")
             write(fn, gdalarray; force=true)
+            fn = joinpath(tempdir(), tempname() * ".gri")
             @test (@allocations write(fn, gdalarray; force=true)) < 1e4
             grdarray = Raster(fn)
             @test crs(grdarray) == convert(ProjString, crs(gdalarray))
@@ -519,7 +520,7 @@ gdalpath = maybedownload(url)
         # Handle WorldClim/ucdavis unreliability
         A = nothing
         try
-            A = Raster(WorldClim{Climate}, :tavg; res="10m", month=1, missingval=nothing)
+            A = Raster(WorldClim{Climate}, :tavg; res="10m", month=1, missingval)
         catch
         end
         if !isnothing(A)
@@ -772,21 +773,35 @@ end
     end
 
     ## Resample cea.tif using resample
-    raster_output = resample(gdalarray, output_res; crs=output_crs, method=resample_method)
-    disk_output = resample(gdalarray, output_res; crs=output_crs, method=resample_method, filename="resample.tif")
-    stack_output = resample(gdalstack, output_res; crs=output_crs, method=resample_method)
-    written_stack_output = resample(gdalstack, output_res; crs=output_crs, method=resample_method, filename="resample.tif")
-    series_output = resample(gdalser, output_res; crs=output_crs, method=resample_method)
-
+    raster_output = resample(gdalarray, output_res; 
+        crs=output_crs, method=resample_method, missingval=0xff=>0xff
+    )
+    disk_output = resample(gdalarray, output_res;
+        crs=output_crs, method=resample_method, filename="resample.tif", missingval=0xff=>0xff
+    )
+    stack_output = resample(gdalstack, output_res; 
+        crs=output_crs, method=resample_method, missingval=0xff=>0xff
+    )
+    written_stack_output = resample(gdalstack, output_res; 
+        crs=output_crs, method=resample_method, filename="resample.tif", missingval=0xff=>0xff
+    )
+    series_output = resample(gdalser, output_res;
+        crs=output_crs, method=resample_method, missingval=0xff=>0xff
+    )
     extradim_raster = cat(gdalarray, gdalarray, gdalarray; dims=Z)
-    extradim_output = resample(extradim_raster, output_res; crs=output_crs, method=resample_method)
+    extradim_output = resample(extradim_raster, output_res; 
+        crs=output_crs, method=resample_method, missingval=0xff=>0xff
+    )
 
     permuted_raster = permutedims(gdalarray, (Y, X))
-    permuted_output = resample(permuted_raster, output_res; crs=output_crs, method=resample_method)
+    permuted_output = resample(permuted_raster, output_res; 
+        crs=output_crs, method=resample_method, missingval=0xff=>0xff 
+    )
 
     # Compare ArchGDAL, resample and permuted resample 
     @test AG_output ==
-        raster_output == disk_output ==
+        raster_output == 
+        disk_output ==
         stack_output[:a] ==
         written_stack_output[:a] ==
         series_output[1] ==

@@ -4,13 +4,13 @@ using DiskArrays
 import NCDatasets, ArchGDAL
 using Rasters: FileArray, GRDsource, GDALsource, metadata, trim
 
-testpath = joinpath(dirname(pathof(Rasters)), "../test/")
+testpath = joinpath(dirname(pathof(Rasters)), "..", "test")
 include(joinpath(testpath, "test_utils.jl"))
 const DD = DimensionalData
 
 maybedownload("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd", "rlogo.grd")
 maybedownload("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri", "rlogo.gri")
-stem = joinpath(testpath, "data/rlogo")
+stem = joinpath(testpath, "data", "rlogo")
 @test isfile(stem * ".grd")
 @test isfile(stem * ".gri")
 grdpath = stem * ".gri"
@@ -217,8 +217,10 @@ grdpath = stem * ".gri"
             # 1 band is added again on save
             @test size(saved) == size(grdarray[Band(1)])
             @test parent(saved) == parent(grdarray[Band(1)])
+            filename2 = tempname() * ".gri"
             write(filename2, grdarray; force=true, verbose=false)
-            #  @test_broken (@allocations write(filename2, grdarray; force=true, verbose=false)) < 3e3
+            filename2 = tempname() * ".gri"
+            @test (@allocations write(filename2, grdarray; force=true, verbose=false)) < 3e3
         end
 
         @testset "3d with subset" begin
@@ -244,8 +246,10 @@ grdpath = stem * ".gri"
             @test all(parent(saved) .=== parent(geoA))
             @test saved isa typeof(geoA)
             @test parent(saved) == parent(geoA)
+            filename = tempname() * ".grd"
             write(filename, GRDsource(), geoA; force = true)
-            # @test_broken (@allocations write(filename, GRDsource(), geoA; force = true)) < 3e3
+            filename = tempname() * ".grd"
+            @test (@allocations write(filename, GRDsource(), geoA; force = true)) < 3e3
         end
 
         @testset "to netcdf" begin
@@ -458,7 +462,7 @@ end
 end
 
 @testset "Grd series" begin
-    grdpath2 = stem * "2" * ".gri"
+    grdpath2 = joinpath(tempdir(), tempname() * ".gri")
     write(grdpath2, 2 .* Raster(grdpath); force=true)
     Raster(grdpath) .* 2 == Raster(grdpath2)
     eager_grdseries = RasterSeries([grdpath, grdpath2], (Ti,); mappedcrs=EPSG(4326))
