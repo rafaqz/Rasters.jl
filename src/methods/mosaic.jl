@@ -263,7 +263,7 @@ function _mosaic_mean!(dest, ::Type{T}, regions; kw...) where T
     dest .= ((d, c) -> d === missingval(dest) ? missingval(dest) : d / c).(dest, counts)
     return dest
 end
-function _mosaic_region!(op, dest, region; kw...)
+function _mosaic_region!(op, dest, region; atol=nothing, kw...)
     function skip_or_op(a, b) 
         if b === missingval(region)
             a
