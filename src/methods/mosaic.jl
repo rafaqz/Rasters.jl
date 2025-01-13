@@ -102,10 +102,10 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
         options,
         force
     ) do C
-        _mosaic!(f, C, regions; missingval, kw...)
+        mosaic!(f, C, regions; missingval, kw...)
     end
 end
-function _mosaic(f::Function, ::AbstractRasterStack, regions;
+function _mosaic(f::Function, r1::AbstractRasterStack, regions;
     filename=nothing,
     suffix=keys(first(regions)),
     kw...
@@ -211,7 +211,7 @@ end
 # Generic unknown functions
 function _mosaic!(
     f::Function, op::Nothing, A::AbstractRaster{T}, regions::Union{Tuple,AbstractArray};
-    missingval=missingval(A), atol=maybe_eps(T)
+    missingval=missingval(A), atol=nothing
 ) where T
     isnokwornothing(missingval) && throw(ArgumentError("destination array must have a `missingval`"))
     R = promote_type(map(Missings.nonmissingtype ∘ eltype, regions)...)
