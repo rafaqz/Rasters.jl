@@ -274,8 +274,12 @@ function _mosaic_region!(op, dest, region; kw...)
         end
     end
     ext = extent(region)
-    ds = DimSelectors(view(dest, ext))
-    dest[ext] .= skip_or_op.(view(dest, ext), view(region, ds))
+    selectors = map(sampling(dest)) do sa
+        ispoints(sa) ? At(; atol) : Contains()
+    end
+    ds = DimSelectors(view(dest, ext); selectors)
+    # `parent` needed to skip broadcast checks
+    dest[ext] .= skip_or_op.(parent(view(dest, ext)), parent(view(region, ds)))
     return dest
 end
 function _count_region!(count::AbstractRaster{T}, region::AbstractRaster; kw...) where T
