@@ -14,16 +14,29 @@ _init_bools(to::Extents.Extent, T::Type, data; kw...) =
     _init_bools(to, _extent2dims(to; kw...), T, data; kw...)
 _init_bools(to::DimTuple, T::Type, data; kw...) =
     _init_bools(to, to, T, data; kw...)
-function _init_bools(to::Nothing, T::Type, data; geometrycolumn=nothing,kw...)
+function _init_bools(to::Nothing, T::Type, data;
+    geometrycolumn=nothing, 
+    collapse=nokw, 
+    res=nokw,
+    size=nokw,
+    kw...
+)
     # Get the extent of the geometries
-    ext = _extent(data; geometrycolumn, kw...)
+    ext = _extent(data; geometrycolumn)
     isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
-    # Convert the extent to dims (there must be `res` or `size` in `kw`)
-    dims = _extent2dims(ext; kw...)
-    return _init_bools(to, dims, T, data; kw...)
+    return _init_bools(ext, T, data; collapse, res, size, kw...)
 end
-function _init_bools(to, dims::DimTuple, T::Type, data; collapse::Union{Bool,Nothing}=nothing, kw...)
-    if isnothing(data) || isnothing(collapse) || collapse
+function _init_bools(to::Extents.Extent, T::Type, data;
+    collapse=nokw, size=nokw, res=nokw, sampling=nokw, kw...
+)
+    # Convert the extent to dims (there must be `res` or `size` in `kw`)
+    dims = _extent2dims(to; size, res, sampling, kw...)
+    _init_bools(to, dims, T, data; collapse, kw...)
+end
+function _init_bools(to, dims::DimTuple, T::Type, data; 
+    collapse::Union{Bool,Nothing,NoKW}=nokw, kw...
+)
+    if isnothing(data) || isnokwornothing(collapse) || collapse
         _alloc_bools(to, dims, T; kw...)
     else
         n = if Base.IteratorSize(data) isa Base.HasShape
@@ -36,13 +49,17 @@ function _init_bools(to, dims::DimTuple, T::Type, data; collapse::Union{Bool,Not
     end
 end
 
-function _alloc_bools(to, dims::DimTuple, ::Type{BitArray}; missingval::Bool=false, metadata=NoMetadata(), kw...)
+function _alloc_bools(to, dims::DimTuple, ::Type{BitArray}; 
+    missingval::Bool=false, metadata=NoMetadata(), kw...
+)
     # Use a BitArray
     vals = missingval == false ? falses(size(dims)) : trues(size(dims))
     return Raster(vals, dims; missingval, metadata)
 end
-function _alloc_bools(to, dims::DimTuple, ::Type{<:Array{T}}; missingval=false, metadata=NoMetadata(), kw...) where T
-    # Use an `Array`
+function _alloc_bools(to, dims::DimTuple, ::Type{<:Array{T}}; 
+    missingval=false, metadata=NoMetadata(), kw...
+) where T
+    # Use an Array
     data = fill!(Raster{T}(undef, dims), missingval)
     return rebuild(data; missingval, metadata)
 end

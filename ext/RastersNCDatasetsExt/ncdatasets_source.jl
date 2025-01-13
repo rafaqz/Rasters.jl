@@ -1,6 +1,3 @@
-const NCD = NCDatasets
-
-
 const NCDAllowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
 
 function RA._check_allowed_type(::RA.NCDsource, eltyp)
@@ -10,7 +7,8 @@ function RA._check_allowed_type(::RA.NCDsource, eltyp)
     """
     ))
 end
-function Base.write(filename::AbstractString, ::NCDsource, A::AbstractRaster;
+
+function Base.write(filename::AbstractString, source::NCDsource, A::AbstractRaster;
     append=false,
     force=false,
     kw...
@@ -21,21 +19,21 @@ function Base.write(filename::AbstractString, ::NCDsource, A::AbstractRaster;
         RA.check_can_write(filename, force)
         "c"
     end
-    mode  = !isfile(filename) || !append ? "c" : "a";
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(A)))
     try
-        RA._writevar!(ds, A; kw...)
+        RA._writevar!(ds, source, A; kw...)
     finally
         close(ds)
     end
     return filename
 end
-function Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStack;
+function Base.write(filename::AbstractString, source::Source, s::AbstractRasterStack{K,T};
     append=false,
     force=false,
     missingval=nokw,
+    f=identity,
     kw...
-)
+) where {Source<:NCDsource,K,T}
     mode = if append
         isfile(filename) ? "a" : "c"
     else
@@ -43,22 +41,23 @@ function Base.write(filename::AbstractString, ::NCDsource, s::AbstractRasterStac
         "c"
     end
     ds = NCD.Dataset(filename, mode; attrib=RA._attribdict(metadata(s)))
+    missingval = RA._stack_nt(s, isnokw(missingval) ? Rasters.missingval(s) : missingval)
     try
-        if missingval isa NamedTuple
-            map(k -> RA._writevar!(ds, s[k]; missingval=missingval[k], kw...), keys(s))
-        else
-            map(k -> RA._writevar!(ds, s[k]; missingval, kw...), keys(s))
+        map(keys(s)) do k
+            RA._writevar!(ds, source, s[k]; missingval=missingval[k], kw...)
         end
+        f(RA.OpenStack{Source,K,T}(ds))
     finally
         close(ds)
     end
     return filename
 end
 
-function RA.OpenStack(fs::RA.FileStack{NCDsource,K}) where K
-    RA.OpenStack{NCDsource,K}(NCD.Dataset(RA.filename(fs)))
-end
 Base.close(os::RA.OpenStack{NCDsource}) = NCD.close(RA.dataset(os))
+
+function RA.OpenStack(fs::RA.FileStack{NCDsource,K}) where K
+    RA.OpenStack{NCDsource,K}(NCD.Dataset(RA.filename(fs)), fs.mods)
+end
 
 function RA._open(f, ::NCDsource, filename::AbstractString; write=false, kw...)
     isfile(filename) || RA._isurl(filename) || RA._filenotfound_error(filename)
@@ -68,13 +67,37 @@ function RA._open(f, ::NCDsource, filename::AbstractString; write=false, kw...)
     end
 end
 
-
-# Hack to get the inner DiskArrays chunks as they are not exposed at the top level
-RA._get_eachchunk(var::NCD.Variable) = DiskArrays.eachchunk(var)
-RA._get_haschunks(var::NCD.Variable) = DiskArrays.haschunks(var)
-
 RA._sourcetrait(::NCD.Dataset) = NCDsource()
 RA._sourcetrait(::NCD.Variable) = NCDsource()
+
+@inline function RA.get_scale(metadata::Metadata{NCDsource}, scaled::Bool)
+    scale = scaled ? get(metadata, "scale_factor", nothing) : nothing
+    offset = scaled ? get(metadata, "add_offset", nothing) : nothing
+    return scale, offset
+end
+
+RA.missingval(var::NCD.Variable, args...) = 
+    RA.missingval(RA.Metadata{NCDsource}(CDM.attribs(var)))
+RA.missingval(var::NCD.Variable, md::RA.Metadata{<:NCDsource}) = RA.missingval(md)
+
+function RA.missingval(md::RA.Metadata{NCDsource})
+    # TODO: handle multiple missing values
+    fv = get(md, "_FillValue", nothing)
+    mv = get(md, "missing_value", nothing)
+    if isnothing(fv)
+        if mv isa Vector
+            length(mv) > 1 && @warn "'missing_value' $mv has multiple values. Currently we only uses the first."
+            return first(mv)
+        else
+            return mv
+        end
+    else
+        if !isnothing(mv) 
+            fv == mv || @warn "Both '_FillValue' $fv and 'missing_value' $mv were found. Currently we only use the first."
+        end
+        return fv
+    end
+end
 
 # precompilation
 

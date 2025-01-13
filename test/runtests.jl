@@ -13,6 +13,7 @@ end
 @time @safetestset "array" begin include("array.jl") end
 @time @safetestset "stack" begin include("stack.jl") end
 @time @safetestset "series" begin include("series.jl") end
+@time @safetestset "create" begin include("create.jl") end
 @time @safetestset "utils" begin include("utils.jl") end
 @time @safetestset "set" begin include("set.jl") end
 @time @safetestset "adapt" begin include("adapt.jl") end
@@ -28,22 +29,17 @@ end
 # CommondataModel sources
 @time @safetestset "commondatamodel" begin include("sources/commondatamodel.jl") end
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
-# @time @safetestset "zarr" begin include("sources/zarr.jl") end # TODO: FIXME
+@time @safetestset "zarr" begin include("sources/zarr.jl") end
 if !Sys.iswindows()
     # GRIBDatasets doesn't work on Windows for now
     @time @safetestset "gribdatasets" begin include("sources/gribdatasets.jl") end
-end
-
-# Only test SMAP locally for now, also RasterDataSources because CI downloads keep breaking
-if !haskey(ENV, "CI")
-    @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
-end
-
-if !Sys.iswindows()
     # GDAL Environment vars need to be set manually for windows, so skip for now
     @time @safetestset "gdal" begin include("sources/gdal.jl") end
     @time @safetestset "grd" begin include("sources/grd.jl") end
 end
+# Only test SMAP locally for now, also RasterDataSources because CI downloads keep breaking
+if !haskey(ENV, "CI")
+    @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
+end
 @time @safetestset "plot recipes" begin include("plotrecipes.jl") end
-
 @time @safetestset "resample" begin include("resample.jl") end

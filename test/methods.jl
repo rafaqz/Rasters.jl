@@ -57,9 +57,10 @@ gaMi = replace_missing(ga)
     @test all(map(values(replace_missing(st, NaN32)), (a=[NaN32 7.0f0; 2.0f0 NaN32], b=[1.0 0.4; 2.0 NaN])) do x, y
         all(x .=== y)
     end)
-    dNaN = replace_missing(ga, NaN32; filename="test.tif")
+    testfile = tempname() * ".tif"
+    dNaN = replace_missing(ga, NaN32; filename=testfile)
+    read(dNaN)
     @test all(isequal.(dNaN, [NaN32 7.0f0; 2.0f0 NaN32]))
-    rm("test.tif")
     stNaN = replace_missing(st, NaN32; filename="teststack.tif")
     @test all(maplayers(stNaN[Band(1)], (a=[NaN32 7.0f0; 2.0f0 NaN32], b=[1.0 0.4; 2.0 NaN])) do x, y
         all(x .=== y)
@@ -91,16 +92,51 @@ end
     @test all(boolmask(se2, alllayers=false) .=== [true true; true false])    
     @test dims(boolmask(ga)) === dims(ga)
     x = boolmask(polygon; res=1.0, boundary=:touches) 
-    @test x == trues(X(Projected(-20:1.0:0.0; sampling=Intervals(Start()), crs=nothing)), Y(Projected(10.0:1.0:30.0; sampling=Intervals(Start()), crs=nothing)))
+    @test x == trues(X(Projected(-20:1.0:0.0; sampling=Intervals(Start()), crs=nothing)),
+                     Y(Projected(10.0:1.0:30.0; sampling=Intervals(Start()), crs=nothing)))
     @test all(x .!= boolmask(polygon; res=1.0, invert=true, boundary=:touches))
     @test parent(x) isa BitMatrix
     # With a :geometry axis
-    x = boolmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches)
-    @test all(x .!= boolmask([polygon, polygon]; collapse=false, res=1.0, invert=true, boundary=:touches))
-    @test eltype(x) == Bool
-    @test size(x) == (21, 21, 2)
-    @test sum(x) == 882
-    @test parent(x) isa BitArray{3}
+    x1 = boolmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches)
+    x2 = boolmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches, sampling=Intervals(Center()))
+    x3 = boolmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches, sampling=Intervals(End()))
+    @test extent(x1) == extent(x2) == extent(x3) == Extent(X = (-20.0, 1.0), Y = (10.0, 31.0), geometry = (1, 2))
+    x4 = boolmask([polygon, polygon]; collapse=false, size=(21, 21), boundary=:touches)
+    x5 = boolmask([polygon, polygon]; collapse=false, size=(21, 21), boundary=:touches, sampling=Intervals(Center()))
+    x6 = boolmask([polygon, polygon]; collapse=false, size=(21, 21), boundary=:touches, sampling=Intervals(End()))
+    xs = (x1, x2, x3, x4, x5, x6)
+    @test all(x1 .!= boolmask([polygon, polygon]; collapse=false, res=1.0, invert=true, boundary=:touches))
+    @test sampling(x1, X) isa Intervals{Start}
+    @test sampling(x2, X) isa Intervals{Center}
+    @test sampling(x3, X) isa Intervals{End}
+    @test sampling(x4, X) isa Intervals{Start}
+    @test sampling(x5, X) isa Intervals{Center}
+    @test sampling(x6, X) isa Intervals{End}
+    for x in xs
+        @test eltype(x1) == Bool
+        @test size(x) == (21, 21, 2)
+        @test sum(x) == 882
+        @test parent(x) isa BitArray{3}
+        @test eltype(x) == Bool
+    end
+    @testset "size adds nextfloat" begin
+        s = boolmask([polygon, polygon]; collapse=false, size=(21, 21), boundary=:touches)
+        bounds(s, X)[1] == -20.0
+        bounds(s, X)[2] > 0.0
+        bounds(s, Y)[1] == 10.0
+        bounds(s, Y)[2] > 30.0
+        c = boolmask([polygon, polygon]; collapse=false, size=(21, 21), boundary=:touches, sampling=Intervals(Center()))
+        bounds(c, X)[1] == -20.0
+        bounds(c, X)[2] > 0.0
+        bounds(c, Y)[1] == 10.0
+        bounds(c, Y)[2] > 30.0
+        e = boolmask([polygon, polygon]; collapse=false, size=(21, 21), boundary=:touches, sampling=Intervals(End()))
+        bounds(e, X)[1] < -20.0
+        bounds(e, X)[2] == 0.0
+        bounds(e, Y)[1] < 10.0
+        bounds(e, Y)[2] == 30.0
+    end
+
     x = boolmask([polygon, polygon]; collapse=true, res=1.0, boundary=:touches)
     @test all(x .!= boolmask([polygon, polygon]; collapse=true, res=1.0, invert=true, boundary=:touches))
     @test size(x) == (21, 21)
@@ -183,9 +219,9 @@ end
     ga4 = replace_missing(ga1; missingval=-9999)
     mask!(ga4; with=ga, invert=true)
     @test all(ga4 .=== [-9999 -9999; -9999 3])
-    dmask = mask(ga3; with=ga, filename="mask.tif")
+    maskfile = tempname() * ".tif"
+    dmask = mask(ga3; with=ga, filename=maskfile)
     @test Rasters.isdisk(dmask)
-    rm("mask.tif")
     stmask = mask(replace_missing(st, NaN); with=ga, filename="mask.tif")
     @test Rasters.isdisk(stmask)
     rm("mask_a.tif")
@@ -230,7 +266,7 @@ end
     end
 end
 
-@testset "mask_replace_missing" begin
+@testset "mask" begin
     # Floating point rasters
     a = Raster([1.0 0.0; 1.0 1.0], dims=(X, Y), missingval=0.0)
     b = Raster([1.0 1.0; 1.0 0.0], dims=(X, Y), missingval=0.0)
@@ -359,7 +395,8 @@ end
     @test_throws ArgumentError classify(ga1, [1, 2, 3])
 end
 
-@testset "points" begin    dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
+@testset "points" begin    
+    dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
     rast = Raster([1 2; 3 4], dimz; name=:test)
     rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=5)
     rast_m = Raster([1 2; 3 missing], dimz; name=:test)
@@ -408,7 +445,8 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         extended = extend(cropped, ga)[1]
         extended_r = extend(cropped_r; to=ga_r)
         extended1 = extend(extend(cropped; to=dims(ga, X)); to=dims(ga, Y))
-        extended_d = extend(cropped; to=ga, filename="extended.tif")
+        filename = tempname() * ".tif"
+        extended_d = extend(cropped; to=ga, filename)
         @test map(identicalelements, maybe_layers.((extended, extended1, replace_missing(extended_d), ga))...) |> all
         @test map(identicalelements, maybe_layers.((extended_r, ga_r))...) |> all
         @test all(map(==, lookup(extended_d), lookup(extended)))

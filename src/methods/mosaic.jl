@@ -61,34 +61,56 @@ nothing
 
 $EXPERIMENTAL
 """
-function mosaic(f::Function, r1::RasterStackOrArray, rs::RasterStackOrArray...; kw...)
+mosaic(f::Function, r1::RasterStackOrArray, rs::RasterStackOrArray...; kw...) =
     mosaic(f, (r1, rs...); kw...)
-end
 mosaic(f::Function, regions; kw...) = _mosaic(f, first(regions), regions; kw...)
-function _mosaic(f::Function, r1::AbstractRaster, regions;
-    missingval=missing, filename=nothing, suffix=nothing, kw...
+function _mosaic(f::Function, A1::AbstractRaster, regions;
+    missingval=nokw,
+    filename=nothing,
+    suffix=nothing,
+    driver=nokw,
+    options=nokw,
+    force=false,
+    kw...
 )
     V = Vector{promote_type(map(Missings.nonmissingtype ∘ eltype, regions)...)}
     T = Base.promote_op(f, V)
     dims = _mosaic(Tuple(map(DD.dims, regions)))
-    if isnothing(missingval)
-        missingval = missing
+    l1 = first(regions)
+
+    missingval = if isnothing(missingval) 
+        throw(ArgumentError("missingval cannot be `nothing` for `mosaic`"))
+    elseif isnokw(missingval)
+        mv = Rasters.missingval(first(regions)) 
+        isnokwornothing(mv) ? missing : mv
+    else
+        missingval
     end
-    A = rebuild(create(filename, T, dims; name=name(r1), missingval); missingval)
-    # TODO move this to the create block
-    open(A; write=true) do O
-        if isnothing(Rasters.missingval(O)) 
-            O .= zero(eltype(O))
-        else
-            O .= Rasters.missingval(O)
-        end
-        mosaic!(f, O, regions; missingval, kw...)
+    missingval_pair = if missingval isa Pair
+        missingval
+    elseif !isnothing(filename) && (ismissing(missingval) || isnokw(missingval))
+        _type_missingval(eltype(A1)) => missing
+    else
+        missingval => missingval
     end
-    return A
+
+    return create(filename, T, dims;
+        name=name(l1),
+        fill=missingval_pair[1],
+        missingval=missingval_pair,
+        driver,
+        options,
+        force
+    ) do C
+        _mosaic!(f, C, regions; missingval, kw...)
+    end
 end
-function _mosaic(f::Function, r1::AbstractRasterStack, regions;
-    filename=nothing, suffix=keys(r1), kw...
+function _mosaic(f::Function, ::AbstractRasterStack, regions;
+    filename=nothing,
+    suffix=keys(first(regions)),
+    kw...
 )
+    # TODO make this write inside a single netcdf
     layers = map(suffix, map(values, regions)...) do s, A...
         mosaic(f, A...; filename, suffix=s, kw...)
     end
@@ -191,6 +213,7 @@ function _mosaic!(
     f::Function, op::Nothing, A::AbstractRaster{T}, regions::Union{Tuple,AbstractArray};
     missingval=missingval(A), atol=maybe_eps(T)
 ) where T
+    isnokwornothing(missingval) && throw(ArgumentError("destination array must have a `missingval`"))
     R = promote_type(map(Missings.nonmissingtype ∘ eltype, regions)...)
     buffer = Vector{R}(undef, length(regions))
     _without_mapped_crs(A) do A1
