@@ -210,7 +210,7 @@ end
             A1 = ncarray[X(1:80), Y(1:100)]
             A2 = ncarray[X(50:150), Y(90:150)]
             tempfile = tempname() * ".nc"
-            Afile = mosaic(first, read(A1), read(A2); 
+            Afile = mosaic(first, A1, A2; 
                 atol=1e-7, filename=tempfile, force=true
             ) |> read
             Amem = mosaic(first, A1, A2; atol=1e-7)

@@ -121,7 +121,7 @@ end
     mosaic!(f, x, regions...; missingval, atol)
     mosaic!(f, x, regions::Tuple; missingval, atol)
 
-Combine `regions` in `x` using the function `f`.
+Combine `regions` in `Raster` or `RasterStack` `x` using the function `f`.
 
 # Arguments
 
