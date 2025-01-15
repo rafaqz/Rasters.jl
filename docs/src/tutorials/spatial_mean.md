@@ -141,3 +141,54 @@ We've also seen how to use the `cellarea` function to compute the area of each c
 
 We've seen that the spatial mean is not the same as the arithmetic mean, and that we need to account for the area of each cell when computing the average.
 
+## Bonus: Computing spatial means across dimensions 
+
+As a next step, we would like to know how precipitation will change in Chile until the end of the 21st century. To do this, we can use climate model outputs. This data can come from multiple climate models (GCMs) and under different socio-economic scenarios (SSPs). We'll use additional dimensions to keep track of these.
+
+First we define a simple function takes an SSP (socioeconomic scenario) and a GCM (climate model) as input, and downloads the appropriate climate data. 
+
+````@example zonal
+using Dates
+getfutureprec(ssp, gcm) = Raster(WorldClim{Future{Climate, CMIP6, gcm, ssp}}, :prec, date = Date(2090))
+````
+
+We will leverage some tools from [DimensionalData](https://github.com/rafaqz/DimensionalData.jl), which is the package that underlies Rasters.jl. Rather than having a seperate Raster for each combination of GCM and SSP, `gcm` and `ssp` will be additional dimensions, and our Raster will be 4-dimensional (X-Y-gcm-ssp). 
+
+To do this, we first define two dimensions that correspond to the SSPs and GCMs we are interested in, then use the `@d` macro from [DimensionalData](https://github.com/rafaqz/DimensionalData.jl) to preserve these dimensions as we get the data, and then combine all Rasters into a single object using `Rasters.combine`
+
+````@example cellarea
+SSPs = Dim{:ssp}([SSP126, SSP370]) # SSP126 is a low-emission scenario, SSP370 is a high-emission scenario
+GCMs = Dim{:gcm}([GFDL_ESM4, IPSL_CM6A_LR]) # These are different general circulation (climate) models
+
+precip_future = (@d getfutureprec.(SSPs, GCMs)) |> RasterSeries |> Rasters.combine
+````
+
+Since the format of WorldClim's datasets for future climate is slightly different from the dataset for the historical period, this actually returned a 5-dimensional raster, with a `Band` dimension that represents months. Here we'll just select the 6th month, matching the selection above. We will also replace the `NaN` missing value by the more standard `missing` using [`replace_missing`](@ref).
+
+````@example cellarea
+precip_future = precip_future[Band = 6]
+precip_future = replace_missing(precip_future)
+````
+
+On our 4-dimensional raster, functions like `crop` and `mask`, as well as broadcasting, will still work.
+
+Here we repeat the procedure from above to mask out areas so we only have data for Chile, and then multiply by the cell area. 
+
+````@example cellarea
+masked_precip_future = mask(crop(precip_future; to = chile); with = chile)
+
+precip_litres_future = masked_precip_future .* areas
+````
+
+Now we calculate the average precipitation for each SSP and each GCM. Annoyingly, the future WorldClim doesn't have data for all land pixels, so we have to re-calculate the total area.
+
+````@example cellarea
+masked_areas_future = mask(areas, with = masked_precip_future[ssp = 1, gcm = 1])
+total_area_f = sum(skipmissing(masked_areas_future))
+
+avg_prec_future = map(eachslice(precip_litres_future; dims = (:ssp, :gcm))) do slice
+   sum(skipmissing(slice)) / total_area_f
+end
+````
+
+Which shows us that June rainfall in Chile will be slightly lower in the future, especially under the high-emission SSP370 scenario.
