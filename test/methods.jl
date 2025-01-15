@@ -768,4 +768,8 @@ end
     ext = extent(ga)
     @test ext === Extent(X=(1.0,2.0), Y=(1.0,2.0))
     @test Rasters._extent(ext) === ext
+
+    ga2 = Raster(A, (X(Float32.(1:2)), Y(Float32.(1:2))))
+    @test ext2 === Extent(X=(1.0f0,2.0f0), Y=(1.0f0,2.0f0))
+    @test Rasters._extent(ext2) === ext # currently this converts to float64!
 end
