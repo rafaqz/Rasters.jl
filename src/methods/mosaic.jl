@@ -173,7 +173,11 @@ function mosaic!(
     op=_reduce_op(f, missingval(dest)), 
     kw...
 )
-    _mosaic!(f, op, dest, regions; kw...)
+    # Centering avoids pixel edge floating point error
+    dest_centered = maybeshiftlocus(Center(), dest)
+    regions_centered = map(r -> maybeshiftlocus(Center(), r), regions)
+    _mosaic!(f, op, dest_centered, regions_centered; kw...)
+    return dest
 end
 function mosaic!(
     f::typeof(mean), op::Nothing, dest::RasterStackOrArray,
