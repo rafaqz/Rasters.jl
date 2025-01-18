@@ -211,10 +211,19 @@ function _get_geometries(data, ::Nothing)
         data
     else
         trait = GI.trait(data)
-        if GI.trait(data) isa GI.FeatureCollectionTrait
+        if trait isa GI.AbstractFeatureCollectionTrait
             [GI.geometry(f) for f in GI.getfeature(data)]
-        else
+        elseif trait isa GI.AbstractGeometryCollectionTrait
+            GI.getgeom(data)
+        elseif trait isa GI.AbstractFeatureTrait
+            GI.geometry(data)
+        elseif isnothing(trait)
             collect(data)
+        elseif trait isa GI.AbstractGeometryTrait
+            # data is already a geometry, so return as-is
+            data
+        else
+            ArgumentError("data has $trait, which is not handled")
         end
     end
     # check if data iterates valid geometries before returning
@@ -240,9 +249,10 @@ function _get_geometries(data, geometrycolumn::NTuple{<:Any, <:Symbol})
     return points
 end
 function _check_geometries(geoms)
+    !isnothing(GI.trait(geoms)) && return
     for g in geoms
-        ismissing(g) || GI.geomtrait(g) !== nothing || 
-        throw(ArgumentError("$g is not a valid GeoInterface.jl geometry"))
+        ismissing(g) || !isnothing(GI.geomtrait(g)) || 
+            throw(ArgumentError("$g is not a valid GeoInterface.jl geometry"))
     end
     return
 end

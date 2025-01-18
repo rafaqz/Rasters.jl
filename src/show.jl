@@ -34,9 +34,9 @@ function print_geo(io, mime, A; blockwidth)
     end
     if isdisk(A)
         fn = filename(A)
-        if !(fn == "")
+        if !isnothing(fn) && !(fn == "") 
             printstyled(io, "\n  filename: "; color=:light_black)
-            print(io, )
+            print(io, fn)
         end
     end
     println(io)
