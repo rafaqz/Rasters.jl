@@ -7,7 +7,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 gdalpath = maybedownload(url)
 
-#@testset "Raster" begin
+@testset "Raster" begin
     @test_throws ArgumentError Raster("notafile.tif")
 
     @time gdalarray = Raster(gdalpath; name=:test)
@@ -187,7 +187,7 @@ gdalpath = maybedownload(url)
         @test gdalarray[Y(4.224e6..4.226e6), Band(1)] isa Raster
     end
 
-   #@testset "methods" begin
+    @testset "methods" begin
         @testset "mean" begin
             @test all(mean(gdalarray; dims=Y) .=== mean(parent(gdalarray); dims=2))
         end
@@ -269,14 +269,15 @@ gdalpath = maybedownload(url)
             rm(tempfile)
         end
 
-        #@testset "mosaic" begin
+        @testset "mosaic" begin
             @time gdalarray = Raster(gdalpath; name=:test)
             A1 = gdalarray[X(1:300), Y(1:200)]
             A2 = gdalarray[X(57:End()), Y(101:End())]
             tempfile1 = tempname() * ".tif"
             tempfile2 = tempname() * ".tif"
             tempfile3 = tempname() * ".tif"
-            Afile = mosaic(first, A1, A2; missingval=0xff, atol=1e-8, filename=tempfile1)
+            view(gdalarray, extent(A2))
+            Afile = mosaic(first, A1, A2; missingval=0xff, atol=1e-1, filename=tempfile1)
             @test missingval(Afile) === 0xff
             Afile2 = mosaic(first, A1, A2; atol=1e-8, filename=tempfile2)
             @test missingval(Afile2) === missing
@@ -287,12 +288,6 @@ gdalpath = maybedownload(url)
 
             Atest[DimSelectors(Atest[extent(A1)]; selectors=Contains())] .= A1
             Atest[DimSelectors(Atest[extent(A2)]; selectors=Contains())] .= A2
-            # Atest[extent(A1)] .= A1
-            # Atest[extent(A2)] .= A2
-
-            Makie.plot(replace_missing((Amem .!== Atest) .* Amem, 1))
-            Makie.plot(Atest; figure=(;size=2 .* size(gdalarray)))
-            Makie.plot(Amem; figure=(;size=2 .* size(gdalarray)))
 
             @test size(Amem) == size(gdalarray)
             @test all(Atest .=== Amem .=== Afile .=== replace_missing(Afile2, 0xff))

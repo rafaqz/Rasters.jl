@@ -174,8 +174,8 @@ function mosaic!(
     kw...
 )
     # Centering avoids pixel edge floating point error
-    dest_centered = maybeshiftlocus(Center(), dest)
-    regions_centered = map(r -> maybeshiftlocus(Center(), r), regions)
+    dest_centered = _prepare_for_burning(dest; order=nothing)
+    regions_centered = map(r -> _prepare_for_burning(r; order=nothing), regions)
     _mosaic!(f, op, dest_centered, regions_centered; kw...)
     return dest
 end
@@ -277,9 +277,9 @@ function _mosaic_region!(op, dest, region; atol=nothing, kw...)
             op(a, b)
         end
     end
-    ext = extent(region)
+    ext = _maybe_pad_floats(extent(region), sampling(dest))
     selectors = map(sampling(dest)) do sa
-        ispoints(sa) ? At(; atol) : Contains()
+        ispoints(sa) ?  At(; atol) : Contains()
     end
     ds = DimSelectors(view(dest, ext); selectors)
     # `parent` needed to skip broadcast checks
@@ -358,4 +358,16 @@ function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::LookupTuple)
     newupper = sort(union(upper...); order=LA.ordering(order(lookup)))
     newbounds = vcat(permutedims(newlower), permutedims(newupper))
     return rebuild(lookup; data=newindex, span=Explicit(newbounds))
+end
+
+# Pad floats for intervals so that small floating point 
+# error doesn't exclude values in nealy matching lookups
+function _maybe_pad_floats(ext::Extent{K}, sampling::Tuple) where K
+    map(values(Extents.bounds(ext)), sampling) do b, sa
+        if isintervals(sa) && eltype(first(b)) <: AbstractFloat
+            b[1] - 10eps(b[1]), b[2] + 10eps(b[2])
+        else
+            b
+        end
+    end |> Extent{K}
 end

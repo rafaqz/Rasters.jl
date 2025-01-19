@@ -51,8 +51,8 @@ function _alloc_bools(to, dims::DimTuple, ::Type{<:Array{T}};
     return rebuild(data; missingval, metadata)
 end
 
-function _prepare_for_burning(B, locus=Center())
-    B1 = _forward_ordered(B)
+function _prepare_for_burning(B; locus=Center(), order=ForwardOrdered())
+    B1 = _maybe_lazy_reorder(order, B)
     start_dims = map(dims(B1, DEFAULT_POINT_ORDER)) do d
         # Shift lookup values to center of pixels
         d = DD.maybeshiftlocus(locus, d)
@@ -66,7 +66,8 @@ _lookup_as_array(x) = setdims(x, _lookup_as_array(dims(x)))
 _lookup_as_array(dims::Tuple) = map(_lookup_as_array, dims)
 _lookup_as_array(d::Dimension) = parent(lookup(d)) isa Array ? d : modify(Array, d)
 
-function _forward_ordered(B)
+_maybe_lazy_reorder(::Nothing, B) = B
+function _maybe_lazy_reorder(B)
     reduce(dims(B); init=B) do A, d
         if DD.order(d) isa ReverseOrdered
             A = view(A, rebuild(d, lastindex(d):-1:firstindex(d)))
