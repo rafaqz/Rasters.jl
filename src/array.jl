@@ -64,8 +64,7 @@ cleanreturn(x) = x
 
 isdisk(A::AbstractRaster) = parent(A) isa DiskArrays.AbstractDiskArray
 isdisk(x) = false
-# Just dig down to find an Array
-ismem(x) = length(Flatten.flatten(parent(x), Array, FLATTEN_IGNORE)) > 0
+ismem(A::AbstractRaster) = !isdisk(A)
 
 function Base.:(==)(A::AbstractRaster{T,N}, B::AbstractRaster{T,N}) where {T,N}
     size(A) == size(B) && all(A .== B)
