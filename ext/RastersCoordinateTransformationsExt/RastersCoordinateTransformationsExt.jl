@@ -1,11 +1,7 @@
 module RastersCoordinateTransformationsExt
 
-@static if isdefined(Base, :get_extension) # julia < 1.9
-    using Rasters, CoordinateTransformations
-else    
-    using ..Rasters, ..CoordinateTransformations
-end
-
+using Rasters
+using CoordinateTransformations
 using DimensionalData
 using Rasters.Lookups
 using Rasters.Dimensions
@@ -15,7 +11,6 @@ import Rasters: AffineProjected, GDAL_EMPTY_TRANSFORM, GDAL_TOPLEFT_X,
 const RA = Rasters
 const DD = DimensionalData
 const LA = Lookups
-
 
 include("affineprojected.jl")
 

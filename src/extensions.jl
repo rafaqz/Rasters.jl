@@ -114,8 +114,12 @@ Run `using ArchGDAL` to make this method available.
 
 # Keywords
 
+$MISSINGVAL_KEYWORD
 $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
+- `missingval`: the missing value to use during warping, will default to
+    `Rasters.missingval(A). Passing a pair will specify the missing value 
+    to use after warping.
 
 Any additional keywords are passed to `ArchGDAL.Dataset`.
 
@@ -125,7 +129,7 @@ This simply resamples the array with the `:tr` (output file resolution) and `:r`
 flags, giving us a pixelated version:
 
 ```jldoctest
-using Rasters, RasterDataSources, Plots
+using Rasters, ArchGDAL, RasterDataSources, Plots
 A = Raster(WorldClim{Climate}, :prec; month=1)
 a = plot(A)
 
@@ -162,18 +166,23 @@ warp(args...; kw...) = throw_extension_error(warp, "ArchGDAL", :RastersArchGDALE
     cellarea([method], x)
 
 Gives the approximate area of each gridcell of `x`.
-By assuming the earth is a sphere, it approximates the true size to about 0.1%, depending on latitude.
+By assuming the earth is a sphere, it approximates the true size to about 0.1%, depending on latitude. 
 
-Run `using ArchGDAL` to make this method fully available.
+Run `using ArchGDAL` or `using Proj` to make this method fully available.
 
-`method` can be `Spherical(; radius)` (the default) or `Planar()`.
+- `method`: You can specify whether you want to compute the area in the plane of your projection `Planar()` or on a sphere of some radius `Spherical(; radius=...)`(the default).
+
 - `Spherical` will compute cell area on the sphere, by transforming all points back to long-lat.  You can specify the radius by the `radius` keyword argument here.  By default, this is `6371008.8`, the mean radius of the Earth.
+
 - `Planar` will compute cell area in the plane of the CRS you have chosen.  Be warned that this will likely be incorrect for non-equal-area projections.
+
+Returns a Raster with the same x and y dimensions as the input, 
+where each value in the raster encodes the area of the cell (in meters by default).
 
 ## Example
 
 ```julia
-using Rasters, ArchGDAL, Rasters.Lookups
+using Rasters, Proj, Rasters.Lookups
 xdim = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), crs=EPSG(4326)))
 ydim = Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), crs=EPSG(4326)))
 myraster = rand(xdim, ydim)
@@ -256,7 +265,7 @@ using Rasters, Rasters.Lookups, Proj, StatsBase
 xdim = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), crs=EPSG(4326)))
 ydim = Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), crs=EPSG(4326)))
 myraster = rand(xdim, ydim)
-Rasters.sample(myraster, 5; weights = cellarea(myraster))
+Rasters.sample(myraster, 5; weights=cellarea(myraster))
 
 # output
 

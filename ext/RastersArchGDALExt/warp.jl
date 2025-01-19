@@ -11,26 +11,40 @@ function warp(A::AbstractRaster, flags::Dict; filename=nothing, kw...)
     end
 end
 function warp(st::AbstractRasterStack, flags::Dict; filename=nothing, suffix=keys(st), kw...)
-    RA.mapargs((A, s) -> warp(A, flags; filename, suffix=s), st, suffix; kw...)
+    RA.mapargs((A, s) -> warp(A, flags; filename, suffix=s, kw...), st, suffix)
 end
 
-function _warp(A::AbstractRaster, flags::Dict; filename=nothing, suffix="", kw...)
+function _warp(A::AbstractRaster, flags::Dict; 
+    filename=nothing, 
+    suffix="", 
+    missingval=Rasters.missingval(A),
+    name=Rasters.name(A),
+    kw...
+)
     A1 = _set_gdalwarp_sampling(A)
     filename = RA._maybe_add_suffix(filename, suffix)
     flagvect = reduce([flags...]; init=String[]) do acc, (key, val)
         append!(acc, String[_asflag(key), _stringvect(val)...])
     end
+    # TODO: detect if `A` already holds a lazy GDAL FileArray. 
+    # If it does, we can just open it and use it directly.
     tempfile = isnothing(filename) ? nothing : tempname() * ".tif"
     warp_kw = isnothing(filename) || filename == "/vsimem/tmp" ? () : (; dest=filename)
-    out = AG.Dataset(A1; filename=tempfile, kw...) do dataset
-        rds = Raster(dataset)
+    mv_pair = RA._write_missingval_pair(A1, missingval; 
+        verbose=false, eltype=eltype(A1), metadata=metadata(A), required=true
+    )
+    # We really need a missingval for `warp`, as it may rotate and add missing values
+    out = AG.Dataset(A1; filename=tempfile, missingval=mv_pair[1], kw...) do dataset
         AG.gdalwarp([dataset], flagvect; warp_kw...) do warped
             # Read the raster lazily, dropping Band if there is none in `A`
-            raster = Raster(warped; lazy=true, dropband=!hasdim(A, Band()), name = name(A))
+            raster = Raster(warped; 
+                lazy=true, dropband=!hasdim(A, Band()), name, missingval=mv_pair
+            )
             # Either read the MEM dataset to an Array, or keep a filename base raster lazy
             return isnothing(filename) ? read(raster) : raster
         end
     end
+
     # And permute the dimensions back to what they were in A
     out1 = _maybe_restore_from_gdal(out, dims(A))
     out2 = _reset_gdalwarp_sampling(out1, A)

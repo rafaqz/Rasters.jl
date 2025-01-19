@@ -30,7 +30,7 @@ _reduce_init(::typeof(sum), ::Type{T}, missingval) where T = zero(nonmissingtype
 _reduce_init(::typeof(prod), ::Type{T}, missingval) where T = oneunit(nonmissingtype(T))
 _reduce_init(::typeof(minimum), ::Type{T}, missingval) where T = typemax(nonmissingtype(T))
 _reduce_init(::typeof(maximum), ::Type{T}, missingval) where T = typemin(nonmissingtype(T))
-_reduce_init(::typeof(last), ::Type{T}, missingval) where T = _maybe_nothing_to_missing(missingval)
+_reduce_init(::typeof(last), ::Type{T}, missingval) where T = _maybe_to_missing(missingval)
 
 struct FillChooser{F,I,M}
     fill::F
@@ -69,13 +69,17 @@ end
 RasterCreator(to::AbstractRaster, data; kw...) = RasterCreator(dims(to); kw...)
 RasterCreator(to::AbstractRasterStack, data; kw...) = RasterCreator(dims(to); name, kw...)
 RasterCreator(to::Nothing, data; kw...) = RasterCreator(_extent(data; kw...); kw...)
-RasterCreator(to, data; kw...) = RasterCreator(_extent(to); kw...)
+RasterCreator(to, data; kw...) = 
+    RasterCreator(_extent(to; kw...); kw...)
 function RasterCreator(to::Extents.Extent;
     res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing,
-    size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing, kw...
+    size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing, 
+    crs=nokw,
+    mappedcrs=nokw,
+    kw...
 )
-    to_as_dims = _extent2dims(to; size, res, kw...)
-    return RasterCreator(to_as_dims; kw...)
+    to_as_dims = _extent2dims(to; size, res, crs, mappedcrs)
+    return RasterCreator(to_as_dims; crs, mappedcrs, kw...)
 end
 
 
@@ -476,12 +480,8 @@ function alloc_rasterize(f, r::RasterCreator;
     if prod(size(r.to)) == 0  
         throw(ArgumentError("Destination array is is empty, with size $(size(r.to))). Rasterization is not possible"))
     end
-    A = create(r.filename, eltype, r.to; name, missingval, metadata, suffix)
-    # TODO f should apply to the file when it is initially created
-    # instead of reopening but we need a `create(f, filename, ...)` method
-    open(A; write=true) do A
-        A .= Ref(missingval)
-        f(A)
+    A = create(r.filename, fill=missingval, eltype, r.to; name, missingval, metadata, suffix) do O
+        f(O)
     end
     return A
 end
