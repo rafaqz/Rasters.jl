@@ -283,6 +283,7 @@ function _mosaic_region!(op, dest, region; atol=nothing, kw...)
     end
     ds = DimSelectors(view(dest, ext); selectors)
     # `parent` needed to skip broadcast checks
+    @show basetypeof(view(dest, ext)) basetypeof(parent(view(dest, ext))) basetypeof(parent(view(region, ds)))
     dest[ext] .= skip_or_op.(parent(view(dest, ext)), parent(view(region, ds)))
     return dest
 end

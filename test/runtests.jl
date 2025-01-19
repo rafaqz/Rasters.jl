@@ -37,7 +37,7 @@ if !Sys.iswindows()
     @time @safetestset "gdal" begin include("sources/gdal.jl") end
     @time @safetestset "grd" begin include("sources/grd.jl") end
 end
-# Only test SMAP locally for now, also RasterDataSources because CI downloads keep breaking
+# Only test RasterDataSources locally for now, because CI downloads keep breaking
 if !haskey(ENV, "CI")
     @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
 end
