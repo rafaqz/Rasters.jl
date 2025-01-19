@@ -67,7 +67,7 @@ _lookup_as_array(dims::Tuple) = map(_lookup_as_array, dims)
 _lookup_as_array(d::Dimension) = parent(lookup(d)) isa Array ? d : modify(Array, d)
 
 _maybe_lazy_reorder(::Nothing, B) = B
-function _maybe_lazy_reorder(B)
+function _maybe_lazy_reorder(::ForwardOrdered, B)
     reduce(dims(B); init=B) do A, d
         if DD.order(d) isa ReverseOrdered
             A = view(A, rebuild(d, lastindex(d):-1:firstindex(d)))
