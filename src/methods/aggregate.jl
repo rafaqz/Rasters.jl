@@ -107,14 +107,13 @@ aggregate(method, l::Lookup, scale::Colon) = aggregate(method, l, length(l))
 aggregate(method, l::Lookup, scale::Nothing) = aggregate(method, l, 1) 
 function aggregate(method, l::Lookup, scale::Int)
     intscale = _scale2int(Ag(), l, scale)
-    # This is not type-stable
     start, stop = _endpoints(method, l, intscale)
     if issampled(l) && isordered(l)
         newl = l[start:scale:stop]
         sp = aggregate(method, span(l), scale)
         return rebuild(newl; span=sp)
     else
-        # Cateorical and Unordered lookups are just broken 
+        # Categorical and Unordered lookups are just broken 
         # by aggregate, so use NoLookup
         return NoLookup(Base.OneTo(length(start:scale:stop)))
     end
