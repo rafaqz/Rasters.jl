@@ -294,7 +294,7 @@ gdalpath = maybedownload(url)
             filter(x -> !Bool(first(x)), tuple.((Atest .=== Amem), Atest, Amem))
         end
 
-    #end # methods
+    end # methods
 
     @testset "conversion to Raster" begin
         geoA = gdalarray[X(1:50), Y(1:1), Band(1)]
