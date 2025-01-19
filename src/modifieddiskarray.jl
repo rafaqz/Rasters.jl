@@ -124,8 +124,8 @@ Base.@assume_effects :foldable function _applymod(x, m::Mod)
 end
 Base.@assume_effects :foldable _applymod(x, ::NoMod) = x
 
-_ismissing(x, mv) = isequal(x, mv)
-_ismissing(_, ::Nothing) = false
+_ismissing(x, mv) = ismissing(x) || x === mv 
+_ismissing(x, ::Nothing) = ismissing(x)
 
 _scaleoffset(x, m::Mod) = _scaleoffset(x, m.scale, m.offset)
 _scaleoffset(x, scale, offset) = x * scale + offset

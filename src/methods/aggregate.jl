@@ -98,9 +98,9 @@ end
 function aggregate(method, src::AbstractRaster, scale;
     suffix=nothing, filename=nothing, progress=true, kw...
 )
-    dst = alloc_ag(method, src, scale; filename, suffix, kw...)
-    aggregate!(method, dst, src, scale; progress, kw...)
-    return dst
+    return alloc_ag(method, src, scale; filename, suffix, kw...) do dst
+        aggregate!(method, dst, src, scale; progress, kw...)
+    end
 end
 aggregate(method, d::Dimension, scale) = rebuild(d, aggregate(method, lookup(d), scale))
 aggregate(method, l::Lookup, scale::Colon) = aggregate(method, l, length(l)) 
@@ -237,10 +237,9 @@ end
 function disaggregate(src::AbstractRaster, scale;
     suffix=nothing, filename=nothing, kw...
 )
-    dst = alloc_disag(Center(), src, scale; filename, suffix, kw...)
-    disaggregate!(dst, src, scale)
-
-    return dst
+    return alloc_disag(Center(), src, scale; filename, suffix, kw...) do dst
+        disaggregate!(dst, src, scale)
+    end
 end
 function disaggregate(dim::Dimension, scale)
     rebuild(dim, disaggregate(locus, lookup(dim), scale))
@@ -290,8 +289,8 @@ function disaggregate!(dst::AbstractRaster, src, scale)
 end
 
 # Allocate an array of the correct size to aggregate `A` by `scale`
-alloc_ag(method, A::AbstractRaster, scale; kw...) = alloc_ag((method,), A, scale; kw...)
-function alloc_ag(method::Tuple, A::AbstractRaster, scale;
+alloc_ag(f, method, A::AbstractRaster, scale; kw...) = alloc_ag(f, (method,), A, scale; kw...)
+function alloc_ag(f, method::Tuple, A::AbstractRaster, scale;
     filename=nokw, suffix=nokw, skipmissingval=false, skipmissing=false, progress=false, verbose=false
 )
     intscale = _scale2int(Ag(), dims(A), scale; verbose=false)
@@ -307,14 +306,14 @@ function alloc_ag(method::Tuple, A::AbstractRaster, scale;
         T = promote_type(agT, typeof(missingval(A)))
         mv = convert(T, missingval(A))
     end
-    return create(filename, T, dims_; name=name(A), suffix, missingval=mv)
+    return create(f, filename, T, dims_; name=name(A), suffix, missingval=mv)
 end
 
 # Allocate an array of the correct size to disaggregate `A` by `scale`
-function alloc_disag(method, A::AbstractRaster, scale; kw...)
-    alloc_disag((method,), A, scale; kw...)
+function alloc_disag(f, method, A::AbstractRaster, scale; kw...)
+    alloc_disag(f, (method,), A, scale; kw...)
 end
-function alloc_disag(method::Tuple, A::AbstractRaster, scale;
+function alloc_disag(f, method::Tuple, A::AbstractRaster, scale;
     filename=nokw, suffix=nokw
 )
     intscale = _scale2int(DisAg(), dims(A), scale; verbose=false)
@@ -323,7 +322,7 @@ function alloc_disag(method::Tuple, A::AbstractRaster, scale;
     sze = map(length, dims_)
     T = ag_eltype(method, A)
     mv = missingval(A) isa Nothing ? nothing : convert(T, missingval(A))
-    return create(filename, T, dims_; name=name(A), suffix, missingval=mv)
+    return create(f, filename, T, dims_; name=name(A), suffix, missingval=mv)
 end
 
 # Handle how methods like `mean` can change the type
@@ -382,7 +381,8 @@ end
         scaleddims = join((v[1] for v in vals if v[2] isa Int), ", ", " and ")
         skippeddims = join((v[1] for v in vals if isnothing(v[2])), ", ", " and ")
         @info """
-            Aggregating $scaleddims by $scale. $(skippeddims == "" ? "" : skippeddims) skipped due to being Categorical or Unordered. 
+            Aggregating $scaleddims by $scale. $(skippeddims == "" ? "" : skippeddims) 
+            skipped due to being `Categorical` or `Unordered`. 
             Specify all scales explicitly in a Tuple or NamedTuple to aggregate these anyway.  
             """
     end
@@ -395,10 +395,9 @@ end
 @inline _scale2int(::Ag, l::Lookup, scale::Int) = scale > length(l) ? length(l) : scale
 @inline _scale2int(::DisAg, l::Lookup, scale::Int) = scale
 
-_agoffset(method, scale::Colon) = 0
 _agoffset(locus::Locus, l::Lookup, scale::Int) = _agoffset(locus, scale)
 _agoffset(method, l::Lookup, scale::Int) = _agoffset(locus(l), scale)
-_agoffset(locus, scale::Colon) = 0
+_agoffset(x, scale::Colon) = 0
 _agoffset(locus::Start, scale::Int) = 0
 _agoffset(locus::End, scale::Int) = scale - 1
 _agoffset(locus::Center, scale::Int) = scale ÷ 2
@@ -476,5 +475,3 @@ end
     end
     return found ? agg / n : _missingval_or_missing(dst)
 end
-
-_ismissing(x, mv) = ismissing(x) || x === mv 

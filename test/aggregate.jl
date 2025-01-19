@@ -207,9 +207,14 @@ end
 
 @testset "Aggregate ignores categorical by default" begin
     rast = Raster(rand(X(1:10), Y(1:10), Z([:a, :b, :c]))) 
-    @test size(aggregate(sum, rast, 2)) == (5, 5, 3)
+    @test_logs (:info,) 
+    skipped_ag = aggregate(sum, rast, 2)
+    @test size(skipped_ag) == (5, 5, 3)
     # Unless specified explicitly
-    @test size(aggregate(sum, rast, (X=5, Y=5, Z=3))) == (2, 2, 1)
+    @test_nowarn explicit_ag = aggregate(sum, rast, (X=5, Y=5, Z=3))
+    @test size(explicit_ag) == (2, 2, 1)
+    # Aggregated Categorical become NoLookup
+    @test isnolookup(explicit_ag, Z)
     @test_throws ArgumentError aggregate(sum, rast[X=1, Y=1], 2)
 end
 
