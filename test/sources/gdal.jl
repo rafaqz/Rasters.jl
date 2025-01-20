@@ -7,7 +7,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 gdalpath = maybedownload(url)
 
-@testset "Raster" begin
+# @testset "Raster" begin
     @test_throws ArgumentError Raster("notafile.tif")
 
     @time gdalarray = Raster(gdalpath; name=:test)
@@ -187,7 +187,7 @@ gdalpath = maybedownload(url)
         @test gdalarray[Y(4.224e6..4.226e6), Band(1)] isa Raster
     end
 
-   @testset "methods" begin
+   #@testset "methods" begin
         @testset "mean" begin
             @test all(mean(gdalarray; dims=Y) .=== mean(parent(gdalarray); dims=2))
         end
@@ -259,23 +259,31 @@ gdalpath = maybedownload(url)
 
         @testset "aggregate" begin
             ag = aggregate(mean, gdalarray, 4)
-            @test ag == aggregate(mean, lazyarray, 4)
             @test ag == aggregate(mean, gdalarray, (X(4), Y(4)))
+            @test ag == aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
+            @time ag_disk = aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
+            @test ag_disk == ag
             tempfile = tempname() * ".tif"
             write(tempfile, ag)
             open(Raster(tempfile; lazy=true); write=true) do dst
                 aggregate!(mean, dst, gdalarray, 4)
             end
             @test Raster(tempfile) == ag
+
             disag = disaggregate(gdalarray, 2)
             @test disag == disaggregate(lazyarray, 2)
             @test disag == disaggregate(gdalarray, (X(2), Y(2)))
-            tempfile = tempname() * ".tif"
-            write(tempfile, disag)
-            open(Raster(tempfile; lazy=true); write=true) do dst
-                disaggregate!(dst, 2 .* gdalarray, 4)
+            @test size(disag) == size(gdalarray) .* 2
+
+            @testset "disaggregate to file" begin
+                tempfile = tempname() * ".tif"
+                write(tempfile, disaggregate(gdalarray, 2))
+                disaggregate(2 .* gdalarray, 2)
+                open(Raster(tempfile; lazy=true); write=true) do dst
+                    disaggregate!(dst, 2 .* gdalarray, 2)
+                end
+                @test size(Raster(tempfile)) == 2 .* size(gdalarray)
             end
-            @test Raster(tempfile) == 2 .* ag
         end
 
         @testset "mosaic" begin

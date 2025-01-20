@@ -151,9 +151,14 @@ function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractRaster, src, scale;
     comparedims(dst, src; length=false)
     intscale = _scale2int(Ag(), dims(src), scale; verbose)
     offsets = _agoffset.(loci, intscale)
+    # Cache the source if its a disk array
+    src1 = isdisk(src) ? DiskArrays.cache(src) : src
+    # Broadcast will make the dest arrays chunks when needed
     broadcast!(dst, CartesianIndices(dst)) do I
+        # Upsample for each pixel. Possibly slighly inneficient
+        # for large aggregations but its simple
         J = upsample.(Tuple(I), intscale) .+ offsets
-        val = src[J...]
+        val = src1[J...]
         _ismissing(val, missingval(src)) ? missingval(dst) : val
     end
     return dst
@@ -172,18 +177,27 @@ function aggregate!(f, dst::AbstractRaster, src, scale;
     checkbounds(src, l...)
     checkbounds(src, u...)
     # If a disk array, cache the src so we don't read too many times
-
-    @inbounds broadcast!(dst, CartesianIndices(dst)) do I
-        upper = upsample.(Tuple(I), intscale)
-        lower = map(upper, intscale) do u, i
-            isnothing(i) ? u : u + i - 1
-        end
-        I = map(:, upper, lower)
-        block = isdisk(src) ? parent(src)[I...] : Base.view(parent(src), I...)
-        if skipmissing
-            _reduce_skip(f, block, missingval(src), dst)
-        else
-            _reduce_noskip(f, block, missingval(src), dst)
+    # where src and dest chunks really don't align this may not be efficient
+    open(src) do src1
+        src2 = isdisk(src1) ? DiskArrays.cache(src1) : src1
+        # Broadcast will make the dest arrays chunks when needed
+        @inbounds broadcast!(dst, CartesianIndices(dst)) do I
+            # Upsample the lower bounds of the source range
+            lower = upsample.(Tuple(I), intscale)
+            upper = map(lower, intscale) do u, i
+                u + i - 1
+            end
+            I = map(:, lower, upper)
+            # Read a block from the source array to reduce
+            block = isdisk(src2) ? parent(src2)[I...] : Base.view(parent(src2), I...)
+            # Reduce with or without skipmissing
+            if skipmissing
+                # With skipmissing `f` will recieve an iterator
+                _reduce_skip(f, block, missingval(src), dst)
+            else
+                # Without skipmissing `f` will recieve a Raster
+                _reduce_noskip(f, block, missingval(src), dst)
+            end
         end
     end
     return dst
@@ -274,15 +288,18 @@ $SCALE_ARGUMENT
 function disaggregate!(dst::AbstractRaster, src, scale)
     intscale = _scale2int(DisAg(), dims(src), scale)
     # For now we just read a DiskArray
-    src = isdisk(src) ? read(src) : src
-    # Fast path for Array backed data
-    for I in CartesianIndices(src)
-        upper = upsample.(Tuple(I), intscale)
-        lower = upper .+ intscale .- 1
-        val = src[I]
-        val1 = _ismissing(src, missingval(src)) ? missingval(dst) : val
-        for J in CartesianIndices(map(:, upper, lower)) 
-            dst[J] = val1
+    open(src) do src1
+        src2 = isdisk(src) ? DiskArrays.cache(src1) : src1
+        # Fast path for Array backed data
+        for I in CartesianIndices(src2)
+            lower = upsample.(Tuple(I), intscale)
+            upper = map(lower, intscale, size(dst)) do l, is, s
+                min(l + is - 1, s) 
+            end
+            ranges = map(:, lower, upper)
+            val = src2[I]
+            val1 = _ismissing(src, val) ? missingval(dst) : val
+            dst[ranges...] .= (val1,)
         end
     end
     return dst
@@ -317,7 +334,10 @@ function alloc_disag(f, method::Tuple, A::AbstractRaster, scale;
     filename=nokw, suffix=nokw
 )
     intscale = _scale2int(DisAg(), dims(A), scale; verbose=false)
-    dims_ = disaggregate.(method, dims(A), intscale)
+    dims_ = map(dims(A), intscale) do d, i
+        @show i
+        disaggregate(method, d, i)
+    end
     # Dim aggregation determines the array size
     sze = map(length, dims_)
     T = ag_eltype(method, A)
