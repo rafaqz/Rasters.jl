@@ -185,7 +185,7 @@ function aggregate!(f, dst::AbstractRaster, src, scale;
             # Upsample the lower bounds of the source range
             lower = upsample.(Tuple(I), intscale)
             upper = map(lower, intscale) do u, i
-                u + i - 1
+                isnothing(i) ? u : u + i - 1
             end
             I = map(:, lower, upper)
             # Read a block from the source array to reduce
@@ -335,7 +335,6 @@ function alloc_disag(f, method::Tuple, A::AbstractRaster, scale;
 )
     intscale = _scale2int(DisAg(), dims(A), scale; verbose=false)
     dims_ = map(dims(A), intscale) do d, i
-        @show i
         disaggregate(method, d, i)
     end
     # Dim aggregation determines the array size
