@@ -145,18 +145,24 @@ Combine `regions` in `Raster` or `RasterStack` `x` using the function `f`.
 
 # Example
 
-Cut out Australia and Africa stacks, then combined them
-into a single stack.
+Cut out scandinavian countries and plot:
 
 ```jldoctest
-using Rasters, RasterDataSources, ArchGDAL, Statistics, Plots
-st = read(RasterStack(WorldClim{Climate}; month=1))
-aus = st[X=100.0 .. 160.0, Y=-50.0 .. -10.0]
-africa = st[X=-20.0 .. 60.0, Y=-40.0 .. 35.0]
-mosaic!(first, st, aus, africa)
-plot(st)
+using Rasters, RasterDataSources, NaturalEarth, DataFrames
+# Get climate data form worldclim
+climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
+# And country borders from natural earth
+countries = naturalearth("admin_0_countries", 110) |> DataFrame
+# Cut out each country
+country_climates = map(("Norway", "Denmark", "Sweden")) do name
+    country = subset(countries, :NAME => ByRow(==("Norway")))
+    trim(mask(climate; with=country); pad=10)
+end
+# Mosaic together to a single raster
+scandinavia_climate = mosaic(first, country_climates)
+# And plot
+plot(scandinavia_climate)
 savefig("build/mosaic_bang_example.png")
-nothing
 # output
 
 ```
@@ -204,7 +210,7 @@ function mosaic!(
 end
 # Where there is a known reduction operator we can apply each region as a whole
 function _mosaic!(
-    f::Function, op::Function, dest::RasterStackOrArray, regions::Union{Tuple,AbstractArray}; 
+    f::Function, op, dest::RasterStackOrArray, regions::Union{Tuple,AbstractArray}; 
     kw...
 )
     for region in regions
