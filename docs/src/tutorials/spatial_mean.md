@@ -143,18 +143,18 @@ We've seen that the spatial mean is not the same as the arithmetic mean, and tha
 
 ## Bonus: Computing spatial means across dimensions 
 
-As a next step, we would like to know how precipitation will change in Chile until the end of the 21st century. To do this, we can use climate model outputs. This data can come from multiple climate models (GCMs) and under different socio-economic scenarios (SSPs). We'll use additional dimensions to keep track of these.
+As a next step, we would like to know how precipitation will change in Chile until the end of the 21st century. To do this, we can use climate model outputs. This is a bit more complicated than calculating historical precipitation, because the forecast data can come from multiple climate models (GCMs), which each can be run under different socio-economic scenarios (SSPs). Here, we'll show how to use additional dimensions to keep track of this type of data.
 
-First we define a simple function takes an SSP (socioeconomic scenario) and a GCM (climate model) as input, and downloads the appropriate climate data. 
+To start, we define a simple function that takes an SSP (socioeconomic scenario) and a GCM (climate model) as input, and return the appropriate climate data. 
 
 ````@example zonal
 using Dates
 getfutureprec(ssp, gcm) = Raster(WorldClim{Future{Climate, CMIP6, gcm, ssp}}, :prec, date = Date(2090))
 ````
 
-We will leverage some tools from [DimensionalData](https://github.com/rafaqz/DimensionalData.jl), which is the package that underlies Rasters.jl. Rather than having a seperate Raster for each combination of GCM and SSP, `gcm` and `ssp` will be additional dimensions, and our Raster will be 4-dimensional (X-Y-gcm-ssp). 
+Rather than having a seperate Raster object for each combination of GCM and SSP, we will do our analysis on a single Raster, which will have `gcm` and `ssp` as additional dimensions. In total, our Raster will have four dimensions: X, Y, gcm, and ssp. 
 
-To do this, we first define two dimensions that correspond to the SSPs and GCMs we are interested in, then use the `@d` macro from [DimensionalData](https://github.com/rafaqz/DimensionalData.jl) to preserve these dimensions as we get the data, and then combine all Rasters into a single object using `Rasters.combine`
+To accomplish this, we will leverage some tools from [DimensionalData](https://github.com/rafaqz/DimensionalData.jl), which is the package that underlies Rasters.jl. We start by defining two dimensions that correspond to the SSPs and GCMs we are interested in, then use the `@d` macro from [DimensionalData](https://github.com/rafaqz/DimensionalData.jl) to preserve these dimensions as we get the data, and then combine all Rasters into a single object using `Rasters.combine`.
 
 ````@example cellarea
 SSPs = Dim{:ssp}([SSP126, SSP370]) # SSP126 is a low-emission scenario, SSP370 is a high-emission scenario
@@ -163,7 +163,7 @@ GCMs = Dim{:gcm}([GFDL_ESM4, IPSL_CM6A_LR]) # These are different general circul
 precip_future = (@d getfutureprec.(SSPs, GCMs)) |> RasterSeries |> Rasters.combine
 ````
 
-Since the format of WorldClim's datasets for future climate is slightly different from the dataset for the historical period, this actually returned a 5-dimensional raster, with a `Band` dimension that represents months. Here we'll just select the 6th month, matching the selection above. We will also replace the `NaN` missing value by the more standard `missing` using [`replace_missing`](@ref).
+Since the format of WorldClim's datasets for future climate is slightly different from the dataset for the historical period, this actually returned a 5-dimensional raster, with a `Band` dimension that represents months. Here we'll just select the 6th month, matching the selection above (but note that the analysis would also work for all Bands simultaneously). We will also replace the `NaN` missing value by the more standard `missing` using [`replace_missing`](@ref). 
 
 ````@example cellarea
 precip_future = precip_future[Band = 6]
