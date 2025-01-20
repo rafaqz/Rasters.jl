@@ -88,13 +88,13 @@ You can see here that cells are largest towards the equator, and smallest away f
 
 ## Computing the spatial mean
 
-Now we can compute the average precipitation per square meter.  First, we compute total precipitation per grid cell:
+Now we can compute the average precipitation per square meter. First, we compute total precipitation over each grid cell. (The units of this Raster will be m^2 * mm, which happens to be equal to liter.)
 
 ````@example cellarea
 precip_per_area = masked_precip .* masked_areas
 ````
 
-We can sum this to get the total precipitation per square meter across Chile:
+We can sum this to get the total precipitation across Chile:
 
 ````@example cellarea
 total_precip = sum(skipmissing(precip_per_area))
@@ -106,7 +106,7 @@ We can also sum the areas to get the total area of Chile (in this raster, at lea
 total_area = sum(skipmissing(masked_areas))
 ````
 
-And we can convert that to an average by dividing by the total area:
+And we can convert that to an average (in mm) by dividing by the total area:
 
 ````@example cellarea
 avg_precip = total_precip / total_area
