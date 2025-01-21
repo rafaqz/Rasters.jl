@@ -31,7 +31,7 @@ If your mosaic has has apparent line errors, increase the `atol` value.
 Here we cut out Australia and Africa from a stack, and join them with `mosaic`.
 
 ```jldoctest
-using Rasters, RasterDataSources, NaturalEarth, DataFrames
+using Rasters, RasterDataSources, NaturalEarth, DataFrames, Dates
 countries = naturalearth("admin_0_countries", 110) |> DataFrame
 climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
 country_climates = map(("Norway", "Denmark", "Sweden")) do name
@@ -139,7 +139,7 @@ Combine `regions` in `Raster` or `RasterStack` `x` using the function `f`.
 Cut out scandinavian countries and plot:
 
 ```jldoctest
-using Rasters, RasterDataSources, NaturalEarth, DataFrames
+using Rasters, RasterDataSources, NaturalEarth, DataFrames, Dates
 # Get climate data form worldclim
 climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
 # And country borders from natural earth
