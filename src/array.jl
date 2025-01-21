@@ -64,7 +64,7 @@ cleanreturn(x) = x
 
 isdisk(A::AbstractRaster) = parent(A) isa DiskArrays.AbstractDiskArray
 isdisk(x) = false
-ismem(x) = !isdisk(x)
+ismem(A::AbstractRaster) = !isdisk(A)
 
 function Base.:(==)(A::AbstractRaster{T,N}, B::AbstractRaster{T,N}) where {T,N}
     size(A) == size(B) && all(A .== B)

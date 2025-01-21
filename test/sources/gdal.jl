@@ -259,14 +259,31 @@ gdalpath = maybedownload(url)
 
         @testset "aggregate" begin
             ag = aggregate(mean, gdalarray, 4)
-            @test ag == aggregate(mean, gdalarray, (X(4), Y(4), Band(1)))
+            @test ag == aggregate(mean, gdalarray, (X(4), Y(4)))
+            @test ag == aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
+            @time ag_disk = aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
+            @test ag_disk == ag
             tempfile = tempname() * ".tif"
             write(tempfile, ag)
-            open(Raster(tempfile); write=true) do dst
+            open(Raster(tempfile; lazy=true); write=true) do dst
                 aggregate!(mean, dst, gdalarray, 4)
             end
             @test Raster(tempfile) == ag
-            rm(tempfile)
+
+            disag = disaggregate(gdalarray, 2)
+            @test disag == disaggregate(lazyarray, 2)
+            @test disag == disaggregate(gdalarray, (X(2), Y(2)))
+            @test size(disag) == size(gdalarray) .* 2
+
+            @testset "disaggregate to file" begin
+                tempfile = tempname() * ".tif"
+                write(tempfile, disaggregate(gdalarray, 2))
+                disaggregate(2 .* gdalarray, 2)
+                open(Raster(tempfile; lazy=true); write=true) do dst
+                    disaggregate!(dst, 2 .* gdalarray, 2)
+                end
+                @test size(Raster(tempfile)) == 2 .* size(gdalarray)
+            end
         end
 
         @testset "mosaic" begin
@@ -762,7 +779,7 @@ end
     output_crs = EPSG(4326)
     resample_method = "near"
 
-    ## Resample cea.tif manually with ArchGDAL
+    # Resample cea.tif manually with ArchGDAL
     wkt = convert(String, convert(WellKnownText, output_crs))
     AG_output = ArchGDAL.read(gdalpath) do dataset
         ArchGDAL.gdalwarp([dataset], ["-t_srs", "$(wkt)",
