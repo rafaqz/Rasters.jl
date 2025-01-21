@@ -1,3 +1,6 @@
+const RasterVecOrTuple = Union{Tuple{Vararg{AbstractRaster}},AbstractArray{<:AbstractRaster}}
+const RasterStackVecOrTuple = Union{Tuple{Vararg{AbstractRasterStack}},AbstractArray{<:AbstractRasterStack}}
+
 """
     mosaic(f, regions...; missingval, atol)
     mosaic(f, regions; missingval, atol)
@@ -165,20 +168,18 @@ mosaic!(f::Function, dest::RasterStackOrArray, regions::RasterStackOrArray...; k
 function mosaic!(
     f::Function, 
     dest::RasterStackOrArray,
-    regions::Union{Tuple,AbstractArray{<:RasterStackOrArray}}; 
+    regions::Union{Tuple,AbstractArray}; 
     op=_reduce_op(f, missingval(dest)), 
     kw...
 )
     # Centering avoids pixel edge floating point error
     dest_centered = _prepare_for_burning(dest; order=nothing)
     regions_centered = map(r -> _prepare_for_burning(r; order=nothing), regions)
-    @show f op
-    mosaic!(f, op, dest_centered, regions_centered; kw...)
+    _mosaic!(f, op, dest_centered, regions_centered; kw...)
     return dest
 end
-function mosaic!(
-    f::typeof(mean), op::Nothing, dest::Raster,
-    regions::Union{Tuple,AbstractArray{<:AbstractRaster}};
+function _mosaic!(
+    f::typeof(mean), op::Nothing, dest::Raster, regions::RasterVecOrTuple;
     kw...
 )
     if length(regions) <= typemax(UInt8)
@@ -189,9 +190,8 @@ function mosaic!(
         _mosaic_mean!(dest, UInt32, regions; kw...)
     end
 end
-function mosaic!(
-    f::typeof(length), op::Nothing, dest::AbstractRaster, 
-    regions::Union{Tuple,AbstractArray{<:AbstractRaster}};
+function _mosaic!(
+    f::typeof(length), op::Nothing, dest::AbstractRaster, regions::RasterVecOrTuple;
     kw...
 )
     for region in regions
@@ -200,8 +200,8 @@ function mosaic!(
     return dest
 end
 # Where there is a known reduction operator we can apply each region as a whole
-function mosaic!(
-    f::Function, op, dest::AbstractRaster, regions::Union{Tuple,AbstractArray}; 
+function _mosaic!(
+    f::Function, op, dest::AbstractRaster, regions::RasterVecOrTuple; 
     kw...
 )
     for region in regions
@@ -210,8 +210,8 @@ function mosaic!(
     return dest
 end
 # Generic unknown functions
-function mosaic!(
-    f::Function, op::Nothing, A::AbstractRaster{T}, regions::Union{Tuple,AbstractArray};
+function _mosaic!(
+    f::Function, op::Nothing, A::AbstractRaster{T}, regions::RasterVecOrTuple;
     missingval=missingval(A), atol=nothing
 ) where T
     isnokwornothing(missingval) && throw(ArgumentError("destination array must have a `missingval`"))
@@ -239,9 +239,15 @@ function mosaic!(
     end
     return A
 end
-function mosaic!(f::Function, op, st::AbstractRasterStack, regions::Union{Tuple,AbstractArray}; kw...)
+function _mosaic!(
+    f::Function, 
+    op, 
+    st::AbstractRasterStack, 
+    regions::RasterStackVecOrTuple; 
+    kw...
+)
     map(values(st), map(values, regions)...) do A, r...
-        mosaic!(f, op, A, r; kw...)
+        _mosaic!(f, op, A, r; kw...)
     end
     return st
 end
@@ -264,6 +270,7 @@ function _mosaic_mean!(dest, ::Type{T}, regions; kw...) where T
     dest .= ((d, c) -> d === missingval(dest) ? missingval(dest) : d / c).(dest, counts)
     return dest
 end
+
 function _mosaic_region!(op, dest, region; atol=nothing, kw...)
     function skip_or_op(a, b) 
         if b === missingval(region)
@@ -283,6 +290,7 @@ function _mosaic_region!(op, dest, region; atol=nothing, kw...)
     dest[ext] .= skip_or_op.(parent(view(dest, ext)), parent(view(region, ds)))
     return dest
 end
+
 function _count_region!(count::AbstractRaster{T}, region::AbstractRaster; kw...) where T
     function skip_or_count(a, b)
         if b === missingval(region)
@@ -340,7 +348,6 @@ function _mosaic(span::Regular, lookup::AbstractSampled, lookups::LookupTuple)
     end
     return rebuild(lookup; data=newindex)
 end
-
 function _mosaic(::Irregular, lookup::AbstractSampled, lookups::LookupTuple)
     newindex = sort(union(map(parent, lookups)...); order=LA.ordering(order(lookup)))
     return rebuild(lookup; data=newindex)
