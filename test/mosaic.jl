@@ -38,7 +38,7 @@ using Rasters.Lookups, Rasters.Dimensions
         )
     end
 
-   @testset "3 dimensions" begin
+    @testset "3 dimensions" begin
         A1 = Raster(ones(2, 2, 2), (X(2.0:-1.0:1.0), Y(5.0:1.0:6.0), Ti(DateTime(2001):Year(1):DateTime(2002))))
         A2 = Raster(zeros(2, 2, 2), (X(3.0:-1.0:2.0), Y(4.0:1.0:5.0), Ti(DateTime(2002):Year(1):DateTime(2003))))
         mean_mos = cat([missing missing missing
@@ -63,4 +63,5 @@ using Rasters.Lookups, Rasters.Dimensions
             1 1 0
             0 0 0], dims=3)
     end
+
 end

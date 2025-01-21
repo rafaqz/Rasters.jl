@@ -172,7 +172,7 @@ function mosaic!(
     # Centering avoids pixel edge floating point error
     dest_centered = _prepare_for_burning(dest; order=nothing)
     regions_centered = map(r -> _prepare_for_burning(r; order=nothing), regions)
-    @show typeof(regions_centered)
+    @show f op
     mosaic!(f, op, dest_centered, regions_centered; kw...)
     return dest
 end
@@ -190,7 +190,7 @@ function mosaic!(
     end
 end
 function mosaic!(
-    f::typeof(length), op::Nothing, dest::RasterStackOrArray, 
+    f::typeof(length), op::Nothing, dest::AbstractRaster, 
     regions::Union{Tuple,AbstractArray{<:AbstractRaster}};
     kw...
 )
@@ -201,7 +201,7 @@ function mosaic!(
 end
 # Where there is a known reduction operator we can apply each region as a whole
 function mosaic!(
-    f::Function, op, dest::RasterStackOrArray, regions::Union{Tuple,AbstractArray}; 
+    f::Function, op, dest::AbstractRaster, regions::Union{Tuple,AbstractArray}; 
     kw...
 )
     for region in regions
