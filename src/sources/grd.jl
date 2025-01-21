@@ -218,7 +218,7 @@ function Base.write(filename::String, ::GRDsource, A::AbstractRaster;
 
     if write
         _mmapgrd(filename, source_eltype(mod), size(A); write=true) do M
-            f(rebuild(A, _maybe_modify(M, mod)))
+            f(_maybe_modify(M, mod))
         end
     end
 

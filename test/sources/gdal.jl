@@ -187,7 +187,7 @@ gdalpath = maybedownload(url)
         @test gdalarray[Y(4.224e6..4.226e6), Band(1)] isa Raster
     end
 
-   @testset "methods" begin
+    @testset "methods" begin
         @testset "mean" begin
             @test all(mean(gdalarray; dims=Y) .=== mean(parent(gdalarray); dims=2))
         end
@@ -289,20 +289,26 @@ gdalpath = maybedownload(url)
         @testset "mosaic" begin
             @time gdalarray = Raster(gdalpath; name=:test)
             A1 = gdalarray[X(1:300), Y(1:200)]
-            A2 = gdalarray[X(57:500), Y(101:301)]
+            A2 = gdalarray[X(57:End()), Y(101:End())]
             tempfile1 = tempname() * ".tif"
             tempfile2 = tempname() * ".tif"
             tempfile3 = tempname() * ".tif"
-            Afile = mosaic(first, A1, A2; missingval=0xff, atol=1e-8, filename=tempfile1)
+            view(gdalarray, extent(A2))
+            Afile = mosaic(first, A1, A2; missingval=0xff, atol=1e-1, filename=tempfile1)
+            @test missingval(Afile) === 0xff
             Afile2 = mosaic(first, A1, A2; atol=1e-8, filename=tempfile2)
-            collect(Afile)
-            collect(Afile2)
             @test missingval(Afile2) === missing
-            Amem = mosaic(first, A1, A2; missingval=0xff, atol=1e-8)
-            Atest = gdalarray[X(1:500), Y(1:301)]
-            Atest[X(1:56), Y(201:301)] .= 0xff
-            Atest[X(301:500), Y(1:100)] .= 0xff
+            Amem = mosaic(first, A1, A2; missingval=0xff, atol=1e-5)
+
+            Atest = rebuild(gdalarray[Extents.union(extent(A1), extent(A2))]; missingval=0xff)
+            Atest .= 0xff
+
+            Atest[DimSelectors(Atest[extent(A1)]; selectors=Contains())] .= A1
+            Atest[DimSelectors(Atest[extent(A2)]; selectors=Contains())] .= A2
+
+            @test size(Amem) == size(gdalarray)
             @test all(Atest .=== Amem .=== Afile .=== replace_missing(Afile2, 0xff))
+            filter(x -> !Bool(first(x)), tuple.((Atest .=== Amem), Atest, Amem))
         end
 
     end # methods

@@ -171,7 +171,6 @@ grdpath = stem * ".gri"
             A = Raster(tempgrd)
             @test count(==(100.0f0), A) + count(==(255.0f0), A) == length(A)
         end
-
         @testset "mosaic" begin
             @time grdarray = Raster(grdpath)
             A1 = grdarray[X(1:40), Y(1:30)]
