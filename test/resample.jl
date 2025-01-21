@@ -24,26 +24,8 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         end
     end
 
-    # Resample cea.tif using resample
-    cea = Raster(raster_path; missingval=0x00, name = :cea)
-    raster_output = resample(cea; res=output_res, crs=output_crs, method)
-    disk_output = resample(cea; res=output_res, crs=output_crs, method, filename="resample.tif")
-
-    cea_permuted = permutedims(Raster(raster_path), (Y, X))
-    permuted_output = resample(cea_permuted, output_res; crs=output_crs, method)
-
-    # Compare ArchGDAL, resample and permuted resample 
-    @test AG_output ==
-        raster_output[Band(1)] ==
-        disk_output[Band(1)] ==
-        permutedims(permuted_output, (X, Y))
-    @test abs(step(dims(raster_output, Y))) ≈
-        abs(step(dims(raster_output, X))) ≈ 
-        abs(step(dims(disk_output, X))) ≈ 
-        abs(step(dims(permuted_output, X))) ≈ output_res
-    @test name(cea) == name(raster_output)
-
-    rm("resample.tif")
+    cea = Raster(raster_path; missingval=0x00, name=:cea)
+    raster_output = resample(cea; res=output_res, crs=output_crs, method, missingval=0x00)
 
     @testset "missingval propagates" begin
         @test missingval(resample(cea; res=output_res, crs=output_crs, method)) == 0x00
@@ -131,7 +113,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
     @testset "resample eltype propagates" begin
         r = Raster(rand(UInt8, X(1:10), Y(1:10)))
         r1 = resample(r; to=r)
-        @test eltype(r1) == UInt8
+        @test eltype(r1) == Union{UInt8,Missing}
     end
 
     @testset "dimensions matcha after resampling with only `to`" begin
@@ -149,6 +131,41 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
         @test length(dims(resampled_3D)) == 3
         @test dims(resampled_3D, (1,2)) == to
         @test dims(resampled_3D, Z) == Z(1:2)
+    end
+
+    mv = 0xff
+    for mv in (0xff, missing, Rasters.nokw)
+        # Resample cea.tif using resample
+        cea = Raster(raster_path; missingval=mv, name=:cea)
+        raster_output = resample(cea;
+            res=output_res, crs=output_crs, method, missingval=mv
+        )
+        disk_output = resample(cea; 
+            res=output_res, crs=output_crs, method, missingval=mv, filename="resample.tif"
+        )
+        cea_permuted = permutedims(Raster(raster_path; 
+            missingval=mv, name=:cea_permuted), (Y, X)
+        )
+        permuted_output = resample(cea_permuted, output_res; 
+            missingval=mv, crs=output_crs, method
+        )
+
+        AG_output1 = if mv === 0xff
+            AG_output
+        else
+            replace(AG_output, 0xff => missing)
+        end
+        # Compare ArchGDAL, resample and permuted resample 
+        @test all(AG_output1 .=== parent(raster_output) .=== 
+            read(disk_output) .=== 
+            permutedims(permuted_output, (X, Y)))
+        @test abs(step(dims(raster_output, Y))) ≈
+            abs(step(dims(raster_output, X))) ≈ 
+            abs(step(dims(disk_output, X))) ≈ 
+            abs(step(dims(permuted_output, X))) ≈ output_res
+        @test Rasters.name(cea) == Rasters.name(raster_output)
+
+        rm("resample.tif")
     end
 
     @testset "resample to the same size or resolution leaves raster unchanged" begin

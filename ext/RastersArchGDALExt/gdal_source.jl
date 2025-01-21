@@ -34,59 +34,57 @@ const GDAL_VIRTUAL_FILESYSTEMS = "/vsi" .* (
     "sparse",
     )
 
-# Array ########################################################################
 
-function RA.FileArray{GDALsource}(ds::AG.RasterDataset{T}, filename; kw...) where {T}
-    eachchunk, haschunks = DA.eachchunk(ds), DA.haschunks(ds)
-    RA.FileArray{GDALsource,T,3}(filename, size(ds); eachchunk, haschunks, kw...)
-end
-
+# TODO more cases of return values here, like wrapped disk arrays
 RA.cleanreturn(A::AG.RasterDataset) = Array(A)
 RA.haslayers(::GDALsource) = false
 RA._sourcetrait(A::AG.RasterDataset) = GDALsource()
 
-function Base.write(
-    filename::AbstractString, ::GDALsource, A::AbstractRaster{T};
+function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRasterStack; kw...)
+    ext = splitext(filename)[2]
+    throw(ArgumentError("Cant write a RasterStack to $ext with gdal")) 
+end
+function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster{T};
     force=false, 
     verbose=true, 
+    write=true,
     missingval=nokw,
+    scale=nokw,
+    offset=nokw,
+    coerce=nokw,
+    eltype=Missings.nonmissingtype(T),
+    f=identity,
     kw...
 ) where T
     RA.check_can_write(filename, force)
-    A1 = _maybe_correct_to_write(A, missingval)
-    _create_with_driver(filename, dims(A1), eltype(A1), Rasters.missingval(A1); _block_template=A1, kw...) do dataset
-        verbose && _maybe_warn_south_up(A, verbose, "Writing South-up. Use `reverse(myrast; dims=Y)` first to write conventional North-up")
-        open(A1; write=true) do O
-            AG.RasterDataset(dataset) .= parent(O)
+    write = f === identity ? write : true
+    A1 = _maybe_permute_to_gdal(A)
+
+    # Missing values
+    missingval_pair = RA._write_missingval_pair(A, missingval; eltype, verbose)
+
+    _create_with_driver(filename, dims(A1), eltype; 
+        missingval=missingval_pair[1], _block_template=A1, scale, offset, verbose, kw...
+    ) do dataset
+        if write
+            mod = RA._mod(eltype, missingval_pair, scale, offset, coerce)
+            open(A1; write=true) do O
+                R = RA._maybe_modify(AG.RasterDataset(dataset), mod)
+                R .= parent(O)
+                if hasdim(A, Band())
+                    f(R)
+                else
+                    f(view(R, :, :, 1))
+                end
+            end
         end
     end
     return filename
 end
 
-function RA.create(filename, ::GDALsource, T::Type, dims::DD.DimTuple;
-    missingval=nokw, 
-    metadata=nokw, 
-    name=nokw, 
-    lazy=true, 
-    verbose=true, 
-    kw...
-)
-    T = Missings.nonmissingtype(T)
-    missingval = ismissing(missingval) ? RA._writeable_missing(T) : missingval
-    _create_with_driver(filename, dims, T, missingval; kw...) do _
-        verbose && _maybe_warn_south_up(dims, verbose, "Creating a South-up raster. Use `reverse(myrast; dims=Y)` first to write conventional North-up")
-        nothing
-    end
-
-    return Raster(filename; source=GDALsource(), name, lazy, metadata, dropband=!hasdim(dims, Band))
-end
-
-function _maybe_warn_south_up(A, verbose, msg)
-    verbose && lookup(A, Y) isa AbstractSampled && order(A, Y) isa ForwardOrdered && @warn msg
-end
-
 function RA._open(f, ::GDALsource, filename::AbstractString; 
     write=false, 
+    mod=RA.NoMod(), 
     kw...
 )
     # Check the file actually exists because the GDAL error is unhelpful
@@ -104,15 +102,13 @@ function RA._open(f, ::GDALsource, filename::AbstractString;
             end
         end
     end
-    if write
-        # Pass the OF_UPDATE flag to GDAL
-        AG.readraster(RA.cleanreturn ∘ f, filename; flags=AG.OF_UPDATE)
-    else
-        # Otherwise just read
-        AG.readraster(RA.cleanreturn ∘ f, filename)
+    flags = write ? AG.OF_UPDATE : AG.OF_READONLY
+    return AG.readraster(filename; flags) do A
+        RA.cleanreturn(f(RA._maybe_modify(A, mod))) 
     end
 end
-RA._open(f, ::GDALsource, ds::AG.RasterDataset; kw...) = RA.cleanreturn(f(ds))
+RA._open(f, ::GDALsource, A::AG.RasterDataset; mod=RA.NoMod(), kw...) =
+    RA.cleanreturn(f(RA._maybe_modify(A, mod)))
 
 
 # DimensionalData methods for ArchGDAL types ###############################
@@ -206,20 +202,27 @@ function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw)
 end
 
 # TODO make metadata optional, its slow to get
-function RA._metadata(raster::AG.RasterDataset, args...)
-    band = AG.getband(raster.ds, 1)
+function RA._metadata(rds::AG.RasterDataset, args...)
+    band = AG.getband(rds.ds, 1)
+    metadata = RA._metadatadict(GDALsource())
     # color = AG.getname(AG.getcolorinterp(band))
     scale = AG.getscale(band)
     offset = AG.getoffset(band)
     # norvw = AG.noverview(band)
     units = AG.getunittype(band)
-    filelist = AG.filelist(raster)
-    metadata = RA._metadatadict(GDALsource(), "scale"=>scale, "offset"=>offset)
-    if units == ""
+    filepath = _getfilepath(rds)
+    # Set metadata if they are not default values
+    if scale != oneunit(scale) 
+        metadata["scale"] = scale 
+    end
+    if offset != zero(offset) 
+        metadata["offset"] = offset
+    end
+    if units != ""
         metadata["units"] = units
     end
-    if length(filelist) > 0
-        metadata["filepath"] = first(filelist)
+    if !isnothing(filepath)
+        metadata["filepath"] = filepath
     end
     return metadata
 end
@@ -228,38 +231,26 @@ end
 
 # Create a Raster from a dataset
 RA.Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
-function RA.Raster(ds::AG.RasterDataset;
-    crs=crs(ds),
-    mappedcrs=nokw,
-    dims=RA._dims(ds, crs, mappedcrs),
-    refdims=(),
-    name=nokw,
-    metadata=RA._metadata(ds),
-    missingval=RA.missingval(ds),
-    lazy=false,
-    dropband=false
-)
-    kw = (; refdims, name, metadata, missingval)
-    filelist = AG.filelist(ds)
-    raster = if lazy && length(filelist) > 0
-        filename = first(filelist)
-        Raster(FileArray{GDALsource}(ds, filename), dims; kw...)
+function RA.Raster(ds::AG.RasterDataset; lazy=false, kw...) 
+    filepath = if lazy
+        fp = _getfilepath(ds)
+        isnothing(fp) ? "/vsimem" : fp
     else
-        Raster(Array(ds), dims; kw...)
+        ""
     end
-    return dropband ? RA._drop_single_band(raster, lazy) : raster
+    Raster(ds, filepath; kw...)
 end
 
 RA.missingval(ds::AG.Dataset, args...) = RA.missingval(AG.RasterDataset(ds))
-function RA.missingval(rasterds::AG.RasterDataset, args...)
+function RA.missingval(rds::AG.RasterDataset, args...)
     # All bands have the same missingval in GDAL
-    band = AG.getband(rasterds.ds, 1)
+    band = AG.getband(rds.ds, 1)
     # GDAL will set this
     hasnodataval = Ref(Cint(0))
     # Int64 and UInt64 need special casing in GDAL
-    nodataval = if eltype(rasterds) == Int64
+    nodataval = if eltype(rds) == Int64
         AG.GDAL.gdalgetrasternodatavalueasint64(band, hasnodataval)
-    elseif eltype(rasterds) == UInt64
+    elseif eltype(rds) == UInt64
         AG.GDAL.gdalgetrasternodatavalueasuint64(band, hasnodataval)
     else
         AG.GDAL.gdalgetrasternodatavalue(band, hasnodataval)
@@ -273,7 +264,7 @@ function RA.missingval(rasterds::AG.RasterDataset, args...)
     end
 end
 
-# GDAL always returns well known text
+# GDAL always returns well known text crs
 function RA.crs(raster::AG.RasterDataset, args...)
     WellKnownText(GeoFormatTypes.CRS(), string(AG.getproj(raster.ds)))
 end
@@ -286,14 +277,26 @@ function AG.Dataset(f::Function, A::AbstractRaster; kw...)
         f(rds.ds)
     end
 end
-function AG.RasterDataset(f::Function, A::AbstractRaster; filename="", kw...)
-    A1 = _maybe_correct_to_write(A)
-    return _create_with_driver(filename, dims(A1), eltype(A1), missingval(A1); _block_template=A1, kw...) do dataset
-        rds = AG.RasterDataset(dataset)
-        open(A1) do a
-            rds .= parent(a)
+function AG.RasterDataset(f::Function, A::AbstractRaster; 
+    filename="", 
+    scale=nokw,
+    offset=nokw,
+    coerce=nokw,
+    verbose=false,
+    eltype=Missings.nonmissingtype(eltype(A)),
+    missingval=Rasters.missingval(A),
+    kw...
+)
+    return open(_maybe_permute_to_gdal(A)) do O 
+        _create_with_driver(filename, dims(A), eltype; 
+            _block_template=A, missingval, scale, offset, verbose, kw...
+        ) do dataset
+            rds = AG.RasterDataset(dataset)
+            mv = RA.missingval(rds) => RA.missingval(O)
+            mod = RA._mod(eltype, mv, scale, offset, coerce)
+            RA._maybe_modify(rds, mod) .= parent(O)
+            f(rds)
         end
-        f(rds)
     end
 end
 
@@ -301,37 +304,30 @@ end
 
 # Sometimes GDAL stores the `missingval` in the wrong type, so fix it.
 _missingval_from_gdal(T::Type{<:AbstractFloat}, x::Real) = convert(T, x)
-function _missingval_from_gdal(T::Type{<:Integer}, x::AbstractFloat)
+function _missingval_from_gdal(T::Type{<:Integer}, x::AbstractFloat; verbose=true)
     if trunc(x) === x && x >= typemin(T) && x <= typemax(T)
         convert(T, x)
     else
-        @warn "Missing value $x can't be converted to array eltype $T. `missingval` set to `nothing`"
+        verbose && @warn "Missing value $x can't be converted to array eltype $T. `missingval` set to `nothing`"
         nothing
     end
 end
-function _missingval_from_gdal(T::Type{<:Integer}, x::Integer)
+function _missingval_from_gdal(T::Type{<:Integer}, x::Integer; verbose=true)
     if x >= typemin(T) && x <= typemax(T)
         convert(T, x)
     else
-        @warn "Missing value $x can't be converted to array eltype $T. `missingval` set to `nothing`"
+        verbose && @warn "Missing value $x can't be converted to array eltype $T. `missingval` set to `nothing`"
         nothing
     end
 end
 _missingval_from_gdal(T, x) = x
 
-# Fix array and dimension configuration before writing with GDAL
-_maybe_correct_to_write(A::AbstractDimArray, args...) =
-    _maybe_correct_to_write(lookup(A, X()), A, args...)
-_maybe_correct_to_write(::Lookup, A::AbstractDimArray, args...) = A
-function _maybe_correct_to_write(
-    lookup::Union{AbstractSampled,NoLookup}, A::AbstractDimArray, args...
-)
-    RA._maybe_use_type_missingval(A, GDALsource(), args...) |> _maybe_permute_to_gdal
+# Make sure driver is sensible
+function _check_driver(::Nothing, driver) 
+    isnokwornothing(driver) || isempty(driver) ? "MEM" : driver
 end
-
-_check_driver(filename::Nothing, driver) = "MEM"
 function _check_driver(filename::AbstractString, driver)
-    if isempty(driver)
+    if isnokwornothing(driver) || isempty(driver)
         if isempty(filename)
             driver = "MEM"
         else
@@ -346,42 +342,62 @@ end
 
 # Handle creating a dataset with any driver,
 # applying the function `f` to the created dataset
-function _create_with_driver(f, filename, dims::Tuple, T, missingval;
-    options=Dict{String,String}(), 
-    driver="", 
-    _block_template=nothing, 
+function _create_with_driver(f, filename, dims::Tuple, T;
+    verbose=true,
+    missingval=nokw,
+    options=nokw,
+    driver=nokw, 
     chunks=nokw,
+    scale=nokw,
+    offset=nokw,
+    _block_template=nothing, 
     kw...
 )
+    # Allow but discourage south-up
+    verbose && _maybe_warn_south_up(dims, verbose, "Creating a South-up raster. You may wish to reverse the `Y` dimension to use conventional North-up")
+    options = isnokwornothing(options) ? Dict{String,String}() : options
+
+    # Pairs should not get this far
+    @assert !(missingval isa Pair)
+    # If missingval is missing, generate one GDAL can write
+    missingval = ismissing(missingval) ? RA._writeable_missing(T; verbose) : missingval
+    # Make sure dimensions are valid for GDAL
     _gdal_validate(dims)
 
+    # Move x and y locus to start
     x, y = map(DD.dims(dims, (XDim, YDim))) do d
         maybeshiftlocus(Start(), RA.nolookup_to_sampled(d))
     end
 
+    # Band handling - a 2d raster has 1 band
     newdims = hasdim(dims, Band()) ? (x, y, DD.dims(dims, Band)) : (x, y)
     nbands = hasdim(dims, Band) ? length(DD.dims(dims, Band())) : 1
 
+    # Driver detection
     driver = _check_driver(filename, driver)
-    options_vec = _process_options(driver, options; _block_template, chunks)
+    options_vec = _process_options(driver, options; _block_template, chunks, verbose)
     gdaldriver = driver isa String ? AG.getdriver(driver) : driver
 
+    # Keywords and filenames for AG.create
     create_kw = (; width=length(x), height=length(y), nbands, dtype=T,)
     filename = isnothing(filename) ? "" : filename
 
+    # Not all drivers can be directly created, some need an intermediate step
     if AG.shortname(gdaldriver) in GDAL_DRIVERS_SUPPORTING_CREATE
         AG.create(filename; driver=gdaldriver, options=options_vec, create_kw...) do dataset
-            _set_dataset_properties!(dataset, newdims, missingval)
+            _set_dataset_properties!(dataset, newdims, missingval, scale, offset)
             f(dataset)
         end
     else
         # Create a tif and copy it to `filename`, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
-        tif_options_vec = _process_options("GTiff", Dict{String,String}(); chunks, _block_template)
+        tif_options_vec = _process_options("GTiff", Dict{String,String}(); 
+            chunks, _block_template, verbose
+        )
         tif_driver = AG.getdriver("GTiff")
         tif_name = tempname() * ".tif"
         AG.create(tif_name; driver=tif_driver, options=tif_options_vec, create_kw...) do dataset
-            _set_dataset_properties!(dataset, newdims, missingval)
+            _set_dataset_properties!(dataset, newdims, missingval, scale, offset)
             f(dataset)
             target_ds = AG.copy(dataset; filename=filename, driver=gdaldriver, options=options_vec)
             AG.destroy(target_ds)
@@ -389,6 +405,7 @@ function _create_with_driver(f, filename, dims::Tuple, T, missingval;
     end
 end
 
+# Makie sure gdal can actually write this raster
 @noinline function _gdal_validate(dims)
     all(hasdim(dims, (XDim, YDim))) || throw(ArgumentError("`Raster` must have both an `X` and `Y` to be converted to an ArchGDAL `Dataset`"))
     if length(dims) === 3
@@ -402,7 +419,8 @@ end
 # Convert a Dict of options to a Vector{String} for GDAL
 function _process_options(driver::String, options::Dict; 
     chunks=nokw,
-    _block_template=nothing
+    _block_template=nothing,
+    verbose=true,
 )
     options_str = Dict(string(k)=>string(v) for (k,v) in options)
     # Get the GDAL driver object
@@ -429,7 +447,7 @@ function _process_options(driver::String, options::Dict;
             if (xchunksize % 16 == 0) && (ychunksize % 16 == 0)
                 options_str["TILED"] = "YES"
             else
-                xchunksize == 1 || @warn "X and Y chunk size do not match. Columns are used and X size $xchunksize is ignored"
+                xchunksize == 1 || (verbose && @warn "X and Y chunk size do not match. Columns are used and X size $xchunksize is ignored")
             end
             # don't overwrite user specified values
             if !("BLOCKXSIZE" in keys(options_str))
@@ -443,7 +461,7 @@ function _process_options(driver::String, options::Dict;
                 if xchunksize == ychunksize 
                     options_str["BLOCKSIZE"] = block_x
                 else
-                    @warn "Writing COG X and Y chunks do not match: $block_x, $block_y. Default of 512, 512 used."
+                    verbose && @warn "Writing COG X and Y chunks do not match: $block_x, $block_y. Default of 512, 512 used."
                 end
             end
         end
@@ -489,9 +507,9 @@ end
 
 # Set the properties of an ArchGDAL Dataset to match
 # the dimensions and missingval of a Raster
-_set_dataset_properties!(ds::AG.Dataset, A) =
-    _set_dataset_properties!(ds, dims(A), missingval(A))
-function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval)
+_set_dataset_properties!(ds::AG.Dataset, A, scale, offset) =
+    _set_dataset_properties!(ds, dims(A), missingval(A), scale, offset)
+function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval, scale, offset)
     # We cant write mixed Points/Intervals, so default to Intervals if mixed
     xy = DD.dims(dims, (X, Y))
     if any(x -> x isa Intervals, map(sampling, xy)) && any(x -> x isa Points, map(sampling, xy))
@@ -520,12 +538,14 @@ function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval)
     gt = RA.dims2geotransform(x, y)
     AG.setgeotransform!(dataset, gt)
 
-    # Set the missing value/nodataval. This is a little complicated
-    # because gdal has separate method for 64 bit integers
-    if !isnothing(missingval)
+    if !RA.isnokwornothing(missingval)
         bands = hasdim(dims, Band) ? axes(DD.dims(dims, Band), 1) : 1
         for i in bands
             rasterband = AG.getband(dataset, i)
+            (RA.isnokw(offset) || isnothing(offset)) || AG.setoffset!(rasterband, offset)
+            (RA.isnokw(scale) || isnothing(scale)) || AG.setscale!(rasterband, scale)
+            # Set the missing value/nodataval. This is a little complicated
+            # because gdal has separate method for 64 bit integers
             if missingval isa Int64
                 AG.GDAL.gdalsetrasternodatavalueasint64(rasterband, missingval)
             elseif missingval isa UInt64
@@ -575,7 +595,7 @@ _maybe_restore_from_gdal(A, dims::Tuple) = _maybe_reorder(permutedims(A, dims), 
 _maybe_restore_from_gdal(A, dims::Union{Tuple{<:XDim,<:YDim,<:Band},Tuple{<:XDim,<:YDim}}) =
     _maybe_reorder(A, dims)
 
-function _maybe_reorder(A, dims)
+function _maybe_reorder(A, dims::Tuple)
     if all(map(l -> l isa AbstractSampled, lookup(dims, (XDim, YDim)))) &&
         all(map(l -> l isa AbstractSampled, lookup(A, (XDim, YDim))))
         reorder(A, dims)
@@ -583,6 +603,14 @@ function _maybe_reorder(A, dims)
         A
     end
 end
+
+function _maybe_warn_south_up(A, verbose, msg)
+    if hasdim(A, Y())
+        verbose && lookup(A, Y()) isa AbstractSampled && order(A, Y()) isa ForwardOrdered && @warn msg
+    end
+    return nothing
+end
+
 #= Geotranforms ########################################################################
 
 See https://lists.osgeo.org/pipermail/gdal-dev/2011-July/029449.html
@@ -625,6 +653,15 @@ RA.affine2geotransform(am) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)
 
 _isaligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
 
+function _getfilepath(ds)
+    filelist = AG.filelist(ds)
+    if length(filelist) == 0
+        return nothing
+    else
+        return first(filelist)
+    end
+end
+
 # precompilation
 # function _precompile(::Type{GDALsource})
 #     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
@@ -647,3 +684,4 @@ _isaligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT
 # end
 
 # _precompile(GRDsource)
+

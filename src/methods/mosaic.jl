@@ -1,3 +1,6 @@
+const RasterVecOrTuple = Union{Tuple{Vararg{AbstractRaster}},AbstractArray{<:AbstractRaster}}
+const RasterStackVecOrTuple = Union{Tuple{Vararg{AbstractRasterStack}},AbstractArray{<:AbstractRasterStack}}
+
 """
     mosaic(f, regions...; missingval, atol)
     mosaic(f, regions; missingval, atol)
@@ -28,70 +31,88 @@ If your mosaic has has apparent line errors, increase the `atol` value.
 Here we cut out Australia and Africa from a stack, and join them with `mosaic`.
 
 ```jldoctest
-using Rasters, RasterDataSources, ArchGDAL, Plots
-st = RasterStack(WorldClim{Climate}; month=1);
+using Rasters, RasterDataSources, NaturalEarth, DataFrames, Dates, Plots
+countries = naturalearth("admin_0_countries", 110) |> DataFrame
+climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
+country_climates = map(("Norway", "Denmark", "Sweden")) do name
+    country = subset(countries, :NAME => ByRow(==("Norway")))
+    trim(mask(climate; with=country); pad=10)
+end
+scandinavia_climate = trim(mosaic(first, country_climates))
+plot(scandinavia_climate)
 
-africa = st[X(-20.0 .. 60.0), Y(-40.0 .. 35.0)]
-a = plot(africa)
-
-aus = st[X(100.0 .. 160.0), Y(-50.0 .. -10.0)]
-b = plot(aus)
-
-# Combine with mosaic
-mos = mosaic(first, aus, africa)
-c = plot(mos)
-
-savefig(a, "build/mosaic_example_africa.png")
-savefig(b, "build/mosaic_example_aus.png")
-savefig(c, "build/mosaic_example_combined.png")
-nothing
+savefig("build/mosaic_example_combined.png")
 # output
 
 ```
 
-### Individual continents
-
-![arica](mosaic_example_africa.png)
-
-![aus](mosaic_example_aus.png)
-
-### Mosaic of continents
+### Mosaic of countries
 
 ![mosaic](mosaic_example_combined.png)
 
 $EXPERIMENTAL
 """
-function mosaic(f::Function, r1::RasterStackOrArray, rs::RasterStackOrArray...; kw...)
+mosaic(f::Function, r1::RasterStackOrArray, rs::RasterStackOrArray...; kw...) =
     mosaic(f, (r1, rs...); kw...)
-end
 mosaic(f::Function, regions; kw...) = _mosaic(f, first(regions), regions; kw...)
-function _mosaic(f::Function, ::AbstractRaster, regions;
-    missingval=missingval(first(regions)), filename=nothing, suffix=nothing, kw...
+function _mosaic(f::Function, A1::AbstractRaster, regions;
+    missingval=nokw,
+    filename=nothing,
+    suffix=nothing,
+    driver=nokw,
+    options=nokw,
+    force=false,
+    kw...
 )
-    missingval = missingval isa Nothing ? missing : missingval
-    T = Base.promote_type(typeof(missingval), Base.promote_eltype(regions...))
+    V = Vector{promote_type(map(Missings.nonmissingtype ∘ eltype, regions)...)}
+    T = Base.promote_op(f, V)
     dims = _mosaic(Tuple(map(DD.dims, regions)))
     l1 = first(regions)
-    A = create(filename, T, dims; name=name(l1), missingval, metadata=metadata(l1))
-    open(A; write=true) do a
-        _mosaic!(f, a, regions; missingval, kw...)
+
+    missingval = if isnothing(missingval) 
+        throw(ArgumentError("missingval cannot be `nothing` for `mosaic`"))
+    elseif isnokw(missingval)
+        mv = Rasters.missingval(first(regions)) 
+        isnokwornothing(mv) ? missing : mv
+    else
+        missingval
     end
-    return A
+    missingval_pair = if missingval isa Pair
+        missingval
+    elseif !isnothing(filename) && (ismissing(missingval) || isnokw(missingval))
+        _type_missingval(eltype(A1)) => missing
+    else
+        missingval => missingval
+    end
+
+    return create(filename, T, dims;
+        name=name(l1),
+        fill=missingval_pair[1],
+        missingval=missingval_pair,
+        driver,
+        options,
+        force
+    ) do C
+        mosaic!(f, C, regions; missingval, kw...)
+    end
 end
-function _mosaic(f::Function, ::AbstractRasterStack, regions;
-    filename=nothing, suffix=keys(first(regions)), kw...
+function _mosaic(f::Function, r1::AbstractRasterStack, regions;
+    filename=nothing,
+    suffix=keys(first(regions)),
+    kw...
 )
+    # TODO make this write inside a single netcdf
     layers = map(suffix, map(values, regions)...) do s, A...
         mosaic(f, A...; filename, suffix=s, kw...)
     end
-    return DD.rebuild_from_arrays(first(regions), Tuple(layers))
+    return DD.rebuild_from_arrays(r1, layers)
 end
 
 """
     mosaic!(f, x, regions...; missingval, atol)
     mosaic!(f, x, regions::Tuple; missingval, atol)
 
-Combine `regions` in `x` using the function `f`.
+Combine `regions` in `Raster` or `RasterStack` `x` using the function `f`.
 
 # Arguments
 
@@ -115,18 +136,25 @@ Combine `regions` in `x` using the function `f`.
 
 # Example
 
-Cut out Australia and Africa stacks, then combined them
-into a single stack.
+Cut out scandinavian countries and plot:
 
 ```jldoctest
-using Rasters, RasterDataSources, ArchGDAL, Statistics, Plots
-st = read(RasterStack(WorldClim{Climate}; month=1))
-aus = st[X=100.0 .. 160.0, Y=-50.0 .. -10.0]
-africa = st[X=-20.0 .. 60.0, Y=-40.0 .. 35.0]
-mosaic!(first, st, aus, africa)
-plot(st)
+using Rasters, RasterDataSources, NaturalEarth, DataFrames, Dates, Plots
+# Get climate data form worldclim
+climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
+# And country borders from natural earth
+countries = naturalearth("admin_0_countries", 110) |> DataFrame
+# Cut out each country
+country_climates = map(("Norway", "Denmark", "Sweden")) do name
+    country = subset(countries, :NAME => ByRow(==(name)))
+    trim(mask(climate; with=country); pad=10)
+end
+# Mosaic together to a single raster
+scandinavia_climate = mosaic(first, country_climates)
+# And plot
+plot(scandinavia_climate)
+
 savefig("build/mosaic_bang_example.png")
-nothing
 # output
 
 ```
@@ -136,46 +164,147 @@ nothing
 $EXPERIMENTAL
 """
 mosaic!(f::Function, dest::RasterStackOrArray, regions::RasterStackOrArray...; kw...) =
-    _mosaic!(f, dest, regions; kw...)
-
-function _mosaic!(f::Function, A::AbstractRaster{T}, regions::Union{Tuple,AbstractArray};
-    missingval=missingval(A), atol=maybe_eps(T)
+    mosaic!(f, dest, regions; kw...)
+function mosaic!(
+    f::Function, 
+    dest::RasterStackOrArray,
+    regions::Union{Tuple,AbstractArray}; 
+    op=_reduce_op(f, missingval(dest)), 
+    kw...
+)
+    # Centering avoids pixel edge floating point error
+    dest_centered = _prepare_for_burning(dest; order=nothing)
+    regions_centered = map(r -> _prepare_for_burning(r; order=nothing), regions)
+    _mosaic!(f, op, dest_centered, regions_centered; kw...)
+    return dest
+end
+function _mosaic!(
+    f::typeof(mean), op::Nothing, dest::Raster, regions::RasterVecOrTuple;
+    kw...
+)
+    if length(regions) <= typemax(UInt8)
+        _mosaic_mean!(dest, UInt8, regions; kw...)
+    elseif length(regions) <= typemax(UInt16)
+        _mosaic_mean!(dest, UInt16, regions; kw...)
+    else
+        _mosaic_mean!(dest, UInt32, regions; kw...)
+    end
+end
+function _mosaic!(
+    f::typeof(length), op::Nothing, dest::AbstractRaster, regions::RasterVecOrTuple;
+    kw...
+)
+    for region in regions
+        _count_region!(dest, region; kw...)
+    end
+    return dest
+end
+# Where there is a known reduction operator we can apply each region as a whole
+function _mosaic!(
+    f::Function, op, dest::AbstractRaster, regions::RasterVecOrTuple; 
+    kw...
+)
+    for region in regions
+        _mosaic_region!(op, dest, region; kw...)
+    end
+    return dest
+end
+# Generic unknown functions
+function _mosaic!(
+    f::Function, op::Nothing, A::AbstractRaster{T}, regions::RasterVecOrTuple;
+    missingval=missingval(A), atol=nothing
 ) where T
+    isnokwornothing(missingval) && throw(ArgumentError("destination array must have a `missingval`"))
+    R = promote_type(map(Missings.nonmissingtype ∘ eltype, regions)...)
+    buffer = Vector{R}(undef, length(regions))
     _without_mapped_crs(A) do A1
-        broadcast!(A1, DimKeys(A1; atol)) do ds
+        broadcast!(A1, DimSelectors(A1; atol)) do ds
             # Get all the regions that have this point
-            ls = foldl(regions; init=()) do acc, l
-                if DD.hasselection(l, ds)
-                    v = l[ds...]
-                    (acc..., l)
-                else
-                    acc
+            i = 0
+            for r in regions 
+                if DD.hasselection(r, ds)
+                    x = r[ds...]
+                    if x !== Rasters.missingval(r)
+                        i += 1
+                        buffer[i] = x
+                    end
                 end
             end
-            values = foldl(ls; init=()) do acc, l
-                v = l[ds...]
-                if isnothing(Rasters.missingval(l))
-                    (acc..., v)
-                elseif ismissing(Rasters.missingval(l))
-                    ismissing(v) ? acc : (acc..., v)
-                else
-                    v === Rasters.missingval(l) ? acc : (acc..., v)
-                end
-            end
-            if length(values) === 0
+            if i === 0
                 missingval
             else
-                f(values)
+                f(view(buffer, 1:i))
             end
         end
     end
     return A
 end
-function _mosaic!(f::Function, st::AbstractRasterStack, regions::Union{Tuple,AbstractArray}; kw...)
+function _mosaic!(
+    f::Function, 
+    op, 
+    st::AbstractRasterStack, 
+    regions::RasterStackVecOrTuple; 
+    kw...
+)
     map(values(st), map(values, regions)...) do A, r...
-        mosaic!(f, A, r...; kw...)
+        _mosaic!(f, op, A, r; kw...)
     end
     return st
+end
+
+function _mosaic_mean!(dest, ::Type{T}, regions; kw...) where T
+    # Note: sum and count are separate broadcasts because 
+    # most disk formats don't support writing a tuple
+
+    # Define a Raster to count into
+    counts = create(nothing, T, dest; missingval=zero(T))
+    counts .= zero(T)
+    for region in regions
+        # Add region to dest
+        _mosaic_region!(Base.add_sum, dest, region; kw...)
+        # Count region
+        _count_region!(counts, region; kw...)
+    end
+    # Divide dest by counts
+    # Avoid divide by zero for missing values
+    dest .= ((d, c) -> d === missingval(dest) ? missingval(dest) : d / c).(dest, counts)
+    return dest
+end
+
+function _mosaic_region!(op, dest, region; atol=nothing, kw...)
+    function skip_or_op(a, b) 
+        if b === missingval(region)
+            a
+        elseif a === missingval(dest) 
+            b
+        else
+            op(a, b)
+        end
+    end
+    ext = _maybe_pad_floats(extent(region), sampling(dest))
+    selectors = map(sampling(dest)) do sa
+        ispoints(sa) ?  At(; atol) : Contains()
+    end
+    ds = DimSelectors(view(dest, ext); selectors)
+    # `parent` needed to skip broadcast checks
+    dest[ext] .= skip_or_op.(parent(view(dest, ext)), parent(view(region, ds)))
+    return dest
+end
+
+function _count_region!(count::AbstractRaster{T}, region::AbstractRaster; kw...) where T
+    function skip_or_count(a, b)
+        if b === missingval(region)
+            a
+        elseif a === missingval(count) 
+            oneunit(Missings.nonmissingtype(T))
+        else
+            a + oneunit(a)
+        end
+    end
+    ext = extent(region)
+    ds = DimSelectors(view(count, ext))
+    view(count, ext) .= skip_or_count.(view(count, ext), view(region, ds))
+    return count
 end
 
 _mosaic(alldims::Tuple{<:DimTuple,Vararg{DimTuple}}) = map(_mosaic, alldims...)
@@ -219,7 +348,6 @@ function _mosaic(span::Regular, lookup::AbstractSampled, lookups::LookupTuple)
     end
     return rebuild(lookup; data=newindex)
 end
-
 function _mosaic(::Irregular, lookup::AbstractSampled, lookups::LookupTuple)
     newindex = sort(union(map(parent, lookups)...); order=LA.ordering(order(lookup)))
     return rebuild(lookup; data=newindex)
@@ -234,4 +362,16 @@ function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::LookupTuple)
     newupper = sort(union(upper...); order=LA.ordering(order(lookup)))
     newbounds = vcat(permutedims(newlower), permutedims(newupper))
     return rebuild(lookup; data=newindex, span=Explicit(newbounds))
+end
+
+# Pad floats for intervals so that small floating point 
+# error doesn't exclude values in nealy matching lookups
+function _maybe_pad_floats(ext::Extent{K}, sampling::Tuple) where K
+    map(values(Extents.bounds(ext)), sampling) do b, sa
+        if isintervals(sa) && eltype(first(b)) <: AbstractFloat
+            b[1] - 10eps(b[1]), b[2] + 10eps(b[2])
+        else
+            b
+        end
+    end |> Extent{K}
 end
