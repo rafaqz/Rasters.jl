@@ -28,34 +28,22 @@ If your mosaic has has apparent line errors, increase the `atol` value.
 Here we cut out Australia and Africa from a stack, and join them with `mosaic`.
 
 ```jldoctest
-using Rasters, RasterDataSources, ArchGDAL, Plots
-st = RasterStack(WorldClim{Climate}; month=1);
+using Rasters, RasterDataSources, NaturalEarth, DataFrames
+countries = naturalearth("admin_0_countries", 110) |> DataFrame
+climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
+country_climates = map(("Norway", "Denmark", "Sweden")) do name
+    country = subset(countries, :NAME => ByRow(==("Norway")))
+    trim(mask(climate; with=country); pad=10)
+end
+scandinavia_climate = trim(mosaic(first, country_climates))
+plot(scandinavia_climate)
 
-africa = st[X(-20.0 .. 60.0), Y(-40.0 .. 35.0)]
-a = plot(africa)
-
-aus = st[X(100.0 .. 160.0), Y(-50.0 .. -10.0)]
-b = plot(aus)
-
-# Combine with mosaic
-mos = mosaic(first, aus, africa)
-c = plot(mos)
-
-savefig(a, "build/mosaic_example_africa.png")
-savefig(b, "build/mosaic_example_aus.png")
-savefig(c, "build/mosaic_example_combined.png")
-nothing
+savefig("build/mosaic_example_combined.png")
 # output
 
 ```
 
-### Individual continents
-
-![arica](mosaic_example_africa.png)
-
-![aus](mosaic_example_aus.png)
-
-### Mosaic of continents
+### Mosaic of countries
 
 ![mosaic](mosaic_example_combined.png)
 
@@ -155,13 +143,14 @@ climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=Ju
 countries = naturalearth("admin_0_countries", 110) |> DataFrame
 # Cut out each country
 country_climates = map(("Norway", "Denmark", "Sweden")) do name
-    country = subset(countries, :NAME => ByRow(==("Norway")))
+    country = subset(countries, :NAME => ByRow(==(name)))
     trim(mask(climate; with=country); pad=10)
 end
 # Mosaic together to a single raster
 scandinavia_climate = mosaic(first, country_climates)
 # And plot
 plot(scandinavia_climate)
+
 savefig("build/mosaic_bang_example.png")
 # output
 
@@ -172,9 +161,10 @@ savefig("build/mosaic_bang_example.png")
 $EXPERIMENTAL
 """
 mosaic!(f::Function, dest::RasterStackOrArray, regions::RasterStackOrArray...; kw...) =
-    _mosaic!(f, dest, regions; kw...)
+    mosaic!(f, dest, regions; kw...)
 function mosaic!(
-    f::Function, dest::RasterStackOrArray,
+    f::Function, 
+    dest::RasterStackOrArray,
     regions::Union{Tuple,AbstractArray{<:RasterStackOrArray}}; 
     op=_reduce_op(f, missingval(dest)), 
     kw...
@@ -182,25 +172,26 @@ function mosaic!(
     # Centering avoids pixel edge floating point error
     dest_centered = _prepare_for_burning(dest; order=nothing)
     regions_centered = map(r -> _prepare_for_burning(r; order=nothing), regions)
-    _mosaic!(f, op, dest_centered, regions_centered; kw...)
+    @show typeof(regions_centered)
+    mosaic!(f, op, dest_centered, regions_centered; kw...)
     return dest
 end
 function mosaic!(
-    f::typeof(mean), op::Nothing, dest::RasterStackOrArray,
-    regions::Union{Tuple,AbstractArray{<:RasterStackOrArray}};
+    f::typeof(mean), op::Nothing, dest::Raster,
+    regions::Union{Tuple,AbstractArray{<:AbstractRaster}};
     kw...
 )
     if length(regions) <= typemax(UInt8)
         _mosaic_mean!(dest, UInt8, regions; kw...)
     elseif length(regions) <= typemax(UInt16)
-        _mosiac_mean!(dest, UInt16, regions; kw...)
+        _mosaic_mean!(dest, UInt16, regions; kw...)
     else
-        _mosiac_mean!(dest, UInt32, regions; kw...)
+        _mosaic_mean!(dest, UInt32, regions; kw...)
     end
 end
 function mosaic!(
     f::typeof(length), op::Nothing, dest::RasterStackOrArray, 
-    regions::Union{Tuple,AbstractArray{<:RasterStackOrArray}};
+    regions::Union{Tuple,AbstractArray{<:AbstractRaster}};
     kw...
 )
     for region in regions
@@ -209,7 +200,7 @@ function mosaic!(
     return dest
 end
 # Where there is a known reduction operator we can apply each region as a whole
-function _mosaic!(
+function mosaic!(
     f::Function, op, dest::RasterStackOrArray, regions::Union{Tuple,AbstractArray}; 
     kw...
 )
@@ -219,7 +210,7 @@ function _mosaic!(
     return dest
 end
 # Generic unknown functions
-function _mosaic!(
+function mosaic!(
     f::Function, op::Nothing, A::AbstractRaster{T}, regions::Union{Tuple,AbstractArray};
     missingval=missingval(A), atol=nothing
 ) where T
@@ -248,9 +239,9 @@ function _mosaic!(
     end
     return A
 end
-function _mosaic!(f::Function, op::Nothing, st::AbstractRasterStack, regions::Union{Tuple,AbstractArray}; kw...)
+function mosaic!(f::Function, op, st::AbstractRasterStack, regions::Union{Tuple,AbstractArray}; kw...)
     map(values(st), map(values, regions)...) do A, r...
-        mosaic!(f, A, r...; kw...)
+        mosaic!(f, op, A, r; kw...)
     end
     return st
 end
