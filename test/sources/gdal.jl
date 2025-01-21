@@ -7,7 +7,7 @@ include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 url = "https://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif"
 gdalpath = maybedownload(url)
 
-# @testset "Raster" begin
+@testset "Raster" begin
     @test_throws ArgumentError Raster("notafile.tif")
 
     @time gdalarray = Raster(gdalpath; name=:test)
@@ -187,7 +187,7 @@ gdalpath = maybedownload(url)
         @test gdalarray[Y(4.224e6..4.226e6), Band(1)] isa Raster
     end
 
-   #@testset "methods" begin
+   @testset "methods" begin
         @testset "mean" begin
             @test all(mean(gdalarray; dims=Y) .=== mean(parent(gdalarray); dims=2))
         end
@@ -779,7 +779,7 @@ end
     output_crs = EPSG(4326)
     resample_method = "near"
 
-    ## Resample cea.tif manually with ArchGDAL
+    # Resample cea.tif manually with ArchGDAL
     wkt = convert(String, convert(WellKnownText, output_crs))
     AG_output = ArchGDAL.read(gdalpath) do dataset
         ArchGDAL.gdalwarp([dataset], ["-t_srs", "$(wkt)",
