@@ -27,38 +27,26 @@ These can be used when `of` is or contains (a) GeoInterface.jl compatible object
 # Example
 
 ```jldoctest
-using Rasters, RasterDataSources, ArchGDAL, Shapefile, DataFrames, Downloads, Statistics, Dates
-
-# Download a borders shapefile
-ne_url = "https://github.com/nvkelso/natural-earth-vector/raw/master/10m_cultural/ne_10m_admin_0_countries"
-shp_url, dbf_url  = ne_url * ".shp", ne_url * ".dbf"
-shp_name, dbf_name = "country_borders.shp", "country_borders.dbf"
-isfile(shp_name) || Downloads.download(shp_url, shp_name)
-isfile(dbf_url) || Downloads.download(dbf_url, dbf_name)
-
+using Rasters, RasterDataSources, ArchGDAL, DataFrames, Statistics, Dates, NaturalEarth
+# Download borders
+countries = naturalearth("admin_0_countries", 10) |> DataFrame
 # Download and read a raster stack from WorldClim
-st = RasterStack(WorldClim{Climate}; month=Jan, lazy=false)
-
-# Load the shapes for world countries
-countries = Shapefile.Table(shp_name) |> DataFrame
-
+st = RasterStack(WorldClim{Climate}; month=Jan)
 # Calculate the january mean of all climate variables for all countries
 january_stats = zonal(mean, st; of=countries, boundary=:touches, progress=false) |> DataFrame
-
 # Add the country name column (natural earth has some string errors it seems)
 insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Za-z ]")))
-
 # output
 258×8 DataFrame
  Row │ country                       tmin       tmax       tavg       prec     ⋯
      │ SubStrin…                     Float32    Float32    Float32    Float64  ⋯
 ─────┼──────────────────────────────────────────────────────────────────────────
-   1 │ Indonesia                      21.5447    29.1864    25.3656   271.063  ⋯
+   1 │ Indonesia                      21.5447    29.1865    25.3656   271.063  ⋯
    2 │ Malaysia                       21.3087    28.4291    24.8688   273.381
-   3 │ Chile                           7.24534   17.9263    12.5858    78.1287
-   4 │ Bolivia                        17.2065    27.7454    22.4759   192.542
-   5 │ Peru                           15.0273    25.5504    20.2888   180.007  ⋯
-   6 │ Argentina                      13.6751    27.6715    20.6732    67.1837
+   3 │ Chile                           7.24534   17.9262    12.5858    78.1287
+   4 │ Bolivia                        17.2065    27.7454    22.4758   192.542
+   5 │ Peru                           15.0273    25.5504    20.2889   180.007  ⋯
+   6 │ Argentina                      13.6751    27.6716    20.6732    67.1837
    7 │ Dhekelia Sovereign Base Area    5.87126   15.8991    10.8868    76.25
    8 │ Cyprus                          5.65921   14.6665    10.1622    97.4474
   ⋮  │              ⋮                    ⋮          ⋮          ⋮         ⋮     ⋱
