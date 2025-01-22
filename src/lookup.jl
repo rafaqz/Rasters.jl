@@ -97,7 +97,7 @@ end
     LA._selectvec(l, sel; kw...) # no reprojecting because _selectvec calls selectindices
 @inline function LA.selectindices(l::Projected, sel::LA.IntSelector{<:Tuple}; kw...)
     selval = reproject(mappedcrs(l), crs(l), dim(l), val(sel))
-    LA._selecttuple(l, rebuild(sel, val); kw...)
+    LA._selecttuple(l, rebuild(sel, selval); kw...)
 end
 @inline LA.selectindices(l::Projected{<:Tuple}, sel::LA.IntSelector{<:Tuple}; kw...) = LA._selectindices(l, sel; kw...)
 @inline LA.selectindices(l::Projected{<:Tuple}, sel::LA.IntSelector{<:Tuple{<:Tuple,<:Tuple}}; kw...) = 
