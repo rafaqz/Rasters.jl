@@ -104,7 +104,3 @@ end
         A[X = Where(x -> 3 > x > 0.5)] ==
         A[X = Not(At(0))]
 end
-
-using Rasters
-A = rand(X(Projected(1:10; crs = nothing)))
-A[X(Where(<(4)))]
