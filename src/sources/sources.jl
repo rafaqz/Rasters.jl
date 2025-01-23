@@ -67,6 +67,7 @@ end
 # Get the source backend for a file extension, falling back to GDALsource
 _sourcetrait(filename::AbstractString, s::Symbol) = _sourcetrait(s)
 _sourcetrait(filename::AbstractString, s::Source) = s
+_sourcetrait(filename::AbstractString, ::Type{S}) where S<:Source = S()
 _sourcetrait(filename::AbstractString, ::Union{Nothing,NoKW}) = _sourcetrait(filename)
 _sourcetrait(filename::AbstractString, ext::AbstractString) = get(EXT2SOURCE, ext, GDALsource())
 function _sourcetrait(filename::AbstractString)

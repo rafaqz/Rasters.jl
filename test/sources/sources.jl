@@ -1,6 +1,39 @@
 using Rasters, Test
 using Rasters: _sourcetrait
 
+@test _sourcetrait("x", ".nc") == Rasters.NCDsource()
+@test _sourcetrait("x", ".nc4") == Rasters.NCDsource()
+@test _sourcetrait("x", ".h5") == Rasters.NCDsource()
+@test _sourcetrait("x", ".grd") == Rasters.GRDsource()
+@test _sourcetrait("x", ".gri") == Rasters.GRDsource()
+@test _sourcetrait("x", ".grib") == Rasters.GRIBsource()
+@test _sourcetrait("x", ".tif") == Rasters.GDALsource()
+@test _sourcetrait("x", ".zarr") == Rasters.Zarrsource()
+
+@test _sourcetrait("x", :netcdf) == Rasters.NCDsource()
+@test _sourcetrait("x", :grd) == Rasters.GRDsource()
+@test _sourcetrait("x", :grib) == Rasters.GRIBsource()
+@test _sourcetrait("x", :gdal) == Rasters.GDALsource()
+@test _sourcetrait("x", :zarr) == Rasters.Zarrsource()
+
+@test _sourcetrait("x", Rasters.NCDsource()) == Rasters.NCDsource()
+@test _sourcetrait("x", Rasters.GRDsource()) == Rasters.GRDsource()
+@test _sourcetrait("x", Rasters.GRIBsource()) == Rasters.GRIBsource()
+@test _sourcetrait("x", Rasters.GDALsource()) == Rasters.GDALsource()
+@test _sourcetrait("x", Rasters.Zarrsource()) == Rasters.Zarrsource()
+
+@test _sourcetrait("x", Rasters.NCDsource) == Rasters.NCDsource()
+@test _sourcetrait("x", Rasters.GRDsource) == Rasters.GRDsource()
+@test _sourcetrait("x", Rasters.GRIBsource) == Rasters.GRIBsource()
+@test _sourcetrait("x", Rasters.GDALsource) == Rasters.GDALsource()
+@test _sourcetrait("x", Rasters.Zarrsource) == Rasters.Zarrsource()
+
+@test _sourcetrait("x", :netcdf) == Rasters.NCDsource()
+@test _sourcetrait("x", :grd) == Rasters.GRDsource()
+@test _sourcetrait("x", :grib) == Rasters.GRIBsource()
+@test _sourcetrait("x", :gdal) == Rasters.GDALsource()
+@test _sourcetrait("x", :zarr) == Rasters.Zarrsource()
+
 @test _sourcetrait(".nc") == Rasters.NCDsource()
 @test _sourcetrait(".nc4") == Rasters.NCDsource()
 @test _sourcetrait(".h5") == Rasters.NCDsource()
@@ -20,26 +53,11 @@ using Rasters: _sourcetrait
 @test _sourcetrait("x.zarr") == Rasters.Zarrsource()
 @test _sourcetrait("x.zarr/") == Rasters.Zarrsource()
 
-@test _sourcetrait("x", ".nc") == Rasters.NCDsource()
-@test _sourcetrait("x", ".nc4") == Rasters.NCDsource()
-@test _sourcetrait("x", ".h5") == Rasters.NCDsource()
-@test _sourcetrait("x", ".grd") == Rasters.GRDsource()
-@test _sourcetrait("x", ".gri") == Rasters.GRDsource()
-@test _sourcetrait("x", ".grib") == Rasters.GRIBsource()
-@test _sourcetrait("x", ".tif") == Rasters.GDALsource()
-@test _sourcetrait("x", ".zarr") == Rasters.Zarrsource()
-
 @test _sourcetrait(:netcdf) == Rasters.NCDsource()
 @test _sourcetrait(:grd) == Rasters.GRDsource()
 @test _sourcetrait(:grib) == Rasters.GRIBsource()
 @test _sourcetrait(:gdal) == Rasters.GDALsource()
 @test _sourcetrait(:zarr) == Rasters.Zarrsource()
-
-@test _sourcetrait("x", :netcdf) == Rasters.NCDsource()
-@test _sourcetrait("x", :grd) == Rasters.GRDsource()
-@test _sourcetrait("x", :grib) == Rasters.GRIBsource()
-@test _sourcetrait("x", :gdal) == Rasters.GDALsource()
-@test _sourcetrait("x", :zarr) == Rasters.Zarrsource()
 
 @test _sourcetrait(Rasters.NCDsource()) == Rasters.NCDsource()
 @test _sourcetrait(Rasters.GRDsource()) == Rasters.GRDsource()
