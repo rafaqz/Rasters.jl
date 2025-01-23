@@ -26,7 +26,7 @@ end
 @time @safetestset "warp" begin include("warp.jl") end
 @time @safetestset "cellarea" begin include("cellarea.jl") end
 
-# CommondataModel sources
+@time @safetestset "sources" begin include("sources/sources.jl") end
 @time @safetestset "commondatamodel" begin include("sources/commondatamodel.jl") end
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
 @time @safetestset "zarr" begin include("sources/zarr.jl") end
