@@ -62,6 +62,10 @@ table = (geometry=pts, foo=zeros(4))
                 (geometry = (10.0, 0.2), test = 4)
             ]
         end
+
+        @testset "Single point" begin
+            @test extract(rast, (9.0, 0.1)) == (geometry = (9.0, 0.1), test = 1)
+        end
     end
 
     @testset "From RasterStack" begin
