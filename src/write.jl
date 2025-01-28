@@ -129,7 +129,7 @@ function Base.write(path::AbstractString, s::AbstractRasterStack;
         end
         map(keys(s), suffix1, missingval) do key, suf, mv
             fn = string(base, suf, ext)
-            write(fn, source, s[key]; missingval=mv, kw...)
+            write(fn, source, s[key]; missingval=mv, verbose, kw...)
         end |> NamedTuple{keys(s)}
     end
 end
