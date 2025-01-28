@@ -285,6 +285,7 @@ end
 function _extract(A::RasterStackOrArray, e::Extractor{T}, id::Int, ::GI.PointTrait, p; kw...) where T
     rows = _init_rows(e, 1)
     _extract_point!(rows, A, e, id, p, 1; kw...)
+    return rows[1]
 end
 @noinline function _extract(
     A::RasterStackOrArray, e::Extractor{T}, id::Int, ::GI.AbstractLineStringTrait, geom;
