@@ -43,3 +43,32 @@ if !haskey(ENV, "CI")
 end
 @time @safetestset "plot recipes" begin include("plotrecipes.jl") end
 @time @safetestset "resample" begin include("resample.jl") end
+
+using ArchGDAL
+using CoordinateTransformations
+using GRIBDatasets
+using Makie
+using NCDatasets
+using Proj
+using RasterDataSources
+using StatsBase
+using ZarrDatasets
+
+@testset "extensions Aqua" begin
+    for name in [
+        :RastersArchGDALExt,
+        :RastersCoordinateTransformationsExt,
+        :RastersGRIBDatasetsExt,
+        # :RastersMakieExt, TODO lots of ambiguities
+        :RastersNCDatasetsExt,
+        :RastersProjExt,
+        :RastersRasterDataSourcesExt,
+        :RastersStatsBaseExt,
+        :RastersZarrDatasetsExt,
+    ]
+        ext = Base.get_extension(Rasters, name)
+        Aqua.test_ambiguities(ext)
+        Aqua.test_unbound_args(ext)
+        Aqua.test_undefined_exports(ext)
+    end
+end
