@@ -98,7 +98,7 @@ end
 function aggregate(method, src::AbstractRaster, scale;
     suffix=nothing, filename=nothing, progress=true, kw...
 )
-    return alloc_ag(method, src, scale; filename, suffix, kw...) do dst
+    return alloc(Ag(), method, src, scale; filename, suffix, kw...) do dst
         aggregate!(method, dst, src, scale; progress, kw...)
     end
 end
@@ -251,7 +251,7 @@ end
 function disaggregate(src::AbstractRaster, scale;
     suffix=nothing, filename=nothing, kw...
 )
-    return alloc_disag(Center(), src, scale; filename, suffix, kw...) do dst
+    return alloc(DisAg(), Center(), src, scale; filename, suffix, kw...) do dst
         disaggregate!(dst, src, scale)
     end
 end
@@ -305,19 +305,35 @@ function disaggregate!(dst::AbstractRaster, src, scale)
     return dst
 end
 
+const AgArgs = Union{Integer,Colon,DD.SelectorOrInterval}
+
 # Allocate an array of the correct size to aggregate `A` by `scale`
-alloc_ag(f, method, A::AbstractRaster, scale; kw...) = 
-    alloc_ag(f, (method,), A, scale; kw...)
-alloc_ag(f, method::Tuple, A::AbstractRaster{<:Any,N}, scale::NTuple{N}; kw...) where N = 
-    alloc_ag(f, (method,), A, map(rebuild, dims(A), scale); kw...)
-function alloc_ag(f, method::Tuple, A::AbstractRaster, scale::DimTuple;
+alloc(f, ag, method, A::AbstractRaster, scale::Union{AgArgs,Tuple,NamedTuple}; kw...) = 
+    alloc(f, ag, (method,), A, scale; kw...)
+function alloc(f, ag, method::Tuple, A::AbstractRaster, scale::AgArgs; kw...)
+    intscale = _scale2int(ag, dims(A), scale)
+    alloc(f, ag, method, A, map(d -> rebuild(d, intscale), dims(A)); kw...)
+end
+alloc(f, ag, method::Tuple, A::AbstractRaster, scale::NamedTuple; kw...) =
+    alloc(f, ag, method, A, DD.kw2dims(scale); kw...)
+alloc(f, ag, method::Tuple, A::AbstractRaster, scale::Tuple{Pair,Vararg{Pair}}; kw...) =
+    alloc(f, ag, method, A, DD.Dimensions.pairs2dims(scale...); kw...)
+function alloc(f, ag, method::Tuple, A::AbstractRaster, scale::Tuple; kw...)
+    length(scale) == ndims(A) || throw(ArgumentError("length of scale must match array dimensions $(ndims(A)), got $(length(scale))"))
+    alloc(f, ag, method, A, map(rebuild, dims(A), scale); kw...)
+end
+function alloc(f, ag, method::Tuple, A::AbstractRaster, scale::DimTuple;
     filename=nokw, suffix=nokw, 
     skipmissingval=false, skipmissing=false, progress=false, verbose=false
 )
-    intscale = _scale2int(Ag(), dims(A, scale), scale; verbose=false)
+    intscale = _scale2int(ag, dims(A, scale), scale; verbose=false)
     # Aggregate the dimensions
-    agdims = map(dims(A), intscale) do d, s
-        aggregate(method, d, s)
+    agdims = map(dims(A, scale), intscale) do d, i
+        if ag isa Ag
+            aggregate(method, d, i)
+        else
+            disaggregate(method, d, i)
+        end
     end
     newdims = dims((agdims..., otherdims(A, scale)...), dims(A)) 
     
@@ -334,29 +350,9 @@ function alloc_ag(f, method::Tuple, A::AbstractRaster, scale::DimTuple;
     return create(f, filename, T, newdims; name=name(A), suffix, missingval=mv)
 end
 
-# Allocate an array of the correct size to disaggregate `A` by `scale`
-alloc_disag(f, method, A::AbstractRaster, scale; kw...) =
-    alloc_disag(f, (method,), A, scale; kw...)
-alloc_disag(f, method::Tuple, A::AbstractRaster{<:Any,N}, scale::NTuple{N}; kw...) where N =
-    alloc_disag(f, (method,), A, map(rebuild, dims(A), scale); kw...)
-function alloc_disag(f, method::Tuple, A::AbstractRaster, scale::DimTuple;
-    filename=nokw, suffix=nokw
-)
-    intscale = _scale2int(DisAg(), dims(A, scale), scale; verbose=false)
-    disagdims = map(dims(A, scale), intscale) do d, i
-        disaggregate(method, d, i)
-    end
-    newdims = dims((disagdims..., otherdims(A, scale)...), dims(A)) 
-    # Dim aggregation determines the array size
-    sze = map(length, newdims)
-    T = ag_eltype(method, A)
-    mv = missingval(A) isa Nothing ? nothing : convert(T, missingval(A))
-    return create(f, filename, T, newdims; name=name(A), suffix, missingval=mv)
-end
-
 # Handle how methods like `mean` can change the type
-ag_eltype(method::Tuple{<:Locus,Vararg}, A) = eltype(A)
-function ag_eltype(method::Tuple{<:Any}, A)
+ag_eltype(method::Tuple{<:Union{Locus,Type{<:Locus}},Vararg}, A) = eltype(A)
+function ag_eltype(method::Tuple{<:Base.Callable}, A)
     method_returntype = typeof(method[1](zero(eltype(A))))
     promote_type(eltype(A), method_returntype)
 end
@@ -371,6 +367,7 @@ downsample(index::Int, scale::Nothing) = index
 
 # Convert scale or tuple of scale to integer using dims2indices
 @inline function _scale2int(x, dims::DimTuple, scale::DimTuple; verbose=true)
+    @show dims scale
     map(dims, DD.sortdims(scale, dims)) do d, s
         if isnothing(s) 
             1
