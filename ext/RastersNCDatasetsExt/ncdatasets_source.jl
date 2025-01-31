@@ -22,12 +22,6 @@ end
 RA._sourcetrait(::NCD.Dataset) = NCDsource()
 RA._sourcetrait(::NCD.Variable) = NCDsource()
 
-@inline function RA.get_scale(metadata::Metadata{NCDsource}, scaled::Bool)
-    scale = scaled ? get(metadata, "scale_factor", nothing) : nothing
-    offset = scaled ? get(metadata, "add_offset", nothing) : nothing
-    return scale, offset
-end
-
 RA.missingval(var::NCD.Variable, args...) = 
     RA.missingval(RA.Metadata{NCDsource}(CDM.attribs(var)))
 RA.missingval(var::NCD.Variable, md::RA.Metadata{<:NCDsource}) = RA.missingval(md)

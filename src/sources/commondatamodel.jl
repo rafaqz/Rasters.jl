@@ -63,7 +63,7 @@ end
 OpenStack(fs::FileStack{Source,K}) where {K,Source<:CDMsource} =
     OpenStack{Source,K}(sourceconstructor(Source())(filename(fs)), fs.mods)
 
-function _open(f, ::CDMsource, ds::AbstractDataset; 
+function _open(f, source::CDMsource, ds::AbstractDataset; 
     name=nokw, 
     group=nothing, 
     mod=NoMod(), 
@@ -71,12 +71,11 @@ function _open(f, ::CDMsource, ds::AbstractDataset;
 )
     g = _getgroup(ds, group)
     x = if isnokw(name)
-        g 
+        cleanreturn(f(g)) 
     else
         v = CDM.variable(g, string(_name_or_firstname(g, name)))
-        _maybe_modify(v, mod)
+        _open(f, source, v; mod)
     end
-    return cleanreturn(f(x)) 
 end
 _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) = 
     cleanreturn(f(_maybe_modify(var, mod)))
@@ -92,6 +91,12 @@ cleanreturn(A::AbstractVariable) = Array(A)
 haslayers(::CDMsource) = true
 defaultcrs(::CDMsource) = EPSG(4326)
 defaultmappedcrs(::CDMsource) = EPSG(4326)
+
+@inline function get_scale(metadata::Metadata{<:CDMsource}, scaled::Bool)
+    scale = scaled ? get(metadata, "scale_factor", nothing) : nothing
+    offset = scaled ? get(metadata, "add_offset", nothing) : nothing
+    return scale, offset
+end
 
 function _nondimnames(ds)
     dimnames = CDM.dimnames(ds)
