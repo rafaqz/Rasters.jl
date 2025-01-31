@@ -124,6 +124,7 @@ RasterStack("created.nc")
 └───────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 """
+function create end
 # Create with a function that will be called to fill the raster
 create(f::Function, args...; kw...) = create(args...; kw..., f)
 # Create from Raster or RasterStack with no filename
