@@ -33,7 +33,15 @@ const CDM_STANDARD_NAME_MAP = Dict(
     "time" => Ti,
 )
 
+missingval(var::CDM.AbstractVariable, md::Metadata{<:CDMsource}) =
+    missingval(md)
+missingval(var::CDM.AbstractVariable, args...) = 
+    missingval(Metadata{_soucetrait(var)}(CDM.attribs(var)))
+
 _sourcetrait(var::CDM.CFVariable) = _sourcetrait(var.var)
+
+function checkmode end
+sourceconstructor(source::Source) = sourceconstructor(typeof(source))
 
 # Rasters methods for CDM types ###############################
 
@@ -51,6 +59,9 @@ function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
     group = isnokw(group) ? nothing : group
     return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, mods, write)
 end
+
+OpenStack(fs::FileStack{Source,K}) where {K,Source<:CDMsource} =
+    OpenStack{Source,K}(sourceconstructor(Source())(filename(fs)), fs.mods)
 
 function _open(f, ::CDMsource, ds::AbstractDataset; 
     name=nokw, 
@@ -440,8 +451,43 @@ end
 
 _unuseddimerror(dimname) = error("Dataset contains unused dimension $dimname")
 
+function Base.write(filename::AbstractString, source::CDMsource, A::AbstractRaster;
+    append=false,
+    force=false,
+    kw...
+)
+    mode = checkmode(source, filename, append, force)
+    ds = sourceconstructor(source)(filename, mode; attrib=_attribdict(metadata(A)))
+    try
+        writevar!(ds, source, A; kw...)
+    finally
+        close(ds)
+    end
+    return filename
+end
+function Base.write(filename::AbstractString, source::Source, s::AbstractRasterStack{K,T};
+    append=false,
+    force=false,
+    missingval=nokw,
+    f=identity,
+    kw...
+) where {Source<:CDMsource,K,T}
+    mode = checkmode(source, filename, append, force)
+    ds = sourceconstructor(source)(filename, mode; attrib=_attribdict(metadata(s)))
+    missingval = _stack_nt(s, isnokw(missingval) ? Rasters.missingval(s) : missingval)
+    try
+        map(keys(s)) do k
+            writevar!(ds, source, s[k]; missingval=missingval[k], kw...)
+        end
+        f(OpenStack{Source,K,T}(ds))
+    finally
+        close(ds)
+    end
+    return filename
+end
+
 # Add a var array to a dataset before writing it.
-function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N};
+function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N};
     verbose=true,
     missingval=nokw,
     metadata=nokw,
@@ -512,7 +558,17 @@ function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,
     return nothing
 end
 
+const CDMallowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
+
 _check_allowed_type(trait, eltyp) = nothing
+function _check_allowed_type(::CDMsource, eltyp)
+    eltyp <: CDMallowedType || throw(ArgumentError("""
+    Element type $eltyp cannot be written to NetCDF. Convert it to one of $(Base.uniontypes(CDMallowedType)),
+    usually by broadcasting the desired type constructor over the `Raster`, e.g. `newrast = Float32.(rast)`"))
+    """
+    ))
+end
+
 
 _def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
