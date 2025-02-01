@@ -1,24 +1,10 @@
+RA.sourcetrait(::ZD.ZarrVariable) = Zarrsource()
+RA.sourcetrait(::ZD.ZarrDataset) = Zarrsource()
 RA.sourceconstructor(::Type{Zarrsource}) = ZD.ZarrDataset
-
-function RA.checkmode(::Zarrsource, filename, append::Bool, force::Bool)
-    append && throw(ArgumentError("ZarrDatasets.jl does not support appending"))
-    RA.check_can_write(filename, force)
-    return "c"
-end
-
+RA.checkfilename(::Zarrsource, filename) =
+    isfile(filename) || isdir(filename) || RA._isurl(filename) || RA._filenotfound_error(filename)
 # In ZarrDatasets, the file is open for reading the values and closed afterwards. 
 Base.close(os::RA.OpenStack{Zarrsource}) = nothing
-
-function RA._open(f, ::Zarrsource, filename::AbstractString; write=false, kw...)
-    ds = ZarrDatasets.ZarrDataset(filename)
-    RA._open(f, Zarrsource(), ds; kw...)
-end
-
-RA._sourcetrait(::ZD.ZarrVariable) = Zarrsource()
-RA._sourcetrait(::ZD.ZarrDataset) = Zarrsource()
-
-RA.missingval(var::ZD.ZarrVariable, args...) = RA.missingval(RA.Metadata{Zarrsource}(CDM.attribs(var)))
-RA.missingval(var::ZD.ZarrVariable, md::RA.Metadata{<:Zarrsource}) = RA.missingval(md)
 
 # TODO move this upstream to CommonDataModel.jl and Datasets packages
 function RA.missingval(md::RA.Metadata{<:Zarrsource})

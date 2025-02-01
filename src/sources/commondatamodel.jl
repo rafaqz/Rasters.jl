@@ -33,15 +33,30 @@ const CDM_STANDARD_NAME_MAP = Dict(
     "time" => Ti,
 )
 
+sourcetrait(var::CDM.CFVariable) = sourcetrait(var.var)
+sourceconstructor(source::Source) = sourceconstructor(typeof(source))
+function checkfilename end
+function checkwritemode(::CDMsource, filename, append::Bool, force::Bool)
+    if append
+        isfile(filename) ? "a" : "c"
+    else
+        check_can_write(filename, force)
+        "c"
+    end
+end
+
+openmode(write::Bool) = write ? "a" : "r"
+
 missingval(var::CDM.AbstractVariable, md::Metadata{<:CDMsource}) =
     missingval(md)
 missingval(var::CDM.AbstractVariable, args...) = 
-    missingval(Metadata{_soucetrait(var)}(CDM.attribs(var)))
+    missingval(Metadata{soucetrait(var)}(CDM.attribs(var)))
 
-_sourcetrait(var::CDM.CFVariable) = _sourcetrait(var.var)
-
-function checkmode end
-sourceconstructor(source::Source) = sourceconstructor(typeof(source))
+@inline function get_scale(metadata::Metadata{<:CDMsource}, scaled::Bool)
+    scale = scaled ? get(metadata, "scale_factor", nothing) : nothing
+    offset = scaled ? get(metadata, "add_offset", nothing) : nothing
+    return scale, offset
+end
 
 # Rasters methods for CDM types ###############################
 
@@ -63,6 +78,11 @@ end
 OpenStack(fs::FileStack{Source,K}) where {K,Source<:CDMsource} =
     OpenStack{Source,K}(sourceconstructor(Source())(filename(fs)), fs.mods)
 
+function _open(f, source::CDMsource, filename::AbstractString; write=false, kw...)
+    checkfilename(source, filename)
+    ds = sourceconstructor(source)(filename)
+    _open(f, source, ds; kw...)
+end
 function _open(f, source::CDMsource, ds::AbstractDataset; 
     name=nokw, 
     group=nothing, 
@@ -91,12 +111,6 @@ cleanreturn(A::AbstractVariable) = Array(A)
 haslayers(::CDMsource) = true
 defaultcrs(::CDMsource) = EPSG(4326)
 defaultmappedcrs(::CDMsource) = EPSG(4326)
-
-@inline function get_scale(metadata::Metadata{<:CDMsource}, scaled::Bool)
-    scale = scaled ? get(metadata, "scale_factor", nothing) : nothing
-    offset = scaled ? get(metadata, "add_offset", nothing) : nothing
-    return scale, offset
-end
 
 function _nondimnames(ds)
     dimnames = CDM.dimnames(ds)
@@ -155,7 +169,7 @@ function _dims(var::AbstractVariable{<:Any,N}, crs=nokw, mappedcrs=nokw) where N
     end
 end
 _metadata(var::AbstractVariable; attr=CDM.attribs(var)) =
-    _metadatadict(_sourcetrait(var), attr)
+    _metadatadict(sourcetrait(var), attr)
 
 function _dimdict(ds::AbstractDataset, crs=nokw, mappedcrs=nokw)
     dimdict = Dict{String,Dimension}()
@@ -170,7 +184,7 @@ function _dims(ds::AbstractDataset, dimdict::Dict)
     end |> Tuple
 end
 _metadata(ds::AbstractDataset; attr=CDM.attribs(ds)) =
-    _metadatadict(_sourcetrait(ds), attr)
+    _metadatadict(sourcetrait(ds), attr)
 function _layerdims(ds::AbstractDataset; layers, dimdict)
     map(layers.vars) do var
         map(CDM.dimnames(var)) do dimname
@@ -180,7 +194,7 @@ function _layerdims(ds::AbstractDataset; layers, dimdict)
 end
 function _layermetadata(ds::AbstractDataset; layers)
     map(layers.attrs) do attr
-        md = _metadatadict(_sourcetrait(ds), attr)
+        md = _metadatadict(sourcetrait(ds), attr)
         if haskey(attr, "grid_mapping")
             if haskey(ds, attr["grid_mapping"])
                 md["grid_mapping"] = Dict(CDM.attribs(ds[attr["grid_mapping"]]))
@@ -264,7 +278,7 @@ function _cdmlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs)
     var = ds[dimname]
     index = Missings.disallowmissing(var[:])
     attr = CDM.attribs(var)
-    metadata = _metadatadict(_sourcetrait(ds), attr)
+    metadata = _metadatadict(sourcetrait(ds), attr)
     return _cdmlookup(ds, var, attr, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For unknown types we just make a Categorical lookup
@@ -461,7 +475,7 @@ function Base.write(filename::AbstractString, source::CDMsource, A::AbstractRast
     force=false,
     kw...
 )
-    mode = checkmode(source, filename, append, force)
+    mode = checkwritemode(source, filename, append, force)
     ds = sourceconstructor(source)(filename, mode; attrib=_attribdict(metadata(A)))
     try
         writevar!(ds, source, A; kw...)
@@ -477,7 +491,7 @@ function Base.write(filename::AbstractString, source::Source, s::AbstractRasterS
     f=identity,
     kw...
 ) where {Source<:CDMsource,K,T}
-    mode = checkmode(source, filename, append, force)
+    mode = checkwritemode(source, filename, append, force)
     ds = sourceconstructor(source)(filename, mode; attrib=_attribdict(metadata(s)))
     missingval = _stack_nt(s, isnokw(missingval) ? Rasters.missingval(s) : missingval)
     try

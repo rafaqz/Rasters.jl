@@ -1,30 +1,18 @@
+RA.sourcetrait(::NCD.Dataset) = NCDsource()
+RA.sourcetrait(::NCD.Variable) = NCDsource()
 RA.sourceconstructor(::Type{NCDsource}) = NCD.Dataset
-
-function RA.checkmode(::NCDsource, filename, append::Bool, force::Bool)
-    if append
-        isfile(filename) ? "a" : "c"
-    else
-        RA.check_can_write(filename, force)
-        "c"
-    end
-end
-
+RA.checkfilename(::NCDsource, filename) =
+    isfile(filename) || RA._isurl(filename) || RA._filenotfound_error(filename)
 Base.close(os::RA.OpenStack{NCDsource}) = NCD.close(RA.dataset(os))
 
-function RA._open(f, ::NCDsource, filename::AbstractString; write=false, kw...)
-    isfile(filename) || RA._isurl(filename) || RA._filenotfound_error(filename)
-    mode = write ? "a" : "r"
-    NCD.Dataset(filename, mode) do ds
-        RA._open(f, NCDsource(), ds; kw...)
+# NCDatasets.jl needs manual closing of files
+function RA._open(f, source::NCDsource, filename::AbstractString; write=false, kw...)
+    RA.checkfilename(source, filename)
+    ds = RA.sourceconstructor(source)(filename, openmode(write)) do ds
+        RA._open(f, source, ds; kw...)
     end
 end
 
-RA._sourcetrait(::NCD.Dataset) = NCDsource()
-RA._sourcetrait(::NCD.Variable) = NCDsource()
-
-RA.missingval(var::NCD.Variable, args...) = 
-    RA.missingval(RA.Metadata{NCDsource}(CDM.attribs(var)))
-RA.missingval(var::NCD.Variable, md::RA.Metadata{<:NCDsource}) = RA.missingval(md)
 function RA.missingval(md::RA.Metadata{NCDsource})
     # TODO: handle multiple missing values
     fv = get(md, "_FillValue", nothing)
