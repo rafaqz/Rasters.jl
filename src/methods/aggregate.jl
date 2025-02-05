@@ -392,6 +392,8 @@ end
     _scale2int(x, dims, Dimensions.pairs2dims(scale...); verbose)
 @inline _scale2int(x, dims::DimTuple, scale::NamedTuple; verbose=true) = 
     _scale2int(x, dims, Dimensions.kw2dims(scale); verbose)
+@inline _scale2int(x, dims::DimTuple, scale::Dimension; verbose=true) = 
+    _scale2int(x, dims, (scale,); verbose)
 @inline function _scale2int(x, dims::DimTuple, scale::Int; verbose=true) 
     # If there are other dimensions, we skip categorical dims
     vals = map(dims) do d
