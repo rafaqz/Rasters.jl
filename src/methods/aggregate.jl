@@ -220,6 +220,7 @@ $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
 $PROGRESS_KEYWORD
 $THREADED_KEYWORD
+- `view`: Return a view of the parent array
 
 Note: currently it is _much_ faster to disaggregate over a memory-backed 
 source array. Use [`read`](@ref) on `src` before use where required.
@@ -249,10 +250,14 @@ function disaggregate(stack::AbstractRasterStack{K}, scale;
     return DD.rebuild_from_arrays(stack, dst_tuple)
 end
 function disaggregate(src::AbstractRaster, scale;
-    suffix=nothing, filename=nothing, kw...
+    suffix=nothing, filename=nothing, view = false, kw...
 )
-    return alloc_disag(Center(), src, scale; filename, suffix, kw...) do dst
-        disaggregate!(dst, src, scale)
+    if view
+        return view_disaggregate(src, scale)
+    else
+        return alloc_disag(Center(), src, scale; filename, suffix, kw...) do dst
+            disaggregate!(dst, src, scale)
+        end
     end
 end
 function disaggregate(dim::Dimension, scale)
@@ -278,6 +283,12 @@ end
 disaggregate(span::Span, scale) = span
 disaggregate(span::Regular, scale) = Regular(val(span) / scale)
 
+function view_disaggregate(A, scale)
+    intscale = _scale2int(DisAg(), dims(A), scale)
+    dims_ = disaggregate.((Center(),), dims(A), intscale)
+    indices = map((a, i) -> repeat(a; inner =i), axes(A), intscale)
+    rebuild(A; data = view(parent(A), indices...), dims = dims_)
+end
 """
     disaggregate!(dst::AbstractRaster, src::AbstractRaster, scale)
 
