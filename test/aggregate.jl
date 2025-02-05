@@ -168,6 +168,7 @@ end
         aggregate(sum, array1, (Y=2, X=3)) == 
         aggregate(sum, array1, (Y=>2, X=>3)) == 
         aggregate(sum, array1, (:Y=>2, :X=>3)) == 
+        aggregate(sum, aggregate(sum, array1, Y(2)), X(3)) ==
         [45 57 69]
 end
 
