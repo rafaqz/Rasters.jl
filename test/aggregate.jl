@@ -218,7 +218,7 @@ end
     @test_throws ArgumentError aggregate(sum, rast[X=1, Y=1], 2)
 end
 
-@test "Lazy disaggregation" begin
+@testset "Lazy disaggregation" begin
     eager_disag = disaggregate(array1, (X(2), Y(2))) 
     lazy_disag = disaggregate(array1, (X(2), Y(2)); view = true)
     @test eager_disag == lazy_disag
