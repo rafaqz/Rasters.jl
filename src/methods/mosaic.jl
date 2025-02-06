@@ -53,7 +53,7 @@ savefig("build/mosaic_example_combined.png")
 $EXPERIMENTAL
 """
 mosaic(f::Function, r1::RasterStackOrArray, rs::RasterStackOrArray...; kw...) =
-    mosaic(f, (r1, rs...); kw...)
+    _mosaic(f, r1, [r1, rs...]; kw...)
 mosaic(f::Function, regions; kw...) = _mosaic(f, first(regions), regions; kw...)
 function _mosaic(f::Function, A1::AbstractRaster, regions;
     missingval=nokw,
