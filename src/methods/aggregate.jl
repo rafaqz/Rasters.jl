@@ -239,12 +239,12 @@ function disaggregate(series::AbstractRasterSeries, scale;
     return dst
 end
 function disaggregate(stack::AbstractRasterStack{K}, scale;
-    keys=keys(stack), suffix=keys, filename=nothing, progress=true, threaded=false
+    keys=keys(stack), suffix=keys, progress=true, threaded=false, kw...
 ) where K
     dst_vec = Vector{Raster}(undef, length(K))
     ls = layers(stack)
     _run(1:length(K), threaded, progress, "Disaggregating stack...") do i
-        dst_vec[i] = disaggregate(ls[i], scale; filename, suffix=suffix[i])
+        dst_vec[i] = disaggregate(ls[i], scale; suffix=suffix[i], kw...)
     end
     dst_tuple = ntuple(i -> dst_vec[i], Val{length(K)}())
     return DD.rebuild_from_arrays(stack, dst_tuple)
