@@ -220,7 +220,7 @@ $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
 $PROGRESS_KEYWORD
 $THREADED_KEYWORD
-- `view`: Return a view of the parent array
+- `lazy`: A `Bool` specifying if to disaggregate lazily. Defaults to `false`
 
 Note: currently it is _much_ faster to disaggregate over a memory-backed 
 source array. Use [`read`](@ref) on `src` before use where required.
@@ -250,9 +250,9 @@ function disaggregate(stack::AbstractRasterStack{K}, scale;
     return DD.rebuild_from_arrays(stack, dst_tuple)
 end
 function disaggregate(src::AbstractRaster, scale;
-    suffix=nothing, filename=nothing, view = false, kw...
+    suffix=nothing, filename=nothing, lazy = false, kw...
 )
-    if view
+    if lazy
         return view_disaggregate(src, scale)
     else
         return alloc_disag(Center(), src, scale; filename, suffix, kw...) do dst
