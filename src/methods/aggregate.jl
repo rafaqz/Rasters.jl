@@ -220,6 +220,7 @@ $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
 $PROGRESS_KEYWORD
 $THREADED_KEYWORD
+- `lazy`: A `Bool` specifying if to disaggregate lazily. Defaults to `false`
 
 Note: currently it is _much_ faster to disaggregate over a memory-backed 
 source array. Use [`read`](@ref) on `src` before use where required.
@@ -238,21 +239,25 @@ function disaggregate(series::AbstractRasterSeries, scale;
     return dst
 end
 function disaggregate(stack::AbstractRasterStack{K}, scale;
-    keys=keys(stack), suffix=keys, filename=nothing, progress=true, threaded=false
+    keys=keys(stack), suffix=keys, progress=true, threaded=false, kw...
 ) where K
     dst_vec = Vector{Raster}(undef, length(K))
     ls = layers(stack)
     _run(1:length(K), threaded, progress, "Disaggregating stack...") do i
-        dst_vec[i] = disaggregate(ls[i], scale; filename, suffix=suffix[i])
+        dst_vec[i] = disaggregate(ls[i], scale; suffix=suffix[i], kw...)
     end
     dst_tuple = ntuple(i -> dst_vec[i], Val{length(K)}())
     return DD.rebuild_from_arrays(stack, dst_tuple)
 end
 function disaggregate(src::AbstractRaster, scale;
-    suffix=nothing, filename=nothing, kw...
+    suffix=nothing, filename=nothing, lazy = false, kw...
 )
-    return alloc_disag(Center(), src, scale; filename, suffix, kw...) do dst
-        disaggregate!(dst, src, scale)
+    if lazy
+        return view_disaggregate(src, scale)
+    else
+        return alloc_disag(Center(), src, scale; filename, suffix, kw...) do dst
+            disaggregate!(dst, src, scale)
+        end
     end
 end
 function disaggregate(dim::Dimension, scale)
@@ -278,6 +283,12 @@ end
 disaggregate(span::Span, scale) = span
 disaggregate(span::Regular, scale) = Regular(val(span) / scale)
 
+function view_disaggregate(A, scale)
+    intscale = _scale2int(DisAg(), dims(A), scale)
+    dims_ = disaggregate.((Center(),), dims(A), intscale)
+    indices = map((a, i) -> repeat(a; inner =i), axes(A), intscale)
+    rebuild(A; data = view(parent(A), indices...), dims = dims_)
+end
 """
     disaggregate!(dst::AbstractRaster, src::AbstractRaster, scale)
 
@@ -381,6 +392,8 @@ end
     _scale2int(x, dims, Dimensions.pairs2dims(scale...); verbose)
 @inline _scale2int(x, dims::DimTuple, scale::NamedTuple; verbose=true) = 
     _scale2int(x, dims, Dimensions.kw2dims(scale); verbose)
+@inline _scale2int(x, dims::DimTuple, scale::Dimension; verbose=true) = 
+    _scale2int(x, dims, (scale,); verbose)
 @inline function _scale2int(x, dims::DimTuple, scale::Int; verbose=true) 
     # If there are other dimensions, we skip categorical dims
     vals = map(dims) do d
