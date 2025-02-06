@@ -220,7 +220,17 @@ end
 
 @testset "Lazy disaggregation" begin
     eager_disag = disaggregate(array1, (X(2), Y(2))) 
-    lazy_disag = disaggregate(array1, (X(2), Y(2)); view = true)
+    lazy_disag = disaggregate(array1, (X(2), Y(2)); lazy = true)
     @test eager_disag == lazy_disag
     @test parent(lazy_disag) isa SubArray
+
+    eager_disag_stack = disaggregate(stack1, 2)
+    lazy_disag_stack = disaggregate(stack1, 2; lazy = true)
+    @test eager_disag_stack == lazy_disag_stack
+    @test all(x -> x isa SubArray, parent(lazy_disag_stack))
+
+    eager_disag_series = disaggregate(series, 2)
+    lazy_disag_series = disaggregate(series, 2; lazy = true)
+    @test eager_disag_series == lazy_disag_series
+    @test all(x -> all(x -> x isa SubArray, parent(x)), lazy_disag_series)
 end
