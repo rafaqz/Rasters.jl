@@ -557,10 +557,9 @@ function _layer_stack(filename;
             FileStack{typeof(source)}(ds, filename; name, group, mods, vars)
         else
             map(layers.vars, layermetadata_vec, mod_vec) do var, md, mod
-                modvar = _maybe_modify(var, mod)
+                modvar = ModifiedDiskArray(var, mod)
                 checkmem && _checkobjmem(modvar)
-                x = Array(modvar)
-                x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
+                Array(modvar)
             end |> NT
         end
         mv_outer = NT(map(_outer_missingval, mod_vec))
