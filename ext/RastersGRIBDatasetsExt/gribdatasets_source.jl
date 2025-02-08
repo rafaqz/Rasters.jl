@@ -11,7 +11,7 @@ RA.checkfilename(::GRIBsource, filename) =
 # In GRIBDatasets, the file is open for reading the values and closed afterwards. 
 Base.close(os::RA.OpenStack{GRIBsource}) = nothing
 
-RA.missingval(var::GDS.Variable, ::RA.Metadata{GRIBsource}) = _missingval(var)
+RA.missingval(var::GDS.Variable, ::RA.Metadata{<:RA.CDMsource}) = _missingval(var)
 RA.missingval(var::GDS.Variable, args...) = _missingval(var)
 
 function _missingval(var::GDS.Variable{T}) where T
