@@ -62,8 +62,8 @@ filename(A::DiskArrays.AbstractDiskArray) = filename(parent(A))
 cleanreturn(A::AbstractRaster) = rebuild(A, cleanreturn(parent(A)))
 cleanreturn(x) = x
 
-isdisk(A::AbstractRaster) = parent(A) isa DiskArrays.AbstractDiskArray
-isdisk(x) = false
+DiskArrays.isdisk(A::AbstractRaster) = isdisk(parent(A))
+DiskArrays.isdisk(x) = false
 ismem(A::AbstractRaster) = !isdisk(A)
 
 function Base.:(==)(A::AbstractRaster{T,N}, B::AbstractRaster{T,N}) where {T,N}

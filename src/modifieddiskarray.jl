@@ -80,27 +80,44 @@ DiskArrays.eachchunk(A::ModifiedDiskArray) = DiskArrays.eachchunk(parent(A))
 function DiskArrays.readblock!(
     A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:Mod}, outer_block, I::AbstractVector...
 )
-    inner_block = similar(outer_block, eltype(parent(A)))
-    DiskArrays.readblock!(parent(A), inner_block, I...)
-    outer_block .= _applymod.(inner_block, (A.mod,))
+    if isdisk(parent(A))
+        inner_block = similar(outer_block, eltype(parent(A)))
+        DiskArrays.readblock!(parent(A), inner_block, I...)
+        outer_block .= _applymod.(inner_block, (A.mod,))
+    else
+        inner_block = view(parent(A), I...)
+        outer_block .= _applymod.(inner_block, (A.mod,))
+    end
     return outer_block
 end
 function DiskArrays.readblock!(
     A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:NoMod}, out_block, I::AbstractVector...
 )
-    DiskArrays.readblock!(parent(A), out_block, I...)
+    if isdisk(parent(A))
+        DiskArrays.readblock!(parent(A), out_block, I...)
+    else
+        out_block .= view(parent(A), I...)
+    end
 end
 
 function DiskArrays.writeblock!(
     A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:Mod}, block, I::AbstractVector...
 )
-    modblock = _invertmod.((Val{source_eltype(A.mod)}(),), block, (A.mod,))
-    return DiskArrays.writeblock!(parent(A), modblock, I...) 
+    if isdisk(parent(A))
+        modblock = _invertmod.((Val{source_eltype(A.mod)}(),), block, (A.mod,))
+        return DiskArrays.writeblock!(parent(A), modblock, I...) 
+    else
+        parent(A)[I...] = _invertmod.((Val{source_eltype(A.mod)}(),), block, (A.mod,))
+    end
 end
 function DiskArrays.writeblock!(
     A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:NoMod}, block, I::AbstractVector...
 )
-    return DiskArrays.writeblock!(parent(A), block, I...)
+    if isdisk(parent(A))
+        DiskArrays.writeblock!(parent(A), block, I...)
+    else
+        parent(A)[I...] = block
+    end
 end
 
 Base.@assume_effects :foldable function _applymod(x, m::Mod)
