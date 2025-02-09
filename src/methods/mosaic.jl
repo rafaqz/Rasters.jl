@@ -41,7 +41,7 @@ end
 scandinavia_climate = trim(mosaic(first, country_climates))
 plot(scandinavia_climate)
 
-savefig("build/mosaic_example_combined.png")
+savefig("build/mosaic_example_combined.png");
 # output
 
 ```
@@ -154,7 +154,7 @@ scandinavia_climate = mosaic(first, country_climates)
 # And plot
 plot(scandinavia_climate)
 
-savefig("build/mosaic_bang_example.png")
+savefig("build/mosaic_bang_example.png");
 # output
 
 ```
