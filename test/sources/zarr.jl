@@ -1,3 +1,4 @@
+using Test
 using Rasters
 using DimensionalData
 using DimensionalData.Lookups
@@ -141,6 +142,11 @@ end
         fn = tempname() * ".zarr"
         write(fn, ra)
         @test all(Raster(fn) .=== ra)
+        x = Raster(fn; lazy=true)
+        open(x; write=true) do O
+            O .= 1
+        end
+        all(Raster(fn) .== 1)
     end
 end
 

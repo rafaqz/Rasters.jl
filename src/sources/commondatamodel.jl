@@ -33,19 +33,23 @@ const CDM_STANDARD_NAME_MAP = Dict(
     "time" => Ti,
 )
 
+# `Source`` from variables and datasets
 sourcetrait(var::CDM.CFVariable) = sourcetrait(var.var)
+# Dataset constructor from `Source`
 sourceconstructor(source::Source) = sourceconstructor(typeof(source))
+# Function to check filename
 function checkfilename end
+# Find and check write modes
 function checkwritemode(::CDMsource, filename, append::Bool, force::Bool)
     if append
-        isfile(filename) ? "a" : "c"
+        isfile(filename) ? "w" : "c"
     else
         check_can_write(filename, force)
         "c"
     end
 end
-
-openmode(write::Bool) = write ? "a" : "r"
+# Mode to open file in - read or append
+openmode(write::Bool) = write ? "w" : "r"
 
 missingval(var::CDM.AbstractVariable, md::Metadata{<:CDMsource}) =
     missingval(md)
@@ -80,7 +84,7 @@ OpenStack(fs::FileStack{Source,K}) where {K,Source<:CDMsource} =
 
 function _open(f, source::CDMsource, filename::AbstractString; write=false, kw...)
     checkfilename(source, filename)
-    ds = sourceconstructor(source)(filename)
+    ds = sourceconstructor(source)(filename, openmode(write))
     _open(f, source, ds; kw...)
 end
 function _open(f, source::CDMsource, ds::AbstractDataset; 
