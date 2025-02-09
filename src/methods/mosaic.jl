@@ -41,7 +41,7 @@ end
 scandinavia_climate = trim(mosaic(first, country_climates))
 plot(scandinavia_climate)
 
-savefig("build/mosaic_example_combined.png")
+savefig("build/mosaic_example_combined.png");
 # output
 
 ```
@@ -53,7 +53,7 @@ savefig("build/mosaic_example_combined.png")
 $EXPERIMENTAL
 """
 mosaic(f::Function, r1::RasterStackOrArray, rs::RasterStackOrArray...; kw...) =
-    mosaic(f, (r1, rs...); kw...)
+    _mosaic(f, r1, [r1, rs...]; kw...)
 mosaic(f::Function, regions; kw...) = _mosaic(f, first(regions), regions; kw...)
 function _mosaic(f::Function, A1::AbstractRaster, regions;
     missingval=nokw,
@@ -154,7 +154,7 @@ scandinavia_climate = mosaic(first, country_climates)
 # And plot
 plot(scandinavia_climate)
 
-savefig("build/mosaic_bang_example.png")
+savefig("build/mosaic_bang_example.png");
 # output
 
 ```

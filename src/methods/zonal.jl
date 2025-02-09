@@ -60,8 +60,9 @@ insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Z
                                                   3 columns and 243 rows omitted
 ```
 """
-zonal(f, x::RasterStackOrArray; of, skipmissing=true, kw...) = 
-    _zonal(f, _prepare_for_burning(x), of; skipmissing, kw...)
+zonal(f, x::RasterStackOrArray; of, skipmissing=true, kw...) = open(x) do ox 
+    _zonal(f, _prepare_for_burning(x), of; skipmissing, kw...); 
+end
 
 _zonal(f, x::RasterStackOrArray, of::RasterStackOrArray; kw...) = 
     _zonal(f, x, Extents.extent(of); kw...)
