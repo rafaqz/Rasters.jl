@@ -91,28 +91,25 @@ dim(lookup::Projected) = lookup.dim
 
 @inline function LA.selectindices(l::Projected, sel::LA.Selector; kw...)
     selval = reproject(mappedcrs(l), crs(l), dim(l), val(sel))
-    LA._selectindices(l, rebuild(sel; val=selval); kw...)
+    LA._selectindices(l, rebuild(sel, selval); kw...)
 end
-@inline function LA.selectindices(l::Projected, sel::LA.Selector{<:AbstractVector}; kw...)
-    selval = reproject(mappedcrs(l), crs(l), dim(l), val(sel))
-    _selectvec(l, rebuild(sel; val=selval)sel; kw...)
-end
-@inline function LA.selectindices(l::Projected, sel::LA.IntSelector{<:Tuple}; kw...)
-    selval = reproject(mappedcrs(l), crs(l), dim(l), val(sel))
-    _selecttuple(l, rebuild(sel; val=selval); kw...)
-end
+@inline LA.selectindices(l::Projected, sel::LA.Selector{<:AbstractVector}; kw...) =
+    LA._selectvec(l, sel; kw...) # no reprojecting because _selectvec calls selectindices
+@inline LA.selectindices(l::Projected, sel::LA.IntSelector{<:Tuple}; kw...) =
+    LA._selecttuple(l, sel; kw...)
 @inline LA.selectindices(l::Projected{<:Tuple}, sel::LA.IntSelector{<:Tuple}; kw...) = LA._selectindices(l, sel; kw...)
 @inline LA.selectindices(l::Projected{<:Tuple}, sel::LA.IntSelector{<:Tuple{<:Tuple,<:Tuple}}; kw...) = 
-    _selecttuple(l, sel; kw...)
+    LA._selecttuple(l, sel; kw...)
 
 function LA.selectindices(l::Projected, sel::Between{<:Tuple})
     selval = map(v -> reproject(mappedcrs(l), crs(l), dim(l), v), val(sel))
-    LA.between(l, rebuild(sel; val=selval))
+    LA.between(l, rebuild(sel, selval))
 end
 function LA.selectindices(l::Projected, sel::T) where T<:DD.IntervalSets.Interval
     left, right = map(v -> reproject(mappedcrs(l), crs(l), dim(l), v), (sel.left, sel.right))
-    LA.between(l, T(left, right))
+    LA.between(l, basetypeof(T)(left, right))
 end
+LA.selectindices(l::Projected, sel::Where) = LA.selectindices(convertlookup(Mapped, l), sel)
 
 """
     Mapped <: AbstractProjected

@@ -65,12 +65,27 @@ function Base.showerror(io::IO, e::BackendException)
 end
 
 # Get the source backend for a file extension, falling back to GDALsource
+_sourcetrait(filename::AbstractString, s::Symbol) = _sourcetrait(s)
 _sourcetrait(filename::AbstractString, s::Source) = s
-_sourcetrait(filename::AbstractString, s) = _sourcetrait(s)
+_sourcetrait(filename::AbstractString, ::Type{S}) where S<:Source = S()
 _sourcetrait(filename::AbstractString, ::Union{Nothing,NoKW}) = _sourcetrait(filename)
-_sourcetrait(filename::AbstractString) = get(EXT2SOURCE, splitext(filename)[2], GDALsource())
+_sourcetrait(filename::AbstractString, ext::AbstractString) = get(EXT2SOURCE, ext, GDALsource())
+function _sourcetrait(filename::AbstractString)
+    default = GDALsource()
+    stem, ext = splitext(filename)
+    str = if ext == ""  
+        # Handle e.g. "x.zarr/" directories
+        if isdirpath(stem) 
+            return _sourcetrait(dirname(stem))
+        else
+            stem
+        end
+    else
+        ext
+    end
+    return get(EXT2SOURCE, str, default)
+end
 _sourcetrait(filenames::NamedTuple) = _sourcetrait(first(filenames))
-_sourcetrait(filename, ext) = get(EXT2SOURCE, ext, GDALsource())
 _sourcetrait(source::Source) = source
 _sourcetrait(source::Type{<:Source}) = source()
 function _sourcetrait(name::Symbol) 

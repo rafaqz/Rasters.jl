@@ -1,10 +1,7 @@
 module RastersMakieExt
 
-@static if isdefined(Base, :get_extension) # julia < 1.9
-    using Makie, Rasters
-else    
-    using ..Makie, ..Rasters
-end
+using Makie
+using Rasters
 
 using Rasters.DimensionalData
 using Rasters.Dimensions

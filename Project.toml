@@ -1,7 +1,7 @@
 name = "Rasters"
 uuid = "a3a2b9e3-a471-40c9-b274-f788e487c689"
 authors = ["Rafael Schouten <rafaelschouten@gmail.com>"]
-version = "0.13.1"
+version = "0.14.2"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
@@ -60,17 +60,17 @@ ConstructionBase = "1"
 CoordinateTransformations = "0.6.2"
 DataFrames = "1"
 DimensionalData = "0.29.4"
-DiskArrays = "0.3, 0.4"
+DiskArrays = "0.4"
 Extents = "0.1"
 FillArrays = "0.12, 0.13, 1"
 Flatten = "0.4"
-GRIBDatasets = "0.2, 0.3"
+GRIBDatasets = "0.2, 0.3, 0.4"
 GeoDataFrames = "0.3"
 GeoFormatTypes = "0.4"
 GeoInterface = "1.0"
 GeometryBasics = "0.4"
 GeometryOpsCore = "0.1.1"
-Makie = "0.20, 0.21"
+Makie = "0.20, 0.21, 0.22"
 Missings = "0.4, 1"
 NCDatasets = "0.13, 0.14"
 OffsetArrays = "1"
@@ -111,4 +111,4 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "ArchGDAL", "CFTime", "CoordinateTransformations", "DataFrames", "GeoDataFrames", "GeometryBasics", "GRIBDatasets", "NCDatasets", "Plots", "Proj", "RasterDataSources", "SafeTestsets", "Shapefile", "StableRNGs", "StatsBase", "Test", "ZarrDatasets"]
+test = ["Aqua", "ArchGDAL", "CFTime", "CoordinateTransformations", "DataFrames", "GeoDataFrames", "GeometryBasics", "GRIBDatasets", "Makie", "NCDatasets", "Plots", "Proj", "RasterDataSources", "SafeTestsets", "Shapefile", "StableRNGs", "StatsBase", "Test", "ZarrDatasets"]

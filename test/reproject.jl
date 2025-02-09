@@ -88,3 +88,19 @@ end
     @test index(Aconv) == (index(convertedlon), index(convertedlat))
     @test val.(span(Aconv)) == val.(span.((convertedlon, convertedlat)))
 end
+
+@testset "selectors on projected dims" begin
+    x = X(Projected(0:1e5:2e5; 
+            order = ForwardOrdered(), crs=EPSG(3857), mappedcrs = EPSG(4326), 
+            sampling=Intervals(Start()), span = Regular(1e5)
+        ))
+    A = Raster(rand(x))
+    @test A[X = 2:3] == 
+        A[X = Near([1, 2])] == 
+        A[X = Near((1, 2))] == 
+        A[X = 0.5 .. 3] ==
+        A[X = Contains([1,2])] ==
+        A[X = Between(0.5,3)] ==
+        A[X = Where(x -> 3 > x > 0.5)] ==
+        A[X = Not(At(0))]
+end

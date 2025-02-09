@@ -4,13 +4,13 @@ using DiskArrays
 import NCDatasets, ArchGDAL
 using Rasters: FileArray, GRDsource, GDALsource, metadata, trim
 
-testpath = joinpath(dirname(pathof(Rasters)), "../test/")
+testpath = joinpath(dirname(pathof(Rasters)), "..", "test")
 include(joinpath(testpath, "test_utils.jl"))
 const DD = DimensionalData
 
 maybedownload("https://raw.githubusercontent.com/rspatial/raster/master/inst/external/rlogo.grd", "rlogo.grd")
 maybedownload("https://github.com/rspatial/raster/raw/master/inst/external/rlogo.gri", "rlogo.gri")
-stem = joinpath(testpath, "data/rlogo")
+stem = joinpath(testpath, "data", "rlogo")
 @test isfile(stem * ".grd")
 @test isfile(stem * ".gri")
 grdpath = stem * ".gri"
@@ -29,11 +29,16 @@ grdpath = stem * ".gri"
         @test parent(eagerarray) isa Array
     end
 
-    @testset "replace_missing keyword" begin
-        # Eager is the default
-        @time missingarray = Raster(grdpath; replace_missing=true)
+    @testset "missingval" begin
+        @time missingarray = Raster(grdpath)
         @test missingval(missingarray) === missing
         @test eltype(missingarray) === Union{Missing,Float32}
+        @time missingarray = Raster(grdpath; missingval)
+        @test missingval(missingarray) === -3.4f38
+        @test eltype(missingarray) === Float32
+        @time missingarray = Raster(grdpath; missingval=missingval => NaN32)
+        @test missingval(missingarray) === NaN32
+        @test eltype(missingarray) === Float32
     end
 
     @testset "open" begin
@@ -60,7 +65,7 @@ grdpath = stem * ".gri"
     end
 
     @testset "array properties" begin
-        @test grdarray isa Raster{Float32,3}
+        @test grdarray isa Raster{Union{Missing,Float32},3}
     end
 
     @testset "dimensions" begin
@@ -74,7 +79,7 @@ grdpath = stem * ".gri"
     @testset "other fields" begin
         proj = ProjString("+proj=merc +datum=WGS84")
         @test name(grdarray) == Symbol("red:green:blue")
-        @test missingval(grdarray) == -3.4f38
+        @test missingval(grdarray) === missing
         @test metadata(grdarray) isa Metadata{GRDsource,Dict{String,Any}}
         @test label(grdarray) == "red:green:blue"
         @test units(grdarray) == nothing
@@ -100,7 +105,7 @@ grdpath = stem * ".gri"
         @test mappedcrs(customgrdarray) == EPSG(4326)
         @test mappedcrs(dims(customgrdarray, Y)) == EPSG(4326)
         @test mappedcrs(dims(customgrdarray, X)) == EPSG(4326)
-        @test parent(customgrdarray) isa DiskArrays.BroadcastDiskArray
+        @test parent(customgrdarray) isa Rasters.FileArray
         @test eltype(customgrdarray) == Union{Float32,Missing}
         # Needs to be separate as it overrides crs/mappedcrs 
         dimsgrdarray = Raster(grdpath; 
@@ -110,9 +115,9 @@ grdpath = stem * ".gri"
     end
 
     @testset "getindex" begin
-        @test grdarray[Band(1)] isa Raster{Float32,2}
-        @test grdarray[Y(1), Band(1)] isa Raster{Float32,1}
-        @test grdarray[X(1), Band(1)] isa Raster{Float32,1}
+        @test grdarray[Band(1)] isa Raster{Union{Missing,Float32},2}
+        @test grdarray[Y(1), Band(1)] isa Raster{Union{Missing,Float32},1}
+        @test grdarray[X(1), Band(1)] isa Raster{Union{Missing,Float32},1}
         @test grdarray[X(50), Y(30), Band(1)] == 115.0f0
         @test grdarray[1, 1, 1] == 255.0f0
         @test grdarray[Y(At(20.0; atol=1e10)), X(At(20; atol=1e10)), Band(3)] == 255.0f0
@@ -130,13 +135,13 @@ grdpath = stem * ".gri"
             @test size(cropped) == (81, 77, 3)
             kwcropped = crop(a; to=trimmed, dims=(X,))
             @test size(kwcropped) == (81, size(a,Y), 3)
-            @test all(collect(cropped .== trimmed))
+            @test all(collect(cropped .=== trimmed))
             extended = extend(cropped; to=a);
-            @test all(collect(extended .== a))
+            @test all(collect(extended .=== a))
         end
 
         @testset "mask and mask! to disk" begin
-            msk = read(replace_missing(grdarray, missing))
+            msk = replace_missing(grdarray, missing)
             msk[X(1:73), Y([1, 5, 77])] .= missingval(msk)
             @test !any(grdarray[X(1:73)] .=== missingval(msk))
             masked = mask(grdarray; with=msk)
@@ -151,8 +156,6 @@ grdpath = stem * ".gri"
                 mask!(A; with=msk, missingval=missingval(A))
             end
             @test all(Raster(tempgri)[X(1:73), Y([1, 5, 77])] .=== missingval(grdarray))
-            rm(tempgrd)
-            rm(tempgri)
         end
 
         @testset "classify! to disk" begin
@@ -168,7 +171,6 @@ grdpath = stem * ".gri"
             A = Raster(tempgrd)
             @test count(==(100.0f0), A) + count(==(255.0f0), A) == length(A)
         end
-
         @testset "mosaic" begin
             @time grdarray = Raster(grdpath)
             A1 = grdarray[X(1:40), Y(1:30)]
@@ -176,62 +178,54 @@ grdpath = stem * ".gri"
             tn = tempname()
             tempgrd = tn * ".grd"
             tempgri = tn * ".gri"
-            cp(stem * ".grd", tempgrd)
-            cp(stem * ".gri", tempgri)
-            Afile = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1, filename=tempgrd)
+            Afile = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1, filename=tempgrd, force=true)
             Amem = mosaic(first, A1, A2; missingval=0.0f0, atol=1e-1)
             Atest = grdarray[X(1:80), Y(1:60)]
             Atest[X(1:26), Y(31:60)] .= 0.0f0
             Atest[X(41:80), Y(1:24)] .= 0.0f0
             @test size(Atest) == size(Afile) == size(Amem)
             @test all(Atest .=== Amem .== Afile)
-        end
-
-        @testset "rasterize" begin
-            # A = read(grdarray)
-            # R = rasterize(A; to=A)
-            # @test all(A .=== R .== grdarray)
-            # B = rebuild(read(grdarray) .= 0x00; missingval=0x00)
-            # rasterize!(B, read(grdarray))
-            # @test all(B .=== grdarray |> collect)
+            read(Atest .- Afile)
         end
 
     end
 
     @testset "selectors" begin
         geoA = grdarray[Y(Contains(3)), X(:), Band(1)]
-        @test geoA isa Raster{Float32,1}
+        @test geoA isa Raster{Union{Missing,Float32},1}
         @test grdarray[X(Contains(20)), Y(Contains(10)), Band(1)] isa Float32
     end
 
     @testset "conversion to Raster" begin
         geoA = grdarray[X(1:50), Y(1:1), Band(1)]
         @test size(geoA) == (50, 1)
-        @test eltype(geoA) <: Float32
-        @time geoA isa Raster{Float32,1}
+        @test eltype(geoA) <: Union{Missing,Float32}
+        @time geoA isa Raster{Union{Missing,Float32},1}
         @test dims(geoA) isa Tuple{<:X,Y}
         @test refdims(geoA) isa Tuple{<:Band}
         @test metadata(geoA) == metadata(grdarray)
-        @test missingval(geoA) == -3.4f38
+        @test missingval(geoA) === missing
         @test name(geoA) == Symbol("red:green:blue")
     end
 
     @testset "write" begin
         @testset "2d" begin
             filename2 = tempname() * ".gri"
-            write(filename2, grdarray[Band(1)]; force = true)
+            write(filename2, grdarray[Band(1)]; force=true)
             saved = Raster(filename2)
             # 1 band is added again on save
             @test size(saved) == size(grdarray[Band(1)])
             @test parent(saved) == parent(grdarray[Band(1)])
-            write(filename2, grdarray; force = true)
-            @test (@allocations write(filename2, grdarray; force = true)) < 3e3
+            filename2 = tempname() * ".gri"
+            write(filename2, grdarray; force=true, verbose=false)
+            filename2 = tempname() * ".gri"
+            @test (@allocations write(filename2, grdarray; force=true, verbose=false)) < 3e3
         end
 
         @testset "3d with subset" begin
             geoA = grdarray[1:100, 1:50, 1:2]
             filename = tempname() * ".grd"
-            write(filename, GRDsource(), geoA; force = true)
+            write(filename, GRDsource(), geoA; force=true)
             saved = Raster(filename)
             @test size(saved) == size(geoA)
             @test refdims(saved) == ()
@@ -251,24 +245,25 @@ grdpath = stem * ".gri"
             @test all(parent(saved) .=== parent(geoA))
             @test saved isa typeof(geoA)
             @test parent(saved) == parent(geoA)
+            filename = tempname() * ".grd"
             write(filename, GRDsource(), geoA; force = true)
+            filename = tempname() * ".grd"
             @test (@allocations write(filename, GRDsource(), geoA; force = true)) < 3e3
         end
 
         @testset "to netcdf" begin
             filename2 = tempname() * ".nc"
             span(grdarray[Band(1)])
-            write(filename2, grdarray[Band(1)]; force = true)
+            write(filename2, grdarray[Band(1)]; force=true)
             saved = Raster(filename2; crs=crs(grdarray))
             @test size(saved) == size(grdarray[Band(1)])
-            @test all(parent(replace_missing(saved, missingval(grdarray))) .≈ parent(grdarray[Band(1)]))
+            @test all(parent(saved) .≈ parent(grdarray[Band(1)]))
             @test index(saved, X) ≈ index(grdarray, X) .+ 0.5
             @test index(saved, Y) ≈ index(grdarray, Y) .+ 0.5
             @test bounds(saved, Y) == bounds(grdarray, Y)
             @test bounds(saved, X) == bounds(grdarray, X)
             write(filename2, grdarray; force = true)
             @test (@allocations write(filename2, grdarray; force = true)) < 3e3
-
         end
 
         @testset "to gdal" begin
@@ -280,7 +275,7 @@ grdpath = stem * ".gri"
             # @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test val(dims(gdalarray, X)) ≈ val(dims(grdarray, X))
             @test val(dims(gdalarray, Y)) ≈ val(dims(grdarray, Y))
-            @test Raster(gdalarray) ≈ permutedims(grdarray[Band(1)], [X(), Y()])
+            @test gdalarray ≈ replace_missing(permutedims(grdarray[Band(1)], [X(), Y()]), typemin(Int32))
             # 3 Bands
             gdalfilename2 = tempname() * ".tif"
             write(gdalfilename2, grdarray)
@@ -293,8 +288,11 @@ grdpath = stem * ".gri"
             A = replace_missing(grdarray, missing)
             filename = tempname() * ".grd"
             write(filename, A)
-            @test missingval(Raster(filename)) === typemin(Float32)
-            rm(filename)
+            @test missingval(Raster(filename)) === missing
+            filename = tempname() * ".grd"
+            write(filename, A)
+            @test missingval(Raster(filename; missingval=nothing)) === nothing
+            @test missingval(Raster(filename)) === missing
         end
 
     end
@@ -350,7 +348,7 @@ end
 
     @testset "child array properties" begin
         @test size(grdstack[:a]) == size(Raster(grdstack[:a])) == (101, 77, 3)
-        @test grdstack[:a] isa Raster{Float32,3}
+        @test grdstack[:a] isa Raster{Union{Missing,Float32},3}
     end
 
     # Stack Constructors
@@ -417,7 +415,7 @@ end
 
     @testset "child array properties" begin
         @test size(grdstack[:Band_3]) == size(Raster(grdstack[:Band_3])) == (101, 77)
-        @test grdstack[:Band_1] isa Raster{Float32,2}
+        @test grdstack[:Band_1] isa Raster{Union{Missing,Float32},2}
     end
 
     # Stack Constructors
@@ -463,7 +461,7 @@ end
 end
 
 @testset "Grd series" begin
-    grdpath2 = stem * "2" * ".gri"
+    grdpath2 = joinpath(tempdir(), tempname() * ".gri")
     write(grdpath2, 2 .* Raster(grdpath); force=true)
     Raster(grdpath) .* 2 == Raster(grdpath2)
     eager_grdseries = RasterSeries([grdpath, grdpath2], (Ti,); mappedcrs=EPSG(4326))

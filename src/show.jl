@@ -17,16 +17,20 @@ end
 
 function print_geo(io, mime, A; blockwidth) 
     DD.print_block_separator(io, "raster", blockwidth)
-    printstyled(io, "\n  extent: "; color=:light_black)
-    show(io, mime, Extents.extent(A))
-    println(io)
     if missingval(A) !== nothing
-        printstyled(io, "  missingval: "; color=:light_black)
+        printstyled(io, "\n  missingval: "; color=:light_black)
         show(io, mime, missingval(A))
     end
+    printstyled(io, "\n  extent: "; color=:light_black)
+    show(io, mime, Extents.extent(A))
     if crs(A) !== nothing
         printstyled(io, "\n  crs: "; color=:light_black)
-        print(io, convert(String, crs(A)))
+        str = convert(String, crs(A))
+        if length(str) > (blockwidth - 7)
+            print(io, str[1:min(blockwidth - 10, end)] * "...")
+        else
+            print(io, str)
+        end
     end
     if mappedcrs(A) !== nothing
         printstyled(io, "\n  mappedcrs: "; color=:light_black)

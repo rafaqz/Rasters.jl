@@ -114,8 +114,12 @@ Run `using ArchGDAL` to make this method available.
 
 # Keywords
 
+$MISSINGVAL_KEYWORD
 $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
+- `missingval`: the missing value to use during warping, will default to
+    `Rasters.missingval(A). Passing a pair will specify the missing value 
+    to use after warping.
 
 Any additional keywords are passed to `ArchGDAL.Dataset`.
 
@@ -125,7 +129,7 @@ This simply resamples the array with the `:tr` (output file resolution) and `:r`
 flags, giving us a pixelated version:
 
 ```jldoctest
-using Rasters, RasterDataSources, Plots
+using Rasters, ArchGDAL, RasterDataSources, Plots
 A = Raster(WorldClim{Climate}, :prec; month=1)
 a = plot(A)
 
@@ -178,7 +182,7 @@ where each value in the raster encodes the area of the cell (in meters by defaul
 ## Example
 
 ```julia
-using Rasters, ArchGDAL, Rasters.Lookups
+using Rasters, Proj, Rasters.Lookups
 xdim = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), crs=EPSG(4326)))
 ydim = Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), crs=EPSG(4326)))
 myraster = rand(xdim, ydim)
@@ -261,7 +265,7 @@ using Rasters, Rasters.Lookups, Proj, StatsBase
 xdim = X(Projected(90.0:10.0:120; sampling=Intervals(Start()), crs=EPSG(4326)))
 ydim = Y(Projected(0.0:10.0:50; sampling=Intervals(Start()), crs=EPSG(4326)))
 myraster = rand(xdim, ydim)
-Rasters.sample(myraster, 5; weights = cellarea(myraster))
+Rasters.sample(myraster, 5; weights=cellarea(myraster))
 
 # output
 
