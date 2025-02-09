@@ -42,14 +42,14 @@ function checkfilename end
 # Find and check write modes
 function checkwritemode(::CDMsource, filename, append::Bool, force::Bool)
     if append
-        isfile(filename) ? "w" : "c"
+        isfile(filename) ? "a" : "c"
     else
         check_can_write(filename, force)
         "c"
     end
 end
 # Mode to open file in - read or append
-openmode(write::Bool) = write ? "w" : "r"
+openmode(write::Bool) = write ? "a" : "r"
 
 missingval(var::CDM.AbstractVariable, md::Metadata{<:CDMsource}) =
     missingval(md)
