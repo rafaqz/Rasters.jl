@@ -207,8 +207,10 @@ cs = cellarea(myraster)
 ```
 $EXPERIMENTAL
 """
-cellarea(x; kw...) = cellarea(Spherical(), x; kw...)
+cellarea(x; kw...) = cellarea(best_manifold(GI.crs(x)), x; kw...)
 cellarea(method::GeometryOpsCore.Manifold, x; kw...) = cellarea(method, dims(x, (XDim, YDim)); kw...)
+
+best_manifold(x) = Spherical() # TODO: ??
 
 function cellarea(method::GeometryOpsCore.Planar, dims::Tuple{<:XDim, <:YDim}; kw...)
     isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
