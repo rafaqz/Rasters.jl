@@ -79,10 +79,10 @@ end
         @test parent(nocf_nomask_array) isa Array{Float32}
         @test parent(raw_array) isa Array{Float32}
         open(lazycfarray) do A
-            @test parent(A) isa Rasters.ModifiedDiskArray{false,Union{Missing,Float32}}
+            @test parent(A) isa Rasters.ModifiedDiskArray{Union{Missing,Float32}}
         end
         open(lazynocfarray) do A
-            @test parent(A) isa Rasters.ModifiedDiskArray{false,Union{Missing,Float32}}
+            @test parent(A) isa Rasters.ModifiedDiskArray{Union{Missing,Float32}}
         end
         open(lazynocf_nomask_array) do A
             @test parent(parent(A)) isa NCDatasets.Variable{Float32}
