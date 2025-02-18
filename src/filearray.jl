@@ -67,12 +67,20 @@ end
 
 function DA.readblock!(A::FileArray, dst, r::AbstractUnitRange...)
     open(A) do O
-        DA.readblock!(O, dst, r...)
+        if isdisk(O)
+            DA.readblock!(O, dst, r...)
+        else
+            dest[r...] .= view(parent(O), r...)
+        end
     end
 end
 function DA.writeblock!(A::FileArray, src, r::AbstractUnitRange...)
     open(A; write=A.write) do O
-        DA.writeblock!(O, src, r...)
+        if isdisk(A)
+            DA.writeblock!(O, src, r...)
+        else
+            parent(O)[r...] .= src
+        end
     end
 end
 

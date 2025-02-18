@@ -17,7 +17,7 @@ struct OpenStack{X,K,T,DS,M}
     mods::M
 end
 function OpenStack{X,K,T}(
-    dataset::DS, mods::M=NoMod()
+    dataset::DS, mods::M
 ) where {X,K,T,DS,M}
     OpenStack{X,K,T,DS,M}(dataset, mods)
 end

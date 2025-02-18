@@ -499,10 +499,10 @@ function Base.write(filename::AbstractString, source::Source, s::AbstractRasterS
     ds = sourceconstructor(source)(filename, mode; attrib=_attribdict(metadata(s)))
     missingval = _stack_nt(s, isnokw(missingval) ? Rasters.missingval(s) : missingval)
     try
-        map(keys(s)) do k
+        mods = map(keys(s)) do k
             writevar!(ds, source, s[k]; missingval=missingval[k], kw...)
         end
-        f(OpenStack{Source,K,T}(ds))
+        f(OpenStack{Source,K,T}(ds, mods))
     finally
         close(ds)
     end
@@ -578,7 +578,7 @@ function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N
         f(m)
     end
 
-    return nothing
+    return mod
 end
 
 const CDMallowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
