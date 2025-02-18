@@ -1,7 +1,7 @@
 # # Writing rasters to Disk
 
-# Rasters.jl supports writing datasets to disk in several differnt formats. grd files are 
-# currently the only supported file format that does not require loading an extension. 
+# Rasters.jl supports writing datasets to disk in several different formats. `.grd` files are 
+# supported with no extra steps, but all others require loading an extension.
 # All other formats are supported with the ArchGDAL and NCDatasets extensions.
 # Datasets can (with some caveats) be written to different formats than they were loaded 
 # in as, providing file-type conversion for spatial data.
@@ -9,11 +9,12 @@
 # Some metadata may be lost in formats that store little metadata, or where
 # metadata conversion has not been completely implemented.
 
-# # create a Raster dataset for saving
+# # Create a Raster to save
 using Rasters
 
 # specify the coodinate reference system [crs]. 
-proj = "+proj=longlat +datum=WGS84 +no_defs +type=crs"
+proj = ProjString("+proj=longlat +datum=WGS84 +type=crs")
+# or EPSG(4326) or some ESRIWellKnownText string - see GeoFormatTypes.jl for more info!
 
 # define coodinate dimensions
 lon, lat = X(25:1:30), Y(25:1:30)
@@ -21,13 +22,13 @@ lon, lat = X(25:1:30), Y(25:1:30)
 # create a Raster 
 ras = Raster(rand(lon, lat); crs=proj) # this generates random numbers with the dimensions given
 
-# # write Raster to a grd file
+# # Write Raster to a `.grd` file
 # Note: that even though grd is a build in format that should not imply that it is the
 # most suitable format for saving your data.
 filename = tempname() * ".grd"
 write(filename, ras)
 
-# # write Raster using GDAL[requires adding ArchGDAL.jl]
+# # Write Raster using GDAL (requires ArchGDAL.jl)
 
 # write(filename::AbstractString, A::AbstractRaster; kw...)
 #   Write an AbstractRaster to file, guessing the backend from the file extension.
