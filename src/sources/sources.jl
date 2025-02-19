@@ -55,6 +55,7 @@ const EXT2SOURCE = Dict(
 struct BackendException <: Exception
     backend
 end
+BackendException(s::Source) = BackendException(SOURCE2PACKAGENAME[s])
 
 # error message to show when backend is not loaded
 function Base.showerror(io::IO, e::BackendException)
@@ -100,7 +101,4 @@ end
 function _open(f, filename::AbstractString; source=sourcetrait(filename), kw...)
     _open(f, source, filename; kw...)
 end
-function _open(f, s::Source, filename::AbstractString; kw...)
-    packagename = SOURCE2PACKAGENAME[s]
-    throw(BackendException(packagename))
-end
+_open(f, s::Source, filename::AbstractString; kw...) = throw(BackendException(s))

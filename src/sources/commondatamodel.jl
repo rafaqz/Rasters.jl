@@ -38,7 +38,8 @@ sourcetrait(var::CDM.CFVariable) = sourcetrait(var.var)
 # Dataset constructor from `Source`
 sourceconstructor(source::Source) = sourceconstructor(typeof(source))
 # Function to check filename
-function checkfilename end
+checkfilename(s::CDMsource, filename) = throw(BackendException(s))
+
 # Find and check write modes
 function checkwritemode(::CDMsource, filename, append::Bool, force::Bool)
     if append
@@ -54,7 +55,7 @@ openmode(write::Bool) = write ? "a" : "r"
 missingval(var::CDM.AbstractVariable, md::Metadata{<:CDMsource}) =
     missingval(md)
 missingval(var::CDM.AbstractVariable, args...) = 
-    missingval(Metadata{soucetrait(var)}(CDM.attribs(var)))
+    missingval(Metadata{sourcetrait(var)}(CDM.attribs(var)))
 
 @inline function get_scale(metadata::Metadata{<:CDMsource}, scaled::Bool)
     scale = scaled ? get(metadata, "scale_factor", nothing) : nothing
