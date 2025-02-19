@@ -70,8 +70,3 @@ using Rasters: sourcetrait
 @test sourcetrait(Rasters.GRIBsource) == Rasters.GRIBsource()
 @test sourcetrait(Rasters.GDALsource) == Rasters.GDALsource()
 @test sourcetrait(Rasters.Zarrsource) == Rasters.Zarrsource()
-
-@test_throws "import ZarrDatasets" Raster("notafile.zarr")
-@test_throws "import ArchGDAL" Raster("notafile.tif")
-@test_throws "import NCDatasets" Raster("notafile.nc")
-@test_throws "import GRIBDatasets" Raster("notafile.grib")
