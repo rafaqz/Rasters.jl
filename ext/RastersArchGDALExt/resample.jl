@@ -105,19 +105,18 @@ function resample(A::RasterStackOrArray;
         flags[:ts] = [ysize, xsize]
     end
 
-    @show onlyto crs size res flags
     # resample with `warp`
     resampled = warp(A, flags; kw...)
-
-    # Return crs to the original type, from GDAL it will always be WellKnownText
-    if !isnothing(crs)
-        resampled = setcrs(resampled, crs)
-    end
 
     # if only to is provided and it has dims, make sure dims are the exact same 
     if onlyto
         newdims = (format(dims(to, (XDim, YDim)))..., otherdims(A, (XDim, YDim))...)
         resampled = rebuild(resampled; dims=newdims)
+    end
+
+    # Return crs to the original type, from GDAL it will always be WellKnownText
+    if !isnothing(crs)
+        resampled = setcrs(resampled, crs)
     end
 
     return resampled
