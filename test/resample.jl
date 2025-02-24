@@ -115,12 +115,12 @@ end
     @test eltype(r1) == Union{UInt8,Missing}
 end
 
-@testset "dimensions matcha after resampling with only `to`" begin
+@testset "dimensions match after resampling with only `to`" begin
     # some weird dimensions
-    to = (
+    to = DimensionalData.format((
         Lat(Projected(1:10, span = Regular(1 + eps()), crs = nothing, order = ForwardOrdered(), sampling = Intervals(Center()))),
         X(Sampled([1,2,3], span = Regular(1), order = ForwardOrdered(), sampling = Intervals(Start())))
-    )
+    ))
 
     resampled = resample(cea; to)
     @test dims(resampled) == to

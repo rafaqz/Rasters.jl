@@ -49,7 +49,7 @@ function resample(A::RasterStackOrArray;
     end
 
     # CRS
-    crs = if isnothing(crs) 
+    crs1 = if isnothing(crs) 
         if to isa Extents.Extent
             nothing
         else
@@ -68,8 +68,8 @@ function resample(A::RasterStackOrArray;
         end
         crs
     end
-    if !isnothing(crs)
-        wkt = convert(String, convert(WellKnownText, crs))
+    if !isnothing(crs1)
+        wkt = convert(String, convert(WellKnownText, crs1))
         flags[:t_srs] = wkt
         if isnothing(Rasters.crs(A))
             @warn "You have set a crs to resample to, but the object does not have crs so GDAL will assume it is already in the target crs. Use `newraster = setcrs(raster, somecrs)` to fix this."
@@ -93,7 +93,7 @@ function resample(A::RasterStackOrArray;
 
     # Size
     if !isnothing(size)
-        xsize, ysize = if size isa Int
+        ysize, xsize = if size isa Int
             size, size
         elseif size isa Tuple{<:Dimension{Int},<:Dimension{Int}}
             map(val, dims(size, (YDim, XDim)))
@@ -102,7 +102,7 @@ function resample(A::RasterStackOrArray;
         else
             throw(ArgumentError("`size` must be a `Int`, or a 2 `Tuple` of `Int` or `Dimension`s wrapping `Int`. Got $size"))
         end
-        flags[:ts] = [ysize, xsize]
+        flags[:ts] = [xsize, ysize]
     end
 
     # resample with `warp`
@@ -110,7 +110,7 @@ function resample(A::RasterStackOrArray;
 
     # if only to is provided and it has dims, make sure dims are the exact same 
     if onlyto
-        newdims = (format(dims(to, (XDim, YDim)))..., otherdims(A, (XDim, YDim))...)
+        newdims = (format(commondims(to, (XDim, YDim)))..., otherdims(A, (XDim, YDim))...)
         resampled = rebuild(resampled; dims=newdims)
     end
 
