@@ -23,7 +23,8 @@ function resample(A::RasterStackOrArray;
     flags[:r] = method
 
     # check if only to has been provided before overwriting arguments
-    onlyto = !isnothing(to) && !isnothing(dims(to)) && !(to isa Extents.Extent) && isnothing(res) && isnothing(size) && isnothing(crs)
+    onlyto = !isnothing(to) && !isnothing(dims(to)) && !(to isa Extents.Extent) && 
+        isnothing(res) && isnothing(size) && (isnothing(crs) || crs == Rasters.crs(A))
 
     # Extent
     if to isa Extents.Extent || isnothing(to) || isnothing(dims(to))
@@ -37,13 +38,13 @@ function resample(A::RasterStackOrArray;
         all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` must have both `XDim` and `YDim` dimensions to resample with GDAL"))
 
         # Set res from `to` if it was not already set
+        todims = DD.format(dims(to, (XDim, YDim)))
         if isnothing(res) && isnothing(size)
-            todims = dims(to, (XDim, YDim))
             isregular(todims) || throw(ArgumentError("`to` has irregular dimensions. Provide regular dimensions, or explicitly provide `res` or `size`."))
-            ysize, xsize = length.(todims)
-            flags[:ts] = [ysize, xsize]
+            xsize, ysize = map(length, todims)
+            flags[:ts] = [xsize, ysize]
         end
-        (xmin, xmax), (ymin, ymax) = bounds(to, (XDim, YDim))
+        (xmin, xmax), (ymin, ymax) = bounds(todims)
         flags[:te] = [xmin, ymin, xmax, ymax]
     end
 
@@ -104,6 +105,7 @@ function resample(A::RasterStackOrArray;
         flags[:ts] = [ysize, xsize]
     end
 
+    @show onlyto crs size res flags
     # resample with `warp`
     resampled = warp(A, flags; kw...)
 
@@ -114,8 +116,8 @@ function resample(A::RasterStackOrArray;
 
     # if only to is provided and it has dims, make sure dims are the exact same 
     if onlyto
-        newdims = (commondims(to, XDim, YDim)..., otherdims(A, (XDim, YDim))...)
-        resampled = rebuild(resampled; dims =newdims)
+        newdims = (format(dims(to, (XDim, YDim)))..., otherdims(A, (XDim, YDim))...)
+        resampled = rebuild(resampled; dims=newdims)
     end
 
     return resampled
