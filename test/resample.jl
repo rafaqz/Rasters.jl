@@ -202,7 +202,8 @@ end
     source = Raster(rand(x, y); crs=EPSG(4326))
 
     destx, desty = X(-179.5:1:179.5), Y(-89.5:1:89.5)
-    resampled_dims = resample(var1; to=(destx, desty), crs=EPSG(4326), method="average");
-    resampled_obj = resample(var1; to=Raster(rand(destx, desty); crs=EPSG(4326)), method="average");
+    to = Raster(rand(destx, desty); crs=EPSG(4326))
+    resampled_dims = resample(source; to=(destx, desty), crs=EPSG(4326), method="average");
+    resampled_obj = resample(source; to, method="average");
     @test resampled_dims == resampled_obj
 end
