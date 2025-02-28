@@ -4,10 +4,10 @@ using Rasters.Lookups, Rasters.Dimensions
 
 include(joinpath(dirname(pathof(Rasters)), "../test/test_utils.jl"))
 
-dimz = (X(9.0:1.0:10.0), Y(0.1:0.1:0.2))
-rast = Raster(Union{Int,Missing}[1 2; 3 4], dimz; name=:test, missingval=missing)
-rast2 = Raster([5 6; 7 8], dimz; name=:test2, missingval=5)
-rast_m = Raster([1 2; 3 missing], dimz; name=:test, missingval=missing)
+dimz = (X(10.0:-1.0:9.0), Y(0.1:0.1:0.2))
+rast = Raster(Union{Int,Missing}[3 4; 1 2], dimz; name=:test, missingval=missing)
+rast2 = Raster([7 8; 5 6], dimz; name=:test2, missingval=5)
+rast_m = Raster([3 missing; 1 2], dimz; name=:test, missingval=missing)
 st = RasterStack(rast, rast2)
 
 pts = [missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3), (10.0, 0.2)]
@@ -15,6 +15,9 @@ poly = GI.Polygon([[(8.0, 0.0), (11.0, 0.0), (11.0, 0.4), (8.0, 0.0)]])
 linestring = GI.LineString([(8.0, 0.0), (9.5, 0.0), (10.0, 0.4)])
 line = GI.Line([(8.0, 0.0), (12.0, 0.4)])
 table = (geometry=pts, foo=zeros(4))
+
+extr = extract(rast_m, pts; skipmissing=false, geometry=false, index=true)
+extr[2].index
 
 @testset "Points" begin
     @testset "From Raster" begin
@@ -43,8 +46,8 @@ table = (geometry=pts, foo=zeros(4))
             @test eltype(ex) == T
             @test all(ex .=== T[(test = 1,), (test = 2,)])
             @test all(extract(rast_m, pts; skipmissing=true, geometry=false, index=true) .=== [
-                (index = (1, 1), test = 1,)
-                (index = (1, 2), test = 2,)
+                (index = (2, 1), test = 1,)
+                (index = (2, 2), test = 2,)
             ])
         end
         @testset "reverse points" begin
@@ -84,7 +87,7 @@ table = (geometry=pts, foo=zeros(4))
         ]
         T = @NamedTuple{index::Union{Missing, Tuple{Int,Int}}, test::Union{Missing, Int64}, test2::Union{Missing, Int64}}
         @test extract(st, [missing, (9.0, 0.1), (10.0, 0.2), (10.0, 0.3)]; skipmissing=true, geometry=false, index=true) == T[
-            (index = (2, 2), test = 4, test2 = 8)
+            (index = (1, 2), test = 4, test2 = 8)
         ]
         # Subset with `names`
         T = @NamedTuple{geometry::Union{Missing, Tuple{Float64, Float64}}, test2::Union{Missing, Int64}}
@@ -134,15 +137,15 @@ end
     ])
     T = @NamedTuple{index::Union{Missing,Tuple{Int,Int}},test::Union{Missing,Int64}}
     @test all(extract(rast_m, poly; geometry=false, index=true) .=== T[
-        (index = (1, 1), test = 1)
-        (index = (2, 1), test = 3)
-        (index = (2, 2), test = missing)
+        (index = (2, 1), test = 1)
+        (index = (1, 1), test = 3)
+        (index = (1, 2), test = missing)
     ])
     T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},index::Union{Missing,Tuple{Int,Int}},test::Union{Missing,Int64}}
     @test all(extract(rast_m, poly; index=true) .=== T[
-         (geometry = (9.0, 0.1), index = (1, 1), test = 1)
-         (geometry = (10.0, 0.1), index = (2, 1), test = 3)
-         (geometry = (10.0, 0.2), index = (2, 2), test = missing)
+         (geometry = (9.0, 0.1), index = (2, 1), test = 1)
+         (geometry = (10.0, 0.1), index = (1, 1), test = 3)
+         (geometry = (10.0, 0.2), index = (1, 2), test = missing)
     ])
     @test extract(rast_m, poly; skipmissing=true) == [
         (geometry = (9.0, 0.1), test = 1)
@@ -153,12 +156,12 @@ end
         (test = 3,)
     ]                                                         
     @test extract(rast_m, poly; skipmissing=true, geometry=false, index=true) == [
-        (index = (1, 1), test = 1)
-        (index = (2, 1), test = 3)
+        (index = (2, 1), test = 1)
+        (index = (1, 1), test = 3)
     ]                                                         
     @test extract(rast_m, poly; skipmissing=true, index=true) == [
-        (geometry = (9.0, 0.1), index = (1, 1), test = 1)
-        (geometry = (10.0, 0.1), index = (2, 1), test = 3)
+        (geometry = (9.0, 0.1), index = (2, 1), test = 1)
+        (geometry = (10.0, 0.1), index = (1, 1), test = 3)
     ]          
     @test extract(rast2, poly; skipmissing=true) == [
         (geometry = (10.0, 0.1), test2 = 7)
@@ -364,9 +367,9 @@ end
         (test = 4,)
     ]
     @test extract(rast, table; skipmissing=true, geometry=false, index=true) == [
-        (index = (1, 1), test = 1,)
-        (index = (1, 2), test = 2,)
-        (index = (2, 2), test = 4,)
+        (index = (2, 1), test = 1,)
+        (index = (2, 2), test = 2,)
+        (index = (1, 2), test = 4,)
     ]
     @test extract(rast, table; skipmissing=true, geometry=false, id=true) == [
         (id=2, test = 1,)
@@ -393,6 +396,17 @@ end
     ])
     @test typeof(extract(rast, []; geometry=false, skipmissing=true)) == Vector{@NamedTuple{test::Int}}
     @test typeof(extract(rast, [missing, missing]; geometry=false, skipmissing=true)) == Vector{@NamedTuple{test::Int}}
+end
+
+# Test that extracting dimpoints work - i.e. no floating point errors
+@testset "Extract DimPoints" begin
+    xdim = 0:0.0416666665:1
+    ydim = 5:-0.0416666665:-5
+    ds = (X(xdim; sampling = Intervals(Start())), Y(ydim; sampling = Intervals(Start())))
+    ras = Raster(DimPoints(ds); dims = ds, name = :dimpoints)
+    extr = extract(ras, DimPoints(ds), skipmissing = true)
+    @test length(extr) == length(ras)
+    @test all(getfield.(extr, :dimpoints) .== vec(ras))
 end
 
 #=
