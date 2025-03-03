@@ -477,18 +477,19 @@ function Base.open(f::Function, st::AbstractRasterStack{K,T,<:Any,<:FileStack{X}
 end
 # Open a multi-file stack or just apply f to a memory backed stack
 function Base.open(f::Function, st::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}; kw...)
-    isdisk(st) ? _open_layers(f, st) : f(st)
+    isdisk(st) ? _open_layers(f, st; kw...) : f(st)
 end
 
 # Open all layers through nested closures, applying `f` to the rebuilt open stack
-_open_layers(f, st) = _open_layers(f, st, DD.layers(st), NamedTuple())
-function _open_layers(f, st, unopened::NamedTuple{K}, opened::NamedTuple) where K
-    open(first(unopened)) do open_layer
-        layer_nt = NamedTuple{(first(K),)}((open_layer,))
-        _open_layers(f, st, Base.tail(unopened), merge(opened, layer_nt))
+_open_layers(f, st; kw...) = _open_layers(f, st, DD.layers(st); kw...)
+_open_layers(f, st, unopened::NamedTuple; kw...) = _open_layers(f, st, unopened, NamedTuple(); kw...)
+function _open_layers(f, st, unopened::NamedTuple{K}, opened::NamedTuple; kw...) where K
+    open(first(unopened); kw...) do open_layer
+        data_nt = NamedTuple{(first(K),)}((parent(open_layer),))
+        _open_layers(f, st, Base.tail(unopened), merge(opened, data_nt); kw...)
     end
 end
-function _open_layers(f, st, unopened::NamedTuple{()}, opened::NamedTuple)
+function _open_layers(f, st, unopened::NamedTuple{()}, opened::NamedTuple; kw...)
     f(rebuild(st; data=opened))
 end
 

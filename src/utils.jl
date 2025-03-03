@@ -94,6 +94,12 @@ function _writeable_missing(T; verbose=true)
 end
 
 _type_missingval(::Type{T}) where T = _type_missingval1(Missings.nonmissingtype(T))
+@generated function _type_missingval(::Type{NT}) where NT<:NamedTuple{K,T} where {K,T}
+    mvs = map(T.parameters) do Tn
+        _type_missingval1(Missings.nonmissingtype(Tn))
+    end
+    return :(NamedTuple{K}($mvs))
+end
 
 _type_missingval1(::Type{T}) where T<:Number = typemin(T)
 _type_missingval1(::Type{T}) where T<:Unsigned = typemax(T)
