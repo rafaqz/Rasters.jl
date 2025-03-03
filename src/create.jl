@@ -347,10 +347,9 @@ function create(filename::AbstractString, source::Source, layertypes::NamedTuple
     fn = Rasters.write(filename, st1;
         chunks, metadata, scale, offset, missingval=mv_inner, verbose, force, coerce, write, kw...
     ) do W
-        # write returns a variable, wrap it as a RasterStack
-        f(rebuild(st1; data=W))
+        f(rebuild(st1; data=W)) # write returns a variable, wrap it as a RasterStack
     end
-    st2 = RasterStack(fn; source, lazy, metadata, layerdims, dropband, coerce, missingval=mv_outer)
+    st2 = RasterStack(fn; source, lazy, metadata, dropband, coerce, missingval=mv_outer)
     return st2
 end
 

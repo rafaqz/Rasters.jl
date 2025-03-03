@@ -97,14 +97,15 @@ $VERBOSE_KEYWORD
 
 $SOURCE_WRITE_DOCSTRING
 """
-function Base.write(path::AbstractString, s::AbstractRasterStack;
+function Base.write(path::AbstractString, s::AbstractRasterStack{K};
     suffix=nothing,
     ext=nothing,
     source=sourcetrait(path, ext),
     verbose=true,
     missingval=nokw,
+    f=identity,
     kw...
-)
+) where K
     source = sourcetrait(source)
     missingval = _stack_missingvals(s, missingval)
     if haslayers(source)
@@ -120,17 +121,25 @@ function Base.write(path::AbstractString, s::AbstractRasterStack;
             divider = Sys.iswindows() ? '\\' : '/'
             # Add an underscore to the key if there is a file name already
             spacer = last(path) == divider ? "" : "_"
-            map(k -> string(spacer, k), keys(s))
+            map(k -> string(spacer, k), K)
         else
             suffix
         end
         if verbose
             @warn string("Cannot write complete stacks to \"", ext, "\", writing layers as individual files")
         end
-        map(keys(s), suffix1, missingval) do key, suf, mv
+        filenames = map(K, suffix1, missingval) do key, suf, mv
             fn = string(base, suf, ext)
             write(fn, source, s[key]; missingval=mv, verbose, kw...)
-        end |> NamedTuple{keys(s)}
+        end |> NamedTuple{K}
+        # TODO build this into write by keeping the file open
+        if f != identity
+            st = RasterStack(filenames; lazy=true)
+            open(st; write=true) do O
+                f(parent(O))
+            end
+        end
+        return filenames
     end
 end
 

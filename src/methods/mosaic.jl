@@ -21,6 +21,7 @@ const MOSAIC_KEYWORDS = """
     This is often required due to minor differences in range values
     due to floating point error. It is not applied to non-float dimensions.
     A tuple of tolerances may be passed, matching the dimension order.
+$PROGRESS_KEYWORD
 """
 
 """
@@ -71,9 +72,9 @@ $EXPERIMENTAL
 mosaic(f::Function, r1::RasterStackOrArray, rs::RasterStackOrArray...; kw...) =
     _mosaic(f, r1, [r1, rs...]; kw...)
 mosaic(f::Function, regions; kw...) = _mosaic(f, first(regions), regions; kw...)
-_mosaic(f::Function, R1::AbstractRaster, regions; kw...) = 
+_mosaic(f::Function, R1::RasterStackOrArray, regions::Tuple; kw...) = 
     _mosaic(f, R1, collect(regions); kw...)
-function _mosaic(f::Function, R1::AbstractRaster, regions::AbstractArray;
+function _mosaic(f::Function, R1::RasterStackOrArray, regions::AbstractArray;
     to=nothing,
     missingval=nokw,
     filename=nothing,
@@ -83,11 +84,6 @@ function _mosaic(f::Function, R1::AbstractRaster, regions::AbstractArray;
     force=false,
     kw...
 )
-    E = reduce(regions; init=eltype(R1)) do T, r
-        promote_type(T, eltype(r))
-    end
-    V = Vector{E}
-    T = Base.promote_op(f, V)
     dims = if isnothing(to)
         _mosaic(map(DD.dims, regions))
     else
@@ -111,6 +107,7 @@ function _mosaic(f::Function, R1::AbstractRaster, regions::AbstractArray;
     else
         missingval => missingval
     end
+    T = _mosaic_eltype(f, R1, regions)
 
     return create(filename, T, dims;
         name=name(R1),
@@ -118,22 +115,28 @@ function _mosaic(f::Function, R1::AbstractRaster, regions::AbstractArray;
         missingval=missingval_pair,
         driver,
         options,
+        suffix,
         force
     ) do C
         mosaic!(f, C, regions; missingval, kw...)
     end
 end
-function _mosaic(f::Function, r1::AbstractRasterStack{K}, regions;
-    filename=nothing,
-    suffix=keys(first(regions)),
-    kw... 
-) where K
-    # TODO make this write inside a single netcdf
-    layers = map(values(suffix), K) do s, k
-        layer_regions = map(r -> r[k], regions)
-        mosaic(f, layer_regions; filename, suffix=s, kw...)
+
+function _mosaic_eltype(f, R1::AbstractRaster, regions)
+    E = reduce(regions; init=eltype(R1)) do T, r
+        promote_type(T, eltype(r))
     end
-    return DD.rebuild_from_arrays(r1, layers)
+    V = Vector{E}
+    return Base.promote_op(f, V)
+end
+function _mosaic_eltype(f, R1::AbstractRasterStack{K}, regions) where K
+    map(K) do k
+        E = reduce(regions; init=eltype(R1[k])) do T, r
+            promote_type(T, eltype(r[k]))
+        end
+        V = Vector{E}
+        Base.promote_op(f, V)
+    end |> NamedTuple{K}
 end
 
 """
@@ -198,6 +201,7 @@ function mosaic!(
     _mosaic!(f, op, dest_centered, regions_centered; kw...)
     return dest
 end
+
 function _mosaic!(
     f::typeof(mean), op::Nothing, dest::Raster, regions::RasterVecOrTuple;
     kw...
@@ -223,13 +227,16 @@ end
 function _mosaic!(
     f::Function, op, dest::AbstractRaster, regions::RasterVecOrTuple; 
     gc::Union{Integer,Nothing}=50,
+    progress=true,
+    _progressmeter=_mosaic_progress(f, progress, length(regions)),
     kw...
 )
     for (i, region) in enumerate(regions)
-        @show i
+        !isnothing(_progressmeter) && ProgressMeter.next!(_progressmeter)
+        # RUn garbage collector every `gc` regions
         !isnothing(gc) && rem(i, gc) == 0 && GC.gc()
-        open(region) do O
-            _mosaic_region!(op, dest, O; kw...)
+        open(region) do R
+            _mosaic_region!(op, dest, R; kw...)
         end
     end
     return dest
@@ -237,7 +244,9 @@ end
 # Generic unknown functions
 function _mosaic!(
     f::Function, op::Nothing, A::AbstractRaster{T}, regions::RasterVecOrTuple;
-    missingval=missingval(A), atol=nothing
+    missingval=missingval(A), 
+    atol=nothing,
+    progress=false,
 ) where T
     isnokwornothing(missingval) && throw(ArgumentError("destination array must have a `missingval`"))
     R = promote_type(map(Missings.nonmissingtype ∘ eltype, regions)...)
@@ -269,14 +278,13 @@ function _mosaic!(
     op, 
     st::AbstractRasterStack{K}, 
     regions::RasterStackVecOrTuple; 
+    progress=true,
     kw...
 ) where K
-    map(values(st), map(values, regions)...) do A, r...
-        _mosaic!(f, op, A, r; kw...)
-    end
+    _progressmeter = _mosaic_progress(f, progress, length(regions), length(K))
     map(values(st), K) do A, k
         layer_regions = map(r -> r[k], regions)
-        _mosaic!(f, op, A, layer_regions; filename, suffix=s, kw...)
+        _mosaic!(f, op, A, layer_regions; kw..., _progressmeter)
     end
     return st
 end
@@ -298,6 +306,18 @@ function _mosaic_mean!(dest, ::Type{T}, regions; kw...) where T
     # Avoid divide by zero for missing values
     dest .= ((d, c) -> d === missingval(dest) ? missingval(dest) : d / c).(dest, counts)
     return dest
+end
+
+function _mosaic_progress(f, progress, n, l=nothing)
+    if progress
+        if isnothing(l)
+            _progress(n; desc="Mosaicing $n regions with $f...")
+        else
+            _progress(n * l; desc="Mosaicing $l layers of $n regions with $f...")
+        end
+    else
+        nothing
+    end
 end
 
 function _mosaic_region!(op, dest, region; atol=nothing, kw...)
