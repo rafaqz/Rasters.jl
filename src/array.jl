@@ -149,16 +149,20 @@ By using a do block to open files we ensure they are always closed again
 after we finish working with them.
 """
 function Base.open(f::Function, A::AbstractRaster; kw...)
-    # Open FileArray to expose the actual dataset object, even inside nested wrappers
-    fas = Flatten.flatten(parent(A), FLATTEN_SELECT, FLATTEN_IGNORE)
-    if fas == ()
-        f(Raster(parent(A), dims(A), refdims(A), name(A), metadata(A), missingval(A)))
-    else
-        if length(fas) == 1
-            _open_one(f, A, fas[1]; kw...)
+    if isdisk(A)
+        # Open FileArray to expose the actual dataset object, even inside nested wrappers
+        fas = Flatten.flatten(parent(A), FLATTEN_SELECT, FLATTEN_IGNORE)
+        if fas == ()
+            f(A)
         else
-            _open_many(f, A, fas; kw...)
+            if length(fas) == 1
+                _open_one(f, A, fas[1]; kw...)
+            else
+                _open_many(f, A, fas; kw...)
+            end
         end
+    else
+        f(A)
     end
 end
 
@@ -166,8 +170,7 @@ function _open_one(f, A::AbstractRaster, fa::FileArray; kw...)
     open(fa; kw...) do x
         # Rewrap the opened object where the FileArray was nested in the parent array
         data = Flatten.reconstruct(parent(A), (x,), FLATTEN_SELECT, FLATTEN_IGNORE)
-        openraster = Raster(data, dims(A), refdims(A), name(A), metadata(A), missingval(A))
-        f(openraster)
+        f(rebuild(A; data))
     end
 end
 
@@ -179,8 +182,7 @@ function _open_many(f, A::AbstractRaster, fas::Tuple, oas::Tuple; kw...)
 end
 function _open_many(f, A::AbstractRaster, fas::Tuple{}, oas::Tuple; kw...)
     data = Flatten.reconstruct(parent(A), oas, FLATTEN_SELECT, FLATTEN_IGNORE)
-    openraster = Raster(data, dims(A), refdims(A), name(A), metadata(A), missingval(A))
-    f(openraster)
+    f(rebuild(A; data))
 end
 
 # Concrete implementation ######################################################
