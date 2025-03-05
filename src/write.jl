@@ -109,7 +109,7 @@ function Base.write(path::AbstractString, s::AbstractRasterStack{K};
     source = sourcetrait(source)
     missingval = _stack_missingvals(s, missingval)
     if haslayers(source)
-        write(path, source, s; missingval, kw...)
+        write(path, source, s; missingval, f, kw...)
     else
         # Otherwise write separate files for each layer
         if isnothing(ext)
@@ -150,23 +150,11 @@ function _stack_missingvals(::Type{T}, missingval::NamedTuple{K}) where {K,T<:Na
     end |> NamedTuple{K}
 end
 _stack_missingvals(::Type{T}, missingval::NamedTuple{K1}) where {K1,T<:NamedTuple{K2}} where K2 =
-    throw(ArgumentError("stack keys $K1 do not match misssingval keys $K2"))
+    throw(ArgumentError("stack keys $K1 do not match missingval keys $K2"))
 _stack_missingvals(::Type{T}, missingval::Missing) where T<:NamedTuple{K} where K =
     NamedTuple{K}(map(_type_missingval, _types(T)))
 _stack_missingvals(::Type{T}, missingval) where T =
     _stack_nt(T, missingval)
-
-_stack_nt(::NamedTuple{K}, x) where K = NamedTuple{K}(map(_ -> x, K))
-_stack_nt(::RasterStack{<:Any,T}, x) where T = _stack_nt(T, x)
-_stack_nt(::Type{T}, x::NamedTuple{K}) where {K,T<:NamedTuple{K}} = x
-_stack_nt(::Type{T}, x::NamedTuple{K1}) where {K1,T<:NamedTuple{K2}} where K2 =
-    throw(ArgumentError("stack keys $K1 do not match misssingval keys $K2"))
-_stack_nt(::Type{T}, x) where T<:NamedTuple{K} where K =
-    NamedTuple{K}(map(_ -> x, K))
-
-@generated function _types(::Type{<:NamedTuple{K,T}}) where {K,T}
-    Tuple(T.parameters)
-end
 
 """
     Base.write(filepath::AbstractString, s::AbstractRasterSeries; kw...)

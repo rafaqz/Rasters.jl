@@ -601,3 +601,15 @@ _rowkeys(id::_False, geometry::_False, index::_False, names::NamedTuple{Names}) 
 _rowkeys(id::_False, geometry::_True, index::_False, names::NamedTuple{Names}) where Names = (:geometry, Names...)
 _rowkeys(id::_False, geometry::_True, index::_True, names::NamedTuple{Names}) where Names = (:geometry, :index, Names...)
 _rowkeys(id::_False, geometry::_False, index::_True, names::NamedTuple{Names}) where Names = (:index, Names...)
+
+_stack_nt(::NamedTuple{K}, x) where K = NamedTuple{K}(map(_ -> x, K))
+_stack_nt(::RasterStack{<:Any,T}, x) where T = _stack_nt(T, x)
+_stack_nt(::Type{T}, x::NamedTuple{K}) where {K,T<:NamedTuple{K}} = x
+_stack_nt(::Type{T}, x::NamedTuple{K1}) where {K1,T<:NamedTuple{K2}} where K2 =
+    throw(ArgumentError("stack keys $K1 do not match misssingval keys $K2"))
+_stack_nt(::Type{T}, x) where T<:NamedTuple{K} where K =
+    NamedTuple{K}(map(_ -> x, K))
+
+@generated function _types(::Type{<:NamedTuple{K,T}}) where {K,T}
+    Tuple(T.parameters)
+end

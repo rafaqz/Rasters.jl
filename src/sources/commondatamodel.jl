@@ -492,6 +492,7 @@ end
 function Base.write(filename::AbstractString, source::Source, s::AbstractRasterStack{K,T};
     append=false,
     force=false,
+    write=true,
     missingval=nokw,
     f=identity,
     kw...
@@ -501,9 +502,9 @@ function Base.write(filename::AbstractString, source::Source, s::AbstractRasterS
     missingval = _stack_nt(s, isnokw(missingval) ? Rasters.missingval(s) : missingval)
     try
         map(keys(s)) do k
-            writevar!(ds, source, s[k]; missingval=missingval[k], kw...)
+            writevar!(ds, source, s[k]; missingval=missingval[k], write, kw...)
         end
-        f(OpenStack{Source,K,T}(ds))
+        write && f(OpenStack{Source,K,T}(ds))
     finally
         close(ds)
     end

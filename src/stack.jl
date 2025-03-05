@@ -383,15 +383,16 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     _maybe_warn_replace_missing(replace_missing)
     scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
 
-    layermissingval = collect(_stack_nt(filenames, missingval))
-    fn = collect(filenames)
-    layermetadata = layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
-    layerdims = layerdims isa NamedTuple ? collect(layerdims) : map(_ -> NoKW(), fn)
-    layers = map(K, fn, layermetadata, layerdims, layermissingval) do name, fn, md, d, mv
+    # Convert everything to vector to avoid huge compile times with many layers
+    filename_vec = collect(filenames)
+    missingval_vec = _missingval_vec(missingval, K)
+    layermetadata_vec = layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), filename_vec)
+    layerdims_vec = layerdims isa NamedTuple ? collect(layerdims) : map(_ -> NoKW(), filename_vec)
+    layers = map(K, filename_vec, layermetadata_vec, layerdims_vec, missingval_vec) do name, fn, md, d, mv
         Raster(fn; 
             source=sourcetrait(fn, source), 
             dims=d, name, metadata=md, missingval=mv, scaled, verbose, kw...
-       )
+        )
     end
     return RasterStack(NamedTuple{K}(layers); resize, metadata)
 end
@@ -426,12 +427,11 @@ function RasterStack(filename::AbstractString;
             name
         end
         RasterStack(joinpath.(Ref(filename), filenames);
-            missingval, scaled, coerce, lazy, dropband, group, kw...
+            missingval, scaled, coerce, lazy, dropband, group, name, kw...
         )
     else
         # Load as a single file
-        if haslayers(source)
-            # With multiple named layers
+        if haslayers(source) # With multiple named layers
             l_st = _layer_stack(filename; 
                 source, name, lazy, group, missingval, scaled, coerce, kw...
             )
@@ -441,8 +441,7 @@ function RasterStack(filename::AbstractString;
             else
                 maplayers(identity, l_st)
             end
-        else
-            # With bands actings as layers
+        else # With bands actings as layers
             raster = Raster(filename; 
                 source, lazy, missingval, scaled, coerce, dropband=false,
             )
@@ -539,17 +538,12 @@ function _layer_stack(filename;
         end
         name = Tuple(map(Symbol, layers.names))
         NT = NamedTuple{name}
-        layer_mvs = map(Rasters.missingval, layers.vars, layermetadata_vec)
-        missingval_vec = if isnokw(missingval)
-            layer_mvs .=> missing
-        elseif missingval isa NamedTuple
-            keys(missingval) == name || throw(ArgumentError("`missingval` names $(keys(missingval)) do not match layer names $name")) 
-            layer_mvs .=> collect(missingval)
-        elseif missingval === Rasters.missingval
-            layer_mvs
+        missingval_vec = if missingval isa Pair
+            _missingval_vec(missingval, name)
         else
-            layer_mvs .=> (missingval,) # Wrap in case its not iterable
-        end::Vector
+            layer_mvs = map(Rasters.missingval, layers.vars, layermetadata_vec)
+            _missingval_vec(missingval, layer_mvs, name)
+        end
         eltype_vec = map(eltype, layers.vars)
         mod_vec = _stack_mods(eltype_vec, layermetadata_vec, missingval_vec; scaled, coerce)
         data = if lazy
@@ -577,6 +571,40 @@ function _layer_stack(filename;
     return RasterStack(data; field_kw..., kw...)
 end
 
+# These ignore file missingvals
+function _missingval_vec(missingval::Pair{<:NamedTuple,<:NamedTuple}, name::Tuple)
+    keys(missingval[1]) == name || _missingval_name_error(missingval[1], name)
+    keys(missingval[2]) == name || _missingval_name_error(missingval[2], name)
+    collect(map(=>, missingval[1], missingval[2]))
+end
+function _missingval_vec(missingval::Pair{<:NamedTuple,<:Any}, name::Tuple)
+    keys(missingval[1]) == name || _missingval_name_error(missingval[1], name)
+    collect(missingval[1]) .=> (missingval[2],)
+end
+function _missingval_vec(missingval::Pair{<:Any,<:NamedTuple}, name::Tuple)
+    keys(missingval[2]) == name || _missingval_name_error(missingval[2], name)
+    (missingval[1],) .=> collect(missingval[2])
+end
+function _missingval_vec(missingval::NamedTuple, name::Tuple)
+    keys(missingval) == name || _missingval_name_error(missingval[2], name)
+    collect(missingval)
+end
+_missingval_vec(::typeof(missingval), name::Tuple) = [Rasters.missingval for _ in name]
+_missingval_vec(missingval, name::Tuple) = [missingval for _ in name]
+
+_missingval_vec(::NoKW, layer_mvs::Vector, name::Tuple) = layer_mvs .=> missing
+function _missingval_vec(missingval::NamedTuple, layer_mvs::Vector, name::Tuple)
+    keys(missingval) == name || _missingval_name_error(missingval, name::Tuple)
+    layer_mvs .=> collect(missingval)
+end
+_missingval_vec(::typeof(missingval), layer_mvs::Vector, name::Tuple) = layer_mvs
+_missingval_vec(missingval, layer_mvs::Vector, name::Tuple) =
+    layer_mvs .=> (missingval,) # Wrap in case its not iterable
+
+_missingval_name_error(missingval, layernames) = 
+    _name_error("missingval", keys(missingval), layernames)
+_name_error(f, names, layernames) =
+    throw(ArgumentError("`$x` names $names do not match layer names $layernames")) 
 
 # Try to sort the dimensions by layer dimension into a sensible
 # order that applies without permutation, preferencing the layers

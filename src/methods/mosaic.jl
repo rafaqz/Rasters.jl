@@ -226,7 +226,7 @@ end
 # Where there is a known reduction operator we can apply each region as a whole
 function _mosaic!(
     f::Function, op, dest::AbstractRaster, regions::RasterVecOrTuple; 
-    gc::Union{Integer,Nothing}=50,
+    gc::Union{Integer,Nothing}=nothing,
     progress=true,
     _progressmeter=_mosaic_progress(f, progress, length(regions)),
     kw...
