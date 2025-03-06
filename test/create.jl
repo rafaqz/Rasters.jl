@@ -132,7 +132,7 @@ end
 
 ext = ".nc"
 for ext in (".nc", ".tif", ".grd")
-   @testset "create $ext" begin
+   @testset "create $ext Raster" begin
         fn = tempname() * ext
         created = Rasters.create(fn, UInt8, (X(1:10), Y(1:10));
             missingval=0xff,
@@ -171,49 +171,55 @@ for ext in (".nc", ".tif", ".grd")
     end
 end
 
-@testset "create .nc stack" begin
-    created = Rasters.create("created.nc", (a=UInt8, b=Float32), (X(1:10), Y(1:10));
-        missingval=(a=0xff, b=typemax(Float32)),
-        fill=(a=0x01, b=1.0f0),
-        layerdims=(a=(X,), b=(X, Y)),
-        force=true,
-    )
-    @test missingval(created) == (a=0xff, b=typemax(Float32))
-    @test size(created.a) == (10,)
-    @test size(created.b) == (10, 10)
-    @test all(created.a .=== 0x01)
-    @test all(created.b .=== 1.0f0)
-    st = RasterStack("created.nc"; missingval)
-    @test missingval(st) == (a=0xff, b=typemax(Float32))
-
-    created = Rasters.create("created.nc", (a=UInt8, b=Float32), (X(1:10), Y(1:10));
-        missingval=(a=0xff, b=typemax(Float32)) => missing,
-        fill=(a=0x01, b=1.0f0),
-        layerdims=(a=(X,), b=(X, Y)),
-        force=true,
-    )
-
-    @test missingval(created) === missing
-    @test size(created.a) == (10,)
-    @test size(created.b) == (10, 10)
-    @test all(created.a .=== 0x01)
-    @test all(created.b .=== 1.0f0)
-    st = RasterStack("created.nc"; missingval)
-    @test missingval(st) == (a=0xff, b=typemax(Float32))
-
-    @testset "with a function" begin
-        created = Rasters.create("created.nc", (a=UInt8, b=Float32), (X(1:10), Y(1:10));
+ext = ".nc"
+for ext in (".nc", ".tif", ".grd")
+    @testset "create $ext RasterStack" begin
+        fn = tempname() * ext
+        created = Rasters.create(fn, (a=UInt8, b=Float32), (X(1:10), Y(1:10));
             missingval=(a=0xff, b=typemax(Float32)),
             fill=(a=0x01, b=1.0f0),
-            layerdims=(a=(X,), b=(X, Y)),
+            layerdims=(a=(X, Y), b=(X, Y)),
             force=true,
-        ) do st
-             map(layers(st)) do A
-                 A .*= 2
-             end
+        )
+        @test missingval(created) == (a=0xff, b=typemax(Float32))
+        @test size(created.a) == (10, 10)
+        @test size(created.b) == (10, 10)
+        @test all(created.a .=== 0x01)
+        @test all(created.b .=== 1.0f0)
+        st = RasterStack(Rasters.filename(created); missingval)
+        @test missingval(st) == (a=0xff, b=typemax(Float32))
+
+        fn = tempname() * ext
+        created = Rasters.create(fn, (a=UInt8, b=Float32), (X(1:10), Y(1:10));
+            missingval=(a=0xff, b=typemax(Float32)) => missing,
+            fill=(a=0x01, b=1.0f0),
+            force=true,
+        )
+
+        @test eltype(created) == @NamedTuple{a::Union{Missing,UInt8}, b::Union{Missing,Float32}}
+        @test missingval(created) === missing
+        @test size(created.a) == (10, 10)
+        @test size(created.b) == (10, 10)
+        @test all(created.a .=== 0x01)
+        @test all(created.b .=== 1.0f0)
+        st = RasterStack(Rasters.filename(created); missingval)
+        @test eltype(st) == @NamedTuple{a::UInt8, b::Float32}
+        @test missingval(st) == (a=0xff, b=typemax(Float32))
+
+        @testset "with a function" begin
+            created = Rasters.create(fn, (a=UInt8, b=Float32), (X(1:10), Y(1:10));
+                missingval=(a=0xff, b=typemax(Float32)),
+                fill=(a=0x01, b=1.0f0),
+                force=true,
+            ) do st
+                map(layers(st)) do A
+                    A .*= 2
+                end
+            end
+            @test eltype(created) == @NamedTuple{a::UInt8, b::Float32}
+            @test all(read(created.a) .=== 0x02)
+            @test all(read(created.b) .=== 2.0f0)
         end
-        @test all(read(created.a) .=== 0x02)
-        @test all(read(created.b) .=== 2.0f0)
     end
 end
 
