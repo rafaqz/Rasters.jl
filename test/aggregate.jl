@@ -60,6 +60,13 @@ series = RasterSeries([stack1, stack2], (Ti(dates),))
     @test index(disaglat) === LinRange(-10.0, 15.0, 6)
     @test span(disaglat) == span(dimz[2])
     @test sampling(disaglat) == sampling(dimz[2])
+
+    # Disaggregation preserves extent of the original dimension
+    lat2 = shiftlocus(Center(), lat)
+    disaglat2 = disaggregate(lat2, 2)
+    lat3 = shiftlocus(End(), lat)
+    disaglat3 = disaggregate(lat3, 2)
+    @test bounds(lat2) == bounds(disaglat2) == bounds(disaglat3)
 end
 
 @testset "aggregate a single dim" begin 
