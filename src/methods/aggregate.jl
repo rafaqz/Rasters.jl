@@ -264,6 +264,9 @@ function disaggregate(dim::Dimension, scale)
     rebuild(dim, disaggregate(locus, lookup(dim), scale))
 end
 function disaggregate(lookup::Lookup, scale)
+    loc = locus(lookup)
+    lookup = maybeshiftlocus(Start(), lookup)
+
     intscale = _scale2int(DisAg(), lookup, scale)
     intscale == 1 && return lookup
 
@@ -272,12 +275,13 @@ function disaggregate(lookup::Lookup, scale)
     start = lookup[1] - _agoffset(Start(), intscale) * step_
     stop = start + (len - 1)  * step_
     index = LinRange(start, stop, len)
-    if lookup isa AbstractSampled
+    newlookup = if lookup isa AbstractSampled
         sp = disaggregate(locus, span(lookup), intscale)
-        return rebuild(lookup; data=index, span=sp)
+        rebuild(lookup; data=index, span=sp)
     else
-        return rebuild(lookup; data=index)
+        rebuild(lookup; data=index)
     end
+    return maybeshiftlocus(loc, newlookup)
 end
 
 disaggregate(span::Span, scale) = span
@@ -428,7 +432,8 @@ end
 @inline _scale2int(::DisAg, l::Lookup, scale::Int) = scale
 
 _agoffset(locus::Locus, l::Lookup, scale::Int) = _agoffset(locus, scale)
-_agoffset(method, l::Lookup, scale::Int) = _agoffset(locus(l), scale)
+_agoffset(method, l::Lookup, scale::Int) = _agoffset(l, scale)
+_agoffset(l::Lookup, scale::Int) = _agoffset(locus(l), scale)
 _agoffset(x, scale::Colon) = 0
 _agoffset(locus::Start, scale::Int) = 0
 _agoffset(locus::End, scale::Int) = scale - 1
