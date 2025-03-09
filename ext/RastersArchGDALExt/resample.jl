@@ -7,7 +7,12 @@ function resample(xs::Union{Tuple,NamedTuple}; to=first(xs), kw...)
     map(x -> resample(x; to, kw...), xs)
 end
 function resample(A::RasterStackOrArray; 
-    to=nothing, res=nothing, crs=nothing, size=nothing, method=:near, kw...
+    to=nothing, 
+    res=nothing, 
+    crs=nothing, 
+    size=nothing, 
+    method=:near, 
+    kw...
 )
     (isnothing(size) || isnothing(res)) || _size_and_res_error()
 
@@ -18,7 +23,8 @@ function resample(A::RasterStackOrArray;
     flags[:r] = method
 
     # check if only to has been provided before overwriting arguments
-    onlyto = !isnothing(to) && !isnothing(dims(to)) && !(to isa Extents.Extent) && isnothing(res) && isnothing(size) && isnothing(crs)
+    onlyto = !isnothing(to) && !isnothing(dims(to)) && !(to isa Extents.Extent) && 
+        isnothing(res) && isnothing(size) && (isnothing(crs) || crs == Rasters.crs(A))
 
     # Extent
     if to isa Extents.Extent || isnothing(to) || isnothing(dims(to))
@@ -32,18 +38,18 @@ function resample(A::RasterStackOrArray;
         all(hasdim(to, (XDim, YDim))) || throw(ArgumentError("`to` must have both `XDim` and `YDim` dimensions to resample with GDAL"))
 
         # Set res from `to` if it was not already set
+        todims = DD.format(dims(to, (XDim, YDim)))
         if isnothing(res) && isnothing(size)
-            todims = dims(to, (XDim, YDim))
             isregular(todims) || throw(ArgumentError("`to` has irregular dimensions. Provide regular dimensions, or explicitly provide `res` or `size`."))
-            ysize, xsize = length.(todims)
-            flags[:ts] = [ysize, xsize]
+            xsize, ysize = map(length, todims)
+            flags[:ts] = [xsize, ysize]
         end
-        (xmin, xmax), (ymin, ymax) = bounds(to, (XDim, YDim))
+        (xmin, xmax), (ymin, ymax) = bounds(todims)
         flags[:te] = [xmin, ymin, xmax, ymax]
     end
 
     # CRS
-    crs = if isnothing(crs) 
+    crs1 = if isnothing(crs) 
         if to isa Extents.Extent
             nothing
         else
@@ -62,8 +68,8 @@ function resample(A::RasterStackOrArray;
         end
         crs
     end
-    if !isnothing(crs)
-        wkt = convert(String, convert(WellKnownText, crs))
+    if !isnothing(crs1)
+        wkt = convert(String, convert(WellKnownText, crs1))
         flags[:t_srs] = wkt
         if isnothing(Rasters.crs(A))
             @warn "You have set a crs to resample to, but the object does not have crs so GDAL will assume it is already in the target crs. Use `newraster = setcrs(raster, somecrs)` to fix this."
@@ -87,7 +93,7 @@ function resample(A::RasterStackOrArray;
 
     # Size
     if !isnothing(size)
-        xsize, ysize = if size isa Int
+        ysize, xsize = if size isa Int
             size, size
         elseif size isa Tuple{<:Dimension{Int},<:Dimension{Int}}
             map(val, dims(size, (YDim, XDim)))
@@ -96,21 +102,21 @@ function resample(A::RasterStackOrArray;
         else
             throw(ArgumentError("`size` must be a `Int`, or a 2 `Tuple` of `Int` or `Dimension`s wrapping `Int`. Got $size"))
         end
-        flags[:ts] = [ysize, xsize]
+        flags[:ts] = [xsize, ysize]
     end
 
     # resample with `warp`
     resampled = warp(A, flags; kw...)
 
+    # if only to is provided and it has dims, make sure dims are the exact same 
+    if onlyto
+        newdims = (format(commondims(to, (XDim, YDim)))..., otherdims(A, (XDim, YDim))...)
+        resampled = rebuild(resampled; dims=newdims)
+    end
+
     # Return crs to the original type, from GDAL it will always be WellKnownText
     if !isnothing(crs)
         resampled = setcrs(resampled, crs)
-    end
-
-    # if only to is provided and it has dims, make sure dims are the exact same 
-    if onlyto
-        newdims = (commondims(to, XDim, YDim)..., otherdims(A, (XDim, YDim))...)
-        resampled = rebuild(resampled; dims =newdims)
     end
 
     return resampled

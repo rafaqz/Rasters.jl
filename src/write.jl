@@ -1,19 +1,4 @@
 
-const CHUNKS_KEYWORD = """
-- `chunks`: a `NTuple{N,Int}` specifying the chunk size for each dimension. 
-    To specify only specific dimensions, a Tuple of `Dimension` wrapping `Int` 
-    or a `NamedTuple` of `Int` can be used. Other dimensions will have a chunk
-    size of `1`. `true` can be used to mean: use the original 
-    chunk size of the lazy `Raster` being written or X and Y of 256 by 256.
-    `false` means don't use chunks at all.
-"""
-
-const MISSINGVAL_KEYWORD = """
-- `missingval`: set the missing value (i.e. FillValue / nodataval) of the written raster,
-    as Julias `missing` cannot be stored. If not passed in, `missingval` will be detected 
-    from metadata or a default will be chosen.
-"""
-
 const SOURCE_WRITE_DOCSTRING = """
 Other keyword arguments are passed to the `write` method for the backend.
 
@@ -33,12 +18,14 @@ Other keyword arguments are passed to the `write` method for the backend.
 ## GDAL Keywords
 
 $FORCE_KEYWORD
-- `driver`: A GDAL driver name `String` or a GDAL driver retrieved via `ArchGDAL.getdriver(drivername)`. 
+- `driver`: A GDAL driver name `String` or a GDAL driver retrieved via `ArchGDAL.getdriver(drivername)`.
     By default `driver` is guessed from the filename extension.
-- `options::Dict{String,String}`: A dictionary containing the dataset creation options passed to the driver. 
-    For example: `Dict("COMPRESS" => "DEFLATE")`. 
 
-Valid `options` for each specific `driver` can be found at: https://gdal.org/drivers/raster/index.html
+- `options::Dict{String,String}`: A dictionary containing the dataset creation options passed to the driver.
+    For example: `Dict("COMPRESS" => "DEFLATE")`.
+
+Valid `driver` names and the `options` for each can be found at:
+[https://gdal.org/drivers/raster/index.html](https://gdal.org/drivers/raster/index.html)
 
 
 ## Source comments
@@ -50,7 +37,7 @@ Returns the base of `filename` with a `.grd` extension.
 
 ### GDAL (tiff, and everything else)
 
-Used if you `write` a `Raster` with a `filename` extension that no other backend can write. 
+Used if you `write` a `Raster` with a `filename` extension that no other backend can write.
 GDAL is the fallback, and writes a lot of file types, but is not guaranteed to work.
 """
 
@@ -64,18 +51,20 @@ file extension or using the `source` keyword.
 
 $CHUNKS_KEYWORD
 $FORCE_KEYWORD
-$MISSINGVAL_KEYWORD
+$WRITE_MISSINGVAL_KEYWORD
 $SOURCE_KEYWORD
 
 $SOURCE_WRITE_DOCSTRING
 
 Returns `filename`.
 """
-function Base.write( filename::AbstractString, A::AbstractRaster; 
-    source=_sourcetrait(filename), 
+function Base.write(filename::AbstractString, A::AbstractRaster;
+    source=sourcetrait(filename),
+    missingval=nokw,
     kw...
 )
-    write(filename, _sourcetrait(source), A; kw...)
+    missingval = isnokw(missingval) ? Rasters.missingval(A) : missingval
+    write(filename, sourcetrait(source), A; missingval, kw...)
 end
 Base.write(A::AbstractRaster; kw...) = write(filename(A), A; kw...)
 # Fallback
@@ -83,7 +72,7 @@ function Base.write(
     filename::AbstractString, source::Source, A::Union{AbstractRaster,AbstractRasterStack}; kw...
 )
     missing_package = SOURCE2PACKAGENAME[source]
-    error("Missing package extension for $source. Run `using $missing_package` before useing `write` for this file.")
+    error("Missing package extension for $source. Run `using $missing_package` before using `write` for this file extension.")
 end
 
 """
@@ -108,16 +97,19 @@ $VERBOSE_KEYWORD
 
 $SOURCE_WRITE_DOCSTRING
 """
-function Base.write(path::AbstractString, s::AbstractRasterStack;
+function Base.write(path::AbstractString, s::AbstractRasterStack{K};
     suffix=nothing,
     ext=nothing,
-    source=_sourcetrait(path, ext),
+    source=sourcetrait(path, ext),
     verbose=true,
+    missingval=nokw,
+    f=identity,
     kw...
-)
-    source = _sourcetrait(source)
+) where K
+    source = sourcetrait(source)
+    missingval = _stack_missingvals(s, missingval)
     if haslayers(source)
-        write(path, source, s; kw...)
+        write(path, source, s; missingval, f, kw...)
     else
         # Otherwise write separate files for each layer
         if isnothing(ext)
@@ -129,19 +121,40 @@ function Base.write(path::AbstractString, s::AbstractRasterStack;
             divider = Sys.iswindows() ? '\\' : '/'
             # Add an underscore to the key if there is a file name already
             spacer = last(path) == divider ? "" : "_"
-            map(k -> string(spacer, k), keys(s))
+            map(k -> string(spacer, k), K)
         else
             suffix
         end
         if verbose
             @warn string("Cannot write complete stacks to \"", ext, "\", writing layers as individual files")
         end
-        map(keys(s), suffix1) do key, suf
+        filenames = map(K, suffix1, missingval) do key, suf, mv
             fn = string(base, suf, ext)
-            write(fn, source, s[key]; kw...)
-        end |> NamedTuple{keys(s)}
+            write(fn, source, s[key]; missingval=mv, verbose, kw...)
+        end |> NamedTuple{K}
+        # TODO build this into write by keeping the file open
+        if f != identity
+            st = RasterStack(filenames; lazy=true)
+            open(st; write=true) do O
+                f(parent(O))
+            end
+        end
+        return filenames
     end
 end
+
+_stack_missingvals(::RasterStack{<:Any,T}, x) where T = _stack_missingvals(T, x)
+function _stack_missingvals(::Type{T}, missingval::NamedTuple{K}) where {K,T<:NamedTuple{K}}
+    map(_types(T), values(missingval)) do t, mv
+        ismissing(mv) ? _type_missingval(t) : mv
+    end |> NamedTuple{K}
+end
+_stack_missingvals(::Type{T}, missingval::NamedTuple{K1}) where {K1,T<:NamedTuple{K2}} where K2 =
+    throw(ArgumentError("stack keys $K1 do not match missingval keys $K2"))
+_stack_missingvals(::Type{T}, missingval::Missing) where T<:NamedTuple{K} where K =
+    NamedTuple{K}(map(_type_missingval, _types(T)))
+_stack_missingvals(::Type{T}, missingval) where T =
+    _stack_nt(T, missingval)
 
 """
     Base.write(filepath::AbstractString, s::AbstractRasterSeries; kw...)
@@ -166,11 +179,11 @@ $VERBOSE_KEYWORD
 """
 function Base.write(path::AbstractString, A::AbstractRasterSeries;
     ext=nothing,
-    source=_sourcetrait(path, ext),
+    source=sourcetrait(path, ext),
     verbose=true,
     kw...
 )
-    source = _sourcetrait(source)
+    source = sourcetrait(source)
     base, path_ext = splitext(path)
     ext = isnothing(ext) ? path_ext : ext
     map(A, DimPoints(A)) do raster, p
@@ -191,15 +204,18 @@ function Base.write(path::AbstractString, A::AbstractRasterSeries;
         written_paths
     end
 end
+Base.write(f::Function, args...; kw...) = write(args...; f, kw...)
 
 # Trait for source data that has stack layers
 haslayers(T) = false
 
 #  This is used in source `write` methods
+check_can_write(filename::Union{Nothing,NoKW}, force) = true
 function check_can_write(filename, force)
     if !check_can_write(Bool, filename, force)
         throw(ArgumentError("filename already exists at $filename. use the keyword `force=true` to write anyway"))
     end
     return true
 end
+check_can_write(::Type{Bool}, filename::Union{Nothing,NoKW}, force) = true
 check_can_write(::Type{Bool}, filename, force) = (force || (!isfile(filename) && !isdir(filename)))

@@ -1,4 +1,4 @@
-struct _TakeFirst{MV}
+struct _TakeFirst{MV} <: Function
     missingval::MV
 end
 (tf::_TakeFirst)(a, b) = a === tf.missingval ? b : a
@@ -30,7 +30,7 @@ _reduce_init(::typeof(sum), ::Type{T}, missingval) where T = zero(nonmissingtype
 _reduce_init(::typeof(prod), ::Type{T}, missingval) where T = oneunit(nonmissingtype(T))
 _reduce_init(::typeof(minimum), ::Type{T}, missingval) where T = typemax(nonmissingtype(T))
 _reduce_init(::typeof(maximum), ::Type{T}, missingval) where T = typemin(nonmissingtype(T))
-_reduce_init(::typeof(last), ::Type{T}, missingval) where T = _maybe_nothing_to_missing(missingval)
+_reduce_init(::typeof(last), ::Type{T}, missingval) where T = _maybe_to_missing(missingval)
 
 struct FillChooser{F,I,M}
     fill::F
@@ -69,13 +69,17 @@ end
 RasterCreator(to::AbstractRaster, data; kw...) = RasterCreator(dims(to); kw...)
 RasterCreator(to::AbstractRasterStack, data; kw...) = RasterCreator(dims(to); name, kw...)
 RasterCreator(to::Nothing, data; kw...) = RasterCreator(_extent(data; kw...); kw...)
-RasterCreator(to, data; kw...) = RasterCreator(_extent(to); kw...)
+RasterCreator(to, data; kw...) = 
+    RasterCreator(_extent(to; kw...); kw...)
 function RasterCreator(to::Extents.Extent;
     res::Union{Nothing,Real,NTuple{<:Any,<:Real}}=nothing,
-    size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing, kw...
+    size::Union{Nothing,Int,NTuple{<:Any,Int}}=nothing, 
+    crs=nokw,
+    mappedcrs=nokw,
+    kw...
 )
-    to_as_dims = _extent2dims(to; size, res, kw...)
-    return RasterCreator(to_as_dims; kw...)
+    to_as_dims = _extent2dims(to; size, res, crs, mappedcrs)
+    return RasterCreator(to_as_dims; crs, mappedcrs, kw...)
 end
 
 
@@ -312,15 +316,10 @@ const RASTERIZE_KEYWORDS = """
 - `op`: A reducing function that accepts two values and returns one, like `min` to `minimum`.
     For common methods this will be assigned for you, or is not required. But you can use it
     instead of a `reducer` as it will usually be faster.
-- `shape`: force `data` to be treated as `:polygon`, `:line` or `:point`, where possible
-    Points can't be treated as lines or polygons, and lines may not work as polygons, but
-    an attempt will be made.
-- `geometrycolumn`: `Symbol` to manually select the column the geometries are in
-    when `data` is a Tables.jl compatible table, or a tuple of `Symbol` for columns of
-    point coordinates.
-- `progress`: show a progress bar, `true` by default, `false` to hide..
-- `verbose`: print information and warnings when there are problems with the rasterisation.
-    `true` by default.
+$GEOM_KEYWORDS
+$GEOMETRYCOLUMN_KEYWORD
+$PROGRESS_KEYWORD
+$VERBOSE_KEYWORD
 $THREADED_KEYWORD
 - `threadsafe`: specify that custom `reducer` and/or `op` functions are thread-safe, 
     in that the order of operation or blocking does not matter. For example, 
@@ -356,8 +355,6 @@ $RASTERIZE_ARGUMENTS
 
 These are detected automatically from `data` where possible.
 
-$GEOMETRYCOLUMN_KEYWORD
-$GEOM_KEYWORDS
 $RASTERIZE_KEYWORDS
 $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
@@ -476,12 +473,8 @@ function alloc_rasterize(f, r::RasterCreator;
     if prod(size(r.to)) == 0  
         throw(ArgumentError("Destination array is is empty, with size $(size(r.to))). Rasterization is not possible"))
     end
-    A = create(r.filename, eltype, r.to; name, missingval, metadata, suffix)
-    # TODO f should apply to the file when it is initially created
-    # instead of reopening but we need a `create(f, filename, ...)` method
-    open(A; write=true) do A
-        A .= Ref(missingval)
-        f(A)
+    A = create(r.filename, fill=missingval, eltype, r.to; name, missingval, metadata, suffix) do O
+        f(O)
     end
     return A
 end

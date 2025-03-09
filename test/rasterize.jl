@@ -277,8 +277,8 @@ end
          size=(250, 250), fill=UInt8(1), missingval=UInt8(0),
     );
     # using Plots
-    # heatmap(parent(parent(rasters_raster)))
-    # heatmap(reverse(gdal_raster[:, :, 1]; dims=2))
+    # Plots.heatmap(parent(parent(rasters_raster)))
+    # Plots.heatmap(reverse(gdal_raster[:, :, 1]; dims=2))
     # Same results as GDAL
     @test sum(gdal_raster) == sum(rasters_raster)
     @test reverse(gdal_raster[:, :, 1]; dims=2) == rasters_raster
@@ -289,11 +289,15 @@ end
     rasters_touches_raster = rasterize(last, shphandle.shapes; 
         size=(250, 250), fill=UInt64(1), missingval=UInt64(0), boundary=:touches
     )
+    # Plots.heatmap(reverse(gdal_touches_raster[:, :, 1])
+    # Plots.heatmap(parent(rasters_touches_raster))
+    # missingval(rasters_touches_raster)
     # Not quite the same answer as GDAL
     @test sum(gdal_touches_raster) == sum(rasters_touches_raster)
     @test reverse(gdal_touches_raster[:, :, 1], dims=2) == rasters_touches_raster
     # Test that its knwon to be off by 2:
-    @test count(reverse(gdal_touches_raster[:, :, 1], dims=2) .== rasters_touches_raster) == length(rasters_touches_raster)
+    @test count(reverse(gdal_touches_raster[:, :, 1], dims=2) .== rasters_touches_raster) == 
+        length(rasters_touches_raster)
     # Two pixels differ in the angled line, top right
     # using Plots
     # Plots.heatmap(reverse(gdal_touches_raster[:, :, 1], dims=2))
@@ -396,12 +400,15 @@ end
             @test sum(skipmissing(r)) == 
                 (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1.5 + 4 * 2.5 + 4 * 3.5)
         end
-        prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename="test.tif", threaded)
+        filename = tempname() * ".tif"
+        prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename, threaded)
         prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, threaded)
         @test sum(skipmissing(prod_r)) == 
             (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1 * 2 + 4 * 2 * 3 + 4 * 3 * 4)
 
-        prod_st = rasterize(prod, polygons; res=5, fill=(a=1:4, b=4:-1:1), missingval=missing, boundary=:center, threaded)
+        prod_st = rasterize(prod, polygons; 
+            res=5, fill=(a=1:4, b=4:-1:1), missingval=missing, boundary=:center, threaded
+        )
         @test_broken all(prod_st.a .=== rot180(parent(prod_st.b)))
 
         @test all(prod_r .=== prod_st.a)
@@ -428,8 +435,8 @@ end
         # The outlines of these plots should exactly mactch, 
         # with three values of 2 on the diagonal
         # using Plots
-        # Plots.plot(reduced_raster; clims=(0, 3))
-        # Plots.plot!(polygons; opacity=0.3, fillcolor=:black)
+        # Plots.plot(reduced_raster_sum_touches; clims=(0, 3))
+        # Plots.plot(polygons; opacity=0.3, fillcolor=:black)
         reduced_center = rasterize(sum, polygons; res=5, fill=1, boundary=:center, threaded)
         reduced_touches = rasterize(sum, polygons; res=5, fill=1, boundary=:touches, threaded)
         reduced_inside = rasterize(sum, polygons; res=5, fill=1, boundary=:inside, threaded)

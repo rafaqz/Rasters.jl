@@ -1,12 +1,7 @@
 module RastersRasterDataSourcesExt
 
-@static if isdefined(Base, :get_extension) # julia < 1.9
-    using Rasters, RasterDataSources
-else    
-    using ..Rasters, ..RasterDataSources
-end
+using Rasters, RasterDataSources
 
-# using RasterDataSources: RasterDataSource
 using Rasters.Lookups
 using Rasters.Dimensions
 

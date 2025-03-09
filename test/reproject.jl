@@ -24,6 +24,7 @@ using Rasters: reproject, convertlookup
     y = Y(Projected(-80.0:1.0:80.0; crs=EPSG(4326), dim=Y(), order=ReverseOrdered(), span=Regular(1.0), sampling=Intervals(Start())))
 
     x1, y1 = reproject((x, y); crs=projcea)
+    @test reproject((x, y), projcea) == reproject(projcea, (x, y))
     @test span(x1) isa Irregular
     @test span(y1) isa Irregular
     x2, y2 = reproject((x, y); crs=EPSG(4326))
@@ -86,4 +87,20 @@ end
 
     @test index(Aconv) == (index(convertedlon), index(convertedlat))
     @test val.(span(Aconv)) == val.(span.((convertedlon, convertedlat)))
+end
+
+@testset "selectors on projected dims" begin
+    x = X(Projected(0:1e5:2e5; 
+            order = ForwardOrdered(), crs=EPSG(3857), mappedcrs = EPSG(4326), 
+            sampling=Intervals(Start()), span = Regular(1e5)
+        ))
+    A = Raster(rand(x))
+    @test A[X = 2:3] == 
+        A[X = Near([1, 2])] == 
+        A[X = Near((1, 2))] == 
+        A[X = 0.5 .. 3] ==
+        A[X = Contains([1,2])] ==
+        A[X = Between(0.5,3)] ==
+        A[X = Where(x -> 3 > x > 0.5)] ==
+        A[X = Not(At(0))]
 end

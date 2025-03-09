@@ -9,24 +9,26 @@ typically netcdf or hdf5.
 
 `S` is a backend type like `NCDsource`, and `Na` is a tuple of `Symbol` keys.
 """
-struct FileStack{S,Na,T,SZ,G<:Union{AbstractString,Symbol,Nothing},EC,HC}
+struct FileStack{S,Na,T,SZ,G<:Union{AbstractString,Symbol,Nothing},EC,HC,M}
     filename::String
     sizes::SZ
     group::G
     eachchunk::EC
     haschunks::HC
+    mods::M
     write::Bool
 end
 function FileStack{S,Na,T}(
-    filename::AbstractString, sizes::SZ, group::G, eachchunk::EC, haschunks::HC, write::Bool
-) where {S,Na,T,SZ,G,EC,HC}
-    FileStack{S,Na,T,SZ,G,EC,HC}(String(filename), sizes, group, eachchunk, haschunks, write)
+    filename::AbstractString, sizes::SZ, group::G, eachchunk::EC, haschunks::HC, mods::M, write::Bool
+) where {S,Na,T,SZ,G,EC,M,HC}
+    FileStack{S,Na,T,SZ,G,EC,HC,M}(String(filename), sizes, group, eachchunk, haschunks, mods, write)
 end
 
 # FileStack has `S,Na,T` parameters that are not recoverable from fields.
 ConstructionBase.constructorof(::Type{<:FileStack{S,Na,T}}) where {S,Na,T} = FileStack{S,Na,T} 
 
 filename(fs::FileStack) = fs.filename
+mods(fs::FileStack) = fs.mods
 
 DD.name(::FileStack{<:Any,Na}) where Na = Na
 DD.data_eltype(::FileStack{<:Any,<:Any,T}) where T = T
@@ -43,8 +45,9 @@ function Base.getindex(fs::FileStack{S,Na,T}, name::Symbol) where {S,Na,T}
     size = fs.sizes[i]
     eachchunk = fs.eachchunk[i]
     haschunks = fs.haschunks[i]
+    mod = fs.mods[i]
     N = length(size)
-    return FileArray{S,_itype(T, i),N}(filename(fs), size, name, fs.group, eachchunk, haschunks, fs.write)
+    return FileArray{S,_itype(T, i),N}(filename(fs), size, name, fs.group, eachchunk, haschunks, mod, fs.write)
 end
 
 @inline _itype(::Type{<:NamedTuple{<:Any,T}}, i) where T = T.parameters[i]
