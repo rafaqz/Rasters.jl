@@ -39,6 +39,8 @@ sourcetrait(var::CDM.CFVariable) = sourcetrait(var.var)
 sourceconstructor(source::Source) = sourceconstructor(typeof(source))
 # Function to check filename
 checkfilename(s::CDMsource, filename) = throw(BackendException(s))
+# CDM datasets are always multilayer
+check_multilayer_dataset(ds::CDM.AbstractDataset) = true
 
 # Find and check write modes
 function checkwritemode(::CDMsource, filename, append::Bool, force::Bool)
@@ -64,24 +66,6 @@ missingval(var::CDM.AbstractVariable, args...) =
 end
 
 # Rasters methods for CDM types ###############################
-
-function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
-    write::Bool=false, 
-    group=nokw,
-    name::NTuple{N,Symbol}, 
-    mods,
-    vars,
-) where {source<:CDMsource,N}
-    T = NamedTuple{name,Tuple{map(_mod_eltype, vars, mods)...}}
-    layersizes = map(size, vars)
-    eachchunk = map(DiskArrays.eachchunk, vars)
-    haschunks = map(DiskArrays.haschunks, vars)
-    group = isnokw(group) ? nothing : group
-    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, mods, write)
-end
-
-OpenStack(fs::FileStack{Source,K}) where {K,Source<:CDMsource} =
-    OpenStack{Source,K}(sourceconstructor(Source())(filename(fs)), fs.mods)
 
 function _open(f, source::CDMsource, filename::AbstractString; write=false, kw...)
     checkfilename(source, filename)
@@ -109,6 +93,9 @@ _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) =
 _getgroup(ds, ::Union{Nothing,NoKW}) = ds
 _getgroup(ds, group::Union{Symbol,AbstractString}) = ds.group[String(group)]
 _getgroup(ds, group::Pair) = _getgroup(ds.group[String(group[1])], group[2])
+
+filename(ds::AbstractDataset) = CDM.path(ds)
+filename(ds::AbstractVariable) = CDM.path(ds)
 
 filekey(ds::AbstractDataset, name::Union{String,Symbol}) = Symbol(name)
 filekey(ds::AbstractDataset, name) = _name_or_firstname(ds, name)
