@@ -28,8 +28,7 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
 ds = GRIBDatasets.GRIBDataset(era5)
 v = ds[:z]
 
-
-#@testset "Raster" begin
+@testset "Raster" begin
     @time gribarray = Raster(era5)
     @time lazyarray = Raster(era5; lazy=true)
     @time lazystack = RasterStack(era5; lazy=true)

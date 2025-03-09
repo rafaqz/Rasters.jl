@@ -15,7 +15,7 @@ lazyarray = Raster(path; lazy=true, name="air_temperature_2m")
 eagerarray = Raster(path; lazy=false, name="air_temperature_2m")
 @test_throws ArgumentError Raster("notafile.zarr/")
 
-# @testset "lazyness" begin
+@testset "lazyness" begin
     # Eager is the default
     @test parent(zraster) isa Array
     @test parent(lazyarray) isa FileArray
