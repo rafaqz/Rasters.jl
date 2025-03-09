@@ -83,11 +83,13 @@ function DiskArrays.readblock!(
     if isdisk(parent(A))
         inner_block = similar(outer_block, eltype(parent(A)))
         DiskArrays.readblock!(parent(A), inner_block, I...)
-        outer_block .= _applymod.(inner_block, (A.mod,))
+    elseif isdisk(parent(parent(A)))
+        inner_block = similar(outer_block, eltype(parent(parent(A))))
+        DiskArrays.readblock!(parent(parent(A)), inner_block, I...)
     else
         inner_block = view(parent(A), I...)
-        outer_block .= _applymod.(inner_block, (A.mod,))
     end
+    outer_block .= _applymod.(inner_block, (A.mod,))
     return outer_block
 end
 function DiskArrays.readblock!(

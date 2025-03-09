@@ -1,4 +1,7 @@
-using Rasters, Test, Aqua, SafeTestsets
+using Rasters, Test, Aqua, SafeTestsets, DiskArrays
+
+# Always error on scalar indexing
+Rasters.DiskArrays.allowscalar(false)
 
 @testset "Aqua" begin
     Aqua.test_ambiguities(Rasters)
