@@ -54,7 +54,7 @@ series = RasterSeries([stack1, stack2], (Ti(dates),))
     aglat = aggregate(Start(), dimz[2], 3)
     @test step(lookup(aglat)) === 15.0
     @test index(aglat) == LinRange(-10.0, 5.0, 2)
-    disaglat = disaggregate(Start(), aglat, 3)
+    disaglat = disaggregate(aglat, 3)
     # The last item is lost due to rounding in `aggregate`
     @test index(disaglat) != index(dimz[2])
     @test index(disaglat) === LinRange(-10.0, 15.0, 6)
@@ -205,7 +205,7 @@ end
 end
 
 @testset "Aggregate different index lookups" begin
-    dimz = Y([1, 3, 2]), Dim{:category}([:a, :b, :c]), X([10, 20, 30, 40])
+    dimz = Y([1, 3, 2]), Dim{:category}([:a, :b, :c]), X([10, 20, 30, 40]; span = Regular(10))
     a1 = [1 2 3; 4 5 6; 7 8 9]
     A = cat(a1, a1 .+ 10, a1 .+ 20, a1 .+ 30, dims=3)
     da = Raster(A, dimz)
@@ -240,4 +240,15 @@ end
     lazy_disag_series = disaggregate(series, 2; lazy = true)
     @test eager_disag_series == lazy_disag_series
     @test all(x -> all(x -> x isa SubArray, parent(x)), lazy_disag_series)
+end
+
+@testset "(Dis)aggregating preserves extent" begin
+    for data in (5:10:115, 115:-10:5)
+        for interval in (Start(), Center(), End())
+            x = X(Sampled(data; sampling = Intervals(interval))) |> Rasters.format
+            xag = aggregate(sum, x, 3)
+            xdisag = disaggregate(xag, 3)
+            @test Rasters.bounds(x) == Rasters.bounds(xag) == Rasters.bounds(xdisag)
+        end
+    end
 end
