@@ -107,19 +107,18 @@ aggregate(method, l::Lookup, scale::Colon) = aggregate(method, l, length(l))
 aggregate(method, l::Lookup, scale::Nothing) = aggregate(method, l, 1) 
 function aggregate(method, l::Lookup, scale::Int)
     intscale = _scale2int(Ag(), l, scale)
-    start, stop = _endpoints(method, l, intscale)
-    if issampled(l) && isordered(l)
-        newl = l[start:scale:stop]
-        sp = aggregate(method, span(l), scale)
-        return rebuild(newl; span=sp)
+    if issampled(l) && isordered(l) && isregular(l)
+        start, stop = _endpoints(method, l, intscale)
+        sp = aggregate(span(l), scale)
+        return rebuild(l; data = start:val(sp):stop, span=sp)
     else
         # Categorical and Unordered lookups are just broken 
         # by aggregate, so use NoLookup
-        return NoLookup(Base.OneTo(length(start:scale:stop)))
+        return NoLookup(Base.OneTo(length(l) ÷ intscale))
     end
 end
-aggregate(method, span::Span, scale) = span
-aggregate(method, span::Regular, scale) = Regular(val(span) * scale)
+aggregate(span::Span, scale) = span
+aggregate(span::Regular, scale) = Regular(val(span) * scale)
 
 """
     aggregate!(method, dst::AbstractRaster, src::AbstractRaster, scale; skipmissing=false)
@@ -150,7 +149,7 @@ function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractRaster, src, scale;
 )
     comparedims(dst, src; length=false)
     intscale = _scale2int(Ag(), dims(src), scale; verbose)
-    offsets = _agoffset.(loci, intscale)
+    offsets = ceil.(Int, _agoffset.(loci, (ForwardOrdered(),), intscale))
     # Cache the source if its a disk array
     src1 = isdisk(src) ? DiskArrays.cache(src) : src
     # Broadcast will make the dest arrays chunks when needed
@@ -167,6 +166,7 @@ end
 function aggregate!(f, dst::AbstractRaster, src, scale;
     skipmissingval=false, skipmissing=skipmissingval, progress=true, verbose=true
 )
+    @show dims(dst)
     comparedims(dst, src; length=false)
     all(Lookups.isaligned, lookup(src)) || 
         throw(ArgumentError("Currently only grid-alligned dimensions can be aggregated. Make a Rasters.jl Github issue if you need to aggregate with transformed dims"))
@@ -263,25 +263,21 @@ end
 function disaggregate(dim::Dimension, scale)
     rebuild(dim, disaggregate(locus, lookup(dim), scale))
 end
-function disaggregate(lookup::Lookup, scale)
-    loc = locus(lookup)
-    lookup = maybeshiftlocus(Start(), lookup)
+function disaggregate(l::Lookup, scale)
+    intscale = _scale2int(DisAg(), l, scale)
+    intscale == 1 && return l
 
-    intscale = _scale2int(DisAg(), lookup, scale)
-    intscale == 1 && return lookup
-
-    len = length(lookup) * intscale
-    step_ = step(lookup) / intscale
-    start = lookup[1] - _agoffset(Start(), intscale) * step_
+    len = length(l) * intscale
+    step_ = step(l) / intscale
+    start = first(l) - _agoffset(l, intscale) * step_
     stop = start + (len - 1)  * step_
     index = LinRange(start, stop, len)
-    newlookup = if lookup isa AbstractSampled
-        sp = disaggregate(locus, span(lookup), intscale)
-        rebuild(lookup; data=index, span=sp)
+    if l isa AbstractSampled
+        sp = disaggregate(locus, span(l), intscale)
+        rebuild(l; data=index, span=sp)
     else
-        rebuild(lookup; data=index)
+        rebuild(l; data=index)
     end
-    return maybeshiftlocus(loc, newlookup)
 end
 
 disaggregate(span::Span, scale) = span
@@ -433,17 +429,19 @@ end
 
 _agoffset(locus::Locus, l::Lookup, scale::Int) = _agoffset(locus, scale)
 _agoffset(method, l::Lookup, scale::Int) = _agoffset(l, scale)
-_agoffset(l::Lookup, scale::Int) = _agoffset(locus(l), scale)
+_agoffset(l::Lookup, scale::Int) = _agoffset(locus(l), order(l), scale)
 _agoffset(x, scale::Colon) = 0
-_agoffset(locus::Start, scale::Int) = 0
-_agoffset(locus::End, scale::Int) = scale - 1
-_agoffset(locus::Center, scale::Int) = scale ÷ 2
+_agoffset(locus::Start, ::ForwardOrdered, scale::Int) = 0
+_agoffset(locus::End, ::ForwardOrdered, scale::Int) = scale - 1
+_agoffset(locus::Start, ::ReverseOrdered, scale::Int) = scale - 1
+_agoffset(locus::End, ::ReverseOrdered, scale::Int) = 0
+_agoffset(locus::Center, ::Ordered, scale::Int) = (scale-1)/2
 
-_endpoints(method, l::Lookup, scale::Colon) = firstindex(l), lastindex(l)
-_endpoints(method, l::Lookup, scale::Nothing) = firstindex(l), lastindex(l)
-function _endpoints(method, l::Lookup, scale::Int)
-    start = firstindex(l) + _agoffset(method, l, scale)
-    stop = (length(l) ÷ scale) * scale
+_endpoints(_, l::Lookup, scale::Int) = _endpoints(locus(l), l, scale)
+function _endpoints(locus::Locus, l::Lookup, scale::Int)
+    offset = step(l)*_agoffset(locus, order(l), scale)
+    start = first(l) + offset
+    stop = l[(length(l) ÷ scale)*scale] + offset
     return start, stop
 end
 
