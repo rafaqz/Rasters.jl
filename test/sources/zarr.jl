@@ -10,8 +10,6 @@ using Rasters: FileArray, FileStack, Zarrsource, crs, bounds, name, trim
 
 path = "https://s3.bgc-jena.mpg.de:9000/esdl-esdc-v3.0.2/esdc-16d-2.5deg-46x72x1440-3.0.2.zarr"
 
-@testset "Zarr Raster" begin
-
 zraster = Raster(path; name="air_temperature_2m")
 lazyarray = Raster(path; lazy=true, name="air_temperature_2m")
 eagerarray = Raster(path; lazy=false, name="air_temperature_2m")
@@ -155,6 +153,4 @@ end
 @testset "RasterStack" begin
     st = RasterStack(path; lazy=true)
     @test all(st.snow_sublimation .=== Raster(path; name=:snow_sublimation))
-end
-
 end

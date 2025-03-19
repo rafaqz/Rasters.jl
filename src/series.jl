@@ -24,7 +24,8 @@ abstract type AbstractRasterSeries{T,N,D,A} <: AbstractDimArray{T,N,D,A} end
 DD.metadata(A::AbstractRasterSeries) = NoMetadata()
 DD.name(A::AbstractRasterSeries) = NoName()
 DD.label(A::AbstractRasterSeries) = ""
-isdisk(A::AbstractRasterSeries) = any(isdisk, A)
+
+DiskArrays.isdisk(A::AbstractRasterSeries) = any(isdisk, A)
 
 """
     modify(f, series::AbstractRasterSeries)
