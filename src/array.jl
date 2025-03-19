@@ -66,9 +66,6 @@ isdisk(A::AbstractRaster) = parent(A) isa DiskArrays.AbstractDiskArray
 isdisk(x) = false
 ismem(A::AbstractRaster) = !isdisk(A)
 
-function Base.:(==)(A::AbstractRaster{T,N}, B::AbstractRaster{T,N}) where {T,N}
-    size(A) == size(B) && all(A .== B)
-end
 for f in (:mappedbounds, :projectedbounds, :mappedindex, :projectedindex)
     @eval ($f)(A::AbstractRaster, dims_) = ($f)(dims(A, dims_))
     @eval ($f)(A::AbstractRaster) = ($f)(dims(A))
