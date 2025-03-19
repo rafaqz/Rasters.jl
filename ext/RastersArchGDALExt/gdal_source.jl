@@ -32,15 +32,24 @@ const GDAL_VIRTUAL_FILESYSTEMS = "/vsi" .* (
     "mem",
     "subfile",
     "sparse",
-    )
+)
 
 
 # TODO more cases of return values here, like wrapped disk arrays
-RA.sourcetrait(A::AG.RasterDataset) = GDALsource()
-RA.sourcetrait(A::AG.Dataset) = GDALsource()
+RA.sourcetrait(::AG.RasterDataset) = GDALsource()
+RA.sourcetrait(::AG.Dataset) = GDALsource()
 
 RA.cleanreturn(A::AG.RasterDataset) = Array(A)
 RA.haslayers(::GDALsource) = false
+
+function RA.filename(ds::Union{AG.Dataset,AG.RasterDataset})
+    filelist = AG.filelist(ds)
+    if length(filelist) == 0
+        return nothing
+    else
+        return first(filelist)
+    end
+end
 
 function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRasterStack; kw...)
     ext = splitext(filename)[2]
@@ -212,7 +221,7 @@ function RA._metadata(rds::AG.RasterDataset, args...)
     offset = AG.getoffset(band)
     # norvw = AG.noverview(band)
     units = AG.getunittype(band)
-    filepath = _getfilepath(rds)
+    filepath = filename(rds)
     # Set metadata if they are not default values
     if scale != oneunit(scale) 
         metadata["scale"] = scale 
@@ -235,7 +244,7 @@ end
 RA.Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
 function RA.Raster(ds::AG.RasterDataset; lazy=false, kw...) 
     filepath = if lazy
-        fp = _getfilepath(ds)
+        fp = filename(ds)
         isnothing(fp) ? "/vsimem" : fp
     else
         ""
@@ -654,15 +663,6 @@ RA.geotransform2affine(gt) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)
 RA.affine2geotransform(am) = error(USING_COORDINATETRANSFORMATIONS_MESSAGE)
 
 _isaligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT2] == 0
-
-function _getfilepath(ds)
-    filelist = AG.filelist(ds)
-    if length(filelist) == 0
-        return nothing
-    else
-        return first(filelist)
-    end
-end
 
 # precompilation
 # function _precompile(::Type{GDALsource})

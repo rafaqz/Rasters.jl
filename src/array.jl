@@ -294,6 +294,22 @@ function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Va
 )::Raster
     Raster(filename; dims, kw...)
 end
+# By default we assume missing values
+function Raster(ext::Extents.Extent; kw...) 
+    A = Raster(undef, ext; kw...)
+    # If `undef` isn't specified, fill with missing values
+    fill = isnothing(missingval(A)) ? missingval : zero(eltype(A))
+    A .= fill
+    return A
+end
+# And Float64
+Raster(::UndefInitializer, ext::Extents.Extent; kw...) = Raster{Float64}(undef, ext; kw...)
+function Raster{T}(::UndefInitializer, ext::Extents.Extent; 
+    size=nothing, res=nothing, crs=nothing, mappedcrs=nothing, sampling=Points(), closed=false, kw...
+) where T
+    dims = _extent2dims(ext; size, res, crs, mappedcrs, sampling, closed)
+    Raster{T}(undef, dims; kw...)
+end
 # Load a Raster from a string filename
 function Raster(filename::AbstractString;
     source=nokw,
@@ -301,15 +317,16 @@ function Raster(filename::AbstractString;
 )
     source = sourcetrait(filename, source)
     _open(filename; source, mod=NoMod()) do ds
-        Raster(ds, filename; source, kw...)
+        Raster(ds; filename, source, kw...)
     end::Raster
 end
 # Load a Raster from an opened Dataset
-function Raster(ds, filename::AbstractString;
+function Raster(ds;
     dims=nokw,
     refdims=(),
     name=nokw,
     group=nokw,
+    filename=_filename(ds),
     metadata=nokw,
     missingval=nokw,
     crs=nokw,
