@@ -263,7 +263,6 @@ function _extend_to(x::RasterStackOrArray, extent::Extents.Extent{K}; kw...) whe
         newlookup = rebuild(l; data=newrange)
         rebuild(d, newlookup)
     end
-    @show newdims
     return _extend_to(x, newdims; kw...)
 end
 
