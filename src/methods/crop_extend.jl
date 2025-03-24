@@ -253,8 +253,8 @@ function _extend_to(x::RasterStackOrArray, extent::Extents.Extent{K}; kw...) whe
         fl = LA.ordered_first(l); ll = LA.ordered_last(l)
         fb = first(b); lb = last(b)
         s = step(l)
-        lowerrange = fb < first(bounds(l)) ? (fl:-s:fb) : (fl:-s:fl)
-        upperrange = lb > last(bounds(l))  ? (ll: s:lb) : (ll: s:ll)
+        lowerrange = fb < first(bounds(l)) ? (fl:copysign(s, -1):fb) : (fl:copysign(s, -1):fl)
+        upperrange = lb > last(bounds(l))  ? (ll:copysign(s, 1):lb) : (ll:copysign(s, 1):ll)
         if DD.order(l) isa ForwardOrdered
             newrange = last(lowerrange):s:last(upperrange)
         elseif order(d) isa ReverseOrdered
@@ -263,6 +263,7 @@ function _extend_to(x::RasterStackOrArray, extent::Extents.Extent{K}; kw...) whe
         newlookup = rebuild(l; data=newrange)
         rebuild(d, newlookup)
     end
+    @show newdims
     return _extend_to(x, newdims; kw...)
 end
 
