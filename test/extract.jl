@@ -411,7 +411,7 @@ end
 
 # to make sure all the offset handling works
 @testset "Extract from a big Raster" begin
-    extend(rast; to = Extent(X = (8, 100), Y = (-1, 1)))
+    bigrast = extend(rast; to = Extent(X = (8, 100), Y = (-1, 1)))
     for geom in (poly, line, pts, table) # linestring is currently broken
         @test extract(bigrast, geom, skipmissing = true) == extract(rast, geom, skipmissing = true)
         @test filter(nt -> !ismissing(nt.test), extract(bigrast, geom)) == extract(rast, geom, skipmissing = true)
