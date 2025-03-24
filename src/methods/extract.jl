@@ -306,7 +306,7 @@ end
     dims, offset = _template(A2, geom)
     dp = DimPoints(A2)
     function _length_callback(n)
-        resize!(line_refs.rows, n)
+        resize!(line_refs.rows, length(line_refs.rows) + n)
     end
 
     _burn_lines!(_length_callback, dims, geom) do D
@@ -316,7 +316,7 @@ end
         line_refs.prev = I
         # Make sure we only hit this pixel once
         # D is always inbounds
-        line_refs.i += _maybe_set_row!(line_refs.rows, e.skipmissing, e, id, A2, dp, offset, I, line_refs.i)
+        line_refs.i += _maybe_set_row!(line_refs.rows, e.skipmissing, e, id, A2, dp, I+offset, line_refs.i)
         return nothing
     end
     deleteat!(line_refs.rows, line_refs.i:length(line_refs.rows))
@@ -336,7 +336,7 @@ end
     # Add a row for each pixel that is `true` in the mask
     for I in CartesianIndices(B)
         B[I] || continue
-        i += _maybe_set_row!(rows, e.skipmissing, e, id, A2, dp, offset, I, i)
+        i += _maybe_set_row!(rows, e.skipmissing, e, id, A2, dp, I+offset, i)
     end
     # Cleanup
     deleteat!(rows, i:length(rows))
@@ -365,22 +365,21 @@ _maybe_convert_index(s, order::ForwardOrdered, i) = i
 _maybe_convert_index(s, order::ReverseOrdered, i) = s - i + 1
 
 Base.@assume_effects :foldable function _maybe_set_row!(
-    rows, skipmissing::_True, e, id, A, dp, offset, I, i;
+    rows, skipmissing::_True, e, id, A, dp, I, i;
 )
     props = _prop_nt(e, A, I, skipmissing)
     return if ismissing(props)
         0
     else
-        _maybe_set_row!(rows, _False(), e, id, A, dp, offset, I, i; props)
+        _maybe_set_row!(rows, _False(), e, id, A, dp, I, i; props)
     end
 end
 Base.@assume_effects :foldable function _maybe_set_row!(
-    rows::Vector{T}, skipmissing::_False, e, id, A, dp, offset, I, i;
+    rows::Vector{T}, skipmissing::_False, e, id, A, dp, I, i;
     props=_prop_nt(e, A, I, skipmissing)
 ) where T
-    Ioff = I + offset
-    I_original = _maybe_convert_index(A, e, Ioff)
-    geom = dp[Ioff]
+    I_original = _maybe_convert_index(A, e, I)
+    geom = dp[I]
     rows[i] = _maybe_add_fields(T, props, id, geom, Tuple(I_original))
     return 1
 end
