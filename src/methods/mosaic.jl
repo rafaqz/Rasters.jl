@@ -11,10 +11,10 @@ const MOSAIC_ARGUMENTS = """
 """
 
 const MOSAIC_KEYWORDS = """
-- `missingval`: Fills empty areas, and defualts to the
+- `missingval`: Fills empty areas, and defaults to the
     `missingval` of the first region.
 - `op`: an operator for the reduction, e.g. `add_sum` for `sum`. 
-    For common methods like `sum` these are known and dectected for you, 
+    For common methods like `sum` these are known and detected for you, 
     but you can provide it manually for other functions, so they continue
     to work at large scales.
 - `atol`: Absolute tolerance for comparison between index values.
@@ -57,9 +57,7 @@ country_climates = map(("Norway", "Denmark", "Sweden")) do name
 end
 scandinavia_climate = trim(mosaic(first, country_climates))
 plot(scandinavia_climate)
-
-savefig("build/mosaic_example_combined.png");
-# output
+savefig("build/mosaic_example_combined.png"); nothing
 
 ```
 
@@ -177,9 +175,7 @@ scandinavia_climate = mosaic(first, country_climates)
 # And plot
 plot(scandinavia_climate)
 
-savefig("build/mosaic_bang_example.png");
-# output
-
+savefig("build/mosaic_bang_example.png"); nothing
 ```
 
 ![mosaic](mosaic_bang_example.png)
