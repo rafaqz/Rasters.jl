@@ -33,7 +33,7 @@ jobs:
       - name: Install GLMakie dependencies
         run: sudo apt-get update && sudo apt-get install -y xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev
       - name: Install Julia dependencies
-        run: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e 'using Pkg; Pkg.Registry.update(); pkg"dev ."; Pkg.instantiate(); Pkg.precompile(); Pkg.status()'
+        run: DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e 'using Pkg; Pkg.instantiate()'
       - name: Build and deploy
         env:
           RASTERDATASOURCES_PATH: "."

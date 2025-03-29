@@ -1,4 +1,11 @@
 # Source dispatch singletons
+"""
+    Source
+    
+Abstract type for all sources.  This is used to dispatch on the source
+backend to use for reading a file.  The source is determined by the file
+extension, or by the source keyword argument.
+"""
 abstract type Source end
 
 abstract type CDMsource <: Source end
