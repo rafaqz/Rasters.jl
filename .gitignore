@@ -26,3 +26,4 @@ node_modules
 EarthEnv
 docs/src/assets/api
 package-lock.json
+.qodo
