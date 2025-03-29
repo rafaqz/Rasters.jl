@@ -57,9 +57,12 @@ country_climates = map(("Norway", "Denmark", "Sweden")) do name
     country = subset(countries, :NAME => ByRow(==("Norway")))
     trim(mask(climate; with=country); pad=10)
 end
-scandinavia_climate = trim(mosaic(first, country_climates))
+scandinavia_climate = trim(mosaic(first, country_climates; progress=false))
 plot(scandinavia_climate)
 savefig("build/mosaic_example_combined.png"); nothing
+
+# output
+
 ```
 
 ### Mosaic of countries
@@ -174,11 +177,14 @@ country_climates = map(("Norway", "Denmark", "Sweden")) do name
     trim(mask(climate; with=country); pad=10)
 end
 # Mosaic together to a single raster
-scandinavia_climate = mosaic(first, country_climates)
+scandinavia_climate = mosaic(first, country_climates; progress=false);
 # And plot
 plot(scandinavia_climate)
 
 savefig("build/mosaic_bang_example.png"); nothing
+
+# output
+
 ```
 
 ![mosaic](mosaic_bang_example.png)
