@@ -1,28 +1,45 @@
 const RasterVecOrTuple = Union{Tuple{Vararg{AbstractRaster}},AbstractArray{<:AbstractRaster}}
 const RasterStackVecOrTuple = Union{Tuple{Vararg{AbstractRasterStack}},AbstractArray{<:AbstractRasterStack}}
 
+const MOSAIC_ARGUMENTS = """
+- `f`: A reducing function for values where `regions` overlap. 
+    Note that common base functions 
+    (`mean`, `sum`, `prod`, `first`, `last`, `minimum`, `maximum`,  `length`)
+    are optimised and will work on many memory or disk based files,
+    but user-defined functions may fail at larger scales unless `op` is passes as a keyword.
+- `regions`: Iterable or splatted `Raster` or `RasterStack`.
 """
-    mosaic(f, regions...; missingval, atol)
-    mosaic(f, regions; missingval, atol)
+
+const MOSAIC_KEYWORDS = """
+- `missingval`: Fills empty areas, and defaults to the
+    `missingval` of the first region.
+- `op`: an operator for the reduction, e.g. `add_sum` for `sum`. 
+    For common methods like `sum` these are known and detected for you, 
+    but you can provide it manually for other functions, so they continue
+    to work at large scales.
+- `atol`: Absolute tolerance for comparison between index values.
+    This is often required due to minor differences in range values
+    due to floating point error. It is not applied to non-float dimensions.
+    A tuple of tolerances may be passed, matching the dimension order.
+$PROGRESS_KEYWORD
+"""
+
+"""
+    mosaic(f, regions...; kw...
+    mosaic(f, regions; kw...)
 
 Combine `regions` into a single raster.
 
 # Arguments
 
-- `f`: A reducing function (`mean`, `sum`, `first`, `last` etc.)
-    for values where `regions` overlap.
-- `regions`: Iterable or splatted `Raster` or `RasterStack`.
+$MOSAIC_ARGUMENTS
 
 # Keywords
 
-- `missingval`: Fills empty areas, and defualts to the
-    `missingval` of the first region.
-- `atol`: Absolute tolerance for comparison between index values.
-    This is often required due to minor differences in range values
-    due to floating point error. It is not applied to non-float dimensions.
-    A tuple of tolerances may be passed, matching the dimension order.
+$MOSAIC_KEYWORDS
 $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
+$FORCE_KEYWORD
 
 If your mosaic has has apparent line errors, increase the `atol` value.
 
@@ -32,16 +49,18 @@ Here we cut out Australia and Africa from a stack, and join them with `mosaic`.
 
 ```jldoctest
 using Rasters, RasterDataSources, NaturalEarth, DataFrames, Dates, Plots
+import ArchGDAL
+
 countries = naturalearth("admin_0_countries", 110) |> DataFrame
 climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
 country_climates = map(("Norway", "Denmark", "Sweden")) do name
     country = subset(countries, :NAME => ByRow(==("Norway")))
     trim(mask(climate; with=country); pad=10)
 end
-scandinavia_climate = trim(mosaic(first, country_climates))
+scandinavia_climate = trim(mosaic(first, country_climates; progress=false))
 plot(scandinavia_climate)
+savefig("build/mosaic_example_combined.png"); nothing
 
-savefig("build/mosaic_example_combined.png")
 # output
 
 ```
@@ -53,9 +72,12 @@ savefig("build/mosaic_example_combined.png")
 $EXPERIMENTAL
 """
 mosaic(f::Function, r1::RasterStackOrArray, rs::RasterStackOrArray...; kw...) =
-    mosaic(f, (r1, rs...); kw...)
+    _mosaic(f, r1, [r1, rs...]; kw...)
 mosaic(f::Function, regions; kw...) = _mosaic(f, first(regions), regions; kw...)
-function _mosaic(f::Function, A1::AbstractRaster, regions;
+_mosaic(f::Function, R1::RasterStackOrArray, regions::Tuple; kw...) = 
+    _mosaic(f, R1, collect(regions); kw...)
+function _mosaic(f::Function, R1::RasterStackOrArray, regions::AbstractArray;
+    to=nothing,
     missingval=nokw,
     filename=nothing,
     suffix=nothing,
@@ -64,10 +86,13 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
     force=false,
     kw...
 )
-    V = Vector{promote_type(map(Missings.nonmissingtype ∘ eltype, regions)...)}
-    T = Base.promote_op(f, V)
-    dims = _mosaic(Tuple(map(DD.dims, regions)))
-    l1 = first(regions)
+    dims = if isnothing(to)
+        _mosaic(map(DD.dims, regions))
+    else
+        ds = DD.dims(to)
+        isnothing(ds) && throw(ArgumentError("`to` object does not return Dimensions from `dims(to)`. Pass a tuple of Dimension, a Raster, or RasterStack"))
+        ds
+    end
 
     missingval = if isnothing(missingval) 
         throw(ArgumentError("missingval cannot be `nothing` for `mosaic`"))
@@ -80,59 +105,59 @@ function _mosaic(f::Function, A1::AbstractRaster, regions;
     missingval_pair = if missingval isa Pair
         missingval
     elseif !isnothing(filename) && (ismissing(missingval) || isnokw(missingval))
-        _type_missingval(eltype(A1)) => missing
+        _type_missingval(eltype(R1)) => missing
     else
         missingval => missingval
     end
+    T = _mosaic_eltype(f, R1, regions)
 
     return create(filename, T, dims;
-        name=name(l1),
+        name=name(R1),
         fill=missingval_pair[1],
         missingval=missingval_pair,
         driver,
         options,
+        suffix,
         force
     ) do C
         mosaic!(f, C, regions; missingval, kw...)
     end
 end
-function _mosaic(f::Function, r1::AbstractRasterStack, regions;
-    filename=nothing,
-    suffix=keys(first(regions)),
-    kw...
-)
-    # TODO make this write inside a single netcdf
-    layers = map(suffix, map(values, regions)...) do s, A...
-        mosaic(f, A...; filename, suffix=s, kw...)
+
+function _mosaic_eltype(f, R1::AbstractRaster, regions)
+    E = reduce(regions; init=eltype(R1)) do T, r
+        promote_type(T, eltype(r))
     end
-    return DD.rebuild_from_arrays(r1, layers)
+    V = Vector{E}
+    return Base.promote_op(f, V)
+end
+function _mosaic_eltype(f, R1::AbstractRasterStack{K}, regions) where K
+    map(K) do k
+        E = reduce(regions; init=eltype(R1[k])) do T, r
+            promote_type(T, eltype(r[k]))
+        end
+        V = Vector{E}
+        Base.promote_op(f, V)
+    end |> NamedTuple{K}
 end
 
 """
-    mosaic!(f, x, regions...; missingval, atol)
-    mosaic!(f, x, regions::Tuple; missingval, atol)
+    mosaic!(f, dest, regions...; missingval, atol)
+    mosaic!(f, dest, regions::Tuple; missingval, atol)
 
 Combine `regions` in `Raster` or `RasterStack` `x` using the function `f`.
 
 # Arguments
 
-- `f` a function (e.g. `mean`, `sum`, `first` or `last`) that is applied to
-    values where `regions` overlap.
-- `x`: A `Raster` or `RasterStack`. May be a an opened disk-based `Raster`,
+$MOSAIC_ARGUMENTS
+
+- `dest`: A `Raster` or `RasterStack`. May be a an opened disk-based `Raster`,
     the result will be written to disk.
     With the current algorithm, the read speed is slow.
-- `regions`: source objects to be joined. These should be memory-backed
-    (use `read` first), or may experience poor performance. If all objects have
-    the same extent, `mosaic` is simply a merge.
 
 # Keywords
 
-- `missingval`: Fills empty areas, and defualts to the `missingval/
-    of the first layer.
-- `atol`: Absolute tolerance for comparison between index values.
-    This is often required due to minor differences in range values
-    due to floating point error. It is not applied to non-float dimensions.
-    A tuple of tolerances may be passed, matching the dimension order.
+$MOSAIC_KEYWORDS
 
 # Example
 
@@ -140,6 +165,8 @@ Cut out scandinavian countries and plot:
 
 ```jldoctest
 using Rasters, RasterDataSources, NaturalEarth, DataFrames, Dates, Plots
+import ArchGDAL
+
 # Get climate data form worldclim
 climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
 # And country borders from natural earth
@@ -150,11 +177,12 @@ country_climates = map(("Norway", "Denmark", "Sweden")) do name
     trim(mask(climate; with=country); pad=10)
 end
 # Mosaic together to a single raster
-scandinavia_climate = mosaic(first, country_climates)
+scandinavia_climate = mosaic(first, country_climates; progress=false);
 # And plot
 plot(scandinavia_climate)
 
-savefig("build/mosaic_bang_example.png")
+savefig("build/mosaic_bang_example.png"); nothing
+
 # output
 
 ```
@@ -178,6 +206,7 @@ function mosaic!(
     _mosaic!(f, op, dest_centered, regions_centered; kw...)
     return dest
 end
+
 function _mosaic!(
     f::typeof(mean), op::Nothing, dest::Raster, regions::RasterVecOrTuple;
     kw...
@@ -202,17 +231,27 @@ end
 # Where there is a known reduction operator we can apply each region as a whole
 function _mosaic!(
     f::Function, op, dest::AbstractRaster, regions::RasterVecOrTuple; 
+    gc::Union{Integer,Nothing}=nothing,
+    progress=true,
+    _progressmeter=_mosaic_progress(f, progress, length(regions)),
     kw...
 )
-    for region in regions
-        _mosaic_region!(op, dest, region; kw...)
+    for (i, region) in enumerate(regions)
+        !isnothing(_progressmeter) && ProgressMeter.next!(_progressmeter)
+        # RUn garbage collector every `gc` regions
+        !isnothing(gc) && rem(i, gc) == 0 && GC.gc()
+        open(region) do R
+            _mosaic_region!(op, dest, R; kw...)
+        end
     end
     return dest
 end
 # Generic unknown functions
 function _mosaic!(
     f::Function, op::Nothing, A::AbstractRaster{T}, regions::RasterVecOrTuple;
-    missingval=missingval(A), atol=nothing
+    missingval=missingval(A), 
+    atol=nothing,
+    progress=false,
 ) where T
     isnokwornothing(missingval) && throw(ArgumentError("destination array must have a `missingval`"))
     R = promote_type(map(Missings.nonmissingtype ∘ eltype, regions)...)
@@ -242,12 +281,15 @@ end
 function _mosaic!(
     f::Function, 
     op, 
-    st::AbstractRasterStack, 
+    st::AbstractRasterStack{K}, 
     regions::RasterStackVecOrTuple; 
+    progress=true,
     kw...
-)
-    map(values(st), map(values, regions)...) do A, r...
-        _mosaic!(f, op, A, r; kw...)
+) where K
+    _progressmeter = _mosaic_progress(f, progress, length(regions), length(K))
+    map(values(st), K) do A, k
+        layer_regions = map(r -> r[k], regions)
+        _mosaic!(f, op, A, layer_regions; kw..., _progressmeter)
     end
     return st
 end
@@ -269,6 +311,18 @@ function _mosaic_mean!(dest, ::Type{T}, regions; kw...) where T
     # Avoid divide by zero for missing values
     dest .= ((d, c) -> d === missingval(dest) ? missingval(dest) : d / c).(dest, counts)
     return dest
+end
+
+function _mosaic_progress(f, progress, n, l=nothing)
+    if progress
+        if isnothing(l)
+            _progress(n; desc="Mosaicing $n regions with $f...")
+        else
+            _progress(n * l; desc="Mosaicing $l layers of $n regions with $f...")
+        end
+    else
+        nothing
+    end
 end
 
 function _mosaic_region!(op, dest, region; atol=nothing, kw...)
@@ -307,26 +361,33 @@ function _count_region!(count::AbstractRaster{T}, region::AbstractRaster; kw...)
     return count
 end
 
-_mosaic(alldims::Tuple{<:DimTuple,Vararg{DimTuple}}) = map(_mosaic, alldims...)
-function _mosaic(dims::Dimension...)
-    map(dims) do d
-        DD.comparedims(first(dims), d; val=false, length=false, valtype=true)
+
+function _mosaic(dimtuplevec::AbstractArray{<:DimTuple})
+    map(first(dimtuplevec)) do d
+        dimvec = map(ds -> dims(ds, d), dimtuplevec)
+        _mosaic(dimvec)
     end
-    return rebuild(first(dims), _mosaic(lookup(dims)))
 end
-_mosaic(lookups::LookupTuple) = _mosaic(first(lookups), lookups)
-function _mosaic(lookup::Categorical, lookups::LookupTuple)
+function _mosaic(dimsvec::AbstractArray{<:Dimension})
+    d1 = first(dimsvec)
+    map(dimsvec) do d
+        DD.comparedims(d1, d; val=false, length=false, valtype=true)
+    end
+    return rebuild(d1, _mosaic(map(lookup, dimsvec)))
+end
+_mosaic(lookups::AbstractArray{<:Lookup}) = _mosaic(first(lookups), lookups)
+function _mosaic(lookup::Categorical, lookups::AbstractArray{<:Lookup})
     newindex = union(lookups...)
     if order isa ForwardOrdered
         newindex = sort(newindex; order=LA.ordering(order(lookup)))
     end
     return rebuild(lookup; data=newindex)
 end
-function _mosaic(lookup::AbstractSampled, lookups::LookupTuple)
+function _mosaic(lookup::AbstractSampled, lookups::AbstractArray{<:Lookup})
     order(lookup) isa Unordered && throw(ArgumentError("Cant mozaic an Unordered lookup"))
     return _mosaic(span(lookup), lookup, lookups)
 end
-function _mosaic(span::Regular, lookup::AbstractSampled, lookups::LookupTuple)
+function _mosaic(span::Regular, lookup::AbstractSampled, lookups::AbstractArray{<:Lookup})
     newindex = if order(lookup) isa ForwardOrdered
         mi = minimum(map(first, lookups))
         ma = maximum(map(last, lookups))
@@ -348,11 +409,11 @@ function _mosaic(span::Regular, lookup::AbstractSampled, lookups::LookupTuple)
     end
     return rebuild(lookup; data=newindex)
 end
-function _mosaic(::Irregular, lookup::AbstractSampled, lookups::LookupTuple)
+function _mosaic(::Irregular, lookup::AbstractSampled, lookups::AbstractArray{<:Lookup})
     newindex = sort(union(map(parent, lookups)...); order=LA.ordering(order(lookup)))
     return rebuild(lookup; data=newindex)
 end
-function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::LookupTuple)
+function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::AbstractArray{<:Lookup})
     # TODO make this less fragile to floating point inaccuracy
     newindex = sort(union(map(parent, lookups)...); order=LA.ordering(order(lookup)))
     bounds = map(val ∘ DD.span, lookups)
@@ -365,7 +426,7 @@ function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::LookupTuple)
 end
 
 # Pad floats for intervals so that small floating point 
-# error doesn't exclude values in nealy matching lookups
+# error doesn't exclude values in nearly matching lookups
 function _maybe_pad_floats(ext::Extent{K}, sampling::Tuple) where K
     map(values(Extents.bounds(ext)), sampling) do b, sa
         if isintervals(sa) && eltype(first(b)) <: AbstractFloat

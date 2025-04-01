@@ -124,6 +124,7 @@ RasterStack("created.nc")
 └───────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 """
+function create end
 # Create with a function that will be called to fill the raster
 create(f::Function, args...; kw...) = create(args...; kw..., f)
 # Create from Raster or RasterStack with no filename
@@ -169,7 +170,7 @@ function create(filename::AbstractString, T::Union{Type,NamedTuple}, dims::Tuple
     lazy=true,
     parent=nokw,
     suffix=nokw,
-    source::Source=_sourcetrait(filename),
+    source::Source=sourcetrait(filename),
     missingval=nokw,
     kw...
 )
@@ -346,10 +347,9 @@ function create(filename::AbstractString, source::Source, layertypes::NamedTuple
     fn = Rasters.write(filename, st1;
         chunks, metadata, scale, offset, missingval=mv_inner, verbose, force, coerce, write, kw...
     ) do W
-        # write returns a variable, wrap it as a RasterStack
-        f(rebuild(st1; data=W))
+        f(rebuild(st1; data=W)) # write returns a variable, wrap it as a RasterStack
     end
-    st2 = RasterStack(fn; source, lazy, metadata, layerdims, dropband, coerce, missingval=mv_outer)
+    st2 = RasterStack(fn; source, lazy, metadata, dropband, coerce, missingval=mv_outer)
     return st2
 end
 

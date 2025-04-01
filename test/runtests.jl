@@ -24,12 +24,13 @@ end
 @time @safetestset "extract" begin include("extract.jl") end
 @time @safetestset "reproject" begin include("reproject.jl") end
 @time @safetestset "warp" begin include("warp.jl") end
+@time @safetestset "resample" begin include("resample.jl") end
 @time @safetestset "cellarea" begin include("cellarea.jl") end
 
 @time @safetestset "sources" begin include("sources/sources.jl") end
 @time @safetestset "commondatamodel" begin include("sources/commondatamodel.jl") end
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
-@time @safetestset "zarr" begin include("sources/zarr.jl") end
+@time @safetestset "zarrdatasets" begin include("sources/zarr.jl") end
 if !Sys.iswindows()
     # GRIBDatasets doesn't work on Windows for now
     @time @safetestset "gribdatasets" begin include("sources/gribdatasets.jl") end
@@ -42,7 +43,6 @@ if !haskey(ENV, "CI")
     @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end
 end
 @time @safetestset "plot recipes" begin include("plotrecipes.jl") end
-@time @safetestset "resample" begin include("resample.jl") end
 
 using ArchGDAL
 using CoordinateTransformations

@@ -1,11 +1,12 @@
 # Object to hold extract keywords
-struct Extractor{T,P,K,N<:NamedTuple{K},ID,G,I,S,F}
+struct Extractor{T,P,K,N<:NamedTuple{K},ID,G,I,S,F,O<:Tuple{Order, Order}}
     names::N
     id::ID
     geometry::G
     index::I
     skipmissing::S
     flatten::F
+    orders::O
 end
 Base.@constprop :aggressive @inline function Extractor(x, data;
     name::NTuple{<:Any,Symbol},
@@ -22,14 +23,15 @@ Base.@constprop :aggressive @inline function Extractor(x, data;
     i = _booltype(index)
     sm = _booltype(skipmissing)
     f = _booltype(flatten)
-    Extractor(x, data, nt, id, g, i, sm, f)
+    orders = order(x)
+    Extractor(x, data, nt, id, g, i, sm, f, orders)
 end
 function Extractor(
-    x, data, nt::N, id::ID, g::G, i::I, sm::S, f::F
-) where {N<:NamedTuple{K},ID,G,I,S,F} where K
+    x, data, nt::N, id::ID, g::G, i::I, sm::S, f::F, orders::O
+) where {N<:NamedTuple{K},ID,G,I,S,F,O<:Tuple{Order,Order}} where K
     P = _proptype(x; skipmissing=sm, names=nt)
     T = _geom_rowtype(x, data; id, geometry=g, index=i, names=nt, skipmissing=sm)
-    Extractor{T,P,K,N,ID,G,I,S,F}(nt, id, g, i, sm, f)
+    Extractor{T,P,K,N,ID,G,I,S,F,O}(nt, id, g, i, sm, f, orders)
 end
 
 Base.eltype(::Extractor{T}) where T = T
@@ -169,10 +171,9 @@ Base.@constprop :aggressive @inline function extract(x::RasterStackOrArray, data
         gs, (isempty(gs) || all(ismissing, gs)) ? missing : first(Base.skipmissing(gs))
     end
 
-    xp = _prepare_for_burning(x)
-    e = Extractor(xp, g1; name, skipmissing, flatten, id, geometry, index)
+    e = Extractor(x, g1; name, skipmissing, flatten, id, geometry, index)
     id_init = 1
-    return _extract(xp, e, id_init, g; kw...)
+    return _extract(x, e, id_init, g; kw...)
 end
 
 # TODO use a GeometryOpsCore method like `applyreduce` here?
@@ -235,19 +236,22 @@ function _extract(A::RasterStackOrArray, e::Extractor{T}, id::Int, ::Nothing, ge
         allpoints && return rows
     end
     
+    # If we're not extracting points, convert dimensions for more efficient burning
+    A2 = _prepare_for_burning(A)
+
     row_vecs = Vector{Vector{T}}(undef, length(geoms))
     if threaded
         thread_line_refs = [LineRefs{T}() for _ in 1:Threads.nthreads()]
         _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
             line_refs = thread_line_refs[Threads.threadid()]
             loc_id = id + i - 1
-            row_vecs[i] = _extract(A, e, loc_id, geoms[i]; line_refs, kw...)
+            row_vecs[i] = _extract(A2, e, loc_id, geoms[i]; line_refs, kw...)
         end
     else
         line_refs = LineRefs{T}()
         _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
             loc_id = id + i - 1
-            row_vecs[i] = _extract(A, e, loc_id, geoms[i]; line_refs, kw...)
+            row_vecs[i] = _extract(A2, e, loc_id, geoms[i]; line_refs, kw...)
         end
     end
 
@@ -292,15 +296,17 @@ end
     line_refs=LineRefs{T}(),
     kw...
 )::Vector{T} where T
+    A2 = _prepare_for_burning(A)
+
     _initialise!(line_refs)
     # Subset/offst is not really needed for line buring
     # But without it we can get different fp errors
     # to polygons and eng up with lines in different
     # places when they are right on the line.
-    dims, offset = _template(A, geom)
-    dp = DimPoints(A)
+    dims, offset = _template(A2, geom)
+    dp = DimPoints(A2)
     function _length_callback(n)
-        resize!(line_refs.rows, n)
+        resize!(line_refs.rows, length(line_refs.rows) + n)
     end
 
     _burn_lines!(_length_callback, dims, geom) do D
@@ -310,7 +316,7 @@ end
         line_refs.prev = I
         # Make sure we only hit this pixel once
         # D is always inbounds
-        line_refs.i += _maybe_set_row!(line_refs.rows, e.skipmissing, e, id, A, dp, offset, I, line_refs.i)
+        line_refs.i += _maybe_set_row!(line_refs.rows, e.skipmissing, e, id, A2, dp, I+offset, line_refs.i)
         return nothing
     end
     deleteat!(line_refs.rows, line_refs.i:length(line_refs.rows))
@@ -320,16 +326,17 @@ end
     A::RasterStackOrArray, e::Extractor{T}, id::Int, ::GI.AbstractGeometryTrait, geom; kw...
 )::Vector{T} where T
     # Make a raster mask of the geometry
-    dims, offset = _template(A, geom)
+    A2 = _prepare_for_burning(A)
+    dims, offset = _template(A2, geom)
     B = boolmask(geom; to=dims, burncheck_metadata=NoMetadata(), kw...)
     n = count(B)
-    dp = DimPoints(A)
+    dp = DimPoints(A2)
     i = 1
     rows = _init_rows(e, n)
     # Add a row for each pixel that is `true` in the mask
     for I in CartesianIndices(B)
         B[I] || continue
-        i += _maybe_set_row!(rows, e.skipmissing, e, id, A, dp, offset, I, i)
+        i += _maybe_set_row!(rows, e.skipmissing, e, id, A2, dp, I+offset, i)
     end
     # Cleanup
     deleteat!(rows, i:length(rows))
@@ -352,23 +359,28 @@ function _template(x, geom)
     return dims(t3), offset
 end
 
+_maybe_convert_index(A, e, I) = _maybe_convert_index(size(A), e.orders, I)
+_maybe_convert_index(s, order::Tuple, I) = CartesianIndex(map(_maybe_convert_index, s, order, Tuple(I)))
+_maybe_convert_index(s, order::ForwardOrdered, i) = i
+_maybe_convert_index(s, order::ReverseOrdered, i) = s - i + 1
+
 Base.@assume_effects :foldable function _maybe_set_row!(
-    rows, skipmissing::_True, e, id, A, dp, offset, I, i;
+    rows, skipmissing::_True, e, id, A, dp, I, i;
 )
     props = _prop_nt(e, A, I, skipmissing)
     return if ismissing(props)
         0
     else
-        _maybe_set_row!(rows, _False(), e, id, A, dp, offset, I, i; props)
+        _maybe_set_row!(rows, _False(), e, id, A, dp, I, i; props)
     end
 end
 Base.@assume_effects :foldable function _maybe_set_row!(
-    rows::Vector{T}, skipmissing::_False, e, id, A, dp, offset, I, i;
+    rows::Vector{T}, skipmissing::_False, e, id, A, dp, I, i;
     props=_prop_nt(e, A, I, skipmissing)
 ) where T
-    Ioff = I + offset
-    geom = dp[Ioff]
-    rows[i] = _maybe_add_fields(T, props, id, geom, Tuple(Ioff))
+    I_original = _maybe_convert_index(A, e, I)
+    geom = dp[I]
+    rows[i] = _maybe_add_fields(T, props, id, geom, Tuple(I_original))
     return 1
 end
 

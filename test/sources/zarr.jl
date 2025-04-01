@@ -1,3 +1,4 @@
+using Test
 using Rasters
 using DimensionalData
 using DimensionalData.Lookups
@@ -9,7 +10,7 @@ using Rasters: FileArray, FileStack, Zarrsource, crs, bounds, name, trim
 
 path = "https://s3.bgc-jena.mpg.de:9000/esdl-esdc-v3.0.2/esdc-16d-2.5deg-46x72x1440-3.0.2.zarr"
 
-@testset "Zarr Raster open" begin
+@testset "Zarr Raster" begin
 
 zraster = Raster(path; name="air_temperature_2m")
 lazyarray = Raster(path; lazy=true, name="air_temperature_2m")
@@ -136,6 +137,24 @@ end
     @test Rasters.isforward(ra.dims[1])
     @test extrema(ra.dims[1]) == extrema(xs)
     @test extrema(ra.dims[2]) == reverse(extrema(ys)) .* y_attrs["scale_factor"] .+ y_attrs["add_offset"]
+
+    @testset "write" begin
+        fn = tempname() * ".zarr"
+        write(fn, ra)
+        @test all(Raster(fn) .=== ra)
+        # Currently broken in ZarrDatasets.jl
+        # x = Raster(fn; lazy=true)
+        # open(x; write=true) do O
+        #     O .= 1
+        # end
+        # all(Raster(fn) .== 1)
+    end
+end
+
+
+@testset "RasterStack" begin
+    st = RasterStack(path; lazy=true)
+    @test all(st.snow_sublimation .=== Raster(path; name=:snow_sublimation))
 end
 
 end
