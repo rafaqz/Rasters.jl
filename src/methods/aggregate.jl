@@ -99,15 +99,14 @@ function aggregate(method, src::AbstractRaster, scale;
     suffix=nothing, filename=nothing, progress=true, kw...
 )
     return alloc(Ag(), method, src, scale; filename, suffix, kw...) do dst
-        aggregate!(method, dst, src, scale; progress, kw...)
+        aggregate!(method, dst, src, scale; progress, kw..., verbose=false)
     end
 end
 aggregate(method, d::Dimension, scale) = rebuild(d, aggregate(method, lookup(d), scale))
 aggregate(method, l::Lookup, scale::Colon) = aggregate(method, l, length(l)) 
 aggregate(method, l::Lookup, scale::Nothing) = aggregate(method, l, 1) 
 function aggregate(method, l::Lookup, scale::Int)
-    intscale = _scale2int(Ag(), l, scale)
-    start, stop = _endpoints(method, l, intscale)
+    start, stop = _endpoints(method, l, scale)
     if issampled(l) && isordered(l)
         newl = l[start:scale:stop]
         sp = aggregate(method, span(l), scale)
@@ -312,7 +311,7 @@ alloc(f, ag, method, A::AbstractRaster, scale::Union{AgArgs,Tuple,NamedTuple}; k
     alloc(f, ag, (method,), A, scale; kw...)
 function alloc(f, ag, method::Tuple, A::AbstractRaster, scale::AgArgs; kw...)
     intscale = _scale2int(ag, dims(A), scale)
-    alloc(f, ag, method, A, map(d -> rebuild(d, intscale), dims(A)); kw...)
+    alloc(f, ag, method, A, map(rebuild, dims(A), intscale); kw...)
 end
 alloc(f, ag, method::Tuple, A::AbstractRaster, scale::NamedTuple; kw...) =
     alloc(f, ag, method, A, DD.kw2dims(scale); kw...)
@@ -367,15 +366,14 @@ downsample(index::Int, scale::Nothing) = index
 
 # Convert scale or tuple of scale to integer using dims2indices
 @inline function _scale2int(x, dims::DimTuple, scale::DimTuple; verbose=true)
-    @show dims scale
     map(dims, DD.sortdims(scale, dims)) do d, s
-        if isnothing(s) 
+        if isnothing(s) || isnothing(val(s))
             1
         else
             i = dims2indices(d, s)
             # Swap Colon as all to Colon as 1 (1 is the no-change option here)
-            s = i isa Colon ? length(d) : i
-            _scale2int(x, d, s)
+            i1 = i isa Colon ? length(d) : i
+            _scale2int(x, d, i1)
         end
     end
 end
@@ -390,29 +388,29 @@ end
     _scale2int(x, dims, Dimensions.kw2dims(scale); verbose)
 @inline function _scale2int(x, dims::DimTuple, scale::Int; verbose=true) 
     # If there are other dimensions, we skip categorical dims
-    vals = map(dims) do d
+    pairs = map(dims) do d
         if iscategorical(d) || !isordered(d) 
-            name(d), nothing
+            name(d) => nothing
         else
-            name(d), _scale2int(x, d, scale)
+            name(d) => _scale2int(x, d, scale)
         end
     end
-    nskipped = count(isnothing ∘ last, vals)
+    nskipped = count(isnothing ∘ last, pairs)
     if nskipped == length(dims)
         example = join(map(((n, d),) -> "$(name(d))=$(n + 1),", enumerate(dims)), ' ')
         # If all dims are categorical we error
         throw(ArgumentError("All dimensions are Categorical. To aggregate anyway, list scale explicity for each dimension, e.g. ($example)"))
     end
     if verbose && nskipped > 0
-        scaleddims = join((v[1] for v in vals if v[2] isa Int), ", ", " and ")
-        skippeddims = join((v[1] for v in vals if isnothing(v[2])), ", ", " and ")
+        scaleddims = join((p[1] for p in pairs if p[2] isa Int), ", ", " and ")
+        skippeddims = join((p[1] for p in pairs if isnothing(p[2])), ", ", " and ")
         @info """
-            Aggregating $scaleddims by $scale. $(skippeddims == "" ? "" : skippeddims) 
-            skipped due to being `Categorical` or `Unordered`. 
+            Aggregating $scaleddims by $scale. $(skippeddims == "" ? "" : skippeddims) skipped due to being `Categorical` or `Unordered`. 
             Specify all scales explicitly in a Tuple or NamedTuple to aggregate these anyway.  
             """
     end
-    return map(last, vals)
+    is = map(last, pairs)
+    return is
 end
 @inline _scale2int(x, dims::DimTuple, scale::Colon; verbose=true) = 
     _scale2int(x, dims, map(_ -> Colon(), dims)) 

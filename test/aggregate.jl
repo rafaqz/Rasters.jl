@@ -157,7 +157,7 @@ end
 
 end
 
-#@testset "Aggregate with Colon" begin
+@testset "Aggregate with Colon" begin
     @test aggregate(sum, array1, :) == [sum(array1);;]
     @test aggregate(sum, array1, (1, :)) == sum(array1; dims=2)
     @test aggregate(sum, array1, (X=1, Y=:)) == sum(array1; dims=2)
