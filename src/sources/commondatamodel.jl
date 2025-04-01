@@ -117,41 +117,32 @@ haslayers(::CDMsource) = true
 defaultcrs(::CDMsource) = EPSG(4326)
 defaultmappedcrs(::CDMsource) = EPSG(4326)
 
-function _nondimnames(ds)
+function _varnames(ds)
     dimnames = CDM.dimnames(ds)
-    toremove = if "bnds" in dimnames
-        dimnames = setdiff(dimnames, ("bnds",))
-        boundsnames = String[]
-        for k in dimnames
-            var = ds[k]
-            attr = CDM.attribs(var)
-            if haskey(attr, "bounds")
-                push!(boundsnames, attr["bounds"])
-            end
-        end
-        union(dimnames, boundsnames)::Vector{String}
-    else
-        collect(dimnames)::Vector{String}
+    boundsnames = String[]
+    for k in dimnames
+        attr = CDM.attribs(ds[k])
+        haskey(attr, "bounds") && push!(boundsnames, attr["bounds"])
     end
+    toremove = union(dimnames, boundsnames)::Vector{String}
     # Maybe this should be fixed in ZarrDatasets but it works with this patch.
-    nondim = collect(setdiff(keys(ds), toremove))
-    return nondim
+    return collect(setdiff(keys(ds), toremove))
 end
 
 
 function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
-    nondim = _nondimnames(ds)
+    varnames = _varnames(ds)
     grid_mapping = String[]
-    vars = map(k -> CDM.variable(ds, k), nondim)
+    vars = map(k -> CDM.variable(ds, k), varnames)
     attrs = map(CDM.attribs, vars)
     for attr in attrs
         if haskey(attr, "grid_mapping")
             push!(grid_mapping, attr["grid_mapping"])
         end
     end
-    bitinds = map(!in(grid_mapping), nondim)
+    bitinds = map(!in(grid_mapping), varnames)
     (;
-        names=nondim[bitinds],
+        names=varnames[bitinds],
         vars=vars[bitinds],
         attrs=attrs[bitinds],
     )
@@ -220,7 +211,7 @@ end
 # TODO don't load all keys here with _layers
 _name_or_firstname(ds::AbstractDataset, name) = Symbol(name)
 function _name_or_firstname(ds::AbstractDataset, name::Union{Nothing,NoKW}=nokw)
-    names = _nondimnames(ds)
+    names = _varnames(ds)
     if length(names) > 0
         return Symbol(first(names))
     else
