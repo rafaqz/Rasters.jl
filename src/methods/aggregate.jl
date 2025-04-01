@@ -422,8 +422,7 @@ end
             Specify all scales explicitly in a Tuple or NamedTuple to aggregate these anyway.  
             """
     end
-    is = map(last, pairs)
-    return is
+    return map(last, pairs)
 end
 @inline _scale2int(x, dims::DimTuple, scale::Colon; verbose=true) = 
     _scale2int(x, dims, map(_ -> Colon(), dims)) 
