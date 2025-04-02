@@ -411,7 +411,7 @@ end
 
 createpoint(args...) = ArchGDAL.createpoint(args...)
 
-# @testset "trim, crop, extend" begin
+@testset "trim, crop, extend" begin
     A = [missing missing missing
         missing missing missing
          missing 2.0     0.5
