@@ -240,7 +240,7 @@ function _cdmdim(ds, dimname::Key, crs=nokw, mappedcrs=nokw)
         # The var doesn't exist. Maybe its `complex` or some other marker,
         # so make it a custom `Dim` with `NoLookup`
         len = _cdmfinddimlen(ds, dimname)
-        len === nothing && _unuseddimerror()
+        len === nothing && _unuseddimerror(dimname)
         lookup = NoLookup(Base.OneTo(len))
         D = _cdmdimtype(NoMetadata(), dimname)
         return D(lookup)
