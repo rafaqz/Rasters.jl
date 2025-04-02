@@ -62,8 +62,6 @@ filename(A::DiskArrays.AbstractDiskArray) = filename(parent(A))
 cleanreturn(A::AbstractRaster) = rebuild(A, cleanreturn(parent(A)))
 cleanreturn(x) = x
 
-isdisk(A::AbstractRaster) = parent(A) isa DiskArrays.AbstractDiskArray
-isdisk(x) = false
 ismem(A::AbstractRaster) = !isdisk(A)
 
 function Base.:(==)(A::AbstractRaster{T,N}, B::AbstractRaster{T,N}) where {T,N}
@@ -300,7 +298,7 @@ function Raster(filename::AbstractString;
     kw...
 )
     source = sourcetrait(filename, source)
-    _open(filename; source, mod=NoMod()) do ds
+    _open(filename; source, mod=nothing) do ds
         Raster(ds, filename; source, kw...)
     end::Raster
 end
@@ -336,7 +334,7 @@ function Raster(ds, filename::AbstractString;
     source = sourcetrait(filename, source)
     # Open the dataset and variable specified by `name`, at `group` level if provided
     # At this level we do not apply `mod`.
-    data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=NoMod()) do var
+    data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=nothing) do var
         metadata_out = isnokw(metadata) ? _metadata(var) : metadata
         missingval_out = _read_missingval_pair(var, metadata_out, missingval)
         # Generate mod for scaling

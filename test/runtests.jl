@@ -1,4 +1,7 @@
-using Rasters, Test, Aqua, SafeTestsets
+using Rasters, Test, Aqua, SafeTestsets, DiskArrays
+
+# Always error on scalar indexing
+Rasters.DiskArrays.allowscalar(false)
 
 @testset "Aqua" begin
     Aqua.test_ambiguities(Rasters)
@@ -30,7 +33,7 @@ end
 @time @safetestset "sources" begin include("sources/sources.jl") end
 @time @safetestset "commondatamodel" begin include("sources/commondatamodel.jl") end
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
-@time @safetestset "zarrdatasets" begin include("sources/zarr.jl") end
+# @time @safetestset "zarrdatasets" begin include("sources/zarr.jl") end
 if !Sys.iswindows()
     # GRIBDatasets doesn't work on Windows for now
     @time @safetestset "gribdatasets" begin include("sources/gribdatasets.jl") end

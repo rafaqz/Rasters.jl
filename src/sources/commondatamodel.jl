@@ -95,13 +95,15 @@ function _open(f, source::CDMsource, ds::AbstractDataset;
     kw...
 )
     g = _getgroup(ds, group)
-    x = if isnokw(name)
+    if isnokw(name)
         cleanreturn(f(g)) 
     else
-        v = CDM.variable(g, string(_name_or_firstname(g, name)))
+        key = string(_name_or_firstname(g, name))
+        v = CDM.variable(g, key)
         _open(f, source, v; mod)
     end
 end
+
 _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) = 
     cleanreturn(f(_maybe_modify(var, mod)))
 
@@ -492,7 +494,6 @@ end
 function Base.write(filename::AbstractString, source::Source, s::AbstractRasterStack{K,T};
     append=false,
     force=false,
-    write=true,
     missingval=nokw,
     f=identity,
     kw...
@@ -501,10 +502,10 @@ function Base.write(filename::AbstractString, source::Source, s::AbstractRasterS
     ds = sourceconstructor(source)(filename, mode; attrib=_attribdict(metadata(s)))
     missingval = _stack_nt(s, isnokw(missingval) ? Rasters.missingval(s) : missingval)
     try
-        map(keys(s)) do k
-            writevar!(ds, source, s[k]; missingval=missingval[k], write, kw...)
+        mods = map(keys(s)) do k
+            writevar!(ds, source, s[k]; missingval=missingval[k], kw...)
         end
-        write && f(OpenStack{Source,K,T}(ds))
+        f(OpenStack{Source,K,T}(ds, mods))
     finally
         close(ds)
     end
@@ -580,7 +581,7 @@ function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N
         f(m)
     end
 
-    return nothing
+    return mod
 end
 
 const CDMallowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}

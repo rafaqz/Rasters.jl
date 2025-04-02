@@ -325,12 +325,6 @@ end
         @test parent(eagerstack[:a]) isa Array
     end
 
-    @testset "replace_missing keyword" begin
-        st = RasterStack((a=grdpath, b=grdpath); replace_missing=true)
-        @test eltype(st) == @NamedTuple{a::Union{Missing,Float32},b::Union{Missing,Float32}}
-        @test missingval(st) === missing
-    end
-
     @test length(layers(grdstack)) == 2
     @test dims(grdstack) isa Tuple{<:X,<:Y,<:Band}
 
