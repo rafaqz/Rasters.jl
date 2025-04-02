@@ -411,7 +411,7 @@ end
 
 createpoint(args...) = ArchGDAL.createpoint(args...)
 
-@testset "trim, crop, extend" begin
+# @testset "trim, crop, extend" begin
     A = [missing missing missing
         missing missing missing
          missing 2.0     0.5
@@ -495,10 +495,9 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         @test bounds(fccrop) == bounds(tablecrop) == ((-20, -5), (10, 30))
     end
     @testset "atol works in crop" begin
-        cropatol = crop(r_fwd; to = (X(1.1:0.9:2.9), Y(1:3)), atol = 0.1)
-        @test dims(cropatol) == dims(r_fwd)
-        cropatol2 = crop(r_fwd; to = Raster(rand(X(1.1:0.9:2.9), Y(1:3))), atol = 0.1)
-        @test dims(cropatol2) == dims(r_fwd)
+        cropatol_dims = crop(r_fwd; to = (X(1.1:0.9:2.9), Y(1.9:3)), atol = 0.1)
+        cropatol_rast = crop(r_fwd; to = Raster(rand(X(1.1:0.9:2.9), Y(1.9:3))), atol = 0.1)
+        @test dims(cropatol_dims) == dims(cropatol_rast) == dims(r_fwd[1:3, 2:3])
     end
 
 end
