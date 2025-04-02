@@ -411,7 +411,7 @@ end
 
 createpoint(args...) = ArchGDAL.createpoint(args...)
 
-# @testset "trim, crop, extend" begin
+@testset "trim, crop, extend" begin
     A = [missing missing missing
         missing missing missing
          missing 2.0     0.5
@@ -504,7 +504,7 @@ end
 
 using StableRNGs, StatsBase
 test = rebuild(ga; name = :test)
-@testset "sample" begin
+# @testset "sample" begin
     # test that all keywords work and return the same thing as extract
     @test all(Rasters.sample(StableRNG(123), test, 2) .=== extract(test, [(2.0,2.0), (1.0,2.0)]))
     @test all(Rasters.sample(StableRNG(123), st2, 2) .=== extract(st2, [(2,2), (1,2)]))
@@ -583,6 +583,7 @@ test = rebuild(ga; name = :test)
 end
 
 @testset "extent" begin
+    A
     ga = Raster(A, (X(1.0:1:2.0), Y(1.0:1:2.0)); missingval=missing) 
     ext = extent(ga)
     @test ext === Extent(X=(1.0,2.0), Y=(1.0,2.0))
