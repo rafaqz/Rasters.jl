@@ -1,4 +1,5 @@
 using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
+using StableRNGs, StatsBase
 import GeoInterface
 using Rasters.Lookups, Rasters.Dimensions 
 using Rasters: bounds, trim
@@ -495,17 +496,14 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         @test bounds(fccrop) == bounds(tablecrop) == ((-20, -5), (10, 30))
     end
     @testset "atol works in crop" begin
-        cropatol = crop(r_fwd; to = (X(1.1:0.9:2.9), Y(1:3)), atol = 0.1)
-        @test dims(cropatol) == dims(r_fwd)
-        cropatol2 = crop(r_fwd; to = Raster(rand(X(1.1:0.9:2.9), Y(1:3))), atol = 0.1)
-        @test dims(cropatol2) == dims(r_fwd)
+        cropatol_dims = crop(r_fwd; to=(X(1.1:0.9:2.9), Y(2.1:0.1:3)), atol = 0.1)
+        cropatol_rast = crop(r_fwd; to=Raster(rand(X(1.1:0.9:2.9), Y(2.1:0.1:3))), atol=0.1)
+        @test dims(cropatol_dims) == dims(cropatol_rast) == dims(r_fwd[1:3, 2:3])
     end
 
 end
-
-using StableRNGs, StatsBase
-test = rebuild(ga; name = :test)
 @testset "sample" begin
+    test = rebuild(ga; name = :test)
     # test that all keywords work and return the same thing as extract
     @test all(Rasters.sample(StableRNG(123), test, 2) .=== extract(test, [(2.0,2.0), (1.0,2.0)]))
     @test all(Rasters.sample(StableRNG(123), st2, 2) .=== extract(st2, [(2,2), (1,2)]))
@@ -586,11 +584,11 @@ end
 @testset "extent" begin
     ga = Raster(A, (X(1.0:1:2.0), Y(1.0:1:2.0)); missingval=missing) 
     ext = extent(ga)
-    @test ext === Extent(X=(1.0,2.0), Y=(1.0,2.0))
+    @test ext === Extent(X=(1.0, 2.0), Y=(1.0, 2.0))
     @test Rasters._extent(ext) === ext
 
     ga2 = Raster(A, (X(Float32.(1:2)), Y(Float32.(1:2))))
     ext2 = extent(ga2)
-    @test ext2 === Extent(X=(1.0f0,2.0f0), Y=(1.0f0,2.0f0))
+    @test ext2 === Extent(X=(1.0f0, 2.0f0), Y=(1.0f0, 2.0f0))
     @test Rasters._extent(ext2) === ext # currently this converts to float64!
 end
