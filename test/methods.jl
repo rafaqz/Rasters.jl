@@ -1,4 +1,5 @@
 using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
+using StableRNGs, StatsBase
 import GeoInterface
 using Rasters.Lookups, Rasters.Dimensions 
 using Rasters: bounds, trim
@@ -501,10 +502,8 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
     end
 
 end
-
-using StableRNGs, StatsBase
-test = rebuild(ga; name = :test)
-# @testset "sample" begin
+@testset "sample" begin
+    test = rebuild(ga; name = :test)
     # test that all keywords work and return the same thing as extract
     @test all(Rasters.sample(StableRNG(123), test, 2) .=== extract(test, [(2.0,2.0), (1.0,2.0)]))
     @test all(Rasters.sample(StableRNG(123), st2, 2) .=== extract(st2, [(2,2), (1,2)]))
@@ -583,14 +582,13 @@ test = rebuild(ga; name = :test)
 end
 
 @testset "extent" begin
-    A
     ga = Raster(A, (X(1.0:1:2.0), Y(1.0:1:2.0)); missingval=missing) 
     ext = extent(ga)
-    @test ext === Extent(X=(1.0,2.0), Y=(1.0,2.0))
+    @test ext === Extent(X=(1.0, 2.0), Y=(1.0, 2.0))
     @test Rasters._extent(ext) === ext
 
     ga2 = Raster(A, (X(Float32.(1:2)), Y(Float32.(1:2))))
     ext2 = extent(ga2)
-    @test ext2 === Extent(X=(1.0f0,2.0f0), Y=(1.0f0,2.0f0))
+    @test ext2 === Extent(X=(1.0f0, 2.0f0), Y=(1.0f0, 2.0f0))
     @test Rasters._extent(ext2) === ext # currently this converts to float64!
 end
