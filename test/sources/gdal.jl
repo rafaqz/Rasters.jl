@@ -13,6 +13,13 @@ gdalpath = maybedownload(url)
     @time gdalarray = Raster(gdalpath; name=:test)
     @time lazyarray = Raster(gdalpath; lazy=true);
     @time eagerarray = Raster(gdalpath; lazy=false);
+    
+    @testset "Raster from dataset" begin
+        ds = ArchGDAL.read(gdalpath)
+        dsarray = Raster(ds)
+        @test dims(dsarray) == dims(gdalarray)
+        @test dsarray == gdalarray
+    end
 
     @testset "lazyness" begin
         # Eager is the default

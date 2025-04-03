@@ -297,7 +297,6 @@ end
 # By default we assume missing values
 function Raster(ext::Union{Extents.Extent,DimTuple}; kw...) 
     A = Raster(undef, ext; kw...)
-    @show missingval(A)
     # If `undef` isn't specified, fill with missing values
     fill = isnothing(missingval(A)) ? zero(eltype(A)) : missingval(A) 
     A .= fill
@@ -312,9 +311,9 @@ function Raster{T}(x::UndefInitializer, dims::DimTuple;
     T1 = isnokwornothing(missingval) ? T : promote_type(T, typeof(missingval))
     Raster(Array{T1}(undef, size(dims)), dims; missingval, kw...)
 end
-function Raster(x::UndefInitializer, dims::Tuple{}; 
+function Raster{T}(x::UndefInitializer, dims::Tuple{}; 
     missingval=nokw, kw...
-) where {A<:AbstractDimArray{T}} where T
+) where T
     T1 = isnokwornothing(missingval) ? T : promote_type(T, typeof(missingval))
     Raster(Array{T1}(undef, ()), dims; missingval, kw...)
 end
@@ -325,10 +324,7 @@ function Raster{T}(::UndefInitializer, ext::Extents.Extent;
     Raster{T}(undef, dims; kw...)
 end
 # Load a Raster from a string filename
-function Raster(filename::AbstractString;
-    source=nokw,
-    kw...
-)
+function Raster(filename::AbstractString; source=nokw, kw...)
     source = sourcetrait(filename, source)
     _open(filename; source, mod=NoMod()) do ds
         Raster(ds; filename, source, kw...)
@@ -340,12 +336,12 @@ function Raster(ds;
     refdims=(),
     name=nokw,
     group=nokw,
-    filename=_filename(ds),
+    filename=filename(ds),
     metadata=nokw,
     missingval=nokw,
     crs=nokw,
     mappedcrs=nokw,
-    source=nokw,
+    source=sourcetrait(ds),
     replace_missing=nokw,
     coerce=convert,
     scaled::Union{Bool,NoKW}=nokw,
@@ -364,7 +360,6 @@ function Raster(ds;
     # TODO use a clearer name for this
     name1 = filekey(ds, name)
     # Detect the source from filename
-    source = sourcetrait(filename, source)
     # Open the dataset and variable specified by `name`, at `group` level if provided
     # At this level we do not apply `mod`.
     data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=NoMod()) do var

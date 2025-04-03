@@ -1,3 +1,5 @@
+const AGDataset = Union{AG.Dataset,AG.IDataset}
+
 const GDAL_LOCUS = Start()
 
 const GDAL_DIM_ORDER = (X(), Y(), Band())
@@ -37,12 +39,12 @@ const GDAL_VIRTUAL_FILESYSTEMS = "/vsi" .* (
 
 # TODO more cases of return values here, like wrapped disk arrays
 RA.sourcetrait(::AG.RasterDataset) = GDALsource()
-RA.sourcetrait(::AG.Dataset) = GDALsource()
+RA.sourcetrait(::AGDataset) = GDALsource()
 
 RA.cleanreturn(A::AG.RasterDataset) = Array(A)
 RA.haslayers(::GDALsource) = false
 
-function RA.filename(ds::Union{AG.Dataset,AG.RasterDataset})
+function RA.filename(ds::Union{AGDataset,AG.RasterDataset})
     filelist = AG.filelist(ds)
     if length(filelist) == 0
         return nothing
@@ -118,6 +120,8 @@ function RA._open(f, ::GDALsource, filename::AbstractString;
         RA.cleanreturn(f(RA._maybe_modify(A, mod))) 
     end
 end
+RA._open(f, source::GDALsource, ds::AGDataset; kw...) =
+    RA._open(f, source, AG.RasterDataset(ds); kw...)
 RA._open(f, ::GDALsource, A::AG.RasterDataset; mod=RA.NoMod(), kw...) =
     RA.cleanreturn(f(RA._maybe_modify(A, mod)))
 
@@ -221,7 +225,7 @@ function RA._metadata(rds::AG.RasterDataset, args...)
     offset = AG.getoffset(band)
     # norvw = AG.noverview(band)
     units = AG.getunittype(band)
-    filepath = filename(rds)
+    filepath = RA.filename(rds)
     # Set metadata if they are not default values
     if scale != oneunit(scale) 
         metadata["scale"] = scale 
@@ -241,18 +245,17 @@ end
 # Rasters methods for ArchGDAL types ##############################
 
 # Create a Raster from a dataset
-RA.Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
 function RA.Raster(ds::AG.RasterDataset; lazy=false, kw...) 
-    filepath = if lazy
-        fp = filename(ds)
-        isnothing(fp) ? "/vsimem" : fp
-    else
-        ""
-    end
-    Raster(ds, filepath; kw...)
+    # filepath = if lazy
+    #     fp = filename(ds)
+    #     isnothing(fp) ? "/vsimem" : fp
+    # else
+    #     ""
+    # end
+    Raster(ds.ds; kw...)
 end
 
-RA.missingval(ds::AG.Dataset, args...) = RA.missingval(AG.RasterDataset(ds))
+RA.missingval(ds::AGDataset, args...) = RA.missingval(AG.RasterDataset(ds))
 function RA.missingval(rds::AG.RasterDataset, args...)
     # All bands have the same missingval in GDAL
     band = AG.getband(rds.ds, 1)
@@ -505,7 +508,7 @@ function _bandnames(rds::AG.RasterDataset, nbands=AG.nraster(rds))
     end
 end
 
-function _gdalmetadata(dataset::AG.Dataset, name)
+function _gdalmetadata(dataset::AGDataset, name)
     meta = AG.metadata(dataset)
     regex = Regex("$name=(.*)")
     i = findfirst(f -> occursin(regex, f), meta)
@@ -518,9 +521,9 @@ end
 
 # Set the properties of an ArchGDAL Dataset to match
 # the dimensions and missingval of a Raster
-_set_dataset_properties!(ds::AG.Dataset, A, scale, offset) =
+_set_dataset_properties!(ds::AGDataset, A, scale, offset) =
     _set_dataset_properties!(ds, dims(A), missingval(A), scale, offset)
-function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval, scale, offset)
+function _set_dataset_properties!(dataset::AGDataset, dims::Tuple, missingval, scale, offset)
     # We cant write mixed Points/Intervals, so default to Intervals if mixed
     xy = DD.dims(dims, (X, Y))
     if any(x -> x isa Intervals, map(sampling, xy)) && any(x -> x isa Points, map(sampling, xy))
@@ -669,7 +672,7 @@ _isaligned(geotransform) = geotransform[GDAL_ROT1] == 0 && geotransform[GDAL_ROT
 #     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
 
 #     for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
-#         DS = AG.RasterDataset{T,AG.Dataset}
+#         DS = AG.RasterDataset{T,AGDataset}
 #         precompile(crs, (DS,))
 #         precompile(Rasters.FileArray, (DS, String))
 #         precompile(dims, (DS,))

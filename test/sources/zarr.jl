@@ -17,6 +17,14 @@ lazyarray = Raster(path; lazy=true, name="air_temperature_2m")
 eagerarray = Raster(path; lazy=false, name="air_temperature_2m")
 @test_throws ArgumentError Raster("notafile.zarr/")
 
+@testset "Raster from dataset" begin
+    ds = ZarrDatasets.ZarrDataset(path)
+    dsarray = Raster(ds; name="air_temperature_2m")
+    @test dims(dsarray) == dims(zraster)
+    @test size(dsarray) == size(zraster)
+    @test all(dsarray .=== zraster)
+end
+
 @testset "lazyness" begin
     # Eager is the default
     @test parent(zraster) isa Array
