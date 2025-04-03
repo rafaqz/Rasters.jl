@@ -295,15 +295,29 @@ function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Va
     Raster(filename; dims, kw...)
 end
 # By default we assume missing values
-function Raster(ext::Extents.Extent; kw...) 
+function Raster(ext::Union{Extents.Extent,DimTuple}; kw...) 
     A = Raster(undef, ext; kw...)
+    @show missingval(A)
     # If `undef` isn't specified, fill with missing values
-    fill = isnothing(missingval(A)) ? missingval : zero(eltype(A))
+    fill = isnothing(missingval(A)) ? zero(eltype(A)) : missingval(A) 
     A .= fill
     return A
 end
 # And Float64
-Raster(::UndefInitializer, ext::Extents.Extent; kw...) = Raster{Float64}(undef, ext; kw...)
+Raster(::UndefInitializer, ext::Union{Extents.Extent,DimTuple}; kw...) = 
+    Raster{Float64}(undef, ext; kw...)
+function Raster{T}(x::UndefInitializer, dims::DimTuple; 
+    missingval=nokw, kw...
+) where T
+    T1 = isnokwornothing(missingval) ? T : promote_type(T, typeof(missingval))
+    Raster(Array{T1}(undef, size(dims)), dims; missingval, kw...)
+end
+function Raster(x::UndefInitializer, dims::Tuple{}; 
+    missingval=nokw, kw...
+) where {A<:AbstractDimArray{T}} where T
+    T1 = isnokwornothing(missingval) ? T : promote_type(T, typeof(missingval))
+    Raster(Array{T1}(undef, ()), dims; missingval, kw...)
+end
 function Raster{T}(::UndefInitializer, ext::Extents.Extent; 
     size=nothing, res=nothing, crs=nothing, mappedcrs=nothing, sampling=Points(), closed=false, kw...
 ) where T
