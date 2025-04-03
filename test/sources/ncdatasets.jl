@@ -50,6 +50,14 @@ end
     @time eagerarray = Raster(ncsingle; lazy=false)
     @test_throws ArgumentError Raster("notafile.nc")
 
+    @testset "Raster from dataset" begin
+        ds = NCDatasets.Dataset(ncsingle)
+        dsarray = Raster(ds; name=:tos)
+        @test dims(dsarray) == dims(ncarray)
+        @test size(dsarray) == size(ncarray)
+        @test all(dsarray .=== ncarray)
+    end
+
     @testset "lazyness" begin
         # Eager is the default
         @test parent(ncarray) isa Array
