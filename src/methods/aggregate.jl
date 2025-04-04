@@ -166,7 +166,6 @@ end
 function aggregate!(f, dst::AbstractRaster, src, scale;
     skipmissingval=false, skipmissing=skipmissingval, progress=true, verbose=true
 )
-    @show dims(dst)
     comparedims(dst, src; length=false)
     all(Lookups.isaligned, lookup(src)) || 
         throw(ArgumentError("Currently only grid-alligned dimensions can be aggregated. Make a Rasters.jl Github issue if you need to aggregate with transformed dims"))
