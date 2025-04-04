@@ -357,7 +357,6 @@ function _create_with_driver(f, filename, dims::Tuple, T;
 )
     # Allow but discourage south-up
     verbose && _maybe_warn_south_up(dims, verbose, "Creating a South-up raster. You may wish to reverse the `Y` dimension to use conventional North-up")
-    options = isnokwornothing(options) ? Dict{String,String}() : options
 
     # Pairs should not get this far
     @assert !(missingval isa Pair)
@@ -419,12 +418,15 @@ end
 end
 
 # Convert a Dict of options to a Vector{String} for GDAL
+_process_options(driver::String, options; kw...) = 
+    _process_options(driver, Dict(options); kw...)
+_process_options(driver::String, options::Union{Nothing,NoKW}; kw...) = String[]
 function _process_options(driver::String, options::Dict; 
     chunks=nokw,
     _block_template=nothing,
     verbose=true,
 )
-    options_str = Dict(string(k)=>string(v) for (k,v) in options)
+    options_str = Dict(string(k) => _gdal_option_string(v) for (k, v) in options)
     # Get the GDAL driver object
     gdaldriver = AG.getdriver(driver)
 
@@ -469,7 +471,7 @@ function _process_options(driver::String, options::Dict;
         end
     end
     # if the input is unchunked we just use the driver defaults
-    options_vec = ["$(uppercase(k))=$(uppercase(v))" for (k,v) in options_str]
+    options_vec = ["$(uppercase(k))=$(uppercase(v))" for (k, v) in options_str]
 
     invalid_options = String[]
     for option in options_vec
@@ -486,6 +488,9 @@ function _process_options(driver::String, options::Dict;
 
     return options_vec
 end
+
+_gdal_option_string(x) = string(x)
+_gdal_option_string(x::Bool) = x ? "YES" : "NO"
 
 # Bands can have text names, but usually don't
 function _bandnames(rds::AG.RasterDataset, nbands=AG.nraster(rds))
@@ -663,6 +668,7 @@ function _getfilepath(ds)
         return first(filelist)
     end
 end
+
 
 # precompilation
 # function _precompile(::Type{GDALsource})

@@ -76,11 +76,12 @@ _mosaic(f::Function, R1::RasterStackOrArray, regions::Tuple; kw...) =
     _mosaic(f, R1, collect(regions); kw...)
 function _mosaic(f::Function, R1::RasterStackOrArray, regions::AbstractArray;
     to=nothing,
-    missingval=nokw,
     filename=nothing,
-    suffix=nothing,
+    suffix=nokw,
+    missingval=nokw,
     driver=nokw,
     options=nokw,
+    chunks=nokw,
     force=false,
     kw...
 )
@@ -116,9 +117,10 @@ function _mosaic(f::Function, R1::RasterStackOrArray, regions::AbstractArray;
         driver,
         options,
         suffix,
-        force
+        force,
+        chunks,
     ) do C
-        mosaic!(f, C, regions; missingval, kw...)
+        mosaic!(f, C, regions; kw...)
     end
 end
 
@@ -229,14 +231,19 @@ function _mosaic!(
     gc::Union{Integer,Nothing}=nothing,
     progress=true,
     _progressmeter=_mosaic_progress(f, progress, length(regions)),
+    read=false,
     kw...
 )
     for (i, region) in enumerate(regions)
         !isnothing(_progressmeter) && ProgressMeter.next!(_progressmeter)
-        # RUn garbage collector every `gc` regions
+        # Run garbage collector every `gc` regions
         !isnothing(gc) && rem(i, gc) == 0 && GC.gc()
-        open(region) do R
-            _mosaic_region!(op, dest, R; kw...)
+        if read
+            _mosaic_region!(op, dest, Base.read(region); kw...)
+        else
+            open(region) do R
+                _mosaic_region!(op, dest, R; kw...)
+            end
         end
     end
     return dest
