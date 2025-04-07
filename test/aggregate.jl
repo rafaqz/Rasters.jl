@@ -41,19 +41,19 @@ series = RasterSeries([stack1, stack2], (Ti(dates),))
     lat = Y(Sampled(LinRange(3, 13, 6), ForwardOrdered(), Regular(2.0), Intervals(Start()), NoMetadata()))
     aglat = aggregate(Start(), lat, 3)
     @test span(lookup(aglat)) == Regular(6.0)
-    @test disaggregate(Start(), aglat, 3) == lat
+    @test disaggregate(aglat, 3) == lat
 
-    aglon = aggregate(Start(), dimz[1], 3)
+    aglon = aggregate(Center(), dimz[1], 3)
     @test step(lookup(aglon)) === 30.0
-    @test val(aglon) == [30.0]
-    disaglon = disaggregate(Start(), aglon, 3)
+    @test val(aglon) == [40.0]
+    disaglon = disaggregate(aglon, 3)
     @test index(disaglon) == index(dimz[1])
     @test span(disaglon) == span(dimz[1])
     @test sampling(disaglon) == sampling(dimz[1])
 
-    aglat = aggregate(Start(), dimz[2], 3)
+    aglat = aggregate(Center(), dimz[2], 3)
     @test step(lookup(aglat)) === 15.0
-    @test index(aglat) == LinRange(-10.0, 5.0, 2)
+    @test index(aglat) == LinRange(-5.0, 10.0, 2)
     disaglat = disaggregate(aglat, 3)
     # The last item is lost due to rounding in `aggregate`
     @test index(disaglat) != index(dimz[2])
