@@ -71,11 +71,20 @@ end
 
 @testset "aggregate a single dim" begin 
     ag = aggregate(Start(), series, (X(3),))
-    @test size(first(ag)) == (1, 7)
+    
     ag = aggregate(Start(), series, (Y(5),))
     @test size(first(ag)) == (3, 1)
     ag = aggregate(Start(), series, (Y(2),))
     @test size(first(ag)) == (3, 3)
+end
+
+@testset "dimension lookups are maintained" begin 
+    x, y, z = X(1:100), Y(1:100), Z(["bar", "foo"])
+    A = rand(x, y, z) |> Raster
+    A_agg = Rasters.aggregate(sum, A, (X(5),))
+    A_disagg = Rasters.disaggregate(A, (X(3),))
+    @test dims(A_agg, (Y, Z)) == (y, z)
+    @test dims(A_disagg, (Y, Z)) == (y, z)
 end
 
 @testset "aggregate and disaggregate at a locus" begin

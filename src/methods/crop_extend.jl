@@ -1,5 +1,5 @@
 """
-    crop(x; to, touches=false, [geometrycolumn])
+    crop(x; to, touches=false, atol=0, [geometrycolumn])
     crop(xs...; to)
 
 Crop one or multiple [`AbstractRaster`](@ref) or [`AbstractRasterStack`](@ref) `x`
@@ -12,8 +12,9 @@ to match the size of the object `to`, or smallest of any dimensions that are sha
 - `to`: the object to crop to. This can be $OBJ_ARGUMENT
   If no `to` keyword is passed, the smallest shared area of all `xs` is used.
 - `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
-
    When lines need to be included in e.g. zonal statistics, `true` should be used.
+- `atol`: the absolute tolerance to use when cropping to an extent. If edges are less than
+    `atol` away from the extent of `to`, they are included.
 $GEOMETRYCOLUMN_KEYWORD
 
 As `crop` is lazy, `filename` and `suffix` keywords are not used.
@@ -101,9 +102,10 @@ function _crop_to(x, to::DimTuple; touches=false, kw...)
     sampled = reduce(format(to); init=()) do acc, d
         lookup(d) isa AbstractSampled ? (acc..., d) : acc
     end
-    return _crop_to(x, Extents.extent(sampled); touches)
+    return _crop_to(x, Extents.extent(sampled); touches, kw...)
 end
-function _crop_to(x, to::Extents.Extent; touches=false, kw...)
+function _crop_to(x, to::Extents.Extent; touches=false, atol=nothing, kw...)
+    to = isnothing(atol) ? to : map(t -> (t[1]-atol, t[2]+atol), to)        
     # Take a view over the bounds
     _without_mapped_crs(x) do x1
         if touches
@@ -253,8 +255,8 @@ function _extend_to(x::RasterStackOrArray, extent::Extents.Extent{K}; kw...) whe
         fl = LA.ordered_first(l); ll = LA.ordered_last(l)
         fb = first(b); lb = last(b)
         s = step(l)
-        lowerrange = fb < first(bounds(l)) ? (fl:-s:fb) : (fl:-s:fl)
-        upperrange = lb > last(bounds(l))  ? (ll: s:lb) : (ll: s:ll)
+        lowerrange = fb < first(bounds(l)) ? (fl:copysign(s, -1):fb) : (fl:copysign(s, -1):fl)
+        upperrange = lb > last(bounds(l))  ? (ll:copysign(s, 1):lb) : (ll:copysign(s, 1):ll)
         if DD.order(l) isa ForwardOrdered
             newrange = last(lowerrange):s:last(upperrange)
         elseif order(d) isa ReverseOrdered

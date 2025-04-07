@@ -1,4 +1,5 @@
 using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
+using StableRNGs, StatsBase
 import GeoInterface
 using Rasters.Lookups, Rasters.Dimensions 
 using Rasters: bounds, trim
@@ -413,19 +414,20 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
 
 @testset "trim, crop, extend" begin
     A = [missing missing missing
+        missing missing missing
          missing 2.0     0.5
          missing 1.0     missing]
 
-    r_fwd = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing)
-    r_crs = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing, crs = EPSG(4326))
-    r_mcrs = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing, crs = EPSG(4326), mappedcrs = EPSG(4326))
+    r_fwd = Raster(A, (X(1.0:1.0:4.0), Y(1.0:1.0:3.0)); missingval=missing)
+    r_crs = Raster(A, (X(1.0:1.0:4.0), Y(1.0:1.0:3.0)); missingval=missing, crs = EPSG(4326))
+    r_mcrs = Raster(A, (X(1.0:1.0:4.0), Y(1.0:1.0:3.0)); missingval=missing, crs = EPSG(4326), mappedcrs = EPSG(4326))
     r_revX = reverse(r_fwd; dims=X)
     r_revY = reverse(r_fwd; dims=Y)
     st1 = RasterStack((a = r_fwd, b = r_fwd))
     st2 = RasterStack((a = r_fwd, b = r_fwd), crs = EPSG(4326))
     st3 = RasterStack((a = r_fwd, b = r_fwd), crs = EPSG(4326), mappedcrs = EPSG(4326))
 
-    ga = r_fwd
+    ga = r_revX
     for ga in (r_fwd, r_crs, r_mcrs, r_revX, r_revY, st1, st2, st3)
         # Test with missing on all sides
         ga_r = rot180(ga)
@@ -447,6 +449,8 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         extended1 = extend(extend(cropped; to=dims(ga, X)); to=dims(ga, Y))
         filename = tempname() * ".tif"
         extended_d = extend(cropped; to=ga, filename)
+        @test dims(extended) == dims(extended1) == dims(extended_d) == dims(ga)
+        @test dims(extended_r) == dims(ga_r)
         @test map(identicalelements, maybe_layers.((extended, extended1, replace_missing(extended_d), ga))...) |> all
         @test map(identicalelements, maybe_layers.((extended_r, ga_r))...) |> all
         @test all(map(==, lookup(extended_d), lookup(extended)))
@@ -491,12 +495,15 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         @test size(fccrop) == size(tablecrop) == (16, 21)
         @test bounds(fccrop) == bounds(tablecrop) == ((-20, -5), (10, 30))
     end
+    @testset "atol works in crop" begin
+        cropatol_dims = crop(r_fwd; to=(X(1.1:0.9:2.9), Y(2.1:0.1:3)), atol = 0.1)
+        cropatol_rast = crop(r_fwd; to=Raster(rand(X(1.1:0.9:2.9), Y(2.1:0.1:3))), atol=0.1)
+        @test dims(cropatol_dims) == dims(cropatol_rast) == dims(r_fwd[1:3, 2:3])
+    end
 
 end
-
-using StableRNGs, StatsBase
-test = rebuild(ga; name = :test)
 @testset "sample" begin
+    test = rebuild(ga; name = :test)
     # test that all keywords work and return the same thing as extract
     @test all(Rasters.sample(StableRNG(123), test, 2) .=== extract(test, [(2.0,2.0), (1.0,2.0)]))
     @test all(Rasters.sample(StableRNG(123), st2, 2) .=== extract(st2, [(2,2), (1,2)]))
@@ -577,11 +584,11 @@ end
 @testset "extent" begin
     ga = Raster(A, (X(1.0:1:2.0), Y(1.0:1:2.0)); missingval=missing) 
     ext = extent(ga)
-    @test ext === Extent(X=(1.0,2.0), Y=(1.0,2.0))
+    @test ext === Extent(X=(1.0, 2.0), Y=(1.0, 2.0))
     @test Rasters._extent(ext) === ext
 
     ga2 = Raster(A, (X(Float32.(1:2)), Y(Float32.(1:2))))
     ext2 = extent(ga2)
-    @test ext2 === Extent(X=(1.0f0,2.0f0), Y=(1.0f0,2.0f0))
+    @test ext2 === Extent(X=(1.0f0, 2.0f0), Y=(1.0f0, 2.0f0))
     @test Rasters._extent(ext2) === ext # currently this converts to float64!
 end
