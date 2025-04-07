@@ -149,6 +149,8 @@ function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractRaster, src, scale;
 )
     comparedims(dst, src; length=false)
     intscale = _scale2int(Ag(), dims(src), scale; verbose)
+    # offsets determines which cell within each window is used - 
+    # if picking the center locus with uneven intscale just round up
     offsets = ceil.(Int, _agoffset.(loci, (ForwardOrdered(),), intscale))
     # Cache the source if its a disk array
     src1 = isdisk(src) ? DiskArrays.cache(src) : src
