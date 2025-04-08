@@ -444,7 +444,7 @@ end
 _agoffset(::Function, l::Lookup, scale::Int) = _agoffset(l, scale)
 _agoffset(locus::Locus, l::Lookup, scale::Int) = _agoffset(locus, order(l), scale)
 _agoffset(l::Lookup, scale::Int) = _agoffset(locus(l), order(l), scale)
-_agoffset(x, scale::Colon) = 0
+_agoffset(x::Lookup, scale::Colon) = 0
 _agoffset(locus::Start, ::ForwardOrdered, scale::Int) = 0
 _agoffset(locus::End, ::ForwardOrdered, scale::Int) = scale - 1
 _agoffset(locus::Start, ::ReverseOrdered, scale::Int) = scale - 1
