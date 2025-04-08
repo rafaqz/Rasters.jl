@@ -441,7 +441,7 @@ end
 @inline _scale2int(::Ag, l::Lookup, scale::Int) = scale > length(l) ? length(l) : scale
 @inline _scale2int(::DisAg, l::Lookup, scale::Int) = scale
 
-_agoffset(_, l::Lookup, scale::Int) = _agoffset(l, scale)
+_agoffset(::Function, l::Lookup, scale::Int) = _agoffset(l, scale)
 _agoffset(locus::Locus, l::Lookup, scale::Int) = _agoffset(locus, order(l), scale)
 _agoffset(l::Lookup, scale::Int) = _agoffset(locus(l), order(l), scale)
 _agoffset(x, scale::Colon) = 0
