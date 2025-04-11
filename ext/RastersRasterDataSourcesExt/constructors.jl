@@ -28,6 +28,7 @@ function RA.Raster(T::Type{<:RDS.RasterDataSource}, layer::Union{Symbol,Int};
     filename = getraster(T, layer; rds_kw...)
     Raster(filename; name=RDS.layerkeys(T, layer), crs, ra_kw...)
 end
+RA.Raster(T::Type{WorldClim{Elevation}}; kw...) = Raster(T, :elev; kw...)
 function RA.Raster(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}; 
     crs=_source_crs(T), kw...
 )
@@ -47,6 +48,7 @@ function RA.Raster(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}, layer::Union{
     end
     return ras
 end
+
 """
     RasterStack(T::Type{<:RasterDataSource}, [layers::Union{Symbol,AbstractArray,Tuple}]; kw...) => RasterStack
 
