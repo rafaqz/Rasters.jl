@@ -141,11 +141,11 @@ end
         write(fn, ra)
         @test all(Raster(fn) .=== ra)
         # Currently broken in ZarrDatasets.jl
-        # x = Raster(fn; lazy=true)
-        # open(x; write=true) do O
-        #     O .= 1
-        # end
-        # all(Raster(fn) .== 1)
+        x = Raster(fn; lazy=true)
+        open(x; write=true) do O
+            O .= 1
+        end
+        all(Raster(fn) .== 1)
     end
 end
 

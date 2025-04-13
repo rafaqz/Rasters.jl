@@ -34,6 +34,7 @@ grdpath = stem * ".gri"
         @test missingval(missingarray) === missing
         @test eltype(missingarray) === Union{Missing,Float32}
         @time missingarray = Raster(grdpath; missingval)
+        @time rawarray = Raster(grdpath; raw=true)
         @test missingval(missingarray) === -3.4f38
         @test eltype(missingarray) === Float32
         @time missingarray = Raster(grdpath; missingval=missingval => NaN32)
