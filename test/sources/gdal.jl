@@ -259,6 +259,7 @@ gdalpath = maybedownload(url)
         end
 
         @testset "aggregate" begin
+            DiskArrays.allowscalar(true) # TODO remove when this is fixed in DiskArrays
             ag = aggregate(mean, gdalarray, 4)
             @test ag == aggregate(mean, gdalarray, (X(4), Y(4)))
             @test ag == aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
@@ -277,7 +278,6 @@ gdalpath = maybedownload(url)
             @test size(disag) == size(gdalarray) .* 2
 
             @testset "disaggregate to file" begin
-                DiskArrays.allowscalar(true) # TODO remove when this is fixed in DiskArrays
                 tempfile = tempname() * ".tif"
                 write(tempfile, disaggregate(gdalarray, 2))
                 disaggregate(2 .* gdalarray, 2)
@@ -285,8 +285,8 @@ gdalpath = maybedownload(url)
                     disaggregate!(dst, 2 .* gdalarray, 2)
                 end
                 @test size(Raster(tempfile)) == 2 .* size(gdalarray)
-                DiskArrays.allowscalar(false)
             end
+            DiskArrays.allowscalar(false)
         end
 
         @testset "mosaic" begin
