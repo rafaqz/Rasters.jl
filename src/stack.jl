@@ -519,7 +519,7 @@ function _layer_stack(filename;
     mappedcrs=nokw,
     coerce=convert,
     scaled=nokw,
-    checkmem=true,
+    checkmem=CHECKMEM[],
     lazy=false,
     kw...
 )

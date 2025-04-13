@@ -398,7 +398,14 @@ _checkobjmem(f, obj) = _checkmem(f, _sizeof(obj))
 
 _checkmem(f, bytes::Int) = Sys.free_memory() > bytes || _no_memory_error(f, bytes)
 
-_sizeof(A::AbstractArray{T}) where T = sizeof(T) * prod(size(A))
+function _sizeof(A::AbstractArray{T}) where T 
+    if isbits(T)
+        sizeof(T) * prod(size(A))
+    else
+        # We just guess the size if not isbits. Probably an underestimate.
+        sizeof(Int) * prod(size(A))
+    end
+end
 _sizeof(st::AbstractRasterStack) = sum(_sizeof, layers(st))
 _sizeof(s::AbstractRasterSeries) =
     length(s) == 0 ? 0 : _sizeof(first(s)) * prod(size(s))
