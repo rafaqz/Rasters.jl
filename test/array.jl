@@ -19,6 +19,7 @@ ga1 = Raster(data1; dims=dims1, refdims=refdimz, name=nme, metadata=meta, missin
 @test ga2 == data2
 
 @testset "from file" begin
+    @test_throws ArgumentError Raster("")
     @test_throws ArgumentError Raster("notafile")
     @test_throws ArgumentError Raster("notafile", dims1)
 end
