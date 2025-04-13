@@ -420,6 +420,13 @@ end
         ncarray[Y(100), Ti(1)] |> plot
     end
 
+    @testset "read and write String" begin
+        rast = Raster(fill("x", X(1:10), Y(1:10)))
+        filename = tempname() * ".nc"
+        write(filename, rast)
+        @test Raster(filename) == rast
+    end
+
 end
 
 @testset "Single file stack" begin
