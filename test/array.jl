@@ -80,6 +80,55 @@ end
     A6 = falses(x, y)
     @test A6 isa Raster{Bool,2}
     @test A6 == [false false; false false] 
+
+    A7 = Raster(undef, extent(A1); size=(2, 2))
+    @test A7 isa Raster{Float64,2}
+    @test size(A7) == (2, 2)
+    @test dims(A7) == dims(A1)
+
+    A8 = Raster{Int}(undef, extent(A1); res=1.0)
+    @test A8 isa Raster{Int,2}
+    @test size(A8) == (2, 2)
+    @test dims(A8) == dims(A1)
+
+    A9 = Raster{Bool}(undef, extent(A1); res=1.0, sampling=Intervals(Center()), closed=false)
+    @test A9 isa Raster{Bool,2}
+    @test size(A9) == (2, 2)
+    # Has to the same lookups to include the bounds in the extent
+    @test_broken collect.(dims(A9)) == collect.(dims(A1))
+    @test sampling(A9, X) == Intervals(Center())
+
+    A10 = Raster{Bool}(undef, extent(A1); size=(2, 2), sampling=Intervals(Center()))
+    @test A10 isa Raster{Bool,2}
+    @test size(A10) == (2, 2)
+    # Has to the same lookups to include the bounds in the extent
+    @test sampling(A10, X) == Intervals(Center())
+
+    A11 = Raster(extent(A1); res=1.0, missingval=-9999.0)
+    @test all(==(-9999.0), A11)
+    @test A11 isa Raster{Float64,2}
+    @test size(A11) == (2, 2)
+    @test dims(A11) == dims(A1)
+
+    A12 = Raster(extent(A1); size=(2, 2))
+    @test all(==(0.0), A12)
+    @test A12 isa Raster{Float64,2}
+    @test size(A12) == (2, 2)
+    @test dims(A12) == dims(A1)
+
+    A13 = Raster(dims(A1))
+    @test all(==(0.0), A13)
+    @test A13 isa Raster{Float64,2}
+    @test size(A13) == (2, 2)
+    @test dims(A13) == dims(A1)
+
+    A14 = Raster{Float64}(undef, dims(A1); missingval=missing)
+    @test all(ismissing, A14)
+    @test A14 isa Raster{Union{Missing,Float64},2}
+    @test size(A14) == (2, 2)
+    @test dims(A14) == dims(A1)
+
+    @test_throws ArgumentError Raster(extent(A1))
 end
 
 

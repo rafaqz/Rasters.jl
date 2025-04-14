@@ -1,4 +1,4 @@
-using Rasters, Test, GRIBDatasets
+using Rasters, Test, GRIBDatasets, CommonDataModel
 using Rasters: FileArray, FileStack, GRIBsource
 using Rasters.Lookups, Rasters.Dimensions
 using Statistics
@@ -34,6 +34,16 @@ v = ds[:z]
     @time lazystack = RasterStack(era5; lazy=true)
     @time eagerstack = RasterStack(era5; lazy=false)
     @time ds = GRIBDataset(era5);
+
+    @testset "Raster from dataset" begin
+        dsarray = Raster(ds)
+        var = CommonDataModel.variable(ds, "z")
+        dsarray = Raster(ds; name=:z)
+        vararray = Raster(ds; name=:z)
+        @test dims(dsarray) == dims(vararray) == dims(gribarray)
+        @test size(dsarray) == size(vararray) == size(gribarray)
+        @test all(dsarray .=== vararray .=== gribarray)
+    end
 
     @testset "lazyness" begin
         @test parent(gribarray) isa Array
@@ -149,5 +159,17 @@ v = ds[:z]
     @testset "selectors" begin
         a = gribarray[X(At(21.0)), Y(Between(50, 52)), Ti(Near(DateTime(2002, 12)))]
         @test Rasters.bounds(a) == ((51.0, 51.0), (500, 850), (0, 9))
+    end
+end
+
+@testset "RasterStack" begin
+    gribstack = RasterStack(era5; lazy=true)
+    @testset "RasterStack" begin
+        @test all(read(gribstack.z) .=== Raster(era5; name=:z))
+    end
+    @testset "RasterStack from dataset" begin
+        dsstack = RasterStack(ds; lazy=true)
+        @test dims(dsstack) == dims(gribstack)
+        @test size(dsstack) == size(gribstack)
     end
 end

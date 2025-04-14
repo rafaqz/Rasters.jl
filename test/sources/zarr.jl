@@ -4,6 +4,7 @@ using DimensionalData
 using DimensionalData.Lookups
 using DimensionalData.Dimensions
 using Dates
+using CommonDataModel
 using ZarrDatasets
 using ZarrDatasets.Zarr
 using Rasters: FileArray, FileStack, Zarrsource, crs, bounds, name, trim
@@ -14,6 +15,16 @@ zraster = Raster(path; name="air_temperature_2m")
 lazyarray = Raster(path; lazy=true, name="air_temperature_2m")
 eagerarray = Raster(path; lazy=false, name="air_temperature_2m")
 @test_throws ArgumentError Raster("notafile.zarr/")
+
+@testset "Raster from dataset" begin
+    ds = ZarrDatasets.ZarrDataset(path)
+    var = CommonDataModel.variable(ds, "air_temperature_2m")
+    dsarray = Raster(ds; name=:air_temperature_2m)
+    vararray = Raster(var; name=:air_temperature_2m)
+    @test dims(dsarray) == dims(vararray) == dims(zraster)
+    @test size(dsarray) == size(vararray) == size(zraster)
+    @test all(dsarray .=== vararray  .=== zraster)
+end
 
 @testset "lazyness" begin
     # Eager is the default
@@ -150,7 +161,13 @@ end
 end
 
 
+zarrstack = RasterStack(path; lazy=true)
 @testset "RasterStack" begin
-    st = RasterStack(path; lazy=true)
-    @test all(st.snow_sublimation .=== Raster(path; name=:snow_sublimation))
+    @test all(zarrstack.snow_sublimation .=== Raster(path; name=:snow_sublimation))
+end
+@testset "RasterStack from dataset" begin
+    ds = ZarrDatasets.ZarrDataset(path)
+    dsstack = RasterStack(ds; lazy=true)
+    @test dims(dsstack) == dims(zarrstack)
+    @test size(dsstack) == size(zarrstack)
 end

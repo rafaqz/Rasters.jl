@@ -1,4 +1,4 @@
-using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
+using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots, CommonDataModel
 
 using Rasters.Lookups, Rasters.Dimensions
 using Rasters.DiskArrays
@@ -45,10 +45,20 @@ stackkeys = (
 end
 
 @testset "Raster" begin
-    @time ncarray = Raster(ncsingle);
+    @time ncarray = Raster(ncsingle)
     @time lazyarray = Raster(ncsingle; lazy=true)
     @time eagerarray = Raster(ncsingle; lazy=false)
     @test_throws ArgumentError Raster("notafile.nc")
+
+    @testset "Raster from dataset" begin
+        ds = NCDatasets.Dataset(ncsingle)
+        var = CommonDataModel.variable(ds, "tos")
+        dsarray = Raster(ds; name=:tos)
+        vararray = Raster(ds; name=:tos)
+        @test dims(dsarray) == dims(vararray) == dims(ncarray)
+        @test size(dsarray) == size(vararray) == size(ncarray)
+        @test all(dsarray .=== vararray .=== ncarray)
+    end
 
     @testset "lazyness" begin
         # Eager is the default
@@ -452,6 +462,13 @@ end
         @test parent(ncstack[:xi]) isa Array
         @test parent(lazystack[:xi]) isa FileArray
         @test parent(eagerstack[:xi]) isa Array
+    end
+
+    @testset "RasterStack from dataset" begin
+        ds = NCDatasets.Dataset(ncmulti)
+        dsstack = RasterStack(ds)
+        @test dims(dsstack) == dims(ncstack)
+        @test size(dsstack) == size(ncstack)
     end
 
     @testset "source" begin
