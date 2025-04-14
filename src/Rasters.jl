@@ -54,7 +54,7 @@ using ColorTypes: RGB
 
 using CommonDataModel: AbstractDataset, AbstractVariable
 
-using DiskArrays: @implement_diskarray
+import DiskArrays: @implement_diskarray, isdisk
 
 using GeometryOpsCore: Planar, Spherical
 export Planar, Spherical

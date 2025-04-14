@@ -58,33 +58,45 @@ end
         @time read(lazyarray);
     end
 
-    @testset "scaling and masking" begin 
-        @time cfarray = Raster(ncsingle)
-        @time cfarray = Raster(ncsingle)
-        @time cf_nomask_array = Raster(ncsingle; missingval=nothing)
-        @time nocfarray = Raster(ncsingle; scaled=false)
-        @time nocf_nomask_array = Raster(ncsingle; scaled=false, missingval=nothing)
+    @testset "scaling masking and missing" begin 
+        @time nomissing_array = Raster(ncsingle; missingval=nothing)
+        @time noscaled_array = Raster(ncsingle; scaled=false)
+        @time noscaled_nomissing_array = Raster(ncsingle; scaled=false, missingval=nothing)
         @time raw_array = Raster(ncsingle; raw=true)
-        @time lazycfarray = Raster(ncsingle; lazy=true, scaled=false)
-        @time lazynocfarray = Raster(ncsingle; lazy=true, scaled=false)
-        @time lazynocf_nomask_array = Raster(ncsingle; lazy=true, scaled=false, missingval=nothing)
-        @test missingval(cfarray) === missing
-        @test missingval(nocfarray) === missing
-        @test missingval(cf_nomask_array) === nothing
-        @test missingval(nocf_nomask_array) === nothing
+        @time lazy_noscaled_array = Raster(ncsingle; lazy=true, scaled=false)
+        @time lazy_noscaled_nomissing_array = Raster(ncsingle; lazy=true, scaled=false, missingval=nothing)
+        @time lazy_raw_array = Raster(ncsingle; lazy=true, raw=true)
+
+        # Test missing values
+        @test missingval(ncarray) === missing
+        @test missingval(noscaled_array) === missing
+        @test missingval(nomissing_array) === nothing
+        @test missingval(nomissing_array) === nothing
+        @test missingval(lazy_noscaled_array) === missing
+        @test missingval(lazy_noscaled_nomissing_array) === nothing
         @test missingval(raw_array) === 1.0f20
-        @test all(skipmissing(cfarray) .=== skipmissing(nocfarray))
-        @test parent(cfarray) isa Array{Union{Float32,Missing}}
-        @test parent(nocfarray) isa Array{Union{Float32,Missing}}
-        @test parent(nocf_nomask_array) isa Array{Float32}
+        @test missingval(lazy_raw_array) === 1.0f20
+        @test all(skipmissing(ncarray) .=== skipmissing(raw_array))
+
+        # Test parent types
+        @test parent(ncarray) isa Array{Union{Float32,Missing}}
+        @test parent(noscaled_array) isa Array{Union{Float32,Missing}}
+        @test parent(noscaled_nomissing_array) isa Array{Float32}
         @test parent(raw_array) isa Array{Float32}
-        open(lazycfarray) do A
-            @test parent(A) isa Rasters.ModifiedDiskArray{false,Union{Missing,Float32}}
+        open(lazyarray) do A
+            @test parent(A) isa Rasters.ModifiedDiskArray{Union{Missing,Float32}}
+            @test parent(parent(A)) isa NCDatasets.Variable{Float32}
         end
-        open(lazynocfarray) do A
-            @test parent(A) isa Rasters.ModifiedDiskArray{false,Union{Missing,Float32}}
+        open(lazy_noscaled_array) do A
+            @test parent(A) isa Rasters.ModifiedDiskArray{Union{Missing,Float32}}
+            @test parent(parent(A)) isa NCDatasets.Variable{Float32}
         end
-        open(lazynocf_nomask_array) do A
+        open(lazy_noscaled_nomissing_array) do A
+            @test parent(A) isa Rasters.ModifiedDiskArray{Float32}
+            @test parent(parent(A)) isa NCDatasets.Variable{Float32}
+        end
+        open(lazy_raw_array) do A
+            @test parent(A) isa Rasters.ModifiedDiskArray{Float32}
             @test parent(parent(A)) isa NCDatasets.Variable{Float32}
         end
     end
