@@ -161,3 +161,15 @@ v = ds[:z]
         @test Rasters.bounds(a) == ((51.0, 51.0), (500, 850), (0, 9))
     end
 end
+
+@testset "RasterStack" begin
+    gribstack = RasterStack(era5; lazy=true)
+    @testset "RasterStack" begin
+        @test all(read(gribstack.z) .=== Raster(era5; name=:z))
+    end
+    @testset "RasterStack from dataset" begin
+        dsstack = RasterStack(ds; lazy=true)
+        @test dims(dsstack) == dims(gribstack)
+        @test size(dsstack) == size(gribstack)
+    end
+end

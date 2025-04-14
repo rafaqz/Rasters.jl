@@ -462,12 +462,15 @@ function RasterStack(ds;
     crs=nokw,
     mappedcrs=nokw,
     coerce=convert,
-    scaled=nokw,
     checkmem=CHECKMEM[],
-    lazy=false,
+    scaled::Union{Bool,NoKW}=nokw,
+    lazy::Bool=false,
+    verbose::Bool=true,
+    raw::Bool=false,
     kw...
 )
     check_multilayer_dataset(ds)
+    scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
     layers = _layers(ds, name, group)
     # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
     dimdict = _dimdict(ds, crs, mappedcrs)

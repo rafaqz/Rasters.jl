@@ -44,7 +44,7 @@ stackkeys = (
     )
 end
 
-# @testset "Raster" begin
+@testset "Raster" begin
     @time ncarray = Raster(ncsingle)
     @time lazyarray = Raster(ncsingle; lazy=true)
     @time eagerarray = Raster(ncsingle; lazy=false)
@@ -462,6 +462,13 @@ end
         @test parent(ncstack[:xi]) isa Array
         @test parent(lazystack[:xi]) isa FileArray
         @test parent(eagerstack[:xi]) isa Array
+    end
+
+    @testset "RasterStack from dataset" begin
+        ds = NCDatasets.Dataset(ncmulti)
+        dsstack = RasterStack(ds)
+        @test dims(dsstack) == dims(ncstack)
+        @test size(dsstack) == size(ncstack)
     end
 
     @testset "source" begin

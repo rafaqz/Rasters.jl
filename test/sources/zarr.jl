@@ -160,7 +160,13 @@ end
 end
 
 
+zarrstack = RasterStack(path; lazy=true)
 @testset "RasterStack" begin
-    st = RasterStack(path; lazy=true)
-    @test all(st.snow_sublimation .=== Raster(path; name=:snow_sublimation))
+    @test all(zarrstack.snow_sublimation .=== Raster(path; name=:snow_sublimation))
+end
+@testset "RasterStack from dataset" begin
+    ds = ZarrDatasets.ZarrDataset(path)
+    dsstack = RasterStack(ds; lazy=true)
+    @test dims(dsstack) == dims(zarrstack)
+    @test size(dsstack) == size(zarrstack)
 end
