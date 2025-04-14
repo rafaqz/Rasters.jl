@@ -375,7 +375,7 @@ function _crs_from_cf_attr(attr)
     # many CF implementations will include either `crs_wkt`, `spatial_epsg`, or `proj4string`
     # which we do know the types of
     if haskey(attr, "crs_wkt")
-        return ESRIWellKnownText(GeoFormatTypes.CRS(), attr["crs_wkt"])
+        return WellKnownText2(GeoFormatTypes.CRS(), attr["crs_wkt"])
     elseif haskey(attr, "spatial_epsg")
         return EPSG(parse(Int, attr["spatial_epsg"]))
     elseif haskey(attr, "proj4string")
