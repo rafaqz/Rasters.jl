@@ -4,6 +4,7 @@ using DimensionalData
 using DimensionalData.Lookups
 using DimensionalData.Dimensions
 using Dates
+using CommonDataModel
 using ZarrDatasets
 using ZarrDatasets.Zarr
 using Rasters: FileArray, FileStack, Zarrsource, crs, bounds, name, trim

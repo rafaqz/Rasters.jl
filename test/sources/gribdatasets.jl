@@ -1,4 +1,4 @@
-using Rasters, Test, GRIBDatasets
+using Rasters, Test, GRIBDatasets, CommonDataModel
 using Rasters: FileArray, FileStack, GRIBsource
 using Rasters.Lookups, Rasters.Dimensions
 using Statistics
