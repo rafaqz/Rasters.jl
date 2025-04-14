@@ -223,8 +223,9 @@ end
             A2 = ncarray[X(50:150), Y(90:150)]
             tempfile = tempname() * ".nc"
             Afile = mosaic(first, A1, A2; 
-                atol=1e-7, filename=tempfile, force=true
+                atol=1e-7, filename=tempfile, force=true, chunks=(128, 128), deflatelevel=2
             ) |> read
+            @test Rasters.eachchunk(Raster(tempfile; lazy=true))[1] == (1:128, 1:128, 1:1)
             Amem = mosaic(first, A1, A2; atol=1e-7)
             Atest = ncarray[X(1:150), Y(1:150)]
             Atest[X(1:49), Y(101:150)] .= missing

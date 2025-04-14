@@ -79,12 +79,9 @@ _mosaic(f::Function, R1::RasterStackOrArray, regions::Tuple; kw...) =
 function _mosaic(f::Function, R1::RasterStackOrArray, regions::AbstractArray;
     to=nothing,
     filename=nothing,
-    suffix=nokw,
+    atol=nothing,
     missingval=nokw,
-    driver=nokw,
-    options=nokw,
-    chunks=nokw,
-    force=false,
+    op=nokw,
     kw...
 )
     dims = if isnothing(to)
@@ -116,13 +113,9 @@ function _mosaic(f::Function, R1::RasterStackOrArray, regions::AbstractArray;
         name=name(R1),
         fill=missingval_pair[1],
         missingval=missingval_pair,
-        driver,
-        options,
-        suffix,
-        force,
-        chunks,
+        kw...
     ) do C
-        mosaic!(f, C, regions; kw...)
+        mosaic!(f, C, regions; op, atol)
     end
 end
 
@@ -199,9 +192,10 @@ function mosaic!(
     f::Function, 
     dest::RasterStackOrArray,
     regions::Union{Tuple,AbstractArray}; 
-    op=_reduce_op(f, missingval(dest)), 
+    op=nokw,
     kw...
 )
+    op = isnokw(op) ? _reduce_op(f, missingval(dest)) : op
     # Centering avoids pixel edge floating point error
     dest_centered = _prepare_for_burning(dest; order=nothing)
     regions_centered = map(r -> _prepare_for_burning(r; order=nothing), regions)

@@ -299,7 +299,10 @@ gdalpath = maybedownload(url)
             view(gdalarray, extent(A2))
             Afile = mosaic(first, A1, A2; missingval=0xff, atol=1e-1, filename=tempfile1)
             @test missingval(Afile) === 0xff
-            Afile2 = mosaic(first, A1, A2; atol=1e-8, filename=tempfile2)
+            Afile2 = mosaic(first, A1, A2; 
+                atol=1e-8, filename=tempfile2, chunks=(128, 128), options="COMPRESS" => "LZW", driver="COG"
+            )
+            @test Rasters.eachchunk(Raster(tempfile2; lazy=true))[1] == (1:128, 1:128)
             @test missingval(Afile2) === missing
             Amem = mosaic(first, A1, A2; missingval=0xff, atol=1e-5)
 
@@ -310,7 +313,7 @@ gdalpath = maybedownload(url)
             Atest[DimSelectors(Atest[extent(A2)]; selectors=Contains())] .= A2
 
             @test size(Amem) == size(gdalarray)
-            @test all(Atest .=== Amem .=== Afile .=== replace_missing(Afile2, 0xff))
+            @test all(Atest .=== Amem .=== Afile .=== replace_missing(read(Afile2), 0xff))
             filter(x -> !Bool(first(x)), tuple.((Atest .=== Amem), Atest, Amem))
         end
 
