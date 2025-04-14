@@ -396,7 +396,7 @@ function _create_with_driver(f, filename, dims::Tuple, T;
     else
         # Create a tif and copy it to `filename`, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
-        tif_options_vec = _process_options("GTiff", Dict{String,String}(); 
+        tif_options_vec = _process_options("GTiff", nothing; 
             chunks, _block_template, verbose
         )
         tif_driver = AG.getdriver("GTiff")
@@ -424,7 +424,8 @@ end
 # Convert a Dict of options to a Vector{String} for GDAL
 _process_options(driver::String, options; kw...) = 
     _process_options(driver, Dict(options); kw...)
-_process_options(driver::String, options::Union{Nothing,NoKW}; kw...) = String[]
+_process_options(driver::String, options::Union{Nothing,NoKW}; kw...) = 
+    _process_options(driver, Dict{String,String}(); kw...) 
 function _process_options(driver::String, options::Dict; 
     chunks=nokw,
     _block_template=nothing,

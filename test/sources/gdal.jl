@@ -437,7 +437,7 @@ gdalpath = maybedownload(url)
 
         @testset "chunks" begin
             filename = tempname() * ".tiff"
-            write(filename, gdalarray; chunks=(128, 128, 1))
+            write(filename, gdalarray; force=true, chunks=(128, 128, 1))
             gdalarray2 = Raster(filename; lazy=true)
             @test DiskArrays.eachchunk(gdalarray2)[1] == (1:128, 1:128)
             filename = tempname() * ".tiff"
@@ -773,7 +773,9 @@ end
         @testset "chunks" begin
             filename = tempname() * ".tiff"
             write(filename, gdalstack; chunks=(128, 128))
-            filenames = write(filename, gdalstack; force=true, chunks=(128, 128))
+            filenames = write(filename, gdalstack; 
+                force=true, chunks=(128, 128), options=["COMPRESS" => "LZW", "BIGTIFF" => true]
+            )
             gdalstack2 = RasterStack(filenames; lazy=true)
             @test DiskArrays.eachchunk(gdalstack2[:b])[1] == (1:128, 1:128)
         end
