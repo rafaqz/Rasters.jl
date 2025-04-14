@@ -325,11 +325,13 @@ end
 function Raster(filename::AbstractString; source=nokw, kw...)
     source = sourcetrait(filename, source)
     _open(filename; source, mod=nothing) do ds
-        Raster(ds, filename; source, kw...)
+        _raster(ds; filename, source, kw...)
     end::Raster
 end
 # Load a Raster from an opened Dataset
-function Raster(ds;
+# We need the inner method for AbstractArray ambiguit
+Raster(ds; kw...) = _raster(ds; kw...)
+function _raster(ds;
     dims=nokw,
     refdims=(),
     name=nokw,

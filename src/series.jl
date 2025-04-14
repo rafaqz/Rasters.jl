@@ -261,9 +261,7 @@ swap_filename(x::FileStack, filename::AbstractString) = @set x.filename = filena
 swap_filename(x::FileArray, filename::AbstractString) = @set x.filename = filename
 function swap_filename(x::AbstractArray, filename::AbstractString)
     # The `FileArray` is wrapped, so use Flatten.jl to update it wherever it is
-    ignore = Union{Dict,Set,Base.MultiplicativeInverses.SignedMultiplicativeInverse}
-    Flatten.modify(x, FileArray, ignore) do fa
-
+    Flatten.modify(x, FileArray, FLATTEN_IGNORE) do fa
         @set fa.filename = filename
     end
 end

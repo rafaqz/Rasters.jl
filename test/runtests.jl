@@ -34,13 +34,13 @@ end
 @time @safetestset "commondatamodel" begin include("sources/commondatamodel.jl") end
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
 # @time @safetestset "zarrdatasets" begin include("sources/zarr.jl") end
-if !Sys.iswindows()
+# if !Sys.iswindows()
     # GRIBDatasets doesn't work on Windows for now
     @time @safetestset "gribdatasets" begin include("sources/gribdatasets.jl") end
     # GDAL Environment vars need to be set manually for windows, so skip for now
     @time @safetestset "gdal" begin include("sources/gdal.jl") end
     @time @safetestset "grd" begin include("sources/grd.jl") end
-end
+# end
 # Only test RasterDataSources locally for now, because CI downloads keep breaking
 if !haskey(ENV, "CI")
     @time @safetestset "rasterdatasources" begin include("sources/rasterdatasources.jl") end

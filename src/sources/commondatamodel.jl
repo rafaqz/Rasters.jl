@@ -1,5 +1,7 @@
 const CDM = CommonDataModel
 
+const CDMallowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
+
 const UNNAMED_FILE_KEY = "unnamed"
 
 const CDM_DIM_MAP = Dict(
@@ -67,6 +69,8 @@ end
 
 # Rasters methods for CDM types ###############################
 
+Raster(ds::AbstractVariable; kw...) = _raster(ds; kw...)
+
 function _open(f, source::CDMsource, filename::AbstractString; write=false, kw...)
     checkfilename(source, filename)
     ds = sourceconstructor(source)(filename, openmode(write))
@@ -87,7 +91,6 @@ function _open(f, source::CDMsource, ds::AbstractDataset;
         _open(f, source, v; mod)
     end
 end
-
 _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) = 
     cleanreturn(f(_maybe_modify(var, mod)))
 
@@ -126,7 +129,6 @@ function _nondimnames(ds)
     nondim = collect(setdiff(keys(ds), toremove))
     return nondim
 end
-
 
 function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
     nondim = _nondimnames(ds)
@@ -571,8 +573,6 @@ function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N
     return mod
 end
 
-const CDMallowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
-
 _check_allowed_type(trait, eltyp) = nothing
 function _check_allowed_type(::CDMsource, eltyp)
     eltyp <: CDMallowedType || throw(ArgumentError("""
@@ -581,7 +581,6 @@ function _check_allowed_type(::CDMsource, eltyp)
     """
     ))
 end
-
 
 _def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::AbstractDataset, dim::Dimension)

@@ -245,15 +245,7 @@ end
 # Rasters methods for ArchGDAL types ##############################
 
 # Create a Raster from a dataset
-function RA.Raster(ds::AG.RasterDataset; lazy=false, kw...) 
-    # filepath = if lazy
-    #     fp = filename(ds)
-    #     isnothing(fp) ? "/vsimem" : fp
-    # else
-    #     ""
-    # end
-    Raster(ds.ds; kw...)
-end
+RA.Raster(ds::AG.RasterDataset; kw...) = _raster(ds; kw...)
 
 RA.missingval(ds::AGDataset, args...) = RA.missingval(AG.RasterDataset(ds))
 function RA.missingval(rds::AG.RasterDataset, args...)
