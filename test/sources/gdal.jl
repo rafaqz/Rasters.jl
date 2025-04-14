@@ -16,9 +16,11 @@ gdalpath = maybedownload(url)
     
     @testset "Raster from dataset" begin
         ds = ArchGDAL.read(gdalpath)
+        rds = ArchGDAL.RasterDataset(ds)
         dsarray = Raster(ds)
-        @test dims(dsarray) == dims(gdalarray)
-        @test dsarray == gdalarray
+        rdsarray = Raster(ds)
+        @test dims(dsarray) == dims(rdsarray) == dims(gdalarray)
+        @test dsarray == rdsarray == gdalarray
     end
 
     @testset "lazyness" begin

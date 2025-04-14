@@ -100,7 +100,7 @@ _getgroup(ds, group::Union{Symbol,AbstractString}) = ds.group[String(group)]
 _getgroup(ds, group::Pair) = _getgroup(ds.group[String(group[1])], group[2])
 
 filename(ds::AbstractDataset) = CDM.path(ds)
-filename(ds::AbstractVariable) = CDM.path(ds)
+filename(var::AbstractVariable) = CDM.path(CDM.dataset(var))
 
 filekey(ds::AbstractDataset, name::Union{String,Symbol}) = Symbol(name)
 filekey(ds::AbstractDataset, name) = _name_or_firstname(ds, name)

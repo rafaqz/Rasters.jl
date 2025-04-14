@@ -17,10 +17,12 @@ eagerarray = Raster(path; lazy=false, name="air_temperature_2m")
 
 @testset "Raster from dataset" begin
     ds = ZarrDatasets.ZarrDataset(path)
-    dsarray = Raster(ds; name="air_temperature_2m")
-    @test dims(dsarray) == dims(zraster)
-    @test size(dsarray) == size(zraster)
-    @test all(dsarray .=== zraster)
+    var = CommonDataModel.variable(ds, "air_temperature_2m")
+    dsarray = Raster(ds; name=:air_temperature_2m)
+    vararray = Raster(var; name=:air_temperature_2m)
+    @test dims(dsarray) == dims(vararray) == dims(zraster)
+    @test size(dsarray) == size(vararray) == size(zraster)
+    @test all(dsarray .=== vararray  .=== zraster)
 end
 
 @testset "lazyness" begin

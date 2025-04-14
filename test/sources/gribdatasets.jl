@@ -35,12 +35,14 @@ v = ds[:z]
     @time eagerstack = RasterStack(era5; lazy=false)
     @time ds = GRIBDataset(era5);
 
-
     @testset "Raster from dataset" begin
         dsarray = Raster(ds)
-        @test dims(dsarray) == dims(gribarray)
-        @test size(dsarray) == size(gribarray)
-        @test all(dsarray .=== gribarray)
+        var = CommonDataModel.variable(ds, "z")
+        dsarray = Raster(ds; name=:z)
+        vararray = Raster(ds; name=:z)
+        @test dims(dsarray) == dims(vararray) == dims(gribarray)
+        @test size(dsarray) == size(vararray) == size(gribarray)
+        @test all(dsarray .=== vararray .=== gribarray)
     end
 
     @testset "lazyness" begin
