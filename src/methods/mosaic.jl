@@ -7,7 +7,8 @@ const MOSAIC_ARGUMENTS = """
     (`mean`, `sum`, `prod`, `first`, `last`, `minimum`, `maximum`,  `length`)
     are optimised and will work on many memory or disk based files,
     but user-defined functions may fail at larger scales unless `op` is passes as a keyword.
-- `regions`: Iterable or splatted `Raster` or `RasterStack`.
+- `regions`: Iterable of `Raster` or `RasterStack`. Using an `AbstractArray` is 
+    usually better than a `Tuple` or splat when there are many regions.
 """
 
 const MOSAIC_KEYWORDS = """
@@ -22,13 +23,17 @@ const MOSAIC_KEYWORDS = """
     due to floating point error. It is not applied to non-float dimensions.
     A tuple of tolerances may be passed, matching the dimension order.
 $PROGRESS_KEYWORD
+- `read`: `read` lazy raster regions before writing them. This may help
+    if there are chunk alignment issues between the source and dest rasters.
+    `false` by default.
 """
 
 """
-    mosaic(f, regions...; kw...
+    mosaic(f, regions...; kw...)
     mosaic(f, regions; kw...)
 
-Combine `regions` into a single raster.
+Combine `regions` of `Raster` or `RasterStack` into a single object, 
+using the function `f` to combine overlapping areas.
 
 # Arguments
 
@@ -54,7 +59,7 @@ import ArchGDAL
 countries = naturalearth("admin_0_countries", 110) |> DataFrame
 climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
 country_climates = map(("Norway", "Denmark", "Sweden")) do name
-    country = subset(countries, :NAME => ByRow(==("Norway")))
+    country = subset(countries, :NAME => ByRow(==(name)))
     trim(mask(climate; with=country); pad=10)
 end
 scandinavia_climate = trim(mosaic(first, country_climates; progress=false))
@@ -74,7 +79,7 @@ $EXPERIMENTAL
 mosaic(f::Function, r1::RasterStackOrArray, rs::RasterStackOrArray...; kw...) =
     _mosaic(f, r1, [r1, rs...]; kw...)
 mosaic(f::Function, regions; kw...) = _mosaic(f, first(regions), regions; kw...)
-_mosaic(f::Function, R1::RasterStackOrArray, regions::Tuple; kw...) = 
+_mosaic(f::Function, R1::RasterStackOrArray, regions; kw...) = 
     _mosaic(f, R1, collect(regions); kw...)
 function _mosaic(f::Function, R1::RasterStackOrArray, regions::AbstractArray;
     to=nothing,
@@ -82,6 +87,8 @@ function _mosaic(f::Function, R1::RasterStackOrArray, regions::AbstractArray;
     atol=nothing,
     missingval=nokw,
     op=nokw,
+    progress=true,
+    read=false,
     kw...
 )
     dims = if isnothing(to)
@@ -115,7 +122,7 @@ function _mosaic(f::Function, R1::RasterStackOrArray, regions::AbstractArray;
         missingval=missingval_pair,
         kw...
     ) do C
-        mosaic!(f, C, regions; op, atol)
+        mosaic!(f, C, regions; op, atol, progress, read)
     end
 end
 
@@ -137,10 +144,11 @@ function _mosaic_eltype(f, R1::AbstractRasterStack{K}, regions) where K
 end
 
 """
-    mosaic!(f, dest, regions...; missingval, atol)
-    mosaic!(f, dest, regions::Tuple; missingval, atol)
+    mosaic!(f, dest::Union{Raster,RasterStack}, regions...; kw...)
+    mosaic!(f, dest::Union{Raster,RasterStack}, regions; kw...)
 
-Combine `regions` in `Raster` or `RasterStack` `x` using the function `f`.
+Combine `regions` of `Raster` or `RasterStack` into `dest`
+using the function `f` to combine overlapping areas.
 
 # Arguments
 
@@ -153,36 +161,6 @@ $MOSAIC_ARGUMENTS
 # Keywords
 
 $MOSAIC_KEYWORDS
-
-# Example
-
-Cut out scandinavian countries and plot:
-
-```jldoctest
-using Rasters, RasterDataSources, NaturalEarth, DataFrames, Dates, Plots
-import ArchGDAL
-
-# Get climate data form worldclim
-climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
-# And country borders from natural earth
-countries = naturalearth("admin_0_countries", 110) |> DataFrame
-# Cut out each country
-country_climates = map(("Norway", "Denmark", "Sweden")) do name
-    country = subset(countries, :NAME => ByRow(==(name)))
-    trim(mask(climate; with=country); pad=10)
-end
-# Mosaic together to a single raster
-scandinavia_climate = mosaic(first, country_climates; progress=false);
-# And plot
-plot(scandinavia_climate)
-
-savefig("build/mosaic_bang_example.png"); nothing
-
-# output
-
-```
-
-![mosaic](mosaic_bang_example.png)
 
 $EXPERIMENTAL
 """
