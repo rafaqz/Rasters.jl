@@ -1,5 +1,7 @@
 const CDM = CommonDataModel
 
+const CDMallowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
+
 const UNNAMED_FILE_KEY = "unnamed"
 
 const CDM_DIM_MAP = Dict(
@@ -39,6 +41,8 @@ sourcetrait(var::CDM.CFVariable) = sourcetrait(var.var)
 sourceconstructor(source::Source) = sourceconstructor(typeof(source))
 # Function to check filename
 checkfilename(s::CDMsource, filename) = throw(BackendException(s))
+# CDM datasets are always multilayer
+check_multilayer_dataset(ds::CDM.AbstractDataset) = true
 
 # Find and check write modes
 function checkwritemode(::CDMsource, filename, append::Bool, force::Bool)
@@ -65,23 +69,7 @@ end
 
 # Rasters methods for CDM types ###############################
 
-function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
-    write::Bool=false, 
-    group=nokw,
-    name::NTuple{N,Symbol}, 
-    mods,
-    vars,
-) where {source<:CDMsource,N}
-    T = NamedTuple{name,Tuple{map(_mod_eltype, vars, mods)...}}
-    layersizes = map(size, vars)
-    eachchunk = map(DiskArrays.eachchunk, vars)
-    haschunks = map(DiskArrays.haschunks, vars)
-    group = isnokw(group) ? nothing : group
-    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, mods, write)
-end
-
-OpenStack(fs::FileStack{Source,K}) where {K,Source<:CDMsource} =
-    OpenStack{Source,K}(sourceconstructor(Source())(filename(fs)), fs.mods)
+Raster(ds::AbstractVariable; kw...) = _raster(ds; kw...)
 
 function _open(f, source::CDMsource, filename::AbstractString; write=false, kw...)
     checkfilename(source, filename)
@@ -103,7 +91,6 @@ function _open(f, source::CDMsource, ds::AbstractDataset;
         _open(f, source, v; mod)
     end
 end
-
 _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) = 
     cleanreturn(f(_maybe_modify(var, mod)))
 
@@ -111,6 +98,9 @@ _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) =
 _getgroup(ds, ::Union{Nothing,NoKW}) = ds
 _getgroup(ds, group::Union{Symbol,AbstractString}) = ds.group[String(group)]
 _getgroup(ds, group::Pair) = _getgroup(ds.group[String(group[1])], group[2])
+
+filename(ds::AbstractDataset) = CDM.path(ds)
+filename(var::AbstractVariable) = CDM.path(CDM.dataset(var))
 
 filekey(ds::AbstractDataset, name::Union{String,Symbol}) = Symbol(name)
 filekey(ds::AbstractDataset, name) = _name_or_firstname(ds, name)
@@ -139,7 +129,6 @@ function _nondimnames(ds)
     nondim = collect(setdiff(keys(ds), toremove))
     return nondim
 end
-
 
 function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
     nondim = _nondimnames(ds)
@@ -584,8 +573,6 @@ function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N
     return mod
 end
 
-const CDMallowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
-
 _check_allowed_type(trait, eltyp) = nothing
 function _check_allowed_type(::CDMsource, eltyp)
     eltyp <: CDMallowedType || throw(ArgumentError("""
@@ -594,7 +581,6 @@ function _check_allowed_type(::CDMsource, eltyp)
     """
     ))
 end
-
 
 _def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::AbstractDataset, dim::Dimension)

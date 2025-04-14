@@ -396,7 +396,7 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     end
     return RasterStack(NamedTuple{K}(layers); resize, metadata)
 end
-# Stack from a String
+# RasterStack from a String
 function RasterStack(filename::AbstractString;
     lazy::Bool=false,
     dropband::Bool=true,
@@ -432,15 +432,11 @@ function RasterStack(filename::AbstractString;
     else
         # Load as a single file
         if haslayers(source) # With multiple named layers
-            l_st = _layer_stack(filename; 
-                source, name, lazy, group, missingval, scaled, coerce, kw...
-            )
-            # Maybe split the stack into separate arrays to remove extra dims.
-            if isnokw(name)
-                l_st
-            else
-                maplayers(identity, l_st)
+            l_st = _open(filename; source) do ds
+                RasterStack(ds; filename, source, name, lazy, group, missingval, scaled, coerce, kw...)
             end
+            # Maybe split the stack into separate arrays to remove extra dims.
+            isnokw(name) ? l_st : maplayers(identity, l_st)
         else # With bands actings as layers
             raster = Raster(filename; 
                 source, lazy, missingval, scaled, coerce, dropband=false,
@@ -448,9 +444,76 @@ function RasterStack(filename::AbstractString;
             RasterStack(raster; kw...)
         end
     end
-
     # Maybe drop the Band dimension
     return _maybe_drop_single_band(st, dropband, lazy)
+end
+# RasterStack from a Dataset
+function RasterStack(ds; 
+    filename=filename(ds),
+    source=nokw,
+    dims=nokw,
+    refdims=(),
+    name=nokw,
+    group=nokw,
+    metadata=nokw,
+    layermetadata=nokw,
+    layerdims=nokw,
+    missingval=nokw,
+    crs=nokw,
+    mappedcrs=nokw,
+    coerce=convert,
+    checkmem=CHECKMEM[],
+    scaled::Union{Bool,NoKW}=nokw,
+    lazy::Bool=false,
+    verbose::Bool=true,
+    raw::Bool=false,
+    kw...
+)
+    check_multilayer_dataset(ds)
+    scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
+    layers = _layers(ds, name, group)
+    # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
+    dimdict = _dimdict(ds, crs, mappedcrs)
+    refdims = isnokw(refdims) || isnothing(refdims) ? () : refdims
+    metadata = isnokw(metadata) ? _metadata(ds) : metadata
+    layerdims_vec = isnokw(layerdims) ? _layerdims(ds; layers, dimdict) : layerdims
+    dims = _sort_by_layerdims(isnokw(dims) ? _dims(ds, dimdict) : dims, layerdims_vec)
+    layermetadata_vec = if isnokw(layermetadata)
+        _layermetadata(ds; layers)
+    else
+        layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
+    end
+    name = Tuple(map(Symbol, layers.names))
+    NT = NamedTuple{name}
+    missingval_vec = if missingval isa Pair
+        _missingval_vec(missingval, name)
+    else
+        layer_mvs = map(Rasters.missingval, layers.vars, layermetadata_vec)
+        _missingval_vec(missingval, layer_mvs, name)
+    end
+    eltype_vec = map(eltype, layers.vars)
+    mod_vec = _stack_mods(eltype_vec, layermetadata_vec, missingval_vec; scaled, coerce)
+    data = if lazy
+        vars = ntuple(i -> layers.vars[i], length(name))
+        mods = ntuple(i -> mod_vec[i], length(name))
+        FileStack{typeof(source)}(ds, filename; name, group, mods, vars)
+    else
+        map(layers.vars, layermetadata_vec, mod_vec) do var, md, mod
+            modvar = _maybe_modify(var, mod)
+            checkmem && _checkobjmem(modvar)
+            Array(modvar)
+        end |> NT
+    end
+    mv_outer = NT(map(_outer_missingval, mod_vec))
+    return RasterStack(data; 
+        dims,
+        refdims,
+        layerdims=NT(layerdims_vec),
+        metadata,
+        layermetadata=NT(layermetadata_vec),
+        missingval=mv_outer,
+        kw...
+    )
 end
 
 # TODO test this properly
@@ -503,71 +566,6 @@ function _postprocess_stack(st, dims;
     dims = isnokw(mappedcrs) ? dims : setmappedcrs(dims, mappedcrs)
     st = rebuild(st; dims)
     return isnokw(name) ? st : st[Dimensions._astuple(name)]
-end
-
-function _layer_stack(filename;
-    source=nokw,
-    dims=nokw,
-    refdims=(),
-    name=nokw,
-    group=nokw,
-    metadata=nokw,
-    layermetadata=nokw,
-    layerdims=nokw,
-    missingval=nokw,
-    crs=nokw,
-    mappedcrs=nokw,
-    coerce=convert,
-    scaled=nokw,
-    checkmem=CHECKMEM[],
-    lazy=false,
-    kw...
-)
-    data, field_kw = _open(filename; source) do ds
-        layers = _layers(ds, name, group)
-        # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
-        dimdict = _dimdict(ds, crs, mappedcrs)
-        refdims = isnokw(refdims) || isnothing(refdims) ? () : refdims
-        metadata = isnokw(metadata) ? _metadata(ds) : metadata
-        layerdims_vec = isnokw(layerdims) ? _layerdims(ds; layers, dimdict) : layerdims
-        dims = _sort_by_layerdims(isnokw(dims) ? _dims(ds, dimdict) : dims, layerdims_vec)
-        layermetadata_vec = if isnokw(layermetadata)
-            _layermetadata(ds; layers)
-        else
-            layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
-        end
-        name = Tuple(map(Symbol, layers.names))
-        NT = NamedTuple{name}
-        missingval_vec = if missingval isa Pair
-            _missingval_vec(missingval, name)
-        else
-            layer_mvs = map(Rasters.missingval, layers.vars, layermetadata_vec)
-            _missingval_vec(missingval, layer_mvs, name)
-        end
-        eltype_vec = map(eltype, layers.vars)
-        mod_vec = _stack_mods(eltype_vec, layermetadata_vec, missingval_vec; scaled, coerce)
-        data = if lazy
-            vars = ntuple(i -> layers.vars[i], length(name))
-            mods = ntuple(i -> mod_vec[i], length(name))
-            FileStack{typeof(source)}(ds, filename; name, group, mods, vars)
-        else
-            map(layers.vars, layermetadata_vec, mod_vec) do var, md, mod
-                modvar = ModifiedDiskArray(var, mod)
-                checkmem && _checkobjmem(modvar)
-                Array(modvar)
-            end |> NT
-        end
-        mv_outer = NT(map(_outer_missingval, mod_vec))
-        return data, (; 
-            dims,
-            refdims,
-            layerdims=NT(layerdims_vec),
-            metadata,
-            layermetadata=NT(layermetadata_vec),
-            missingval=mv_outer,
-        )
-    end
-    return RasterStack(data; field_kw..., kw...)
 end
 
 # These ignore file missingvals
@@ -674,7 +672,20 @@ end
 
 Base.convert(::Type{RasterStack}, src::AbstractDimStack) = RasterStack(src)
 
-Raster(stack::RasterStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
+# For ambiguity. TODO: remove this method from DD ?
+function RasterStack(dt::AbstractDimTree; keep=nothing)
+    if isnothing(keep)
+        pruned = DD.prune(dt; keep)
+        RasterStack(pruned[Tuple(keys(pruned))])
+    else
+        RasterStack(dt[Tuple(keys(dt))])
+    end
+end
+# TODO resolve the meaning of Raster(::RasterStack)
+Raster(stack::AbstractDimStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
+# In DD it would be 
+# Raster(st::AbstractDimStack) =
+    # Raster([st[D] for D in DimIndices(st)]; dims=dims(st), metadata=metadata(st))
 
 defaultcrs(::Source, crs) = crs
 defaultcrs(s::Source, ::NoKW) = defaultcrs(s)
@@ -682,3 +693,5 @@ defaultcrs(x) = nothing
 defaultmappedcrs(::Source, crs) = crs
 defaultmappedcrs(s::Source, ::NoKW) = defaultmappedcrs(s)
 defaultmappedcrs(::Source) = nothing
+
+check_multilayer_dataset(ds) = throw(ArgumentError("$(typeof(ds)) is not a multilayer raster dataset"))
