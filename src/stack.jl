@@ -36,7 +36,7 @@ filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}) =
 filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:Union{FileStack,OpenStack}}) = 
     filename(parent(stack))
 
-isdisk(st::AbstractRasterStack) = any(isdisk, layers(st))
+DiskArrays.isdisk(st::AbstractRasterStack) = any(isdisk, layers(st))
 
 setcrs(x::AbstractRasterStack, crs) = set(x, setcrs(dims(x), crs)...)
 setmappedcrs(x::AbstractRasterStack, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
@@ -519,7 +519,7 @@ function _layer_stack(filename;
     mappedcrs=nokw,
     coerce=convert,
     scaled=nokw,
-    checkmem=true,
+    checkmem=CHECKMEM[],
     lazy=false,
     kw...
 )
@@ -552,10 +552,9 @@ function _layer_stack(filename;
             FileStack{typeof(source)}(ds, filename; name, group, mods, vars)
         else
             map(layers.vars, layermetadata_vec, mod_vec) do var, md, mod
-                modvar = _maybe_modify(var, mod)
+                modvar = ModifiedDiskArray(var, mod)
                 checkmem && _checkobjmem(modvar)
-                x = Array(modvar)
-                x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
+                Array(modvar)
             end |> NT
         end
         mv_outer = NT(map(_outer_missingval, mod_vec))

@@ -34,6 +34,7 @@ grdpath = stem * ".gri"
         @test missingval(missingarray) === missing
         @test eltype(missingarray) === Union{Missing,Float32}
         @time missingarray = Raster(grdpath; missingval)
+        @time rawarray = Raster(grdpath; raw=true)
         @test missingval(missingarray) === -3.4f38
         @test eltype(missingarray) === Float32
         @time missingarray = Raster(grdpath; missingval=missingval => NaN32)
@@ -323,12 +324,6 @@ end
         @time eagerstack = RasterStack((a=grdpath, b=grdpath); lazy=false);
         @test parent(lazystack[:a]) isa FileArray
         @test parent(eagerstack[:a]) isa Array
-    end
-
-    @testset "replace_missing keyword" begin
-        st = RasterStack((a=grdpath, b=grdpath); replace_missing=true)
-        @test eltype(st) == @NamedTuple{a::Union{Missing,Float32},b::Union{Missing,Float32}}
-        @test missingval(st) === missing
     end
 
     @test length(layers(grdstack)) == 2

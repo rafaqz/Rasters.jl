@@ -5,6 +5,11 @@ RA.sourceconstructor(::Type{GRIBsource}) = _gribdataset
 # GRIB doesn't accept the mode keyword so hack around it
 _gribdataset(filename, mode="") = GDS.GRIBDataset(filename)
 
+# GribDatasets.jl is essentially broken to 
+# use directly, so we get the internal values
+# RA._open(f, ::GRIBsource, var::AbstractArray; mod=NoMod(), kw...) = 
+    # RA.cleanreturn(f(RA._maybe_modify(var.values, mod)))
+
 RA.checkwritemode(::GRIBsource, filename, append::Bool, force::Bool) =
     throw(ArgumentError("GRIBDatasets.jl does not support writing"))
 RA.checkfilename(::GRIBsource, filename) =

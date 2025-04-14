@@ -1,5 +1,7 @@
-abstract type AbstractModifications end
-struct NoMod{T,Mi} <: AbstractModifications
+
+abstract type AbstractModifications{T} end
+
+struct NoMod{T,Mi} <: AbstractModifications{T}
      missingval::Mi
 end
 NoMod{T}(missingval::Mi) where {T,Mi} = NoMod{T,Mi}(missingval)
@@ -10,7 +12,8 @@ NoMod{T}(::NoKW) where T = NoMod{T}(nothing)
 Base.eltype(::NoMod{T}) where T = T
 source_eltype(::NoMod{T}) where T = T
 
-struct Mod{T1,T2,Mi,S,O,F} <: AbstractModifications
+# Modifies array values by scale
+struct Mod{T1,T2,Mi,S,O,F} <: AbstractModifications{T1}
      missingval::Mi
      scale::S
      offset::O
@@ -48,71 +51,75 @@ _outer_missingval(m::AbstractModifications) = _outer_missingval(m.missingval)
 _outer_missingval(mv::Pair) = mv[2]
 _outer_missingval(mv) = mv
 
-struct ModifiedDiskArray{I,T,N,V,M} <: DiskArrays.AbstractDiskArray{T,N}
-    var::V
+# A wrapper for disk arrays that modifieds values lazily:
+# scale and offset or replacing missing values
+struct ModifiedDiskArray{T,N,D,M} <: DiskArrays.AbstractDiskArray{T,N}
+    data::D
     mod::M
 end
-function ModifiedDiskArray(v::V, m::M; invert=false) where {V<:AbstractArray{<:Any,N},M} where N
-    T = invert ? source_eltype(m) : eltype(m)
-    return ModifiedDiskArray{invert,T,N,V,M}(v, m)
+function ModifiedDiskArray(
+    data::D, mod::M
+) where {D<:AbstractArray{<:Any,N},M<:AbstractModifications{T}} where {T,N}
+    return ModifiedDiskArray{T,N,D,M}(data, mod)
 end
 
-Base.parent(A::ModifiedDiskArray) = A.var
-Base.size(A::ModifiedDiskArray, args...) = size(parent(A), args...)
+_maybe_modify(A::AbstractArray, mod::AbstractModifications) = 
+    ModifiedDiskArray(A, mod)
+_maybe_modify(A::AbstractArray, ::Nothing) = A
+
 filename(A::ModifiedDiskArray) = filename(parent(A))
 missingval(A::ModifiedDiskArray) = A.missingval
+_metadata(A::ModifiedDiskArray, args...) = _metadata(parent(A), args...)
+
+Base.parent(A::ModifiedDiskArray) = A.data
+Base.size(A::ModifiedDiskArray, args...) = size(parent(A), args...)
+
 DiskArrays.haschunks(A::ModifiedDiskArray) = DiskArrays.haschunks(parent(A))
 DiskArrays.eachchunk(A::ModifiedDiskArray) = DiskArrays.eachchunk(parent(A))
 
 function DiskArrays.readblock!(
-    A::ModifiedDiskArray{false,<:Any,0}, out_block, I::AbstractVector...
+    A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:Mod}, outer_block, I::AbstractVector...
 )
-    out_block[] = _applymod(parent(A)[I...][], A.mod)
-    return out_block
+    if isdisk(parent(A))
+        inner_block = similar(outer_block, eltype(parent(A)))
+        DiskArrays.readblock!(parent(A), inner_block, I...)
+    elseif isdisk(parent(parent(A)))
+        inner_block = similar(outer_block, eltype(parent(parent(A))))
+        DiskArrays.readblock!(parent(parent(A)), inner_block, I...)
+    else
+        inner_block = view(parent(A), I...)
+    end
+    outer_block .= _applymod.(inner_block, (A.mod,))
+    return outer_block
 end
 function DiskArrays.readblock!(
-    A::ModifiedDiskArray{true,T,<:Any,0}, out_block, I::AbstractVector...
-) where T
-    out_block[] = _invertmod(Val{T}(), parent(A)[I...], A.mod)
-    return out_block
-end
-function DiskArrays.readblock!(
-    A::ModifiedDiskArray{false}, out_block, I::AbstractVector...
+    A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:NoMod}, out_block, I::AbstractVector...
 )
-    out_block .= _applymod.(parent(A)[I...], (A.mod,))
-    return out_block
-end
-function DiskArrays.readblock!(
-    A::ModifiedDiskArray{true,T}, out_block, I::AbstractVector...
-) where T
-    out_block .= _invertmod.((Val{T}(),), parent(A)[I...], (A.mod,))
-    return out_block
+    if isdisk(parent(A))
+        DiskArrays.readblock!(parent(A), out_block, I...)
+    else
+        out_block .= view(parent(A), I...)
+    end
 end
 
 function DiskArrays.writeblock!(
-    A::ModifiedDiskArray{false,<:Any,0,<:AbstractArray{T}}, block, I::AbstractVector...
-) where T
-
-    parent(A)[I...] = _invertmod(Val{source_eltype(A.mod)}(), block[], A.mod)
-    return nothing
+    A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:Mod}, block, I::AbstractVector...
+)
+    if isdisk(parent(A))
+        modblock = _invertmod.((Val{source_eltype(A.mod)}(),), block, (A.mod,))
+        return DiskArrays.writeblock!(parent(A), modblock, I...) 
+    else
+        parent(A)[I...] = _invertmod.((Val{source_eltype(A.mod)}(),), block, (A.mod,))
+    end
 end
 function DiskArrays.writeblock!(
-    A::ModifiedDiskArray{true,<:Any,0,<:AbstractArray{T}}, _block, I::AbstractVector...
-) where T
-    parent(A)[I...] = _applymod(Val{eltype(A.mod)}(), block[], A.mod)
-    return nothing
-end
-function DiskArrays.writeblock!(
-    A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:AbstractArray{T}}, block, I::AbstractVector...
-) where T
-    parent(A)[I...] = _invertmod.((Val{source_eltype(A.mod)}(),), block, (A.mod,))
-    return nothing
-end
-function DiskArrays.writeblock!(
-    A::ModifiedDiskArray{true,<:Any,<:Any,<:AbstractArray{T}}, _block, I::AbstractVector...
-) where T
-    parent(A)[I...] = _applymod.((Val{eltype(A.mod)}(),), block, (A.mod,))
-    return nothing
+    A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:NoMod}, block, I::AbstractVector...
+)
+    if isdisk(parent(A))
+        DiskArrays.writeblock!(parent(A), block, I...)
+    else
+        parent(A)[I...] = block
+    end
 end
 
 Base.@assume_effects :foldable function _applymod(x, m::Mod)
@@ -196,9 +203,6 @@ _mod_eltype(::AbstractArray, m::Mod{T}) where T = T
 _mod_inverse_eltype(::AbstractArray{T}, ::NoMod) where T = T
 _mod_inverse_eltype(::AbstractArray{T}, m::Mod) where T =
     Base.promote_op(_invertmod, typeof(m.coerce), T, typeof(m))
-
-_maybe_modify(var, m::Mod; kw...) = ModifiedDiskArray(var, m; kw...)
-_maybe_modify(var, ::NoMod; kw...) = var
 
 _write_missingval_pair(A, missingval::Pair; kw...) = missingval
 function _write_missingval_pair(A, missingval; 

@@ -52,7 +52,7 @@ makedocs(
 # Enable logging to console again
 Logging.disable_logging(Logging.BelowMinLevel)
 
-deploydocs(; repo="github.com/rafaqz/Rasters.jl.git",
+deploydocs(; repo="github.com/rafaqz/Rasters.jl",
     target = "build", # this is where Vitepress stores its output
     branch = "gh-pages",
     devbranch = "main",

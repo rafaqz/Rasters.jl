@@ -11,10 +11,10 @@ const MOSAIC_ARGUMENTS = """
 """
 
 const MOSAIC_KEYWORDS = """
-- `missingval`: Fills empty areas, and defualts to the
+- `missingval`: Fills empty areas, and defaults to the
     `missingval` of the first region.
 - `op`: an operator for the reduction, e.g. `add_sum` for `sum`. 
-    For common methods like `sum` these are known and dectected for you, 
+    For common methods like `sum` these are known and detected for you, 
     but you can provide it manually for other functions, so they continue
     to work at large scales.
 - `atol`: Absolute tolerance for comparison between index values.
@@ -49,16 +49,18 @@ Here we cut out Australia and Africa from a stack, and join them with `mosaic`.
 
 ```jldoctest
 using Rasters, RasterDataSources, NaturalEarth, DataFrames, Dates, Plots
+import ArchGDAL
+
 countries = naturalearth("admin_0_countries", 110) |> DataFrame
 climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
 country_climates = map(("Norway", "Denmark", "Sweden")) do name
     country = subset(countries, :NAME => ByRow(==("Norway")))
     trim(mask(climate; with=country); pad=10)
 end
-scandinavia_climate = trim(mosaic(first, country_climates))
+scandinavia_climate = trim(mosaic(first, country_climates; progress=false))
 plot(scandinavia_climate)
+savefig("build/mosaic_example_combined.png"); nothing
 
-savefig("build/mosaic_example_combined.png");
 # output
 
 ```
@@ -165,6 +167,8 @@ Cut out scandinavian countries and plot:
 
 ```jldoctest
 using Rasters, RasterDataSources, NaturalEarth, DataFrames, Dates, Plots
+import ArchGDAL
+
 # Get climate data form worldclim
 climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
 # And country borders from natural earth
@@ -175,11 +179,12 @@ country_climates = map(("Norway", "Denmark", "Sweden")) do name
     trim(mask(climate; with=country); pad=10)
 end
 # Mosaic together to a single raster
-scandinavia_climate = mosaic(first, country_climates)
+scandinavia_climate = mosaic(first, country_climates; progress=false);
 # And plot
 plot(scandinavia_climate)
 
-savefig("build/mosaic_bang_example.png");
+savefig("build/mosaic_bang_example.png"); nothing
+
 # output
 
 ```
@@ -428,7 +433,7 @@ function _mosaic(span::Explicit, lookup::AbstractSampled, lookups::AbstractArray
 end
 
 # Pad floats for intervals so that small floating point 
-# error doesn't exclude values in nealy matching lookups
+# error doesn't exclude values in nearly matching lookups
 function _maybe_pad_floats(ext::Extent{K}, sampling::Tuple) where K
     map(values(Extents.bounds(ext)), sampling) do b, sa
         if isintervals(sa) && eltype(first(b)) <: AbstractFloat

@@ -212,7 +212,6 @@ function Base.write(filename::String, ::GRDsource, A::AbstractRaster;
     # Data: write a raw gri file from the array
     mod = _mod(eltype, missingval_pair, scale, offset, coerce)
     gri_filename = filename * ".gri"
-    isfile(gri_filename) && rm(gri_filename)
     _write_gri(gri_filename, Val{source_eltype(mod)}(), mod, parent(correctedA))
     _write_grd(filename, eltype, dims(A), missingval_pair[1], name(A))
 
