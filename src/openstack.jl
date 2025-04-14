@@ -16,7 +16,7 @@ struct OpenStack{X,K,T,DS,M}
     dataset::DS
     mods::M
 end
-OpenStack{X,K,T}(dataset::DS, mods::M=NoMod()) where {X,K,T,DS,M} =
+OpenStack{X,K,T}(dataset::DS, mods::M) where {X,K,T,DS,M} =
     OpenStack{X,K,T,DS,M}(dataset, mods)
 OpenStack(fs::FileStack{Source,K}) where {K,Source} =
     OpenStack{Source,K}(sourceconstructor(Source())(filename(fs)), fs.mods)

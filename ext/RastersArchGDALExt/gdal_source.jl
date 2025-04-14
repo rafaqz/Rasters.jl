@@ -82,7 +82,7 @@ function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster{T}
         if write
             mod = RA._mod(eltype, missingval_pair, scale, offset, coerce)
             open(A1; write=true) do O
-                R = RA._maybe_modify(AG.RasterDataset(dataset), mod)
+                R = RA.ModifiedDiskArray(AG.RasterDataset(dataset), mod)
                 R .= parent(O)
                 if hasdim(A, Band())
                     f(R)
@@ -308,7 +308,7 @@ function AG.RasterDataset(f::Function, A::AbstractRaster;
             rds = AG.RasterDataset(dataset)
             mv = RA.missingval(rds) => RA.missingval(O)
             mod = RA._mod(eltype, mv, scale, offset, coerce)
-            RA._maybe_modify(rds, mod) .= parent(O)
+            RA.ModifiedDiskArray(rds, mod) .= parent(O)
             f(rds)
         end
     end

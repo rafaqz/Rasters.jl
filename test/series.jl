@@ -127,5 +127,5 @@ end
         @test Rasters.isdisk(series)
         @test !Rasters.isdisk(read(series))
         @test Rasters.isdisk(Rasters.combine(series))
-        end
+    end
 end

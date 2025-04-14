@@ -1,4 +1,11 @@
 # Source dispatch singletons
+"""
+    Source
+    
+Abstract type for all sources.  This is used to dispatch on the source
+backend to use for reading a file.  The source is determined by the file
+extension, or by the source keyword argument.
+"""
 abstract type Source end
 
 abstract type CDMsource <: Source end
@@ -72,6 +79,7 @@ sourcetrait(filename::AbstractString, ::Type{S}) where S<:Source = S()
 sourcetrait(filename::AbstractString, ::Union{Nothing,NoKW}) = sourcetrait(filename)
 sourcetrait(filename::AbstractString, ext::AbstractString) = get(EXT2SOURCE, ext, GDALsource())
 function sourcetrait(filename::AbstractString)
+    isempty(filename) && throw(ArgumentError("Filename cannot be empty"))
     default = GDALsource()
     stem, ext = splitext(filename)
     str = if ext == ""  
