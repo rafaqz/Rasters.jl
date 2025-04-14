@@ -393,6 +393,8 @@ function Raster(ds;
     # Maybe drop a single band dimension
     return _maybe_drop_single_band(raster, dropband, lazy)
 end
+# For ambiguity
+Raster(x::UndefInitializer; kw...) = Raster(x, (); kw...)
 
 filekey(ds, name) = name
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])

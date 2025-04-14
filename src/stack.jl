@@ -669,7 +669,20 @@ end
 
 Base.convert(::Type{RasterStack}, src::AbstractDimStack) = RasterStack(src)
 
-Raster(stack::RasterStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
+# For ambiguity. TODO: remove this method from DD ?
+function RasterStack(dt::AbstractDimTree; keep=nothing)
+    if isnothing(keep)
+        pruned = DD.prune(dt; keep)
+        RasterStack(pruned[Tuple(keys(pruned))])
+    else
+        RasterStack(dt[Tuple(keys(dt))])
+    end
+end
+# TODO resolve the meaning of Raster(::RasterStack)
+Raster(stack::AbstractDimStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
+# In DD it would be 
+# Raster(st::AbstractDimStack) =
+    # Raster([st[D] for D in DimIndices(st)]; dims=dims(st), metadata=metadata(st))
 
 defaultcrs(::Source, crs) = crs
 defaultcrs(s::Source, ::NoKW) = defaultcrs(s)
