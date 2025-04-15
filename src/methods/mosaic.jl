@@ -201,7 +201,7 @@ function _mosaic!(
         if read
             _count_region!(dest, region; kw...)
         else
-            _count_region!(dest, read(region); kw...)
+            _count_region!(dest, Base.read(region); kw...)
         end
     end
     return dest
