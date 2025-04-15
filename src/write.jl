@@ -134,7 +134,7 @@ function Base.write(path::AbstractString, s::AbstractRasterStack{K};
         end |> NamedTuple{K}
         # TODO build this into write by keeping the file open
         if f != identity
-            st = RasterStack(filenames; lazy=true)
+            st = RasterStack(filenames; lazy=true, source, missingval)
             open(st; write=true) do O
                 f(parent(O))
             end
