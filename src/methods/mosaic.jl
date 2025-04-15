@@ -195,10 +195,14 @@ function _mosaic!(
 end
 function _mosaic!(
     f::typeof(length), op::Nothing, dest::AbstractRaster, regions::RasterVecOrTuple;
-    kw...
+    read=false, kw...
 )
     for region in regions
-        _count_region!(dest, region; kw...)
+        if read
+            _count_region!(dest, region; kw...)
+        else
+            _count_region!(dest, read(region); kw...)
+        end
     end
     return dest
 end
@@ -208,7 +212,6 @@ function _mosaic!(
     gc::Union{Integer,Nothing}=nothing,
     progress=true,
     _progressmeter=_mosaic_progress(f, progress, length(regions)),
-    read=false,
     kw...
 )
     for (i, region) in enumerate(regions)
@@ -231,7 +234,10 @@ function _mosaic!(
     missingval=missingval(A), 
     atol=nothing,
     progress=false,
+    read=false,
 ) where T
+    # TODO: rethink this algorithm using overlapping subregions
+    # Its super slow to do this for every pixel
     isnokwornothing(missingval) && throw(ArgumentError("destination array must have a `missingval`"))
     R = promote_type(map(Missings.nonmissingtype ∘ eltype, regions)...)
     buffer = Vector{R}(undef, length(regions))
@@ -273,7 +279,9 @@ function _mosaic!(
     return st
 end
 
-function _mosaic_mean!(dest, ::Type{T}, regions; kw...) where T
+function _mosaic_mean!(dest, ::Type{T}, regions; 
+    read=false, kw...
+) where T
     # Note: sum and count are separate broadcasts because 
     # most disk formats don't support writing a tuple
 
@@ -282,9 +290,14 @@ function _mosaic_mean!(dest, ::Type{T}, regions; kw...) where T
     counts .= zero(T)
     for region in regions
         # Add region to dest
-        _mosaic_region!(Base.add_sum, dest, region; kw...)
-        # Count region
-        _count_region!(counts, region; kw...)
+        if read 
+            region1 = Base.read(region)
+            _mosaic_region!(Base.add_sum, dest, region1; kw...)
+            _count_region!(counts, region1; kw...)
+        else
+            _mosaic_region!(Base.add_sum, dest, region; kw...)
+            _count_region!(counts, region; kw...)
+        end
     end
     # Divide dest by counts
     # Avoid divide by zero for missing values
