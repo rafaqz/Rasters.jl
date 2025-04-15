@@ -210,6 +210,7 @@ end
 function _mosaic!(
     f::Function, op, dest::AbstractRaster, regions::RasterVecOrTuple; 
     gc::Union{Integer,Nothing}=nothing,
+    read=false,
     progress=true,
     _progressmeter=_mosaic_progress(f, progress, length(regions)),
     kw...
