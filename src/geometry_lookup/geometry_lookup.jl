@@ -39,10 +39,19 @@ struct GeometryLookup{A <: AbstractVector, D, M <: GO.Manifold, Tree, CRS} <: Lo
     crs::CRS
 end
 
-function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing, crs = nothing)
+function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing, crs = nokw)
+
     # First, retrieve the geometries - from a table, vector of geometries, etc.
     geometries = _get_geometries(data, geometrycolumn)
     geometries = Missings.disallowmissing(geometries)
+
+    if isnokw(crs)
+        crs = GI.crs(data)
+        if isnothing(crs)
+            crs = GI.crs(first(geometries))
+        end
+    end
+    
     # Check that the geometries are actually geometries
     if any(!GI.isgeometry, geometries)
         throw(ArgumentError("""
