@@ -77,17 +77,15 @@ This is broadly standard except for the `rebuild` method, which is used to updat
 =#
 
 DD.dims(l::GeometryLookup) = l.dims
-
 DD.dims(d::DD.Dimension{<: GeometryLookup}) = val(d).dims
- 
 DD.order(::GeometryLookup) = Lookups.Unordered()
-
 DD.parent(lookup::GeometryLookup) = lookup.data
-
+# TODO: format for geometry lookup
 DD.Dimensions.format(l::GeometryLookup, D::Type, values, axis::AbstractRange) = l
 
 # Make sure that the tree is rebuilt if the data changes
-function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nokw, dims = lookup.dims, crs = nokw, manifold = nokw)
+function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nokw, dims = lookup.dims, crs = nokw, manifold = nokw, metadata = nokw)
+    # TODO: metadata support for geometry lookup
     new_tree = if isnokw(tree)
         if data == lookup.data
             lookup.tree
