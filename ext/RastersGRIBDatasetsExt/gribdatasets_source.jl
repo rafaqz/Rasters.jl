@@ -1,21 +1,28 @@
-const GDS = GRIBDatasets
+RA.sourcetrait(::GDS.Variable) = GRIBsource()
+RA.sourcetrait(::GDS.GRIBDataset) = GRIBsource()
 
-function RA.OpenStack(fs::RA.FileStack{GRIBsource,K}) where K
-    RA.OpenStack{GRIBsource,K}(GDS.GRIBDataset(RA.filename(fs)))
-end
+RA.sourceconstructor(::Type{GRIBsource}) = _gribdataset
+# GRIB doesn't accept the mode keyword so hack around it
+_gribdataset(filename, mode="") = GDS.GRIBDataset(filename)
+
+# GribDatasets.jl is essentially broken to 
+# use directly, so we get the internal values
+# RA._open(f, ::GRIBsource, var::AbstractArray; mod=NoMod(), kw...) = 
+    # RA.cleanreturn(f(RA._maybe_modify(var.values, mod)))
+
+RA.checkwritemode(::GRIBsource, filename, append::Bool, force::Bool) =
+    throw(ArgumentError("GRIBDatasets.jl does not support writing"))
+RA.checkfilename(::GRIBsource, filename) =
+    isfile(filename) || _filenotfound_error(filename)
 
 # In GRIBDatasets, the file is open for reading the values and closed afterwards. 
 Base.close(os::RA.OpenStack{GRIBsource}) = nothing
 
-function RA._open(f, ::GRIBsource, filename::AbstractString; write=false, kw...)
-    isfile(filename) || _filenotfound_error(filename)
-    ds = GRIBDatasets.GRIBDataset(filename)
-    RA._open(f, GRIBsource(), ds; kw...)
+RA.missingval(var::GDS.Variable, ::RA.Metadata{<:RA.CDMsource}) = _missingval(var)
+RA.missingval(var::GDS.Variable, args...) = _missingval(var)
+
+function _missingval(var::GDS.Variable{T}) where T
+    mv = GDS.missing_value(var)
+    T1 = promote_type(typeof(mv), T)
+    return T1(mv)
 end
-
-# Hack to get the inner DiskArrays chunks as they are not exposed at the top level
-RA._get_eachchunk(var::GDS.Variable) = DiskArrays.eachchunk(var.values)
-RA._get_haschunks(var::GDS.Variable) = DiskArrays.haschunks(var.values)
-
-RA._sourcetrait(::GDS.Variable) = GRIBsource()
-RA._sourcetrait(::GDS.GRIBDataset) = GRIBsource()

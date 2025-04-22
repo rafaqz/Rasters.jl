@@ -13,10 +13,19 @@ gdalpath = maybedownload(url)
     @time gdalarray = Raster(gdalpath; name=:test)
     @time lazyarray = Raster(gdalpath; lazy=true);
     @time eagerarray = Raster(gdalpath; lazy=false);
+    
+    @testset "Raster from dataset" begin
+        ds = ArchGDAL.read(gdalpath)
+        rds = ArchGDAL.RasterDataset(ds)
+        dsarray = Raster(ds)
+        rdsarray = Raster(ds)
+        @test dims(dsarray) == dims(rdsarray) == dims(gdalarray)
+        @test dsarray == rdsarray == gdalarray
+    end
 
     @testset "lazyness" begin
         # Eager is the default
-        @test parent(gdalarray) isa Array
+        @test parent(gdalarray) isa Array # its a reshaped array now
         @test parent(lazyarray) isa DiskArrays.AbstractDiskArray
         @test parent(eagerarray) isa Array
         @testset "lazy broadcast" begin
@@ -25,6 +34,27 @@ gdalpath = maybedownload(url)
         end
     end
     
+    @testset "modified/lazy parent types" begin
+        # This file has no scale/offset so cf does nothing
+        @time nomissing_array = Raster(gdalpath; missingval=nothing)
+        @time missing_array = Raster(gdalpath; missingval=missing)
+        @time rawarray = Raster(gdalpath; raw=true)
+        @time lazyrawarray = Raster(gdalpath; lazy=true, raw=true)
+
+        @test parent(gdalarray) isa Matrix{UInt8}
+        @test parent(nomissing_array) isa Matrix{UInt8}
+        @test parent(missing_array) isa Base.ReshapedArray{Union{Missing,UInt8}}
+        @test parent(rawarray) isa Matrix{UInt8}
+        open(lazyarray) do A
+            @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
+            @test parent(parent(A)) isa Rasters.ModifiedDiskArray{UInt8}
+        end
+        open(lazyrawarray) do A
+            @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
+            @test parent(parent(A)) isa Rasters.ModifiedDiskArray{UInt8}
+        end
+    end
+
     @testset "load from url" begin
         A = Raster("/vsicurl/" * url)
         B = Raster(url; source=:gdal)
@@ -102,8 +132,8 @@ gdalpath = maybedownload(url)
         @test ndims(gdalarray) == 2
         @test dims(gdalarray) isa Tuple{<:X,<:Y}
         @test lookup(refdims(gdalarray), Band) isa DimensionalData.Categorical;
-        # @test span(gdalarray, (Y, X)) ==
-            # (Regular(-60.02213698319351), Regular(60.02213698319374))
+        @test span(gdalarray, (Y, X)) ==
+            (Regular(-60.02213698319351), Regular(60.02213698319374))
         @test sampling(gdalarray, (Y, X)) ==
             (Intervals(Start()), Intervals(Start()))
         # Bounds calculated in python using rasterio
@@ -131,7 +161,7 @@ gdalpath = maybedownload(url)
     @testset "custom keywords" begin
         customgdalarray = Raster(gdalpath; 
             name=:test, crs=EPSG(1000), mappedcrs=EPSG(4326), refdims=(Ti(),),
-            write=true, lazy=true, dropband=false, replace_missing=true,
+            write=true, lazy=true, dropband=false,
         )
         @test name(customgdalarray) == :test
         @test refdims(customgdalarray) == (Ti(),)
@@ -148,7 +178,7 @@ gdalpath = maybedownload(url)
         dimsgdalarray = Raster(gdalpath; 
             dims=(Z(), X(), Y()),
         )
-        @test dims(dimsgdalarray) isa Tuple{<:Z,X,Y}
+        @test dims(dimsgdalarray) isa Tuple{Z,X,Y}
     end
 
     @testset "indexing" begin
@@ -175,7 +205,7 @@ gdalpath = maybedownload(url)
         @testset "trim, crop, extend" begin
             a = read(replace_missing(gdalarray, zero(eltype(gdalarray))))
             a[X(1:100)] .= missingval(a)
-            trimmed = trim(a)
+            trimmed = Rasters.trim(a)
             @test size(trimmed) == (414, 514)
             cropped = Rasters.crop(a; to=trimmed)
             @test size(cropped) == (414, 514)
@@ -238,28 +268,62 @@ gdalpath = maybedownload(url)
         end
 
         @testset "aggregate" begin
+            DiskArrays.allowscalar(true) # TODO remove when this is fixed in DiskArrays
             ag = aggregate(mean, gdalarray, 4)
-            @test ag == aggregate(mean, gdalarray, (X(4), Y(4), Band(1)))
+            @test ag == aggregate(mean, gdalarray, (X(4), Y(4)))
+            @test ag == aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
+            @time ag_disk = aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
+            @test ag_disk == ag
             tempfile = tempname() * ".tif"
             write(tempfile, ag)
-            open(Raster(tempfile); write=true) do dst
+            open(Raster(tempfile; lazy=true); write=true) do dst
                 aggregate!(mean, dst, gdalarray, 4)
             end
             @test Raster(tempfile) == ag
-            rm(tempfile)
+
+            disag = disaggregate(gdalarray, 2)
+            @test disag == disaggregate(lazyarray, 2)
+            @test disag == disaggregate(gdalarray, (X(2), Y(2)))
+            @test size(disag) == size(gdalarray) .* 2
+
+            @testset "disaggregate to file" begin
+                tempfile = tempname() * ".tif"
+                write(tempfile, disaggregate(gdalarray, 2))
+                disaggregate(2 .* gdalarray, 2)
+                open(Raster(tempfile; lazy=true); write=true) do dst
+                    disaggregate!(dst, 2 .* gdalarray, 2)
+                end
+                @test size(Raster(tempfile)) == 2 .* size(gdalarray)
+            end
+            DiskArrays.allowscalar(false)
         end
 
         @testset "mosaic" begin
             @time gdalarray = Raster(gdalpath; name=:test)
             A1 = gdalarray[X(1:300), Y(1:200)]
-            A2 = gdalarray[X(57:500), Y(101:301)]
-            tempfile = tempname() * ".tif"
-            Afile = mosaic(first, A1, A2; missingval=0x00, atol=1e-8, filename=tempfile)
-            Amem = mosaic(first, A1, A2; missingval=0x00, atol=1e-8)
-            Atest = gdalarray[X(1:500), Y(1:301)]
-            Atest[X(1:56), Y(201:301)] .= 0x00
-            Atest[X(301:500), Y(1:100)] .= 0x00
-            @test all(Atest .=== Amem .=== Afile)
+            A2 = gdalarray[X(57:End()), Y(101:End())]
+            tempfile1 = tempname() * ".tif"
+            tempfile2 = tempname() * ".tif"
+            tempfile3 = tempname() * ".tif"
+            view(gdalarray, extent(A2))
+            Afile = mosaic(first, A1, A2; missingval=0xff, atol=1e-1, filename=tempfile1)
+            @test missingval(Afile) === 0xff
+            Afile2 = mosaic(first, A1, A2; 
+                atol=1e-8, filename=tempfile2, chunks=(128, 128), options="COMPRESS" => "LZW", driver="COG"
+            )
+            @test Rasters.eachchunk(Raster(tempfile2; lazy=true))[1] == (1:128, 1:128)
+            @test missingval(Afile2) === missing
+            Amem = mosaic(first, A1, A2; missingval=0xff, atol=1e-5)
+
+            Atest = rebuild(gdalarray[Extents.union(extent(A1), extent(A2))]; missingval=0xff)
+            Atest .= 0xff
+
+            Atest[DimSelectors(Atest[extent(A1)]; selectors=Contains())] .= A1
+            Atest[DimSelectors(Atest[extent(A2)]; selectors=Contains())] .= A2
+
+            @test size(Amem) == size(gdalarray)
+            @test all(Atest .=== Amem .=== Afile .=== replace_missing(read(Afile2), 0xff))
+            filter(x -> !Bool(first(x)), tuple.((Atest .=== Amem), Atest, Amem))
         end
 
     end # methods
@@ -269,8 +333,8 @@ gdalpath = maybedownload(url)
         @test size(geoA) == (50, 1)
         @test eltype(geoA) <: UInt8
         @time geoA isa Raster{UInt8,1}
-        @test dims(geoA) isa Tuple{<:X,Y}
-        @test refdims(geoA) isa Tuple{<:Band}
+        @test dims(geoA) isa Tuple{X,Y}
+        @test refdims(geoA) isa Tuple{Band}
         @test metadata(geoA) == metadata(gdalarray)
         @test missingval(geoA) === nothing
         @test name(geoA) == :test
@@ -281,9 +345,9 @@ gdalpath = maybedownload(url)
 
         @testset "2d asc" begin
             filename = tempname() * ".asc"
-            @time write(filename, gdalarray; force = true)
+            @time write(filename, gdalarray; force=true)
             saved1 = Raster(filename);
-            @test all(saved1 .== gdalarray)
+            @test all(parent(saved1 .== gdalarray))
             # @test typeof(saved1) == typeof(geoA)
             @test val(dims(saved1, X)) ≈ val(dims(gdalarray, X))
             @test val(dims(saved1, Y)) ≈ val(dims(gdalarray, Y))
@@ -373,7 +437,7 @@ gdalpath = maybedownload(url)
 
         @testset "chunks" begin
             filename = tempname() * ".tiff"
-            write(filename, gdalarray; chunks=(128, 128, 1))
+            write(filename, gdalarray; force=true, chunks=(128, 128, 1))
             gdalarray2 = Raster(filename; lazy=true)
             @test DiskArrays.eachchunk(gdalarray2)[1] == (1:128, 1:128)
             filename = tempname() * ".tiff"
@@ -391,15 +455,16 @@ gdalpath = maybedownload(url)
         end
 
         @testset "to grd" begin
-            write("testgrd.gri", gdalarray; force=true)
-            @test (@allocations write("testgrd.gri", gdalarray; force=true)) < 1e4
-            grdarray = Raster("testgrd.gri")
+            fn = joinpath(tempdir(), tempname() * ".gri")
+            write(fn, gdalarray; force=true)
+            fn = joinpath(tempdir(), tempname() * ".gri")
+            @test (@allocations write(fn, gdalarray; force=true)) < 1e4
+            grdarray = Raster(fn)
             @test crs(grdarray) == convert(ProjString, crs(gdalarray))
             @test all(map((a, b) -> all(a .≈ b), bounds(grdarray), bounds(gdalarray)))
             @test index(grdarray, Y) ≈ index(gdalarray, Y)
             @test val(dims(grdarray, X)) ≈ val(dims(gdalarray, X))
             @test grdarray == gdalarray
-            rm("testgrd.gri")
         end
 
         @testset "from Raster" begin
@@ -439,10 +504,11 @@ gdalpath = maybedownload(url)
         end
 
         @testset "write missing" begin
-            A = read(replace_missing(gdalarray, missing))
+            A = replace_missing(gdalarray, missing)
             filename = tempname() * ".tif"
             write(filename, A)
-            @test missingval(Raster(filename)) === typemax(UInt8)
+            @test missingval(Raster(filename)) === missing
+            @test missingval(Raster(filename; missingval)) === typemax(UInt8)
             rm(filename)
         end
 
@@ -488,11 +554,11 @@ gdalpath = maybedownload(url)
         gdalarray[Y(1)] |> plot
     end
 
-    @testset "nodatavalue type matches the array type" begin
+    @testset "unmasked missingval type matches the array type" begin
         # Handle WorldClim/ucdavis unreliability
         A = nothing
         try
-            A = Raster(WorldClim{Climate}, :tavg; res="10m", month=1)
+            A = Raster(WorldClim{Climate}, :tavg; res="10m", month=1, missingval)
         catch
         end
         if !isnothing(A)
@@ -681,8 +747,8 @@ end
             write(filename, gdalstack; force=true)
             base, ext = splitext(filename)
             filename_b = string(base, "_b", ext)
-            saved = read(Raster(filename_b))
-            @test all(saved .== geoA)
+            saved = Raster(filename_b)
+            @test all(saved .=== geoA)
         end
 
         @testset "write multiple files with custom suffix" begin
@@ -691,7 +757,7 @@ end
             base, ext = splitext(filename)
             filename_b = string(base, "_second", ext)
             saved = read(Raster(filename_b))
-            @test all(saved .== geoA)
+            @test all(saved .=== geoA)
         end
 
         @testset "write netcdf" begin
@@ -707,11 +773,12 @@ end
         @testset "chunks" begin
             filename = tempname() * ".tiff"
             write(filename, gdalstack; chunks=(128, 128))
-            filenames = write(filename, gdalstack; force=true, chunks=(128, 128))
+            filenames = write(filename, gdalstack; 
+                force=true, chunks=(128, 128), options=["COMPRESS" => "LZW", "BIGTIFF" => true]
+            )
             gdalstack2 = RasterStack(filenames; lazy=true)
             @test DiskArrays.eachchunk(gdalstack2[:b])[1] == (1:128, 1:128)
         end
-
     end
 
     @testset "show" begin
@@ -735,7 +802,7 @@ end
     output_crs = EPSG(4326)
     resample_method = "near"
 
-    ## Resample cea.tif manually with ArchGDAL
+    # Resample cea.tif manually with ArchGDAL
     wkt = convert(String, convert(WellKnownText, output_crs))
     AG_output = ArchGDAL.read(gdalpath) do dataset
         ArchGDAL.gdalwarp([dataset], ["-t_srs", "$(wkt)",
@@ -746,21 +813,35 @@ end
     end
 
     ## Resample cea.tif using resample
-    raster_output = resample(gdalarray, output_res; crs=output_crs, method=resample_method)
-    disk_output = resample(gdalarray, output_res; crs=output_crs, method=resample_method, filename="resample.tif")
-    stack_output = resample(gdalstack, output_res; crs=output_crs, method=resample_method)
-    written_stack_output = resample(gdalstack, output_res; crs=output_crs, method=resample_method, filename="resample.tif")
-    series_output = resample(gdalser, output_res; crs=output_crs, method=resample_method)
-
+    raster_output = resample(gdalarray, output_res; 
+        crs=output_crs, method=resample_method, missingval=0xff=>0xff
+    )
+    disk_output = resample(gdalarray, output_res;
+        crs=output_crs, method=resample_method, filename="resample.tif", missingval=0xff=>0xff
+    )
+    stack_output = resample(gdalstack, output_res; 
+        crs=output_crs, method=resample_method, missingval=0xff=>0xff
+    )
+    written_stack_output = resample(gdalstack, output_res; 
+        crs=output_crs, method=resample_method, filename="resample.tif", missingval=0xff=>0xff
+    )
+    series_output = resample(gdalser, output_res;
+        crs=output_crs, method=resample_method, missingval=0xff=>0xff
+    )
     extradim_raster = cat(gdalarray, gdalarray, gdalarray; dims=Z)
-    extradim_output = resample(extradim_raster, output_res; crs=output_crs, method=resample_method)
+    extradim_output = resample(extradim_raster, output_res; 
+        crs=output_crs, method=resample_method, missingval=0xff=>0xff
+    )
 
     permuted_raster = permutedims(gdalarray, (Y, X))
-    permuted_output = resample(permuted_raster, output_res; crs=output_crs, method=resample_method)
+    permuted_output = resample(permuted_raster, output_res; 
+        crs=output_crs, method=resample_method, missingval=0xff=>0xff 
+    )
 
     # Compare ArchGDAL, resample and permuted resample 
     @test AG_output ==
-        raster_output == disk_output ==
+        raster_output == 
+        disk_output ==
         stack_output[:a] ==
         written_stack_output[:a] ==
         series_output[1] ==
@@ -867,20 +948,19 @@ end
 
     @testset "detect dimension from file name" begin
         tifser = RasterSeries([gdalpath, gdalpath], Ti([DateTime(2001), DateTime(2002)]))
-        mkpath("tifseries")
-        write("tifseries/test.tif", tifser; force=true)
-        @test isfile("tifseries/test_2001-01-01T00:00:00.tif")
-        @test isfile("tifseries/test_2002-01-01T00:00:00.tif")
-        ser1 = RasterSeries("tifseries", Ti(DateTime))
-        ser2 = RasterSeries("tifseries", Ti(DateTime); lazy=true)
-        ser3 = RasterSeries("tifseries/test.tif", Ti(DateTime))
-        ser4 = RasterSeries("tifseries", Ti(DateTime; order=ForwardOrdered()); ext=".tif")
-        ser5 = RasterSeries("tifseries/test", Ti(DateTime); ext=".tif")
+        path = mkpath(joinpath(tempdir(), tempname(), "tifseries"))
+        write(joinpath(path, "test.tif"), tifser; force=true)
+        @test isfile(joinpath(path, "test_2001-01-01T00:00:00.tif"))
+        @test isfile(joinpath(path, "test_2002-01-01T00:00:00.tif"))
+        ser1 = RasterSeries(path, Ti(DateTime))
+        ser2 = RasterSeries(path, Ti(DateTime); lazy=true)
+        ser3 = RasterSeries(joinpath(path, "test.tif"), Ti(DateTime))
+        ser4 = RasterSeries(path, Ti(DateTime; order=ForwardOrdered()); ext=".tif")
+        ser5 = RasterSeries(joinpath(path, "test"), Ti(DateTime); ext=".tif")
         @test dims(ser1) == dims(ser2) == dims(ser3) == dims(ser3) == dims(ser5) == dims(tifser)
-        @test_throws ErrorException RasterSeries("tifseries", Ti(Int))
-        ser6 = RasterSeries("tifseries/test", Ti(DateTime; sampling=Intervals(Center())); ext=".tif")
+        @test_throws ErrorException RasterSeries(path, Ti(Int))
+        ser6 = RasterSeries(joinpath(path, "test"), Ti(DateTime; sampling=Intervals(Center())); ext=".tif")
         @test sampling(ser6) == (Intervals(Center()),)
-        rm("tifseries"; recursive=true)
     end
 
     @testset "methods" begin
@@ -897,7 +977,7 @@ end
             mv = zero(eltype(gdalser[1]))
             ser = read(replace_missing(gdalser, mv))
             ser = map(A -> (view(A, X(1:100)) .= mv; A), ser)
-            trimmed = trim(ser)
+            trimmed = Rasters.trim(ser)
             @test size(trimmed[1]) == (414, 514)
             cropped = crop(ser; to=trimmed[1])
             @test size(cropped[1]) == (414, 514)
@@ -943,6 +1023,7 @@ end
         @test crs(gdalarray) == wkt
         @test crs(gdalarray[Y(1)]) == wkt
     end
+
 end
 
 

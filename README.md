@@ -216,6 +216,7 @@ something is faster in another package, it's likely a bug - so make an issue!
 
 ![image](https://github.com/user-attachments/assets/1c6c56ac-4c5a-4096-984d-15bf2783682c)
 
+[*Figure based on raster benchmarks*](https://github.com/kadyb/raster-benchmark)
 
 # Bugs, errors and making issues for Rasters.jl
 

@@ -1,4 +1,4 @@
-using Rasters, Test, GRIBDatasets
+using Rasters, Test, GRIBDatasets, CommonDataModel
 using Rasters: FileArray, FileStack, GRIBsource
 using Rasters.Lookups, Rasters.Dimensions
 using Statistics
@@ -25,12 +25,25 @@ gribexamples_dir = abspath(joinpath(dirname(pathof(GRIBDatasets)), "..", "test",
 
 era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
 
+ds = GRIBDatasets.GRIBDataset(era5)
+v = ds[:z]
+
 @testset "Raster" begin
     @time gribarray = Raster(era5)
     @time lazyarray = Raster(era5; lazy=true)
-    @time lazystack = RasterStack(era5; lazy=true);
+    @time lazystack = RasterStack(era5; lazy=true)
     @time eagerstack = RasterStack(era5; lazy=false)
     @time ds = GRIBDataset(era5);
+
+    @testset "Raster from dataset" begin
+        dsarray = Raster(ds)
+        var = CommonDataModel.variable(ds, "z")
+        dsarray = Raster(ds; name=:z)
+        vararray = Raster(ds; name=:z)
+        @test dims(dsarray) == dims(vararray) == dims(gribarray)
+        @test size(dsarray) == size(vararray) == size(gribarray)
+        @test all(dsarray .=== vararray .=== gribarray)
+    end
 
     @testset "lazyness" begin
         @test parent(gribarray) isa Array
@@ -87,8 +100,8 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
     end
 
     @testset "cf attributes" begin
-        z = lazystack[:z]
-        @test metadata(z)["standard_name"] == "geopotential"
+        z = lazystack.z
+        @test metadata(z)["cfName"] == "geopotential"
 
         @test metadata(lazystack)["Conventions"] == "CF-1.7"
         x = dims(lazystack, :X)
@@ -146,5 +159,17 @@ era5 = joinpath(gribexamples_dir, "era5-levels-members.grib")
     @testset "selectors" begin
         a = gribarray[X(At(21.0)), Y(Between(50, 52)), Ti(Near(DateTime(2002, 12)))]
         @test Rasters.bounds(a) == ((51.0, 51.0), (500, 850), (0, 9))
+    end
+end
+
+@testset "RasterStack" begin
+    gribstack = RasterStack(era5; lazy=true)
+    @testset "RasterStack" begin
+        @test all(read(gribstack.z) .=== Raster(era5; name=:z))
+    end
+    @testset "RasterStack from dataset" begin
+        dsstack = RasterStack(ds; lazy=true)
+        @test dims(dsstack) == dims(gribstack)
+        @test size(dsstack) == size(gribstack)
     end
 end

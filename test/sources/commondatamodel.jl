@@ -15,7 +15,7 @@ import Rasters: ForwardOrdered, ReverseOrdered, Regular
     # test when reading a file
     ras = Raster(rand(X(f32_indices), Y(indices_one_third)))
     tempfile = tempname() * ".nc"
-    write(tempfile, ras)
+    write(tempfile, ras; force=true)
     ras_read = Raster(tempfile)
     steps = step.(dims(ras_read))
     @test steps[1] == 0.05

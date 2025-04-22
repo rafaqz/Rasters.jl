@@ -1,24 +1,29 @@
 
-# Like `create` but without disk writes, mostly for Bool/Union{Missing,Boo},
+# Like `create` but without disk writes, mostly for Bool or Union{Missing,Bool},
 # and uses `similar` where possible
 # TODO merge this with `create` somehow
 _init_bools(to; kw...) = _init_bools(to, BitArray; kw...)
 _init_bools(to, T::Type; kw...) = _init_bools(to, T, nothing; kw...)
-_init_bools(to::AbstractRasterSeries, T::Type, data; kw...) = _init_bools(first(to), T, data; kw...)
-_init_bools(to::AbstractRasterStack, T::Type, data; kw...) = _init_bools(first(to), T, data; kw...)
-_init_bools(to::AbstractRaster, T::Type, data; kw...) = _init_bools(to, dims(to), T, data; kw...)
-_init_bools(to::Extents.Extent, T::Type, data; kw...) = _init_bools(to, _extent2dims(to; kw...), T, data; kw...)
-_init_bools(to::DimTuple, T::Type, data; kw...) = _init_bools(to, to, T, data; kw...)
-function _init_bools(to::Nothing, T::Type, data; geometrycolumn=nothing,kw...)
+_init_bools(to::AbstractRasterSeries, T::Type, data; kw...) =
+    _init_bools(dims(first(to)), T, data; kw...)
+_init_bools(to::AbstractRasterStack, T::Type, data; kw...) =
+    _init_bools(dims(to), dims(to), T, data; kw...)
+_init_bools(to::AbstractRaster, T::Type, data; kw...) =
+    _init_bools(to, dims(to), T, data; kw...)
+_init_bools(to::DimTuple, T::Type, data; kw...) =
+    _init_bools(to, to, T, data; kw...)
+function _init_bools(to::Nothing, T::Type, data; geometrycolumn=nothing, kw...)
     # Get the extent of the geometries
-    ext = _extent(data; geometrycolumn, kw...)
+    ext = _extent(data; geometrycolumn)
     isnothing(ext) && throw(ArgumentError("no recognised dimensions, extent or geometry"))
-    # Convert the extent to dims (there must be `res` or `size` in `kw`)
-    dims = _extent2dims(ext; kw...)
-    return _init_bools(to, dims, T, data; kw...)
+    return _init_bools(ext, T, data; kw...)
 end
-function _init_bools(to, dims::DimTuple, T::Type, data; collapse::Union{Bool,Nothing}=nothing, kw...)
-    if isnothing(data) || isnothing(collapse) || collapse
+_init_bools(to::Extents.Extent, T::Type, data; kw...) =
+    _init_bools(to, _extent2dims(to; kw...), T, data; kw...)
+function _init_bools(to, dims::DimTuple, T::Type, data; 
+    collapse::Union{Bool,Nothing,NoKW}=nokw, kw...
+)
+    if isnothing(data) || isnokwornothing(collapse) || collapse
         _alloc_bools(to, dims, T; kw...)
     else
         n = if Base.IteratorSize(data) isa Base.HasShape
@@ -31,19 +36,23 @@ function _init_bools(to, dims::DimTuple, T::Type, data; collapse::Union{Bool,Not
     end
 end
 
-function _alloc_bools(to, dims::DimTuple, ::Type{BitArray}; missingval::Bool=false, metadata=NoMetadata(), kw...)
+function _alloc_bools(to, dims::DimTuple, ::Type{BitArray}; 
+    missingval::Bool=false, metadata=NoMetadata(), kw...
+)
     # Use a BitArray
     vals = missingval == false ? falses(size(dims)) : trues(size(dims))
     return Raster(vals, dims; missingval, metadata)
 end
-function _alloc_bools(to, dims::DimTuple, ::Type{<:Array{T}}; missingval=false, metadata=NoMetadata(), kw...) where T
-    # Use an `Array`
-    data = fill!(Raster{T}(undef, dims), missingval) 
+function _alloc_bools(to, dims::DimTuple, ::Type{<:Array{T}}; 
+    missingval=false, metadata=NoMetadata(), kw...
+) where T
+    # Use an Array
+    data = fill!(Raster{T}(undef, dims), missingval)
     return rebuild(data; missingval, metadata)
 end
 
-function _prepare_for_burning(B, locus=Center())
-    B1 = _forward_ordered(B)
+function _prepare_for_burning(B; locus=Center(), order=ForwardOrdered())
+    B1 = _maybe_lazy_reorder(order, B)
     start_dims = map(dims(B1, DEFAULT_POINT_ORDER)) do d
         # Shift lookup values to center of pixels
         d = DD.maybeshiftlocus(locus, d)
@@ -53,9 +62,12 @@ function _prepare_for_burning(B, locus=Center())
 end
 
 # Convert to Array if its not one already
-_lookup_as_array(d::Dimension) = parent(lookup(d)) isa Array ? d : modify(Array, d) 
+_lookup_as_array(x) = setdims(x, _lookup_as_array(dims(x)))
+_lookup_as_array(dims::Tuple) = map(_lookup_as_array, dims)
+_lookup_as_array(d::Dimension) = parent(lookup(d)) isa Array ? d : modify(Array, d)
 
-function _forward_ordered(B)
+_maybe_lazy_reorder(::Nothing, B) = B
+function _maybe_lazy_reorder(::ForwardOrdered, B)
     reduce(dims(B); init=B) do A, d
         if DD.order(d) isa ReverseOrdered
             A = view(A, rebuild(d, lastindex(d):-1:firstindex(d)))

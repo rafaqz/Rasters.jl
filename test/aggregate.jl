@@ -26,8 +26,8 @@ data1 = [ 1  2  3  4  5  6 -1
 data2 = 2 * data1
 data3 = 3 * data1
 data4 = 4 * data1
-dimz = X(Sampled([30., 40., 50.]; order=ForwardOrdered(), span=Regular(10.0), sampling=Points())), 
-       Y(Sampled(LinRange(-10., 20., 7); order=ForwardOrdered(), span=Regular(5.0), sampling=Points()))
+dimz = X(Projected([30., 40., 50.]; order=ForwardOrdered(), span=Regular(10.0), sampling=Points(), crs=EPSG(4326))), 
+       Y(Projected(LinRange(-10., 20., 7); order=ForwardOrdered(), span=Regular(5.0), sampling=Points(), crs=EPSG(4326)))
 array1 = Raster(data1, dimz)
 array2 = Raster(data2, dimz)
 array1a = Raster(data3, dimz)
@@ -36,7 +36,6 @@ stack1 = RasterStack(array1, array2; name=(:array1, :array2))
 stack2 = RasterStack(array1a, array2a; name=(:array1, :array2))
 dates = DateTime(2017):Year(1):DateTime(2018)
 series = RasterSeries([stack1, stack2], (Ti(dates),))
-
 
 @testset "Aggregate a dimension" begin
     lat = Y(Sampled(LinRange(3, 13, 6), ForwardOrdered(), Regular(2.0), Intervals(Start()), NoMetadata()))
@@ -64,12 +63,21 @@ series = RasterSeries([stack1, stack2], (Ti(dates),))
 end
 
 @testset "aggregate a single dim" begin 
-    ag = aggregate(Start(), series, (X(3), ))
-    @test size(first(ag)) == (1, 7)
-    ag = aggregate(Start(), series, (Y(5), ))
+    ag = aggregate(Start(), series, (X(3),))
+    
+    ag = aggregate(Start(), series, (Y(5),))
     @test size(first(ag)) == (3, 1)
-    ag = aggregate(Start(), series, (Y(2), ))
+    ag = aggregate(Start(), series, (Y(2),))
     @test size(first(ag)) == (3, 3)
+end
+
+@testset "dimension lookups are maintained" begin 
+    x, y, z = X(1:100), Y(1:100), Z(["bar", "foo"])
+    A = rand(x, y, z) |> Raster
+    A_agg = Rasters.aggregate(sum, A, (X(5),))
+    A_disagg = Rasters.disaggregate(A, (X(3),))
+    @test dims(A_agg, (Y, Z)) == (y, z)
+    @test dims(A_disagg, (Y, Z)) == (y, z)
 end
 
 @testset "aggregate and disaggregate at a locus" begin
@@ -143,10 +151,16 @@ end
         agg = aggregate(Start(), array1, (X(1), Y(Near(-4)))) 
         @test agg == aggregate(Start(), array1, (1, 2))
         @testset "scale 1 dims are unchanged" begin
-            @test dims(agg, X) === dims(array1, X)
+            @test dims(agg, X) == dims(array1, X)
         end
     end
 
+end
+
+@testset "Aggregate with Colon" begin
+    @test aggregate(sum, array1, :) == [sum(array1);;]
+    @test aggregate(sum, array1, (1, :)) == sum(array1; dims=2)
+    @test aggregate(sum, array1, (X=1, Y=:)) == sum(array1; dims=2)
 end
 
 @testset "Aggregate with a function" begin
@@ -157,19 +171,29 @@ end
     @test length.(dims(A)) == size(A)
 end
 
+@testset "test all scale modes" begin
+    @test aggregate(sum, array1, (3, 2)) == 
+        aggregate(sum, array1, (Y(2), X(3))) == 
+        aggregate(sum, array1, (Y=2, X=3)) == 
+        aggregate(sum, array1, (Y=>2, X=>3)) == 
+        aggregate(sum, array1, (:Y=>2, :X=>3)) == 
+        aggregate(sum, aggregate(sum, array1, Y(2)), X(3)) ==
+        [45 57 69]
+end
+
 @testset "Aggregate with a function with missing values" begin
     data_m = [ 1  2  3  4  5  6 -1
                7  8  9 10 11 12 -1
               13 14 15 16 missing 18 -1]
     array_m = Raster(data_m, dimz)
     @test all(aggregate(sum, array_m, 3) .=== [72 missing])
-    @test all(aggregate(sum, array_m, 3; skipmissingval=true) .=== [72 82])
+    @test all(aggregate(sum, array_m, 3; skipmissing=true) .=== [72 82])
     data_m0 = [ 1  2  3  4  5  6 -1
                 7  8  0 10 11 12 -1
                13 14 15 16 17 18 -1]
     array_m0 = Raster(data_m0, dimz; missingval=0)
     @test aggregate(sum, array_m0, 3) == [0 99]
-    @test aggregate(sum, array_m0, 3; skipmissingval=true) == [63 99]
+    @test aggregate(sum, array_m0, 3; skipmissing=true) == [63 99]
     @test all(aggregate(mean, array_m0, 3) .=== [0.0 11.0])
 end
 
@@ -183,9 +207,39 @@ end
 end
 
 @testset "Aggregate different index lookups" begin
-    dimz = Band(1:3), Dim{:category}([:a, :b, :c]), X([10, 20, 30, 40])
+    dimz = Y([1, 3, 2]), Dim{:category}([:a, :b, :c]), X([10, 20, 30, 40])
     a1 = [1 2 3; 4 5 6; 7 8 9]
     A = cat(a1, a1 .+ 10, a1 .+ 20, a1 .+ 30, dims=3)
     da = Raster(A, dimz)
     @test vec(aggregate(sum, da, (3, 2, 2))) == [114, 354]
+    @test size(aggregate(sum, da, 3)) == (3, 3, 1) 
+end
+
+@testset "Aggregate ignores categorical by default" begin
+    rast = Raster(rand(X(1:10), Y(1:10), Z([:a, :b, :c]))) 
+    skipped_ag = @test_logs (:info,) aggregate(sum, rast, 2)
+    @test size(skipped_ag) == (5, 5, 3)
+    # Unless specified explicitly
+    explicit_ag = @test_nowarn aggregate(sum, rast, (X=5, Y=5, Z=3))
+    @test size(explicit_ag) == (2, 2, 1)
+    # Aggregated Categorical become NoLookup
+    @test isnolookup(explicit_ag, Z)
+    @test_throws ArgumentError aggregate(sum, rast[X=1, Y=1], 2)
+end
+
+@testset "Lazy disaggregation" begin
+    eager_disag = disaggregate(array1, (X(2), Y(2))) 
+    lazy_disag = disaggregate(array1, (X(2), Y(2)); lazy = true)
+    @test eager_disag == lazy_disag
+    @test parent(lazy_disag) isa SubArray
+
+    eager_disag_stack = disaggregate(stack1, 2)
+    lazy_disag_stack = disaggregate(stack1, 2; lazy = true)
+    @test eager_disag_stack == lazy_disag_stack
+    @test all(x -> x isa SubArray, parent(lazy_disag_stack))
+
+    eager_disag_series = disaggregate(series, 2)
+    lazy_disag_series = disaggregate(series, 2; lazy = true)
+    @test eager_disag_series == lazy_disag_series
+    @test all(x -> all(x -> x isa SubArray, parent(x)), lazy_disag_series)
 end

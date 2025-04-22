@@ -59,7 +59,12 @@ DiskArrays.haschunks(::GRDdataset) = DiskArrays.Unchunked()
 
 function _dims(A::RasterDiskArray{GRDsource}, crs=nokw, mappedcrs=nokw)
     attrib = A.attrib.attrib
-    crs = crs isa NoKW ? ProjString(attrib["projection"]) : crs
+    crs = if crs isa NoKW 
+        str = attrib["projection"]
+        str == "" ? nothing : ProjString(str)
+    else
+        crs
+    end
     mappedcrs = mappedcrs isa NoKW ? nothing : mappedcrs
 
     xsize, ysize, nbands = size(A)
@@ -115,14 +120,18 @@ function _metadata(A::RasterDiskArray{GRDsource}, args...)
     metadata
 end
 
-function missingval(A::RasterDiskArray{GRDsource,T}) where T
-    if haskey(A.attrib.attrib, "nodatavalue")
-        ndv = A.attrib.attrib["nodatavalue"]
+function missingval(A::RasterDiskArray{GRDsource,T}, args...) where T
+    _grd_mv(T, A.attrib.attrib)
+end
+
+function _grd_mv(::Type{T}, md; verbose=true) where T
+    if haskey(md, "nodatavalue")
+        ndv = md["nodatavalue"]
         ndv === "nothing" && return nothing
         try
             return parse(T, ndv)
         catch
-            @warn "nodatavalue $(ndv) is not convertible to data type $T. `missingval` set to `nothing`."
+            verbose && @warn "nodatavalue $(ndv) is not convertible to data type $T. `missingval` set to `nothing`."
             return nothing
         end
     else
@@ -132,16 +141,6 @@ end
 
 _sizeof(A::GRDdataset{T}) where T = sizeof(T) * prod(size(A))
 _sizeof(A::RasterDiskArray{GRDsource}) = _sizeof(A.attrib)
-
-
-# Array ########################################################################
-
-function FileArray{GRDsource}(A::RasterDiskArray{<:Any,T}, filename=filename(A.attrib); kw...) where T
-    filename = first(splitext(filename))
-    eachchunk = DiskArrays.eachchunk(A)
-    haschunks = DiskArrays.haschunks(A)
-    FileArray{GRDsource,T,3}(filename, size(A); eachchunk, haschunks, kw...)
-end
 
 # Base methods
 
@@ -163,13 +162,31 @@ Returns the base of `filename` with a `.grd` extension.
 """
 function Base.write(filename::String, ::GRDsource, A::AbstractRaster; 
     force=false, 
+    verbose=true,
+    write=true,
     missingval=nokw,
     chunks=nokw,
+    scale=nokw,
+    offset=nokw,
+    coerce=nokw,
+    eltype=Missings.nonmissingtype(eltype(A)),
+    f=identity,
     kw...
 )
-    chunks isa NoKW || @warn "specifying chunks not supported for .grd files"
     check_can_write(filename, force)
-    A = _maybe_use_type_missingval(A, GRDsource(), missingval)
+    write = f === identity ? write : true
+    haskey(REVGRD_DATATYPE_TRANSLATION, eltype) || throw(ArgumentError("""
+       Element type $eltype cannot be written to grd file. Convert it to one of $(keys(REVGRD_DATATYPE_TRANSLATION)),
+       usually by broadcasting the desired type constructor over the `Raster`, e.g. `newrast = Float32.(rast)`"))
+       """
+    ))
+    isnokwornothing(scale) && isnokwornothing(offset) || throw(ArgumentError("Cant write scale or offset to .grd files"))
+    chunks isa NoKW || @warn "specifying chunks not supported for .grd files"
+    # Missing values
+    missingval_pair = _write_missingval_pair(A, missingval; eltype, verbose)
+
+    # Missing values
+
     if hasdim(A, Band)
         correctedA = permutedims(A, (X, Y, Band)) |>
             a -> reorder(a, (X(GRD_X_ORDER), Y(GRD_Y_ORDER), Band(GRD_BAND_ORDER)))
@@ -181,19 +198,39 @@ function Base.write(filename::String, ::GRDsource, A::AbstractRaster;
     end
     # Remove extension
     filename = splitext(filename)[1]
-    minvalue = minimum(skipmissing(A))
-    maxvalue = maximum(skipmissing(A))
-    _write_grd(filename, eltype(A), dims(A), Rasters.missingval(A), minvalue, maxvalue, name(A))
 
-    # Data: gri file
-    open(filename * ".gri", write=true) do IO
-        write(IO, parent(correctedA))
+    # Data: write a raw gri file from the array
+    mod = _mod(eltype, missingval_pair, scale, offset, coerce)
+    gri_filename = filename * ".gri"
+    _write_gri(gri_filename, Val{source_eltype(mod)}(), mod, parent(correctedA))
+    _write_grd(filename, eltype, dims(A), missingval_pair[1], name(A))
+
+    if write
+        _mmapgrd(filename, source_eltype(mod), size(A); write=true) do M
+            f(_maybe_modify(M, mod))
+        end
     end
 
     return filename * ".grd"
 end
 
-function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
+function _write_gri(filename, v, ::NoMod, A::Array{T}) where T
+    open(filename; write=true, lock=false) do io
+        write(io, A)
+    end
+end
+function _write_gri(filename, v, mod, A::AbstractArray)
+    open(filename; write=true, lock=false) do io
+        # Avoid `Ref` allocations
+        ref = Ref{source_eltype(mod)}(_invertmod(v, first(A), mod))
+        for x in A # We are modifying the source array so invert the modifications
+            ref[] = _invertmod(v, x, mod)
+            write(io, ref)
+        end
+    end
+end
+
+function _write_grd(filename, T, dims, missingval, name)
     filename = splitext(filename)[1]
 
     x, y = map(DD.dims(dims, (X(), Y()))) do d
@@ -204,12 +241,12 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
     ncols, nrows = length(x), length(y)
     xmin, xmax = bounds(x)
     ymin, ymax = bounds(y)
-    proj = convert(String, convert(ProjString, crs(x)))
+    proj = isnothing(crs(x)) ? "" : convert(String, convert(ProjString, crs(x)))
     datatype = REVGRD_DATATYPE_TRANSLATION[T]
     nodatavalue = missingval
 
     # Metadata: grd file
-    open(filename * ".grd"; write=true) do IO
+    open(filename * ".grd"; write=true, lock=false) do IO
         write(IO,
             """
             [general]
@@ -228,8 +265,6 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
             nodatavalue= $nodatavalue
             byteorder= little
             nbands= $nbands
-            minvalue= $minvalue
-            maxvalue= $maxvalue
             [description]
             layername= $name
             """
@@ -237,43 +272,24 @@ function _write_grd(filename, T, dims, missingval, minvalue, maxvalue, name)
     end
 end
 
-function create(filename, ::GRDsource, T::Type, dims::DD.DimTuple; 
-    name="layer", metadata=nothing, missingval=nothing, lazy=true, 
-)
-    # Remove extension
-    basename = splitext(filename)[1]
-    minvalue = maxvalue = zero(T)
-    sze = map(length, DD.dims(dims, (XDim, YDim, Band)))
-
-    # Metadata: grd file
-    _write_grd(basename, T, dims, missingval, minvalue, maxvalue, name)
-
-    # Data: gri file
-    open(basename * ".gri", write=true) do IO
-        write(IO, FillArrays.Zeros(sze))
-    end
-    return Raster(filename; source=GRDsource(), lazy)
-end
-
-# AbstractRasterStack methods
-
-# Custom `open` because the data and metadata objects are separate
-# Here we _mmapgrd instead of `_open`
-function Base.open(f::Function, A::FileArray{GRDsource}, args...; write=A.write)
-    _mmapgrd(mm -> f(RasterDiskArray{GRDsource}(mm, A.eachchunk, A.haschunks)), A; write)
-end
-
-function _open(f, ::GRDsource, filename::AbstractString; write=false, name=nokw, group=nokw)
+# Rasters methods
+function _open(f, source::GRDsource, filename::AbstractString; kw...)
     isfile(filename) || _filenotfound_error(filename)
-    attr = GRDdataset(filename)
-    _mmapgrd(attr; write) do mm
-        A = RasterDiskArray{GRDsource}(mm, DA.eachchunk(attr), DA.haschunks(attr), attr)
-        f(A)
+    _open(f, source, GRDdataset(filename); kw...)
+end
+function _open(f, source::GRDsource, ds::GRDdataset; write=false, kw...)
+    _mmapgrd(ds; write) do mm
+        A = RasterDiskArray{GRDsource}(mm, DA.eachchunk(ds), DA.haschunks(ds), ds)
+        _open(f, source, A; kw...)
     end
 end
-_open(f, ::GRDsource, attrib::GRDdataset; kw...) = f(attrib)
+_open(f, ::GRDsource, A::RasterDiskArray; mod=NoMod(), kw...) =
+    cleanreturn(f(_maybe_modify(A, mod)))
 
 haslayers(::GRDsource) = false
+
+Raster(ds::RasterDiskArray{<:GRDsource}; kw...) = _raster(ds; kw...)
+
 
 # Utils ########################################################################
 

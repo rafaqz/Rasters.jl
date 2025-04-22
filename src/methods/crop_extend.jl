@@ -1,5 +1,5 @@
 """
-    crop(x; to, touches=false, [geometrycolumn])
+    crop(x; to, touches=false, atol=0, [geometrycolumn])
     crop(xs...; to)
 
 Crop one or multiple [`AbstractRaster`](@ref) or [`AbstractRasterStack`](@ref) `x`
@@ -9,11 +9,12 @@ to match the size of the object `to`, or smallest of any dimensions that are sha
 
 # Keywords
 
-- `to`: the object to crop to. This can be $OBJ_ARGUMENT 
+- `to`: the object to crop to. This can be $OBJ_ARGUMENT
   If no `to` keyword is passed, the smallest shared area of all `xs` is used.
 - `touches`: `true` or `false`. Whether to use `Touches` wraper on the object extent.
-
    When lines need to be included in e.g. zonal statistics, `true` should be used.
+- `atol`: the absolute tolerance to use when cropping to an extent. If edges are less than
+    `atol` away from the extent of `to`, they are included.
 $GEOMETRYCOLUMN_KEYWORD
 
 As `crop` is lazy, `filename` and `suffix` keywords are not used.
@@ -35,7 +36,7 @@ nz_evenness = evenness[nz_bounds...]
 nz_range = crop(rnge; to=nz_evenness)
 plot(nz_range)
 
-savefig("build/nz_crop_example.png")
+savefig("build/nz_crop_example.png");
 nothing
 
 # output
@@ -101,9 +102,10 @@ function _crop_to(x, to::DimTuple; touches=false, kw...)
     sampled = reduce(format(to); init=()) do acc, d
         lookup(d) isa AbstractSampled ? (acc..., d) : acc
     end
-    return _crop_to(x, Extents.extent(sampled); touches)
+    return _crop_to(x, Extents.extent(sampled); touches, kw...)
 end
-function _crop_to(x, to::Extents.Extent; touches=false, kw...)
+function _crop_to(x, to::Extents.Extent; touches=false, atol=nothing, kw...)
+    to = isnothing(atol) ? to : map(t -> (t[1]-atol, t[2]+atol), to)        
     # Take a view over the bounds
     _without_mapped_crs(x) do x1
         if touches
@@ -144,7 +146,7 @@ sa_evenness = evenness[sa_bounds...]
 sa_range = extend(sa_evenness; to=rnge)
 plot(sa_range)
 
-savefig("build/extend_example.png")
+savefig("build/extend_example.png");
 nothing
 # output
 ```
@@ -157,12 +159,12 @@ function extend end
 function extend(l1::RasterStackOrArray, l2::RasterStackOrArray, ls::RasterStackOrArray...; kw...)
     extend((l1, l2, ls...); kw...)
 end
-function extend(xs; to=nothing)
+function extend(xs; to=nothing, kw...)
     if isnothing(to)
         to = _subsetbounds((min, max), xs)
-        map(l -> _extend_to(l, to), xs)
+        map(l -> _extend_to(l, to, kw...), xs)
     else
-        map(l -> extend(l; to), xs)
+        map(l -> extend(l; to, kw...), xs)
     end
 end
 extend(x::RasterStackOrArray; to=dims(x), kw...) = _extend_to(x, to; kw...)
@@ -176,8 +178,12 @@ end
 _extend_to(x::RasterStackOrArray, to::Dimension; kw...) = _extend_to(x, (to,); kw...)
 
 function _extend_to(A::AbstractRaster, to::DimTuple;
-    filename=nothing, suffix=nothing, touches=false,
-    missingval=(isnothing(missingval(A)) ? missing : missingval(A))
+    filename=nothing,
+    missingval=(isnothing(missingval(A)) ? nokw : missingval(A)),
+    fill=nokw,
+    touches=false,
+    verbose=true,
+    kw...
 )
     others = otherdims(to, A)
     # Allow not specifying all dimensions
@@ -193,35 +199,44 @@ function _extend_to(A::AbstractRaster, to::DimTuple;
     end
     others1 = otherdims(to, A)
     final_to = (set(dims(A), map(=>, dims(A, to), to)...)..., others1...)
+
+    # If we are writing to disk swap missingval to something writeable
+    if ismissing(missingval) 
+        missingval = _writeable_missing(filename, eltype(A); verbose)
+    end
+    # If no `fill` is passed use `missingval` or zero
+    if isnokw(fill)
+        fill = isnokwornothing(missingval) ? zero(Missings.nonmissingtype(eltype(A))) : missingval
+    end
     # Create a new extended array
-    newA = create(filename, eltype(A), final_to;
-        suffix, parent=parent(A), missingval,
-        name=name(A), metadata=metadata(A)
-    )
-    # Input checks
-    map(dims(A, to), dims(newA, to)) do d1, d2
-        if lookup(d1) isa Union{AbstractSampled,NoLookup}
-            b1, b2 = bounds(d1), bounds(d2)
-            b1[1] >= b2[1] || throw(ArgumentError("Lower bound of $(basetypeof(d1)) lookup of `$(b2[1])` are not larger than the original `$(b1[1])`"))
-            b1[2] <= b2[2] || throw(ArgumentError("Upper bound of $(basetypeof(d2)) lookup of `$(b2[2])` is not larger than the original `$(b1[2])`"))
-        elseif lookup(d1) isa Categorical
-            map(lookup(d1)) do x
-                x in d2 || throw(ArgumentError("category $x not in new dimension"))
+    return create(filename, eltype(A), final_to;
+        parent=parent(A), 
+        missingval,
+        name=name(A), 
+        metadata=metadata(A), 
+        verbose,
+        fill,
+        kw...
+    ) do C
+        # Input checks
+        map(dims(A, to), dims(C, to)) do d1, d2
+            if lookup(d1) isa Union{AbstractSampled,NoLookup}
+                b1, b2 = bounds(d1), bounds(d2)
+                b1[1] >= b2[1] || throw(ArgumentError("Lower bound of $(basetypeof(d1)) lookup of `$(b2[1])` are not larger than the original `$(b1[1])`"))
+                b1[2] <= b2[2] || throw(ArgumentError("Upper bound of $(basetypeof(d2)) lookup of `$(b2[2])` is not larger than the original `$(b1[2])`"))
+            elseif lookup(d1) isa Categorical
+                map(lookup(d1)) do x
+                    x in d2 || throw(ArgumentError("category $x not in new dimension"))
+                end
             end
         end
-    end
-    # The missingval may have changed for disk-based arrays
-    if !isequal(missingval, Rasters.missingval(newA))
-        A = replace_missing(A, Rasters.missingval(newA))
-    end
-    open(newA; write=true) do O
-        # Fill it with missing/nodata values
-        O .= Rasters.missingval(O)
-        # Copy the original data to the new array
+        # The missingval may have changed for disk-based arrays
+        if !isequal(Rasters.missingval(A), Rasters.missingval(C))
+            A = replace_missing(A, Rasters.missingval(C))
+        end
         # Somehow this is slow from disk?
-        broadcast_dims!(identity, view(O, rangedims...), A)
+        broadcast_dims!(identity, view(C, rangedims...), A)
     end
-    return newA
 end
 function _extend_to(st::AbstractRasterStack, to::DimTuple; suffix=keys(st), kw...)
     mapargs((A, s) -> _extend_to(A, to; suffix=s, kw...), st, suffix)
@@ -240,8 +255,8 @@ function _extend_to(x::RasterStackOrArray, extent::Extents.Extent{K}; kw...) whe
         fl = LA.ordered_first(l); ll = LA.ordered_last(l)
         fb = first(b); lb = last(b)
         s = step(l)
-        lowerrange = fb < first(bounds(l)) ? (fl:-s:fb) : (fl:-s:fl)
-        upperrange = lb > last(bounds(l))  ? (ll: s:lb) : (ll: s:ll)
+        lowerrange = fb < first(bounds(l)) ? (fl:copysign(s, -1):fb) : (fl:copysign(s, -1):fl)
+        upperrange = lb > last(bounds(l))  ? (ll:copysign(s, 1):lb) : (ll:copysign(s, 1):ll)
         if DD.order(l) isa ForwardOrdered
             newrange = last(lowerrange):s:last(upperrange)
         elseif order(d) isa ReverseOrdered

@@ -1,4 +1,3 @@
-
 """
     reproject(obj; crs)
 
@@ -7,7 +6,7 @@ Reproject the lookups of `obj` to a different crs.
 This is a lossless operation for the raster data, as only the 
 lookup values change. This is only possible when the axes of source
 and destination projections are aligned: the change is usually from
-a [`Regular`](@ref) and an [`Irregular`](@ref) lookup spans.
+a [`Regular`]($DDregulardocs) and an [`Irregular`]($DDirregulardocs) lookup spans.
 
 For converting between projections that are rotated, 
 skewed or warped in any way, use [`resample`](@ref).
@@ -21,6 +20,8 @@ are silently returned without modification.
 $CRS_KEYWORD
 """
 reproject(x; crs::GeoFormat) = reproject(crs, x)
+reproject(x, target::GeoFormat) = reproject(target, x)
+reproject(::GeoFormat, ::GeoFormat) = throw(ArgumentError("You need to provide a raster object to reproject. Got two coordinate reference systems."))
 reproject(target::GeoFormat, x) = rebuild(x; dims=reproject(target, dims(x)))
 reproject(target::GeoFormat, dims::Tuple) = map(d -> reproject(target, d), dims)
 reproject(target::GeoFormat, l::Lookup) = l
@@ -61,17 +62,14 @@ function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim},
     # This is a dumb way to do this. But it save having to inspect crs, 
     # and prevents reprojections that don't make sense from working.
     # A better method for this should be implemented in future.
-    return first(reproject(source, target, dim, [val]))
+    return first(_reproject(source, target, dim, [val]))
 end
 function _reproject(source::GeoFormat, target::GeoFormat, dim, vals::NTuple{N}) where N
-    reps = reproject(source, target, dim, [vals...])
+    reps = _reproject(source, target, dim, [vals...])
     return ntuple(x -> reps[x], N)
 end
 function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim}, vals::AbstractArray) 
-    reshape(reproject(source, target, dim, vec(vals)), size(vals))
-end
-function _reproject(source::Nothing, target::GeoFormat, dim::Union{XDim,YDim}, vals::AbstractArray) 
-    reshape(reproject(source, target, dim, vec(vals)), size(vals))
+    reshape(_reproject(source, target, dim, vec(vals)), size(vals))
 end
 function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim}, vals::AbstractVector) 
     throw_extension_error(reproject, "Proj", :RastersProjExt, (source, target, dim, vals))
