@@ -115,13 +115,14 @@ include("array.jl")
 include("stack.jl")
 include("series.jl")
 include("crs.jl")
-include("geometry_lookup.jl")
 
 const RasterStackOrArray = Union{AbstractRasterStack,AbstractRaster}
 const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}
 
 include("utils.jl")
 include("skipmissing.jl")
+
+include("geometry_lookup/geometry_lookup.jl")
 
 include("table_ops.jl")
 include("create.jl")

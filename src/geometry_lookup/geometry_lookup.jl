@@ -31,9 +31,10 @@ dv[Geometry(Contains(GO.centroid(polygons[88])))] == dv[Geometry(88)] # true
 ```
 
 """
-struct GeometryLookup{T, D, CRS} <: Lookups.Lookup{T, 1}
-    data::Vector{T}
-    tree::SortTileRecursiveTree.STRtree
+struct GeometryLookup{A <: AbstractVector, D, M <: GO.Manifold, Tree, CRS} <: Lookups.Lookup{A, 1}
+    manifold::M
+    data::A
+    tree::Tree
     dims::D
     crs::CRS
 end
@@ -60,8 +61,8 @@ function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing, crs =
 
     true_crs = isnothing(crs) ? GI.crs(first(geometries)) : crs
         
-
-    GeometryLookup(geometries, tree, dims, crs)
+    # TODO: auto manifold detection and best tree type for that manifold
+    GeometryLookup(GO.Planar(), geometries, tree, dims, crs)
 end
 
 crs(l::GeometryLookup) = l.crs
@@ -85,9 +86,19 @@ DD.parent(lookup::GeometryLookup) = lookup.data
 DD.Dimensions.format(l::GeometryLookup, D::Type, values, axis::AbstractRange) = l
 
 # Make sure that the tree is rebuilt if the data changes
-function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nokw, dims = lookup.dims, crs = nokw)
-    new_tree = if data == lookup.data
-        lookup.tree
+function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nokw, dims = lookup.dims, crs = nokw, manifold = nokw)
+    new_tree = if isnokw(tree)
+        if data == lookup.data
+            lookup.tree
+        else
+            SortTileRecursiveTree.STRtree(data)
+        end
+    elseif GO.SpatialTreeInterface.isspatialtree(tree)
+        if tree isa Type || 
+            tree(data)
+        else
+            tree
+        end
     else
         SortTileRecursiveTree.STRtree(data)
     end
@@ -97,7 +108,13 @@ function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nokw, dim
         crs
     end
 
-    GeometryLookup(data, new_tree, dims, new_crs)
+    new_manifold = if isnokw(manifold)
+        lookup.manifold
+    else
+        manifold
+    end
+
+    GeometryLookup(new_manifold, data, new_tree, dims, new_crs)
 end
 
 #=
@@ -140,7 +157,7 @@ function _maybe_get_candidates(tree, selector_extent)
             The geometry lookup has extent $(GI.extent(tree.rootnode.extent))
         """)
     end
-    potential_candidates = SortTileRecursiveTree.query(tree, selector_extent)
+    potential_candidates = GO.SpatialTreeInterface.query(tree, Base.Fix1(Extents.intersects, selector_extent))
 
     isempty(potential_candidates) && return error("""
         The geometry with extent $(GI.extent(val(sel))) does not interact with any of the geometries in the lookup.
@@ -185,7 +202,7 @@ function Lookups.selectindices(lookup::GeometryLookup, (xs, ys)::Tuple{Union{<: 
     lookup_ext = lookup.tree.rootnode.extent
 
     if lookup_ext.X[1] <= xval <= lookup_ext.X[2] && lookup_ext.Y[1] <= yval <= lookup_ext.Y[2]
-        potential_candidates = SortTileRecursiveTree.query(lookup.tree, (xval, yval))
+        potential_candidates = GO.SpatialTreeInterface.query(lookup.tree, (xval, yval))
         if isempty(potential_candidates)
             return error("""
             The point ($xval, $yval) is not within any of the geometries in the lookup.
