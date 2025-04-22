@@ -94,7 +94,7 @@ function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nokw, dim
             SortTileRecursiveTree.STRtree(data)
         end
     elseif GO.SpatialTreeInterface.isspatialtree(tree)
-        if tree isa Type || 
+        if tree isa DataType
             tree(data)
         else
             tree
