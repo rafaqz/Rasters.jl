@@ -144,7 +144,9 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data;
         zs[i] = _zonal(f, x, geoms[i]; missingval, kw...)
     end
     if zs isa Vector{<: Union{<: AbstractDimArray, <: AbstractDimStack}}
-        return 
+        backing_array = __do_cat_with_last_dim(zs)
+        return_dimension = Dim{:Geometry}(axes(zs, 1))
+        return rebuild(x; data = backing_array, dims = DD.format((dims(first(zs))..., return_dimension), backing_array), missingval = missingval)
     end
     return zs
 end
@@ -206,7 +208,7 @@ function _mapspatialslices(f, x::AbstractDimArray; spatialdims = (Val{DD.XDim}()
     if any(isempty, DD.dims(x, spatialdims))
         # If any of the spatial dims are empty, we can just return a constant missing array
         # this way we don't construct the dimslices at all...
-        missing_array = FillArray{Union{typeof(missingval), eltype(x)}, length(dimswewant)}(missingval, length.(dimswewant))
+        missing_array = FillArrays.Fill{Union{typeof(missingval), eltype(x)}, length(dimswewant)}(missingval, length.(dimswewant))
         return rebuild(x; data = missing_array, dims = dimswewant, refdims = ())
     end
     iterator = (rebuild(x; data = d, dims = dims(d)) for d in DD.DimSlices(x; dims = slicedims, drop = true))
@@ -214,13 +216,13 @@ function _mapspatialslices(f, x::AbstractDimArray; spatialdims = (Val{DD.XDim}()
 end
 # SkipMissingVal and SkipMissing both store the initial value in the `x` property,
 # so we can use the same thing to extract it.
-function _mapspatialslices(f, s::Union{SkipMissingVal, Base.SkipMissing}; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()))
-    return _mapspatialslices(f ∘ skipmissing, s.x; spatialdims)
+function _mapspatialslices(f, s::Union{SkipMissingVal, Base.SkipMissing}; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()), missingval = missingval(s.x))
+    return _mapspatialslices(f ∘ skipmissing, s.x; spatialdims, missingval)
 end
     
 
-_maybe_spatialsliceify(f, spatialslices) = istrue(spatialslices) ? _SpatialSliceify(f, (Val{DD.XDim}(), Val{DD.YDim}())) : f
-_maybe_spatialsliceify(f, spatialslices::DD.AllDims) = _SpatialSliceify(f, spatialslices)
+_maybe_spatialsliceify(f, spatialslices, missingval = missing) = istrue(spatialslices) ? _SpatialSliceify(f, (Val{DD.XDim}(), Val{DD.YDim}()), missingval) : f
+_maybe_spatialsliceify(f, spatialslices::DD.AllDims, missingval = missing) = _SpatialSliceify(f, spatialslices, missingval)
 
 """
     _SpatialSliceify(f, dims)
@@ -236,19 +238,20 @@ size(f(data))
 (10, 10)
 ```
 """
-struct _SpatialSliceify{F, D}
+struct _SpatialSliceify{F, D, M}
     f::F
     dims::D
+    missingval::M
 end
 
-(r::_SpatialSliceify{F, D})(x) where {F, D} = _mapspatialslices(r.f, x; spatialdims = r.dims)
+(r::_SpatialSliceify{F, D, M})(x) where {F, D, M} = _mapspatialslices(r.f, x; spatialdims = r.dims, missingval = r.missingval)
 
 # This is a helper function that concatenates an array of arrays along their last dimension.
 # and returns a ConcatDiskArray so that it doesn't allocate at all.\
 # Users can always rechunk later.  But this saves us a lot of time when doing datacube ops.
 # And the chunk pattern is available in the concat diskarray.
 function __do_cat_with_last_dim(input_arrays)
-    As = Missings.disallowmissing(input_arrays)
+    As = Missings.disallowmissing(collect(input_arrays))
     dims = ndims(first(As)) + 1
     sz = map(ntuple(identity, dims)) do i
         i == dims ? length(As) : 1
