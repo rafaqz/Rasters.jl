@@ -42,6 +42,7 @@ end
 function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing, crs = nothing)
     # First, retrieve the geometries - from a table, vector of geometries, etc.
     geometries = _get_geometries(data, geometrycolumn)
+    geometries = Missings.disallowmissing(geometries)
     # Check that the geometries are actually geometries
     if any(!GI.isgeometry, geometries)
         throw(ArgumentError("""
@@ -114,7 +115,7 @@ function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nokw, dim
         manifold
     end
 
-    GeometryLookup(new_manifold, data, new_tree, dims, new_crs)
+    GeometryLookup(new_manifold, Missings.disallowmissing(data), new_tree, dims, new_crs)
 end
 
 #=
