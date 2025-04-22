@@ -65,7 +65,7 @@ export AbstractRaster, Raster
 export AbstractRasterStack, RasterStack
 export AbstractRasterSeries, RasterSeries
 export Projected, Mapped, GeometryLookup
-export Band
+export Band, Geometry
 export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!,
        resample, warp, zonal, crop, extend, trim, slice, combine, points,
@@ -124,6 +124,7 @@ include("skipmissing.jl")
 
 include("geometry_lookup/geometry_lookup.jl")
 include("geometry_lookup/methods.jl")
+include("geometry_lookup/io.jl")
 
 include("table_ops.jl")
 include("create.jl")
