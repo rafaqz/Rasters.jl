@@ -109,7 +109,12 @@ function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nokw, dim
         SortTileRecursiveTree.STRtree(data)
     end
     new_crs = if isnokw(crs)
-        GI.crs(first(data))
+        data_crs = GI.crs(data)
+        if isnothing(data_crs)
+            lookup.crs
+        else
+            data_crs
+        end
     else
         crs
     end
@@ -259,7 +264,7 @@ Reproject just forwards to `GO.reproject`.
 =#
 
 function reproject(target::GeoFormat, l::GeometryLookup)
-    source = crs(l)
+    source = l.crs
     return rebuild(l; data = GO.reproject(l.data; source_crs = source, target_crs = target, always_xy = true))
 end
 # total_area_of_intersection = 0.0
