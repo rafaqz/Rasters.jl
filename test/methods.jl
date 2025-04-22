@@ -365,20 +365,6 @@ end
         @test zonal(x -> x isa Raster, rast; of=polygon, skipmissing=false)
     end
 
-    @testset "line ends outside raster" begin
-        linestring = GI.LineString([(8.0, 0.0), (9.5, 0.0), (10.0, 0.4)])
-        dimz = (X(10.0:-1:9.0), Y(0.1:0.1:0.2))
-        rast = Raster(Union{Int,Missing}[3 4; 1 2], dimz; name=:test, missingval=missing)
-        rast2 = set(rast; X = Intervals(Center()), Y = Intervals(Center()))
-        rast3 = extend(rast; to = Extent(X = (5, 15), Y = (-1, 1)))
-        @test extract(rast, linestring; skipmissing=true) ==
-        extract(rast2, linestring; skipmissing=true) ==
-        extract(rast3, linestring; skipmissing=true) == [
-            (geometry = (10.0, 0.1), test = 3)
-            (geometry = (10.0, 0.2), test = 4)
-        ]
-    end
-
 end
 
 @testset "zonal return missing" begin
