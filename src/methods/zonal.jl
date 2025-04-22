@@ -81,7 +81,9 @@ _zonal(f, x::Raster, of::Extents.Extent; skipmissing) =
     _maybe_skipmissing_call(f, crop(x; to=of, touches=true), skipmissing)
 function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing)
     cropped = crop(x; to=ext, touches=true)
-    length(cropped) > 0 || return missing
+    if length(cropped) == 0 && skipmissing == true
+        return map(_ -> missing, x)
+    end
     return maplayers(cropped) do A
         _maybe_skipmissing_call(f, A, skipmissing)
     end
@@ -97,7 +99,9 @@ function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
     skipmissing, kw...
 )
     cropped = crop(x; to=geom, touches=true)
-    length(cropped) > 0 || return missing
+    if length(cropped) == 0 && skipmissing == true
+        return missing
+    end
     masked = mask(cropped; with=geom, kw...)
     return _maybe_skipmissing_call(f, masked, skipmissing)
 end
@@ -105,10 +109,14 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom;
     skipmissing, kw...
 )
     cropped = crop(st; to=geom, touches=true)
-    length(cropped) > 0 || return map(_ -> missing, st)
+    if length(cropped) == 0 && skipmissing == true
+        return map(_ -> missing, st)
+    end
     masked = mask(cropped; with=geom, kw...)
     return maplayers(masked) do A
-        length(A) > 0 || return missing
+        if length(A) == 0 && skipmissing == true
+            return missing
+        end
         _maybe_skipmissing_call(f, A, skipmissing)
     end
 end
