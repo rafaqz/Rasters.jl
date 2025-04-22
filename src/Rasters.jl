@@ -123,6 +123,7 @@ include("utils.jl")
 include("skipmissing.jl")
 
 include("geometry_lookup/geometry_lookup.jl")
+include("geometry_lookup/methods.jl")
 
 include("table_ops.jl")
 include("create.jl")
