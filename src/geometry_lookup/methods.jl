@@ -20,7 +20,7 @@ end
     zs, start_index = _alloc_zonal(f, x, geoms, n; spatialslices, kw...)
     start_index == n + 1 && return zs
     _run(start_index:n, threaded, progress, "Applying $f to each geometry...") do i
-        zs[i] = _zonal(f, x, geoms[i]; kw...)
+        zs[i] = _zonal(f, x, geoms[i]; spatialslices, kw...)
     end
 
     return_lookup_dims = if istrue(spatialslices)
@@ -31,14 +31,14 @@ end
         (X(), Y())
     end
 
-    return_lookup = rebuild(data.val; dims = return_lookup_dims)
+    return_lookup = rebuild(data.val; dims = rebuild.(return_lookup_dims, (:,)))
 
     return_dimension = rebuild(data, return_lookup)
 
-    if zs isa AbstractVector{<: Union{<: AbstractDimArray, <: AbstractDimStack}}
+    if zs isa AbstractVector{<: Union{<: AbstractDimArray, <: AbstractDimStack, Missing}}
         backing_array = __do_cat_with_last_dim(zs)
         z_dims = dims(first(zs))
-        new_dims = (z_dims..., return_dimension)
+        new_dims = DD.format((z_dims..., return_dimension), backing_array)
         return rebuild(x; data = backing_array, dims = new_dims)
     else
         # TODO: how should we reconstruct a rasterstack from a vector of named tuples?
