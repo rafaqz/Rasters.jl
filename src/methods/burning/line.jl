@@ -111,27 +111,32 @@ function _burn_line!(f::Function, c::Function, dims::Tuple, line::NamedTuple)
              y=(line.start.y - raster_y_offset) / raster_y_step)
     relstop = (x=(line.stop.x - raster_x_offset) / raster_x_step, 
             y=(line.stop.y - raster_y_offset) / raster_y_step)
+    @show line.start.x line.start.y
+    @show line.stop.x line.stop.y
+    @show raster_x_offset raster_y_offset
+    @show relstart.x  relstop.x
+    @show relstart.y  relstop.y
 
     # Ray/Slope calculations
     # Straight distance to the first vertical/horizontal grid boundaries
     if relstop.x > relstart.x
-        xoffset = trunc(relstart.x) - relstart.x + 1 
-        xmoves = trunc(Int, relstop.x) - trunc(Int, relstart.x)
+        xoffset = floor(relstart.x) - relstart.x + 1 
+        xmoves = floor(Int, relstop.x) - floor(Int, relstart.x)
     else
-        xoffset = relstart.x - trunc(relstart.x)
-        xmoves = trunc(Int, relstart.x) - trunc(Int, relstop.x)
+        xoffset = relstart.x - floor(relstart.x)
+        xmoves = floor(Int, relstart.x) - floor(Int, relstop.x)
     end
     if relstop.y > relstart.y
-        yoffset = trunc(relstart.y) - relstart.y + 1
-        ymoves = trunc(Int, relstop.y) - trunc(Int, relstart.y)
+        yoffset = floor(relstart.y) - relstart.y + 1
+        ymoves = floor(Int, relstop.y) - floor(Int, relstart.y)
     else
-        yoffset = relstart.y - trunc(relstart.y)
-        ymoves = trunc(Int, relstart.y) - trunc(Int, relstop.y)
+        yoffset = relstart.y - floor(relstart.y)
+        ymoves = floor(Int, relstart.y) - floor(Int, relstop.y)
     end
     manhattan_distance = xmoves + ymoves
 
     # Int starting points for the line. +1 converts to julia indexing
-    j, i = trunc(Int, relstart.x) + 1, trunc(Int, relstart.y) + 1 # Int
+    j, i = floor(Int, relstart.x) + 1, floor(Int, relstart.y) + 1 # Int
 
     n_on_line = 0
     
@@ -178,6 +183,7 @@ function _burn_line!(f::Function, c::Function, dims::Tuple, line::NamedTuple)
 
     # Travel one grid cell at a time. Start at zero for the current cell
     for _ in 0:manhattan_distance
+        @show j i
         D = map(rebuild, dims, (j, i))
         if checkbounds(Bool, di, D...)
             f(D)
