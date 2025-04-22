@@ -459,15 +459,15 @@ _progress(args...; kw...) = ProgressMeter.Progress(args...; dt=0.1, color=:blue,
 @noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
 
 # Run `f` threaded or not, w
-function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String)
+function _run(f, range::OrdinalRange, threaded, progress::Bool, desc::String)
     p = progress ? _progress(length(range); desc) : nothing
-    if threaded
-        Threads.@threads :static for i in range
+    if isfalse(threaded)
+        for i in range
             f(i)
             isnothing(p) || ProgressMeter.next!(p)
         end
     else
-        for i in range
+        Threads.@threads for i in range
             f(i)
             isnothing(p) || ProgressMeter.next!(p)
         end
