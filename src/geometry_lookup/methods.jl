@@ -1,10 +1,10 @@
 
-@noinline function _zonal(f, x::RasterStackOrArray, ::Nothing, data::GeometryLookup; kw...)
-    return _zonal(f, x, nothing, Dim{:Geometry}(data); kw...)
+function _zonal(f, x::RasterStackOrArray, ::Nothing, data::GeometryLookup; kw...)
+    return _zonal(f, x, nothing, Geometry(data); kw...)
 end
-@noinline function _zonal(f, x::RasterStackOrArray, ::Nothing, data::Dim{Name, <: GeometryLookup}; 
+function _zonal(f, x::RasterStackOrArray, ::Nothing, data::Dimension{<: GeometryLookup}; 
     progress=true, threaded=true, geometrycolumn=nothing, spatialslices, kw...
-) where Name
+)
     geoms = data.val.data
     # TODO: deliberately filter geoms based on extent and tree
     # so that we don't waste time calling `mask` on lots of geometries

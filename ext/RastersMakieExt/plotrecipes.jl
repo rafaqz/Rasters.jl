@@ -333,9 +333,9 @@ _prepare_dimarray(A) = DimArray(map(x -> _convert_with_missing(x, missingval(A))
 _convert_with_missing(x::Real, missingval) = isequal(x, missingval) || ismissing(x) ? NaN32 : Float32(x)
 _convert_with_missing(x, missingval) = isequal(x, missingval) ? missing : x
 
-Makie.expand_dimensions(::Type{<: Makie.Poly}, A::Raster{T, 1, <: Tuple{<: Dim{Name, <: Rasters.GeometryLookup}}}) where {T, Name} = nothing
-Makie.expand_dimensions(::Makie.NoConversion, A::Raster{T, 1, <: Tuple{<: Dim{Name, <: Rasters.GeometryLookup}}}) where {T, Name} = nothing
-function Makie.convert_arguments(::Type{<: Makie.Poly}, A::Raster{T, 1, <: Tuple{<: Dim{Name, <: Rasters.GeometryLookup}}}) where {T, Name}
-    geometries = val(only(dims(A))).data
-    return Makie.SpecApi.Poly(geometries; color = replace_missing(A, NaN).data)
+Makie.expand_dimensions(::Type{<: Makie.Poly}, A::Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}) where {T} = nothing
+Makie.expand_dimensions(::Makie.NoConversion, A::Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}) where {T} = nothing
+function Makie.convert_arguments(::Type{<: Makie.Poly}, A::Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}) where {T}
+    geometries = lookup(only(dims(A))).data
+    return Makie.SpecApi.Poly(geometries; color = replace_missing(A, NaN).data, label = string(Rasters.DD.name(only(dims(A)))))
 end
