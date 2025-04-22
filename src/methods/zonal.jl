@@ -65,13 +65,13 @@ insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Z
                                                   3 columns and 243 rows omitted
 ```
 """
-function zonal(f, x::RasterStack; of, skipmissing=true, spatialslices=dims(x, (Val{DD.XDim}(), Val{DD.YDim}())), kw...)
+function zonal(f, x::RasterStack; of, skipmissing=true, spatialslices=_True(), kw...)
     # TODO: open currently doesn't work so well for large rasterstacks,
     # we need to fix that before we can go back to this being a single method
     # on `RasterStackOrArray`.
     _zonal(f, _prepare_for_burning(x), of; skipmissing, spatialslices, kw...)
 end
-function zonal(f, x::Raster; of, skipmissing=true, spatialslices=dims(x, (Val{DD.XDim}(), Val{DD.YDim}())), kw...)
+function zonal(f, x::Raster; of, skipmissing=true, spatialslices=_True(), kw...)
     open(x) do xo
         _zonal(f, _prepare_for_burning(xo), of; skipmissing, spatialslices, kw...)
     end
@@ -159,20 +159,26 @@ function _alloc_zonal(f, x, geoms, n; kw...)
     return zs, n_missing + 1
 end
 
-_maybe_skipmissing_call(f, A, sm) = sm ? f(skipmissing(A)) : f(A)
+# Optionally wrap the input argument in `skipmissing(A)` is `sm` is true.
+_maybe_skipmissing_call(f, A, sm) = istrue(sm) ? f(skipmissing(A)) : f(A)
 
-function _mapspatialslices(f, x::AbstractArray{T, N}; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}())) where {T, N}
+# the only reason we have AbstractDimArray here is to make sure that DD.otherdims is available.
+# We could probably get away with just AbstractArray here otherwise.
+# The reason this is not just mapslices is because this drops the sliced dimensions automatically, 
+# which is what we want.
+function _mapspatialslices(f, x::AbstractDimArray; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()))
     iterator = DD.DimSlices(x; dims = DD.otherdims(x, spatialdims), drop = true)
     return f.(iterator)
 end
-
-function _mapspatialslices(f, s::SkipMissingVal; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()))
+# SkipMissingVal and SkipMissing both store the initial value in the `x` property,
+# so we can use the same thing to extract it.
+function _mapspatialslices(f, s::Union{SkipMissingVal, Base.SkipMissing}; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()))
     x = s.x # get the raster out of the SkipMissingVal
     iterator = DD.DimSlices(x; dims = DD.otherdims(x, spatialdims), drop = true)
     return @. f(skipmissing(iterator))
 end
 
-_maybe_spatialsliceify(f, spatialslices::Bool) = spatialslices ? _SpatialSliceify(f, (Val{DD.XDim}(), Val{DD.YDim}())) : f
+_maybe_spatialsliceify(f, spatialslices) = istrue(spatialslices) ? _SpatialSliceify(f, (Val{DD.XDim}(), Val{DD.YDim}())) : f
 _maybe_spatialsliceify(f, spatialslices::DD.AllDims) = _SpatialSliceify(f, spatialslices)
 
 """
