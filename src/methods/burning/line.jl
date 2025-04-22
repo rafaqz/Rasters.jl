@@ -111,11 +111,6 @@ function _burn_line!(f::Function, c::Function, dims::Tuple, line::NamedTuple)
              y=(line.start.y - raster_y_offset) / raster_y_step)
     relstop = (x=(line.stop.x - raster_x_offset) / raster_x_step, 
             y=(line.stop.y - raster_y_offset) / raster_y_step)
-    @show line.start.x line.start.y
-    @show line.stop.x line.stop.y
-    @show raster_x_offset raster_y_offset
-    @show relstart.x  relstop.x
-    @show relstart.y  relstop.y
 
     # Ray/Slope calculations
     # Straight distance to the first vertical/horizontal grid boundaries
@@ -183,7 +178,6 @@ function _burn_line!(f::Function, c::Function, dims::Tuple, line::NamedTuple)
 
     # Travel one grid cell at a time. Start at zero for the current cell
     for _ in 0:manhattan_distance
-        @show j i
         D = map(rebuild, dims, (j, i))
         if checkbounds(Bool, di, D...)
             f(D)
