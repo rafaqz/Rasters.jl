@@ -339,3 +339,17 @@ function Makie.convert_arguments(::Type{<: Makie.Poly}, A::Raster{T, 1, <: Tuple
     geometries = lookup(only(dims(A))).data
     return Makie.SpecApi.Poly(geometries; color = replace_missing(A, NaN).data, label = string(Rasters.DD.name(only(dims(A)))))
 end
+
+
+Makie.expand_dimensions(::Type{<: Makie.Poly}, A::Base.SkipMissing{<: Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}}) where {T} = nothing
+Makie.expand_dimensions(::Type{<: Makie.Poly}, A::Rasters.SkipMissingVal{<: Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}}) where {T} = nothing
+Makie.expand_dimensions(::Makie.NoConversion, A::Base.SkipMissing{<: Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}}) where {T} = nothing
+Makie.expand_dimensions(::Makie.NoConversion, A::Rasters.SkipMissingVal{<: Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}}) where {T} = nothing
+
+function Makie.convert_arguments(::Type{<: Makie.Poly}, A::Base.SkipMissing{<: Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}}) where {T}
+    return Makie.convert_arguments(Makie.Poly, A.x[ismissing.(A.x)])
+end
+
+function Makie.convert_arguments(::Type{<: Makie.Poly}, A::Rasters.SkipMissingVal{<: Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}}) where {T}
+    return Makie.convert_arguments(Makie.Poly, A.x[ismissing.(A.x)])
+end
