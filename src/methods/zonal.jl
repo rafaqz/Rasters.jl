@@ -64,7 +64,7 @@ function zonal(f, x::RasterStack; of, skipmissing=true, kw...)
     # TODO: open currently doesn't work so well for large rasterstacks,
     # we need to fix that before we can go back to this being a single method
     # on `RasterStackOrArray`.
-    return if length(layerdims(x)) < 32
+    return if length(names(x)) < 5
         open(x) do ox
             _zonal(f, _prepare_for_burning(ox), of; skipmissing, kw...)
         end
