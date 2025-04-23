@@ -31,7 +31,7 @@ dv[Geometry(Contains(GO.centroid(polygons[88])))] == dv[Geometry(88)] # true
 ```
 
 """
-struct GeometryLookup{A <: AbstractVector, D, M <: GO.Manifold, Tree, CRS} <: Lookups.Lookup{A, 1}
+struct GeometryLookup{T, A <: AbstractVector{T}, D, M <: GO.Manifold, Tree, CRS} <: DD.Dimensions.AbstractMergedLookup{T}
     manifold::M
     data::A
     tree::Tree
