@@ -204,6 +204,9 @@ _maybe_skipmissing_call(f, A, sm) = istrue(sm) ? f(skipmissing(A)) : f(A)
 # which is what we want.
 function _mapspatialslices(f, x::AbstractDimArray; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()), missingval = missingval(x))
     dimswewant = DD.otherdims(x, spatialdims)
+    if isempty(dimswewant)
+        return f(x)
+    end
     slicedims = rebuild.(dims(x, dimswewant), axes.((x,), dimswewant))
     if any(isempty, DD.dims(x, spatialdims))
         # If any of the spatial dims are empty, we can just return a constant missing array
@@ -259,6 +262,15 @@ function __do_cat_with_last_dim(input_arrays)
     cdas = reshape(As, sz)
     backing_array = DiskArrays.ConcatDiskArray(cdas)
    return backing_array
+end
+
+# This is a wrapper around the helper function that performs the final cat and rebuild, but on 
+# a dimarray.
+function _cat_and_rebuild_parent(parent, children, newdim)
+    backing_array = __do_cat_with_last_dim(children) # see zonal.jl for implementation
+    children_dims = dims(first(children))
+    final_dims = DD.format((children_dims..., newdim), backing_array)
+    return rebuild(parent; data = backing_array, dims = final_dims)
 end
 
 precompile(__do_cat_with_last_dim, (Vector{Raster{<: Any, 1}},))
