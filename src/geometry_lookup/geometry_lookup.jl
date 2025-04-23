@@ -39,7 +39,7 @@ struct GeometryLookup{A <: AbstractVector, D, M <: GO.Manifold, Tree, CRS} <: Lo
     crs::CRS
 end
 
-function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing, crs = nokw)
+function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing, crs = nokw, tree = nokw)
 
     # First, retrieve the geometries - from a table, vector of geometries, etc.
     geometries = _get_geometries(data, geometrycolumn)
@@ -67,8 +67,24 @@ function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing, crs =
         """))
     end
     # Build the lookup accelerator tree
-    tree = SortTileRecursiveTree.STRtree(geometries)
-        
+    tree = if isnokw(tree)
+        SortTileRecursiveTree.STRtree(geometries)
+    elseif GO.SpatialTreeInterface.isspatialtree(tree)
+        if tree isa DataType
+            tree(geometries)
+        else
+            tree
+        end
+    elseif isnothing(tree)
+        nothing
+    else
+        throw(ArgumentError("""
+        Got an argument for `tree` which is not a valid spatial tree (according to `GeometryOps.SpatialTreeInterface`)
+        nor `nokw` or `nothing`
+
+        Type is $(typeof(tree))
+        """))
+    end
     # TODO: auto manifold detection and best tree type for that manifold
     GeometryLookup(GO.Planar(), geometries, tree, dims, crs)
 end
@@ -96,6 +112,8 @@ function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nokw, dim
     new_tree = if isnokw(tree)
         if data == lookup.data
             lookup.tree
+        elseif isempty(data)
+            nothing
         else
             SortTileRecursiveTree.STRtree(data)
         end
