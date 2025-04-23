@@ -7,9 +7,6 @@ The main entry point is `selectindices`, which is used to select the indices of 
 We need to define methods that take selectors and convert them to extents, then GeometryOps needs 
 =#
 
-
-# Utility functions first!
-
 # Bounds - get the bounds of the lookup
 Lookups.bounds(lookup::GeometryLookup) = if isempty(lookup.data)
     Extents.Extent(NamedTuple{DD.name.(lookup.dims)}(ntuple(2) do i; (nothing, nothing); end))
@@ -22,8 +19,10 @@ else
 end
 
 # Return an `Int` or  Vector{Bool}
-Lookups.selectindices(lookup::GeometryLookup, sel::DD.DimTuple) =
+function Lookups.selectindices(lookup::GeometryLookup, sel::DD.DimTuple)
+    @show sel
     selectindices(lookup, map(_val_or_nothing, sortdims(sel, dims(lookup))))
+end
 function Lookups.selectindices(lookup::GeometryLookup, sel::NamedTuple{K}) where K
     dimsel = map(rebuild, map(name2dim, K), values(sel))
     selectindices(lookup, dimsel) 
@@ -31,11 +30,11 @@ end
 Lookups.selectindices(lookup::GeometryLookup, sel::Lookups.StandardIndices) = sel
 function Lookups.selectindices(lookup::GeometryLookup, sel::Tuple)
     if (length(sel) == length(dims(lookup))) && all(map(s -> s isa At, sel))
-        i = findfirst(x -> all(map(_matches, sel, x)), lookup)
+        i = findfirst(x -> all(map(Lookups._matches, sel, x)), lookup)
         isnothing(i) && _coord_not_found_error(sel)
         return i
     else
-        return [_matches(sel, x) for x in lookup]
+        return [Lookups._matches(sel, x) for x in lookup]
     end
 end
 
@@ -98,10 +97,51 @@ function Lookups.selectindices(lookup::GeometryLookup, sel::Touches)
     """) =#
 end
 
+function Lookups.selectindices(lookup::GeometryLookup, (xs, ys)::Tuple{Union{ <: Touches}, Union{ <: Touches}})
+    target_ext = Extents.Extent(X = (first(xs), last(xs)), Y = (first(ys), last(ys)))
+    
+    potential_candidates = _maybe_get_candidates(lookup, target_ext)
+    if isempty(potential_candidates)
+        return Int[] #=error("""
+        The point ($xval, $yval) is not within any of the geometries in the lookup.
+    """) =# # no geometry intersects with it
+    else
+        for candidate in potential_candidates
+            if GO.intersects(lookup.data[candidate], target_ext)
+                return candidate
+            end
+        end
+        return Int[] #=error("""
+            The point ($xval, $yval) is not within any of the geometries in the lookup.
+        """) =# # no geometry intersects with it
+    end
+end
+
+
+function Lookups.selectindices(lookup::GeometryLookup, (xs, ys)::Tuple{Union{<: DD.IntervalSets.ClosedInterval}, Union{<: DD.IntervalSets.ClosedInterval}})
+    target_ext = Extents.Extent(X = extrema(xs), Y = extrema(ys))
+    
+    potential_candidates = _maybe_get_candidates(lookup, target_ext)
+    if isempty(potential_candidates)
+        return Int[] #=error("""
+        The point ($xval, $yval) is not within any of the geometries in the lookup.
+    """) =# # no geometry intersects with it
+    else
+        for candidate in potential_candidates
+            if GO.covers(target_ext, lookup.data[candidate])
+                return candidate
+            end
+        end
+        return Int[] #=error("""
+            The point ($xval, $yval) is not within any of the geometries in the lookup.
+        """) =# # no geometry intersects with it
+    end
+end
+
 function Lookups.selectindices(lookup::GeometryLookup, (xs, ys)::Tuple{Union{<: At, <: Contains}, Union{<: At, <: Contains}})
     xval, yval = val(xs), val(ys)
 
-    lookup_ext = lookup.tree.rootnode.extent
+    lookup_ext = Lookups.bounds(lookup)
 
     if lookup_ext.X[1] <= xval <= lookup_ext.X[2] && lookup_ext.Y[1] <= yval <= lookup_ext.Y[2]
         potential_candidates = GO.SpatialTreeInterface.query(lookup.tree, (xval, yval))
