@@ -143,11 +143,18 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data;
     _run(start_index:n, threaded, progress, "Applying $f to each geometry...") do i
         zs[i] = _zonal(f, x, geoms[i]; missingval, kw...)
     end
-    if zs isa Vector{<: Union{<: AbstractDimArray, <: AbstractDimStack}}
-        backing_array = __do_cat_with_last_dim(zs)
-        return_dimension = Dim{:Geometry}(axes(zs, 1))
-        return rebuild(x; data = backing_array, dims = DD.format((dims(first(zs))..., return_dimension), backing_array), missingval = missingval)
-    end
+
+    return_dimension = Dim{:Geometry}(axes(zs, 1))
+    
+    if zs isa AbstractVector{<: Union{<: AbstractDimArray, Missing}}
+        _cat_and_rebuild_parent(x, zs, return_dimension)
+    elseif zs isa AbstractVector{<: Union{<: AbstractDimStack, Missing}}
+        dimarrays = NamedTuple{names(st)}(
+            ntuple(length(names(st))) do i
+                _cat_and_rebuild_parent(layers(st)[i], (layers(z)[i] for z in zs), return_dimension)
+            end
+        )
+        return rebuild(x; data = dimarrays, dims = (dims(first(zs))..., return_dimension))
     return zs
 end
 
