@@ -147,7 +147,7 @@ As a next step, we would like to know how precipitation will change in Chile unt
 
 To start, we define a simple function that takes an SSP (socioeconomic scenario) and a GCM (climate model) as input, and return the appropriate climate data. 
 
-````@example zonal
+````@example cellarea
 using Dates
 getfutureprec(ssp, gcm) = Raster(WorldClim{Future{Climate, CMIP6, gcm, ssp}}, :prec, date = Date(2090))
 ````
