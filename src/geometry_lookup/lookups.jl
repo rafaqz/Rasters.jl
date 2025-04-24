@@ -81,6 +81,14 @@ function Lookups.selectindices(lookup::GeometryLookup, sel::Contains)
     """)
 end
 
+function Lookups.selectindices(lookup::GeometryLookup, sel::At)
+    if GI.trait(val(sel)) isa GI.PointTrait
+        Lookups.selectindices(lookup, (At(GI.x(val(sel))), At(GI.y(val(sel)))))
+    else # invoke the default method
+        Lookups.at(lookup, sel)
+    end
+end
+
 function Lookups.selectindices(lookup::GeometryLookup, sel::Near)
     geom = val(sel)
     @assert GI.isgeometry(geom)
