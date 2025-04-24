@@ -89,7 +89,8 @@ function GeometryLookup(data, dims=(X(), Y()); geometrycolumn=nothing, crs=nokw,
     GeometryLookup(GO.Planar(), geometries, tree, dims, crs)
 end
 
-crs(l::GeometryLookup) = l.crs
+GeoInterface.crs(l::GeometryLookup) = l.crs
+setcrs(l::GeometryLookup, crs) = rebuild(l; crs)
 
 #=
 

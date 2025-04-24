@@ -9,12 +9,26 @@ coordinate reference system at all.
 See [`setcrs`](@ref) to set it manually.
 """
 function GeoInterface.crs(obj::Union{<:AbstractRaster,<:AbstractRasterStack,<:AbstractRasterSeries, <:DimTuple})
-    if hasdim(obj, Y)
-        crs(dims(obj, Y))
-    elseif hasdim(obj, X)
-        crs(dims(obj, X))
+    each_dim_crs = map(crs, dims(obj))
+    firstcrs = findfirst(!isnothing, each_dim_crs)
+    if isnothing(firstcrs)
+        return nothing
     else
-        nothing
+        for (dim, crs) in zip(dims(obj), each_dim_crs)
+            if !isnothing(crs) && crs !== each_dim_crs[firstcrs]
+                throw(ArgumentError("""
+                All dimensions must have the same crs, but dims $(name(dim)) and $(name(dims(obj, firstcrs)))
+                have different CRS:
+                $(each_dim_crs[firstcrs])
+
+                and
+
+                $(crs)
+                """
+                ))
+            end
+        end
+        return each_dim_crs[firstcrs]
     end
 end
 GeoInterface.crs(dim::Dimension) = crs(lookup(dim))
