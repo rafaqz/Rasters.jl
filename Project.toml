@@ -116,3 +116,8 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Aqua", "ArchGDAL", "CFTime", "CoordinateTransformations", "DataFrames", "GeoDataFrames", "GeometryBasics", "GRIBDatasets", "Makie", "NCDatasets", "Plots", "Proj", "RasterDataSources", "SafeTestsets", "Shapefile", "StableRNGs", "StatsBase", "Test", "ZarrDatasets"]
+
+
+[sources]
+DimensionalData = {url = "https://github.com/rafaqz/DimensionalData.jl", rev = "as/individualindexing"}
+GeometryOps = {url = "https://github.com/JuliaGeo/GeometryOps.jl", rev = "as/extentforwarding_for_predicates"}
