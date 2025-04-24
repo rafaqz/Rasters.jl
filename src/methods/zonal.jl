@@ -155,6 +155,7 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data;
             end
         )
         return rebuild(x; data = dimarrays, dims = (dims(first(zs))..., return_dimension))
+    end
     return zs
 end
 
