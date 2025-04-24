@@ -31,7 +31,7 @@ dv[Geometry(Contains(GO.centroid(polygons[88])))] == dv[Geometry(88)] # true
 ```
 
 """
-struct GeometryLookup{T, A <: AbstractVector{T}, D, M <: GO.Manifold, Tree, CRS} <: DD.Dimensions.AbstractMergedLookup{T}
+struct GeometryLookup{T, A <: AbstractVector{T}, D, M <: GO.Manifold, Tree, CRS} <: DD.Dimensions.MultiDimensionalLookup{T}
     manifold::M
     data::A
     tree::Tree
@@ -39,7 +39,7 @@ struct GeometryLookup{T, A <: AbstractVector{T}, D, M <: GO.Manifold, Tree, CRS}
     crs::CRS
 end
 
-function GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing, crs = nokw, tree = nokw)
+function GeometryLookup(data, dims=(X(), Y()); geometrycolumn=nothing, crs=nokw, tree=nokw)
 
     # First, retrieve the geometries - from a table, vector of geometries, etc.
     geometries = _get_geometries(data, geometrycolumn)
@@ -107,7 +107,12 @@ DD.parent(lookup::GeometryLookup) = lookup.data
 DD.Dimensions.format(l::GeometryLookup, D::Type, values, axis::AbstractRange) = l
 
 # Make sure that the tree is rebuilt if the data changes
-function DD.rebuild(lookup::GeometryLookup; data = lookup.data, tree = nokw, dims = lookup.dims, crs = nokw, manifold = nokw, metadata = nokw)
+function DD.rebuild(
+        lookup::GeometryLookup; 
+        data=lookup.data, tree=nokw, 
+        dims=lookup.dims, crs=nokw, 
+        manifold=nokw, metadata=nokw
+    )
     # TODO: metadata support for geometry lookup
     new_tree = if isnokw(tree)
         if data == lookup.data

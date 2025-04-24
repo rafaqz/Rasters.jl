@@ -63,7 +63,6 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data::Dimension{<: Geometry
         )
         return rebuild(x; data = dimarrays, dims = (dims(first(zs))..., return_dimension))
     else
-        # TODO: how should we reconstruct a rasterstack from a vector of named tuples?
         return Raster(zs, (return_dimension,))
     end
 end
