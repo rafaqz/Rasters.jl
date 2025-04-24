@@ -81,6 +81,24 @@ function Lookups.selectindices(lookup::GeometryLookup, sel::Contains)
     """)
 end
 
+function Lookups.selectindices(lookup::GeometryLookup, sel::Near)
+    geom = val(sel)
+    @assert GI.isgeometry(geom)
+    # TODO: temporary
+    @assert GI.trait(geom) isa GI.PointTrait "Only point geometries are supported for the near lookup at this point!  We will add more geometry support in the future."
+
+    # Get the nearest geometry
+    # TODO: this sucks!  Use some branch and bound algorithm
+    # on the spatial tree instead.
+    # if pointtrait
+    return findmin(x -> GO.distance(geom, x), lookup.data)[2]
+    # else
+    #     findmin(x -> GO.distance(GO.GEOS(), geom, x), lookup.data)[2]
+    # end 
+    # this depends on LibGEOS being installed.
+
+end
+
 
 function Lookups.selectindices(lookup::GeometryLookup, sel::Touches)
     lookup_ext = lookup.tree.rootnode.extent
