@@ -18,16 +18,18 @@ else
     end
 end
 
-# Return an `Int` or  Vector{Bool}
+# Return an `Int` or Vector{Bool}
+# Base case: got a standard index that can go into getindex on a base Array
+Lookups.selectindices(lookup::GeometryLookup, sel::Lookups.StandardIndices) = sel
+# other cases: 
+# - decompose selectors
 function Lookups.selectindices(lookup::GeometryLookup, sel::DD.DimTuple)
-    @show sel
     selectindices(lookup, map(_val_or_nothing, sortdims(sel, dims(lookup))))
 end
 function Lookups.selectindices(lookup::GeometryLookup, sel::NamedTuple{K}) where K
     dimsel = map(rebuild, map(name2dim, K), values(sel))
     selectindices(lookup, dimsel) 
 end
-Lookups.selectindices(lookup::GeometryLookup, sel::Lookups.StandardIndices) = sel
 function Lookups.selectindices(lookup::GeometryLookup, sel::Tuple)
     if (length(sel) == length(dims(lookup))) && all(map(s -> s isa At, sel))
         i = findfirst(x -> all(map(Lookups._matches, sel, x)), lookup)
@@ -46,39 +48,21 @@ Get the candidates for the selector extent.  If the selector extent is disjoint 
 """
 function _maybe_get_candidates(lookup::GeometryLookup, selector_extent)
     tree = lookup.tree
-    if isnothing(tree)
-        return 1:length(lookup)
-    end
-
-    if Extents.disjoint(GI.extent(tree), selector_extent)
-        return Int[] #=error("""
-            The geometry with extent $(GI.extent(val(sel))) is outside of the extent of the geometry lookup.
-
-            The geometry lookup has extent $(GI.extent(tree))
-        """)=#
-    end
-
-    potential_candidates = GO.SpatialTreeInterface.query(tree, Base.Fix1(Extents.intersects, selector_extent))
-
-    isempty(potential_candidates) && return Int[] #=error("""
-        The geometry with extent $(GI.extent(val(sel))) does not interact with any of the geometries in the lookup.
-    """)=#
-
+    isnothing(tree) && return 1:length(lookup)
+    Extents.disjoint(GI.extent(tree), selector_extent) && return Int[]     
+    potential_candidates = GO.SpatialTreeInterface.query(
+        tree, 
+        Base.Fix1(Extents.intersects, selector_extent)
+    )
+    isempty(potential_candidates) && return Int[]
     return potential_candidates
 end
 
 function Lookups.selectindices(lookup::GeometryLookup, sel::Contains)
-
     potential_candidates = _maybe_get_candidates(lookup, sel_ext)
-
-    for candidate in potential_candidates
-        if GO.contains(lookup.data[candidate], val(sel))
-            return candidate
-        end
+    filter(potential_candidates) do candidate
+        GO.contains(lookup.data[candidate], val(sel))
     end
-    return error("""
-        The geometry with extent $(GI.extent(val(sel))) is not contained by any of the geometries in the lookup.
-    """)
 end
 
 function Lookups.selectindices(lookup::GeometryLookup, sel::At)
@@ -109,10 +93,8 @@ end
 
 
 function Lookups.selectindices(lookup::GeometryLookup, sel::Touches)
-    lookup_ext = lookup.tree.rootnode.extent
     sel_ext = GI.extent(val(sel))
     potential_candidates = _maybe_get_candidates(lookup, sel_ext)
-
     return filter(potential_candidates) do candidate
         GO.intersects(lookup.data[candidate], val(sel))
     end
@@ -120,70 +102,34 @@ end
 
 function Lookups.selectindices(lookup::GeometryLookup, (xs, ys)::Tuple{Union{ <: Touches}, Union{ <: Touches}})
     target_ext = Extents.Extent(X = (first(xs), last(xs)), Y = (first(ys), last(ys)))
-    
     potential_candidates = _maybe_get_candidates(lookup, target_ext)
-    if isempty(potential_candidates)
-        return Int[] #=error("""
-        The point ($xval, $yval) is not within any of the geometries in the lookup.
-    """) =# # no geometry intersects with it
-    else
-        for candidate in potential_candidates
-            if GO.intersects(lookup.data[candidate], target_ext)
-                return candidate
-            end
-        end
-        return Int[] #=error("""
-            The point ($xval, $yval) is not within any of the geometries in the lookup.
-        """) =# # no geometry intersects with it
+    return filter(potential_candidates) do candidate
+        GO.intersects(lookup.data[candidate], target_ext)
     end
 end
 
 
 function Lookups.selectindices(lookup::GeometryLookup, (xs, ys)::Tuple{Union{<: DD.IntervalSets.ClosedInterval}, Union{<: DD.IntervalSets.ClosedInterval}})
     target_ext = Extents.Extent(X = extrema(xs), Y = extrema(ys))
-    
     potential_candidates = _maybe_get_candidates(lookup, target_ext)
-    if isempty(potential_candidates)
-        return Int[] #=error("""
-        The point ($xval, $yval) is not within any of the geometries in the lookup.
-    """) =# # no geometry intersects with it
-    else
-        for candidate in potential_candidates
-            if GO.covers(target_ext, lookup.data[candidate])
-                return candidate
-            end
-        end
-        return Int[] #=error("""
-            The point ($xval, $yval) is not within any of the geometries in the lookup.
-        """) =# # no geometry intersects with it
+    filter(potential_candidates) do candidate
+        GO.covers(target_ext, lookup.data[candidate])
     end
 end
 
-function Lookups.selectindices(lookup::GeometryLookup, (xs, ys)::Tuple{Union{<: At, <: Contains}, Union{<: At, <: Contains}})
+function Lookups.selectindices(lookup::GeometryLookup, (xs, ys)::Tuple{Union{<: At, <: Contains, <: Real}, Union{<: At, <: Contains, <: Real}})
     xval, yval = val(xs), val(ys)
 
     lookup_ext = Lookups.bounds(lookup)
 
     if lookup_ext.X[1] <= xval <= lookup_ext.X[2] && lookup_ext.Y[1] <= yval <= lookup_ext.Y[2]
         potential_candidates = GO.SpatialTreeInterface.query(lookup.tree, (xval, yval))
-        if isempty(potential_candidates)
-            return Int[] #=error("""
-            The point ($xval, $yval) is not within any of the geometries in the lookup.
-        """) =# # no geometry intersects with it
-        else
-            for candidate in potential_candidates
-                if GO.contains(lookup.data[candidate], (xval, yval))
-                    return candidate
-                end
-            end
-            return Int[] #=error("""
-                The point ($xval, $yval) is not within any of the geometries in the lookup.
-            """) =# # no geometry intersects with it
+        isempty(potential_candidates) && return Int[]
+        filter(potential_candidates) do candidate
+            GO.contains(lookup.data[candidate], (xval, yval))
         end
     else
-        return Int[] #=error("""
-        The point ($xval, $yval) is outside of the extent of the geometry lookup. 
-        """) =# # outside of extent / geometrylookup bbox
+        return Int[]
     end
 end
 
