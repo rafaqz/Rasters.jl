@@ -166,7 +166,7 @@ function _alloc_zonal(f, x, geoms, n; spatialslices = _True(), missingval, kw...
         z1 = _zonal(f, x, first(geoms); spatialslices, missingval, kw...)
         for geom in geoms
             z1 = _zonal(f, x, geom; spatialslices, missingval, kw...)
-            if !(ismissing(z1) || z1 == missingval)
+            if !(ismissing(z1) || z1 === missingval)
                 break
             end
             n_missing += 1
@@ -262,9 +262,10 @@ end
 # Users can always rechunk later.  But this saves us a lot of time when doing datacube ops.
 # And the chunk pattern is available in the concat diskarray.
 function __do_cat_with_last_dim(input_arrays)
+    # This assumes that the input array is a vector of arrays.
     As = Missings.disallowmissing(collect(input_arrays))
     dims = ndims(first(As)) + 1
-    sz = map(ntuple(identity, dims)) do i
+    sz = ntuple(dims) do i
         i == dims ? length(As) : 1
     end
     cdas = reshape(As, sz)
@@ -272,6 +273,16 @@ function __do_cat_with_last_dim(input_arrays)
    return backing_array
 end
 
+function __do_cat_with_last_dim_multidim_version(As)
+    # This CANNOT assume that the input array is a vector of arrays.
+    new_n_dims = ndims(As) + ndims(first(As))
+    sz = ntuple(new_n_dims) do i
+        i <= ndims(first(As)) ? 1 : size(As, i-1)
+    end
+    cdas = reshape(As, sz)
+    backing_array = DiskArrays.ConcatDiskArray(cdas)
+   return backing_array
+end
 # This is a wrapper around the helper function that performs the final cat and rebuild, but on 
 # a dimarray.
 function _cat_and_rebuild_parent(parent, children, newdim)
