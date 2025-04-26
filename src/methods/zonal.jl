@@ -65,13 +65,13 @@ insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Z
                                                   3 columns and 243 rows omitted
 ```
 """
-function zonal(f, x::RasterStack; of, skipmissing=true, spatialslices=_True(), missingval = isnothing(missingval(x)) ? missing : missingval(x), kw...)
+function zonal(f, x::RasterStack; of, skipmissing=true, spatialslices=_False(), missingval=isnothing(missingval(x)) ? missing : missingval(x), kw...)
     # TODO: open currently doesn't work so well for large rasterstacks,
     # we need to fix that before we can go back to this being a single method
     # on `RasterStackOrArray`.
     _zonal(f, _prepare_for_burning(x), of; skipmissing, spatialslices, missingval, kw...)
 end
-function zonal(f, x::Raster; of, skipmissing=true, spatialslices=_True(), missingval = isnothing(missingval(x)) ? missing : missingval(x), kw...)
+function zonal(f, x::Raster; of, skipmissing=true, spatialslices=_False(), missingval=isnothing(missingval(x)) ? missing : missingval(x), kw...)
     open(x) do xo
         _zonal(f, _prepare_for_burning(xo), of; skipmissing, spatialslices, missingval, kw...)
     end
