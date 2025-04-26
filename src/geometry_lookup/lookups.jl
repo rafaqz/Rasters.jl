@@ -113,14 +113,9 @@ function Lookups.selectindices(lookup::GeometryLookup, sel::Touches)
     sel_ext = GI.extent(val(sel))
     potential_candidates = _maybe_get_candidates(lookup, sel_ext)
 
-    for candidate in potential_candidates
-        if GO.intersects(lookup.data[candidate], val(sel))
-            return candidate
-        end
+    return filter(potential_candidates) do candidate
+        GO.intersects(lookup.data[candidate], val(sel))
     end
-    return Int[] #=error("""
-        The geometry with extent $(GI.extent(val(sel))) does not touch any of the geometries in the lookup.
-    """) =#
 end
 
 function Lookups.selectindices(lookup::GeometryLookup, (xs, ys)::Tuple{Union{ <: Touches}, Union{ <: Touches}})
