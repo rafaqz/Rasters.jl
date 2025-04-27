@@ -553,6 +553,13 @@ istrue(::_True) = true
 istrue(::_False) = false
 istrue(::Type{_True}) = true
 istrue(::Type{_False}) = false
+istrue(x) = x == true
+
+isfalse(::_True) = false
+isfalse(::_False) = true
+isfalse(::Type{_True}) = false
+isfalse(::Type{_False}) = true
+isfalse(x) = x == false
 
 # skipinvalid: can G and I be missing. skipmissing: can nametypes be missing
 _rowtype(x, g, args...; kw...) = _rowtype(x, typeof(g), args...; kw...)
