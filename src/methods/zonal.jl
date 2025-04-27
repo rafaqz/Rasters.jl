@@ -202,7 +202,7 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data;
             end
         )
         return rebuild(x; data = dimarrays, dims = (dims(first(zs))..., return_dimension))
-    elseif zs isa AbstractVector{<: NamedTuple{names(x)}} && !isfalse(spatialslices)
+    elseif x isa RasterStack &&zs isa AbstractVector{<: NamedTuple{names(x)}} && !isfalse(spatialslices)
         # if we just have a vector of named tuple -> value: do not dimensionalize,
         # so that this is not breaking.
         if !any(p -> p isa AbstractDimArray, values(first(zs)))
@@ -404,6 +404,8 @@ function _cat_and_rebuild_parent(parent::AbstractDimStack, children, newdim)
         Base.size(A::GetpropertyArray) = size(A.data)
         Base.ndims(A::GetpropertyArray) = ndims(A.data)
         =#
+        # and then we wrap all the layers in this struct.  Granted, this does increase the amount of time for getindex by
+        # an instruction or so.
         layer_rasters = map(names(parent)) do name
             layer_children = map(child -> getproperty.(child, (name,)), children)
             backing_array = __do_cat_with_last_dim(layer_children) # see zonal.jl for implementation
