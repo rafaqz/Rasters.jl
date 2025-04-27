@@ -125,7 +125,7 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data;
             zs[i] = _zonal(f, x, geoms[i]; kw...)
         end
         return zs
-    elseif threaded isa ByMap
+    elseif threaded isa _ByMap
         return _zonal_via_map(f, x, geoms; progress, threaded = threaded.threaded, kw...)
     else
         throw(ArgumentError("threaded must be true, false or `ByMap([true/false])`"))
@@ -156,8 +156,8 @@ end
 _maybe_skipmissing_call(f, A, sm) = sm ? f(skipmissing(A)) : f(A)
 
 
-struct ByMap
-    threaded::Bool
+struct _ByMap{T}
+    threaded::T
 end
 
 function _zonal_via_map(f, x, geoms; progress, threaded, kw...)
