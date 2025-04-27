@@ -173,99 +173,64 @@ end
 function _zonal(f, x::RasterStackOrArray, ::Nothing, data; 
     progress=true, threaded=true, geometrycolumn=nothing, missingval, bylayer = _True(), spatialslices = _False(), kw...
 )
+    # Extract geometries from the data and perform zonal operations
     geoms = _get_geometries(data, geometrycolumn)
-    n = length(geoms)
-    n == 0 && return []
+    zs = _zonal_via_map(f, x, geoms; progress, threaded, missingval, bylayer, spatialslices, kw...)
 
-    zs = if isfalse(bylayer) && x isa RasterStack && !isfalse(spatialslices)
-        _zonal_via_map(f, x, geoms; progress, threaded, missingval, bylayer, spatialslices, kw...)
-    else
-        zs, start_index = _alloc_zonal(f, x, geoms, n; missingval, spatialslices, bylayer, kw...)
-        start_index == n + 1 && return zs
-        _run(start_index:n, threaded, progress, "Applying $f to each geometry...") do i
-            zs[i] = _zonal(f, x, geoms[i]; missingval, bylayer, spatialslices, kw...)
-        end
-        zs
-    end
+    # Rebuild the result, if necessary.  In this case, it's only "necessary" to rebuild
+    # if we have a Vector of DimArrays or DimStacks as output.
 
-    return_dimension = Dim{:Geometry}(axes(zs, 1))
+    # Construct the "return dimension" - currently, this is just a named `Geometry` dimension.
+    # When GeometryLookup is integrated, this should become a geometry lookup dimension, along with 
+    # spatialdims refdims.
+    return_dimension = Geometry(axes(zs, 1))
     
-    if zs isa AbstractVector{<: Union{<: AbstractDimArray, Missing}}
+    if zs isa AbstractArray{<: AbstractDimArray}
+        # If we have a vector of DimArrays, we can just cat and rebuild.
+        # This uses a ConcatDiskArray to avoid:
+        # - re-allocating the output array
+        # - running `cat` on a splat of thousands of elements
+        # (really, someone should have implemented a `cat_array` methods in Base by now...)
         return _cat_and_rebuild_parent(x, zs, return_dimension)
-    elseif zs isa AbstractVector{<: Union{<: AbstractDimStack, Missing}}
+    elseif zs isa AbstractArray{<: AbstractDimStack}
         # NOTE: this is independent of bylayer, and only depends
         # on what the zonal function returns.
         dimarrays = NamedTuple{names(st)}(
             ntuple(length(names(st))) do i
+                # for each layer, cat and rebuild.
                 _cat_and_rebuild_parent(layers(st)[i], (layers(z)[i] for z in zs), return_dimension)
             end
         )
         return rebuild(x; data = dimarrays, dims = (dims(first(zs))..., return_dimension))
     elseif zs isa AbstractVector{<: NamedTuple{names(x)}} && !isfalse(spatialslices)
+        # if we just have a vector of named tuple -> value: do not dimensionalize,
+        # so that this is not breaking.
         if !any(p -> p isa AbstractDimArray, values(first(zs)))
             return zs
         end
-
-        isdim = map(values(first(zs))) do r
+        # Check which layers are dimensional.  
+        # Dimensional layers are sent to the same mechanism we use to rebuild DimArrays,
+        # but non-dimensional (scalar) layers are simply assembled into a Raster with the geometry 
+        # dimension.
+        isdimensional = map(values(first(zs))) do r
             r isa AbstractDimArray
         end
-
+        # assemble the layers
         layers = map(enumerate(names(x))) do (i, name)
-            if !isdim[i]
-                return Raster(getproperty.(zs, name), (return_dimension,); crs = crs(x), refdims = (), metadata = metadata(x))
-            else
+            if isdimensional[i]
                 _cat_and_rebuild_parent(DD.layers(x)[i], (z[name] for z in zs), return_dimension)
+            else
+                Raster(getproperty.(zs, name), (return_dimension,); crs = crs(x), refdims = (), metadata = metadata(x))
             end
         end
-
+        # assemble the rasterstack to return
         r = RasterStack(NamedTuple{names(x)}(layers); crs = crs(x), refdims = (), metadata = metadata(x), missingval = missingval)
         return r
     end
+    # if none of the dimensionalization cases above apply, 
+    # then just return the vector of results - the same thing that 
+    # `zonal` used to do before this.
     return zs
-end
-
-function _alloc_zonal(f, x, geoms, n; spatialslices=_False(), missingval, kw...)
-    n_missing::Int = 0
-    if isfalse(spatialslices)
-        # Find first non-missing entry and count number of missing entries
-        z1 = _zonal(f, x, first(geoms); spatialslices, missingval, kw...)
-        for geom in geoms
-            z1 = _zonal(f, x, geom; spatialslices, missingval, kw...)
-            if !(ismissing(z1) || z1 === missingval)
-                break
-            end
-            n_missing += 1
-        end
-        zs = Vector{Union{typeof(missingval), typeof(z1)}}(undef, n)
-        zs[1:n_missing] .= (missingval,)
-        # Exit early when all elements are missing
-        if n_missing == n
-            return zs, n_missing + 1
-        end
-        zs[n_missing + 1] = z1
-        return zs, n_missing + 1
-    else # spatialslices is true, we know we need an output raster
-        z1 = _zonal(f, x, first(geoms); spatialslices, missingval, kw...)
-        _missing_array = z1
-        for geom in geoms
-            z1 = _zonal(f, x, geom; spatialslices, missingval, kw...)
-            if !all(ismissing, z1) # here, z1 is a raster, so it's fine - but maybe we should have a better check...
-                break
-            end
-            n_missing += 1
-        end
-        # TODO: just bite the bullet and use map.  alloc_zonal is a mess.
-        zs = Vector{Union{typeof(z1), typeof(_missing_array)}}(undef, n)
-        for i in 1:n
-            zs[i] = _missing_array
-        end
-        # Exit early when all elements are missing
-        if n_missing == n
-            return zs, n_missing + 1
-        end
-        zs[n_missing + 1] = z1
-        return zs, n_missing + 1
-    end
 end
 
 function _zonal_via_map(f, x, geoms; progress, threaded, missingval, bylayer, spatialslices, kw...)
@@ -276,7 +241,8 @@ function _zonal_via_map(f, x, geoms; progress, threaded, missingval, bylayer, sp
         # Customize this as needed.
         # More tasks have more overhead, but better load balancing
         tasks_per_thread = threaded isa Int ? threaded : 2
-        chunk_size = max(1, nitems ÷ (tasks_per_thread * Threads.nthreads()))
+        ntasks = tasks_per_thread * Threads.nthreads()
+        chunk_size = max(1, nitems ÷ ntasks)
         # partition the range into chunks
         task_chunks = Iterators.partition(1:nitems, chunk_size)
         # Map over the chunks
@@ -285,9 +251,10 @@ function _zonal_via_map(f, x, geoms; progress, threaded, missingval, bylayer, sp
             GeometryOpsCore.StableTasks.@spawn begin
                 # Where we map `f` over the chunk indices
                 r = map($chunk) do i
-                    _zonal(f, x, (geoms)[i]; missingval, bylayer, spatialslices, (kw)...)
+                    a = _zonal(f, x, (geoms)[i]; missingval, bylayer, spatialslices, kw...)
+                    isnothing(p) || ProgressMeter.next!(p; step = length(chunk))
+                    a
                 end
-                isnothing(p) || ProgressMeter.next!(p; step = length(chunk))
                 r
             end
         end
@@ -407,7 +374,12 @@ end
 # This is a wrapper around the helper function that performs the final cat and rebuild, but on 
 # a dimarray.
 function _cat_and_rebuild_parent(parent::AbstractDimArray, children, newdim)
-    backing_array = __do_cat_with_last_dim(children) # see zonal.jl for implementation
+    # extract the backing arrays from the children, so we are not dealing with 
+    # dimarrays within rasters.  This should make it a bit easier on the compiler
+    # and easier to reason about.
+    # And we know that we will only get arrays of dimarrays here anyway.
+    parents = Base.parent.(children)
+    backing_array = __do_cat_with_last_dim(parents) 
     children_dims = dims(first(children))
     final_dims = DD.format((children_dims..., newdim), backing_array)
     return rebuild(parent; data = backing_array, dims = final_dims)
