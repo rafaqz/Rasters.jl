@@ -28,6 +28,9 @@ These can be used when `of` is or contains (a) GeoInterface.jl compatible object
     and return a vector data cube or stack of the results.
     if `false`, then we will apply `f` to the full cropped raster, and return a vector of results (one per geometry)
     as usual.
+- `bylayer`: if `true`, and `x` is a `RasterStack`, then we will apply `f` to each layer of the raster, 
+    and return a vector of named-tuple results (one per layer).  The names will be the names of the layers.
+    If `false`, then we will apply `f` to the whole stack, and return a vector of results (one per geometry).
 
 # Example
 
@@ -65,11 +68,31 @@ insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Z
                                                   3 columns and 243 rows omitted
 ```
 """
-function zonal(f, x::RasterStack; of, skipmissing=true, spatialslices=_False(), missingval=isnothing(missingval(x)) ? missing : missingval(x), kw...)
+function zonal end
+
+function _determine_missingval(x, bylayer)
+    raw_missingval = isnothing(missingval(x)) ? missing : missingval(x)
+    if isfalse(bylayer) && x isa AbstractRasterStack
+        k = findfirst(!isnothing, raw_missingval)
+        if isnothing(k)
+            return missing
+        else
+            return raw_missingval[k]
+        end
+    else
+        return raw_missingval
+    end
+end
+
+function zonal(f, x::RasterStack; 
+    of, skipmissing=true, spatialslices=_False(), bylayer=_True(),
+    missingval=_determine_missingval(x, bylayer), 
+    kw...
+    )
     # TODO: open currently doesn't work so well for large rasterstacks,
     # we need to fix that before we can go back to this being a single method
     # on `RasterStackOrArray`.
-    _zonal(f, _prepare_for_burning(x), of; skipmissing, spatialslices, missingval, kw...)
+    _zonal(f, _prepare_for_burning(x), of; skipmissing, spatialslices, missingval, bylayer, kw...)
 end
 function zonal(f, x::Raster; of, skipmissing=true, spatialslices=_False(), missingval=isnothing(missingval(x)) ? missing : missingval(x), kw...)
     open(x) do xo
@@ -83,13 +106,18 @@ _zonal(f, x::RasterStackOrArray, of::DimTuple; kw...) =
     _zonal(f, x, Extents.extent(of); kw...)
 # We don't need to `mask` with an extent, it's square so `crop` will do enough.
 _zonal(f, x::Raster, of::Extents.Extent; skipmissing, spatialslices, missingval) = _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices), crop(x; to=of, touches=true), skipmissing)
-function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing, spatialslices, missingval)
+function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing, spatialslices, missingval, bylayer)
     cropped = crop(x; to=ext, touches=true)
     if length(cropped) == 0 && skipmissing == true
         return map(_ -> missingval, x)
     end
-    return maplayers(cropped) do A
-        _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), A, skipmissing)
+    # if bylayer, map across each raster on all layers - if not, map across the whole raster.
+    if istrue(bylayer)
+        return maplayers(cropped) do A
+            _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), A, skipmissing)
+        end
+    else
+        return _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), cropped, skipmissing)
     end
 end
 # Otherwise of is a geom, table or vector
@@ -114,7 +142,7 @@ function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
     return _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), masked, skipmissing)
 end
 function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; 
-    skipmissing, spatialslices, missingval, kw...
+    skipmissing, spatialslices, missingval, bylayer, kw...
 )
     cropped = crop(st; to=geom, touches=true)
     masked = if length(cropped) == 0 
@@ -125,11 +153,16 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom;
     else
         mask(cropped; with=geom, kw...)
     end
-    return maplayers(masked) do A
-        if length(A) == 0 && (istrue(skipmissing) && isfalse(spatialslices))
-            return missingval
+
+    if istrue(bylayer)
+        return maplayers(masked) do A
+            if length(A) == 0 && (istrue(skipmissing) && isfalse(spatialslices))
+                return missingval
+            end
+            _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), A, skipmissing)
         end
-        _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), A, skipmissing)
+    else
+        _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), masked, skipmissing)
     end
 end
 function _zonal(f, x::RasterStackOrArray, ::Nothing, data; 
@@ -149,17 +182,20 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data;
     if zs isa AbstractVector{<: Union{<: AbstractDimArray, Missing}}
         _cat_and_rebuild_parent(x, zs, return_dimension)
     elseif zs isa AbstractVector{<: Union{<: AbstractDimStack, Missing}}
+        # NOTE: this is independent of bylayer, and only depends
+        # on what the zonal function returns.
         dimarrays = NamedTuple{names(st)}(
             ntuple(length(names(st))) do i
                 _cat_and_rebuild_parent(layers(st)[i], (layers(z)[i] for z in zs), return_dimension)
             end
         )
         return rebuild(x; data = dimarrays, dims = (dims(first(zs))..., return_dimension))
+
     end
     return zs
 end
 
-function _alloc_zonal(f, x, geoms, n; spatialslices = _True(), missingval, kw...)
+function _alloc_zonal(f, x, geoms, n; spatialslices=_False(), missingval, kw...)
     n_missing::Int = 0
     if isfalse(spatialslices)
         # Find first non-missing entry and count number of missing entries
@@ -172,7 +208,7 @@ function _alloc_zonal(f, x, geoms, n; spatialslices = _True(), missingval, kw...
             n_missing += 1
         end
         zs = Vector{Union{typeof(missingval), typeof(z1)}}(undef, n)
-        zs[1:n_missing] .= missingval
+        zs[1:n_missing] .= (missingval,)
         # Exit early when all elements are missing
         if n_missing == n
             return zs, n_missing + 1
