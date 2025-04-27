@@ -117,13 +117,19 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data;
 )
     geoms = _get_geometries(data, geometrycolumn)
     n = length(geoms)
-    n == 0 && return []
-    zs, start_index = _alloc_zonal(f, x, geoms, n; kw...)
-    start_index == n + 1 && return zs
-    _run(start_index:n, threaded, progress, "Applying $f to each geometry...") do i
-        zs[i] = _zonal(f, x, geoms[i]; kw...)
+    if threaded == true || threaded == false
+        n == 0 && return []
+        zs, start_index = _alloc_zonal(f, x, geoms, n; kw...)
+        start_index == n + 1 && return zs
+        _run(start_index:n, threaded, progress, "Applying $f to each geometry...") do i
+            zs[i] = _zonal(f, x, geoms[i]; kw...)
+        end
+        return zs
+    elseif threaded isa ByMap
+        return _zonal_via_map(f, x, geoms; progress, threaded = threaded.threaded, kw...)
+    else
+        throw(ArgumentError("threaded must be true, false or `ByMap([true/false])`"))
     end
-    return zs
 end
 
 function _alloc_zonal(f, x, geoms, n; kw...)
@@ -148,3 +154,43 @@ function _alloc_zonal(f, x, geoms, n; kw...)
 end
 
 _maybe_skipmissing_call(f, A, sm) = sm ? f(skipmissing(A)) : f(A)
+
+
+struct ByMap
+    threaded::Bool
+end
+
+function _zonal_via_map(f, x, geoms; progress, threaded, kw...)
+    p = progress ? _progress(length(geoms); desc = "Applying $f to each geometry...") : nothing
+
+    if threaded # istrue(threaded)
+        nitems = length(geoms)
+        # Customize this as needed.
+        # More tasks have more overhead, but better load balancing
+        tasks_per_thread = threaded isa Int ? threaded : 2
+        chunk_size = max(1, nitems ÷ (tasks_per_thread * Threads.nthreads()))
+        # partition the range into chunks
+        task_chunks = Iterators.partition(1:nitems, chunk_size)
+        # Map over the chunks
+        tasks = map(task_chunks) do chunk
+            # Spawn a task to process this chunk
+            GeometryOpsCore.StableTasks.@spawn begin
+                # Where we map `f` over the chunk indices
+                r = map($chunk) do i
+                    _zonal(f, x, (geoms)[i]; (kw)...)
+                end
+                isnothing(p) || ProgressMeter.next!(p; step = length(chunk))
+                r
+            end
+        end
+        # Finally we join the results into a new vector
+        return mapreduce(fetch, vcat, tasks)
+    else # threaded is false => singlethreaded
+        res = map(geoms) do geom
+            a = _zonal(f, x, geom; (kw)...)
+            isnothing(p) || ProgressMeter.next!(p)
+            a
+        end
+        return res
+    end
+end
