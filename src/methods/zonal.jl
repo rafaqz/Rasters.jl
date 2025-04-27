@@ -218,9 +218,7 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data;
             end
         end
 
-        _spdims = istrue(spatialslices) ? (Val{DD.XDim}(), Val{DD.YDim}()) : spatialslices
-        _odims = DD.otherdims(dims(x), _spdims)
-        r = RasterStack(NamedTuple{names(x)}(layers), (_odims..., return_dimension); crs = crs(x), refdims = (), metadata = metadata(x), missingval = missingval)
+        r = RasterStack(NamedTuple{names(x)}(layers); crs = crs(x), refdims = (), metadata = metadata(x), missingval = missingval)
         return r
     end
     return zs
@@ -286,7 +284,9 @@ function _zonal_via_map(f, x, geoms; progress, threaded, missingval, bylayer, sp
             # Spawn a task to process this chunk
             GeometryOpsCore.StableTasks.@spawn begin
                 # Where we map `f` over the chunk indices
-                r = map(f, chunk)
+                r = map($chunk) do i
+                    _zonal(f, x, (geoms)[i]; missingval, bylayer, spatialslices, (kw)...)
+                end
                 isnothing(p) || ProgressMeter.next!(p; step = length(chunk))
                 r
             end
