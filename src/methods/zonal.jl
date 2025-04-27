@@ -386,8 +386,33 @@ function _cat_and_rebuild_parent(parent::AbstractDimArray, children, newdim)
 end
 
 function _cat_and_rebuild_parent(parent::AbstractDimStack, children, newdim)
-    if first((first(children))) isa NamedTuple{names(parent)}
-        error("Not implemented yet")
+    # Test if the children are vectors of namedtuple -> value pairs.
+    if first(first(children)) isa NamedTuple{names(parent)}
+        # If so, then we need to split the children into layers,
+        # cat each layer separately, and then rebuild the parent.
+        # TODO: this allocates a lot.  Can we avoid this?
+        # One way is to do a "reverse StructArray", where we have a struct like so:
+        #=
+        struct GetpropertyArray{T, N, A<:AbstractArray{T, N}}
+            data::A
+            name::Symbol
+        end
+        Base.getindex(A::GetpropertyArray, i) = A.data[i].(A.name)
+        Base.setindex!(A::GetpropertyArray, v, i) = (A.data[i].(A.name) = v)
+        Base.parent(A::GetpropertyArray) = A.data
+        Base.axes(A::GetpropertyArray) = axes(A.data)
+        Base.size(A::GetpropertyArray) = size(A.data)
+        Base.ndims(A::GetpropertyArray) = ndims(A.data)
+        =#
+        layer_rasters = map(names(parent)) do name
+            layer_children = map(child -> getproperty.(child, (name,)), children)
+            backing_array = __do_cat_with_last_dim(layer_children) # see zonal.jl for implementation
+            children_dims = dims(first(children))
+            final_dims = DD.format((children_dims..., newdim), backing_array)
+            Raster(backing_array, final_dims; crs = crs(parent), refdims = (), metadata = metadata(parent))
+        end
+        return RasterStack(NamedTuple{names(parent)}(layer_rasters); crs = crs(parent), refdims = (), metadata = metadata(parent))
+
     else
         backing_array = __do_cat_with_last_dim(children) # see zonal.jl for implementation
         children_dims = dims(first(children))
