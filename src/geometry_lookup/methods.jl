@@ -54,7 +54,7 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data::Dimension{<: Geometry
     return_dimension = rebuild(data, return_lookup)
 
     if zs isa AbstractVector{<: Union{<: AbstractDimArray, Missing}}
-        _cat_and_rebuild_parent(x, zs, return_dimension)
+        return _cat_and_rebuild_parent(x, zs, return_dimension)
     elseif zs isa AbstractVector{<: Union{<: AbstractDimStack, Missing}}
         dimarrays = NamedTuple{names(st)}(
             ntuple(length(names(st))) do i
