@@ -166,21 +166,27 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom;
     end
 end
 function _zonal(f, x::RasterStackOrArray, ::Nothing, data; 
-    progress=true, threaded=true, geometrycolumn=nothing, missingval, kw...
+    progress=true, threaded=true, geometrycolumn=nothing, missingval, bylayer = _True(), spatialslices = _False(), kw...
 )
     geoms = _get_geometries(data, geometrycolumn)
     n = length(geoms)
     n == 0 && return []
-    zs, start_index = _alloc_zonal(f, x, geoms, n; missingval, kw...)
-    start_index == n + 1 && return zs
-    _run(start_index:n, threaded, progress, "Applying $f to each geometry...") do i
-        zs[i] = _zonal(f, x, geoms[i]; missingval, kw...)
+
+    zs = if isfalse(bylayer) && x isa RasterStack && !isfalse(spatialslices)
+        _zonal_via_map(f, x, geoms; progress, threaded, missingval, bylayer, spatialslices, kw...)
+    else
+        zs, start_index = _alloc_zonal(f, x, geoms, n; missingval, spatialslices, bylayer, kw...)
+        start_index == n + 1 && return zs
+        _run(start_index:n, threaded, progress, "Applying $f to each geometry...") do i
+            zs[i] = _zonal(f, x, geoms[i]; missingval, bylayer, spatialslices, kw...)
+        end
+        zs
     end
 
     return_dimension = Dim{:Geometry}(axes(zs, 1))
     
     if zs isa AbstractVector{<: Union{<: AbstractDimArray, Missing}}
-        _cat_and_rebuild_parent(x, zs, return_dimension)
+        return _cat_and_rebuild_parent(x, zs, return_dimension)
     elseif zs isa AbstractVector{<: Union{<: AbstractDimStack, Missing}}
         # NOTE: this is independent of bylayer, and only depends
         # on what the zonal function returns.
@@ -190,7 +196,28 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data;
             end
         )
         return rebuild(x; data = dimarrays, dims = (dims(first(zs))..., return_dimension))
+    elseif zs isa AbstractVector{<: NamedTuple{names(x)}} && !isfalse(spatialslices)
+        if !any(p -> p isa AbstractDimArray, values(first(zs)))
+            return zs
+        end
 
+        isdim = map(values(first(zs))) do r
+            r isa AbstractDimArray
+        end
+
+        layers = map(enumerate(names(x))) do (i, name)
+            if !isdim[i]
+                return Raster(getproperty.(zs, name), (return_dimension,); crs = crs(x), refdims = (), metadata = metadata(x))
+            else
+                _cat_and_rebuild_parent(DD.layers(x)[i], (z[name] for z in zs), return_dimension)
+            end
+        end
+
+        _spdims = istrue(spatialslices) ? (Val{DD.XDim}(), Val{DD.YDim}()) : spatialslices
+        _odims = DD.otherdims(dims(x), _spdims)
+        r = RasterStack(NamedTuple{names(x)}(layers), (_odims..., return_dimension); crs = crs(x), refdims = (), metadata = metadata(x), missingval = missingval)
+        Main.@infiltrate
+        return r
     end
     return zs
 end
@@ -239,6 +266,39 @@ function _alloc_zonal(f, x, geoms, n; spatialslices=_False(), missingval, kw...)
     end
 end
 
+function _zonal_via_map(f, x, geoms; progress, threaded, missingval, bylayer, spatialslices, kw...)
+    p = progress ? _progress(length(geoms); desc = "Applying $f to each geometry...") : nothing
+
+    if !isfalse(threaded) # istrue(threaded)
+        nitems = length(geoms)
+        # Customize this as needed.
+        # More tasks have more overhead, but better load balancing
+        tasks_per_thread = threaded isa Int ? threaded : 2
+        chunk_size = max(1, nitems ÷ (tasks_per_thread * Threads.nthreads()))
+        # partition the range into chunks
+        task_chunks = Iterators.partition(1:nitems, chunk_size)
+        # Map over the chunks
+        tasks = map(task_chunks) do chunk
+            # Spawn a task to process this chunk
+            GeometryOpsCore.StableTasks.@spawn begin
+                # Where we map `f` over the chunk indices
+                r = map(f, chunk)
+                isnothing(p) || ProgressMeter.next!(p; step = length(chunk))
+                r
+            end
+        end
+        # Finally we join the results into a new vector
+        return mapreduce(fetch, vcat, tasks)
+    else # threaded is false => singlethreaded
+        res = map(geoms) do geom
+            a = _zonal(f, x, geom; missingval, bylayer, spatialslices, kw...)
+            isnothing(p) || ProgressMeter.next!(p)
+            a
+        end
+        Main.@infiltrate
+        return res
+    end
+end
 # Optionally wrap the input argument in `skipmissing(A)` is `sm` is true.
 _maybe_skipmissing_call(f, A, sm) = istrue(sm) ? f(skipmissing(A)) : f(A)
 
@@ -246,7 +306,7 @@ _maybe_skipmissing_call(f, A, sm) = istrue(sm) ? f(skipmissing(A)) : f(A)
 # We could probably get away with just AbstractArray here otherwise.
 # The reason this is not just mapslices is because this drops the sliced dimensions automatically, 
 # which is what we want.
-function _mapspatialslices(f, x::AbstractDimArray; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()), missingval = missingval(x))
+function _mapspatialslices(f, x::AbstractDimArray; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()), missingval = missingval(x), bylayer = _False())
     dimswewant = DD.otherdims(x, spatialdims)
     if isempty(dimswewant)
         return f(x)
@@ -261,6 +321,28 @@ function _mapspatialslices(f, x::AbstractDimArray; spatialdims = (Val{DD.XDim}()
     iterator = (rebuild(x; data = d, dims = dims(d)) for d in DD.DimSlices(x; dims = slicedims, drop = true))
     return rebuild(x; data = f.(iterator), dims = dimswewant, refdims = ())
 end
+
+function _mapspatialslices(f, x::AbstractDimStack; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()), missingval = missingval(x), bylayer = _False())
+    dimswewant = DD.otherdims(x, spatialdims)
+    if isempty(dimswewant)
+        return f(x)
+    end
+    slicedims = rebuild.(dims(x, dimswewant), axes.((x,), dimswewant))
+    if any(isempty, DD.dims(x, spatialdims))
+        # If any of the spatial dims are empty, we can just return a constant missing array
+        # this way we don't construct the dimslices at all...
+        missing_array = FillArrays.Fill{Union{typeof(missingval), eltype(x)}, length(dimswewant)}(missingval, length.(dimswewant))
+        if istrue(bylayer)
+            return rebuild(x; data = NamedTuple{names(x)}(ntuple(i -> missing_array, length(names(x)))), dims = dimswewant, refdims = ())
+        else
+            return Raster(missing_array, dimswewant; crs = crs(x), missingval, refdims = (), metadata = metadata(x))
+        end
+    end
+    # TODO: somehow, for RasterStack, we don't need to rebuild?
+    iterator = (d for d in DD.DimSlices(x; dims = slicedims, drop = true))
+    return Raster(f.(iterator), dimswewant; crs = crs(x), missingval, refdims = (), metadata = metadata(x))
+end
+
 # SkipMissingVal and SkipMissing both store the initial value in the `x` property,
 # so we can use the same thing to extract it.
 function _mapspatialslices(f, s::Union{SkipMissingVal, Base.SkipMissing}; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()), missingval = missingval(s.x))
@@ -313,7 +395,7 @@ function __do_cat_with_last_dim_multidim_version(As)
     # This CANNOT assume that the input array is a vector of arrays.
     new_n_dims = ndims(As) + ndims(first(As))
     sz = ntuple(new_n_dims) do i
-        i <= ndims(first(As)) ? 1 : size(As, i-1)
+        i <= ndims(first(As)) ? 1 : size(As, i-ndims(first(As)))
     end
     cdas = reshape(As, sz)
     backing_array = DiskArrays.ConcatDiskArray(cdas)
@@ -321,11 +403,22 @@ function __do_cat_with_last_dim_multidim_version(As)
 end
 # This is a wrapper around the helper function that performs the final cat and rebuild, but on 
 # a dimarray.
-function _cat_and_rebuild_parent(parent, children, newdim)
+function _cat_and_rebuild_parent(parent::AbstractDimArray, children, newdim)
     backing_array = __do_cat_with_last_dim(children) # see zonal.jl for implementation
     children_dims = dims(first(children))
     final_dims = DD.format((children_dims..., newdim), backing_array)
     return rebuild(parent; data = backing_array, dims = final_dims)
+end
+
+function _cat_and_rebuild_parent(parent::AbstractDimStack, children, newdim)
+    if first((first(children))) isa NamedTuple{names(parent)}
+        error("Not implemented yet")
+    else
+        backing_array = __do_cat_with_last_dim(children) # see zonal.jl for implementation
+        children_dims = dims(first(children))
+        final_dims = DD.format((children_dims..., newdim), backing_array)
+        return Raster(backing_array, final_dims; crs = crs(parent), refdims = (), metadata = metadata(parent))
+    end
 end
 
 
