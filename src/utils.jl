@@ -553,12 +553,16 @@ istrue(::_True) = true
 istrue(::_False) = false
 istrue(::Type{_True}) = true
 istrue(::Type{_False}) = false
+istrue(::Val{v}) where v = istrue(v)
+
 istrue(x) = x == true
 
 isfalse(::_True) = false
 isfalse(::_False) = true
 isfalse(::Type{_True}) = false
 isfalse(::Type{_False}) = true
+isfalse(::Val{v}) where v = isfalse(v)
+
 isfalse(x) = x == false
 
 # skipinvalid: can G and I be missing. skipmissing: can nametypes be missing
