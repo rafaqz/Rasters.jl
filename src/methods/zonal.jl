@@ -105,7 +105,7 @@ _zonal(f, x::RasterStackOrArray, of::RasterStackOrArray; kw...) =
 _zonal(f, x::RasterStackOrArray, of::DimTuple; kw...) = 
     _zonal(f, x, Extents.extent(of); kw...)
 # We don't need to `mask` with an extent, it's square so `crop` will do enough.
-_zonal(f, x::Raster, of::Extents.Extent; skipmissing, spatialslices, missingval) = _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices), crop(x; to=of, touches=true), skipmissing)
+_zonal(f, x::Raster, of::Extents.Extent; skipmissing, spatialslices, missingval) = _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices), rebuild(crop(x; to=of, touches=true); refdims = (Geometry(of)),), skipmissing)
 function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing, spatialslices, missingval, bylayer)
     cropped = crop(x; to=ext, touches=true)
     if length(cropped) == 0 && skipmissing == true
@@ -114,10 +114,14 @@ function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing, spatialslic
     # if bylayer, map across each raster on all layers - if not, map across the whole raster.
     if istrue(bylayer)
         return maplayers(cropped) do A
-            _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), A, skipmissing)
+            # Rebuild the raster, adding the refdim of the geom so that it's accessible to the user.
+            A_with_refdims = rebuild(A; refdims = (Geometry(ext),))
+            _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), A_with_refdims, skipmissing)
         end
     else
-        return _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), cropped, skipmissing)
+        # Rebuild the stack, adding the refdim of the geom so that it's accessible to the user.
+        A_with_refdims = rebuild(cropped; refdims = (Geometry(ext),))
+        return _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), A_with_refdims, skipmissing)
     end
 end
 # Otherwise of is a geom, table or vector
@@ -139,6 +143,7 @@ function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
     else
         mask(cropped; with=geom, kw...)
     end
+    masked = rebuild(masked; refdims = (Geometry(geom),))
     return _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), masked, skipmissing)
 end
 function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; 
