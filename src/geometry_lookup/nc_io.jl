@@ -52,18 +52,18 @@ current_geom_index = 1
 start = 1
 stop = part_node_count[1]
 rings = [node_coordinates[start:stop]]
+push!(rings[end], node_coordinates[start])
 
 # Assemble all rings
-geoms = Vector{GI.MultiPolygon{2, Float64}}(undef, length(node_count))
-
 for i in 2:length(part_node_count)
     start = stop + 1
     stop = start + part_node_count[i] - 1
     push!(rings, node_coordinates[start:stop])
     # Ensure rings are closed by adding the first point at the end
-    push!(rings[end], rings[end][1])
+    push!(rings[end], node_coordinates[start])
 end
 
+geoms = Vector{GI.MultiPolygon{false, false}}(undef, length(node_count))
 # Assemble multipolygons
 current_ring = 1
 for (geom_idx, total_nodes) in enumerate(node_count)

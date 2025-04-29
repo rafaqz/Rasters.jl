@@ -12,15 +12,15 @@ end
 
 
 function _geometry_cf_encode(::GeometryOpsCore.TraitTarget{<: Union{<: GI.PolygonTrait, <: GI.MultiPolygonTrait}}, geoms)
+
+    ngeoms = length(geoms)
+    nrings = GO.applyreduce(GI.nring, +, GI.PolygonTrait(), geoms; init = 0, threaded = false)
     n_points_per_geom_vec = GI.npoint.(geoms)
-    total_n_points = sum(n_points_per_geom_vec)
+    total_n_points = sum(n_points_per_geom_vec) - nrings
 
     # Create a vector of the total number of points
     xs = fill(0.0, total_n_points)
     ys = fill(0.0, total_n_points)
-
-    ngeoms = length(geoms)
-    nrings = GO.applyreduce(GI.nring, +, GI.PolygonTrait(), geoms; init = 0)
 
     node_count_vec = fill(0, ngeoms)
     part_node_count_vec = fill(0, nrings)
@@ -37,12 +37,14 @@ function _geometry_cf_encode(::GeometryOpsCore.TraitTarget{<: Union{<: GI.Polygo
         # push individual components of the ring
         for poly in GO.flatten(GI.PolygonTrait, geom)
             exterior_ring = GI.getexterior(poly)
-            for point in GI.getpoint(exterior_ring)
+            for point_idx in 1:GI.npoint(exterior_ring)-1
+                point = GI.getpoint(exterior_ring, point_idx)
                 xs[current_xy_index] = GI.x(point)
                 ys[current_xy_index] = GI.y(point)
                 current_xy_index += 1
             end
             part_node_count_vec[current_ring_index] = GI.npoint(exterior_ring)
+            part_node_count_vec[current_ring_index] = GI.npoint(exterior_ring)-1
             interior_ring_vec[current_ring_index] = 0
             current_ring_index += 1
 
@@ -50,12 +52,13 @@ function _geometry_cf_encode(::GeometryOpsCore.TraitTarget{<: Union{<: GI.Polygo
                 continue
             else
                 for hole in GI.gethole(poly)
-                    for point in GI.getpoint(hole)
+                    for point_idx in 1:GI.npoint(hole)-1
+                        point = GI.getpoint(hole, point_idx)
                         xs[current_xy_index] = GI.x(point)
                         ys[current_xy_index] = GI.y(point)
                         current_xy_index += 1
                     end
-                    part_node_count_vec[current_ring_index] = GI.npoint(hole)
+                    part_node_count_vec[current_ring_index] = GI.npoint(hole)-1
                     interior_ring_vec[current_ring_index] = 1
                     current_ring_index += 1
                 end
