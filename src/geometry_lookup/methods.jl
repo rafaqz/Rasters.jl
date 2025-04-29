@@ -35,9 +35,10 @@ function _zonal(f, x::RasterStackOrArray, ::Nothing, data::Dimension{<: Geometry
     n = length(geoms)
     n == 0 && return []
     zs, start_index = _alloc_zonal(f, x, geoms, n; spatialslices, kw...)
-    start_index == n + 1 && return zs
-    _run(start_index:n, threaded, progress, "Applying $f to each geometry...") do i
-        zs[i] = _zonal(f, x, geoms[i]; spatialslices, kw...)
+    if start_index != n + 1
+        _run(start_index:n, threaded, progress, "Applying $f to each geometry...") do i
+            zs[i] = _zonal(f, x, geoms[i]; spatialslices, kw...)
+        end
     end
 
     return_lookup_dims = if spatialslices isa DD.AllDims
