@@ -212,7 +212,7 @@ cellarea(method::GeometryOpsCore.Manifold, x; kw...) = cellarea(method, dims(x, 
 
 function cellarea(method::GeometryOpsCore.Planar, dims::Tuple{<:XDim, <:YDim}; kw...)
     isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
-    areas = _planar_cellarea(dims; kw...)
+    areas = _planar_cellarea(dims)
     return Raster(areas; dims)
 end
 
