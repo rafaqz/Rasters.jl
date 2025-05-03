@@ -393,7 +393,7 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     missingval_vec = _missingval_vec(missingval, K)
     layermetadata_vec = layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), filename_vec)
     layerdims_vec = layerdims isa NamedTuple ? collect(layerdims) : map(_ -> NoKW(), filename_vec)
-    layers = map(K, filename_vec, layermetadata_vec, layerdims_vec, missingval_vec) do name, fn, md, d, mv
+    layers = map(collect(K), filename_vec, zip(layermetadata_vec, layerdims_vec, missingval_vec)) do name, fn, (md, d, mv)
         Raster(fn; 
             source=sourcetrait(fn, source), 
             dims=d, name, metadata=md, missingval=mv, scaled, verbose, kw...

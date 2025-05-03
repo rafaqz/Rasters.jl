@@ -381,9 +381,9 @@ function _mosaic(lookup::AbstractSampled, lookups::AbstractArray{<:Lookup})
     return _mosaic(span(lookup), lookup, lookups)
 end
 function _mosaic(span::Regular, lookup::AbstractSampled, lookups::AbstractArray{<:Lookup})
+    mi = minimum(first, lookups)
+    ma = maximum(last, lookups)
     newindex = if order(lookup) isa ForwardOrdered
-        mi = minimum(map(first, lookups))
-        ma = maximum(map(last, lookups))
         if mi isa AbstractFloat
             # Handle slight range errors to make sure
             # we don't drop one step of the range
@@ -392,8 +392,6 @@ function _mosaic(span::Regular, lookup::AbstractSampled, lookups::AbstractArray{
             mi:step(span):ma
         end
     else
-        mi = minimum(map(last, lookups))
-        ma = maximum(map(first, lookups))
         if mi isa AbstractFloat
             ma:step(span):mi - 2eps(mi)
         else
