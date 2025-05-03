@@ -7,10 +7,31 @@ using Test
 import Rasters
 import GeoInterface as GI
 
-#=
-var = ds["someData"]
 
-knowndims = Rasters._dims(var)  
+ds = NCDataset("C:\\Users\\rafael.schouten\\Downloads\\i.nc")
+var = ds["someData"]
+keys(ds)
+v = CDM.variable(ds, :lon)
+CDM.dimnames(ds)
+CDM.dimnames(v)
+CDM.attribnames(var)
+CDM.attrib(var, "coordinates")
+map(CDM.keys(ds)) do v
+    var = CDM.variable(ds, v)
+    @show v 
+    v => CDM.dimnames(var)
+    # all(CDM.dimnames(var)) do d
+    #     @show d
+    #     d in CDM.dimnames(ds)
+    # end ? v => :Alligned : v => :Unalligned
+end
+
+geom = CDM.variable(ds, :geometry_container)
+geom.attrib
+coords = split(geom.attrib["coordinates"], ' ')
+x = _read_geometry(ds, :geometry_container) |> pairs
+
+knowndims = Rasters._dims(var) 
 
 unknowndims_idxs = findall(Rasters.isnolookup ∘ Rasters.lookup, knowndims)
 
@@ -47,6 +68,10 @@ throw(ArgumentError("We only support polygon geometry types at this time, got $g
 geoms = Rasters._geometry_cf_decode(GI.PolygonTrait(), ds, geometry_container_attribs)
 
 encoded = Rasters._geometry_cf_encode(GI.PolygonTrait(), geoms)
+node_count = collect(nggode_count_var)
+node_coordinates = collect(zip(getindex.((ds,), split(geometry_container_attribs["node_coordinates"], " "))...))
+part_node_count = collect(ds[geometry_container_attribs["part_node_count"]])
+interior_ring = collect(ds[geometry_container_attribs["interior_ring"]])
 
 @test encoded.node_coordinates_x == ds["x"]
 @test encoded.node_coordinates_y == ds["y"]

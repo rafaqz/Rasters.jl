@@ -471,13 +471,11 @@ function RasterStack(ds;
 )
     check_multilayer_dataset(ds)
     scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
-    layers = _layers(ds, name, group)
     # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
-    dimdict = _dimdict(ds, crs, mappedcrs)
+    layers, dimsdict, layerdims_vec, layermetata_vec = _classify_dataset(ds, name, group)
+    dims = _sort_by_layerdims(isnokw(dims) ? _dims(ds, dimdict) : dims, layerdims_vec)
     refdims = isnokw(refdims) || isnothing(refdims) ? () : refdims
     metadata = isnokw(metadata) ? _metadata(ds) : metadata
-    layerdims_vec = isnokw(layerdims) ? _layerdims(ds; layers, dimdict) : layerdims
-    dims = _sort_by_layerdims(isnokw(dims) ? _dims(ds, dimdict) : dims, layerdims_vec)
     layermetadata_vec = if isnokw(layermetadata)
         _layermetadata(ds; layers)
     else
@@ -500,7 +498,7 @@ function RasterStack(ds;
     else
         map(layers.vars, layermetadata_vec, mod_vec) do var, md, mod
             modvar = _maybe_modify(var, mod)
-            checkmem && _checkobjmem(modvar)
+  yer          checkmem && _checkobjmem(modvar)
             Array(modvar)
         end |> NT
     end

@@ -109,54 +109,81 @@ haslayers(::CDMsource) = true
 defaultcrs(::CDMsource) = EPSG(4326)
 defaultmappedcrs(::CDMsource) = EPSG(4326)
 
-function _nondimnames(ds)
-    dimnames = CDM.dimnames(ds)
-    toremove = if "bnds" in dimnames
-        dimnames = setdiff(dimnames, ("bnds",))
-        boundsnames = String[]
-        for k in dimnames
-            var = ds[k]
-            attr = CDM.attribs(var)
-            if haskey(attr, "bounds")
-                push!(boundsnames, attr["bounds"])
-            end
-        end
-        union(dimnames, boundsnames)::Vector{String}
-    else
-        collect(dimnames)::Vector{String}
+# Get the names of all data layers, removing
+# coordinate, bounds, and geometry variables etc
+function _layer_names(ds) 
+    names = keys(ds)
+    return _layer_names(names, CDM.attribs.(CDM.variable.(ds, names)))
+end
+function _layer_names(var_names, attribs)
+    bounds_names = String[]
+    geometry_names = String[]
+    grid_mapping_names = String[]
+    coordinate_names = String[]
+    node_coordinate_names = String[]
+    for n, attr in zip(var_names, attribs)
+        # Coordinate variables
+        haskey(attr, "coordinates") && setdiff(coordinate_names, _cdm_coordinates(attr))
+        haskey(attr, "node_coordinates") && setdiff(node_coordinate_names, _cdm_node_coordinates(attr))
+        # Bounds variables
+        haskey(attr, "bounds") && push!(bounds_names, attr["bounds"])
+        # Geometry variables
+        haskey(attr, "geometry") && push!(geometry_names, attr["geometry"])
+        # Grid mapping variables
+        haskey(attr, "grid_mapping") && push!(grid_mapping_names, attr["grid_mapping"])
     end
-    # Maybe this should be fixed in ZarrDatasets but it works with this patch.
-    nondim = collect(setdiff(keys(ds), toremove))
-    return nondim
+    return setdiff(varnames, bounds_names, geometry_names, grid_mapping_names, coordinate_names, node_coordinate_names)
 end
 
-function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
-    nondim = _nondimnames(ds)
-    grid_mapping = String[]
-    vars = map(k -> CDM.variable(ds, k), nondim)
+_cdm_coordinates(attr) = collect(split(attr["coordinates"], ' '))
+_cdm_node_coordinates(attr) = collect(split(attr["node_coordinates"], ' '))
+
+function _classify_dataset(ds::AbstractDataset, names::NoKW=nokw, group::NoKW=nokw)
+    dim_names = CDM.dimnames(ds)
+    var_names = keys(ds)
+    vars = map(k -> CDM.variable(ds, k), var_names)
     attrs = map(CDM.attribs, vars)
-    for attr in attrs
-        if haskey(attr, "grid_mapping")
-            push!(grid_mapping, attr["grid_mapping"])
+    layer_names = _layer_names(var_names, vars, attrs)
+
+    internal_dim_names = String[]
+    output_dim_names = setdiff(dim_names, internal_dim_names)
+
+    bounds_dict = Dict{String,Array}()
+    dim_dict = Dict{String,Dimension}()
+    geometry_dict = Dict{String,Dimension}()
+    output_layers_vec = Vector{CDM.AbstractVariable}(undef, length(layer_names))
+    output_attrs_vec = Vector{CDM.AbstractVariable}(undef, length(layer_names))
+    layer_dimensions_vec = Vector{Vector{String}}(undef, length(layer_names))
+    for (i, name) in enumerate(layer_names)
+        v = findfirst(isequal(name), var_names)
+        output_layers_vec[i] = var = vars[v]
+        output_attrs_vec[i] = attr = attrs[v]
+        coordinates = _cdm_coordinates(attr)
+        layer_dimensions_vec[i] = dimensions = CDM.dimnames(var)
+        geometry_key = if haskey(attr, "geometry")
+            attr["geometry"]
+        end
+        grid_mapping_key = if haskey(attr, "grid_mapping")
+            attr["grid_mapping"]
+        end
+        for dimname in dimensions 
+            get(dimdict, dimname) do
+                _cdmdim(ds, dimname, geometry_dict, grid_mapping_dict, geometry_key, grid_mapping_key)
+            end
         end
     end
-    bitinds = map(!in(grid_mapping), nondim)
-    (;
-        names=nondim[bitinds],
-        vars=vars[bitinds],
-        attrs=attrs[bitinds],
-    )
+    layerdims_vec = _layerdims(ds; layers, dimdict)
+    (; layers, dims, layerdims_vec, layermetadata_vec)
 end
-_layers(ds::AbstractDataset, names, ::NoKW) = 
-    _layers(ds, collect(names), nokw)
-function _layers(ds::AbstractDataset, names::Vector, ::NoKW)
+function _classify_dataset(ds::AbstractDataset, names::Vector, group::NoKW)
     vars = map(n -> CDM.variable(ds, n), names)
     attrs = map(CDM.attribs, vars)
     (; names, vars, attrs)
 end
-function _layers(ds::AbstractDataset, names, group)
-    _layers(ds.group[group], names, nokw)
-end
+_classify_dataset(ds::AbstractDataset, names, ::NoKW) = 
+    _classify_dataset(ds, collect(names), nokw)
+_classify_dataset(ds::AbstractDataset, names, group) =
+    _classify_dataset(ds.group[group], names, nokw)
 
 function _dims(var::AbstractVariable{<:Any,N}, crs=nokw, mappedcrs=nokw) where N
     dimnames = CDM.dimnames(var)
@@ -167,13 +194,6 @@ end
 _metadata(var::AbstractVariable; attr=CDM.attribs(var)) =
     _metadatadict(sourcetrait(var), attr)
 
-function _dimdict(ds::AbstractDataset, crs=nokw, mappedcrs=nokw)
-    dimdict = Dict{String,Dimension}()
-    for dimname in CDM.dimnames(ds)
-        dimdict[dimname] = _cdmdim(ds, dimname, crs, mappedcrs)
-    end
-    return dimdict
-end
 function _dims(ds::AbstractDataset, dimdict::Dict)
     map(CDM.dimnames(ds)) do dimname
         dimdict[dimname]
@@ -210,8 +230,7 @@ end
 
 # TODO don't load all keys here with _layers
 _name_or_firstname(ds::AbstractDataset, name) = Symbol(name)
-function _name_or_firstname(ds::AbstractDataset, name::Union{Nothing,NoKW}=nokw)
-    names = _nondimnames(ds)
+function _name_or_firstname(ds::AbstractDataset, name::Union{Nothing,NoKW}=_layer_names(ds))
     if length(names) > 0
         return Symbol(first(names))
     else
@@ -219,7 +238,15 @@ function _name_or_firstname(ds::AbstractDataset, name::Union{Nothing,NoKW}=nokw)
     end
 end
 
-function _cdmdim(ds, dimname::Key, crs=nokw, mappedcrs=nokw)
+function _cdmdim(ds, dimname::Key, grid_mapping_dict, geometry_dict, grid_mapping_name, geom_name)
+    get(geometry_dict, geom_name) do
+        _cdm_geometry(ds, geom_name)
+    end
+    crs = if !isnothing(grid_mapping_name) 
+        get(grid_mapping_dict, grid_mapping_name) do
+            _cdm_grid_mapping(ds, grid_mapping_name)
+        end
+    end
     if haskey(ds, dimname)
         var = ds[dimname]
         D = _cdmdimtype(CDM.attribs(var), dimname)
@@ -269,7 +296,7 @@ function _cdmdimtype(attrib, dimname)
 end
 
 # _cdmlookup
-# Generate a `Lookup` from a nCDM dim.
+# Generate a `Lookup` from a CDM dim.
 function _cdmlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs)
     var = ds[dimname]
     index = Missings.disallowmissing(var[:])
@@ -285,14 +312,13 @@ end
 # We need to include `Missing` in unions in case `_FillValue` is used
 # on coordinate variables in a file and propagates here.
 function _cdmlookup(
-    ds::AbstractDataset, var, attr, dimname,
-    D::Type, index::AbstractArray{<:Union{Missing,Number,Dates.AbstractTime}},
+    ds::AbstractDataset, var, attr, dimname, D::Type, 
+    index::AbstractArray{<:Union{Missing,Number,Dates.AbstractTime}},
     metadata, crs, mappedcrs
 )
     # Assume the locus is at the center of the cell if boundaries aren't provided.
     # http://cfconventions.org/cf-conventions/cf-conventions.html#cell-boundaries
     order = LA.orderof(index)
-    var = ds[dimname]
     # Detect lat/lon
     span, sampling = if eltype(index) <: Union{Missing,Dates.AbstractTime}
         _cdmperiod(index, metadata)
@@ -303,17 +329,18 @@ function _cdmlookup(
     # This is important for things like rasterizatin and conversion 
     # to gdal to be easy, and selectors are faster.
     # TODO are there any possible floating point errors from this?
-    if haskey(CDM.attribs(var), "bounds")
+    if haskey(attr, "bounds")
         span, sampling = if isregular(span)
             span, Intervals(Center())
         else
-            boundskey = var.attrib["bounds"]
+            boundskey = attr["bounds"]
             boundsmatrix = Array(ds[boundskey])
             locus = if mapreduce(==, &, view(boundsmatrix, 1, :), index)
                 Start()
             elseif mapreduce(==, &, view(boundsmatrix, 2, :), index)
                 End()
             else
+                # TODO better checks here
                 Center()
             end
             Explicit(boundsmatrix), Intervals(locus)
@@ -606,4 +633,32 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
     end
     CDM.defVar(ds, dimname, Vector(index(dim)), (dimname,); attrib=attrib)
     return nothing
+end
+
+function _classify_variables(ds::AbstractDataset)
+end
+
+
+function _read_geometry(ds, key)
+    geom = CDM.variable(ds, key)
+    attrib = CDM.attribs(geom)
+    # Node counts in variable with name in "node_count" attribute
+    geometry_type = attrib["geometry_type"]
+    node_count_var = CDM.variable(ds, attrib["node_count"])
+    part_node_count_var = CDM.variable(ds, attrib["part_node_count"])
+    interior_ring_var = CDM.variable(ds, attrib["interior_ring"])
+    grid_mapping_var = CDM.variable(ds, attrib["grid_mapping"])
+    node_coordinate_names = split(attrib["node_coordinates"], ' ')
+    node_coordinate_vars = map(c -> CDM.variable(ds, c), node_coordinate_names)
+
+    node_count = collect(node_count_var)
+    part_node_count = collect(part_node_count_var)
+    dimension = CDM.dimnames(node_count_var)[1]
+    internal_dimensions = union(CDM.dimnames(part_node_count_var), CDM.dimnames(interior_ring_var), CDM.dimnames.(node_coordinate_vars)...)
+    interior_ring = Bool.(collect(interior_ring_var))
+    node_coordinates = map(node_coordinate_names, node_coordinate_vars) do c, var
+        c => collect(var)
+    end
+    grid_mapping = grid_mapping_var.attrib
+    (; dimension, internal_dimensions, geometry_type, node_count, part_node_count, interior_ring, node_coordinates, grid_mapping)
 end
