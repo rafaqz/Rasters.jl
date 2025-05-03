@@ -153,7 +153,7 @@ end
 =#
 
 function _geometry_cf_decode(::GI.MultiPolygonTrait, ds, geometry; crs=nothing)
-    rings = _split_inner_geoms(geometry)
+    rings = _split_inner_geoms(geometry; autoclose = true)
     interior_ring = geometry[:interior_ring]
     # Now, we proceed to assemble the polygons and multipolygons from the rings.
     # TODO: no better way to get the tuple type, at least for now.
@@ -203,7 +203,7 @@ function _geometry_cf_decode(::GI.MultiPolygonTrait, ds, geometry; crs=nothing)
 end
 function _geometry_cf_decode(::GI.MultiLineStringTrait, ds, geometry_container_attribs; crs=nothing)
     node_count = geometry[:node_count]
-    lines = _split_inner_geoms(geometry)
+    lines = _split_inner_geoms(geometry; autoclose = false)
 
     _ls = GI.LineString(lines[1]; crs)
     _mls = GI.MultiLineString([_ls]; crs)
@@ -259,7 +259,7 @@ function _node_ranges(node_count)
     return ranges
 end
 
-function _split_inner_geoms(geometry)
+function _split_inner_geoms(geometry; autoclose = false)
     part_node_count = geometry[:part_node_count]
     node_coordinates = geometry[:node_coordinates]
     # Initialize variables for ring assembly
@@ -274,7 +274,7 @@ function _split_inner_geoms(geometry)
         stop = start + part_node_count[i] - 1
         push!(rings, node_coordinates[start:stop])
         # Ensure rings are closed by adding the first point at the end
-        push!(rings[end], node_coordinates[start])
+        autoclose && push!(rings[end], node_coordinates[start])
     end
     return rings
 end
