@@ -19,9 +19,11 @@ variables:
     datum:longitude_of_prime_meridian = 0.0 ;
     datum:semi_major_axis = 6378137.0 ;
     datum:inverse_flattening = 298.257223563 ;
+  int node_count(instance) ;
   int geometry_container ;
     geometry_container:geometry_type = "point" ;
     geometry_container:node_coordinates = "x y" ;
+    geometry_container:node_count = "node_count" ;
   double x(node) ;
     x:units = "degrees_east" ;
     x:standard_name = "longitude" ;

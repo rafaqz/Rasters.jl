@@ -4,12 +4,69 @@
 Encode functions will always return a named tuple with the standard 
 =#
 function _geometry_cf_encode(::Union{GI.PointTrait, GI.MultiPointTrait}, geoms)
-    error("Not implemented yet")
+    if all(x -> GI.trait(x) isa GI.PointTrait, geoms)
+        return (;
+            node_coordinates_x = GI.x.(geoms),
+            node_coordinates_y = GI.y.(geoms),
+        )
+    end
+    # else: we have some multipolygons in here
+    npoints = sum(GI.npoint, geoms)
+    flat_xs = Vector{Float64}(undef, npoints)
+    flat_ys = Vector{Float64}(undef, npoints)
+
+    i::Int = 0
+    # flatten is guaranteed to iterate in order.
+    flattener = GO.flatten(GI.PointTrait, geoms) do point
+        i += 1
+        flat_xs[i] = GI.x(point)
+        flat_ys[i] = GI.y(point)
+    end
+    # iterate over flattener to populate the arrays,
+    # without allocating an extra array.
+    foreach(identity, flattener)
+
+    return (;
+        node_coordinates_x = flat_xs,
+        node_coordinates_y = flat_ys,
+        node_count = GI.npoint.(geoms)
+    )
 end
 
 
 function _geometry_cf_encode(::Union{GI.LineStringTrait, GI.MultiLineStringTrait}, geoms)
-    error("Not implemented yet")
+    # There is a fast path without encoding part_node_count if all geoms are linestrings.
+    npoints = sum(GI.npoint, geoms)
+    flat_xs = Vector{Float64}(undef, npoints)
+    flat_ys = Vector{Float64}(undef, npoints)
+
+    i::Int = 0
+    # flatten is guaranteed to iterate in order.
+    flattener = GO.flatten(GI.PointTrait, geoms) do point
+        i += 1
+        flat_xs[i] = GI.x(point)
+        flat_ys[i] = GI.y(point)
+    end
+    # iterate over flattener to populate the arrays,
+    # without allocating an extra array.
+    foreach(identity, flattener)
+
+    # If all geoms are linestrings, we can take a fast path.
+    if all(x -> GI.trait(x) isa GI.LineStringTrait, geoms)
+        return (;
+            node_coordinates_x = flat_xs,
+            node_coordinates_y = flat_ys,
+            node_count = GI.npoint.(geoms)
+        )
+    end
+
+    # Otherwise, we need to encode part_node_count for multilinestrings.
+    return (;
+        node_coordinates_x = flat_xs,
+        node_coordinates_y = flat_ys,
+        part_node_count = collect(GO.flatten(GI.npoint, GI.LineStringTrait, geoms)),
+        node_count = GI.npoint.(geoms)
+    )
 end
 
 function _geometry_cf_encode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, geoms)
@@ -33,7 +90,10 @@ function _geometry_cf_encode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, geo
     for (i, geom) in enumerate(geoms)
 
         this_geom_npoints = GI.npoint(geom)
-        node_count_vec[i] = this_geom_npoints
+        # Bear in mind, that the last point (which == first point) 
+        # of the linear ring is removed when encoding, so not included
+        # in the node count.
+        node_count_vec[i] = this_geom_npoints - GI.nring(geom)
 
         # push individual components of the ring
         for poly in GO.flatten(GI.PolygonTrait, geom)
@@ -252,13 +312,19 @@ function _geometry_cf_decode(::Union{GI.PointTrait, GI.MultiPointTrait}, ds, geo
         @assert haskey(ds, geometry_container_attribs["node_count"])
         node_count_var = ds[geometry_container_attribs["node_count"]]
         node_count = collect(node_count_var)
-        if !all(==(1), node_count)
-            # we have multipoints
-            node_count_stops = cumsum(node_count)
-            node_count_starts = [1, node_count_stops[1:end-1] .+ 1...]
-            return map(node_count_starts, node_count_stops) do start, stop
-                GI.MultiPoint(node_coordinates[start:stop]; crs)
-            end
+        # The code below could be a fast path, but we don't want
+        # to arbitrarily change the output type of the decoder.
+        # MultiPoints should always roundtrip and write as multipoints.
+        # if !all(==(1), node_count)
+        # do nothing
+        # else
+        # return a fast path 
+        # end
+        # we have multipoints
+        node_count_stops = cumsum(node_count)
+        node_count_starts = [1, node_count_stops[1:end-1] .+ 1...]
+        return map(node_count_starts, node_count_stops) do start, stop
+            GI.MultiPoint(node_coordinates[start:stop]; crs)
         end
     end
 
