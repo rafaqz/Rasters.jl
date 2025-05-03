@@ -640,25 +640,100 @@ end
 
 
 function _read_geometry(ds, key)
-    geom = CDM.variable(ds, key)
-    attrib = CDM.attribs(geom)
-    # Node counts in variable with name in "node_count" attribute
+    var = CDM.variable(ds, key)
+    var_attrib = CDM.attribs(var)
+    geom_key = var_attrib["geometry"]
+    geom_var = CDM.variable(ds, geom_key)
+    attrib = CDM.attribs(geom_var)
     geometry_type = attrib["geometry_type"]
-    node_count_var = CDM.variable(ds, attrib["node_count"])
-    part_node_count_var = CDM.variable(ds, attrib["part_node_count"])
-    interior_ring_var = CDM.variable(ds, attrib["interior_ring"])
-    grid_mapping_var = CDM.variable(ds, attrib["grid_mapping"])
+
     node_coordinate_names = split(attrib["node_coordinates"], ' ')
     node_coordinate_vars = map(c -> CDM.variable(ds, c), node_coordinate_names)
+    # Map the node coordinates to a vector of n-tuples.
+    node_coordinates = map(tuple, node_coordinate_vars...)
+    # There are three types of geometries:
+    # - point (can be point or multipoint depending on presence of node_count)
+    # - line (can be linestring or multilinestring depending on presence of part_node_count)
+    # - polygon (can be poly or multipoly depending on presence of part_node_count, multipoly also needs interior_ring)
+    # This is the meat of the function, that parses the geometry and returns a named tuple 
+    trait, geom_parsing_args = if geometry_type == "point"
+        if haskey(attrib, "node_count") # actually multipoint
+            (GI.MultiPointTrait(), (; node_coordinates, node_count = CDM.variable(ds, attrib["node_count"])))
+        else # regular points
+            (GI.PointTrait(), (; node_coordinates))
+        end
+    elseif geometry_type == "line"
+        if haskey(attrib, "part_node_count") # actually multilinestring
+            (GI.MultiLineStringTrait(), (; 
+                node_coordinates, 
+                node_count = CDM.variable(ds, attrib["node_count"]), 
+                part_node_count = CDM.variable(ds, attrib["part_node_count"])
+            ))
+        else # regular linestring
+            (GI.LineStringTrait(), (; 
+                node_coordinates, 
+                node_count = CDM.variable(ds, attrib["node_count"])
+            ))
+        end
+    elseif geometry_type == "polygon"
+        if haskey(attrib, "part_node_count") # actually multipoly
+            if haskey(attrib, "interior_ring") # this will usually be the case
+                println("hello")
+                (GI.MultiPolygonTrait(), (; 
+                    node_coordinates, 
+                    node_count = CDM.variable(ds, attrib["node_count"]), 
+                    part_node_count = CDM.variable(ds, attrib["part_node_count"]), 
+                    interior_ring = CDM.variable(ds, attrib["interior_ring"])
+                ))
+            else # no interior ring, but part node count is present
+                # so, we need to assert that part_node_count has the same length as node_count
+                # in which case, interior_ring is always false by definition.
+                node_count = CDM.variable(ds, attrib["node_count"])
+                part_node_count = CDM.variable(ds, attrib["part_node_count"])
 
-    node_count = collect(node_count_var)
-    part_node_count = collect(part_node_count_var)
-    dimension = CDM.dimnames(node_count_var)[1]
-    internal_dimensions = union(CDM.dimnames(part_node_count_var), CDM.dimnames(interior_ring_var), CDM.dimnames.(node_coordinate_vars)...)
-    interior_ring = Bool.(collect(interior_ring_var))
-    node_coordinates = map(node_coordinate_names, node_coordinate_vars) do c, var
-        c => collect(var)
+                if length(node_count) != length(part_node_count)
+                    throw(ArgumentError("""
+                    When parsing geometry lookup for CDM variable $key, 
+                    the length of `node_count` ($(length(node_count))) and 
+                    `part_node_count` ($(length(part_node_count))) must be the same.
+                    """))
+                end
+                (GI.PolygonTrait(), (; node_coordinates, node_count))
+            end
+        else # regular polygon
+            (GI.PolygonTrait(), (; node_coordinates, node_count = CDM.variable(ds, attrib["node_count"])))
+        end
+    else
+        throw(ArgumentError("""
+        When parsing geometry lookup for CDM variable $key, 
+        the geometry type is $geometry_type,
+        but we could not figure out what that is!  
+        Allowed geometry types are: `point`, `line`, `polygon`.
+
+        If you need something else, please open a Github issue!
+        """))
     end
-    grid_mapping = grid_mapping_var.attrib
-    (; dimension, internal_dimensions, geometry_type, node_count, part_node_count, interior_ring, node_coordinates, grid_mapping)
+    
+    crs = if haskey(attrib, "grid_mapping")
+        grid_mapping_var = CDM.variable(ds, attrib["grid_mapping"])
+        grid_mapping_attrib = CDM.attribs(grid_mapping_var)
+        if haskey(grid_mapping_attrib, "crs_wkt")
+            WellKnownText2(GeoFormatTypes.CRS(), grid_mapping_attrib["crs_wkt"])
+        elseif haskey(grid_mapping_attrib, "spatial_epsg")
+            EPSG(parse(Int, grid_mapping_attrib["spatial_epsg"]))
+        elseif haskey(grid_mapping_attrib, "proj4string")
+            ProjString(grid_mapping_attrib["proj4string"])
+        else
+            nothing # unparseable - TODO get CFProjections.jl to do it.
+        end
+    else
+        nothing
+    end
+
+    # return the geometry directly
+    # TODO: parse coordinate names, to get dimensions
+    # depends on what utils / luts we have elsewhere.
+    return _geometry_cf_decode(trait, ds, geom_parsing_args; crs)
+    
+    # (; dimension, internal_dimensions, geometry_type, node_count, part_node_count, interior_ring, node_coordinates, grid_mapping)
 end

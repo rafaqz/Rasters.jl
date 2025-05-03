@@ -154,23 +154,28 @@ end
 
 function _geometry_cf_decode(::GI.MultiPolygonTrait, ds, geometry; crs=nothing)
     rings = _split_inner_geoms(geometry; autoclose = true)
+    node_count = geometry[:node_count]
+    part_node_count = geometry[:part_node_count]
     interior_ring = geometry[:interior_ring]
     # Now, we proceed to assemble the polygons and multipolygons from the rings.
     # TODO: no better way to get the tuple type, at least for now.
-    _lr = GI.LinearRing([(0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]; crs)
+    _lr = GI.LinearRing(first(rings); crs)
     _p = GI.Polygon([_lr]; crs)
     _mp = GI.MultiPolygon([_p]; crs)
     geoms = Vector{typeof(_mp)}(undef, length(node_count))
+
     # Assemble multipolygons
     current_ring = 1
     for (geom_idx, total_nodes) in enumerate(node_count)
         # Find all rings that belong to this polygon
-        polygon_rings = Tuple{typeof(_lr), Int8}[]
+        polygon_rings = Tuple{typeof(_lr), Int}[]
         
-        while current_ring <= length(part_node_count)
+        n_points_added = 0
+        while current_ring <= length(rings) && n_points_added < total_nodes
             ring = rings[current_ring]
             push!(polygon_rings, (GI.LinearRing(ring; crs), interior_ring[current_ring]))
             current_ring += 1
+            n_points_added += length(ring)
         end
         
         # Create polygons from rings
@@ -195,13 +200,13 @@ function _geometry_cf_decode(::GI.MultiPolygonTrait, ds, geometry; crs=nothing)
         if !isnothing(current_exterior)
             push!(polygons, GI.Polygon([current_exterior, current_holes...]; crs))
         end
-        
+        @infiltrate
         # Create multipolygon from all polygons
         geoms[geom_idx] = GI.MultiPolygon(polygons; crs)
     end
     return geoms
 end
-function _geometry_cf_decode(::GI.MultiLineStringTrait, ds, geometry_container_attribs; crs=nothing)
+function _geometry_cf_decode(::GI.MultiLineStringTrait, ds, geometry; crs=nothing)
     node_count = geometry[:node_count]
     lines = _split_inner_geoms(geometry; autoclose = false)
 
@@ -213,10 +218,13 @@ function _geometry_cf_decode(::GI.MultiLineStringTrait, ds, geometry_container_a
     current_line = 1
     for (geom_idx, total_nodes) in enumerate(node_count)
         # Find all lines that belong to this multilinestring
-        multilinestring_lines = Vector{typeof(_ls)}(undef, total_nodes)
-        for i in 1:total_nodes
-            multilinestring_lines[i] = GI.LineString(lines[current_line]; crs)
+        multilinestring_lines = typeof(_ls)[]
+        nodes_added = 0
+        while nodes_added < total_nodes
+            line = lines[current_line]
+            push!(multilinestring_lines, GI.LineString(line; crs))
             current_line += 1
+            nodes_added += length(line)
         end
         # Create multilinestring from all lines
         geoms[geom_idx] = GI.MultiLineString(multilinestring_lines; crs)
@@ -229,7 +237,7 @@ function _geometry_cf_decode(::GI.PointTrait, ds, geometry; crs=nothing)
     # Just wrap raw coordinates as Points
     return GI.Point.(geometry[:node_coordinates]; crs)
 end
-function _geometry_cf_decode(::GI.LineStringTrait, ds, geometry_container_attribs; crs=nothing)
+function _geometry_cf_decode(::GI.LineStringTrait, ds, geometry; crs=nothing)
     node_count, node_coordinates = geometry[:node_count], geometry[:node_coordinates]
     # Split coordinates to separate LineStrings by node count ranges
     return map(_node_ranges(node_count)) do range
@@ -252,9 +260,10 @@ function _geometry_cf_decode(::GI.PolygonTrait, ds, geometry; crs=nothing)
 end
 
 function _node_ranges(node_count) 
+    cum_node_count = cumsum(node_count)
     ranges = Vector{UnitRange{Int}}(undef, length(node_count))
     for i in eachindex(ranges)
-        ranges[i] = i == 1 ? (1:node_count[i]) : (node_count[i-1]:node_count[i])
+        ranges[i] = i == 1 ? (1:node_count[i]) : ((cum_node_count[i-1]+1):cum_node_count[i])
     end
     return ranges
 end
@@ -266,7 +275,7 @@ function _split_inner_geoms(geometry; autoclose = false)
     start = 1
     stop = part_node_count[1]
     rings = [node_coordinates[start:stop]]
-    push!(rings[end], node_coordinates[start])
+    autoclose && push!(rings[end], node_coordinates[start])
 
     # Assemble all rings
     for i in 2:length(part_node_count)
