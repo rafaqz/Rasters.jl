@@ -2,9 +2,19 @@ using NCDatasets
 import NCDatasets.CommonDataModel as CDM
 
 import Rasters
+import GeoInterface as GI
 
 
-ds = NCDataset("/Users/anshul/i.nc")
+import NCDatasets: NetCDF_jll
+
+# generate dataset
+output_path = tempname() * ".nc"
+testfile = "multipolygons.ncgen"
+run(`$(NetCDF_jll.ncgen) -k nc4 -b -o $output_path $(joinpath(dirname(dirname(Base.pathof(Rasters))), "test", "data", testfile))`)
+ds = NCDataset(output_path)
+
+
+
 var = ds["someData"]
 
 knowndims = Rasters._dims(var)  
@@ -34,74 +44,64 @@ haskey(geometry_container_attribs, "geometry_type") &&
 geometry_container_attribs["geometry_type"] == "polygon" ||
 throw(ArgumentError("We only support polygon geometry types at this time, got $geometry_type"))
 
-@assert haskey(ds, geometry_container_attribs["node_count"])
-node_count_var = ds[geometry_container_attribs["node_count"]]
-only(CDM.dimnames(node_count_var)) != u_dim_name && throw(ArgumentError("node_count variable $u_dim_name does not match the unknown dimension $u_dim_name"))
-
-node_count = collect(node_count_var)
-node_coordinates = collect(zip(getindex.((ds,), split(geometry_container_attribs["node_coordinates"], " "))...))
-part_node_count = collect(ds[geometry_container_attribs["part_node_count"]])
-interior_ring = collect(ds[geometry_container_attribs["interior_ring"]])
-
-current_xy_index = 1
-current_ring_index = 1
-current_geom_index = 1
+geoms = Rasters._geometry_cf_decode(GI.PolygonTrait(), ds, geometry_container_attribs)
 
 
-# Initialize variables for ring assembly
-start = 1
-stop = part_node_count[1]
-rings = [node_coordinates[start:stop]]
-push!(rings[end], node_coordinates[start])
 
-# Assemble all rings
-for i in 2:length(part_node_count)
-    start = stop + 1
-    stop = start + part_node_count[i] - 1
-    push!(rings, node_coordinates[start:stop])
-    # Ensure rings are closed by adding the first point at the end
-    push!(rings[end], node_coordinates[start])
-end
+# lines now
 
-geoms = Vector{GI.MultiPolygon{false, false}}(undef, length(node_count))
-# Assemble multipolygons
-current_ring = 1
-for (geom_idx, total_nodes) in enumerate(node_count)
-    # Find all rings that belong to this polygon
-    polygon_rings = []
-    accumulated_nodes = 0
-    
-    while current_ring <= length(part_node_count) && accumulated_nodes < total_nodes
-        ring = rings[current_ring]
-        push!(polygon_rings, (GI.LinearRing(ring), interior_ring[current_ring]))
-        accumulated_nodes += part_node_count[current_ring]
-        current_ring += 1
-    end
-    
-    # Create polygons from rings
-    polygons = GI.Polygon[]
-    current_exterior = nothing
-    current_holes = GI.LinearRing[]
-    
-    for (ring, is_interior) in polygon_rings
-        if is_interior == 0
-            # If we have a previous exterior ring, create a polygon with it and its holes
-            if !isnothing(current_exterior)
-                push!(polygons, GI.Polygon([current_exterior, current_holes...]))
-                current_holes = GI.LinearRing[]
-            end
-            current_exterior = ring
-        else
-            push!(current_holes, ring)
-        end
-    end
-    
-    # Add the last polygon if we have an exterior ring
-    if !isnothing(current_exterior)
-        push!(polygons, GI.Polygon([current_exterior, current_holes...]))
-    end
-    
-    # Create multipolygon from all polygons
-    geoms[geom_idx] = GI.MultiPolygon(polygons)
-end
+output_path = tempname() * ".nc"
+testfile = "lines.ncgen"
+run(`$(NetCDF_jll.ncgen) -k nc4 -b -o $output_path $(joinpath(dirname(dirname(Base.pathof(Rasters))), "test", "data", testfile))`)
+ds = NCDataset(output_path)
 
+var = ds["someData"]
+geometry_container_varname = CDM.attribs(var)["geometry"]
+geometry_container_var = ds[geometry_container_varname]
+
+geometry_container_attribs = CDM.attribs(geometry_container_var)
+
+geoms = Rasters._geometry_cf_decode(GI.LineStringTrait(), ds, geometry_container_attribs)
+
+
+output_path = tempname() * ".nc"
+testfile = "multilines.ncgen"
+run(`$(NetCDF_jll.ncgen) -k nc4 -b -o $output_path $(joinpath(dirname(dirname(Base.pathof(Rasters))), "test", "data", testfile))`)
+ds = NCDataset(output_path)
+
+var = ds["someData"]
+geometry_container_varname = CDM.attribs(var)["geometry"]
+geometry_container_var = ds[geometry_container_varname]
+
+geometry_container_attribs = CDM.attribs(geometry_container_var)
+
+geoms = Rasters._geometry_cf_decode(GI.MultiLineStringTrait(), ds, geometry_container_attribs)
+
+
+output_path = tempname() * ".nc"
+testfile = "multipoints.ncgen"
+run(`$(NetCDF_jll.ncgen) -k nc4 -b -o $output_path $(joinpath(dirname(dirname(Base.pathof(Rasters))), "test", "data", testfile))`)
+ds = NCDataset(output_path)
+
+var = ds["someData"]
+geometry_container_varname = CDM.attribs(var)["geometry"]
+geometry_container_var = ds[geometry_container_varname]
+
+geometry_container_attribs = CDM.attribs(geometry_container_var)
+
+geoms = Rasters._geometry_cf_decode(GI.MultiPointTrait(), ds, geometry_container_attribs)
+
+
+
+output_path = tempname() * ".nc"
+testfile = "points.ncgen"
+run(`$(NetCDF_jll.ncgen) -k nc4 -b -o $output_path $(joinpath(dirname(dirname(Base.pathof(Rasters))), "test", "data", testfile))`)
+ds = NCDataset(output_path)
+
+var = ds["someData"]
+geometry_container_varname = CDM.attribs(var)["geometry"]
+geometry_container_var = ds[geometry_container_varname]
+
+geometry_container_attribs = CDM.attribs(geometry_container_var)
+
+geoms = Rasters._geometry_cf_decode(GI.PointTrait(), ds, geometry_container_attribs)
