@@ -383,7 +383,8 @@ end
 
 # TODO don't load all keys here with _layers
 _name_or_firstname(ds::AbstractDataset, name) = Symbol(name)
-function _name_or_firstname(ds::AbstractDataset, name::Union{Nothing,NoKW}=_layer_names(ds))
+function _name_or_firstname(ds::AbstractDataset, _n::Union{Nothing,NoKW} = nothing)
+    names = _layer_names(ds)
     if length(names) > 0
         return Symbol(first(names))
     else
