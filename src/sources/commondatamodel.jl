@@ -41,6 +41,24 @@ const CDM_DIM_MAP = Dict(
     "band" => Band,
 )
 
+_cf_name(dim::Dimension) = lowercase(string(name(dim)))
+_cf_name(dim::Ti) = "time"
+_cf_name(dim::X) = "x"
+_cf_name(dim::Y) = "y"
+_cf_name(dim::Z) = "z"
+
+_cf_axis(dim::Dimension) = nothing
+_cf_axis(dim::Ti) = "T"
+_cf_axis(dim::X) = "X"
+_cf_axis(dim::Y) = "Y"
+_cf_axis(dim::Z) = "Z"
+
+_cf_shortname(dim::Dimension) = nothing
+_cf_shortname(dim::Ti) = "time"
+_cf_shortname(dim::X) = "lon"
+_cf_shortname(dim::Y) = "lat"
+_cf_shortname(dim::Z) = "height"
+
 # `Source`` from variables and datasets
 sourcetrait(var::CDM.CFVariable) = sourcetrait(var.var)
 # Dataset constructor from `Source`
@@ -254,14 +272,19 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
         layer_dimnames_vec[i] = dimnames = CDM.dimnames(var)
         # Get its coordinates
         coord_names = _cdm_coordinates(attr)
+        # Remove coordinates from metadata
+        if haskey(attr, "coordinates")
+            delete!(attr, "coordinates")
+        end
         # Check for a geometry variable (CF 7.5)
         geometry_key = if haskey(attr, "geometry")
-            attr["geometry"]
+            pop!(attr, "geometry")
         end
         # Check for a grid mapping variable
         crs = if haskey(attr, "grid_mapping")
-            grid_mapping_key = attr["grid_mapping"]
-            get!(() -> _cf_crs(ds, grid_mapping_key), crs_dict, grid_mapping_key)
+            grid_mapping_key = pop!(attr, "grid_mapping")
+            crs = get!(() -> _cf_crs(ds, grid_mapping_key), crs_dict, grid_mapping_key)
+            crs
         end
         # Loop over the dimensions of this layer, adding missing dims to dim_dict 
         output_layerdims_vec[i] = map(dimnames) do dimname
@@ -299,7 +322,7 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, coord_
             dimname in CDM.dimnames(vars_dict[geometry_attrs["node_count"]])
         else
             # Points
-            dimname in CDM.dimnames(vars_dict[geometry_attrs["node_coordinates"]])
+            dimname in CDM.dimnames(vars_dict[first(_cf_node_coordinate_names(geometry_attrs))])
         end
         geoms = get!(geometry_dict, geometry_key) do
             _cf_geometry_decode(ds, geometry_attrs)
@@ -309,12 +332,7 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, coord_
                 dimnames = CDM.dimnames(vars_dict[coordname])
                 length(dimnames) == 1 && only(dimnames) == dimname  
             end
-            dims = map(dimension_coord_names) do d
-                dim_attrs = attrs_dict[d]
-                Dn = _cdm_dimtype(dim_attrs, d)
-                Dn()
-            end |> Tuple
-            lookup = GeometryLookup(geoms, dims; crs)
+            lookup = GeometryLookup(geoms, (X(), Y()); crs)
             D = Geometry
             return D(lookup)
         end
@@ -566,7 +584,7 @@ _cdm_set_axis_attrib!(atr, dim::Z) = (atr["axis"] = "Z"; atr["standard_name"] = 
 _cdm_set_axis_attrib!(atr, dim::Ti) = (atr["axis"] = "T"; atr["standard_name"] = "time")
 _cdm_set_axis_attrib!(atr, dim) = nothing
 
-_cdm_shiftlocus(dim::Dimension) = _cdmshiftlocus(lookup(dim), dim)
+_cdm_shiftlocus(dim::Dimension) = _cdm_shiftlocus(lookup(dim), dim)
 _cdm_shiftlocus(::Lookup, dim::Dimension) = dim
 function _cdm_shiftlocus(lookup::AbstractSampled, dim::Dimension)
     # TODO improve this
@@ -674,14 +692,17 @@ function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N
         attrib["_FillValue"] = missingval_pair[1]
     end
 
-    key = if isnokw(name) || string(name) == ""
+    varname = if isnokw(name) || string(name) == ""
         UNNAMED_FILE_KEY
     else
         string(name)
     end
 
-    dimnames = lowercase.(string.(map(Rasters.name, dims(A))))
-    var = CDM.defVar(ds, key, eltype, dimnames; attrib, chunksizes, kw...)
+    if !isempty(dims(A, x -> lookup(x) isa GeometryLookup))
+        attrib["geometry"] = "geometry_container"
+    end
+    dimnames = map(_cf_name, dims(A))
+    var = CDM.defVar(ds, varname, eltype, dimnames; attrib, chunksizes, kw...)
 
     if write
         m = _maybe_modify(parent(var), mod)
@@ -705,10 +726,11 @@ end
 
 _def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
-    dimname = lowercase(string(DD.name(dim)))
+    dimname = _cf_name(dim)
     haskey(ds.dim, dimname) && return nothing
     CDM.defDim(ds, dimname, length(dim))
     _def_lookup_var!(ds, dim, dimname)
+    return nothing
 end 
 _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:AbstractNoLookup}, dimname) = nothing
 function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:ArrayLookup}, dimname)  
@@ -716,18 +738,13 @@ function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:ArrayLookup}, di
     return nothing
 end
 function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:GeometryLookup}, dimname)  
-<<<<<<< HEAD
     l = lookup(dim)
-    geom = _geometry_cf_encode(parent(l))
-=======
-    geom = _geometry_cf_encode(lookup(dim))
->>>>>>> d5ad3c0 (read geom working)
+    geom = _cf_geometry_encode(lookup(dim))
+    @show dims(l)
     # Define base geometry attributes
-
     coord_names_raw = map(dims(l)) do d
-        string(DD.name(d))
+        _cf_name(d)
     end
-
     coord_names = if any(n -> haskey(ds, n), coord_names_raw)
         (dimname,) .* coord_names_raw
     else
@@ -741,33 +758,43 @@ function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:GeometryLookup},
     if haskey(geom, :node_count)
         # More nodes than dimension length: define a node dimension
         node_dimname = dimname * "_node"
-        CDM.defVar(ds, "node_count", geom.node_count, dimname)
+        lon_varname = "lon"
+        lat_varname = "lat"
+        node_count_varname = dimname * "_node_count"
         CDM.defDim(ds, node_dimname, length(geom.x))
-        attrib["node_count"] = dimname * "_node_count"
+        CDM.defVar(ds, node_count_varname, geom.node_count, (dimname,))
+        CDM.defVar(ds, lon_varname, geom.lon, (dimname,); 
+            attrib=["standard_name" => "longitude", "nodes" => coord_names[1]]
+        )
+        CDM.defVar(ds, lat_varname, geom.lat, (dimname,); 
+            attrib=["standard_name" => "latitude", "nodes" => coord_names[2]]
+        )
+        attrib["node_count"] = node_count_varname
+        attrib["coordinates"] = "lat lon"
     else
         # Node count is dimension length
-        node_dimame = dimname
+        node_dimname = dimname
     end
     if haskey(geom, :part_node_count)
         # We also have geometry parts
-        part_dimname = dimname * "part"
+        part_dimname = dimname * "_part"
         part_varname = dimname * "_part_node_count"
         CDM.defDim(ds, part_dimname, length(geom.part_node_count))
-        CDM.defVar(ds, part_varname, geom.part_node_count, part_dimname)
+        CDM.defVar(ds, part_varname, geom.part_node_count, (part_dimname,))
         attrib["part_node_count"] = part_varname
     end
     if haskey(geom, :interior_ring)
         # And interior rings
         ring_varname = dimname * "_interior_ring"
-        CDM.defVar(ds, ring_varname, geom.interior_ring, part_dimname)
+        CDM.defVar(ds, ring_varname, geom.interior_ring, (part_dimname,))
         attrib["interior_ring"] = ring_varname
     end
     # Define coordinate variables
-    CDM.defVar(ds, coord_names[1], geom.x, node_dimame)
-    CDM.defVar(ds, coord_names[2], geom.y, node_dimame)
+    CDM.defVar(ds, coord_names[1], geom.x, (node_dimname,))
+    CDM.defVar(ds, coord_names[2], geom.y, (node_dimname,))
     # TODO: add z and m, if present
     # And the geometry container
-    CDM.defVar(ds, "geometry_container", nothing, (), attrib)
+    CDM.defVar(ds, "geometry_container", fill(0), (); attrib)
     return nothing
 end
 function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:Union{Sampled,AbstractCategorical}}, dimname)  

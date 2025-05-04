@@ -1,6 +1,6 @@
 # Geometry encoding and decoding from CF conventions (7.5)
 _cf_geometry_encode(geoms) = _cf_geometry_encode(GI.trait(first(geoms)), geoms)
-_cf_geometry_encode(trait, geoms) = throw(ArgumentError("Geometry trait $trait not currently handled by Rasters"))
+_cf_geometry_encode(trait::GI.AbstractTrait, geoms) = throw(ArgumentError("Geometry trait $trait not currently handled by Rasters"))
 function _cf_geometry_encode(::Union{GI.PointTrait,GI.MultiPointTrait}, geoms)
     if all(x -> GI.trait(x) isa GI.PointTrait, geoms)
         return (;
@@ -25,10 +25,13 @@ function _cf_geometry_encode(::Union{GI.PointTrait,GI.MultiPointTrait}, geoms)
     # without allocating an extra array.
     foreach(identity, flattener)
 
+    centroids = GO.centroid.(geoms)
     return (;
         geometry_type = "line",
         x = flat_xs,
         y = flat_ys,
+        lon = first.(centroids),
+        lat = last.(centroids),
         node_count = GI.npoint.(geoms)
     )
 end
@@ -51,11 +54,14 @@ function _cf_geometry_encode(::Union{GI.LineStringTrait, GI.MultiLineStringTrait
     attribs = Dict{String,Any}("geometry_type" => "linestring")
 
     # If all geoms are linestrings, we can take a fast path.
+    centroids = GO.centroid.(geoms)
     if all(x -> GI.trait(x) isa GI.LineStringTrait, geoms)
         return (;
             geometry_type = "line",
             x = flat_xs,
             y = flat_ys,
+            lon = first.(centroids),
+            lat = last.(centroids),
             node_count = GI.npoint.(geoms)
         )
     end
@@ -65,6 +71,8 @@ function _cf_geometry_encode(::Union{GI.LineStringTrait, GI.MultiLineStringTrait
         geometry_type = "line",
         x = flat_xs,
         y = flat_ys,
+        lon = first.(centroids),
+        lat = last.(centroids),
         part_node_count = collect(GO.flatten(GI.npoint, GI.LineStringTrait, geoms)),
         node_count = GI.npoint.(geoms)
     )
@@ -127,10 +135,13 @@ function _cf_geometry_encode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, geo
     # The names in this named tuple are standard CF conventions.
     # node_coordinates_x and node_coordinates_y are the coordinates of the nodes of the rings.
     # but cf encodes them as a space separated string.  That's the only difference.
+    centroids = GO.centroid.(geoms)
     return (;
         geometry_type = "polygon",
         x = xs, 
         y = ys, 
+        lon = first.(centroids),
+        lat = last.(centroids),
         node_count = node_count_vec, 
         part_node_count = part_node_count_vec, 
         interior_ring = interior_ring_vec
