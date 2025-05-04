@@ -647,11 +647,23 @@ function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:ArrayLookup}, di
     return nothing
 end
 function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:GeometryLookup}, dimname)  
-    geom = _geometry_cf_encode(parent(lookup(dim)))
+    l = lookup(dim)
+    geom = _geometry_cf_encode(parent(l))
     # Define base geometry attributes
+
+    coord_names_raw = map(dims(l)) do d
+        string(DD.name(d))
+    end
+
+    coord_names = if any(n -> haskey(ds, n), coord_names_raw)
+        (dimname,) .* coord_names_raw
+    else
+        coord_names_raw
+    end
+
     attrib = Dict{String,Any}(
         "geometry_type" => geom.geometry_type,
-        "node_coordinates" => "x y",
+        "node_coordinates" => join(coord_names, " "),
     )
     if haskey(geom, :node_count)
         # More nodes than dimension length: define a node dimension
@@ -678,8 +690,9 @@ function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:GeometryLookup},
         attrib["interior_ring"] = ring_varname
     end
     # Define coordinate variables
-    CDM.defVar(ds, "x", geom.x, node_dimame)
-    CDM.defVar(ds, "y", geom.y, node_dimame)
+    CDM.defVar(ds, coord_names[1], geom.x, node_dimame)
+    CDM.defVar(ds, coord_names[2], geom.y, node_dimame)
+    # TODO: add z and m, if present
     # And the geometry container
     CDM.defVar(ds, "geometry_container", nothing, (), attrib)
     return nothing
@@ -747,7 +760,6 @@ function _read_geometry(ds, key)
     elseif geometry_type == "polygon"
         if haskey(attrib, "part_node_count") # actually multipoly
             if haskey(attrib, "interior_ring") # this will usually be the case
-                println("hello")
                 (GI.MultiPolygonTrait(), (; 
                     node_coordinates, 
                     node_count = CDM.variable(ds, attrib["node_count"]), 
