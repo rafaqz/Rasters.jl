@@ -472,33 +472,33 @@ function RasterStack(ds;
     check_multilayer_dataset(ds)
     scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
     # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
-    layers, dimsdict, layerdims_vec, layermetata_vec = _classify_dataset(ds, name, group)
-    dims = _sort_by_layerdims(isnokw(dims) ? _dims(ds, dimdict) : dims, layerdims_vec)
+    (; names_vec, layers_vec, layerdims_vec, layermetadata_vec, dim_dict) = _organise_dataset(ds, name, group)
+    dims = _sort_by_layerdims(isnokw(dims) ? values(dim_dict) : dims, layerdims_vec)
     refdims = isnokw(refdims) || isnothing(refdims) ? () : refdims
     metadata = isnokw(metadata) ? _metadata(ds) : metadata
     layermetadata_vec = if isnokw(layermetadata)
-        _layermetadata(ds; layers)
+        _layermetadata(ds; attrs=layermetadata_vec)
     else
         layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
     end
-    name = Tuple(map(Symbol, layers.names))
+    name = Tuple(map(Symbol, names_vec))
     NT = NamedTuple{name}
     missingval_vec = if missingval isa Pair
         _missingval_vec(missingval, name)
     else
-        layer_mvs = map(Rasters.missingval, layers.vars, layermetadata_vec)
+        layer_mvs = map(Rasters.missingval, layers_vec, layermetadata_vec)
         _missingval_vec(missingval, layer_mvs, name)
     end
-    eltype_vec = map(eltype, layers.vars)
+    eltype_vec = map(eltype, layers_vec)
     mod_vec = _stack_mods(eltype_vec, layermetadata_vec, missingval_vec; scaled, coerce)
     data = if lazy
         vars = ntuple(i -> layers.vars[i], length(name))
         mods = ntuple(i -> mod_vec[i], length(name))
         FileStack{typeof(source)}(ds, filename; name, group, mods, vars)
     else
-        map(layers.vars, layermetadata_vec, mod_vec) do var, md, mod
+        map(layers_vec, layermetadata_vec, mod_vec) do var, md, mod
             modvar = _maybe_modify(var, mod)
-  yer          checkmem && _checkobjmem(modvar)
+            checkmem && _checkobjmem(modvar)
             Array(modvar)
         end |> NT
     end
@@ -605,7 +605,7 @@ _name_error(f, names, layernames) =
 # order that applies without permutation, preferencing the layers
 # with most dimensions, and those that come first.
 # Intentionally not type-stable
-function _sort_by_layerdims(dims, layerdims)
+function _sort_by_layerdims(dims, layerdims::Vector)
     dimlist = union(layerdims)
     currentorder = nothing
     for i in length(dims):-1:1
@@ -614,7 +614,7 @@ function _sort_by_layerdims(dims, layerdims)
             currentorder = _merge_dimorder(ldims, currentorder)
         end
     end
-    return DD.dims(dims, currentorder)
+    return DD.dims(Tuple(dims), currentorder)
 end
 
 _merge_dimorder(neworder, ::Nothing) = neworder

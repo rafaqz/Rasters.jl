@@ -1,12 +1,5 @@
 module Rasters
 
-# Use the README as the module docs
-@doc let
-    # path = joinpath(dirname(@__DIR__), "README.md")
-    # include_dependency(path)
-    # read(path, String)
-end Rasters
-
 using Dates
 
 # Load first to fix StaticArrays invalidations

@@ -1,15 +1,18 @@
 """
     GeometryLookup(data, dims = (X(), Y()); geometrycolumn = nothing)
 
-
 A lookup type for geometry dimensions in vector data cubes.
 
-`GeometryLookup` provides efficient spatial indexing and lookup for geometries using an STRtree (Sort-Tile-Recursive tree).
-It is used as the lookup type for geometry dimensions in vector data cubes, enabling fast spatial queries and operations.
+`GeometryLookup` provides efficient spatial indexing and lookup for 
+geometries using an STRtree (Sort-Tile-Recursive tree). 
 
-It spans the dimensions given to it in `dims`, as well as the dimension it's wrapped in - you would construct a DimArray with a GeometryLookup
-like `DimArray(data, Geometry(GeometryLookup(data, dims)))`.  Here, `Geometry` is a dimension - but selectors in X and Y will also eventually work!
+It is used as the lookup type for geometry dimensions in vector 
+data cubes, enabling fast spatial queries and operations.
 
+It spans the dimensions given to it in `dims`, as well as the dimension
+ it's wrapped in - you would construct a DimArray with a GeometryLookup
+like `DimArray(data, Geometry(GeometryLookup(data, dims)))`.
+Here, `Geometry` is a dimension - but selectors in X and Y will also work!
 
 # Examples
 
@@ -29,18 +32,15 @@ dv = rand(Geometry(polygon_lookup))
 # select the polygon with the centroid of the 88th polygon
 dv[Geometry(Contains(GO.centroid(polygons[88])))] == dv[Geometry(88)] # true
 ```
-
 """
-struct GeometryLookup{T, A <: AbstractVector{T}, D, M <: GO.Manifold, Tree, CRS} <: DD.Dimensions.MultiDimensionalLookup{T}
+struct GeometryLookup{T,A<:AbstractVector{T},D,M<:GO.Manifold,Tree,CRS} <: DD.Dimensions.MultiDimensionalLookup{T}
     manifold::M
     data::A
     tree::Tree
     dims::D
     crs::CRS
 end
-
 function GeometryLookup(data, dims=(X(), Y()); geometrycolumn=nothing, crs=nokw, tree=nokw)
-
     # First, retrieve the geometries - from a table, vector of geometries, etc.
     geometries = _get_geometries(data, geometrycolumn)
     geometries = Missings.disallowmissing(geometries)
@@ -101,7 +101,8 @@ This is broadly standard except for the `rebuild` method, which is used to updat
 =#
 
 DD.dims(l::GeometryLookup) = l.dims
-DD.dims(d::DD.Dimension{<: GeometryLookup}) = val(d).dims
+# This has to return itself
+# DD.dims(d::DD.Dimension{<:GeometryLookup}) = dims(val(d))
 DD.order(::GeometryLookup) = Lookups.Unordered()
 DD.parent(lookup::GeometryLookup) = lookup.data
 # TODO: format for geometry lookup
@@ -143,27 +144,7 @@ function DD.rebuild(
         crs
     end
 
-    new_manifold = if isnokw(manifold)
-        lookup.manifold
-    else
-        manifold
-    end
+    new_manifold = isnokw(manifold) ? lookup.manifold : manifold
 
-    GeometryLookup(new_manifold, Missings.disallowmissing(data), new_tree, dims, new_crs)
+    return GeometryLookup(new_manifold, Missings.disallowmissing(data), new_tree, dims, new_crs)
 end
-
-
-# total_area_of_intersection = 0.0
-# current_area_of_intersection = 0.0
-# last_point = nothing
-# apply_with_signal(trait, geom) do subgeom, state
-#     if state == :start
-#         total_area_of_intersection += current_area_of_intersection
-#         current_area_of_intersection = 0.0
-#         last_point = nothing
-#     elseif state == :continue
-#         # shoelace formula for this point
-#     elseif state == :end
-#         # finish off the shoelace formula
-#     end
-# end
