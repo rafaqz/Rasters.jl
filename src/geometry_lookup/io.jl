@@ -6,8 +6,9 @@ Encode functions will always return a named tuple with the standard
 function _geometry_cf_encode(::Union{GI.PointTrait, GI.MultiPointTrait}, geoms)
     if all(x -> GI.trait(x) isa GI.PointTrait, geoms)
         return (;
-            node_coordinates_x = GI.x.(geoms),
-            node_coordinates_y = GI.y.(geoms),
+            geometry_type = "point",
+            x = GI.x.(geoms),
+            y = GI.y.(geoms),
         )
     end
     # else: we have some multipolygons in here
@@ -27,8 +28,9 @@ function _geometry_cf_encode(::Union{GI.PointTrait, GI.MultiPointTrait}, geoms)
     foreach(identity, flattener)
 
     return (;
-        node_coordinates_x = flat_xs,
-        node_coordinates_y = flat_ys,
+        geometry_type = "line",
+        x = flat_xs,
+        y = flat_ys,
         node_count = GI.npoint.(geoms)
     )
 end
@@ -50,27 +52,29 @@ function _geometry_cf_encode(::Union{GI.LineStringTrait, GI.MultiLineStringTrait
     # iterate over flattener to populate the arrays,
     # without allocating an extra array.
     foreach(identity, flattener)
+    attribs = Dict{String,Any}("geometry_type" => "linestring")
 
     # If all geoms are linestrings, we can take a fast path.
     if all(x -> GI.trait(x) isa GI.LineStringTrait, geoms)
         return (;
-            node_coordinates_x = flat_xs,
-            node_coordinates_y = flat_ys,
+            geometry_type = "line",
+            x = flat_xs,
+            y = flat_ys,
             node_count = GI.npoint.(geoms)
         )
     end
 
     # Otherwise, we need to encode part_node_count for multilinestrings.
     return (;
-        node_coordinates_x = flat_xs,
-        node_coordinates_y = flat_ys,
+        geometry_type = "line",
+        x = flat_xs,
+        y = flat_ys,
         part_node_count = collect(GO.flatten(GI.npoint, GI.LineStringTrait, geoms)),
         node_count = GI.npoint.(geoms)
     )
 end
 
 function _geometry_cf_encode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, geoms)
-
     ngeoms = length(geoms)
     nrings = GO.applyreduce(GI.nring, +, GI.PolygonTrait(), geoms; init = 0, threaded = false)
     n_points_per_geom_vec = GI.npoint.(geoms)
@@ -130,8 +134,9 @@ function _geometry_cf_encode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, geo
     # node_coordinates_x and node_coordinates_y are the coordinates of the nodes of the rings.
     # but cf encodes them as a space separated string.  That's the only difference.
     return (;
-        node_coordinates_x = xs, 
-        node_coordinates_y = ys, 
+        geometry_type = "polygon",
+        x = xs, 
+        y = ys, 
         node_count = node_count_vec, 
         part_node_count = part_node_count_vec, 
         interior_ring = interior_ring_vec
