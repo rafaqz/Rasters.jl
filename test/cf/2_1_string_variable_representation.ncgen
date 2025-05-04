@@ -1,0 +1,10 @@
+netcdf string_variable_representation {
+dimensions:
+  strings = 30 ;
+  strlen = 10 ;
+variables:
+  char char_variable(strings,strlen) ;
+    char_variable:long_name = "strings of type char" ;
+  string str_variable(strings) ;
+    str_variable:long_name = "strings of type string" ;
+}

@@ -492,7 +492,7 @@ function RasterStack(ds;
     eltype_vec = map(eltype, layers_vec)
     mod_vec = _stack_mods(eltype_vec, layermetadata_vec, missingval_vec; scaled, coerce)
     data = if lazy
-        vars = ntuple(i -> layers.vars[i], length(name))
+        vars = ntuple(i -> layers_vec[i], length(name))
         mods = ntuple(i -> mod_vec[i], length(name))
         FileStack{typeof(source)}(ds, filename; name, group, mods, vars)
     else
@@ -614,7 +614,11 @@ function _sort_by_layerdims(dims, layerdims::Vector)
             currentorder = _merge_dimorder(ldims, currentorder)
         end
     end
-    return DD.dims(Tuple(dims), currentorder)
+    if isnothing(currentorder)
+        return ()
+    else
+        return DD.dims(Tuple(dims), currentorder)
+    end
 end
 
 _merge_dimorder(neworder, ::Nothing) = neworder

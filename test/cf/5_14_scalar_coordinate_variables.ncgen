@@ -1,0 +1,32 @@
+netcdf scalar_coordinate_variables {
+dimensions:
+  lat = 180 ;
+  lon = 360 ;
+  time = UNLIMITED ;
+variables:
+  double atime ;
+    atime:standard_name = "forecast_reference_time" ;
+    atime:units = "hours since 1999-01-01 00:00" ;
+  double time(time) ;
+    time:standard_name = "time" ;
+    time:units = "hours since 1999-01-01 00:00" ;
+  double lon(lon) ;
+    lon:long_name = "station longitude";
+    lon:units = "degrees_east";
+  double lat(lat) ;
+    lat:long_name = "station latitude" ;
+    lat:units = "degrees_north" ;
+  double p500 ;
+    p500:long_name = "pressure" ;
+    p500:units = "hPa" ;
+    p500:positive = "down" ;
+  float height(time,lat,lon) ;
+    height:long_name = "geopotential height" ;
+    height:standard_name = "geopotential_height" ;
+    height:units = "m" ;
+    height:coordinates = "atime p500" ;
+data:
+  time = 6., 12., 18., 24. ;
+  atime = 0. ;
+  p500 = 500. ;
+}

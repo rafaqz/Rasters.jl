@@ -1,0 +1,17 @@
+netcdf wgs84_datum {
+dimensions:
+  lat = 18 ;
+  lon = 36 ;
+variables:
+  double lat(lat) ;
+  double lon(lon) ;
+  float temp(lat, lon) ;
+    temp:long_name = "temperature" ;
+    temp:units = "K" ;
+    temp:grid_mapping = "crs" ;
+  int crs ;
+    crs:grid_mapping_name = "latitude_longitude";
+    crs:longitude_of_prime_meridian = 0.0 ;
+    crs:semi_major_axis = 6378137.0 ;
+    crs:inverse_flattening = 298.257223563 ;
+}

@@ -192,8 +192,8 @@ function _layer_names(ds, var_names, vars_dict, attrs_dict)
         var = _get_var!(ds, vars_dict, n)
         attr = _get_attr!(ds, vars_dict, attrs_dict, n)
         # Coordinate variables
-        haskey(attr, "coordinates") && setdiff(coordinate_names, _cdm_coordinates(attr))
-        haskey(attr, "node_coordinates") && setdiff(node_coordinate_names, _cdm_node_coordinates(attr))
+        haskey(attr, "coordinates") && append!(coordinate_names, collect(_cdm_coordinates(attr)))
+        haskey(attr, "node_coordinates") && append!(node_coordinate_names, collect(_cdm_node_coordinates(attr)))
         # Bounds variables
         haskey(attr, "bounds") && push!(bounds_names, attr["bounds"])
         # Quantization variables (8.4.2)
@@ -210,8 +210,8 @@ function _layer_names(ds, var_names, vars_dict, attrs_dict)
             haskey(geometry_attr, "part_node_count") && push!(geometry_names, geometry_attr["part_node_count"])
             haskey(geometry_attr, "interior_ring") && push!(geometry_names, geometry_attr["interior_ring"])
         end
-        # Grid mapping variables
-        haskey(attr, "grid_mapping") && push!(grid_mapping_names, attr["grid_mapping"])
+        # Grid mapping variables - there may be multiple
+        haskey(attr, "grid_mapping") && append!(grid_mapping_names, _grid_mapping_keys(attr["grid_mapping"]))
         # Units metadata variables
         haskey(attr, "units_metadata") && push!(units_metadata_names, attr["units_metadata"])
         # Common Standard names - very likely coordinates
@@ -310,7 +310,6 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
         output_layers_vec[i] = var
         output_attrs_vec[i] = attr
     end
-    # TODO output
     return (; 
         names_vec=layer_names, 
         layers_vec=output_layers_vec, 
@@ -323,51 +322,76 @@ _organise_dataset(ds::AbstractDataset, names, group) =
     _organise_dataset(ds.group[group], names, nokw)
 
 function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, coord_names, dimname, crs)
-    if !isnothing(geometry_key)
-        geometry_attrs = _get_attr!(ds, vars_dict, attrs_dict, geometry_key)
-        # Check that the geometry is for this dimension
-        is_geometry_dimension = if haskey(geometry_attrs, "node_count")
-            # Multi-part geometries 
-            dimname in CDM.dimnames(_get_var!(ds, vars_dict, geometry_attrs["node_count"]))
-        else
-            # Points
-            dimname in CDM.dimnames(_get_var!(ds, vars_dict, first(_cf_node_coordinate_names(geometry_attrs))))
-        end
-        geoms = get!(geometry_dict, geometry_key) do
-            _cf_geometry_decode(ds, geometry_attrs)
-        end
-        if is_geometry_dimension
-            dimension_coord_names = filter(coord_names) do coordname
-                dimnames = CDM.dimnames(vars_dict[coordname])
-                length(dimnames) == 1 && only(dimnames) == dimname  
-            end
-            lookup = GeometryLookup(geoms, (X(), Y()); crs)
-            D = Geometry
-            return D(lookup)
-        end
-    end
-    if haskey(ds, dimname)
-        # The dimension has a matching variable
+    # if !isnothing(geometry_key)
+    #     geometry_attrs = _get_attr!(ds, vars_dict, attrs_dict, geometry_key)
+    #     # Check that the geometry is for this dimension
+    #     is_geometry_dimension = if haskey(geometry_attrs, "node_count")
+    #         # Multi-part geometries 
+    #         dimname in CDM.dimnames(_get_var!(ds, vars_dict, geometry_attrs["node_count"]))
+    #     else
+    #         # Points
+    #         dimname in CDM.dimnames(_get_var!(ds, vars_dict, first(_cf_node_coordinate_names(geometry_attrs))))
+    #     end
+    #     geoms = get!(geometry_dict, geometry_key) do
+    #         _cf_geometry_decode(ds, geometry_attrs)
+    #     end
+    #     if is_geometry_dimension
+    #         dimension_coord_names = filter(coord_names) do coordname
+    #             dimnames = CDM.dimnames(vars_dict[coordname])
+    #             length(dimnames) == 1 && only(dimnames) == dimname  
+    #         end
+    #         lookup = GeometryLookup(geoms, (X(), Y()); crs)
+    #         D = Geometry
+    #         return D(lookup)
+    #     end
+    # end
+    if haskey(ds, dimname) && (isempty(coord_names) || dimname in coord_names)
+        # The dimension has a matching variable, and it's one of the coordinates
         dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, dimname)
         D = _cdm_dimtype(dim_attrs, dimname)
         lookup = _cdm_lookup(ds, dim_attrs, dimname, D, crs)
-        D(lookup)
-    else
-        # No matching variable was found, so we have something more complicated
-        # Get all the coordinates for this dimension
-        dimension_coord_names = filter(coord_names) do coordname
-            dimnames = CDM.dimnames(_get_var!(ds, vars_dict, coordname))
-            length(dimnames) == 1 && only(dimnames) == dimname  
-        end
-        if length(dimension_coord_names) == 1
-            # If there is only one coordinate, just use it as the dimension
-            # This should rarely happen
-            linked_dimname = dimension_coord_names[1]
-            dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, linked_dimname)
-            D = _cdm_dimtype(dim_attrs, linked_dimname)
+        return D(lookup)
+    end
+    # No matching variable was found, so we have something more complicated
+    # Get all the coordinates for this dimension
+    dimension_coord_names = filter(coord_names) do coordname
+        coord_dimnames = CDM.dimnames(_get_var!(ds, vars_dict, coordname))
+        @show coordname coord_dimnames
+        dimname in coord_dimnames
+    end
+    @show dimension_coord_names
+    if length(dimension_coord_names) == 1
+        # If there is only one coordinate, just use it as the dimension
+        # This should rarely happen
+        linked_dimname = dimension_coord_names[1]
+        dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, linked_dimname)
+        dim_var = _get_var!(ds, vars_dict, linked_dimname)
+        D = _cdm_dimtype(dim_attrs, linked_dimname)
+        if ndims(dim_var) > 1 && eltype(dim_var) <: Char
+            chars = collect(dim_var)
+            # Join char dimension as String, stripping null terminators
+            strings = strip.(join.(eachslice(chars; dims=2)), '\0')
+            lookup = Categorical(strings; order=Unordered())
+            return D(lookup)
+        else
             lookup = _cdm_lookup(ds, dim_attrs, linked_dimname, D, crs)
-            D(lookup)
-        elseif length(dimension_coord_names) > 1
+            return D(lookup)
+        end
+    end
+    if length(dimension_coord_names) > 1
+        dim_vars = map(dimension_coord_names) do d
+            _get_var!(ds, vars_dict, d)
+        end
+        is_multidimensional = any(v -> length(CDM.dimnames(v)) > 1, dim_vars)
+        @show is_multidimensional
+        if is_multidimensional
+            # Rotations
+            # For now we don't use ArrayLookup
+            dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, dimname)
+            D = _cdm_dimtype(dim_attrs, dimname)
+            lookup = _cdm_lookup(ds, dim_attrs, dimname, D, crs)
+            return D(lookup)
+        else
             # Generate a MergedLookup for multi-coordinate dimensions
             dims = map(dimension_coord_names) do d
                 dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, d)
@@ -376,18 +400,17 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, coord_
                 D(lookup)
             end
             D = _cdm_dimtype(NoMetadata(), dimname)
-            merged_data = collect(zip(lookup(dims)...))
+            merged_data = collect(zip(DD.lookup.(dims)...))
             # Use a MergedLookup with all dimensions
-            D(MergedLookup(merged_data, dims))
-        else
-            # A matching variable doesn't exist. 
-            # Its a "discrete axis" (4.5) so NoLookup
-            len = CDM.dim(ds, dimname)
-            lookup = NoLookup(Base.OneTo(len))
-            D = _cdm_dimtype(NoMetadata(), dimname)
-            D(lookup)
+            return D(MergedLookup(merged_data, dims))
         end
     end
+    # A matching variable doesn't exist. 
+    # Its a "discrete axis" (4.5) so NoLookup
+    len = CDM.dim(ds, dimname)
+    lookup = NoLookup(Base.OneTo(len))
+    D = _cdm_dimtype(NoMetadata(), dimname)
+    D(lookup)
 end
 
 # TODO don't load all keys here with _layers
@@ -750,7 +773,6 @@ end
 function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:GeometryLookup}, dimname)  
     l = lookup(dim)
     geom = _cf_geometry_encode(lookup(dim))
-    @show dims(l)
     # Define base geometry attributes
     coord_names_raw = map(dims(l)) do d
         _cf_name(d)
@@ -829,6 +851,11 @@ end
     
 _cf_crs(ds, grid_mapping_key::Nothing) = nothing
 function _cf_crs(ds, grid_mapping_key::String)
+    # TODO handle multi-crs
+    if occursin(' ', grid_mapping_key)
+        _split_grid_mapping_key(grid_mapping_key)[1][1]
+    end
+    haskey(ds, grid_mapping_key) || return nothing
     grid_mapping_var = CDM.variable(ds, grid_mapping_key)
     grid_mapping_attrib = CDM.attribs(grid_mapping_var)
     if haskey(grid_mapping_attrib, "crs_wkt")
@@ -839,6 +866,22 @@ function _cf_crs(ds, grid_mapping_key::String)
         ProjString(grid_mapping_attrib["proj4string"])
     else
         nothing # unparseable - TODO get CFProjections.jl to do it.
+    end
+end
+
+function _split_grid_mapping_key(grid_mapping_key::String)
+    items = split(grid_mapping_key, ' ')
+    starts = findall(contains(':'), items)
+    stops = append!(starts[2:end] .- 1, length(items))
+    map(starts, stops) do s, p
+        items[s][1:end-1] => items[s+1:p]
+    end
+end
+function _grid_mapping_keys(grid_mapping_key::String)
+    if occursin(' ', grid_mapping_key)
+        first.(_split_grid_mapping_key(grid_mapping_key))
+    else
+        [grid_mapping_key]
     end
 end
 
