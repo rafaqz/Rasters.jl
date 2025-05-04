@@ -4,13 +4,15 @@ import NCDatasets.NetCDF_jll
 
 using Test
 
-import Rasters
+using Rasters
 import GeoInterface as GI
 
-
 ds = NCDataset("C:\\Users\\rafael.schouten\\Downloads\\i.nc")
-var = ds["someData"]
-keys(ds)
+st = RasterStack("C:\\Users\\rafael.schouten\\Downloads\\i.nc")
+write("geomtest3.nc", st; force=true)
+ds = NCDataset("geomtest3.nc")
+RasterStack("geomtest3.nc")
+Raster("geomtest3.nc")
 v = CDM.variable(ds, :lon)
 CDM.dimnames(ds)
 CDM.dimnames(v)
@@ -49,7 +51,55 @@ has_geometry = haskey(CDM.attribs(var), "geometry")
 if !has_geometry
     throw(ArgumentError("Variable $u_dim_name does not have a geometry attribute"))
 end
+=#
 
+# generate dataset
+output_path = tempname() * ".nc"
+testfile = "multipolygons.ncgen"
+run(`$(NetCDF_jll.ncgen) -k nc4 -b -o $output_path $(joinpath(dirname(dirname(Base.pathof(Rasters))), "test", "data", testfile))`)
+
+ds = NCDataset(output_path)
+geometry_container_varname = CDM.attribs(var)["geometry"]
+geometry_container_var = ds[geometry_container_varname]
+
+geometry_container_attribs = CDM.attribs(geometry_container_var)
+
+haskey(geometry_container_attribs, "geometry_type") && 
+geometry_container_attribs["geometry_type"] == "polygon" ||
+throw(ArgumentError("We only support polygon geometry types at this time, got $geometry_type"))
+
+geoms = Rasters._geometry_cf_decode(GI.PolygonTrait(), ds, geometry_container_attribs)
+
+encoded = Rasters._geometry_cf_encode(GI.PolygonTrait(), geoms)
+node_count = collect(nggode_count_var)
+node_coordinates = collect(zip(getindex.((ds,), split(geometry_container_attribs["node_coordinates"], " "))...))
+part_node_count = collect(ds[geometry_container_attribs["part_node_count"]])
+interior_ring = collect(ds[geometry_container_attribs["interior_ring"]])
+
+@test encoded.node_coordinates_x == ds["x"]
+@test encoded.node_coordinates_y == ds["y"]
+@test encoded.node_count == ds["node_count"]
+@test encoded.part_node_count == ds["part_node_count"]
+@test encoded.interior_ring == ds["interior_ring"]
+
+# lines now
+
+output_path = tempname() * ".nc"
+testfile = "lines.ncgen"
+run(`$(NetCDF_jll.ncgen) -k nc4 -b -o $output_path $(joinpath(dirname(dirname(Base.pathof(Rasters))), "test", "data", testfile))`)
+ds = NCDataset(output_path)
+var = ds["someData"]
+geometry_container_varname = CDM.attribs(var)["geometry"]
+geometry_container_var = ds[geometry_container_varname]
+geometry_container_attribs = CDM.attribs(geometry_container_var)
+geoms = Rasters._geometry_cf_decode(GI.LineStringTrait(), ds, geometry_container_attribs)
+
+encoded = Rasters._geometry_cf_encode(GI.LineStringTrait(), geoms)
+
+@test encoded.node_coordinates_x == ds["x"]
+@test encoded.node_coordinates_y == ds["y"]
+@test encoded.node_count == ds["node_count"]
+@test !hasproperty(encoded, :part_node_count)
 
 
 output_path = tempname() * ".nc"
@@ -106,101 +156,3 @@ encoded = Rasters._geometry_cf_encode(GI.PointTrait(), geoms)
 @test encoded.node_coordinates_x == ds["x"]
 @test encoded.node_coordinates_y == ds["y"]
 @test !hasproperty(encoded, :node_count)
-
-
-
-
-function _compile_ncgen(f, testfilename; rasterspath = Base.pathof("Rasters"))
-    output_path = tempname() * ".nc"
-    run(`$(NCDatasets.NetCDF_jll.ncgen) -k nc4 -b -o $output_path $(joinpath(dirname(dirname(rasterspath)), "test", "data", testfilename))`)
-    ds = NCDatasets.NCDataset(output_path)
-    f(ds)
-    close(ds)
-    rm(output_path)
-    return
-end
-
-function _compile_ncgen(testfilename; rasterspath = Base.pathof("Rasters"))
-    output_path = tempname() * ".nc"
-    run(`$(NCDatasets.NetCDF_jll.ncgen) -k nc4 -b -o $output_path $(joinpath(dirname(dirname(rasterspath)), "test", "data", testfilename))`)
-    ds = NCDatasets.NCDataset(output_path)
-    return ds
-end
-
-import NCDatasets
-import NCDatasets.CommonDataModel as CDM
-import GeoInterface as GI, GeometryOps as GO
-using GeoFormatTypes
-
-rasterspath = joinpath(dirname(dirname(dirname(@__FILE__))), "src", "Rasters.jl")
-
-_compile_ncgen("multipolygons.ncgen"; rasterspath) do ds
-    geoms = _read_geometry(ds, "someData")
-
-    @test length(geoms) == 2
-    @test GI.nring.(geoms) == [3, 1]
-
-    encoded = _geometry_cf_encode(GI.PolygonTrait(), geoms)
-
-    @test encoded.node_coordinates_x == ds["x"]
-    @test encoded.node_coordinates_y == ds["y"]
-    @test encoded.node_count == ds["node_count"]
-    @test encoded.part_node_count == ds["part_node_count"]
-    @test encoded.interior_ring == ds["interior_ring"]
-end
-
-_compile_ncgen("lines.ncgen"; rasterspath) do ds
-    geoms = _read_geometry(ds, "someData")
-
-    @test all(g -> GI.trait(g) isa GI.LineStringTrait, geoms)
-    @test length(geoms) == 2
-
-    encoded = _geometry_cf_encode(GI.LineStringTrait(), geoms)
-
-    @test encoded.node_coordinates_x == ds["x"]
-    @test encoded.node_coordinates_y == ds["y"]
-    @test encoded.node_count == ds["node_count"]
-    @test !hasproperty(encoded, :part_node_count)
-end
-
-_compile_ncgen("points.ncgen"; rasterspath) do ds
-    geoms = _read_geometry(ds, "someData")
-
-    @test length(geoms) == 2
-
-    encoded = _geometry_cf_encode(GI.PointTrait(), geoms)
-
-    @test encoded.node_coordinates_x == ds["x"]
-    @test encoded.node_coordinates_y == ds["y"]
-    @test !hasproperty(encoded, :node_count)
-end
-
-
-_compile_ncgen("multilines.ncgen"; rasterspath) do ds
-    geoms = _read_geometry(ds, "someData")
-
-    @test all(g -> GI.trait(g) isa GI.MultiLineStringTrait, geoms)
-    @test length(geoms) == 2
-
-    encoded = _geometry_cf_encode(GI.MultiLineStringTrait(), geoms)
-
-    @test encoded.node_coordinates_x == ds["x"]
-    @test encoded.node_coordinates_y == ds["y"]
-    @test encoded.node_count == ds["node_count"]
-    @test encoded.part_node_count == ds["part_node_count"]
-    @test length(encoded) == 4
-end
-
-
-_compile_ncgen("multipoints.ncgen"; rasterspath) do ds
-    geoms = _read_geometry(ds, "someData")
-
-    @test all(g -> GI.trait(g) isa GI.MultiPointTrait, geoms)
-    @test length(geoms) == 2
-
-    encoded = _geometry_cf_encode(GI.MultiPointTrait(), geoms)
-
-    @test encoded.node_coordinates_x == ds["x"]
-    @test encoded.node_coordinates_y == ds["y"]
-    @test encoded.node_count == ds["node_count"]
-end
