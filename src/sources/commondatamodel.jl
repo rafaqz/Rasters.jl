@@ -7,6 +7,15 @@ const CF_DEGREES_EAST = ("degrees_east", "degree_east", "degree_E", "degrees_E",
 
 const UNNAMED_FILE_KEY = "unnamed"
 
+const CDM_PERIODS = Dict(
+    "years" => Year,
+    "months" => Month,
+    "days" => Day,
+    "hours" => Hour,
+    "minutes" => Minute,
+    "seconds" => Second,
+)
+
 const CDM_AXIS_MAP = Dict(
     "X" => X,
     "Y" => Y,
@@ -265,6 +274,8 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
     crs_dict = Dict{String,Any}()
     # Define a dimensions dict so these are only generated once
     dim_dict = Dict{String,Dimension}()
+    # Refdims need a consistent order as it is not changed later
+    refdim_dict = OrderedDict{String,Dimension}()
     # Get the layer names to target
     layer_names = isnokw(names) ? _layer_names(ds, var_names, vars_dict, attrs_dict) : names
     layer_dimnames_vec = Vector{Tuple}(undef, length(layer_names))
@@ -301,10 +312,24 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
         output_layerdims_vec[i] = map(dimnames) do dimname
             dim = get!(dim_dict, dimname) do
                 _cdm_dim(
-                    ds, vars_dict, attrs_dict, geometry_dict, geometry_key, coord_names, dimname, crs
+                    ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, coord_names, dimname, crs
                 )
             end
             basedims(dim)
+        end
+        # Find scalar coordinates to use as refdims (5.7)
+        for coord_name in coord_names
+            haskey(refdim_dict, coord_name) && continue
+            coord_var = _get_var!(ds, vars_dict, coord_name)
+            if ndims(coord_var) == 0
+                coord_attr = _get_attr!(ds, vars_dict, attrs_dict, coord_name)
+                data = reshape(collect(coord_var), 1)
+                D = _cdm_dimtype(coord_attr, coord_name)
+                metadata = _metadatadict(sourcetrait(ds), attr)
+                lookup = _cdm_lookup(data, ds, coord_var, coord_attr, coord_name, D, metadata, nothing)
+                refdim = D(lookup)
+                refdim_dict[coord_name] = refdim
+            end
         end
         # Add this layer to the output
         output_layers_vec[i] = var
@@ -316,38 +341,59 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
         layerdims_vec=output_layerdims_vec, 
         layermetadata_vec=output_attrs_vec, 
         dim_dict,
+        refdim_dict,
     )
 end
 _organise_dataset(ds::AbstractDataset, names, group) =
     _organise_dataset(ds.group[group], names, nokw)
 
-function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, coord_names, dimname, crs)
-    # if !isnothing(geometry_key)
-    #     geometry_attrs = _get_attr!(ds, vars_dict, attrs_dict, geometry_key)
-    #     # Check that the geometry is for this dimension
-    #     is_geometry_dimension = if haskey(geometry_attrs, "node_count")
-    #         # Multi-part geometries 
-    #         dimname in CDM.dimnames(_get_var!(ds, vars_dict, geometry_attrs["node_count"]))
-    #     else
-    #         # Points
-    #         dimname in CDM.dimnames(_get_var!(ds, vars_dict, first(_cf_node_coordinate_names(geometry_attrs))))
+function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, coord_names, dimname, crs)
+    if !isnothing(geometry_key)
+        geometry_attrs = _get_attr!(ds, vars_dict, attrs_dict, geometry_key)
+        # Check that the geometry is for this dimension
+        is_geometry_dimension = if haskey(geometry_attrs, "node_count")
+            # Multi-part geometries 
+            dimname in CDM.dimnames(_get_var!(ds, vars_dict, geometry_attrs["node_count"]))
+        else
+            # Points
+            dimname in CDM.dimnames(_get_var!(ds, vars_dict, first(_cf_node_coordinate_names(geometry_attrs))))
+        end
+        geoms = get!(geometry_dict, geometry_key) do
+            _cf_geometry_decode(ds, geometry_attrs)
+        end
+        if is_geometry_dimension
+            dimension_coord_names = filter(coord_names) do coordname
+                dimnames = CDM.dimnames(_get_var!(ds, vars_dict, coordname))
+                length(dimnames) == 1 && only(dimnames) == dimname  
+            end
+            lookup = GeometryLookup(geoms, (X(), Y()); crs)
+            D = Geometry
+            return D(lookup)
+        end
+    end
+    # TODO Cycled climatology dims
+    # if haskey(dim_attrs, "climatology")
+    #     climatology_bounds = _get_var(ds, vars_dict, dim_attrs["climatology"])
+    #     var = _get_var(ds, vars_dict, var_name)
+    #     var_attib = _get_attr!(ds, vars_dict, attrs_dict, var_name)
+    #     # We need to know if this is over years/months/days etc
+    #     diff = map((second, minute, hour, day, month, year)) do f
+    #         f(climatology_bounds[:, 2]) - f(climatology_bounds[:, 1])
     #     end
-    #     geoms = get!(geometry_dict, geometry_key) do
-    #         _cf_geometry_decode(ds, geometry_attrs)
-    #     end
-    #     if is_geometry_dimension
-    #         dimension_coord_names = filter(coord_names) do coordname
-    #             dimnames = CDM.dimnames(vars_dict[coordname])
-    #             length(dimnames) == 1 && only(dimnames) == dimname  
-    #         end
-    #         lookup = GeometryLookup(geoms, (X(), Y()); crs)
-    #         D = Geometry
-    #         return D(lookup)
-    #     end
+    #     # Find the smallest step
+    #     i = findfirst(>(0), diff)
+    #     step = (Second, Minute, Hour, Day, Month, Year)[i](diff[i])
+    #     # Find the total time span
+    #     bounds = extrema(climatology_bounds)
+    #     data = collect(dim_var)
+    #     order = LA.orderof(data)
+    #     sampling = Regular(step)
+    #     span = Explicit(c)
+    #     Cyclic(data; cycle, order, sampling, span, bounds)
     # end
     if haskey(ds, dimname) && (isempty(coord_names) || dimname in coord_names)
-        # The dimension has a matching variable, and it's one of the coordinates
         dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, dimname)
+        # The dimension has a matching variable, and it's one of the coordinates
         D = _cdm_dimtype(dim_attrs, dimname)
         lookup = _cdm_lookup(ds, dim_attrs, dimname, D, crs)
         return D(lookup)
@@ -356,34 +402,31 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, coord_
     # Get all the coordinates for this dimension
     dimension_coord_names = filter(coord_names) do coordname
         coord_dimnames = CDM.dimnames(_get_var!(ds, vars_dict, coordname))
-        @show coordname coord_dimnames
         dimname in coord_dimnames
     end
-    @show dimension_coord_names
-    if length(dimension_coord_names) == 1
-        # If there is only one coordinate, just use it as the dimension
-        # This should rarely happen
+    if length(dimension_coord_names) > 1
         linked_dimname = dimension_coord_names[1]
         dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, linked_dimname)
         dim_var = _get_var!(ds, vars_dict, linked_dimname)
-        D = _cdm_dimtype(dim_attrs, linked_dimname)
         if ndims(dim_var) > 1 && eltype(dim_var) <: Char
             chars = collect(dim_var)
             # Join char dimension as String, stripping null terminators
-            strings = strip.(join.(eachslice(chars; dims=2)), '\0')
+            strings = String.(strip.(join.(eachslice(chars; dims=2)), '\0'))
             lookup = Categorical(strings; order=Unordered())
+            D = _cdm_dimtype(dim_attrs, linked_dimname)
             return D(lookup)
-        else
+        end
+        if length(dimension_coord_names) == 1
+            # If there is only one coordinate, just use it as the dimension
+            # This should rarely happen
+            D = _cdm_dimtype(dim_attrs, linked_dimname)
             lookup = _cdm_lookup(ds, dim_attrs, linked_dimname, D, crs)
             return D(lookup)
         end
-    end
-    if length(dimension_coord_names) > 1
         dim_vars = map(dimension_coord_names) do d
             _get_var!(ds, vars_dict, d)
         end
         is_multidimensional = any(v -> length(CDM.dimnames(v)) > 1, dim_vars)
-        @show is_multidimensional
         if is_multidimensional
             # Rotations
             # For now we don't use ArrayLookup
@@ -402,7 +445,7 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, coord_
             D = _cdm_dimtype(NoMetadata(), dimname)
             merged_data = collect(zip(DD.lookup.(dims)...))
             # Use a MergedLookup with all dimensions
-            return D(MergedLookup(merged_data, dims))
+            return D(MergedLookup(merged_data, Tuple(dims)))
         end
     end
     # A matching variable doesn't exist. 
@@ -453,8 +496,10 @@ end
 function _cdm_lookup(ds::AbstractDataset, attr, dimname, D::Type, crs)
     var = ds[dimname]
     data = Missings.disallowmissing(collect(var))
+    # Length one variables may be zero dimensional
+    data = ndims(data) == 0 ? reshape(data, 1) : data
     metadata = _metadatadict(sourcetrait(ds), attr)
-    return _cdm_lookup(data, ds, var, attr, dimname, D, metadata, crs)
+    _cdm_lookup(data, ds, var, attr, dimname, D, metadata, crs)
 end
 # For unknown types we just make a Categorical lookup
 function _cdm_lookup(data::AbstractArray, ds::AbstractDataset, var, attr, dimname, D::Type, metadata, crs)
@@ -853,7 +898,7 @@ _cf_crs(ds, grid_mapping_key::Nothing) = nothing
 function _cf_crs(ds, grid_mapping_key::String)
     # TODO handle multi-crs
     if occursin(' ', grid_mapping_key)
-        _split_grid_mapping_key(grid_mapping_key)[1][1]
+        _split_attribute(grid_mapping_key)[1][1]
     end
     haskey(ds, grid_mapping_key) || return nothing
     grid_mapping_var = CDM.variable(ds, grid_mapping_key)
@@ -869,17 +914,18 @@ function _cf_crs(ds, grid_mapping_key::String)
     end
 end
 
-function _split_grid_mapping_key(grid_mapping_key::String)
-    items = split(grid_mapping_key, ' ')
+function _split_attribute(attribute::String)
+    items = split(attribute, ' ')
     starts = findall(contains(':'), items)
     stops = append!(starts[2:end] .- 1, length(items))
     map(starts, stops) do s, p
         items[s][1:end-1] => items[s+1:p]
     end
 end
+
 function _grid_mapping_keys(grid_mapping_key::String)
     if occursin(' ', grid_mapping_key)
-        first.(_split_grid_mapping_key(grid_mapping_key))
+        first.(_split_attribute(grid_mapping_key))
     else
         [grid_mapping_key]
     end
@@ -895,7 +941,7 @@ _get_attr!(ds, var_dict, attr_dict, key) =
 # TODO just the core of this function here
 function _raster(ds::CDM.AbstractDataset;
     dims=nokw,
-    refdims=(),
+    refdims=nokw,
     name=nokw,
     group=nokw,
     filename=filename(ds),
@@ -921,12 +967,13 @@ function _raster(ds::CDM.AbstractDataset;
     scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
     # TODO use a clearer name than filekey
     name1 = filekey(ds, name)
-    (; names_vec, layers_vec, layerdims_vec, layermetadata_vec, dim_dict) = 
+    (; names_vec, layers_vec, layerdims_vec, layermetadata_vec, dim_dict, refdim_dict) = 
         _organise_dataset(ds, [string(name1)], group)
     var = layers_vec[1]
     # Detect the source from filename
     # Open the dataset and variable specified by `name`, at `group` level if provided
     # At this level we do not apply `mod`.
+    refdims = isnokw(refdims) ? Tuple(values(refdim_dict)) : refdims
     metadata_out = isnokw(metadata) ? Dict(layermetadata_vec[1]) : metadata
     missingval_out = _read_missingval_pair(var, metadata_out, missingval)
     pop!(metadata_out, "_FillValue", nothing)

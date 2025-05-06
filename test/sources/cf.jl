@@ -1,3 +1,5 @@
+using Rasters, NCDatasets 
+using NCDatasets.NetCDF_jll
 using NearestNeighbors
 # Build all ncgen files
 cfdir = joinpath(dirname(dirname(Base.pathof(Rasters))), "test", "cf")
@@ -11,18 +13,23 @@ test_paths = map(filter(endswith(".ncgen"), readdir(cfdir))) do input_name
 end
 rasters = map(test_paths) do test_path
     name = splitext(basename(test_path))[1]
-    try
-        name => Raster(test_path; lazy=true)
-    catch
-        name => nothing
-    end
-end 
-rasters[1][2]
-rasterstacks = map(test_paths) do test_path
-    name = splitext(basename(test_path))[1]
     name == "5_1_independent_coordinate_variables" && return name => nothing
-    name == "5_10_british_national_grid" && return name => nothing
-    println(name)
+    name => Raster(test_path; lazy=true)
+end 
+rasterstacks = map(enumerate(test_paths)) do (i, test_path)
+    name = splitext(basename(test_path))[1]
+    println(i, " => ", name)
+    name == "5_1_independent_coordinate_variables" && return name => nothing
     name => RasterStack(test_path; lazy=true)
 end ;
-read(last.(rasterstacks)[1].str_variable)
+st = last.(rasterstacks)[12]
+st = last.(rasterstacks)[14]
+refdims(st)
+inds = findall(.!(isempty.(refdims.(last.(rasterstacks)))))
+refdims(last.(rasterstacks[inds])[1])
+
+for (k, r) in rasters
+    println(k)
+    display(r)
+    readline()
+end

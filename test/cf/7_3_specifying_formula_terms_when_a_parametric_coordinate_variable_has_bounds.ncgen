@@ -1,0 +1,34 @@
+netcdf specifying_formula_terms_when_a_parametric_coordinate_variable_has_bounds {
+dimensions:   
+  eta=5;
+  lat=10;
+  lon=10;
+  nv=2;
+variables:
+  float eta(eta) ;
+    eta:long_name = "eta at full levels" ;
+    eta:positive = "down" ;
+    eta:standard_name = " atmosphere_hybrid_sigma_pressure_coordinate" ;
+    eta:formula_terms = "a: A b: B ps: PS p0: P0" ;
+    eta:bounds="eta_bnds" ;
+  float eta_bnds(eta,nv) ;
+    eta_bnds:formula_terms = "a: A_bnds b: B_bnds ps: PS p0: P0" ; // This attribute is mandatory
+  float A(eta) ;
+    A:long_name = "'a' coefficient for vertical coordinate at full levels" ;
+    A:units = "Pa" ;
+    A:bounds = "A_bnds" ; // This attribute is included for the optional second method
+  float B(eta) ;
+    B:long_name = "'b' coefficient for vertical coordinate at full levels" ;
+    B:units = "1" ;
+    B:bounds = "B_bnds" ; // This attribute is included for the optional second method
+  float A_bnds(eta,nv) ;
+  float B_bnds(eta,nv) ;
+  float PS(lat, lon) ;
+    PS:units = "Pa" ;
+  float P0 ;
+    P0:units = "Pa" ;
+  float temp(eta, lat, lon) ;
+    temp:standard_name = "air_temperature" ;
+    temp:units = "K";
+    temp:coordinates = "A B" ; // This attribute is included for the optional second method
+}

@@ -452,7 +452,7 @@ function RasterStack(ds;
     filename=filename(ds),
     source=nokw,
     dims=nokw,
-    refdims=(),
+    refdims=nokw,
     name=nokw,
     group=nokw,
     metadata=nokw,
@@ -472,9 +472,9 @@ function RasterStack(ds;
     check_multilayer_dataset(ds)
     scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
     # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
-    (; names_vec, layers_vec, layerdims_vec, layermetadata_vec, dim_dict) = _organise_dataset(ds, name, group)
+    (; names_vec, layers_vec, layerdims_vec, layermetadata_vec, dim_dict, refdim_dict) = _organise_dataset(ds, name, group)
     dims = _sort_by_layerdims(isnokw(dims) ? values(dim_dict) : dims, layerdims_vec)
-    refdims = isnokw(refdims) || isnothing(refdims) ? () : refdims
+    refdims = isnokwornothing(refdims) ? Tuple(values(refdim_dict)) : refdims
     metadata = isnokw(metadata) ? _metadata(ds) : metadata
     layermetadata_vec = if isnokw(layermetadata)
         _layermetadata(ds; attrs=layermetadata_vec)

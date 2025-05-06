@@ -1,4 +1,4 @@
-netcdf scalar_coordinate_variables {
+netcdf multiple_forecasts_from_a_single_analysis {
 dimensions:
   lat = 180 ;
   lon = 360 ;

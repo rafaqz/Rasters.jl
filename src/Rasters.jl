@@ -17,6 +17,7 @@ import Adapt,
        GeometryOps,
        GeometryOpsCore,
        OffsetArrays,
+       OrderedCollections,
        ProgressMeter,
        Missings,
        Mmap,
@@ -37,6 +38,7 @@ using DimensionalData: Name, NoName
 using .Dimensions: StandardIndices, DimTuple
 using .Lookups: LookupTuple
 
+using OrderedCollections: OrderedDict
 using Statistics: mean
 using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
