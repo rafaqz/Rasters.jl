@@ -32,3 +32,4 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 [sources]
 SpeciesDistributionModels = {url = "https://github.com/tiemvanderdeure/SpeciesDistributionModels.jl/"}
 Rasters = { path = ".." }
+DocumenterVitepress = { url = "https://github.com/LuxDL/DocumenterVitepress.jl", rev = "as/fix-no-config" }
