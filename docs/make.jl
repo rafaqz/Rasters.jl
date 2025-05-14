@@ -43,7 +43,6 @@ makedocs(
         devbranch = "main",
         devurl = "dev";
     ),
-    draft = false,
     source = "src",
     build = "build",
     warnonly=true,
