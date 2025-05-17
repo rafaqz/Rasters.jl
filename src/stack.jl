@@ -489,7 +489,7 @@ function RasterStack(ds;
         layer_mvs = map(Rasters.missingval, layers_vec, layermetadata_vec)
         _missingval_vec(missingval, layer_mvs, name)
     end
-    eltype_vec = map(eltype, layers_vec)
+    eltype_vec = map(l -> _eltype(source, l), layers_vec)
     mod_vec = _stack_mods(eltype_vec, layermetadata_vec, missingval_vec; scaled, coerce)
     data = if lazy
         vars = ntuple(i -> layers_vec[i], length(name))

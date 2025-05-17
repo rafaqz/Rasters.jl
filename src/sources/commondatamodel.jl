@@ -89,6 +89,7 @@ end
 # Mode to open file in - read or append
 openmode(write::Bool) = write ? "a" : "r"
 
+missingval(var::AbstractArray, md::Metadata{<:CDMsource}) = missingval(md)
 missingval(var::CDM.AbstractVariable, md::Metadata{<:CDMsource}) =
     missingval(md)
 missingval(var::CDM.AbstractVariable, args...) = 
@@ -126,6 +127,25 @@ function _open(f, source::CDMsource, ds::AbstractDataset;
 end
 _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) = 
     cleanreturn(f(_maybe_modify(var, mod)))
+
+# Converts Char arrays to String folowing CF chapter 2
+struct DiskCharToString{N,M} <: DiskArrays.AbstractDiskArray{String,N}
+    parent::AbstractArray{Char,M} 
+end
+DiskCharToString(A::AbstractArray{Char,M}) where M = DiskCharToString{M-1,M}(A)
+
+Base.parent(A::DiskCharToString) = A.parent
+Base.size(A::DiskCharToString) = size(parent(A))[2:end]
+DiskArrays.haschunks(A::DiskCharToString) = DiskArrays.haschunks(parent(A))
+function DiskArrays.readblock!(A::DiskCharToString, dest, I...)
+    src = parent(A)[:, I...]
+    for I in CartesianIndices(dest)
+        dest[I] = _chars_to_string(view(src, :, I))
+    end
+    return dest
+end
+
+_chars_to_string(chars) = String(strip(join(chars), '\0'))
 
 # This allows arbitrary group nesting
 _getgroup(ds, ::Union{Nothing,NoKW}) = ds
@@ -308,6 +328,10 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
             grid_mapping_key = pop!(attr, "grid_mapping")
             get!(() -> _cf_crs(ds, grid_mapping_key), crs_dict, grid_mapping_key)
         end
+        if eltype(var) <: Char && ndims(var) > 1 
+            # Remove the char dimension
+            layer_dimnames_vec[i] = dimnames = dimnames[2:end]
+        end
         # Loop over the dimensions of this layer, adding missing dims to dim_dict 
         output_layerdims_vec[i] = map(dimnames) do dimname
             dim = get!(dim_dict, dimname) do
@@ -391,13 +415,13 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
     #     span = Explicit(c)
     #     Cyclic(data; cycle, order, sampling, span, bounds)
     # end
-    if haskey(ds, dimname) && (isempty(coord_names) || dimname in coord_names)
-        dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, dimname)
-        # The dimension has a matching variable, and it's one of the coordinates
-        D = _cdm_dimtype(dim_attrs, dimname)
-        lookup = _cdm_lookup(ds, dim_attrs, dimname, D, crs)
-        return D(lookup)
-    end
+    # if haskey(ds, dimname) && (isempty(coord_names) || dimname in coord_names)
+    #     dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, dimname)
+    #     # The dimension has a matching variable, and it's one of the coordinates
+    #     D = _cdm_dimtype(dim_attrs, dimname)
+    #     lookup = _cdm_lookup(ds, dim_attrs, dimname, D, crs)
+    #     return D(lookup)
+    # end
     # No matching variable was found, so we have something more complicated
     # Get all the coordinates for this dimension
     dimension_coord_names = filter(coord_names) do coordname
@@ -910,6 +934,12 @@ function _cf_crs(ds, grid_mapping_key::String)
     elseif haskey(grid_mapping_attrib, "proj4string")
         ProjString(grid_mapping_attrib["proj4string"])
     else
+        if haskey(grid_mapping_attrib, "grid_mapping_name")
+            grid_mapping_name = grid_mapping_attrib["grid_mapping_name"]
+            if grid_mapping_name == "latitude_longitude"
+                return EPSG(4326)
+            end
+        end
         nothing # unparseable - TODO get CFProjections.jl to do it.
     end
 end
@@ -937,6 +967,10 @@ _get_attr!(ds, var_dict, attr_dict, key) =
         var = _get_var!(ds, var_dict, key)
         CDM.attribs(var)
     end
+
+_eltype(::Source, var) = eltype(var)
+_eltype(::CDMsource, var::AbstractArray) = eltype(var)
+_eltype(::CDMsource, var::AbstractArray{Char}) = String
 
 # TODO just the core of this function here
 function _raster(ds::CDM.AbstractDataset;
@@ -979,7 +1013,7 @@ function _raster(ds::CDM.AbstractDataset;
     pop!(metadata_out, "_FillValue", nothing)
     pop!(metadata_out, "missing_value", nothing)
     # Generate mod for scaling
-    mod = isnokw(mod) ? _mod(eltype(var), metadata_out, missingval_out; scaled, coerce) : mod
+    mod = isnokw(mod) ? _mod(_eltype(source, var), metadata_out, missingval_out; scaled, coerce) : mod
     # Define or load the data array
     data_out = if lazy
         # Define a lay FileArray

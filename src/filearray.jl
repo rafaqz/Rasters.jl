@@ -49,6 +49,19 @@ function FileArray{S}(
     T = _mod_eltype(var, mod)
     return FileArray{S,T,N}(filename, size(var); eachchunk, haschunks, mod, kw...)
 end
+function FileArray{S}(
+    var::AbstractArray{Char,N}, filename; mod, kw...
+) where {S<:CDMsource,N}
+    @show "here"
+    eachchunk = DA.eachchunk(var)
+    haschunks = DA.haschunks(var)
+    if Missings.nonmissingtype(eltype(mod)) isa AbstractString
+        return FileArray{S,eltype(mod),N-1}(filename, size(var); eachchunk, haschunks, mod, kw...)
+    else
+        T = _mod_eltype(var, mod)
+        return FileArray{S,T,N}(filename, size(var); eachchunk, haschunks, mod, kw...)
+    end
+end
 
 # FileArray has S, T and N parameters not recoverable from fields
 ConstructionBase.constructorof(::Type{<:FileArray{S,T,N}}) where {S,T,N} = FileArray{S,T,N}
