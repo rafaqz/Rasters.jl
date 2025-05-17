@@ -1,0 +1,28 @@
+netcdf cell_areas_for_a_spherical_geodesic_grid {
+dimensions:
+  cell = 2562 ;  // number of grid cells
+  time = 12 ;
+  nv = 6 ;       // maximum number of cell vertices
+variables:
+  float PS(time,cell) ;
+    PS:units = "Pa" ;
+    PS:coordinates = "lon lat" ;
+    PS:cell_measures = "area: cell_area" ;
+  float lon(cell) ;
+    lon:long_name = "longitude" ;
+    lon:units = "degrees_east" ;
+    lon:bounds="lon_vertices" ;
+  float lat(cell) ;
+    lat:long_name = "latitude" ;
+    lat:units = "degrees_north" ;
+    lat:bounds="lat_vertices" ;
+  float time(time) ;
+    time:long_name = "time" ;
+    time:units = "days since 1979-01-01 0:0:0" ;
+  float cell_area(cell) ;
+    cell_area:long_name = "area of grid cell" ;
+    cell_area:standard_name="cell_area" ;
+    cell_area:units = "m2" ;
+  float lon_vertices(cell,nv) ;
+  float lat_vertices(cell,nv) ;
+}

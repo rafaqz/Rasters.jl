@@ -1,0 +1,12 @@
+netcdf a_domain_with_no_specific_dimensions {
+dimensions:
+
+variables:
+  char domain ;
+    domain:dimensions = "" ;
+    domain:coordinates = "t" ;
+    domain:long_name = "Domain with no explicit dimensions" ;
+  double t ;
+    t:standard_name = "time" ;
+    t:units = "days since 2021-01-01" ;
+}

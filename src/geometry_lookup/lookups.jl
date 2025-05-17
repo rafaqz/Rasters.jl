@@ -8,13 +8,15 @@ We need to define methods that take selectors and convert them to extents, then 
 =#
 
 # Bounds - get the bounds of the lookup
-Lookups.bounds(lookup::GeometryLookup) = if isempty(lookup.data)
-    Extents.Extent(NamedTuple{DD.name.(lookup.dims)}(ntuple(2) do i; (nothing, nothing); end))
-else
-    if isnothing(lookup.tree)
-        mapreduce(GI.extent, Extents.union, lookup.data)
+function Lookups.bounds(lookup::GeometryLookup)
+    if isempty(lookup.data)
+        Extents.Extent(NamedTuple{DD.name.(lookup.dims)}(ntuple(2) do i; (nothing, nothing); end))
     else
-        GI.extent(lookup.tree)
+        if isnothing(lookup.tree)
+            mapreduce(GI.extent, Extents.union, lookup.data)
+        else
+            GI.extent(lookup.tree)
+        end
     end
 end
 
@@ -32,39 +34,19 @@ function Lookups.selectindices(lookup::GeometryLookup, sel::NamedTuple{K}) where
 end
 function Lookups.selectindices(lookup::GeometryLookup, sel::Tuple)
     if (length(sel) == length(dims(lookup))) && all(map(s -> s isa At, sel))
-        i = findfirst(x -> all(map(Lookups._matches, sel, x)), lookup)
+        i = findfirst(x -> all(map(Dimensions._matches, sel, x)), lookup)
         isnothing(i) && _coord_not_found_error(sel)
         return i
     else
-        return [Lookups._matches(sel, x) for x in lookup]
+        return [Dimensions._matches(sel, x) for x in lookup]
     end
 end
-
-# Selector implementations that use geometry (like Contains, Touches, etc.)
-"""
-    _maybe_get_candidates(lookup, selector_extent)
-
-Get the candidates for the selector extent.  If the selector extent is disjoint from the tree rootnode extent, return an error.
-"""
-function _maybe_get_candidates(lookup::GeometryLookup, selector_extent)
-    tree = lookup.tree
-    isnothing(tree) && return 1:length(lookup)
-    Extents.disjoint(GI.extent(tree), selector_extent) && return Int[]     
-    potential_candidates = GO.SpatialTreeInterface.query(
-        tree, 
-        Base.Fix1(Extents.intersects, selector_extent)
-    )
-    isempty(potential_candidates) && return Int[]
-    return potential_candidates
-end
-
 function Lookups.selectindices(lookup::GeometryLookup, sel::Contains)
     potential_candidates = _maybe_get_candidates(lookup, sel_ext)
     filter(potential_candidates) do candidate
         GO.contains(lookup.data[candidate], val(sel))
     end
 end
-
 function Lookups.selectindices(lookup::GeometryLookup, sel::At)
     if GI.trait(val(sel)) isa GI.PointTrait
         Lookups.selectindices(lookup, (At(GI.x(val(sel))), At(GI.y(val(sel)))))
@@ -72,7 +54,6 @@ function Lookups.selectindices(lookup::GeometryLookup, sel::At)
         Lookups.at(lookup, sel)
     end
 end
-
 function Lookups.selectindices(lookup::GeometryLookup, sel::Near)
     geom = val(sel)
     @assert GI.isgeometry(geom)
@@ -90,8 +71,6 @@ function Lookups.selectindices(lookup::GeometryLookup, sel::Near)
     # this depends on LibGEOS being installed.
 
 end
-
-
 function Lookups.selectindices(lookup::GeometryLookup, sel::Touches)
     sel_ext = GI.extent(val(sel))
     potential_candidates = _maybe_get_candidates(lookup, sel_ext)
@@ -99,27 +78,31 @@ function Lookups.selectindices(lookup::GeometryLookup, sel::Touches)
         GO.intersects(lookup.data[candidate], val(sel))
     end
 end
-
-function Lookups.selectindices(lookup::GeometryLookup, (xs, ys)::Tuple{Union{ <: Touches}, Union{ <: Touches}})
+function Lookups.selectindices(
+    lookup::GeometryLookup, 
+    (xs, ys)::Tuple{Union{<:Touches}, Union{<:Touches}}
+)
     target_ext = Extents.Extent(X = (first(xs), last(xs)), Y = (first(ys), last(ys)))
     potential_candidates = _maybe_get_candidates(lookup, target_ext)
     return filter(potential_candidates) do candidate
         GO.intersects(lookup.data[candidate], target_ext)
     end
 end
-
-
-function Lookups.selectindices(lookup::GeometryLookup, (xs, ys)::Tuple{Union{<: DD.IntervalSets.ClosedInterval}, Union{<: DD.IntervalSets.ClosedInterval}})
+function Lookups.selectindices(
+    lookup::GeometryLookup, 
+    (xs, ys)::Tuple{Union{<:DD.IntervalSets.ClosedInterval},Union{<:DD.IntervalSets.ClosedInterval}}
+)
     target_ext = Extents.Extent(X = extrema(xs), Y = extrema(ys))
     potential_candidates = _maybe_get_candidates(lookup, target_ext)
     filter(potential_candidates) do candidate
         GO.covers(target_ext, lookup.data[candidate])
     end
 end
-
-function Lookups.selectindices(lookup::GeometryLookup, (xs, ys)::Tuple{Union{<: At, <: Contains, <: Real}, Union{<: At, <: Contains, <: Real}})
+function Lookups.selectindices(
+    lookup::GeometryLookup, 
+    (xs, ys)::Tuple{Union{<:At,<:Contains}, Union{<:At,<:Contains}}
+)
     xval, yval = val(xs), val(ys)
-
     lookup_ext = Lookups.bounds(lookup)
 
     if lookup_ext.X[1] <= xval <= lookup_ext.X[2] && lookup_ext.Y[1] <= yval <= lookup_ext.Y[2]
@@ -153,5 +136,24 @@ end
 # Local functions
 _val_or_nothing(::Nothing) = nothing
 _val_or_nothing(d::DD.Dimension) = val(d)
+
+
+# Selector implementations that use geometry (like Contains, Touches, etc.)
+"""
+    _maybe_get_candidates(lookup, selector_extent)
+
+Get the candidates for the selector extent.  If the selector extent is disjoint from the tree rootnode extent, return an error.
+"""
+function _maybe_get_candidates(lookup::GeometryLookup, selector_extent)
+    tree = lookup.tree
+    isnothing(tree) && return 1:length(lookup)
+    Extents.disjoint(GI.extent(tree), selector_extent) && return Int[]     
+    potential_candidates = GO.SpatialTreeInterface.query(
+        tree, 
+        Base.Fix1(Extents.intersects, selector_extent)
+    )
+    isempty(potential_candidates) && return Int[]
+    return potential_candidates
+end
 
 

@@ -4,13 +4,36 @@ import NCDatasets.NetCDF_jll
 
 using Test
 
-import Rasters
+using Rasters
 import GeoInterface as GI
 
-#=
-var = ds["someData"]
+ds = NCDataset("C:\\Users\\rafael.schouten\\Downloads\\i.nc")
+st = RasterStack("C:\\Users\\rafael.schouten\\Downloads\\i.nc")
+write("geomtest3.nc", st; force=true)
+ds = NCDataset("geomtest3.nc")
+RasterStack("geomtest3.nc")
+Raster("geomtest3.nc")
+v = CDM.variable(ds, :lon)
+CDM.dimnames(ds)
+CDM.dimnames(v)
+CDM.attribnames(var)
+CDM.attrib(var, "coordinates")
+map(CDM.keys(ds)) do v
+    var = CDM.variable(ds, v)
+    @show v 
+    v => CDM.dimnames(var)
+    # all(CDM.dimnames(var)) do d
+    #     @show d
+    #     d in CDM.dimnames(ds)
+    # end ? v => :Alligned : v => :Unalligned
+end
 
-knowndims = Rasters._dims(var)  
+geom = CDM.variable(ds, :geometry_container)
+geom.attrib
+coords = split(geom.attrib["coordinates"], ' ')
+x = _read_geometry(ds, :geometry_container) |> pairs
+
+knowndims = Rasters._dims(var) 
 
 unknowndims_idxs = findall(Rasters.isnolookup ∘ Rasters.lookup, knowndims)
 
@@ -34,6 +57,7 @@ end
 output_path = tempname() * ".nc"
 testfile = "multipolygons.ncgen"
 run(`$(NetCDF_jll.ncgen) -k nc4 -b -o $output_path $(joinpath(dirname(dirname(Base.pathof(Rasters))), "test", "data", testfile))`)
+
 ds = NCDataset(output_path)
 geometry_container_varname = CDM.attribs(var)["geometry"]
 geometry_container_var = ds[geometry_container_varname]
@@ -47,6 +71,10 @@ throw(ArgumentError("We only support polygon geometry types at this time, got $g
 geoms = Rasters._geometry_cf_decode(GI.PolygonTrait(), ds, geometry_container_attribs)
 
 encoded = Rasters._geometry_cf_encode(GI.PolygonTrait(), geoms)
+node_count = collect(nggode_count_var)
+node_coordinates = collect(zip(getindex.((ds,), split(geometry_container_attribs["node_coordinates"], " "))...))
+part_node_count = collect(ds[geometry_container_attribs["part_node_count"]])
+interior_ring = collect(ds[geometry_container_attribs["interior_ring"]])
 
 @test encoded.node_coordinates_x == ds["x"]
 @test encoded.node_coordinates_y == ds["y"]

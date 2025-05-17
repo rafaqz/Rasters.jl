@@ -248,6 +248,7 @@ function create(filename::Nothing, types::NamedTuple, dims::Tuple;
     layerdims=nokw,
     layermetadata=nokw,
     f=identity,
+    lazy=false,
     kw...
 )
     layerdims = isnokw(layerdims) ? map(_ -> basedims(dims), types) : layerdims

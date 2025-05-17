@@ -452,7 +452,7 @@ function RasterStack(ds;
     filename=filename(ds),
     source=nokw,
     dims=nokw,
-    refdims=(),
+    refdims=nokw,
     name=nokw,
     group=nokw,
     metadata=nokw,
@@ -471,34 +471,32 @@ function RasterStack(ds;
 )
     check_multilayer_dataset(ds)
     scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
-    layers = _layers(ds, name, group)
     # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
-    dimdict = _dimdict(ds, crs, mappedcrs)
-    refdims = isnokw(refdims) || isnothing(refdims) ? () : refdims
+    (; names_vec, layers_vec, layerdims_vec, layermetadata_vec, dim_dict, refdim_dict) = _organise_dataset(ds, name, group)
+    dims = _sort_by_layerdims(isnokw(dims) ? values(dim_dict) : dims, layerdims_vec)
+    refdims = isnokwornothing(refdims) ? Tuple(values(refdim_dict)) : refdims
     metadata = isnokw(metadata) ? _metadata(ds) : metadata
-    layerdims_vec = isnokw(layerdims) ? _layerdims(ds; layers, dimdict) : layerdims
-    dims = _sort_by_layerdims(isnokw(dims) ? _dims(ds, dimdict) : dims, layerdims_vec)
     layermetadata_vec = if isnokw(layermetadata)
-        _layermetadata(ds; layers)
+        _layermetadata(ds; attrs=layermetadata_vec)
     else
         layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
     end
-    name = Tuple(map(Symbol, layers.names))
+    name = Tuple(map(Symbol, names_vec))
     NT = NamedTuple{name}
     missingval_vec = if missingval isa Pair
         _missingval_vec(missingval, name)
     else
-        layer_mvs = map(Rasters.missingval, layers.vars, layermetadata_vec)
+        layer_mvs = map(Rasters.missingval, layers_vec, layermetadata_vec)
         _missingval_vec(missingval, layer_mvs, name)
     end
-    eltype_vec = map(eltype, layers.vars)
+    eltype_vec = map(l -> _eltype(source, l), layers_vec)
     mod_vec = _stack_mods(eltype_vec, layermetadata_vec, missingval_vec; scaled, coerce)
     data = if lazy
-        vars = ntuple(i -> layers.vars[i], length(name))
+        vars = ntuple(i -> layers_vec[i], length(name))
         mods = ntuple(i -> mod_vec[i], length(name))
         FileStack{typeof(source)}(ds, filename; name, group, mods, vars)
     else
-        map(layers.vars, layermetadata_vec, mod_vec) do var, md, mod
+        map(layers_vec, layermetadata_vec, mod_vec) do var, md, mod
             modvar = _maybe_modify(var, mod)
             checkmem && _checkobjmem(modvar)
             Array(modvar)
@@ -607,7 +605,7 @@ _name_error(f, names, layernames) =
 # order that applies without permutation, preferencing the layers
 # with most dimensions, and those that come first.
 # Intentionally not type-stable
-function _sort_by_layerdims(dims, layerdims)
+function _sort_by_layerdims(dims, layerdims::Vector)
     dimlist = union(layerdims)
     currentorder = nothing
     for i in length(dims):-1:1
@@ -616,7 +614,11 @@ function _sort_by_layerdims(dims, layerdims)
             currentorder = _merge_dimorder(ldims, currentorder)
         end
     end
-    return DD.dims(dims, currentorder)
+    if isnothing(currentorder)
+        return ()
+    else
+        return DD.dims(Tuple(dims), currentorder)
+    end
 end
 
 _merge_dimorder(neworder, ::Nothing) = neworder
