@@ -7,13 +7,19 @@
 [![Codecov](https://codecov.io/gh/rafaqz/Rasters.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/rafaqz/Rasters.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-[Rasters.jl](https://rafaqz.github.io/Rasters.jl/dev) defines common types and methods for reading, writing and
-manipulating rasterized spatial data. 
+[Rasters.jl](https://rafaqz.github.io/Rasters.jl/dev) is a powerful Julia package for working with spatial raster data. It provides a unified interface for reading, writing, and manipulating raster data. The package extends [DimensionalData.jl](https://rafaqz.github.io/DimensionalData.jl/dev/) to enable intuitive spatial indexing and manipulation of raster data.
 
-These currently include raster arrays like GeoTIFF and NetCDF, R grd files, 
-multi-layered stacks, and multi-file series of arrays and stacks. 
+Key features:
+- Support for multiple raster formats (e.g. GeoTIFF, NetCDF, GRD)
+- Support for multi-layered stacks and multi-file series of arrays
+- Lazy loading of large datasets
+- Intuitive spatial indexing with named dimensions (X, Y, Time)
+- Efficient handling of multi-layered stacks and time series
+- Built-in support for coordinate reference systems (CRS)
+- High-performance operations optimized for spatial data
 
 # Quick start
+
 Install the package by typing:
 
 ```julia
@@ -28,7 +34,7 @@ using Rasters
 
 Using `Rasters` to read GeoTiff or NetCDF files will output something similar to the
 following toy examples. This is possible because Rasters.jl extends
-[DimensionalData.jl](https://github.com/rafaqz/DimensionalData.jl) so that
+[DimensionalData.jl](https://rafaqz.github.io/DimensionalData.jl/dev/) so that
 spatial data can be indexed using named dimensions like `X`, `Y` and `Ti` (time)
 and e.g. spatial coordinates.
 
@@ -38,7 +44,7 @@ lon, lat = X(25:1:30), Y(25:1:30)
 ti = Ti(DateTime(2001):Month(1):DateTime(2002))
 ras = Raster(rand(lon, lat, ti)) # this generates random numbers with the dimensions given
 ```
-```
+```julia
 6×6×13 Raster{Float64,3} with dimensions: 
   X Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
   Y Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
@@ -61,7 +67,7 @@ Rasters reduces its dependencies to keep the `using` time low.
 But, it means you have to manually load packages you need for each 
 backend or additional functionality.
 
-For example, to use the GDAL backend, and download RasterDataSources files, you now need to do:
+For example, to use the GDAL backend, and download RasterDataSources files, you need to do:
 
 ```julia
 using Rasters, ArchGDAL, RasterDataSources
@@ -77,7 +83,7 @@ Sources and packages needed:
 Other functionality in extensions:
 - Raster data downloads, like `Worldclim{Climate}`: `using RasterDataSources`
 - Makie plots: `using GLMakie` (opengl interactive) or `using CairoMakie` (print) etc.
-- Coordinate transformations for gdal rasters: `using CoordinateTransformations`
+- Coordinate transformations for GDAL rasters: `using CoordinateTransformations`
 
 ## Getting the `lookup` array from dimensions
 
@@ -97,7 +103,7 @@ Selecting a time slice by `index` is done via
 ```julia
 ras[Ti(1)]
 ```
-```
+```julia
 6×6 Raster{Float64,2} with dimensions: 
   X Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
   Y Sampled{Int64} 25:1:30 ForwardOrdered Regular Points
@@ -117,7 +123,7 @@ values:      25         26          27          28         29          30
 ```julia
 ras[Ti=1]
 ```
-```
+```julia
 6×6 Raster{Float64,2} with dimensions: 
   X Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
   Y Sampled{Int64} 25:1:30 ForwardOrdered Regular Points
@@ -139,7 +145,7 @@ or and interval of indices using the syntax `=a:b` or `(a:b)`
 ```julia
 ras[Ti(1:10)]
 ```
-```
+```julia
 6×6×10 Raster{Float64,3} with dimensions: 
   X Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
   Y Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
@@ -162,7 +168,7 @@ values: [:, :, 1]
 ```julia
 ras[Ti=At(DateTime(2001))]
 ```
-```
+```julia
 6×6 Raster{Float64,2} with dimensions: 
   X Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
   Y Sampled{Int64} 25:1:30 ForwardOrdered Regular Points
