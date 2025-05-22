@@ -1,5 +1,5 @@
 # Rasters
-
+<img src="docs/src/assets/logo.png" align="right" width="30%"></img>
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/rafaqz/Rasters.jl/blob/main/LICENSE)
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://rafaqz.github.io/Rasters.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://rafaqz.github.io/Rasters.jl/dev)
@@ -7,8 +7,6 @@
 [![Codecov](https://codecov.io/gh/rafaqz/Rasters.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/rafaqz/Rasters.jl)
 [![Aqua.jl Quality Assurance](https://img.shields.io/badge/Aquajl-%F0%9F%8C%A2-aqua.svg)](https://github.com/JuliaTesting/Aqua.jl)
 [![Downloads](https://shields.io/endpoint?url=https://pkgs.genieframework.com/api/v1/badge/Rasters&label=Downloads)](https://pkgs.genieframework.com?packages=Rasters)
-
-<img src="/docs/src/assets/logo.png" align="right" width="30%"></img>
 
 [Rasters.jl](https://rafaqz.github.io/Rasters.jl/dev) defines common types and methods for reading, writing and
 manipulating rasterized spatial data. 
