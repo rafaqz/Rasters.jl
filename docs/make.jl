@@ -3,6 +3,7 @@ using Documenter, Rasters, Plots, Logging, Statistics, Dates,
 import Makie, CairoMakie
 using DocumenterVitepress
 using Rasters.LookupArrays, Rasters.Dimensions
+import Shapefile, DataFrames, NaturalEarth # to avoid precompilation in doctests
 
 # Don't output huge svgs for Makie plots
 CairoMakie.activate!(type = "png")
@@ -45,7 +46,7 @@ makedocs(
     ),
     source = "src",
     build = "build",
-    warnonly=true,
+    warnonly=false,
 )
 
 # Enable logging to console again
