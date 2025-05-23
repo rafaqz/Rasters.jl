@@ -99,6 +99,9 @@ export default defineConfig({
   ],
   ignoreDeadLinks: false,
   vite: {
+    define: {
+      __DEPLOY_ABSPATH__: JSON.stringify('REPLACE_ME_DOCUMENTER_VITEPRESS_DEPLOY_ABSPATH'),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '../components')

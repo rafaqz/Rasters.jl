@@ -44,7 +44,6 @@ makedocs(
         devbranch = "main",
         devurl = "dev";
     ),
-    draft = false,
     source = "src",
     build = "build",
     warnonly=false,
@@ -53,8 +52,7 @@ makedocs(
 # Enable logging to console again
 Logging.disable_logging(Logging.BelowMinLevel)
 
-deploydocs(; repo="github.com/rafaqz/Rasters.jl",
-    target = "build", # this is where Vitepress stores its output
+DocumenterVitepress.deploydocs(; repo="github.com/rafaqz/Rasters.jl",
     branch = "gh-pages",
     devbranch = "main",
     push_preview = true
