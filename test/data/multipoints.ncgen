@@ -1,0 +1,51 @@
+netcdf multipoints {
+dimensions:
+  instance = 2 ;
+  node = 5 ;
+  time = 4 ;
+variables:
+  int time(time) ;
+    time:units = "days since 2000-01-01" ;
+  double lat(instance) ;
+    lat:units = "degrees_north" ;
+    lat:standard_name = "latitude" ;
+    lat:nodes = "y" ;
+  double lon(instance) ;
+    lon:units = "degrees_east" ;
+    lon:standard_name = "longitude" ;
+    lon:nodes = "x" ;
+  int datum ;
+    datum:grid_mapping_name = "latitude_longitude" ;
+    datum:longitude_of_prime_meridian = 0.0 ;
+    datum:semi_major_axis = 6378137.0 ;
+    datum:inverse_flattening = 298.257223563 ;
+  int node_count(instance) ;
+  int geometry_container ;
+    geometry_container:geometry_type = "point" ;
+    geometry_container:node_coordinates = "x y" ;
+    geometry_container:node_count = "node_count" ;
+  double x(node) ;
+    x:units = "degrees_east" ;
+    x:standard_name = "longitude" ;
+    x:axis = "X" ;
+  double y(node) ;
+    y:units = "degrees_north" ;
+    y:standard_name = "latitude" ;
+    y:axis = "Y" ;
+  double someData(instance, time) ;
+    someData:coordinates = "time lat lon" ;
+    someData:grid_mapping = "datum" ;
+    someData:geometry = "geometry_container" ;
+// global attributes:
+  :featureType = "timeSeries" ;
+data:
+  time = 1, 2, 3, 4 ;
+  lat = 30, 50 ;
+  lon = 10, 60 ;
+  someData =
+    1, 2, 3, 4,
+    1, 2, 3, 4 ;
+  node_count = 3, 2 ;
+  x = 30, 10, 40, 50, 50 ;
+  y = 10, 30, 40, 60, 50 ;
+}
