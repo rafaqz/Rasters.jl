@@ -187,7 +187,7 @@ function Base.write(path::AbstractString, A::AbstractRasterSeries;
     base, path_ext = splitext(path)
     ext = isnothing(ext) ? path_ext : ext
     map(A, DimPoints(A)) do raster, p
-        lookupstring = join(map(string, p), "_")
+        lookupstring = join(map(string, p), "_")::String
         written_paths = if raster isa RasterStack && !haslayers(source)
             stack_dir = joinpath(dirname(base), lookupstring)
             mkpath(stack_dir)
