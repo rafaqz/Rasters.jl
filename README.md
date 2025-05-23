@@ -6,6 +6,7 @@
 [![CI](https://github.com/rafaqz/Rasters.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaqz/Rasters.jl/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/rafaqz/Rasters.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/rafaqz/Rasters.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![Downloads](https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Fmonthly_downloads%2FDataFrames&query=total_requests&suffix=%2Fmonth&label=Downloads)](https://juliapkgstats.com/pkg/Rasters)
 
 [Rasters.jl](https://rafaqz.github.io/Rasters.jl/dev) is a powerful Julia package for working with spatial raster data. It provides a unified interface for reading, writing, and manipulating raster data. The package extends [DimensionalData.jl](https://rafaqz.github.io/DimensionalData.jl/dev/) to enable intuitive spatial indexing and manipulation of raster data.
 
