@@ -46,7 +46,6 @@ makedocs(
     source = "src",
     build = "build",
     warnonly=true,
-    draft = true
 )
 
 # Enable logging to console again
