@@ -683,7 +683,7 @@ function RasterStack(dt::AbstractDimTree; keep=nothing)
     end
 end
 # TODO resolve the meaning of Raster(::RasterStack)
-Raster(stack::AbstractDimStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
+Raster(stack::AbstractDimStack; kw...) = Raster(cat(values(stack)...; dims=Band([keys(stack)...])); kw...)
 # In DD it would be 
 # Raster(st::AbstractDimStack) =
     # Raster([st[D] for D in DimIndices(st)]; dims=dims(st), metadata=metadata(st))

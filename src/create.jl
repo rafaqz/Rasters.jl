@@ -247,7 +247,7 @@ function create(filename::Nothing, types::NamedTuple, dims::Tuple;
     fill=nokw,
     layerdims=nokw,
     layermetadata=nokw,
-    lazy::Bool=false,
+    lazy=false,
     f=identity,
     kw...
 )
