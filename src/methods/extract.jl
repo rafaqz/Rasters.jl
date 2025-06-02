@@ -170,10 +170,46 @@ Base.@constprop :aggressive @inline function extract(x::RasterStackOrArray, data
         gs = _get_geometries(data, geometrycolumn)
         gs, (isempty(gs) || all(ismissing, gs)) ? missing : first(Base.skipmissing(gs))
     end
+    # Taken from zonal.jl and _mapspatialslices there.
+    spatialdims = (Val{DD.XDim}(), Val{DD.YDim}())
+    dimswewant = DD.otherdims(x, spatialdims)
 
-    e = Extractor(x, g1; name, skipmissing, flatten, id, geometry, index)
-    id_init = 1
-    return _extract(x, e, id_init, g; kw...)
+    if isempty(dimswewant) # the raster is 2 dimensional in spatial dims only
+        e = Extractor(x, g1; name, skipmissing, flatten, id, geometry, index)
+        id_init = 1
+        return _extract(x, e, id_init, g; kw...)
+    else # the raster has other dims than spatial dims, so we need to slice through them 
+        # and return...that's right...a VECTOR DATA CUBE!
+        # Taken from zonal.jl and _mapspatialslices there.
+        # just get the first index of the "other" dims.  
+        # This assumes they are nonzero in length but that seems reasonable, for now.
+        slicedims = rebuild.(dims(x, dimswewant), 1)
+        ras_for_extractor_construction = view(x, slicedims...)
+        @assert isfalse(skipmissing) "skipmissing must be false for >2d data cubes"
+        # TODO: this is inefficient, because it's doing the burning once per slice
+        # instead, it should do it once total and then reuse, even if that allocates.
+        extractor = Extractor(ras_for_extractor_construction, g1; name, skipmissing = false, flatten, id, geometry, index)
+        id_init = 1
+        result_for_each_spatial_slice = _mapspatialslices(x; spatialdims) do xy_ras
+            id_init = 1
+            res1 = _extract(xy_ras, extractor, id_init, g; kw...)
+            # Remove the geometry from the result
+            if isa(res1, AbstractArray)
+                return Base.structdiff.(res1, ((; geometry=1,),))
+            else
+                return Base.structdiff(res1, (; geometry=1,),)
+            end
+        end
+
+        if GI.isgeometry(data) || GI.isfeature(data)
+            rebuild(result_for_each_spatial_slice; refdims = Geometry(data))
+        else # featurecollection, table, vector.
+            backing_array = __do_cat_with_last_dim_multidim_version(result_for_each_spatial_slice)
+            backing_dim = Geometry(GeometryLookup(g))
+            return rebuild(result_for_each_spatial_slice; data = backing_array, dims = (backing_dim, dims(result_for_each_spatial_slice)...))
+        end
+    end
+    
 end
 
 # TODO use a GeometryOpsCore method like `applyreduce` here?
