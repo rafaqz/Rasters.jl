@@ -37,10 +37,10 @@ function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source, missin
 end
 
 cleankeys(name) = (_cleankey(name),)
-function cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray})
+cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray}) =
     Tuple(map(_cleankey, keys, ntuple(i -> i, length(keys))))
-end
 
+_cleankey(::Nothing) = throw(ArgumentError("Name is nothing: this should not be reached"))
 function _cleankey(name::Union{Symbol,AbstractString,Name,NoName}, i=1)
     if name in (NoName(), Symbol(""), Name(Symbol("")))
         Symbol("layer$i")
@@ -240,7 +240,9 @@ end
 function _get_geometries(data, ::Nothing)
     # if it's a table, get the geometry column
     geoms = if !(data isa AbstractVector{<:GeoInterface.NamedTuplePoint}) && Tables.istable(data)
-        geomcol = first(GI.geometrycolumns(data))
+        geomcols = GI.geometrycolumns(data)
+        isempty(geomcols) && throw(ArgumentError("No geometry columns found in the table"))
+        geomcol = first(geomcols)
         !in(geomcol, Tables.columnnames(Tables.columns(data))) &&
             throw(ArgumentError("Expected geometries in the column `$geomcol`, but no such column found."))
         isnothing(geomcol) && throw(ArgumentError("No default `geometrycolumn` for this type, please specify it manually."))
