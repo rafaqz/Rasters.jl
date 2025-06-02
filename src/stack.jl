@@ -293,6 +293,7 @@ function RasterStack(layers::NamedTuple{K,<:Tuple{Vararg{AbstractDimArray}}};
     metadata=NoMetadata(),
     layermetadata::NamedTuple{K}=map(DD.metadata, _layers),
     layerdims::NamedTuple{K}=map(DD.basedims, _layers),
+    lazy=false,
     kw...
 ) where K
     data = map(parent, _layers)

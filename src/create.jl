@@ -247,9 +247,11 @@ function create(filename::Nothing, types::NamedTuple, dims::Tuple;
     fill=nokw,
     layerdims=nokw,
     layermetadata=nokw,
+    lazy::Bool=false,
     f=identity,
     kw...
 )
+    lazy && throw(ArgumentError("`lazy` cannot be `true` without passing a `filename` keyword"))
     layerdims = isnokw(layerdims) ? map(_ -> basedims(dims), types) : layerdims
     layermetadata = layermetadata isa NamedTuple ? layermetadata : map(_ -> layermetadata, types)
     layerfill = fill isa NamedTuple ? fill : map(_ -> fill, types)
