@@ -21,6 +21,7 @@ import Adapt,
        FillArrays,
        Flatten,
        GeoInterface,
+       GeometryOps,
        GeometryOpsCore,
        OffsetArrays,
        ProgressMeter,
@@ -29,6 +30,7 @@ import Adapt,
        RecipesBase,
        Reexport,
        Setfield,
+       SortTileRecursiveTree,
        Statistics
 
 Reexport.@reexport using DimensionalData, GeoFormatTypes
@@ -62,8 +64,8 @@ export Planar, Spherical
 export AbstractRaster, Raster
 export AbstractRasterStack, RasterStack
 export AbstractRasterSeries, RasterSeries
-export Projected, Mapped
-export Band
+export Projected, Mapped, GeometryLookup
+export Band, Geometry
 export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!,
        resample, warp, zonal, crop, extend, trim, slice, combine, points,
@@ -76,6 +78,7 @@ export Extent, extent
 const DD = DimensionalData
 const DA = DiskArrays
 const GI = GeoInterface
+const GO = GeometryOps
 const LA = Lookups
 
 # DimensionalData documentation urls
@@ -118,6 +121,11 @@ const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}
 
 include("utils.jl")
 include("skipmissing.jl")
+
+include("geometry_lookup/geometry_lookup.jl")
+include("geometry_lookup/lookups.jl")
+include("geometry_lookup/methods.jl")
+include("geometry_lookup/io.jl")
 
 include("table_ops.jl")
 include("create.jl")

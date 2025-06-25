@@ -332,3 +332,34 @@ _prepare_dimarray(A) = DimArray(map(x -> _convert_with_missing(x, missingval(A))
 
 _convert_with_missing(x::Real, missingval) = isequal(x, missingval) || ismissing(x) ? NaN32 : Float32(x)
 _convert_with_missing(x, missingval) = isequal(x, missingval) ? missing : x
+
+Makie.expand_dimensions(::Type{<: Makie.Poly}, A::Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}) where {T} = nothing
+Makie.expand_dimensions(::Makie.NoConversion, A::Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}) where {T} = nothing
+
+function Makie.convert_arguments(::Type{<: Makie.Poly}, A::Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}) where {T}
+    geometries = lookup(only(dims(A))).data
+    color = replace_missing(A, NaN).data
+    label = string(Rasters.DD.name(A))
+    isempty(label) && (label = string(Rasters.DD.name(only(dims(A)))))
+    
+    return Makie.SpecApi.Poly(
+        geometries; 
+        color = color, 
+        label = label
+    )
+end
+
+
+Makie.expand_dimensions(::Type{<: Makie.Poly}, A::Base.SkipMissing{<: Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}}) where {T} = nothing
+Makie.expand_dimensions(::Type{<: Makie.Poly}, A::Rasters.SkipMissingVal{<: Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}}) where {T} = nothing
+
+Makie.expand_dimensions(::Makie.NoConversion, A::Base.SkipMissing{<: Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}}) where {T} = nothing
+Makie.expand_dimensions(::Makie.NoConversion, A::Rasters.SkipMissingVal{<: Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}}) where {T} = nothing
+
+function Makie.convert_arguments(::Type{<: Makie.Poly}, A::Base.SkipMissing{<: Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}}) where {T}
+    return Makie.convert_arguments(Makie.Poly, A.x[ismissing.(A.x)])
+end
+
+function Makie.convert_arguments(::Type{<: Makie.Poly}, A::Rasters.SkipMissingVal{<: Raster{T, 1, <: Tuple{<: Dimension{<:GeometryLookup}}}}) where {T}
+    return Makie.convert_arguments(Makie.Poly, A.x[ismissing.(A.x)])
+end
