@@ -106,7 +106,7 @@ end
 
     GI.npoint(geom) > 0 || return edge_count, max_ylen, min_y
     xlookup, ylookup = lookup(dims, (X(), Y())) 
-    (length(xlookup) > 0 && length(ylookup) > 0) || return edge_count, max_ylen
+    (length(xlookup) > 0 && length(ylookup) > 0) || return edge_count, max_ylen, min_y
 
     # Raster properties
     starts = (Float64(first(xlookup)), Float64(first(ylookup)))

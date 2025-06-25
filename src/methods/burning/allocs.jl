@@ -10,6 +10,7 @@ function Allocs(buffer)
     crossings = Vector{Float64}(undef, 0)
     return Allocs(buffer, edges, scratch, crossings)
 end
+Allocs() = Allocs(nothing)
 
 function _burning_allocs(x; 
     nthreads=_nthreads(), 
@@ -19,7 +20,7 @@ function _burning_allocs(x;
 ) 
     if threaded
         if isnothing(x)
-            [Allocs(nothing) for _ in 1:nthreads]
+            [Allocs() for _ in 1:nthreads]
         else
             dims = commondims(x, DEFAULT_POINT_ORDER)
             [Allocs(_init_bools(dims; metadata=deepcopy(burncheck_metadata))) for _ in 1:nthreads]
