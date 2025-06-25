@@ -32,3 +32,16 @@ end
     @test _chunks_to_tuple(template, (X(), Y(), Ti()), (Y(8), X(12))) == (12, 8, 1)
     @test _chunks_to_tuple(template, (Ti(), X(), Y()), (Y(8), X(12))) == (1, 12, 8)
 end
+
+@testset "booltypes" begin
+    @test istrue(_True())
+    @test istrue(true)
+    @test istrue(_True())
+
+    @test isfalse(_False())
+    @test isfalse(false)
+    @test isfalse(_False())
+
+    @test !istrue(10)
+    @test !isfalse(10)
+end
