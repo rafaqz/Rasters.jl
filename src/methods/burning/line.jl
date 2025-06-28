@@ -115,23 +115,23 @@ function _burn_line!(f::Function, c::Function, dims::Tuple, line::NamedTuple)
     # Ray/Slope calculations
     # Straight distance to the first vertical/horizontal grid boundaries
     if relstop.x > relstart.x
-        xoffset = trunc(relstart.x) - relstart.x + 1 
-        xmoves = trunc(Int, relstop.x) - trunc(Int, relstart.x)
+        xoffset = floor(relstart.x) - relstart.x + 1 
+        xmoves = floor(Int, relstop.x) - floor(Int, relstart.x)
     else
-        xoffset = relstart.x - trunc(relstart.x)
-        xmoves = trunc(Int, relstart.x) - trunc(Int, relstop.x)
+        xoffset = relstart.x - floor(relstart.x)
+        xmoves = floor(Int, relstart.x) - floor(Int, relstop.x)
     end
     if relstop.y > relstart.y
-        yoffset = trunc(relstart.y) - relstart.y + 1
-        ymoves = trunc(Int, relstop.y) - trunc(Int, relstart.y)
+        yoffset = floor(relstart.y) - relstart.y + 1
+        ymoves = floor(Int, relstop.y) - floor(Int, relstart.y)
     else
-        yoffset = relstart.y - trunc(relstart.y)
-        ymoves = trunc(Int, relstart.y) - trunc(Int, relstop.y)
+        yoffset = relstart.y - floor(relstart.y)
+        ymoves = floor(Int, relstart.y) - floor(Int, relstop.y)
     end
     manhattan_distance = xmoves + ymoves
 
     # Int starting points for the line. +1 converts to julia indexing
-    j, i = trunc(Int, relstart.x) + 1, trunc(Int, relstart.y) + 1 # Int
+    j, i = floor(Int, relstart.x) + 1, floor(Int, relstart.y) + 1 # Int
 
     n_on_line = 0
     

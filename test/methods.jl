@@ -364,6 +364,7 @@ end
         @test !zonal(x -> x isa Raster, rast; of=polygon, skipmissing=true)
         @test zonal(x -> x isa Raster, rast; of=polygon, skipmissing=false)
     end
+
 end
 
 @testset "zonal return missing" begin
