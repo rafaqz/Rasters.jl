@@ -12,8 +12,6 @@ _gribdataset(filename, mode="") = GDS.GRIBDataset(filename)
 
 RA.checkwritemode(::GRIBsource, filename, append::Bool, force::Bool) =
     throw(ArgumentError("GRIBDatasets.jl does not support writing"))
-RA.checkfilename(::GRIBsource, filename) =
-    isfile(filename) || _filenotfound_error(filename)
 
 # In GRIBDatasets, the file is open for reading the values and closed afterwards. 
 Base.close(os::RA.OpenStack{GRIBsource}) = nothing

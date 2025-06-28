@@ -274,7 +274,7 @@ end
 
 # Rasters methods
 function _open(f, source::GRDsource, filename::AbstractString; kw...)
-    isfile(filename) || _filenotfound_error(filename)
+    isfile(realpath(filename)) || _filenotfound_error(filename)
     _open(f, source, GRDdataset(filename); kw...)
 end
 function _open(f, source::GRDsource, ds::GRDdataset; write=false, kw...)

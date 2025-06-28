@@ -110,8 +110,8 @@ function RA._open(f, ::GDALsource, filename::AbstractString;
             if RA._isurl(filename)
                 filename = "/vsicurl/" * filename
             else
-                # Throw our own error that the file does not exist
-                RA._filenotfound_error(filename)
+                # `realpath` will throw our own error if the file does not exist
+                realpath(filename)
             end
         end
     end
