@@ -174,6 +174,8 @@ end
         @test size(dsstack) == size(gribstack)
     end
     @testset "open a stack" begin
+        Rasters.DiskArrays.allowscalar(true)
         @test open(first, gribstack) == open(first, gribstackraw) == gribstack[1]
+        Rasters.DiskArrays.allowscalar(true)
     end
 end
