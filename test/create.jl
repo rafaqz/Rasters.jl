@@ -128,6 +128,14 @@ end
         @test Rasters.name(st1) == (:c, :d)
         @test missingval(st1) === (c=0x00, d=Int16(1))
     end
+
+    @testset "lazy must have filename" begin
+        @test_throws ArgumentError Rasters.create((a=Int32, b=Float64, c=Bool), Extents.Extent(X=(0, 10), Y=(0, 5));
+            size=(X=1024, Y=1024),
+            lazy=true,
+        ) do st
+        end
+    end
 end
 
 ext = ".nc"
