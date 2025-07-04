@@ -118,7 +118,6 @@ include("utils.jl")
 include("skipmissing.jl")
 
 include("geometry_lookup/geometry_lookup.jl")
-include("geometry_lookup/lookups.jl")
 include("geometry_lookup/methods.jl")
 include("geometry_lookup/io.jl")
 

@@ -2,7 +2,7 @@ netcdf reduced_horizontal_grid {
 dimensions:
   londim = 128 ;
   latdim = 64 ;
-  rgrid = 6144 ;
+  rgrid = 4 ;
 variables:
   float PS(rgrid) ;
     PS:long_name = "surface pressure" ;
@@ -16,4 +16,8 @@ variables:
     lat:units = "degrees_north" ;
   int rgrid(rgrid);
     rgrid:compress = "latdim londim";
+data:
+    PS = 0.1, 0.2, 0.3, 0.4 ;
+    lon=1., 2., 3., 4. ;
+    lat=10., 20., 30., 40. ;
 }

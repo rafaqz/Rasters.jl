@@ -196,8 +196,6 @@ function _layermetadata(ds::AbstractDataset; attrs)
 end
 
 
-# Utils ########################################################################
-
 # Get the names of all data layers, removing
 # coordinate, bounds, and geometry variables etc
 function _layer_names(ds) 
@@ -243,9 +241,9 @@ function _layer_names(ds, var_names, vars_dict, attrs_dict)
         haskey(attr, "grid_mapping") && append!(grid_mapping_names, _grid_mapping_keys(attr["grid_mapping"]))
         # Units metadata variables
         haskey(attr, "units_metadata") && push!(units_metadata_names, attr["units_metadata"])
-        # Common Standard names - very likely coordinates
-        haskey(attr, "standard_name") && attr["standard_name"] in keys(CDM_STANDARD_NAME_MAP) && 
-            push!(standard_names, n)
+        # Common Standard names - very likely coordinates, but is this needed?
+        # haskey(attr, "standard_name") && attr["standard_name"] in keys(CDM_STANDARD_NAME_MAP) && 
+            # push!(standard_names, n)
     end
     dim_names = CDM.dimnames(ds)
     return setdiff(var_names,
@@ -415,20 +413,13 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
     #     span = Explicit(c)
     #     Cyclic(data; cycle, order, sampling, span, bounds)
     # end
-    # if haskey(ds, dimname) && (isempty(coord_names) || dimname in coord_names)
-    #     dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, dimname)
-    #     # The dimension has a matching variable, and it's one of the coordinates
-    #     D = _cdm_dimtype(dim_attrs, dimname)
-    #     lookup = _cdm_lookup(ds, dim_attrs, dimname, D, crs)
-    #     return D(lookup)
-    # end
     # No matching variable was found, so we have something more complicated
     # Get all the coordinates for this dimension
     dimension_coord_names = filter(coord_names) do coordname
         coord_dimnames = CDM.dimnames(_get_var!(ds, vars_dict, coordname))
         dimname in coord_dimnames
     end
-    if length(dimension_coord_names) > 1
+    if length(dimension_coord_names) > 0
         linked_dimname = dimension_coord_names[1]
         dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, linked_dimname)
         dim_var = _get_var!(ds, vars_dict, linked_dimname)
@@ -436,13 +427,13 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
             chars = collect(dim_var)
             # Join char dimension as String, stripping null terminators
             strings = String.(strip.(join.(eachslice(chars; dims=2)), '\0'))
-            lookup = Categorical(strings; order=Unordered())
+            metadata = _metadatadict(sourcetrait(ds), dim_attrs)
+            lookup = Categorical(strings; order=Unordered(), metadata)
             D = _cdm_dimtype(dim_attrs, linked_dimname)
             return D(lookup)
         end
         if length(dimension_coord_names) == 1
             # If there is only one coordinate, just use it as the dimension
-            # This should rarely happen
             D = _cdm_dimtype(dim_attrs, linked_dimname)
             lookup = _cdm_lookup(ds, dim_attrs, linked_dimname, D, crs)
             return D(lookup)
@@ -451,6 +442,7 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
             _get_var!(ds, vars_dict, d)
         end
         is_multidimensional = any(v -> length(CDM.dimnames(v)) > 1, dim_vars)
+        @show is_multidimensional
         if is_multidimensional
             # Rotations
             # For now we don't use ArrayLookup
@@ -472,12 +464,21 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
             return D(MergedLookup(merged_data, Tuple(dims)))
         end
     end
+
+    if haskey(ds, dimname)
+        dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, dimname)
+        # The dimension has a matching variable, and it's one of the coordinates
+        D = _cdm_dimtype(dim_attrs, dimname)
+        lookup = _cdm_lookup(ds, dim_attrs, dimname, D, crs)
+        return D(lookup)
+    end
+
     # A matching variable doesn't exist. 
-    # Its a "discrete axis" (4.5) so NoLookup
+    # It must be a "discrete axis" (CF 4.5) so NoLookup
     len = CDM.dim(ds, dimname)
     lookup = NoLookup(Base.OneTo(len))
     D = _cdm_dimtype(NoMetadata(), dimname)
-    D(lookup)
+    return D(lookup)
 end
 
 # TODO don't load all keys here with _layers
@@ -961,18 +962,22 @@ function _grid_mapping_keys(grid_mapping_key::String)
     end
 end
 
+# Get a variable and store it in a dict
 _get_var!(ds, dict, key) = get!(() -> CDM.variable(ds, key), dict, key)
-_get_attr!(ds, var_dict, attr_dict, key) =
+
+# Get atributes and store them in a dict
+function _get_attr!(ds, var_dict, attr_dict, key)
     get!(attr_dict, key) do 
         var = _get_var!(ds, var_dict, key)
         CDM.attribs(var)
     end
+end
 
-_eltype(::Source, var) = eltype(var)
-_eltype(::CDMsource, var::AbstractArray) = eltype(var)
+# We need a custom `eltype` method because Char is convered to String
 _eltype(::CDMsource, var::AbstractArray{Char}) = String
+_eltype(::Source, var) = eltype(var)
 
-# TODO just the core of this function here
+# TODO keep just the core of this function here
 function _raster(ds::CDM.AbstractDataset;
     dims=nokw,
     refdims=nokw,

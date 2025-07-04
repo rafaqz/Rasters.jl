@@ -1,6 +1,6 @@
 netcdf northward_heat_transport_in_atlantic_ocean { 
 dimensions:
-  time = 20 ;
+  time = 4 ;
   lat = 5 ;
   lbl = 1 ;
 variables:
@@ -15,8 +15,9 @@ variables:
     lat:long_name = "latitude" ;
     lat:units = "degrees_north" ;
   string geo_region(lbl) ;
-    geo_region:standard_name="region" ;
+    geo_region:standard_name="region";
 data:
   geo_region = "atlantic_ocean" ;
   lat = 10., 20., 30., 40., 50. ;
+  time = 0, 1, 2, 3 ;
 }

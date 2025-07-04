@@ -1,4 +1,4 @@
-netcdf a_domain_containing_cell_areas_for_a_spherical_geodesic_grid {
+netcdf 5_17_a_domain_containing_cell_areas_for_a_spherical_geodesic_grid {
 dimensions:
   cell = 2562 ;  // number of grid cells
   time = 12 ;
