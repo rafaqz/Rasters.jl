@@ -293,6 +293,7 @@ function RasterStack(layers::NamedTuple{K,<:Tuple{Vararg{AbstractDimArray}}};
     metadata=NoMetadata(),
     layermetadata::NamedTuple{K}=map(DD.metadata, _layers),
     layerdims::NamedTuple{K}=map(DD.basedims, _layers),
+    lazy=false,
     kw...
 ) where K
     data = map(parent, _layers)
@@ -672,17 +673,21 @@ end
 
 Base.convert(::Type{RasterStack}, src::AbstractDimStack) = RasterStack(src)
 
-# For ambiguity. TODO: remove this method from DD ?
-function RasterStack(dt::AbstractDimTree; keep=nothing)
-    if isnothing(keep)
-        pruned = DD.prune(dt; keep)
-        RasterStack(pruned[Tuple(keys(pruned))])
-    else
-        RasterStack(dt[Tuple(keys(dt))])
+@static if :AbstractDimTree in names(DimensionalData)
+    # For ambiguity. TODO: remove this method from DD ?
+    function RasterStack(dt::AbstractDimTree; keep=nothing)
+        if isnothing(keep)
+            pruned = DD.prune(dt; keep)
+            RasterStack(pruned[Tuple(keys(pruned))])
+        else
+            RasterStack(dt[Tuple(keys(dt))])
+        end
     end
 end
+
+
 # TODO resolve the meaning of Raster(::RasterStack)
-Raster(stack::AbstractDimStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
+Raster(stack::AbstractDimStack; kw...) = Raster(cat(values(stack)...; dims=Band([keys(stack)...])); kw...)
 # In DD it would be 
 # Raster(st::AbstractDimStack) =
     # Raster([st[D] for D in DimIndices(st)]; dims=dims(st), metadata=metadata(st))
