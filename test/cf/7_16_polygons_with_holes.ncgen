@@ -1,0 +1,60 @@
+netcdf polygons_with_holes {
+dimensions:
+  node = 12 ;
+  instance = 2 ;
+  part = 4 ;
+  time = 4 ;
+variables:
+  int time(time) ;
+    time:units = "days since 2000-01-01" ;
+  double x(node) ;
+    x:units = "degrees_east" ;
+    x:standard_name = "longitude" ;
+    x:axis = "X" ;
+  double y(node) ;
+    y:units = "degrees_north" ;
+    y:standard_name = "latitude" ;
+    y:axis = "Y" ;
+  double lat(instance) ;
+    lat:units = "degrees_north" ;
+    lat:standard_name = "latitude" ;
+    lat:nodes = "y" ;
+  double lon(instance) ;
+    lon:units = "degrees_east" ;
+    lon:standard_name = "longitude" ;
+    lon:nodes = "x" ;
+  float geometry_container ;
+    geometry_container:geometry_type = "polygon" ;
+    geometry_container:node_count = "node_count" ;
+    geometry_container:node_coordinates = "x y" ;
+    geometry_container:grid_mapping = "datum" ;
+    geometry_container:coordinates = "lat lon" ;
+    geometry_container:part_node_count = "part_node_count" ;
+    geometry_container:interior_ring = "interior_ring" ;
+  int node_count(instance) ;
+  int part_node_count(part) ;
+  int interior_ring(part) ;
+  float datum ;
+    datum:grid_mapping_name = "latitude_longitude" ;
+    datum:semi_major_axis = 6378137. ;
+    datum:inverse_flattening = 298.257223563 ;
+    datum:longitude_of_prime_meridian = 0. ;
+  double someData(instance, time) ;
+    someData:coordinates = "time lat lon" ;
+    someData:grid_mapping = "datum" ;
+    someData:geometry = "geometry_container" ;
+// global attributes:
+  :featureType = "timeSeries" ;
+data:
+ time = 1, 2, 3, 4 ;
+ x = 20, 10, 0, 5, 10, 15, 20, 10, 0, 50, 40, 30 ;
+ y = 0, 15, 0, 5, 10, 5, 20, 35, 20, 0, 15, 0 ;
+ lat = 25, 7 ;
+ lon = 10, 40 ;
+ node_count = 9, 3 ;
+ part_node_count = 3, 3, 3, 3 ;
+ interior_ring = 0, 1, 0, 0 ;
+ someData =
+   1, 2, 3, 4,
+   1, 2, 3, 4 ;
+}

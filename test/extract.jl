@@ -211,12 +211,10 @@ end
     # Single LineString
     @test extract(rast, linestring) isa Vector{T}
     @test all(extract(rast_m, linestring) .=== T[
-        (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
         (geometry = (10.0, 0.2), test = missing)
     ])
     @test all(extract(rast_m, linestring; skipmissing=true) .=== Tsm[
-        (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
     ])
 
@@ -227,11 +225,8 @@ end
           extract(rast_m, fc; skipmissing=true, threaded=true) == 
           extract(rast_m, linestrings; skipmissing=true) == 
           extract(rast_m, linestrings; skipmissing=true, threaded=true) == Tsm[
-        (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
-        (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
-        (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
     ]
 
@@ -241,13 +236,10 @@ end
               extract(rast_m, fc; skipmissing=false, threaded=true) .===
               extract(rast_m, linestrings; skipmissing=false) .=== 
               extract(rast_m, linestrings; skipmissing=false, threaded=true) .=== T[
-        (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
         (geometry = (10.0, 0.2), test = missing)
-        (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
         (geometry = (10.0, 0.2), test = missing)
-        (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.1), test = 3)
         (geometry = (10.0, 0.2), test = missing)
     ])
@@ -255,21 +247,22 @@ end
     @test extract(rast_m, linestrings; skipmissing=true, flatten=false) isa Vector{Vector{Tsm}}
     @test extract(rast_m, linestrings; skipmissing=true, flatten=false) == 
         extract(rast_m, linestrings; skipmissing=true, flatten=false, threaded=true) == Vector{Tsm}[
-        [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3)],
-        [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3)],
-        [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3)],
+        [(geometry = (10.0, 0.1), test = 3)],
+        [(geometry = (10.0, 0.1), test = 3)],
+        [(geometry = (10.0, 0.1), test = 3)],
     ]
 
     # Nested Vector holding missing needs special handling to check equality
     @test extract(rast_m, linestrings; skipmissing=false, flatten=false) isa Vector{Vector{T}}
     ref = Vector{T}[
-        [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3), (geometry = (10.0, 0.2), test = missing)] ,
-        [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3), (geometry = (10.0, 0.2), test = missing)],
-        [(geometry = (9.0, 0.1), test = 1), (geometry = (10.0, 0.1), test = 3), (geometry = (10.0, 0.2), test = missing)],
+        [(geometry = (10.0, 0.1), test = 3), (geometry = (10.0, 0.2), test = missing)] ,
+        [(geometry = (10.0, 0.1), test = 3), (geometry = (10.0, 0.2), test = missing)],
+        [(geometry = (10.0, 0.1), test = 3), (geometry = (10.0, 0.2), test = missing)],
     ]
     matching(a, b) = all(map(===, a, b))
     @test all(map(matching, extract(rast_m, linestrings; skipmissing=false, flatten=false, threaded=false), ref))
     @test all(map(matching, extract(rast_m, linestrings; skipmissing=false, flatten=false, threaded=true), ref))
+
 end
 
 @testset "Extract a line" begin

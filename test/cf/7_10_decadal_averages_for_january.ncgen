@@ -1,0 +1,21 @@
+netcdf decadal_averages_for_january {
+dimensions:
+  time=3;
+  nv=2;
+  lat=10; // added
+  lon=10; // added
+variables:
+  float precipitation(time,lat,lon);
+    precipitation:long_name="precipitation amount";
+    precipitation:cell_methods="time: sum within years time: mean over years";
+    precipitation:units="kg m-2";
+  double time(time);
+    time:climatology="climatology_bounds";
+    time:units="days since 1901-1-1";
+  double climatology_bounds(time,nv);
+data:  // time coordinates translated to datetime format
+  time="1965-1-15", "1975-1-15", "1985-1-15" ;
+  climatology_bounds="1961-1-1", "1970-2-1",
+                     "1971-1-1", "1980-2-1",
+                     "1981-1-1", "1990-2-1" ;
+}

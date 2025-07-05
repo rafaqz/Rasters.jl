@@ -1,0 +1,15 @@
+netcdf units_metadata {
+variables:
+  float Tonscale;
+    Tonscale:long_name="global-mean surface temperature";
+    Tonscale:standard_name="surface_temperature";
+    Tonscale:units="degC";
+    Tonscale:units_metadata="temperature: on_scale";
+    Tonscale:cell_methods="area: mean";
+  float Tdifference;
+    Tdifference:long_name="change in global-mean surface temperature relative to pre-industrial";
+    Tdifference:standard_name="surface_temperature";
+    Tdifference:units="degC";
+    Tdifference:units_metadata="temperature: difference";
+    Tdifference:cell_methods="area: mean";
+}

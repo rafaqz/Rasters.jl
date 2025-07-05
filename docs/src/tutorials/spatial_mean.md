@@ -147,7 +147,7 @@ As a next step, we would like to know how precipitation will change in Chile unt
 
 To start, we define a simple function that takes an SSP (socioeconomic scenario) and a GCM (climate model) as input, and return the appropriate climate data. 
 
-````@example zonal
+````@example cellarea
 using Dates
 getfutureprec(ssp, gcm) = Raster(WorldClim{Future{Climate, CMIP6, gcm, ssp}}, :prec, date = Date(2090))
 ````
@@ -163,11 +163,10 @@ GCMs = Dim{:gcm}([GFDL_ESM4, IPSL_CM6A_LR]) # These are different general circul
 precip_future = (@d getfutureprec.(SSPs, GCMs)) |> RasterSeries |> Rasters.combine
 ````
 
-Since the format of WorldClim's datasets for future climate is slightly different from the dataset for the historical period, this actually returned a 5-dimensional raster, with a `Band` dimension that represents months. Here we'll just select the 6th month, matching the selection above (but note that the analysis would also work for all Bands simultaneously). We will also replace the `NaN` missing value by the more standard `missing` using [`replace_missing`](@ref). 
+Since the format of WorldClim's datasets for future climate is slightly different from the dataset for the historical period, this actually returned a 5-dimensional raster, with a `Band` dimension that represents months. Here we'll just select the 6th month, matching the selection above (but note that the analysis would also work for all Bands simultaneously).
 
 ````@example cellarea
 precip_future = precip_future[Band = 6]
-precip_future = replace_missing(precip_future)
 ````
 
 On our 4-dimensional raster, functions like `crop` and `mask`, as well as broadcasting, will still work.
