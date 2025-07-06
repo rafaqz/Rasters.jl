@@ -182,6 +182,7 @@ DD.hasmultipledimensions(lookup::Mapped) = true
 GeoInterface.crs(lookup::Mapped) = lookup.crs
 mappedcrs(lookup::Mapped) = lookup.mappedcrs
 dim(lookup::Mapped) = lookup.dim
+DD.dim(lookup::Mapped) = lookup.dims
 
 """
     convertlookup(dstlookup::Type{<:Lookup}, x)

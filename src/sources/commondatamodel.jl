@@ -369,116 +369,153 @@ end
 _organise_dataset(ds::AbstractDataset, names, group) =
     _organise_dataset(ds.group[group], names, nokw)
 
+
 function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, coord_names, dimname, crs)
-    if !isnothing(geometry_key)
-        geometry_attrs = _get_attr!(ds, vars_dict, attrs_dict, geometry_key)
-        # Check that the geometry is for this dimension
-        is_geometry_dimension = if haskey(geometry_attrs, "node_count")
-            # Multi-part geometries 
-            dimname in CDM.dimnames(_get_var!(ds, vars_dict, geometry_attrs["node_count"]))
-        else
-            # Points
-            dimname in CDM.dimnames(_get_var!(ds, vars_dict, first(_cf_node_coordinate_names(geometry_attrs))))
-        end
-        geoms = get!(geometry_dict, geometry_key) do
-            _cf_geometry_decode(ds, geometry_attrs)
-        end
-        if is_geometry_dimension
-            dimension_coord_names = filter(coord_names) do coordname
-                dimnames = CDM.dimnames(_get_var!(ds, vars_dict, coordname))
-                length(dimnames) == 1 && only(dimnames) == dimname  
-            end
-            lookup = GeometryLookup(geoms, (X(), Y()); crs)
-            D = Geometry
-            return D(lookup)
-        end
+    # First check for geometry dimensions (remove most complicted first)
+    if is_geometry(ds, vars_dict, attrs_dict, geometry_key, dimname)
+        return _geometry_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, crs)
     end
-    # TODO Cycled climatology dims
-    # if haskey(dim_attrs, "climatology")
-    #     climatology_bounds = _get_var(ds, vars_dict, dim_attrs["climatology"])
-    #     var = _get_var(ds, vars_dict, var_name)
-    #     var_attib = _get_attr!(ds, vars_dict, attrs_dict, var_name)
-    #     # We need to know if this is over years/months/days etc
-    #     diff = map((second, minute, hour, day, month, year)) do f
-    #         f(climatology_bounds[:, 2]) - f(climatology_bounds[:, 1])
-    #     end
-    #     # Find the smallest step
-    #     i = findfirst(>(0), diff)
-    #     step = (Second, Minute, Hour, Day, Month, Year)[i](diff[i])
-    #     # Find the total time span
-    #     bounds = extrema(climatology_bounds)
-    #     data = collect(dim_var)
-    #     order = LA.orderof(data)
-    #     sampling = Regular(step)
-    #     span = Explicit(c)
-    #     Cyclic(data; cycle, order, sampling, span, bounds)
-    # end
-    # No matching variable was found, so we have something more complicated
-    # Get all the coordinates for this dimension
+
+    # Then get all the coordinates for this dimension
     dimension_coord_names = filter(coord_names) do coordname
         coord_dimnames = CDM.dimnames(_get_var!(ds, vars_dict, coordname))
         dimname in coord_dimnames
     end
-    if length(dimension_coord_names) > 0
-        linked_dimname = dimension_coord_names[1]
-        dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, linked_dimname)
-        dim_var = _get_var!(ds, vars_dict, linked_dimname)
-        if ndims(dim_var) > 1 && eltype(dim_var) <: Char
-            chars = collect(dim_var)
-            # Join char dimension as String, stripping null terminators
-            strings = String.(strip.(join.(eachslice(chars; dims=2)), '\0'))
-            metadata = _metadatadict(sourcetrait(ds), dim_attrs)
-            lookup = Categorical(strings; order=Unordered(), metadata)
-            D = _cdm_dimtype(dim_attrs, linked_dimname)
-            return D(lookup)
+    # Now dimension/lookup will depend on if there are associated coordinates 
+    if isempty(dimension_coord_names)
+        if haskey(ds, dimname) # The var name is the dim name
+            return _standard_dim(ds, vars_dict, attrs_dict, dimname, crs)
+        else # A matching variable doesn't exist. 
+            return _discrete_axis_dim(ds, dimname)
         end
+    else # Use coord names
+        linked_coord_name = dimension_coord_names[1]
+        dim_var = _get_var!(ds, vars_dict, linked_coord_name)
+        dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, linked_coord_name)
+        # Short circuit for char dims
+        if is_char_categorical(dim_var)
+            return _char_categorical_dim(ds, dim_var, dim_attrs, linked_coord_name)
+        end
+        # Otherwise dims/lookup depend on the number of associated coords
         if length(dimension_coord_names) == 1
-            # If there is only one coordinate, just use it as the dimension
-            D = _cdm_dimtype(dim_attrs, linked_dimname)
-            lookup = _cdm_lookup(ds, dim_attrs, linked_dimname, D, crs)
-            return D(lookup)
-        end
-        dim_vars = map(dimension_coord_names) do d
-            _get_var!(ds, vars_dict, d)
-        end
-        is_multidimensional = any(v -> length(CDM.dimnames(v)) > 1, dim_vars)
-        @show is_multidimensional
-        if is_multidimensional
-            # Rotations
-            # For now we don't use ArrayLookup
-            dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, dimname)
-            D = _cdm_dimtype(dim_attrs, dimname)
-            lookup = _cdm_lookup(ds, dim_attrs, dimname, D, crs)
-            return D(lookup)
+            # Only one coordinate, so just use it as the dimension/lookup
+            return _standard_dim(ds, vars_dict, attrs_dict, linked_coord_name, crs)
         else
-            # Generate a MergedLookup for multi-coordinate dimensions
-            dims = map(dimension_coord_names) do d
-                dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, d)
-                D = _cdm_dimtype(dim_attrs, d)
-                lookup = _cdm_lookup(ds, dim_attrs, d, D, crs)
-                D(lookup)
+            if is_multidimensional(ds, vars_dict, dimension_coord_names)
+                return _rotated_dim(ds, vars_dict, attrs_dict, dimname, crs)
+            else
+                return _merged_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
             end
-            D = _cdm_dimtype(NoMetadata(), dimname)
-            merged_data = collect(zip(DD.lookup.(dims)...))
-            # Use a MergedLookup with all dimensions
-            return D(MergedLookup(merged_data, Tuple(dims)))
         end
     end
+    # TODO: allow Categorical, Sampled etc to have a nested dimension
+    # remaining_coord_names = setdiff(dimension_coord_names, [linked_coord_name])
+    # subdim = _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, remaining_coord_names, dimname, crs)
+end
 
-    if haskey(ds, dimname)
-        dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, dimname)
-        # The dimension has a matching variable, and it's one of the coordinates
+is_char_categorical(dim_var) = ndims(dim_var) > 1 && eltype(dim_var) <: Char
+is_climatology(dim_attrs) = haskey(dim_attrs, "climatology")
+function is_multidimensional(ds, vars_dict, dimension_coord_names) 
+    dim_vars = map(dimension_coord_names) do d
+        _get_var!(ds, vars_dict, d)
+    end
+    return any(v -> length(CDM.dimnames(v)) > 1, dim_vars)
+end
+function is_geometry(ds, vars_dict, attrs_dict, geometry_key, dimname)
+    isnothing(geometry_key) && return false
+    geometry_attrs = _get_attr!(ds, vars_dict, attrs_dict, geometry_key)
+    # Check that the geometry is for this dimension
+    is_geometry_dimension = if haskey(geometry_attrs, "node_count")
+        # Multi-part geometries 
+        dimname in CDM.dimnames(_get_var!(ds, vars_dict, geometry_attrs["node_count"]))
+    else
+        # Points
+        dimname in CDM.dimnames(_get_var!(ds, vars_dict, first(_cf_node_coordinate_names(geometry_attrs))))
+    end
+end
+
+function _standard_dim(ds, vars_dict, attrs_dict, dimname, crs)
+    dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, dimname)
+    # if haskey(dim_attrs, "climatology")
+    #     return _climatology_dim(ds, vars_dict, attrs_dict, dim_attrs, dimname)
+    # else
         D = _cdm_dimtype(dim_attrs, dimname)
         lookup = _cdm_lookup(ds, dim_attrs, dimname, D, crs)
         return D(lookup)
-    end
+    # end
+end
 
-    # A matching variable doesn't exist. 
+function _discrete_axis_dim(ds, dimname)
     # It must be a "discrete axis" (CF 4.5) so NoLookup
     len = CDM.dim(ds, dimname)
     lookup = NoLookup(Base.OneTo(len))
     D = _cdm_dimtype(NoMetadata(), dimname)
     return D(lookup)
+end
+
+function _geometry_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, crs)
+    geometry_attrs = _get_attr!(ds, vars_dict, attrs_dict, geometry_key)
+    geoms = get!(geometry_dict, geometry_key) do
+        _cf_geometry_decode(ds, geometry_attrs)
+    end
+    lookup = GeometryLookup(geoms, (X(), Y()); crs)
+    D = Geometry
+    return D(lookup)
+end
+
+function _climatology_dim(ds, vars_dict, attrs_dict, dim_attrs, var_name)
+    climatology_bounds = _get_var!(ds, vars_dict, dim_attrs["climatology"])
+    var = _get_var!(ds, vars_dict, var_name)
+    var_attib = _get_attr!(ds, vars_dict, attrs_dict, var_name)
+    # We need to know if this is over years/months/days etc
+    diff = map((second, minute, hour, day, month, year)) do f
+        f(climatology_bounds[:, 2]) - f(climatology_bounds[:, 1])
+    end
+    # Find the smallest step
+    i = findfirst(>(0), diff)
+    step = (Second, Minute, Hour, Day, Month, Year)[i](diff[i])
+    # Find the total time span
+    bounds = extrema(climatology_bounds)
+    data = collect(dim_var)
+    order = LA.orderof(data)
+    sampling = Regular(step)
+    span = Explicit(c)
+    lookup = Cyclic(data; cycle, order, sampling, span, bounds)
+    D = _cdm_dimtype(dim_attrs, name)
+    return D(lookup)
+end
+
+function _char_categorical_dim(ds, dim_var, dim_attrs, name)
+    chars = collect(dim_var)
+    # Join char dimension as String, stripping null terminators
+    strings = String.(strip.(join.(eachslice(chars; dims=2)), '\0'))
+    metadata = _metadatadict(sourcetrait(ds), dim_attrs)
+
+    lookup = Categorical(strings; order=Unordered(), metadata)
+    D = _cdm_dimtype(dim_attrs, name)
+    return D(lookup)
+end
+
+function _rotated_dim(ds, vars_dict, attrs_dict, dimname, crs)
+    # Rotations. For now we don't use ArrayLookup
+    dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, dimname)
+    D = _cdm_dimtype(dim_attrs, dimname)
+    lookup = _cdm_lookup(ds, dim_attrs, dimname, D, crs)
+    return D(lookup)
+end
+
+function _merged_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
+    # Generate a MergedLookup for multi-coordinate dimensions
+    dims = map(dimension_coord_names) do d
+        dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, d)
+        D = _cdm_dimtype(dim_attrs, d)
+        lookup = _cdm_lookup(ds, dim_attrs, d, D, crs)
+        D(lookup)
+    end
+    D = _cdm_dimtype(NoMetadata(), dimname)
+    merged_data = collect(zip(DD.lookup.(dims)...))
+    # Use a MergedLookup with all dimensions
+    return D(MergedLookup(merged_data, Tuple(dims)))
 end
 
 # TODO don't load all keys here with _layers
@@ -571,7 +608,7 @@ function _cdm_lookup(
 end
 # For X and Y use a Mapped <: AbstractSampled lookup
 function _cdm_lookup(
-    data, D::Type{<:Union{<:XDim,<:YDim}}, order::Order, span, sampling, metadata, crs
+    data, D::Type{<:Union{<:XDim,<:YDim}}, order::Order, span, sampling, metadata, crs; dims=nothing
 )
     # If units are degrees north/east, use EPSG:4326 as the mapped crs
     units = get(metadata, "units", "")
@@ -583,7 +620,7 @@ function _cdm_lookup(
         crs = mappedcrs
     end
     dim = DD.basetypeof(D)()
-    return Mapped(data; order, span, sampling, metadata, crs, mappedcrs, dim)
+    return Mapped(data; order, span, sampling, metadata, crs, mappedcrs, dim, dims)
 end
 # Band dims have a Categorical lookup, with order
 # This is not CF, just for consistency with GDAL
