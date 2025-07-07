@@ -1,12 +1,22 @@
-using Rasters, NCDatasets 
-using NCDatasets.NetCDF_jll
+using Rasters
+import NCDatasets
+import NCDatasets.NetCDF_jll
 using NearestNeighbors
 using OrderedCollections
 using Rasters.Lookups
 using Test
-using Rasters: name
+using Rasters: name, bounds
 using Dates
 using GeoInterface
+
+# using NCDatasets
+# using NCDatasets.NetCDF_jll
+
+# NetCDF_jll.ncdump() do exe
+#     run(`$exe clim.nc`)
+# end
+# ds = collect(NCDataset("clim.nc")["time"])
+# ds = collect(NCDataset("clim.nc")["climatology_bounds"])
 
 # Build all ncgen files
 testdir = joinpath(dirname(dirname(Base.pathof(Rasters))), "test")
@@ -160,7 +170,7 @@ end
 end
 
 @testset "7.2 non-aligned horizontal grid" begin
-    RasterStack(examples["7.2"]; lazy=true)
+    rast = RasterStack(examples["7.2"]; lazy=true)
 end
 
 @testset "7.3-4 formula terms" begin
@@ -187,7 +197,19 @@ end
 
 @testset "climatology bounds" begin
     # Not implemented
-    RasterStack(examples["7.9"]; lazy=true)
+    rast = RasterStack(examples["7.9"]; lazy=true)
+    @test rast[Ti=Near(DateTime(1960, 2))] == rast[Ti=1] 
+    @test rast[Ti=At(DateTime(1960, 4, 16))] ==
+          rast[Ti=At(DateTime(1970, 4, 16))] ==
+          rast[Ti=At(DateTime(1990, 4, 16))] == rast[Ti=1]
+    # We need to add an `cycle_bounds` keyword or something 
+    # to Cyclic so the cycle itself is bounded over a valid period
+    @test_broken @test_throws BoundsError rast[Ti=At(DateTime(2000, 4, 16))]
+    @test_broken @test_throws BoundsError rast[Ti=At(DateTime(1950, 4, 16))]
+    # Contains is just broken for Cyclic, this should work
+    @test_broken rast[Ti=Contains(DateTime(1970, 6, 1))] == rast[Ti=2]
+    @test_broken rast[Ti=Contains(DateTime(1970, 5, 31))] == rast[Ti=1]
+
     RasterStack(examples["7.10"]; lazy=true)
     RasterStack(examples["7.11"]; lazy=true)
     RasterStack(examples["7.12"]; lazy=true)

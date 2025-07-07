@@ -436,13 +436,13 @@ end
 
 function _standard_dim(ds, vars_dict, attrs_dict, dimname, crs)
     dim_attrs = _get_attr!(ds, vars_dict, attrs_dict, dimname)
-    # if haskey(dim_attrs, "climatology")
-    #     return _climatology_dim(ds, vars_dict, attrs_dict, dim_attrs, dimname)
-    # else
+    if haskey(dim_attrs, "climatology")
+        return _climatology_dim(ds, vars_dict, attrs_dict, dim_attrs, dimname)
+    else
         D = _cdm_dimtype(dim_attrs, dimname)
         lookup = _cdm_lookup(ds, dim_attrs, dimname, D, crs)
         return D(lookup)
-    # end
+    end
 end
 
 function _discrete_axis_dim(ds, dimname)
@@ -463,24 +463,36 @@ function _geometry_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, c
     return D(lookup)
 end
 
-function _climatology_dim(ds, vars_dict, attrs_dict, dim_attrs, var_name)
-    climatology_bounds = _get_var!(ds, vars_dict, dim_attrs["climatology"])
-    var = _get_var!(ds, vars_dict, var_name)
-    var_attib = _get_attr!(ds, vars_dict, attrs_dict, var_name)
+function _climatology_dim(ds, vars_dict, attrs_dict, dim_attrs, name)
+    periodtypes = (Year, Month, Day, Hour, Minute, Second)
+    oneperiods = map(p -> p(1), periodtypes)
+    dim_var = ds[name]
+    climatology_bounds = collect(CDM.cfvariable(ds, dim_attrs["climatology"]))
     # We need to know if this is over years/months/days etc
-    diff = map((second, minute, hour, day, month, year)) do f
-        f(climatology_bounds[:, 2]) - f(climatology_bounds[:, 1])
+    diff = map(oneperiods) do p
+        length(climatology_bounds[1, 1]:p:climatology_bounds[2, 1]) - 1
     end
     # Find the smallest step
-    i = findfirst(>(0), diff)
-    step = (Second, Minute, Hour, Day, Month, Year)[i](diff[i])
+    i = findfirst(d -> first(d) > 0, diff)
+    # todo use if/else for type stability
+    period = periodtypes[i](diff[i][1])
+    # TODO assuming 1 year/1 month is not correct
+    cycle = period / period.value
+    stepdiff = map(oneperiods) do p
+        length(climatology_bounds[1, 1]:p:(climatology_bounds[2, 1] - period)) - 1
+    end
+    i = findfirst(d -> first(d) > 0, stepdiff)
+    step = periodtypes[i](stepdiff[i][1])
     # Find the total time span
     bounds = extrema(climatology_bounds)
     data = collect(dim_var)
     order = LA.orderof(data)
-    sampling = Regular(step)
-    span = Explicit(c)
-    lookup = Cyclic(data; cycle, order, sampling, span, bounds)
+    intervalbounds = climatology_bounds
+    @show intervalbounds
+    intervalbounds[2, :] .-= period
+    sampling = Intervals(Center())
+    span = Explicit(intervalbounds)
+    lookup = Cyclic(data; cycle, order, sampling, span)#, bounds)
     D = _cdm_dimtype(dim_attrs, name)
     return D(lookup)
 end
