@@ -1,4 +1,4 @@
-netcdf wgs84_datum_crs_wkt {
+netcdf 5_11_wgs84_datum_crs_wkt {
 dimensions:
   lat = 18 ;
   lon = 36 ;

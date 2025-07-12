@@ -1,4 +1,4 @@
-netcdf monthly_maximum_daily_precipitation_totals {
+netcdf 7_14_monthly_maximum_daily_precipitation_totals {
 dimensions:
   time=3;
   nv=2;
@@ -14,8 +14,12 @@ variables:
     time:units="days since 2000-6-1";
   double climatology_bounds(time,nv);
 data:  // time coordinates translated to datetime format
-  time="2000-6-16", "2000-7-16", "2000-8-16" ;
-  climatology_bounds="2000-6-1 6:00:00", "2000-7-1 6:00:00",
-                     "2000-7-1 6:00:00", "2000-8-1 6:00:00",
-                     "2000-8-1 6:00:00", "2000-9-1 6:00:00" ;
+  // time="2000-6-16", "2000-7-16", "2000-8-16" ;
+  time=15, 45, 76 ;
+  // climatology_bounds="2000-6-1 6:00:00", "2000-7-1 6:00:00",
+  //                    "2000-7-1 6:00:00", "2000-8-1 6:00:00",
+  //                    "2000-8-1 6:00:00", "2000-9-1 6:00:00" ;
+  climatology_bounds=0,  30,
+                     30, 61,
+                     61, 92;
 }

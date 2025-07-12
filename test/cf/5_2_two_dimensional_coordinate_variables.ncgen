@@ -1,4 +1,4 @@
-netcdf two_dimensional_coordinate_variables {
+netcdf 5_2_two_dimensional_coordinate_variables {
 dimensions:
   xc = 128 ;
   yc = 64 ;

@@ -1,4 +1,4 @@
-netcdf domain_with_independent_coordinate_variables {
+netcdf 5_15_domain_with_independent_coordinate_variables {
 dimensions:
   lat = 18 ;
   lon = 36 ;

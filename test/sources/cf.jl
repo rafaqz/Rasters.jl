@@ -32,7 +32,7 @@ example_paths = map(filter(endswith(".ncgen"), readdir(cfdir))) do input_name
     output_path
 end
 
-example_ids = replace.(strip.(first.(split.(basename.(example_paths), r"[A-Za-z]")), '_'), ("_" => ".",))
+example_ids = replace.(Base.strip.(first.(split.(basename.(example_paths), r"[A-Za-z]")), '_'), ("_" => ".",))
 examples = OrderedDict(example_ids .=> example_paths)
 
 rasterstacks = map(enumerate(example_paths)) do (i, example_path)
@@ -45,7 +45,7 @@ end |> OrderedDict
 #     name = splitext(basename(example_path))[1]
 #     name == "5_1_independent_coordinate_variables" && return name => nothing
 #     name => Raster(example_path; lazy=true)
-# end 
+# end
 # st = last.(rasterstacks)[12]
 # st = last.(rasterstacks)[14]
 # refdims(st)
@@ -56,8 +56,8 @@ end |> OrderedDict
     rast = RasterStack(examples["2.1"])
     @test rast.char_variable == rast.str_variable
     # Also works lazily
-    @test read(RasterStack(examples["2.1"]; lazy=true).char_variable) == 
-          read(RasterStack(examples["2.1"]; lazy=true)).char_variable == 
+    @test read(RasterStack(examples["2.1"]; lazy=true).char_variable) ==
+          read(RasterStack(examples["2.1"]; lazy=true)).char_variable ==
           rast.str_variable
     # Fails due to DiskArrays.jl size checks during the comparison iteration
     @test_broken RasterStack(examples["2.1"]; lazy=true).char_variable == rast.str_variable
@@ -196,25 +196,46 @@ end
 end
 
 @testset "climatology bounds" begin
-    # Not implemented
     rast = RasterStack(examples["7.9"]; lazy=true)
-    @test rast[Ti=Near(DateTime(1960, 2))] == rast[Ti=1] 
+    @test Rasters.Lookups.cycle(lookup(rast, Ti)) == Year(1)
+    @test Rasters.bounds(rast, Ti) == (DateTime("1960-03-01T00:00:00"), DateTime("1991-03-01T00:00:00"))
+    @test span(rast, Ti) == Explicit([
+        DateTime("1960-03-01T00:00:00") DateTime("1960-06-01T00:00:00") DateTime("1960-09-01T00:00:00") DateTime("1960-12-01T00:00:00")
+        DateTime("1960-06-01T00:00:00") DateTime("1960-09-01T00:00:00") DateTime("1960-12-01T00:00:00") DateTime("1961-03-01T00:00:00")
+    ])
+    @test rast[Ti=Near(DateTime(1960, 2))] == rast[Ti=1]
     @test rast[Ti=At(DateTime(1960, 4, 16))] ==
           rast[Ti=At(DateTime(1970, 4, 16))] ==
           rast[Ti=At(DateTime(1990, 4, 16))] == rast[Ti=1]
-    # We need to add an `cycle_bounds` keyword or something 
-    # to Cyclic so the cycle itself is bounded over a valid period
-    @test_broken @test_throws BoundsError rast[Ti=At(DateTime(2000, 4, 16))]
-    @test_broken @test_throws BoundsError rast[Ti=At(DateTime(1950, 4, 16))]
+    @test_throws Lookups.SelectorError rast[Ti=At(DateTime(2000, 4, 16))]
+    @test_throws Lookups.SelectorError rast[Ti=At(DateTime(1950, 4, 16))]
     # Contains is just broken for Cyclic, this should work
-    @test_broken rast[Ti=Contains(DateTime(1970, 6, 1))] == rast[Ti=2]
-    @test_broken rast[Ti=Contains(DateTime(1970, 5, 31))] == rast[Ti=1]
+    @test rast[Ti=Contains(DateTime(1970, 6, 1))] == rast[Ti=2]
+    @test rast[Ti=Contains(DateTime(1970, 5, 31))] == rast[Ti=1]
 
-    RasterStack(examples["7.10"]; lazy=true)
-    RasterStack(examples["7.11"]; lazy=true)
-    RasterStack(examples["7.12"]; lazy=true)
-    RasterStack(examples["7.13"]; lazy=true)
-    RasterStack(examples["7.14"]; lazy=true)
+    rast = RasterStack(examples["7.10"]; lazy=false)
+    @test Rasters.Lookups.cycle(lookup(rast, Ti)) == Year(1)
+    @test Rasters.bounds(rast, Ti) == (DateTime("1961-01-01T00:00:00"), DateTime("1990-02-01T00:00:00"))
+    @test span(rast, Ti) == Explicit([
+        DateTime("1961-01-01T00:00:00") DateTime("1971-01-01T00:00:00") DateTime("1981-01-01T00:00:00")
+        DateTime("1961-02-01T00:00:00") DateTime("1971-02-01T00:00:00") DateTime("1981-02-01T00:00:00")
+    ])
+    # Mix up the array values
+    @test Rasters.dims2indices(rast, (Ti(At(DateTime(1961, 1, 15))),)) == (:, :, 1)
+    @test_broken Rasters.dims2indices(rast, (Ti(At(DateTime(1971, 1, 15))),)) == (:, :, 2)
+    @test_broken Rasters.dims2indices(rast, (Ti(At(DateTime(1981, 1, 15))),)) == (:, :, 3)
+    rast = RasterStack(examples["7.11"]; lazy=true)
+    @test Rasters.Lookups.cycle(lookup(rast, Ti)) == Day(1)
+    @test Rasters.bounds(rast, Ti) == (DateTime("1997-04-01T00:00:00"), DateTime("1997-05-02T00:00:00"))
+    rast = RasterStack(examples["7.12"]; lazy=true)
+    @test Rasters.Lookups.cycle(lookup(rast, Ti)) == Year(1)
+    @test Rasters.bounds(rast, Ti) == (DateTime("2007-12-01T06:00:00"), DateTime("2008-3-01T06:00:00"))
+    rast = RasterStack(examples["7.13"]; lazy=true)
+    @test Rasters.Lookups.cycle(lookup(rast, Ti)) == (Year(1), Day(1) => Month(1))
+    @test Rasters.bounds(rast, Ti) == (DateTime("1961-04-01T00:00:00"), DateTime("1990-05-01T00:00:00"))
+    rast = RasterStack(examples["7.14"]; lazy=true)
+    @test Rasters.bounds(rast, Ti) == (DateTime("2000-06-01T00:00:00"), DateTime("2000-09-01T00:00:00"))
+    @test Rasters.Lookups.cycle(lookup(rast, Ti)) == Year(1)
 end
 
 @testset "Geometry lookups" begin
@@ -233,9 +254,9 @@ end
         GeoInterface.nring(poly) == 2
         GeoInterface.nhole(poly) == 1
         @test GeoInterface.getgeom(dims(rast, :Geometry)[1], 1) isa GeoInterface.Polygon
-        @test collect(GeoInterface.getpoint(dims(rast, :Geometry)[1])) == 
-            [(20.0, 0.0), (10.0, 15.0), (0.0, 0.0), (20.0, 0.0), 
-             (5.0, 5.0), (10.0, 10.0), (15.0, 5.0), (5.0, 5.0), 
+        @test collect(GeoInterface.getpoint(dims(rast, :Geometry)[1])) ==
+            [(20.0, 0.0), (10.0, 15.0), (0.0, 0.0), (20.0, 0.0),
+             (5.0, 5.0), (10.0, 10.0), (15.0, 5.0), (5.0, 5.0),
              (20.0, 20.0), (10.0, 35.0), (0.0, 20.0), (20.0, 20.0)]
     end
 end

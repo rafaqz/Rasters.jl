@@ -1,4 +1,4 @@
-netcdf string_variable_representation {
+netcdf 2_1_string_variable_representation {
 dimensions:
   strings = 30 ;
   strlen = 10 ;

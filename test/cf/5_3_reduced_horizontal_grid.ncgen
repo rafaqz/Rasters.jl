@@ -1,4 +1,4 @@
-netcdf reduced_horizontal_grid {
+netcdf 5_3_reduced_horizontal_grid {
 dimensions:
   londim = 128 ;
   latdim = 64 ;

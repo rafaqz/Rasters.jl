@@ -1,4 +1,4 @@
-netcdf rotated_pole_grid {
+netcdf 5_6_rotated_pole_grid {
 dimensions:
   rlon = 128 ;
   rlat = 64 ;

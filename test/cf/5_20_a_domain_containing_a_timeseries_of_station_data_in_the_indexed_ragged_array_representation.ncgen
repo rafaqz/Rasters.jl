@@ -1,4 +1,4 @@
-netcdf a_domain_containing_a_timeseries_of_station_data_in_the_indexed_ragged_array_representation {
+netcdf 5_20_a_domain_containing_a_timeseries_of_station_data_in_the_indexed_ragged_array_representation {
 dimensions:
   station = 23 ;
   obs = UNLIMITED ;

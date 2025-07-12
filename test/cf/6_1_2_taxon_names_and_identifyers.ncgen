@@ -1,4 +1,4 @@
-netcdf taxon_names_and_identifiers {
+netcdf 6_1_2_taxon_names_and_identifiers {
 dimensions:
   time = 100 ;
   string80 = 80 ;

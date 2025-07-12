@@ -1,4 +1,4 @@
-netcdf british_national_grid {
+netcdf 5_10_british_national_grid {
 dimensions:
     z = 100;
     y = 100000 ;

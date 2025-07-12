@@ -1,4 +1,4 @@
-netcdf spherical_earth {
+netcdf 5_8_spherical_earth {
 dimensions:
   lat = 18 ;
   lon = 36 ;

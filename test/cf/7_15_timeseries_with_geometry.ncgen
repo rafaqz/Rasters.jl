@@ -1,4 +1,4 @@
-netcdf timeseries_with_geometry {
+netcdf 7_15_timeseries_with_geometry {
 dimensions:
   instance = 2 ;
   node = 5 ;

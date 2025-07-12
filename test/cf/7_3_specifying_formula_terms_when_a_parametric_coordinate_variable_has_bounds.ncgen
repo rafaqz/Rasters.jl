@@ -1,4 +1,4 @@
-netcdf specifying_formula_terms_when_a_parametric_coordinate_variable_has_bounds {
+netcdf 7_3_specifying_formula_terms_when_a_parametric_coordinate_variable_has_bounds {
 dimensions:   
   eta=5;
   lat=10;

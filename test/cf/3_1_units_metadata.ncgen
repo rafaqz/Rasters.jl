@@ -1,4 +1,4 @@
-netcdf units_metadata {
+netcdf 3_1_units_metadata {
 variables:
   float Tonscale;
     Tonscale:long_name="global-mean surface temperature";

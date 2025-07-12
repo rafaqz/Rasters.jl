@@ -1,4 +1,4 @@
-netcdf methods_applied_to_a_timeseries {
+netcdf 7_5_methods_applied_to_a_timeseries {
 dimensions:
   time = UNLIMITED; // (5 currently)
   station = 10;

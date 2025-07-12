@@ -1,4 +1,4 @@
-netcdf surface_air_temperature_variance {
+netcdf 7_6_surface_air_temperature_variance {
 dimensions:
   lat=90;
   lon=180;

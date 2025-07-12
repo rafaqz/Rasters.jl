@@ -1,4 +1,4 @@
-netcdf mean_surface_temperature_and_heat_flux_averaged_separately_over_land_and_sea {
+netcdf 7_7_mean_surface_temperature_and_heat_flux_averaged_separately_over_land_and_sea {
 dimensions:
   lat=73;
   lon=96;

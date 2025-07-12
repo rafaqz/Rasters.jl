@@ -1,13 +1,13 @@
-netcdf northward_heat_transport_in_atlantic_ocean { 
+netcdf 6_1_northward_heat_transport_in_atlantic_ocean { 
 dimensions:
   time = 4 ;
   lat = 5 ;
   lbl = 1 ;
 variables:
   float n_heat_transport(time,lat,lbl);
-    n_heat_transport:units="W";
-    n_heat_transport:coordinates="geo_region";
-    n_heat_transport:standard_name="northward_ocean_heat_transport";
+    n_heat_transport:units = "W";
+    n_heat_transport:coordinates = "geo_region";
+    n_heat_transport:standard_name = "northward_ocean_heat_transport";
   double time(time) ;
     time:long_name = "time" ;
     time:units = "days since 1990-1-1 0:0:0" ;

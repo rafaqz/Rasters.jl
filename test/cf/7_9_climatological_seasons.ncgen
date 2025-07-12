@@ -1,4 +1,4 @@
-netcdf climatological_seasons {
+netcdf 7_9_climatological_seasons {
 dimensions:
   time=4;
   nv=2;

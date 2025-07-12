@@ -52,7 +52,6 @@ end
 function FileArray{S}(
     var::AbstractArray{Char,N}, filename; mod, kw...
 ) where {S<:CDMsource,N}
-    @show "here"
     eachchunk = DA.eachchunk(var)
     haschunks = DA.haschunks(var)
     if Missings.nonmissingtype(eltype(mod)) isa AbstractString

@@ -1,4 +1,4 @@
-netcdf polygons_with_holes {
+netcdf 7_16_polygons_with_holes {
 dimensions:
   node = 12 ;
   instance = 2 ;

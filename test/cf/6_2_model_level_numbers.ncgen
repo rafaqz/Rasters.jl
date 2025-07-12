@@ -1,4 +1,4 @@
-netcdf model_level_numbers {
+netcdf 6_2_model_level_numbers {
 dimensions:
   sigma=5;
   lat=30;

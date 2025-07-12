@@ -1,4 +1,4 @@
-netcdf extreme_statistics_and_spell_length {
+netcdf 7_12_extreme_statistics_and_spell_length {
 dimensions:
   time=1; // added length 1 time dimension
   lat=10; // added
@@ -21,7 +21,9 @@ variables:
     time:units="days since 2000-6-1";
   double climatology_bounds(time,nv);
 data: // time coordinates translated to datetime format
-  time="2008-1-16 6:00";
-  climatology_bounds="2007-12-1 6:00", "2008-3-1 6:00";
-  threshold=0.;
+  // time="2008-1-16 6:00";
+  time=2754.25;
+  // climatology_bounds="2007-12-1 6:00", "2008-3-1 6:00";
+  climatology_bounds=2739.25, 2830.25;
+  threshold=0.0;
 }

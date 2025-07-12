@@ -1,7 +1,7 @@
-netcdf cells_in_a_non-latitude-longitude_horizontal_grid {
+netcdf 7_2_cells_in_a_non-latitude-longitude_horizontal_grid {
 dimensions:
-  imax = 128;
-  jmax = 64;
+  imax = 2;
+  jmax = 4;
   nv = 4;
 variables:
   float lat(jmax,imax);
@@ -12,6 +12,9 @@ variables:
     lon:long_name = "longitude";
     lon:units = "degrees_east";
     lon:bounds = "lon_bnds";
+  float dat(jmax,imax);
+    dat:coordinates = "lon lat";
   float lat_bnds(jmax,imax,nv);
   float lon_bnds(jmax,imax,nv); 
 }
+

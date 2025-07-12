@@ -1,4 +1,4 @@
-netcdf domain_with_rotated_pole_and_scalar_coordinate_variable {
+netcdf 5_16_domain_with_rotated_pole_and_scalar_coordinate_variable {
 dimensions:
   rlon = 128 ;
   rlat = 64 ;

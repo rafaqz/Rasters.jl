@@ -1,4 +1,4 @@
-netcdf a_domain_containing_a_timeseries_geometry {
+netcdf 5_19_a_domain_containing_a_timeseries_geometry {
 dimensions:
   instance = 2 ;
   node = 5 ;
