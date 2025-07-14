@@ -9,7 +9,8 @@ using Rasters: name, bounds
 using Dates
 using GeoInterface
 
-# using NCDatasets
+#
+#using NCDatasets
 # using NCDatasets.NetCDF_jll
 
 # NetCDF_jll.ncdump() do exe
@@ -78,7 +79,7 @@ end
 end
 
 @testset "5.1 independent coordinate variables" begin
-    rast = RasterStack(examples["5.1"])
+    rast = RasterStack(examples["5.1"]);
     @test dims(rast) == (X(NoLookup(1:36)), Y(NoLookup(1:18)), Dim{:pres}(NoLookup(1:15)), Ti(NoLookup(1:4)))
     @test metadata(rast.xwind)["long_name"] == "zonal wind"
     @test metadata(rast.xwind)["units"] == "m/s"
@@ -86,9 +87,10 @@ end
 end
 
 @testset "5.2 two-dimensional coordinate variables" begin
-    rast = RasterStack(examples["5.2"]; lazy=true)
-    # TODO multi-dimensional mapped
-    @test_broken rast[Lat=1.0, Lon=2.0] isa Float32
+    rast = RasterStack(examples["5.2"]; lazy=true);
+    @test_broken 
+    rast[X=Near(1.0), Y=Near(2.0), Z=1]
+    isa Float32
 end
 
 @testset "5.3 reduced horizontal grid" begin
@@ -101,23 +103,24 @@ end
 end
 
 @testset "5.6 rotated pole grid" begin
-    rast = RasterStack(examples["5.6"]; lazy=true)
-    @test_broken rast[Lat=1.0, Lon=2.0] isa Float32
+    rast = RasterStack(examples["5.6"]; lazy=true);
+    @test rast.temp[X=Near(-0.9), Y=Near(3.0), Z=1] === 3.0f0
+    @test rast.temp[X=At(-0.44758424f0), Y=At(2.1773858f0), Z=1] === 2.0f0
 end
 
 @testset "5.8-9 WGS 84 EPSG" begin
     rast = RasterStack(examples["5.8"]; lazy=true)
     @test crs(rast) isa EPSG
     @test crs(rast) == EPSG(4326)
-    rast = RasterStack(examples["5.9"]; lazy=true)
+    rast = RasterStack(examples["5.9"]; lazy=true);
     @test crs(rast) isa EPSG
     @test crs(rast) == EPSG(4326)
 end
 
 @testset "5.10 British national grid" begin
-    rast = RasterStack(examples["5.10"]; lazy=true)
-    @test_broken !isnothing(crs(rast))
+    rast = RasterStack(examples["5.10"]; lazy=true);
     @test keys(rast) == (:temp, :pres)
+    @test_broken !isnothing(crs(rast))
 end
 
 @testset "5.11 WGS 84 WellKnownText2" begin

@@ -333,19 +333,12 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
             layer_dimnames_vec[i] = dimnames = dimnames[2:end]
         end
         # Loop over the dimensions of this layer, adding missing dims to dim_dict 
-        output_layerdims_vec[i] = map(dimnames) do dimname
+        output_layerdims_vec[i] = layerdims = map(dimnames) do dimname
             get!(dim_dict, dimname) do
                 _cdm_dim(
                     ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, coord_names, dimname, crs, grid_mapping_key
                 )
             end
-        end
-        unformatted_dims = map(dimnames) do dimname
-            dim_dict[dimname]
-        end
-        formatted_dims = format(unformatted_dims, var)
-        map(dimnames, formatted_dims) do dimname, d
-            dim_dict[dimname] = d
         end
         # Find scalar coordinates to use as refdims (5.7)
         for coord_name in coord_names
@@ -361,7 +354,20 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
                 refdim_dict[coord_name] = refdim
             end
         end
-        # Add this layer to the output
+        # Format dimensions
+        unformatted_dims = map(dimnames) do dimname
+            dim_dict[dimname]
+        end
+        formatvar = if eltype(var) <: Char && length(layerdims) == (ndims(var) - 1)
+            DiskCharToString(var)
+        else
+            var
+        end
+        formatted_dims = format(unformatted_dims, formatvar)
+        map(dimnames, formatted_dims) do dimname, d
+            dim_dict[dimname] = d
+        end
+        # Finalise output variables and attributes
         output_layers_vec[i] = var
         output_attrs_vec[i] = attr
     end
@@ -416,7 +422,7 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
             end
             if is_multidimensional(ds, vars_dict, dimension_coord_names)
                 if is_rotated_longitude_latitude(ds, vars_dict, attrs_dict, dimname, grid_mapping_key)
-                    r = _roated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
+                    r = _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
                     return r
                 elseif is_unalligned(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, grid_mapping_key)
                     u = _unalligned_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
@@ -436,13 +442,16 @@ end
 
 
 function is_rotated_longitude_latitude(ds, vars_dict, attrs_dict, dimname, grid_mapping_key)
-    if !isnothing(grid_mapping_key)
-        grid_mapping = _get_attr!(attrs_dict, vars_dict, ds, grid_mapping_key)
-        grid_mapping_name = grid_mapping["grid_mapping_name"]
-        if grid_mapping_name == "rotated_latitude_longitude" && get(dim_attrs, "standard_name", "") in ("grid_latitude", "grid_longitude")
-            return true
-        end
-    end
+    # isnothing(grid_mapping_key) && return false
+    # grid_mapping = _get_attr!(attrs_dict, vars_dict, ds, grid_mapping_key)
+    # grid_mapping_name = get(grid_mapping, "grid_mapping_name", nothing)
+    # isnothing(grid_mapping_name) && return false
+    # if grid_mapping_name == "rotated_latitude_longitude" 
+    #     dim_attrs = _get_attr!(attrs_dict, vars_dict, ds, dimname)
+    #     if get(dim_attrs, "standard_name", "") in ("grid_latitude", "grid_longitude")
+    #         return true
+    #     end
+    # end
     return false
 end
 function is_unalligned(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, grid_mapping_key)
@@ -558,8 +567,7 @@ end
 
 # Must have "standard_name" in dimension attributes
 function _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
-    lookup = _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
-    standard_name = _get_attr!(attrs_dict, vars_dict, ds)["standard_name"]
+    standard_name = _get_attr!(attrs_dict, vars_dict, ds, dimname)["standard_name"]
     D = if standard_name == "grid_latitude"
         Y
     elseif standard_name == "grid_longitude"
@@ -567,6 +575,7 @@ function _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_c
     else
         error("standard_name $standard_name not recognized")
     end
+    lookup = _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, D, crs)
     return D(lookup)
 end
 # Must have "degrees_north" and "degrees_east" in coordinate units
@@ -594,10 +603,12 @@ function _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dim
     end
     dims = Lat(AutoValues(); metadata=lat_metadata), 
            Lon(AutoValues(); metadata=lon_metadata)
-    data = if haskey(ds, dimname)
-        _get_attr!(attrs_dict, vars_dict, ds, dimname)
+    if haskey(ds, dimname)
+        dim = _cdm_dimtype(ds, dimname)()
+        data = collect(_get_var!(vars_dict, ds, dimname))
     else
-        Base.OneTo(CDM.dim(ds, dimname))
+        dim = AutoDim()
+        data = Base.OneTo(CDM.dim(ds, dimname))
     end
     if D <: X
         matrix = collect(_get_var!(vars_dict, ds, lon_key))
@@ -1061,10 +1072,12 @@ function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:Union{Sampled,Ab
 end
     
 _cf_crs(ds, grid_mapping_key::Nothing) = nothing
-function _cf_crs(ds, grid_mapping_key::String)
-    # TODO handle multi-crs
+function _cf_crs(ds, grid_mapping_key::AbstractString)
     if occursin(' ', grid_mapping_key)
-        _split_attribute(grid_mapping_key)[1][1]
+        crss = _split_cf_attribute(grid_mapping_key)
+        return map(crss) do (crs, coords)
+            _cf_crs(ds, crs) => coords
+        end
     end
     haskey(ds, grid_mapping_key) || return nothing
     grid_mapping_var = CDM.variable(ds, grid_mapping_key)
@@ -1086,7 +1099,7 @@ function _cf_crs(ds, grid_mapping_key::String)
     end
 end
 
-function _split_attribute(attribute::String)
+function _split_cf_attribute(attribute::String)
     items = split(attribute, ' ')
     starts = findall(contains(':'), items)
     stops = append!(starts[2:end] .- 1, length(items))
@@ -1097,7 +1110,7 @@ end
 
 function _grid_mapping_keys(grid_mapping_key::String)
     if occursin(' ', grid_mapping_key)
-        first.(_split_attribute(grid_mapping_key))
+        first.(_split_cf_attribute(grid_mapping_key))
     else
         [grid_mapping_key]
     end
