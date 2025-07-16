@@ -229,16 +229,19 @@ _fill_key_error(names, fill) = throw(ArgumentError("fill key $fill not found in 
 
 # _featurefillval
 # Get fill value from a feature, or use fill itself
-_featurefillval(feature, fill::Nothing) = first(GI.properties(feature))
-_featurefillval(feature, fill::Symbol) = GI.properties(feature)[fill]
+_featurefillval(feature, fill::Nothing) = first(_nonnothingfillprops(GI.properties(feature)))
+_featurefillval(feature, fill::Symbol) = _nonnothingfillprops(GI.properties(feature))[fill]
 _featurefillval(feature, fill::Val) = _featurefillval(feature, _unwrap(fill))
 _featurefillval(feature, fill::NamedTuple) = map(f -> _featurefillval(feature, f), _unwrap(fill))
 function _featurefillval(feature, fill::NTuple{<:Any,Symbol})
     map(fill) do key
-        getproperty(GI.properties(feature), key)
+        getproperty(_nonnothingfillprops(GI.properties(feature)), key)
     end |> NamedTuple{fill}
 end
 _featurefillval(feature, fill) = fill
+
+_nonnothingfillprops(props) = props
+_nonnothingfillprops(::Nothing) = throw(ArgumentError("feature has no properties to retreive `fill` from"))
 
 _filter_name(name, fill::NamedTuple) = keys(fill)
 _filter_name(name::NamedTuple, fill::NamedTuple) = keys(fill)
@@ -258,10 +261,10 @@ _iterable_fill(trait, data, keys::Tuple{Symbol,Vararg}) =
     NamedTuple{keys}(map(k -> _iterable_fill(trait, data, k), keys))
 # A Symbol is a Table or FeatureCollection key, it cant be used as fill itself
 function _iterable_fill(trait, data, key::Symbol)
-    if GI.isfeature(data)
-        return get(() -> throw(ArgumentError("feature has no property `:$key`")), GI.properties(data), key)
+    if trait isa GI.FeatureTrait
+        _feature_getproperty(data, key)
     elseif trait isa GI.FeatureCollectionTrait
-        return [get(() -> throw(ArgumentError("feature has no property `:$key`")), GI.properties(f), key) for f in GI.getfeature(data)]
+        return [_feature_getproperty(f, key) for f in GI.getfeature(data)]
     end
     cols = Tables.columns(data)
     # For column tables, get the column now
@@ -299,6 +302,17 @@ function _iterable_fill(trait, data, fill)
         throw(ArgumentError("Length of fill $l does not match length of iterator $n"))
     else
         return fillvec
+    end
+end
+
+function _feature_getproperty(data, key)
+    props = GI.properties(data)
+    if isnothing(props) 
+        throw(ArgumentError("feature has no properties"))
+    else
+        get(props, key) do
+            throw(ArgumentError("feature has no property `:$key`"))
+        end
     end
 end
 
