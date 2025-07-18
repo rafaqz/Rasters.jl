@@ -526,8 +526,8 @@ function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
 end
 
 # Open a single file stack
-function Base.open(f::Function, st::AbstractRasterStack{K,T,<:Any,<:FileStack{X}}; kw...) where {X,K,T}
-    ost = OpenStack{X,K,T}(parent(st))
+function Base.open(f::Function, st::AbstractRasterStack{K}; kw...) where K
+    ost = OpenStack(parent(st))
     # TODO is this needed?
     layers = map(K) do k
         ost[k]
