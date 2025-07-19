@@ -121,5 +121,4 @@ test = ["Aqua", "ArchGDAL", "CFTime", "CoordinateTransformations", "DataFrames",
 
 
 [sources]
-DimensionalData = {url = "https://github.com/rafaqz/DimensionalData.jl", rev = "as/individualindexing"}
-GeometryOps = {url = "https://github.com/JuliaGeo/GeometryOps.jl", rev = "as/extentforwarding_for_predicates"}
+DimensionalData = {url = "https://github.com/rafaqz/DimensionalData.jl", rev = "as/multidimtrait"}
