@@ -1,0 +1,18 @@
+netcdf 5_11_wgs84_datum_crs_wkt {
+dimensions:
+  lat = 18 ;
+  lon = 36 ;
+variables:
+  double lat(lat) ;
+  double lon(lon) ;
+  float temp(lat, lon) ;
+    temp:long_name = "temperature" ;
+    temp:units = "K" ;
+    temp:grid_mapping = "crs" ;
+  int crs ;
+    crs:grid_mapping_name = "latitude_longitude";
+    crs:longitude_of_prime_meridian = 0.0 ;
+    crs:semi_major_axis = 6378137.0 ;
+    crs:inverse_flattening = 298.257223563 ;
+    crs:crs_wkt = "GEODCRS[\"WGS 84\", DATUM[\"World Geodetic System 1984\", ELLIPSOID[\"WGS 84\",6378137,298.257223563, LENGTHUNIT[\"metre\",1.0]]], PRIMEM[\"Greenwich\",0], CS[ellipsoidal,3], AXIS[\"(lat)\",north,ANGLEUNIT[\"degree\",0.0174532925199433]], AXIS[\"(lon)\",east,ANGLEUNIT[\"degree\",0.0174532925199433]], AXIS[\"ellipsoidal height (h)\",up,LENGTHUNIT[\"metre\",1.0]]]" ;
+}

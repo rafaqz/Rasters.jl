@@ -1,0 +1,27 @@
+netcdf 7_5_methods_applied_to_a_timeseries {
+dimensions:
+  time = UNLIMITED; // (5 currently)
+  station = 10;
+  nv = 2;
+variables:
+  float pressure(time,station);
+    pressure:long_name = "pressure";
+    pressure:units = "kPa";
+    pressure:cell_methods = "time: point";
+  float maxtemp(time,station);
+    maxtemp:long_name = "temperature";
+    maxtemp:units = "K";
+    maxtemp:cell_methods = "time: maximum";
+  float ppn(time,station);
+    ppn:long_name = "depth of water-equivalent precipitation";
+    ppn:units = "mm";
+    ppn:cell_methods = "time: sum";
+  double time(time);
+    time:long_name = "time";
+    time:units = "hours since 1998-4-19 6:0:0";
+    time:bounds = "time_bnds";
+  double time_bnds(time,nv);
+data:
+  time = 0., 12., 24., 36., 48.;
+  time_bnds = -12.,0., 0.,12., 12.,24., 24.,36., 36.,48.;
+}
