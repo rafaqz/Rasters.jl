@@ -1,46 +1,5 @@
 using Rasters, Test, Aqua, SafeTestsets, DiskArrays
 
-using Rasters, ArchGDAL, DBFTables, Tables
-tifpath = "/home/tvd/Downloads/sub_leaf_type_2021/sub_leaf_type_2021.tif"
-dbfpath = tifpath * ".vat.dbf"
-
-table = Tables.columntable(DBFTables.Table(dbfpath))
-table.VALUE
-
-ras = Raster(tifpath; lazy = true, raw = false, name = :C_04)
-@time read(ras)
-@profview r = ras[Y=10_000:11_000]
-
-mod = parent(parent(ras)).mod
-
-
-@descend Rasters._applymod(0x00,mod)
-
-
-using Cthulhu
-
-@descend ras[1]
-
-@time ras[20_000_000:30_000_000]
-
-
-switchcolumn(mod, column::Symbol) = AttributeMod(mod.table, column, mod.missingval)
-switchcolumn(mod, column::Symbol) = AttributeMod(mod.table, column, mod.missingval)
-
-function Rasters._tablemod(filename, missingval, name::Rasters.NoKW)
-    table = Tables.columntable(DBFTables.Table(filename))
-    idx = findfirst(k -> k !== :VALUE && k !== :COUNT && k !== :Value && k !== :Count, keys(table))
-    name = keys(table)[idx]
-    return Rasters.AttributeMod(table, name, missingval)
-end
-
-function Rasters._tablemod(filename, missingval, name::Symbol)
-    table = Tables.columntable(DBFTables.Table(filename))
-    return Rasters.AttributeMod(table, name, missingval)
-end
-
-
-
 # Always error on scalar indexing
 Rasters.DiskArrays.allowscalar(false)
 
