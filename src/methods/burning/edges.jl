@@ -69,11 +69,7 @@ function Edges(
 
     # We may have allocated too much
     edges1 = view(edges, 1:edge_count)
-    @static if VERSION < v"1.9-alpha1"
-        sort!(edges1)
-    else
-        sort!(edges1; scratch)
-    end
+    sort!(edges1; scratch)
 
     return Edges(edges, max_ylen, min_y, edge_count)
 end

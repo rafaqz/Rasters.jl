@@ -540,14 +540,12 @@ end
         end |> all
     end
 
-    if VERSION > v"1.1-"
-        @testset "copy" begin
-            geoA = read(ncstack[:albedo]) .* 2
-            copy!(geoA, ncstack, :albedo);
-            # First wrap with Raster() here or == loads from disk for each cell.
-            # we need a general way of avoiding this in all disk-based sources
-            @test geoA == read(ncstack[:albedo])
-        end
+    @testset "copy" begin
+        geoA = read(ncstack[:albedo]) .* 2
+        copy!(geoA, ncstack, :albedo);
+        # First wrap with Raster() here or == loads from disk for each cell.
+        # we need a general way of avoiding this in all disk-based sources
+        @test geoA == read(ncstack[:albedo])
     end
 
     @testset "indexing" begin
