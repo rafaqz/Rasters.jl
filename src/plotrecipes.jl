@@ -310,11 +310,11 @@ function _maybe_resample(A)
 end
 _maybe_resample(lookup, A) = A
 
-_maybename(A) = _maybename(name(A))
-_maybename(n::Name{N}) where N = _maybename(N)
-_maybename(n::NoName) = ""
-_maybename(n::Symbol) = string(n)
-_maybename(n::AbstractString) = n
+_maybename(A)::String = _maybename(name(A))
+_maybename(::Name{N}) where N = _maybename(N)::String
+_maybename(n::NoName)::String = ""
+_maybename(n::Symbol)::String = String(n)
+_maybename(n::AbstractString)::String = String(n)
 
 _maybe_replace_missing(A::AbstractArray{<:AbstractFloat}) = replace_missing(A, eltype(A)(NaN))
 _maybe_replace_missing(A) = A
