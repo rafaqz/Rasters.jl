@@ -111,6 +111,7 @@ defaultmappedcrs(::CDMsource) = EPSG(4326)
 
 function _nondimnames(ds)
     dimnames = CDM.dimnames(ds)
+    isempty(dimnames) && return String[]
     toremove = if "bnds" in dimnames
         dimnames = setdiff(dimnames, ("bnds",))
         boundsnames = String[]
@@ -122,10 +123,13 @@ function _nondimnames(ds)
             end
         end
         union(dimnames, boundsnames)::Vector{String}
+    elseif isempty(dimnames)
+        String[]
     else
         collect(dimnames)::Vector{String}
     end
     # Maybe this should be fixed in ZarrDatasets but it works with this patch.
+
     nondim = collect(setdiff(keys(ds), toremove))
     return nondim
 end
@@ -158,10 +162,10 @@ function _layers(ds::AbstractDataset, names, group)
     _layers(ds.group[group], names, nokw)
 end
 
-function _dims(var::AbstractVariable{<:Any,N}, crs=nokw, mappedcrs=nokw) where N
+function _dims(var::AbstractVariable{<:Any,N}, crs=nokw, mappedcrs=nokw, prefer_datetime=true) where N
     dimnames = CDM.dimnames(var)
     ntuple(Val(N)) do i
-        _cdmdim(CDM.dataset(var), dimnames[i], crs, mappedcrs)
+        _cdmdim(CDM.dataset(var), dimnames[i], crs, mappedcrs, prefer_datetime)
     end
 end
 _metadata(var::AbstractVariable; attr=CDM.attribs(var)) =
@@ -211,6 +215,7 @@ end
 # TODO don't load all keys here with _layers
 _name_or_firstname(ds::AbstractDataset, name) = Symbol(name)
 function _name_or_firstname(ds::AbstractDataset, name::Union{Nothing,NoKW}=nokw)
+
     names = _nondimnames(ds)
     if length(names) > 0
         return Symbol(first(names))
@@ -219,11 +224,11 @@ function _name_or_firstname(ds::AbstractDataset, name::Union{Nothing,NoKW}=nokw)
     end
 end
 
-function _cdmdim(ds, dimname::Key, crs=nokw, mappedcrs=nokw)
+function _cdmdim(ds, dimname::Key, crs=nokw, mappedcrs=nokw, prefer_datetime=true)
     if haskey(ds, dimname)
         var = ds[dimname]
         D = _cdmdimtype(CDM.attribs(var), dimname)
-        lookup = _cdmlookup(ds, dimname, D, crs, mappedcrs)
+        lookup = _cdmlookup(ds, dimname, D, crs, mappedcrs, prefer_datetime)
         return D(lookup)
     else
         # The var doesn't exist. Maybe its `complex` or some other marker,
@@ -270,8 +275,8 @@ end
 
 # _cdmlookup
 # Generate a `Lookup` from a nCDM dim.
-function _cdmlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs)
-    var = ds[dimname]
+function _cdmlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs, prefer_datetime)
+    var = CDM.cfvariable(ds, dimname;prefer_datetime)
     index = Missings.disallowmissing(var[:])
     attr = CDM.attribs(var)
     metadata = _metadatadict(sourcetrait(ds), attr)
@@ -356,7 +361,6 @@ end
 function _cdmspan(index, order)
     # Handle a length 1 index
     length(index) == 1 && return Regular(zero(eltype(index))), Points()
-
     step = if eltype(index) <: AbstractFloat
         # Calculate step, avoiding as many floating point errors as possible
         st = Base.step(Base.range(Float64(first(index)), Float64(last(index)); length = length(index)))
