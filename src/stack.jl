@@ -208,6 +208,7 @@ end
 function RasterStack{K,T,N}(
     data::L, dims::D, refdims::R, layerdims::LD, metadata::Me, layermetadata::LM, missingval::Mi
 ) where {K,T,N,L,D,R,LD<:NamedTuple{K},Me,LM,Mi}
+data isa NamedTuple && keys(data) != K && _raster_key_error(keys(data), K)
     RasterStack{K,T,N,L,D,R,LD,Me,LM,Mi}(data, dims, refdims, layerdims, metadata, layermetadata, missingval)
 end
 function RasterStack(
@@ -219,9 +220,9 @@ function RasterStack(
 end
 function RasterStack(
     data::Union{FileStack,OpenStack,NamedTuple};
-    dims::Tuple,
+    dims::Tuple=(),
     refdims::Tuple=(),
-    layerdims::NamedTuple,
+    layerdims::Union{NamedTuple,NoKW}=nokw,
     metadata=nokw,
     layermetadata=nokw,
     missingval=nokw,
@@ -284,7 +285,7 @@ function RasterStack(layers::Tuple{Vararg{AbstractDimArray}};
 end
 # Multi RasterStack from NamedTuple
 # This method is called after most other RasterStack methods.
-function RasterStack(layers::NamedTuple{K,<:Tuple{Vararg{AbstractDimArray}}};
+function RasterStack(layers::NamedTuple{K,<:Tuple{<:AbstractDimArray,Vararg{AbstractDimArray}}};
     resize::Union{Function,NoKW}=nokw,
     _layers=resize isa NoKW ? layers : resize(layers),
     dims::Tuple=DD.combinedims(_layers...),
@@ -700,3 +701,5 @@ defaultmappedcrs(s::Source, ::NoKW) = defaultmappedcrs(s)
 defaultmappedcrs(::Source) = nothing
 
 check_multilayer_dataset(ds) = throw(ArgumentError("$(typeof(ds)) is not a multilayer raster dataset"))
+
+@noinline _raster_key_error(datakeys, layerkeys) = throw(ArgumentError("Data keys $datakeys dont match layerkeys $layerkeys"))
