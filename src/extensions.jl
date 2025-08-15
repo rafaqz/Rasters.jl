@@ -1,13 +1,9 @@
 # extensions
 function throw_extension_error(f::Function, package::String, extension::Symbol, args)
-    @static if isdefined(Base, :get_extension) # julia > 1.9
     if isnothing(Base.get_extension(Rasters, extension))
         throw(BackendException(package))
     else
         throw(MethodError(f, args))
-    end
-    else
-        throw(BackendException(package))
     end
 end
 
