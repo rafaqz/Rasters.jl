@@ -262,7 +262,7 @@ _iterable_fill(trait, data, keys::Tuple{Symbol,Vararg}) =
 # A Symbol is a Table or FeatureCollection key, it cant be used as fill itself
 function _iterable_fill(trait, data, key::Symbol)
     if trait isa GI.FeatureTrait
-        _feature_getproperty(data, key)
+        return _feature_getproperty(data, key)
     elseif trait isa GI.FeatureCollectionTrait
         return [_feature_getproperty(f, key) for f in GI.getfeature(data)]
     end
