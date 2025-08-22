@@ -334,13 +334,10 @@ function _check_driver(::Nothing, driver)
 end
 function _check_driver(filename::AbstractString, driver)
     if isnokwornothing(driver) || isempty(driver)
-        if isempty(filename)
-            driver = "MEM"
+        driver = if isempty(filename)
+            "MEM"
         else
-            driver = AG.extensiondriver(filename)
-            if driver == "COG"
-                driver = "GTiff"
-            end
+            _extensiondriver(filename)
         end
     end
     return driver
@@ -401,6 +398,7 @@ function _create_with_driver(f, filename, dims::Tuple, T;
         )
         tif_driver = AG.getdriver("GTiff")
         tif_name = tempname() * ".tif"
+            @show driver
         AG.create(tif_name; driver=tif_driver, options=tif_options_vec, create_kw...) do dataset
             _set_dataset_properties!(dataset, newdims, missingval, scale, offset)
             f(dataset)
@@ -591,6 +589,7 @@ function _extensiondriver(filename::AbstractString)
         "MEM"
     elseif splitext(filename)[2] == ".tif"
         # Force GTiff as the default for .tif because COG cannot do `create` yet
+        # And LIBERTIFF might be given, which also cant create
         "GTiff"
     else
         AG.extensiondriver(filename)
