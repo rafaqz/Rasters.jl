@@ -1,6 +1,8 @@
 const RasterVecOrTuple = Union{Tuple{Vararg{AbstractRaster}},AbstractArray{<:AbstractRaster}}
 const RasterStackVecOrTuple = Union{Tuple{Vararg{AbstractRasterStack}},AbstractArray{<:AbstractRasterStack}}
 
+count_op(a::Integer, b) = a + oneunit(a)
+
 const MOSAIC_ARGUMENTS = """
 - `f`: A reducing function for values where `regions` overlap. 
     Note that common base functions 
@@ -199,9 +201,11 @@ function _mosaic!(
 )
     for region in regions
         if read
-            _count_region!(dest, region; kw...)
+            _mosaic_region!(count_op, dest, Base.read(region); kw...)
         else
-            _count_region!(dest, Base.read(region); kw...)
+            open(region) do R
+                _mosaic_region!(count_op, dest, R; kw...)
+            end
         end
     end
     return dest
@@ -294,10 +298,10 @@ function _mosaic_mean!(dest, ::Type{T}, regions;
         if read 
             region1 = Base.read(region)
             _mosaic_region!(Base.add_sum, dest, region1; kw...)
-            _count_region!(counts, region1; kw...)
+            _mosaic_region!(count_op, counts, region1; kw...)
         else
             _mosaic_region!(Base.add_sum, dest, region; kw...)
-            _count_region!(counts, region; kw...)
+            _mosaic_region!(count_op, counts, region; kw...)
         end
     end
     # Divide dest by counts
@@ -318,12 +322,12 @@ function _mosaic_progress(f, progress, n, l=nothing)
     end
 end
 
-function _mosaic_region!(op, dest, region; atol=nothing, kw...)
+function _mosaic_region!(op::O, dest::AbstractArray{T}, region; atol=nothing, kw...) where {T,O<:Function}
     function skip_or_op(a, b) 
         if b === missingval(region)
             a
         elseif a === missingval(dest) 
-            b
+            op === count_op ? oneunit(Missings.nonmissingtype(T)) : b
         else
             op(a, b)
         end
@@ -337,23 +341,6 @@ function _mosaic_region!(op, dest, region; atol=nothing, kw...)
     dest[ext] .= skip_or_op.(parent(view(dest, ext)), parent(view(region, ds)))
     return dest
 end
-
-function _count_region!(count::AbstractRaster{T}, region::AbstractRaster; kw...) where T
-    function skip_or_count(a, b)
-        if b === missingval(region)
-            a
-        elseif a === missingval(count) 
-            oneunit(Missings.nonmissingtype(T))
-        else
-            a + oneunit(a)
-        end
-    end
-    ext = extent(region)
-    ds = DimSelectors(view(count, ext))
-    view(count, ext) .= skip_or_count.(view(count, ext), view(region, ds))
-    return count
-end
-
 
 function _mosaic(dimtuplevec::AbstractArray{<:DimTuple})
     map(first(dimtuplevec)) do d
