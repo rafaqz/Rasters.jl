@@ -398,7 +398,6 @@ function _create_with_driver(f, filename, dims::Tuple, T;
         )
         tif_driver = AG.getdriver("GTiff")
         tif_name = tempname() * ".tif"
-            @show driver
         AG.create(tif_name; driver=tif_driver, options=tif_options_vec, create_kw...) do dataset
             _set_dataset_properties!(dataset, newdims, missingval, scale, offset)
             f(dataset)
