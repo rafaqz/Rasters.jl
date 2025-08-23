@@ -36,6 +36,14 @@ st = RasterStack((raster1, raster2); name=(:r1, :r2))
     @test all(==(EPSG(4326)), map(crs, stacks))
     @test all(==(EPSG(3857)), map(mappedcrs, stacks))
     @test all(==((r1=md, r2=md)), map(DimensionalData.layermetadata, stacks))
+    @testset "empty constructor" begin
+        @test layers(RasterStack()) == (;)
+        @test dims(RasterStack()) == ()
+        @test dims(RasterStack(; dims=(), layerdims=(;))) == ()
+        @test dims(RasterStack(; dims=(X(1:3),))) == (Rasters.format(X(1:3)),)
+        # layerdims that don't match the empty NamedTuple should error
+        @test_throws ArgumentError RasterStack(; dims=(X(1:3),), layerdims=(; a=(X(),)))
+    end
 
     # The dimension differences are lost because the table
     # is tidy - every column is the same length
@@ -60,8 +68,8 @@ end
 
 @testset "stack fields" begin
     @test DimensionalData.layerdims(st, :r1) == DimensionalData.format(dims1, data1)
+    @test DimensionalData.layermetadata(st, :r1) == NoMetadata()
     @test metadata(st) == NoMetadata()
-    @test metadata(st, :r1) == NoMetadata()
 end
 
 @testset "indexing" begin
