@@ -31,13 +31,19 @@ DD.data_eltype(::OpenStack{<:Any,<:Any,T}) where T = T
 
 Base.keys(::OpenStack{<:Any,K}) where K = K
 # TODO test this, and does it make sense to return an iterator here?
-Base.values(os::OpenStack{<:Any,K}) where K = (os[k] for k in K)
+Base.values(os::OpenStack{<:Any,K}) where K = map(k -> os[k], K)
+Base.NamedTuple(os::OpenStack{<:Any,K}) where K = NamedTuple{K}(values(os))
+Base.map(f, os::OpenStack) = map(f, NamedTuple(os))
 # Indexing OpenStack returns memory-backed Raster. 
+Base.iterate(os::OpenStack) = iterate(os, 1)
+Base.iterate(os::OpenStack, i::Integer) = i > length(os) ? nothing : (os[i], i + 1)
+Base.length(os::OpenStack{<:Any,K}) where K = length(K)
 function Base.getindex(os::OpenStack{<:Any,K}, key::Symbol) where K
     mods = os.mods
-    if mods isa AbstractModifications
-        _maybe_modify(dataset(os)[key], mods)
+    var = _open(os, key)
+    return if mods isa AbstractModifications
+        _maybe_modify(var, mods)
     else
-        _maybe_modify(dataset(os)[key], NamedTuple{K}(mods)[key])
+        _maybe_modify(var, NamedTuple{K}(mods)[key])
     end
 end

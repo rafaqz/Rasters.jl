@@ -542,11 +542,7 @@ end
 # Open a single file stack
 function Base.open(f::Function, st::AbstractRasterStack{K}; kw...) where K
     ost = OpenStack(parent(st))
-    # TODO is this needed?
-    layers = map(K) do k
-        ost[k]
-    end |> NamedTuple{K}
-    out = f(rebuild(st; data=layers))
+    out = f(rebuild(st; data=ost))
     close(ost)
     return out
 end
