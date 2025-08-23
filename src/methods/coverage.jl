@@ -71,7 +71,7 @@ $COVERAGE_DOC
 $COVERAGE_KEYWORDS
 """
 coverage!(mode::Union{typeof(union),typeof(sum)}, A::AbstractRaster, data; kw...) =
-    _coverage!(A, GI.trait(data), data; kw..., mode)
+    coverage!(A, data; kw..., mode)
 function coverage!(A::AbstractRaster, data; scale::Integer=10, mode=union, kw...)
     # We use sum for `reducer` so eltype inference works
     r = Rasterizer(data; reducer=sum, fill=0.0, init=0.0, missingval=0.0, kw...)

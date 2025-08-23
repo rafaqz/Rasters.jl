@@ -280,7 +280,7 @@ function _extract(
     for p in GI.getpoint(geom)
         i += _extract_point!(rows, A, e, id, p, i; kw...)::Bool
     end
-    if istrue(skipmissing)
+    if istrue(e.skipmissing)
         # Remove excees rows where missing
         deleteat!(rows, i:length(rows))
     end
@@ -418,7 +418,7 @@ Base.@assume_effects :foldable function _prop_nt(
     ::Extractor{<:Any,P,K}, st::AbstractRasterStack, I, sm::_True
 )::Union{P,Missing} where {P,K}
     x = st[K][I]
-    _ismissingval(A, x) ? missing : x::P
+    _ismissingval(st, x) ? missing : x::P
 end
 Base.@assume_effects :foldable function _prop_nt(
     ::Extractor{<:Any,P,K}, st::AbstractRasterStack{K}, I, sm::_True
@@ -502,7 +502,7 @@ end
     end
     # If any are coordinates missing, also return missing for everything
     rows[i] = if any(map(ismissing, coords))
-        _maybe_add_fields(T, map(_ -> missing, names), id, missing, missing)
+        _maybe_add_fields(T, map(_ -> missing, K), id, missing, missing)
     else
         selector_dims = map(dims, coords) do d, c
             _at_or_contains(d, c, atol)

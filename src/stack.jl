@@ -46,10 +46,14 @@ _singlemissingval(mv, name) = mv
 
 function _maybe_collapse_missingval(mvs::NamedTuple)
     mv1, mvs_rest = Iterators.peel(mvs)
-    for mv in mvs_rest
-        mv === mv1 || return mvs
+    if isnothing(mvs_rest) 
+        return mv1
+    else
+        for mv in mvs_rest
+            mv === mv1 || return mvs
+        end
+        return mv1
     end
-    return mv1
 end
 _maybe_collapse_missingval(::NoKW) = nothing
 _maybe_collapse_missingval(mv) = mv
@@ -390,7 +394,7 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     missingval_vec = _missingval_vec(missingval, K)
     layermetadata_vec = layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), filename_vec)
     layerdims_vec = layerdims isa NamedTuple ? collect(layerdims) : map(_ -> NoKW(), filename_vec)
-    layers = map(K, filename_vec, layermetadata_vec, layerdims_vec, missingval_vec) do name, fn, md, d, mv
+    layers = map(collect(K), filename_vec, zip(layermetadata_vec, layerdims_vec, missingval_vec)) do name, fn, (md, d, mv)
         Raster(fn; 
             source=sourcetrait(fn, source), 
             dims=d, name, metadata=md, missingval=mv, scaled, verbose, kw...
@@ -480,13 +484,20 @@ function RasterStack(ds;
     metadata = isnokw(metadata) ? _metadata(ds) : metadata
     layerdims_vec = isnokw(layerdims) ? _layerdims(ds; layers, dimdict) : layerdims
     dims = _sort_by_layerdims(isnokw(dims) ? _dims(ds, dimdict) : dims, layerdims_vec)
+    name = Tuple(map(Symbol, layers.names))
+    NT = NamedTuple{name}
     layermetadata_vec = if isnokw(layermetadata)
         _layermetadata(ds; layers)
     else
-        layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
+        if layermetadata isa NamedTuple 
+            keys(layermetadata) == name || throw(ArgumentError(
+                "layermetadata keys $(keys(layermetadata)) do not match layer names $(name)"
+            ))
+            collect(layermetadata) 
+        else
+            map(_ -> NoKW(), layers.names)
+        end
     end
-    name = Tuple(map(Symbol, layers.names))
-    NT = NamedTuple{name}
     missingval_vec = if missingval isa Pair
         _missingval_vec(missingval, name)
     else
@@ -520,7 +531,7 @@ end
 
 # TODO test this properly
 function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
-    data = open(s) do o
+    data = open(s) do ost
         map(K) do k
             f(parent(ost)[k])
         end
@@ -602,7 +613,7 @@ _missingval_vec(missingval, layer_mvs::Vector, name::Tuple) =
 
 _missingval_name_error(missingval, layernames) = 
     _name_error("missingval", keys(missingval), layernames)
-_name_error(f, names, layernames) =
+_name_error(x, names, layernames) =
     throw(ArgumentError("`$x` names $names do not match layer names $layernames")) 
 
 # Try to sort the dimensions by layer dimension into a sensible

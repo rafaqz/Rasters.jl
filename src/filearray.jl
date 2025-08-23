@@ -70,7 +70,7 @@ function DA.readblock!(A::FileArray, dst, r::AbstractUnitRange...)
         if isdisk(O)
             DA.readblock!(O, dst, r...)
         else
-            dest[r...] .= view(parent(O), r...)
+            dst[r...] .= view(parent(O), r...)
         end
     end
 end
