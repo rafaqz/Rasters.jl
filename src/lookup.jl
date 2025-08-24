@@ -178,11 +178,13 @@ function Mapped(l::Sampled;
     Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim, dims, mapdata)
 end
 
-DD.hasmultipledimensions(lookup::Mapped) = true
 GeoInterface.crs(lookup::Mapped) = lookup.crs
 mappedcrs(lookup::Mapped) = lookup.mappedcrs
 dim(lookup::Mapped) = lookup.dim
-DD.dim(lookup::Mapped) = lookup.dims
+DD.dims(lookup::Mapped) = lookup.dims
+
+DD.hasalternatedimensions(lookup::Mapped) = !isnothing(dims(lookup)) && length(dims(lookup)) == 1
+DD.hasmultipledimensions(lookup::Mapped) = !isnothing(dims(lookup)) && length(dims(lookup)) > 1
 
 """
     convertlookup(dstlookup::Type{<:Lookup}, x)

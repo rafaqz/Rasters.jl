@@ -45,6 +45,7 @@ _singlemissingval(mvs::NamedTuple, name) = mvs[name]
 _singlemissingval(mv, name) = mv
 
 function _maybe_collapse_missingval(mvs::NamedTuple)
+    isempty(mvs) && return nothing
     mv1, mvs_rest = Iterators.peel(mvs)
     for mv in mvs_rest
         mv === mv1 || return mvs
@@ -297,9 +298,15 @@ function RasterStack(layers::NamedTuple{K,<:Tuple{Vararg{AbstractDimArray}}};
     kw...
 ) where K
     data = map(parent, _layers)
-    st = RasterStack(data;
-        dims, refdims, layerdims, metadata, layermetadata, missingval
-    )
+    st = if isempty(data)
+        # Use the main constructor, there is nothing left to do.
+        RasterStack(data, dims, refdims, layerdims, metadata, layermetadata, missingval)
+    else
+        # Use the NamedTuple of data constructor
+        RasterStack(data;
+            dims, refdims, layerdims, metadata, layermetadata, missingval
+        )
+    end
     return _postprocess_stack(st, dims; kw...)
 end
 # Stack from table and dims args
@@ -615,10 +622,12 @@ function _sort_by_layerdims(dims, layerdims::Vector)
             currentorder = _merge_dimorder(ldims, currentorder)
         end
     end
+    dims_tuple = Tuple(dims)
     if isnothing(currentorder)
-        return ()
+        return dims_tuple
     else
-        return DD.dims(Tuple(dims), currentorder)
+        used_dims = DD.dims(dims_tuple, currentorder)
+        return (used_dims..., otherdims(dims_tuple, used_dims)...)
     end
 end
 

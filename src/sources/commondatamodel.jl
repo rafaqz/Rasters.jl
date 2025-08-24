@@ -140,12 +140,12 @@ DiskArrays.haschunks(A::DiskCharToString) = DiskArrays.haschunks(parent(A))
 function DiskArrays.readblock!(A::DiskCharToString, dest, I...)
     src = parent(A)[:, I...]
     for I in CartesianIndices(dest)
-        dest[I] = _chars_to_string(view(src, :, I))
+        dest[I] = _cf_chars_to_string(view(src, :, I))
     end
     return dest
 end
 
-_chars_to_string(chars) = String(strip(join(chars), '\0'))
+_cf_chars_to_string(chars) = String(strip(join(chars), '\0'))
 
 # This allows arbitrary group nesting
 _getgroup(ds, ::Union{Nothing,NoKW}) = ds
@@ -260,20 +260,13 @@ function _layer_names(ds, var_names, vars_dict, attrs_dict)
     )
 end
 
-function _cdm_coordinates(attr)
-    if haskey(attr, "coordinates")
-        String.(split(attr["coordinates"], ' '))
-    else
-        String[]
-    end
-end
-function _cdm_node_coordinates(attr)
-    if haskey(attr, "node_coordinates")
-        String.(split(attr["node_coordinates"], ' '))
-    else
-        String[]
-    end
-end
+_cdm_coordinates(attr) = 
+    haskey(attr, "coordinates") ? _split_attribute(attr["coordinates"]) : String[]
+_cdm_node_coordinates(attr) =
+    haskey(attr, "node_coordinates") ? _split_attribute(attr["node_coordinates"]) : String[]
+
+_split_attribute(attrib) = 
+    isempty(attrib) ? String[] : String.(split(attrib, ' '))
 
 #= Here we convert the surface of the CF standard that we support 
 into DimensionalData.jl objects
@@ -291,7 +284,7 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
     geometry_dict = Dict{String,Any}()
     crs_dict = Dict{String,Any}()
     # Define a dimensions dict so these are only generated once
-    dim_dict = Dict{String,Dimension}()
+    dim_dict = OrderedDict{String,Dimension}()
     # Refdims need a consistent order as it is not changed later
     refdim_dict = OrderedDict{String,Dimension}()
     # Get the layer names to target
@@ -302,6 +295,7 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
     output_layers_vec = Vector{AbstractArray}(undef, length(layer_names))
     output_layerdims_vec = Vector{Tuple}(undef, length(layer_names))
     output_attrs_vec = Vector{Any}(undef, length(layer_names))
+    used_layers = trues(length(layer_names))
 
     # Loop over the layers we want to load as rasters
     # As we go, we add dimensions to dim_dict to be used in other layers
@@ -309,8 +303,17 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
         # Get the variable and its attributes
         var = get(() -> CDM.variable(ds, var_name), vars_dict, var_name)
         attr = get(() -> CDM.attribs(var), attrs_dict, var_name)
-        # Get its dimensions
-        layer_dimnames_vec[i] = dimnames = CDM.dimnames(var)
+        isdomain = false
+        if eltype(var) <: Char && ndims(var) == 0
+            if haskey(attr, "dimensions")
+                layer_dimnames_vec[i] = dimnames = Tuple(_split_attribute(attr["dimensions"]))
+                # Remove this entry from layer vecs
+                isdomain = true
+            end
+        else
+            # Get its dimensions
+            layer_dimnames_vec[i] = dimnames = CDM.dimnames(var)
+        end
         # Get its coordinates
         coord_names = _cdm_coordinates(attr)
         # Remove coordinates from metadata
@@ -333,7 +336,7 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
             layer_dimnames_vec[i] = dimnames = dimnames[2:end]
         end
         # Loop over the dimensions of this layer, adding missing dims to dim_dict 
-        output_layerdims_vec[i] = layerdims = map(dimnames) do dimname
+        layerdims = map(dimnames) do dimname
             get!(dim_dict, dimname) do
                 _cdm_dim(
                     ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, coord_names, dimname, crs, grid_mapping_key
@@ -358,25 +361,31 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
         unformatted_dims = map(dimnames) do dimname
             dim_dict[dimname]
         end
-        formatvar = if eltype(var) <: Char && length(layerdims) == (ndims(var) - 1)
-            DiskCharToString(var)
+        if isdomain 
+            formatted_dims = format(unformatted_dims)
+            used_layers[i] = false
         else
-            var
+            output_layerdims_vec[i] = layerdims
+            formatvar = if eltype(var) <: Char && length(layerdims) == (ndims(var) - 1)
+                DiskCharToString(var)
+            else
+                var
+            end
+            formatted_dims = format(unformatted_dims, formatvar)
+            # Finalise output variables and attributes
+            output_layers_vec[i] = var
+            output_attrs_vec[i] = attr
         end
-        formatted_dims = format(unformatted_dims, formatvar)
         map(dimnames, formatted_dims) do dimname, d
             dim_dict[dimname] = d
         end
-        # Finalise output variables and attributes
-        output_layers_vec[i] = var
-        output_attrs_vec[i] = attr
     end
 
     return (; 
-        names_vec=layer_names, 
-        layers_vec=output_layers_vec, 
-        layerdims_vec=output_layerdims_vec, 
-        layermetadata_vec=output_attrs_vec, 
+        names_vec=layer_names[used_layers], 
+        layers_vec=output_layers_vec[used_layers], 
+        layerdims_vec=output_layerdims_vec[used_layers], 
+        layermetadata_vec=output_attrs_vec[used_layers], 
         dim_dict,
         refdim_dict,
     )
@@ -431,6 +440,12 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
                     return _standard_dim(ds, vars_dict, attrs_dict, dimname, crs)
                 end
             else
+                if haskey(ds, dimname)
+                    # This is something we're not handling properly yet, try to warn
+                    dim_attrs = _get_attr!(attrs_dict, vars_dict, ds, dimname)
+                    _check_formula_terms(dim_attrs)
+                end
+                # Only one coordinate, so just use it as the dimension/lookup
                 return _merged_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
             end
         end
@@ -440,6 +455,12 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
     # subdim = _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, remaining_coord_names, dimname, crs)
 end
 
+function _check_formula_terms(dim_attrs)
+    haskey(dim_attrs, "formula_terms") && @warn """
+    formula_terms are not yet recognised or used by Rasters.jl. 
+    This may change at any time in future without a breaking version."
+    """
+end
 
 function is_rotated_longitude_latitude(ds, vars_dict, attrs_dict, dimname, grid_mapping_key)
     # isnothing(grid_mapping_key) && return false
@@ -486,6 +507,7 @@ end
 # Lookup/Dimension generation
 function _standard_dim(ds, vars_dict, attrs_dict, dimname, crs)
     dim_attrs = _get_attr!(attrs_dict, vars_dict, ds, dimname)
+    _check_formula_terms(dim_attrs)
     if is_climatology(dim_attrs)
         return _climatology_dim(ds, vars_dict, attrs_dict, dim_attrs, dimname)
     else
@@ -610,13 +632,8 @@ function _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dim
         dim = AutoDim()
         data = Base.OneTo(CDM.dim(ds, dimname))
     end
-    if D <: X
-        matrix = collect(_get_var!(vars_dict, ds, lon_key))
-        return ArrayLookup(matrix; data, dims)
-    elseif D == Y
-        matrix = collect(_get_var!(vars_dict, ds, lat_key))
-        return ArrayLookup(matrix; data, dims)
-    end
+    matrix = collect(_get_var!(vars_dict, ds, lat_key))
+    return ArrayLookup(matrix; data, dims)
 end
 
 function _merged_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
@@ -678,9 +695,11 @@ function _cdm_lookup(ds::AbstractDataset, attr, dimname, D::Type, crs)
     metadata = _metadatadict(sourcetrait(ds), attr)
     _cdm_lookup(data, ds, var, attr, dimname, D, metadata, crs)
 end
-# For unknown types we just make a Categorical lookup
-function _cdm_lookup(data::AbstractArray, ds::AbstractDataset, var, attr, dimname, D::Type, metadata, crs)
+function _cdm_lookup(data::AbstractVector{<:Union{AbstractString,Char}}, ds::AbstractDataset, var, attr, dimname, D::Type, metadata, crs)
     Categorical(data; order=Unordered(), metadata=metadata)
+end
+function _cdm_lookup(data::AbstractMatrix{Char}, ds::AbstractDataset, var, attr, dimname, D::Type, metadata, crs)
+    Categorical(_cf_chars_to_string.(eachslice(data; dims=2)); order=Unordered(), metadata=metadata)
 end
 # For Number and AbstractTime we generate order/span/sampling
 # We need to include `Missing` in unions in case `_FillValue` is used
@@ -1100,7 +1119,7 @@ function _cf_crs(ds, grid_mapping_key::AbstractString)
 end
 
 function _split_cf_attribute(attribute::String)
-    items = split(attribute, ' ')
+    items = _split_attribute(attribute)
     starts = findall(contains(':'), items)
     stops = append!(starts[2:end] .- 1, length(items))
     map(starts, stops) do s, p

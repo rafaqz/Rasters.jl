@@ -4,7 +4,6 @@ dimensions:
   lon = 36 ;
   pres = 15 ;
   time = 4 ;
-
 variables:
   char domain ;
     domain:dimensions = "time pres lat lon" ;
@@ -21,4 +20,6 @@ variables:
   double time(time) ;
     time:long_name = "time" ;
     time:units = "days since 1990-1-1 0:0:0" ;
+data:
+  time = 1, 2, 3, 4 ;
 }

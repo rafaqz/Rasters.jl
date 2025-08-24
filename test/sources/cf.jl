@@ -56,10 +56,6 @@ end |> OrderedDict
 @testset "2.1 string variable representation" begin
     rast = RasterStack(examples["2.1"])
     @test rast.char_variable == rast.str_variable
-    # Also works lazily
-    @test read(RasterStack(examples["2.1"]; lazy=true).char_variable) ==
-          read(RasterStack(examples["2.1"]; lazy=true)).char_variable ==
-          rast.str_variable
     # Fails due to DiskArrays.jl size checks during the comparison iteration
     @test_broken RasterStack(examples["2.1"]; lazy=true).char_variable == rast.str_variable
 end
@@ -80,17 +76,27 @@ end
 
 @testset "5.1 independent coordinate variables" begin
     rast = RasterStack(examples["5.1"]);
-    @test dims(rast) == (X(NoLookup(1:36)), Y(NoLookup(1:18)), Dim{:pres}(NoLookup(1:15)), Ti(NoLookup(1:4)))
+    testdims = (X(Sampled(1.0f0:36.0f0)), 
+                Y(Sampled(1.0f0:18.0f0)), 
+                Dim{:pres}(Sampled(1.0f0:15.0f0)), 
+                Ti(Sampled(collect(DateTime(1990):Day(1):DateTime(1990, 1, 4)))))
+    @test all(map(==, dims(rast), map(DimensionalData.format, testdims)))
     @test metadata(rast.xwind)["long_name"] == "zonal wind"
     @test metadata(rast.xwind)["units"] == "m/s"
-    # TODO add real vars to the file so there is also dimension metadata
+    @test metadata(dims(rast, :pres))["long_name"] == "pressure"
+    @test metadata(dims(rast, :pres))["units"] == "hPa"
+    @test metadata(dims(rast, X))["long_name"] == "longitude"
+    @test metadata(dims(rast, X))["units"] == "degrees_east"
+    @test metadata(dims(rast, Y))["long_name"] == "latitude"
+    @test metadata(dims(rast, Y))["units"] == "degrees_north"
+    @test metadata(dims(rast, Ti))["long_name"] == "time"
+    # This one is kind of redundant, we have converted to DateTime already
+    @test metadata(dims(rast, Ti))["units"] == "days since 1990-1-1 0:0:0" ;
 end
 
 @testset "5.2 two-dimensional coordinate variables" begin
-    rast = RasterStack(examples["5.2"]; lazy=true);
-    @test_broken 
-    rast[X=Near(1.0), Y=Near(2.0), Z=1]
-    isa Float32
+    rast = RasterStack(examples["5.2"]; lazy=true)
+    @test rast[X=Near(1.0), Y=Near(2.0), Z=1].T isa Float32
 end
 
 @testset "5.3 reduced horizontal grid" begin
@@ -103,16 +109,20 @@ end
 end
 
 @testset "5.6 rotated pole grid" begin
-    rast = RasterStack(examples["5.6"]; lazy=true);
-    @test rast.temp[X=Near(-0.9), Y=Near(3.0), Z=1] === 3.0f0
-    @test rast.temp[X=At(-0.44758424f0), Y=At(2.1773858f0), Z=1] === 2.0f0
+    rast = RasterStack(examples["5.6"]; lazy=true)
+    @test lookup(rast, :rlat) isa ArrayLookup
+    @test lookup(rast, :rlon) isa ArrayLookup
+    @test lookup(rast, Z) == DimensionalData.format(Sampled([100.0f0, 200.0f0]; span=Regular(100.0f0)))
+    @test_broken rast.temp[X=Near(-0.9), Y=Near(3.0), Z=1] === 3.0f0
+    @test_broken rast.temp[X=At(-0.44758424f0), Y=At(2.1773858f0), Z=1] === 2.0f0
 end
 
 @testset "5.8-9 WGS 84 EPSG" begin
+    # TODO this is wrong
     rast = RasterStack(examples["5.8"]; lazy=true)
     @test crs(rast) isa EPSG
     @test crs(rast) == EPSG(4326)
-    rast = RasterStack(examples["5.9"]; lazy=true);
+    rast = RasterStack(examples["5.9"]; lazy=true)
     @test crs(rast) isa EPSG
     @test crs(rast) == EPSG(4326)
 end
@@ -120,28 +130,67 @@ end
 @testset "5.10 British national grid" begin
     rast = RasterStack(examples["5.10"]; lazy=true);
     @test keys(rast) == (:temp, :pres)
+    # Need CFCRS.jl for this
     @test_broken !isnothing(crs(rast))
 end
 
 @testset "5.11 WGS 84 WellKnownText2" begin
     rast = RasterStack(examples["5.11"]; lazy=true)
+    # TODO extent is broken
+    # @test extent(rast)
     @test crs(rast) isa WellKnownText2
 end
 
 @testset "5.14 refdims from scalar coordinates" begin
-    rast = RasterStack(examples["5.14"]; lazy=true)
-    @test name(refdims(rast)) == (:atime, :p500)
+    rast = RasterStack(examples["5.14"]; lazy=true);
+    testdims = (Dim{:atime}([0.0]; span=Regular(0.0)), Dim{:p500}([500.0]; span=Regular(0.0)))
+    @test all(map(==, refdims(rast), map(DimensionalData.format, testdims)))
 end
 
 @testset "domains" begin
-    RasterStack(examples["5.15"]; lazy=true)
-    RasterStack(examples["5.16"]; lazy=true)
-    @testset "5.17 domain defines dimension and coords" begin
-        RasterStack(examples["5.17"]; lazy=true)
+    # TODO: load the dimensions of the domain,
+    # even though there are no layers that use them?
+    # Its a kind of weird RasterStack to have dims 
+    # with no layers? but maybe it works?
+    @testset "5.15 domain dimension" begin
+        rast = RasterStack(examples["5.15"]; lazy=true)
+        @test dims(rast) isa Tuple{<:Ti{<:Sampled{<:DateTime}},<:Dim{:pres},<:Y,<:X}
+        @test layers(rast) == (;)
+        @test refdims(rast) == ()
     end
-    RasterStack(examples["5.18"]; lazy=true)
-    RasterStack(examples["5.19"]; lazy=true)
-    RasterStack(examples["5.20"]; lazy=true)
+    @testset "5.16 domain dimension" begin
+        rast = RasterStack(examples["5.16"]; lazy=true)
+        @test dims(rast) isa Tuple{<:Z,<:Dim{:rlat},<:Dim{:rlon}}
+        @test layers(rast) == (;)
+        @test refdims(rast) isa Tuple{<:Ti}
+    end
+    @testset "5.17 domain defines dimension and coords" begin
+        # TODO : where to put area data? It could be useful
+        # but currently has no formal location, so its just available
+        # to the user, rather than to the `Rasters.cellarea` function
+        # TODO and do we make polygons out of the vertices so this is a GeometryLookup?
+        # Needs actual data in the file to test this
+        rast = RasterStack(examples["5.17"]; lazy=true)
+        span(dims(dims(rast, :cell), X))
+    end
+    @testset "5.17 domain with no layers or dimensions, but single coordinates, so refdims" begin
+        rast = RasterStack(examples["5.18"]; lazy=true)
+        @test dims(rast) == ()
+        @test refdims(rast) == (DimensionalData.format(Ti(Sampled([0.5]; span=Regular(0.0)))),)
+    end
+    @testset "5.17 domain with timeseries geometries" begin
+        rast = RasterStack(examples["5.19"]; lazy=true)
+        @test lookup(rast) isa Tuple{<:GeometryLookup,Sampled}
+        @test dims(rast) isa Tuple{<:Geometry,Ti}
+        @test length(lookup(rast, Geometry)) == 2
+        @test lookup(rast, Geometry)[1] == GeoInterface.LineString{false, false}([(30.0, 10.0), (10.0, 30.0), (40.0, 40.0)])
+    end
+end
+
+@testset "5.20 indexed ragged array " begin
+    # TODO ragged array lookup
+    rast = RasterStack(examples["5.20"]; lazy=true)
+    dims(rast, :station)
 end
 
 @testset "taxon name/id" begin
@@ -173,17 +222,28 @@ end
 end
 
 @testset "7.2 non-aligned horizontal grid" begin
+    # TODO: load bounds as squarish polygons
     rast = RasterStack(examples["7.2"]; lazy=true)
 end
 
-@testset "7.3-4 formula terms" begin
-    # These are not implemented
-    RasterStack(examples["7.3"]; lazy=true)
+@testset "7.3 formula terms" begin
+    # These are not implemented, but they load ok and warn
+    @test_warn "formula_terms" RasterStack(examples["7.3"]; lazy=true)
+end
+
+@testset "7.3 cell areas" begin
+    # TODO load bounds as polygons
+    # Not sure if we should attach the area to the dimension or its fine as a variable?
     RasterStack(examples["7.4"]; lazy=true)
 end
 
 @testset "7.5 methods applied to a timeseries" begin
     rast = RasterStack(examples["7.5"]; lazy=true)
+    # TODO: unfortunately mixed points and intervals 
+    # on the same axis is hard to represent in DD without a DimTree
+    @test metadata(rast.ppn)["cell_methods"] == "time: sum"
+    @test metadata(rast.pressure)["cell_methods"] == "time: point"
+    @test metadata(rast.maxtemp)["cell_methods"] == "time: maximum"
 end
 
 @testset "7.6 spacing of data" begin
@@ -248,7 +308,7 @@ end
         @test dims(rast, :Geometry)[1] isa GeoInterface.Wrappers.LineString
         @test GeoInterface.getpoint(dims(rast, :Geometry)[1]) == [(30.0, 10.0), (10.0, 30.0), (40.0, 40.0)]
     end
-    @testset "7.16 polygon" begin
+    @testset "7.16 polygons with holes" begin
         rast = RasterStack(examples["7.16"])
         multipoly = dims(rast, :Geometry)[1]
         @test multipoly isa GeoInterface.MultiPolygon

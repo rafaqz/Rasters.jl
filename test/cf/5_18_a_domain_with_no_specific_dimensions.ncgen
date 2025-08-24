@@ -9,4 +9,6 @@ variables:
   double t ;
     t:standard_name = "time" ;
     t:units = "days since 2021-01-01" ;
+data:
+  t = 0.5 ;
 }
