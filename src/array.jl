@@ -329,7 +329,7 @@ function Raster(filename::AbstractString; source=nokw, kw...)
     end::Raster
 end
 # Load a Raster from an opened Dataset
-# We need the inner method for AbstractArray ambiguit
+# We need the inner method for AbstractArray ambiguity
 Raster(ds; kw...) = _raster(ds; kw...)
 function _raster(ds;
     dims=nokw,

@@ -1,0 +1,54 @@
+netcdf 5_21_a_two_dimensional_UGRID_mesh_topology_variable {
+dimensions:
+  node = 5 ;  // Number of mesh nodes
+  edge = 6 ;  // Number of mesh edges
+  face = 2 ;  // Number of mesh faces
+  two = 2 ;   // Number of nodes per edge
+  four = 4 ;  // Maximum number of nodes per face
+  time = 12 ;
+variables:
+  // Mesh topology variable
+  integer mesh ;
+    mesh:cf_role = "mesh_topology" ;
+    mesh:long_name = "Topology of a 2-d unstructured mesh" ;
+    mesh:topology_dimension = 2 ;
+    mesh:node_coordinates = "mesh_node_x mesh_node_y" ;
+    mesh:edge_node_connectivity = "mesh_edge_nodes" ;
+    mesh:face_node_connectivity = "mesh_face_nodes" ;
+  // Mesh node coordinates
+  double mesh_node_x(node) ;
+    mesh_node_x:standard_name = "longitude" ;
+    mesh_node_x:units = "degrees_east" ;
+  double mesh_node_y(node) ;
+    mesh_node_y:standard_name = "latitude" ;
+    mesh_node_y:units = "degrees_north" ;
+  // Mesh connectivity variables
+  integer mesh_face_nodes(face, four) ;
+    mesh_face_nodes:long_name = "Maps each face to its 3 or 4 corner nodes" ;
+  integer mesh_edge_nodes(edge, two) ;
+    mesh_edge_nodes:long_name = "Maps each edge to the 2 nodes it connects" ;
+  // Coordinate variables
+  float time(time) ;
+    time:standard_name = "time" ;
+    time:units = "days since 2004-06-01" ;
+  // Data at mesh faces
+  double volume_at_faces(time, face) ;
+    volume_at_faces:standard_name = "air_density" ;
+    volume_at_faces:units = "kg m-3" ;
+    volume_at_faces:mesh = "mesh" ;
+    volume_at_faces:location = "face" ;
+  // Data at mesh edges
+  double flux_at_edges(time, edge) ;
+    flux_at_edges:standard_name = "northward_wind" ;
+    flux_at_edges:units = "m s-1" ;
+    flux_at_edges:mesh = "mesh" ;
+    flux_at_edges:location = "edge" ;
+  // Data at mesh nodes
+  double height_at_nodes(time, node) ;
+    height_at_nodes:standard_name = "sea_surface_height_above_geoid" ;
+    height_at_nodes:units = "m" ;
+    height_at_nodes:mesh = "mesh" ;
+    height_at_nodes:location = "node" ;
+data:
+  time = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 ;
+}

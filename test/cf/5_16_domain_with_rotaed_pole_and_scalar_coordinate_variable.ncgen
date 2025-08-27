@@ -1,0 +1,36 @@
+netcdf 5_16_domain_with_rotated_pole_and_scalar_coordinate_variable {
+dimensions:
+  rlon = 128 ;
+  rlat = 64 ;
+  lev = 18 ;
+variables:
+  char domain ;
+    domain:dimensions = "lev rlat rlon" ;
+    domain:coordinates = "lon lat time" ;
+    domain:grid_mapping = "rotated_pole" ;
+    domain:long_name = "Domain with grid mapping and scalar coordinate" ;
+  char rotated_pole ;
+    rotated_pole:grid_mapping_name = "rotated_latitude_longitude" ;
+    rotated_pole:grid_north_pole_latitude = 32.5 ;
+    rotated_pole:grid_north_pole_longitude = 170. ;
+  double time ;
+    time:standard_name = "time" ;
+    time:units = "days since 2000-12-01 00:00" ;
+  float rlon(rlon) ;
+    rlon:long_name = "longitude in rotated pole grid" ;
+    rlon:units = "degrees" ;
+    rlon:standard_name = "grid_longitude" ;
+  float rlat(rlat) ;
+    rlat:long_name = "latitude in rotated pole grid" ;
+    rlat:units = "degrees" ;
+    rlat:standard_name = "grid_latitude" ;
+  float lev(lev) ;
+    lev:long_name = "pressure level" ;
+    lev:units = "hPa" ;
+  float lon(rlat,rlon) ;
+    lon:long_name = "longitude" ;
+    lon:units = "degrees_east" ;
+  float lat(rlat,rlon) ;
+    lat:long_name = "latitude" ;
+    lat:units = "degrees_north" ;
+}

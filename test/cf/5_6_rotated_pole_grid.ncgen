@@ -1,0 +1,40 @@
+netcdf 5_6_rotated_pole_grid {
+dimensions:
+  rlon = 2 ;
+  rlat = 3 ;
+  lev = 2 ;
+variables:
+  float temp(lev,rlat,rlon) ;
+    temp:long_name = "temperature" ;
+    temp:units = "K" ;
+    temp:coordinates = "lon lat" ;
+    temp:grid_mapping = "rotated_pole" ;
+  char rotated_pole ;
+    rotated_pole:grid_mapping_name = "rotated_latitude_longitude" ;
+    rotated_pole:grid_north_pole_latitude = 32.5 ;
+    rotated_pole:grid_north_pole_longitude = 170. ;
+  float rlon(rlon) ;
+    rlon:long_name = "longitude in rotated pole grid" ;
+    rlon:units = "degrees" ;
+    rlon:standard_name = "grid_longitude";
+  float rlat(rlat) ;
+    rlat:long_name = "latitude in rotated pole grid" ;
+    rlat:units = "degrees" ;
+    rlat:standard_name = "grid_latitude";
+  float lev(lev) ;
+    lev:long_name = "pressure level" ;
+    lev:units = "hPa" ;
+  float lon(rlat,rlon) ;
+    lon:long_name = "longitude" ;
+    lon:units = "degrees_east" ;
+  float lat(rlat,rlon) ;
+    lat:long_name = "latitude" ;
+    lat:units = "degrees_north" ;
+data:
+  lev = 100.,200. ;
+  rlon = 1.,2. ;
+  rlat = 1.,2.,3. ;
+  lon = 0.09304411541825952,-0.44758423350737075,-0.9882125824330013,0.7267165797621494,0.18608823083651904,-0.35454011808911123 ;
+  lat = 1.351930628740054,2.177385813188897,3.00284099763774,1.8784060730312653,2.703861257480108,3.529316441928951 ;
+  temp = 1.,2.,3.,4.,5.,6.,7.,8.,9.,10.,11.,12. ;
+}

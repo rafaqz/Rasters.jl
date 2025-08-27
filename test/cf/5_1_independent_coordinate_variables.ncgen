@@ -1,0 +1,30 @@
+netcdf 5_1_independent_coordinate_variables {
+dimensions:
+  lat = 18 ;
+  lon = 36 ;
+  pres = 15 ;
+  time = 4 ;
+variables:
+  float xwind(time,pres,lat,lon) ;
+    xwind:long_name = "zonal wind" ;
+    xwind:units = "m/s" ;
+  float lon(lon) ;
+    lon:long_name = "longitude" ;
+    lon:units = "degrees_east" ;
+  float lat(lat) ;
+    lat:long_name = "latitude" ;
+    lat:units = "degrees_north" ;
+  float pres(pres) ;
+    pres:long_name = "pressure" ;
+    pres:units = "hPa" ;
+  double time(time) ;
+    time:long_name = "time" ;
+    time:units = "days since 1990-1-1 0:0:0" ;
+data:
+  pres = 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15. ;
+  lat = 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18. ;
+  lon = 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., 26., 27., 28., 29., 30., 31., 32., 33., 34., 35., 36. ;
+  time = 0, 1, 2, 3 ;
+}
+
+

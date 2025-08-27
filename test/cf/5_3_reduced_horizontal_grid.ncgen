@@ -1,0 +1,23 @@
+netcdf 5_3_reduced_horizontal_grid {
+dimensions:
+  londim = 128 ;
+  latdim = 64 ;
+  rgrid = 4 ;
+variables:
+  float PS(rgrid) ;
+    PS:long_name = "surface pressure" ;
+    PS:units = "Pa" ;
+    PS:coordinates = "lon lat" ;
+  float lon(rgrid) ;
+    lon:long_name = "longitude" ;
+    lon:units = "degrees_east" ;
+  float lat(rgrid) ;
+    lat:long_name = "latitude" ;
+    lat:units = "degrees_north" ;
+  int rgrid(rgrid);
+    rgrid:compress = "latdim londim";
+data:
+    PS = 0.1, 0.2, 0.3, 0.4 ;
+    lon=1., 2., 3., 4. ;
+    lat=10., 20., 30., 40. ;
+}

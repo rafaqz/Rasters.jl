@@ -1,0 +1,19 @@
+netcdf 7_6_surface_air_temperature_variance {
+dimensions:
+  lat=90;
+  lon=180;
+  time=1;
+  nv=2;
+variables:
+  float TS_var(time,lat,lon);
+    TS_var:long_name="surface air temperature variance";
+    TS_var:units="K2";
+    TS_var:cell_methods="time: variance (interval: 1 hr comment: sampled instantaneously)";
+  float time(time);
+    time:units="days since 1990-01-01 00:00:00";
+    time:bounds="time_bnds";
+  float time_bnds(time,nv);
+data:
+  time=.5;
+  time_bnds=0.,1.;
+}
