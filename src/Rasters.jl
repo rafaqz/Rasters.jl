@@ -1,12 +1,5 @@
 module Rasters
 
-# Use the README as the module docs
-@doc let
-    # path = joinpath(dirname(@__DIR__), "README.md")
-    # include_dependency(path)
-    # read(path, String)
-end Rasters
-
 using Dates
 
 # Load first to fix StaticArrays invalidations
@@ -24,6 +17,7 @@ import Adapt,
        GeometryOps,
        GeometryOpsCore,
        OffsetArrays,
+       OrderedCollections,
        ProgressMeter,
        Missings,
        Mmap,
@@ -44,6 +38,7 @@ using DimensionalData: Name, NoName
 using .Dimensions: StandardIndices, DimTuple
 using .Lookups: LookupTuple
 
+using OrderedCollections: OrderedDict
 using Statistics: mean
 using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
@@ -123,7 +118,6 @@ include("utils.jl")
 include("skipmissing.jl")
 
 include("geometry_lookup/geometry_lookup.jl")
-include("geometry_lookup/lookups.jl")
 include("geometry_lookup/methods.jl")
 include("geometry_lookup/io.jl")
 

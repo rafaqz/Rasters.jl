@@ -1,0 +1,25 @@
+netcdf 5_15_domain_with_independent_coordinate_variables {
+dimensions:
+  lat = 18 ;
+  lon = 36 ;
+  pres = 15 ;
+  time = 4 ;
+variables:
+  char domain ;
+    domain:dimensions = "time pres lat lon" ;
+    domain:long_name = "Domain with independent coordinate variables" ;
+  float lon(lon) ;
+    lon:long_name = "longitude" ;
+    lon:units = "degrees_east" ;
+  float lat(lat) ;
+    lat:long_name = "latitude" ;
+    lat:units = "degrees_north" ;
+  float pres(pres) ;
+    pres:long_name = "pressure" ;
+    pres:units = "hPa" ;
+  double time(time) ;
+    time:long_name = "time" ;
+    time:units = "days since 1990-1-1 0:0:0" ;
+data:
+  time = 1, 2, 3, 4 ;
+}

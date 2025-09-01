@@ -1,0 +1,28 @@
+netcdf 5_2_two_dimensional_coordinate_variables {
+dimensions:
+  xc = 128 ;
+  yc = 64 ;
+  lev = 18 ;
+variables:
+  float T(lev,yc,xc) ;
+    T:long_name = "temperature" ;
+    T:units = "K" ;
+    T:coordinates = "lon lat" ;
+  float xc(xc) ;
+    xc:axis = "X" ;
+    xc:long_name = "x-coordinate in Cartesian system" ;
+    xc:units = "m" ;
+  float yc(yc) ;
+    yc:axis = "Y" ;
+    yc:long_name = "y-coordinate in Cartesian system" ;
+    yc:units = "m" ;
+  float lev(lev) ;
+    lev:long_name = "pressure level" ;
+    lev:units = "hPa" ;
+  float lon(yc,xc) ;
+    lon:long_name = "longitude" ;
+    lon:units = "degrees_east" ;
+  float lat(yc,xc) ;
+    lat:long_name = "latitude" ;
+    lat:units = "degrees_north" ;
+}

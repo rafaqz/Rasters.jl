@@ -45,6 +45,7 @@ _singlemissingval(mvs::NamedTuple, name) = mvs[name]
 _singlemissingval(mv, name) = mv
 
 function _maybe_collapse_missingval(mvs::NamedTuple)
+    isempty(mvs) && return nothing
     mv1, mvs_rest = Iterators.peel(mvs)
     for mv in mvs_rest
         mv === mv1 || return mvs
@@ -293,12 +294,19 @@ function RasterStack(layers::NamedTuple{K,<:Tuple{Vararg{AbstractDimArray}}};
     metadata=NoMetadata(),
     layermetadata::NamedTuple{K}=map(DD.metadata, _layers),
     layerdims::NamedTuple{K}=map(DD.basedims, _layers),
+    lazy=false,
     kw...
 ) where K
     data = map(parent, _layers)
-    st = RasterStack(data;
-        dims, refdims, layerdims, metadata, layermetadata, missingval
-    )
+    st = if isempty(data)
+        # Use the main constructor, there is nothing left to do.
+        RasterStack(data, dims, refdims, layerdims, metadata, layermetadata, missingval)
+    else
+        # Use the NamedTuple of data constructor
+        RasterStack(data;
+            dims, refdims, layerdims, metadata, layermetadata, missingval
+        )
+    end
     return _postprocess_stack(st, dims; kw...)
 end
 # Stack from table and dims args
@@ -452,7 +460,7 @@ function RasterStack(ds;
     filename=filename(ds),
     source=nokw,
     dims=nokw,
-    refdims=(),
+    refdims=nokw,
     name=nokw,
     group=nokw,
     metadata=nokw,
@@ -471,34 +479,32 @@ function RasterStack(ds;
 )
     check_multilayer_dataset(ds)
     scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
-    layers = _layers(ds, name, group)
     # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
-    dimdict = _dimdict(ds, crs, mappedcrs)
-    refdims = isnokw(refdims) || isnothing(refdims) ? () : refdims
+    (; names_vec, layers_vec, layerdims_vec, layermetadata_vec, dim_dict, refdim_dict) = _organise_dataset(ds, name, group)
+    dims = _sort_by_layerdims(isnokw(dims) ? values(dim_dict) : dims, layerdims_vec)
+    refdims = isnokwornothing(refdims) ? Tuple(values(refdim_dict)) : refdims
     metadata = isnokw(metadata) ? _metadata(ds) : metadata
-    layerdims_vec = isnokw(layerdims) ? _layerdims(ds; layers, dimdict) : layerdims
-    dims = _sort_by_layerdims(isnokw(dims) ? _dims(ds, dimdict) : dims, layerdims_vec)
     layermetadata_vec = if isnokw(layermetadata)
-        _layermetadata(ds; layers)
+        _layermetadata(ds; attrs=layermetadata_vec)
     else
         layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
     end
-    name = Tuple(map(Symbol, layers.names))
+    name = Tuple(map(Symbol, names_vec))
     NT = NamedTuple{name}
     missingval_vec = if missingval isa Pair
         _missingval_vec(missingval, name)
     else
-        layer_mvs = map(Rasters.missingval, layers.vars, layermetadata_vec)
+        layer_mvs = map(Rasters.missingval, layers_vec, layermetadata_vec)
         _missingval_vec(missingval, layer_mvs, name)
     end
-    eltype_vec = map(eltype, layers.vars)
+    eltype_vec = map(l -> _eltype(source, l), layers_vec)
     mod_vec = _stack_mods(eltype_vec, layermetadata_vec, missingval_vec; scaled, coerce)
     data = if lazy
-        vars = ntuple(i -> layers.vars[i], length(name))
+        vars = ntuple(i -> layers_vec[i], length(name))
         mods = ntuple(i -> mod_vec[i], length(name))
         FileStack{typeof(source)}(ds, filename; name, group, mods, vars)
     else
-        map(layers.vars, layermetadata_vec, mod_vec) do var, md, mod
+        map(layers_vec, layermetadata_vec, mod_vec) do var, md, mod
             modvar = _maybe_modify(var, mod)
             checkmem && _checkobjmem(modvar)
             Array(modvar)
@@ -527,8 +533,8 @@ function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
 end
 
 # Open a single file stack
-function Base.open(f::Function, st::AbstractRasterStack{K,T,<:Any,<:FileStack{X}}; kw...) where {X,K,T}
-    ost = OpenStack{X,K,T}(parent(st))
+function Base.open(f::Function, st::AbstractRasterStack{K}; kw...) where K
+    ost = OpenStack(parent(st))
     # TODO is this needed?
     layers = map(K) do k
         ost[k]
@@ -607,7 +613,7 @@ _name_error(f, names, layernames) =
 # order that applies without permutation, preferencing the layers
 # with most dimensions, and those that come first.
 # Intentionally not type-stable
-function _sort_by_layerdims(dims, layerdims)
+function _sort_by_layerdims(dims, layerdims::Vector)
     dimlist = union(layerdims)
     currentorder = nothing
     for i in length(dims):-1:1
@@ -616,7 +622,13 @@ function _sort_by_layerdims(dims, layerdims)
             currentorder = _merge_dimorder(ldims, currentorder)
         end
     end
-    return DD.dims(dims, currentorder)
+    dims_tuple = Tuple(dims)
+    if isnothing(currentorder)
+        return dims_tuple
+    else
+        used_dims = DD.dims(dims_tuple, currentorder)
+        return (used_dims..., otherdims(dims_tuple, used_dims)...)
+    end
 end
 
 _merge_dimorder(neworder, ::Nothing) = neworder
@@ -672,17 +684,21 @@ end
 
 Base.convert(::Type{RasterStack}, src::AbstractDimStack) = RasterStack(src)
 
-# For ambiguity. TODO: remove this method from DD ?
-function RasterStack(dt::AbstractDimTree; keep=nothing)
-    if isnothing(keep)
-        pruned = DD.prune(dt; keep)
-        RasterStack(pruned[Tuple(keys(pruned))])
-    else
-        RasterStack(dt[Tuple(keys(dt))])
+@static if :AbstractDimTree in names(DimensionalData)
+    # For ambiguity. TODO: remove this method from DD ?
+    function RasterStack(dt::AbstractDimTree; keep=nothing)
+        if isnothing(keep)
+            pruned = DD.prune(dt; keep)
+            RasterStack(pruned[Tuple(keys(pruned))])
+        else
+            RasterStack(dt[Tuple(keys(dt))])
+        end
     end
 end
+
+
 # TODO resolve the meaning of Raster(::RasterStack)
-Raster(stack::AbstractDimStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
+Raster(stack::AbstractDimStack; kw...) = Raster(cat(values(stack)...; dims=Band([keys(stack)...])); kw...)
 # In DD it would be 
 # Raster(st::AbstractDimStack) =
     # Raster([st[D] for D in DimIndices(st)]; dims=dims(st), metadata=metadata(st))

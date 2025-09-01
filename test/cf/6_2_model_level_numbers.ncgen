@@ -1,0 +1,17 @@
+netcdf 6_2_model_level_numbers {
+dimensions:
+  sigma=5;
+  lat=30;
+variables:
+  float xwind(sigma,lat);
+    xwind:coordinates="model_level";
+  float sigma(sigma); // physical height coordinate
+    sigma:long_name="sigma";
+    sigma:positive="down";
+  int model_level(sigma); // model level number at each height
+    model_level:long_name="model level number";
+    model_level:positive="up";
+data:
+  sigma = -1., -2., -3., -4., -5. ;
+  model_level = 10, 20, 30, 40, 50 ;
+}

@@ -1,13 +1,12 @@
-#=
-# Geometry encoding and decoding from CF conventions
-
-Encode functions will always return a named tuple with the standard 
-=#
-function _geometry_cf_encode(::Union{GI.PointTrait, GI.MultiPointTrait}, geoms)
+# Geometry encoding and decoding from CF conventions (7.5)
+_cf_geometry_encode(geoms) = _cf_geometry_encode(GI.trait(first(geoms)), geoms)
+_cf_geometry_encode(trait::GI.AbstractTrait, geoms) = throw(ArgumentError("Geometry trait $trait not currently handled by Rasters"))
+function _cf_geometry_encode(::Union{GI.PointTrait,GI.MultiPointTrait}, geoms)
     if all(x -> GI.trait(x) isa GI.PointTrait, geoms)
         return (;
-            node_coordinates_x = GI.x.(geoms),
-            node_coordinates_y = GI.y.(geoms),
+            geometry_type = "point",
+            x = GI.x.(geoms),
+            y = GI.y.(geoms),
         )
     end
     # else: we have some multipolygons in here
@@ -26,15 +25,17 @@ function _geometry_cf_encode(::Union{GI.PointTrait, GI.MultiPointTrait}, geoms)
     # without allocating an extra array.
     foreach(identity, flattener)
 
+    centroids = GO.centroid.(geoms)
     return (;
-        node_coordinates_x = flat_xs,
-        node_coordinates_y = flat_ys,
+        geometry_type = "line",
+        x = flat_xs,
+        y = flat_ys,
+        lon = first.(centroids),
+        lat = last.(centroids),
         node_count = GI.npoint.(geoms)
     )
 end
-
-
-function _geometry_cf_encode(::Union{GI.LineStringTrait, GI.MultiLineStringTrait}, geoms)
+function _cf_geometry_encode(::Union{GI.LineStringTrait, GI.MultiLineStringTrait}, geoms)
     # There is a fast path without encoding part_node_count if all geoms are linestrings.
     npoints = sum(GI.npoint, geoms)
     flat_xs = Vector{Float64}(undef, npoints)
@@ -50,27 +51,33 @@ function _geometry_cf_encode(::Union{GI.LineStringTrait, GI.MultiLineStringTrait
     # iterate over flattener to populate the arrays,
     # without allocating an extra array.
     foreach(identity, flattener)
+    attribs = Dict{String,Any}("geometry_type" => "linestring")
 
     # If all geoms are linestrings, we can take a fast path.
+    centroids = GO.centroid.(geoms)
     if all(x -> GI.trait(x) isa GI.LineStringTrait, geoms)
         return (;
-            node_coordinates_x = flat_xs,
-            node_coordinates_y = flat_ys,
+            geometry_type = "line",
+            x = flat_xs,
+            y = flat_ys,
+            lon = first.(centroids),
+            lat = last.(centroids),
             node_count = GI.npoint.(geoms)
         )
     end
 
     # Otherwise, we need to encode part_node_count for multilinestrings.
     return (;
-        node_coordinates_x = flat_xs,
-        node_coordinates_y = flat_ys,
+        geometry_type = "line",
+        x = flat_xs,
+        y = flat_ys,
+        lon = first.(centroids),
+        lat = last.(centroids),
         part_node_count = collect(GO.flatten(GI.npoint, GI.LineStringTrait, geoms)),
         node_count = GI.npoint.(geoms)
     )
 end
-
-function _geometry_cf_encode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, geoms)
-
+function _cf_geometry_encode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, geoms)
     ngeoms = length(geoms)
     nrings = GO.applyreduce(GI.nring, +, GI.PolygonTrait(), geoms; init = 0, threaded = false)
     n_points_per_geom_vec = GI.npoint.(geoms)
@@ -88,7 +95,6 @@ function _geometry_cf_encode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, geo
     current_ring_index = 1
 
     for (i, geom) in enumerate(geoms)
-
         this_geom_npoints = GI.npoint(geom)
         # Bear in mind, that the last point (which == first point) 
         # of the linear ring is removed when encoding, so not included
@@ -104,7 +110,6 @@ function _geometry_cf_encode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, geo
                 ys[current_xy_index] = GI.y(point)
                 current_xy_index += 1
             end
-            # Main.@infiltrate
             part_node_count_vec[current_ring_index] = GI.npoint(exterior_ring)-1
             interior_ring_vec[current_ring_index] = 0
             current_ring_index += 1
@@ -130,89 +135,56 @@ function _geometry_cf_encode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, geo
     # The names in this named tuple are standard CF conventions.
     # node_coordinates_x and node_coordinates_y are the coordinates of the nodes of the rings.
     # but cf encodes them as a space separated string.  That's the only difference.
+    centroids = GO.centroid.(geoms)
     return (;
-        node_coordinates_x = xs, 
-        node_coordinates_y = ys, 
+        geometry_type = "polygon",
+        x = xs, 
+        y = ys, 
+        lon = first.(centroids),
+        lat = last.(centroids),
         node_count = node_count_vec, 
         part_node_count = part_node_count_vec, 
         interior_ring = interior_ring_vec
     )
 end
 
-#=
-function _def_dim_var!(ds::AbstractDataset, dim::Dimension{<: GeometryLookup})
-    dimname = lowercase(string(DD.name(dim)))
-    haskey(ds.dim, dimname) && return nothing
-    CDM.defDim(ds, dimname, length(dim))
-    lookup(dim) isa NoLookup && return nothing
-    attribdict = _attribdict(NoMetadata())
-
-
-    CDM.defVar(ds, dimname, Vector(index(dim)), (dimname,); attrib=attrib)
-    
+# CF standards Geometry decoding (7.5)
+# `geometry` is the CF attributes dict from the variable linked to a 'geometry" attribute.
+# `ds` is any CommonDataModel.AbstractDataset
+function _cf_geometry_decode(ds::AbstractDataset, geometry; kw...)
+    geometry_type = geometry["geometry_type"]
+    trait = if geometry_type == "point"
+        haskey(geometry, "node_count") ? GI.MultiPointTrait() : GI.PointTrait()
+    elseif geometry_type == "line"
+        haskey(geometry, "part_node_count") ? GI.MultiLineStringTrait() : GI.LineStringTrait()
+    elseif geometry_type == "polygon"
+        haskey(geometry, "part_node_count") ?  GI.MultiPolygonTrait() : GI.PolygonTrait()
+    end
+    return _cf_geometry_decode(trait, ds, geometry; kw...)
 end
-=#
-
-
-function _geometry_cf_decode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, ds, geometry_container_attribs; crs = nothing)
-    # First of all, we assert certain things about the geometry container and what it has.
-    @assert haskey(ds, geometry_container_attribs["node_count"])
-    node_count_var = ds[geometry_container_attribs["node_count"]]
-    # only(CDM.dimnames(node_count_var)) != u_dim_name && throw(ArgumentError("node_count variable $u_dim_name does not match the unknown dimension $u_dim_name"))
-
-    # Load and create all the data we need.
-    node_count = collect(node_count_var)
-    node_coordinates = collect(zip(getindex.((ds,), split(geometry_container_attribs["node_coordinates"], " "))...))
-
-    # We can take a fast path for polygons, if we know that there are no multipart polygons.
-    if !haskey(geometry_container_attribs, "part_node_count")
-        node_count_stops = cumsum(node_count)
-        node_count_starts = [1, node_count_stops[1:end-1] .+ 1...]
-        return map(node_count_starts, node_count_stops) do start, stop
-            GI.Polygon([GI.LinearRing(node_coordinates[start:stop]; crs)]; crs)
-        end
-    end
-
-
-    part_node_count = collect(ds[geometry_container_attribs["part_node_count"]])
-    interior_ring = collect(ds[geometry_container_attribs["interior_ring"]])
-
-    # First, we assemble all the rings.  That's the slightly complex part.
-    # After rings are assembled, we assemble the polygons and multipolygons from the rings.
-
-    # Initialize variables for ring assembly
-    start = 1
-    stop = part_node_count[1]
-    rings = [node_coordinates[start:stop]]
-    push!(rings[end], node_coordinates[start])
-
-    # Assemble all rings
-    for i in 2:length(part_node_count)
-        start = stop + 1
-        stop = start + part_node_count[i] - 1
-        push!(rings, node_coordinates[start:stop])
-        # Ensure rings are closed by adding the first point at the end
-        push!(rings[end], node_coordinates[start])
-    end
-
+function _cf_geometry_decode(::GI.MultiPolygonTrait, ds, geometry; crs=nothing)
+    rings = _split_inner_geoms(ds, geometry; autoclose=true)
+    node_count = _cf_node_count(ds, geometry)
+    interior_ring = _cf_interior_ring(ds, geometry)
     # Now, we proceed to assemble the polygons and multipolygons from the rings.
     # TODO: no better way to get the tuple type, at least for now.
-    _lr = GI.LinearRing([(0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]; crs)
+    _lr = GI.LinearRing(first(rings); crs)
     _p = GI.Polygon([_lr]; crs)
     _mp = GI.MultiPolygon([_p]; crs)
     geoms = Vector{typeof(_mp)}(undef, length(node_count))
+
     # Assemble multipolygons
     current_ring = 1
     for (geom_idx, total_nodes) in enumerate(node_count)
         # Find all rings that belong to this polygon
-        polygon_rings = Tuple{typeof(_lr), Int8}[]
-        accumulated_nodes = 0
+        polygon_rings = Tuple{typeof(_lr), Int}[]
         
-        while current_ring <= length(part_node_count) && accumulated_nodes < total_nodes
+        n_points_added = 0
+        while current_ring <= length(rings) && n_points_added < total_nodes
             ring = rings[current_ring]
             push!(polygon_rings, (GI.LinearRing(ring; crs), interior_ring[current_ring]))
-            accumulated_nodes += part_node_count[current_ring]
             current_ring += 1
+            n_points_added += length(ring)
         end
         
         # Create polygons from rings
@@ -237,49 +209,16 @@ function _geometry_cf_decode(::Union{GI.PolygonTrait, GI.MultiPolygonTrait}, ds,
         if !isnothing(current_exterior)
             push!(polygons, GI.Polygon([current_exterior, current_holes...]; crs))
         end
-        
         # Create multipolygon from all polygons
         geoms[geom_idx] = GI.MultiPolygon(polygons; crs)
     end
-
     return geoms
-
 end
+function _cf_geometry_decode(::GI.MultiLineStringTrait, ds, geometry; crs=nothing)
+    node_count = _cf_node_count(ds, geometry)
+    lines = _split_inner_geoms(ds, geometry; autoclose = false)
 
-
-
-function _geometry_cf_decode(::Union{GI.LineStringTrait, GI.MultiLineStringTrait}, ds, geometry_container_attribs; crs = nothing)
-    @assert haskey(ds, geometry_container_attribs["node_count"])
-    node_count_var = ds[geometry_container_attribs["node_count"]]
-
-    # Load and create all the data we need.
-    node_count = collect(node_count_var)
-    node_coordinates = collect(zip(getindex.((ds,), split(geometry_container_attribs["node_coordinates"], " "))...))
-
-    # we can use a fast path for lines, if we know that there are no multipart lines.
-    if !haskey(geometry_container_attribs, "part_node_count")
-        node_count_stops = cumsum(node_count)
-        node_count_starts = [1, node_count_stops[1:end-1] .+ 1...]
-        return GI.LineString.(getindex.((node_coordinates,), (:).(node_count_starts, node_count_stops)); crs)
-    end
-
-    # otherwise, we need to decode the multipart lines.
-    part_node_count = collect(ds[geometry_container_attribs["part_node_count"]])
-
-    # Initialize variables for line assembly
-    start = 1
-    stop = part_node_count[1]
-    lines = [node_coordinates[start:stop]]
-
-    # Assemble all lines
-    for i in 2:length(part_node_count)
-        start = stop + 1
-        stop = start + part_node_count[i] - 1
-        push!(lines, node_coordinates[start:stop])
-    end
-
-    # Now assemble the multilinestrings
-    _ls = GI.LineString(node_coordinates[1:2]; crs)
+    _ls = GI.LineString(lines[1]; crs)
     _mls = GI.MultiLineString([_ls]; crs)
     geoms = Vector{typeof(_mls)}(undef, length(node_count))
 
@@ -288,47 +227,85 @@ function _geometry_cf_decode(::Union{GI.LineStringTrait, GI.MultiLineStringTrait
     for (geom_idx, total_nodes) in enumerate(node_count)
         # Find all lines that belong to this multilinestring
         multilinestring_lines = typeof(_ls)[]
-        accumulated_nodes = 0
-        
-        while current_line <= length(part_node_count) && accumulated_nodes < total_nodes
+        nodes_added = 0
+        while nodes_added < total_nodes
             line = lines[current_line]
             push!(multilinestring_lines, GI.LineString(line; crs))
-            accumulated_nodes += part_node_count[current_line]
             current_line += 1
+            nodes_added += length(line)
         end
-        
         # Create multilinestring from all lines
         geoms[geom_idx] = GI.MultiLineString(multilinestring_lines; crs)
     end
 
     return geoms
 end
-
-function _geometry_cf_decode(::Union{GI.PointTrait, GI.MultiPointTrait}, ds, geometry_container_attribs; crs = nothing)
-    
-    node_coordinates = collect(zip(getindex.((ds,), split(geometry_container_attribs["node_coordinates"], " "))...))
-    # We can take a fast path for points, if we know that there are no multipoints
-    if haskey(geometry_container_attribs, "node_count")
-        @assert haskey(ds, geometry_container_attribs["node_count"])
-        node_count_var = ds[geometry_container_attribs["node_count"]]
-        node_count = collect(node_count_var)
-        # The code below could be a fast path, but we don't want
-        # to arbitrarily change the output type of the decoder.
-        # MultiPoints should always roundtrip and write as multipoints.
-        # if !all(==(1), node_count)
-        # do nothing
-        # else
-        # return a fast path 
-        # end
-        # we have multipoints
-        node_count_stops = cumsum(node_count)
-        node_count_starts = [1, node_count_stops[1:end-1] .+ 1...]
-        return map(node_count_starts, node_count_stops) do start, stop
-            GI.MultiPoint(node_coordinates[start:stop]; crs)
-        end
-    end
-
-    # finally, if we have no node count, or all node counts are 1, we just return the points
+function _cf_geometry_decode(::GI.PointTrait, ds, geometry; crs=nothing)
+    node_coordinates = _cf_node_coordinates(ds, geometry)
+    # Just wrap raw coordinates as Points
     return GI.Point.(node_coordinates; crs)
-
 end
+function _cf_geometry_decode(::GI.LineStringTrait, ds, geometry; crs=nothing)
+    node_count = _cf_node_count(ds, geometry)
+    node_coordinates = _cf_node_coordinates(ds, geometry)
+    # Split coordinates to separate LineStrings by node count ranges
+    return map(_node_ranges(node_count)) do range
+        GI.LineString(node_coordinates[range]; crs)
+    end
+end
+function _cf_geometry_decode(::GI.MultiPointTrait, ds, geometry; crs = nothing)
+    node_count = _cf_node_count(ds, geometry)
+    node_coordinates = _cf_node_coordinates(ds, geometry)
+    # Split coordinates to separate MultiPoint by node count ranges
+    return map(_node_ranges(node_count)) do range
+        GI.MultiPoint(node_coordinates[range]; crs)
+    end
+end
+function _cf_geometry_decode(::GI.PolygonTrait, ds, geometry; crs=nothing)
+    node_count = _cf_node_count(ds, geometry)
+    node_coordinates = _cf_node_coordinates(ds, geometry)
+    # Split coordinates to separate single-ring Polygons by node count ranges
+    return map(_node_ranges(node_count)) do range
+        GI.Polygon([GI.LinearRing(node_coordinates[range]; crs)]; crs)
+    end
+end
+
+function _node_ranges(node_count) 
+    cum_node_count = cumsum(node_count)
+    ranges = Vector{UnitRange{Int}}(undef, length(node_count))
+    for i in eachindex(ranges)
+        ranges[i] = i == 1 ? (1:node_count[i]) : ((cum_node_count[i-1]+1):cum_node_count[i])
+    end
+    return ranges
+end
+
+function _split_inner_geoms(ds, geometry; autoclose=false)
+    part_node_count = _cf_part_node_count(ds, geometry)
+    node_coordinates = _cf_node_coordinates(ds, geometry)
+    # Initialize variables for ring assembly
+    start = 1
+    stop = part_node_count[1]
+    rings = [node_coordinates[start:stop]]
+    autoclose && push!(rings[end], node_coordinates[start])
+
+    # Assemble all rings
+    for i in 2:length(part_node_count)
+        start = stop + 1
+        stop = start + part_node_count[i] - 1
+        push!(rings, node_coordinates[start:stop])
+        # Ensure rings are closed by adding the first point at the end
+        autoclose && push!(rings[end], node_coordinates[start])
+    end
+    return rings
+end
+
+function _cf_node_coordinates(ds, geometry) 
+    coords = map(_cf_node_coordinate_names(geometry)) do coordname
+        collect(CDM.variable(ds, coordname))
+    end
+    return collect(zip(coords...))
+end
+_cf_node_coordinate_names(geometry) = split(geometry["node_coordinates"], ' ')
+_cf_node_count(ds, geometry) = collect(CDM.variable(ds, geometry["node_count"]))
+_cf_part_node_count(ds, geometry) = collect(CDM.variable(ds, geometry["part_node_count"]))
+_cf_interior_ring(ds, geometry) = collect(CDM.variable(ds, geometry["interior_ring"]))

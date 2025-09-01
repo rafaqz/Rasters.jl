@@ -1,0 +1,29 @@
+netcdf 7_12_extreme_statistics_and_spell_length {
+dimensions:
+  time=1; // added length 1 time dimension
+  lat=10; // added
+  lon=10; // added
+  nv=2;
+variables:
+  float n1(time,lat,lon);
+    n1:standard_name="number_of_days_with_air_temperature_below_threshold";
+    n1:coordinates="threshold time";
+    n1:cell_methods="time: minimum within days time: sum over days";
+  float n2(time,lat,lon); // added time dimension here
+    n2:standard_name="spell_length_of_days_with_air_temperature_below_threshold";
+    n2:coordinates="threshold time";
+    n2:cell_methods="time: minimum within days time: maximum over days";
+  float threshold;
+    threshold:standard_name="air_temperature";
+    threshold:units="degC";
+  double time;
+    time:climatology="climatology_bounds";
+    time:units="days since 2000-6-1";
+  double climatology_bounds(time,nv);
+data: // time coordinates translated to datetime format
+  // time="2008-1-16 6:00";
+  time=2754.25;
+  // climatology_bounds="2007-12-1 6:00", "2008-3-1 6:00";
+  climatology_bounds=2739.25, 2830.25;
+  threshold=0.0;
+}

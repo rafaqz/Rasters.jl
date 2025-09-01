@@ -1,0 +1,47 @@
+netcdf 5_19_a_domain_containing_a_timeseries_geometry {
+dimensions:
+  instance = 2 ;
+  node = 5 ;
+  time = 4 ;
+variables:
+  char domain ;
+    domain:dimensions = "instance time" ;
+    domain:coordinates = "lat lon" ;
+    domain:grid_mapping = "datum" ;
+    domain:geometry = "geometry_container" ;
+    domain:long_name = "Domain with a geometry variable" ;
+  int time(time) ;
+  double lat(instance) ;
+    lat:units = "degrees_north" ;
+    lat:standard_name = "latitude" ;
+    lat:nodes = "y" ;
+  double lon(instance) ;
+    lon:units = "degrees_east" ;
+    lon:standard_name = "longitude" ;
+    lon:nodes = "x" ;
+  int datum ;
+    datum:grid_mapping_name = "latitude_longitude" ;
+    datum:longitude_of_prime_meridian = 0.0 ;
+    datum:semi_major_axis = 6378137.0 ;
+    datum:inverse_flattening = 298.257223563 ;
+  int geometry_container ;
+    geometry_container:geometry_type = "line" ;
+    geometry_container:node_count = "node_count" ;
+    geometry_container:node_coordinates = "x y" ;
+  int node_count(instance) ;
+  double x(node) ;
+    x:units = "degrees_east" ;
+    x:standard_name = "longitude" ;
+    x:axis = "X" ;
+  double y(node) ;
+    y:units = "degrees_north" ;
+    y:standard_name = "latitude" ;
+    y:axis = "Y" ; 
+data:
+  time = 1, 2, 3, 4 ;
+  lat = 30, 50 ;
+  lon = 10, 60 ;
+  node_count = 3, 2 ;
+  x = 30, 10, 40, 50, 50 ;
+  y = 10, 30, 40, 60, 50 ;
+}

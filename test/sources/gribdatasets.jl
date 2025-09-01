@@ -164,6 +164,7 @@ end
 
 @testset "RasterStack" begin
     gribstack = RasterStack(era5; lazy=true)
+    gribstackraw = RasterStack(era5; lazy=true, raw=true)
     @testset "RasterStack" begin
         @test all(read(gribstack.z) .=== Raster(era5; name=:z))
     end
@@ -171,5 +172,10 @@ end
         dsstack = RasterStack(ds; lazy=true)
         @test dims(dsstack) == dims(gribstack)
         @test size(dsstack) == size(gribstack)
+    end
+    @testset "open a stack" begin
+        Rasters.DiskArrays.allowscalar(true)
+        @test open(first, gribstack) == open(first, gribstackraw) == gribstack[1]
+        Rasters.DiskArrays.allowscalar(true)
     end
 end

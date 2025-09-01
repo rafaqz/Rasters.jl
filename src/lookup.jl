@@ -127,7 +127,9 @@ Fields and behaviours are identical to [`Sampled`]($DDsampleddocs) with the addi
 The mapped dimension index will be used as for [`Sampled`]($DDsampleddocs),
 but to save in another format the underlying `crs` may be used to convert it.
 """
-struct Mapped{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC<:Union{GeoFormat,Nothing},MC<:Union{GeoFormat,Nothing},D<:Union{AutoDim,Dimension}} <: AbstractProjected{T,O,Sp,Sa}
+struct Mapped{
+    T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC<:Union{GeoFormat,Nothing},MC<:Union{GeoFormat,Nothing},D<:Union{AutoDim,Dimension},Ds<:Union{Nothing,Tuple},DD
+} <: AbstractProjected{T,O,Sp,Sa}
     data::A
     order::O
     span::Sp
@@ -136,31 +138,53 @@ struct Mapped{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC<:Union
     crs::PC
     mappedcrs::MC
     dim::D
+    dims::Ds
+    dimdata::DD
 end
+
+# dimdata = (
+#     matrix
+#     tree
+#     idxvec
+#     distvec
+# )
+# dims(lookup::Mapped) = lookup.dims
+# dim(lookup::ArrayLookup) = lookup.dim
+# matrix(l::ArrayLookup) = l.matrix
+# tree(l::ArrayLookup) = l.tree
+
 function Mapped(data=AutoValues();
     order=AutoOrder(), span=AutoSpan(), sampling=AutoSampling(),
     metadata=NoMetadata(),
     crs::Union{GeoFormat,Nothing,NoKW}=nokw,
     mappedcrs::Union{GeoFormat,Nothing,NoKW},
-    dim=AutoDim()
+    dim=AutoDim(),
+    dims=nothing,
+    mapdata=nothing,
 )
     crs = crs isa NoKW ? nothing : crs
     mappedcrs = mappedcrs isa NoKW ? nothing : mappedcrs
-    Mapped(data, order, span, sampling, metadata, crs, mappedcrs, dim)
+    Mapped(data, order, span, sampling, metadata, crs, mappedcrs, dim, dims, mapdata)
 end
 function Mapped(l::Sampled;
     order=order(l), span=span(l), sampling=sampling(l),
     metadata=metadata(l),
     crs::Union{GeoFormat,Nothing}=nothing,
     mappedcrs::Union{GeoFormat,Nothing},
-    dim=AutoDim()
+    dim=AutoDim(),
+    dims=nothing,
+    mapdata=nothing,
 )
-    Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
+    Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim, dims, mapdata)
 end
 
 GeoInterface.crs(lookup::Mapped) = lookup.crs
 mappedcrs(lookup::Mapped) = lookup.mappedcrs
 dim(lookup::Mapped) = lookup.dim
+DD.dims(lookup::Mapped) = lookup.dims
+
+DD.hasalternatedimensions(lookup::Mapped) = !isnothing(dims(lookup)) && length(dims(lookup)) == 1
+DD.hasmultipledimensions(lookup::Mapped) = !isnothing(dims(lookup)) && length(dims(lookup)) > 1
 
 """
     convertlookup(dstlookup::Type{<:Lookup}, x)
@@ -198,6 +222,8 @@ function convertlookup(::Type{<:Mapped}, l::Projected)
         crs=crs(l),
         mappedcrs=mappedcrs(l),
         dim=dim(l),
+        dims=nothing,
+        mapdata=nothing,
     )
 end
 function convertlookup(::Type{<:Projected}, l::Mapped)

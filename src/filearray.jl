@@ -49,6 +49,18 @@ function FileArray{S}(
     T = _mod_eltype(var, mod)
     return FileArray{S,T,N}(filename, size(var); eachchunk, haschunks, mod, kw...)
 end
+function FileArray{S}(
+    var::AbstractArray{Char,N}, filename; mod, kw...
+) where {S<:CDMsource,N}
+    eachchunk = DA.eachchunk(var)
+    haschunks = DA.haschunks(var)
+    if Missings.nonmissingtype(eltype(mod)) isa AbstractString
+        return FileArray{S,eltype(mod),N-1}(filename, size(var); eachchunk, haschunks, mod, kw...)
+    else
+        T = _mod_eltype(var, mod)
+        return FileArray{S,T,N}(filename, size(var); eachchunk, haschunks, mod, kw...)
+    end
+end
 
 # FileArray has S, T and N parameters not recoverable from fields
 ConstructionBase.constructorof(::Type{<:FileArray{S,T,N}}) where {S,T,N} = FileArray{S,T,N}
@@ -68,7 +80,12 @@ end
 function DA.readblock!(A::FileArray, dst, r::AbstractUnitRange...)
     open(A) do O
         if isdisk(O)
-            DA.readblock!(O, dst, r...)
+            # Handle CF 2d Char arrays that are really 1d strings
+            if eltype(O) <: Char && eltype(A) <: String
+                DA.readblock!(DiskCharToString(O), dst, r...)
+            else
+                DA.readblock!(O, dst, r...)
+            end
         else
             dest[r...] .= view(parent(O), r...)
         end
@@ -77,7 +94,11 @@ end
 function DA.writeblock!(A::FileArray, src, r::AbstractUnitRange...)
     open(A; write=A.write) do O
         if isdisk(A)
-            DA.writeblock!(O, src, r...)
+            if eltype(O) <: Char && eltype(A) <: String
+                DA.writeblock!(DiskCharToString(O), src, r...)
+            else
+                DA.writeblock!(O, src, r...)
+            end
         else
             parent(O)[r...] .= src
         end
