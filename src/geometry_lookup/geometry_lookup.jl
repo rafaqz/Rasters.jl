@@ -190,10 +190,15 @@ function Lookups.selectindices(lookup::GeometryLookup, sel::Contains)
     end
 end
 function Lookups.selectindices(lookup::GeometryLookup, sel::At)
-    if GI.trait(val(sel)) isa GI.PointTrait
-        Lookups.selectindices(lookup, (At(GI.x(val(sel))), At(GI.y(val(sel)))))
-    else # invoke the default method
-        Lookups.at(lookup, sel)
+    @assert GI.isgeometry(geom)
+    candidates = _maybe_get_candidates(lookup, GI.extent(val(sel)))
+    x = findfirst(candiates) do candidate
+        GO.equal(val(at), candidate)
+    end
+    if isnothing(x)
+        throw(ArgumentError("$sel not found in lookup"))
+    else
+        return x
     end
 end
 function Lookups.selectindices(lookup::GeometryLookup, sel::Near)
@@ -242,9 +247,9 @@ function Lookups.selectindices(
 end
 function Lookups.selectindices(
     lookup::GeometryLookup, 
-    (xs, ys)::Tuple{Union{<:At,<:Contains}, Union{<:At,<:Contains}}
+    (x, y)::Tuple{Union{<:At,<:Contains}, Union{<:At,<:Contains}}
 )
-    xval, yval = val(xs), val(ys)
+    xval, yval = val(x), val(y)
     lookup_ext = Lookups.bounds(lookup)
 
     if lookup_ext.X[1] <= xval <= lookup_ext.X[2] && lookup_ext.Y[1] <= yval <= lookup_ext.Y[2]

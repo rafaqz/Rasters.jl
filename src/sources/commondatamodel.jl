@@ -137,6 +137,7 @@ DiskCharToString(A::AbstractArray{Char,M}) where M = DiskCharToString{M-1,M}(A)
 Base.parent(A::DiskCharToString) = A.parent
 Base.size(A::DiskCharToString) = size(parent(A))[2:end]
 DiskArrays.haschunks(A::DiskCharToString) = DiskArrays.haschunks(parent(A))
+DiskArrays.eachchunk(A::DiskCharToString) = DiskArrays.GridChunks(eachchunk(parent(A)).chunks[2:end])
 function DiskArrays.readblock!(A::DiskCharToString, dest, I...)
     src = parent(A)[:, I...]
     for I in CartesianIndices(dest)
@@ -366,14 +367,14 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
             used_layers[i] = false
         else
             output_layerdims_vec[i] = layerdims
-            formatvar = if eltype(var) <: Char && length(layerdims) == (ndims(var) - 1)
+            maybewrappedvar = if eltype(var) <: Char && length(layerdims) == (ndims(var) - 1)
                 DiskCharToString(var)
             else
                 var
             end
-            formatted_dims = format(unformatted_dims, formatvar)
+            formatted_dims = format(unformatted_dims, maybewrappedvar)
             # Finalise output variables and attributes
-            output_layers_vec[i] = var
+            output_layers_vec[i] = maybewrappedvar
             output_attrs_vec[i] = attr
         end
         map(dimnames, formatted_dims) do dimname, d

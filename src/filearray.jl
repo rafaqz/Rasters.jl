@@ -80,7 +80,12 @@ end
 function DA.readblock!(A::FileArray, dst, r::AbstractUnitRange...)
     open(A) do O
         if isdisk(O)
-            DA.readblock!(O, dst, r...)
+            # Handle CF 2d Char arrays that are really 1d strings
+            if eltype(O) <: Char && eltype(A) <: String
+                DA.readblock!(DiskCharToString(O), dst, r...)
+            else
+                DA.readblock!(O, dst, r...)
+            end
         else
             dest[r...] .= view(parent(O), r...)
         end
@@ -89,7 +94,11 @@ end
 function DA.writeblock!(A::FileArray, src, r::AbstractUnitRange...)
     open(A; write=A.write) do O
         if isdisk(A)
-            DA.writeblock!(O, src, r...)
+            if eltype(O) <: Char && eltype(A) <: String
+                DA.writeblock!(DiskCharToString(O), src, r...)
+            else
+                DA.writeblock!(O, src, r...)
+            end
         else
             parent(O)[r...] .= src
         end

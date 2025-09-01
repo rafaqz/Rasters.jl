@@ -56,8 +56,7 @@ end |> OrderedDict
 @testset "2.1 string variable representation" begin
     rast = RasterStack(examples["2.1"])
     @test rast.char_variable == rast.str_variable
-    # Fails due to DiskArrays.jl size checks during the comparison iteration
-    @test_broken RasterStack(examples["2.1"]; lazy=true).char_variable == rast.str_variable
+    @test RasterStack(examples["2.1"]; lazy=true).char_variable == rast.str_variable
 end
 
 @testset "3.1 units metadata" begin
@@ -96,6 +95,7 @@ end
 
 @testset "5.2 two-dimensional coordinate variables" begin
     rast = RasterStack(examples["5.2"]; lazy=true)
+    # TODO probably should have real data for this
     @test rast[X=Near(1.0), Y=Near(2.0), Z=1].T isa Float32
 end
 
@@ -103,9 +103,9 @@ end
     rast = RasterStack(examples["5.3"]; lazy=true)
     @test rast[rgrid=2].PS === 0.2f0
     @test rast[rgrid=At(3.0, 30.0)].PS === 0.3f0
-    @test_broken rast[X=At(4.0)].PS == [0.4]
-    @test_broken rast[Y=At(30.0)].PS == [0.3]
-    @test_broken rast[X=At(1.0), Y=At(10.0)] == 0.1
+    @test rast[X=At(4.0)].PS == Union{Missing,Float32}[0.4f0]
+    @test rast[Y=At(30.0)].PS == Union{Missing,Float32}[0.3f0]
+    @test rast[X=At(1.0), Y=At(10.0)] == (PS=0.1f0,)
 end
 
 @testset "5.6 rotated pole grid" begin
