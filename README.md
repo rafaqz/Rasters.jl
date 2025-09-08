@@ -1,23 +1,23 @@
 # Rasters
 <img src="docs/src/assets/logo.png" align="right" width="30%"></img>
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/rafaqz/Rasters.jl/blob/main/LICENSE)
+
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://rafaqz.github.io/Rasters.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://rafaqz.github.io/Rasters.jl/dev)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/rafaqz/Rasters.jl/blob/main/LICENSE)
 [![CI](https://github.com/rafaqz/Rasters.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaqz/Rasters.jl/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/rafaqz/Rasters.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/rafaqz/Rasters.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 [![Downloads](https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Fmonthly_downloads%2FRasters&query=total_requests&suffix=%2Fmonth&label=Downloads)](https://juliapkgstats.com/pkg/Rasters)
 
-[Rasters.jl](https://rafaqz.github.io/Rasters.jl/dev) is a powerful Julia package for working with spatial raster data. It provides a unified interface for reading, writing, and manipulating raster data. The package extends [DimensionalData.jl](https://rafaqz.github.io/DimensionalData.jl/dev/) to enable intuitive spatial indexing and manipulation of raster data.
+[Rasters.jl](https://rafaqz.github.io/Rasters.jl/dev) is a powerful Julia package for handling geospatial raster data. It provides a unified interface for reading, writing, and manipulating rasters, allowing users to work with various source formats like GeoTIFF and NetCDF using identical syntax. 
 
-Key features:
-- Support for multiple raster formats (e.g. GeoTIFF, NetCDF, GRD)
-- Support for multi-layered stacks and multi-file series of arrays
-- Lazy loading of large datasets
-- Intuitive spatial indexing with named dimensions (X, Y, Time)
-- Efficient handling of multi-layered stacks and time series
-- Built-in support for coordinate reference systems (CRS)
-- High-performance operations optimized for spatial data
+# Key features:
+- **Standardized Interface**: The package abstracts away the complexities of different file formats. Users can treat Raster, RasterStack, and RasterSeries objects consistently, regardless of whether the data is in a file, in memory, or on a GPU.
+- **Intuitive Spatial Indexing**: By extending [DimensionalData.jl](https://rafaqz.github.io/DimensionalData.jl/dev/), Rasters.jl enables intuitive spatial indexing with named dimensions (e.g., `X`, `Y`, `Time`). This allows for selecting data by specific values (e.g., `ras[Ti=At(DateTime(2001))]`) rather than just numerical indices. 
+- **Performance and Optimization**: The package is optimized for high-performance operations on spatial data and includes features like **lazy loading** for handling large datasets efficiently.
+- **Comprehensive Support**: It supports a wide range of raster formats, multi-layered stacks, and time series. It also includes built-in support for Coordinate Reference Systems (CRS), with automatic projection conversions.
+- **Extensible Functionality**: While the core package is lightweight, it can be extended with other Julia packages (e.g., ArchGDAL for GDAL backend, CairoMakie for plotting) to add more functionality.
 
 # Quick start
 
@@ -65,8 +65,7 @@ values: [:, :, 1]
 ## Packages that work with Rasters
 
 Rasters reduces its dependencies to keep the `using` time low.
-But, it means you have to manually load packages you need for each 
-backend or additional functionality.
+This means you **need to load additional packages** for expanded functionality.
 
 For example, to use the GDAL backend, and download RasterDataSources files, you need to do:
 
