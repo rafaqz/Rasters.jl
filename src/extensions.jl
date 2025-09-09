@@ -1,13 +1,9 @@
 # extensions
 function throw_extension_error(f::Function, package::String, extension::Symbol, args)
-    @static if isdefined(Base, :get_extension) # julia > 1.9
     if isnothing(Base.get_extension(Rasters, extension))
         throw(BackendException(package))
     else
         throw(MethodError(f, args))
-    end
-    else
-        throw(BackendException(package))
     end
 end
 
@@ -212,7 +208,7 @@ cellarea(method::GeometryOpsCore.Manifold, x; kw...) = cellarea(method, dims(x, 
 
 function cellarea(method::GeometryOpsCore.Planar, dims::Tuple{<:XDim, <:YDim}; kw...)
     isintervals(dims) || throw(ArgumentError("Cannot calculate cell size for a `Raster` with `Points` sampling."))
-    areas = _planar_cellarea(dims; kw...)
+    areas = _planar_cellarea(dims)
     return Raster(areas; dims)
 end
 
