@@ -513,7 +513,24 @@ end
     @test_throws ErrorException coverage(union, shphandle.shapes; threaded=false, res=1, scale=10000)
     # Too slow and unreliable to test in CI, but it warns and uses one thread given 32gb of RAM: 
     # coverage(union, shphandle.shapes; threaded=true, res=1, scale=1000)
+    @testset "coverage! in-place tests" begin
+        # Prepare a destination raster
+        dest = Raster(zeros(Float64, size(parent(covsum))), dims(covsum))
+        # In-place sum coverage
+        coverage!(sum, dest, shphandle.shapes; threaded=false, res=1, scale=10)
+        @test parent(dest) ≈ parent(coverage(sum, shphandle.shapes; threaded=false, res=1, scale=10))
+        # In-place union coverage
+        fill!(dest, 0.0)
+        coverage!(union, dest, shphandle.shapes; threaded=false, res=1, scale=10)
+        @test parent(dest) ≈ parent(coverage(union, shphandle.shapes; threaded=false, res=1, scale=10))
+        # Threaded
+        fill!(dest, 0.0)
+        coverage!(sum, dest, shphandle.shapes; threaded=true, res=1, scale=10)
+        @test parent(dest) ≈ parent(coverage(sum, shphandle.shapes; threaded=true, res=1, scale=10))
+        # Error on mismatched size
+    end
 end
+
 
 @testset "`geometrycolumn` kwarg and detection works" begin
     # Replicate pointtable

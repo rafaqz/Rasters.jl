@@ -75,7 +75,7 @@ coverage!(mode::Union{typeof(union),typeof(sum)}, A::AbstractRaster, data; kw...
 function coverage!(A::AbstractRaster, data; scale::Integer=10, mode=union, kw...)
     # We use sum for `reducer` so eltype inference works
     r = Rasterizer(data; reducer=sum, fill=0.0, init=0.0, missingval=0.0, kw...)
-    coverage!(A, r; scale, mode) 
+    _coverage!(A, r; scale, mode) 
 end
 # Collect iterators so threading is easier.
 function _coverage!(A::AbstractRaster, r::Rasterizer; scale::Integer=10, mode=union)  
