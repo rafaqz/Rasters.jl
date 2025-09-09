@@ -81,6 +81,7 @@ end
 function _coverage!(A::AbstractRaster, r::Rasterizer; scale::Integer=10, mode=union) 
     fill!(A, zero(eltype(A))) 
     _coverage!(view(A, Touches(_extent(r.geom))), GI.trait(r.geom), r.geom, r; scale, mode)
+    return A
 end
 function _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom, r; scale, mode)
     subpixel_dims = _subpixel_dims(A, scale)
