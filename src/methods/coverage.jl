@@ -78,8 +78,9 @@ function coverage!(A::AbstractRaster, data; scale::Integer=10, mode=union, kw...
     _coverage!(A, r; scale, mode) 
 end
 # Collect iterators so threading is easier.
-function _coverage!(A::AbstractRaster, r::Rasterizer; scale::Integer=10, mode=union)  
-    _coverage!(A, GI.trait(r.geom), r.geom, r; scale, mode)
+function _coverage!(A::AbstractRaster, r::Rasterizer; scale::Integer=10, mode=union) 
+    fill!(A, zero(eltype(A))) 
+    _coverage!(view(A, Touches(_extent(r.geom))), GI.trait(r.geom), r.geom, r; scale, mode)
 end
 function _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom, r; scale, mode)
     subpixel_dims = _subpixel_dims(A, scale)
