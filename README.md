@@ -16,7 +16,7 @@
 - **Standardized Interface**: The package abstracts away the complexities of different file formats. Users can treat Raster, RasterStack, and RasterSeries objects consistently, regardless of whether the data is in a file, in memory, or on a GPU.
 - **Intuitive Spatial Indexing**: By extending [DimensionalData.jl](https://rafaqz.github.io/DimensionalData.jl/dev/), Rasters.jl enables intuitive spatial indexing with named dimensions (e.g., `X`, `Y`, `Time`). This allows for selecting data by specific values (e.g., `ras[Ti=At(DateTime(2001))]`) rather than just numerical indices. 
 - **Performance and Optimization**: The package is optimized for high-performance operations on spatial data and includes features like **lazy loading** for handling large datasets efficiently.
-- **Comprehensive Support**: It supports a wide range of raster formats, multi-layered stacks, and time series. It also includes built-in support for Coordinate Reference Systems (CRS), with automatic projection conversions.
+- **Comprehensive Support**: It supports a wide range of raster formats, multi-layered stacks, and time series. It also includes built-in support for Coordinate Reference Systems (CRS), with automatic projection conversions via `reproject`.
 - **Extensible Functionality**: While the core package is lightweight, it has extensions on other Julia packages (e.g., ArchGDAL for GDAL backend, CairoMakie for plotting) that add more functionality.  For example, to load a raster, you can simply `import ArchGDAL` or `import NCDatasets` (for `.nc` files), and then call `Raster("myfile.tiff")`.
 
 # Quick start
