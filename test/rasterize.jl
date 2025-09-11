@@ -78,6 +78,9 @@ st = RasterStack((A1, copy(A1)))
             fill!(A, 0)
         end
 
+        # to dims
+        @test sum(rasterize(last, geom; to=dims(A), shape=:point, fill=1, missingval=0, threaded)) == 4.0
+
         # stack
         rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3), threaded)
         st.layer1 .= st.layer2 .= 0
