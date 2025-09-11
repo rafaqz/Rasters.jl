@@ -66,8 +66,8 @@ function RasterCreator(to::DimTuple;
     to = _as_intervals(to) # Only makes sense to rasterize to intervals
     RasterCreator(eltype, to, filename, suffix, name, metadata, missingval, crs, mappedcrs)
 end
-RasterCreator(to::AbstractRaster, data; kw...) = RasterCreator(dims(to); kw...)
-RasterCreator(to::AbstractRasterStack, data; kw...) = RasterCreator(dims(to); name, kw...)
+RasterCreator(to::RasterStackOrArray, data; kw...) = RasterCreator(dims(to); kw...)
+RasterCreator(to::DimTuple, data; kw...) = RasterCreator(to; kw...)
 RasterCreator(to::Nothing, data; kw...) = RasterCreator(_extent(data; kw...); kw...)
 RasterCreator(to, data; kw...) = 
     RasterCreator(_extent(to; kw...); kw...)
