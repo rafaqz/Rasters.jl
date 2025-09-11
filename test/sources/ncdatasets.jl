@@ -7,7 +7,7 @@ using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name, trim, metadat
 testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))
 include(joinpath(testdir, "test_utils.jl"))
 
-ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
+ncexamples = "https://archive.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = maybedownload(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
 ncmulti = maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
 maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
