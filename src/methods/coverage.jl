@@ -263,9 +263,9 @@ end
 
 # Sums all coverage 
 function _sum_coverage!(A::AbstractRaster, geoms, buffers; 
-    scale, subpixel_dims, verbose=true, progress=true, threaded=false
+    scale, subpixel_dims, verbose=true, progress=true, threaded=false, checkmem=CHECKMEM[],
 )
-    n = _nthreads()
+    threaded, n = _check_buffer_thread_mem(A; scale, threaded, checkmem)
     coveragebuffers = [fill!(similar(A), 0.0) for _ in 1:n]
     missed_pixels = fill(0, n)
     range = _geomindices(geoms)
