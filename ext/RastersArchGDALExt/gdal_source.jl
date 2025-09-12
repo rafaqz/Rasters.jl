@@ -131,7 +131,7 @@ RA._open(f, ::GDALsource, A::AG.RasterDataset; mod=RA.NoMod(), kw...) =
 # These methods are type piracy on DimensionalData/ArchGDAL and may have to move some day
 
 # We allow passing in crs and mappedcrs manually
-function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw)
+function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw, prefer_datetime=true)
     gt_dims = try
         AG.getgeotransform(raster)
     catch
