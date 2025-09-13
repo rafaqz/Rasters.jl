@@ -303,7 +303,7 @@ function disaggregate!(dst::AbstractRaster, src, scale)
             ranges = map(:, lower, upper)
             val = src2[I]
             val1 = _ismissing(src, val) ? missingval(dst) : val
-            dst[ranges...] .= (val1,)
+            fill!(view(dst, ranges...), val1)
         end
     end
     return dst
