@@ -184,6 +184,7 @@ function Lookups.selectindices(lookup::GeometryLookup, sel::Tuple)
     end
 end
 function Lookups.selectindices(lookup::GeometryLookup, sel::Contains)
+    sel_ext = GI.extent(val(sel))
     potential_candidates = _maybe_get_candidates(lookup, sel_ext)
     filter(potential_candidates) do candidate
         GO.contains(lookup.data[candidate], val(sel))
@@ -252,14 +253,35 @@ function Lookups.selectindices(
     xval, yval = val(x), val(y)
     lookup_ext = Lookups.bounds(lookup)
 
-    if lookup_ext.X[1] <= xval <= lookup_ext.X[2] && lookup_ext.Y[1] <= yval <= lookup_ext.Y[2]
+    # This is a specialized implementation to save on lookups
+    if !(lookup_ext.X[1] <= xval <= lookup_ext.X[2] && lookup_ext.Y[1] <= yval <= lookup_ext.Y[2])
+        return Int[]
+    else # within extent
         potential_candidates = GO.SpatialTreeInterface.query(lookup.tree, (xval, yval))
         isempty(potential_candidates) && return Int[]
-        filter(potential_candidates) do candidate
-            GO.contains(lookup.data[candidate], (xval, yval))
+        # If both selectors are At(), return a single index (first match) for speed and clarity
+        if x isa At && y isa At
+            for candidate in potential_candidates
+                if GO.contains(lookup.data[candidate], (xval, yval))
+                    return candidate
+                end
+            end
+            # No match found within bounds
+            throw(ArgumentError("Point ($xval, $yval) not found in lookup"))
+        else
+            # For Contains selectors, return all matching indices
+            filter(potential_candidates) do candidate
+                GO.contains(lookup.data[candidate], (xval, yval))
+            end
         end
-    else
-        return Int[]
+    end
+end
+
+for fname in (:contains, :intersects, :touches)
+    @eval begin
+        function Lookups.selectindices(lookup::GeometryLookup, sel::Where{Base.Fix2{GO.$fname}})
+            sel_ext = GI.extent(val(sel).x)
+        end
     end
 end
 
@@ -288,9 +310,9 @@ _val_or_nothing(d::DD.Dimension) = val(d)
 function _maybe_get_candidates(lookup::GeometryLookup, selector_extent)
     tree = lookup.tree
     isnothing(tree) && return 1:length(lookup)
-    Extents.disjoint(GI.extent(tree), selector_extent) && return Int[]     
+    Extents.disjoint(GI.extent(tree), selector_extent) && return Int[]
     potential_candidates = GO.SpatialTreeInterface.query(
-        tree, 
+        tree,
         Base.Fix1(Extents.intersects, selector_extent)
     )
     isempty(potential_candidates) && return Int[]
