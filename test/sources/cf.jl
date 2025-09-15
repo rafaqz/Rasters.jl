@@ -54,9 +54,17 @@ end |> OrderedDict
 # refdims(last.(rasterstacks[inds])[1])
 
 @testset "2.1 string variable representation" begin
-    rast = RasterStack(examples["2.1"])
+    rast = RasterStack(examples["2.1"]; lazy=true)
     @test rast.char_variable == rast.str_variable
     @test RasterStack(examples["2.1"]; lazy=true).char_variable == rast.str_variable
+    write("test.nc", rast; force=true)
+    rast1 = RasterStack("test.nc"; lazy=true)
+    open(rast1) do R
+        @show parent(R.char_variable)
+        nothing
+    end
+    parent(rast.char_variable)
+    parent(rast1.char_variable)
 end
 
 @testset "3.1 units metadata" begin
@@ -191,6 +199,10 @@ end
     # TODO ragged array lookup
     rast = RasterStack(examples["5.20"]; lazy=true)
     dims(rast, :station)
+end
+
+@testset "5.21 mesh" begin
+    rast = RasterStack(examples["5.21"]; lazy=true)
 end
 
 @testset "taxon name/id" begin
