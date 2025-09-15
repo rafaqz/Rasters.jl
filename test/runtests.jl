@@ -29,6 +29,7 @@ end
 @time @safetestset "warp" begin include("warp.jl") end
 @time @safetestset "resample" begin include("resample.jl") end
 @time @safetestset "cellarea" begin include("cellarea.jl") end
+@time @safetestset "geometrylookups" begin include("geometry_lookup.jl") end
 
 @time @safetestset "sources" begin include("sources/sources.jl") end
 @time @safetestset "commondatamodel" begin include("sources/commondatamodel.jl") end
