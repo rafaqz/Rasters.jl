@@ -86,9 +86,9 @@ end
 function _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom, r; scale, mode)
     subpixel_dims = _subpixel_dims(A, scale)
     missed_pixels = if mode === union
-        _union_coverage!(A, geom; scale, subpixel_dims, progress=r.progress)
+        _union_coverage!(A, geom; scale, subpixel_dims)
     elseif mode === sum
-        _sum_coverage!(A, geom; scale, subpixel_dims, progress=r.progress)
+        _sum_coverage!(A, geom; scale, subpixel_dims)
     else
         throw(ArgumentError("Coverage `mode` can be `union` or `sum`. Got $mode"))
     end
@@ -195,7 +195,6 @@ function _union_coverage!(A::AbstractRaster, geom;
         subpixel_buffer = falses(size(A) .* scale)
     end
     GI.isgeometry(geom) || error("not a geometry")
-    crossings = allocs.crossings
     boolmask!(linebuffer, geom; shape=:line, allocs)
     boolmask!(centerbuffer, geom; boundary=:center, allocs)
     # Update the cumulative state for completely covered cells
@@ -206,6 +205,7 @@ function _union_coverage!(A::AbstractRaster, geom;
     edges = Edges(geom, subpixel_dims; allocs)
 
     prev_ypos = 0
+    A = crop(A; to = geom, atol = step(dims(A, X)))
     # Loop over y in A
     for y in axes(A, Y())
         # If no lines touched this column skip it
