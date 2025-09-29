@@ -270,6 +270,7 @@ gdalpath = maybedownload(url)
         @testset "aggregate" begin
             ag = aggregate(mean, gdalarray, 4)
             @test ag == aggregate(mean, gdalarray, (X(4), Y(4)))
+            @test ag == aggregate(mean, lazyarray, (X(4), Y(4)))
             @test ag == aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
             @time ag_disk = aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
             @test ag_disk == ag
