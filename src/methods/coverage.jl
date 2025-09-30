@@ -85,14 +85,13 @@ function _coverage!(A::AbstractRaster, r::Rasterizer; scale::Integer=10, mode=un
 end
 function _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom, r; scale, mode)
     subpixel_dims = _subpixel_dims(A, scale)
-    missed_pixels = if mode === union
-        _union_coverage!(A, geom; scale, subpixel_dims)
-    elseif mode === sum
-        _sum_coverage!(A, geom; scale, subpixel_dims)
+    if mode === union || mode === sum
+        # For a single geometry, there is on difference between union and sum
+        missed_pixels, _ = _sum_coverage!(A, geom; scale, subpixel_dims)
+        r.verbose && _check_missed_pixels(missed_pixels, scale)
     else
         throw(ArgumentError("Coverage `mode` can be `union` or `sum`. Got $mode"))
     end
-    r.verbose && _check_missed_pixels(missed_pixels, scale)
     return A
 end
 function _coverage!(A::AbstractRaster, ::Nothing, geoms, r::Rasterizer; mode, scale)
@@ -205,7 +204,6 @@ function _union_coverage!(A::AbstractRaster, geom;
     edges = Edges(geom, subpixel_dims; allocs)
 
     prev_ypos = 0
-    A = crop(A; to = geom, atol = step(dims(A, X)))
     # Loop over y in A
     for y in axes(A, Y())
         # If no lines touched this column skip it
