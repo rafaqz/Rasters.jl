@@ -133,8 +133,7 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
         idx = Threads.threadid()
         # Get buffers for each thread as a NamedTuple
         thread_buffers = map(b -> b[idx], allbuffers)
-        V = view(A, Touches(geom))
-        _union_coverage!(C, geom; scale, subpixel_buffer, thread_buffers...)
+        _union_coverage!(A, geom; scale, subpixel_buffer, thread_buffers...)
         fill!(thread_buffers.linebuffer, false)
         fill!(thread_buffers.centerbuffer, false) # Is this necessary?
     end
@@ -188,7 +187,7 @@ function _union_coverage!(A::AbstractRaster, geom;
     ncrossings=fill(0, scale),
     checkmem=CHECKMEM[],
 )
-    
+
     if isnothing(subpixel_buffer)
         checkmem && _check_buffer_mem(A, scale)
         subpixel_buffer = falses(size(A) .* scale)
