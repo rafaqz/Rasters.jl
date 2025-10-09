@@ -277,12 +277,29 @@ function Lookups.selectindices(
     end
 end
 
-for fname in (:contains, :intersects, :touches)
+for fname in (:equals, :intersects, 
+                :contains, :within, :covers, 
+                :coveredby, :touches)
     @eval begin
-        function Lookups.selectindices(lookup::GeometryLookup, sel::Where{Base.Fix2{GO.$fname}})
+        function Lookups.selectindices(lookup::GeometryLookup, sel::Where{Base.Fix2{typeof(GO.$fname)}})
             sel_ext = GI.extent(val(sel).x)
+            potential_candidates = _maybe_get_candidates(lookup, sel_ext)
+            f = val(sel)
+            return filter(potential_candidates) do idx
+                f(lookup.data[idx])
+            end
         end
     end
+end
+# Disjoint needs a specialized implementation, which will look at intersects instead.
+function Lookups.selectindices(lookup::GeometryLookup, sel::Where{Base.Fix2{typeof(GO.disjoint)}})
+    sel_ext = GI.extent(val(sel).x)
+    potential_candidates = _maybe_get_candidates(lookup, sel_ext, Extents.intersects)
+    f = val(sel)
+    actual_intersections = filter(potential_candidates) do idx
+        f(lookup.data[idx])
+    end
+    return setdiff(1:length(lookup.data), actual_intersections)
 end
 
 @inline Lookups.reducelookup(l::GeometryLookup) = NoLookup(OneTo(1))
@@ -306,15 +323,20 @@ end
 _val_or_nothing(::Nothing) = nothing
 _val_or_nothing(d::DD.Dimension) = val(d)
 
-# Get the candidates for the selector extent.  If the selector extent is disjoint from the tree rootnode extent, return an error.
-function _maybe_get_candidates(lookup::GeometryLookup, selector_extent)
+# Get the candidates for the selector extent.  
+# If the selector extent is disjoint from the tree rootnode extent,
+# you should raise an error.  We should have an error type that can be
+# plotted etc. to allow debugging and understanding.
+function _maybe_get_candidates(lookup::GeometryLookup, selector_extent, operation::O) where O
     tree = lookup.tree
     isnothing(tree) && return 1:length(lookup)
     Extents.disjoint(GI.extent(tree), selector_extent) && return Int[]
     potential_candidates = GO.SpatialTreeInterface.query(
         tree,
-        Base.Fix1(Extents.intersects, selector_extent)
+        Base.Fix1(operation, selector_extent)
     )
     isempty(potential_candidates) && return Int[]
     return potential_candidates
 end
+
+_maybe_get_candidates(lookup::GeometryLookup, selector_extent) = _maybe_get_candidates(lookup, selector_extent, Extents.intersects)
