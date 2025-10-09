@@ -20,6 +20,7 @@ end
 @time @safetestset "utils" begin include("utils.jl") end
 @time @safetestset "set" begin include("set.jl") end
 @time @safetestset "adapt" begin include("adapt.jl") end
+@time @safetestset "geometrylookups" begin include("geometry_lookup.jl") end
 @time @safetestset "methods" begin include("methods.jl") end
 @time @safetestset "aggregate" begin include("aggregate.jl") end
 @time @safetestset "mosaic" begin include("mosaic.jl") end

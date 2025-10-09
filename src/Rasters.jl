@@ -21,14 +21,17 @@ import Adapt,
        FillArrays,
        Flatten,
        GeoInterface,
+       GeometryOps,
        GeometryOpsCore,
        OffsetArrays,
+       OrderedCollections,
        ProgressMeter,
        Missings,
        Mmap,
        RecipesBase,
        Reexport,
        Setfield,
+       SortTileRecursiveTree,
        Statistics
 
 Reexport.@reexport using DimensionalData, GeoFormatTypes
@@ -76,6 +79,7 @@ export Extent, extent
 const DD = DimensionalData
 const DA = DiskArrays
 const GI = GeoInterface
+const GO = GeometryOps
 const LA = Lookups
 
 # DimensionalData documentation urls
@@ -118,6 +122,8 @@ const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}
 
 include("utils.jl")
 include("skipmissing.jl")
+
+include("geometry_lookup/geometry_lookup.jl")
 
 include("table_ops.jl")
 include("create.jl")
