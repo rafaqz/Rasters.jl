@@ -20,6 +20,7 @@ end
 @time @safetestset "utils" begin include("utils.jl") end
 @time @safetestset "set" begin include("set.jl") end
 @time @safetestset "adapt" begin include("adapt.jl") end
+@time @safetestset "geometrylookups" begin include("geometry_lookup.jl") end
 @time @safetestset "methods" begin include("methods.jl") end
 @time @safetestset "aggregate" begin include("aggregate.jl") end
 @time @safetestset "mosaic" begin include("mosaic.jl") end
@@ -29,7 +30,6 @@ end
 @time @safetestset "warp" begin include("warp.jl") end
 @time @safetestset "resample" begin include("resample.jl") end
 @time @safetestset "cellarea" begin include("cellarea.jl") end
-@time @safetestset "geometrylookups" begin include("geometry_lookup.jl") end
 
 @time @safetestset "sources" begin include("sources/sources.jl") end
 @time @safetestset "commondatamodel" begin include("sources/commondatamodel.jl") end
