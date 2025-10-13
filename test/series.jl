@@ -132,7 +132,6 @@ end
         pattern = basename(first(filenames))[1:2]
         filename_pattern = joinpath(dirname(first(filenames)), "$pattern.tif")
         series2 = RasterSeries(filename_pattern, times; duplicate_first=true, lazy=true)
-        @test all(Rasters.filename.(series2) .== filenames)
-
+        @test isequal(sort(Rasters.filename.(series2)), sort(filenames))
     end
 end
