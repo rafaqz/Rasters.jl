@@ -8,6 +8,8 @@ using Rasters: Zarrsource
 
 const RA = Rasters
 
+Rasters.is_loaded(::Type{Rasters.ZarrDatasetsExt}) = true
+
 include("zarrdatasets_source.jl")
 
 end

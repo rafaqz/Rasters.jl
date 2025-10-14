@@ -28,6 +28,8 @@ const DA = DiskArrays
 const GI = GeoInterface
 const LA = Lookups
 
+Rasters.is_loaded(::Type{Rasters.ProjExt}) = true
+
 include("cellarea.jl")
 include("reproject.jl")
 end

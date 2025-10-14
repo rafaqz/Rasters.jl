@@ -20,6 +20,8 @@ const RA = Rasters
 const DD = DimensionalData
 const LA = Lookups
 
+Rasters.is_loaded(::Type{Rasters.NCDatasetsExt}) = true
+
 include("ncdatasets_source.jl")
 
 end
