@@ -17,10 +17,10 @@ struct ZarrDatasetsExt <: Extension end
 is_loaded(::Type{<:Extension}) = false
 
 function throw_extension_error(f::Function, extension::Type{<:Extension}, args)
-    if !is_loaded(extension)
-        throw(BackendException(extension))
-    else
+    if is_loaded(extension)
         throw(MethodError(f, args))
+    else
+        throw(BackendException(extension))
     end
 end
 
