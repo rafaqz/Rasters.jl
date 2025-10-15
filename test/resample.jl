@@ -30,15 +30,15 @@ raster_output = resample(cea; res=output_res, crs=output_crs, method, missingval
     @test missingval(resample(cea; res=output_res, crs=output_crs, method)) == 0x00
 end
 
-@testset "snapped size and dim index match" begin
+@testset "snapped size and dim lookup match" begin
     snaptarget = raster_output
     snapped = resample(cea; to=snaptarget)
     disk_snapped = resample(cea; to=snaptarget, filename="raster.tif")
     @test size(snapped) == size(disk_snapped) == size(snaptarget)
-    @test isapprox(index(snaptarget, Y), index(snapped, Y))
-    @test isapprox(index(snaptarget, X), index(snapped, X))
-    @test isapprox(index(snaptarget, Y), index(disk_snapped, Y))
-    @test isapprox(index(snaptarget, X), index(disk_snapped, X))
+    @test isapprox(lookup(snaptarget, Y), lookup(snapped, Y))
+    @test isapprox(lookup(snaptarget, X), lookup(snapped, X))
+    @test isapprox(lookup(snaptarget, Y), lookup(disk_snapped, Y))
+    @test isapprox(lookup(snaptarget, X), lookup(disk_snapped, X))
 end
 
 @testset "`method` only does nothing" begin

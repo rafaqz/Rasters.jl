@@ -180,7 +180,7 @@ convertlookup(::Type, lookup::Lookup) = lookup
 convertlookup(::Type{T1}, lookup::T2) where {T1,T2<:T1} = lookup
 # Otherwise AbstractProjected needs ArchGDAL
 function convertlookup(::Type{<:Mapped}, l::Projected)
-    newindex = reproject(crs(l), mappedcrs(l), dim(l), index(l))
+    newindex = reproject(crs(l), mappedcrs(l), dim(l), val(l))
     # We use Explicit mode and make a bounds matrix
     # This way the bounds can be saved correctly to NetCDF
     span = if sampling(l) isa Points
@@ -270,14 +270,14 @@ _mappedindex(lookup::Projected, dim::Dimension) = _mappedindex(mappedcrs(lookup)
 _mappedindex(mappedcrs::Nothing, lookup::Projected, dim) =
     error("No mappedcrs attached to $(name(dim)) dimension")
 _mappedindex(mappedcrs::GeoFormat, lookup::Projected, dim) =
-    reproject(crs(dim), mappedcrs, dim, index(dim))
+    reproject(crs(dim), mappedcrs, dim, lookup(dim))
 
 projectedindex(dims::Tuple) = map(projectedindex, dims)
 projectedindex(dim::Dimension) = _projectedindex(parent(dim), dim)
 
-_projectedindex(::Lookup, dim::Dimension) = index(dim)
+_projectedindex(::Lookup, dim::Dimension) = lookup(dim)
 _projectedindex(lookup::Mapped, dim::Dimension) = _projectedindex(crs(lookup), lookup, dim)
 _projectedindex(crs::Nothing, lookup::Mapped, dim::Dimension) =
     error("No projection crs attached to $(name(dim)) dimension")
 _projectedindex(crs::GeoFormat, lookup::Mapped, dim::Dimension) =
-    reproject(mappedcrs(dim), crs, dim, index(dim))
+    reproject(mappedcrs(dim), crs, dim, val(dim))
