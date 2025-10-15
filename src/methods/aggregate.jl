@@ -460,7 +460,7 @@ end
     agg = Base.add_sum(zero(eltype(block)), zero(eltype(block)))
     for x in block
         _ismissing(x, mv) && return _missingval_or_missing(dst)
-        Base.add_sum(agg, x)
+        agg = Base.add_sum(agg, x)
     end
     return agg
 end
