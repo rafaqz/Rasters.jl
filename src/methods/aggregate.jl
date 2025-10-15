@@ -465,7 +465,7 @@ end
     return agg
 end
 @propagate_inbounds function _reduce_noskip(::typeof(DD.Statistics.mean), block, mv, dst)
-    agg = zero(eltype(block))
+    agg = float(zero(eltype(block))) # Force floating point for mean
     n = 0
     for x in block
         _ismissing(x, mv) && return _missingval_or_missing(dst)
@@ -498,7 +498,7 @@ end
     return found ? agg : _missingval_or_missing(dst)
 end
 @propagate_inbounds function _reduce_skip(::typeof(DD.Statistics.mean), block, mv, dst)
-    agg = zero(eltype(block))
+    agg = float(zero(eltype(block))) # Force floating point for mean
     found = false
     n = 0
     for x in block
