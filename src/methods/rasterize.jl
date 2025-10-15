@@ -25,9 +25,12 @@ _reduce_init(reducer, nt::NamedTuple, missingval) = map(x -> _reduce_init(reduce
 _reduce_init(f, x, missingval) = _reduce_init(f, typeof(x), missingval)
 
 _reduce_init(::Nothing, x::Type{T}, missingval) where T = zero(T)
-_reduce_init(f::Function, ::Type{T}, missingval) where T = zero(f((zero(nonmissingtype(T)), zero(nonmissingtype(T)))))
-_reduce_init(::typeof(sum), ::Type{T}, missingval) where T = zero(nonmissingtype(T))
-_reduce_init(::typeof(prod), ::Type{T}, missingval) where T = oneunit(nonmissingtype(T))
+_reduce_init(f::Function, ::Type{T}, missingval) where T = 
+    zero(f((zero(nonmissingtype(T)), zero(nonmissingtype(T)))))
+_reduce_init(::typeof(sum), ::Type{T}, missingval) where T = 
+    Base.add_sum(zero(nonmissingtype(T)), zero(nonmissingtype(T))) # add_sum(zero, zero) for correct type
+_reduce_init(::typeof(prod), ::Type{T}, missingval) where T = 
+    Base.mul_prod(oneunit(nonmissingtype(T)), one(nonmissingtype(T))) # mul_prod(oneunit, one) for correct type
 _reduce_init(::typeof(minimum), ::Type{T}, missingval) where T = typemax(nonmissingtype(T))
 _reduce_init(::typeof(maximum), ::Type{T}, missingval) where T = typemin(nonmissingtype(T))
 _reduce_init(::typeof(last), ::Type{T}, missingval) where T = _maybe_to_missing(missingval)

@@ -457,10 +457,10 @@ end
     return _reduce_noskip(sum, block, mv, dst)
 end
 @propagate_inbounds function _reduce_noskip(::typeof(sum), block, mv, dst)
-    agg = zero(eltype(block))
+    agg = Base.add_sum(zero(eltype(block)), zero(eltype(block)))
     for x in block
         _ismissing(x, mv) && return _missingval_or_missing(dst)
-        agg += x
+        Base.add_sum(agg, x)
     end
     return agg
 end
@@ -488,12 +488,13 @@ end
     return _reduce_skip(sum, block, mv, dst)
 end
 @propagate_inbounds function _reduce_skip(::typeof(sum), block, mv, dst)
-    agg = zero(eltype(block))
+    # Use add_sum to get the correct type, e.g. UInt64 from UInt
+    agg = Base.add_sum(zero(eltype(block)), zero(eltype(block)))
     found = false
     for x in block
         _ismissing(x, mv) && continue
         found = true
-        agg += x
+        Base.add_sum(agg, x)
     end
     return found ? agg : _missingval_or_missing(dst)
 end
