@@ -270,7 +270,7 @@ _mappedindex(lookup::Projected, dim::Dimension) = _mappedindex(mappedcrs(lookup)
 _mappedindex(mappedcrs::Nothing, lookup::Projected, dim) =
     error("No mappedcrs attached to $(name(dim)) dimension")
 _mappedindex(mappedcrs::GeoFormat, lookup::Projected, dim) =
-    reproject(crs(dim), mappedcrs, dim, lookup(dim))
+    reproject(crs(dim), mappedcrs, dim, parent(lookup(dim)))
 
 projectedindex(dims::Tuple) = map(projectedindex, dims)
 projectedindex(dim::Dimension) = _projectedindex(parent(dim), dim)
