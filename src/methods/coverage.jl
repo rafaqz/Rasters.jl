@@ -271,7 +271,7 @@ function _sum_coverage!(A::AbstractRaster, geoms, buffers;
     _run(range, threaded, progress, "Calculating coverage...") do i
         geom = _getgeom(geoms, i)
         ismissing(geom) && return nothing
-        idx = Threads.threadid()
+        idx = _threadid()
         thread_buffers = map(b -> b[idx], buffers)
         coveragebuffer = coveragebuffers[idx]
         nmissed, burnchecks[i] = _sum_coverage!(coveragebuffer, geom; scale, thread_buffers...)

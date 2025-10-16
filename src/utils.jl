@@ -476,6 +476,8 @@ function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::Stri
     end
 end
 
+_threadid() = Threads.threadid() - Threads.nthreads(:interactive)
+
 _unwrap(::Val{X}) where X = X
 _unwrap(x) = x
 

@@ -243,7 +243,7 @@ function _extract(A::RasterStackOrArray, e::Extractor{T}, id::Int, ::Nothing, ge
     if threaded
         thread_line_refs = [LineRefs{T}() for _ in 1:Threads.nthreads()]
         _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
-            line_refs = thread_line_refs[Threads.threadid()]
+            line_refs = thread_line_refs[_threadid()]
             loc_id = id + i - 1
             row_vecs[i] = _extract(A2, e, loc_id, geoms[i]; line_refs, kw...)
         end

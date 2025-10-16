@@ -35,7 +35,7 @@ function _burning_allocs(x;
     end
 end
 
-_get_alloc(allocs::Vector{<:Allocs}) = _get_alloc(allocs[Threads.threadid()])
+_get_alloc(allocs::Vector{<:Allocs}) = _get_alloc(allocs[_threadid()])
 _get_alloc(allocs::Allocs) = allocs
 
 # TODO include these in Allocs
