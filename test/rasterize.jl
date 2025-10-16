@@ -529,3 +529,30 @@ end
     @test_nowarn rasterize(last, fancy_table; to = A1, fill = 1)
     @test replace_missing(rasterize(last, pointtable; to = A1, fill = 1), 0) == replace_missing(rasterize(last, fancy_table; to = A1, fill = 1), 0) # sanity check
 end
+
+@testset "Type promotion handles integer overflows in rasterize" begin
+    poly1 = GI.Polygon([[[-20.0, 30.0], [-20.0, 28.0], [-18.0, 28.0], [-18.0, 30.0], [-20.0, 30.0]]])
+    poly2 = GI.Polygon([[[-19.0, 29.0], [-19.0, 27.0], [-17.0, 27.0], [-17.0, 29.0], [-19.0, 29.0]]])
+    polys = [poly1, poly2]
+
+    # Test UInt8 sum: 200 + 200 would overflow UInt8, should promote to UInt
+    r_sum_uint = rasterize(sum, polys; res=1.0, fill=UInt8(200), missingval=UInt8(0))
+    @test eltype(r_sum_uint) === UInt
+    @test r_sum_uint[X=-19, Y=28] === UInt(400)
+    @test r_sum_uint[X=-20, Y=30] === UInt(200)
+    @test r_sum_uint[X=-17, Y=27] === UInt(200)
+
+    # Test Int8 sum: -100 + -100 would overflow Int8, should promote to Int
+    r_sum_int = rasterize(sum, polys; res=1.0, fill=Int8(-100), missingval=Int8(0))
+    @test eltype(r_sum_int) === Int
+    @test r_sum_int[X=-19, Y=28] === Int(-200)
+    @test r_sum_int[X=-20, Y=30] === Int(-100)
+    @test r_sum_int[X=-17, Y=27] === Int(-100)
+
+    # Test UInt8 prod: 20 * 20 would overflow UInt8, should promote to UInt
+    r_prod_uint = rasterize(prod, polys; res=1.0, fill=UInt8(20), missingval=UInt8(0))
+    @test eltype(r_prod_uint) === UInt
+    @test r_prod_uint[X=-19, Y=28] === UInt(400)
+    @test r_prod_uint[X=-20, Y=30] === UInt(20)
+    @test r_prod_uint[X=-17, Y=27] === UInt(20)
+end
