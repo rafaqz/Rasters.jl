@@ -9,7 +9,7 @@ Pixel resolution is limited to allow loading very large files quickly. `max_res`
 specifies the maximum pixel resolution to show on the longest axis of the array.
 It can be set manually to change the resolution (e.g. for large or high-quality plots):
 
-````@example plots
+````@example plots_simple
 using Rasters, RasterDataSources, ArchGDAL, Plots
 A = Raster(WorldClim{BioClim}, 5)
 plot(A; max_res=3000)
@@ -24,7 +24,7 @@ This is an unexported function, since we're not sure how the API will change goi
 
 ## Makie, simple
 
-````@example plots
+````@example makie_simple
 using CairoMakie 
 CairoMakie.activate!(px_per_unit = 2)
 using Rasters, CairoMakie, RasterDataSources, ArchGDAL
