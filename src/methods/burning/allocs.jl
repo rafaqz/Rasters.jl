@@ -19,12 +19,17 @@ function _burning_allocs(x;
     kw...
 ) 
     if threaded
-        if isnothing(x)
+        allocs = if isnothing(x)
             [Allocs() for _ in 1:nthreads]
         else
             dims = commondims(x, DEFAULT_POINT_ORDER)
             [Allocs(_init_bools(dims; metadata=deepcopy(burncheck_metadata))) for _ in 1:nthreads]
         end
+        ch = Channel{eltype(allocs)}(nthreads)
+        for a in allocs
+            put!(ch, a)
+        end
+        return ch
     else
         if isnothing(x)
             Allocs()
@@ -34,9 +39,6 @@ function _burning_allocs(x;
         end
     end
 end
-
-_get_alloc(allocs::Vector{<:Allocs}) = _get_alloc(allocs[_threadid()])
-_get_alloc(allocs::Allocs) = allocs
 
 # TODO include these in Allocs
 _alloc_burnchecks(n::Int) = fill(false, n)

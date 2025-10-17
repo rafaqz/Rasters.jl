@@ -95,16 +95,14 @@ function _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom, r; scal
     return A
 end
 function _coverage!(A::AbstractRaster, ::Nothing, geoms, r::Rasterizer; mode, scale)
-    n = r.threaded ? _nthreads() : 1
     buffers = (
-        # We always need a vector of threads, but just
-        allocs = _burning_allocs(A; nthreads=n, threaded=true),
-        linebuffer = [_init_bools(A, BitArray; missingval=false) for _ in 1:n],
-        centerbuffer = [_init_bools(A, BitArray; missingval=false) for _ in 1:n],
-        block_crossings = [[Vector{Float64}(undef, 0) for _ in 1:scale] for _ in 1:n],
-        burnstatus=[fill(BurnStatus(), scale) for _ in 1:n],
-        subbuffer = [fill!(Array{Bool}(undef, scale, scale), false) for _ in 1:n],
-        ncrossings = [fill(0, scale) for _ in 1:n],
+        allocs = _burning_allocs(A; nthreads=1, threaded=false), # allocate just one for now
+        linebuffer = _init_bools(A, BitArray; missingval=false),
+        centerbuffer = _init_bools(A, BitArray; missingval=false),
+        block_crossings = [Vector{Float64}(undef, 0) for _ in 1:scale],
+        burnstatus= fill(BurnStatus(), scale),
+        subbuffer = fill!(Array{Bool}(undef, scale, scale), false),
+        ncrossings = fill(0, scale),
     )
     subpixel_dims = _subpixel_dims(A, scale)
     missed_pixels = if mode === union
@@ -124,29 +122,48 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
 )
     threaded, n = _check_buffer_thread_mem(A; scale, threaded, checkmem)
     buffer_size = size(A) .* scale
-    centeracc = [_init_bools(A, BitArray; missingval=false) for _ in 1:n]
-    lineacc = [_init_bools(A, BitArray; missingval=false) for _ in 1:n]
-    subpixel_buffer = [falses(buffer_size) for _ in 1:n]
-    allbuffers = merge(buffers, (; centeracc, lineacc, subpixel_buffer))
+    centeracc = _init_bools(A, BitArray; missingval=false)
+    lineacc = _init_bools(A, BitArray; missingval=false)
+    subpixel_buffer = falses(buffer_size)
+    allbuffers1 = merge(buffers, (; centeracc, lineacc, subpixel_buffer))
+    allbuffers = if threaded
+        ch = Channel{eltype(allbuffers1)}(n)
+        for i in 1:n
+            put!(ch, deepcopy(allbuffers1))
+        end
+        ch
+    else
+        allbuffers1
+    end
     range = _geomindices(geoms)
     _run(range, threaded, progress, "Calculating coverage buffers...") do i
         geom = _getgeom(geoms, i)
-        idx = Threads.threadid()
-        # Get buffers for each thread as a NamedTuple
-        thread_buffers = map(b -> b[idx], allbuffers)
-        _union_coverage!(A, geom; scale, subpixel_buffer, thread_buffers...)
-        fill!(thread_buffers.linebuffer, false)
-        fill!(thread_buffers.centerbuffer, false) # Is this necessary?
+        with_resource(allbuffers) do thread_buffers
+            _union_coverage!(A, geom; scale, subpixel_buffer, thread_buffers...)
+            fill!(thread_buffers.linebuffer, false)
+            fill!(thread_buffers.centerbuffer, false) # Is this necessary?
+        end
     end
-
     # Merge downscaled BitArray (with a function barrier)
-    subpixel_union = _do_broadcast!(|, subpixel_buffer[1], subpixel_buffer...)
+    if threaded
+        close(allbuffers)
+        _buffers = collect(ch)
+        subpixel_union = _do_broadcast!(|, getindex.(_buffers, :subpixel_buffer)...)
+        center_covered = _do_broadcast!(|, getindex.(_buffers, :centeracc)...)
+        line_covered = _do_broadcast!(|, getindex.(_buffers, :lineacc)...)
+
+    else
+        subpixel_union = allbuffers.subpixel_buffer
+        center_covered = allbuffers.centeracc
+        line_covered = allbuffers.lineacc
+    end
     subpixel_raster = Raster(subpixel_union, subpixel_dims)
     # Merge main BitArray (with a function barrier)
-    center_covered = _do_broadcast!(|, centeracc[1], centeracc...)
-    line_covered = _do_broadcast!(|, lineacc[1], lineacc...)
 
-    missed_pixels = fill(0, n)
+    missed_pixels = Channel{Int}(n)
+    for i in 1:n
+        put!(missed_pixels, 0)
+    end
     range = axes(A, Y())
     _run(range, threaded, progress, "Combining coverage...") do y
         for x in axes(A, X())
@@ -163,15 +180,16 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
                 if pixel_coverage == 0.0
                     # Check if this line should be covered
                     if line_covered[D...]
-                        idx = Threads.threadid()
-                        missed_pixels[idx] += 1
+                        m = take!(missed_pixels)
+                        put!(missed_pixels, m + 1)
                     end
                 end
                 A[D...] = pixel_coverage
             end
         end
     end
-    return sum(missed_pixels)
+    close(missed_pixels)
+    return sum(collect(missed_pixels))
 end
 function _union_coverage!(A::AbstractRaster, geom;
     scale,
@@ -188,7 +206,6 @@ function _union_coverage!(A::AbstractRaster, geom;
     ncrossings=fill(0, scale),
     checkmem=CHECKMEM[],
 )
-
     if isnothing(subpixel_buffer)
         checkmem && _check_buffer_mem(A, scale)
         subpixel_buffer = falses(size(A) .* scale)
@@ -264,26 +281,44 @@ function _sum_coverage!(A::AbstractRaster, geoms, buffers;
     scale, subpixel_dims, verbose=true, progress=true, threaded=false, checkmem=CHECKMEM[],
 )
     threaded, n = _check_buffer_thread_mem(A; scale, threaded, checkmem)
-    coveragebuffers = [fill!(similar(A), 0.0) for _ in 1:n]
-    missed_pixels = fill(0, n)
+    coveragebuffer = fill!(similar(A), 0.0)
+    allbuffers1 = merge(buffers, (; coveragebuffer, missed_pixels = [0]))
+    allbuffers = if threaded
+        ch = Channel{eltype(allbuffers1)}(n)
+        for i in 1:n
+            put!(ch, deepcopy(allbuffers1))
+        end
+        ch
+    else
+        allbuffers1
+    end
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
     _run(range, threaded, progress, "Calculating coverage...") do i
         geom = _getgeom(geoms, i)
         ismissing(geom) && return nothing
-        idx = _threadid()
-        thread_buffers = map(b -> b[idx], buffers)
-        coveragebuffer = coveragebuffers[idx]
-        nmissed, burnchecks[i] = _sum_coverage!(coveragebuffer, geom; scale, thread_buffers...)
-        missed_pixels[idx] += nmissed
-        fill!(thread_buffers.linebuffer, false)
-        fill!(thread_buffers.centerbuffer, false)
+        with_resource(allbuffers) do buffers
+            thread_buffers = Base.structdiff(buffers, NamedTuple{(:coveragebuffer, :missed_pixels)})
+            nmissed, burnchecks[i] = _sum_coverage!(buffers.coveragebuffer, geom; scale, thread_buffers...)
+            buffers.missed_pixels .+= nmissed
+            fill!(thread_buffers.linebuffer, false)
+            fill!(thread_buffers.centerbuffer, false)
+        end
         return nothing
     end
-    _do_broadcast!(+, A, coveragebuffers...)
     _set_burnchecks(burnchecks, metadata(A), verbose)
-    return sum(missed_pixels)
+    if threaded
+        close(allbuffers)
+        _buffers = collect(allbuffers)
+        _do_broadcast!(+, A, getindex.(_buffers, :coveragebuffer)...)
+        return sum(first.(getindex.(_buffers, :missed_pixels)))
+
+    else
+        _do_broadcast!(+, A, allbuffers.coveragebuffer)
+        return allbuffers.missed_pixels[1]
+    end
 end
+
 function _sum_coverage!(A::AbstractRaster, geom;
     scale,
     linebuffer=_init_bools(A, BitArray; missingval=false),

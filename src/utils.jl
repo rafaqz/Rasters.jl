@@ -476,7 +476,15 @@ function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::Stri
     end
 end
 
-_threadid() = Threads.threadid() - Threads.nthreads(:interactive)
+function with_resource(f, resource::Channel)
+    x = take!(resource) # obtain shared resource
+    try
+        f(x) # do your work
+    finally
+        put!(resource, x) # put resource back
+    end
+end
+with_resource(f, a) = f(a)
 
 _unwrap(::Val{X}) where X = X
 _unwrap(x) = x
