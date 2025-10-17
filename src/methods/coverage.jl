@@ -141,10 +141,15 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
     if threaded
         close(allbuffers)
         _buffers = collect(allbuffers)
-        subpixel_union = _do_broadcast!(|, getindex.(_buffers, :subpixel_buffer)...)
-        center_covered = _do_broadcast!(|, getindex.(_buffers, :centeracc)...)
-        line_covered = _do_broadcast!(|, getindex.(_buffers, :lineacc)...)
-
+        if n > 1
+            subpixel_union = _do_broadcast!(|, getindex.(_buffers, :subpixel_buffer)...)
+            center_covered = _do_broadcast!(|, getindex.(_buffers, :centeracc)...)
+            line_covered = _do_broadcast!(|, getindex.(_buffers, :lineacc)...)
+        else
+            subpixel_union = first(_buffers).subpixel_buffer
+            center_covered = first(_buffers).centeracc
+            line_covered = first(_buffers).lineacc
+        end
     else
         subpixel_union = allbuffers.subpixel_buffer
         center_covered = allbuffers.centeracc
