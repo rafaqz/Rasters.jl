@@ -18,26 +18,13 @@ function _burning_allocs(x;
     burncheck_metadata=Metadata(),
     kw...
 ) 
-    if threaded
-        allocs = if isnothing(x)
-            [Allocs() for _ in 1:nthreads]
-        else
-            dims = commondims(x, DEFAULT_POINT_ORDER)
-            [Allocs(_init_bools(dims; metadata=deepcopy(burncheck_metadata))) for _ in 1:nthreads]
-        end
-        ch = Channel{eltype(allocs)}(nthreads)
-        for a in allocs
-            put!(ch, a)
-        end
-        return ch
-    else
-        if isnothing(x)
+    allocs = if isnothing(x)
             Allocs()
         else
             dims = commondims(x, DEFAULT_POINT_ORDER)
             Allocs(_init_bools(dims; metadata=burncheck_metadata))
         end
-    end
+    return _maybe_channel(allocs, threaded, nthreads)
 end
 
 # TODO include these in Allocs

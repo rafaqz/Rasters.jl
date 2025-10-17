@@ -126,15 +126,8 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
     lineacc = _init_bools(A, BitArray; missingval=false)
     subpixel_buffer = falses(buffer_size)
     allbuffers1 = merge(buffers, (; centeracc, lineacc, subpixel_buffer))
-    allbuffers = if threaded
-        ch = Channel{eltype(allbuffers1)}(n)
-        for i in 1:n
-            put!(ch, deepcopy(allbuffers1))
-        end
-        ch
-    else
-        allbuffers1
-    end
+    allbuffers = _maybe_channel(allbuffers1, threaded, n)
+
     range = _geomindices(geoms)
     _run(range, threaded, progress, "Calculating coverage buffers...") do i
         geom = _getgeom(geoms, i)
@@ -147,7 +140,7 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
     # Merge downscaled BitArray (with a function barrier)
     if threaded
         close(allbuffers)
-        _buffers = collect(ch)
+        _buffers = collect(allbuffers)
         subpixel_union = _do_broadcast!(|, getindex.(_buffers, :subpixel_buffer)...)
         center_covered = _do_broadcast!(|, getindex.(_buffers, :centeracc)...)
         line_covered = _do_broadcast!(|, getindex.(_buffers, :lineacc)...)
@@ -283,15 +276,7 @@ function _sum_coverage!(A::AbstractRaster, geoms, buffers;
     threaded, n = _check_buffer_thread_mem(A; scale, threaded, checkmem)
     coveragebuffer = fill!(similar(A), 0.0)
     allbuffers1 = merge(buffers, (; coveragebuffer, missed_pixels = [0]))
-    allbuffers = if threaded
-        ch = Channel{eltype(allbuffers1)}(n)
-        for i in 1:n
-            put!(ch, deepcopy(allbuffers1))
-        end
-        ch
-    else
-        allbuffers1
-    end
+    allbuffers = _maybe_channel(allbuffers1, threaded, n)
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
     _run(range, threaded, progress, "Calculating coverage...") do i

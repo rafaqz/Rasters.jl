@@ -464,7 +464,7 @@ _progress(args...; kw...) = ProgressMeter.Progress(args...; dt=0.1, color=:blue,
 function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String)
     p = progress ? _progress(length(range); desc) : nothing
     if threaded
-        Threads.@threads :static for i in range
+        Threads.@threads for i in range
             f(i)
             isnothing(p) || ProgressMeter.next!(p)
         end
@@ -476,6 +476,7 @@ function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::Stri
     end
 end
 
+# utils for threading
 function with_resource(f, resource::Channel)
     x = take!(resource) # obtain shared resource
     try
@@ -485,6 +486,18 @@ function with_resource(f, resource::Channel)
     end
 end
 with_resource(f, a) = f(a)
+
+function _maybe_channel(x, threaded, n)
+    if threaded
+        ch = Channel{eltype(x)}(n)
+        for i in 1:n
+            put!(ch, deepcopy(x))
+        end
+        ch
+    else
+        x
+    end
+end
 
 _unwrap(::Val{X}) where X = X
 _unwrap(x) = x
