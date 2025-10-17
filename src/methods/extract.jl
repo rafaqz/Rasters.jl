@@ -240,21 +240,10 @@ function _extract(A::RasterStackOrArray, e::Extractor{T}, id::Int, ::Nothing, ge
     A2 = _prepare_for_burning(A)
 
     row_vecs = Vector{Vector{T}}(undef, length(geoms))
-    if threaded
-        thread_line_refs = Channel{Threads.nthreads()}(Threads.nthreads())
-        for _ in 1:Threads.nthreads()
-            put!(thread_line_refs, LineRefs{T}())
-        end
-        _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
-            with_resource(thread_line_refs) do line_refs
-                loc_id = id + i - 1
-                row_vecs[i] = _extract(A2, e, loc_id, geoms[i]; line_refs, kw...)
-            end
-        end
-    else
-        line_refs = LineRefs{T}()
-        _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
-            loc_id = id + i - 1
+    line_refs = _maybe_channel(LineRefs{T}(), threaded, Threads.nthreads())
+    _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
+        loc_id = id + i - 1
+        with_resource(line_refs) do line_refs
             row_vecs[i] = _extract(A2, e, loc_id, geoms[i]; line_refs, kw...)
         end
     end
