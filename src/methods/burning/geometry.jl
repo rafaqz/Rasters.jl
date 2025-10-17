@@ -36,9 +36,10 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, data;
         _run(range, threaded, progress, "") do i
             geom = _getgeom(geoms, i)
             ismissing(geom) && return nothing
-            a = _get_alloc(allocs)
-            buffer = a.buffer
-            burnchecks[i] = _burn_geometry!(buffer, geom; fill, allocs=a, lock, kw...)
+            with_resource(allocs) do a
+                buffer = a.buffer
+                burnchecks[i] = _burn_geometry!(buffer, geom; fill, allocs=a, lock, kw...)
+            end
             return nothing
         end
         if fill
