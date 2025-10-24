@@ -83,7 +83,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
     kw...
 )::Bool
     hasburned = false
-    GI.npoint(geom) > 0 || return hasburned
+    GI.isempty(geom) && return hasburned
     # Use the specified shape or detect it
     shape = shape isa Symbol ? shape : _geom_shape(geom)
     if shape === :point
