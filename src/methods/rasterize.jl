@@ -121,7 +121,11 @@ function Rasterizer(geom, fill, fillitr;
         isnothing(reducer) && isnothing(op) && !(fill isa Function) && throw(ArgumentError("either reducer, op or fill must be a function"))
     end
  
-    op = _reduce_op(reducer)
+    op = if isnothing(op)
+        _reduce_op(reducer)
+    else
+        op
+    end
 
     threadsafe_op = isnothing(threadsafe) ? _is_op_threadsafe(op) : threadsafe
 
