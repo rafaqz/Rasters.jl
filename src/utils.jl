@@ -487,9 +487,9 @@ function with_resource(f, resource::Channel)
 end
 with_resource(f, a) = f(a)
 
-function _maybe_channel(x, threaded, n)
+function _maybe_channel(x::T, threaded, n) where T
     if threaded
-        ch = Channel{eltype(x)}(n)
+        ch = Channel{T}(n)
         for i in 1:n
             put!(ch, deepcopy(x))
         end
