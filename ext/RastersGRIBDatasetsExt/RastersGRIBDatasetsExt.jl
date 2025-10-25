@@ -10,7 +10,7 @@ const RA = Rasters
 const DA = DiskArrays
 const GDS = GRIBDatasets
 
-Rasters.is_loaded(::Type{Rasters.GRIBDatasetsExt}) = true
+Rasters.is_loaded(::Rasters.GRIBDatasetsExt) = true
 
 include("gribdatasets_source.jl")
 

@@ -6,7 +6,7 @@ using Rasters
 using Rasters.DimensionalData
 using Rasters.Dimensions
 
-Rasters.is_loaded(::Type{Rasters.MakieExt}) = true
+Rasters.is_loaded(::Rasters.MakieExt) = true
 
 include("plotrecipes.jl")
 
