@@ -478,7 +478,7 @@ function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::Stri
 end
 
 # utils for threading
-function with_resource(f, resource::Channel)
+function with_resource(f::F, resource::Channel{T}) where {F, T}
     x = take!(resource) # obtain shared resource
     try
         f(x) # do your work
