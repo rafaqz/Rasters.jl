@@ -37,19 +37,6 @@ Rasters.rplot(stack; Axis = (aspect = DataAspect(),),)
 
 You can pass any theming keywords in, which are interpreted by Makie appropriately.
 
-The plots seem a little squished here.  We provide a Makie theme which makes text a little smaller
-and has some other space-efficient attributes:
-
-````@example makie
-Makie.set_theme!(Rasters.theme_rasters())
-Rasters.rplot(stack)
-````
-
-# reset theme
-````@example makie
-Makie.set_theme!() 
-````
-
 ### Plotting with `Observable`s, animations
 
 `Rasters.rplot` should support Observable input out of the box, but the dimensions of that input
