@@ -138,56 +138,21 @@ function _union_coverage!(A::AbstractRaster, geoms, buffers;
         end
     end
     # Merge downscaled BitArray (with a function barrier)
+    
     if threaded
         close(allbuffers)
         _buffers = collect(allbuffers)
-        if n > 1
-            subpixel_union = _do_broadcast!(|, getindex.(_buffers, :subpixel_buffer)...)
-            center_covered = _do_broadcast!(|, getindex.(_buffers, :centeracc)...)
-            line_covered = _do_broadcast!(|, getindex.(_buffers, :lineacc)...)
-        else
-            subpixel_union = first(_buffers).subpixel_buffer
-            center_covered = first(_buffers).centeracc
-            line_covered = first(_buffers).lineacc
-        end
+        subpixel_union = _do_broadcast!(|, (getindex.(_buffers, :subpixel_buffer))...)
+        center_covered = _do_broadcast!(|, getindex.(_buffers, :centeracc)...)
+        line_covered = _do_broadcast!(|, getindex.(_buffers, :lineacc)...)
     else
         subpixel_union = allbuffers.subpixel_buffer
         center_covered = allbuffers.centeracc
         line_covered = allbuffers.lineacc
     end
     subpixel_raster = Raster(subpixel_union, subpixel_dims)
-    # Merge main BitArray (with a function barrier)
-
-    missed_pixels = Channel{Int}(n)
-    for i in 1:n
-        put!(missed_pixels, 0)
-    end
-    range = axes(A, Y())
-    _run(range, threaded, progress, "Combining coverage...") do y
-        for x in axes(A, X())
-            D = (X(x), Y(y))
-            if center_covered[D...]
-                pixel_coverage = 1.0
-                A[D...] = pixel_coverage
-            else
-                subxs, subys = map((x, y)) do i
-                    i1 = (i - 1) * scale
-                    sub_indices = i1 + 1:i1 + scale
-                end
-                pixel_coverage = sum(view(subpixel_raster, X(subxs), Y(subys))) / scale^2
-                if pixel_coverage == 0.0
-                    # Check if this line should be covered
-                    if line_covered[D...]
-                        m = take!(missed_pixels)
-                        put!(missed_pixels, m + 1)
-                    end
-                end
-                A[D...] = pixel_coverage
-            end
-        end
-    end
-    close(missed_pixels)
-    return sum(collect(missed_pixels))
+    # combine coverage - needs a function barrier
+    _combine_union_coverage!(A, threaded, n, subpixel_raster, center_covered, line_covered; scale, progress)
 end
 function _union_coverage!(A::AbstractRaster, geom;
     scale,
@@ -272,6 +237,40 @@ function _union_coverage!(A::AbstractRaster, geom;
             parent(v) .|= parent(parent(subraster))
         end
     end
+end
+
+function _combine_union_coverage!(A, threaded, n, subpixel_raster, center_covered, line_covered; scale, progress)
+    missed_pixels = Channel{Int}(n)
+    for i in 1:n
+        put!(missed_pixels, 0)
+    end
+    range = axes(A, Y())
+    _run(range, threaded, progress, "Combining coverage...") do y
+        for x in axes(A, X())
+            D = (X(x), Y(y))
+            if center_covered[D...]
+                pixel_coverage = 1.0
+                A[D...] = pixel_coverage
+            else
+                pixel_coverage = 0.0
+                subxs, subys = map((x, y)) do i
+                    i1 = (i - 1) * scale
+                    sub_indices = i1 + 1:i1 + scale
+                end
+                pixel_coverage = sum(view(subpixel_raster, X(subxs), Y(subys))) / scale^2
+                if pixel_coverage == 0.0
+                    # Check if this line should be covered
+                    if line_covered[D...]
+                        m = take!(missed_pixels)
+                        put!(missed_pixels, m + 1)
+                    end
+                end
+                A[D...] = pixel_coverage
+            end
+        end
+    end
+    close(missed_pixels)
+    return sum(collect(missed_pixels))
 end
 
 # Sums all coverage 
