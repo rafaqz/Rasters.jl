@@ -25,7 +25,7 @@ This is an unexported function, since we're not sure how the API will change goi
 ## Makie, simple
 
 ````@example plots
-using CairoMakie 
+using CairoMakie: CairoMakie, Makie
 CairoMakie.activate!(px_per_unit = 2)
 using Rasters, CairoMakie, RasterDataSources, ArchGDAL
 A = Raster(WorldClim{BioClim}, 5)
