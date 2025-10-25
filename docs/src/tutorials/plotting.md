@@ -41,7 +41,7 @@ This `netcdf` file only has one layer, if it has more we could use RasterStack i
 using Rasters, NCDatasets, Plots
 using Downloads: download
 
-url = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc";
+url = "https://archive.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc";
 filename = download(url, "tos_O1_2001-2002.nc");
 A = Raster(filename)
 ````

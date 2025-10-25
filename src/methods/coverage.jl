@@ -75,22 +75,23 @@ coverage!(mode::Union{typeof(union),typeof(sum)}, A::AbstractRaster, data; kw...
 function coverage!(A::AbstractRaster, data; scale::Integer=10, mode=union, kw...)
     # We use sum for `reducer` so eltype inference works
     r = Rasterizer(data; reducer=sum, fill=0.0, init=0.0, missingval=0.0, kw...)
-    coverage!(A, r; scale, mode) 
+    _coverage!(A, r; scale, mode) 
 end
 # Collect iterators so threading is easier.
-function _coverage!(A::AbstractRaster, r::Rasterizer; scale::Integer=10, mode=union)  
-    _coverage!(A, GI.trait(r.geom), r.geom, r; scale, mode)
+function _coverage!(A::AbstractRaster, r::Rasterizer; scale::Integer=10, mode=union) 
+    fill!(A, zero(eltype(A))) 
+    _coverage!(view(A, Touches(_extent(r.geom))), GI.trait(r.geom), r.geom, r; scale, mode)
+    return A
 end
 function _coverage!(A::AbstractRaster, ::GI.AbstractGeometryTrait, geom, r; scale, mode)
     subpixel_dims = _subpixel_dims(A, scale)
-    missed_pixels = if mode === union
-        _union_coverage!(A, geom; scale, subpixel_dims, progress=r.progress)
-    elseif mode === sum
-        _sum_coverage!(A, geom; scale, subpixel_dims, progress=r.progress)
+    if mode === union || mode === sum
+        # For a single geometry, there is on difference between union and sum
+        missed_pixels, _ = _sum_coverage!(A, geom; scale, subpixel_dims)
+        r.verbose && _check_missed_pixels(missed_pixels, scale)
     else
         throw(ArgumentError("Coverage `mode` can be `union` or `sum`. Got $mode"))
     end
-    r.verbose && _check_missed_pixels(missed_pixels, scale)
     return A
 end
 function _coverage!(A::AbstractRaster, ::Nothing, geoms, r::Rasterizer; mode, scale)
@@ -193,7 +194,6 @@ function _union_coverage!(A::AbstractRaster, geom;
         subpixel_buffer = falses(size(A) .* scale)
     end
     GI.isgeometry(geom) || error("not a geometry")
-    crossings = allocs.crossings
     boolmask!(linebuffer, geom; shape=:line, allocs)
     boolmask!(centerbuffer, geom; boundary=:center, allocs)
     # Update the cumulative state for completely covered cells
@@ -261,9 +261,9 @@ end
 
 # Sums all coverage 
 function _sum_coverage!(A::AbstractRaster, geoms, buffers; 
-    scale, subpixel_dims, verbose=true, progress=true, threaded=false
+    scale, subpixel_dims, verbose=true, progress=true, threaded=false, checkmem=CHECKMEM[],
 )
-    n = _nthreads()
+    threaded, n = _check_buffer_thread_mem(A; scale, threaded, checkmem)
     coveragebuffers = [fill!(similar(A), 0.0) for _ in 1:n]
     missed_pixels = fill(0, n)
     range = _geomindices(geoms)
