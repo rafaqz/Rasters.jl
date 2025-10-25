@@ -8,7 +8,7 @@ using Rasters.Dimensions
 const RA = Rasters
 const RDS = RasterDataSources
 
-Rasters.is_loaded(::Type{Rasters.RasterDataSourcesExt}) = true
+Rasters.is_loaded(::Rasters.RasterDataSourcesExt) = true
 
 include("constructors.jl")
 

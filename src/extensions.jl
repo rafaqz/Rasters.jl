@@ -14,9 +14,9 @@ struct StatsBaseExt <: Extension end
 struct ZarrDatasetsExt <: Extension end
 
 # defaults to false
-is_loaded(::Type{<:Extension}) = false
+is_loaded(::Extension) = false
 
-function throw_extension_error(f::Function, extension::Type{<:Extension}, args)
+function throw_extension_error(f::Function, extension::Extension, args)
     if is_loaded(extension)
         throw(MethodError(f, args))
     else
@@ -24,8 +24,8 @@ function throw_extension_error(f::Function, extension::Type{<:Extension}, args)
     end
 end
 
-BackendException(e::Type{<:Extension}) = 
-    BackendException(replace(string(nameof(e)), r"Ext$" => ""))
+BackendException(e::E) where E <: Extension = 
+    BackendException(replace(string(nameof(E)), r"Ext$" => ""))
 
 # stubs that need ArchGDAL
 
@@ -109,7 +109,7 @@ savefig(b, "build/resample_example_after.png"); nothing
 
 $EXPERIMENTAL
 """
-resample(args...; kw...) = throw_extension_error(resample, ArchGDALExt, args)
+resample(args...; kw...) = throw_extension_error(resample, ArchGDALExt(), args)
 
 """
     warp(A::AbstractRaster, flags::Dict; kw...)
@@ -173,7 +173,7 @@ In practise, prefer [`resample`](@ref) for this. But `warp` may be more flexible
 
 $EXPERIMENTAL
 """
-warp(args...; kw...) = throw_extension_error(warp, ArchGDALExt, args)
+warp(args...; kw...) = throw_extension_error(warp, ArchGDALExt(), args)
 
 # stubs that need Proj
 
@@ -237,7 +237,7 @@ function cellarea(method::GeometryOpsCore.Spherical, dims::Tuple{<:XDim, <:YDim}
     return Raster(areas; dims)
 end
 
-_spherical_cellarea(args...; kw...) = throw_extension_error(_spherical_cellarea, ProjExt, args)
+_spherical_cellarea(args...; kw...) = throw_extension_error(_spherical_cellarea, ProjExt(), args)
 
 function _planar_cellarea(dims::Tuple{<:XDim, <:YDim})
     xbnds, ybnds = DD.intervalbounds(dims)

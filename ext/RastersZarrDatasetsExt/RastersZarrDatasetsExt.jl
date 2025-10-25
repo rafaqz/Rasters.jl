@@ -8,7 +8,7 @@ using Rasters: Zarrsource
 
 const RA = Rasters
 
-Rasters.is_loaded(::Type{Rasters.ZarrDatasetsExt}) = true
+Rasters.is_loaded(::Rasters.ZarrDatasetsExt) = true
 
 include("zarrdatasets_source.jl")
 
