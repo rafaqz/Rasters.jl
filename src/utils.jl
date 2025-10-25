@@ -459,6 +459,7 @@ _progress(args...; kw...) = ProgressMeter.Progress(args...; dt=0.1, color=:blue,
 
 # Function barrier for splatted vector broadcast
 @noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
+@noinline _do_broadcast!(f, x) = x # for n = 1 - f should be something like + or |
 
 # Run `f` threaded or not, w
 function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String)
