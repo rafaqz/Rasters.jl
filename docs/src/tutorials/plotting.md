@@ -10,7 +10,9 @@ specifies the maximum pixel resolution to show on the longest axis of the array.
 It can be set manually to change the resolution (e.g. for large or high-quality plots):
 
 ````@example plots
-using Rasters, RasterDataSources, ArchGDAL, Plots
+using Rasters, RasterDataSources, ArchGDAL
+using Plots
+import Plots: plot # hide 
 A = Raster(WorldClim{BioClim}, 5)
 plot(A; max_res=3000)
 ````
@@ -26,8 +28,8 @@ This is an unexported function, since we're not sure how the API will change goi
 
 ````@example plots
 using CairoMakie: CairoMakie, Makie
-CairoMakie.activate!(px_per_unit = 2)
-using Rasters, CairoMakie, RasterDataSources, ArchGDAL
+CairoMakie.activate!(px_per_unit = 2) # hide
+using Rasters, RasterDataSources, ArchGDAL
 A = Raster(WorldClim{BioClim}, 5)
 Makie.plot(A)
 ````
