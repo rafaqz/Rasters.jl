@@ -300,7 +300,7 @@ function _sum_coverage!(A::AbstractRaster, geoms, buffers;
         close(allbuffers)
         _buffers = collect(allbuffers)
         _do_broadcast!(+, A, getindex.(_buffers, :coveragebuffer)...)
-        return sum(first.(getindex.(_buffers, :missed_pixels)))
+        return sum(x -> first(x.missed_pixels), _buffers)
 
     else
         _do_broadcast!(+, A, allbuffers.coveragebuffer)
