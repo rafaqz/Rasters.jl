@@ -6,7 +6,7 @@ A benefit of being written in pure Julia is that you can do anything you want wi
 Let's take an example.  Say you want to rasterize all the countries in the world, but 
 where two countries overlap, you want to save the indices of both countries.
 
-A simple but inefficient way to do this is to have each pixel of the raster actually be an
+A simple way to do this is to have each pixel of the raster actually be an
 array of integers, which stores the index of each geometry that touches the pixel.
 
 First, let's get some data.  This is a feature collection of all countries in the world.
