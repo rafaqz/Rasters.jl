@@ -30,7 +30,7 @@ using Rasters
 ras = rasterize(
     countries;
     op = vcat, 
-    fill = [[i] for i in 1:length(countries.geometry)],
+    fill = [[i] for i in 1:length(countries.geometry)], # By default a Vector with just the current country id
     boundary = :touches, # this one is just for the plot to look good
     res = 0.5, # half-degree resolutoin
     # Below are the kwargs you have to provide if using a
