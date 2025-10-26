@@ -21,7 +21,7 @@ jobs:
       contents: read
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         version:
           - '1'
