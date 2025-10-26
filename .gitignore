@@ -2,7 +2,7 @@
 *.jl.cov
 *.jl.mem
 test/data
-Manifest.toml
+Manifest*.toml
 
 *.shp
 *.nc
