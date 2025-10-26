@@ -60,5 +60,5 @@ DocumenterVitepress.deploydocs(; repo="github.com/rafaqz/Rasters.jl",
 )
 
 if !isempty(doc.internal.errors)
-    error("Documentation build failed with errors: $(doc.internal.errors)")
+    error("Documentation build failed with errors:\n$(collect(doc.internal.errors))")
 end
