@@ -50,11 +50,11 @@ fig = Rasters.rplot(stack_obs;
 ) 
 record(fig, "rplot.mp4", 1:12; framerate = 3) do i
     stack_obs[] = RasterStack(WorldClim{Climate}; month = i)
-end 
+end
 ````
 
 ```@raw html
-<video src="./rplot.mp4" controls="controls" autoplay="autoplay"></video>
+<!-- <video src="./rplot.mp4" controls="controls" autoplay="autoplay"></video> -->
 ```
 
 ````@example makie
