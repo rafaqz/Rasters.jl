@@ -446,7 +446,7 @@ end
     @testset "read and write String" begin
         rast = Raster(fill("x", X(1:10), Y(1:10)))
         filename = tempname() * ".nc"
-        write(tempname() * ".nc", rast)
+        write(filename, rast)
         @test Raster(filename) == rast
     end
 
