@@ -13,7 +13,7 @@ Rasters.sample(x::RA.RasterStackOrArray, args...; kw...) = Rasters.sample(Random
     na = DD._astuple(name)
     geometry, geometrytype, dims = _geometrytype(x, geometry)
 
-    _sample(rng, x, args...;
+    return _sample(rng, x, args...;
         dims,
         names = NamedTuple{na}(na),
         geometry,
@@ -33,7 +33,7 @@ function _sample(
     indices = sample_indices(rng, x, skipmissing, weights, weightstype, n; kw...)
     T = RA._rowtype(x, G; geometry, index, skipmissing, skipinvalid = _True(), names)
     x2 = x isa AbstractRasterStack ? x[K] : RasterStack(NamedTuple{K}((x,)))
-    return _getindices(T, x2, dims, indices)
+    return _getindices(T, x2, G, dims, indices)
 end
 function _sample(
     rng, x;
@@ -42,18 +42,18 @@ function _sample(
     indices = sample_indices(rng, x, skipmissing, weights, weightstype)
     T = RA._rowtype(x, G; geometry, index, skipmissing, skipinvalid = _True(), names)
     x2 = x isa AbstractRasterStack ? x[K] : RasterStack(NamedTuple{K}((x,)))
-    return _getindex(T, x2, dims, indices)
+    return _getindex(T, x2, G, dims, indices)
 end
 
-_getindices(::Type{T}, x, dims, indices) where {T} = 
-    broadcast(I -> _getindex(T, x, dims, I), indices)
+_getindices(::Type{T}, x, G, dims, indices) where {T} = 
+    broadcast(I -> _getindex(T, x, G, dims, I), indices)
 
-function _getindex(::Type{T}, x::AbstractRasterStack{<:Any, NT}, dims, idx) where {T, NT}
+function _getindex(::Type{T}, x::AbstractRasterStack{<:Any, NT}, ::Type{G}, dims, idx) where {T, NT, G}
     RA._maybe_add_fields(
         T, 
         NT(x[RA.commondims(idx, x)]), 
         nothing,
-        DimPoints(dims)[RA.commondims(idx, dims)], 
+        G(DimPoints(dims)[RA.commondims(idx, dims)]), 
         val(idx)
     )
 end
@@ -81,7 +81,7 @@ function _geometrytype(x, geometry::Bool)
     if geometry
         error("Specify a geometry type by setting `geometry` to a Tuple or NamedTuple of Dimensions. E.g. `geometry = (X, Y)`")
     else
-        return _False(), Nothing, dims(x)
+        return _False(), Tuple{map(eltype, dims)...}, dims(x)
     end
 end
 
