@@ -43,7 +43,7 @@ gdalpath = maybedownload(url)
 
         @test parent(gdalarray) isa Matrix{UInt8}
         @test parent(nomissing_array) isa Matrix{UInt8}
-        @test parent(missing_array) isa Base.ReshapedArray{Union{Missing,UInt8}}
+        @test parent(missing_array) isa Matrix{Union{Missing,UInt8}}
         @test parent(rawarray) isa Matrix{UInt8}
         open(lazyarray) do A
             @test parent(A) isa DiskArrays.SubDiskArray{UInt8}

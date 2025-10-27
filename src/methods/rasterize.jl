@@ -626,11 +626,12 @@ function _rasterize_iterable!(A, geoms, reducer, op, fillitr, r::Rasterizer, all
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
     _run(range, r.threaded, r.progress, "Rasterizing...") do i
-        geom = geoms[i]
-        ismissing(geom) && return nothing
-        a = _get_alloc(allocs)
-        fill = _getfill(fillitr, i)
-        burnchecks[i] = _rasterize!(A, GI.trait(geom), geom, fill, r; allocs=a)
+        with_resource(allocs) do a
+            geom = geoms[i]
+            ismissing(geom) && return nothing
+            fill = _getfill(fillitr, i)
+            burnchecks[i] = _rasterize!(A, GI.trait(geom), geom, fill, r; allocs=a)
+        end
         return nothing
     end
     _set_burnchecks(burnchecks, metadata(A), r.verbose)
