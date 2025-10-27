@@ -36,9 +36,10 @@ function _burn_geometry!(B::AbstractRaster, trait::Nothing, data;
         _run(range, threaded, progress, "") do i
             geom = _getgeom(geoms, i)
             ismissing(geom) && return nothing
-            a = _get_alloc(allocs)
-            buffer = a.buffer
-            burnchecks[i] = _burn_geometry!(buffer, geom; fill, allocs=a, lock, kw...)
+            with_resource(allocs) do a
+                buffer = a.buffer
+                burnchecks[i] = _burn_geometry!(buffer, geom; fill, allocs=a, lock, kw...)
+            end
             return nothing
         end
         if fill
@@ -82,7 +83,7 @@ function _burn_geometry!(B::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
     kw...
 )::Bool
     hasburned = false
-    GI.npoint(geom) > 0 || return hasburned
+    GI.isempty(geom) && return hasburned
     # Use the specified shape or detect it
     shape = shape isa Symbol ? shape : _geom_shape(geom)
     if shape === :point

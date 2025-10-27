@@ -343,11 +343,13 @@ function boolmask!(dest::AbstractRaster, data;
         geoms = _get_geometries(data, geometrycolumn)
         range = eachindex(geoms)
         _run(range, threaded, progress, "Burning each geometry to a BitArray slice...") do i
-            geom = geoms[i]
-            ismissing(geom) && return nothing
-            slice = view(dest, Dim{:geometry}(i))
-            # We don't need locks - these are independent slices
-            burn_geometry!(slice, geom; kw..., fill=!invert, allocs=_get_alloc(allocs))
+            with_resource(allocs) do a
+                geom = geoms[i]
+                ismissing(geom) && return nothing
+                slice = view(dest, Dim{:geometry}(i))
+                # We don't need locks - these are independent slices
+                burn_geometry!(slice, geom; kw..., fill=!invert, allocs=a)
+            end
             return nothing
         end
     elseif isnokw(collapse) || collapse === true
