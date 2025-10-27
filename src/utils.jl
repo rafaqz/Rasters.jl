@@ -459,12 +459,13 @@ _progress(args...; kw...) = ProgressMeter.Progress(args...; dt=0.1, color=:blue,
 
 # Function barrier for splatted vector broadcast
 @noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
+@noinline _do_broadcast!(f, x) = x # for n = 1 - f should be something like + or |
 
 # Run `f` threaded or not, w
 function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String)
     p = progress ? _progress(length(range); desc) : nothing
     if threaded
-        Threads.@threads :static for i in range
+        Threads.@threads for i in range
             f(i)
             isnothing(p) || ProgressMeter.next!(p)
         end
@@ -473,6 +474,29 @@ function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::Stri
             f(i)
             isnothing(p) || ProgressMeter.next!(p)
         end
+    end
+end
+
+# utils for threading
+function with_resource(f::F, resource::Channel{T}) where {F, T}
+    x = take!(resource) # obtain shared resource
+    try
+        f(x) # do your work
+    finally
+        put!(resource, x) # put resource back
+    end
+end
+with_resource(f, a) = f(a)
+
+function _maybe_channel(x::T, threaded, n) where T
+    if threaded
+        ch = Channel{T}(n)
+        for i in 1:n
+            put!(ch, deepcopy(x))
+        end
+        ch
+    else
+        x
     end
 end
 

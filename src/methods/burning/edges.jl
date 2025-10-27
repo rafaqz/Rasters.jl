@@ -51,8 +51,8 @@ function Edges(
     geom, dims;
     allocs, kw...
 )
-    (; edges, scratch) = _get_alloc(allocs)
 
+    (; edges, scratch) = allocs
     # TODO fix bug that requires this to be redefined
     edges = Vector{Edge}(undef, 0)
     local edge_count = max_ylen = 0
