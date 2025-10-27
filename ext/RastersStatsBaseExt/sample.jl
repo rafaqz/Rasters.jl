@@ -81,7 +81,7 @@ function _geometrytype(x, geometry::Bool)
     if geometry
         error("Specify a geometry type by setting `geometry` to a Tuple or NamedTuple of Dimensions. E.g. `geometry = (X, Y)`")
     else
-        return _False(), Tuple{map(eltype, dims)...}, dims(x)
+        return _False(), Tuple{map(eltype, dims(x))...}, dims(x)
     end
 end
 
