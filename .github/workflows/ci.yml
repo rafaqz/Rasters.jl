@@ -17,6 +17,7 @@ jobs:
       matrix:
         version:
           - '1'
+          - 'lts'
         os:
           - ubuntu-latest
           # - macOS-latest
