@@ -76,7 +76,7 @@ end
 function _proptype(x;
     skipmissing, names::NamedTuple{K}, kw...
 ) where K
-    NamedTuple{K,Tuple{_nametypes(x, names, skipmissing)...}}
+    NamedTuple{K,Tuple{_nametypes(x, names, skipmissing, skipmissing)...}}
 end
 
 """
