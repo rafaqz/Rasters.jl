@@ -280,4 +280,4 @@ _projectedindex(lookup::Mapped, dim::Dimension) = _projectedindex(crs(lookup), l
 _projectedindex(crs::Nothing, lookup::Mapped, dim::Dimension) =
     error("No projection crs attached to $(name(dim)) dimension")
 _projectedindex(crs::GeoFormat, lookup::Mapped, dim::Dimension) =
-    reproject(mappedcrs(dim), crs, dim, val(dim))
+    reproject(mappedcrs(dim), crs, dim, parent(lookup(dim)))
