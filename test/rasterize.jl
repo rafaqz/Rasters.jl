@@ -552,3 +552,36 @@ end
     @test_nowarn rasterize(last, fancy_table; to = A1, fill = 1)
     @test replace_missing(rasterize(last, pointtable; to = A1, fill = 1), 0) == replace_missing(rasterize(last, fancy_table; to = A1, fill = 1), 0) # sanity check
 end
+
+@testset "rasterizing strange types" begin
+    @testset "vector of feature indices, with overlap" begin
+        polygons = [
+            GI.Polygon([[(0., 0.), (1., 0.), (1., 1.), (0., 1.), (0., 0.)]]),
+            GI.Polygon([[(0.5, 0.), (1.5, 0.), (1.5, 1.), (0.5, 1.), (0.5, 0.)]]),
+        ]
+
+        result = @test_nowarn Rasters.rasterize(
+            polygons;
+            op = vcat,
+            to = Rasters.Extents.grow(GI.extent(GI.GeometryCollection(polygons)), .25),
+            fill = [[i] for i in 1:length(polygons)],
+            missingval = Int[],
+            init = Int[],
+            eltype = Vector{Int},
+            progress = false,
+            size = (10, 10),
+            boundary = :center,
+        )
+
+        # Test that the result has four unique values: [], [1], [2], [1, 2]
+        @test length(unique(result)) == 4
+        # Test that those values are the correct / expected ones
+        @test isempty(setdiff(unique(result), [(Int[1:i...] for i in 0:2)..., [2]]))
+
+        # Test that the count for each value is correct, i.e., the rasterization is as expected.
+        @test count(x -> length(x) == 0, result) == 64
+        @test count(x -> x == [1], result) == 12
+        @test count(x -> x == [2], result) == 12
+        @test count(x -> x == [1, 2], result) == 12
+    end 
+end
