@@ -78,6 +78,9 @@ st = RasterStack((A1, copy(A1)))
             fill!(A, 0)
         end
 
+        # to dims
+        @test sum(rasterize(last, geom; to=dims(A), shape=:point, fill=1, missingval=0, threaded)) == 4.0
+
         # stack
         rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3), threaded)
         st.layer1 .= st.layer2 .= 0
@@ -510,10 +513,30 @@ end
     @test !all(mask(covunion; with=insidecount) .=== covunion)
     # TODO test coverage along all the lines is correct somehow
     
+    # test on a single geom
+    @test coverage(sum, shphandle.shapes[1]; threaded=true, res=1, scale=10) ==
+        coverage(union, shphandle.shapes[1]; threaded=true, res=1, scale=10)
+
     @test_throws ErrorException coverage(union, shphandle.shapes; threaded=false, res=1, scale=10000)
     # Too slow and unreliable to test in CI, but it warns and uses one thread given 32gb of RAM: 
     # coverage(union, shphandle.shapes; threaded=true, res=1, scale=1000)
+    @testset "coverage! in-place tests" begin
+        # Prepare a destination raster
+        dest = Raster(zeros(Float64, size(parent(covsum))), dims(covsum))
+        # In-place sum coverage
+        coverage!(sum, dest, shphandle.shapes; threaded=false, res=1, scale=10)
+        @test parent(dest) ≈ parent(coverage(sum, shphandle.shapes; threaded=false, res=1, scale=10))
+        # In-place union coverage
+        fill!(dest, 0.0)
+        coverage!(union, dest, shphandle.shapes; threaded=false, res=1, scale=10)
+        @test parent(dest) ≈ parent(coverage(union, shphandle.shapes; threaded=false, res=1, scale=10))
+        # Threaded
+        fill!(dest, 0.0)
+        coverage!(sum, dest, shphandle.shapes; threaded=true, res=1, scale=10)
+        @test parent(dest) ≈ parent(coverage(sum, shphandle.shapes; threaded=true, res=1, scale=10))
+    end
 end
+
 
 @testset "`geometrycolumn` kwarg and detection works" begin
     # Replicate pointtable
@@ -528,4 +551,37 @@ end
     # Test that we don't have to provide the geometry column explicitly
     @test_nowarn rasterize(last, fancy_table; to = A1, fill = 1)
     @test replace_missing(rasterize(last, pointtable; to = A1, fill = 1), 0) == replace_missing(rasterize(last, fancy_table; to = A1, fill = 1), 0) # sanity check
+end
+
+@testset "rasterizing strange types" begin
+    @testset "vector of feature indices, with overlap" begin
+        polygons = [
+            GI.Polygon([[(0., 0.), (1., 0.), (1., 1.), (0., 1.), (0., 0.)]]),
+            GI.Polygon([[(0.5, 0.), (1.5, 0.), (1.5, 1.), (0.5, 1.), (0.5, 0.)]]),
+        ]
+
+        result = @test_nowarn Rasters.rasterize(
+            polygons;
+            op = vcat,
+            to = Rasters.Extents.grow(GI.extent(GI.GeometryCollection(polygons)), .25),
+            fill = [[i] for i in 1:length(polygons)],
+            missingval = Int[],
+            init = Int[],
+            eltype = Vector{Int},
+            progress = false,
+            size = (10, 10),
+            boundary = :center,
+        )
+
+        # Test that the result has four unique values: [], [1], [2], [1, 2]
+        @test length(unique(result)) == 4
+        # Test that those values are the correct / expected ones
+        @test isempty(setdiff(unique(result), [(Int[1:i...] for i in 0:2)..., [2]]))
+
+        # Test that the count for each value is correct, i.e., the rasterization is as expected.
+        @test count(x -> length(x) == 0, result) == 64
+        @test count(x -> x == [1], result) == 12
+        @test count(x -> x == [2], result) == 12
+        @test count(x -> x == [1, 2], result) == 12
+    end 
 end

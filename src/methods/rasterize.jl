@@ -66,8 +66,8 @@ function RasterCreator(to::DimTuple;
     to = _as_intervals(to) # Only makes sense to rasterize to intervals
     RasterCreator(eltype, to, filename, suffix, name, metadata, missingval, crs, mappedcrs)
 end
-RasterCreator(to::AbstractRaster, data; kw...) = RasterCreator(dims(to); kw...)
-RasterCreator(to::AbstractRasterStack, data; kw...) = RasterCreator(dims(to); name, kw...)
+RasterCreator(to::RasterStackOrArray, data; kw...) = RasterCreator(dims(to); kw...)
+RasterCreator(to::DimTuple, data; kw...) = RasterCreator(to; kw...)
 RasterCreator(to::Nothing, data; kw...) = RasterCreator(_extent(data; kw...); kw...)
 RasterCreator(to, data; kw...) = 
     RasterCreator(_extent(to; kw...); kw...)
@@ -120,8 +120,8 @@ function Rasterizer(geom, fill, fillitr;
     if !GI.isgeometry(geom)
         isnothing(reducer) && isnothing(op) && !(fill isa Function) && throw(ArgumentError("either reducer, op or fill must be a function"))
     end
- 
-    op = _reduce_op(reducer)
+
+    op = isnothing(op) ? _reduce_op(reducer) : op
 
     threadsafe_op = isnothing(threadsafe) ? _is_op_threadsafe(op) : threadsafe
 
@@ -205,8 +205,8 @@ function _get_eltype_missingval(eltype, missingval, filleltype, fillitr, init::N
     return eltype, missingval, init
 end
 function _get_eltype_missingval(known_eltype, missingval, filleltype, fillitr, init, filename, op, reducer)
-    fillzero = zero(filleltype)
     eltype = if isnothing(known_eltype)
+        fillzero = zero(filleltype)
         if fillitr isa Function
             promote_type(typeof(fillitr(init)), typeof(fillitr(fillzero)))
         elseif op isa Function
@@ -626,11 +626,12 @@ function _rasterize_iterable!(A, geoms, reducer, op, fillitr, r::Rasterizer, all
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
     _run(range, r.threaded, r.progress, "Rasterizing...") do i
-        geom = geoms[i]
-        ismissing(geom) && return nothing
-        a = _get_alloc(allocs)
-        fill = _getfill(fillitr, i)
-        burnchecks[i] = _rasterize!(A, GI.trait(geom), geom, fill, r; allocs=a)
+        with_resource(allocs) do a
+            geom = geoms[i]
+            ismissing(geom) && return nothing
+            fill = _getfill(fillitr, i)
+            burnchecks[i] = _rasterize!(A, GI.trait(geom), geom, fill, r; allocs=a)
+        end
         return nothing
     end
     _set_burnchecks(burnchecks, metadata(A), r.verbose)

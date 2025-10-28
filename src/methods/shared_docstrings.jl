@@ -90,7 +90,7 @@ const PROGRESS_KEYWORD = """
 - `progress`: show a progress bar, `true` by default, `false` to hide.
 """
 const VERBOSE_KEYWORD = """
-- `vebose`: whether to print messages about potential problems. `true` by default.
+- `verbose`: whether to print messages about potential problems. `true` by default.
 """
 const SOURCE_KEYWORD = """
 - `source`: Usually automatically detected from filepath extension. 
