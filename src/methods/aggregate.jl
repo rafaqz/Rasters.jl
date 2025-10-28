@@ -15,7 +15,7 @@ const SKIPMISSING_KEYWORD = """
 const METHOD_ARGUMENT = """
 - `method`: a function such as `mean` or `sum` that can combine the
   value of multiple cells to generate the aggregated cell, or a [`Locus`]($DDlocusdocs)
-  like `Start()` or `Center()` that species where to sample from in the interval.
+  like `Start()` or `Center()` that specifies where to sample from in the interval.
 """
 const SCALE_ARGUMENT = """
 - `scale`: the aggregation factor, which can be an `Int`, a `Tuple` of `Int`
@@ -106,19 +106,26 @@ aggregate(method, d::Dimension, scale) = rebuild(d, aggregate(method, lookup(d),
 aggregate(method, l::Lookup, scale::Colon) = aggregate(method, l, length(l)) 
 aggregate(method, l::Lookup, scale::Nothing) = aggregate(method, l, 1) 
 function aggregate(method, l::Lookup, scale::Int)
-    start, stop = _endpoints(method, l, scale)
-    if issampled(l) && isordered(l)
-        newl = l[start:scale:stop]
-        sp = aggregate(method, span(l), scale)
-        return rebuild(newl; span=sp)
+    if issampled(l) && isordered(l) 
+        if isregular(l)
+            # if they are regular, we build from scratch to preserve raster extent
+            start, stop = _endpoints(l, scale)
+            sp = aggregate(span(l), scale)
+            return rebuild(l; data = start:val(sp):stop, span=sp)
+        else
+            start = firstindex(l) + _agoffset(Int, method, l, scale)
+            stop = (length(l) ÷ scale) * scale
+            newl = l[start:scale:stop]
+            return rebuild(l; data = newl)
+        end
     else
         # Categorical and Unordered lookups are just broken 
         # by aggregate, so use NoLookup
-        return NoLookup(Base.OneTo(length(start:scale:stop)))
+        return NoLookup(Base.OneTo(length(l) ÷ scale))
     end
 end
-aggregate(method, span::Span, scale) = span
-aggregate(method, span::Regular, scale) = Regular(val(span) * scale)
+aggregate(span::Span, scale) = span
+aggregate(span::Regular, scale) = Regular(val(span) * scale)
 
 """
     aggregate!(method, dst::AbstractRaster, src::AbstractRaster, scale; skipmissing=false)
@@ -149,7 +156,8 @@ function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractRaster, src, scale;
 )
     comparedims(dst, src; length=false)
     intscale = _scale2int(Ag(), dims(src), scale; verbose)
-    offsets = _agoffset.(loci, intscale)
+    # offsets determines which cell within each window is used - 
+    offsets = _agoffset.(Int, loci, (ForwardOrdered(),), intscale)
     # Cache the source if its a disk array
     open(src) do opened_src
         cached_src = isdisk(opened_src) ? DiskArrays.cache(opened_src) : opened_src
@@ -264,20 +272,20 @@ end
 function disaggregate(dim::Dimension, scale)
     rebuild(dim, disaggregate(locus, lookup(dim), scale))
 end
-function disaggregate(lookup::Lookup, scale)
-    intscale = _scale2int(DisAg(), lookup, scale)
-    intscale == 1 && return lookup
+function disaggregate(l::Lookup, scale)
+    intscale = _scale2int(DisAg(), l, scale)
+    intscale == 1 && return l
 
-    len = length(lookup) * intscale
-    step_ = step(lookup) / intscale
-    start = lookup[1] - _agoffset(Start(), intscale) * step_
+    len = length(l) * intscale
+    step_ = step(l) / intscale
+    start = first(l) - _agoffset(l, intscale) * step_
     stop = start + (len - 1)  * step_
     index = LinRange(start, stop, len)
-    if lookup isa AbstractSampled
-        sp = disaggregate(locus, span(lookup), intscale)
-        return rebuild(lookup; data=index, span=sp)
+    if l isa AbstractSampled
+        sp = disaggregate(locus, span(l), intscale)
+        rebuild(l; data=index, span=sp)
     else
-        return rebuild(lookup; data=index)
+        rebuild(l; data=index)
     end
 end
 
@@ -314,35 +322,27 @@ end
 const AgArgs = Union{Integer,Colon,DD.SelectorOrInterval}
 
 # Allocate an array of the correct size to aggregate `A` by `scale`
-_alloc(f, ag::AgMode, method, A::AbstractRaster, scale; kw...) = 
-    _alloc(f, ag, (method,), A, scale; kw...)
 _alloc(f, ag::AgMode, method, A::AbstractRaster, scale::Dimension; kw...) = 
     _alloc(f, ag, method, A, (scale,); kw...)
-function _alloc(f, ag::AgMode, method::Tuple, A::AbstractRaster, scale::AgArgs; kw...)
+function _alloc(f, ag::AgMode, method, A::AbstractRaster, scale::AgArgs; kw...)
     intscale = _scale2int(ag, dims(A), scale)
     _alloc(f, ag, method, A, map(rebuild, dims(A), intscale); kw...)
 end
-_alloc(f, ag::AgMode, method::Tuple, A::AbstractRaster, scale::NamedTuple; kw...) =
+_alloc(f, ag::AgMode, method, A::AbstractRaster, scale::NamedTuple; kw...) =
     _alloc(f, ag, method, A, DD.kw2dims(scale); kw...)
-_alloc(f, ag::AgMode, method::Tuple, A::AbstractRaster, scale::Tuple{Pair,Vararg{Pair}}; kw...) =
+_alloc(f, ag::AgMode, method, A::AbstractRaster, scale::Tuple{Pair,Vararg{Pair}}; kw...) =
     _alloc(f, ag::AgMode, method, A, DD.Dimensions.pairs2dims(scale...); kw...)
-function _alloc(f, ag::AgMode, method::Tuple, A::AbstractRaster, scale::Tuple; kw...)
+function _alloc(f, ag::AgMode, method, A::AbstractRaster, scale::Tuple; kw...)
     length(scale) == ndims(A) || throw(ArgumentError("length of scale must match array dimensions $(ndims(A)), got $(length(scale))"))
     _alloc(f, ag::AgMode, method, A, map(rebuild, dims(A), scale); kw...)
 end
-function _alloc(f, ag::AgMode, method::Tuple, A::AbstractRaster, scale::DimTuple;
+function _alloc(f, ag::AgMode, method, A::AbstractRaster, scale::DimTuple;
     filename=nokw, suffix=nokw, 
     skipmissingval=false, skipmissing=false, progress=false, verbose=false
 )
     intscale = _scale2int(ag, dims(A, scale), scale; verbose=false)
     # Aggregate the dimensions
-    agdims = map(dims(A, scale), intscale) do d, i
-        if ag isa Ag
-            aggregate(method, d, i)
-        else
-            disaggregate(method, d, i)
-        end
-    end
+    agdims = _agdims(ag, method, dims(A, scale), intscale)
     newdims = dims((agdims..., otherdims(A, scale)...), dims(A)) 
     
     # Dim aggregation determines the array size
@@ -358,10 +358,24 @@ function _alloc(f, ag::AgMode, method::Tuple, A::AbstractRaster, scale::DimTuple
     return create(f, filename, T, newdims; name=name(A), suffix, missingval=mv)
 end
 
+# Aggregate dims depending on method - method could be a tuple of locus
+_agdim(::Ag, method, d::Dimension, i::Int) = aggregate(method, d, i)
+_agdim(::DisAg, method, d::Dimension, i::Int) = disaggregate(method, d, i)
+function _agdims(ag::AgMode, method, ds::DimTuple, intscale::Tuple)
+    map(ds, intscale) do d, i
+        _agdim(ag, method, d, i)
+    end
+end
+function _agdims(ag::AgMode, methods::Tuple, ds::DimTuple, intscale::Tuple)
+    map(methods, ds, intscale) do method, d, i
+        _agdim(ag, method, d, i)
+    end
+end
+
 # Handle how methods like `mean` can change the type
-_ag_eltype(::Tuple{<:Union{Locus,Type{<:Locus}},Vararg}, A) = eltype(A)
-function _ag_eltype(method::Tuple{<:Base.Callable}, A)
-    method_returntype = typeof(method[1](zero(eltype(A))))
+_ag_eltype(l, A) = eltype(A) # locus or tuple of locus
+function _ag_eltype(method::Base.Callable, A)
+    method_returntype = typeof(method(zero(eltype(A))))
     promote_type(eltype(A), method_returntype)
 end
 
@@ -429,18 +443,22 @@ end
 @inline _scale2int(::Ag, l::Lookup, scale::Int) = scale > length(l) ? length(l) : scale
 @inline _scale2int(::DisAg, l::Lookup, scale::Int) = scale
 
-_agoffset(locus::Locus, l::Lookup, scale::Int) = _agoffset(locus, scale)
-_agoffset(method, l::Lookup, scale::Int) = _agoffset(locus(l), scale)
-_agoffset(x, scale::Colon) = 0
-_agoffset(locus::Start, scale::Int) = 0
-_agoffset(locus::End, scale::Int) = scale - 1
-_agoffset(locus::Center, scale::Int) = scale ÷ 2
+_agoffset(::Function, l::Lookup, scale::Int) = _agoffset(l, scale)
+_agoffset(locus::Locus, l::Lookup, scale::Int) = _agoffset(locus, order(l), scale)
+_agoffset(l::Lookup, scale::Int) = _agoffset(locus(l), order(l), scale)
+_agoffset(x::Lookup, scale::Colon) = 0
+_agoffset(locus::Start, ::ForwardOrdered, scale::Int) = 0
+_agoffset(locus::End, ::ForwardOrdered, scale::Int) = scale - 1
+_agoffset(locus::Start, ::ReverseOrdered, scale::Int) = scale - 1
+_agoffset(locus::End, ::ReverseOrdered, scale::Int) = 0
+_agoffset(locus::Center, ::Ordered, scale::Int) = (scale-1)/2
+# When we need to choose an index, we need to return an integer
+_agoffset(::Type{Int}, args...) = ceil(Int, _agoffset(args...))
 
-_endpoints(method, l::Lookup, scale::Colon) = firstindex(l), lastindex(l)
-_endpoints(method, l::Lookup, scale::Nothing) = firstindex(l), lastindex(l)
-function _endpoints(method, l::Lookup, scale::Int)
-    start = firstindex(l) + _agoffset(method, l, scale)
-    stop = (length(l) ÷ scale) * scale
+function _endpoints(l::Lookup, scale::Int)
+    offset = step(l)*_agoffset(locus(l), order(l), scale)
+    start = first(l) + offset
+    stop = l[(length(l) ÷ scale)*scale] + offset
     return start, stop
 end
 
