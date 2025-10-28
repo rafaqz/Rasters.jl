@@ -73,16 +73,16 @@ end
 
 
     if eltype(A) <: ColorTypes.Colorant
-        lookup(x), lookup(y), parent(A)
+        parent(lookup(x)), parent(lookup(y)), parent(A)
     elseif get(plotattributes, :seriestype, :none) == :contourf
         A = replace_missing(A, missing)
         clims = extrema(skipmissing(A))
         :levels --> range(clims[1], clims[2], length=20)
-        lookup(x), lookup(y), clamp.(A, clims[1], clims[2])
+        parent(lookup(x)), parent(lookup(y)), clamp.(A, clims[1], clims[2])
     else
         :seriestype --> :heatmap
         A = replace_missing(A, missing)
-        lookup(x), lookup(y), parent(A)
+        parent(lookup(x)), parent(lookup(y)), parent(A)
     end
 end
 
