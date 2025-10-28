@@ -182,20 +182,20 @@ function RasterSeries(path::AbstractString, dims;
 )
     if isdir(path)
         dirpath = path
-        filepaths = filter_ext(dirpath, ext)
+        filepaths = Base.filter_ext(dirpath, ext)
         length(filepaths) > 0 || error("No $(isnothing(ext) ? "" : ext) files found in \"$path\" dir")
-        full_filename, _ = splitext(basename(first(filepaths)))
+        full_filename, _ = Base.splitext(Base.basename(first(filepaths)))
         common_filename = join(split(full_filename, separator)[1:end-1])
     else
-        dirpath = dirname(path)
-        common_filename, path_ext = splitext(basename(path))
+        dirpath = Base.dirname(path)
+        common_filename, path_ext = Base.splitext(Base.basename(path))
         ext = (isnothing(ext) && path_ext != "") ? path_ext : ext
         filepaths = filter(filter_ext(dirpath, ext)) do fp
-            basename(fp)[1:length(common_filename)] == common_filename
+            Base.startswith(Base.basename(fp), common_filename)
         end
         length(filepaths) > 0 || error("No $(isnothing(ext) ? "" : ext) files found matching \"$common_filename\" stem and \"$ext\" extension")
     end
-    basenames = map(fp -> basename(splitext(fp)[1]), filepaths)
+    basenames = map(fp -> Base.basename(Base.splitext(fp)[1]), filepaths)
     v = val(dims)
     # Try to get values of the wrapped type from the filenames
     if dims isa Dimension && val(dims) isa Union{Type,AutoVal{<:Type}}
