@@ -76,7 +76,7 @@ end
 function _proptype(x;
     skipmissing, names::NamedTuple{K}, kw...
 ) where K
-    NamedTuple{K,Tuple{_nametypes(x, names, skipmissing)...}}
+    NamedTuple{K,Tuple{_nametypes(x, names, skipmissing, skipmissing)...}}
 end
 
 """
@@ -521,7 +521,7 @@ end
 # Maybe add optional fields
 # It is critically important for performance that this is type stable
 Base.@assume_effects :total function _maybe_add_fields(
-    ::Type{T}, props::NamedTuple, id, point::Union{Tuple,Missing}, I
+    ::Type{T}, props::NamedTuple, id, point, I
 )::T where {T<:NamedTuple{K}} where K
     row = :index in K ? merge((; index=I), props) : props 
     row = :geometry in K ? merge((; geometry=point), row) : row
