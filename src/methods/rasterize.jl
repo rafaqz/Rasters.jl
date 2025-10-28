@@ -123,8 +123,8 @@ function Rasterizer(geom, fill, fillitr;
     if !GI.isgeometry(geom)
         isnothing(reducer) && isnothing(op) && !(fill isa Function) && throw(ArgumentError("either reducer, op or fill must be a function"))
     end
- 
-    op = _reduce_op(reducer)
+
+    op = isnothing(op) ? _reduce_op(reducer) : op
 
     threadsafe_op = isnothing(threadsafe) ? _is_op_threadsafe(op) : threadsafe
 
@@ -208,8 +208,8 @@ function _get_eltype_missingval(eltype, missingval, filleltype, fillitr, init::N
     return eltype, missingval, init
 end
 function _get_eltype_missingval(known_eltype, missingval, filleltype, fillitr, init, filename, op, reducer)
-    fillzero = zero(filleltype)
     eltype = if isnothing(known_eltype)
+        fillzero = zero(filleltype)
         if fillitr isa Function
             promote_type(typeof(fillitr(init)), typeof(fillitr(fillzero)))
         elseif op isa Function
