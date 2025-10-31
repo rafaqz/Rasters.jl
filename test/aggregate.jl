@@ -243,3 +243,27 @@ end
     @test eager_disag_series == lazy_disag_series
     @test all(x -> all(x -> x isa SubArray, parent(x)), lazy_disag_series)
 end
+
+@testset "aggregate with integer types does not overflow" begin
+    uint8_a = Raster(fill(UInt8(200), (X(1:2), Y(1:2))))
+    int8_a = Raster(fill(Int8(100), (X(1:2), Y(1:2))))
+
+    # Summing four UInt8(200) values will overflow UInt8, should return UInt
+    sum_uint8 = aggregate(sum, uint8_a, 2)
+    @test eltype(sum_uint8) == UInt
+    @test sum_uint8[1, 1] == 800
+
+    # Summing four Int8(100) values will overflow Int8, should return Int
+    sum_int8 = aggregate(sum, int8_a, 2)
+    @test eltype(sum_int8) == Int
+    @test sum_int8[1, 1] == 400
+
+    # Mean should return Float64
+    mean_uint8 = aggregate(mean, uint8_a, 2)
+    @test eltype(mean_uint8) == Float64
+    @test mean_uint8[1, 1] == 200.0
+
+    mean_int8 = aggregate(mean, int8_a, 2)
+    @test eltype(mean_int8) == Float64
+    @test mean_int8[1, 1] == 100.0
+end
