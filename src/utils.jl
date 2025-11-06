@@ -589,12 +589,12 @@ function _rowtype(
     _G = istrue(skipinvalid) ? nonmissingtype(G) : G
     _I = istrue(skipinvalid) ? I : Union{Missing, I}
     keys = _rowkeys(id, geometry, index, names)
-    types = _rowtypes(x, _G, _I, id, geometry, index, skipmissing, names)
+    types = _rowtypes(x, _G, _I, id, geometry, index, skipmissing, skipinvalid, names)
     NamedTuple{keys,types}
 end
 
 @generated function _rowtypes(
-    x, ::Type{G}, ::Type{I}, id, geometry, index, skipmissing, names::NamedTuple{Names}
+    x, ::Type{G}, ::Type{I}, id, geometry, index, skipmissing, skipinvalid, names::NamedTuple{Names}
 ) where {G,I,Names}
     ts = Expr(:tuple)
     istrue(id) && push!(ts.args, Int)
@@ -605,24 +605,32 @@ end
         istrue(geometry) && push!(ts.args, Union{Missing,G})
         istrue(index) && push!(ts.args, Union{Missing,I})
     end
-    :(Tuple{$ts...,_nametypes(x, names, skipmissing)...})
+    :(Tuple{$ts...,_nametypes(x, names, skipmissing, skipinvalid)...})
 end
 
-@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_True) where {T,Names} = 
+@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_True, si=sm) where {T,Names} = 
     (nonmissingtype(T),)
-@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_False) where {T,Names} = 
+@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_False, si::_False = sm) where {T,Names} = 
     (Union{Missing,T},)
+@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_False, si::_True) where {T,Names} = 
+    (T,)
 # This only compiles away when generated
 @generated function _nametypes(
-    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_True
+    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_True, skipinvalid
 ) where {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
     nt = NamedTuple{StackNames}(map(nonmissingtype, Types.parameters))
     return values(nt[PropNames])
 end
 @generated function _nametypes(
-    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_False
+    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_False, skipinvalid::_False
 ) where {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
     nt = NamedTuple{StackNames}(map(T -> Union{Missing,T}, Types.parameters))
+    return values(nt[PropNames])
+end
+@generated function _nametypes(
+    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_False, skipinvalid::_True
+) where {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
+    nt = NamedTuple{StackNames}(Types.parameters)
     return values(nt[PropNames])
 end
 
