@@ -17,7 +17,7 @@ _reduce_op(x) = nothing
 
 # Identical to Base.PermutedDimsArrays.CommutativeOps but define here to avoid
 # using base internals
-const COMMUTATIVE_OPS = Union{
+const CommutativeOps = Union{
     typeof(&), 
     typeof(+), 
     typeof(Base._extrema_rf), 
@@ -29,7 +29,7 @@ const COMMUTATIVE_OPS = Union{
     typeof(*) 
 }
 
-_is_op_threadsafe(::COMMUTATIVE_OPS) = true
+_is_op_threadsafe(::CommutativeOps) = true
 _is_op_threadsafe(f) = false
 
 _reduce_init(reducer, st::AbstractRasterStack, missingval) = map(A -> _reduce_init(reducer, A, missingval), st)
