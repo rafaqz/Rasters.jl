@@ -585,3 +585,22 @@ end
         @test count(x -> x == [1, 2], result) == 12
     end 
 end
+
+
+@testset "threaded reduction warnings" begin
+    commutative_fs = (sum, prod, maximum, minimum, any, all)
+    geom = GI.GeometryCollection([polygon,polygon,polygon])
+    
+    for f in commutative_fs
+        @show f
+        @test_nowarn rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=true)
+    end
+
+    other_fs = (median, first, last, x -> sum(x))
+
+    for f in other_fs
+        @test_warn "if `op` is not threadsafe, `threaded=true` may be slower than `threaded=false`" rasterize(
+            f, geom; to=A1, fill=true, missingval = false, threaded=true)
+        @test_nowarn rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=false)
+    end
+end
