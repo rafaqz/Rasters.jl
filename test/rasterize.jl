@@ -588,12 +588,13 @@ end
 
 
 @testset "threaded reduction warnings" begin
-    commutative_fs = (sum, prod, maximum, minimum, any, all)
+    commutative_fs = (sum, prod, maximum, minimum, any, all, mean)
     geom = GI.GeometryCollection([polygon,polygon,polygon])
     
     for f in commutative_fs
         @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=true)
     end
+    @test_logs rasterize(count, geom; to=A1, threaded=true) # count has no fill or missingval
 
     other_fs = (median, first, last, x -> sum(x))
 
@@ -603,3 +604,5 @@ end
         @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=false)
     end
 end
+
+rasterize(count, geom; to=A1, fill=true, missingval = false, threaded=true)
