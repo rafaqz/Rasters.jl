@@ -604,5 +604,3 @@ end
         @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=false)
     end
 end
-
-rasterize(count, geom; to=A1, fill=true, missingval = false, threaded=true)
