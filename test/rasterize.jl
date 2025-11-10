@@ -592,15 +592,14 @@ end
     geom = GI.GeometryCollection([polygon,polygon,polygon])
     
     for f in commutative_fs
-        @show f
-        @test_nowarn rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=true)
+        @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=true)
     end
 
     other_fs = (median, first, last, x -> sum(x))
 
     for f in other_fs
-        @test_warn "if `op` is not threadsafe, `threaded=true` may be slower than `threaded=false`" rasterize(
+        @test_logs (:warn, "if `op` is not threadsafe, `threaded=true` may be slower than `threaded=false`") rasterize(
             f, geom; to=A1, fill=true, missingval = false, threaded=true)
-        @test_nowarn rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=false)
+        @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=false)
     end
 end
