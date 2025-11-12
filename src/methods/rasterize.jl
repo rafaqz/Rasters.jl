@@ -9,14 +9,27 @@ _reduce_op(::typeof(prod)) = Base.mul_prod
 _reduce_op(::typeof(minimum)) = min
 _reduce_op(::typeof(maximum)) = max
 _reduce_op(::typeof(last)) = _take_last
+_reduce_op(::typeof(any)) = |
+_reduce_op(::typeof(all)) = &
 _reduce_op(f, missingval) = _reduce_op(f)
 _reduce_op(::typeof(first), missingval) = _TakeFirst(missingval)
 _reduce_op(x) = nothing
 
-_is_op_threadsafe(::typeof(sum)) = true
-_is_op_threadsafe(::typeof(prod)) = true
-_is_op_threadsafe(::typeof(minimum)) = true
-_is_op_threadsafe(::typeof(maximum)) = true
+# Identical to Base.PermutedDimsArrays.CommutativeOps but define here to avoid
+# using base internals
+const CommutativeOps = Union{
+    typeof(&), 
+    typeof(+), 
+    typeof(Base._extrema_rf), 
+    typeof(Base.add_sum), 
+    typeof(max), 
+    typeof(min), 
+    typeof(|),
+    typeof(Base.mul_prod), # these are not in Base.PermutedDimsArrays.CommutativeOps but should be safe?
+    typeof(*) 
+}
+
+_is_op_threadsafe(::CommutativeOps) = true
 _is_op_threadsafe(f) = false
 
 _reduce_init(reducer, st::AbstractRasterStack, missingval) = map(A -> _reduce_init(reducer, A, missingval), st)
@@ -103,7 +116,7 @@ struct Rasterizer{T,G,F,R,O,I,M}
 end
 function Rasterizer(geom, fill, fillitr;
     reducer=nothing,
-    op=nothing,
+    op=_reduce_op(reducer),
     missingval=nothing,
     shape=nothing,
     eltype=nothing,
@@ -120,8 +133,6 @@ function Rasterizer(geom, fill, fillitr;
     if !GI.isgeometry(geom)
         isnothing(reducer) && isnothing(op) && !(fill isa Function) && throw(ArgumentError("either reducer, op or fill must be a function"))
     end
-
-    op = isnothing(op) ? _reduce_op(reducer) : op
 
     threadsafe_op = isnothing(threadsafe) ? _is_op_threadsafe(op) : threadsafe
 
