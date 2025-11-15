@@ -20,12 +20,12 @@ end
 flush_info_and_warnings()
 
 
-Logging.disable_logging(Logging.Warn)
+# Logging.disable_logging(Logging.Warn)
 
 # Make the docs, without running the tests again
 # We need to explicitly add all the extensions here
 
-makedocs(
+doc = makedocs(
     modules = [
         Rasters,
         Base.get_extension(Rasters, :RastersArchGDALExt),
@@ -38,6 +38,7 @@ makedocs(
     authors="Rafael Schouten et al.",
     clean=true,
     doctest=true,
+    debug=true,
     checkdocs=:all,
     format=DocumenterVitepress.MarkdownVitepress(
         repo = "github.com/rafaqz/Rasters.jl", # this must be the full URL!
@@ -46,14 +47,18 @@ makedocs(
     ),
     source = "src",
     build = "build",
-    warnonly=false,
+    warnonly=true,
 )
 
 # Enable logging to console again
-Logging.disable_logging(Logging.BelowMinLevel)
+# Logging.disable_logging(Logging.BelowMinLevel)
 
 DocumenterVitepress.deploydocs(; repo="github.com/rafaqz/Rasters.jl",
     branch = "gh-pages",
     devbranch = "main",
     push_preview = true
-    )
+)
+
+if !isempty(doc.internal.errors)
+    error("Documentation build failed with errors:\n$(collect(doc.internal.errors))")
+end

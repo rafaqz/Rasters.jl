@@ -9,14 +9,27 @@ _reduce_op(::typeof(prod)) = Base.mul_prod
 _reduce_op(::typeof(minimum)) = min
 _reduce_op(::typeof(maximum)) = max
 _reduce_op(::typeof(last)) = _take_last
+_reduce_op(::typeof(any)) = |
+_reduce_op(::typeof(all)) = &
 _reduce_op(f, missingval) = _reduce_op(f)
 _reduce_op(::typeof(first), missingval) = _TakeFirst(missingval)
 _reduce_op(x) = nothing
 
-_is_op_threadsafe(::typeof(sum)) = true
-_is_op_threadsafe(::typeof(prod)) = true
-_is_op_threadsafe(::typeof(minimum)) = true
-_is_op_threadsafe(::typeof(maximum)) = true
+# Identical to Base.PermutedDimsArrays.CommutativeOps but define here to avoid
+# using base internals
+const CommutativeOps = Union{
+    typeof(&), 
+    typeof(+), 
+    typeof(Base._extrema_rf), 
+    typeof(Base.add_sum), 
+    typeof(max), 
+    typeof(min), 
+    typeof(|),
+    typeof(Base.mul_prod), # these are not in Base.PermutedDimsArrays.CommutativeOps but should be safe?
+    typeof(*) 
+}
+
+_is_op_threadsafe(::CommutativeOps) = true
 _is_op_threadsafe(f) = false
 
 _reduce_init(reducer, st::AbstractRasterStack, missingval) = map(A -> _reduce_init(reducer, A, missingval), st)
@@ -66,8 +79,8 @@ function RasterCreator(to::DimTuple;
     to = _as_intervals(to) # Only makes sense to rasterize to intervals
     RasterCreator(eltype, to, filename, suffix, name, metadata, missingval, crs, mappedcrs)
 end
-RasterCreator(to::AbstractRaster, data; kw...) = RasterCreator(dims(to); kw...)
-RasterCreator(to::AbstractRasterStack, data; kw...) = RasterCreator(dims(to); name, kw...)
+RasterCreator(to::RasterStackOrArray, data; kw...) = RasterCreator(dims(to); kw...)
+RasterCreator(to::DimTuple, data; kw...) = RasterCreator(to; kw...)
 RasterCreator(to::Nothing, data; kw...) = RasterCreator(_extent(data; kw...); kw...)
 RasterCreator(to, data; kw...) = 
     RasterCreator(_extent(to; kw...); kw...)
@@ -103,7 +116,7 @@ struct Rasterizer{T,G,F,R,O,I,M}
 end
 function Rasterizer(geom, fill, fillitr;
     reducer=nothing,
-    op=nothing,
+    op=_reduce_op(reducer),
     missingval=nothing,
     shape=nothing,
     eltype=nothing,
@@ -120,8 +133,6 @@ function Rasterizer(geom, fill, fillitr;
     if !GI.isgeometry(geom)
         isnothing(reducer) && isnothing(op) && !(fill isa Function) && throw(ArgumentError("either reducer, op or fill must be a function"))
     end
- 
-    op = _reduce_op(reducer)
 
     threadsafe_op = isnothing(threadsafe) ? _is_op_threadsafe(op) : threadsafe
 
@@ -205,8 +216,8 @@ function _get_eltype_missingval(eltype, missingval, filleltype, fillitr, init::N
     return eltype, missingval, init
 end
 function _get_eltype_missingval(known_eltype, missingval, filleltype, fillitr, init, filename, op, reducer)
-    fillzero = zero(filleltype)
     eltype = if isnothing(known_eltype)
+        fillzero = zero(filleltype)
         if fillitr isa Function
             promote_type(typeof(fillitr(init)), typeof(fillitr(fillzero)))
         elseif op isa Function
@@ -626,11 +637,12 @@ function _rasterize_iterable!(A, geoms, reducer, op, fillitr, r::Rasterizer, all
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
     _run(range, r.threaded, r.progress, "Rasterizing...") do i
-        geom = geoms[i]
-        ismissing(geom) && return nothing
-        a = _get_alloc(allocs)
-        fill = _getfill(fillitr, i)
-        burnchecks[i] = _rasterize!(A, GI.trait(geom), geom, fill, r; allocs=a)
+        with_resource(allocs) do a
+            geom = geoms[i]
+            ismissing(geom) && return nothing
+            fill = _getfill(fillitr, i)
+            burnchecks[i] = _rasterize!(A, GI.trait(geom), geom, fill, r; allocs=a)
+        end
         return nothing
     end
     _set_burnchecks(burnchecks, metadata(A), r.verbose)
