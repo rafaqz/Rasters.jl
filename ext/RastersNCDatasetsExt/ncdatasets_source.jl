@@ -1,6 +1,6 @@
 RA.sourcetrait(::NCD.Dataset) = NCDsource()
 RA.sourcetrait(::NCD.Variable) = NCDsource()
-RA.sourceconstructor(::Type{NCDsource}) = NCD.Dataset
+RA.sourceconstructor(::NCDsource) = NCD.Dataset
 RA.checkfilename(::NCDsource, filename) =
     isfile(filename) || RA._isurl(filename) || RA._filenotfound_error(filename)
 Base.close(os::RA.OpenStack{NCDsource}) = NCD.close(RA.dataset(os))

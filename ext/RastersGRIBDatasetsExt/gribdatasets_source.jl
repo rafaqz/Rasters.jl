@@ -1,7 +1,7 @@
 RA.sourcetrait(::GDS.Variable) = GRIBsource()
 RA.sourcetrait(::GDS.GRIBDataset) = GRIBsource()
 
-RA.sourceconstructor(::Type{GRIBsource}) = _gribdataset
+RA.sourceconstructor(::GRIBsource) = _gribdataset
 # GRIB doesn't accept the mode keyword so hack around it
 _gribdataset(filename, mode="") = GDS.GRIBDataset(filename)
 
