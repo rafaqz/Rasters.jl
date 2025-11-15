@@ -97,7 +97,7 @@ end
     :yguide --> yguide
     :label --> ""
     z = map(_prepare_plots, dims(A))
-    parent(A), parent(lookup(z))
+    parent(A), parent.(lookup(z))
 end
 
 # Plot 3d arrays as multiple tiled plots
