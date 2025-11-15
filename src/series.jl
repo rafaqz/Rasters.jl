@@ -182,7 +182,7 @@ function RasterSeries(path::AbstractString, dims;
 )
     if isdir(path)
         dirpath = path
-        filepaths = Base.filter_ext(dirpath, ext)
+        filepaths = filter_ext(dirpath, ext)
         length(filepaths) > 0 || error("No $(isnothing(ext) ? "" : ext) files found in \"$path\" dir")
         full_filename, _ = Base.splitext(Base.basename(first(filepaths)))
         common_filename = join(split(full_filename, separator)[1:end-1])
