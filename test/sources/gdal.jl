@@ -492,12 +492,12 @@ gdalpath = maybedownload(url)
             @test lookup(clon) ≈ lookup(saved, X)
             @test all(bounds(saved, X) .≈ bounds(clon))
             @test all(bounds(saved, Y) .≈ bounds(clat))
-            @test projectedindex(clon) ≈ projectedindex(saved, X)
+            @test projectedlookup(clon) ≈ projectedlookup(saved, X)
             @test all(projectedbounds(clon) .≈ projectedbounds(saved, X))
             # reason lat crs conversion is less accurate than lon TODO investigate further
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6),
-                projectedindex(gdalarray, Y),
-                projectedindex(DimensionalData.shiftlocus(Start(), dims(saved, Y)))
+                projectedlookup(gdalarray, Y),
+                projectedlookup(DimensionalData.shiftlocus(Start(), dims(saved, Y)))
             ))
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Y),  projectedbounds(gdalarray, Y)))
         end

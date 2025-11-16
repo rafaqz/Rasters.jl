@@ -254,30 +254,16 @@ projectedbounds(crs::GeoFormat, lookup::Mapped, dim) =
 _sort((a, b)) = a <= b ? (a, b) : (b, a)
 
 """
-    mappedindex(x)
+    mappedlookup(x)
 
 Get the index value of a dimension converted to the `mappedcrs` value.
 
 Without ArchGDAL loaded, this is just the regular dim value.
 """
-function mappedindex end
+function mappedlookup end
 
-mappedindex(dims::Tuple) = map(mappedindex, dims)
-mappedindex(dim::Dimension) = _mappedindex(parent(dim), dim)
+mappedlookup(dims::Tuple) = map(mappedlookup, dims)
+mappedlookup(dim::Dimension) = reproject(mappedcrs(dim), lookup(dim))
 
-_mappedindex(::Lookup, dim::Dimension) = index(dim)
-_mappedindex(lookup::Projected, dim::Dimension) = _mappedindex(mappedcrs(lookup), lookup, dim)
-_mappedindex(mappedcrs::Nothing, lookup::Projected, dim) =
-    error("No mappedcrs attached to $(name(dim)) dimension")
-_mappedindex(mappedcrs::GeoFormat, lookup::Projected, dim) =
-    reproject(crs(dim), mappedcrs, dim, parent(lookup(dim)))
-
-projectedindex(dims::Tuple) = map(projectedindex, dims)
-projectedindex(dim::Dimension) = _projectedindex(parent(dim), dim)
-
-_projectedindex(::Lookup, dim::Dimension) = parent(lookup(dim))
-_projectedindex(lookup::Mapped, dim::Dimension) = _projectedindex(crs(lookup), lookup, dim)
-_projectedindex(crs::Nothing, lookup::Mapped, dim::Dimension) =
-    error("No projection crs attached to $(name(dim)) dimension")
-_projectedindex(crs::GeoFormat, ::Mapped, dim::Dimension) =
-    reproject(mappedcrs(dim), crs, dim, parent(lookup(dim)))
+projectedlookup(dims::Tuple) = map(projectedlookup, dims)
+projectedlookup(dim::Dimension) = reproject(crs(dim), lookup(dim))
