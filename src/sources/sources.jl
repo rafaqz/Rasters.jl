@@ -73,8 +73,7 @@ function Base.showerror(io::IO, e::BackendException)
 end
 
 # Dataset constructor from `Source`
-sourceconstructor(source::Source) = sourceconstructor(typeof(source))
-sourceconstructor(s::Type{<:Source}) = throw(BackendException(s()))
+sourceconstructor(s::Source) = throw(BackendException(s))
 # Function to check filename
 checkfilename(s::Source, filename) = throw(BackendException(s))
 
