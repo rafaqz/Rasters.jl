@@ -200,10 +200,16 @@ end
 @testset "dims are formatted" begin
     x, y = X(-179.5:0.1:179.5), Y(-89.5:0.1:89.5)
     source = Raster(rand(x, y); crs=EPSG(4326))
+    source2 = reorder(source, Y => ReverseOrdered()) # order should not matter
 
     destx, desty = X(-179.5:1:179.5), Y(-89.5:1:89.5)
     to = Raster(rand(destx, desty); crs=EPSG(4326))
-    resampled_dims = resample(source; to=(destx, desty), crs=EPSG(4326), method="average");
-    resampled_obj = resample(source; to, method="average");
-    @test resampled_dims == resampled_obj
+    res1, res2 = map((source, source2)) do source
+        resampled_dims = resample(source; to=(destx, desty), crs=EPSG(4326), method="average");
+        resampled_obj = resample(source; to, method="average");
+        @test resampled_dims == resampled_obj
+        @test dims(resampled_obj) == dims(to)
+        return resampled_obj
+    end
+    all(res1 .≈ res2)
 end
