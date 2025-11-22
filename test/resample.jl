@@ -211,5 +211,5 @@ end
         @test dims(resampled_obj) == dims(to)
         return resampled_obj
     end
-    all(res1 .≈ res2)
+    @test all(res1 .≈ res2)
 end
