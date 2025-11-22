@@ -20,7 +20,7 @@ end
 flush_info_and_warnings()
 
 
-# Logging.disable_logging(Logging.Warn)
+Logging.disable_logging(Logging.Warn)
 
 # Make the docs, without running the tests again
 # We need to explicitly add all the extensions here
@@ -51,7 +51,7 @@ doc = makedocs(
 )
 
 # Enable logging to console again
-# Logging.disable_logging(Logging.BelowMinLevel)
+Logging.disable_logging(Logging.BelowMinLevel)
 
 DocumenterVitepress.deploydocs(; repo="github.com/rafaqz/Rasters.jl",
     branch = "gh-pages",
