@@ -11,10 +11,12 @@ end
 
 # create `N` random rasters with eltype `type` and x,y,band size `size`
 function temporary_random_rasters(f, N, size, type=UInt8)
-    filenames = [tempname() * ".tif" for _ in 1:N]
+    tmpdir = tempname()
+    mkdir(tmpdir)
+    filenames = [tempname(tmpdir) * ".tif" for _ in 1:N]
     try
-        for f in filenames
-            write(f, Raster(rand(type, size); dims=(X(1:size[1]), Y(1:size[2]), Band(1:size[3]))))
+        for fi in filenames
+            write(fi, Raster(rand(type, size); dims=(X(1:size[1]), Y(1:size[2]), Band(1:size[3]))))
         end
         f(filenames)
     finally
