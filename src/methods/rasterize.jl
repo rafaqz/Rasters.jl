@@ -61,6 +61,7 @@ struct RasterCreator{E,D,MD,MV,C,MC}
     missingval::MV
     crs::C
     mappedcrs::MC
+    force::Bool
 end
 function RasterCreator(to::DimTuple; 
     eltype,
@@ -73,11 +74,12 @@ function RasterCreator(to::DimTuple;
     mappedcrs=nothing,
     name=nothing,
     metadata=Metadata(Dict()),
+    force=false,
     kw...
 )
     name = Symbol(_filter_name(name, fill))
     to = _as_intervals(to) # Only makes sense to rasterize to intervals
-    RasterCreator(eltype, to, filename, suffix, name, metadata, missingval, crs, mappedcrs)
+    RasterCreator(eltype, to, filename, suffix, name, metadata, missingval, crs, mappedcrs, force)
 end
 RasterCreator(to::RasterStackOrArray, data; kw...) = RasterCreator(dims(to); kw...)
 RasterCreator(to::DimTuple, data; kw...) = RasterCreator(to; kw...)
@@ -498,7 +500,7 @@ function alloc_rasterize(f, r::RasterCreator;
     if prod(size(r.to)) == 0  
         throw(ArgumentError("Destination array is is empty, with size $(size(r.to))). Rasterization is not possible"))
     end
-    A = create(r.filename, fill=missingval, eltype, r.to; name, missingval, metadata, suffix) do O
+    A = create(r.filename, fill=missingval, eltype, r.to; name, missingval, metadata, suffix, r.force) do O
         f(O)
     end
     return A

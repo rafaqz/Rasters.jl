@@ -405,6 +405,9 @@ end
         end
         filename = tempname() * ".tif"
         prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename, threaded)
+        prod_r2 = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename, threaded, force=true)
+        @test size(prod_r2) == (11,11)
+
         prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, threaded)
         @test sum(skipmissing(prod_r)) == 
             (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1 * 2 + 4 * 2 * 3 + 4 * 3 * 4)
