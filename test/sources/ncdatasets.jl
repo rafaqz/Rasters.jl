@@ -151,9 +151,9 @@ end
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)
         @test ncarray isa Raster
-        @test index(ncarray, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
-        @test index(ncarray, Y) == -79.5:89.5
-        @test index(ncarray, X) == 1.0:2:359.0
+        @test lookup(ncarray, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
+        @test lookup(ncarray, Y) == -79.5:89.5
+        @test lookup(ncarray, X) == 1.0:2:359.0
         @test bounds(ncarray) == (
             (0.0, 360.0), 
             (-80.0, 90.0), 
@@ -247,11 +247,11 @@ end
             ser = Rasters.slice(ncarray, Ti) 
             @test ser isa RasterSeries
             @test size(ser) == (24,)
-            @test index(ser, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
+            @test lookup(ser, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
             @test bounds(ser) == ((DateTime360Day(2001, 1, 1), DateTime360Day(2003, 1, 1)),)
             A = ser[1]
-            @test index(A, Y) == -79.5:89.5
-            @test index(A, X) == 1.0:2:359.0
+            @test lookup(A, Y) == -79.5:89.5
+            @test lookup(A, X) == 1.0:2:359.0
             @test bounds(A) == ((0.0, 360.0), (-80.0, 90.0))
         end
     end
@@ -276,10 +276,10 @@ end
         dimz = X(Between(-0.0, 360)), Y(Between(-90, 90)), 
                Ti(Between(DateTime360Day(2001, 1, 1), DateTime360Day(2003, 01, 02)))
         @test size(ncarray[dimz...]) == (180, 170, 24)
-        @test index(ncarray[dimz...]) == index(ncarray)
+        @test lookup(ncarray[dimz...]) == lookup(ncarray)
         nca = ncarray[Y(Between(-80, -25)), X(Between(-0.0, 180.0)), Ti(Contains(DateTime360Day(2002, 02, 20)))]
         @test size(nca) == (90, 55)
-        @test index(nca, Y) == index(ncarray[1:90, 1:55, 2], Y)
+        @test lookup(nca, Y) == lookup(ncarray[1:90, 1:55, 2], Y)
         @test all(nca .=== ncarray[1:90, 1:55, 14])
     end
 
@@ -322,7 +322,7 @@ end
             @test all(val.(span.(dims(saved))) .== val.(span.(dims(ncarray))))
             @test all(sampling.(dims(saved)) .== sampling.(dims(ncarray)))
             @test typeof(dims(saved)) <: typeof(dims(ncarray))
-            @test index(saved, 3) == index(ncarray, 3)
+            @test lookup(saved, 3) == lookup(ncarray, 3)
             @test all(val.(dims(saved)) .== val.(dims(ncarray)))
             @test all(parent(saved) .=== parent(ncarray))
             @test saved isa typeof(ncarray)
@@ -388,8 +388,8 @@ end
             @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test bounds(gdalarray) == bounds(nccleaned)
             # Tiff locus = Start, Netcdf locus = Center
-            @test index(gdalarray, Y) .+ 0.5 ≈ index(nccleaned, Y)
-            @test index(gdalarray, X) .+ 1.0  ≈ index(nccleaned, X)
+            @test lookup(gdalarray, Y) .+ 0.5 ≈ lookup(nccleaned, Y)
+            @test lookup(gdalarray, X) .+ 1.0  ≈ lookup(nccleaned, X)
             @test parent(gdalarray) ≈ parent(nccleaned)
         end
 
@@ -402,8 +402,8 @@ end
             grdarray = Raster(fn, missingval=nothing);
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == bounds(nccleaned)
-            @test index(grdarray, Y) ≈ reverse(index(nccleaned, Y)) .- 0.5
-            @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
+            @test lookup(grdarray, Y) ≈ reverse(lookup(nccleaned, Y)) .- 0.5
+            @test lookup(grdarray, X) ≈ lookup(nccleaned, X) .- 1.0
             @test parent(reverse(grdarray; dims=Y)) ≈ parent(nccleaned)
         end
 
