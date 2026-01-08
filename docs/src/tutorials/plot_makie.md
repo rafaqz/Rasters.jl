@@ -37,26 +37,12 @@ Rasters.rplot(stack; Axis = (aspect = DataAspect(),),)
 
 You can pass any theming keywords in, which are interpreted by Makie appropriately.
 
-The plots seem a little squished here.  We provide a Makie theme which makes text a little smaller
-and has some other space-efficient attributes:
-
-````@example makie
-Makie.set_theme!(Rasters.theme_rasters())
-Rasters.rplot(stack)
-````
-
-# reset theme
-````@example makie
-Makie.set_theme!() 
-````
-
 ### Plotting with `Observable`s, animations
 
 `Rasters.rplot` should support Observable input out of the box, but the dimensions of that input
 must remain the same - i.e., the element names of a RasterStack must remain the same.
 
 ````@example makie
-Makie.set_theme!(Rasters.theme_rasters())
 # `stack` is the WorldClim climate data for January
 stack_obs = Observable(stack)
 fig = Rasters.rplot(stack_obs;
@@ -64,11 +50,11 @@ fig = Rasters.rplot(stack_obs;
 ) 
 record(fig, "rplot.mp4", 1:12; framerate = 3) do i
     stack_obs[] = RasterStack(WorldClim{Climate}; month = i)
-end 
+end
 ````
 
 ```@raw html
-<video src="./rplot.mp4" controls="controls" autoplay="autoplay"></video>
+<!-- <video src="./rplot.mp4" controls="controls" autoplay="autoplay"></video> -->
 ```
 
 ````@example makie

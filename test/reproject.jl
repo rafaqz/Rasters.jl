@@ -70,7 +70,7 @@ end
     latbounds = -90.0, 90.0
     ceabounds = reproject(proj4326, projcea, Y(), latbounds)
     # Vals are the bounding range without the end bound
-    cealatrange = LinRange(ceabounds..., 181)[1:180]
+    cealatrange = range(ceabounds...; length = 181)[1:180]
     lat = Y(Projected(cealatrange, ForwardOrdered(), Regular(step(cealatrange)), 
                       Intervals(Start()), NoMetadata(), projcea, proj4326, Y()))
     convertedlat = convertlookup(Mapped, lat)

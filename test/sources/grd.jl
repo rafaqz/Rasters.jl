@@ -354,14 +354,12 @@ end
         @test keys(smallstack) == (:a,)
     end
 
-    if VERSION > v"1.1-"
-        @testset "copy" begin
-            geoA = zero(Raster(grdstack[:a]))
-            copy!(geoA, grdstack, :a)
-            # First wrap with Raster() here or == loads from disk for each cell.
-            # we need a general way of avoiding this in all disk-based sources
-            @test geoA == Raster(grdstack[:a])
-        end
+    @testset "copy" begin
+        geoA = zero(Raster(grdstack[:a]))
+        copy!(geoA, grdstack, :a)
+        # First wrap with Raster() here or == loads from disk for each cell.
+        # we need a general way of avoiding this in all disk-based sources
+        @test geoA == Raster(grdstack[:a])
     end
 
     @testset "write" begin
@@ -421,14 +419,12 @@ end
         @test keys(smallstack) == (:Band_2,)
     end
 
-    if VERSION > v"1.1-"
-        @testset "copy" begin
-            geoA = zero(Raster(grdstack[:Band_3]))
-            copy!(geoA, grdstack, :Band_3)
-            # First wrap with Raster() here or == loads from disk for each cell.
-            # we need a general way of avoiding this in all disk-based sources
-            @test geoA == Raster(grdstack[:Band_3])
-        end
+    @testset "copy" begin
+        geoA = zero(Raster(grdstack[:Band_3]))
+        copy!(geoA, grdstack, :Band_3)
+        # First wrap with Raster() here or == loads from disk for each cell.
+        # we need a general way of avoiding this in all disk-based sources
+        @test geoA == Raster(grdstack[:Band_3])
     end
 
     @testset "save" begin

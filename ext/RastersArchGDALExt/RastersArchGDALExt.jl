@@ -31,6 +31,8 @@ const DA = DiskArrays
 const GI = GeoInterface
 const LA = Lookups
 
+Rasters.is_loaded(::Rasters.ArchGDALExt) = true
+
 include("gdal_source.jl")
 include("resample.jl")
 include("warp.jl")

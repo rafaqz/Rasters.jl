@@ -7,7 +7,7 @@ using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name, trim, metadat
 testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))
 include(joinpath(testdir, "test_utils.jl"))
 
-ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
+ncexamples = "https://archive.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = maybedownload(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
 ncmulti = maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
 maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
@@ -540,14 +540,12 @@ end
         end |> all
     end
 
-    if VERSION > v"1.1-"
-        @testset "copy" begin
-            geoA = read(ncstack[:albedo]) .* 2
-            copy!(geoA, ncstack, :albedo);
-            # First wrap with Raster() here or == loads from disk for each cell.
-            # we need a general way of avoiding this in all disk-based sources
-            @test geoA == read(ncstack[:albedo])
-        end
+    @testset "copy" begin
+        geoA = read(ncstack[:albedo]) .* 2
+        copy!(geoA, ncstack, :albedo);
+        # First wrap with Raster() here or == loads from disk for each cell.
+        # we need a general way of avoiding this in all disk-based sources
+        @test geoA == read(ncstack[:albedo])
     end
 
     @testset "indexing" begin

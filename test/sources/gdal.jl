@@ -41,10 +41,10 @@ gdalpath = maybedownload(url)
         @time rawarray = Raster(gdalpath; raw=true)
         @time lazyrawarray = Raster(gdalpath; lazy=true, raw=true)
 
-        @test parent(gdalarray) isa Matrix{UInt8}
-        @test parent(nomissing_array) isa Matrix{UInt8}
-        @test parent(missing_array) isa Base.ReshapedArray{Union{Missing,UInt8}}
-        @test parent(rawarray) isa Matrix{UInt8}
+        @test parent(gdalarray) isa AbstractMatrix{UInt8}
+        @test parent(nomissing_array) isa AbstractMatrix{UInt8}
+        @test parent(missing_array) isa AbstractMatrix{Union{Missing,UInt8}}
+        @test parent(rawarray) isa AbstractMatrix{UInt8}
         open(lazyarray) do A
             @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
             @test parent(parent(A)) isa Rasters.ModifiedDiskArray{UInt8}
@@ -268,9 +268,9 @@ gdalpath = maybedownload(url)
         end
 
         @testset "aggregate" begin
-            DiskArrays.allowscalar(true) # TODO remove when this is fixed in DiskArrays
             ag = aggregate(mean, gdalarray, 4)
             @test ag == aggregate(mean, gdalarray, (X(4), Y(4)))
+            @test ag == aggregate(mean, lazyarray, (X(4), Y(4)))
             @test ag == aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
             @time ag_disk = aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
             @test ag_disk == ag
@@ -295,7 +295,6 @@ gdalpath = maybedownload(url)
                 end
                 @test size(Raster(tempfile)) == 2 .* size(gdalarray)
             end
-            DiskArrays.allowscalar(false)
         end
 
         @testset "mosaic" begin

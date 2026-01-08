@@ -37,10 +37,10 @@ function _maybe_use_type_missingval(A::AbstractRaster{T}, source::Source, missin
 end
 
 cleankeys(name) = (_cleankey(name),)
-function cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray})
+cleankeys(keys::Union{NamedTuple,Tuple,AbstractArray}) =
     Tuple(map(_cleankey, keys, ntuple(i -> i, length(keys))))
-end
 
+_cleankey(::Nothing) = throw(ArgumentError("Name is nothing: this should not be reached"))
 function _cleankey(name::Union{Symbol,AbstractString,Name,NoName}, i=1)
     if name in (NoName(), Symbol(""), Name(Symbol("")))
         Symbol("layer$i")
@@ -240,7 +240,9 @@ end
 function _get_geometries(data, ::Nothing)
     # if it's a table, get the geometry column
     geoms = if !(data isa AbstractVector{<:GeoInterface.NamedTuplePoint}) && Tables.istable(data)
-        geomcol = first(GI.geometrycolumns(data))
+        geomcols = GI.geometrycolumns(data)
+        isempty(geomcols) && throw(ArgumentError("No geometry columns found in the table"))
+        geomcol = first(geomcols)
         !in(geomcol, Tables.columnnames(Tables.columns(data))) &&
             throw(ArgumentError("Expected geometries in the column `$geomcol`, but no such column found."))
         isnothing(geomcol) && throw(ArgumentError("No default `geometrycolumn` for this type, please specify it manually."))
@@ -457,12 +459,13 @@ _progress(args...; kw...) = ProgressMeter.Progress(args...; dt=0.1, color=:blue,
 
 # Function barrier for splatted vector broadcast
 @noinline _do_broadcast!(f, x, args...) = broadcast!(f, x, args...)
+@noinline _do_broadcast!(f, x) = x # for n = 1 - f should be something like + or |
 
 # Run `f` threaded or not, w
 function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::String)
     p = progress ? _progress(length(range); desc) : nothing
     if threaded
-        Threads.@threads :static for i in range
+        Threads.@threads for i in range
             f(i)
             isnothing(p) || ProgressMeter.next!(p)
         end
@@ -471,6 +474,29 @@ function _run(f, range::OrdinalRange, threaded::Bool, progress::Bool, desc::Stri
             f(i)
             isnothing(p) || ProgressMeter.next!(p)
         end
+    end
+end
+
+# utils for threading
+function with_resource(f::F, resource::Channel{T}) where {F, T}
+    x = take!(resource) # obtain shared resource
+    try
+        f(x) # do your work
+    finally
+        put!(resource, x) # put resource back
+    end
+end
+with_resource(f, a) = f(a)
+
+function _maybe_channel(x::T, threaded, n) where T
+    if threaded
+        ch = Channel{T}(n)
+        for i in 1:n
+            put!(ch, deepcopy(x))
+        end
+        ch
+    else
+        x
     end
 end
 
@@ -563,12 +589,12 @@ function _rowtype(
     _G = istrue(skipinvalid) ? nonmissingtype(G) : G
     _I = istrue(skipinvalid) ? I : Union{Missing, I}
     keys = _rowkeys(id, geometry, index, names)
-    types = _rowtypes(x, _G, _I, id, geometry, index, skipmissing, names)
+    types = _rowtypes(x, _G, _I, id, geometry, index, skipmissing, skipinvalid, names)
     NamedTuple{keys,types}
 end
 
 @generated function _rowtypes(
-    x, ::Type{G}, ::Type{I}, id, geometry, index, skipmissing, names::NamedTuple{Names}
+    x, ::Type{G}, ::Type{I}, id, geometry, index, skipmissing, skipinvalid, names::NamedTuple{Names}
 ) where {G,I,Names}
     ts = Expr(:tuple)
     istrue(id) && push!(ts.args, Int)
@@ -579,24 +605,32 @@ end
         istrue(geometry) && push!(ts.args, Union{Missing,G})
         istrue(index) && push!(ts.args, Union{Missing,I})
     end
-    :(Tuple{$ts...,_nametypes(x, names, skipmissing)...})
+    :(Tuple{$ts...,_nametypes(x, names, skipmissing, skipinvalid)...})
 end
 
-@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_True) where {T,Names} = 
+@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_True, si=sm) where {T,Names} = 
     (nonmissingtype(T),)
-@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_False) where {T,Names} = 
+@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_False, si::_False = sm) where {T,Names} = 
     (Union{Missing,T},)
+@inline _nametypes(::Raster{T}, ::NamedTuple{Names}, sm::_False, si::_True) where {T,Names} = 
+    (T,)
 # This only compiles away when generated
 @generated function _nametypes(
-    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_True
+    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_True, skipinvalid
 ) where {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
     nt = NamedTuple{StackNames}(map(nonmissingtype, Types.parameters))
     return values(nt[PropNames])
 end
 @generated function _nametypes(
-    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_False
+    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_False, skipinvalid::_False
 ) where {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
     nt = NamedTuple{StackNames}(map(T -> Union{Missing,T}, Types.parameters))
+    return values(nt[PropNames])
+end
+@generated function _nametypes(
+    ::RasterStack{<:Any,T}, ::NamedTuple{PropNames}, skipmissing::_False, skipinvalid::_True
+) where {T<:NamedTuple{StackNames,Types},PropNames} where {StackNames,Types}
+    nt = NamedTuple{StackNames}(Types.parameters)
     return values(nt[PropNames])
 end
 

@@ -10,6 +10,7 @@ function Allocs(buffer)
     crossings = Vector{Float64}(undef, 0)
     return Allocs(buffer, edges, scratch, crossings)
 end
+Allocs() = Allocs(nothing)
 
 function _burning_allocs(x; 
     nthreads=_nthreads(), 
@@ -17,25 +18,14 @@ function _burning_allocs(x;
     burncheck_metadata=Metadata(),
     kw...
 ) 
-    if threaded
-        if isnothing(x)
-            [Allocs(nothing) for _ in 1:nthreads]
-        else
-            dims = commondims(x, DEFAULT_POINT_ORDER)
-            [Allocs(_init_bools(dims; metadata=deepcopy(burncheck_metadata))) for _ in 1:nthreads]
-        end
-    else
-        if isnothing(x)
+    allocs = if isnothing(x)
             Allocs()
         else
             dims = commondims(x, DEFAULT_POINT_ORDER)
             Allocs(_init_bools(dims; metadata=burncheck_metadata))
         end
-    end
+    return _maybe_channel(allocs, threaded, nthreads)
 end
-
-_get_alloc(allocs::Vector{<:Allocs}) = _get_alloc(allocs[Threads.threadid()])
-_get_alloc(allocs::Allocs) = allocs
 
 # TODO include these in Allocs
 _alloc_burnchecks(n::Int) = fill(false, n)
