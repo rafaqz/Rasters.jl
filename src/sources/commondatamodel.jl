@@ -129,7 +129,6 @@ function _nondimnames(ds)
         collect(dimnames)::Vector{String}
     end
     # Maybe this should be fixed in ZarrDatasets but it works with this patch.
-
     nondim = collect(setdiff(keys(ds), toremove))
     return nondim
 end
