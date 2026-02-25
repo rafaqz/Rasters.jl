@@ -155,6 +155,10 @@ function _layers(ds::AbstractDataset, names, group)
 end
 
 function _dims(var::AbstractVariable{<:Any,N}, crs=nokw, mappedcrs=nokw) where N
+    if isnokw(crs)
+        # Get CRS by hook or by crook - start at the variable and work our way up
+        crs = _get_crs_by_hook_or_crook(CDM.dataset(var), var, CDM.attribs(var))
+    end
     dimnames = CDM.dimnames(var)
     ntuple(Val(N)) do i
         _cdmdim(CDM.dataset(var), dimnames[i], crs, mappedcrs)
@@ -326,6 +330,48 @@ function _cdmlookup(
     end
     return _cdmlookup(D, index, order, span, sampling, metadata, crs, mappedcrs)
 end
+
+function _get_crs_by_hook_or_crook(ds::AbstractDataset, var, attr)
+    # Get CRS by hook or by crook - start at the variable and work our way up
+    crs = nokw
+    if haskey(attr, "grid_mapping")
+        if haskey(ds, attr["grid_mapping"])
+            crs = _crs_from_cf_attr(CDM.attribs(ds[attr["grid_mapping"]]))
+            !isnokw(crs) && return crs
+        else
+            crs = _crs_from_cf_attr(attr)
+            !isnokw(crs) && return crs
+        end
+    elseif haskey(CDM.attribs(var), "grid_mapping") 
+        var_attr = CDM.attribs(var)
+        if haskey(ds, var_attr["grid_mapping"])
+            crs = _crs_from_cf_attr(CDM.attribs(ds[var_attr["grid_mapping"]]))
+            !isnokw(crs) && return crs
+        else
+            crs = _crs_from_cf_attr(var_attr)
+            !isnokw(crs) && return crs
+        end
+    else# nothing locally...check global attributes as a last resort
+        return _crs_from_cf_attr(attr)
+    end
+
+end
+
+function _crs_from_cf_attr(attr)
+    # we can't parse CF crs fully, BUT
+    # many CF implementations will include either `crs_wkt`, `spatial_epsg`, or `proj4string`
+    # which we do know the types of
+    if haskey(attr, "crs_wkt")
+        return WellKnownText2(GeoFormatTypes.CRS(), attr["crs_wkt"])
+    elseif haskey(attr, "spatial_epsg")
+        return EPSG(parse(Int, attr["spatial_epsg"]))
+    elseif haskey(attr, "proj4string")
+        return ProjString(attr["proj4string"])
+    end
+    return nokw # in the worst case return nothing
+end
+
+
 # For X and Y use a Mapped <: AbstractSampled lookup
 function _cdmlookup(
     D::Type{<:Union{<:XDim,<:YDim}}, index, order::Order, span, sampling, metadata, crs, mappedcrs
