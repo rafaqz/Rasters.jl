@@ -83,12 +83,16 @@ function _open(f, source::CDMsource, ds::AbstractDataset;
         cleanreturn(f(g)) 
     else
         key = string(_name_or_firstname(g, name))
-        v = CDM.variable(g, key)
+        v = _open(g, key)
         _open(f, source, v; mod)
     end
 end
 _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) = 
     cleanreturn(f(_maybe_modify(var, mod)))
+_open(os::OpenStack{<:CDMsource}, key::Union{AbstractString,Symbol}) = _open(dataset(os), key)
+# Both needed for ambiguity
+_open(os::AbstractDataset, key::AbstractString) = CDM.variable(os, key)
+_open(os::AbstractDataset, key::Symbol) = CDM.variable(os, key)
 
 # This allows arbitrary group nesting
 _getgroup(ds, ::Union{Nothing,NoKW}) = ds
@@ -129,7 +133,7 @@ end
 function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
     nondim = _nondimnames(ds)
     grid_mapping = String[]
-    vars = map(k -> CDM.variable(ds, k), nondim)
+    vars = map(k -> _open(ds, k), nondim)
     attrs = map(CDM.attribs, vars)
     for attr in attrs
         if haskey(attr, "grid_mapping")
@@ -146,7 +150,7 @@ end
 _layers(ds::AbstractDataset, names, ::NoKW) = 
     _layers(ds, collect(names), nokw)
 function _layers(ds::AbstractDataset, names::Vector, ::NoKW)
-    vars = map(n -> CDM.variable(ds, n), names)
+    vars = map(n -> _open(ds, n), names)
     attrs = map(CDM.attribs, vars)
     (; names, vars, attrs)
 end
