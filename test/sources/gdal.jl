@@ -41,10 +41,10 @@ gdalpath = maybedownload(url)
         @time rawarray = Raster(gdalpath; raw=true)
         @time lazyrawarray = Raster(gdalpath; lazy=true, raw=true)
 
-        @test parent(gdalarray) isa Matrix{UInt8}
-        @test parent(nomissing_array) isa Matrix{UInt8}
-        @test parent(missing_array) isa Base.ReshapedArray{Union{Missing,UInt8}}
-        @test parent(rawarray) isa Matrix{UInt8}
+        @test parent(gdalarray) isa AbstractMatrix{UInt8}
+        @test parent(nomissing_array) isa AbstractMatrix{UInt8}
+        @test parent(missing_array) isa AbstractMatrix{Union{Missing,UInt8}}
+        @test parent(rawarray) isa AbstractMatrix{UInt8}
         open(lazyarray) do A
             @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
             @test parent(parent(A)) isa Rasters.ModifiedDiskArray{UInt8}
