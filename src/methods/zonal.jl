@@ -18,10 +18,10 @@ These can be used when `of` is or contains (a) GeoInterface.jl compatible object
 - `boundary`: for polygons, include pixels where the `:center` is inside the polygon,
     where the line `:touches` the pixel, or that are completely `:inside` inside the polygon.
     The default is `:center`.
-- `progress`: show a progress bar, `true` by default, `false` to hide..
-- `skipmissing`: wether to apply `f` to the result of `skipmissing(A)` or not. If `true`
+- `progress`: show a progress bar, `true` by default, `false` to hide.
+- `skipmissing`: whether to apply `f` to the result of `skipmissing(A)` or not. If `true`
     `f` will be passed an iterator over the values, which loses all spatial information.
-    if `false` `f` will be passes a masked `Raster` or `RasterStack`, and will be responsible
+    if `false` `f` will be passed a masked `Raster` or `RasterStack`, and will be responsible
     for handling missing values itself. The default value is `true`.
 
 # Example
@@ -64,7 +64,13 @@ function zonal(f, x::RasterStack; of, skipmissing=true, kw...)
     # TODO: open currently doesn't work so well for large rasterstacks,
     # we need to fix that before we can go back to this being a single method
     # on `RasterStackOrArray`.
-    _zonal(f, _prepare_for_burning(x), of; skipmissing, kw...)
+    return if length(names(x)) < 5
+        open(x) do ox
+            _zonal(f, _prepare_for_burning(ox), of; skipmissing, kw...)
+        end
+    else
+        _zonal(f, _prepare_for_burning(x), of; skipmissing, kw...)
+    end
 end
 function zonal(f, x::Raster; of, skipmissing=true, kw...)
     open(x) do xo
