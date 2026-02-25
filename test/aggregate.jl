@@ -47,17 +47,17 @@ series = RasterSeries([stack1, stack2], (Ti(dates),))
     @test step(lookup(aglon)) === 30.0
     @test val(aglon) == [30.0]
     disaglon = disaggregate(Start(), aglon, 3)
-    @test index(disaglon) == index(dimz[1])
+    @test lookup(disaglon) == lookup(dimz[1])
     @test span(disaglon) == span(dimz[1])
     @test sampling(disaglon) == sampling(dimz[1])
 
     aglat = aggregate(Start(), dimz[2], 3)
     @test step(lookup(aglat)) === 15.0
-    @test index(aglat) == LinRange(-10.0, 5.0, 2)
+    @test lookup(aglat) == LinRange(-10.0, 5.0, 2)
     disaglat = disaggregate(Start(), aglat, 3)
     # The last item is lost due to rounding in `aggregate`
-    @test index(disaglat) != index(dimz[2])
-    @test index(disaglat) === LinRange(-10.0, 15.0, 6)
+    @test lookup(disaglat) != lookup(dimz[2])
+    @test lookup(disaglat) == LinRange(-10.0, 15.0, 6)
     @test span(disaglat) == span(dimz[2])
     @test sampling(disaglat) == sampling(dimz[2])
 end

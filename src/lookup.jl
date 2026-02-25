@@ -180,7 +180,7 @@ convertlookup(::Type, lookup::Lookup) = lookup
 convertlookup(::Type{T1}, lookup::T2) where {T1,T2<:T1} = lookup
 # Otherwise AbstractProjected needs ArchGDAL
 function convertlookup(::Type{<:Mapped}, l::Projected)
-    newindex = reproject(crs(l), mappedcrs(l), dim(l), index(l))
+    newindex = reproject(crs(l), mappedcrs(l), dim(l), val(l))
     # We use Explicit mode and make a bounds matrix
     # This way the bounds can be saved correctly to NetCDF
     span = if sampling(l) isa Points
@@ -254,30 +254,16 @@ projectedbounds(crs::GeoFormat, lookup::Mapped, dim) =
 _sort((a, b)) = a <= b ? (a, b) : (b, a)
 
 """
-    mappedindex(x)
+    mappedlookup(x)
 
 Get the index value of a dimension converted to the `mappedcrs` value.
 
 Without ArchGDAL loaded, this is just the regular dim value.
 """
-function mappedindex end
+function mappedlookup end
 
-mappedindex(dims::Tuple) = map(mappedindex, dims)
-mappedindex(dim::Dimension) = _mappedindex(parent(dim), dim)
+mappedlookup(dims::Tuple) = map(mappedlookup, dims)
+mappedlookup(dim::Dimension) = reproject(mappedcrs(dim), lookup(dim))
 
-_mappedindex(::Lookup, dim::Dimension) = index(dim)
-_mappedindex(lookup::Projected, dim::Dimension) = _mappedindex(mappedcrs(lookup), lookup, dim)
-_mappedindex(mappedcrs::Nothing, lookup::Projected, dim) =
-    error("No mappedcrs attached to $(name(dim)) dimension")
-_mappedindex(mappedcrs::GeoFormat, lookup::Projected, dim) =
-    reproject(crs(dim), mappedcrs, dim, index(dim))
-
-projectedindex(dims::Tuple) = map(projectedindex, dims)
-projectedindex(dim::Dimension) = _projectedindex(parent(dim), dim)
-
-_projectedindex(::Lookup, dim::Dimension) = index(dim)
-_projectedindex(lookup::Mapped, dim::Dimension) = _projectedindex(crs(lookup), lookup, dim)
-_projectedindex(crs::Nothing, lookup::Mapped, dim::Dimension) =
-    error("No projection crs attached to $(name(dim)) dimension")
-_projectedindex(crs::GeoFormat, lookup::Mapped, dim::Dimension) =
-    reproject(mappedcrs(dim), crs, dim, index(dim))
+projectedlookup(dims::Tuple) = map(projectedlookup, dims)
+projectedlookup(dim::Dimension) = reproject(crs(dim), lookup(dim))

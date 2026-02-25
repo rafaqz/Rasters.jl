@@ -49,7 +49,7 @@ end
 end
 
 @testset "array dims have been formatted" begin
-    @test index(ga2) == (10.0:10:100, -50.0:10:50.0, [DateTime(2019)])
+    @test map(parent, lookup(ga2)) == (10.0:10:100, -50.0:10:50.0, [DateTime(2019)])
     @test dims(ga1)[1:2] == dims(ga2)[1:2]
 end
 
