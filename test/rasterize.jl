@@ -405,6 +405,9 @@ end
         end
         filename = tempname() * ".tif"
         prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename, threaded)
+        prod_r2 = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename, threaded, force=true)
+        @test size(prod_r2) == (11,11)
+
         prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, threaded)
         @test sum(skipmissing(prod_r)) == 
             (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1 * 2 + 4 * 2 * 3 + 4 * 3 * 4)
@@ -611,4 +614,22 @@ end
         @test count(x -> x == [2], result) == 12
         @test count(x -> x == [1, 2], result) == 12
     end 
+end
+
+@testset "threaded reduction warnings" begin
+    commutative_fs = (sum, prod, maximum, minimum, any, all, mean)
+    geom = GI.GeometryCollection([polygon,polygon,polygon])
+    
+    for f in commutative_fs
+        @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=true)
+    end
+    @test_logs rasterize(count, geom; to=A1, threaded=true) # count has no fill or missingval
+
+    other_fs = (median, first, last, x -> sum(x))
+
+    for f in other_fs
+        @test_logs (:warn, "if `op` is not threadsafe, `threaded=true` may be slower than `threaded=false`") rasterize(
+            f, geom; to=A1, fill=true, missingval = false, threaded=true)
+        @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=false)
+    end
 end
