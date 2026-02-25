@@ -151,14 +151,16 @@ function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractRaster, src, scale;
     intscale = _scale2int(Ag(), dims(src), scale; verbose)
     offsets = _agoffset.(loci, intscale)
     # Cache the source if its a disk array
-    src1 = isdisk(src) ? DiskArrays.cache(src) : src
-    # Broadcast will make the dest arrays chunks when needed
-    broadcast!(dst, CartesianIndices(dst)) do I
-        # Upsample for each pixel. Possibly slighly inneficient
-        # for large aggregations but its simple
-        J = upsample.(Tuple(I), intscale) .+ offsets
-        val = src1[J...]
-        _ismissing(val, missingval(src)) ? missingval(dst) : val
+    open(src) do opened_src
+        cached_src = isdisk(opened_src) ? DiskArrays.cache(opened_src) : opened_src
+        # Broadcast will make the dest arrays chunks when needed
+        broadcast!(dst, CartesianIndices(dst)) do I
+            # Upsample for each pixel. Possibly slighly inneficient
+            # for large aggregations but its simple
+            J = upsample.(Tuple(I), intscale) .+ offsets
+            val = cached_src[J...]
+            _ismissing(val, missingval(src)) ? missingval(dst) : val
+        end
     end
     return dst
 end

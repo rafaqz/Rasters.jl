@@ -76,7 +76,7 @@ end
 function _proptype(x;
     skipmissing, names::NamedTuple{K}, kw...
 ) where K
-    NamedTuple{K,Tuple{_nametypes(x, names, skipmissing)...}}
+    NamedTuple{K,Tuple{_nametypes(x, names, skipmissing, skipmissing)...}}
 end
 
 """
@@ -240,17 +240,10 @@ function _extract(A::RasterStackOrArray, e::Extractor{T}, id::Int, ::Nothing, ge
     A2 = _prepare_for_burning(A)
 
     row_vecs = Vector{Vector{T}}(undef, length(geoms))
-    if threaded
-        thread_line_refs = [LineRefs{T}() for _ in 1:Threads.nthreads()]
-        _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
-            line_refs = thread_line_refs[Threads.threadid()]
-            loc_id = id + i - 1
-            row_vecs[i] = _extract(A2, e, loc_id, geoms[i]; line_refs, kw...)
-        end
-    else
-        line_refs = LineRefs{T}()
-        _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
-            loc_id = id + i - 1
+    line_refs = _maybe_channel(LineRefs{T}(), threaded, Threads.nthreads())
+    _run(1:length(geoms), threaded, progress, "Extracting geometries...") do i
+        loc_id = id + i - 1
+        with_resource(line_refs) do line_refs
             row_vecs[i] = _extract(A2, e, loc_id, geoms[i]; line_refs, kw...)
         end
     end
@@ -528,7 +521,7 @@ end
 # Maybe add optional fields
 # It is critically important for performance that this is type stable
 Base.@assume_effects :total function _maybe_add_fields(
-    ::Type{T}, props::NamedTuple, id, point::Union{Tuple,Missing}, I
+    ::Type{T}, props::NamedTuple, id, point, I
 )::T where {T<:NamedTuple{K}} where K
     row = :index in K ? merge((; index=I), props) : props 
     row = :geometry in K ? merge((; geometry=point), row) : row

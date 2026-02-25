@@ -110,8 +110,9 @@ function resample(A::RasterStackOrArray;
 
     # if only to is provided and it has dims, make sure dims are the exact same 
     if onlyto
-        newdims = (format(commondims(to, (XDim, YDim)))..., otherdims(A, (XDim, YDim))...)
-        resampled = rebuild(resampled; dims=newdims)
+        cdims = format(commondims(to, (XDim, YDim)))
+        newdims = (cdims..., otherdims(A, (XDim, YDim))...)
+        resampled = rebuild(reorder(resampled, cdims); dims=newdims)
     end
 
     # Return crs to the original type, from GDAL it will always be WellKnownText
