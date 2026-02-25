@@ -11,7 +11,11 @@ covered by the `of` object/s.
 - `of`: A `DimTuple`, `Extent`, $OBJ_ARGUMENT
 
 # Keywords
+
 $GEOMETRYCOLUMN_KEYWORD
+- `emptyval`: value to return if a geometry returns an empty region for `f`. 
+    Specifying a value for `emptyval` triggers a check `isempty` and returns `emptyval` if the result is `true`.
+    If unspecified, an error will be thrown.
 These can be used when `of` is or contains (a) GeoInterface.jl compatible object(s):
 
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`, where possible.
@@ -60,15 +64,15 @@ insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Z
                                                   3 columns and 243 rows omitted
 ```
 """
-function zonal(f, x::RasterStack; of, skipmissing=true, kw...)
+function zonal(f, x::RasterStack; of, emptyval=nokw, skipmissing=true, kw...)
     # TODO: open currently doesn't work so well for large rasterstacks,
     # we need to fix that before we can go back to this being a single method
     # on `RasterStackOrArray`.
-    _zonal(f, _prepare_for_burning(x), of; skipmissing, kw...)
+    _zonal(f, _prepare_for_burning(x), of; skipmissing, emptyval, kw...)
 end
-function zonal(f, x::Raster; of, skipmissing=true, kw...)
+function zonal(f, x::Raster; of, skipmissing=true, emptyval=nokw, kw...)
     open(x) do xo
-        _zonal(f, _prepare_for_burning(xo), of; skipmissing, kw...)
+        _zonal(f, _prepare_for_burning(xo), of; skipmissing, emptyval, kw...)
     end
 end
 
@@ -77,13 +81,13 @@ _zonal(f, x::RasterStackOrArray, of::RasterStackOrArray; kw...) =
 _zonal(f, x::RasterStackOrArray, of::DimTuple; kw...) = 
     _zonal(f, x, Extents.extent(of); kw...)
 # We don't need to `mask` with an extent, it's square so `crop` will do enough.
-_zonal(f, x::Raster, of::Extents.Extent; skipmissing) =
-    _maybe_skipmissing_call(f, crop(x; to=of, touches=true), skipmissing)
-function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing)
+_zonal(f, x::Raster, of::Extents.Extent; skipmissing, emptyval) =
+    _maybe_skipmissing_call(f, crop(x; to=of, touches=true), skipmissing, emptyval)
+function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing, emptyval)
     cropped = crop(x; to=ext, touches=true)
     length(cropped) > 0 || return missing
     return maplayers(cropped) do A
-        _maybe_skipmissing_call(f, A, skipmissing)
+        _maybe_skipmissing_call(f, A, skipmissing, emptyval)
     end
 end
 # Otherwise of is a geom, table or vector
@@ -94,22 +98,22 @@ _zonal(f, x, ::GI.AbstractFeatureCollectionTrait, fc; kw...) =
 _zonal(f, x::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...) =
     _zonal(f, x, GI.geometry(feature); kw...)
 function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom; 
-    skipmissing, kw...
+    skipmissing, emptyval, kw...
 )
     cropped = crop(x; to=geom, touches=true)
     length(cropped) > 0 || return missing
     masked = mask(cropped; with=geom, kw...)
-    return _maybe_skipmissing_call(f, masked, skipmissing)
+    return _maybe_skipmissing_call(f, masked, skipmissing, emptyval)
 end
 function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; 
-    skipmissing, kw...
+    skipmissing, emptyval, kw...
 )
     cropped = crop(st; to=geom, touches=true)
     length(cropped) > 0 || return map(_ -> missing, st)
     masked = mask(cropped; with=geom, kw...)
     return maplayers(masked) do A
         length(A) > 0 || return missing
-        _maybe_skipmissing_call(f, A, skipmissing)
+        _maybe_skipmissing_call(f, A, skipmissing, emptyval)
     end
 end
 function _zonal(f, x::RasterStackOrArray, ::Nothing, data; 
@@ -147,4 +151,15 @@ function _alloc_zonal(f, x, geoms, n; kw...)
     return zs, n_missing + 1
 end
 
-_maybe_skipmissing_call(f, A, sm) = sm ? f(skipmissing(A)) : f(A)
+# No emptyval, just skipmissing or not
+_maybe_skipmissing_call(f, A, sm, emptyval::NoKW) = sm ? f(skipmissing(A)) : f(A)
+# Allow for emptyval if the skipmissing iterator is empty
+function _maybe_skipmissing_call(f, A, sm, emptyval)
+    if sm
+        itr = skipmissing(A)
+        isempty(itr) && return emptyval
+        f(skipmissing(A))
+    else
+        f(A)
+    end
+end
