@@ -15,8 +15,10 @@ permissions:
   statuses: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}-docs
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 jobs:
   build:
@@ -25,7 +27,7 @@ jobs:
       DISPLAY: ':0'
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Setup Julia
         uses: julia-actions/setup-julia@v2
       - name: Pull Julia cache

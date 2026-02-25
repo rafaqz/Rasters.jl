@@ -1,6 +1,6 @@
 RA.sourcetrait(::ZD.ZarrVariable) = Zarrsource()
 RA.sourcetrait(::ZD.ZarrDataset) = Zarrsource()
-RA.sourceconstructor(::Type{Zarrsource}) = ZD.ZarrDataset
+RA.sourceconstructor(::Zarrsource) = ZD.ZarrDataset
 
 RA.checkfilename(::Zarrsource, filename) =
     isfile(filename) || isdir(filename) || RA._isurl(filename) || RA._filenotfound_error(filename)
