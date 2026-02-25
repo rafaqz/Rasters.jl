@@ -1,12 +1,31 @@
 # extensions
-function throw_extension_error(f::Function, package::String, extension::Symbol, args)
-    if isnothing(Base.get_extension(Rasters, extension))
-        throw(BackendException(package))
-    else
+abstract type Extension end
+
+# Concrete extension markers. These exist so callers can test availability
+# with `is_loaded(::Type{...})` instead of scattered `Base.get_extension` calls.
+struct ArchGDALExt <: Extension end
+struct CoordinateTransformationsExt <: Extension end
+struct GRIBDatasetsExt <: Extension end
+struct MakieExt <: Extension end
+struct NCDatasetsExt <: Extension end
+struct ProjExt <: Extension end
+struct RasterDataSourcesExt <: Extension end
+struct StatsBaseExt <: Extension end
+struct ZarrDatasetsExt <: Extension end
+
+# defaults to false
+is_loaded(::Extension) = false
+
+function throw_extension_error(f::Function, extension::Extension, args)
+    if is_loaded(extension)
         throw(MethodError(f, args))
+    else
+        throw(BackendException(extension))
     end
 end
 
+BackendException(e::E) where E <: Extension = 
+    BackendException(replace(string(nameof(E)), r"Ext$" => ""))
 
 # stubs that need ArchGDAL
 
@@ -90,7 +109,7 @@ savefig(b, "build/resample_example_after.png"); nothing
 
 $EXPERIMENTAL
 """
-resample(args...; kw...) = throw_extension_error(resample, "ArchGDAL", :RastersArchGDALExt, args)
+resample(args...; kw...) = throw_extension_error(resample, ArchGDALExt(), args)
 
 """
     warp(A::AbstractRaster, flags::Dict; kw...)
@@ -154,7 +173,7 @@ In practise, prefer [`resample`](@ref) for this. But `warp` may be more flexible
 
 $EXPERIMENTAL
 """
-warp(args...; kw...) = throw_extension_error(warp, "ArchGDAL", :RastersArchGDALExt, args)
+warp(args...; kw...) = throw_extension_error(warp, ArchGDALExt(), args)
 
 # stubs that need Proj
 
@@ -218,7 +237,7 @@ function cellarea(method::GeometryOpsCore.Spherical, dims::Tuple{<:XDim, <:YDim}
     return Raster(areas; dims)
 end
 
-_spherical_cellarea(args...; kw...) = throw_extension_error(_spherical_cellarea, "Proj", :RastersProjExt, args)
+_spherical_cellarea(args...; kw...) = throw_extension_error(_spherical_cellarea, ProjExt(), args)
 
 function _planar_cellarea(dims::Tuple{<:XDim, <:YDim})
     xbnds, ybnds = DD.intervalbounds(dims)
@@ -273,7 +292,7 @@ Rasters.sample(myraster, 5; weights=cellarea(myraster))
  @NamedTuple{geometry::Tuple{Float64, Float64}, ::Union{Missing, Float64}}(((110.0, 10.0), 0.5291143028176258))
 ```
 """
-sample(args...; kw...) = throw_extension_error(sample, "StatsBase", :RastersStatsBaseExt, args)
+sample(args...; kw...) = throw_extension_error(sample, StatsBaseExt, args)
 
 
 
