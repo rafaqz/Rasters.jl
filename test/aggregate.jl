@@ -41,25 +41,32 @@ series = RasterSeries([stack1, stack2], (Ti(dates),))
     lat = Y(Sampled(LinRange(3, 13, 6), ForwardOrdered(), Regular(2.0), Intervals(Start()), NoMetadata()))
     aglat = aggregate(Start(), lat, 3)
     @test span(lookup(aglat)) == Regular(6.0)
-    @test disaggregate(Start(), aglat, 3) == lat
+    @test disaggregate(aglat, 3) == lat
 
-    aglon = aggregate(Start(), dimz[1], 3)
+    aglon = aggregate(Center(), dimz[1], 3)
     @test step(lookup(aglon)) === 30.0
-    @test val(aglon) == [30.0]
-    disaglon = disaggregate(Start(), aglon, 3)
+    @test val(aglon) == [40.0]
+    disaglon = disaggregate(aglon, 3)
     @test index(disaglon) == index(dimz[1])
     @test span(disaglon) == span(dimz[1])
     @test sampling(disaglon) == sampling(dimz[1])
 
-    aglat = aggregate(Start(), dimz[2], 3)
+    aglat = aggregate(Center(), dimz[2], 3)
     @test step(lookup(aglat)) === 15.0
-    @test index(aglat) == LinRange(-10.0, 5.0, 2)
-    disaglat = disaggregate(Start(), aglat, 3)
+    @test index(aglat) == LinRange(-5.0, 10.0, 2)
+    disaglat = disaggregate(aglat, 3)
     # The last item is lost due to rounding in `aggregate`
     @test index(disaglat) != index(dimz[2])
     @test index(disaglat) === LinRange(-10.0, 15.0, 6)
     @test span(disaglat) == span(dimz[2])
     @test sampling(disaglat) == sampling(dimz[2])
+
+    # Disaggregation preserves extent of the original dimension
+    lat2 = shiftlocus(Center(), lat)
+    disaglat2 = disaggregate(lat2, 2)
+    lat3 = shiftlocus(End(), lat)
+    disaglat3 = disaggregate(lat3, 2)
+    @test bounds(lat2) == bounds(disaglat2) == bounds(disaglat3)
 end
 
 @testset "aggregate a single dim" begin 
@@ -207,7 +214,7 @@ end
 end
 
 @testset "Aggregate different index lookups" begin
-    dimz = Y([1, 3, 2]), Dim{:category}([:a, :b, :c]), X([10, 20, 30, 40])
+    dimz = Y([1, 3, 2]), Dim{:category}([:a, :b, :c]), X([10, 20, 30, 40]; span = Regular(10))
     a1 = [1 2 3; 4 5 6; 7 8 9]
     A = cat(a1, a1 .+ 10, a1 .+ 20, a1 .+ 30, dims=3)
     da = Raster(A, dimz)
@@ -242,4 +249,15 @@ end
     lazy_disag_series = disaggregate(series, 2; lazy = true)
     @test eager_disag_series == lazy_disag_series
     @test all(x -> all(x -> x isa SubArray, parent(x)), lazy_disag_series)
+end
+
+@testset "(Dis)aggregating preserves extent" begin
+    for data in (5:10:115, 115:-10:5)
+        for interval in (Start(), Center(), End())
+            x = X(Sampled(data; sampling = Intervals(interval))) |> Rasters.format
+            xag = aggregate(sum, x, 3)
+            xdisag = disaggregate(xag, 3)
+            @test Rasters.bounds(x) == Rasters.bounds(xag) == Rasters.bounds(xdisag)
+        end
+    end
 end
