@@ -137,17 +137,27 @@ end
 _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res::Union{Nothing,NoKW}; kw...) =
     throw(ArgumentError("Pass either `size` or `res` keywords or a `Tuple` of `Dimension`s for `to`."))
 _extent2dims(to::Extents.Extent, size, res; kw...) = _size_and_res_error()
-function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res; 
-    sampling::Tuple, closed=true, kw...
+function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res;
+    sampling::Tuple, closed=true, nfloatsteps=10, kw...
 )
     res = _match_to_extent(to, res)
     ranges = map(values(to), res, sampling) do (start, stop), step, samp
         @assert step >= zero(step) "only positive `res` are supported, got $step"
         if samp isa Intervals
             if locus(samp) isa End
-                reverse(range(; start=stop+step, step=-step, stop=start+step))
+                start_open = if (closed && start isa AbstractFloat)
+                    prevfloat(start + step, nfloatsteps)
+                else
+                    start + step
+                end
+                reverse(range(; start=stop, step=-step, stop=start_open))
             else
-                r = range(; start, step, stop)
+                stop_open = if (closed && stop isa AbstractFloat)
+                    nextfloat(stop - step, nfloatsteps)
+                else
+                    stop - step
+                end
+                r = range(; start, step, stop=stop_open)
                 if locus(samp) isa Start
                     r
                 else # Center
@@ -161,7 +171,7 @@ function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res;
     return _extent2dims(to, ranges; sampling, kw...)
 end
 function _extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW};
-    sampling::Tuple, crs, mappedcrs, closed=true, kw...
+    sampling::Tuple, crs, mappedcrs, closed=true, nfloatsteps=10, kw...
 )
     size = _match_to_extent(to, size)
     ranges = map(values(to), size, sampling) do (start, stop), length, samp
@@ -169,14 +179,14 @@ function _extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW};
         if samp isa Points
             r1
         else
-            # We need to buffer extent for a closed interval input so that e.g. 
+            # We need to buffer extent for a closed interval input so that e.g.
             # The raster will actually contain points of the extent, as raster
             # pixels are closed/open intervals not closed/closed.
-            # Its hard to add a very small amount to any fp number and have 
-            # it propagate through to the final extent. But this setup seems to work. 
-            # We use the step or r1 to offset the end point of r, the buffer with 10 float
-            # steps, which seems to be enough. But it's arbitrary and count be revised.
-            nfloatsteps = 10
+            # Its hard to add a very small amount to any fp number and have
+            # it propagate through to the final extent. But this setup seems to work.
+            # We use the step of r1 to offset the end point of r, then buffer with
+            # nfloatsteps float steps, which seems to be enough. But it's arbitrary
+            # and could be revised.
             step = (stop - start) / length
             if locus(samp) isa End
                 start_open = if (closed && start isa AbstractFloat) 

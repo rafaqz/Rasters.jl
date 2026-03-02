@@ -35,9 +35,8 @@ using Rasters: isdisk, ismem, filename
     end
     @test all(rast .=== 6.0)
     @test crs(rast) == EPSG(4326)
-    # We need closed/open extents to fix this
-    @test_broken extent(rast) == ext
-    @test_broken size(rast) == (50, 50, 12)
+    @test extent(rast) == ext
+    @test size(rast) == (50, 50, 12)
     @test Rasters.name(rast) == :testname
     @test missingval(rast) === missing
     @test isintervals(rast)
@@ -58,6 +57,30 @@ using Rasters: isdisk, ismem, filename
     rast1 = Rasters.create(rast)
     @test dims(rast1) == dims(rast)
     @test eltype(rast1) == eltype(rast)
+
+    # Issue #1031: create with Extent and res should respect extent bounds
+    @testset "Extent with res respects bounds (#1031)" begin
+        ext = Extents.Extent(X=(-180, 180), Y=(-90, 90))
+        ras = Rasters.create(Float64, ext;
+            res=1/12, sampling=(X=Intervals(Start()), Y=Intervals(Start()))
+        )
+        @test extent(ras) == ext
+        @test size(ras) == (4320, 2160)
+
+        # Also test with End locus
+        ras_end = Rasters.create(Float64, ext;
+            res=1/12, sampling=(X=Intervals(End()), Y=Intervals(End()))
+        )
+        @test extent(ras_end) == ext
+        @test size(ras_end) == (4320, 2160)
+
+        # And Center locus
+        ras_center = Rasters.create(Float64, ext;
+            res=1/12, sampling=(X=Intervals(Center()), Y=Intervals(Center()))
+        )
+        @test extent(ras_center) == ext
+        @test size(ras_center) == (4320, 2160)
+    end
 end
 
 @testset "create RasterStack" begin
