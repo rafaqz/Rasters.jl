@@ -158,6 +158,22 @@ end
         end
         all(Raster(fn) .== 1)
     end
+
+    @testset "write with force" begin
+        # Issue #1060: force=true should overwrite existing zarr
+        fn = tempname() * ".zarr"
+        write(fn, ra)
+        @test isdir(fn)
+        # Without force should error
+        @test_throws ArgumentError write(fn, ra)
+        # With force should overwrite
+        write(fn, ra; force=true)
+        @test all(Raster(fn) .=== ra)
+        # Overwrite with different data
+        ra2 = rebuild(ra; data=ones(size(ra)))
+        write(fn, ra2; force=true)
+        @test all(Raster(fn) .=== ra2)
+    end
 end
 
 

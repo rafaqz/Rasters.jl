@@ -46,6 +46,7 @@ function checkwritemode(::CDMsource, filename, append::Bool, force::Bool)
         isfile(filename) ? "a" : "c"
     else
         check_can_write(filename, force)
+        ispath(filename) && rm(filename; recursive=true)
         "c"
     end
 end
