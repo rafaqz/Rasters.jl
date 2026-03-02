@@ -460,7 +460,7 @@ end
     agg = Base.add_sum(zero(eltype(block)), zero(eltype(block)))
     for x in block
         _ismissing(x, mv) && return _missingval_or_missing(dst)
-        agg += Base.add_sum(agg, x)
+        agg = Base.add_sum(agg, x)
     end
     return agg
 end
@@ -470,7 +470,7 @@ end
     for x in block
         _ismissing(x, mv) && return _missingval_or_missing(dst)
         n += 1
-        agg += Base.add_sum(agg, x)
+        agg = Base.add_sum(agg, x)
     end
     return agg / n
 end
@@ -494,7 +494,7 @@ end
     for x in block
         _ismissing(x, mv) && continue
         found = true
-        agg += Base.add_sum(agg, x)
+        agg = Base.add_sum(agg, x)
     end
     return found ? agg : _missingval_or_missing(dst)
 end
@@ -506,7 +506,7 @@ end
         _ismissing(x, mv) && continue
         found = true
         n += 1
-        agg += Base.add_sum(agg, x)
+        agg = Base.add_sum(agg, x)
     end
     return found ? agg / n : _missingval_or_missing(dst)
 end
