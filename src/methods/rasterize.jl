@@ -956,7 +956,7 @@ Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser{<:An
     _apply_op(op, a1, fc.fill)
 end
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser) where F<:Function
-    a1 = a === fc.missingval ? fc.init : a
+    a1 = a == fc.missingval ? fc.init : a
     _apply_op(op, a1, fc.fill)
 end
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser{<:Any,Nothing,Missing}) where F<:Function
