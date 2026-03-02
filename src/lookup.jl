@@ -180,7 +180,7 @@ convertlookup(::Type, lookup::Lookup) = lookup
 convertlookup(::Type{T1}, lookup::T2) where {T1,T2<:T1} = lookup
 # Otherwise AbstractProjected needs ArchGDAL
 function convertlookup(::Type{<:Mapped}, l::Projected)
-    newindex = reproject(crs(l), mappedcrs(l), dim(l), index(l))
+    newindex = reproject(crs(l), mappedcrs(l), dim(l), parent(l))
     # We use Explicit mode and make a bounds matrix
     # This way the bounds can be saved correctly to NetCDF
     span = if sampling(l) isa Points
@@ -265,19 +265,19 @@ function mappedindex end
 mappedindex(dims::Tuple) = map(mappedindex, dims)
 mappedindex(dim::Dimension) = _mappedindex(parent(dim), dim)
 
-_mappedindex(::Lookup, dim::Dimension) = index(dim)
-_mappedindex(lookup::Projected, dim::Dimension) = _mappedindex(mappedcrs(lookup), lookup, dim)
-_mappedindex(mappedcrs::Nothing, lookup::Projected, dim) =
+_mappedindex(::Lookup, dim::Dimension) = lookup(dim)
+_mappedindex(l::Projected, dim::Dimension) = _mappedindex(mappedcrs(l), l, dim)
+_mappedindex(mappedcrs::Nothing, l::Projected, dim) =
     error("No mappedcrs attached to $(name(dim)) dimension")
-_mappedindex(mappedcrs::GeoFormat, lookup::Projected, dim) =
-    reproject(crs(dim), mappedcrs, dim, index(dim))
+_mappedindex(mappedcrs::GeoFormat, l::Projected, dim) =
+    reproject(crs(dim), mappedcrs, dim, lookup(dim))
 
 projectedindex(dims::Tuple) = map(projectedindex, dims)
 projectedindex(dim::Dimension) = _projectedindex(parent(dim), dim)
 
-_projectedindex(::Lookup, dim::Dimension) = index(dim)
-_projectedindex(lookup::Mapped, dim::Dimension) = _projectedindex(crs(lookup), lookup, dim)
-_projectedindex(crs::Nothing, lookup::Mapped, dim::Dimension) =
+_projectedindex(::Lookup, dim::Dimension) = lookup(dim)
+_projectedindex(l::Mapped, dim::Dimension) = _projectedindex(crs(l), l, dim)
+_projectedindex(crs::Nothing, l::Mapped, dim::Dimension) =
     error("No projection crs attached to $(name(dim)) dimension")
-_projectedindex(crs::GeoFormat, lookup::Mapped, dim::Dimension) =
-    reproject(mappedcrs(dim), crs, dim, index(dim))
+_projectedindex(crs::GeoFormat, l::Mapped, dim::Dimension) =
+    reproject(mappedcrs(dim), crs, dim, lookup(dim))

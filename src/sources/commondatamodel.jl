@@ -604,6 +604,6 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
         push!(attrib, "bounds" => boundskey)
         CDM.defVar(ds, boundskey, bounds, ("bnds", dimname))
     end
-    CDM.defVar(ds, dimname, Vector(index(dim)), (dimname,); attrib=attrib)
+    CDM.defVar(ds, dimname, Vector(lookup(dim)), (dimname,); attrib=attrib)
     return nothing
 end

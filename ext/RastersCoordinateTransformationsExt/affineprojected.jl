@@ -16,6 +16,10 @@ function DD.rebuild(l::AffineProjected;
 )
     AffineProjected(affinemap, data, metadata, crs, mappedcrs, paired_lookup, dim)
 end
+
+# _set_lookup methods for DimensionalData 0.30 compatibility
+LA._set_lookup(::LA.Safety, ::LA.Lookup, newlookup::AffineProjected) = newlookup
+
 function Dimensions.format(l::AffineProjected, D::Type, index, axis::AbstractRange)
     return rebuild(l; data=axis, dim=basetypeof(D)())
 end

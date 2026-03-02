@@ -2,7 +2,7 @@ using Documenter, Rasters, Plots, Logging, Statistics, Dates,
     RasterDataSources, ArchGDAL, NCDatasets, CoordinateTransformations
 import Makie, CairoMakie
 using DocumenterVitepress
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
 import Shapefile, DataFrames, NaturalEarth # to avoid precompilation in doctests
 
 # Don't output huge svgs for Makie plots
