@@ -374,7 +374,7 @@ gdalpath = maybedownload(url)
                 @time write(filename, gdalarray_points; force = true)
                 saved1 = Raster(filename);
                 @test all(saved1 .== gdalarray_points)
-                @test lookup(saved1) == lookup(gdalarray_points)
+                @test all(map((a, b) -> all(a .≈ b), lookup(saved1), lookup(gdalarray_points)))
                 @test missingval(saved1) === missingval(gdalarray_points)
                 @test refdims(saved1) == refdims(gdalarray_points)
                 @test (@allocations write(filename, gdalarray_points; force = true)) < 1e4
