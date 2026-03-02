@@ -34,6 +34,7 @@ end
 @time @safetestset "commondatamodel" begin include("sources/commondatamodel.jl") end
 @time @safetestset "ncdatasets" begin include("sources/ncdatasets.jl") end
 # @time @safetestset "zarrdatasets" begin include("sources/zarr.jl") end
+@time @safetestset "zarr_write" begin include("sources/zarr_write.jl") end
 # if !Sys.iswindows()
     # GRIBDatasets doesn't work on Windows for now
     @time @safetestset "gribdatasets" begin include("sources/gribdatasets.jl") end
