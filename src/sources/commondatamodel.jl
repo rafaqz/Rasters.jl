@@ -300,18 +300,18 @@ function _cdmlookup(
     # to gdal to be easy, and selectors are faster.
     # TODO are there any possible floating point errors from this?
     if haskey(CDM.attribs(var), "bounds")
-        span, sampling = if isregular(span)
-            span, Intervals(Center())
+        boundskey = CDM.attribs(var)["bounds"]
+        boundsmatrix = Array(ds[boundskey])
+        locus = if mapreduce(isapprox, &, view(boundsmatrix, 1, :), index)
+            Start()
+        elseif mapreduce(isapprox, &, view(boundsmatrix, 2, :), index)
+            End()
         else
-            boundskey = var.attrib["bounds"]
-            boundsmatrix = Array(ds[boundskey])
-            locus = if mapreduce(==, &, view(boundsmatrix, 1, :), index)
-                Start()
-            elseif mapreduce(==, &, view(boundsmatrix, 2, :), index)
-                End()
-            else
-                Center()
-            end
+            Center()
+        end
+        span, sampling = if isregular(span)
+            span, Intervals(locus)
+        else
             Explicit(boundsmatrix), Intervals(locus)
         end
     end
@@ -589,8 +589,9 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
     CDM.defDim(ds, dimname, length(dim))
     lookup(dim) isa NoLookup && return nothing
 
-    # Shift index before conversion to Mapped
-    dim = _cdmshiftlocus(dim)
+    # Preserve the original locus; bounds encode cell edges so readers
+    # can reconstruct Start/Center/End from them (see #1061).
+    # dim = _cdmshiftlocus(dim)  # removed: was forcing Center locus
     if dim isa Y || dim isa X
         dim = convertlookup(Mapped, dim)
     end
