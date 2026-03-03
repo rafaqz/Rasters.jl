@@ -365,6 +365,13 @@ end
         @test zonal(x -> x isa Raster, rast; of=polygon, skipmissing=false)
     end
 
+    @testset "emptyval" begin
+        rast = Raster{Union{Missing,Int}}(undef, (X(-20:5), Y(0:30)))
+        rast .= missing
+        @test zonal(sum, rast; of=polygon, emptyval=-1) === -1
+        rast .= 0
+        @test zonal(sum, rast; of=polygon, emptyval=-1) === 0
+    end
 end
 
 @testset "zonal return missing" begin

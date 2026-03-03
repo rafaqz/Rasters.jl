@@ -71,8 +71,7 @@ Base.write(A::AbstractRaster; kw...) = write(filename(A), A; kw...)
 function Base.write(
     filename::AbstractString, source::Source, A::Union{AbstractRaster,AbstractRasterStack}; kw...
 )
-    missing_package = SOURCE2PACKAGENAME[source]
-    error("Missing package extension for $source. Run `using $missing_package` before using `write` for this file extension.")
+    throw(BackendException(source))
 end
 
 """

@@ -405,6 +405,9 @@ end
         end
         filename = tempname() * ".tif"
         prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename, threaded)
+        prod_r2 = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename, threaded, force=true)
+        @test size(prod_r2) == (11,11)
+
         prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, threaded)
         @test sum(skipmissing(prod_r)) == 
             (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1 * 2 + 4 * 2 * 3 + 4 * 3 * 4)
@@ -553,6 +556,36 @@ end
     @test replace_missing(rasterize(last, pointtable; to = A1, fill = 1), 0) == replace_missing(rasterize(last, fancy_table; to = A1, fill = 1), 0) # sanity check
 end
 
+@testset "Type promotion handles integer overflows in rasterize" begin
+    # poly1 covers X: [-20, -18), Y: [28, 30) -> cells X=-20,-19, Y=28,29
+    poly1 = GI.Polygon([[[-20.0, 30.0], [-20.0, 28.0], [-18.0, 28.0], [-18.0, 30.0], [-20.0, 30.0]]])
+    # poly2 covers X: [-19, -17), Y: [27, 29) -> cells X=-19,-18, Y=27,28
+    poly2 = GI.Polygon([[[-19.0, 29.0], [-19.0, 27.0], [-17.0, 27.0], [-17.0, 29.0], [-19.0, 29.0]]])
+    polys = [poly1, poly2]
+    # Overlap at X=-19, Y=28
+
+    # Test UInt8 sum: 200 + 200 would overflow UInt8, should promote to UInt
+    r_sum_uint = rasterize(sum, polys; res=1.0, fill=UInt8(200), missingval=UInt8(0))
+    @test eltype(r_sum_uint) === UInt
+    @test r_sum_uint[X=At(-19), Y=At(28)] === UInt(400)  # overlap
+    @test r_sum_uint[X=At(-20), Y=At(28)] === UInt(200)  # poly1 only
+    @test r_sum_uint[X=At(-18), Y=At(27)] === UInt(200)  # poly2 only
+
+    # Test Int8 sum: -100 + -100 would overflow Int8, should promote to Int
+    r_sum_int = rasterize(sum, polys; res=1.0, fill=Int8(-100), missingval=Int8(0))
+    @test eltype(r_sum_int) === Int
+    @test r_sum_int[X=At(-19), Y=At(28)] === Int(-200)  # overlap
+    @test r_sum_int[X=At(-20), Y=At(28)] === Int(-100)  # poly1 only
+    @test r_sum_int[X=At(-18), Y=At(27)] === Int(-100)  # poly2 only
+
+    # Test UInt8 prod: 20 * 20 would overflow UInt8, should promote to UInt
+    r_prod_uint = rasterize(prod, polys; res=1.0, fill=UInt8(20), missingval=UInt8(0))
+    @test eltype(r_prod_uint) === UInt
+    @test r_prod_uint[X=At(-19), Y=At(28)] === UInt(400)  # overlap: 20*20
+    @test r_prod_uint[X=At(-20), Y=At(28)] === UInt(20)   # poly1 only
+    @test r_prod_uint[X=At(-18), Y=At(27)] === UInt(20)   # poly2 only
+end
+    
 @testset "rasterizing strange types" begin
     @testset "vector of feature indices, with overlap" begin
         polygons = [
@@ -584,4 +617,22 @@ end
         @test count(x -> x == [2], result) == 12
         @test count(x -> x == [1, 2], result) == 12
     end 
+end
+
+@testset "threaded reduction warnings" begin
+    commutative_fs = (sum, prod, maximum, minimum, any, all, mean)
+    geom = GI.GeometryCollection([polygon,polygon,polygon])
+    
+    for f in commutative_fs
+        @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=true)
+    end
+    @test_logs rasterize(count, geom; to=A1, threaded=true) # count has no fill or missingval
+
+    other_fs = (median, first, last, x -> sum(x))
+
+    for f in other_fs
+        @test_logs (:warn, "if `op` is not threadsafe, `threaded=true` may be slower than `threaded=false`") rasterize(
+            f, geom; to=A1, fill=true, missingval = false, threaded=true)
+        @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=false)
+    end
 end

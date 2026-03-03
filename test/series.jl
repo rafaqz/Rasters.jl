@@ -127,5 +127,11 @@ end
         @test Rasters.isdisk(series)
         @test !Rasters.isdisk(read(series))
         @test Rasters.isdisk(Rasters.combine(series))
+
+        path = dirname(first(filenames))
+        pattern = basename(first(filenames))[1:2]
+        filename_pattern = joinpath(dirname(first(filenames)), "$pattern.tif")
+        series2 = RasterSeries(filename_pattern, times; duplicate_first=true, lazy=true)
+        @test isequal(sort(Rasters.filename.(series2)), sort(filenames))
     end
 end
