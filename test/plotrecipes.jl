@@ -52,31 +52,36 @@ plot(RasterSeries([ga2 for _ in 1:100], Ti([DateTime(i) for i in 2001:2100])))
 # Loading Makie in tests is a huge overhead
 
 if !haskey(ENV, "CI")
-    xs = 0.0:4.0:360.0
-    ys = -20.0:1.0:20.0
-    rast = Raster(rand(X(xs), Y(ys)))
+    # GLMakie tests - skip if GLMakie is not installed
+    try
+        @eval using GLMakie
+        xs = 0.0:4.0:360.0
+        ys = -20.0:1.0:20.0
+        rast = Raster(rand(X(xs), Y(ys)))
 
-    using GLMakie
-    # Some small diversions from the DimensionalData.jl recipes
-    @test Makie.convert_arguments(Makie.DiscreteSurface(), rast) == 
-        (lookup(rast, X), lookup(rast, Y), Float32.(rast.data))
-    # test true 3d rasters just show the first slice
-    true_3d_raster = Raster(rand(X(0.0:4.0:360.0), Y(-20.0:1.0:20.0), Ti(1:10)))
-    @test Makie.convert_arguments(Makie.DiscreteSurface(), true_3d_raster) ==
-        (lookup(true_3d_raster, X), lookup(true_3d_raster, Y), Float32.(true_3d_raster[:, :, 1]))
-    # test that singleton 3d dimensions work
-    singleton_3d_raster = Raster(rand(X(0.0:4.0:360.0), Y(-20.0:1.0:20.0), Ti(1)))
-    converted = Makie.convert_arguments(Makie.DiscreteSurface(), singleton_3d_raster) 
-    @test length(converted) == 3
-    @test all(collect(converted[end] .== Float32.(singleton_3d_raster.data[:, :, 1]))) # remove if we want to handle 3d rasters with a singleton dimension
+        # Some small diversions from the DimensionalData.jl recipes
+        @test Makie.convert_arguments(Makie.DiscreteSurface(), rast) ==
+            (lookup(rast, X), lookup(rast, Y), Float32.(rast.data))
+        # test true 3d rasters just show the first slice
+        true_3d_raster = Raster(rand(X(0.0:4.0:360.0), Y(-20.0:1.0:20.0), Ti(1:10)))
+        @test Makie.convert_arguments(Makie.DiscreteSurface(), true_3d_raster) ==
+            (lookup(true_3d_raster, X), lookup(true_3d_raster, Y), Float32.(true_3d_raster[:, :, 1]))
+        # test that singleton 3d dimensions work
+        singleton_3d_raster = Raster(rand(X(0.0:4.0:360.0), Y(-20.0:1.0:20.0), Ti(1)))
+        converted = Makie.convert_arguments(Makie.DiscreteSurface(), singleton_3d_raster)
+        @test length(converted) == 3
+        @test all(collect(converted[end] .== Float32.(singleton_3d_raster.data[:, :, 1]))) # remove if we want to handle 3d rasters with a singleton dimension
 
-    Makie.image(ga2)
-    Makie.heatmap(ga3)
-    Rasters.rplot(ga2)
-    Rasters.rplot(ga3)
+        Makie.image(ga2)
+        Makie.heatmap(ga3)
+        Rasters.rplot(ga2)
+        Rasters.rplot(ga3)
 
-    using Colors
-    c = Raster(rand(RGB, X(10), Y(10)))
-    Makie.image(c)
-    # Makie.heatmap(c) # Doesn't work because of the auto Colorbar
+        using Colors
+        c = Raster(rand(RGB, X(10), Y(10)))
+        Makie.image(c)
+        # Makie.heatmap(c) # Doesn't work because of the auto Colorbar
+    catch e
+        @warn "Skipping GLMakie tests: GLMakie not available"
+    end
 end
