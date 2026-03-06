@@ -148,11 +148,11 @@ v = ds[:z]
             ser = Rasters.slice(gribarray, Ti) 
             @test ser isa RasterSeries
             @test size(ser) == (4,)
-            @test index(ser, Ti) == DateTime(2017, 1, 1):Hour(12):DateTime(2017, 1, 2, 12)
+            @test lookup(ser, Ti) == DateTime(2017, 1, 1):Hour(12):DateTime(2017, 1, 2, 12)
             @test Rasters.bounds(ser) == ((DateTime(2017, 1, 1), DateTime(2017, 1, 2, 12)),)
             A = ser[1]
-            @test index(A, Y) == 90.0:-3.0:-90.0
-            @test index(A, X) == 0.0:3.0:357.0
+            @test lookup(A, Y) == 90.0:-3.0:-90.0
+            @test lookup(A, X) == 0.0:3.0:357.0
         end
     end
 

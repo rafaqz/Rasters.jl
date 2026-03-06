@@ -26,7 +26,7 @@ subset without loading the whole array.
 `getindex` on an `AbstractRasterStack` with a key returns another stack with
 `getindex` applied to all the arrays in the stack.
 """
-abstract type AbstractRasterStack{K,T,N,L} <: AbstractDimStack{K,T,N,L} end
+abstract type AbstractRasterStack{K,T,N,L,D} <: AbstractDimStack{K,T,N,L,D} end
 
 missingval(stack::AbstractRasterStack) = getfield(stack, :missingval)
 missingval(s::AbstractRasterStack, name::Symbol) = _singlemissingval(missingval(s), name)
@@ -200,7 +200,7 @@ stack = RasterStack(files; mappedcrs=EPSG(4326))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
 """
-struct RasterStack{K,T,N,L<:Union{FileStack,OpenStack,NamedTuple},D<:Tuple,R<:Tuple,LD<:NamedTuple,M,LM,MV} <: AbstractRasterStack{K,T,N,L}
+struct RasterStack{K,T,N,L<:Union{FileStack,OpenStack,NamedTuple},D<:Tuple,R<:Tuple,LD<:NamedTuple,M,LM,MV} <: AbstractRasterStack{K,T,N,L,D}
     data::L
     dims::D
     refdims::R
