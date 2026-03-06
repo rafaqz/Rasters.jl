@@ -180,7 +180,7 @@ convertlookup(::Type, lookup::Lookup) = lookup
 convertlookup(::Type{T1}, lookup::T2) where {T1,T2<:T1} = lookup
 # Otherwise AbstractProjected needs ArchGDAL
 function convertlookup(::Type{<:Mapped}, l::Projected)
-    newindex = reproject(crs(l), mappedcrs(l), dim(l), val(l))
+    newindex = reproject(crs(l), mappedcrs(l), dim(l), parent(l))
     # We use Explicit mode and make a bounds matrix
     # This way the bounds can be saved correctly to NetCDF
     span = if sampling(l) isa Points

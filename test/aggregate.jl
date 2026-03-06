@@ -57,7 +57,7 @@ series = RasterSeries([stack1, stack2], (Ti(dates),))
     disaglat = disaggregate(Start(), aglat, 3)
     # The last item is lost due to rounding in `aggregate`
     @test lookup(disaglat) != lookup(dimz[2])
-    @test lookup(disaglat) == LinRange(-10.0, 15.0, 6)
+    @test parent(lookup(disaglat)) === LinRange(-10.0, 15.0, 6)
     @test span(disaglat) == span(dimz[2])
     @test sampling(disaglat) == sampling(dimz[2])
 end

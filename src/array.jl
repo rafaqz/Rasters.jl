@@ -303,12 +303,15 @@ end
 # And Float64
 Raster(::UndefInitializer, ext::Union{Extents.Extent,DimTuple}; kw...) = 
     Raster{Float64}(undef, ext; kw...)
-function Raster{T}(x::UndefInitializer, dims::DimTuple; 
+function Raster{T}(x::UndefInitializer, dims::DimTuple;
     missingval=nokw, kw...
 ) where T
     T1 = isnokwornothing(missingval) ? T : promote_type(T, typeof(missingval))
     Raster(Array{T1}(undef, size(dims)), dims; missingval, kw...)
 end
+# Varargs version to handle Raster{T}(undef, X(...), Y(...), ...)
+Raster{T}(x::UndefInitializer, dim1::Dimension, dims::Dimension...; kw...) where T =
+    Raster{T}(x, (dim1, dims...); kw...)
 function Raster{T}(x::UndefInitializer, dims::Tuple{}; 
     missingval=nokw, kw...
 ) where T
