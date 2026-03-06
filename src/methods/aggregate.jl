@@ -151,14 +151,16 @@ function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractRaster, src, scale;
     intscale = _scale2int(Ag(), dims(src), scale; verbose)
     offsets = _agoffset.(loci, intscale)
     # Cache the source if its a disk array
-    src1 = isdisk(src) ? DiskArrays.cache(src) : src
-    # Broadcast will make the dest arrays chunks when needed
-    broadcast!(dst, CartesianIndices(dst)) do I
-        # Upsample for each pixel. Possibly slighly inneficient
-        # for large aggregations but its simple
-        J = upsample.(Tuple(I), intscale) .+ offsets
-        val = src1[J...]
-        _ismissing(val, missingval(src)) ? missingval(dst) : val
+    open(src) do opened_src
+        cached_src = isdisk(opened_src) ? DiskArrays.cache(opened_src) : opened_src
+        # Broadcast will make the dest arrays chunks when needed
+        broadcast!(dst, CartesianIndices(dst)) do I
+            # Upsample for each pixel. Possibly slighly inneficient
+            # for large aggregations but its simple
+            J = upsample.(Tuple(I), intscale) .+ offsets
+            val = cached_src[J...]
+            _ismissing(val, missingval(src)) ? missingval(dst) : val
+        end
     end
     return dst
 end
@@ -455,20 +457,20 @@ end
     return _reduce_noskip(sum, block, mv, dst)
 end
 @propagate_inbounds function _reduce_noskip(::typeof(sum), block, mv, dst)
-    agg = zero(eltype(block))
+    agg = Base.add_sum(zero(eltype(block)), zero(eltype(block)))
     for x in block
         _ismissing(x, mv) && return _missingval_or_missing(dst)
-        agg += x
+        agg = Base.add_sum(agg, x)
     end
     return agg
 end
 @propagate_inbounds function _reduce_noskip(::typeof(DD.Statistics.mean), block, mv, dst)
-    agg = zero(eltype(block))
+    agg = float(zero(eltype(block))) # Force floating point for mean
     n = 0
     for x in block
         _ismissing(x, mv) && return _missingval_or_missing(dst)
         n += 1
-        agg += x
+        agg = Base.add_sum(agg, x)
     end
     return agg / n
 end
@@ -486,24 +488,25 @@ end
     return _reduce_skip(sum, block, mv, dst)
 end
 @propagate_inbounds function _reduce_skip(::typeof(sum), block, mv, dst)
-    agg = zero(eltype(block))
+    # Use add_sum to get the correct type, e.g. UInt64 from UInt
+    agg = Base.add_sum(zero(eltype(block)), zero(eltype(block)))
     found = false
     for x in block
         _ismissing(x, mv) && continue
         found = true
-        agg += x
+        agg = Base.add_sum(agg, x)
     end
     return found ? agg : _missingval_or_missing(dst)
 end
 @propagate_inbounds function _reduce_skip(::typeof(DD.Statistics.mean), block, mv, dst)
-    agg = zero(eltype(block))
+    agg = float(zero(eltype(block))) # Force floating point for mean
     found = false
     n = 0
     for x in block
         _ismissing(x, mv) && continue
         found = true
         n += 1
-        agg += x
+        agg = Base.add_sum(agg, x)
     end
     return found ? agg / n : _missingval_or_missing(dst)
 end

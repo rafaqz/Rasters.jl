@@ -87,7 +87,7 @@ function DA.readblock!(A::FileArray, dst, r::AbstractUnitRange...)
                 DA.readblock!(O, dst, r...)
             end
         else
-            dest[r...] .= view(parent(O), r...)
+            dst[r...] .= view(parent(O), r...)
         end
     end
 end

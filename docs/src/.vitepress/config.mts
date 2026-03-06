@@ -60,6 +60,7 @@ const navTemp = {
         { text: 'Spatial mean', link: '/tutorials/spatial_mean' },
         { text: 'Reprojection and resampling', link: '/tutorials/resample'},
         { text: 'Species Distribution Modelling', link: '/tutorials/gbif_wflow' },
+        { text: 'Crazy Rasterization', link: '/tutorials/crazy_rasterization' },
       ]
     },
     { text: 'Ecosystem',

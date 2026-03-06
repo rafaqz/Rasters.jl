@@ -70,10 +70,6 @@ _cf_shortname(dim::Z) = "height"
 
 # `Source`` from variables and datasets
 sourcetrait(var::CDM.CFVariable) = sourcetrait(var.var)
-# Dataset constructor from `Source`
-sourceconstructor(source::Source) = sourceconstructor(typeof(source))
-# Function to check filename
-checkfilename(s::CDMsource, filename) = throw(BackendException(s))
 # CDM datasets are always multilayer
 check_multilayer_dataset(ds::CDM.AbstractDataset) = true
 
@@ -815,11 +811,15 @@ end
 function _parse_period(period_str::String)
     regex = r"(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)"
     mtch = match(regex, period_str)
-    if mtch === nothing
+    if isnothing(mtch)
         return nothing
     else
-        vals = map(x -> parse(Int, x), mtch.captures)
-        if length(vals) == 6
+        if length(mtch.captures) == 6
+            vals = ntuple(Val{6}()) do i
+                x = mtch.captures[i]
+                # TODO can it actually be nothing?
+                isnothing(x) ? 0 : parse(Int, x)
+            end
             y = Year(vals[1])
             mo = Month(vals[2])
             d = Day(vals[3])
@@ -1088,6 +1088,7 @@ function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:Union{Sampled,Ab
         CDM.defVar(ds, boundskey, bounds, ("bnds", dimname))
     end
     CDM.defVar(ds, dimname, collect(lookup(dim)), (dimname,); attrib)
+
     return nothing
 end
     
