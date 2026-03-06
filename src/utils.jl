@@ -148,14 +148,16 @@ function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res;
                 start=start+step
             else
                 if locus(samp) isa Start
-                    stop = stop + step
+                    stop = stop - step
                 else # Center
-                    start = start - step/2
+                    start = start + step/2
                     stop = stop - step/2
                 end
             end
         end
-        range(; start, step, stop)
+        r = range(; start, step, stop)
+        # Always include the full extent in the raster!
+        last(r) == stop ? r : range(; start = first(r), length = length(r)+1, step = Base.step(r))
     end
     return _extent2dims(to, ranges; sampling, kw...)
 end
