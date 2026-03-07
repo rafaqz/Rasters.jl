@@ -16,6 +16,62 @@ end
 GeoInterface.crs(lookup::Lookup) = nothing
 mappedcrs(lookup::Lookup) = nothing
 
+"""
+    ProjectedArrayLookup <: AbstractArrayLookup
+
+A CRS-aware array lookup for curvilinear or unaligned grids where coordinates
+are stored in a 2D matrix and don't align with array axes.
+
+This extends DimensionalData's `AbstractArrayLookup` with `crs` and `mappedcrs`
+fields for coordinate reference system support.
+
+# Fields
+- `data`: Index data (usually `AutoValues()`)
+- `dim`: The dimension this lookup represents
+- `dims`: Tuple of dimensions for the coordinate matrix
+- `matrix`: 2D coordinate matrix
+- `tree`: Optional KDTree for nearest neighbor lookup
+- `idxvec`: Index vector for tree queries
+- `distvec`: Distance vector for tree queries
+- `metadata`: Metadata dictionary
+- `crs`: Coordinate reference system (GeoFormat or Nothing)
+- `mappedcrs`: Mapped CRS for display/selection (GeoFormat or Nothing)
+"""
+struct ProjectedArrayLookup{T,A,D,Ds,Ma<:AbstractArray{T},Tr,IV,DV,Me,CRS,MCRS} <: LA.AbstractArrayLookup{T,1}
+    data::A
+    dim::D
+    dims::Ds
+    matrix::Ma
+    tree::Tr
+    idxvec::IV
+    distvec::DV
+    metadata::Me
+    crs::CRS
+    mappedcrs::MCRS
+end
+function ProjectedArrayLookup(matrix;
+    data=AutoValues(),
+    dim=AutoDim(),
+    dims=AutoDim(),
+    metadata=NoMetadata(),
+    crs=nothing,
+    mappedcrs=nothing
+)
+    ProjectedArrayLookup(data, dim, dims, matrix, nothing, nothing, nothing, metadata, crs, mappedcrs)
+end
+
+LA.dim(lookup::ProjectedArrayLookup) = lookup.dim
+LA.matrix(l::ProjectedArrayLookup) = l.matrix
+LA.tree(l::ProjectedArrayLookup) = l.tree
+GeoInterface.crs(l::ProjectedArrayLookup) = l.crs
+mappedcrs(l::ProjectedArrayLookup) = l.mappedcrs
+
+# Format methods for ProjectedArrayLookup
+Dimensions.format(m::ProjectedArrayLookup, D::Type, ::AutoValues, axis::AbstractRange) =
+    DD.rebuild(m; dim=Dimensions.basetypeof(D)(), data=axis)
+Dimensions.format(m::ProjectedArrayLookup, D::Type, data::AbstractArray, axis::AbstractRange) =
+    DD.rebuild(m; dim=Dimensions.basetypeof(D)(), data)
+
 # When the lookup is formatted with an array we match the `dim` field with the
 # wrapper dimension. We will need this later for e.g. projecting with GDAL,
 # where we need to know which lookup is X and which is Y
@@ -183,8 +239,7 @@ mappedcrs(lookup::Mapped) = lookup.mappedcrs
 dim(lookup::Mapped) = lookup.dim
 DD.dims(lookup::Mapped) = lookup.dims
 
-DD.hasalternatedimensions(lookup::Mapped) = !isnothing(dims(lookup)) && length(dims(lookup)) == 1
-DD.hasmultipledimensions(lookup::Mapped) = !isnothing(dims(lookup)) && length(dims(lookup)) > 1
+DD.hasinternaldimensions(lookup::Mapped) = !isnothing(dims(lookup))
 
 """
     convertlookup(dstlookup::Type{<:Lookup}, x)

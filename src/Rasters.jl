@@ -6,6 +6,7 @@ using Dates
 import DimensionalData
 
 import Adapt,
+       CFCoordinateReferenceSystems,
        ColorTypes,
        CommonDataModel,
        ConstructionBase,
@@ -50,6 +51,9 @@ using Setfield: @set, @set!
 using ColorTypes: RGB
 
 using CommonDataModel: AbstractDataset, AbstractVariable
+using CFCoordinateReferenceSystems: CFProjection
+# Proj needs to be loaded to trigger CFCoordinateReferenceSystems Proj extension
+using Proj
 
 using DiskArrays: @implement_diskarray, eachchunk, haschunks, isdisk
 
@@ -59,7 +63,7 @@ export Planar, Spherical
 export AbstractRaster, Raster
 export AbstractRasterStack, RasterStack
 export AbstractRasterSeries, RasterSeries
-export Projected, Mapped, GeometryLookup
+export Projected, Mapped, GeometryLookup, ProjectedArrayLookup
 export Band, Geometry
 export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!,

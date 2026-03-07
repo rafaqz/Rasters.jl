@@ -390,6 +390,18 @@ end
 _organise_dataset(ds::AbstractDataset, names, group) =
     _organise_dataset(ds.group[group], names, nokw)
 
+# Simple version for reading dimensions from a single variable (not full dataset analysis)
+function _cdm_dim(ds, dimname, crs, mappedcrs)
+    if haskey(ds, dimname)
+        # There's a coordinate variable matching the dimension name
+        vars_dict = Dict{String,Any}()
+        attrs_dict = Dict{String,Any}()
+        return _standard_dim(ds, vars_dict, attrs_dict, dimname, crs)
+    else
+        # No coordinate variable - use discrete axis (NoLookup)
+        return _discrete_axis_dim(ds, dimname)
+    end
+end
 
 function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, coord_names, dimname, crs, grid_mapping_key)
     # First check for geometry dimensions (remove most complicted first)
@@ -599,7 +611,8 @@ function _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_c
 end
 # Must have "degrees_north" and "degrees_east" in coordinate units
 function _unalligned_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
-    dim_attrs = _get_attr!(attrs_dict, vars_dict, ds, dimname)
+    # dimname may be just a dimension without a corresponding variable
+    dim_attrs = haskey(ds, dimname) ? _get_attr!(attrs_dict, vars_dict, ds, dimname) : NoMetadata()
     D = _cdm_dimtype(dim_attrs, dimname)
     lookup = _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, D, crs)
     return D(lookup)
@@ -630,7 +643,7 @@ function _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dim
         data = Base.OneTo(CDM.dim(ds, dimname))
     end
     matrix = collect(_get_var!(vars_dict, ds, lat_key))
-    return ArrayLookup(matrix; data, dims)
+    return ProjectedArrayLookup(matrix; data, dims, crs)
 end
 
 function _merged_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
@@ -976,6 +989,11 @@ function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N
     if !isempty(dims(A, x -> lookup(x) isa GeometryLookup))
         attrib["geometry"] = "geometry_container"
     end
+    # Add grid_mapping for CRS
+    grid_mapping_name = _def_grid_mapping!(ds, A)
+    if !isnothing(grid_mapping_name)
+        attrib["grid_mapping"] = grid_mapping_name
+    end
     dimnames = map(_cf_name, dims(A))
     var = CDM.defVar(ds, varname, eltype, dimnames; attrib, chunksizes, kw...)
 
@@ -1008,7 +1026,7 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
     return nothing
 end 
 _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:AbstractNoLookup}, dimname) = nothing
-function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:ArrayLookup}, dimname)  
+function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:LA.AbstractArrayLookup}, dimname)
     # TODO what do we call the geometry variable, what if more than 1
     return nothing
 end
@@ -1091,7 +1109,48 @@ function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:Union{Sampled,Ab
 
     return nothing
 end
-    
+
+# Define grid_mapping variable for CRS
+function _def_grid_mapping!(ds::AbstractDataset, A)
+    c = crs(A)
+    isnothing(c) && return nothing
+
+    varname = "crs"
+    # Return existing varname if already defined
+    haskey(ds, varname) && return varname
+
+    # Try to convert CRS to CF grid mapping
+    cf = try
+        convert(CFProjection, c)
+    catch
+        # Fall back to WKT if conversion fails
+        return _def_grid_mapping_wkt!(ds, c)
+    end
+
+    # Create scalar variable with grid_mapping attributes
+    attrib = Dict{String,Any}(cf.params)
+    CDM.defVar(ds, varname, Int8(0), (); attrib)
+    return varname
+end
+
+function _def_grid_mapping_wkt!(ds::AbstractDataset, c)
+    varname = "crs"
+    haskey(ds, varname) && return varname
+
+    wkt = try
+        GeoFormatTypes.val(convert(WellKnownText2, c))
+    catch
+        return nothing
+    end
+
+    attrib = Dict{String,Any}(
+        "crs_wkt" => wkt,
+        "grid_mapping_name" => "latitude_longitude"
+    )
+    CDM.defVar(ds, varname, Int8(0), (); attrib)
+    return varname
+end
+
 _cf_crs(ds, grid_mapping_key::Nothing) = nothing
 function _cf_crs(ds, grid_mapping_key::AbstractString)
     if occursin(' ', grid_mapping_key)
@@ -1109,14 +1168,17 @@ function _cf_crs(ds, grid_mapping_key::AbstractString)
         EPSG(parse(Int, grid_mapping_attrib["spatial_epsg"]))
     elseif haskey(grid_mapping_attrib, "proj4string")
         ProjString(grid_mapping_attrib["proj4string"])
-    else
-        if haskey(grid_mapping_attrib, "grid_mapping_name")
-            grid_mapping_name = grid_mapping_attrib["grid_mapping_name"]
-            if grid_mapping_name == "latitude_longitude"
-                return EPSG(4326)
-            end
+    elseif haskey(grid_mapping_attrib, "grid_mapping_name")
+        # Use CFCoordinateReferenceSystems for all grid_mapping_name types
+        cf = CFProjection(Dict{String,Any}(grid_mapping_attrib))
+        try
+            convert(WellKnownText2, cf)
+        catch e
+            @warn "Failed to convert CF grid mapping to CRS" exception=e grid_mapping_name=grid_mapping_attrib["grid_mapping_name"]
+            nothing
         end
-        nothing # unparseable - TODO get CFProjections.jl to do it.
+    else
+        nothing
     end
 end
 

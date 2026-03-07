@@ -118,28 +118,32 @@ end
 
 @testset "5.6 rotated pole grid" begin
     rast = RasterStack(examples["5.6"]; lazy=true)
-    @test lookup(rast, :rlat) isa ArrayLookup
-    @test lookup(rast, :rlon) isa ArrayLookup
+    @test lookup(rast, :rlat) isa ProjectedArrayLookup
+    @test lookup(rast, :rlon) isa ProjectedArrayLookup
     @test lookup(rast, Z) == DimensionalData.format(Sampled([100.0f0, 200.0f0]; span=Regular(100.0f0)))
     @test_broken rast.temp[X=Near(-0.9), Y=Near(3.0), Z=1] === 3.0f0
     @test_broken rast.temp[X=At(-0.44758424f0), Y=At(2.1773858f0), Z=1] === 2.0f0
 end
 
-@testset "5.8-9 WGS 84 EPSG" begin
-    # TODO this is wrong
+@testset "5.8-9 WGS 84 latitude_longitude" begin
+    # CF latitude_longitude grid mapping is now parsed via CFCoordinateReferenceSystems
+    # and returns WellKnownText2 (not EPSG) since the CF files don't contain EPSG codes
     rast = RasterStack(examples["5.8"]; lazy=true)
-    @test crs(rast) isa EPSG
-    @test crs(rast) == EPSG(4326)
+    @test crs(rast) isa WellKnownText2
     rast = RasterStack(examples["5.9"]; lazy=true)
-    @test crs(rast) isa EPSG
-    @test crs(rast) == EPSG(4326)
+    @test crs(rast) isa WellKnownText2
 end
 
 @testset "5.10 British national grid" begin
     rast = RasterStack(examples["5.10"]; lazy=true);
     @test keys(rast) == (:temp, :pres)
-    # Need CFCRS.jl for this
-    @test_broken !isnothing(crs(rast))
+    # CRS is now parsed via CFCoordinateReferenceSystems
+    # This file has multiple CRS mappings (crsOSGB for x/y, crsWGS84 for lat/lon)
+    # so it returns a Vector of Pairs
+    c = crs(rast)
+    @test !isnothing(c)
+    @test c isa Vector{<:Pair}
+    @test first(c).first isa WellKnownText2
 end
 
 @testset "5.11 WGS 84 WellKnownText2" begin
@@ -333,5 +337,20 @@ end
             [(20.0, 0.0), (10.0, 15.0), (0.0, 0.0), (20.0, 0.0),
              (5.0, 5.0), (10.0, 10.0), (15.0, 5.0), (5.0, 5.0),
              (20.0, 20.0), (10.0, 35.0), (0.0, 20.0), (20.0, 20.0)]
+    end
+end
+
+@testset "CRS round-trip" begin
+    # Test writing CRS to NetCDF and reading it back
+    data = rand(Float32, 10, 10)
+    rast = Raster(data, (X(1.0:10.0), Y(1.0:10.0)); crs=EPSG(32615), name=:temperature)
+
+    mktempdir() do dir
+        path = joinpath(dir, "crs_roundtrip_test.nc")
+        write(path, rast)
+        rast2 = Raster(path)
+        @test !isnothing(crs(rast2))
+        # CRS should be preserved (converted to WKT and back)
+        @test crs(rast2) isa WellKnownText2
     end
 end
