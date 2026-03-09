@@ -429,6 +429,7 @@ end
         @test name(reduced_raster_count_center) == :count
         @test sum(skipmissing(reduced_raster_sum_center)) == 
               sum(skipmissing(reduced_raster_count_center)) == 16 * 4
+        @test missingval(reduced_raster_count_center) == typemin(eltype(reduced_raster_count_center))
         reduced_raster_sum_touches = rasterize(sum, polygons; res=5, fill=1, boundary=:touches, threaded)
         reduced_raster_count_touches = rasterize(count, polygons; res=5, fill=1, boundary=:touches, threaded)
         @test name(reduced_raster_sum_touches) == :sum
@@ -603,4 +604,14 @@ end
             f, geom; to=A1, fill=true, missingval = false, threaded=true)
         @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=false)
     end
+end
+
+
+@testset "count missingval" begin
+    raster_count = rasterize(count, pointvec, to=Extent(X=(-25,5), Y=(5,35)), res=5)
+    @test missingval(raster_count) === nothing
+    raster_count_disk = rasterize(count, pointvec, to=Extent(X=(-25,5), Y=(5,35)), res=5, filename=tempname()*".tif")
+    @test missingval(raster_count_disk) ==  -9223372036854775808
+    raster_count_missing = rasterize(count, pointvec, to=Extent(X=(-25,5), Y=(5,35)), res=5, missingval=-1)
+    @test missingval(raster_count_missing) == -1
 end

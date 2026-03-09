@@ -435,10 +435,12 @@ _count_fill(x) = x + 1
 # Catch some functions early
 
 # count is faster with an incrementing function as `fill`
-function rasterize(reducer::typeof(count), data; fill=nothing, init=nothing, kw...)
+function rasterize(reducer::typeof(count), data; fill=nothing, init=nothing, missingval=nothing, kw...)
     isnothing(init) || _count_init_info(init)
     isnothing(fill) || _count_fill_info(fill)
-    rasterize(data; kw..., name=:count, init=0, reducer=nothing, fill=_count_fill, missingval=0)
+    result = rasterize(data; kw..., name=:count, init=0, reducer=nothing, fill=_count_fill, missingval=0)
+    missingval = isnothing(missingval) ? _writeable_missing(filename(result), eltype(result)) : missingval
+    set(result, missingval=missingval)
 end
 # `mean` is sum ./ count. This is actually optimal with threading, 
 # as its means order is irrelevant so its threadsafe.
