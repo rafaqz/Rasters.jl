@@ -158,32 +158,20 @@ function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw)
         xstep = gt[GDAL_WE_RES]
         ystep = gt[GDAL_NS_RES] # Usually a negative number
         # Get min, max and sampling depending on AREA_OR_POINT
-        if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
-            sampling = Points()
-            xmin, xmax = gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
-            ymax = gt[GDAL_TOPLEFT_Y]
-            ymin = gt[GDAL_TOPLEFT_Y] + ystep * (ysize - 1)
+        xmin = gt[GDAL_TOPLEFT_X]
+        ymax = gt[GDAL_TOPLEFT_Y]
+        sampling = if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
+            Points()
         else
-            # GeoTiff uses the "pixelCorner" convention
-            sampling = Intervals(GDAL_LOCUS)
-            xmin, xmax = if xstep > 0
-                gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
-            else
-                gt[GDAL_TOPLEFT_X] + xstep, gt[GDAL_TOPLEFT_X] + xstep * xsize
-            end
-            ymax, ymin = if ystep > 0
-                gt[GDAL_TOPLEFT_Y], gt[GDAL_TOPLEFT_Y] + ystep * (ysize - 1)
-            else
-                gt[GDAL_TOPLEFT_Y] + ystep, gt[GDAL_TOPLEFT_Y] + ystep * ysize
-            end
+            Intervals(GDAL_LOCUS)
         end
 
         # Define order
         xorder = xstep > 0 ? ForwardOrdered() : ReverseOrdered()
         yorder = ystep > 0 ? ForwardOrdered() : ReverseOrdered()
         # Create lookup index. LinRange is easiest always the right size after fp error
-        xindex = range(; start=xmin, stop=xmax, length=xsize)
-        yindex = range(; start=ymax, stop=ymin, length=ysize)
+        xindex = range(; start=xmin, step=xstep, length=xsize)
+        yindex = range(; start=ymax, step=ystep, length=ysize)
 
         # Define `Projected` lookups fo X and Y dimensions
         xlookup = Projected(xindex;
