@@ -38,9 +38,12 @@ _reduce_init(reducer, nt::NamedTuple, missingval) = map(x -> _reduce_init(reduce
 _reduce_init(f, x, missingval) = _reduce_init(f, typeof(x), missingval)
 
 _reduce_init(::Nothing, x::Type{T}, missingval) where T = zero(T)
-_reduce_init(f::Function, ::Type{T}, missingval) where T = zero(f((zero(nonmissingtype(T)), zero(nonmissingtype(T)))))
-_reduce_init(::typeof(sum), ::Type{T}, missingval) where T = zero(nonmissingtype(T))
-_reduce_init(::typeof(prod), ::Type{T}, missingval) where T = oneunit(nonmissingtype(T))
+_reduce_init(f::Function, ::Type{T}, missingval) where T = 
+    zero(f((zero(nonmissingtype(T)), zero(nonmissingtype(T)))))
+_reduce_init(::typeof(sum), ::Type{T}, missingval) where T = 
+    Base.add_sum(zero(nonmissingtype(T)), zero(nonmissingtype(T))) # add_sum(zero, zero) for correct type
+_reduce_init(::typeof(prod), ::Type{T}, missingval) where T = 
+    Base.mul_prod(oneunit(nonmissingtype(T)), one(nonmissingtype(T))) # mul_prod(oneunit, one) for correct type
 _reduce_init(::typeof(minimum), ::Type{T}, missingval) where T = typemax(nonmissingtype(T))
 _reduce_init(::typeof(maximum), ::Type{T}, missingval) where T = typemin(nonmissingtype(T))
 _reduce_init(::typeof(last), ::Type{T}, missingval) where T = _maybe_to_missing(missingval)
@@ -61,6 +64,7 @@ struct RasterCreator{E,D,MD,MV,C,MC}
     missingval::MV
     crs::C
     mappedcrs::MC
+    force::Bool
 end
 function RasterCreator(to::DimTuple; 
     eltype,
@@ -73,11 +77,12 @@ function RasterCreator(to::DimTuple;
     mappedcrs=nothing,
     name=nothing,
     metadata=Metadata(Dict()),
+    force=false,
     kw...
 )
     name = Symbol(_filter_name(name, fill))
     to = _as_intervals(to) # Only makes sense to rasterize to intervals
-    RasterCreator(eltype, to, filename, suffix, name, metadata, missingval, crs, mappedcrs)
+    RasterCreator(eltype, to, filename, suffix, name, metadata, missingval, crs, mappedcrs, force)
 end
 RasterCreator(to::RasterStackOrArray, data; kw...) = RasterCreator(dims(to); kw...)
 RasterCreator(to::DimTuple, data; kw...) = RasterCreator(to; kw...)
@@ -500,7 +505,7 @@ function alloc_rasterize(f, r::RasterCreator;
     if prod(size(r.to)) == 0  
         throw(ArgumentError("Destination array is is empty, with size $(size(r.to))). Rasterization is not possible"))
     end
-    A = create(r.filename, fill=missingval, eltype, r.to; name, missingval, metadata, suffix) do O
+    A = create(r.filename, fill=missingval, eltype, r.to; name, missingval, metadata, suffix, r.force) do O
         f(O)
     end
     return A
@@ -953,7 +958,7 @@ Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser{<:An
     _apply_op(op, a1, fc.fill)
 end
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser) where F<:Function
-    a1 = a === fc.missingval ? fc.init : a
+    a1 = a == fc.missingval ? fc.init : a
     _apply_op(op, a1, fc.fill)
 end
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser{<:Any,Nothing,Missing}) where F<:Function

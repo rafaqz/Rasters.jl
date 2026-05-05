@@ -5,6 +5,7 @@ function AffineProjected(f;
 end
 
 DD.dim(lookup::AffineProjected) = lookup.dim
+LA.order(lookup::AffineProjected) = LA.Unordered()
 RA.crs(lookup::AffineProjected) = lookup.crs
 RA.mappedcrs(lookup::AffineProjected) = lookup.mappedcrs
 paired_lookup(lookup::AffineProjected) = lookup.paired_lookup
