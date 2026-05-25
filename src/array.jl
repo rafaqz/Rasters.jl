@@ -365,8 +365,17 @@ function _raster(ds;
     data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=nothing) do var
         metadata_out = isnokw(metadata) ? _metadata(var) : metadata
         missingval_out = _read_missingval_pair(var, metadata_out, missingval)
+
         # Generate mod for scaling
-        mod = isnokw(mod) ? _mod(eltype(var), metadata_out, missingval_out; scaled, coerce) : mod
+        mod = if isnokw(mod) 
+            if !raw && isfile(filename .* ".vat.dbf") # todo: how to detect a RAT/VAT?
+                _tablemod(filename .* ".vat.dbf", missingval_out, name) #  name or name1?
+            else 
+                _mod(eltype(var), metadata_out, missingval_out; scaled, coerce)
+            end
+        else
+            mod
+        end
         # Define or load the data array
         data_out = if lazy
             # Define a lay FileArray
