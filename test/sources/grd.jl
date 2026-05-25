@@ -95,7 +95,7 @@ grdpath = stem * ".gri"
     @testset "custom keywords" begin
         customgrdarray = Raster(grdpath; 
             name=:test, crs=EPSG(1000), mappedcrs=EPSG(4326), refdims=(Ti(),),
-            write=true, lazy=true, dropband=false, replace_missing=true,
+            write=true, lazy=true, dropband=false,
         )
         @test name(customgrdarray) == :test
         @test refdims(customgrdarray) == (Ti(),)

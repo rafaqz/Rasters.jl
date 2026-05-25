@@ -30,7 +30,7 @@ raster_output = resample(cea; res=output_res, crs=output_crs, method, missingval
     @test missingval(resample(cea; res=output_res, crs=output_crs, method)) == 0x00
 end
 
-@testset "snapped size and dim index match" begin
+@testset "snapped size and dim lookup match" begin
     snaptarget = raster_output
     snapped = resample(cea; to=snaptarget)
     disk_snapped = resample(cea; to=snaptarget, filename="raster.tif")
