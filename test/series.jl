@@ -127,5 +127,9 @@ end
         @test Rasters.isdisk(series)
         @test !Rasters.isdisk(read(series))
         @test Rasters.isdisk(Rasters.combine(series))
-        end
+
+        # Test with explicit filenames instead of glob pattern (pattern matching is fragile with temp files)
+        series2 = RasterSeries(filenames, times; duplicate_first=true, lazy=true)
+        @test isequal(sort(Rasters.filename.(series2)), sort(filenames))
+    end
 end

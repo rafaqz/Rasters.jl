@@ -4,18 +4,27 @@ using DimensionalData
 using DimensionalData.Lookups
 using DimensionalData.Dimensions
 using Dates
+using CommonDataModel
 using ZarrDatasets
 using ZarrDatasets.Zarr
 using Rasters: FileArray, FileStack, Zarrsource, crs, bounds, name, trim
 
 path = "https://s3.bgc-jena.mpg.de:9000/esdl-esdc-v3.0.2/esdc-16d-2.5deg-46x72x1440-3.0.2.zarr"
 
-@testset "Zarr Raster" begin
-
 zraster = Raster(path; name="air_temperature_2m")
 lazyarray = Raster(path; lazy=true, name="air_temperature_2m")
 eagerarray = Raster(path; lazy=false, name="air_temperature_2m")
 @test_throws ArgumentError Raster("notafile.zarr/")
+
+@testset "Raster from dataset" begin
+    ds = ZarrDatasets.ZarrDataset(path)
+    var = CommonDataModel.variable(ds, "air_temperature_2m")
+    dsarray = Raster(ds; name=:air_temperature_2m)
+    vararray = Raster(var; name=:air_temperature_2m)
+    @test dims(dsarray) == dims(vararray) == dims(zraster)
+    @test size(dsarray) == size(vararray) == size(zraster)
+    @test all(dsarray .=== vararray  .=== zraster)
+end
 
 @testset "lazyness" begin
     # Eager is the default
@@ -39,7 +48,7 @@ end
 @testset "array properties" begin
     @test name.(dims(zraster)) == (:X, :Y, :Ti)
     @test length(dims(zraster, X)) == 144
-    @test index(zraster,X) == collect(-178.75:2.5:178.75)
+    @test lookup(zraster,X) == collect(-178.75:2.5:178.75)
     # TODO the spatial bounds are strange, because the data is point data
     # We should find a dataset that has actual intervals
 
@@ -143,18 +152,22 @@ end
         write(fn, ra)
         @test all(Raster(fn) .=== ra)
         # Currently broken in ZarrDatasets.jl
-        # x = Raster(fn; lazy=true)
-        # open(x; write=true) do O
-        #     O .= 1
-        # end
-        # all(Raster(fn) .== 1)
+        x = Raster(fn; lazy=true)
+        open(x; write=true) do O
+            O .= 1
+        end
+        all(Raster(fn) .== 1)
     end
 end
 
 
+zarrstack = RasterStack(path; lazy=true)
 @testset "RasterStack" begin
-    st = RasterStack(path; lazy=true)
-    @test all(st.snow_sublimation .=== Raster(path; name=:snow_sublimation))
+    @test all(zarrstack.snow_sublimation .=== Raster(path; name=:snow_sublimation))
 end
-
+@testset "RasterStack from dataset" begin
+    ds = ZarrDatasets.ZarrDataset(path)
+    dsstack = RasterStack(ds; lazy=true)
+    @test dims(dsstack) == dims(zarrstack)
+    @test size(dsstack) == size(zarrstack)
 end

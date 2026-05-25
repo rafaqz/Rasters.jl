@@ -1,3 +1,5 @@
+const AGDataset = Union{AG.Dataset,AG.IDataset}
+
 const GDAL_LOCUS = Start()
 
 const GDAL_DIM_ORDER = (X(), Y(), Band())
@@ -32,15 +34,24 @@ const GDAL_VIRTUAL_FILESYSTEMS = "/vsi" .* (
     "mem",
     "subfile",
     "sparse",
-    )
+)
 
 
 # TODO more cases of return values here, like wrapped disk arrays
-RA.sourcetrait(A::AG.RasterDataset) = GDALsource()
-RA.sourcetrait(A::AG.Dataset) = GDALsource()
+RA.sourcetrait(::AG.RasterDataset) = GDALsource()
+RA.sourcetrait(::AGDataset) = GDALsource()
 
 RA.cleanreturn(A::AG.RasterDataset) = Array(A)
 RA.haslayers(::GDALsource) = false
+
+function RA.filename(ds::Union{AGDataset,AG.RasterDataset})
+    filelist = AG.filelist(ds)
+    if length(filelist) == 0
+        return nothing
+    else
+        return first(filelist)
+    end
+end
 
 function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRasterStack; kw...)
     ext = splitext(filename)[2]
@@ -71,7 +82,7 @@ function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster{T}
         if write
             mod = RA._mod(eltype, missingval_pair, scale, offset, coerce)
             open(A1; write=true) do O
-                R = RA._maybe_modify(AG.RasterDataset(dataset), mod)
+                R = RA.ModifiedDiskArray(AG.RasterDataset(dataset), mod)
                 R .= parent(O)
                 if hasdim(A, Band())
                     f(R)
@@ -109,6 +120,8 @@ function RA._open(f, ::GDALsource, filename::AbstractString;
         RA.cleanreturn(f(RA._maybe_modify(A, mod))) 
     end
 end
+RA._open(f, source::GDALsource, ds::AGDataset; kw...) =
+    RA._open(f, source, AG.RasterDataset(ds); kw...)
 RA._open(f, ::GDALsource, A::AG.RasterDataset; mod=RA.NoMod(), kw...) =
     RA.cleanreturn(f(RA._maybe_modify(A, mod)))
 
@@ -212,7 +225,7 @@ function RA._metadata(rds::AG.RasterDataset, args...)
     offset = AG.getoffset(band)
     # norvw = AG.noverview(band)
     units = AG.getunittype(band)
-    filepath = _getfilepath(rds)
+    filepath = RA.filename(rds)
     # Set metadata if they are not default values
     if scale != oneunit(scale) 
         metadata["scale"] = scale 
@@ -232,18 +245,9 @@ end
 # Rasters methods for ArchGDAL types ##############################
 
 # Create a Raster from a dataset
-RA.Raster(ds::AG.Dataset; kw...) = Raster(AG.RasterDataset(ds); kw...)
-function RA.Raster(ds::AG.RasterDataset; lazy=false, kw...) 
-    filepath = if lazy
-        fp = _getfilepath(ds)
-        isnothing(fp) ? "/vsimem" : fp
-    else
-        ""
-    end
-    Raster(ds, filepath; kw...)
-end
+RA.Raster(ds::AG.RasterDataset; kw...) = _raster(ds; kw...)
 
-RA.missingval(ds::AG.Dataset, args...) = RA.missingval(AG.RasterDataset(ds))
+RA.missingval(ds::AGDataset, args...) = RA.missingval(AG.RasterDataset(ds))
 function RA.missingval(rds::AG.RasterDataset, args...)
     # All bands have the same missingval in GDAL
     band = AG.getband(rds.ds, 1)
@@ -296,7 +300,7 @@ function AG.RasterDataset(f::Function, A::AbstractRaster;
             rds = AG.RasterDataset(dataset)
             mv = RA.missingval(rds) => RA.missingval(O)
             mod = RA._mod(eltype, mv, scale, offset, coerce)
-            RA._maybe_modify(rds, mod) .= parent(O)
+            RA.ModifiedDiskArray(rds, mod) .= parent(O)
             f(rds)
         end
     end
@@ -330,13 +334,10 @@ function _check_driver(::Nothing, driver)
 end
 function _check_driver(filename::AbstractString, driver)
     if isnokwornothing(driver) || isempty(driver)
-        if isempty(filename)
-            driver = "MEM"
+        driver = if isempty(filename)
+            "MEM"
         else
-            driver = AG.extensiondriver(filename)
-            if driver == "COG"
-                driver = "GTiff"
-            end
+            _extensiondriver(filename)
         end
     end
     return driver
@@ -357,7 +358,6 @@ function _create_with_driver(f, filename, dims::Tuple, T;
 )
     # Allow but discourage south-up
     verbose && _maybe_warn_south_up(dims, verbose, "Creating a South-up raster. You may wish to reverse the `Y` dimension to use conventional North-up")
-    options = isnokwornothing(options) ? Dict{String,String}() : options
 
     # Pairs should not get this far
     @assert !(missingval isa Pair)
@@ -393,7 +393,7 @@ function _create_with_driver(f, filename, dims::Tuple, T;
     else
         # Create a tif and copy it to `filename`, as ArchGDAL.create
         # does not support direct creation of ASCII etc. rasters
-        tif_options_vec = _process_options("GTiff", Dict{String,String}(); 
+        tif_options_vec = _process_options("GTiff", nothing; 
             chunks, _block_template, verbose
         )
         tif_driver = AG.getdriver("GTiff")
@@ -419,12 +419,16 @@ end
 end
 
 # Convert a Dict of options to a Vector{String} for GDAL
+_process_options(driver::String, options; kw...) = 
+    _process_options(driver, Dict(options); kw...)
+_process_options(driver::String, options::Union{Nothing,NoKW}; kw...) = 
+    _process_options(driver, Dict{String,String}(); kw...) 
 function _process_options(driver::String, options::Dict; 
     chunks=nokw,
     _block_template=nothing,
     verbose=true,
 )
-    options_str = Dict(string(k)=>string(v) for (k,v) in options)
+    options_str = Dict(string(k) => _gdal_option_string(v) for (k, v) in options)
     # Get the GDAL driver object
     gdaldriver = AG.getdriver(driver)
 
@@ -469,7 +473,7 @@ function _process_options(driver::String, options::Dict;
         end
     end
     # if the input is unchunked we just use the driver defaults
-    options_vec = ["$(uppercase(k))=$(uppercase(v))" for (k,v) in options_str]
+    options_vec = ["$(uppercase(k))=$(uppercase(v))" for (k, v) in options_str]
 
     invalid_options = String[]
     for option in options_vec
@@ -487,6 +491,9 @@ function _process_options(driver::String, options::Dict;
     return options_vec
 end
 
+_gdal_option_string(x) = string(x)
+_gdal_option_string(x::Bool) = x ? "YES" : "NO"
+
 # Bands can have text names, but usually don't
 function _bandnames(rds::AG.RasterDataset, nbands=AG.nraster(rds))
     map(1:nbands) do b
@@ -496,7 +503,7 @@ function _bandnames(rds::AG.RasterDataset, nbands=AG.nraster(rds))
     end
 end
 
-function _gdalmetadata(dataset::AG.Dataset, name)
+function _gdalmetadata(dataset::AGDataset, name)
     meta = AG.metadata(dataset)
     regex = Regex("$name=(.*)")
     i = findfirst(f -> occursin(regex, f), meta)
@@ -509,9 +516,9 @@ end
 
 # Set the properties of an ArchGDAL Dataset to match
 # the dimensions and missingval of a Raster
-_set_dataset_properties!(ds::AG.Dataset, A, scale, offset) =
+_set_dataset_properties!(ds::AGDataset, A, scale, offset) =
     _set_dataset_properties!(ds, dims(A), missingval(A), scale, offset)
-function _set_dataset_properties!(dataset::AG.Dataset, dims::Tuple, missingval, scale, offset)
+function _set_dataset_properties!(dataset::AGDataset, dims::Tuple, missingval, scale, offset)
     # We cant write mixed Points/Intervals, so default to Intervals if mixed
     xy = DD.dims(dims, (X, Y))
     if any(x -> x isa Intervals, map(sampling, xy)) && any(x -> x isa Points, map(sampling, xy))
@@ -581,6 +588,7 @@ function _extensiondriver(filename::AbstractString)
         "MEM"
     elseif splitext(filename)[2] == ".tif"
         # Force GTiff as the default for .tif because COG cannot do `create` yet
+        # And LIBERTIFF might be given, which also cant create
         "GTiff"
     else
         AG.extensiondriver(filename)
@@ -669,7 +677,7 @@ end
 #     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
 
 #     for T in (Any, UInt8, UInt16, Int16, UInt32, Int32, Float32, Float64)
-#         DS = AG.RasterDataset{T,AG.Dataset}
+#         DS = AG.RasterDataset{T,AGDataset}
 #         precompile(crs, (DS,))
 #         precompile(Rasters.FileArray, (DS, String))
 #         precompile(dims, (DS,))

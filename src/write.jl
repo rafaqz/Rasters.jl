@@ -71,8 +71,7 @@ Base.write(A::AbstractRaster; kw...) = write(filename(A), A; kw...)
 function Base.write(
     filename::AbstractString, source::Source, A::Union{AbstractRaster,AbstractRasterStack}; kw...
 )
-    missing_package = SOURCE2PACKAGENAME[source]
-    error("Missing package extension for $source. Run `using $missing_package` before using `write` for this file extension.")
+    throw(BackendException(source))
 end
 
 """
@@ -134,7 +133,7 @@ function Base.write(path::AbstractString, s::AbstractRasterStack{K};
         end |> NamedTuple{K}
         # TODO build this into write by keeping the file open
         if f != identity
-            st = RasterStack(filenames; lazy=true)
+            st = RasterStack(filenames; lazy=true, source, missingval)
             open(st; write=true) do O
                 f(parent(O))
             end
@@ -187,7 +186,7 @@ function Base.write(path::AbstractString, A::AbstractRasterSeries;
     base, path_ext = splitext(path)
     ext = isnothing(ext) ? path_ext : ext
     map(A, DimPoints(A)) do raster, p
-        lookupstring = join(map(string, p), "_")
+        lookupstring = join(map(string, p), "_")::String
         written_paths = if raster isa RasterStack && !haslayers(source)
             stack_dir = joinpath(dirname(base), lookupstring)
             mkpath(stack_dir)

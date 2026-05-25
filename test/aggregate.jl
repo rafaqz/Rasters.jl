@@ -56,8 +56,8 @@ series = RasterSeries([stack1, stack2], (Ti(dates),))
     @test index(aglat) == LinRange(-5.0, 10.0, 2)
     disaglat = disaggregate(aglat, 3)
     # The last item is lost due to rounding in `aggregate`
-    @test index(disaglat) != index(dimz[2])
-    @test index(disaglat) === LinRange(-10.0, 15.0, 6)
+    @test lookup(disaglat) != lookup(dimz[2])
+    @test parent(lookup(disaglat)) === LinRange(-10.0, 15.0, 6)
     @test span(disaglat) == span(dimz[2])
     @test sampling(disaglat) == sampling(dimz[2])
 
@@ -260,4 +260,28 @@ end
             @test Rasters.bounds(x) == Rasters.bounds(xag) == Rasters.bounds(xdisag)
         end
     end
+end
+
+@testset "aggregate with integer types does not overflow" begin
+    uint8_a = Raster(fill(UInt8(200), (X(1:2), Y(1:2))))
+    int8_a = Raster(fill(Int8(100), (X(1:2), Y(1:2))))
+
+    # Summing four UInt8(200) values will overflow UInt8, should return UInt
+    sum_uint8 = aggregate(sum, uint8_a, 2)
+    @test eltype(sum_uint8) == UInt
+    @test sum_uint8[1, 1] == 800
+
+    # Summing four Int8(100) values will overflow Int8, should return Int
+    sum_int8 = aggregate(sum, int8_a, 2)
+    @test eltype(sum_int8) == Int
+    @test sum_int8[1, 1] == 400
+
+    # Mean should return Float64
+    mean_uint8 = aggregate(mean, uint8_a, 2)
+    @test eltype(mean_uint8) == Float64
+    @test mean_uint8[1, 1] == 200.0
+
+    mean_int8 = aggregate(mean, int8_a, 2)
+    @test eltype(mean_int8) == Float64
+    @test mean_int8[1, 1] == 100.0
 end

@@ -19,7 +19,7 @@ using Rasters: GDALsource, AbstractProjected, AbstractRaster, AbstractRasterStac
     GDAL_EMPTY_TRANSFORM, GDAL_TOPLEFT_X, GDAL_WE_RES, GDAL_ROT1, GDAL_TOPLEFT_Y, GDAL_ROT2, GDAL_NS_RES,
     _no_crs_error
 
-import Rasters: reproject, resample, warp, cellsize, nokw, isnokw, isnokwornothing
+import Rasters: reproject, resample, warp, cellsize, nokw, isnokw, isnokwornothing, combine
 
 import LinearAlgebra: dot, cross
 
@@ -30,6 +30,8 @@ const DD = DimensionalData
 const DA = DiskArrays
 const GI = GeoInterface
 const LA = Lookups
+
+Rasters.is_loaded(::Rasters.ArchGDALExt) = true
 
 include("gdal_source.jl")
 include("resample.jl")

@@ -72,7 +72,7 @@ function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim},
     reshape(_reproject(source, target, dim, vec(vals)), size(vals))
 end
 function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim}, vals::AbstractVector) 
-    throw_extension_error(reproject, "Proj", :RastersProjExt, (source, target, dim, vals))
+    throw_extension_error(reproject, ProjExt(), (source, target, dim, vals))
 end
 
 # Guess the step for arrays

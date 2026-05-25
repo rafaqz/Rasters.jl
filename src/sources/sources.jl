@@ -72,13 +72,21 @@ function Base.showerror(io::IO, e::BackendException)
     print(io, " to fix this error.")
 end
 
+# Dataset constructor from `Source`
+sourceconstructor(s::Source) = throw(BackendException(s))
+# Function to check filename
+checkfilename(s::Source, filename) = throw(BackendException(s))
+
 # Get the source backend for a file extension, falling back to GDALsource
+sourcetrait(x) = 
+    throw(ArgumentError("`sourcetrait` is not defined for $(typeof(x))"))
 sourcetrait(filename::AbstractString, s::Symbol) = sourcetrait(s)
 sourcetrait(filename::AbstractString, s::Source) = s
 sourcetrait(filename::AbstractString, ::Type{S}) where S<:Source = S()
 sourcetrait(filename::AbstractString, ::Union{Nothing,NoKW}) = sourcetrait(filename)
 sourcetrait(filename::AbstractString, ext::AbstractString) = get(EXT2SOURCE, ext, GDALsource())
 function sourcetrait(filename::AbstractString)
+    isempty(filename) && throw(ArgumentError("Filename cannot be empty"))
     default = GDALsource()
     stem, ext = splitext(filename)
     str = if ext == ""  

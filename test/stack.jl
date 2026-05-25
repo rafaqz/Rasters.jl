@@ -20,7 +20,7 @@ st = RasterStack((raster1, raster2); name=(:r1, :r2))
     @test_throws ArgumentError RasterStack("notastack")
     md = Dict("a" => 1)
     # Maybe too many ways to define a stack...
-    kw = (; missingval=(r1=mval, r2=mval), refdims=(Ti(),), metadata=md, crs=EPSG(4326), mappedcrs=EPSG(3857), layermetadata=(r1=md, r2=md))
+    kw = (; missingval=(r1=mval, r2=mval), refdims=(Ti([DateTime(2020)]),), metadata=md, crs=EPSG(4326), mappedcrs=EPSG(3857), layermetadata=(r1=md, r2=md))
     st1 = RasterStack((raster1, raster2); name=(:r1, :r2), kw...)
     st2 = RasterStack((data1, data2), dims2; name=[:r1, :r2], kw...)
     st3 = RasterStack(st2; kw...)
@@ -31,11 +31,19 @@ st = RasterStack((raster1, raster2); name=(:r1, :r2))
     @test st1 == st2 == st3 == st4 == st5 == st6
     @test all(==((:r1, :r2)), map(name, stacks))
     @test all(==(mval), map(missingval, stacks))
-    @test all(==((Ti(),)), map(refdims, stacks))
+    @test all(st -> refdims(st)[1] isa Ti, stacks)
     @test all(==(md), map(metadata, stacks))
     @test all(==(EPSG(4326)), map(crs, stacks))
     @test all(==(EPSG(3857)), map(mappedcrs, stacks))
     @test all(==((r1=md, r2=md)), map(DimensionalData.layermetadata, stacks))
+    @testset "empty constructor" begin
+        @test layers(RasterStack()) == (;)
+        @test dims(RasterStack()) == ()
+        @test dims(RasterStack(; dims=(), layerdims=(;))) == ()
+        @test dims(RasterStack(; dims=(X(1:3),))) == (Rasters.format(X(1:3)),)
+        # layerdims that don't match the empty NamedTuple should error
+        @test_throws ArgumentError RasterStack(; dims=(X(1:3),), layerdims=(; a=(X(),)))
+    end
 
     # The dimension differences are lost because the table
     # is tidy - every column is the same length
@@ -60,8 +68,8 @@ end
 
 @testset "stack fields" begin
     @test DimensionalData.layerdims(st, :r1) == DimensionalData.format(dims1, data1)
+    @test DimensionalData.layermetadata(st, :r1) == NoMetadata()
     @test metadata(st) == NoMetadata()
-    @test metadata(st, :r1) == NoMetadata()
 end
 
 @testset "indexing" begin

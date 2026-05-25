@@ -1,4 +1,4 @@
-using Rasters, Test, GRIBDatasets
+using Rasters, Test, GRIBDatasets, CommonDataModel
 using Rasters: FileArray, FileStack, GRIBsource
 using Rasters.Lookups, Rasters.Dimensions
 using Statistics
@@ -31,9 +31,19 @@ v = ds[:z]
 @testset "Raster" begin
     @time gribarray = Raster(era5)
     @time lazyarray = Raster(era5; lazy=true)
-    @time lazystack = RasterStack(era5; lazy=true);
+    @time lazystack = RasterStack(era5; lazy=true)
     @time eagerstack = RasterStack(era5; lazy=false)
     @time ds = GRIBDataset(era5);
+
+    @testset "Raster from dataset" begin
+        dsarray = Raster(ds)
+        var = CommonDataModel.variable(ds, "z")
+        dsarray = Raster(ds; name=:z)
+        vararray = Raster(ds; name=:z)
+        @test dims(dsarray) == dims(vararray) == dims(gribarray)
+        @test size(dsarray) == size(vararray) == size(gribarray)
+        @test all(dsarray .=== vararray .=== gribarray)
+    end
 
     @testset "lazyness" begin
         @test parent(gribarray) isa Array
@@ -138,16 +148,34 @@ v = ds[:z]
             ser = Rasters.slice(gribarray, Ti) 
             @test ser isa RasterSeries
             @test size(ser) == (4,)
-            @test index(ser, Ti) == DateTime(2017, 1, 1):Hour(12):DateTime(2017, 1, 2, 12)
+            @test lookup(ser, Ti) == DateTime(2017, 1, 1):Hour(12):DateTime(2017, 1, 2, 12)
             @test Rasters.bounds(ser) == ((DateTime(2017, 1, 1), DateTime(2017, 1, 2, 12)),)
             A = ser[1]
-            @test index(A, Y) == 90.0:-3.0:-90.0
-            @test index(A, X) == 0.0:3.0:357.0
+            @test lookup(A, Y) == 90.0:-3.0:-90.0
+            @test lookup(A, X) == 0.0:3.0:357.0
         end
     end
 
     @testset "selectors" begin
         a = gribarray[X(At(21.0)), Y(Between(50, 52)), Ti(Near(DateTime(2002, 12)))]
         @test Rasters.bounds(a) == ((51.0, 51.0), (500, 850), (0, 9))
+    end
+end
+
+@testset "RasterStack" begin
+    gribstack = RasterStack(era5; lazy=true)
+    gribstackraw = RasterStack(era5; lazy=true, raw=true)
+    @testset "RasterStack" begin
+        @test all(read(gribstack.z) .=== Raster(era5; name=:z))
+    end
+    @testset "RasterStack from dataset" begin
+        dsstack = RasterStack(ds; lazy=true)
+        @test dims(dsstack) == dims(gribstack)
+        @test size(dsstack) == size(gribstack)
+    end
+    @testset "open a stack" begin
+        Rasters.DiskArrays.allowscalar(true)
+        @test open(first, gribstack) == open(first, gribstackraw) == gribstack[1]
+        Rasters.DiskArrays.allowscalar(true)
     end
 end

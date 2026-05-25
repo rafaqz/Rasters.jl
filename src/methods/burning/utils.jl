@@ -7,7 +7,7 @@ _geomindices(::GI.AbstractGeometryTrait, geoms) = 1:GI.ngeom(geoms)
 _getgeom(geoms, i::Integer) = __getgeom(GI.trait(geoms), geoms, i)
 __getgeom(::GI.FeatureCollectionTrait, geoms, i::Integer) = GI.geometry(GI.getfeature(geoms, i))
 __getgeom(::GI.FeatureTrait, geoms, i::Integer) = GI.getgeom(GI.geometry(geoms), i)
-__getgeom(::GI.AbstractGeometryTrait, geoms, i::Integer) = GI.getgeom(geom, i)
+__getgeom(::GI.AbstractGeometryTrait, geoms, i::Integer) = GI.getgeom(geoms, i)
 __getgeom(::GI.PointTrait, geom, i::Integer) = error("PointTrait should not be reached")
 __getgeom(::Nothing, geoms, i::Integer) = geoms[i] # Otherwise we can probably just index?
 

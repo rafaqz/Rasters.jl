@@ -1,4 +1,4 @@
-using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots
+using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots, CommonDataModel
 
 using Rasters.Lookups, Rasters.Dimensions
 using Rasters.DiskArrays
@@ -7,7 +7,7 @@ using Rasters: FileArray, FileStack, NCDsource, crs, bounds, name, trim, metadat
 testdir = realpath(joinpath(dirname(pathof(Rasters)), "../test"))
 include(joinpath(testdir, "test_utils.jl"))
 
-ncexamples = "https://www.unidata.ucar.edu/software/netcdf/examples/"
+ncexamples = "https://archive.unidata.ucar.edu/software/netcdf/examples/"
 ncsingle = maybedownload(joinpath(ncexamples, "tos_O1_2001-2002.nc"))
 ncmulti = maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
 maybedownload(joinpath(ncexamples, "test_echam_spectral.nc"))
@@ -45,10 +45,20 @@ stackkeys = (
 end
 
 @testset "Raster" begin
-    @time ncarray = Raster(ncsingle);
+    @time ncarray = Raster(ncsingle)
     @time lazyarray = Raster(ncsingle; lazy=true)
     @time eagerarray = Raster(ncsingle; lazy=false)
     @test_throws ArgumentError Raster("notafile.nc")
+
+    @testset "Raster from dataset" begin
+        ds = NCDatasets.Dataset(ncsingle)
+        var = CommonDataModel.variable(ds, "tos")
+        dsarray = Raster(ds; name=:tos)
+        vararray = Raster(ds; name=:tos)
+        @test dims(dsarray) == dims(vararray) == dims(ncarray)
+        @test size(dsarray) == size(vararray) == size(ncarray)
+        @test all(dsarray .=== vararray .=== ncarray)
+    end
 
     @testset "lazyness" begin
         # Eager is the default
@@ -58,33 +68,45 @@ end
         @time read(lazyarray);
     end
 
-    @testset "scaling and masking" begin 
-        @time cfarray = Raster(ncsingle)
-        @time cfarray = Raster(ncsingle)
-        @time cf_nomask_array = Raster(ncsingle; missingval=nothing)
-        @time nocfarray = Raster(ncsingle; scaled=false)
-        @time nocf_nomask_array = Raster(ncsingle; scaled=false, missingval=nothing)
+    @testset "scaling masking and missing" begin 
+        @time nomissing_array = Raster(ncsingle; missingval=nothing)
+        @time noscaled_array = Raster(ncsingle; scaled=false)
+        @time noscaled_nomissing_array = Raster(ncsingle; scaled=false, missingval=nothing)
         @time raw_array = Raster(ncsingle; raw=true)
-        @time lazycfarray = Raster(ncsingle; lazy=true, scaled=false)
-        @time lazynocfarray = Raster(ncsingle; lazy=true, scaled=false)
-        @time lazynocf_nomask_array = Raster(ncsingle; lazy=true, scaled=false, missingval=nothing)
-        @test missingval(cfarray) === missing
-        @test missingval(nocfarray) === missing
-        @test missingval(cf_nomask_array) === nothing
-        @test missingval(nocf_nomask_array) === nothing
+        @time lazy_noscaled_array = Raster(ncsingle; lazy=true, scaled=false)
+        @time lazy_noscaled_nomissing_array = Raster(ncsingle; lazy=true, scaled=false, missingval=nothing)
+        @time lazy_raw_array = Raster(ncsingle; lazy=true, raw=true)
+
+        # Test missing values
+        @test missingval(ncarray) === missing
+        @test missingval(noscaled_array) === missing
+        @test missingval(nomissing_array) === nothing
+        @test missingval(nomissing_array) === nothing
+        @test missingval(lazy_noscaled_array) === missing
+        @test missingval(lazy_noscaled_nomissing_array) === nothing
         @test missingval(raw_array) === 1.0f20
-        @test all(skipmissing(cfarray) .=== skipmissing(nocfarray))
-        @test parent(cfarray) isa Array{Union{Float32,Missing}}
-        @test parent(nocfarray) isa Array{Union{Float32,Missing}}
-        @test parent(nocf_nomask_array) isa Array{Float32}
+        @test missingval(lazy_raw_array) === 1.0f20
+        @test all(skipmissing(ncarray) .=== skipmissing(raw_array))
+
+        # Test parent types
+        @test parent(ncarray) isa Array{Union{Float32,Missing}}
+        @test parent(noscaled_array) isa Array{Union{Float32,Missing}}
+        @test parent(noscaled_nomissing_array) isa Array{Float32}
         @test parent(raw_array) isa Array{Float32}
-        open(lazycfarray) do A
-            @test parent(A) isa Rasters.ModifiedDiskArray{false,Union{Missing,Float32}}
+        open(lazyarray) do A
+            @test parent(A) isa Rasters.ModifiedDiskArray{Union{Missing,Float32}}
+            @test parent(parent(A)) isa NCDatasets.Variable{Float32}
         end
-        open(lazynocfarray) do A
-            @test parent(A) isa Rasters.ModifiedDiskArray{false,Union{Missing,Float32}}
+        open(lazy_noscaled_array) do A
+            @test parent(A) isa Rasters.ModifiedDiskArray{Union{Missing,Float32}}
+            @test parent(parent(A)) isa NCDatasets.Variable{Float32}
         end
-        open(lazynocf_nomask_array) do A
+        open(lazy_noscaled_nomissing_array) do A
+            @test parent(A) isa Rasters.ModifiedDiskArray{Float32}
+            @test parent(parent(A)) isa NCDatasets.Variable{Float32}
+        end
+        open(lazy_raw_array) do A
+            @test parent(A) isa Rasters.ModifiedDiskArray{Float32}
             @test parent(parent(A)) isa NCDatasets.Variable{Float32}
         end
     end
@@ -129,9 +151,9 @@ end
     @testset "array properties" begin
         @test size(ncarray) == (180, 170, 24)
         @test ncarray isa Raster
-        @test index(ncarray, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
-        @test index(ncarray, Y) == -79.5:89.5
-        @test index(ncarray, X) == 1.0:2:359.0
+        @test lookup(ncarray, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
+        @test lookup(ncarray, Y) == -79.5:89.5
+        @test lookup(ncarray, X) == 1.0:2:359.0
         @test bounds(ncarray) == (
             (0.0, 360.0), 
             (-80.0, 90.0), 
@@ -211,8 +233,9 @@ end
             A2 = ncarray[X(50:150), Y(90:150)]
             tempfile = tempname() * ".nc"
             Afile = mosaic(first, A1, A2; 
-                atol=1e-7, filename=tempfile, force=true
+                atol=1e-7, filename=tempfile, force=true, chunks=(128, 128), deflatelevel=2
             ) |> read
+            @test Rasters.eachchunk(Raster(tempfile; lazy=true))[1] == (1:128, 1:128, 1:1)
             Amem = mosaic(first, A1, A2; atol=1e-7)
             Atest = ncarray[X(1:150), Y(1:150)]
             Atest[X(1:49), Y(101:150)] .= missing
@@ -224,11 +247,11 @@ end
             ser = Rasters.slice(ncarray, Ti) 
             @test ser isa RasterSeries
             @test size(ser) == (24,)
-            @test index(ser, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
+            @test lookup(ser, Ti) == DateTime360Day(2001, 1, 16):Month(1):DateTime360Day(2002, 12, 16)
             @test bounds(ser) == ((DateTime360Day(2001, 1, 1), DateTime360Day(2003, 1, 1)),)
             A = ser[1]
-            @test index(A, Y) == -79.5:89.5
-            @test index(A, X) == 1.0:2:359.0
+            @test lookup(A, Y) == -79.5:89.5
+            @test lookup(A, X) == 1.0:2:359.0
             @test bounds(A) == ((0.0, 360.0), (-80.0, 90.0))
         end
     end
@@ -253,10 +276,10 @@ end
         dimz = X(Between(-0.0, 360)), Y(Between(-90, 90)), 
                Ti(Between(DateTime360Day(2001, 1, 1), DateTime360Day(2003, 01, 02)))
         @test size(ncarray[dimz...]) == (180, 170, 24)
-        @test index(ncarray[dimz...]) == index(ncarray)
+        @test lookup(ncarray[dimz...]) == lookup(ncarray)
         nca = ncarray[Y(Between(-80, -25)), X(Between(-0.0, 180.0)), Ti(Contains(DateTime360Day(2002, 02, 20)))]
         @test size(nca) == (90, 55)
-        @test index(nca, Y) == index(ncarray[1:90, 1:55, 2], Y)
+        @test lookup(nca, Y) == lookup(ncarray[1:90, 1:55, 2], Y)
         @test all(nca .=== ncarray[1:90, 1:55, 14])
     end
 
@@ -299,7 +322,7 @@ end
             @test all(val.(span.(dims(saved))) .== val.(span.(dims(ncarray))))
             @test all(sampling.(dims(saved)) .== sampling.(dims(ncarray)))
             @test typeof(dims(saved)) <: typeof(dims(ncarray))
-            @test index(saved, 3) == index(ncarray, 3)
+            @test lookup(saved, 3) == lookup(ncarray, 3)
             @test all(val.(dims(saved)) .== val.(dims(ncarray)))
             @test all(parent(saved) .=== parent(ncarray))
             @test saved isa typeof(ncarray)
@@ -365,8 +388,8 @@ end
             @test convert(ProjString, crs(gdalarray)) == convert(ProjString, EPSG(4326))
             @test bounds(gdalarray) == bounds(nccleaned)
             # Tiff locus = Start, Netcdf locus = Center
-            @test index(gdalarray, Y) .+ 0.5 ≈ index(nccleaned, Y)
-            @test index(gdalarray, X) .+ 1.0  ≈ index(nccleaned, X)
+            @test lookup(gdalarray, Y) .+ 0.5 ≈ lookup(nccleaned, Y)
+            @test lookup(gdalarray, X) .+ 1.0  ≈ lookup(nccleaned, X)
             @test parent(gdalarray) ≈ parent(nccleaned)
         end
 
@@ -379,8 +402,8 @@ end
             grdarray = Raster(fn, missingval=nothing);
             @test crs(grdarray) == convert(ProjString, EPSG(4326))
             @test bounds(grdarray) == bounds(nccleaned)
-            @test index(grdarray, Y) ≈ reverse(index(nccleaned, Y)) .- 0.5
-            @test index(grdarray, X) ≈ index(nccleaned, X) .- 1.0
+            @test lookup(grdarray, Y) ≈ reverse(lookup(nccleaned, Y)) .- 0.5
+            @test lookup(grdarray, X) ≈ lookup(nccleaned, X) .- 1.0
             @test parent(reverse(grdarray; dims=Y)) ≈ parent(nccleaned)
         end
 
@@ -420,6 +443,13 @@ end
         ncarray[Y(100), Ti(1)] |> plot
     end
 
+    @testset "read and write String" begin
+        rast = Raster(fill("x", X(1:10), Y(1:10)))
+        filename = tempname() * ".nc"
+        write(filename, rast)
+        @test Raster(filename) == rast
+    end
+
 end
 
 @testset "Single file stack" begin
@@ -433,6 +463,13 @@ end
         @test parent(ncstack[:xi]) isa Array
         @test parent(lazystack[:xi]) isa FileArray
         @test parent(eagerstack[:xi]) isa Array
+    end
+
+    @testset "RasterStack from dataset" begin
+        ds = NCDatasets.Dataset(ncmulti)
+        dsstack = RasterStack(ds)
+        @test dims(dsstack) == dims(ncstack)
+        @test size(dsstack) == size(ncstack)
     end
 
     @testset "source" begin
@@ -503,14 +540,12 @@ end
         end |> all
     end
 
-    if VERSION > v"1.1-"
-        @testset "copy" begin
-            geoA = read(ncstack[:albedo]) .* 2
-            copy!(geoA, ncstack, :albedo);
-            # First wrap with Raster() here or == loads from disk for each cell.
-            # we need a general way of avoiding this in all disk-based sources
-            @test geoA == read(ncstack[:albedo])
-        end
+    @testset "copy" begin
+        geoA = read(ncstack[:albedo]) .* 2
+        copy!(geoA, ncstack, :albedo);
+        # First wrap with Raster() here or == loads from disk for each cell.
+        # we need a general way of avoiding this in all disk-based sources
+        @test geoA == read(ncstack[:albedo])
     end
 
     @testset "indexing" begin

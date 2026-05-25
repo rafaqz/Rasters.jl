@@ -34,6 +34,7 @@ grdpath = stem * ".gri"
         @test missingval(missingarray) === missing
         @test eltype(missingarray) === Union{Missing,Float32}
         @time missingarray = Raster(grdpath; missingval)
+        @time rawarray = Raster(grdpath; raw=true)
         @test missingval(missingarray) === -3.4f38
         @test eltype(missingarray) === Float32
         @time missingarray = Raster(grdpath; missingval=missingval => NaN32)
@@ -94,7 +95,7 @@ grdpath = stem * ".gri"
     @testset "custom keywords" begin
         customgrdarray = Raster(grdpath; 
             name=:test, crs=EPSG(1000), mappedcrs=EPSG(4326), refdims=(Ti(),),
-            write=true, lazy=true, dropband=false, replace_missing=true,
+            write=true, lazy=true, dropband=false,
         )
         @test name(customgrdarray) == :test
         @test refdims(customgrdarray) == (Ti(),)
@@ -258,8 +259,8 @@ grdpath = stem * ".gri"
             saved = Raster(filename2; crs=crs(grdarray))
             @test size(saved) == size(grdarray[Band(1)])
             @test all(parent(saved) .≈ parent(grdarray[Band(1)]))
-            @test index(saved, X) ≈ index(grdarray, X) .+ 0.5
-            @test index(saved, Y) ≈ index(grdarray, Y) .+ 0.5
+            @test lookup(saved, X) ≈ lookup(grdarray, X) .+ 0.5
+            @test lookup(saved, Y) ≈ lookup(grdarray, Y) .+ 0.5
             @test bounds(saved, Y) == bounds(grdarray, Y)
             @test bounds(saved, X) == bounds(grdarray, X)
             write(filename2, grdarray; force = true)
@@ -325,12 +326,6 @@ end
         @test parent(eagerstack[:a]) isa Array
     end
 
-    @testset "replace_missing keyword" begin
-        st = RasterStack((a=grdpath, b=grdpath); replace_missing=true)
-        @test eltype(st) == @NamedTuple{a::Union{Missing,Float32},b::Union{Missing,Float32}}
-        @test missingval(st) === missing
-    end
-
     @test length(layers(grdstack)) == 2
     @test dims(grdstack) isa Tuple{<:X,<:Y,<:Band}
 
@@ -359,14 +354,12 @@ end
         @test keys(smallstack) == (:a,)
     end
 
-    if VERSION > v"1.1-"
-        @testset "copy" begin
-            geoA = zero(Raster(grdstack[:a]))
-            copy!(geoA, grdstack, :a)
-            # First wrap with Raster() here or == loads from disk for each cell.
-            # we need a general way of avoiding this in all disk-based sources
-            @test geoA == Raster(grdstack[:a])
-        end
+    @testset "copy" begin
+        geoA = zero(Raster(grdstack[:a]))
+        copy!(geoA, grdstack, :a)
+        # First wrap with Raster() here or == loads from disk for each cell.
+        # we need a general way of avoiding this in all disk-based sources
+        @test geoA == Raster(grdstack[:a])
     end
 
     @testset "write" begin
@@ -426,14 +419,12 @@ end
         @test keys(smallstack) == (:Band_2,)
     end
 
-    if VERSION > v"1.1-"
-        @testset "copy" begin
-            geoA = zero(Raster(grdstack[:Band_3]))
-            copy!(geoA, grdstack, :Band_3)
-            # First wrap with Raster() here or == loads from disk for each cell.
-            # we need a general way of avoiding this in all disk-based sources
-            @test geoA == Raster(grdstack[:Band_3])
-        end
+    @testset "copy" begin
+        geoA = zero(Raster(grdstack[:Band_3]))
+        copy!(geoA, grdstack, :Band_3)
+        # First wrap with Raster() here or == loads from disk for each cell.
+        # we need a general way of avoiding this in all disk-based sources
+        @test geoA == Raster(grdstack[:Band_3])
     end
 
     @testset "save" begin

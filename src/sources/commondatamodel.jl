@@ -1,5 +1,7 @@
 const CDM = CommonDataModel
 
+const CDMallowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
+
 const UNNAMED_FILE_KEY = "unnamed"
 
 const CDM_DIM_MAP = Dict(
@@ -35,10 +37,8 @@ const CDM_STANDARD_NAME_MAP = Dict(
 
 # `Source`` from variables and datasets
 sourcetrait(var::CDM.CFVariable) = sourcetrait(var.var)
-# Dataset constructor from `Source`
-sourceconstructor(source::Source) = sourceconstructor(typeof(source))
-# Function to check filename
-checkfilename(s::CDMsource, filename) = throw(BackendException(s))
+# CDM datasets are always multilayer
+check_multilayer_dataset(ds::CDM.AbstractDataset) = true
 
 # Find and check write modes
 function checkwritemode(::CDMsource, filename, append::Bool, force::Bool)
@@ -65,23 +65,7 @@ end
 
 # Rasters methods for CDM types ###############################
 
-function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
-    write::Bool=false, 
-    group=nokw,
-    name::NTuple{N,Symbol}, 
-    mods,
-    vars,
-) where {source<:CDMsource,N}
-    T = NamedTuple{name,Tuple{map(_mod_eltype, vars, mods)...}}
-    layersizes = map(size, vars)
-    eachchunk = map(DiskArrays.eachchunk, vars)
-    haschunks = map(DiskArrays.haschunks, vars)
-    group = isnokw(group) ? nothing : group
-    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, mods, write)
-end
-
-OpenStack(fs::FileStack{Source,K}) where {K,Source<:CDMsource} =
-    OpenStack{Source,K}(sourceconstructor(Source())(filename(fs)), fs.mods)
+Raster(ds::AbstractVariable; kw...) = _raster(ds; kw...)
 
 function _open(f, source::CDMsource, filename::AbstractString; write=false, kw...)
     checkfilename(source, filename)
@@ -95,10 +79,11 @@ function _open(f, source::CDMsource, ds::AbstractDataset;
     kw...
 )
     g = _getgroup(ds, group)
-    x = if isnokw(name)
+    if isnokw(name)
         cleanreturn(f(g)) 
     else
-        v = CDM.variable(g, string(_name_or_firstname(g, name)))
+        key = string(_name_or_firstname(g, name))
+        v = CDM.variable(g, key)
         _open(f, source, v; mod)
     end
 end
@@ -109,6 +94,9 @@ _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) =
 _getgroup(ds, ::Union{Nothing,NoKW}) = ds
 _getgroup(ds, group::Union{Symbol,AbstractString}) = ds.group[String(group)]
 _getgroup(ds, group::Pair) = _getgroup(ds.group[String(group[1])], group[2])
+
+filename(ds::AbstractDataset) = CDM.path(ds)
+filename(var::AbstractVariable) = CDM.path(CDM.dataset(var))
 
 filekey(ds::AbstractDataset, name::Union{String,Symbol}) = Symbol(name)
 filekey(ds::AbstractDataset, name) = _name_or_firstname(ds, name)
@@ -137,7 +125,6 @@ function _nondimnames(ds)
     nondim = collect(setdiff(keys(ds), toremove))
     return nondim
 end
-
 
 function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
     nondim = _nondimnames(ds)
@@ -410,11 +397,15 @@ end
 function _parse_period(period_str::String)
     regex = r"(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)"
     mtch = match(regex, period_str)
-    if mtch === nothing
+    if isnothing(mtch)
         return nothing
     else
-        vals = map(x -> parse(Int, x), mtch.captures)
-        if length(vals) == 6
+        if length(mtch.captures) == 6
+            vals = ntuple(Val{6}()) do i
+                x = mtch.captures[i]
+                # TODO can it actually be nothing?
+                isnothing(x) ? 0 : parse(Int, x)
+            end
             y = Year(vals[1])
             mo = Month(vals[2])
             d = Day(vals[3])
@@ -492,7 +483,6 @@ end
 function Base.write(filename::AbstractString, source::Source, s::AbstractRasterStack{K,T};
     append=false,
     force=false,
-    write=true,
     missingval=nokw,
     f=identity,
     kw...
@@ -501,10 +491,10 @@ function Base.write(filename::AbstractString, source::Source, s::AbstractRasterS
     ds = sourceconstructor(source)(filename, mode; attrib=_attribdict(metadata(s)))
     missingval = _stack_nt(s, isnokw(missingval) ? Rasters.missingval(s) : missingval)
     try
-        map(keys(s)) do k
-            writevar!(ds, source, s[k]; missingval=missingval[k], write, kw...)
+        mods = map(keys(s)) do k
+            writevar!(ds, source, s[k]; missingval=missingval[k], kw...)
         end
-        write && f(OpenStack{Source,K,T}(ds))
+        f(OpenStack{Source,K,T}(ds, mods))
     finally
         close(ds)
     end
@@ -580,10 +570,8 @@ function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N
         f(m)
     end
 
-    return nothing
+    return mod
 end
-
-const CDMallowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
 
 _check_allowed_type(trait, eltyp) = nothing
 function _check_allowed_type(::CDMsource, eltyp)
@@ -593,7 +581,6 @@ function _check_allowed_type(::CDMsource, eltyp)
     """
     ))
 end
-
 
 _def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
@@ -617,6 +604,6 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
         push!(attrib, "bounds" => boundskey)
         CDM.defVar(ds, boundskey, bounds, ("bnds", dimname))
     end
-    CDM.defVar(ds, dimname, Vector(index(dim)), (dimname,); attrib=attrib)
+    CDM.defVar(ds, dimname, Vector(lookup(dim)), (dimname,); attrib=attrib)
     return nothing
 end

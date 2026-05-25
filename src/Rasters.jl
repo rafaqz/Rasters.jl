@@ -54,7 +54,7 @@ using ColorTypes: RGB
 
 using CommonDataModel: AbstractDataset, AbstractVariable
 
-using DiskArrays: @implement_diskarray
+using DiskArrays: @implement_diskarray, eachchunk, haschunks, isdisk
 
 using GeometryOpsCore: Planar, Spherical
 export Planar, Spherical
@@ -69,7 +69,7 @@ export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        resample, warp, zonal, crop, extend, trim, slice, combine, points,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
        coverage, coverage!, setcrs, setmappedcrs, smapseries, cellsize, cellarea
-export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
+export crs, mappedcrs, mappedlookup, mappedbounds, projectedlookup, projectedbounds
 export reproject, convertlookup
 export Extent, extent
 

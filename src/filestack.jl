@@ -3,9 +3,9 @@
 
     FileStack{S,Na}(filename, types, sizes, eachchunk, haschunks, write)
 
-A wrapper object that holds file pointer and size/chunking
-metadata for a multi-layered stack stored in a single file, 
-typically netcdf or hdf5.
+A wrapper object that holds a filepath string and size/chunking
+metadata for a multi-layered stack stored in a single file. 
+such as zarr or netcdf.
 
 `S` is a backend type like `NCDsource`, and `Na` is a tuple of `Symbol` keys.
 """
@@ -22,6 +22,20 @@ function FileStack{S,Na,T}(
     filename::AbstractString, sizes::SZ, group::G, eachchunk::EC, haschunks::HC, mods::M, write::Bool
 ) where {S,Na,T,SZ,G,EC,M,HC}
     FileStack{S,Na,T,SZ,G,EC,HC,M}(String(filename), sizes, group, eachchunk, haschunks, mods, write)
+end
+function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
+    write::Bool=false, 
+    group=nokw,
+    name::NTuple{N,Symbol}, 
+    vars,
+    mods,
+) where {source,N}
+    T = NamedTuple{name,Tuple{map(_mod_eltype, vars, mods)...}}
+    layersizes = map(size, vars)
+    eachchunk = map(DiskArrays.eachchunk, vars)
+    haschunks = map(DiskArrays.haschunks, vars)
+    group = isnokw(group) ? nothing : group
+    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, mods, write)
 end
 
 # FileStack has `S,Na,T` parameters that are not recoverable from fields.
