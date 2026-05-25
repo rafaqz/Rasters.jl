@@ -12,6 +12,8 @@ const RA = Rasters
 const DD = DimensionalData
 const LA = Lookups
 
+Rasters.is_loaded(::Rasters.CoordinateTransformationsExt) = true
+
 include("affineprojected.jl")
 
 end # module

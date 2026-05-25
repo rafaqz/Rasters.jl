@@ -1,0 +1,17 @@
+netcdf 7_7_mean_surface_temperature_and_heat_flux_averaged_separately_over_land_and_sea {
+dimensions:
+  lat=73;
+  lon=96;
+  maxlen=20;
+  ls=2;
+variables:
+  float surface_temperature(lat,lon);
+    surface_temperature:cell_methods="area: mean where land";
+  float surface_upward_sensible_heat_flux(ls,lat,lon);
+    surface_upward_sensible_heat_flux:coordinates="land_sea";
+    surface_upward_sensible_heat_flux:cell_methods="area: mean where land_sea";
+  char land_sea(ls,maxlen);
+    land_sea:standard_name="area_type";
+data:
+  land_sea="land","sea";
+}

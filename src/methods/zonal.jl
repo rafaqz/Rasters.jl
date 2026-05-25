@@ -11,7 +11,11 @@ covered by the `of` object/s.
 - `of`: A `DimTuple`, `Extent`, $OBJ_ARGUMENT
 
 # Keywords
+
 $GEOMETRYCOLUMN_KEYWORD
+- `emptyval`: value to return if a geometry returns an empty region for `f`. 
+    Specifying a value for `emptyval` triggers a check `isempty` and returns `emptyval` if the result is `true`.
+    If unspecified, an error will be thrown.
 These can be used when `of` is or contains (a) GeoInterface.jl compatible object(s):
 
 - `shape`: Force `data` to be treated as `:polygon`, `:line` or `:point`, where possible.
@@ -65,15 +69,15 @@ insertcols!(january_stats, 1, :country => first.(split.(countries.ADMIN, r"[^A-Z
                                                   3 columns and 243 rows omitted
 ```
 """
-function zonal(f, x::RasterStack; of, skipmissing=true, spatialslices=_False(), missingval=isnothing(missingval(x)) ? missing : missingval(x), kw...)
+function zonal(f, x::RasterStack; of, emptyval=nokw, skipmissing=true, spatialslices=_False(), missingval=isnothing(missingval(x)) ? missing : missingval(x), kw...)
     # TODO: open currently doesn't work so well for large rasterstacks,
     # we need to fix that before we can go back to this being a single method
     # on `RasterStackOrArray`.
-    _zonal(f, _prepare_for_burning(x), of; skipmissing, spatialslices, missingval, kw...)
+    _zonal(f, _prepare_for_burning(x), of; skipmissing, emptyval, spatialslices, missingval, kw...)
 end
-function zonal(f, x::Raster; of, skipmissing=true, spatialslices=_False(), missingval=isnothing(missingval(x)) ? missing : missingval(x), kw...)
+function zonal(f, x::Raster; of, emptyval=nokw, skipmissing=true, spatialslices=_False(), missingval=isnothing(missingval(x)) ? missing : missingval(x), kw...)
     open(x) do xo
-        _zonal(f, _prepare_for_burning(xo), of; skipmissing, spatialslices, missingval, kw...)
+        _zonal(f, _prepare_for_burning(xo), of; skipmissing, emptyval, spatialslices, missingval, kw...)
     end
 end
 
@@ -82,14 +86,15 @@ _zonal(f, x::RasterStackOrArray, of::RasterStackOrArray; kw...) =
 _zonal(f, x::RasterStackOrArray, of::DimTuple; kw...) = 
     _zonal(f, x, Extents.extent(of); kw...)
 # We don't need to `mask` with an extent, it's square so `crop` will do enough.
-_zonal(f, x::Raster, of::Extents.Extent; skipmissing, spatialslices, missingval) = _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices), crop(x; to=of, touches=true), skipmissing)
-function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing, spatialslices, missingval)
+_zonal(f, x::Raster, of::Extents.Extent; skipmissing, emptyval, spatialslices, missingval) =
+    _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), crop(x; to=of, touches=true), skipmissing, emptyval)
+function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing, emptyval, spatialslices, missingval)
     cropped = crop(x; to=ext, touches=true)
     if length(cropped) == 0 && skipmissing == true
         return map(_ -> missingval, x)
     end
     return maplayers(cropped) do A
-        _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), A, skipmissing)
+        _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), A, skipmissing, emptyval)
     end
 end
 # Otherwise of is a geom, table or vector
@@ -99,11 +104,11 @@ _zonal(f, x, ::GI.AbstractFeatureCollectionTrait, fc; kw...) =
     _zonal(f, x, nothing, fc; kw...)
 _zonal(f, x::RasterStackOrArray, ::GI.AbstractFeatureTrait, feature; kw...) =
     _zonal(f, x, GI.geometry(feature); kw...)
-function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom; 
-    skipmissing, spatialslices, missingval, kw...
+function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
+    skipmissing, emptyval, spatialslices, missingval, kw...
 )
     cropped = crop(x; to=geom, touches=true)
-    masked = if length(cropped) == 0 
+    masked = if length(cropped) == 0
         if istrue(skipmissing) && isfalse(spatialslices)
             return missingval
         end
@@ -111,13 +116,13 @@ function _zonal(f, x::AbstractRaster, ::GI.AbstractGeometryTrait, geom;
     else
         mask(cropped; with=geom, kw...)
     end
-    return _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), masked, skipmissing)
+    return _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), masked, skipmissing, emptyval)
 end
-function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom; 
-    skipmissing, spatialslices, missingval, kw...
+function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom;
+    skipmissing, emptyval, spatialslices, missingval, kw...
 )
     cropped = crop(st; to=geom, touches=true)
-    masked = if length(cropped) == 0 
+    masked = if length(cropped) == 0
         if istrue(skipmissing) && isfalse(spatialslices)
             return map(_ -> missingval, st)
         end
@@ -129,7 +134,7 @@ function _zonal(f, st::AbstractRasterStack, ::GI.AbstractGeometryTrait, geom;
         if length(A) == 0 && (istrue(skipmissing) && isfalse(spatialslices))
             return missingval
         end
-        _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), A, skipmissing)
+        _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), A, skipmissing, emptyval)
     end
 end
 function _zonal(f, x::RasterStackOrArray, ::Nothing, data; 
@@ -203,12 +208,22 @@ function _alloc_zonal(f, x, geoms, n; spatialslices = _True(), missingval, kw...
     end
 end
 
-# Optionally wrap the input argument in `skipmissing(A)` is `sm` is true.
-_maybe_skipmissing_call(f, A, sm) = istrue(sm) ? f(skipmissing(A)) : f(A)
+# No emptyval, just skipmissing or not
+_maybe_skipmissing_call(f, A, sm, emptyval::NoKW) = istrue(sm) ? f(skipmissing(A)) : f(A)
+# Allow for emptyval if the skipmissing iterator is empty
+function _maybe_skipmissing_call(f, A, sm, emptyval)
+    if istrue(sm)
+        itr = skipmissing(A)
+        isempty(itr) && return emptyval
+        f(skipmissing(A))
+    else
+        f(A)
+    end
+end
 
 # the only reason we have AbstractDimArray here is to make sure that DD.otherdims is available.
 # We could probably get away with just AbstractArray here otherwise.
-# The reason this is not just mapslices is because this drops the sliced dimensions automatically, 
+# The reason this is not just mapslices is because this drops the sliced dimensions automatically,
 # which is what we want.
 function _mapspatialslices(f, x::AbstractDimArray; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()), missingval = missingval(x))
     dimswewant = DD.otherdims(x, spatialdims)
@@ -230,7 +245,7 @@ end
 function _mapspatialslices(f, s::Union{SkipMissingVal, Base.SkipMissing}; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()), missingval = missingval(s.x))
     return _mapspatialslices(f ∘ skipmissing, s.x; spatialdims, missingval)
 end
-    
+
 
 _maybe_spatialsliceify(f, spatialslices, missingval = missing) = istrue(spatialslices) ? _SpatialSliceify(f, (Val{DD.XDim}(), Val{DD.YDim}()), missingval) : f
 _maybe_spatialsliceify(f, spatialslices::DD.AllDims, missingval = missing) = _SpatialSliceify(f, spatialslices, missingval)
@@ -283,7 +298,7 @@ function __do_cat_with_last_dim_multidim_version(As)
     backing_array = DiskArrays.ConcatDiskArray(cdas)
    return backing_array
 end
-# This is a wrapper around the helper function that performs the final cat and rebuild, but on 
+# This is a wrapper around the helper function that performs the final cat and rebuild, but on
 # a dimarray.
 function _cat_and_rebuild_parent(parent, children, newdim)
     backing_array = __do_cat_with_last_dim(children) # see zonal.jl for implementation

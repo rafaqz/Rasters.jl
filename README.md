@@ -1,22 +1,26 @@
 # Rasters
+<img src="docs/src/assets/logo.png" align="right" width="30%"></img>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/rafaqz/Rasters.jl/blob/main/LICENSE)
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://rafaqz.github.io/Rasters.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://rafaqz.github.io/Rasters.jl/dev)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/rafaqz/Rasters.jl/blob/main/LICENSE)
 [![CI](https://github.com/rafaqz/Rasters.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaqz/Rasters.jl/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/rafaqz/Rasters.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/rafaqz/Rasters.jl)
-[![Aqua.jl Quality Assurance](https://img.shields.io/badge/Aquajl-%F0%9F%8C%A2-aqua.svg)](https://github.com/JuliaTesting/Aqua.jl)
-[![Downloads](https://shields.io/endpoint?url=https://pkgs.genieframework.com/api/v1/badge/Rasters&label=Downloads)](https://pkgs.genieframework.com?packages=Rasters)
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![Downloads](https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Fmonthly_downloads%2FRasters&query=total_requests&suffix=%2Fmonth&label=Downloads)](https://juliapkgstats.com/pkg/Rasters)
 
-<img src="/docs/src/assets/logo.png" align="right" width="30%"></img>
+[Rasters.jl](https://rafaqz.github.io/Rasters.jl/dev) is a powerful Julia package for handling geospatial raster data. It provides a unified interface for reading, writing, and manipulating rasters, allowing users to work with various source formats like GeoTIFF and NetCDF using identical syntax. 
 
-[Rasters.jl](https://rafaqz.github.io/Rasters.jl/dev) defines common types and methods for reading, writing and
-manipulating rasterized spatial data. 
-
-These currently include raster arrays like GeoTIFF and NetCDF, R grd files, 
-multi-layered stacks, and multi-file series of arrays and stacks. 
+# Key features:
+- **Standardized Interface**: The package abstracts away the complexities of different file formats. Users can treat Raster, RasterStack, and RasterSeries objects consistently, regardless of whether the data is in a file, in memory, or on a GPU.
+- **Intuitive Spatial Indexing**: By extending [DimensionalData.jl](https://rafaqz.github.io/DimensionalData.jl/dev/), Rasters.jl enables intuitive spatial indexing with named dimensions (e.g., `X`, `Y`, `Time`). This allows for selecting data by specific values (e.g., `ras[Ti=At(DateTime(2001))]`) rather than just numerical indices. 
+- **Performance and Optimization**: The package is optimized for high-performance operations on spatial data and includes features like **lazy loading** for handling large datasets efficiently.
+- **Comprehensive Support**: It supports a wide range of raster formats, multi-layered stacks, and time series. It also includes built-in support for Coordinate Reference Systems (CRS), with automatic projection conversions via `reproject`.
+- **Extensible Functionality**: While the core package is lightweight, it has extensions on other Julia packages (e.g., ArchGDAL for GDAL backend, CairoMakie for plotting) that add more functionality.  For example, to load a raster, you can simply `import ArchGDAL` or `import NCDatasets` (for `.nc` files), and then call `Raster("myfile.tiff")`.
 
 # Quick start
+
 Install the package by typing:
 
 ```julia
@@ -31,7 +35,7 @@ using Rasters
 
 Using `Rasters` to read GeoTiff or NetCDF files will output something similar to the
 following toy examples. This is possible because Rasters.jl extends
-[DimensionalData.jl](https://github.com/rafaqz/DimensionalData.jl) so that
+[DimensionalData.jl](https://rafaqz.github.io/DimensionalData.jl/dev/) so that
 spatial data can be indexed using named dimensions like `X`, `Y` and `Ti` (time)
 and e.g. spatial coordinates.
 
@@ -41,7 +45,7 @@ lon, lat = X(25:1:30), Y(25:1:30)
 ti = Ti(DateTime(2001):Month(1):DateTime(2002))
 ras = Raster(rand(lon, lat, ti)) # this generates random numbers with the dimensions given
 ```
-```
+```julia
 6×6×13 Raster{Float64,3} with dimensions: 
   X Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
   Y Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
@@ -61,10 +65,9 @@ values: [:, :, 1]
 ## Packages that work with Rasters
 
 Rasters reduces its dependencies to keep the `using` time low.
-But, it means you have to manually load packages you need for each 
-backend or additional functionality.
+This means you **need to load additional packages** for expanded functionality.
 
-For example, to use the GDAL backend, and download RasterDataSources files, you now need to do:
+For example, to use the GDAL backend, and download RasterDataSources files, you need to do:
 
 ```julia
 using Rasters, ArchGDAL, RasterDataSources
@@ -80,7 +83,7 @@ Sources and packages needed:
 Other functionality in extensions:
 - Raster data downloads, like `Worldclim{Climate}`: `using RasterDataSources`
 - Makie plots: `using GLMakie` (opengl interactive) or `using CairoMakie` (print) etc.
-- Coordinate transformations for gdal rasters: `using CoordinateTransformations`
+- Coordinate transformations for GDAL rasters: `using CoordinateTransformations`
 
 ## Getting the `lookup` array from dimensions
 
@@ -100,7 +103,7 @@ Selecting a time slice by `index` is done via
 ```julia
 ras[Ti(1)]
 ```
-```
+```julia
 6×6 Raster{Float64,2} with dimensions: 
   X Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
   Y Sampled{Int64} 25:1:30 ForwardOrdered Regular Points
@@ -120,7 +123,7 @@ values:      25         26          27          28         29          30
 ```julia
 ras[Ti=1]
 ```
-```
+```julia
 6×6 Raster{Float64,2} with dimensions: 
   X Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
   Y Sampled{Int64} 25:1:30 ForwardOrdered Regular Points
@@ -142,7 +145,7 @@ or and interval of indices using the syntax `=a:b` or `(a:b)`
 ```julia
 ras[Ti(1:10)]
 ```
-```
+```julia
 6×6×10 Raster{Float64,3} with dimensions: 
   X Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
   Y Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
@@ -165,7 +168,7 @@ values: [:, :, 1]
 ```julia
 ras[Ti=At(DateTime(2001))]
 ```
-```
+```julia
 6×6 Raster{Float64,2} with dimensions: 
   X Sampled{Int64} 25:1:30 ForwardOrdered Regular Points,
   Y Sampled{Int64} 25:1:30 ForwardOrdered Regular Points

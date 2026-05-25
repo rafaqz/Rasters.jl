@@ -51,8 +51,8 @@ function Edges(
     geom, dims;
     allocs, kw...
 )
-    (; edges, scratch) = _get_alloc(allocs)
 
+    (; edges, scratch) = allocs
     # TODO fix bug that requires this to be redefined
     edges = Vector{Edge}(undef, 0)
     local edge_count = max_ylen = 0
@@ -69,11 +69,7 @@ function Edges(
 
     # We may have allocated too much
     edges1 = view(edges, 1:edge_count)
-    @static if VERSION < v"1.9-alpha1"
-        sort!(edges1)
-    else
-        sort!(edges1; scratch)
-    end
+    sort!(edges1; scratch)
 
     return Edges(edges, max_ylen, min_y, edge_count)
 end
@@ -106,7 +102,7 @@ end
 
     GI.npoint(geom) > 0 || return edge_count, max_ylen, min_y
     xlookup, ylookup = lookup(dims, (X(), Y())) 
-    (length(xlookup) > 0 && length(ylookup) > 0) || return edge_count, max_ylen
+    (length(xlookup) > 0 && length(ylookup) > 0) || return edge_count, max_ylen, min_y
 
     # Raster properties
     starts = (Float64(first(xlookup)), Float64(first(ylookup)))

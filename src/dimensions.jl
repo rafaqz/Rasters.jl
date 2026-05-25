@@ -20,6 +20,28 @@ mean(A; dims=Band)
 @dim Band
 
 """
+    Lat <: Dimension
+
+    Lat(val=:)
+
+Used for holding degrees north lookups.
+
+Will error on lookup construction if metadata of `units="degrees_north"` does not exist.
+"""
+@dim Lat
+
+"""
+    Lon <: Dimension
+
+    Lon(val=:)
+
+Used for holding degrees east lookups.
+
+Will error on lookup construction if metadata of `units="degrees_east"` does not exist.
+"""
+@dim Lon
+
+"""
     Geometry <: Dimension
 
     Geometry(geoms)

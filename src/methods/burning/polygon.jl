@@ -16,36 +16,36 @@ end
 function _burn_polygon!(B::AbstractDimArray, trait, geom;
     fill=true, boundary=:center, geomextent, verbose=false, allocs=Allocs(B), kw...
 )::Bool
-    allocs = _get_alloc(allocs)
-    edges = Edges(geom, dims(B); allocs)
-    
-    hasburned::Bool = _burn_polygon!(B, edges, allocs.crossings; fill)
+    with_resource(allocs) do allocs
+        edges = Edges(geom, dims(B); allocs)
+        
+        hasburned::Bool = _burn_polygon!(B, edges, allocs.crossings; fill)
 
-    # Lines
-    n_on_line = 0
-    if boundary !== :center
-        _check_intervals(B, boundary, verbose)
-        if boundary === :touches 
-            if _check_intervals(B, boundary, verbose)
-                # Add line pixels
-                n_on_line = _burn_lines!(B, geom; fill)::Int
+        # Lines
+        n_on_line = 0
+        if boundary !== :center
+            _check_intervals(B, boundary, verbose)
+            if boundary === :touches 
+                if _check_intervals(B, boundary, verbose)
+                    # Add line pixels
+                    n_on_line = _burn_lines!(B, geom; fill)::Int
+                end
+            elseif boundary === :inside 
+                if _check_intervals(B, boundary, verbose)
+                    # Remove line pixels
+                    n_on_line = _burn_lines!(B, geom; fill=!fill)::Int
+                end
+            else
+                throw(ArgumentError("`boundary` can be :touches, :inside, or :center, got :$boundary"))
             end
-        elseif boundary === :inside 
-            if _check_intervals(B, boundary, verbose)
-                # Remove line pixels
-                n_on_line = _burn_lines!(B, geom; fill=!fill)::Int
+            if verbose
+                (n_on_line > 0) || @info "$n_on_line pixels were on lines"
             end
-        else
-            throw(ArgumentError("`boundary` can be :touches, :inside, or :center, got :$boundary"))
         end
-        if verbose
-            (n_on_line > 0) || @info "$n_on_line pixels were on lines"
-        end
+
+        hasburned |= (n_on_line > 0)
+        return hasburned
     end
-
-    hasburned |= (n_on_line > 0)
-
-    return hasburned
 end
 function _burn_polygon!(A::AbstractDimArray, edges::Edges, crossings::Vector{Float64};
     offset=nothing, verbose=true, fill=true

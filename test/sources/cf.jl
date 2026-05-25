@@ -1,0 +1,424 @@
+using Rasters
+import NCDatasets
+import NCDatasets.NetCDF_jll
+using NearestNeighbors
+using OrderedCollections
+using Rasters.Lookups
+using DimensionalData: MergedLookup
+using Test
+using Rasters: name, bounds
+using Dates
+using GeoInterface
+
+#
+#using NCDatasets
+# using NCDatasets.NetCDF_jll
+
+# NetCDF_jll.ncdump() do exe
+#     run(`$exe clim.nc`)
+# end
+# ds = collect(NCDataset("clim.nc")["time"])
+# ds = collect(NCDataset("clim.nc")["climatology_bounds"])
+
+# Build all ncgen files
+testdir = joinpath(dirname(dirname(Base.pathof(Rasters))), "test")
+cfdir = joinpath(testdir, "cf")
+cfdatadir = joinpath(testdir, "data", "cf")
+mkpath(cfdatadir)
+example_paths = map(filter(endswith(".ncgen"), readdir(cfdir))) do input_name
+    input_path = realpath(joinpath(cfdir, input_name))
+    output_path = joinpath(cfdatadir, splitext(input_name)[1] * ".nc")
+    NetCDF_jll.ncgen() do exe
+        run(`$exe -k nc4 -b -o $output_path $input_path`)
+    end
+    output_path
+end
+
+example_ids = replace.(Base.strip.(first.(split.(basename.(example_paths), r"[A-Za-z]")), '_'), ("_" => ".",))
+examples = OrderedDict(example_ids .=> example_paths)
+
+rasterstacks = map(enumerate(example_paths)) do (i, example_path)
+    name = splitext(basename(example_path))[1]
+    println(i, " => ", name)
+    name => RasterStack(example_path; lazy=true)
+end |> OrderedDict
+
+# rasters = map(example_paths) do example_path
+#     name = splitext(basename(example_path))[1]
+#     name == "5_1_independent_coordinate_variables" && return name => nothing
+#     name => Raster(example_path; lazy=true)
+# end
+# st = last.(rasterstacks)[12]
+# st = last.(rasterstacks)[14]
+# refdims(st)
+# inds = findall(.!(isempty.(refdims.(last.(rasterstacks)))))
+# refdims(last.(rasterstacks[inds])[1])
+
+@testset "2.1 string variable representation" begin
+    rast = RasterStack(examples["2.1"]; lazy=true)
+    @test rast.char_variable == rast.str_variable
+    @test RasterStack(examples["2.1"]; lazy=true).char_variable == rast.str_variable
+    write("test.nc", rast; force=true)
+    rast1 = RasterStack("test.nc"; lazy=true)
+    open(rast1) do R
+        @show parent(R.char_variable)
+        nothing
+    end
+    parent(rast.char_variable)
+    parent(rast1.char_variable)
+end
+
+@testset "3.1 units metadata" begin
+    rast = RasterStack(examples["3.1"])
+    md_os = metadata(rast[:Tonscale])
+    md_diff = metadata(rast[:Tdifference])
+    @test md_os["units"] == md_diff["units"] == "degC"
+    @test md_os["cell_methods"] == md_diff["cell_methods"] == "area: mean"
+    @test md_os["standard_name"] == md_diff["standard_name"] == "surface_temperature"
+
+    @test md_os["long_name"] == "global-mean surface temperature"
+    @test md_diff["long_name"] == "change in global-mean surface temperature relative to pre-industrial"
+    @test md_os["units_metadata"] == "temperature: on_scale"
+    @test md_diff["units_metadata"] == "temperature: difference"
+end
+
+@testset "5.1 independent coordinate variables" begin
+    rast = RasterStack(examples["5.1"]);
+    testdims = (X(Sampled(1.0f0:36.0f0)), 
+                Y(Sampled(1.0f0:18.0f0)), 
+                Dim{:pres}(Sampled(1.0f0:15.0f0)), 
+                Ti(Sampled(collect(DateTime(1990):Day(1):DateTime(1990, 1, 4)))))
+    @test all(map(==, dims(rast), map(DimensionalData.format, testdims)))
+    @test metadata(rast.xwind)["long_name"] == "zonal wind"
+    @test metadata(rast.xwind)["units"] == "m/s"
+    @test metadata(dims(rast, :pres))["long_name"] == "pressure"
+    @test metadata(dims(rast, :pres))["units"] == "hPa"
+    @test metadata(dims(rast, X))["long_name"] == "longitude"
+    @test metadata(dims(rast, X))["units"] == "degrees_east"
+    @test metadata(dims(rast, Y))["long_name"] == "latitude"
+    @test metadata(dims(rast, Y))["units"] == "degrees_north"
+    @test metadata(dims(rast, Ti))["long_name"] == "time"
+    # This one is kind of redundant, we have converted to DateTime already
+    @test metadata(dims(rast, Ti))["units"] == "days since 1990-1-1 0:0:0" ;
+end
+
+@testset "5.2 two-dimensional coordinate variables" begin
+    rast = RasterStack(examples["5.2"]; lazy=true)
+    # TODO probably should have real data for this
+    @test rast[X=Near(1.0), Y=Near(2.0), Z=1].T isa Float32
+end
+
+@testset "5.3 reduced horizontal grid" begin
+    rast = RasterStack(examples["5.3"]; lazy=true)
+    @test rast[rgrid=2].PS === 0.2f0
+    @test rast[rgrid=At(3.0, 30.0)].PS === 0.3f0
+    @test rast[X=At(4.0)].PS == Union{Missing,Float32}[0.4f0]
+    @test rast[Y=At(30.0)].PS == Union{Missing,Float32}[0.3f0]
+    @test rast[X=At(1.0), Y=At(10.0)] == (PS=0.1f0,)
+end
+
+@testset "5.6 rotated pole grid" begin
+    rast = RasterStack(examples["5.6"]; lazy=true)
+    # Rotated pole dimensions are now typed as X and Y (detected via standard_name grid_longitude/grid_latitude)
+    @test lookup(rast, X) isa ProjectedArrayLookup
+    @test lookup(rast, Y) isa ProjectedArrayLookup
+    @test lookup(rast, Z) == DimensionalData.format(Sampled([100.0f0, 200.0f0]; span=Regular(100.0f0)))
+    # Selection by geographic coordinates (lon/lat stored in ProjectedArrayLookup matrix)
+    @test rast.temp[X=Near(-0.9), Y=Near(3.0), Z=1] === 3.0f0
+    @test rast.temp[X=At(-0.44758424f0), Y=At(2.1773858f0), Z=1] === 2.0f0
+end
+
+@testset "5.8-9 WGS 84 latitude_longitude" begin
+    # CF latitude_longitude grid mapping is now parsed via CFCoordinateReferenceSystems
+    # and returns WellKnownText2 (not EPSG) since the CF files don't contain EPSG codes
+    rast = RasterStack(examples["5.8"]; lazy=true)
+    @test crs(rast) isa WellKnownText2
+    rast = RasterStack(examples["5.9"]; lazy=true)
+    @test crs(rast) isa WellKnownText2
+end
+
+@testset "5.10 British national grid" begin
+    rast = RasterStack(examples["5.10"]; lazy=true);
+    @test keys(rast) == (:temp, :pres)
+    # CRS is now parsed via CFCoordinateReferenceSystems
+    # This file has multiple CRS mappings (crsOSGB for x/y, crsWGS84 for lat/lon)
+    # so it returns a Vector of Pairs
+    c = crs(rast)
+    @test !isnothing(c)
+    @test c isa Vector{<:Pair}
+    @test first(c).first isa WellKnownText2
+end
+
+@testset "5.11 WGS 84 WellKnownText2" begin
+    rast = RasterStack(examples["5.11"]; lazy=true)
+    @test crs(rast) isa WellKnownText2
+    # Extent now works correctly
+    ext = extent(rast)
+    @test ext.X == (0.0, 350.0)
+    @test ext.Y == (-85.0, 85.0)
+end
+
+@testset "5.14 refdims from scalar coordinates" begin
+    rast = RasterStack(examples["5.14"]; lazy=true);
+    testdims = (Dim{:atime}([0.0]; span=Regular(0.0)), Dim{:p500}([500.0]; span=Regular(0.0)))
+    @test all(map(==, refdims(rast), map(DimensionalData.format, testdims)))
+end
+
+@testset "domains" begin
+    # TODO: load the dimensions of the domain,
+    # even though there are no layers that use them?
+    # Its a kind of weird RasterStack to have dims 
+    # with no layers? but maybe it works?
+    @testset "5.15 domain dimension" begin
+        rast = RasterStack(examples["5.15"]; lazy=true)
+        @test dims(rast) isa Tuple{<:Ti{<:Sampled{<:DateTime}},<:Dim{:pres},<:Y,<:X}
+        @test layers(rast) == (;)
+        @test refdims(rast) == ()
+    end
+    @testset "5.16 domain dimension" begin
+        rast = RasterStack(examples["5.16"]; lazy=true)
+        # Rotated pole dimensions are now typed as X and Y
+        @test dims(rast) isa Tuple{<:Z,<:Y,<:X}
+        @test layers(rast) == (;)
+        @test refdims(rast) isa Tuple{<:Ti}
+    end
+    @testset "5.17 domain defines dimension and coords" begin
+        # TODO : where to put area data? It could be useful
+        # but currently has no formal location, so its just available
+        # to the user, rather than to the `Rasters.cellarea` function
+        # TODO and do we make polygons out of the vertices so this is a GeometryLookup?
+        # Needs actual data in the file to test this
+        rast = RasterStack(examples["5.17"]; lazy=true)
+        span(dims(dims(rast, :cell), X))
+    end
+    @testset "5.17 domain with no layers or dimensions, but single coordinates, so refdims" begin
+        rast = RasterStack(examples["5.18"]; lazy=true)
+        @test dims(rast) == ()
+        @test refdims(rast) == (DimensionalData.format(Ti(Sampled([0.5]; span=Regular(0.0)))),)
+    end
+    @testset "5.17 domain with timeseries geometries" begin
+        rast = RasterStack(examples["5.19"]; lazy=true)
+        @test lookup(rast) isa Tuple{<:GeometryLookup,Sampled}
+        @test dims(rast) isa Tuple{<:Geometry,Ti}
+        @test length(lookup(rast, Geometry)) == 2
+        @test lookup(rast, Geometry)[1] == GeoInterface.LineString{false, false}([(30.0, 10.0), (10.0, 30.0), (40.0, 40.0)])
+    end
+end
+
+@testset "5.20 indexed ragged array " begin
+    # TODO ragged array lookup
+    rast = RasterStack(examples["5.20"]; lazy=true)
+    dims(rast, :station)
+end
+
+@testset "5.21 mesh" begin
+    rast = RasterStack(examples["5.21"]; lazy=true)
+end
+
+@testset "taxon name/id" begin
+    rast = Raster(examples["6.1.2"]; lazy=true)
+    @test name(rast) == :abundance
+    # Multiple char categorical coords are now merged into a MergedLookup
+    taxon_lookup = lookup(rast, :taxon)
+    @test taxon_lookup isa MergedLookup
+    @test taxon_lookup[1] == ("urn:lsid:marinespecies.org:taxname:104464", "Calanus finmarchicus")
+    # Inner dimensions accessible via .dims
+    inner_dims = taxon_lookup.dims
+    @test name(inner_dims[1]) == :taxon_lsid
+    @test name(inner_dims[2]) == :taxon_name
+    @test lookup(inner_dims[1]) isa Categorical{String,Vector{String},Unordered}
+    @test lookup(inner_dims[1])[1] == "urn:lsid:marinespecies.org:taxname:104464"
+    @test metadata(lookup(inner_dims[1]))["standard_name"] == "biological_taxon_lsid"
+    @test lookup(inner_dims[2])[1] == "Calanus finmarchicus"
+    # Selection by full tuple
+    @test size(rast[taxon=At(("urn:lsid:marinespecies.org:taxname:104464", "Calanus finmarchicus"))]) == (100,)
+    # Selection by inner dimension selectors
+    @test size(rast[taxon=(Dim{:taxon_lsid}(At("urn:lsid:marinespecies.org:taxname:104464")), Dim{:taxon_name}(At("Calanus finmarchicus")))]) == (100,)
+    # Selection by direct inner dimension name
+    @test size(rast[Dim{:taxon_lsid}(At("urn:lsid:marinespecies.org:taxname:104464"))]) == (1, 100)
+    @test size(rast[Dim{:taxon_name}(At("Calanus finmarchicus"))]) == (1, 100)
+    # Selection by Where on tuple fields
+    @test size(rast[taxon=Where(t -> occursin("finmarchicus", t[2]))]) == (1, 100)
+end
+
+@testset "6.1 region" begin
+    rast = RasterStack(examples["6.1"]; lazy=true)
+    @test name(rast) == (:n_heat_transport,)
+    @test lookup(rast, :geo_region) isa Categorical{String,Vector{String},Unordered}
+    @test lookup(rast, :geo_region)[1] == "atlantic_ocean"
+    @test metadata(lookup(rast, :geo_region))["standard_name"] == "region"
+    @test lookup(rast, Y) == 10.0:10:50
+    @test lookup(rast, Ti)[1] == DateTime(1990)
+end
+
+@testset "6.2 secondary lookup coordinates" begin
+    rast = Raster(examples["6.2"]; lazy=true)
+    @test name(rast) == :xwind
+    # Dimension variable + auxiliary coordinate are now merged into a MergedLookup
+    sigma_lookup = lookup(rast, :sigma)
+    @test sigma_lookup isa MergedLookup
+    @test sigma_lookup[1] == (-1.0f0, Int32(10))  # (sigma value, model_level value)
+    # Inner dimensions accessible via .dims
+    inner_dims = sigma_lookup.dims
+    @test name(inner_dims[1]) == :sigma
+    @test name(inner_dims[2]) == :model_level
+    @test collect(lookup(inner_dims[1])) == [-1.0f0, -2.0f0, -3.0f0, -4.0f0, -5.0f0]
+    @test collect(lookup(inner_dims[2])) == Int32[10, 20, 30, 40, 50]
+    # Selection by full tuple (model_level is Int32)
+    @test size(rast[sigma=At((-1.0f0, Int32(10)))]) == (30,)
+    # Selection by inner dimension selectors
+    @test size(rast[sigma=(Dim{:sigma}(At(-1.0f0)), Dim{:model_level}(At(Int32(10))))]) == (30,)
+    # Selection by direct inner dimension name (model_level) - dims are (Y, sigma)
+    @test size(rast[Dim{:model_level}(At(Int32(10)))]) == (30, 1)
+    @test size(rast[Dim{:model_level}(At(Int32(30)))]) == (30, 1)
+    # Selection by Where on model_level values
+    @test size(rast[sigma=Where(t -> t[2] >= 30)]) == (30, 3)
+end
+
+@testset "7.2 non-aligned horizontal grid with polygon bounds" begin
+    rast = RasterStack(examples["7.2"])
+    @test haskey(rast, :dat)
+
+    dat = rast[:dat]
+    # 2D grid structure is preserved
+    @test size(dat) == (2, 4)
+    @test hasdim(dat, Dim{:imax})
+    @test hasdim(dat, Dim{:jmax})
+
+    # Check the ProjectedArrayLookup has geom_lookup field
+    l1 = lookup(dims(dat, 1))
+    @test l1 isa Rasters.ProjectedArrayLookup
+    @test !isnothing(l1.geom_lookup)
+    @test l1.geom_lookup isa GeometryLookup
+    @test length(l1.geom_lookup) == 8  # 2x4 grid = 8 cells
+
+    # Test Contains selector works (requires both dimensions)
+    # Cell (1,1) has lat bounds 5-15, lon bounds 95-105, value 1.0
+    point1 = GeoInterface.Point((100.0, 10.0))  # Inside cell (1,1)
+    result1 = dat[Dim{:imax}(Contains(point1)), Dim{:jmax}(Contains(point1))]
+    @test result1 == Float32(1.0)
+
+    # Cell (2,1): lon bounds 105-115, value 2.0
+    point2 = GeoInterface.Point((110.0, 10.0))  # Inside cell (2,1)
+    result2 = dat[Dim{:imax}(Contains(point2)), Dim{:jmax}(Contains(point2))]
+    @test result2 == Float32(2.0)
+
+    # Normal integer indexing still works
+    @test dat[1, 1] == Float32(1.0)
+    @test dat[2, 1] == Float32(2.0)
+end
+
+@testset "7.3 formula terms" begin
+    # These are not implemented, but they load ok and warn
+    @test_warn "formula_terms" RasterStack(examples["7.3"]; lazy=true)
+end
+
+@testset "7.3 cell areas" begin
+    # TODO load bounds as polygons
+    # Not sure if we should attach the area to the dimension or its fine as a variable?
+    RasterStack(examples["7.4"]; lazy=true)
+end
+
+@testset "7.5 methods applied to a timeseries" begin
+    rast = RasterStack(examples["7.5"]; lazy=true)
+    # TODO: unfortunately mixed points and intervals 
+    # on the same axis is hard to represent in DD without a DimTree
+    @test metadata(rast.ppn)["cell_methods"] == "time: sum"
+    @test metadata(rast.pressure)["cell_methods"] == "time: point"
+    @test metadata(rast.maxtemp)["cell_methods"] == "time: maximum"
+end
+
+@testset "7.6 spacing of data" begin
+    rast = RasterStack(examples["7.6"]; lazy=true)
+    @test lookup(rast, Ti) == [DateTime(1990, 1, 1, 12)]
+    @test Rasters.bounds(rast, Ti) == (DateTime(1990, 1, 1, 0), DateTime(1990, 1, 2, 0))
+    @test metadata(rast.TS_var)["cell_methods"] == "time: variance (interval: 1 hr comment: sampled instantaneously)"
+end
+
+@testset "7.7 labelled categorical axis" begin
+    rast = RasterStack(examples["7.7"]; lazy=true)
+    @test lookup(rast, :land_sea) == ["land", "sea"]
+end
+
+@testset "climatology bounds" begin
+    rast = RasterStack(examples["7.9"]; lazy=true)
+    @test Rasters.Lookups.cycle(lookup(rast, Ti)) == Year(1)
+    @test Rasters.bounds(rast, Ti) == (DateTime("1960-03-01T00:00:00"), DateTime("1991-03-01T00:00:00"))
+    @test span(rast, Ti) == Explicit([
+        DateTime("1960-03-01T00:00:00") DateTime("1960-06-01T00:00:00") DateTime("1960-09-01T00:00:00") DateTime("1960-12-01T00:00:00")
+        DateTime("1960-06-01T00:00:00") DateTime("1960-09-01T00:00:00") DateTime("1960-12-01T00:00:00") DateTime("1961-03-01T00:00:00")
+    ])
+    # Near selects the closest interval - March is closest to the first interval (March-June)
+    @test rast[Ti=Near(DateTime(1960, 3, 15))] == rast[Ti=1]
+    @test rast[Ti=At(DateTime(1960, 4, 16))] ==
+          rast[Ti=At(DateTime(1970, 4, 16))] ==
+          rast[Ti=At(DateTime(1990, 4, 16))] == rast[Ti=1]
+    # Years outside climatology bounds (1960-1991) should error, not wrap
+    @test try rast[Ti=At(DateTime(2000, 4, 16))]; false catch e; e isa Lookups.SelectorError end
+    @test try rast[Ti=At(DateTime(1950, 4, 16))]; false catch e; e isa Lookups.SelectorError end
+    # Contains is just broken for Cyclic, this should work
+    @test rast[Ti=Contains(DateTime(1970, 6, 1))] == rast[Ti=2]
+    @test rast[Ti=Contains(DateTime(1970, 5, 31))] == rast[Ti=1]
+
+    rast = RasterStack(examples["7.10"]; lazy=false)
+    @test Rasters.Lookups.cycle(lookup(rast, Ti)) == Year(1)
+    @test Rasters.bounds(rast, Ti) == (DateTime("1961-01-01T00:00:00"), DateTime("1990-02-01T00:00:00"))
+    @test span(rast, Ti) == Explicit([
+        DateTime("1961-01-01T00:00:00") DateTime("1971-01-01T00:00:00") DateTime("1981-01-01T00:00:00")
+        DateTime("1961-02-01T00:00:00") DateTime("1971-02-01T00:00:00") DateTime("1981-02-01T00:00:00")
+    ])
+    # Mix up the array values
+    @test Rasters.dims2indices(rast, (Ti(At(DateTime(1961, 1, 15))),)) == (:, :, 1)
+    @test_broken Rasters.dims2indices(rast, (Ti(At(DateTime(1971, 1, 15))),)) == (:, :, 2)
+    @test_broken Rasters.dims2indices(rast, (Ti(At(DateTime(1981, 1, 15))),)) == (:, :, 3)
+    rast = RasterStack(examples["7.11"]; lazy=true)
+    @test Rasters.Lookups.cycle(lookup(rast, Ti)) == Day(1)
+    @test Rasters.bounds(rast, Ti) == (DateTime("1997-04-01T00:00:00"), DateTime("1997-05-02T00:00:00"))
+    rast = RasterStack(examples["7.12"]; lazy=true)
+    @test Rasters.Lookups.cycle(lookup(rast, Ti)) == Year(1)
+    @test Rasters.bounds(rast, Ti) == (DateTime("2007-12-01T06:00:00"), DateTime("2008-3-01T06:00:00"))
+    rast = RasterStack(examples["7.13"]; lazy=true)
+    @test Rasters.Lookups.cycle(lookup(rast, Ti)) == (Year(1), Day(1) => Month(1))
+    @test Rasters.bounds(rast, Ti) == (DateTime("1961-04-01T00:00:00"), DateTime("1990-05-01T00:00:00"))
+    rast = RasterStack(examples["7.14"]; lazy=true)
+    @test Rasters.bounds(rast, Ti) == (DateTime("2000-06-01T00:00:00"), DateTime("2000-09-01T00:00:00"))
+    @test Rasters.Lookups.cycle(lookup(rast, Ti)) == Year(1)
+end
+
+@testset "Geometry lookups" begin
+    @testset "7.15 linestring" begin
+        rast = RasterStack(examples["7.15"])
+        @test size(rast) == (4, 2)
+        @test dims(rast, :Geometry)[1] isa GeoInterface.Wrappers.LineString
+        @test GeoInterface.getpoint(dims(rast, :Geometry)[1]) == [(30.0, 10.0), (10.0, 30.0), (40.0, 40.0)]
+    end
+    @testset "7.16 polygons with holes" begin
+        rast = RasterStack(examples["7.16"])
+        multipoly = dims(rast, :Geometry)[1]
+        @test multipoly isa GeoInterface.MultiPolygon
+        poly = GeoInterface.getgeom(dims(rast, :Geometry)[1], 1)
+        @test poly isa GeoInterface.Polygon
+        GeoInterface.nring(poly) == 2
+        GeoInterface.nhole(poly) == 1
+        @test GeoInterface.getgeom(dims(rast, :Geometry)[1], 1) isa GeoInterface.Polygon
+        @test collect(GeoInterface.getpoint(dims(rast, :Geometry)[1])) ==
+            [(20.0, 0.0), (10.0, 15.0), (0.0, 0.0), (20.0, 0.0),
+             (5.0, 5.0), (10.0, 10.0), (15.0, 5.0), (5.0, 5.0),
+             (20.0, 20.0), (10.0, 35.0), (0.0, 20.0), (20.0, 20.0)]
+    end
+end
+
+@testset "CRS round-trip" begin
+    # Test writing CRS to NetCDF and reading it back
+    data = rand(Float32, 10, 10)
+    rast = Raster(data, (X(1.0:10.0), Y(1.0:10.0)); crs=EPSG(32615), name=:temperature)
+
+    mktempdir() do dir
+        path = joinpath(dir, "crs_roundtrip_test.nc")
+        write(path, rast)
+        rast2 = Raster(path)
+        @test !isnothing(crs(rast2))
+        # CRS should be preserved (converted to WKT and back)
+        @test crs(rast2) isa WellKnownText2
+    end
+end

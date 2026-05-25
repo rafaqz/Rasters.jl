@@ -7,18 +7,18 @@ using Rasters.Lookups, Rasters.Dimensions
 
     # Use the Projected lookup, with crs
     lu = Projected(; crs=EPSG(2024))
-    ga = set(ga, Y=lu, X=lu)
+    ga = set(ga, Y(lu), X(lu))
     @test crs(ga) == EPSG(2024)
     @test mappedcrs(ga) == nothing
 
     # Set it with usercrs as well
     lu = Projected(; crs=EPSG(2024), mappedcrs=EPSG(4326))
-    ga = set(ga, Y=lu, X=lu)
+    ga = set(ga, Y(lu), X(lu))
     @test crs(ga) == EPSG(2024)
     @test mappedcrs(ga) == EPSG(4326)
 
     # Make them intervals
-    ga = set(ga, Y=Intervals(Start()), X=Intervals(Start()))
+    ga = set(ga, Y(Intervals(Start())), X(Intervals(Start())))
     @test sampling(ga) == (Intervals(Start()), Intervals(Start()))
 
     # Change the parent array
