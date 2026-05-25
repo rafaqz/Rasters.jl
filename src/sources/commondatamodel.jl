@@ -1,5 +1,7 @@
 const CDM = CommonDataModel
 
+const CDMallowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
+
 const UNNAMED_FILE_KEY = "unnamed"
 
 const CDM_DIM_MAP = Dict(
@@ -33,39 +35,57 @@ const CDM_STANDARD_NAME_MAP = Dict(
     "time" => Ti,
 )
 
-_sourcetrait(var::CDM.CFVariable) = _sourcetrait(var.var)
+# `Source`` from variables and datasets
+sourcetrait(var::CDM.CFVariable) = sourcetrait(var.var)
+# CDM datasets are always multilayer
+check_multilayer_dataset(ds::CDM.AbstractDataset) = true
+
+# Find and check write modes
+function checkwritemode(::CDMsource, filename, append::Bool, force::Bool)
+    if append
+        isfile(filename) ? "a" : "c"
+    else
+        check_can_write(filename, force)
+        "c"
+    end
+end
+# Mode to open file in - read or append
+openmode(write::Bool) = write ? "a" : "r"
+
+missingval(var::CDM.AbstractVariable, md::Metadata{<:CDMsource}) =
+    missingval(md)
+missingval(var::CDM.AbstractVariable, args...) = 
+    missingval(Metadata{sourcetrait(var)}(CDM.attribs(var)))
+
+@inline function get_scale(metadata::Metadata{<:CDMsource}, scaled::Bool)
+    scale = scaled ? get(metadata, "scale_factor", nothing) : nothing
+    offset = scaled ? get(metadata, "add_offset", nothing) : nothing
+    return scale, offset
+end
 
 # Rasters methods for CDM types ###############################
 
-function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
-    write::Bool=false, 
-    group=nokw,
-    name::NTuple{N,Symbol}, 
-    mods,
-    vars,
-) where {source<:CDMsource,N}
-    T = NamedTuple{name,Tuple{map(_mod_eltype, vars, mods)...}}
-    layersizes = map(size, vars)
-    eachchunk = map(DiskArrays.eachchunk, vars)
-    haschunks = map(DiskArrays.haschunks, vars)
-    group = isnokw(group) ? nothing : group
-    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, mods, write)
-end
+Raster(ds::AbstractVariable; kw...) = _raster(ds; kw...)
 
-function _open(f, ::CDMsource, ds::AbstractDataset; 
+function _open(f, source::CDMsource, filename::AbstractString; write=false, kw...)
+    checkfilename(source, filename)
+    ds = sourceconstructor(source)(filename, openmode(write))
+    _open(f, source, ds; kw...)
+end
+function _open(f, source::CDMsource, ds::AbstractDataset; 
     name=nokw, 
     group=nothing, 
     mod=NoMod(), 
     kw...
 )
     g = _getgroup(ds, group)
-    x = if isnokw(name)
-        g 
+    if isnokw(name)
+        cleanreturn(f(g)) 
     else
-        v = CDM.variable(g, string(_name_or_firstname(g, name)))
-        _maybe_modify(v, mod)
+        key = string(_name_or_firstname(g, name))
+        v = CDM.variable(g, key)
+        _open(f, source, v; mod)
     end
-    return cleanreturn(f(x)) 
 end
 _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) = 
     cleanreturn(f(_maybe_modify(var, mod)))
@@ -74,6 +94,9 @@ _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) =
 _getgroup(ds, ::Union{Nothing,NoKW}) = ds
 _getgroup(ds, group::Union{Symbol,AbstractString}) = ds.group[String(group)]
 _getgroup(ds, group::Pair) = _getgroup(ds.group[String(group[1])], group[2])
+
+filename(ds::AbstractDataset) = CDM.path(ds)
+filename(var::AbstractVariable) = CDM.path(CDM.dataset(var))
 
 filekey(ds::AbstractDataset, name::Union{String,Symbol}) = Symbol(name)
 filekey(ds::AbstractDataset, name) = _name_or_firstname(ds, name)
@@ -102,7 +125,6 @@ function _nondimnames(ds)
     nondim = collect(setdiff(keys(ds), toremove))
     return nondim
 end
-
 
 function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
     nondim = _nondimnames(ds)
@@ -139,7 +161,7 @@ function _dims(var::AbstractVariable{<:Any,N}, crs=nokw, mappedcrs=nokw) where N
     end
 end
 _metadata(var::AbstractVariable; attr=CDM.attribs(var)) =
-    _metadatadict(_sourcetrait(var), attr)
+    _metadatadict(sourcetrait(var), attr)
 
 function _dimdict(ds::AbstractDataset, crs=nokw, mappedcrs=nokw)
     dimdict = Dict{String,Dimension}()
@@ -154,7 +176,7 @@ function _dims(ds::AbstractDataset, dimdict::Dict)
     end |> Tuple
 end
 _metadata(ds::AbstractDataset; attr=CDM.attribs(ds)) =
-    _metadatadict(_sourcetrait(ds), attr)
+    _metadatadict(sourcetrait(ds), attr)
 function _layerdims(ds::AbstractDataset; layers, dimdict)
     map(layers.vars) do var
         map(CDM.dimnames(var)) do dimname
@@ -164,7 +186,7 @@ function _layerdims(ds::AbstractDataset; layers, dimdict)
 end
 function _layermetadata(ds::AbstractDataset; layers)
     map(layers.attrs) do attr
-        md = _metadatadict(_sourcetrait(ds), attr)
+        md = _metadatadict(sourcetrait(ds), attr)
         if haskey(attr, "grid_mapping")
             if haskey(ds, attr["grid_mapping"])
                 md["grid_mapping"] = Dict(CDM.attribs(ds[attr["grid_mapping"]]))
@@ -203,7 +225,7 @@ function _cdmdim(ds, dimname::Key, crs=nokw, mappedcrs=nokw)
         # The var doesn't exist. Maybe its `complex` or some other marker,
         # so make it a custom `Dim` with `NoLookup`
         len = _cdmfinddimlen(ds, dimname)
-        len === nothing && _unuseddimerror()
+        len === nothing && _unuseddimerror(dimname)
         lookup = NoLookup(Base.OneTo(len))
         D = _cdmdimtype(NoMetadata(), dimname)
         return D(lookup)
@@ -248,7 +270,7 @@ function _cdmlookup(ds::AbstractDataset, dimname, D::Type, crs, mappedcrs)
     var = ds[dimname]
     index = Missings.disallowmissing(var[:])
     attr = CDM.attribs(var)
-    metadata = _metadatadict(_sourcetrait(ds), attr)
+    metadata = _metadatadict(sourcetrait(ds), attr)
     return _cdmlookup(ds, var, attr, dimname, D, index, metadata, crs, mappedcrs)
 end
 # For unknown types we just make a Categorical lookup
@@ -375,11 +397,15 @@ end
 function _parse_period(period_str::String)
     regex = r"(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)"
     mtch = match(regex, period_str)
-    if mtch === nothing
+    if isnothing(mtch)
         return nothing
     else
-        vals = map(x -> parse(Int, x), mtch.captures)
-        if length(vals) == 6
+        if length(mtch.captures) == 6
+            vals = ntuple(Val{6}()) do i
+                x = mtch.captures[i]
+                # TODO can it actually be nothing?
+                isnothing(x) ? 0 : parse(Int, x)
+            end
             y = Year(vals[1])
             mo = Month(vals[2])
             d = Day(vals[3])
@@ -440,8 +466,43 @@ end
 
 _unuseddimerror(dimname) = error("Dataset contains unused dimension $dimname")
 
+function Base.write(filename::AbstractString, source::CDMsource, A::AbstractRaster;
+    append=false,
+    force=false,
+    kw...
+)
+    mode = checkwritemode(source, filename, append, force)
+    ds = sourceconstructor(source)(filename, mode; attrib=_attribdict(metadata(A)))
+    try
+        writevar!(ds, source, A; kw...)
+    finally
+        close(ds)
+    end
+    return filename
+end
+function Base.write(filename::AbstractString, source::Source, s::AbstractRasterStack{K,T};
+    append=false,
+    force=false,
+    missingval=nokw,
+    f=identity,
+    kw...
+) where {Source<:CDMsource,K,T}
+    mode = checkwritemode(source, filename, append, force)
+    ds = sourceconstructor(source)(filename, mode; attrib=_attribdict(metadata(s)))
+    missingval = _stack_nt(s, isnokw(missingval) ? Rasters.missingval(s) : missingval)
+    try
+        mods = map(keys(s)) do k
+            writevar!(ds, source, s[k]; missingval=missingval[k], kw...)
+        end
+        f(OpenStack{Source,K,T}(ds, mods))
+    finally
+        close(ds)
+    end
+    return filename
+end
+
 # Add a var array to a dataset before writing it.
-function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N};
+function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N};
     verbose=true,
     missingval=nokw,
     metadata=nokw,
@@ -509,10 +570,17 @@ function _writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,
         f(m)
     end
 
-    return nothing
+    return mod
 end
 
 _check_allowed_type(trait, eltyp) = nothing
+function _check_allowed_type(::CDMsource, eltyp)
+    eltyp <: CDMallowedType || throw(ArgumentError("""
+    Element type $eltyp cannot be written to NetCDF. Convert it to one of $(Base.uniontypes(CDMallowedType)),
+    usually by broadcasting the desired type constructor over the `Raster`, e.g. `newrast = Float32.(rast)`"))
+    """
+    ))
+end
 
 _def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
 function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
@@ -536,6 +604,6 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
         push!(attrib, "bounds" => boundskey)
         CDM.defVar(ds, boundskey, bounds, ("bnds", dimname))
     end
-    CDM.defVar(ds, dimname, Vector(index(dim)), (dimname,); attrib=attrib)
+    CDM.defVar(ds, dimname, Vector(lookup(dim)), (dimname,); attrib=attrib)
     return nothing
 end

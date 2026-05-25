@@ -2,7 +2,8 @@ using Documenter, Rasters, Plots, Logging, Statistics, Dates,
     RasterDataSources, ArchGDAL, NCDatasets, CoordinateTransformations
 import Makie, CairoMakie
 using DocumenterVitepress
-using Rasters.LookupArrays, Rasters.Dimensions
+using Rasters.Lookups, Rasters.Dimensions
+import Shapefile, DataFrames, NaturalEarth # to avoid precompilation in doctests
 
 # Don't output huge svgs for Makie plots
 CairoMakie.activate!(type = "png")
@@ -24,7 +25,7 @@ Logging.disable_logging(Logging.Warn)
 # Make the docs, without running the tests again
 # We need to explicitly add all the extensions here
 
-makedocs(
+doc = makedocs(
     modules = [
         Rasters,
         Base.get_extension(Rasters, :RastersArchGDALExt),
@@ -37,13 +38,13 @@ makedocs(
     authors="Rafael Schouten et al.",
     clean=true,
     doctest=true,
+    debug=true,
     checkdocs=:all,
     format=DocumenterVitepress.MarkdownVitepress(
         repo = "github.com/rafaqz/Rasters.jl", # this must be the full URL!
         devbranch = "main",
         devurl = "dev";
     ),
-    draft = false,
     source = "src",
     build = "build",
     warnonly=true,
@@ -52,9 +53,12 @@ makedocs(
 # Enable logging to console again
 Logging.disable_logging(Logging.BelowMinLevel)
 
-deploydocs(; repo="github.com/rafaqz/Rasters.jl.git",
-    target = "build", # this is where Vitepress stores its output
+DocumenterVitepress.deploydocs(; repo="github.com/rafaqz/Rasters.jl",
     branch = "gh-pages",
     devbranch = "main",
     push_preview = true
-    )
+)
+
+if !isempty(doc.internal.errors)
+    error("Documentation build failed with errors:\n$(collect(doc.internal.errors))")
+end

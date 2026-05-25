@@ -54,7 +54,7 @@ using ColorTypes: RGB
 
 using CommonDataModel: AbstractDataset, AbstractVariable
 
-using DiskArrays: @implement_diskarray
+using DiskArrays: @implement_diskarray, eachchunk, haschunks, isdisk
 
 using GeometryOpsCore: Planar, Spherical
 export Planar, Spherical
@@ -69,7 +69,7 @@ export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        resample, warp, zonal, crop, extend, trim, slice, combine, points,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
        coverage, coverage!, setcrs, setmappedcrs, smapseries, cellsize, cellarea
-export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
+export crs, mappedcrs, mappedlookup, mappedbounds, projectedlookup, projectedbounds
 export reproject, convertlookup
 export Extent, extent
 
@@ -79,14 +79,17 @@ const GI = GeoInterface
 const LA = Lookups
 
 # DimensionalData documentation urls
-const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api"
-const DDdimdocs = joinpath(DDdocs, "#DimensionalData.Dimension")
-const DDarraydocs = joinpath(DDdocs, "#DimensionalData.AbstractDimensionalArray")
-const DDabssampleddocs = joinpath(DDdocs, "#DimensionalData.AbstractSampled")
-const DDsampleddocs = joinpath(DDdocs, "#DimensionalData.Sampled")
-const DDlocusdocs = joinpath(DDdocs, "#DimensionalData.Locus")
-const DDselectordocs = joinpath(DDdocs, "#DimensionalData.Selector")
-const DDtidocs = joinpath(DDdocs, "#DimensionalData.Ti")
+const DDdocs = "https://rafaqz.github.io/DimensionalData.jl/stable/api/reference"
+const DDdimdocs = join([DDdocs, "#DimensionalData.Dimensions.Dimension"])
+const DDarraydocs = join([DDdocs, "#DimensionalData.AbstractDimArray"])
+const DDabssampleddocs = join([DDdocs, "#DimensionalData.Dimensions.Lookups.AbstractSampled"])
+const DDsampleddocs = join([DDdocs, "#DimensionalData.Dimensions.Lookups.Sampled"])
+const DDlocusdocs = join([DDdocs, "#DimensionalData.Dimensions.Lookups.locus"])
+const DDselectordocs = join([DDdocs, "#DimensionalData.Dimensions.Lookups.Selector"])
+const DDtidocs = join([DDdocs, "#DimensionalData.Ti"])
+const DDregulardocs = join([DDdocs, "#DimensionalData.Lookups.Regular"])
+const DDirregulardocs = join([DDdocs, "#DimensionalData.Lookups.Irregular"])
+
 
 const EXPERIMENTAL = """
     WARNING: This feature is experimental. It may change in future versions, and may

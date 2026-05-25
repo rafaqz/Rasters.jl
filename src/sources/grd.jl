@@ -31,7 +31,7 @@ function GRDdataset(filename::AbstractString; write=false)
     matches = (match(r"([^=]+)=(.*)", st) for st in entries)
     captures = (string.(strip.(m.captures[1:2])) for m in matches)
     pairs = map(c -> Pair(c[1], c[2]), captures)
-    attrib = Dict(pairs...)
+    attrib = Dict(pairs)
     T = GRD_DATATYPE_TRANSLATION[attrib["datatype"]]
     GRDdataset{T,typeof(filename)}(filename, attrib, write)
 end
@@ -40,16 +40,6 @@ attrib(grd::GRDdataset) = grd.attrib
 filename(grd::GRDdataset) = grd.filename
 filekey(grd::GRDdataset, name::NoKW) = get(attrib(grd), "layername", Symbol(""))
 filekey(A::RasterDiskArray{GRDsource}, name) = filekey(A.attrib, name)
-
-# Already open, doesn't use `name`
-function _open(f, ::GRDsource, A::RasterDiskArray{GRDsource}; 
-    name=nokw, 
-    group=nokw, 
-    mod=NoMod(), 
-    kw...
-) 
-    cleanreturn(f(_maybe_modify(A, mod)))
-end
 
 Base.eltype(::GRDdataset{T}) where T = T
 function Base.size(grd::GRDdataset)
@@ -212,7 +202,6 @@ function Base.write(filename::String, ::GRDsource, A::AbstractRaster;
     # Data: write a raw gri file from the array
     mod = _mod(eltype, missingval_pair, scale, offset, coerce)
     gri_filename = filename * ".gri"
-    isfile(gri_filename) && rm(gri_filename)
     _write_gri(gri_filename, Val{source_eltype(mod)}(), mod, parent(correctedA))
     _write_grd(filename, eltype, dims(A), missingval_pair[1], name(A))
 
@@ -284,28 +273,22 @@ function _write_grd(filename, T, dims, missingval, name)
 end
 
 # Rasters methods
-function _open(f, ::GRDsource, filename::AbstractString; 
-    mod=NoMod(), 
-    write=false, 
-    kw...
-)
+function _open(f, source::GRDsource, filename::AbstractString; kw...)
     isfile(filename) || _filenotfound_error(filename)
-    attr = GRDdataset(filename)
-    _mmapgrd(attr; write) do mm
-        A = RasterDiskArray{GRDsource}(mm, DA.eachchunk(attr), DA.haschunks(attr), attr)
-        A1 = _maybe_modify(A, mod)
-        f(A1)
+    _open(f, source, GRDdataset(filename); kw...)
+end
+function _open(f, source::GRDsource, ds::GRDdataset; write=false, kw...)
+    _mmapgrd(ds; write) do mm
+        A = RasterDiskArray{GRDsource}(mm, DA.eachchunk(ds), DA.haschunks(ds), ds)
+        _open(f, source, A; kw...)
     end
 end
-_open(f, ::GRDsource, attrib::GRDdataset; kw...) = f(attrib)
-function _open(f, ::GRDsource, A::RasterDiskArray; 
-    mod=NoMod(), 
-    kw...
-)
+_open(f, ::GRDsource, A::RasterDiskArray; mod=NoMod(), kw...) =
     cleanreturn(f(_maybe_modify(A, mod)))
-end
 
 haslayers(::GRDsource) = false
+
+Raster(ds::RasterDiskArray{<:GRDsource}; kw...) = _raster(ds; kw...)
 
 
 # Utils ########################################################################

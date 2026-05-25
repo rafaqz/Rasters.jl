@@ -1,4 +1,5 @@
 using Rasters, Test, ArchGDAL, ArchGDAL.GDAL, Dates, Statistics, DataFrames, Extents, Shapefile, GeometryBasics
+using StableRNGs, StatsBase
 import GeoInterface
 using Rasters.Lookups, Rasters.Dimensions 
 using Rasters: bounds, trim
@@ -176,10 +177,10 @@ end
     mm_st2 = missingmask(st2)
     mm_st2_inverted = missingmask(st2; invert=true)
     @test dims(mm_st2) == dims(mm_st2_inverted) == dims(st2)
-    @test all(mm_st2 .=== [missing missing; true missing])    
-    @test all(mm_st2_inverted .=== [true true; missing true])    
-    @test all(missingmask(st2, alllayers = false) .=== [missing; true])    
-    @test all(missingmask(se) .=== missingmask(ga))
+    @test isequal(mm_st2, [missing missing; true missing])    
+    @test isequal(mm_st2_inverted, [true true; missing true])    
+    @test isequal(missingmask(st2, alllayers = false), [missing; true])    
+    @test isequal(missingmask(se), missingmask(ga))
     @test missingmask(polygon; res=1.0, boundary=:touches) == 
         fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:0.0; crs=nothing)), Y(Projected(10.0:1.0:30.0; crs=nothing))), true)
     x = missingmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches)
@@ -211,14 +212,14 @@ end
     @test all(mask(ga1; with=ga) .=== mask(ga2; with=ga) .=== [missing 1; 2 missing])
     @test all(mask(ga1; with=ga, invert=true) .=== mask(ga2; with=ga, invert=true) .=== [missing missing; missing 3])
     ga2 = replace_missing(ga1 .* 1.0; missingval=NaN)
-    @test all(mask(ga2; with=ga) .=== [NaN 1.0; 2.0 NaN])
-    @test all(mask(ga2; with=ga, invert=true) .=== [NaN NaN; NaN 3.0])
+    @test isequal(mask(ga2; with=ga), [NaN 1.0; 2.0 NaN])
+    @test isequal(mask(ga2; with=ga, invert=true), [NaN NaN; NaN 3.0])
     ga3 = replace_missing(ga1; missingval=-9999)
     mask!(ga3; with=ga)
-    @test all(ga3 .=== [-9999 1; 2 -9999])
+    @test isequal(ga3, [-9999 1; 2 -9999])
     ga4 = replace_missing(ga1; missingval=-9999)
     mask!(ga4; with=ga, invert=true)
-    @test all(ga4 .=== [-9999 -9999; -9999 3])
+    @test isequal(ga4, [-9999 -9999; -9999 3])
     maskfile = tempname() * ".tif"
     dmask = mask(ga3; with=ga, filename=maskfile)
     @test Rasters.isdisk(dmask)
@@ -363,6 +364,14 @@ end
         @test !zonal(x -> x isa Raster, rast; of=polygon, skipmissing=true)
         @test zonal(x -> x isa Raster, rast; of=polygon, skipmissing=false)
     end
+
+    @testset "emptyval" begin
+        rast = Raster{Union{Missing,Int}}(undef, (X(-20:5), Y(0:30)))
+        rast .= missing
+        @test zonal(sum, rast; of=polygon, emptyval=-1) === -1
+        rast .= 0
+        @test zonal(sum, rast; of=polygon, emptyval=-1) === 0
+    end
 end
 
 @testset "zonal return missing" begin
@@ -380,9 +389,9 @@ end
 @testset "classify" begin
     A1 = [missing 1; 2 3]
     ga1 = Raster(A1, (X, Y); missingval=missing)
-    @test all(classify(ga1, 1=>99, 2=>88, 3=>77) .=== [missing 99; 88 77])
-    @test all(classify(ga1, 1=>99, 2=>88, 3=>77; others=0) .=== [missing 99; 88 77])
-    @test all(classify(ga1, 1=>99, 2=>88; others=0) .=== [missing 99; 88 0])
+    @test isequal(classify(ga1, 1=>99, 2=>88, 3=>77), [missing 99; 88 77])
+    @test isequal(classify(ga1, 1=>99, 2=>88, 3=>77; others=0), [missing 99; 88 77])
+    @test isequal(classify(ga1, 1=>99, 2=>88; others=0), [missing 99; 88 0])
     A2 = [1.0 2.5; 3.0 4.0]
     ga2 = Raster(A2 , (X, Y))
     @test classify(ga2, (2, 3)=>:x, >(3)=>:y) == [1.0 :x; 3.0 :y]
@@ -391,7 +400,7 @@ end
     @test ga2 == [1.0 0.0; -1.0 -1.0]
     classify!(ga2, [1 2.5 0.0; 2.5 4.0 -1.0]; lower=(>), upper=(<=))
     @test ga2 == [1.0 0.0; -1.0 -1.0]
-    @test all(classify(ga1, [1 99; 2 88; 3 77]) .=== [missing 99; 88 77])
+    @test isequal(classify(ga1, [1 99; 2 88; 3 77]), [missing 99; 88 77])
     @test_throws ArgumentError classify(ga1, [1, 2, 3])
 end
 
@@ -403,9 +412,9 @@ end
     table = (geometry=[missing, (9.0, 0.1), (9.0, 0.2), (10.0, 0.3)], foo=zeros(4))
     st = RasterStack(rast, rast2)
     ga = Raster(A, (X(9.0:1.0:10.0), Y(0.1:0.1:0.2)))
-    @test all(collect(points(ga; order=(Y, X))) .=== [missing (0.2, 9.0); (0.1, 10.0) missing])
-    @test all(collect(points(ga; order=(X, Y))) .=== [missing (9.0, 0.2); (10.0, 0.1) missing])
-    @test all(points(ga; order=(X, Y), ignore_missing=true) .===
+    @test isequal(collect(points(ga; order=(Y, X))), [missing (0.2, 9.0); (0.1, 10.0) missing])
+    @test isequal(collect(points(ga; order=(X, Y))), [missing (9.0, 0.2); (10.0, 0.1) missing])
+    @test isequal(points(ga; order=(X, Y), ignore_missing=true),
               [(9.0, 0.1) (9.0, 0.2); (10.0, 0.1) (10.0, 0.2)])
 end
 
@@ -413,19 +422,20 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
 
 @testset "trim, crop, extend" begin
     A = [missing missing missing
+        missing missing missing
          missing 2.0     0.5
          missing 1.0     missing]
 
-    r_fwd = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing)
-    r_crs = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing, crs = EPSG(4326))
-    r_mcrs = Raster(A, (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=missing, crs = EPSG(4326), mappedcrs = EPSG(4326))
+    r_fwd = Raster(A, (X(1.0:1.0:4.0), Y(1.0:1.0:3.0)); missingval=missing)
+    r_crs = Raster(A, (X(1.0:1.0:4.0), Y(1.0:1.0:3.0)); missingval=missing, crs = EPSG(4326))
+    r_mcrs = Raster(A, (X(1.0:1.0:4.0), Y(1.0:1.0:3.0)); missingval=missing, crs = EPSG(4326), mappedcrs = EPSG(4326))
     r_revX = reverse(r_fwd; dims=X)
     r_revY = reverse(r_fwd; dims=Y)
     st1 = RasterStack((a = r_fwd, b = r_fwd))
     st2 = RasterStack((a = r_fwd, b = r_fwd), crs = EPSG(4326))
     st3 = RasterStack((a = r_fwd, b = r_fwd), crs = EPSG(4326), mappedcrs = EPSG(4326))
 
-    ga = r_fwd
+    ga = r_revX
     for ga in (r_fwd, r_crs, r_mcrs, r_revX, r_revY, st1, st2, st3)
         # Test with missing on all sides
         ga_r = rot180(ga)
@@ -447,6 +457,8 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         extended1 = extend(extend(cropped; to=dims(ga, X)); to=dims(ga, Y))
         filename = tempname() * ".tif"
         extended_d = extend(cropped; to=ga, filename)
+        @test dims(extended) == dims(extended1) == dims(extended_d) == dims(ga)
+        @test dims(extended_r) == dims(ga_r)
         @test map(identicalelements, maybe_layers.((extended, extended1, replace_missing(extended_d), ga))...) |> all
         @test map(identicalelements, maybe_layers.((extended_r, ga_r))...) |> all
         @test all(map(==, lookup(extended_d), lookup(extended)))
@@ -491,12 +503,15 @@ createpoint(args...) = ArchGDAL.createpoint(args...)
         @test size(fccrop) == size(tablecrop) == (16, 21)
         @test bounds(fccrop) == bounds(tablecrop) == ((-20, -5), (10, 30))
     end
+    @testset "atol works in crop" begin
+        cropatol_dims = crop(r_fwd; to=(X(1.1:0.9:2.9), Y(2.1:0.1:3.1)), atol=0.1)
+        cropatol_rast = crop(r_fwd; to=Raster(rand(X(1.1:0.9:2.9), Y(2.1:0.1:3.1))), atol=0.1)
+        @test dims(cropatol_dims) == dims(cropatol_rast) == dims(r_fwd[1:3, 2:3])
+    end
 
 end
-
-using StableRNGs, StatsBase
-test = rebuild(ga; name = :test)
 @testset "sample" begin
+    test = rebuild(ga; name = :test)
     # test that all keywords work and return the same thing as extract
     @test all(Rasters.sample(StableRNG(123), test, 2) .=== extract(test, [(2.0,2.0), (1.0,2.0)]))
     @test all(Rasters.sample(StableRNG(123), st2, 2) .=== extract(st2, [(2,2), (1,2)]))
@@ -577,11 +592,11 @@ end
 @testset "extent" begin
     ga = Raster(A, (X(1.0:1:2.0), Y(1.0:1:2.0)); missingval=missing) 
     ext = extent(ga)
-    @test ext === Extent(X=(1.0,2.0), Y=(1.0,2.0))
+    @test ext === Extent(X=(1.0, 2.0), Y=(1.0, 2.0))
     @test Rasters._extent(ext) === ext
 
     ga2 = Raster(A, (X(Float32.(1:2)), Y(Float32.(1:2))))
     ext2 = extent(ga2)
-    @test ext2 === Extent(X=(1.0f0,2.0f0), Y=(1.0f0,2.0f0))
+    @test ext2 === Extent(X=(1.0f0, 2.0f0), Y=(1.0f0, 2.0f0))
     @test Rasters._extent(ext2) === ext # currently this converts to float64!
 end

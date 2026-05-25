@@ -62,11 +62,10 @@ filename(A::DiskArrays.AbstractDiskArray) = filename(parent(A))
 cleanreturn(A::AbstractRaster) = rebuild(A, cleanreturn(parent(A)))
 cleanreturn(x) = x
 
-isdisk(A::AbstractRaster) = parent(A) isa DiskArrays.AbstractDiskArray
-isdisk(x) = false
 ismem(A::AbstractRaster) = !isdisk(A)
 
-for f in (:mappedbounds, :projectedbounds, :mappedindex, :projectedindex)
+
+for f in (:mappedbounds, :projectedbounds, :mappedlookup, :projectedlookup)
     @eval ($f)(A::AbstractRaster, dims_) = ($f)(dims(A, dims_))
     @eval ($f)(A::AbstractRaster) = ($f)(dims(A))
 end
@@ -146,16 +145,20 @@ By using a do block to open files we ensure they are always closed again
 after we finish working with them.
 """
 function Base.open(f::Function, A::AbstractRaster; kw...)
-    # Open FileArray to expose the actual dataset object, even inside nested wrappers
-    fas = Flatten.flatten(parent(A), FLATTEN_SELECT, FLATTEN_IGNORE)
-    if fas == ()
-        f(Raster(parent(A), dims(A), refdims(A), name(A), metadata(A), missingval(A)))
-    else
-        if length(fas) == 1
-            _open_one(f, A, fas[1]; kw...)
+    if isdisk(A)
+        # Open FileArray to expose the actual dataset object, even inside nested wrappers
+        fas = Flatten.flatten(parent(A), FLATTEN_SELECT, FLATTEN_IGNORE)
+        if fas == ()
+            f(A)
         else
-            _open_many(f, A, fas; kw...)
+            if length(fas) == 1
+                _open_one(f, A, fas[1]; kw...)
+            else
+                _open_many(f, A, fas; kw...)
+            end
         end
+    else
+        f(A)
     end
 end
 
@@ -163,8 +166,7 @@ function _open_one(f, A::AbstractRaster, fa::FileArray; kw...)
     open(fa; kw...) do x
         # Rewrap the opened object where the FileArray was nested in the parent array
         data = Flatten.reconstruct(parent(A), (x,), FLATTEN_SELECT, FLATTEN_IGNORE)
-        openraster = Raster(data, dims(A), refdims(A), name(A), metadata(A), missingval(A))
-        f(openraster)
+        f(rebuild(A; data))
     end
 end
 
@@ -176,8 +178,7 @@ function _open_many(f, A::AbstractRaster, fas::Tuple, oas::Tuple; kw...)
 end
 function _open_many(f, A::AbstractRaster, fas::Tuple{}, oas::Tuple; kw...)
     data = Flatten.reconstruct(parent(A), oas, FLATTEN_SELECT, FLATTEN_IGNORE)
-    openraster = Raster(data, dims(A), refdims(A), name(A), metadata(A), missingval(A))
-    f(openraster)
+    f(rebuild(A; data))
 end
 
 # Concrete implementation ######################################################
@@ -289,27 +290,59 @@ function Raster(filename::AbstractString, dims::Tuple{<:Dimension,<:Dimension,Va
 )::Raster
     Raster(filename; dims, kw...)
 end
+# By default we assume missing values
+function Raster(ext::Union{Extents.Extent,DimTuple}; kw...) 
+    A = Raster(undef, ext; kw...)
+    # If `undef` isn't specified, fill with missing values
+    fill = isnothing(missingval(A)) ? zero(eltype(A)) : missingval(A) 
+    A .= fill
+    return A
+end
+# And Float64
+Raster(::UndefInitializer, ext::Union{Extents.Extent,DimTuple}; kw...) = 
+    Raster{Float64}(undef, ext; kw...)
+function Raster{T}(x::UndefInitializer, dims::DimTuple;
+    missingval=nokw, kw...
+) where T
+    T1 = isnokwornothing(missingval) ? T : promote_type(T, typeof(missingval))
+    Raster(Array{T1}(undef, size(dims)), dims; missingval, kw...)
+end
+# Varargs version to handle Raster{T}(undef, X(...), Y(...), ...)
+Raster{T}(x::UndefInitializer, dim1::Dimension, dims::Dimension...; kw...) where T =
+    Raster{T}(x, (dim1, dims...); kw...)
+function Raster{T}(x::UndefInitializer, dims::Tuple{}; 
+    missingval=nokw, kw...
+) where T
+    T1 = isnokwornothing(missingval) ? T : promote_type(T, typeof(missingval))
+    Raster(Array{T1}(undef, ()), dims; missingval, kw...)
+end
+function Raster{T}(::UndefInitializer, ext::Extents.Extent; 
+    size=nothing, res=nothing, crs=nothing, mappedcrs=nothing, sampling=Points(), closed=false, kw...
+) where T
+    dims = _extent2dims(ext; size, res, crs, mappedcrs, sampling, closed)
+    Raster{T}(undef, dims; kw...)
+end
 # Load a Raster from a string filename
-function Raster(filename::AbstractString;
-    source=nokw,
-    kw...
-)
-    source = _sourcetrait(filename, source)
-    _open(filename; source, mod=NoMod()) do ds
-        Raster(ds, filename; source, kw...)
+function Raster(filename::AbstractString; source=nokw, kw...)
+    source = sourcetrait(filename, source)
+    _open(filename; source, mod=nothing) do ds
+        _raster(ds; filename, source, kw...)
     end::Raster
 end
 # Load a Raster from an opened Dataset
-function Raster(ds, filename::AbstractString;
+# We need the inner method for AbstractArray ambiguit
+Raster(ds; kw...) = _raster(ds; kw...)
+function _raster(ds;
     dims=nokw,
     refdims=(),
     name=nokw,
     group=nokw,
+    filename=filename(ds),
     metadata=nokw,
     missingval=nokw,
     crs=nokw,
     mappedcrs=nokw,
-    source=nokw,
+    source=sourcetrait(ds),
     replace_missing=nokw,
     coerce=convert,
     scaled::Union{Bool,NoKW}=nokw,
@@ -328,10 +361,9 @@ function Raster(ds, filename::AbstractString;
     # TODO use a clearer name for this
     name1 = filekey(ds, name)
     # Detect the source from filename
-    source = _sourcetrait(filename, source)
     # Open the dataset and variable specified by `name`, at `group` level if provided
     # At this level we do not apply `mod`.
-    data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=NoMod()) do var
+    data_out, dims_out, metadata_out, missingval_out = _open(source, ds; name=name1, group, mod=nothing) do var
         metadata_out = isnokw(metadata) ? _metadata(var) : metadata
         missingval_out = _read_missingval_pair(var, metadata_out, missingval)
         # Generate mod for scaling
@@ -362,6 +394,8 @@ function Raster(ds, filename::AbstractString;
     # Maybe drop a single band dimension
     return _maybe_drop_single_band(raster, dropband, lazy)
 end
+# For ambiguity
+Raster(x::UndefInitializer; kw...) = Raster(x, (); kw...)
 
 filekey(ds, name) = name
 filekey(filename::String) = Symbol(splitext(basename(filename))[1])

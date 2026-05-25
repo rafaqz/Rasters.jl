@@ -1,9 +1,9 @@
-
 const DimOrDimTuple = Union{Dimension,Tuple{Vararg{Dimension}}}
 const IntOrIntTuple = Union{Int,Tuple{Vararg{Int}}}
 
-struct Ag end
-struct DisAg end
+abstract type AgMode end
+struct Ag <: AgMode end
+struct DisAg <: AgMode end
 
 const SKIPMISSING_KEYWORD = """
 - `skipmissing`: if `true`, any `missingval` will be skipped during aggregation, so that
@@ -98,16 +98,15 @@ end
 function aggregate(method, src::AbstractRaster, scale;
     suffix=nothing, filename=nothing, progress=true, kw...
 )
-    return alloc_ag(method, src, scale; filename, suffix, kw...) do dst
-        aggregate!(method, dst, src, scale; progress, kw...)
+    return _alloc(Ag(), method, src, scale; filename, suffix, kw...) do dst
+        aggregate!(method, dst, src, scale; progress, kw..., verbose=false)
     end
 end
 aggregate(method, d::Dimension, scale) = rebuild(d, aggregate(method, lookup(d), scale))
 aggregate(method, l::Lookup, scale::Colon) = aggregate(method, l, length(l)) 
 aggregate(method, l::Lookup, scale::Nothing) = aggregate(method, l, 1) 
 function aggregate(method, l::Lookup, scale::Int)
-    intscale = _scale2int(Ag(), l, scale)
-    start, stop = _endpoints(method, l, intscale)
+    start, stop = _endpoints(method, l, scale)
     if issampled(l) && isordered(l)
         newl = l[start:scale:stop]
         sp = aggregate(method, span(l), scale)
@@ -152,14 +151,16 @@ function aggregate!(loci::Tuple{Locus,Vararg}, dst::AbstractRaster, src, scale;
     intscale = _scale2int(Ag(), dims(src), scale; verbose)
     offsets = _agoffset.(loci, intscale)
     # Cache the source if its a disk array
-    src1 = isdisk(src) ? DiskArrays.cache(src) : src
-    # Broadcast will make the dest arrays chunks when needed
-    broadcast!(dst, CartesianIndices(dst)) do I
-        # Upsample for each pixel. Possibly slighly inneficient
-        # for large aggregations but its simple
-        J = upsample.(Tuple(I), intscale) .+ offsets
-        val = src1[J...]
-        _ismissing(val, missingval(src)) ? missingval(dst) : val
+    open(src) do opened_src
+        cached_src = isdisk(opened_src) ? DiskArrays.cache(opened_src) : opened_src
+        # Broadcast will make the dest arrays chunks when needed
+        broadcast!(dst, CartesianIndices(dst)) do I
+            # Upsample for each pixel. Possibly slighly inneficient
+            # for large aggregations but its simple
+            J = upsample.(Tuple(I), intscale) .+ offsets
+            val = cached_src[J...]
+            _ismissing(val, missingval(src)) ? missingval(dst) : val
+        end
     end
     return dst
 end
@@ -220,6 +221,7 @@ $FILENAME_KEYWORD
 $SUFFIX_KEYWORD
 $PROGRESS_KEYWORD
 $THREADED_KEYWORD
+- `lazy`: A `Bool` specifying if to disaggregate lazily. Defaults to `false`
 
 Note: currently it is _much_ faster to disaggregate over a memory-backed 
 source array. Use [`read`](@ref) on `src` before use where required.
@@ -238,21 +240,25 @@ function disaggregate(series::AbstractRasterSeries, scale;
     return dst
 end
 function disaggregate(stack::AbstractRasterStack{K}, scale;
-    keys=keys(stack), suffix=keys, filename=nothing, progress=true, threaded=false
+    keys=keys(stack), suffix=keys, progress=true, threaded=false, kw...
 ) where K
     dst_vec = Vector{Raster}(undef, length(K))
     ls = layers(stack)
     _run(1:length(K), threaded, progress, "Disaggregating stack...") do i
-        dst_vec[i] = disaggregate(ls[i], scale; filename, suffix=suffix[i])
+        dst_vec[i] = disaggregate(ls[i], scale; suffix=suffix[i], kw...)
     end
     dst_tuple = ntuple(i -> dst_vec[i], Val{length(K)}())
     return DD.rebuild_from_arrays(stack, dst_tuple)
 end
 function disaggregate(src::AbstractRaster, scale;
-    suffix=nothing, filename=nothing, kw...
+    suffix=nothing, filename=nothing, lazy=false, kw...
 )
-    return alloc_disag(Center(), src, scale; filename, suffix, kw...) do dst
-        disaggregate!(dst, src, scale)
+    if lazy
+        return _view_disaggregate(src, scale)
+    else
+        return _alloc(DisAg(), Center(), src, scale; filename, suffix, kw...) do dst
+            disaggregate!(dst, src, scale)
+        end
     end
 end
 function disaggregate(dim::Dimension, scale)
@@ -305,17 +311,43 @@ function disaggregate!(dst::AbstractRaster, src, scale)
     return dst
 end
 
+const AgArgs = Union{Integer,Colon,DD.SelectorOrInterval}
+
 # Allocate an array of the correct size to aggregate `A` by `scale`
-alloc_ag(f, method, A::AbstractRaster, scale; kw...) = alloc_ag(f, (method,), A, scale; kw...)
-function alloc_ag(f, method::Tuple, A::AbstractRaster, scale;
-    filename=nokw, suffix=nokw, skipmissingval=false, skipmissing=false, progress=false, verbose=false
+_alloc(f, ag::AgMode, method, A::AbstractRaster, scale; kw...) = 
+    _alloc(f, ag, (method,), A, scale; kw...)
+_alloc(f, ag::AgMode, method, A::AbstractRaster, scale::Dimension; kw...) = 
+    _alloc(f, ag, method, A, (scale,); kw...)
+function _alloc(f, ag::AgMode, method::Tuple, A::AbstractRaster, scale::AgArgs; kw...)
+    intscale = _scale2int(ag, dims(A), scale)
+    _alloc(f, ag, method, A, map(rebuild, dims(A), intscale); kw...)
+end
+_alloc(f, ag::AgMode, method::Tuple, A::AbstractRaster, scale::NamedTuple; kw...) =
+    _alloc(f, ag, method, A, DD.kw2dims(scale); kw...)
+_alloc(f, ag::AgMode, method::Tuple, A::AbstractRaster, scale::Tuple{Pair,Vararg{Pair}}; kw...) =
+    _alloc(f, ag::AgMode, method, A, DD.Dimensions.pairs2dims(scale...); kw...)
+function _alloc(f, ag::AgMode, method::Tuple, A::AbstractRaster, scale::Tuple; kw...)
+    length(scale) == ndims(A) || throw(ArgumentError("length of scale must match array dimensions $(ndims(A)), got $(length(scale))"))
+    _alloc(f, ag::AgMode, method, A, map(rebuild, dims(A), scale); kw...)
+end
+function _alloc(f, ag::AgMode, method::Tuple, A::AbstractRaster, scale::DimTuple;
+    filename=nokw, suffix=nokw, 
+    skipmissingval=false, skipmissing=false, progress=false, verbose=false
 )
-    intscale = _scale2int(Ag(), dims(A), scale; verbose=false)
+    intscale = _scale2int(ag, dims(A, scale), scale; verbose=false)
     # Aggregate the dimensions
-    dims_ = aggregate.(method, dims(A), intscale)
+    agdims = map(dims(A, scale), intscale) do d, i
+        if ag isa Ag
+            aggregate(method, d, i)
+        else
+            disaggregate(method, d, i)
+        end
+    end
+    newdims = dims((agdims..., otherdims(A, scale)...), dims(A)) 
+    
     # Dim aggregation determines the array size
-    sze = map(length, dims_)
-    agT = ag_eltype(method, A)
+    sze = map(length, newdims)
+    agT = _ag_eltype(method, A)
     if missingval(A) isa Nothing
         T = agT
         mv = nothing
@@ -323,30 +355,12 @@ function alloc_ag(f, method::Tuple, A::AbstractRaster, scale;
         T = promote_type(agT, typeof(missingval(A)))
         mv = convert(T, missingval(A))
     end
-    return create(f, filename, T, dims_; name=name(A), suffix, missingval=mv)
-end
-
-# Allocate an array of the correct size to disaggregate `A` by `scale`
-function alloc_disag(f, method, A::AbstractRaster, scale; kw...)
-    alloc_disag(f, (method,), A, scale; kw...)
-end
-function alloc_disag(f, method::Tuple, A::AbstractRaster, scale;
-    filename=nokw, suffix=nokw
-)
-    intscale = _scale2int(DisAg(), dims(A), scale; verbose=false)
-    dims_ = map(dims(A), intscale) do d, i
-        disaggregate(method, d, i)
-    end
-    # Dim aggregation determines the array size
-    sze = map(length, dims_)
-    T = ag_eltype(method, A)
-    mv = missingval(A) isa Nothing ? nothing : convert(T, missingval(A))
-    return create(f, filename, T, dims_; name=name(A), suffix, missingval=mv)
+    return create(f, filename, T, newdims; name=name(A), suffix, missingval=mv)
 end
 
 # Handle how methods like `mean` can change the type
-ag_eltype(method::Tuple{<:Locus,Vararg}, A) = eltype(A)
-function ag_eltype(method::Tuple{<:Any}, A)
+_ag_eltype(::Tuple{<:Union{Locus,Type{<:Locus}},Vararg}, A) = eltype(A)
+function _ag_eltype(method::Tuple{<:Base.Callable}, A)
     method_returntype = typeof(method[1](zero(eltype(A))))
     promote_type(eltype(A), method_returntype)
 end
@@ -360,57 +374,58 @@ downsample(index::Int, scale::Int) = (index - 1) ÷ scale + 1
 downsample(index::Int, scale::Nothing) = index
 
 # Convert scale or tuple of scale to integer using dims2indices
-@inline function _scale2int(x, dims::DimTuple, scale::DimTuple; verbose=true)
+@inline function _scale2int(x::AgMode, dims::DimTuple, scale::DimTuple; verbose=true)
     map(dims, DD.sortdims(scale, dims)) do d, s
-        if isnothing(s) 
+        if isnothing(s) || isnothing(val(s))
             1
         else
             i = dims2indices(d, s)
             # Swap Colon as all to Colon as 1 (1 is the no-change option here)
-            s = i isa Colon ? length(d) : i
-            _scale2int(x, d, s)
+            i1 = i isa Colon ? length(d) : i
+            _scale2int(x, d, i1)
         end
     end
 end
-@inline function _scale2int(x, dims::DimTuple, scale::Tuple; verbose=true)
+@inline function _scale2int(x::AgMode, dims::DimTuple, scale::Tuple; verbose=true)
     map(dims, DD.dims2indices(dims, scale)) do d, s
         _scale2int(x, d, s)
     end
 end
-@inline _scale2int(x, dims::DimTuple, scale::Tuple{<:Pair,Vararg{Pair}}; verbose=true) =
+@inline _scale2int(x::AgMode, dims::DimTuple, scale::Tuple{<:Pair,Vararg{Pair}}; verbose=true) =
     _scale2int(x, dims, Dimensions.pairs2dims(scale...); verbose)
-@inline _scale2int(x, dims::DimTuple, scale::NamedTuple; verbose=true) = 
+@inline _scale2int(x::AgMode, dims::DimTuple, scale::NamedTuple; verbose=true) = 
     _scale2int(x, dims, Dimensions.kw2dims(scale); verbose)
-@inline function _scale2int(x, dims::DimTuple, scale::Int; verbose=true) 
+@inline _scale2int(x::AgMode, dims::DimTuple, scale::Dimension; verbose=true) = 
+    _scale2int(x, dims, (scale,); verbose)
+@inline function _scale2int(x::AgMode, dims::DimTuple, scale::Int; verbose=true) 
     # If there are other dimensions, we skip categorical dims
-    vals = map(dims) do d
+    pairs = map(dims) do d
         if iscategorical(d) || !isordered(d) 
-            name(d), nothing
+            name(d) => nothing
         else
-            name(d), _scale2int(x, d, scale)
+            name(d) => _scale2int(x, d, scale)
         end
     end
-    nskipped = count(isnothing ∘ last, vals)
+    nskipped = count(isnothing ∘ last, pairs)
     if nskipped == length(dims)
         example = join(map(((n, d),) -> "$(name(d))=$(n + 1),", enumerate(dims)), ' ')
         # If all dims are categorical we error
         throw(ArgumentError("All dimensions are Categorical. To aggregate anyway, list scale explicity for each dimension, e.g. ($example)"))
     end
     if verbose && nskipped > 0
-        scaleddims = join((v[1] for v in vals if v[2] isa Int), ", ", " and ")
-        skippeddims = join((v[1] for v in vals if isnothing(v[2])), ", ", " and ")
+        scaleddims = join((p[1] for p in pairs if p[2] isa Int), ", ", " and ")
+        skippeddims = join((p[1] for p in pairs if isnothing(p[2])), ", ", " and ")
         @info """
-            Aggregating $scaleddims by $scale. $(skippeddims == "" ? "" : skippeddims) 
-            skipped due to being `Categorical` or `Unordered`. 
+            Aggregating $scaleddims by $scale. $(skippeddims == "" ? "" : skippeddims) skipped due to being `Categorical` or `Unordered`. 
             Specify all scales explicitly in a Tuple or NamedTuple to aggregate these anyway.  
             """
     end
-    return map(last, vals)
+    return map(last, pairs)
 end
-@inline _scale2int(x, dims::DimTuple, scale::Colon; verbose=true) = 
+@inline _scale2int(x::AgMode, dims::DimTuple, scale::Colon; verbose=true) = 
     _scale2int(x, dims, map(_ -> Colon(), dims)) 
-@inline _scale2int(x, d, scale::Colon) = length(d)
-@inline _scale2int(x, dim::Dimension, scale::Int) = _scale2int(x, lookup(dim), scale)
+@inline _scale2int(x::AgMode, d, scale::Colon) = length(d)
+@inline _scale2int(x::AgMode, dim::Dimension, scale::Int) = _scale2int(x, lookup(dim), scale)
 @inline _scale2int(::Ag, l::Lookup, scale::Int) = scale > length(l) ? length(l) : scale
 @inline _scale2int(::DisAg, l::Lookup, scale::Int) = scale
 
@@ -442,20 +457,20 @@ end
     return _reduce_noskip(sum, block, mv, dst)
 end
 @propagate_inbounds function _reduce_noskip(::typeof(sum), block, mv, dst)
-    agg = zero(eltype(block))
+    agg = Base.add_sum(zero(eltype(block)), zero(eltype(block)))
     for x in block
         _ismissing(x, mv) && return _missingval_or_missing(dst)
-        agg += x
+        agg = Base.add_sum(agg, x)
     end
     return agg
 end
 @propagate_inbounds function _reduce_noskip(::typeof(DD.Statistics.mean), block, mv, dst)
-    agg = zero(eltype(block))
+    agg = float(zero(eltype(block))) # Force floating point for mean
     n = 0
     for x in block
         _ismissing(x, mv) && return _missingval_or_missing(dst)
         n += 1
-        agg += x
+        agg = Base.add_sum(agg, x)
     end
     return agg / n
 end
@@ -473,24 +488,32 @@ end
     return _reduce_skip(sum, block, mv, dst)
 end
 @propagate_inbounds function _reduce_skip(::typeof(sum), block, mv, dst)
-    agg = zero(eltype(block))
+    # Use add_sum to get the correct type, e.g. UInt64 from UInt
+    agg = Base.add_sum(zero(eltype(block)), zero(eltype(block)))
     found = false
     for x in block
         _ismissing(x, mv) && continue
         found = true
-        agg += x
+        agg = Base.add_sum(agg, x)
     end
     return found ? agg : _missingval_or_missing(dst)
 end
 @propagate_inbounds function _reduce_skip(::typeof(DD.Statistics.mean), block, mv, dst)
-    agg = zero(eltype(block))
+    agg = float(zero(eltype(block))) # Force floating point for mean
     found = false
     n = 0
     for x in block
         _ismissing(x, mv) && continue
         found = true
         n += 1
-        agg += x
+        agg = Base.add_sum(agg, x)
     end
     return found ? agg / n : _missingval_or_missing(dst)
+end
+
+function _view_disaggregate(A, scale)
+    intscale = _scale2int(DisAg(), dims(A), scale)
+    dims_ = disaggregate.((Center(),), dims(A), intscale)
+    indices = map((a, i) -> repeat(a; inner=i), axes(A), intscale)
+    return rebuild(A; data=view(parent(A), indices...), dims=dims_)
 end

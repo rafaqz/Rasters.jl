@@ -26,7 +26,7 @@ subset without loading the whole array.
 `getindex` on an `AbstractRasterStack` with a key returns another stack with
 `getindex` applied to all the arrays in the stack.
 """
-abstract type AbstractRasterStack{K,T,N,L} <: AbstractDimStack{K,T,N,L} end
+abstract type AbstractRasterStack{K,T,N,L,D} <: AbstractDimStack{K,T,N,L,D} end
 
 missingval(stack::AbstractRasterStack) = getfield(stack, :missingval)
 missingval(s::AbstractRasterStack, name::Symbol) = _singlemissingval(missingval(s), name)
@@ -36,7 +36,7 @@ filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}) =
 filename(stack::AbstractRasterStack{<:Any,<:Any,<:Any,<:Union{FileStack,OpenStack}}) = 
     filename(parent(stack))
 
-isdisk(st::AbstractRasterStack) = any(isdisk, layers(st))
+DiskArrays.isdisk(st::AbstractRasterStack) = any(isdisk, layers(st))
 
 setcrs(x::AbstractRasterStack, crs) = set(x, setcrs(dims(x), crs)...)
 setmappedcrs(x::AbstractRasterStack, mappedcrs) = set(x, setmappedcrs(dims(x), mappedcrs)...)
@@ -46,10 +46,14 @@ _singlemissingval(mv, name) = mv
 
 function _maybe_collapse_missingval(mvs::NamedTuple)
     mv1, mvs_rest = Iterators.peel(mvs)
-    for mv in mvs_rest
-        mv === mv1 || return mvs
+    if isnothing(mvs_rest) 
+        return mv1
+    else
+        for mv in mvs_rest
+            mv === mv1 || return mvs
+        end
+        return mv1
     end
-    return mv1
 end
 _maybe_collapse_missingval(::NoKW) = nothing
 _maybe_collapse_missingval(mv) = mv
@@ -196,7 +200,7 @@ stack = RasterStack(files; mappedcrs=EPSG(4326))
 stack[:relhum][Lat(Contains(-37), Lon(Contains(144))
 ```
 """
-struct RasterStack{K,T,N,L<:Union{FileStack,OpenStack,NamedTuple},D<:Tuple,R<:Tuple,LD<:NamedTuple,M,LM,MV} <: AbstractRasterStack{K,T,N,L}
+struct RasterStack{K,T,N,L<:Union{FileStack,OpenStack,NamedTuple},D<:Tuple,R<:Tuple,LD<:NamedTuple,M,LM,MV} <: AbstractRasterStack{K,T,N,L,D}
     data::L
     dims::D
     refdims::R
@@ -208,6 +212,7 @@ end
 function RasterStack{K,T,N}(
     data::L, dims::D, refdims::R, layerdims::LD, metadata::Me, layermetadata::LM, missingval::Mi
 ) where {K,T,N,L,D,R,LD<:NamedTuple{K},Me,LM,Mi}
+data isa NamedTuple && keys(data) != K && _raster_key_error(keys(data), K)
     RasterStack{K,T,N,L,D,R,LD,Me,LM,Mi}(data, dims, refdims, layerdims, metadata, layermetadata, missingval)
 end
 function RasterStack(
@@ -219,9 +224,9 @@ function RasterStack(
 end
 function RasterStack(
     data::Union{FileStack,OpenStack,NamedTuple};
-    dims::Tuple,
+    dims::Tuple=(),
     refdims::Tuple=(),
-    layerdims::NamedTuple,
+    layerdims::Union{NamedTuple,NoKW}=nokw,
     metadata=nokw,
     layermetadata=nokw,
     missingval=nokw,
@@ -284,7 +289,7 @@ function RasterStack(layers::Tuple{Vararg{AbstractDimArray}};
 end
 # Multi RasterStack from NamedTuple
 # This method is called after most other RasterStack methods.
-function RasterStack(layers::NamedTuple{K,<:Tuple{Vararg{AbstractDimArray}}};
+function RasterStack(layers::NamedTuple{K,<:Tuple{<:AbstractDimArray,Vararg{AbstractDimArray}}};
     resize::Union{Function,NoKW}=nokw,
     _layers=resize isa NoKW ? layers : resize(layers),
     dims::Tuple=DD.combinedims(_layers...),
@@ -293,6 +298,7 @@ function RasterStack(layers::NamedTuple{K,<:Tuple{Vararg{AbstractDimArray}}};
     metadata=NoMetadata(),
     layermetadata::NamedTuple{K}=map(DD.metadata, _layers),
     layerdims::NamedTuple{K}=map(DD.basedims, _layers),
+    lazy=false,
     kw...
 ) where K
     data = map(parent, _layers)
@@ -383,19 +389,20 @@ function RasterStack(filenames::NamedTuple{K,<:Tuple{<:AbstractString,Vararg}};
     _maybe_warn_replace_missing(replace_missing)
     scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
 
-    layermissingval = collect(_stack_nt(filenames, missingval))
-    fn = collect(filenames)
-    layermetadata = layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
-    layerdims = layerdims isa NamedTuple ? collect(layerdims) : map(_ -> NoKW(), fn)
-    layers = map(K, fn, layermetadata, layerdims, layermissingval) do name, fn, md, d, mv
+    # Convert everything to vector to avoid huge compile times with many layers
+    filename_vec = collect(filenames)
+    missingval_vec = _missingval_vec(missingval, K)
+    layermetadata_vec = layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), filename_vec)
+    layerdims_vec = layerdims isa NamedTuple ? collect(layerdims) : map(_ -> NoKW(), filename_vec)
+    layers = map(collect(K), filename_vec, zip(layermetadata_vec, layerdims_vec, missingval_vec)) do name, fn, (md, d, mv)
         Raster(fn; 
-            source=_sourcetrait(fn, source), 
+            source=sourcetrait(fn, source), 
             dims=d, name, metadata=md, missingval=mv, scaled, verbose, kw...
-       )
+        )
     end
     return RasterStack(NamedTuple{K}(layers); resize, metadata)
 end
-# Stack from a String
+# RasterStack from a String
 function RasterStack(filename::AbstractString;
     lazy::Bool=false,
     dropband::Bool=true,
@@ -413,7 +420,7 @@ function RasterStack(filename::AbstractString;
     _maybe_warn_replace_missing(replace_missing)
     scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
 
-    source = _sourcetrait(filename, source)
+    source = sourcetrait(filename, source)
     st = if isdir(filename) && !(source isa Zarrsource)
         # Load as a whole directory
         filenames = readdir(filename)
@@ -426,37 +433,105 @@ function RasterStack(filename::AbstractString;
             name
         end
         RasterStack(joinpath.(Ref(filename), filenames);
-            missingval, scaled, coerce, lazy, dropband, group, kw...
+            missingval, scaled, coerce, lazy, dropband, group, name, kw...
         )
     else
         # Load as a single file
-        if haslayers(source)
-            # With multiple named layers
-            l_st = _layer_stack(filename; 
-                source, name, lazy, group, missingval, scaled, coerce, kw...
-            )
-            # Maybe split the stack into separate arrays to remove extra dims.
-            if isnokw(name)
-                l_st
-            else
-                maplayers(identity, l_st)
+        if haslayers(source) # With multiple named layers
+            l_st = _open(filename; source) do ds
+                RasterStack(ds; filename, source, name, lazy, group, missingval, scaled, coerce, kw...)
             end
-        else
-            # With bands actings as layers
+            # Maybe split the stack into separate arrays to remove extra dims.
+            isnokw(name) ? l_st : maplayers(identity, l_st)
+        else # With bands actings as layers
             raster = Raster(filename; 
                 source, lazy, missingval, scaled, coerce, dropband=false,
             )
             RasterStack(raster; kw...)
         end
     end
-
     # Maybe drop the Band dimension
     return _maybe_drop_single_band(st, dropband, lazy)
+end
+# RasterStack from a Dataset
+function RasterStack(ds; 
+    filename=filename(ds),
+    source=nokw,
+    dims=nokw,
+    refdims=(),
+    name=nokw,
+    group=nokw,
+    metadata=nokw,
+    layermetadata=nokw,
+    layerdims=nokw,
+    missingval=nokw,
+    crs=nokw,
+    mappedcrs=nokw,
+    coerce=convert,
+    checkmem=CHECKMEM[],
+    scaled::Union{Bool,NoKW}=nokw,
+    lazy::Bool=false,
+    verbose::Bool=true,
+    raw::Bool=false,
+    kw...
+)
+    check_multilayer_dataset(ds)
+    scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
+    layers = _layers(ds, name, group)
+    # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
+    dimdict = _dimdict(ds, crs, mappedcrs)
+    refdims = isnokw(refdims) || isnothing(refdims) ? () : refdims
+    metadata = isnokw(metadata) ? _metadata(ds) : metadata
+    layerdims_vec = isnokw(layerdims) ? _layerdims(ds; layers, dimdict) : layerdims
+    dims = _sort_by_layerdims(isnokw(dims) ? _dims(ds, dimdict) : dims, layerdims_vec)
+    name = Tuple(map(Symbol, layers.names))
+    NT = NamedTuple{name}
+    layermetadata_vec = if isnokw(layermetadata)
+        _layermetadata(ds; layers)
+    else
+        if layermetadata isa NamedTuple 
+            keys(layermetadata) == name || throw(ArgumentError(
+                "layermetadata keys $(keys(layermetadata)) do not match layer names $(name)"
+            ))
+            collect(layermetadata) 
+        else
+            map(_ -> NoKW(), layers.names)
+        end
+    end
+    missingval_vec = if missingval isa Pair
+        _missingval_vec(missingval, name)
+    else
+        layer_mvs = map(Rasters.missingval, layers.vars, layermetadata_vec)
+        _missingval_vec(missingval, layer_mvs, name)
+    end
+    eltype_vec = map(eltype, layers.vars)
+    mod_vec = _stack_mods(eltype_vec, layermetadata_vec, missingval_vec; scaled, coerce)
+    data = if lazy
+        vars = ntuple(i -> layers.vars[i], length(name))
+        mods = ntuple(i -> mod_vec[i], length(name))
+        FileStack{typeof(source)}(ds, filename; name, group, mods, vars)
+    else
+        map(layers.vars, layermetadata_vec, mod_vec) do var, md, mod
+            modvar = _maybe_modify(var, mod)
+            checkmem && _checkobjmem(modvar)
+            Array(modvar)
+        end |> NT
+    end
+    mv_outer = NT(map(_outer_missingval, mod_vec))
+    return RasterStack(data; 
+        dims,
+        refdims,
+        layerdims=NT(layerdims_vec),
+        metadata,
+        layermetadata=NT(layermetadata_vec),
+        missingval=mv_outer,
+        kw...
+    )
 end
 
 # TODO test this properly
 function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
-    data = open(s) do o
+    data = open(s) do ost
         map(K) do k
             f(parent(ost)[k])
         end
@@ -465,8 +540,8 @@ function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
 end
 
 # Open a single file stack
-function Base.open(f::Function, st::AbstractRasterStack{K,T,<:Any,<:FileStack{X}}; kw...) where {X,K,T}
-    ost = OpenStack{X,K,T}(parent(st))
+function Base.open(f::Function, st::AbstractRasterStack{K}; kw...) where K
+    ost = OpenStack(parent(st))
     # TODO is this needed?
     layers = map(K) do k
         ost[k]
@@ -477,18 +552,19 @@ function Base.open(f::Function, st::AbstractRasterStack{K,T,<:Any,<:FileStack{X}
 end
 # Open a multi-file stack or just apply f to a memory backed stack
 function Base.open(f::Function, st::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}; kw...)
-    isdisk(st) ? _open_layers(f, st) : f(st)
+    isdisk(st) ? _open_layers(f, st; kw...) : f(st)
 end
 
 # Open all layers through nested closures, applying `f` to the rebuilt open stack
-_open_layers(f, st) = _open_layers(f, st, DD.layers(st), NamedTuple())
-function _open_layers(f, st, unopened::NamedTuple{K}, opened::NamedTuple) where K
-    open(first(unopened)) do open_layer
-        layer_nt = NamedTuple{(first(K),)}((open_layer,))
-        _open_layers(f, st, Base.tail(unopened), merge(opened, layer_nt))
+_open_layers(f, st; kw...) = _open_layers(f, st, DD.layers(st); kw...)
+_open_layers(f, st, unopened::NamedTuple; kw...) = _open_layers(f, st, unopened, NamedTuple(); kw...)
+function _open_layers(f, st, unopened::NamedTuple{K}, opened::NamedTuple; kw...) where K
+    open(first(unopened); kw...) do open_layer
+        data_nt = NamedTuple{(first(K),)}((parent(open_layer),))
+        _open_layers(f, st, Base.tail(unopened), merge(opened, data_nt); kw...)
     end
 end
-function _open_layers(f, st, unopened::NamedTuple{()}, opened::NamedTuple)
+function _open_layers(f, st, unopened::NamedTuple{()}, opened::NamedTuple; kw...)
     f(rebuild(st; data=opened))
 end
 
@@ -505,77 +581,40 @@ function _postprocess_stack(st, dims;
     return isnokw(name) ? st : st[Dimensions._astuple(name)]
 end
 
-function _layer_stack(filename;
-    source=nokw,
-    dims=nokw,
-    refdims=(),
-    name=nokw,
-    group=nokw,
-    metadata=nokw,
-    layermetadata=nokw,
-    layerdims=nokw,
-    missingval=nokw,
-    crs=nokw,
-    mappedcrs=nokw,
-    coerce=convert,
-    scaled=nokw,
-    checkmem=true,
-    lazy=false,
-    kw...
-)
-    data, field_kw = _open(filename; source) do ds
-        layers = _layers(ds, name, group)
-        # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
-        dimdict = _dimdict(ds, crs, mappedcrs)
-        refdims = isnokw(refdims) || isnothing(refdims) ? () : refdims
-        metadata = isnokw(metadata) ? _metadata(ds) : metadata
-        layerdims_vec = isnokw(layerdims) ? _layerdims(ds; layers, dimdict) : layerdims
-        dims = _sort_by_layerdims(isnokw(dims) ? _dims(ds, dimdict) : dims, layerdims_vec)
-        layermetadata_vec = if isnokw(layermetadata)
-            _layermetadata(ds; layers)
-        else
-            layermetadata isa NamedTuple ? collect(layermetadata) : map(_ -> NoKW(), fn)
-        end
-        name = Tuple(map(Symbol, layers.names))
-        NT = NamedTuple{name}
-        layer_mvs = map(Rasters.missingval, layers.vars, layermetadata_vec)
-        missingval_vec = if isnokw(missingval)
-            layer_mvs .=> missing
-        elseif missingval isa NamedTuple
-            keys(missingval) == name || throw(ArgumentError("`missingval` names $(keys(missingval)) do not match layer names $name")) 
-            layer_mvs .=> collect(missingval)
-        elseif missingval === Rasters.missingval
-            layer_mvs
-        else
-            layer_mvs .=> (missingval,) # Wrap in case its not iterable
-        end::Vector
-        eltype_vec = map(eltype, layers.vars)
-        mod_vec = _stack_mods(eltype_vec, layermetadata_vec, missingval_vec; scaled, coerce)
-        data = if lazy
-            vars = ntuple(i -> layers.vars[i], length(name))
-            mods = ntuple(i -> mod_vec[i], length(name))
-            FileStack{typeof(source)}(ds, filename; name, group, mods, vars)
-        else
-            map(layers.vars, layermetadata_vec, mod_vec) do var, md, mod
-                modvar = _maybe_modify(var, mod)
-                checkmem && _checkobjmem(modvar)
-                x = Array(modvar)
-                x isa AbstractArray ? x : fill(x) # Catch an NCDatasets bug
-            end |> NT
-        end
-        mv_outer = NT(map(_outer_missingval, mod_vec))
-        return data, (; 
-            dims,
-            refdims,
-            layerdims=NT(layerdims_vec),
-            metadata,
-            layermetadata=NT(layermetadata_vec),
-            missingval=mv_outer,
-        )
-    end
-    return RasterStack(data; field_kw..., kw...)
+# These ignore file missingvals
+function _missingval_vec(missingval::Pair{<:NamedTuple,<:NamedTuple}, name::Tuple)
+    keys(missingval[1]) == name || _missingval_name_error(missingval[1], name)
+    keys(missingval[2]) == name || _missingval_name_error(missingval[2], name)
+    collect(map(=>, missingval[1], missingval[2]))
 end
+function _missingval_vec(missingval::Pair{<:NamedTuple,<:Any}, name::Tuple)
+    keys(missingval[1]) == name || _missingval_name_error(missingval[1], name)
+    collect(missingval[1]) .=> (missingval[2],)
+end
+function _missingval_vec(missingval::Pair{<:Any,<:NamedTuple}, name::Tuple)
+    keys(missingval[2]) == name || _missingval_name_error(missingval[2], name)
+    (missingval[1],) .=> collect(missingval[2])
+end
+function _missingval_vec(missingval::NamedTuple, name::Tuple)
+    keys(missingval) == name || _missingval_name_error(missingval[2], name)
+    collect(missingval)
+end
+_missingval_vec(::typeof(missingval), name::Tuple) = [Rasters.missingval for _ in name]
+_missingval_vec(missingval, name::Tuple) = [missingval for _ in name]
 
+_missingval_vec(::NoKW, layer_mvs::Vector, name::Tuple) = layer_mvs .=> missing
+function _missingval_vec(missingval::NamedTuple, layer_mvs::Vector, name::Tuple)
+    keys(missingval) == name || _missingval_name_error(missingval, name::Tuple)
+    layer_mvs .=> collect(missingval)
+end
+_missingval_vec(::typeof(missingval), layer_mvs::Vector, name::Tuple) = layer_mvs
+_missingval_vec(missingval, layer_mvs::Vector, name::Tuple) =
+    layer_mvs .=> (missingval,) # Wrap in case its not iterable
+
+_missingval_name_error(missingval, layernames) = 
+    _name_error("missingval", keys(missingval), layernames)
+_name_error(x, names, layernames) =
+    throw(ArgumentError("`$x` names $names do not match layer names $layernames")) 
 
 # Try to sort the dimensions by layer dimension into a sensible
 # order that applies without permutation, preferencing the layers
@@ -646,7 +685,24 @@ end
 
 Base.convert(::Type{RasterStack}, src::AbstractDimStack) = RasterStack(src)
 
-Raster(stack::RasterStack) = cat(values(stack)...; dims=Band([keys(stack)...]))
+@static if :AbstractDimTree in names(DimensionalData)
+    # For ambiguity. TODO: remove this method from DD ?
+    function RasterStack(dt::AbstractDimTree; keep=nothing)
+        if isnothing(keep)
+            pruned = DD.prune(dt; keep)
+            RasterStack(pruned[Tuple(keys(pruned))])
+        else
+            RasterStack(dt[Tuple(keys(dt))])
+        end
+    end
+end
+
+
+# TODO resolve the meaning of Raster(::RasterStack)
+Raster(stack::AbstractDimStack; kw...) = Raster(cat(values(stack)...; dims=Band([keys(stack)...])); kw...)
+# In DD it would be 
+# Raster(st::AbstractDimStack) =
+    # Raster([st[D] for D in DimIndices(st)]; dims=dims(st), metadata=metadata(st))
 
 defaultcrs(::Source, crs) = crs
 defaultcrs(s::Source, ::NoKW) = defaultcrs(s)
@@ -654,3 +710,7 @@ defaultcrs(x) = nothing
 defaultmappedcrs(::Source, crs) = crs
 defaultmappedcrs(s::Source, ::NoKW) = defaultmappedcrs(s)
 defaultmappedcrs(::Source) = nothing
+
+check_multilayer_dataset(ds) = throw(ArgumentError("$(typeof(ds)) is not a multilayer raster dataset"))
+
+@noinline _raster_key_error(datakeys, layerkeys) = throw(ArgumentError("Data keys $datakeys dont match layerkeys $layerkeys"))

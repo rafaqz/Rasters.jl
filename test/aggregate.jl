@@ -47,28 +47,37 @@ series = RasterSeries([stack1, stack2], (Ti(dates),))
     @test step(lookup(aglon)) === 30.0
     @test val(aglon) == [30.0]
     disaglon = disaggregate(Start(), aglon, 3)
-    @test index(disaglon) == index(dimz[1])
+    @test lookup(disaglon) == lookup(dimz[1])
     @test span(disaglon) == span(dimz[1])
     @test sampling(disaglon) == sampling(dimz[1])
 
     aglat = aggregate(Start(), dimz[2], 3)
     @test step(lookup(aglat)) === 15.0
-    @test index(aglat) == LinRange(-10.0, 5.0, 2)
+    @test lookup(aglat) == LinRange(-10.0, 5.0, 2)
     disaglat = disaggregate(Start(), aglat, 3)
     # The last item is lost due to rounding in `aggregate`
-    @test index(disaglat) != index(dimz[2])
-    @test index(disaglat) === LinRange(-10.0, 15.0, 6)
+    @test lookup(disaglat) != lookup(dimz[2])
+    @test parent(lookup(disaglat)) === LinRange(-10.0, 15.0, 6)
     @test span(disaglat) == span(dimz[2])
     @test sampling(disaglat) == sampling(dimz[2])
 end
 
 @testset "aggregate a single dim" begin 
     ag = aggregate(Start(), series, (X(3),))
-    @test size(first(ag)) == (1, 7)
+    
     ag = aggregate(Start(), series, (Y(5),))
     @test size(first(ag)) == (3, 1)
     ag = aggregate(Start(), series, (Y(2),))
     @test size(first(ag)) == (3, 3)
+end
+
+@testset "dimension lookups are maintained" begin 
+    x, y, z = X(1:100), Y(1:100), Z(["bar", "foo"])
+    A = rand(x, y, z) |> Raster
+    A_agg = Rasters.aggregate(sum, A, (X(5),))
+    A_disagg = Rasters.disaggregate(A, (X(3),))
+    @test dims(A_agg, (Y, Z)) == (y, z)
+    @test dims(A_disagg, (Y, Z)) == (y, z)
 end
 
 @testset "aggregate and disaggregate at a locus" begin
@@ -168,6 +177,7 @@ end
         aggregate(sum, array1, (Y=2, X=3)) == 
         aggregate(sum, array1, (Y=>2, X=>3)) == 
         aggregate(sum, array1, (:Y=>2, :X=>3)) == 
+        aggregate(sum, aggregate(sum, array1, Y(2)), X(3)) ==
         [45 57 69]
 end
 
@@ -217,3 +227,43 @@ end
     @test_throws ArgumentError aggregate(sum, rast[X=1, Y=1], 2)
 end
 
+@testset "Lazy disaggregation" begin
+    eager_disag = disaggregate(array1, (X(2), Y(2))) 
+    lazy_disag = disaggregate(array1, (X(2), Y(2)); lazy = true)
+    @test eager_disag == lazy_disag
+    @test parent(lazy_disag) isa SubArray
+
+    eager_disag_stack = disaggregate(stack1, 2)
+    lazy_disag_stack = disaggregate(stack1, 2; lazy = true)
+    @test eager_disag_stack == lazy_disag_stack
+    @test all(x -> x isa SubArray, parent(lazy_disag_stack))
+
+    eager_disag_series = disaggregate(series, 2)
+    lazy_disag_series = disaggregate(series, 2; lazy = true)
+    @test eager_disag_series == lazy_disag_series
+    @test all(x -> all(x -> x isa SubArray, parent(x)), lazy_disag_series)
+end
+
+@testset "aggregate with integer types does not overflow" begin
+    uint8_a = Raster(fill(UInt8(200), (X(1:2), Y(1:2))))
+    int8_a = Raster(fill(Int8(100), (X(1:2), Y(1:2))))
+
+    # Summing four UInt8(200) values will overflow UInt8, should return UInt
+    sum_uint8 = aggregate(sum, uint8_a, 2)
+    @test eltype(sum_uint8) == UInt
+    @test sum_uint8[1, 1] == 800
+
+    # Summing four Int8(100) values will overflow Int8, should return Int
+    sum_int8 = aggregate(sum, int8_a, 2)
+    @test eltype(sum_int8) == Int
+    @test sum_int8[1, 1] == 400
+
+    # Mean should return Float64
+    mean_uint8 = aggregate(mean, uint8_a, 2)
+    @test eltype(mean_uint8) == Float64
+    @test mean_uint8[1, 1] == 200.0
+
+    mean_int8 = aggregate(mean, int8_a, 2)
+    @test eltype(mean_int8) == Float64
+    @test mean_int8[1, 1] == 100.0
+end

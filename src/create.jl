@@ -150,6 +150,9 @@ end
 # parent as the parent type so e.g. CuArray will propagate
 create(filename::Union{AbstractString,Nothing}, T::Union{Type,TypeNamedTuple}, A::AbstractRaster; kw...) =
     create(filename, T, dims(A); parent=parent(A), kw...)
+# Create RasterStack from filename, Type and dims
+create(filename::Union{AbstractString,Nothing}, T::Type, st::AbstractRasterStack{K}; kw...) where K =
+    create(filename, NamedTuple{K}(map(_ -> T, K)), st; kw...)
 # Create RasterStack from filename, NamedTuple type and dims
 function create(filename::Union{AbstractString,Nothing}, T::NamedTuple{K1}, st::AbstractRasterStack{K2};
     metadata=metadata(st),
@@ -170,7 +173,7 @@ function create(filename::AbstractString, T::Union{Type,NamedTuple}, dims::Tuple
     lazy=true,
     parent=nokw,
     suffix=nokw,
-    source::Source=_sourcetrait(filename),
+    source::Source=sourcetrait(filename),
     missingval=nokw,
     kw...
 )
@@ -187,13 +190,13 @@ function create(filename::Union{AbstractString,Nothing}, T::Union{Type,NamedTupl
     reverse_y=nokw,
     kw...
 )
-    dims = _extent2dims(extent; size, res, crs, sampling)
-    dims = if reverse_y isa Bool && reverse_y && hasdim(ds, Y())
-        DD.setdims(ds, reverse(DD.dims(ds, Y())))
+    dims1 = _extent2dims(extent; size, res, crs, sampling)
+    dims2 = if reverse_y isa Bool && reverse_y && hasdim(dims1, Y())
+        DD.setdims(dims1, reverse(dims(dims1, Y())))
     else
-        dims
+        dims1
     end
-    return create(filename, T, dims; kw...)
+    return create(filename, T, dims2; kw...)
 end
 # Create in-memory Raster from type and dims
 function create(filename::Nothing, ::Type{T}, dims::Tuple;
@@ -247,9 +250,11 @@ function create(filename::Nothing, types::NamedTuple, dims::Tuple;
     fill=nokw,
     layerdims=nokw,
     layermetadata=nokw,
+    lazy=false,
     f=identity,
     kw...
 )
+    lazy && throw(ArgumentError("`lazy` cannot be `true` without passing a `filename` keyword"))
     layerdims = isnokw(layerdims) ? map(_ -> basedims(dims), types) : layerdims
     layermetadata = layermetadata isa NamedTuple ? layermetadata : map(_ -> layermetadata, types)
     layerfill = fill isa NamedTuple ? fill : map(_ -> fill, types)
@@ -347,10 +352,9 @@ function create(filename::AbstractString, source::Source, layertypes::NamedTuple
     fn = Rasters.write(filename, st1;
         chunks, metadata, scale, offset, missingval=mv_inner, verbose, force, coerce, write, kw...
     ) do W
-        # write returns a variable, wrap it as a RasterStack
-        f(rebuild(st1; data=W))
+        f(rebuild(st1; data=W)) # write returns a variable, wrap it as a RasterStack
     end
-    st2 = RasterStack(fn; source, lazy, metadata, layerdims, dropband, coerce, missingval=mv_outer)
+    st2 = RasterStack(fn; source, lazy, metadata, dropband, coerce, missingval=mv_outer)
     return st2
 end
 

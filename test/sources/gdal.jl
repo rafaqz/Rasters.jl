@@ -13,6 +13,15 @@ gdalpath = maybedownload(url)
     @time gdalarray = Raster(gdalpath; name=:test)
     @time lazyarray = Raster(gdalpath; lazy=true);
     @time eagerarray = Raster(gdalpath; lazy=false);
+    
+    @testset "Raster from dataset" begin
+        ds = ArchGDAL.read(gdalpath)
+        rds = ArchGDAL.RasterDataset(ds)
+        dsarray = Raster(ds)
+        rdsarray = Raster(ds)
+        @test dims(dsarray) == dims(rdsarray) == dims(gdalarray)
+        @test dsarray == rdsarray == gdalarray
+    end
 
     @testset "lazyness" begin
         # Eager is the default
@@ -25,23 +34,24 @@ gdalpath = maybedownload(url)
         end
     end
     
-    @testset "cf" begin
+    @testset "modified/lazy parent types" begin
         # This file has no scale/offset so cf does nothing
-        @time cfarray = Raster(gdalpath)
-        @time cf_nomask_array = Raster(gdalpath; missingval=nothing)
+        @time nomissing_array = Raster(gdalpath; missingval=nothing)
+        @time missing_array = Raster(gdalpath; missingval=missing)
         @time rawarray = Raster(gdalpath; raw=true)
-        @time lazycfarray = Raster(gdalpath; lazy=true)
         @time lazyrawarray = Raster(gdalpath; lazy=true, raw=true)
-        @test parent(cfarray) isa Matrix{UInt8}
-        @test parent(cf_nomask_array) isa Matrix{UInt8}
-        @test parent(rawarray) isa Matrix{UInt8}
-        open(lazycfarray) do A
+
+        @test parent(gdalarray) isa AbstractMatrix{UInt8}
+        @test parent(nomissing_array) isa AbstractMatrix{UInt8}
+        @test parent(missing_array) isa AbstractMatrix{Union{Missing,UInt8}}
+        @test parent(rawarray) isa AbstractMatrix{UInt8}
+        open(lazyarray) do A
             @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
-            @test parent(parent(A)) isa ArchGDAL.RasterDataset{UInt8}
+            @test parent(parent(A)) isa Rasters.ModifiedDiskArray{UInt8}
         end
         open(lazyrawarray) do A
             @test parent(A) isa DiskArrays.SubDiskArray{UInt8}
-            @test parent(parent(A)) isa ArchGDAL.RasterDataset{UInt8}
+            @test parent(parent(A)) isa Rasters.ModifiedDiskArray{UInt8}
         end
     end
 
@@ -260,6 +270,7 @@ gdalpath = maybedownload(url)
         @testset "aggregate" begin
             ag = aggregate(mean, gdalarray, 4)
             @test ag == aggregate(mean, gdalarray, (X(4), Y(4)))
+            @test ag == aggregate(mean, lazyarray, (X(4), Y(4)))
             @test ag == aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
             @time ag_disk = aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
             @test ag_disk == ag
@@ -296,7 +307,10 @@ gdalpath = maybedownload(url)
             view(gdalarray, extent(A2))
             Afile = mosaic(first, A1, A2; missingval=0xff, atol=1e-1, filename=tempfile1)
             @test missingval(Afile) === 0xff
-            Afile2 = mosaic(first, A1, A2; atol=1e-8, filename=tempfile2)
+            Afile2 = mosaic(first, A1, A2; 
+                atol=1e-8, filename=tempfile2, chunks=(128, 128), options="COMPRESS" => "LZW", driver="COG"
+            )
+            @test Rasters.eachchunk(Raster(tempfile2; lazy=true))[1] == (1:128, 1:128)
             @test missingval(Afile2) === missing
             Amem = mosaic(first, A1, A2; missingval=0xff, atol=1e-5)
 
@@ -307,7 +321,7 @@ gdalpath = maybedownload(url)
             Atest[DimSelectors(Atest[extent(A2)]; selectors=Contains())] .= A2
 
             @test size(Amem) == size(gdalarray)
-            @test all(Atest .=== Amem .=== Afile .=== replace_missing(Afile2, 0xff))
+            @test all(Atest .=== Amem .=== Afile .=== replace_missing(read(Afile2), 0xff))
             filter(x -> !Bool(first(x)), tuple.((Atest .=== Amem), Atest, Amem))
         end
 
@@ -360,7 +374,7 @@ gdalpath = maybedownload(url)
                 @time write(filename, gdalarray_points; force = true)
                 saved1 = Raster(filename);
                 @test all(saved1 .== gdalarray_points)
-                @test lookup(saved1) == lookup(gdalarray_points)
+                @test all(map((a, b) -> all(a .≈ b), lookup(saved1), lookup(gdalarray_points)))
                 @test missingval(saved1) === missingval(gdalarray_points)
                 @test refdims(saved1) == refdims(gdalarray_points)
                 @test (@allocations write(filename, gdalarray_points; force = true)) < 1e4
@@ -422,7 +436,7 @@ gdalpath = maybedownload(url)
 
         @testset "chunks" begin
             filename = tempname() * ".tiff"
-            write(filename, gdalarray; chunks=(128, 128, 1))
+            write(filename, gdalarray; force=true, chunks=(128, 128, 1))
             gdalarray2 = Raster(filename; lazy=true)
             @test DiskArrays.eachchunk(gdalarray2)[1] == (1:128, 1:128)
             filename = tempname() * ".tiff"
@@ -447,7 +461,7 @@ gdalpath = maybedownload(url)
             grdarray = Raster(fn)
             @test crs(grdarray) == convert(ProjString, crs(gdalarray))
             @test all(map((a, b) -> all(a .≈ b), bounds(grdarray), bounds(gdalarray)))
-            @test index(grdarray, Y) ≈ index(gdalarray, Y)
+            @test lookup(grdarray, Y) ≈ lookup(gdalarray, Y)
             @test val(dims(grdarray, X)) ≈ val(dims(gdalarray, X))
             @test grdarray == gdalarray
         end
@@ -474,16 +488,16 @@ gdalpath = maybedownload(url)
             @test size(saved) == size(gdalarray)
             @test parent(saved) ≈ parent(gdalarray)
             clat, clon = DimensionalData.shiftlocus.(Ref(Center()), dims(gdalarray, (Y, X)))
-            @test index(clat) ≈ index(saved, Y)
-            @test index(clon) ≈ index(saved, X)
+            @test lookup(clat) ≈ lookup(saved, Y)
+            @test lookup(clon) ≈ lookup(saved, X)
             @test all(bounds(saved, X) .≈ bounds(clon))
             @test all(bounds(saved, Y) .≈ bounds(clat))
-            @test projectedindex(clon) ≈ projectedindex(saved, X)
+            @test projectedlookup(clon) ≈ projectedlookup(saved, X)
             @test all(projectedbounds(clon) .≈ projectedbounds(saved, X))
             # reason lat crs conversion is less accurate than lon TODO investigate further
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6),
-                projectedindex(gdalarray, Y),
-                projectedindex(DimensionalData.shiftlocus(Start(), dims(saved, Y)))
+                projectedlookup(gdalarray, Y),
+                projectedlookup(DimensionalData.shiftlocus(Start(), dims(saved, Y)))
             ))
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Y),  projectedbounds(gdalarray, Y)))
         end
@@ -602,7 +616,7 @@ gdalpath = maybedownload(url)
         @test order(dims(rast)) == (ForwardOrdered(), ForwardOrdered())
         @test span(rast) == (Regular(1.0), Regular(1.0))
         @test sampling(rast) == (Intervals(Start()), Intervals(Start()))
-        @test index(rast) == (range(; start=0.0, stop=239.0, length=240), range(start=0.0, stop=179.0, length=180))
+        @test lookup(rast) == (range(; start=0.0, stop=239.0, length=240), range(start=0.0, stop=179.0, length=180))
     end
 
 end
@@ -758,7 +772,9 @@ end
         @testset "chunks" begin
             filename = tempname() * ".tiff"
             write(filename, gdalstack; chunks=(128, 128))
-            filenames = write(filename, gdalstack; force=true, chunks=(128, 128))
+            filenames = write(filename, gdalstack; 
+                force=true, chunks=(128, 128), options=["COMPRESS" => "LZW", "BIGTIFF" => true]
+            )
             gdalstack2 = RasterStack(filenames; lazy=true)
             @test DiskArrays.eachchunk(gdalstack2[:b])[1] == (1:128, 1:128)
         end
@@ -853,7 +869,7 @@ end
     rm("resample_a.tif")
     rm("resample_b.tif")
 
-    @testset "snapped size and dim index match" begin
+    @testset "snapped size and dim lookup match" begin
         snaptarget = aggregate(Center(), read(gdalarray), 2)
         snapped = resample(read(gdalarray); to=snaptarget)
         disk_snapped = resample(gdalarray; to=snaptarget, filename="snap_resample.tif")
@@ -861,16 +877,16 @@ end
         ser_snapped = resample(read(gdalser); to=snaptarget)
         extradim_snapped = resample(extradim_raster; to=snaptarget)
         @test size(snapped) == size(disk_snapped) == size(snaptarget)
-        @test isapprox(index(snaptarget, Y), index(snapped, Y))
-        @test isapprox(index(snaptarget, X), index(snapped, X))
-        @test isapprox(index(snaptarget, Y), index(stack_snapped, Y))
-        @test isapprox(index(snaptarget, X), index(stack_snapped, X))
-        @test isapprox(index(snaptarget, Y), index(first(ser_snapped), Y))
-        @test isapprox(index(snaptarget, X), index(first(ser_snapped), X))
-        @test isapprox(index(snaptarget, Y), index(disk_snapped, Y))
-        @test isapprox(index(snaptarget, X), index(disk_snapped, X))
-        @test isapprox(index(snaptarget, Y), index(extradim_snapped, Y))
-        @test isapprox(index(snaptarget, X), index(extradim_snapped, X))
+        @test isapprox(lookup(snaptarget, Y), lookup(snapped, Y))
+        @test isapprox(lookup(snaptarget, X), lookup(snapped, X))
+        @test isapprox(lookup(snaptarget, Y), lookup(stack_snapped, Y))
+        @test isapprox(lookup(snaptarget, X), lookup(stack_snapped, X))
+        @test isapprox(lookup(snaptarget, Y), lookup(first(ser_snapped), Y))
+        @test isapprox(lookup(snaptarget, X), lookup(first(ser_snapped), X))
+        @test isapprox(lookup(snaptarget, Y), lookup(disk_snapped, Y))
+        @test isapprox(lookup(snaptarget, X), lookup(disk_snapped, X))
+        @test isapprox(lookup(snaptarget, Y), lookup(extradim_snapped, Y))
+        @test isapprox(lookup(snaptarget, X), lookup(extradim_snapped, X))
         rm("snap_resample.tif")
         rm("snap_resample_a.tif")
         rm("snap_resample_b.tif")

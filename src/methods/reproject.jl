@@ -6,7 +6,7 @@ Reproject the lookups of `obj` to a different crs.
 This is a lossless operation for the raster data, as only the 
 lookup values change. This is only possible when the axes of source
 and destination projections are aligned: the change is usually from
-a [`Regular`](@ref) and an [`Irregular`](@ref) lookup spans.
+a [`Regular`]($DDregulardocs) and an [`Irregular`]($DDirregulardocs) lookup spans.
 
 For converting between projections that are rotated, 
 skewed or warped in any way, use [`resample`](@ref).
@@ -72,7 +72,7 @@ function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim},
     reshape(_reproject(source, target, dim, vec(vals)), size(vals))
 end
 function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim}, vals::AbstractVector) 
-    throw_extension_error(reproject, "Proj", :RastersProjExt, (source, target, dim, vals))
+    throw_extension_error(reproject, ProjExt(), (source, target, dim, vals))
 end
 
 # Guess the step for arrays
