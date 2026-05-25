@@ -328,11 +328,11 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
         else
             crs = grid_mapping_key = nothing
         end
-        if eltype(var) <: Char && ndims(var) > 1 
+        if eltype(var) <: Char && ndims(var) > 1
             # Remove the char dimension
             layer_dimnames_vec[i] = dimnames = dimnames[2:end]
         end
-        # Loop over the dimensions of this layer, adding missing dims to dim_dict 
+        # Loop over the dimensions of this layer, adding missing dims to dim_dict
         layerdims = map(dimnames) do dimname
             get!(dim_dict, dimname) do
                 _cdm_dim(
@@ -354,11 +354,12 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
                 refdim_dict[coord_name] = refdim
             end
         end
+
         # Format dimensions
         unformatted_dims = map(dimnames) do dimname
             dim_dict[dimname]
         end
-        if isdomain 
+        if isdomain
             formatted_dims = format(unformatted_dims)
             used_layers[i] = false
         else
@@ -424,7 +425,12 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
     else # Use coord names
         # Otherwise dims/lookup depend on the number of associated coords
         if length(dimension_coord_names) == 1
-            if haskey(ds, dimname) # The var name is the dim name
+            if haskey(ds, dimname) && dimname ∉ dimension_coord_names
+                # There's a dimension variable AND an auxiliary coordinate - create MergedLookup
+                # CF 6.2: dimension variable (sigma) + auxiliary coordinate (model_level)
+                all_coord_names = [dimname; dimension_coord_names]
+                return _merged_dim(ds, vars_dict, attrs_dict, all_coord_names, dimname, crs)
+            elseif haskey(ds, dimname)
                 # Only one coordinate, so just use it as the dimension/lookup
                 return _standard_dim(ds, vars_dict, attrs_dict, dimname, crs)
             else
@@ -433,10 +439,9 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
         else
             first_coord_name = dimension_coord_names[1]
             first_coord_var = _get_var!(vars_dict, ds, first_coord_name)
-            # Short circuit for char dims
+            # Handle multiple char categorical dims (CF 6.1.2: taxon_lsid + taxon_name)
             if is_char_categorical(first_coord_var)
-                first_coord_attrs = _get_attr!(attrs_dict, vars_dict, ds, first_coord_name)
-                return _char_categorical_dim(ds, first_coord_var, first_coord_attrs, first_coord_name)
+                return _char_categorical_merged_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname)
             end
             if is_multidimensional(ds, vars_dict, dimension_coord_names)
                 if is_rotated_longitude_latitude(ds, vars_dict, attrs_dict, dimname, grid_mapping_key)
@@ -472,16 +477,18 @@ function _check_formula_terms(dim_attrs)
 end
 
 function is_rotated_longitude_latitude(ds, vars_dict, attrs_dict, dimname, grid_mapping_key)
-    # isnothing(grid_mapping_key) && return false
-    # grid_mapping = _get_attr!(attrs_dict, vars_dict, ds, grid_mapping_key)
-    # grid_mapping_name = get(grid_mapping, "grid_mapping_name", nothing)
-    # isnothing(grid_mapping_name) && return false
-    # if grid_mapping_name == "rotated_latitude_longitude" 
-    #     dim_attrs = _get_attr!(attrs_dict, vars_dict, ds, dimname)
-    #     if get(dim_attrs, "standard_name", "") in ("grid_latitude", "grid_longitude")
-    #         return true
-    #     end
-    # end
+    isnothing(grid_mapping_key) && return false
+    # grid_mapping_key may be a complex string with multiple mappings, check if it's a valid variable
+    haskey(ds, grid_mapping_key) || return false
+    grid_mapping = _get_attr!(attrs_dict, vars_dict, ds, grid_mapping_key)
+    grid_mapping_name = get(grid_mapping, "grid_mapping_name", nothing)
+    isnothing(grid_mapping_name) && return false
+    if grid_mapping_name == "rotated_latitude_longitude"
+        dim_attrs = _get_attr!(attrs_dict, vars_dict, ds, dimname)
+        if get(dim_attrs, "standard_name", "") in ("grid_latitude", "grid_longitude")
+            return true
+        end
+    end
     return false
 end
 function is_unalligned(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, grid_mapping_key)
@@ -505,12 +512,71 @@ function is_geometry(ds, vars_dict, attrs_dict, geometry_key, dimname)
     geometry_attrs = _get_attr!(attrs_dict, vars_dict, ds, geometry_key)
     # Check that the geometry is for this dimension
     is_geometry_dimension = if haskey(geometry_attrs, "node_count")
-        # Multi-part geometries 
+        # Multi-part geometries
         dimname in CDM.dimnames(_get_var!(vars_dict, ds, geometry_attrs["node_count"]))
-    else                                             
-        # Points                                     
+    else
+        # Points
         dimname in CDM.dimnames(_get_var!(vars_dict, ds, first(_cf_node_coordinate_names(geometry_attrs))))
     end
+end
+
+# Check if 2D coordinate variables have polygon bounds (CF 7.2)
+function has_polygon_bounds(ds, vars_dict, attrs_dict, dimension_coord_names)
+    for coord_name in dimension_coord_names
+        coord_attrs = _get_attr!(attrs_dict, vars_dict, ds, coord_name)
+        if haskey(coord_attrs, "bounds")
+            bounds_name = coord_attrs["bounds"]
+            if haskey(ds, bounds_name)
+                bounds_var = _get_var!(vars_dict, ds, bounds_name)
+                bounds_dimnames = CDM.dimnames(bounds_var)
+                # Bounds should have 3 dims: the coordinate dims plus a vertex dim
+                # with at least 3 vertices for polygons
+                if length(bounds_dimnames) >= 3
+                    # Find the vertex dimension (not in coordinate dimnames)
+                    coord_var = _get_var!(vars_dict, ds, coord_name)
+                    coord_dimnames = CDM.dimnames(coord_var)
+                    vertex_dim = first(filter(d -> d ∉ coord_dimnames, bounds_dimnames))
+                    nv = CDM.dim(ds, vertex_dim)
+                    if nv >= 3
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
+# Create polygon geometries from 2D bounds arrays (CF 7.2)
+function _create_polygons_from_bounds(ds, vars_dict, attrs_dict, lat_key, lon_key; crs=nothing)
+    lat_attrs = _get_attr!(attrs_dict, vars_dict, ds, lat_key)
+    lon_attrs = _get_attr!(attrs_dict, vars_dict, ds, lon_key)
+
+    lat_bounds_name = lat_attrs["bounds"]
+    lon_bounds_name = lon_attrs["bounds"]
+
+    lat_bnds = collect(_get_var!(vars_dict, ds, lat_bounds_name))
+    lon_bnds = collect(_get_var!(vars_dict, ds, lon_bounds_name))
+
+    # lat_bnds and lon_bnds are 3D: (nv, dim1, dim2)
+    nv, ni, nj = size(lat_bnds)
+
+    # Create a polygon for each cell
+    # Use the same approach as _cf_geometry_decode for polygons
+    polygons = Vector{Any}(undef, ni * nj)
+    idx = 0
+    for j in 1:nj, i in 1:ni
+        idx += 1
+        # Get the vertices for this cell in (lon, lat) order
+        vertices = [(lon_bnds[v, i, j], lat_bnds[v, i, j]) for v in 1:nv]
+        # Close the polygon by adding the first vertex at the end
+        push!(vertices, vertices[1])
+        # Create the polygon
+        ring = GI.LinearRing(vertices; crs)
+        polygons[idx] = GI.Polygon([ring]; crs)
+    end
+
+    return polygons, (ni, nj)
 end
 
 # Lookup/Dimension generation
@@ -596,6 +662,26 @@ function _char_categorical_dim(ds, dim_var, dim_attrs, name)
     return D(lookup)
 end
 
+# Handle multiple char categorical coordinates (CF 6.1.2: taxon_lsid + taxon_name)
+function _char_categorical_merged_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname)
+    # Create a lookup for each char categorical coordinate
+    dims = map(dimension_coord_names) do coord_name
+        coord_var = _get_var!(vars_dict, ds, coord_name)
+        coord_attrs = _get_attr!(attrs_dict, vars_dict, ds, coord_name)
+        chars = collect(coord_var)
+        # Join char dimension as String, stripping null terminators
+        strings = String.(strip.(join.(eachslice(chars; dims=2)), '\0'))
+        metadata = _metadatadict(sourcetrait(ds), coord_attrs)
+        lookup = Categorical(strings; order=Unordered(), metadata)
+        D = _cdm_dimtype(coord_attrs, coord_name)
+        D(lookup)
+    end
+    # Create MergedLookup with all dimensions
+    D = _cdm_dimtype(NoMetadata(), dimname)
+    merged_data = collect(zip(DD.lookup.(dims)...))
+    return D(MergedLookup(merged_data, Tuple(dims)))
+end
+
 # Must have "standard_name" in dimension attributes
 function _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
     standard_name = _get_attr!(attrs_dict, vars_dict, ds, dimname)["standard_name"]
@@ -633,7 +719,7 @@ function _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dim
     lat_metadata, lon_metadata = map((lat_key, lon_key)) do key
         _metadatadict(sourcetrait(ds), _get_attr!(attrs_dict, vars_dict, ds, key))
     end
-    dims = Lat(AutoValues(); metadata=lat_metadata), 
+    dims = Lat(AutoValues(); metadata=lat_metadata),
            Lon(AutoValues(); metadata=lon_metadata)
     if haskey(ds, dimname)
         dim = _cdm_dimtype(ds, dimname)()
@@ -642,8 +728,19 @@ function _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dim
         dim = AutoDim()
         data = Base.OneTo(CDM.dim(ds, dimname))
     end
-    matrix = collect(_get_var!(vars_dict, ds, lat_key))
-    return ProjectedArrayLookup(matrix; data, dims, crs)
+    # Store the appropriate coordinate matrix based on dimension type
+    # X dimension stores lon (degrees_east), Y dimension stores lat (degrees_north)
+    matrix_key = D <: XDim ? lon_key : lat_key
+    matrix = collect(_get_var!(vars_dict, ds, matrix_key))
+
+    # Check for polygon bounds (CF 7.2) and create GeometryLookup if available
+    geom_lookup = nothing
+    if has_polygon_bounds(ds, vars_dict, attrs_dict, dimension_coord_names)
+        polygons, _ = _create_polygons_from_bounds(ds, vars_dict, attrs_dict, lat_key, lon_key; crs)
+        geom_lookup = GeometryLookup(polygons, (X(), Y()); crs)
+    end
+
+    return ProjectedArrayLookup(matrix; data, dims, crs, geom_lookup)
 end
 
 function _merged_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
@@ -1107,6 +1204,23 @@ function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:Union{Sampled,Ab
     end
     CDM.defVar(ds, dimname, collect(lookup(dim)), (dimname,); attrib)
 
+    return nothing
+end
+function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:AbstractProjected}, dimname)
+    # Projected lookups have CRS info - write as coordinate variable
+    # The CRS itself is handled by _def_grid_mapping!
+    dim = _cdm_shiftlocus(dim)
+    # Attributes
+    attrib = _attribdict(metadata(dim))
+    _cdm_set_axis_attrib!(attrib, dim)
+    # Bounds variables
+    if sampling(dim) isa Intervals
+        bounds = Dimensions.dim2boundsmatrix(dim)
+        boundskey = get(metadata(dim), :bounds, string(dimname, "_bnds"))
+        push!(attrib, "bounds" => boundskey)
+        CDM.defVar(ds, boundskey, bounds, ("bnds", dimname))
+    end
+    CDM.defVar(ds, dimname, collect(lookup(dim)), (dimname,); attrib)
     return nothing
 end
 

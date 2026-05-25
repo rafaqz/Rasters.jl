@@ -37,7 +37,7 @@ fields for coordinate reference system support.
 - `crs`: Coordinate reference system (GeoFormat or Nothing)
 - `mappedcrs`: Mapped CRS for display/selection (GeoFormat or Nothing)
 """
-struct ProjectedArrayLookup{T,A,D,Ds,Ma<:AbstractArray{T},Tr,IV,DV,Me,CRS,MCRS} <: LA.AbstractArrayLookup{T,1}
+struct ProjectedArrayLookup{T,A,D,Ds,Ma<:AbstractArray{T},Tr,IV,DV,Me,CRS,MCRS,GL} <: LA.AbstractArrayLookup{T,1}
     data::A
     dim::D
     dims::Ds
@@ -48,6 +48,7 @@ struct ProjectedArrayLookup{T,A,D,Ds,Ma<:AbstractArray{T},Tr,IV,DV,Me,CRS,MCRS} 
     metadata::Me
     crs::CRS
     mappedcrs::MCRS
+    geom_lookup::GL  # Optional GeometryLookup for polygon bounds (CF 7.2)
 end
 function ProjectedArrayLookup(matrix;
     data=AutoValues(),
@@ -55,9 +56,10 @@ function ProjectedArrayLookup(matrix;
     dims=AutoDim(),
     metadata=NoMetadata(),
     crs=nothing,
-    mappedcrs=nothing
+    mappedcrs=nothing,
+    geom_lookup=nothing
 )
-    ProjectedArrayLookup(data, dim, dims, matrix, nothing, nothing, nothing, metadata, crs, mappedcrs)
+    ProjectedArrayLookup(data, dim, dims, matrix, nothing, nothing, nothing, metadata, crs, mappedcrs, geom_lookup)
 end
 
 LA.dim(lookup::ProjectedArrayLookup) = lookup.dim
@@ -65,6 +67,43 @@ LA.matrix(l::ProjectedArrayLookup) = l.matrix
 LA.tree(l::ProjectedArrayLookup) = l.tree
 GeoInterface.crs(l::ProjectedArrayLookup) = l.crs
 mappedcrs(l::ProjectedArrayLookup) = l.mappedcrs
+
+function LA.show_properties(io::IO, mime, lookup::ProjectedArrayLookup)
+    print(io, " ")
+    show(IOContext(io, :inset => "", :dimcolor => 244), mime, DD.basedims(lookup))
+end
+
+# select_array_lookups for ProjectedArrayLookup with Contains - uses geom_lookup for polygon containment
+function LA.select_array_lookups(
+    lookups::Tuple{<:ProjectedArrayLookup,<:ProjectedArrayLookup},
+    selectors::Tuple{<:Contains,<:Contains}
+)
+    # Both lookups share the same geom_lookup, so use the first one
+    lookup = lookups[1]
+    gl = lookup.geom_lookup
+    if isnothing(gl)
+        throw(ArgumentError("Contains selector requires polygon bounds in ProjectedArrayLookup"))
+    end
+    # Both selectors should have the same point, use the first one
+    sel = selectors[1]
+    # Get indices from the GeometryLookup (which returns linear indices)
+    linear_indices = LA.selectindices(gl, sel)
+    # Convert linear indices back to per-dimension indices for 2D grid
+    grid_size = size(LA.matrix(lookup))
+    if linear_indices isa AbstractVector && length(linear_indices) == 1
+        # Single match - return single indices for each dimension
+        ci = CartesianIndices(grid_size)[linear_indices[1]]
+        return (ci[1], ci[2])
+    elseif linear_indices isa AbstractVector
+        # Multiple matches - return vectors of indices for each dimension
+        cartesian = [CartesianIndices(grid_size)[i] for i in linear_indices]
+        return (getindex.(cartesian, 1), getindex.(cartesian, 2))
+    else
+        # Single match (integer) - return single indices for each dimension
+        ci = CartesianIndices(grid_size)[linear_indices]
+        return (ci[1], ci[2])
+    end
+end
 
 # Format methods for ProjectedArrayLookup
 Dimensions.format(m::ProjectedArrayLookup, D::Type, ::AutoValues, axis::AbstractRange) =

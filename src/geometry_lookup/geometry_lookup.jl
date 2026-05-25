@@ -184,16 +184,18 @@ function Lookups.selectindices(lookup::GeometryLookup, sel::Tuple)
     end
 end
 function Lookups.selectindices(lookup::GeometryLookup, sel::Contains)
+    sel_ext = GI.extent(val(sel))
     potential_candidates = _maybe_get_candidates(lookup, sel_ext)
     filter(potential_candidates) do candidate
         GO.contains(lookup.data[candidate], val(sel))
     end
 end
 function Lookups.selectindices(lookup::GeometryLookup, sel::At)
+    geom = val(sel)
     @assert GI.isgeometry(geom)
-    candidates = _maybe_get_candidates(lookup, GI.extent(val(sel)))
-    x = findfirst(candiates) do candidate
-        GO.equal(val(at), candidate)
+    candidates = _maybe_get_candidates(lookup, GI.extent(geom))
+    x = findfirst(candidates) do candidate
+        GO.equals(geom, lookup.data[candidate])
     end
     if isnothing(x)
         throw(ArgumentError("$sel not found in lookup"))

@@ -15,6 +15,65 @@ variables:
   float dat(jmax,imax);
     dat:coordinates = "lon lat";
   float lat_bnds(jmax,imax,nv);
-  float lon_bnds(jmax,imax,nv); 
+  float lon_bnds(jmax,imax,nv);
+data:
+  // Cell center coordinates - 2x4 grid (imax=2, jmax=4)
+  // lat(j, i) for j=0..3, i=0..1
+  lat =
+    10.0, 10.5,   // j=0, i=0..1
+    20.0, 20.5,   // j=1
+    30.0, 30.5,   // j=2
+    40.0, 40.5;   // j=3
+
+  lon =
+    100.0, 110.0,   // j=0, i=0..1
+    100.2, 110.2,   // j=1
+    100.4, 110.4,   // j=2
+    100.6, 110.6;   // j=3
+
+  // Data values
+  dat =
+    1.0, 2.0,
+    3.0, 4.0,
+    5.0, 6.0,
+    7.0, 8.0;
+
+  // Bounds: lat_bnds(jmax, imax, nv) - 4 vertices per cell
+  // Vertex order: bottom-left, bottom-right, top-right, top-left
+  lat_bnds =
+    // j=0, i=0: vertices for cell (0,0)
+    5.0, 5.0, 15.0, 15.0,
+    // j=0, i=1: vertices for cell (0,1)
+    5.25, 5.25, 15.25, 15.25,
+    // j=1, i=0
+    15.0, 15.0, 25.0, 25.0,
+    // j=1, i=1
+    15.25, 15.25, 25.25, 25.25,
+    // j=2, i=0
+    25.0, 25.0, 35.0, 35.0,
+    // j=2, i=1
+    25.25, 25.25, 35.25, 35.25,
+    // j=3, i=0
+    35.0, 35.0, 45.0, 45.0,
+    // j=3, i=1
+    35.25, 35.25, 45.25, 45.25;
+
+  lon_bnds =
+    // j=0, i=0: vertices for cell (0,0)
+    95.0, 105.0, 105.0, 95.0,
+    // j=0, i=1: vertices for cell (0,1)
+    105.0, 115.0, 115.0, 105.0,
+    // j=1, i=0
+    95.1, 105.1, 105.1, 95.1,
+    // j=1, i=1
+    105.1, 115.1, 115.1, 105.1,
+    // j=2, i=0
+    95.2, 105.2, 105.2, 95.2,
+    // j=2, i=1
+    105.2, 115.2, 115.2, 105.2,
+    // j=3, i=0
+    95.3, 105.3, 105.3, 95.3,
+    // j=3, i=1
+    105.3, 115.3, 115.3, 105.3;
 }
 

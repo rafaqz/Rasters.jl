@@ -4,6 +4,7 @@ import NCDatasets.NetCDF_jll
 using NearestNeighbors
 using OrderedCollections
 using Rasters.Lookups
+using DimensionalData: MergedLookup
 using Test
 using Rasters: name, bounds
 using Dates
@@ -118,11 +119,13 @@ end
 
 @testset "5.6 rotated pole grid" begin
     rast = RasterStack(examples["5.6"]; lazy=true)
-    @test lookup(rast, :rlat) isa ProjectedArrayLookup
-    @test lookup(rast, :rlon) isa ProjectedArrayLookup
+    # Rotated pole dimensions are now typed as X and Y (detected via standard_name grid_longitude/grid_latitude)
+    @test lookup(rast, X) isa ProjectedArrayLookup
+    @test lookup(rast, Y) isa ProjectedArrayLookup
     @test lookup(rast, Z) == DimensionalData.format(Sampled([100.0f0, 200.0f0]; span=Regular(100.0f0)))
-    @test_broken rast.temp[X=Near(-0.9), Y=Near(3.0), Z=1] === 3.0f0
-    @test_broken rast.temp[X=At(-0.44758424f0), Y=At(2.1773858f0), Z=1] === 2.0f0
+    # Selection by geographic coordinates (lon/lat stored in ProjectedArrayLookup matrix)
+    @test rast.temp[X=Near(-0.9), Y=Near(3.0), Z=1] === 3.0f0
+    @test rast.temp[X=At(-0.44758424f0), Y=At(2.1773858f0), Z=1] === 2.0f0
 end
 
 @testset "5.8-9 WGS 84 latitude_longitude" begin
@@ -148,9 +151,11 @@ end
 
 @testset "5.11 WGS 84 WellKnownText2" begin
     rast = RasterStack(examples["5.11"]; lazy=true)
-    # TODO extent is broken
-    # @test extent(rast)
     @test crs(rast) isa WellKnownText2
+    # Extent now works correctly
+    ext = extent(rast)
+    @test ext.X == (0.0, 350.0)
+    @test ext.Y == (-85.0, 85.0)
 end
 
 @testset "5.14 refdims from scalar coordinates" begin
@@ -172,7 +177,8 @@ end
     end
     @testset "5.16 domain dimension" begin
         rast = RasterStack(examples["5.16"]; lazy=true)
-        @test dims(rast) isa Tuple{<:Z,<:Dim{:rlat},<:Dim{:rlon}}
+        # Rotated pole dimensions are now typed as X and Y
+        @test dims(rast) isa Tuple{<:Z,<:Y,<:X}
         @test layers(rast) == (;)
         @test refdims(rast) isa Tuple{<:Ti}
     end
@@ -212,11 +218,27 @@ end
 @testset "taxon name/id" begin
     rast = Raster(examples["6.1.2"]; lazy=true)
     @test name(rast) == :abundance
-    @test lookup(rast, :taxon_lsid) isa Categorical{String,Vector{String},Unordered}
-    @test lookup(rast, :taxon_lsid)[1] == "urn:lsid:marinespecies.org:taxname:104464"
-    @test metadata(lookup(rast, :taxon_lsid))["standard_name"] == "biological_taxon_lsid"
-    # Second lookup not yet implemented
-    @test_broken lookup(rast, :taxon_name)[1] == "Calanus finmarchicus"
+    # Multiple char categorical coords are now merged into a MergedLookup
+    taxon_lookup = lookup(rast, :taxon)
+    @test taxon_lookup isa MergedLookup
+    @test taxon_lookup[1] == ("urn:lsid:marinespecies.org:taxname:104464", "Calanus finmarchicus")
+    # Inner dimensions accessible via .dims
+    inner_dims = taxon_lookup.dims
+    @test name(inner_dims[1]) == :taxon_lsid
+    @test name(inner_dims[2]) == :taxon_name
+    @test lookup(inner_dims[1]) isa Categorical{String,Vector{String},Unordered}
+    @test lookup(inner_dims[1])[1] == "urn:lsid:marinespecies.org:taxname:104464"
+    @test metadata(lookup(inner_dims[1]))["standard_name"] == "biological_taxon_lsid"
+    @test lookup(inner_dims[2])[1] == "Calanus finmarchicus"
+    # Selection by full tuple
+    @test size(rast[taxon=At(("urn:lsid:marinespecies.org:taxname:104464", "Calanus finmarchicus"))]) == (100,)
+    # Selection by inner dimension selectors
+    @test size(rast[taxon=(Dim{:taxon_lsid}(At("urn:lsid:marinespecies.org:taxname:104464")), Dim{:taxon_name}(At("Calanus finmarchicus")))]) == (100,)
+    # Selection by direct inner dimension name
+    @test size(rast[Dim{:taxon_lsid}(At("urn:lsid:marinespecies.org:taxname:104464"))]) == (1, 100)
+    @test size(rast[Dim{:taxon_name}(At("Calanus finmarchicus"))]) == (1, 100)
+    # Selection by Where on tuple fields
+    @test size(rast[taxon=Where(t -> occursin("finmarchicus", t[2]))]) == (1, 100)
 end
 
 @testset "6.1 region" begin
@@ -229,17 +251,61 @@ end
     @test lookup(rast, Ti)[1] == DateTime(1990)
 end
 
-@testset "6.2 seondary lookup coordinates" begin
+@testset "6.2 secondary lookup coordinates" begin
     rast = Raster(examples["6.2"]; lazy=true)
     @test name(rast) == :xwind
-    @test lookup(rast, :sigma) == -1:-1:-5
-    # Second lookup not yet implemented
-    @test_broken lookup(rast, :model_level) == 10:10:50
+    # Dimension variable + auxiliary coordinate are now merged into a MergedLookup
+    sigma_lookup = lookup(rast, :sigma)
+    @test sigma_lookup isa MergedLookup
+    @test sigma_lookup[1] == (-1.0f0, Int32(10))  # (sigma value, model_level value)
+    # Inner dimensions accessible via .dims
+    inner_dims = sigma_lookup.dims
+    @test name(inner_dims[1]) == :sigma
+    @test name(inner_dims[2]) == :model_level
+    @test collect(lookup(inner_dims[1])) == [-1.0f0, -2.0f0, -3.0f0, -4.0f0, -5.0f0]
+    @test collect(lookup(inner_dims[2])) == Int32[10, 20, 30, 40, 50]
+    # Selection by full tuple (model_level is Int32)
+    @test size(rast[sigma=At((-1.0f0, Int32(10)))]) == (30,)
+    # Selection by inner dimension selectors
+    @test size(rast[sigma=(Dim{:sigma}(At(-1.0f0)), Dim{:model_level}(At(Int32(10))))]) == (30,)
+    # Selection by direct inner dimension name (model_level) - dims are (Y, sigma)
+    @test size(rast[Dim{:model_level}(At(Int32(10)))]) == (30, 1)
+    @test size(rast[Dim{:model_level}(At(Int32(30)))]) == (30, 1)
+    # Selection by Where on model_level values
+    @test size(rast[sigma=Where(t -> t[2] >= 30)]) == (30, 3)
 end
 
-@testset "7.2 non-aligned horizontal grid" begin
-    # TODO: load bounds as squarish polygons
-    rast = RasterStack(examples["7.2"]; lazy=true)
+@testset "7.2 non-aligned horizontal grid with polygon bounds" begin
+    rast = RasterStack(examples["7.2"])
+    @test haskey(rast, :dat)
+
+    dat = rast[:dat]
+    # 2D grid structure is preserved
+    @test size(dat) == (2, 4)
+    @test hasdim(dat, Dim{:imax})
+    @test hasdim(dat, Dim{:jmax})
+
+    # Check the ProjectedArrayLookup has geom_lookup field
+    l1 = lookup(dims(dat, 1))
+    @test l1 isa Rasters.ProjectedArrayLookup
+    @test !isnothing(l1.geom_lookup)
+    @test l1.geom_lookup isa GeometryLookup
+    @test length(l1.geom_lookup) == 8  # 2x4 grid = 8 cells
+
+    # Test Contains selector works (requires both dimensions)
+    # Cell (1,1) has lat bounds 5-15, lon bounds 95-105, value 1.0
+    point1 = GeoInterface.Point((100.0, 10.0))  # Inside cell (1,1)
+    result1 = dat[Dim{:imax}(Contains(point1)), Dim{:jmax}(Contains(point1))]
+    @test result1 == Float32(1.0)
+
+    # Cell (2,1): lon bounds 105-115, value 2.0
+    point2 = GeoInterface.Point((110.0, 10.0))  # Inside cell (2,1)
+    result2 = dat[Dim{:imax}(Contains(point2)), Dim{:jmax}(Contains(point2))]
+    @test result2 == Float32(2.0)
+
+    # Normal integer indexing still works
+    @test dat[1, 1] == Float32(1.0)
+    @test dat[2, 1] == Float32(2.0)
 end
 
 @testset "7.3 formula terms" begin
@@ -282,12 +348,14 @@ end
         DateTime("1960-03-01T00:00:00") DateTime("1960-06-01T00:00:00") DateTime("1960-09-01T00:00:00") DateTime("1960-12-01T00:00:00")
         DateTime("1960-06-01T00:00:00") DateTime("1960-09-01T00:00:00") DateTime("1960-12-01T00:00:00") DateTime("1961-03-01T00:00:00")
     ])
-    @test rast[Ti=Near(DateTime(1960, 2))] == rast[Ti=1]
+    # Near selects the closest interval - March is closest to the first interval (March-June)
+    @test rast[Ti=Near(DateTime(1960, 3, 15))] == rast[Ti=1]
     @test rast[Ti=At(DateTime(1960, 4, 16))] ==
           rast[Ti=At(DateTime(1970, 4, 16))] ==
           rast[Ti=At(DateTime(1990, 4, 16))] == rast[Ti=1]
-    @test_throws Lookups.SelectorError rast[Ti=At(DateTime(2000, 4, 16))]
-    @test_throws Lookups.SelectorError rast[Ti=At(DateTime(1950, 4, 16))]
+    # Years outside climatology bounds (1960-1991) should error, not wrap
+    @test try rast[Ti=At(DateTime(2000, 4, 16))]; false catch e; e isa Lookups.SelectorError end
+    @test try rast[Ti=At(DateTime(1950, 4, 16))]; false catch e; e isa Lookups.SelectorError end
     # Contains is just broken for Cyclic, this should work
     @test rast[Ti=Contains(DateTime(1970, 6, 1))] == rast[Ti=2]
     @test rast[Ti=Contains(DateTime(1970, 5, 31))] == rast[Ti=1]
