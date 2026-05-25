@@ -89,8 +89,9 @@ function _open(f, source::CDMsource, ds::AbstractDataset;
 end
 _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) = 
     cleanreturn(f(_maybe_modify(var, mod)))
-_open(os::OpenStack{<:CDMsource}, key::Union{AbstractString,Symbol}) = _open(dataset(os), key)
 # Both needed for ambiguity
+_open(os::OpenStack{<:CDMsource}, key::AbstractString) = _open(dataset(os), key)
+_open(os::OpenStack{<:CDMsource}, key::Symbol) = _open(dataset(os), key)
 _open(os::AbstractDataset, key::AbstractString) = CDM.variable(os, key)
 _open(os::AbstractDataset, key::Symbol) = CDM.variable(os, key)
 
