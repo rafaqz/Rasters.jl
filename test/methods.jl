@@ -182,7 +182,7 @@ end
     @test isequal(missingmask(st2, alllayers = false), [missing; true])    
     @test isequal(missingmask(se), missingmask(ga))
     @test missingmask(polygon; res=1.0, boundary=:touches) == 
-        fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:0.0; crs=nothing)), Y(Projected(10.0:1.0:30.0; crs=nothing))), true)
+        fill!(Raster{Union{Missing,Bool}}(undef, X(Projected(-20:1.0:0.0; crs=nothing, sampling = Intervals(Start()))), Y(Projected(10.0:1.0:30.0; crs=nothing, sampling = Intervals(Start())))), true)
     x = missingmask([polygon, polygon]; collapse=false, res=1.0, boundary=:touches)
     x_inverted = missingmask([polygon, polygon]; collapse=false, res=1.0, invert=true, boundary=:touches)
     @test all(ismissing.(x_inverted))
