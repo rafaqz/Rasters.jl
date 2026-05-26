@@ -271,15 +271,15 @@ gdalpath = maybedownload(url)
             ag = aggregate(mean, gdalarray, 4)
             @test ag == aggregate(mean, gdalarray, (X(4), Y(4)))
             @test ag == aggregate(mean, lazyarray, (X(4), Y(4)))
-            @test ag == aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
             @time ag_disk = aggregate(mean, lazyarray, 4; filename=tempname() * ".tif")
-            @test ag_disk == ag
+            @test all(ag_disk .== ag)
+            @test all(lookup(ag) .≈ lookup(ag_disk))
             tempfile = tempname() * ".tif"
             write(tempfile, ag)
             open(Raster(tempfile; lazy=true); write=true) do dst
                 aggregate!(mean, dst, gdalarray, 4)
             end
-            @test Raster(tempfile) == ag
+            @test Raster(tempfile) == ag_disk
 
             disag = disaggregate(gdalarray, 2)
             @test disag == disaggregate(lazyarray, 2)
@@ -463,7 +463,8 @@ gdalpath = maybedownload(url)
             @test all(map((a, b) -> all(a .≈ b), bounds(grdarray), bounds(gdalarray)))
             @test lookup(grdarray, Y) ≈ lookup(gdalarray, Y)
             @test val(dims(grdarray, X)) ≈ val(dims(gdalarray, X))
-            @test grdarray == gdalarray
+            @test parent(grdarray) == parent(gdalarray)
+            @test_broken grdarray == gdalarray # fails because of floating point precision on reading/writing
         end
 
         @testset "from Raster" begin
