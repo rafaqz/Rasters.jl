@@ -293,7 +293,7 @@ gdalpath = maybedownload(url)
                 open(Raster(tempfile; lazy=true); write=true) do dst
                     disaggregate!(dst, 2 .* gdalarray, 2)
                 end
-                @test Raster(tempfile) == da_array
+                @test all(Raster(tempfile) .== da_array)
             end
         end
 
