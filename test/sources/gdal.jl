@@ -140,23 +140,32 @@ gdalpath = maybedownload(url)
         @test all(bounds(gdalarray, Y) .≈ (4224973.143255847, 4255884.5438021915))
         @test all(bounds(gdalarray, X) .≈ (-28493.166784412522, 2358.211624949061))
 
-        # Lookup values match the raw ArchGDAL geotransform — the original
-        # bug from PR #1070 was that `step` was being recomputed via
-        # `(stop - start) / (length - 1)` and drifting from the geotransform.
+        # Lookup values match what GDAL itself computes from the geotransform
+        # — the original bug from PR #1070 was that `step` was recomputed via
+        # `(stop - start) / (length - 1)` and drifted from the geotransform.
+        #
+        # `anchored_range` uses TwicePrecision arithmetic, so our values are
+        # mathematically more accurate than GDAL's plain Float64
+        # `start + i*step`. The difference is bounded by one Float64 ULP at
+        # the range's largest absolute value — that's the irreducible gap
+        # between rounded plain Float64 arithmetic and full TwicePrecision.
         ArchGDAL.readraster(gdalpath) do ds
             gt = ArchGDAL.getgeotransform(ds)
-            xstep_gt, ystep_gt = gt[2], gt[6]
-            topleft_x, topleft_y = gt[1], gt[4]
-            @test step(dims(gdalarray, X)) === xstep_gt
-            @test step(dims(gdalarray, Y)) === ystep_gt
-            # First index sits at the geotransform corner, offset one step
-            # inside on the reverse-ordered Y axis (Intervals(Start) convention).
-            @test first(dims(gdalarray, X)) === topleft_x
-            @test first(dims(gdalarray, Y)) === topleft_y + ystep_gt
-            # Interior values agree with naive Float64 geotransform math.
-            for i in (1, 100, 250, 500)
-                @test dims(gdalarray, X)[i] ≈ topleft_x + (i - 1) * xstep_gt
-                @test dims(gdalarray, Y)[i] ≈ topleft_y + i * ystep_gt
+            xs, ys = dims(gdalarray, X), dims(gdalarray, Y)
+            @test step(xs) === gt[2]
+            @test step(ys) === gt[6]
+            xtol = eps(maximum(abs, xs))
+            ytol = eps(maximum(abs, ys))
+            # Index `i` of X matches GDAL pixel `i-1`. For Y, index `i` sits
+            # one step inside the corner (the Intervals(Start) convention
+            # for a reverse-ordered axis), matching GDAL line `i`.
+            for i in 1:length(xs)
+                x, _ = ArchGDAL.applygeotransform(gt, Float64(i - 1), 0.0)
+                @test abs(xs[i] - x) <= xtol
+            end
+            for i in 1:length(ys)
+                _, y = ArchGDAL.applygeotransform(gt, 0.0, Float64(i))
+                @test abs(ys[i] - y) <= ytol
             end
         end
     end
