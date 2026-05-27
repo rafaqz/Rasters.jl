@@ -353,6 +353,7 @@ function _raster(ds;
     raw::Bool=false,
     mod=nokw,
     f=identity,
+    prefer_datetime=true,
 )::Raster
     _maybe_warn_replace_missing(replace_missing)
     # `raw` option will ignore `scaled` and `missingval`
@@ -381,7 +382,7 @@ function _raster(ds;
             Array(modvar)
         end
         # Generate dims
-        dims_out = isnokw(dims) ? _dims(var, crs, mappedcrs) : format(dims, data_out)
+        dims_out = isnokw(dims) ? _dims(var, crs, mappedcrs, prefer_datetime) : format(dims, data_out)
         # Return the data to the parent function
         mv_outer = _outer_missingval(mod)
         data_out, dims_out, metadata_out, mv_outer
