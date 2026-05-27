@@ -158,20 +158,33 @@ function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw)
         xstep = gt[GDAL_WE_RES]
         ystep = gt[GDAL_NS_RES] # Usually a negative number
         # Get min, max and sampling depending on AREA_OR_POINT
-        xmin = gt[GDAL_TOPLEFT_X]
-        ymax = gt[GDAL_TOPLEFT_Y]
         sampling = if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
             Points()
         else
             Intervals(GDAL_LOCUS)
         end
+        # GDAL stores the upper-left corner of the first pixel. For `Points`
+        # the index is the point location itself. For `Intervals(Start())`
+        # the index is the start edge of each interval — the edge encountered
+        # first when traversing the axis in index order, i.e. one step inside
+        # the geotransform corner when the step is negative (inverse of
+        # `dims2geotransform` above).
+        xstart = gt[GDAL_TOPLEFT_X]
+        ystart = gt[GDAL_TOPLEFT_Y]
+        if sampling isa Intervals
+            xstep < 0 && (xstart += xstep)
+            ystep < 0 && (ystart += ystep)
+        end
 
         # Define order
         xorder = xstep > 0 ? ForwardOrdered() : ReverseOrdered()
         yorder = ystep > 0 ? ForwardOrdered() : ReverseOrdered()
-        # Create lookup index. LinRange is easiest always the right size after fp error
-        xindex = range(; start=xmin, step=xstep, length=xsize)
-        yindex = range(; start=ymax, step=ystep, length=ysize)
+        # `anchored_range` keeps `step(xindex) === xstep` exactly (so the
+        # span matches the geotransform) while picking an internal anchor
+        # that survives slicing — `Contains` lookups on sub-views depend on
+        # the slice's values being bit-identical to the parent's.
+        xindex = RA.anchored_range(xstart, xstep, xsize)
+        yindex = RA.anchored_range(ystart, ystep, ysize)
 
         # Define `Projected` lookups fo X and Y dimensions
         xlookup = Projected(xindex;

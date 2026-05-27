@@ -353,6 +353,35 @@ function _checkregular(A::AbstractArray)
     return true
 end
 
+# Same StepRangeLen as `range(; start, step, length)`, but with `ref` and
+# `offset` set so `ref` lives at the zero-crossing index instead of at
+# index 1. `step(r)` still equals `step` exactly, and `r[i]` matches the
+# default range, so the only externally observable difference is slicing:
+#
+# When you slice `r[a:b]`, Julia keeps the parent's `ref` bit-for-bit iff
+# the slice contains the parent's `offset`. Otherwise it recomputes a new
+# `ref` with float math and the slice drifts a few bits from the parent —
+# enough to misroute `Contains` lookups (the failure inside `mosaic`).
+# With `offset=1` almost every slice misses; with `offset` at the
+# zero-crossing almost every slice contains it.
+#
+# Step is also split into hi+lo halves: for slices that *do* miss the
+# anchor, the re-anchor computation is `ref + (Δi) * step` and that
+# multiplication only stays exact when `step.hi` has enough low bits
+# zeroed to absorb the product. Same split `Base._linspace` uses.
+function anchored_range(start::T, step::T, len::Integer) where T<:AbstractFloat
+    len = Int(len)
+    (iszero(step) || len < 2) && return range(; start, step, length=len)
+    anchor = clamp(round(Int, 1 - start / step), 1, len)
+    anchor == 1 && return range(; start, step, length=len)
+    headroom = Base.nbitslen(T, len, anchor)
+    step_hi = Base.truncbits(step, headroom)
+    step_lo = step - step_hi
+    step_pair = Base.TwicePrecision{T}(step_hi, step_lo)
+    anchor_value = Base.TwicePrecision{T}(start) + (anchor - 1) * step_pair
+    return StepRangeLen(anchor_value, step_pair, len, anchor)
+end
+
 # Constructor helpers
 
 function _raw_check(raw, scaled, missingval, verbose)

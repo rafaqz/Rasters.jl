@@ -133,7 +133,7 @@ gdalpath = maybedownload(url)
         @test dims(gdalarray) isa Tuple{<:X,<:Y}
         @test lookup(refdims(gdalarray), Band) isa DimensionalData.Categorical;
         @test span(gdalarray, (Y, X)) ==
-            (Regular(-60.02213698319351), Regular(60.02213698319374))
+            (Regular(-60.02213698319374), Regular(60.02213698319374))
         @test sampling(gdalarray, (Y, X)) ==
             (Intervals(Start()), Intervals(Start()))
         # Bounds calculated in python using rasterio
