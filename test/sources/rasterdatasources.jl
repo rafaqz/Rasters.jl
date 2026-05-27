@@ -90,6 +90,28 @@ end
     @test st isa RasterStack
 end
 
+@testset "load SRTM" begin
+    # Aleutian region: tiles (y=1..2, x=5..6). HAS_SRTM_TILE marks (2, 6)
+    # as ocean, so it must be substituted with a `Fill(missingval)` tile.
+    extent = Extent(X=(-159.0, -153.0), Y=(51.0, 59.0))
+    @test RasterDataSources.bounds_to_tile_indices(SRTM, extent) ==
+          CartesianIndices((1:2, 5:6))
+    @test RasterDataSources.HAS_SRTM_TILE[2, 6] == false
+
+    ras = Raster(SRTM; extent, lazy=true, missingval=Int16(0))
+    @test ras isa Raster{Int16,2}
+    @test missingval(ras) === Int16(0)
+    @test parent(ras) isa Rasters.DiskArrays.ConcatDiskArray
+    # A pixel firmly inside the ocean tile (lon -155..-150, lat 50..55)
+    # must return missingval from the Fill substitute.
+    @test ras[X(Near(-152.0)), Y(Near(52.0))] === Int16(0)
+
+    # When a whole tile column is missing we can't reconstruct the X lookup —
+    # the constructor must error before any download is attempted.
+    @test_throws ArgumentError Raster(SRTM;
+        extent=Extent(X=(-180.0, -171.0), Y=(56.0, 59.0)))
+end
+
 @testset "load ALWB" begin
     A = Raster(ALWB{Deciles,Day}, :rain_day; date=DateTime(2019, 10, 19), lazy=true)
     @test crs(A) == EPSG(4326)
