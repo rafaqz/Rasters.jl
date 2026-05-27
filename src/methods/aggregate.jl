@@ -271,7 +271,7 @@ function disaggregate(lookup::Lookup, scale)
     len = length(lookup) * intscale
     step_ = step(lookup) / intscale
     start = lookup[1] - _agoffset(Start(), intscale) * step_
-    index = range(; start=start, step=step_, length=len)
+    index = anchored_range(start, step_, len)
     if lookup isa AbstractSampled
         sp = disaggregate(locus, span(lookup), intscale)
         return rebuild(lookup; data=index, span=sp)
