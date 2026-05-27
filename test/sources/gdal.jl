@@ -288,12 +288,12 @@ gdalpath = maybedownload(url)
 
             @testset "disaggregate to file" begin
                 tempfile = tempname() * ".tif"
-                write(tempfile, disaggregate(gdalarray, 2))
-                disaggregate(2 .* gdalarray, 2)
+                da_array = disaggregate(2 .* gdalarray, 2) # eltype is Int64 - gdalarray  has eltype UInt8
+                Rasters.create(tempfile, da_array)
                 open(Raster(tempfile; lazy=true); write=true) do dst
                     disaggregate!(dst, 2 .* gdalarray, 2)
                 end
-                @test size(Raster(tempfile)) == 2 .* size(gdalarray)
+                @test Raster(tempfile) == da_array
             end
         end
 
