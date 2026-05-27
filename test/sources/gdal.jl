@@ -139,6 +139,26 @@ gdalpath = maybedownload(url)
         # Bounds calculated in python using rasterio
         @test all(bounds(gdalarray, Y) .≈ (4224973.143255847, 4255884.5438021915))
         @test all(bounds(gdalarray, X) .≈ (-28493.166784412522, 2358.211624949061))
+
+        # Lookup values match the raw ArchGDAL geotransform — the original
+        # bug from PR #1070 was that `step` was being recomputed via
+        # `(stop - start) / (length - 1)` and drifting from the geotransform.
+        ArchGDAL.readraster(gdalpath) do ds
+            gt = ArchGDAL.getgeotransform(ds)
+            xstep_gt, ystep_gt = gt[2], gt[6]
+            topleft_x, topleft_y = gt[1], gt[4]
+            @test step(dims(gdalarray, X)) === xstep_gt
+            @test step(dims(gdalarray, Y)) === ystep_gt
+            # First index sits at the geotransform corner, offset one step
+            # inside on the reverse-ordered Y axis (Intervals(Start) convention).
+            @test first(dims(gdalarray, X)) === topleft_x
+            @test first(dims(gdalarray, Y)) === topleft_y + ystep_gt
+            # Interior values agree with naive Float64 geotransform math.
+            for i in (1, 100, 250, 500)
+                @test dims(gdalarray, X)[i] ≈ topleft_x + (i - 1) * xstep_gt
+                @test dims(gdalarray, Y)[i] ≈ topleft_y + i * ystep_gt
+            end
+        end
     end
 
     @testset "other fields" begin
