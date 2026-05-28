@@ -9,7 +9,7 @@ end
 
 @testset "_chunks_to_tuple" begin
     A = zeros(100, 100)
-    template = DiskArrays.RechunkedDiskArray(A, DiskArrays.GridChunks(A, (32, 16, 1)))
+    template = DiskArrays.MockChunkedDiskArray(A, DiskArrays.GridChunks(A, (32, 16, 1)))
     # Bool chunk selection is generated from template
     _chunks_to_tuple(template, (X(), Y(), Ti()), true) == (32, 16, 1)
     @test _chunks_to_tuple(template, (X(), Y()), true) == (32, 16)
