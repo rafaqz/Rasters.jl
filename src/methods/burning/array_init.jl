@@ -71,9 +71,11 @@ function _maybe_lazy_reorder(::ForwardOrdered, B)
     reduce(dims(B); init=B) do A, d
         if DD.order(d) isa ReverseOrdered
             A = view(A, rebuild(d, lastindex(d):-1:firstindex(d)))
-            # The view reverses the lookup values but keeps ReverseOrdered trait.
-            # We need to update just the Order trait to ForwardOrdered.
-            DD.unsafe_set(A, DD.basedims(d) => ForwardOrdered())
+            # The view reverses the lookup values but keeps the ReverseOrdered
+            # trait. Update just the Order trait on the dim to ForwardOrdered.
+            d_new = dims(A, d)
+            l_new = rebuild(lookup(d_new); order=ForwardOrdered())
+            DD.setdims(A, rebuild(d_new, l_new))
         else
             A
         end
