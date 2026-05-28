@@ -95,12 +95,15 @@ end
             sampling=Intervals(Start()), span = Regular(1e5)
         ))
     A = Raster(rand(x))
+    # These return Regular lookups
     @test A[X = 2:3] == 
-        A[X = Near([1, 2])] == 
         A[X = Near((1, 2))] == 
         A[X = 0.5 .. 3] ==
+        A[X = Between(0.5,3)]
+    # These return Irregular lookups        
+    @test A[X = [2,3]] ==
+        A[X = Near([1, 2])] == 
         A[X = Contains([1,2])] ==
-        A[X = Between(0.5,3)] ==
         A[X = Where(x -> 3 > x > 0.5)] ==
         A[X = Not(At(0))]
 end
