@@ -30,5 +30,5 @@ SpeciesDistributionModels = "3ef73bbf-0321-4d3b-9a2e-5fbebc8e35da"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [sources]
-SpeciesDistributionModels = {url = "https://github.com/tiemvanderdeure/SpeciesDistributionModels.jl/"}
-Rasters = { path = ".." }
+Rasters = {path = ".."}
+SpeciesDistributionModels = {rev = "main", url = "https://github.com/tiemvanderdeure/SpeciesDistributionModels.jl/"}
