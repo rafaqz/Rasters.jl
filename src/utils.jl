@@ -393,9 +393,16 @@ Base.last(r::StableRange) = r[r.len]
     T(r.start + (i - 1 + r.offset) * r.step)
 end
 
-function Base.getindex(r::StableRange{T}, s::AbstractUnitRange{<:Integer}) where T
-    @boundscheck checkbounds(r, s)
-    StableRange{T}(r.start, r.step, length(s), r.offset + Int(first(s)) - 1)
+# `getindex`, `view` and `dotview` all return a `StableRange` so the slice-stable
+# invariant survives every slicing path (DimensionalData reindexes untouched
+# lookups through `view` when slicing/dropping dims, which would otherwise wrap
+# the range in a `SubArray` and break `typeof` equality with `getindex`-sliced
+# lookups).
+for f in (:getindex, :view, :dotview)
+    @eval function Base.$f(r::StableRange{T}, s::AbstractUnitRange{<:Integer}) where T
+        @boundscheck checkbounds(r, s)
+        StableRange{T}(r.start, r.step, length(s), r.offset + Int(first(s)) - 1)
+    end
 end
 
 # `Contains`/`Near` go through `searchsortedfirst`/`searchsortedlast`.
