@@ -449,6 +449,24 @@ for op in (:+, :-)
     @eval Base.$op(r1::StableRange, r2::StableRange) = _stable_rangeop($op, r1, r2)
 end
 
+# Scalar broadcast. Without this, `sr .+ x` falls through to the generic
+# `AbstractRange` broadcast machinery and returns a `StepRangeLen` whose
+# values can drift by a ULP from the parent (DimensionalData's
+# `_shiftlocus` does `parent(l) .+ (step * offset)` even when `offset == 0`,
+# which would otherwise convert every `StableRange` lookup into a
+# `StepRangeLen` on every locus-preserving set call).
+for op in (:+, :-)
+    @eval function Base.broadcasted(::Base.Broadcast.DefaultArrayStyle{1}, ::typeof($op), r::StableRange{T}, x::Number) where T
+        StableRange{T}(($op)(r.start, Base.TwicePrecision{T}(T(x))), r.step, r.len, r.offset)
+    end
+end
+function Base.broadcasted(::Base.Broadcast.DefaultArrayStyle{1}, ::typeof(+), x::Number, r::StableRange{T}) where T
+    StableRange{T}(r.start + Base.TwicePrecision{T}(T(x)), r.step, r.len, r.offset)
+end
+function Base.broadcasted(::Base.Broadcast.DefaultArrayStyle{1}, ::typeof(-), x::Number, r::StableRange{T}) where T
+    StableRange{T}(Base.TwicePrecision{T}(T(x)) - r.start, -r.step, r.len, r.offset)
+end
+
 # Constructor helpers
 
 function _raw_check(raw, scaled, missingval, verbose)
