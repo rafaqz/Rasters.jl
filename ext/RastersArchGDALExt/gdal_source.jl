@@ -179,12 +179,12 @@ function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw)
         # Define order
         xorder = xstep > 0 ? ForwardOrdered() : ReverseOrdered()
         yorder = ystep > 0 ? ForwardOrdered() : ReverseOrdered()
-        # `anchored_range` keeps `step(xindex) === xstep` exactly (so the
-        # span matches the geotransform) while picking an internal anchor
-        # that survives slicing — `Contains` lookups on sub-views depend on
-        # the slice's values being bit-identical to the parent's.
-        xindex = RA.anchored_range(xstart, xstep, xsize)
-        yindex = RA.anchored_range(ystart, ystep, ysize)
+        # `StableRange` keeps `step(xindex) === xstep` exactly (so the span
+        # matches the geotransform) and slicing is bit-stable — `Contains`
+        # lookups on sub-views need the slice's values to agree with the
+        # parent's at corresponding indices.
+        xindex = RA.StableRange(; start=xstart, step=xstep, length=xsize)
+        yindex = RA.StableRange(; start=ystart, step=ystep, length=ysize)
 
         # Define `Projected` lookups fo X and Y dimensions
         xlookup = Projected(xindex;

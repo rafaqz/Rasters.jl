@@ -353,32 +353,93 @@ function _checkregular(A::AbstractArray)
     return true
 end
 
-# Same values as `range(; start, step, length)`, but with the StepRangeLen's
-# internal `ref`/`offset` placed at the zero-crossing index instead of at
-# index 1. Slicing a StepRangeLen keeps `ref` bit-for-bit only when the
-# slice contains the parent's `offset`; otherwise Julia recomputes `ref`
-# with float math and the slice drifts a few bits — enough to misroute
-# `Contains` lookups on sub-views (the failure inside `mosaic`). Anchoring
-# at the zero-crossing means almost every reasonable slice keeps identity.
-function anchored_range(start::T, step::T, len::Integer) where T<:AbstractFloat
-    len = Int(len)
-    (iszero(step) || len < 2) && return range(; start, step, length=len)
-    # Index where `r[i] ≈ 0`: the most precise anchor point.
-    anchor = clamp(round(Int, 1 - start / step), 1, len)
-    anchor == 1 && return range(; start, step, length=len)
-    # `StepRangeLen` stores step as a `TwicePrecision{T}` (a pair `hi+lo`
-    # carrying ~104 mantissa bits between them) and computes values as
-    # `ref + Δi * step.hi + Δi * step.lo` using plain Float64 `*`. For
-    # `Δi * step.hi` to stay exact, `step.hi` needs `headroom` bottom bits
-    # zeroed. That's what `truncbits` does. `step.lo` carries those cleared
-    # bits so `step.hi + step.lo === step`. Same split `Base._linspace` uses.
-    headroom = Base.nbitslen(T, len, anchor)
+# A range whith slice-stable elements. 
+# Slicing returns a `StableRange` whose values are bit-identical 
+# to the parent's at the corresponding index.
+#
+# This improves cat, mosaic, and Contains etc indexing and doesn't 
+# degrade with slicing.
+struct StableRange{T<:AbstractFloat} <: AbstractRange{T}
+    start::Base.TwicePrecision{T}
+    step::Base.TwicePrecision{T}
+    len::Int
+    offset::Int
+end
+function StableRange(; start::T, step::T, length::Integer) where T<:AbstractFloat
+    n = Int(length)
+    if iszero(step) || n < 2
+        return StableRange{T}(
+            Base.TwicePrecision{T}(start),
+            Base.TwicePrecision{T}(step),
+            n, 0,
+        )
+    end
+    headroom = Base.nbitslen(T, n, 1)
     step_hi = Base.truncbits(step, headroom)
     step_lo = step - step_hi
-    step_pair = Base.TwicePrecision{T}(step_hi, step_lo)
-    # Anchor value in TwicePrecision
-    anchor_value = Base.TwicePrecision{T}(start) + (anchor - 1) * step_pair
-    return StepRangeLen(anchor_value, step_pair, len, anchor)
+    step_tp = Base.TwicePrecision{T}(step_hi, step_lo)
+    start_tp = Base.TwicePrecision{T}(start)
+    return StableRange{T}(start_tp, step_tp, n, 0)
+end
+
+Base.size(r::StableRange) = (r.len,)
+Base.length(r::StableRange) = r.len
+Base.step(r::StableRange{T}) where T = T(r.step)
+Base.first(r::StableRange) = r[1]
+Base.last(r::StableRange) = r[r.len]
+
+@inline function Base.getindex(r::StableRange{T}, i::Int) where T
+    @boundscheck checkbounds(r, i)
+    T(r.start + (i - 1 + r.offset) * r.step)
+end
+
+function Base.getindex(r::StableRange{T}, s::AbstractUnitRange{<:Integer}) where T
+    @boundscheck checkbounds(r, s)
+    StableRange{T}(r.start, r.step, length(s), r.offset + Int(first(s)) - 1)
+end
+
+# `Contains`/`Near` go through `searchsortedfirst`/`searchsortedlast`.
+# The default `AbstractRange{<:Real}` specialization inverts using
+# `first(r)` / `step(r)`. We override to use `T(r.start)` — the value
+# at the index 1, *invariant across slicing* plus the integer `offset`. 
+#
+# The slice's answer then equals the parent's answer minus `offset` exactly, 
+# regardless of where the slice was taken or whether it contains an index.
+function Base.searchsortedfirst(r::StableRange{T}, x::Real) where T
+    abs_f = T(r.start)
+    h = T(r.step)
+    n = r.len
+    iszero(h) && return x <= abs_f ? 1 : n + 1
+    j_ext = unsafe_trunc(Int, cld(x - abs_f, h)) + 1
+    return clamp(j_ext - r.offset, 1, n + 1)
+end
+
+function Base.searchsortedlast(r::StableRange{T}, x::Real) where T
+    abs_f = T(r.start)
+    h = T(r.step)
+    n = r.len
+    iszero(h) && return x >= abs_f ? n : 0
+    j_ext = unsafe_trunc(Int, fld(x - abs_f, h)) + 1
+    return clamp(j_ext - r.offset, 0, n)
+end
+
+# Range arithmetic. Without these, `AbstractRange{<:Real} ± StableRange`
+# hits `-(::AbstractArray, ::AbstractArray)` which broadcasts, dispatches
+# back to `broadcasted(::DefaultArrayStyle, -, ::AbstractRange, ::AbstractRange)`
+# at `broadcast.jl`, which calls `r1 - r2` — infinite recursion. Defining
+# the arithmetic directly produces a fresh `StableRange` from `first`/`step`
+# of the result. The result is a one-off arithmetic value, not a view of
+# the inputs, so the slice-stability invariant doesn't carry across.
+function _stable_rangeop(op::F, r1, r2) where F
+    length(r1) == length(r2) || throw(DimensionMismatch(
+        "ranges must be the same length, got $(length(r1)) and $(length(r2))"
+    ))
+    StableRange(; start=op(first(r1), first(r2)), step=op(step(r1), step(r2)), length=length(r1))
+end
+for op in (:+, :-)
+    @eval Base.$op(r1::AbstractRange{<:AbstractFloat}, r2::StableRange) = _stable_rangeop($op, r1, r2)
+    @eval Base.$op(r1::StableRange, r2::AbstractRange{<:AbstractFloat}) = _stable_rangeop($op, r1, r2)
+    @eval Base.$op(r1::StableRange, r2::StableRange) = _stable_rangeop($op, r1, r2)
 end
 
 # Constructor helpers

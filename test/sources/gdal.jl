@@ -143,12 +143,6 @@ gdalpath = maybedownload(url)
         # Lookup values match what GDAL itself computes from the geotransform
         # — the original bug from PR #1070 was that `step` was recomputed via
         # `(stop - start) / (length - 1)` and drifted from the geotransform.
-        #
-        # `anchored_range` uses TwicePrecision arithmetic, so our values are
-        # mathematically more accurate than GDAL's plain Float64
-        # `start + i*step`. The difference is bounded by one Float64 ULP at
-        # the range's largest absolute value — that's the irreducible gap
-        # between rounded plain Float64 arithmetic and full TwicePrecision.
         ArchGDAL.readraster(gdalpath) do ds
             gt = ArchGDAL.getgeotransform(ds)
             xs, ys = dims(gdalarray, X), dims(gdalarray, Y)

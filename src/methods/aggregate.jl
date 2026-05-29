@@ -106,22 +106,28 @@ aggregate(method, d::Dimension, scale) = rebuild(d, aggregate(method, lookup(d),
 aggregate(method, l::Lookup, scale::Colon) = aggregate(method, l, length(l)) 
 aggregate(method, l::Lookup, scale::Nothing) = aggregate(method, l, 1) 
 function aggregate(method, l::Lookup, scale::Int)
-    if issampled(l) && isordered(l) 
-        if isregular(l)
-            # if they are regular, we build from scratch to preserve raster extent
-            start, stop = _endpoints(l, scale)
-            sp = aggregate(span(l), scale)
-            return rebuild(l; data = start:val(sp):stop, span=sp)
-        else
-            start = firstindex(l) + _agoffset(Int, method, l, scale)
-            stop = (length(l) ÷ scale) * scale
-            newl = l[start:scale:stop]
-            return rebuild(l; data = newl)
-        end
-    else
-        # Categorical and Unordered lookups are just broken 
+    if !(issampled(l) && isordered(l))
+        # Categorical and Unordered lookups are just broken
         # by aggregate, so use NoLookup
         return NoLookup(Base.OneTo(length(l) ÷ scale))
+    end
+    if isregular(l) && locus(l) isa Center
+        # Even-scale Center has no source cell at the window's geometric centre,
+        # so the result must compute an interpolated value. Build from scratch.
+        start, stop = _endpoints(l, scale)
+        sp = aggregate(span(l), scale)
+        return rebuild(l; data = start:val(sp):stop, span=sp)
+    end
+    # Start, End, or non-regular: result values are a strided pick from `l`,
+    # so every value in the aggregated lookup already exists in `l` bit-for-bit.
+    start_idx = firstindex(l) + _agoffset(Int, method, l, scale)
+    stop_idx = (length(l) ÷ scale) * scale
+    newl = l[start_idx:scale:stop_idx]
+    if isregular(l)
+        sp = aggregate(span(l), scale)
+        return rebuild(l; data=parent(newl), span=sp)
+    else
+        return rebuild(l; data=parent(newl))
     end
 end
 aggregate(span::Span, scale) = span
@@ -276,16 +282,42 @@ function disaggregate(l::Lookup, scale)
     intscale = _scale2int(DisAg(), l, scale)
     intscale == 1 && return l
 
-    len = length(l) * intscale
-    step_ = step(l) / intscale
-    start = l[1] - _agoffset(l, intscale) * step_
-    rnge = anchored_range(start, step_, len)
+    if locus(l) isa Center
+        # Center: keep the Float64 range-construction path. Even-scale Center
+        # can't be expressed via on-grid picks (l[k] sits between cells), so
+        # both odd and even take the same path for symmetry.
+        len = length(l) * intscale
+        step_ = step(l) / intscale
+        start = l[1] - _agoffset(l, intscale) * step_
+        data = StableRange(; start=start, step=step_, length=len)
+    else
+        # Start/End: build a Vector where on-grid indices are bit-exact copies
+        # of `l[k]`, and off-grid indices interpolate at `l[k] + m*step(l)/intscale`.
+        data = _disaggregate_with_grid(l, intscale)
+    end
     if l isa AbstractSampled
         sp = disaggregate(locus, span(l), intscale)
-        rebuild(l; data=rnge, span=sp)
+        return rebuild(l; data=data, span=sp)
     else
-        rebuild(l; data=rnge)
+        return rebuild(l; data=data)
     end
+end
+
+function _disaggregate_with_grid(l::Lookup, intscale::Int)
+    n = length(l)
+    s_unit = step(l) / intscale
+    # `block_offset` is where l[k] sits within its intscale-cell block:
+    # Start+Forward / End+Reverse → 0; End+Forward / Start+Reverse → intscale-1.
+    block_offset = _agoffset(Int, locus(l), order(l), intscale)
+    result = Vector{eltype(l)}(undef, n * intscale)
+    for k in 1:n
+        v = l[k]
+        base = (k - 1) * intscale + 1
+        for m in 0:intscale-1
+            result[base + m] = m == block_offset ? v : v + (m - block_offset) * s_unit
+        end
+    end
+    return result
 end
 
 disaggregate(span::Span, scale) = span
