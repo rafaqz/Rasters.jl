@@ -213,13 +213,14 @@ function convertlookup(::Type{<:Projected}, l::Mapped)
     )
 end
 
-_projectedrange(l::Projected) = LinRange(first(l), last(l), length(l))
+_projectedrange(l::Projected) = StableRange(; start=first(l), stop=last(l), length=length(l))
 _projectedrange(l::Mapped) = _projectedrange(span(l), crs(l), l)
 function _projectedrange(span, crs, l::Mapped)
     start, stop = reproject(mappedcrs(l), crs, dim(l), [first(l), last(l)])
-    LinRange(start, stop, length(l))
+    StableRange(; start, stop, length=length(l))
 end
-_projectedrange(::Regular, crs::Nothing, l::Mapped) = LinRange(first(l), last(l), length(l))
+_projectedrange(::Regular, crs::Nothing, l::Mapped) =
+    StableRange(; start=first(l), stop=last(l), length=length(l))
 function _projectedrange(::T, crs::Nothing, l::Mapped) where T<:Union{Irregular,Explicit}
     error("Cannot convert a Mapped $T index to Projected when crs is nothing")
 end

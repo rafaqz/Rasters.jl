@@ -145,9 +145,9 @@ function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res;
         @assert step >= zero(step) "only positive `res` are supported, got $step"
         if samp isa Intervals
             if locus(samp) isa End
-                reverse(range(; start=stop+step, step=-step, stop=start+step))
+                reverse(_extent_range(; start=stop+step, step=-step, stop=start+step))
             else
-                r = range(; start, step, stop)
+                r = _extent_range(; start, step, stop)
                 if locus(samp) isa Start
                     r
                 else # Center
@@ -155,7 +155,7 @@ function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res;
                 end
             end
         else
-            range(; start, step, stop)
+            _extent_range(; start, step, stop)
         end
     end
     return _extent2dims(to, ranges; sampling, kw...)
@@ -165,33 +165,33 @@ function _extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW};
 )
     size = _match_to_extent(to, size)
     ranges = map(values(to), size, sampling) do (start, stop), length, samp
-        r1 = range(; start, stop, length)
+        r1 = _extent_range(; start, stop, length)
         if samp isa Points
             r1
         else
-            # We need to buffer extent for a closed interval input so that e.g. 
+            # We need to buffer extent for a closed interval input so that e.g.
             # The raster will actually contain points of the extent, as raster
             # pixels are closed/open intervals not closed/closed.
-            # Its hard to add a very small amount to any fp number and have 
-            # it propagate through to the final extent. But this setup seems to work. 
+            # Its hard to add a very small amount to any fp number and have
+            # it propagate through to the final extent. But this setup seems to work.
             # We use the step or r1 to offset the end point of r, the buffer with 10 float
             # steps, which seems to be enough. But it's arbitrary and count be revised.
             nfloatsteps = 10
             step = (stop - start) / length
             if locus(samp) isa End
-                start_open = if (closed && start isa AbstractFloat) 
+                start_open = if (closed && start isa AbstractFloat)
                     prevfloat(start + step, nfloatsteps)
                 else
                     start + step
                 end
-                reverse(range(; start=stop, stop=start_open, length))
+                reverse(_extent_range(; start=stop, stop=start_open, length))
             else
-                stop_open = if closed && stop isa AbstractFloat 
+                stop_open = if closed && stop isa AbstractFloat
                     nextfloat(stop - step, nfloatsteps)
                 else
                     stop - step
                 end
-                r = range(; start, stop=stop_open, length)
+                r = _extent_range(; start, stop=stop_open, length)
                 if locus(samp) isa Start
                     r
                 else # Center
@@ -365,8 +365,56 @@ struct StableRange{T<:AbstractFloat} <: AbstractRange{T}
     len::Int
     offset::Int
 end
-function StableRange(; start::T, step::T, length::Integer) where T<:AbstractFloat
+# Same keyword API as `range`/`StepRangeLen`: any three of `start`, `step`,
+# `stop`, `length`. Four (or fewer than three) always errors.
+function StableRange(; start=nokw, step=nokw, stop=nokw, length=nokw)
+    provided = !isnokw(start) + !isnokw(step) + !isnokw(stop) + !isnokw(length)
+    provided == 3 || throw(ArgumentError(
+        "StableRange requires exactly three of `start`, `step`, `stop`, `length` (got $provided)"
+    ))
+    return _stable_range(start, step, stop, length)
+end
+
+# start, step, length — canonical builder
+function _stable_range(start::Real, step::Real, ::NoKW, length::Integer)
+    T = float(promote_type(typeof(start), typeof(step)))
+    return _stable_range_impl(T(start), T(step), Int(length))
+end
+# start, stop, length — LinRange-style
+function _stable_range(start::Real, ::NoKW, stop::Real, length::Integer)
+    T = float(promote_type(typeof(start), typeof(stop)))
     n = Int(length)
+    n < 2 && return _stable_range_impl(T(start), zero(T), n)
+    return _stable_range_impl(T(start), (T(stop) - T(start)) / (n - 1), n)
+end
+# start, step, stop — match `Base.range`'s float length rounding
+function _stable_range(start::Real, step::Real, stop::Real, ::NoKW)
+    T = float(promote_type(typeof(start), typeof(step), typeof(stop)))
+    h = T(step)
+    iszero(h) && throw(ArgumentError("`step` cannot be zero when `stop` is provided"))
+    n = max(0, round(Int, (T(stop) - T(start)) / h) + 1)
+    return _stable_range_impl(T(start), h, n)
+end
+# step, stop, length
+function _stable_range(::NoKW, step::Real, stop::Real, length::Integer)
+    T = float(promote_type(typeof(step), typeof(stop)))
+    n = Int(length)
+    return _stable_range_impl(T(stop) - T(step) * (n - 1), T(step), n)
+end
+
+# `StableRange` for float endpoints, fall back to `range` for DateTimes/Ints
+# (where slice drift isn't a concern and `StableRange` doesn't apply).
+function _extent_range(; start=nokw, step=nokw, stop=nokw, length=nokw)
+    args = (start, step, stop, length)
+    if any(x -> x isa AbstractFloat, args)
+        return StableRange(; start, step, stop, length)
+    else
+        kw = NamedTuple{(:start, :step, :stop, :length)}(args)
+        return range(; (k => v for (k, v) in pairs(kw) if !isnokw(v))...)
+    end
+end
+
+function _stable_range_impl(start::T, step::T, n::Int) where T<:AbstractFloat
     if iszero(step) || n < 2
         return StableRange{T}(
             Base.TwicePrecision{T}(start),
@@ -403,6 +451,16 @@ for f in (:getindex, :view, :dotview)
         @boundscheck checkbounds(r, s)
         StableRange{T}(r.start, r.step, length(s), r.offset + Int(first(s)) - 1)
     end
+end
+
+# Default `reverse(::AbstractRange)` for a `StepRangeLen` returns a fresh
+# `StepRangeLen` with recomputed `ref` — drops slice stability. Build a fresh
+# `StableRange` instead so reversed ranges stay bit-stable under further slicing.
+function Base.reverse(r::StableRange{T}) where T
+    n = r.len
+    n < 2 && return r
+    last_tp = r.start + (n - 1 + r.offset) * r.step
+    return StableRange{T}(last_tp, -r.step, n, 0)
 end
 
 # `Contains`/`Near` go through `searchsortedfirst`/`searchsortedlast`.
