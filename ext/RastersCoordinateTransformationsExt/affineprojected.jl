@@ -5,6 +5,7 @@ function AffineProjected(f;
 end
 
 DD.dim(lookup::AffineProjected) = lookup.dim
+LA.order(lookup::AffineProjected) = LA.Unordered()
 RA.crs(lookup::AffineProjected) = lookup.crs
 RA.mappedcrs(lookup::AffineProjected) = lookup.mappedcrs
 paired_lookup(lookup::AffineProjected) = lookup.paired_lookup
@@ -16,6 +17,10 @@ function DD.rebuild(l::AffineProjected;
 )
     AffineProjected(affinemap, data, metadata, crs, mappedcrs, paired_lookup, dim)
 end
+
+# _set_lookup methods for DimensionalData 0.30 compatibility
+LA._set_lookup(::LA.Safety, ::LA.Lookup, newlookup::AffineProjected) = newlookup
+
 function Dimensions.format(l::AffineProjected, D::Type, index, axis::AbstractRange)
     return rebuild(l; data=axis, dim=basetypeof(D)())
 end
