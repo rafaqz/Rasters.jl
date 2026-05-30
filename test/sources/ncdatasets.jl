@@ -1,4 +1,4 @@
-using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots, CommonDataModel
+using Rasters, DimensionalData, Test, Statistics, Dates, CFTime, Plots, CommonDataModel, DiskArrays
 
 using Rasters.Lookups, Rasters.Dimensions
 using Rasters.DiskArrays
@@ -624,6 +624,23 @@ if !haskey(ENV, "CI") && isfile(h5path)
         lazy_rast = Raster(path; name=:surface_temp, group="Geophysical_Data", lazy=true)
         @test all(stack[:surface_temp] .=== read(lazy_stack[:surface_temp]) .=== rast .=== read(lazy_rast))
     end
+end
+
+@testset "OpenStack indexing" begin
+    DiskArrays.allowscalar(true)
+    filename = tempname() * ".nc"
+    rs = Rasters.create(
+        filename, (;a = Float64), (X(1:10),);
+        fill=NaN, 
+        missingval=NaN
+    )
+    rs_lazy = RasterStack(filename; lazy=true, raw=true)
+    ras_lazy = Raster(filename; lazy=true, raw=true)
+
+    @test isequal(open(first, rs), open(first, rs_lazy))
+    @test isequal(open(first, rs_lazy), (; a=NaN))
+    @test isnan(open(first, ras_lazy))
+    DiskArrays.allowscalar(false)
 end
 
 nothing
