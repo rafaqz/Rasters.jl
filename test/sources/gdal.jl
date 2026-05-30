@@ -133,12 +133,35 @@ gdalpath = maybedownload(url)
         @test dims(gdalarray) isa Tuple{<:X,<:Y}
         @test lookup(refdims(gdalarray), Band) isa DimensionalData.Categorical;
         @test span(gdalarray, (Y, X)) ==
-            (Regular(-60.02213698319351), Regular(60.02213698319374))
+            (Regular(-60.02213698319374), Regular(60.02213698319374))
         @test sampling(gdalarray, (Y, X)) ==
             (Intervals(Start()), Intervals(Start()))
         # Bounds calculated in python using rasterio
         @test all(bounds(gdalarray, Y) .≈ (4224973.143255847, 4255884.5438021915))
         @test all(bounds(gdalarray, X) .≈ (-28493.166784412522, 2358.211624949061))
+
+        # Lookup values match what GDAL itself computes from the geotransform
+        # — the original bug from PR #1070 was that `step` was recomputed via
+        # `(stop - start) / (length - 1)` and drifted from the geotransform.
+        ArchGDAL.readraster(gdalpath) do ds
+            gt = ArchGDAL.getgeotransform(ds)
+            xs, ys = dims(gdalarray, X), dims(gdalarray, Y)
+            @test step(xs) === gt[2]
+            @test step(ys) === gt[6]
+            xtol = eps(maximum(abs, xs))
+            ytol = eps(maximum(abs, ys))
+            # Index `i` of X matches GDAL pixel `i-1`. For Y, index `i` sits
+            # one step inside the corner (the Intervals(Start) convention
+            # for a reverse-ordered axis), matching GDAL line `i`.
+            for i in 1:length(xs)
+                x, _ = ArchGDAL.applygeotransform(gt, Float64(i - 1), 0.0)
+                @test abs(xs[i] - x) <= xtol
+            end
+            for i in 1:length(ys)
+                _, y = ArchGDAL.applygeotransform(gt, 0.0, Float64(i))
+                @test abs(ys[i] - y) <= ytol
+            end
+        end
     end
 
     @testset "other fields" begin

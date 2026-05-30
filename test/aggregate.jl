@@ -1,6 +1,6 @@
 using Rasters, Test, Dates, Statistics
 using Rasters.Lookups, Rasters.Dimensions
-using Rasters: upsample, downsample, aggregate
+using Rasters: upsample, downsample, aggregate, StableRange
 
 @testset "upsample" begin
     @test upsample(1, 2) == 1
@@ -57,7 +57,7 @@ series = RasterSeries([stack1, stack2], (Ti(dates),))
     disaglat = disaggregate(aglat, 3)
     # The last item is lost due to rounding in `aggregate`
     @test lookup(disaglat) != lookup(dimz[2])
-    @test parent(lookup(disaglat)) === LinRange(-10.0, 15.0, 6)
+    @test parent(lookup(disaglat)) === StableRange(; start=-10.0, step=5.0, length=6)
     @test span(disaglat) == span(dimz[2])
     @test sampling(disaglat) == sampling(dimz[2])
 
@@ -67,6 +67,21 @@ series = RasterSeries([stack1, stack2], (Ti(dates),))
     lat3 = shiftlocus(End(), lat)
     disaglat3 = disaggregate(lat3, 2)
     @test bounds(lat2) == bounds(disaglat2) == bounds(disaglat3)
+
+    # Aggregate/disaggregate pick bit-exact values from the input for indices
+    # that align with source cells, even when the step is not exactly
+    # representable in Float64 (GMTED 7.5" geotransform).
+    raw = StableRange(; start=-28493.166784412522, step=60.02213698319374, length=514)
+    src_s = Y(Sampled(raw, ForwardOrdered(), Regular(60.02213698319374), Intervals(Start()), NoMetadata()))
+    aggS = aggregate(Start(), src_s, 3)
+    @test all(lookup(aggS)[k] === raw[1 + 3*(k - 1)] for k in 1:length(lookup(aggS)))
+    disagS = disaggregate(aggS, 3)
+    @test all(lookup(disagS)[1 + 3*(k - 1)] === lookup(aggS)[k] for k in 1:length(lookup(aggS)))
+    src_e = Y(Sampled(raw, ForwardOrdered(), Regular(60.02213698319374), Intervals(End()), NoMetadata()))
+    aggE = aggregate(End(), src_e, 3)
+    @test all(lookup(aggE)[k] === raw[3 * k] for k in 1:length(lookup(aggE)))
+    disagE = disaggregate(aggE, 3)
+    @test all(lookup(disagE)[3 * k] === lookup(aggE)[k] for k in 1:length(lookup(aggE)))
 end
 
 @testset "aggregate a single dim" begin 

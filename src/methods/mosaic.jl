@@ -372,9 +372,10 @@ function _mosaic(span::Regular, lookup::AbstractSampled, lookups::AbstractArray{
         mi = minimum(first, lookups)
         ma = maximum(last, lookups)
         if mi isa AbstractFloat
-            # Handle slight range errors to make sure
-            # we don't drop one step of the range
-            mi:step(span):ma + 2eps(ma)
+            # `2eps(ma)` keeps the trailing step when `ma` drifted a ULP short
+            # of `mi + (n-1)*step`. `StableRange` keeps the resulting range
+            # bit-stable under later slicing.
+            StableRange(; start=mi, step=step(span), stop=ma + 2eps(ma))
         else
             mi:step(span):ma
         end
@@ -382,7 +383,7 @@ function _mosaic(span::Regular, lookup::AbstractSampled, lookups::AbstractArray{
         mi = minimum(last, lookups)
         ma = maximum(first, lookups)
         if mi isa AbstractFloat
-            ma:step(span):mi - 2eps(mi)
+            StableRange(; start=ma, step=step(span), stop=mi - 2eps(mi))
         else
             ma:step(span):mi
         end
