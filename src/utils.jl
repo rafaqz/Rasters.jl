@@ -457,7 +457,7 @@ end
 # `StepRangeLen` on every locus-preserving set call).
 for op in (:+, :-)
     @eval function Base.broadcasted(::Base.Broadcast.DefaultArrayStyle{1}, ::typeof($op), r::StableRange{T}, x::Number) where T
-        StableRange{T}(($op)(r.start, Base.TwicePrecision{T}(T(x))), r.step, r.len, r.offset)
+        StableRange{T}(($op)(r.start, T(x)), r.step, r.len, r.offset)
     end
 end
 function Base.broadcasted(::Base.Broadcast.DefaultArrayStyle{1}, ::typeof(+), x::Number, r::StableRange{T}) where T
