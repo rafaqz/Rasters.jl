@@ -72,24 +72,29 @@ Other plot functions and sliced objects that have only one `X`/`Y`/`Z` dimension
 fall back to generic DimensionalData.jl plotting, which will still correctly
 label plot axes.
 
-````@example plots
+<!-- TODO: switch the three code blocks below back to ````@example plots once
+CFTime is fixed. `mean(A; dims=Ti)` on a CFTime-calendar time dim currently
+creates a `StepRange` whose `length` returns `Float64` (via `Dates.len`),
+which breaks `axes`/`OneTo` and aborts the docs build. -->
+
+```julia
 using Statistics
 # Take the mean
 mean_tos = mean(A; dims=Ti)
-````
+```
 
 ### Plot a contour plot
 
-````@example plots
+```julia
 using Plots
 Plots.contourf(mean_tos; dpi=300, size=(800, 400))
-````
+```
 ### write to disk
 Write the mean values to disk
 
-````@example plots
+```julia
 write("mean_tos.nc", mean_tos)
-````
+```
 
 Plotting recipes in DimensionalData.jl are the fallback for Rasters.jl when the
 object doesn't have 2 `X`/`Y`/`Z` dimensions, or a non-spatial plot command is

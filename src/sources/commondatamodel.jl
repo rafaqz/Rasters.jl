@@ -296,7 +296,7 @@ function _cdmlookup(
         _cdmspan(index, order)
     end
     # We only use Explicit if the span is not Regular
-    # This is important for things like rasterizatin and conversion 
+    # This is important for things like rasterizatin and conversion
     # to gdal to be easy, and selectors are faster.
     # TODO are there any possible floating point errors from this?
     if haskey(CDM.attribs(var), "bounds")
@@ -314,6 +314,13 @@ function _cdmlookup(
             end
             Explicit(boundsmatrix), Intervals(locus)
         end
+    end
+    # Replace raw float vectors with a `StableRange` when the span is regular,
+    # so slicing/mosaicking/`Contains` stay bit-stable downstream. Done after
+    # the bounds-locus check above, which relies on disk values matching bounds
+    # bit-exactly via `==`.
+    if span isa Regular && eltype(index) <: AbstractFloat && length(index) > 1
+        index = StableRange(; start=first(index), step=val(span), length=length(index))
     end
 
     # We cant yet check CF standards crs, but we can at least check for units in lat/lon 
@@ -604,6 +611,6 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
         push!(attrib, "bounds" => boundskey)
         CDM.defVar(ds, boundskey, bounds, ("bnds", dimname))
     end
-    CDM.defVar(ds, dimname, Vector(index(dim)), (dimname,); attrib=attrib)
+    CDM.defVar(ds, dimname, Vector(lookup(dim)), (dimname,); attrib=attrib)
     return nothing
 end

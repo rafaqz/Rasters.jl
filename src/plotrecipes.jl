@@ -73,16 +73,16 @@ end
 
 
     if eltype(A) <: ColorTypes.Colorant
-        index(x), index(y), parent(A)
+        lookup(x), lookup(y), parent(A)
     elseif get(plotattributes, :seriestype, :none) == :contourf
         A = replace_missing(A, missing)
         clims = extrema(skipmissing(A))
         :levels --> range(clims[1], clims[2], length=20)
-        index(x), index(y), clamp.(A, clims[1], clims[2])
+        lookup(x), lookup(y), clamp.(A, clims[1], clims[2])
     else
         :seriestype --> :heatmap
         A = replace_missing(A, missing)
-        index(x), index(y), parent(A)
+        lookup(x), lookup(y), parent(A)
     end
 end
 
@@ -97,7 +97,7 @@ end
     :yguide --> yguide
     :label --> ""
     z = map(_prepare_plots, dims(A))
-    parent(A), index(z)
+    parent(A), lookup(z)
 end
 
 # Plot 3d arrays as multiple tiled plots
@@ -203,7 +203,7 @@ end
         end
     else
         thinned, plotinds, nplots = _maybe_thin_plots(A)
-        titles = string.(index(A, dims(A, 1)))
+        titles = string.(lookup(A, dims(A, 1)))
         ncols, nrows = _balance_grid(nplots)
         :layout --> (ncols, nrows)
         for r in 1:nrows, c in 1:ncols

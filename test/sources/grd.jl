@@ -95,7 +95,7 @@ grdpath = stem * ".gri"
     @testset "custom keywords" begin
         customgrdarray = Raster(grdpath; 
             name=:test, crs=EPSG(1000), mappedcrs=EPSG(4326), refdims=(Ti(),),
-            write=true, lazy=true, dropband=false, replace_missing=true,
+            write=true, lazy=true, dropband=false,
         )
         @test name(customgrdarray) == :test
         @test refdims(customgrdarray) == (Ti(),)
@@ -259,8 +259,8 @@ grdpath = stem * ".gri"
             saved = Raster(filename2; crs=crs(grdarray))
             @test size(saved) == size(grdarray[Band(1)])
             @test all(parent(saved) .≈ parent(grdarray[Band(1)]))
-            @test index(saved, X) ≈ index(grdarray, X) .+ 0.5
-            @test index(saved, Y) ≈ index(grdarray, Y) .+ 0.5
+            @test lookup(saved, X) ≈ lookup(grdarray, X) .+ 0.5
+            @test lookup(saved, Y) ≈ lookup(grdarray, Y) .+ 0.5
             @test bounds(saved, Y) == bounds(grdarray, Y)
             @test bounds(saved, X) == bounds(grdarray, X)
             write(filename2, grdarray; force = true)

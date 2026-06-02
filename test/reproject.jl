@@ -85,7 +85,7 @@ end
     A = DimArray(zeros(length(lon), length(lat)), (lon, lat))
     Aconv = convertlookup(Mapped, A)
 
-    @test index(Aconv) == (index(convertedlon), index(convertedlat))
+    @test lookup(Aconv) == (lookup(convertedlon), lookup(convertedlat))
     @test val.(span(Aconv)) == val.(span.((convertedlon, convertedlat)))
 end
 
