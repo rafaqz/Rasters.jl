@@ -206,7 +206,6 @@ function _layer_names(ds, var_names, vars_dict, attrs_dict)
     grid_mapping_names = String[]
     coordinate_names = String[]
     units_metadata_names = String[]
-    node_coordinate_names = String[]
     quantization_names = String[]
     climatology_names = String[]
     # Sometimes coordinates are not included in var attributes
@@ -215,9 +214,11 @@ function _layer_names(ds, var_names, vars_dict, attrs_dict)
     for n in var_names
         var = _get_var!(vars_dict, ds, n)
         attr = _get_attr!(attrs_dict, vars_dict, ds, n)
-        # Coordinate variables
+        # Coordinate variables. UGRID `node_coordinates` (CF 5.21 mesh
+        # topology) are not filtered here on purpose: they are 1D coord vars
+        # the writer needs to put back. They surface as layers, which the
+        # mesh's `node_coordinates` attribute then references correctly.
         haskey(attr, "coordinates") && append!(coordinate_names, collect(_cdm_coordinates(attr)))
-        haskey(attr, "node_coordinates") && append!(node_coordinate_names, collect(_cdm_node_coordinates(attr)))
         # Bounds variables
         haskey(attr, "bounds") && push!(bounds_names, attr["bounds"])
         # Quantization variables (8.4.2)
@@ -252,7 +253,6 @@ function _layer_names(ds, var_names, vars_dict, attrs_dict)
         grid_mapping_names,
         coordinate_names,
         units_metadata_names,
-        node_coordinate_names,
         standard_names
     )
 end
@@ -335,8 +335,15 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
         # Loop over the dimensions of this layer, adding missing dims to dim_dict
         layerdims = map(dimnames) do dimname
             get!(dim_dict, dimname) do
+                # Resolve crs per-dim. For multi-grid_mapping files (CF 5.10
+                # has "crsOSGB: x y crsWGS84: lat lon"), the loader earlier
+                # returned a Vector{Pair{CRS, Vector{String}}} - which made
+                # crs(stack) a vector, breaking everything downstream that
+                # expects a single GeoFormat. Per-dim resolution gives each
+                # dim's lookup the single CRS that applies to its coord var.
+                dim_crs, dim_mappedcrs = _resolve_dim_crs(crs, dimname, coord_names)
                 _cdm_dim(
-                    ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, coord_names, dimname, crs, grid_mapping_key
+                    ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, coord_names, dimname, dim_crs, dim_mappedcrs, grid_mapping_key
                 )
             end
         end
@@ -404,7 +411,7 @@ function _cdm_dim(ds, dimname, crs, mappedcrs)
     end
 end
 
-function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, coord_names, dimname, crs, grid_mapping_key)
+function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, coord_names, dimname, crs, mappedcrs, grid_mapping_key)
     # First check for geometry dimensions (remove most complicted first)
     if is_geometry(ds, vars_dict, attrs_dict, geometry_key, dimname)
         return _geometry_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, crs)
@@ -415,11 +422,11 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
         coord_dimnames = CDM.dimnames(_get_var!(vars_dict, ds, coordname))
         dimname in coord_dimnames
     end
-    # Now dimension/lookup will depend on if there are associated coordinates 
+    # Now dimension/lookup will depend on if there are associated coordinates
     if isempty(dimension_coord_names)
         if haskey(ds, dimname) # The var name is the dim name
             return _standard_dim(ds, vars_dict, attrs_dict, dimname, crs)
-        else # A matching variable doesn't exist. 
+        else # A matching variable doesn't exist.
             return _discrete_axis_dim(ds, dimname)
         end
     else # Use coord names
@@ -445,10 +452,10 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
             end
             if is_multidimensional(ds, vars_dict, dimension_coord_names)
                 if is_rotated_longitude_latitude(ds, vars_dict, attrs_dict, dimname, grid_mapping_key)
-                    r = _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
+                    r = _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs, mappedcrs)
                     return r
                 elseif is_unalligned(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, grid_mapping_key)
-                    u = _unalligned_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
+                    u = _unalligned_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs, mappedcrs)
                     return u
                 else
                     return _standard_dim(ds, vars_dict, attrs_dict, dimname, crs)
@@ -467,6 +474,26 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
     # TODO: allow Categorical, Sampled etc to have a nested dimension
     # remaining_coord_names = setdiff(dimension_coord_names, [linked_coord_name])
     # subdim = _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, remaining_coord_names, dimname, crs)
+end
+
+# Multi-grid_mapping resolution. CF 5.10 has
+#   temp:grid_mapping = "crsOSGB: x y crsWGS84: lat lon"
+# which the loader turns into a Vector{Pair{CRS, Vector{String}}}. Each dim
+# only wants the single CRS that applies to its coord var; the OTHER CRS in
+# the multi-mapping (here WGS84, scoped to aux lat/lon) becomes the
+# `mappedcrs` of an unaligned/ProjectedArrayLookup dim.
+_resolve_dim_crs(crs, dimname, aux_coord_names) = (crs, nothing)
+function _resolve_dim_crs(crs::AbstractVector, dimname, aux_coord_names)
+    primary = nothing
+    mapped = nothing
+    for (one_crs, coord_names) in crs
+        if dimname in coord_names
+            primary = one_crs
+        elseif any(c -> c in coord_names, aux_coord_names)
+            mapped = one_crs
+        end
+    end
+    return primary, mapped
 end
 
 function _check_formula_terms(dim_attrs)
@@ -615,7 +642,15 @@ function _climatology_dim(ds, vars_dict, attrs_dict, dim_attrs, name)
 
     # Get needed variables
     dim_var = ds[name]
-    climatology_bounds = collect(CDM.cfvariable(ds, dim_attrs["climatology"]))
+    # Climatology bounds inherit time units from the parent dimension variable
+    # per CF convention. cfvariable won't auto-decode without a `units` attribute
+    # on the bounds variable itself, so pass the parent's units explicitly.
+    bounds_kw = if haskey(dim_attrs, "units")
+        (; units=dim_attrs["units"])
+    else
+        (;)
+    end
+    climatology_bounds = collect(CDM.cfvariable(ds, dim_attrs["climatology"]; bounds_kw...))
 
     # Detect the cycling pattern from the difference between periods in a step
     step_diff = map(periodfuncs) do f
@@ -683,7 +718,7 @@ function _char_categorical_merged_dim(ds, vars_dict, attrs_dict, dimension_coord
 end
 
 # Must have "standard_name" in dimension attributes
-function _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
+function _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs, mappedcrs=nothing)
     standard_name = _get_attr!(attrs_dict, vars_dict, ds, dimname)["standard_name"]
     D = if standard_name == "grid_latitude"
         Y
@@ -692,27 +727,30 @@ function _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_c
     else
         error("standard_name $standard_name not recognized")
     end
-    lookup = _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, D, crs)
+    lookup = _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, D, crs, mappedcrs)
     return D(lookup)
 end
 # Must have "degrees_north" and "degrees_east" in coordinate units
-function _unalligned_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
+function _unalligned_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs, mappedcrs=nothing)
     # dimname may be just a dimension without a corresponding variable
     dim_attrs = haskey(ds, dimname) ? _get_attr!(attrs_dict, vars_dict, ds, dimname) : NoMetadata()
     D = _cdm_dimtype(dim_attrs, dimname)
-    lookup = _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, D, crs)
+    lookup = _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, D, crs, mappedcrs)
     return D(lookup)
 end
 
-function _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, D, crs)
-    # Rotations. For now we don't use ArrayLookup
+function _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, D, crs, mappedcrs=nothing)
+    # Identify the lat / lon aux coord vars by CF metadata, not by name.
+    # `units = "degrees_east"` (or `standard_name = "longitude"`) -> lon;
+    # `units = "degrees_north"` (or `standard_name = "latitude"`)  -> lat.
     lon_key = lat_key = ""
     for coord_name in dimension_coord_names
         coord_attrs = _get_attr!(attrs_dict, vars_dict, ds, coord_name)
         units = get(coord_attrs, "units", nothing)
-        if units == "degrees_north"
+        std = get(coord_attrs, "standard_name", nothing)
+        if units == "degrees_north" || std == "latitude"
             lat_key = coord_name
-        elseif units == "degrees_east"
+        elseif units == "degrees_east" || std == "longitude"
             lon_key = coord_name
         end
     end
@@ -728,10 +766,31 @@ function _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dim
         dim = AutoDim()
         data = Base.OneTo(CDM.dim(ds, dimname))
     end
-    # Store the appropriate coordinate matrix based on dimension type
-    # X dimension stores lon (degrees_east), Y dimension stores lat (degrees_north)
-    matrix_key = D <: XDim ? lon_key : lat_key
+    # Decide which aux coord this lookup's matrix represents.
+    # CF convention: an X-type outer dim pairs with the longitude aux coord
+    # (degrees_east); a Y-type outer dim pairs with the latitude aux coord.
+    # For generic `Dim`-typed outer dims (CF 7.2) there is no CF rule, so we
+    # default to lon for the first such dim encountered and lat for the
+    # second - the loader sees both aux coord vars and the writer reads
+    # `aux_name` to pick the right var name back. This still loses one of
+    # the two matrices per file (only the chosen aux coord is stored in
+    # `matrix`); a richer ProjectedArrayLookup that stores both matrices
+    # would address that.
+    aux_name, matrix_key, paired_key = if D <: XDim
+        :lon, lon_key, lat_key
+    elseif D <: YDim
+        :lat, lat_key, lon_key
+    else
+        # Plain Dim outer axis - no CF rule to pick. Default to lat as the
+        # primary so the X/Y default (X=lon, Y=lat) stays consistent.
+        :lat, lat_key, lon_key
+    end
     matrix = collect(_get_var!(vars_dict, ds, matrix_key))
+    # Load the paired aux coord matrix too (when present) so the writer can
+    # put both back on disk - the on-disk file has both, but the in-memory
+    # lookup only owned one before.
+    paired_matrix = isempty(paired_key) ? nothing :
+        collect(_get_var!(vars_dict, ds, paired_key))
 
     # Check for polygon bounds (CF 7.2) and create GeometryLookup if available
     geom_lookup = nothing
@@ -740,7 +799,7 @@ function _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dim
         geom_lookup = GeometryLookup(polygons, (X(), Y()); crs)
     end
 
-    return ProjectedArrayLookup(matrix; data, dims, crs, geom_lookup)
+    return ProjectedArrayLookup(matrix; data, dims, crs, mappedcrs, geom_lookup, aux_name, paired_matrix)
 end
 
 function _merged_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs)
@@ -963,10 +1022,13 @@ _attribdict(md) = Dict{String,Any}()
 # Add axis and standard name attributes to dimension variables
 # We need to get better at guaranteeing if X/Y is actually measured in `longitude/latitude`
 # CF standards requires that we specify "units" if we use these standard names
-_cdm_set_axis_attrib!(atr, dim::X) = atr["axis"] = "X" # at["standard_name"] = "longitude";
-_cdm_set_axis_attrib!(atr, dim::Y) = atr["axis"] = "Y" # at["standard_name"] = "latitude";
-_cdm_set_axis_attrib!(atr, dim::Z) = (atr["axis"] = "Z"; atr["standard_name"] = "depth")
-_cdm_set_axis_attrib!(atr, dim::Ti) = (atr["axis"] = "T"; atr["standard_name"] = "time")
+# `get!` rather than `[]=` so we never overwrite a `standard_name` that came
+# from the source file (e.g. CF 5.10's Z dim has standard_name=
+# "height_above_reference_ellipsoid", which should survive a round-trip).
+_cdm_set_axis_attrib!(atr, dim::X) = get!(atr, "axis", "X")
+_cdm_set_axis_attrib!(atr, dim::Y) = get!(atr, "axis", "Y")
+_cdm_set_axis_attrib!(atr, dim::Z) = (get!(atr, "axis", "Z"); get!(atr, "standard_name", "depth"))
+_cdm_set_axis_attrib!(atr, dim::Ti) = (get!(atr, "axis", "T"); get!(atr, "standard_name", "time"))
 _cdm_set_axis_attrib!(atr, dim) = nothing
 
 _cdm_shiftlocus(dim::Dimension) = _cdm_shiftlocus(lookup(dim), dim)
@@ -1015,14 +1077,64 @@ function Base.write(filename::AbstractString, source::Source, s::AbstractRasterS
     ds = sourceconstructor(source)(filename, mode; attrib=_attribdict(metadata(s)))
     missingval = _stack_nt(s, isnokw(missingval) ? Rasters.missingval(s) : missingval)
     try
+        # Write the stack's full set of dimensions up-front. Without this,
+        # `writevar!` is the only thing that calls `_def_dim_var!`, so any
+        # dim that no layer uses gets dropped on round-trip - a "domain"
+        # stack (CF 5.15/5.16/5.19, layers=()) loses all dims, and 5.17
+        # loses its `Ti` dim because only `cell_area(cell)` references the
+        # layer-bound dims.
+        stack_aux = _def_dim_var!(ds, s)
         mods = map(keys(s)) do k
             writevar!(ds, source, s[k]; missingval=missingval[k], kw...)
         end
+        # If any of the stack's dims are not covered by layer variables, write
+        # a CF "domain" marker variable (CF section 5.7) so the loader knows
+        # those dims belong to the stack. A scalar char with a `dimensions`
+        # attribute is the CF convention.
+        _maybe_write_domain!(ds, source, s, stack_aux)
         f(OpenStack{Source,K,T}(ds, mods))
     finally
         close(ds)
     end
     return filename
+end
+
+function _maybe_write_domain!(ds::AbstractDataset, source::CDMsource, s::AbstractRasterStack, stack_aux)
+    stack_dims = dims(s)
+    isempty(stack_dims) && return nothing
+    layer_keys = keys(s)
+    covered_names = if isempty(layer_keys)
+        Set{Symbol}()
+    else
+        Set(DD.name(d) for k in layer_keys for d in dims(s[k]))
+    end
+    needs_domain = isempty(layer_keys) || any(d -> !(DD.name(d) in covered_names), stack_dims)
+    needs_domain || return nothing
+
+    haskey(ds, "domain") && return nothing
+
+    attrib = Dict{String,Any}(
+        "dimensions" => join((_cf_name(d) for d in stack_dims), " "),
+    )
+    # Aux coord names (lat/lon for ProjectedArrayLookup, inner coords for
+    # MergedLookup) — same flatten logic as writevar!.
+    aux_flat = String[]
+    for r in stack_aux
+        isnothing(r) && continue
+        if r isa AbstractString
+            push!(aux_flat, r)
+        else
+            append!(aux_flat, r)
+        end
+    end
+    isempty(aux_flat) || (attrib["coordinates"] = join(unique(aux_flat), " "))
+    grid_mapping_name = _def_grid_mapping!(ds, s)
+    isnothing(grid_mapping_name) || (attrib["grid_mapping"] = grid_mapping_name)
+    if any(d -> lookup(d) isa GeometryLookup, stack_dims)
+        attrib["geometry"] = "geometry_container"
+    end
+    CDM.defVar(ds, "domain", fill('\0'), (); attrib)
+    return nothing
 end
 
 # Add a var array to a dataset before writing it.
@@ -1045,7 +1157,19 @@ function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N
 ) where {T,N}
     _check_allowed_type(source, eltype)
     write = f === identity ? write : true
-    _def_dim_var!(ds, A)
+    # _def_dim_var! returns aux coord var names per dim. Each writer returns
+    # either nothing (no aux coords), a single name (ProjectedArrayLookup),
+    # or a vector (MergedLookup, which can have several inner coords).
+    # Flatten to a single list that goes in the layer's `coordinates` attr.
+    aux_coord_names = String[]
+    for r in _def_dim_var!(ds, A)
+        isnothing(r) && continue
+        if r isa AbstractString
+            push!(aux_coord_names, r)
+        else
+            append!(aux_coord_names, r)
+        end
+    end
     metadata = if isnokw(metadata) 
         DD.metadata(A)
     elseif isnothing(metadata)
@@ -1073,7 +1197,12 @@ function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N
 
     mod = _mod(eltype, missingval_pair, scale, offset, coerce)
 
-    if !isnothing(missingval_pair[1])
+    # Don't write an empty-string _FillValue: it's the auto-picked sentinel
+    # for String layers (see `_type_missingval1(::Type{<:AbstractString})`)
+    # and would mask all legitimate empty strings as `missing` on read. The
+    # inner sentinel stays "" so any actual `missing` values still encode,
+    # but readers won't treat real "" as missing.
+    if !isnothing(missingval_pair[1]) && !(missingval_pair[1] isa AbstractString && isempty(missingval_pair[1]))
         attrib["_FillValue"] = missingval_pair[1]
     end
 
@@ -1085,6 +1214,9 @@ function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N
 
     if !isempty(dims(A, x -> lookup(x) isa GeometryLookup))
         attrib["geometry"] = "geometry_container"
+    end
+    if !isempty(aux_coord_names)
+        attrib["coordinates"] = join(unique(aux_coord_names), " ")
     end
     # Add grid_mapping for CRS
     grid_mapping_name = _def_grid_mapping!(ds, A)
@@ -1114,20 +1246,151 @@ function _check_allowed_type(::CDMsource, eltyp)
     ))
 end
 
-_def_dim_var!(ds::AbstractDataset, A) = map(d -> _def_dim_var!(ds, d), dims(A))
-function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
-    dimname = _cf_name(dim)
-    haskey(ds.dim, dimname) && return nothing
-    CDM.defDim(ds, dimname, length(dim))
-    _def_lookup_var!(ds, dim, dimname)
-    return nothing
-end 
-_def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:AbstractNoLookup}, dimname) = nothing
-function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:LA.AbstractArrayLookup}, dimname)
-    # TODO what do we call the geometry variable, what if more than 1
+function _def_dim_var!(ds::AbstractDataset, A)
+    alldims = dims(A)
+    # First pass: ensure every NetCDF dimension exists, so any lookup writer
+    # can reference any other dim by name (e.g. 2D aux coord vars).
+    for d in alldims
+        dimname = _cf_name(d)
+        haskey(ds.dim, dimname) || CDM.defDim(ds, dimname, length(d))
+    end
+    # Second pass: hand off to the lookup-specific writer. Writers must be
+    # idempotent (guard each defVar call with haskey) because shared dims in
+    # a stack are visited once per layer.
+    return map(d -> _def_lookup_var!(ds, d, _cf_name(d), alldims), alldims)
+end
+_def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:AbstractNoLookup}, dimname, alldims=()) = nothing
+# Generic fallback for unhandled array-shaped lookups
+_def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:LA.AbstractArrayLookup}, dimname, alldims=()) = nothing
+
+# ProjectedArrayLookup: a 1D outer dim with a 2D coordinate matrix shared with
+# the paired spatial dim (CF auxiliary coordinate). Writes:
+#   * the 1D dim coord var (if `data` carries real values rather than just a
+#     placeholder integer range)
+#   * a 2D aux coord var (`lon` for X dims, `lat` for Y dims) shaped by the
+#     paired (X, Y) NetCDF dimensions
+# Returns the aux coord var name so writevar! can list it in the layer's
+# `coordinates` attribute (which is what triggers the unaligned detection on
+# load).
+function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:ProjectedArrayLookup}, dimname, alldims=())
+    l = lookup(dim)
+    # 1D dim coord var only when `data` is real coordinate values, and only
+    # if we haven't already written it (idempotent across stack layers).
+    if !(l.data isa Base.OneTo) && !haskey(ds, dimname)
+        attrib = _attribdict(metadata(l))
+        _cdm_set_axis_attrib!(attrib, dim)
+        CDM.defVar(ds, dimname, collect(l.data), (dimname,); attrib)
+    end
+    # 2D aux coord vars sharing both spatial dims. The lookup carries both
+    # matrices (primary in `matrix`, the other in `paired_matrix`) along with
+    # the CF identity of the primary (`aux_name`). We write both lon and lat
+    # vars here so the on-disk file has the full pair, regardless of whether
+    # the outer dim is X/Y or plain `Dim` (CF 7.2).
+    x_dim = DD.dims(alldims, XDim)
+    y_dim = DD.dims(alldims, YDim)
+    if isnothing(x_dim) || isnothing(y_dim)
+        # Both outer dims are plain `Dim` (CF 7.2). Use them in declaration
+        # order for the matrix axes - the matrix shape determines which
+        # dim is which.
+        plain_dims = filter(d -> !(d isa XDim || d isa YDim), alldims)
+        length(plain_dims) >= 2 || return nothing
+        x_dimname, y_dimname = _cf_name(plain_dims[1]), _cf_name(plain_dims[2])
+    else
+        x_dimname, y_dimname = _cf_name(x_dim), _cf_name(y_dim)
+    end
+    aux_var_name = _aux_role(l) === :lon ? "lon" : "lat"
+    paired_var_name = aux_var_name == "lon" ? "lat" : "lon"
+    # Write the primary
+    if !haskey(ds, aux_var_name)
+        # `l.dims` is set to (Lat, Lon) by the loader, but the NearestNeighbors
+        # extension's `format_unaligned` rebuilds it as basedims(dims) -
+        # (X{Colon}, Y{Colon}) with no lookup attached - so metadata may be
+        # unavailable here. Fall back to an empty attribute dict in that case.
+        primary_md_dim = aux_var_name == "lon" ? l.dims[2] : l.dims[1]
+        attr = _aux_attrib(primary_md_dim)
+        get!(attr, "standard_name", aux_var_name == "lon" ? "longitude" : "latitude")
+        get!(attr, "units", aux_var_name == "lon" ? "degrees_east" : "degrees_north")
+        CDM.defVar(ds, aux_var_name, l.matrix, (x_dimname, y_dimname); attrib=attr)
+    end
+    # Write the paired matrix if the lookup carries it and it isn't on disk.
+    if !isnothing(l.paired_matrix) && !haskey(ds, paired_var_name)
+        paired_md_dim = paired_var_name == "lon" ? l.dims[2] : l.dims[1]
+        attr = _aux_attrib(paired_md_dim)
+        get!(attr, "standard_name", paired_var_name == "lon" ? "longitude" : "latitude")
+        get!(attr, "units", paired_var_name == "lon" ? "degrees_east" : "degrees_north")
+        CDM.defVar(ds, paired_var_name, l.paired_matrix, (x_dimname, y_dimname); attrib=attr)
+    end
+    return isnothing(l.paired_matrix) ? aux_var_name : [aux_var_name, paired_var_name]
+end
+
+# CF aux-coord role for a ProjectedArrayLookup. Reads the `aux_name` field
+# the loader set from CF metadata. Falls back to X/Y dispatch on the inner
+# `dim` only when the field is `:auto` (e.g. a user-constructed lookup).
+_aux_role(l::ProjectedArrayLookup) = l.aux_name === :auto ? _aux_role_from_dim(l.dim) : l.aux_name
+_aux_role_from_dim(::XDim) = :lon
+_aux_role_from_dim(::Any) = :lat
+
+# Pull attrib dict from an inner aux-coord dim. Inner dims may have been
+# stripped to a bare Colon-valued dim by `format_unaligned`, in which case
+# `metadata` would fail - return an empty dict so the caller can fill in
+# the required CF standard_name/units.
+_aux_attrib(d::Dimension{<:Lookup}) = _attribdict(metadata(d))
+_aux_attrib(d::Dimension) = Dict{String,Any}()
+
+# MergedLookup: a single outer dim that bundles multiple inner coordinate
+# variables sharing that one dimension (CF examples 5.3, 6.1.2, 6.2, 7.3, 7.4).
+# Writes one var per inner dim, all with the merged dim as their NetCDF
+# dimension:
+#   * If an inner dim's name matches the merged dim's name, it becomes the
+#     dim coord var (CF 6.2 sigma case).
+#   * Otherwise it becomes an auxiliary coordinate var that the layer must
+#     reference via the `coordinates` attribute - returned to writevar!.
+function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:MergedLookup}, dimname, alldims=())
+    l = lookup(dim)
+    aux_names = String[]
+    for inner in l.dims
+        innername = _cf_name(inner)
+        if innername != dimname
+            push!(aux_names, innername)
+        end
+        haskey(ds, innername) && continue
+        inner_lookup = lookup(inner)
+        attrib = _attribdict(metadata(inner_lookup))
+        _maybe_write_bounds!(ds, attrib, inner, innername, dimname)
+        CDM.defVar(ds, innername, collect(inner_lookup), (dimname,); attrib)
+    end
+    return aux_names
+end
+
+# CF section 7.1: any coord var with sampling=Intervals carries a `bounds`
+# attribute pointing at a (2, N) bounds matrix. Compute the bounds from the
+# in-memory lookup and write the matrix under the name the loader expects
+# (preserved in metadata as `bounds`). Used by both the standalone Sampled
+# writer (via the same pattern below) and the MergedLookup inner-dim writer
+# so neither leaves a dangling `bounds = "..."` attribute on disk.
+function _maybe_write_bounds!(ds, attrib, dim, dimname, vardim)
+    l = lookup(dim)
+    sampling(l) isa Intervals || return nothing
+    md = metadata(l)
+    # `Metadata` supports `haskey/[]` but is not `<:AbstractDict`, and the
+    # source dict has String keys. The previous code used `get(md, :bounds, ...)`
+    # which always missed the source name and silently wrote under e.g.
+    # "a_bnds" instead of "A_bnds".
+    boundskey = if md isa Lookups.Metadata && haskey(md, "bounds")
+        md["bounds"]
+    else
+        string(dimname, "_bnds")
+    end
+    haskey(ds, boundskey) && (attrib["bounds"] = boundskey; return nothing)
+    bounds = Dimensions.dim2boundsmatrix(dim)
+    attrib["bounds"] = boundskey
+    CDM.defVar(ds, boundskey, bounds, ("bnds", vardim))
     return nothing
 end
-function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:GeometryLookup}, dimname)  
+function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:GeometryLookup}, dimname, alldims=())
+    # Idempotent: geometry_container is written below; if it already exists
+    # the rest of the geometry vars do too.
+    haskey(ds, "geometry_container") && return nothing
     l = lookup(dim)
     geom = _cf_geometry_encode(lookup(dim))
     # Define base geometry attributes
@@ -1186,7 +1449,35 @@ function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:GeometryLookup},
     CDM.defVar(ds, "geometry_container", fill(0), (); attrib)
     return nothing
 end
-function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:Union{Sampled,AbstractCategorical}}, dimname)  
+# Cyclic: written as a normal dim coord var with a `climatology` attribute
+# pointing at the bounds matrix. Reverses what `_climatology_dim` did on load:
+# it subtracted `duration` from each upper bound, so we add it back to recover
+# the original on-disk matrix. `duration` is recoverable as
+# bounds(l)[2] - val(span(l))[2, end] - the loader captured the un-shifted
+# bounds tuple before mutating the matrix, exactly so this round-trip works.
+function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:Lookups.AbstractCyclic}, dimname, alldims=())
+    haskey(ds, dimname) && return nothing
+    l = lookup(dim)
+    attrib = _attribdict(metadata(l))
+    _cdm_set_axis_attrib!(attrib, dim)
+
+    sp = span(l)
+    if sp isa Explicit
+        bnds_in_memory = val(sp)
+        original_bounds = Lookups.bounds(l)
+        duration = original_bounds[2] - bnds_in_memory[2, end]
+        on_disk_bounds = copy(bnds_in_memory)
+        on_disk_bounds[2, :] .+= duration
+        boundskey = get(metadata(l), :climatology, "climatology_bounds")
+        attrib["climatology"] = boundskey
+        CDM.defVar(ds, boundskey, on_disk_bounds, ("bnds", dimname))
+    end
+    CDM.defVar(ds, dimname, collect(l), (dimname,); attrib)
+    return nothing
+end
+function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:Union{Sampled,AbstractCategorical}}, dimname, alldims=())
+    # Idempotent across stack layers that share this dim
+    haskey(ds, dimname) && return nothing
     # Shift lookup before conversion to Mapped
     dim = _cdm_shiftlocus(dim)
     if dim isa Y || dim isa X
@@ -1195,74 +1486,93 @@ function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:Union{Sampled,Ab
     # Attributes
     attrib = _attribdict(metadata(dim))
     _cdm_set_axis_attrib!(attrib, dim)
-    # Bounds variables
-    if sampling(dim) isa Intervals
-        bounds = Dimensions.dim2boundsmatrix(dim)
-        boundskey = get(metadata(dim), :bounds, string(dimname, "_bnds"))
-        push!(attrib, "bounds" => boundskey)
-        CDM.defVar(ds, boundskey, bounds, ("bnds", dimname))
-    end
+    _maybe_write_bounds!(ds, attrib, dim, dimname, dimname)
     CDM.defVar(ds, dimname, collect(lookup(dim)), (dimname,); attrib)
 
     return nothing
 end
-function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:AbstractProjected}, dimname)
+function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:AbstractProjected}, dimname, alldims=())
+    haskey(ds, dimname) && return nothing
     # Projected lookups have CRS info - write as coordinate variable
     # The CRS itself is handled by _def_grid_mapping!
     dim = _cdm_shiftlocus(dim)
     # Attributes
     attrib = _attribdict(metadata(dim))
     _cdm_set_axis_attrib!(attrib, dim)
-    # Bounds variables
-    if sampling(dim) isa Intervals
-        bounds = Dimensions.dim2boundsmatrix(dim)
-        boundskey = get(metadata(dim), :bounds, string(dimname, "_bnds"))
-        push!(attrib, "bounds" => boundskey)
-        CDM.defVar(ds, boundskey, bounds, ("bnds", dimname))
-    end
+    _maybe_write_bounds!(ds, attrib, dim, dimname, dimname)
     CDM.defVar(ds, dimname, collect(lookup(dim)), (dimname,); attrib)
     return nothing
 end
 
-# Define grid_mapping variable for CRS
-function _def_grid_mapping!(ds::AbstractDataset, A)
-    c = crs(A)
-    isnothing(c) && return nothing
-
-    varname = "crs"
-    # Return existing varname if already defined
+# Write one grid_mapping variable under `varname`. Returns the name or
+# `nothing` if the CRS can't be serialised. Idempotent across stack layers.
+function _def_grid_mapping_var!(ds::AbstractDataset, c, varname::AbstractString)
     haskey(ds, varname) && return varname
-
-    # Try to convert CRS to CF grid mapping
     cf = try
         convert(CFProjection, c)
     catch
-        # Fall back to WKT if conversion fails
-        return _def_grid_mapping_wkt!(ds, c)
+        return _def_grid_mapping_wkt!(ds, c, varname)
     end
-
-    # Create scalar variable with grid_mapping attributes
     attrib = Dict{String,Any}(cf.params)
     CDM.defVar(ds, varname, Int8(0), (); attrib)
     return varname
 end
 
-function _def_grid_mapping_wkt!(ds::AbstractDataset, c)
-    varname = "crs"
+function _def_grid_mapping_wkt!(ds::AbstractDataset, c, varname::AbstractString="crs")
     haskey(ds, varname) && return varname
-
     wkt = try
         GeoFormatTypes.val(convert(WellKnownText2, c))
     catch
         return nothing
     end
-
     attrib = Dict{String,Any}(
         "crs_wkt" => wkt,
         "grid_mapping_name" => "latitude_longitude"
     )
     CDM.defVar(ds, varname, Int8(0), (); attrib)
     return varname
+end
+
+# Top-level `grid_mapping` attribute string for a layer or stack. When the
+# spatial dims carry a `mappedcrs` distinct from `crs` (CF 5.10), emits the
+# extended form `"crs: x y crsmapped: lat lon"` referencing two grid_mapping
+# variables - one for the primary projection scoped to the dim coords, one
+# for the secondary scoped to the aux coords. Otherwise emits a single name.
+function _def_grid_mapping!(ds::AbstractDataset, A)
+    c = crs(A)
+    isnothing(c) && return nothing
+
+    # Collect mappedcrs across spatial dims. They should all agree (it's the
+    # CRS of the shared aux coords).
+    mapped = nothing
+    primary_coords = String[]
+    mapped_coords = String[]
+    for d in dims(A)
+        l = lookup(d)
+        l isa AbstractNoLookup && continue
+        isnothing(crs(l)) && continue
+        push!(primary_coords, _cf_name(d))
+        if l isa ProjectedArrayLookup
+            mc = l.mappedcrs
+            if !isnothing(mc) && mc != crs(l)
+                mapped = mc
+                push!(mapped_coords, l.aux_name == :lon ? "lon" : "lat")
+                isnothing(l.paired_matrix) || push!(mapped_coords, l.aux_name == :lon ? "lat" : "lon")
+            end
+        end
+    end
+
+    if isnothing(mapped) || isempty(mapped_coords)
+        # Simple single-mapping case
+        return _def_grid_mapping_var!(ds, c, "crs")
+    end
+
+    # Extended `grid_mapping = "crs: x y crsmapped: lat lon"` form.
+    primary_name = _def_grid_mapping_var!(ds, c, "crs")
+    mapped_name = _def_grid_mapping_var!(ds, mapped, "crsmapped")
+    (isnothing(primary_name) || isnothing(mapped_name)) && return primary_name
+    return string(primary_name, ": ", join(unique(primary_coords), " "), " ",
+                  mapped_name, ": ", join(unique(mapped_coords), " "))
 end
 
 _cf_crs(ds, grid_mapping_key::Nothing) = nothing

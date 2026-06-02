@@ -101,8 +101,13 @@ This is broadly standard except for the `rebuild` method, which is used to updat
 =#
 
 DD.dims(l::GeometryLookup) = l.dims
-# This has to return itself
-# DD.dims(d::DD.Dimension{<:GeometryLookup}) = dims(val(d))
+# Expose the inner X/Y dims so DD's dim resolution can descend through the
+# Geometry dim - matches what DD does for MergedLookup (see merged.jl:70).
+# Without this, `_dim_query1(f, op, t, geom_dim, query)` falls through to the
+# `dims(x)` branch in primitives.jl:796 which returns the dim itself,
+# causing infinite recursion on any partial query (e.g. `a[Ti=1]` when the
+# array also has a Geometry dim).
+DD.dims(d::DD.Dimension{<:GeometryLookup}) = dims(val(d))
 DD.order(::GeometryLookup) = Lookups.Unordered()
 DD.parent(lookup::GeometryLookup) = lookup.data
 # TODO: format for geometry lookup

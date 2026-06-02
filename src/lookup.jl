@@ -37,7 +37,7 @@ fields for coordinate reference system support.
 - `crs`: Coordinate reference system (GeoFormat or Nothing)
 - `mappedcrs`: Mapped CRS for display/selection (GeoFormat or Nothing)
 """
-struct ProjectedArrayLookup{T,A,D,Ds,Ma<:AbstractArray{T},Tr,IV,DV,Me,CRS,MCRS,GL} <: LA.AbstractArrayLookup{T,1}
+struct ProjectedArrayLookup{T,A,D,Ds,Ma<:AbstractArray{T},Tr,IV,DV,Me,CRS,MCRS,GL,PM} <: LA.AbstractArrayLookup{T,1}
     data::A
     dim::D
     dims::Ds
@@ -49,6 +49,18 @@ struct ProjectedArrayLookup{T,A,D,Ds,Ma<:AbstractArray{T},Tr,IV,DV,Me,CRS,MCRS,G
     crs::CRS
     mappedcrs::MCRS
     geom_lookup::GL  # Optional GeometryLookup for polygon bounds (CF 7.2)
+    # CF identification of the aux coord variable that `matrix` represents -
+    # `:lon` for degrees_east / standard_name=longitude, `:lat` for
+    # degrees_north / latitude. Set by the loader from the source var's CF
+    # attributes; used by the writer to choose the aux coord var name and
+    # the standard_name/units attributes. Replaces the old X/Y dispatch hack.
+    aux_name::Symbol
+    # The OTHER aux coord matrix that shares this 2D grid - if this lookup
+    # carries `lat`, `paired_matrix` carries `lon` and vice versa. Loaded
+    # alongside `matrix` so both round-trip even when the outer dim type
+    # alone (e.g. plain `Dim` for CF 7.2) wouldn't tell the writer which
+    # role this lookup plays.
+    paired_matrix::PM
 end
 function ProjectedArrayLookup(matrix;
     data=AutoValues(),
@@ -57,9 +69,11 @@ function ProjectedArrayLookup(matrix;
     metadata=NoMetadata(),
     crs=nothing,
     mappedcrs=nothing,
-    geom_lookup=nothing
+    geom_lookup=nothing,
+    aux_name=:auto,
+    paired_matrix=nothing,
 )
-    ProjectedArrayLookup(data, dim, dims, matrix, nothing, nothing, nothing, metadata, crs, mappedcrs, geom_lookup)
+    ProjectedArrayLookup(data, dim, dims, matrix, nothing, nothing, nothing, metadata, crs, mappedcrs, geom_lookup, aux_name, paired_matrix)
 end
 
 LA.dim(lookup::ProjectedArrayLookup) = lookup.dim
@@ -67,6 +81,27 @@ LA.matrix(l::ProjectedArrayLookup) = l.matrix
 LA.tree(l::ProjectedArrayLookup) = l.tree
 GeoInterface.crs(l::ProjectedArrayLookup) = l.crs
 mappedcrs(l::ProjectedArrayLookup) = l.mappedcrs
+
+# Integer indexing on a ProjectedArrayLookup-backed dim must drop the dim
+# to refdims, matching base array semantics. The default
+# `sliceunalligneddims` in DD is a no-op for Unaligned lookups, which leaves
+# the dim in place while the parent array drops it - tripping checkdims.
+Base.@propagate_inbounds function DD.Dimensions.sliceunalligneddims(
+    f::F, uI, udims::Vararg{Dimension{<:ProjectedArrayLookup}},
+) where F
+    newdims = ()
+    newrefdims = ()
+    for (d, i) in zip(udims, uI)
+        if i isa Integer
+            newrefdims = (newrefdims..., f(d, i:i))
+        elseif i isa Colon
+            newdims = (newdims..., d)
+        else
+            newdims = (newdims..., f(d, i))
+        end
+    end
+    return newdims, newrefdims
+end
 
 function LA.show_properties(io::IO, mime, lookup::ProjectedArrayLookup)
     print(io, " ")
