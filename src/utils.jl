@@ -145,9 +145,9 @@ function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res;
         @assert step >= zero(step) "only positive `res` are supported, got $step"
         if samp isa Intervals
             if locus(samp) isa End
-                reverse(range(; start=stop+step, step=-step, stop=start+step))
+                reverse(_extent_range(; start=stop+step, step=-step, stop=start+step))
             else
-                r = range(; start, step, stop)
+                r = _extent_range(; start, step, stop)
                 if locus(samp) isa Start
                     r
                 else # Center
@@ -155,7 +155,7 @@ function _extent2dims(to::Extents.Extent, size::Union{Nothing,NoKW}, res;
                 end
             end
         else
-            range(; start, step, stop)
+            _extent_range(; start, step, stop)
         end
     end
     return _extent2dims(to, ranges; sampling, kw...)
@@ -165,33 +165,33 @@ function _extent2dims(to::Extents.Extent, size, res::Union{Nothing,NoKW};
 )
     size = _match_to_extent(to, size)
     ranges = map(values(to), size, sampling) do (start, stop), length, samp
-        r1 = range(; start, stop, length)
+        r1 = _extent_range(; start, stop, length)
         if samp isa Points
             r1
         else
-            # We need to buffer extent for a closed interval input so that e.g. 
+            # We need to buffer extent for a closed interval input so that e.g.
             # The raster will actually contain points of the extent, as raster
             # pixels are closed/open intervals not closed/closed.
-            # Its hard to add a very small amount to any fp number and have 
-            # it propagate through to the final extent. But this setup seems to work. 
+            # Its hard to add a very small amount to any fp number and have
+            # it propagate through to the final extent. But this setup seems to work.
             # We use the step or r1 to offset the end point of r, the buffer with 10 float
             # steps, which seems to be enough. But it's arbitrary and count be revised.
             nfloatsteps = 10
             step = (stop - start) / length
             if locus(samp) isa End
-                start_open = if (closed && start isa AbstractFloat) 
+                start_open = if (closed && start isa AbstractFloat)
                     prevfloat(start + step, nfloatsteps)
                 else
                     start + step
                 end
-                reverse(range(; start=stop, stop=start_open, length))
+                reverse(_extent_range(; start=stop, stop=start_open, length))
             else
-                stop_open = if closed && stop isa AbstractFloat 
+                stop_open = if closed && stop isa AbstractFloat
                     nextfloat(stop - step, nfloatsteps)
                 else
                     stop - step
                 end
-                r = range(; start, stop=stop_open, length)
+                r = _extent_range(; start, stop=stop_open, length)
                 if locus(samp) isa Start
                     r
                 else # Center
@@ -351,6 +351,206 @@ function _checkregular(A::AbstractArray)
         end
     end
     return true
+end
+
+# A range whith slice-stable elements. 
+# Slicing returns a `StableRange` whose values are bit-identical 
+# to the parent's at the corresponding index.
+#
+# This improves cat, mosaic, and Contains etc indexing and doesn't 
+# degrade with slicing.
+struct StableRange{T<:AbstractFloat} <: AbstractRange{T}
+    start::Base.TwicePrecision{T}
+    step::Base.TwicePrecision{T}
+    len::Int
+    offset::Int
+end
+# Same keyword API as `range`/`StepRangeLen`: any three of `start`, `step`,
+# `stop`, `length`. Four (or fewer than three) always errors.
+function StableRange(; start=nokw, step=nokw, stop=nokw, length=nokw)
+    provided = !isnokw(start) + !isnokw(step) + !isnokw(stop) + !isnokw(length)
+    provided == 3 || throw(ArgumentError(
+        "StableRange requires exactly three of `start`, `step`, `stop`, `length` (got $provided)"
+    ))
+    return _stable_range(start, step, stop, length)
+end
+
+# start, step, length — canonical builder
+function _stable_range(start::Real, step::Real, ::NoKW, length::Integer)
+    T = float(promote_type(typeof(start), typeof(step)))
+    return _stable_range_impl(T(start), T(step), Int(length))
+end
+# start, stop, length — match `Base.range`'s TwicePrecision step computation
+# exactly, so `StableRange(; start, stop, length)` is bit-identical to
+# `range(; start, stop, length)`. Going through `_stable_range_impl` would
+# round step to `Float64` first, drifting some elements by a ULP (enough to
+# flip touch/no-touch in rasterization on a 250-cell grid).
+function _stable_range(start::Real, ::NoKW, stop::Real, length::Integer)
+    T = float(promote_type(typeof(start), typeof(stop)))
+    n = Int(length)
+    start_tp = Base.TwicePrecision{T}(T(start))
+    n < 2 && return StableRange{T}(start_tp, Base.TwicePrecision{T}(zero(T)), n, 0)
+    step_tp = (Base.TwicePrecision{T}(T(stop)) - start_tp) / (n - 1)
+    return StableRange{T}(start_tp, step_tp, n, 0)
+end
+# start, step, stop — match `Base.range`'s float length rounding
+function _stable_range(start::Real, step::Real, stop::Real, ::NoKW)
+    T = float(promote_type(typeof(start), typeof(step), typeof(stop)))
+    h = T(step)
+    iszero(h) && throw(ArgumentError("`step` cannot be zero when `stop` is provided"))
+    n = max(0, round(Int, (T(stop) - T(start)) / h) + 1)
+    return _stable_range_impl(T(start), h, n)
+end
+# step, stop, length
+function _stable_range(::NoKW, step::Real, stop::Real, length::Integer)
+    T = float(promote_type(typeof(step), typeof(stop)))
+    n = Int(length)
+    return _stable_range_impl(T(stop) - T(step) * (n - 1), T(step), n)
+end
+
+# `StableRange` for float endpoints, fall back to `range` for DateTimes/Ints
+# (where slice drift isn't a concern and `StableRange` doesn't apply).
+function _extent_range(; start=nokw, step=nokw, stop=nokw, length=nokw)
+    args = (start, step, stop, length)
+    if any(x -> x isa AbstractFloat, args)
+        return StableRange(; start, step, stop, length)
+    else
+        kw = NamedTuple{(:start, :step, :stop, :length)}(args)
+        return range(; (k => v for (k, v) in pairs(kw) if !isnokw(v))...)
+    end
+end
+
+function _stable_range_impl(start::T, step::T, n::Int) where T<:AbstractFloat
+    if iszero(step) || n < 2
+        return StableRange{T}(
+            Base.TwicePrecision{T}(start),
+            Base.TwicePrecision{T}(step),
+            n, 0,
+        )
+    end
+    headroom = Base.nbitslen(T, n, 1)
+    step_hi = Base.truncbits(step, headroom)
+    step_lo = step - step_hi
+    step_tp = Base.TwicePrecision{T}(step_hi, step_lo)
+    start_tp = Base.TwicePrecision{T}(start)
+    return StableRange{T}(start_tp, step_tp, n, 0)
+end
+
+Base.size(r::StableRange) = (r.len,)
+Base.length(r::StableRange) = r.len
+Base.step(r::StableRange{T}) where T = T(r.step)
+Base.first(r::StableRange) = r[1]
+Base.last(r::StableRange) = r[r.len]
+
+@inline function Base.getindex(r::StableRange{T}, i::Int) where T
+    @boundscheck checkbounds(r, i)
+    T(r.start + (i - 1 + r.offset) * r.step)
+end
+
+# `getindex`, `view` and `dotview` all return a `StableRange` so the slice-stable
+# invariant survives every slicing path (DimensionalData reindexes untouched
+# lookups through `view` when slicing/dropping dims, which would otherwise wrap
+# the range in a `SubArray` and break `typeof` equality with `getindex`-sliced
+# lookups).
+for f in (:getindex, :view, :dotview)
+    @eval function Base.$f(r::StableRange{T}, s::AbstractUnitRange{<:Integer}) where T
+        @boundscheck checkbounds(r, s)
+        StableRange{T}(r.start, r.step, length(s), r.offset + Int(first(s)) - 1)
+    end
+end
+
+# Default `reverse(::AbstractRange)` for a `StepRangeLen` returns a fresh
+# `StepRangeLen` with recomputed `ref` — drops slice stability. Build a fresh
+# `StableRange` instead so reversed ranges stay bit-stable under further slicing.
+function Base.reverse(r::StableRange{T}) where T
+    n = r.len
+    n < 2 && return r
+    last_tp = r.start + (n - 1 + r.offset) * r.step
+    return StableRange{T}(last_tp, -r.step, n, 0)
+end
+
+# `Contains`/`Near` go through `searchsortedfirst`/`searchsortedlast`.
+# The default `AbstractRange{<:Real}` specialization inverts using
+# `first(r)` / `step(r)`, both of which drift on slices. We invert against
+# the parent (`T(r.start)`, integer `offset`) so the slice's answer equals
+# the parent's answer shifted by `offset` exactly.
+function Base.searchsortedfirst(r::StableRange{T}, x::Real) where T
+    abs_f = T(r.start)
+    h = T(r.step)
+    n = r.len
+    iszero(h) && return x <= abs_f ? 1 : n + 1
+    j = round(Int, (x - abs_f) / h + 1)
+    # Verify by evaluating the parent at index j and adjusting one step if
+    # needed. This recovers the correct answer when `(x - f) / h` rounds to
+    # an integer at a boundary value.
+    parent_at_j = T(r.start + (j - 1) * r.step)
+    h > 0 ? (parent_at_j < x && (j += 1)) : (parent_at_j > x && (j += 1))
+    return clamp(j - r.offset, 1, n + 1)
+end
+
+function Base.searchsortedlast(r::StableRange{T}, x::Real) where T
+    abs_f = T(r.start)
+    h = T(r.step)
+    n = r.len
+    iszero(h) && return x >= abs_f ? n : 0
+    j = round(Int, (x - abs_f) / h + 1)
+    parent_at_j = T(r.start + (j - 1) * r.step)
+    h > 0 ? (parent_at_j > x && (j -= 1)) : (parent_at_j < x && (j -= 1))
+    return clamp(j - r.offset, 0, n)
+end
+
+# Range arithmetic. Without these, `AbstractRange{<:Real} ± StableRange` hits
+# `-(::AbstractArray, ::AbstractArray)` which broadcasts, dispatches back to
+# `broadcasted(::DefaultArrayStyle, -, ::AbstractRange, ::AbstractRange)` at
+# `broadcast.jl`, which calls `r1 - r2` — infinite recursion. Combine the
+# `start` and `step` as `TwicePrecision` so callers like DimensionalData's
+# `_shiftlocus` (which round-trips through `((parent .+ step) .- parent) .* offset`
+# before re-adding to `parent`) get the same element values as
+# `parent .+ scalar` would give.
+_anchored_start(r::StableRange) = r.start + r.offset * r.step
+_anchored_start(r::AbstractRange{T}) where T<:AbstractFloat = Base.TwicePrecision{T}(T(first(r)), zero(T))
+_step_tp(r::StableRange) = r.step
+_step_tp(r::AbstractRange{T}) where T<:AbstractFloat = Base.TwicePrecision{T}(T(step(r)), zero(T))
+
+function _stable_rangeop(op::F, r1, r2) where F
+    length(r1) == length(r2) || throw(DimensionMismatch(
+        "ranges must be the same length, got $(length(r1)) and $(length(r2))"
+    ))
+    T = float(promote_type(eltype(r1), eltype(r2)))
+    new_start = op(_anchored_start(r1), _anchored_start(r2))
+    new_step = op(_step_tp(r1), _step_tp(r2))
+    StableRange{T}(new_start, new_step, length(r1), 0)
+end
+for op in (:+, :-)
+    @eval Base.$op(r1::AbstractRange{<:AbstractFloat}, r2::StableRange) = _stable_rangeop($op, r1, r2)
+    @eval Base.$op(r1::StableRange, r2::AbstractRange{<:AbstractFloat}) = _stable_rangeop($op, r1, r2)
+    @eval Base.$op(r1::StableRange, r2::StableRange) = _stable_rangeop($op, r1, r2)
+end
+
+# Scalar broadcasts. `+` and `-` keep `step` unchanged (just shift start);
+# `*` and `/` scale both. All preserve `TwicePrecision` on `start` and `step`.
+for op in (:+, :-)
+    @eval function Base.broadcasted(::Base.Broadcast.DefaultArrayStyle{1}, ::typeof($op), r::StableRange{T}, x::Number) where T
+        StableRange{T}(($op)(r.start, T(x)), r.step, r.len, r.offset)
+    end
+end
+function Base.broadcasted(::Base.Broadcast.DefaultArrayStyle{1}, ::typeof(+), x::Number, r::StableRange{T}) where T
+    StableRange{T}(T(x) + r.start, r.step, r.len, r.offset)
+end
+function Base.broadcasted(::Base.Broadcast.DefaultArrayStyle{1}, ::typeof(-), x::Number, r::StableRange{T}) where T
+    StableRange{T}(T(x) - r.start, -r.step, r.len, r.offset)
+end
+function Base.broadcasted(::Base.Broadcast.DefaultArrayStyle{1}, ::typeof(*), r::StableRange{T}, x::Number) where T
+    xt = T(x)
+    StableRange{T}(r.start * xt, r.step * xt, r.len, r.offset)
+end
+function Base.broadcasted(::Base.Broadcast.DefaultArrayStyle{1}, ::typeof(*), x::Number, r::StableRange{T}) where T
+    xt = T(x)
+    StableRange{T}(xt * r.start, xt * r.step, r.len, r.offset)
+end
+function Base.broadcasted(::Base.Broadcast.DefaultArrayStyle{1}, ::typeof(/), r::StableRange{T}, x::Number) where T
+    xt = T(x)
+    StableRange{T}(r.start / xt, r.step / xt, r.len, r.offset)
 end
 
 # Constructor helpers

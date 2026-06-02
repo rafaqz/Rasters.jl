@@ -884,7 +884,7 @@ function _cdm_lookup(
         _cdm_span(data, order)
     end
     # We only use Explicit if the span is not Regular
-    # This is important for things like rasterizatin and conversion 
+    # This is important for things like rasterizatin and conversion
     # to gdal to be easy, and selectors are faster.
     # TODO are there any possible floating point errors from this?
     if haskey(attr, "bounds")
@@ -903,6 +903,13 @@ function _cdm_lookup(
             end
             Explicit(boundsmatrix), Intervals(locus)
         end
+    end
+    # Replace raw float vectors with a `StableRange` when the span is regular,
+    # so slicing/mosaicking/`Contains` stay bit-stable downstream. Done after
+    # the bounds-locus check above, which relies on disk values matching bounds
+    # bit-exactly via `==`.
+    if span isa Regular && eltype(data) <: AbstractFloat && length(data) > 1
+        data = StableRange(; start=first(data), step=val(span), length=length(data))
     end
     return _cdm_lookup(data, D, order, span, sampling, metadata, crs)
 end

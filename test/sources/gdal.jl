@@ -133,12 +133,35 @@ gdalpath = maybedownload(url)
         @test dims(gdalarray) isa Tuple{<:X,<:Y}
         @test lookup(refdims(gdalarray), Band) isa DimensionalData.Categorical;
         @test span(gdalarray, (Y, X)) ==
-            (Regular(-60.02213698319351), Regular(60.02213698319374))
+            (Regular(-60.02213698319374), Regular(60.02213698319374))
         @test sampling(gdalarray, (Y, X)) ==
             (Intervals(Start()), Intervals(Start()))
         # Bounds calculated in python using rasterio
         @test all(bounds(gdalarray, Y) .≈ (4224973.143255847, 4255884.5438021915))
         @test all(bounds(gdalarray, X) .≈ (-28493.166784412522, 2358.211624949061))
+
+        # Lookup values match what GDAL itself computes from the geotransform
+        # — the original bug from PR #1070 was that `step` was recomputed via
+        # `(stop - start) / (length - 1)` and drifted from the geotransform.
+        ArchGDAL.readraster(gdalpath) do ds
+            gt = ArchGDAL.getgeotransform(ds)
+            xs, ys = dims(gdalarray, X), dims(gdalarray, Y)
+            @test step(xs) === gt[2]
+            @test step(ys) === gt[6]
+            xtol = eps(maximum(abs, xs))
+            ytol = eps(maximum(abs, ys))
+            # Index `i` of X matches GDAL pixel `i-1`. For Y, index `i` sits
+            # one step inside the corner (the Intervals(Start) convention
+            # for a reverse-ordered axis), matching GDAL line `i`.
+            for i in 1:length(xs)
+                x, _ = ArchGDAL.applygeotransform(gt, Float64(i - 1), 0.0)
+                @test abs(xs[i] - x) <= xtol
+            end
+            for i in 1:length(ys)
+                _, y = ArchGDAL.applygeotransform(gt, 0.0, Float64(i))
+                @test abs(ys[i] - y) <= ytol
+            end
+        end
     end
 
     @testset "other fields" begin
@@ -288,12 +311,12 @@ gdalpath = maybedownload(url)
 
             @testset "disaggregate to file" begin
                 tempfile = tempname() * ".tif"
-                write(tempfile, disaggregate(gdalarray, 2))
-                disaggregate(2 .* gdalarray, 2)
+                da_array = disaggregate(2 .* gdalarray, 2) # eltype is Int64 - gdalarray  has eltype UInt8
+                Rasters.create(tempfile, da_array)
                 open(Raster(tempfile; lazy=true); write=true) do dst
                     disaggregate!(dst, 2 .* gdalarray, 2)
                 end
-                @test size(Raster(tempfile)) == 2 .* size(gdalarray)
+                @test Raster(tempfile) == da_array
             end
         end
 
@@ -492,12 +515,12 @@ gdalpath = maybedownload(url)
             @test lookup(clon) ≈ lookup(saved, X)
             @test all(bounds(saved, X) .≈ bounds(clon))
             @test all(bounds(saved, Y) .≈ bounds(clat))
-            @test projectedindex(clon) ≈ projectedindex(saved, X)
+            @test projectedlookup(clon) ≈ projectedlookup(saved, X)
             @test all(projectedbounds(clon) .≈ projectedbounds(saved, X))
             # reason lat crs conversion is less accurate than lon TODO investigate further
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6),
-                projectedindex(gdalarray, Y),
-                projectedindex(DimensionalData.shiftlocus(Start(), dims(saved, Y)))
+                projectedlookup(gdalarray, Y),
+                projectedlookup(DimensionalData.shiftlocus(Start(), dims(saved, Y)))
             ))
             @test all(map((a, b) -> isapprox(a, b; rtol=1e-6), projectedbounds(saved, Y),  projectedbounds(gdalarray, Y)))
         end
@@ -869,7 +892,7 @@ end
     rm("resample_a.tif")
     rm("resample_b.tif")
 
-    @testset "snapped size and dim index match" begin
+    @testset "snapped size and dim lookup match" begin
         snaptarget = aggregate(Center(), read(gdalarray), 2)
         snapped = resample(read(gdalarray); to=snaptarget)
         disk_snapped = resample(gdalarray; to=snaptarget, filename="snap_resample.tif")
