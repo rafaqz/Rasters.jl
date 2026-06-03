@@ -32,7 +32,7 @@ pointtable = map(GI.getpoint(polygon), vals) do geom, v
 end
 pointfc = map(GI.getpoint(polygon), vals) do geom, v
     GI.Feature(geom; properties=(val1=v, val2=2.0f0v))
-end |> GI.FeatureCollection
+end |> GI.FeatureCollection;
 pointdf = DataFrame(pointtable)
 table = (X=first.(pointvec), Y=last.(pointvec), othercol=zero.(last.(pointvec)))
 
@@ -77,6 +77,9 @@ st = RasterStack((A1, copy(A1)))
             @test sum(A) == 10.0
             fill!(A, 0)
         end
+
+        # to dims
+        @test sum(rasterize(last, geom; to=dims(A), shape=:point, fill=1, missingval=0, threaded)) == 4.0
 
         # stack
         rasterize!(sum, st, geom; shape=:point, fill=(layer1=2, layer2=3), threaded)
@@ -402,6 +405,9 @@ end
         end
         filename = tempname() * ".tif"
         prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename, threaded)
+        prod_r2 = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, filename, threaded, force=true)
+        @test size(prod_r2) == (11,11)
+
         prod_r = rasterize(prod, polygons; res=5, fill=1:4, boundary=:center, threaded)
         @test sum(skipmissing(prod_r)) == 
             (12 * 1 + 8 * 2 + 8 * 3 + 12 * 4) + (4 * 1 * 2 + 4 * 2 * 3 + 4 * 3 * 4)
@@ -426,6 +432,7 @@ end
         @test name(reduced_raster_count_center) == :count
         @test sum(skipmissing(reduced_raster_sum_center)) == 
               sum(skipmissing(reduced_raster_count_center)) == 16 * 4
+        @test isnothing(missingval(reduced_raster_count_center))
         reduced_raster_sum_touches = rasterize(sum, polygons; res=5, fill=1, boundary=:touches, threaded)
         reduced_raster_count_touches = rasterize(count, polygons; res=5, fill=1, boundary=:touches, threaded)
         @test name(reduced_raster_sum_touches) == :sum
@@ -504,16 +511,36 @@ end
     @test all(covsum[X=120..190] .=== covunion[X=120..190] .* 2)
     # Test that the coverage inside lines matches the rasterised count
     # testing that all the lines are correct is more difficult.
-    @test all(mask(covsum; with=insidecount) .=== replace_missing(insidecount, 0.0))
+    @test all((.!iszero.(insidecount) .* covsum) .== insidecount)
     # And test there is nothing outside of the rasterize touches area
     @test all(mask(covsum; with=touchescount) .=== covsum)
-    @test !all(mask(covunion; with=insidecount) .=== covunion)
+    @test !all(.!iszero.(insidecount) .* covunion .=== covunion)
     # TODO test coverage along all the lines is correct somehow
     
+    # test on a single geom
+    @test coverage(sum, shphandle.shapes[1]; threaded=true, res=1, scale=10) ==
+        coverage(union, shphandle.shapes[1]; threaded=true, res=1, scale=10)
+
     @test_throws ErrorException coverage(union, shphandle.shapes; threaded=false, res=1, scale=10000)
     # Too slow and unreliable to test in CI, but it warns and uses one thread given 32gb of RAM: 
     # coverage(union, shphandle.shapes; threaded=true, res=1, scale=1000)
+    @testset "coverage! in-place tests" begin
+        # Prepare a destination raster
+        dest = Raster(zeros(Float64, size(parent(covsum))), dims(covsum))
+        # In-place sum coverage
+        coverage!(sum, dest, shphandle.shapes; threaded=false, res=1, scale=10)
+        @test parent(dest) ≈ parent(coverage(sum, shphandle.shapes; threaded=false, res=1, scale=10))
+        # In-place union coverage
+        fill!(dest, 0.0)
+        coverage!(union, dest, shphandle.shapes; threaded=false, res=1, scale=10)
+        @test parent(dest) ≈ parent(coverage(union, shphandle.shapes; threaded=false, res=1, scale=10))
+        # Threaded
+        fill!(dest, 0.0)
+        coverage!(sum, dest, shphandle.shapes; threaded=true, res=1, scale=10)
+        @test parent(dest) ≈ parent(coverage(sum, shphandle.shapes; threaded=true, res=1, scale=10))
+    end
 end
+
 
 @testset "`geometrycolumn` kwarg and detection works" begin
     # Replicate pointtable
@@ -528,4 +555,97 @@ end
     # Test that we don't have to provide the geometry column explicitly
     @test_nowarn rasterize(last, fancy_table; to = A1, fill = 1)
     @test replace_missing(rasterize(last, pointtable; to = A1, fill = 1), 0) == replace_missing(rasterize(last, fancy_table; to = A1, fill = 1), 0) # sanity check
+end
+
+@testset "Type promotion handles integer overflows in rasterize" begin
+    # poly1 covers X: [-20, -18), Y: [28, 30) -> cells X=-20,-19, Y=28,29
+    poly1 = GI.Polygon([[[-20.0, 30.0], [-20.0, 28.0], [-18.0, 28.0], [-18.0, 30.0], [-20.0, 30.0]]])
+    # poly2 covers X: [-19, -17), Y: [27, 29) -> cells X=-19,-18, Y=27,28
+    poly2 = GI.Polygon([[[-19.0, 29.0], [-19.0, 27.0], [-17.0, 27.0], [-17.0, 29.0], [-19.0, 29.0]]])
+    polys = [poly1, poly2]
+    # Overlap at X=-19, Y=28
+
+    # Test UInt8 sum: 200 + 200 would overflow UInt8, should promote to UInt
+    r_sum_uint = rasterize(sum, polys; res=1.0, fill=UInt8(200), missingval=UInt8(0))
+    @test eltype(r_sum_uint) === UInt
+    @test r_sum_uint[X=At(-19), Y=At(28)] === UInt(400)  # overlap
+    @test r_sum_uint[X=At(-20), Y=At(28)] === UInt(200)  # poly1 only
+    @test r_sum_uint[X=At(-18), Y=At(27)] === UInt(200)  # poly2 only
+
+    # Test Int8 sum: -100 + -100 would overflow Int8, should promote to Int
+    r_sum_int = rasterize(sum, polys; res=1.0, fill=Int8(-100), missingval=Int8(0))
+    @test eltype(r_sum_int) === Int
+    @test r_sum_int[X=At(-19), Y=At(28)] === Int(-200)  # overlap
+    @test r_sum_int[X=At(-20), Y=At(28)] === Int(-100)  # poly1 only
+    @test r_sum_int[X=At(-18), Y=At(27)] === Int(-100)  # poly2 only
+
+    # Test UInt8 prod: 20 * 20 would overflow UInt8, should promote to UInt
+    r_prod_uint = rasterize(prod, polys; res=1.0, fill=UInt8(20), missingval=UInt8(0))
+    @test eltype(r_prod_uint) === UInt
+    @test r_prod_uint[X=At(-19), Y=At(28)] === UInt(400)  # overlap: 20*20
+    @test r_prod_uint[X=At(-20), Y=At(28)] === UInt(20)   # poly1 only
+    @test r_prod_uint[X=At(-18), Y=At(27)] === UInt(20)   # poly2 only
+end
+    
+@testset "rasterizing strange types" begin
+    @testset "vector of feature indices, with overlap" begin
+        polygons = [
+            GI.Polygon([[(0., 0.), (1., 0.), (1., 1.), (0., 1.), (0., 0.)]]),
+            GI.Polygon([[(0.5, 0.), (1.5, 0.), (1.5, 1.), (0.5, 1.), (0.5, 0.)]]),
+        ]
+
+        result = @test_nowarn Rasters.rasterize(
+            polygons;
+            op = vcat,
+            to = Rasters.Extents.grow(GI.extent(GI.GeometryCollection(polygons)), .25),
+            fill = [[i] for i in 1:length(polygons)],
+            missingval = Int[],
+            init = Int[],
+            eltype = Vector{Int},
+            progress = false,
+            size = (10, 10),
+            boundary = :center,
+        )
+
+        # Test that the result has four unique values: [], [1], [2], [1, 2]
+        @test length(unique(result)) == 4
+        # Test that those values are the correct / expected ones
+        @test isempty(setdiff(unique(result), [(Int[1:i...] for i in 0:2)..., [2]]))
+
+        # Test that the count for each value is correct, i.e., the rasterization is as expected.
+        @test count(x -> length(x) == 0, result) == 64
+        @test count(x -> x == [1], result) == 12
+        @test count(x -> x == [2], result) == 12
+        @test count(x -> x == [1, 2], result) == 12
+    end 
+end
+
+@testset "threaded reduction warnings" begin
+    commutative_fs = (sum, prod, maximum, minimum, any, all, mean)
+    geom = GI.GeometryCollection([polygon,polygon,polygon])
+    
+    for f in commutative_fs
+        @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=true)
+    end
+    @test_logs rasterize(count, geom; to=A1, threaded=true) # count has no fill or missingval
+
+    other_fs = (median, first, last, x -> sum(x))
+
+    for f in other_fs
+        @test_logs (:warn, "if `op` is not threadsafe, `threaded=true` may be slower than `threaded=false`") rasterize(
+            f, geom; to=A1, fill=true, missingval = false, threaded=true)
+        @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=false)
+    end
+end
+
+# We allow for scalar indexing in this testset since the rasterisation of points will always be scalar.
+@testset "count missingval" begin
+    Rasters.DiskArrays.allowscalar(true)
+    raster_count = rasterize(count, pointvec, to=Extent(X=(-25,5), Y=(5,35)), res=5)
+    @test missingval(raster_count) === nothing
+    raster_count_disk = rasterize(count, pointvec, to=Extent(X=(-25,5), Y=(5,35)), res=5, filename=tempname()*".tif")
+    @test missingval(raster_count_disk) ==  -9223372036854775808
+    raster_count_missing = rasterize(count, pointvec, to=Extent(X=(-25,5), Y=(5,35)), res=5, missingval=-1)
+    @test missingval(raster_count_missing) == -1
+    Rasters.DiskArrays.allowscalar(false)
 end

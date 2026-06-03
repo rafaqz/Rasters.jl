@@ -1,18 +1,12 @@
 module Rasters
 
-# Use the README as the module docs
-@doc let
-    # path = joinpath(dirname(@__DIR__), "README.md")
-    # include_dependency(path)
-    # read(path, String)
-end Rasters
-
 using Dates
 
 # Load first to fix StaticArrays invalidations
 import DimensionalData
 
 import Adapt,
+       CFCoordinateReferenceSystems,
        ColorTypes,
        CommonDataModel,
        ConstructionBase,
@@ -24,6 +18,7 @@ import Adapt,
        GeometryOps,
        GeometryOpsCore,
        OffsetArrays,
+       OrderedCollections,
        ProgressMeter,
        Missings,
        Mmap,
@@ -44,6 +39,7 @@ using DimensionalData: Name, NoName
 using .Dimensions: StandardIndices, DimTuple
 using .Lookups: LookupTuple
 
+using OrderedCollections: OrderedDict
 using Statistics: mean
 using RecipesBase: @recipe, @series
 using Base: tail, @propagate_inbounds
@@ -55,6 +51,9 @@ using Setfield: @set, @set!
 using ColorTypes: RGB
 
 using CommonDataModel: AbstractDataset, AbstractVariable
+using CFCoordinateReferenceSystems: CFProjection
+# Proj needs to be loaded to trigger CFCoordinateReferenceSystems Proj extension
+using Proj
 
 using DiskArrays: @implement_diskarray, eachchunk, haschunks, isdisk
 
@@ -64,14 +63,14 @@ export Planar, Spherical
 export AbstractRaster, Raster
 export AbstractRasterStack, RasterStack
 export AbstractRasterSeries, RasterSeries
-export Projected, Mapped, GeometryLookup
+export Projected, Mapped, GeometryLookup, ProjectedArrayLookup
 export Band, Geometry
 export missingval, boolmask, missingmask, replace_missing, replace_missing!,
        aggregate, aggregate!, disaggregate, disaggregate!, mask, mask!,
        resample, warp, zonal, crop, extend, trim, slice, combine, points,
        classify, classify!, mosaic, mosaic!, extract, rasterize, rasterize!,
        coverage, coverage!, setcrs, setmappedcrs, smapseries, cellsize, cellarea
-export crs, mappedcrs, mappedindex, mappedbounds, projectedindex, projectedbounds
+export crs, mappedcrs, mappedlookup, mappedbounds, projectedlookup, projectedbounds
 export reproject, convertlookup
 export Extent, extent
 
@@ -122,10 +121,7 @@ const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}
 include("utils.jl")
 include("skipmissing.jl")
 
-include("geometry_lookup/geometry_lookup.jl")
-include("geometry_lookup/lookups.jl")
-include("geometry_lookup/methods.jl")
-include("geometry_lookup/io.jl")
+include("geometry_lookup.jl")
 
 include("table_ops.jl")
 include("create.jl")
@@ -144,6 +140,7 @@ include("methods/burning/polygon.jl")
 include("methods/burning/extents.jl")
 include("methods/burning/utils.jl")
 
+include("methods/spatial_slice.jl")
 include("methods/mask.jl")
 include("methods/rasterize.jl")
 include("methods/aggregate.jl")

@@ -16,10 +16,8 @@ slice(x::RasterStackOrArray, dim) = slice(x, (dim,))
 function slice(x::RasterStackOrArray, dims::Tuple)
     seriesdims = DD.dims(x, dims)
     seriesdata = eachslice(x; dims)
-    @static if VERSION >= v"1.9"
-        if seriesdata isa Slices
-            return RasterSeries(seriesdata, seriesdims)
-        end
+    if seriesdata isa Slices
+        return RasterSeries(seriesdata, seriesdims)
     end
     return RasterSeries(collect(seriesdata), seriesdims)
 end

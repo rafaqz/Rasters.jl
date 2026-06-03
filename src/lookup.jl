@@ -16,6 +16,136 @@ end
 GeoInterface.crs(lookup::Lookup) = nothing
 mappedcrs(lookup::Lookup) = nothing
 
+"""
+    ProjectedArrayLookup <: AbstractArrayLookup
+
+A CRS-aware array lookup for curvilinear or unaligned grids where coordinates
+are stored in a 2D matrix and don't align with array axes.
+
+This extends DimensionalData's `AbstractArrayLookup` with `crs` and `mappedcrs`
+fields for coordinate reference system support.
+
+# Fields
+- `data`: Index data (usually `AutoValues()`)
+- `dim`: The dimension this lookup represents
+- `dims`: Tuple of dimensions for the coordinate matrix
+- `matrix`: 2D coordinate matrix
+- `tree`: Optional KDTree for nearest neighbor lookup
+- `idxvec`: Index vector for tree queries
+- `distvec`: Distance vector for tree queries
+- `metadata`: Metadata dictionary
+- `crs`: Coordinate reference system (GeoFormat or Nothing)
+- `mappedcrs`: Mapped CRS for display/selection (GeoFormat or Nothing)
+"""
+struct ProjectedArrayLookup{T,A,D,Ds,Ma<:AbstractArray{T},Tr,IV,DV,Me,CRS,MCRS,GL,PM} <: LA.AbstractArrayLookup{T,1}
+    data::A
+    dim::D
+    dims::Ds
+    matrix::Ma
+    tree::Tr
+    idxvec::IV
+    distvec::DV
+    metadata::Me
+    crs::CRS
+    mappedcrs::MCRS
+    geom_lookup::GL  # Optional GeometryLookup for polygon bounds (CF 7.2)
+    # CF identification of the aux coord variable that `matrix` represents -
+    # `:lon` for degrees_east / standard_name=longitude, `:lat` for
+    # degrees_north / latitude. Set by the loader from the source var's CF
+    # attributes; used by the writer to choose the aux coord var name and
+    # the standard_name/units attributes. Replaces the old X/Y dispatch hack.
+    aux_name::Symbol
+    # The OTHER aux coord matrix that shares this 2D grid - if this lookup
+    # carries `lat`, `paired_matrix` carries `lon` and vice versa. Loaded
+    # alongside `matrix` so both round-trip even when the outer dim type
+    # alone (e.g. plain `Dim` for CF 7.2) wouldn't tell the writer which
+    # role this lookup plays.
+    paired_matrix::PM
+end
+function ProjectedArrayLookup(matrix;
+    data=AutoValues(),
+    dim=AutoDim(),
+    dims=AutoDim(),
+    metadata=NoMetadata(),
+    crs=nothing,
+    mappedcrs=nothing,
+    geom_lookup=nothing,
+    aux_name=:auto,
+    paired_matrix=nothing,
+)
+    ProjectedArrayLookup(data, dim, dims, matrix, nothing, nothing, nothing, metadata, crs, mappedcrs, geom_lookup, aux_name, paired_matrix)
+end
+
+LA.dim(lookup::ProjectedArrayLookup) = lookup.dim
+LA.matrix(l::ProjectedArrayLookup) = l.matrix
+LA.tree(l::ProjectedArrayLookup) = l.tree
+GeoInterface.crs(l::ProjectedArrayLookup) = l.crs
+mappedcrs(l::ProjectedArrayLookup) = l.mappedcrs
+
+# Integer indexing on a ProjectedArrayLookup-backed dim must drop the dim
+# to refdims, matching base array semantics. The default
+# `sliceunalligneddims` in DD is a no-op for Unaligned lookups, which leaves
+# the dim in place while the parent array drops it - tripping checkdims.
+Base.@propagate_inbounds function DD.Dimensions.sliceunalligneddims(
+    f::F, uI, udims::Vararg{Dimension{<:ProjectedArrayLookup}},
+) where F
+    newdims = ()
+    newrefdims = ()
+    for (d, i) in zip(udims, uI)
+        if i isa Integer
+            newrefdims = (newrefdims..., f(d, i:i))
+        elseif i isa Colon
+            newdims = (newdims..., d)
+        else
+            newdims = (newdims..., f(d, i))
+        end
+    end
+    return newdims, newrefdims
+end
+
+function LA.show_properties(io::IO, mime, lookup::ProjectedArrayLookup)
+    print(io, " ")
+    show(IOContext(io, :inset => "", :dimcolor => 244), mime, DD.basedims(lookup))
+end
+
+# select_array_lookups for ProjectedArrayLookup with Contains - uses geom_lookup for polygon containment
+function LA.select_array_lookups(
+    lookups::Tuple{<:ProjectedArrayLookup,<:ProjectedArrayLookup},
+    selectors::Tuple{<:Contains,<:Contains}
+)
+    # Both lookups share the same geom_lookup, so use the first one
+    lookup = lookups[1]
+    gl = lookup.geom_lookup
+    if isnothing(gl)
+        throw(ArgumentError("Contains selector requires polygon bounds in ProjectedArrayLookup"))
+    end
+    # Both selectors should have the same point, use the first one
+    sel = selectors[1]
+    # Get indices from the GeometryLookup (which returns linear indices)
+    linear_indices = LA.selectindices(gl, sel)
+    # Convert linear indices back to per-dimension indices for 2D grid
+    grid_size = size(LA.matrix(lookup))
+    if linear_indices isa AbstractVector && length(linear_indices) == 1
+        # Single match - return single indices for each dimension
+        ci = CartesianIndices(grid_size)[linear_indices[1]]
+        return (ci[1], ci[2])
+    elseif linear_indices isa AbstractVector
+        # Multiple matches - return vectors of indices for each dimension
+        cartesian = [CartesianIndices(grid_size)[i] for i in linear_indices]
+        return (getindex.(cartesian, 1), getindex.(cartesian, 2))
+    else
+        # Single match (integer) - return single indices for each dimension
+        ci = CartesianIndices(grid_size)[linear_indices]
+        return (ci[1], ci[2])
+    end
+end
+
+# Format methods for ProjectedArrayLookup
+Dimensions.format(m::ProjectedArrayLookup, D::Type, ::AutoValues, axis::AbstractRange) =
+    DD.rebuild(m; dim=Dimensions.basetypeof(D)(), data=axis)
+Dimensions.format(m::ProjectedArrayLookup, D::Type, data::AbstractArray, axis::AbstractRange) =
+    DD.rebuild(m; dim=Dimensions.basetypeof(D)(), data)
+
 # When the lookup is formatted with an array we match the `dim` field with the
 # wrapper dimension. We will need this later for e.g. projecting with GDAL,
 # where we need to know which lookup is X and which is Y
@@ -127,7 +257,9 @@ Fields and behaviours are identical to [`Sampled`]($DDsampleddocs) with the addi
 The mapped dimension index will be used as for [`Sampled`]($DDsampleddocs),
 but to save in another format the underlying `crs` may be used to convert it.
 """
-struct Mapped{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC<:Union{GeoFormat,Nothing},MC<:Union{GeoFormat,Nothing},D<:Union{AutoDim,Dimension}} <: AbstractProjected{T,O,Sp,Sa}
+struct Mapped{
+    T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC<:Union{GeoFormat,Nothing},MC<:Union{GeoFormat,Nothing},D<:Union{AutoDim,Dimension},Ds<:Union{Nothing,Tuple},DD
+} <: AbstractProjected{T,O,Sp,Sa}
     data::A
     order::O
     span::Sp
@@ -136,31 +268,52 @@ struct Mapped{T,A<:AbstractVector{T},O<:Order,Sp<:Span,Sa<:Sampling,MD,PC<:Union
     crs::PC
     mappedcrs::MC
     dim::D
+    dims::Ds
+    dimdata::DD
 end
+
+# dimdata = (
+#     matrix
+#     tree
+#     idxvec
+#     distvec
+# )
+# dims(lookup::Mapped) = lookup.dims
+# dim(lookup::ArrayLookup) = lookup.dim
+# matrix(l::ArrayLookup) = l.matrix
+# tree(l::ArrayLookup) = l.tree
+
 function Mapped(data=AutoValues();
     order=AutoOrder(), span=AutoSpan(), sampling=AutoSampling(),
     metadata=NoMetadata(),
     crs::Union{GeoFormat,Nothing,NoKW}=nokw,
     mappedcrs::Union{GeoFormat,Nothing,NoKW},
-    dim=AutoDim()
+    dim=AutoDim(),
+    dims=nothing,
+    mapdata=nothing,
 )
     crs = crs isa NoKW ? nothing : crs
     mappedcrs = mappedcrs isa NoKW ? nothing : mappedcrs
-    Mapped(data, order, span, sampling, metadata, crs, mappedcrs, dim)
+    Mapped(data, order, span, sampling, metadata, crs, mappedcrs, dim, dims, mapdata)
 end
 function Mapped(l::Sampled;
     order=order(l), span=span(l), sampling=sampling(l),
     metadata=metadata(l),
     crs::Union{GeoFormat,Nothing}=nothing,
     mappedcrs::Union{GeoFormat,Nothing},
-    dim=AutoDim()
+    dim=AutoDim(),
+    dims=nothing,
+    mapdata=nothing,
 )
-    Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim)
+    Mapped(parent(l), order, span, sampling, metadata, crs, mappedcrs, dim, dims, mapdata)
 end
 
 GeoInterface.crs(lookup::Mapped) = lookup.crs
 mappedcrs(lookup::Mapped) = lookup.mappedcrs
 dim(lookup::Mapped) = lookup.dim
+DD.dims(lookup::Mapped) = lookup.dims
+
+DD.hasinternaldimensions(lookup::Mapped) = !isnothing(dims(lookup))
 
 """
     convertlookup(dstlookup::Type{<:Lookup}, x)
@@ -180,7 +333,7 @@ convertlookup(::Type, lookup::Lookup) = lookup
 convertlookup(::Type{T1}, lookup::T2) where {T1,T2<:T1} = lookup
 # Otherwise AbstractProjected needs ArchGDAL
 function convertlookup(::Type{<:Mapped}, l::Projected)
-    newindex = reproject(crs(l), mappedcrs(l), dim(l), index(l))
+    newindex = reproject(crs(l), mappedcrs(l), dim(l), parent(l))
     # We use Explicit mode and make a bounds matrix
     # This way the bounds can be saved correctly to NetCDF
     span = if sampling(l) isa Points
@@ -198,6 +351,8 @@ function convertlookup(::Type{<:Mapped}, l::Projected)
         crs=crs(l),
         mappedcrs=mappedcrs(l),
         dim=dim(l),
+        dims=nothing,
+        mapdata=nothing,
     )
 end
 function convertlookup(::Type{<:Projected}, l::Mapped)
@@ -213,13 +368,14 @@ function convertlookup(::Type{<:Projected}, l::Mapped)
     )
 end
 
-_projectedrange(l::Projected) = LinRange(first(l), last(l), length(l))
+_projectedrange(l::Projected) = StableRange(; start=first(l), stop=last(l), length=length(l))
 _projectedrange(l::Mapped) = _projectedrange(span(l), crs(l), l)
 function _projectedrange(span, crs, l::Mapped)
     start, stop = reproject(mappedcrs(l), crs, dim(l), [first(l), last(l)])
-    LinRange(start, stop, length(l))
+    StableRange(; start, stop, length=length(l))
 end
-_projectedrange(::Regular, crs::Nothing, l::Mapped) = LinRange(first(l), last(l), length(l))
+_projectedrange(::Regular, crs::Nothing, l::Mapped) =
+    StableRange(; start=first(l), stop=last(l), length=length(l))
 function _projectedrange(::T, crs::Nothing, l::Mapped) where T<:Union{Irregular,Explicit}
     error("Cannot convert a Mapped $T index to Projected when crs is nothing")
 end
@@ -254,30 +410,16 @@ projectedbounds(crs::GeoFormat, lookup::Mapped, dim) =
 _sort((a, b)) = a <= b ? (a, b) : (b, a)
 
 """
-    mappedindex(x)
+    mappedlookup(x)
 
 Get the index value of a dimension converted to the `mappedcrs` value.
 
 Without ArchGDAL loaded, this is just the regular dim value.
 """
-function mappedindex end
+function mappedlookup end
 
-mappedindex(dims::Tuple) = map(mappedindex, dims)
-mappedindex(dim::Dimension) = _mappedindex(parent(dim), dim)
+mappedlookup(dims::Tuple) = map(mappedlookup, dims)
+mappedlookup(dim::Dimension) = reproject(mappedcrs(dim), lookup(dim))
 
-_mappedindex(::Lookup, dim::Dimension) = index(dim)
-_mappedindex(lookup::Projected, dim::Dimension) = _mappedindex(mappedcrs(lookup), lookup, dim)
-_mappedindex(mappedcrs::Nothing, lookup::Projected, dim) =
-    error("No mappedcrs attached to $(name(dim)) dimension")
-_mappedindex(mappedcrs::GeoFormat, lookup::Projected, dim) =
-    reproject(crs(dim), mappedcrs, dim, index(dim))
-
-projectedindex(dims::Tuple) = map(projectedindex, dims)
-projectedindex(dim::Dimension) = _projectedindex(parent(dim), dim)
-
-_projectedindex(::Lookup, dim::Dimension) = index(dim)
-_projectedindex(lookup::Mapped, dim::Dimension) = _projectedindex(crs(lookup), lookup, dim)
-_projectedindex(crs::Nothing, lookup::Mapped, dim::Dimension) =
-    error("No projection crs attached to $(name(dim)) dimension")
-_projectedindex(crs::GeoFormat, lookup::Mapped, dim::Dimension) =
-    reproject(mappedcrs(dim), crs, dim, index(dim))
+projectedlookup(dims::Tuple) = map(projectedlookup, dims)
+projectedlookup(dim::Dimension) = reproject(crs(dim), lookup(dim))

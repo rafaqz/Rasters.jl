@@ -36,7 +36,7 @@ function RA.Raster(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}};
     filename = getraster(T; rds_kw...)
     Raster(filename; crs, ra_kw...)
 end
-function RA.Raster(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}, layer::Union{Symbol,Int}; 
+function RA.Raster(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}, layer::Union{Symbol,Int};
     crs=_source_crs(T), lazy = false, kw...
 )
     rds_kw, ra_kw = _filterkw(T, kw)
@@ -47,6 +47,57 @@ function RA.Raster(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}, layer::Union{
         read(ras)
     end
     return ras
+end
+
+# SRTM is a tiled 5°×5° grid; `getraster` returns either a single tile
+# path or a matrix of tile paths (with `missing` for ocean tiles). Glue the
+# matrix case together lazily into a single Raster via `ConcatDiskArray`.
+function RA.Raster(T::Type{SRTM};
+    lazy=false, crs=_source_crs(T), kw...
+)
+    rds_kw, ra_kw = _filterkw(T, kw)
+    tile_paths = getraster(T; rds_kw...)
+    raster = _tiled_raster(tile_paths; crs, ra_kw...)
+    return lazy ? raster : read(raster)
+end
+
+_tiled_raster(path::AbstractString; kw...) = Raster(path; lazy=true, kw...)
+function _tiled_raster(tile_paths::AbstractMatrix; kw...)
+    # Need at least one tile per row/column to reconstruct the merged
+    # X/Y lookups — Fill substitutes have no spatial information of their own.
+    valid = .!ismissing.(tile_paths)
+    for j in axes(valid, 2)
+        any(view(valid, :, j)) || throw(ArgumentError(
+            "All tiles in column $j of the requested bounds are missing"
+        ))
+    end
+    for i in axes(valid, 1)
+        any(view(valid, i, :)) || throw(ArgumentError(
+            "All tiles in row $i of the requested bounds are missing"
+        ))
+    end
+    tiles = map(p -> ismissing(p) ? missing : Raster(p; lazy=true, kw...), tile_paths)
+    # `tile_paths` is indexed `[y_tile, x_tile]` (RasterDataSources convention).
+    # `vcat` on `Dimension`s just concatenates their lookup indices.
+    xdim = reduce(vcat, map(axes(tiles, 2)) do j
+        col = view(tiles, :, j)
+        dims(col[findfirst(!ismissing, col)], X())
+    end)
+    ydim = reduce(vcat, map(axes(tiles, 1)) do i
+        row = view(tiles, i, :)
+        dims(row[findfirst(!ismissing, row)], Y())
+    end)
+    # Substitute missing tiles with a `Fill` of `missingval` so that ocean
+    # tiles materialise as the dataset's masked value.
+    ref = tiles[findfirst(!ismissing, tiles)]
+    fillval = something(missingval(ref), zero(eltype(ref)))
+    sz = size(parent(ref))
+    parents = map(t -> ismissing(t) ? Fill(fillval, sz) : parent(t), tiles)
+    # `ConcatDiskArray` aligns matrix dim `i` with parent dim `i` (X, Y),
+    # so transpose from `[y_tile, x_tile]` to `[x_tile, y_tile]`.
+    parents = permutedims(parents)
+    data = RA.DA.ConcatDiskArray(parents)
+    return rebuild(ref; data, dims=(xdim, ydim), refdims=())
 end
 
 """

@@ -10,7 +10,9 @@ specifies the maximum pixel resolution to show on the longest axis of the array.
 It can be set manually to change the resolution (e.g. for large or high-quality plots):
 
 ````@example plots
-using Rasters, RasterDataSources, ArchGDAL, Plots
+using Rasters, RasterDataSources, ArchGDAL
+using Plots
+import Plots: plot # hide 
 A = Raster(WorldClim{BioClim}, 5)
 plot(A; max_res=3000)
 ````
@@ -25,9 +27,9 @@ This is an unexported function, since we're not sure how the API will change goi
 ## Makie, simple
 
 ````@example plots
-using CairoMakie 
-CairoMakie.activate!(px_per_unit = 2)
-using Rasters, CairoMakie, RasterDataSources, ArchGDAL
+using CairoMakie: CairoMakie, Makie
+CairoMakie.activate!(px_per_unit = 2) # hide
+using Rasters, RasterDataSources, ArchGDAL
 A = Raster(WorldClim{BioClim}, 5)
 Makie.plot(A)
 ````
@@ -41,7 +43,7 @@ This `netcdf` file only has one layer, if it has more we could use RasterStack i
 using Rasters, NCDatasets, Plots
 using Downloads: download
 
-url = "https://www.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc";
+url = "https://archive.unidata.ucar.edu/software/netcdf/examples/tos_O1_2001-2002.nc";
 filename = download(url, "tos_O1_2001-2002.nc");
 A = Raster(filename)
 ````
@@ -70,24 +72,29 @@ Other plot functions and sliced objects that have only one `X`/`Y`/`Z` dimension
 fall back to generic DimensionalData.jl plotting, which will still correctly
 label plot axes.
 
-````@example plots
+<!-- TODO: switch the three code blocks below back to ````@example plots once
+CFTime is fixed. `mean(A; dims=Ti)` on a CFTime-calendar time dim currently
+creates a `StepRange` whose `length` returns `Float64` (via `Dates.len`),
+which breaks `axes`/`OneTo` and aborts the docs build. -->
+
+```julia
 using Statistics
 # Take the mean
 mean_tos = mean(A; dims=Ti)
-````
+```
 
 ### Plot a contour plot
 
-````@example plots
+```julia
 using Plots
 Plots.contourf(mean_tos; dpi=300, size=(800, 400))
-````
+```
 ### write to disk
 Write the mean values to disk
 
-````@example plots
+```julia
 write("mean_tos.nc", mean_tos)
-````
+```
 
 Plotting recipes in DimensionalData.jl are the fallback for Rasters.jl when the
 object doesn't have 2 `X`/`Y`/`Z` dimensions, or a non-spatial plot command is

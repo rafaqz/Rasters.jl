@@ -31,12 +31,15 @@ function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
     mods,
 ) where {source,N}
     T = NamedTuple{name,Tuple{map(_mod_eltype, vars, mods)...}}
-    layersizes = map(size, vars)
+    layersizes = map(v -> _source_size(source(), v), vars)
     eachchunk = map(DiskArrays.eachchunk, vars)
     haschunks = map(DiskArrays.haschunks, vars)
     group = isnokw(group) ? nothing : group
     return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, mods, write)
 end
+
+_source_size(::Source, v::AbstractArray) = size(v)
+_source_size(::CDMsource, v::AbstractArray{Char}) = size(v)[2:end]
 
 # FileStack has `S,Na,T` parameters that are not recoverable from fields.
 ConstructionBase.constructorof(::Type{<:FileStack{S,Na,T}}) where {S,Na,T} = FileStack{S,Na,T} 
@@ -61,7 +64,8 @@ function Base.getindex(fs::FileStack{S,Na,T}, name::Symbol) where {S,Na,T}
     haschunks = fs.haschunks[i]
     mod = fs.mods[i]
     N = length(size)
-    return FileArray{S,_itype(T, i),N}(filename(fs), size, name, fs.group, eachchunk, haschunks, mod, fs.write)
+    T1 = _itype(T, i)
+    return FileArray{S,T1,N}(filename(fs), size, name, fs.group, eachchunk, haschunks, mod, fs.write)
 end
 
 @inline _itype(::Type{<:NamedTuple{<:Any,T}}, i) where T = T.parameters[i]

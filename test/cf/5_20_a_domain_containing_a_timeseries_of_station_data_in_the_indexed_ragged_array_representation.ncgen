@@ -1,0 +1,39 @@
+netcdf 5_20_a_domain_containing_a_timeseries_of_station_data_in_the_indexed_ragged_array_representation {
+dimensions:
+  station = 23 ;
+  obs = UNLIMITED ;
+  name_strlen = 23 ;
+variables:
+  char domain ;
+    domain:dimensions = "obs" ;
+    domain:coordinates = "time lat lon alt station_name" ;
+    domain:long_name = "Domain with a discrete sampling geometry" ;
+  float lon(station) ;
+    lon:standard_name = "longitude" ;
+    lon:long_name = "station longitude" ;
+    lon:units = "degrees_east" ;
+  float lat(station) ;
+    lat:standard_name = "latitude" ;
+    lat:long_name = "station latitude" ;
+    lat:units = "degrees_north" ;
+  float alt(station) ;
+    alt:long_name = "vertical distance above the surface" ;
+    alt:standard_name = "height" ;
+    alt:units = "m" ;
+    alt:positive = "up" ;
+    alt:axis = "Z" ;
+  char station_name(station, name_strlen) ;
+    station_name:long_name = "station name" ;
+    station_name:cf_role = "timeseries_id" ;
+  int station_info(station) ;
+    station_info:long_name = "some kind of station info" ;
+  int stationIndex(obs) ;
+    stationIndex:long_name = "which station this obs is for" ;
+    stationIndex:instance_dimension = "station" ;
+  double time(obs) ;
+    time:standard_name = "time" ;
+    time:long_name = "time of measurement" ;
+    time:units = "days since 1970-01-01 00:00:00" ;
+// global attributes:
+  :featureType = "timeSeries" ;
+}

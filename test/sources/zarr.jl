@@ -48,7 +48,7 @@ end
 @testset "array properties" begin
     @test name.(dims(zraster)) == (:X, :Y, :Ti)
     @test length(dims(zraster, X)) == 144
-    @test index(zraster,X) == collect(-178.75:2.5:178.75)
+    @test lookup(zraster,X) == collect(-178.75:2.5:178.75)
     # TODO the spatial bounds are strange, because the data is point data
     # We should find a dataset that has actual intervals
 

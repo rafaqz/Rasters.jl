@@ -148,11 +148,11 @@ v = ds[:z]
             ser = Rasters.slice(gribarray, Ti) 
             @test ser isa RasterSeries
             @test size(ser) == (4,)
-            @test index(ser, Ti) == DateTime(2017, 1, 1):Hour(12):DateTime(2017, 1, 2, 12)
+            @test lookup(ser, Ti) == DateTime(2017, 1, 1):Hour(12):DateTime(2017, 1, 2, 12)
             @test Rasters.bounds(ser) == ((DateTime(2017, 1, 1), DateTime(2017, 1, 2, 12)),)
             A = ser[1]
-            @test index(A, Y) == 90.0:-3.0:-90.0
-            @test index(A, X) == 0.0:3.0:357.0
+            @test lookup(A, Y) == 90.0:-3.0:-90.0
+            @test lookup(A, X) == 0.0:3.0:357.0
         end
     end
 
@@ -164,6 +164,7 @@ end
 
 @testset "RasterStack" begin
     gribstack = RasterStack(era5; lazy=true)
+    gribstackraw = RasterStack(era5; lazy=true, raw=true)
     @testset "RasterStack" begin
         @test all(read(gribstack.z) .=== Raster(era5; name=:z))
     end
@@ -171,5 +172,10 @@ end
         dsstack = RasterStack(ds; lazy=true)
         @test dims(dsstack) == dims(gribstack)
         @test size(dsstack) == size(gribstack)
+    end
+    @testset "open a stack" begin
+        Rasters.DiskArrays.allowscalar(true)
+        @test open(first, gribstack) == open(first, gribstackraw) == gribstack[1]
+        Rasters.DiskArrays.allowscalar(true)
     end
 end

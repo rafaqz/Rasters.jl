@@ -22,30 +22,35 @@ function print_geo(io, mime, A; blockwidth)
         show(io, mime, missingval(A))
     end
     printstyled(io, "\n  extent: "; color=:light_black)
-    show(io, mime, Extents.extent(A))
+    str = sprint(show, mime, Extents.extent(A))
+    _print_restricted(io, str; blockwidth, used=10)
     if crs(A) !== nothing
         printstyled(io, "\n  crs: "; color=:light_black)
         str = convert(String, crs(A))
-        if length(str) > (blockwidth - 7)
-            print(io, str[1:min(blockwidth - 10, end)] * "...")
-        else
-            print(io, str)
-        end
+        _print_restricted(io, str; blockwidth, used=7)
     end
     if mappedcrs(A) !== nothing
         printstyled(io, "\n  mappedcrs: "; color=:light_black)
-        print(io, convert(String, mappedcrs(A)))
+        str = convert(String, mappedcrs(A))
+        _print_restricted(io, str; blockwidth, used=13)
     end
     if isdisk(A)
         fn = filename(A)
         if !isnothing(fn) && !(fn == "") 
             printstyled(io, "\n  filename: "; color=:light_black)
-            print(io, fn)
+            _print_restricted(io, fn; blockwidth, used=12)
         end
     end
     println(io)
 end
 
+function _print_restricted(io, str; blockwidth, used)
+    if length(str) > (blockwidth - used)
+        print(io, str[1:min(blockwidth - used - 3, end)] * "...")
+    else
+        print(io, str)
+    end
+end
 
 # Stack types can be enormous. Just use nameof(T)
 function Base.summary(io::IO, ser::AbstractRasterSeries{T,N}) where {T,N}

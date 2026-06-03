@@ -66,9 +66,11 @@ end
 _maybe_modify(A::AbstractArray, mod::AbstractModifications) = 
     ModifiedDiskArray(A, mod)
 _maybe_modify(A::AbstractArray, ::Nothing) = A
+_maybe_modify(A::AbstractArray{Char}, mod::Mod{<:Union{Missing,String}}) = 
+    ModifiedDiskArray(DiskCharToString(A), mod)
 
 filename(A::ModifiedDiskArray) = filename(parent(A))
-missingval(A::ModifiedDiskArray) = A.missingval
+missingval(A::ModifiedDiskArray) = missingval(A.mod)
 _metadata(A::ModifiedDiskArray, args...) = _metadata(parent(A), args...)
 
 Base.parent(A::ModifiedDiskArray) = A.data

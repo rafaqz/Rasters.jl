@@ -31,7 +31,7 @@ function GRDdataset(filename::AbstractString; write=false)
     matches = (match(r"([^=]+)=(.*)", st) for st in entries)
     captures = (string.(strip.(m.captures[1:2])) for m in matches)
     pairs = map(c -> Pair(c[1], c[2]), captures)
-    attrib = Dict(pairs...)
+    attrib = Dict(pairs)
     T = GRD_DATATYPE_TRANSLATION[attrib["datatype"]]
     GRDdataset{T,typeof(filename)}(filename, attrib, write)
 end
@@ -79,8 +79,8 @@ function _dims(A::RasterDiskArray{GRDsource}, crs=nokw, mappedcrs=nokw)
     # Not fully implemented yet
     xy_metadata = _metadatadict(GRDsource())
 
-    xindex = range(; start=xbounds[1], stop=xbounds[2] - xspan, length=xsize)
-    yindex = range(; start=ybounds[2] + yspan, stop=ybounds[1], length=ysize)
+    xindex = StableRange(; start=xbounds[1], step=xspan, length=xsize)
+    yindex = StableRange(; start=ybounds[2] + yspan, step=yspan, length=ysize)
 
     xlookup = Projected(xindex;
         order=GRD_X_ORDER,

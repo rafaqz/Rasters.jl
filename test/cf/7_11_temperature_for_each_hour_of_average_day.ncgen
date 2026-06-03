@@ -1,0 +1,47 @@
+netcdf 7_11_temperature_for_each_hour_of_average_day {
+dimensions:
+  time=24;
+  nv=2;
+  lat=10; // added
+  lon=10; // added
+variables:
+  float temperature(time,lat,lon);
+    temperature:long_name="surface air temperature";
+    temperature:cell_methods="time: mean within days time: mean over days";
+    temperature:units="K";
+  double time(time);
+    time:climatology="climatology_bounds";
+    time:units="hours since 1997-4-1";
+  double climatology_bounds(time,nv);
+data:
+  // time="1997-4-1 0:30" .. "1997-4-1 23:30"; 
+  time=0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 15.5, 16.5, 17.5, 18.5, 19.5, 20.5, 21.5, 22.5, 23.5 ;
+  // climatology_bounds="1997-4-1 0:00", "1997-4-30 1:00",
+  // ...
+  //                    "1997-4-1 23:00", "1997-5-1 24:00" ;
+  climatology_bounds=0.0,  721.0,
+                     1.0,  722.0,
+                     2.0,  723.0,
+                     3.0,  724.0,
+                     4.0,  725.0,
+                     5.0,  726.0,
+                     6.0,  727.0,
+                     7.0,  728.0,
+                     8.0,  729.0,
+                     9.0,  730.0,
+                     10.0, 731.0,
+                     11.0, 732.0,
+                     12.0, 733.0,
+                     13.0, 734.0,
+                     14.0, 735.0,
+                     15.0, 736.0,
+                     16.0, 737.0,
+                     17.0, 738.0,
+                     18.0, 739.0,
+                     19.0, 740.0,
+                     20.0, 741.0,
+                     21.0, 742.0,
+                     22.0, 743.0,
+                     23.0, 744.0 ;
+}
+

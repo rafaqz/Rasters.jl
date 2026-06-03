@@ -26,6 +26,14 @@ reproject(target::GeoFormat, x) = rebuild(x; dims=reproject(target, dims(x)))
 reproject(target::GeoFormat, dims::Tuple) = map(d -> reproject(target, d), dims)
 reproject(target::GeoFormat, l::Lookup) = l
 reproject(target::GeoFormat, dim::Dimension) = rebuild(dim, reproject(target, lookup(dim)))
+# Forward GeometryLookup reproject to GeometryOps. Both this path and the
+# regular `reproject` here in Rasters require Proj.
+function reproject(target::GeoFormat, l::GeometryLookup)
+    source = l.crs
+    new_data = GO.reproject(l.data; source_crs=source, target_crs=target, always_xy=true)
+    return rebuild(l; data=new_data, crs=target)
+end
+
 function reproject(target::GeoFormat, l::AbstractProjected)
     source = crs(l)
     isnothing(source) && _no_crs_error()
@@ -72,7 +80,7 @@ function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim},
     reshape(_reproject(source, target, dim, vec(vals)), size(vals))
 end
 function _reproject(source::GeoFormat, target::GeoFormat, dim::Union{XDim,YDim}, vals::AbstractVector) 
-    throw_extension_error(reproject, "Proj", :RastersProjExt, (source, target, dim, vals))
+    throw_extension_error(reproject, ProjExt(), (source, target, dim, vals))
 end
 
 # Guess the step for arrays

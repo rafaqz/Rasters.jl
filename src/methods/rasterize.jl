@@ -9,14 +9,27 @@ _reduce_op(::typeof(prod)) = Base.mul_prod
 _reduce_op(::typeof(minimum)) = min
 _reduce_op(::typeof(maximum)) = max
 _reduce_op(::typeof(last)) = _take_last
+_reduce_op(::typeof(any)) = |
+_reduce_op(::typeof(all)) = &
 _reduce_op(f, missingval) = _reduce_op(f)
 _reduce_op(::typeof(first), missingval) = _TakeFirst(missingval)
 _reduce_op(x) = nothing
 
-_is_op_threadsafe(::typeof(sum)) = true
-_is_op_threadsafe(::typeof(prod)) = true
-_is_op_threadsafe(::typeof(minimum)) = true
-_is_op_threadsafe(::typeof(maximum)) = true
+# Identical to Base.PermutedDimsArrays.CommutativeOps but define here to avoid
+# using base internals
+const CommutativeOps = Union{
+    typeof(&), 
+    typeof(+), 
+    typeof(Base._extrema_rf), 
+    typeof(Base.add_sum), 
+    typeof(max), 
+    typeof(min), 
+    typeof(|),
+    typeof(Base.mul_prod), # these are not in Base.PermutedDimsArrays.CommutativeOps but should be safe?
+    typeof(*) 
+}
+
+_is_op_threadsafe(::CommutativeOps) = true
 _is_op_threadsafe(f) = false
 
 _reduce_init(reducer, st::AbstractRasterStack, missingval) = map(A -> _reduce_init(reducer, A, missingval), st)
@@ -25,9 +38,12 @@ _reduce_init(reducer, nt::NamedTuple, missingval) = map(x -> _reduce_init(reduce
 _reduce_init(f, x, missingval) = _reduce_init(f, typeof(x), missingval)
 
 _reduce_init(::Nothing, x::Type{T}, missingval) where T = zero(T)
-_reduce_init(f::Function, ::Type{T}, missingval) where T = zero(f((zero(nonmissingtype(T)), zero(nonmissingtype(T)))))
-_reduce_init(::typeof(sum), ::Type{T}, missingval) where T = zero(nonmissingtype(T))
-_reduce_init(::typeof(prod), ::Type{T}, missingval) where T = oneunit(nonmissingtype(T))
+_reduce_init(f::Function, ::Type{T}, missingval) where T = 
+    zero(f((zero(nonmissingtype(T)), zero(nonmissingtype(T)))))
+_reduce_init(::typeof(sum), ::Type{T}, missingval) where T = 
+    Base.add_sum(zero(nonmissingtype(T)), zero(nonmissingtype(T))) # add_sum(zero, zero) for correct type
+_reduce_init(::typeof(prod), ::Type{T}, missingval) where T = 
+    Base.mul_prod(oneunit(nonmissingtype(T)), one(nonmissingtype(T))) # mul_prod(oneunit, one) for correct type
 _reduce_init(::typeof(minimum), ::Type{T}, missingval) where T = typemax(nonmissingtype(T))
 _reduce_init(::typeof(maximum), ::Type{T}, missingval) where T = typemin(nonmissingtype(T))
 _reduce_init(::typeof(last), ::Type{T}, missingval) where T = _maybe_to_missing(missingval)
@@ -48,6 +64,7 @@ struct RasterCreator{E,D,MD,MV,C,MC}
     missingval::MV
     crs::C
     mappedcrs::MC
+    force::Bool
 end
 function RasterCreator(to::DimTuple; 
     eltype,
@@ -60,14 +77,15 @@ function RasterCreator(to::DimTuple;
     mappedcrs=nothing,
     name=nothing,
     metadata=Metadata(Dict()),
+    force=false,
     kw...
 )
     name = Symbol(_filter_name(name, fill))
     to = _as_intervals(to) # Only makes sense to rasterize to intervals
-    RasterCreator(eltype, to, filename, suffix, name, metadata, missingval, crs, mappedcrs)
+    RasterCreator(eltype, to, filename, suffix, name, metadata, missingval, crs, mappedcrs, force)
 end
-RasterCreator(to::AbstractRaster, data; kw...) = RasterCreator(dims(to); kw...)
-RasterCreator(to::AbstractRasterStack, data; kw...) = RasterCreator(dims(to); name, kw...)
+RasterCreator(to::RasterStackOrArray, data; kw...) = RasterCreator(dims(to); kw...)
+RasterCreator(to::DimTuple, data; kw...) = RasterCreator(to; kw...)
 RasterCreator(to::Nothing, data; kw...) = RasterCreator(_extent(data; kw...); kw...)
 RasterCreator(to, data; kw...) = 
     RasterCreator(_extent(to; kw...); kw...)
@@ -103,7 +121,7 @@ struct Rasterizer{T,G,F,R,O,I,M}
 end
 function Rasterizer(geom, fill, fillitr;
     reducer=nothing,
-    op=nothing,
+    op=_reduce_op(reducer),
     missingval=nothing,
     shape=nothing,
     eltype=nothing,
@@ -120,8 +138,6 @@ function Rasterizer(geom, fill, fillitr;
     if !GI.isgeometry(geom)
         isnothing(reducer) && isnothing(op) && !(fill isa Function) && throw(ArgumentError("either reducer, op or fill must be a function"))
     end
- 
-    op = _reduce_op(reducer)
 
     threadsafe_op = isnothing(threadsafe) ? _is_op_threadsafe(op) : threadsafe
 
@@ -205,8 +221,8 @@ function _get_eltype_missingval(eltype, missingval, filleltype, fillitr, init::N
     return eltype, missingval, init
 end
 function _get_eltype_missingval(known_eltype, missingval, filleltype, fillitr, init, filename, op, reducer)
-    fillzero = zero(filleltype)
     eltype = if isnothing(known_eltype)
+        fillzero = zero(filleltype)
         if fillitr isa Function
             promote_type(typeof(fillitr(init)), typeof(fillitr(fillzero)))
         elseif op isa Function
@@ -229,16 +245,19 @@ _fill_key_error(names, fill) = throw(ArgumentError("fill key $fill not found in 
 
 # _featurefillval
 # Get fill value from a feature, or use fill itself
-_featurefillval(feature, fill::Nothing) = first(GI.properties(feature))
-_featurefillval(feature, fill::Symbol) = GI.properties(feature)[fill]
+_featurefillval(feature, fill::Nothing) = first(_nonnothingfillprops(GI.properties(feature)))
+_featurefillval(feature, fill::Symbol) = _nonnothingfillprops(GI.properties(feature))[fill]
 _featurefillval(feature, fill::Val) = _featurefillval(feature, _unwrap(fill))
 _featurefillval(feature, fill::NamedTuple) = map(f -> _featurefillval(feature, f), _unwrap(fill))
 function _featurefillval(feature, fill::NTuple{<:Any,Symbol})
     map(fill) do key
-        getproperty(GI.properties(feature), key)
+        getproperty(_nonnothingfillprops(GI.properties(feature)), key)
     end |> NamedTuple{fill}
 end
 _featurefillval(feature, fill) = fill
+
+_nonnothingfillprops(props) = props
+_nonnothingfillprops(::Nothing) = throw(ArgumentError("feature has no properties to retreive `fill` from"))
 
 _filter_name(name, fill::NamedTuple) = keys(fill)
 _filter_name(name::NamedTuple, fill::NamedTuple) = keys(fill)
@@ -258,10 +277,10 @@ _iterable_fill(trait, data, keys::Tuple{Symbol,Vararg}) =
     NamedTuple{keys}(map(k -> _iterable_fill(trait, data, k), keys))
 # A Symbol is a Table or FeatureCollection key, it cant be used as fill itself
 function _iterable_fill(trait, data, key::Symbol)
-    if GI.isfeature(data)
-        return get(() -> throw(ArgumentError("feature has no property `:$key`")), GI.properties(data), key)
+    if trait isa GI.FeatureTrait
+        return _feature_getproperty(data, key)
     elseif trait isa GI.FeatureCollectionTrait
-        return [get(() -> throw(ArgumentError("feature has no property `:$key`")), GI.properties(f), key) for f in GI.getfeature(data)]
+        return [_feature_getproperty(f, key) for f in GI.getfeature(data)]
     end
     cols = Tables.columns(data)
     # For column tables, get the column now
@@ -299,6 +318,17 @@ function _iterable_fill(trait, data, fill)
         throw(ArgumentError("Length of fill $l does not match length of iterator $n"))
     else
         return fillvec
+    end
+end
+
+function _feature_getproperty(data, key)
+    props = GI.properties(data)
+    if isnothing(props) 
+        throw(ArgumentError("feature has no properties"))
+    else
+        get(props, key) do
+            throw(ArgumentError("feature has no property `:$key`"))
+        end
     end
 end
 
@@ -410,10 +440,12 @@ _count_fill(x) = x + 1
 # Catch some functions early
 
 # count is faster with an incrementing function as `fill`
-function rasterize(reducer::typeof(count), data; fill=nothing, init=nothing, kw...)
+function rasterize(reducer::typeof(count), data; fill=nothing, init=nothing, missingval=nothing, kw...)
     isnothing(init) || _count_init_info(init)
     isnothing(fill) || _count_fill_info(fill)
-    rasterize(data; kw..., name=:count, init=0, reducer=nothing, fill=_count_fill, missingval=0)
+    result = rasterize(data; kw..., name=:count, init=0, reducer=nothing, fill=_count_fill, missingval=0)
+    missingval = isnothing(missingval) ? _writeable_missing(filename(result), eltype(result)) : missingval
+    set(result, missingval=missingval)
 end
 # `mean` is sum ./ count. This is actually optimal with threading, 
 # as its means order is irrelevant so its threadsafe.
@@ -473,7 +505,7 @@ function alloc_rasterize(f, r::RasterCreator;
     if prod(size(r.to)) == 0  
         throw(ArgumentError("Destination array is is empty, with size $(size(r.to))). Rasterization is not possible"))
     end
-    A = create(r.filename, fill=missingval, eltype, r.to; name, missingval, metadata, suffix) do O
+    A = create(r.filename, fill=missingval, eltype, r.to; name, missingval, metadata, suffix, r.force) do O
         f(O)
     end
     return A
@@ -612,11 +644,12 @@ function _rasterize_iterable!(A, geoms, reducer, op, fillitr, r::Rasterizer, all
     range = _geomindices(geoms)
     burnchecks = _alloc_burnchecks(range)
     _run(range, r.threaded, r.progress, "Rasterizing...") do i
-        geom = geoms[i]
-        ismissing(geom) && return nothing
-        a = _get_alloc(allocs)
-        fill = _getfill(fillitr, i)
-        burnchecks[i] = _rasterize!(A, GI.trait(geom), geom, fill, r; allocs=a)
+        with_resource(allocs) do a
+            geom = geoms[i]
+            ismissing(geom) && return nothing
+            fill = _getfill(fillitr, i)
+            burnchecks[i] = _rasterize!(A, GI.trait(geom), geom, fill, r; allocs=a)
+        end
         return nothing
     end
     _set_burnchecks(burnchecks, metadata(A), r.verbose)
@@ -925,7 +958,7 @@ Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser{<:An
     _apply_op(op, a1, fc.fill)
 end
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser) where F<:Function
-    a1 = a === fc.missingval ? fc.init : a
+    a1 = a == fc.missingval ? fc.init : a
     _apply_op(op, a1, fc.fill)
 end
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser{<:Any,Nothing,Missing}) where F<:Function

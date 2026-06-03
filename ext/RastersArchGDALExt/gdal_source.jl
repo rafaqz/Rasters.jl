@@ -158,32 +158,33 @@ function RA._dims(raster::AG.RasterDataset, crs=nokw, mappedcrs=nokw)
         xstep = gt[GDAL_WE_RES]
         ystep = gt[GDAL_NS_RES] # Usually a negative number
         # Get min, max and sampling depending on AREA_OR_POINT
-        if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
-            sampling = Points()
-            xmin, xmax = gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
-            ymax = gt[GDAL_TOPLEFT_Y]
-            ymin = gt[GDAL_TOPLEFT_Y] + ystep * (ysize - 1)
+        sampling = if _gdalmetadata(raster.ds, "AREA_OR_POINT") == "Point"
+            Points()
         else
-            # GeoTiff uses the "pixelCorner" convention
-            sampling = Intervals(GDAL_LOCUS)
-            xmin, xmax = if xstep > 0
-                gt[GDAL_TOPLEFT_X], gt[GDAL_TOPLEFT_X] + xstep * (xsize - 1)
-            else
-                gt[GDAL_TOPLEFT_X] + xstep, gt[GDAL_TOPLEFT_X] + xstep * xsize
-            end
-            ymax, ymin = if ystep > 0
-                gt[GDAL_TOPLEFT_Y], gt[GDAL_TOPLEFT_Y] + ystep * (ysize - 1)
-            else
-                gt[GDAL_TOPLEFT_Y] + ystep, gt[GDAL_TOPLEFT_Y] + ystep * ysize
-            end
+            Intervals(GDAL_LOCUS)
+        end
+        # GDAL stores the upper-left corner of the first pixel. For `Points`
+        # the index is the point location itself. For `Intervals(Start())`
+        # the index is the start edge of each interval — the edge encountered
+        # first when traversing the axis in index order, i.e. one step inside
+        # the geotransform corner when the step is negative (inverse of
+        # `dims2geotransform` above).
+        xstart = gt[GDAL_TOPLEFT_X]
+        ystart = gt[GDAL_TOPLEFT_Y]
+        if sampling isa Intervals
+            xstep < 0 && (xstart += xstep)
+            ystep < 0 && (ystart += ystep)
         end
 
         # Define order
         xorder = xstep > 0 ? ForwardOrdered() : ReverseOrdered()
         yorder = ystep > 0 ? ForwardOrdered() : ReverseOrdered()
-        # Create lookup index. LinRange is easiest always the right size after fp error
-        xindex = range(; start=xmin, stop=xmax, length=xsize)
-        yindex = range(; start=ymax, stop=ymin, length=ysize)
+        # `StableRange` keeps `step(xindex) === xstep` exactly (so the span
+        # matches the geotransform) and slicing is bit-stable — `Contains`
+        # lookups on sub-views need the slice's values to agree with the
+        # parent's at corresponding indices.
+        xindex = RA.StableRange(; start=xstart, step=xstep, length=xsize)
+        yindex = RA.StableRange(; start=ystart, step=ystep, length=ysize)
 
         # Define `Projected` lookups fo X and Y dimensions
         xlookup = Projected(xindex;
@@ -334,13 +335,10 @@ function _check_driver(::Nothing, driver)
 end
 function _check_driver(filename::AbstractString, driver)
     if isnokwornothing(driver) || isempty(driver)
-        if isempty(filename)
-            driver = "MEM"
+        driver = if isempty(filename)
+            "MEM"
         else
-            driver = AG.extensiondriver(filename)
-            if driver == "COG"
-                driver = "GTiff"
-            end
+            _extensiondriver(filename)
         end
     end
     return driver
@@ -591,6 +589,7 @@ function _extensiondriver(filename::AbstractString)
         "MEM"
     elseif splitext(filename)[2] == ".tif"
         # Force GTiff as the default for .tif because COG cannot do `create` yet
+        # And LIBERTIFF might be given, which also cant create
         "GTiff"
     else
         AG.extensiondriver(filename)
