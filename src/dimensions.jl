@@ -24,9 +24,13 @@ mean(A; dims=Band)
 
     Lat(val=:)
 
-Used for holding degrees north lookups.
+[`Dimension`]($DDdimdocs) for a latitude axis (`degrees_north` in CF terms).
 
-Will error on lookup construction if metadata of `units="degrees_north"` does not exist.
+CF (Climate and Forecast) datasets with 2D coordinate variables expose
+their latitude as a `Lat`-typed inner dim of a `ProjectedArrayLookup`. The
+CF role - latitude vs longitude - is decided at load time by the
+`_unaligned_lookup` reader in `sources/commondatamodel.jl` based on the
+`units` / `standard_name` attributes of the coordinate variable.
 """
 @dim Lat
 
@@ -35,9 +39,9 @@ Will error on lookup construction if metadata of `units="degrees_north"` does no
 
     Lon(val=:)
 
-Used for holding degrees east lookups.
+[`Dimension`]($DDdimdocs) for a longitude axis (`degrees_east` in CF terms).
 
-Will error on lookup construction if metadata of `units="degrees_east"` does not exist.
+See [`Lat`](@ref) for how the CF role is decided at load time.
 """
 @dim Lon
 

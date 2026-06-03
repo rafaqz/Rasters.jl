@@ -446,7 +446,7 @@ function RasterStack(filename::AbstractString;
         # Load as a single file
         if haslayers(source) # With multiple named layers
             l_st = _open(filename; source) do ds
-                RasterStack(ds; filename, source, name, lazy, group, missingval, scaled, coerce, kw...)
+                RasterStack(ds; filename, source, name, lazy, group, missingval, scaled, coerce, verbose, kw...)
             end
             # Maybe split the stack into separate arrays to remove extra dims.
             isnokw(name) ? l_st : maplayers(identity, l_st)
@@ -485,7 +485,7 @@ function RasterStack(ds;
     check_multilayer_dataset(ds)
     scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
     # Create a Dict of dimkey => Dimension to use in `dim` and `layerdims`
-    (; names_vec, layers_vec, layerdims_vec, layermetadata_vec, dim_dict, refdim_dict) = _organise_dataset(ds, name, group)
+    (; names_vec, layers_vec, layerdims_vec, layermetadata_vec, dim_dict, refdim_dict) = _organise_dataset(ds, name, group; verbose)
     dims = _sort_by_layerdims(isnokw(dims) ? values(dim_dict) : dims, layerdims_vec)
     refdims = isnokwornothing(refdims) ? Tuple(values(refdim_dict)) : refdims
     metadata = isnokw(metadata) ? _metadata(ds) : metadata

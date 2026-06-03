@@ -97,6 +97,59 @@ function _zonal(f, x::RasterStack, ext::Extents.Extent; skipmissing, emptyval, s
         _maybe_skipmissing_call(_maybe_spatialsliceify(f, spatialslices, missingval), A, skipmissing, emptyval)
     end
 end
+# GeometryLookup or dim wrapping one: forward through Geometry(...) so we go
+# through the (::Nothing, ::Dimension{<:GeometryLookup}) path below.
+_zonal(f, x::RasterStackOrArray, ::Nothing, data::GeometryLookup; kw...) =
+    _zonal(f, x, nothing, Geometry(data); kw...)
+function _zonal(f, x::RasterStackOrArray, ::Nothing, data::Dimension{<:GeometryLookup};
+    progress=true, threaded=true, geometrycolumn=nothing, spatialslices, kw...
+)
+    geoms = data.val.data
+    # TODO: filter geoms by raster extent + tree first so we don't descend the
+    # full pipeline for geometries outside the raster.
+
+    # If the lookup carries non-default spatial dims and `x` has matching dims
+    # by base type, use those instead of the default X/Y.
+    if istrue(spatialslices) && data.val.dims != (X(), Y()) &&
+        dims(x, data.val.dims) != dims(x, (Val{DD.XDim}(), Val{DD.YDim}()))
+        spatialslices = dims(x, data.val.dims)
+    end
+
+    n = length(geoms)
+    n == 0 && return []
+    zs, start_index = _alloc_zonal(f, x, geoms, n; spatialslices, kw...)
+    if start_index != n + 1
+        _run(start_index:n, threaded, progress, "Applying $f to each geometry...") do i
+            zs[i] = _zonal(f, x, geoms[i]; spatialslices, kw...)
+        end
+    end
+
+    return_lookup_dims = if spatialslices isa DD.AllDims
+        dims(data, spatialslices)
+    elseif istrue(spatialslices)
+        dims(data, (Val{DD.XDim}(), Val{DD.YDim}()))
+    else # fallback
+        (X(), Y())
+    end
+    # `X()` here means `X(:)`. Rebuild the dims with `:` so we get a neutral
+    # materialised dimension.
+    return_lookup = rebuild(lookup(data); dims=rebuild.(return_lookup_dims, (:,)))
+    return_dimension = rebuild(data, return_lookup)
+
+    if zs isa AbstractVector{<:Union{<:AbstractDimArray,Missing}}
+        return _cat_and_rebuild_parent(x, zs, return_dimension)
+    elseif zs isa AbstractVector{<:Union{<:AbstractDimStack,Missing}}
+        dimarrays = NamedTuple{names(st)}(
+            ntuple(length(names(st))) do i
+                _cat_and_rebuild_parent(layers(st)[i], (layers(z)[i] for z in zs), return_dimension)
+            end
+        )
+        return rebuild(x; data=dimarrays, dims=(dims(first(zs))..., return_dimension))
+    else
+        return Raster(zs, (return_dimension,))
+    end
+end
+
 # Otherwise of is a geom, table or vector
 _zonal(f, x::RasterStackOrArray, of; kw...) = _zonal(f, x, GI.trait(of), of; kw...)
 
@@ -221,93 +274,6 @@ function _maybe_skipmissing_call(f, A, sm, emptyval)
     end
 end
 
-# the only reason we have AbstractDimArray here is to make sure that DD.otherdims is available.
-# We could probably get away with just AbstractArray here otherwise.
-# The reason this is not just mapslices is because this drops the sliced dimensions automatically,
-# which is what we want.
-function _mapspatialslices(f, x::AbstractDimArray; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()), missingval = missingval(x))
-    dimswewant = DD.otherdims(x, spatialdims)
-    if isempty(dimswewant)
-        return f(x)
-    end
-    slicedims = rebuild.(dims(x, dimswewant), axes.((x,), dimswewant))
-    if any(isempty, DD.dims(x, spatialdims))
-        # If any of the spatial dims are empty, we can just return a constant missing array
-        # this way we don't construct the dimslices at all...
-        missing_array = FillArrays.Fill{Union{typeof(missingval), eltype(x)}, length(dimswewant)}(missingval, length.(dimswewant))
-        return rebuild(x; data = missing_array, dims = dimswewant, refdims = ())
-    end
-    iterator = (rebuild(x; data = d, dims = dims(d)) for d in DD.DimSlices(x; dims = slicedims, drop = true))
-    return rebuild(x; data = f.(iterator), dims = dimswewant, refdims = ())
-end
-# SkipMissingVal and SkipMissing both store the initial value in the `x` property,
-# so we can use the same thing to extract it.
-function _mapspatialslices(f, s::Union{SkipMissingVal, Base.SkipMissing}; spatialdims = (Val{DD.XDim}(), Val{DD.YDim}()), missingval = missingval(s.x))
-    return _mapspatialslices(f ∘ skipmissing, s.x; spatialdims, missingval)
-end
-
-
-_maybe_spatialsliceify(f, spatialslices, missingval = missing) = istrue(spatialslices) ? _SpatialSliceify(f, (Val{DD.XDim}(), Val{DD.YDim}()), missingval) : f
-_maybe_spatialsliceify(f, spatialslices::DD.AllDims, missingval = missing) = _SpatialSliceify(f, spatialslices, missingval)
-
-"""
-    _SpatialSliceify(f, dims)
-
-A callable struct that applies `mapslices(f, x; dims = spatialdims)` to the input array `x`, and removes empty dimensions.
-
-```jldoctest
-data = ones(10, 10, 10, 10);
-f = _SpatialSliceify(sum, (1, 2))
-size(f(data))
-
-# output
-(10, 10)
-```
-"""
-struct _SpatialSliceify{F, D, M}
-    f::F
-    dims::D
-    missingval::M
-end
-
-(r::_SpatialSliceify{F, D, M})(x) where {F, D, M} = _mapspatialslices(r.f, x; spatialdims = r.dims, missingval = r.missingval)
-
-# This is a helper function that concatenates an array of arrays along their last dimension.
-# and returns a ConcatDiskArray so that it doesn't allocate at all.\
-# Users can always rechunk later.  But this saves us a lot of time when doing datacube ops.
-# And the chunk pattern is available in the concat diskarray.
-function __do_cat_with_last_dim(input_arrays)
-    # This assumes that the input array is a vector of arrays.
-    As = Missings.disallowmissing(collect(input_arrays))
-    dims = ndims(first(As)) + 1
-    sz = ntuple(dims) do i
-        i == dims ? length(As) : 1
-    end
-    cdas = reshape(As, sz)
-    backing_array = DiskArrays.ConcatDiskArray(cdas)
-   return backing_array
-end
-
-function __do_cat_with_last_dim_multidim_version(As)
-    # This CANNOT assume that the input array is a vector of arrays.
-    new_n_dims = ndims(As) + ndims(first(As))
-    sz = ntuple(new_n_dims) do i
-        i <= ndims(first(As)) ? 1 : size(As, i-1)
-    end
-    cdas = reshape(As, sz)
-    backing_array = DiskArrays.ConcatDiskArray(cdas)
-   return backing_array
-end
-# This is a wrapper around the helper function that performs the final cat and rebuild, but on
-# a dimarray.
-function _cat_and_rebuild_parent(parent, children, newdim)
-    backing_array = __do_cat_with_last_dim(children) # see zonal.jl for implementation
-    children_dims = dims(first(children))
-    final_dims = DD.format((children_dims..., newdim), backing_array)
-    return rebuild(parent; data = backing_array, dims = final_dims)
-end
-
-precompile(__do_cat_with_last_dim, (Vector{Raster{<: Any, 1}},))
-precompile(__do_cat_with_last_dim, (Vector{Raster{<: Any, 2}},))
-precompile(__do_cat_with_last_dim, (Vector{Raster{<: Any, 3}},))
-precompile(__do_cat_with_last_dim, (Vector{Raster{<: Any, 4}},))
+# Spatial-slice helpers (`_mapspatialslices`, `_SpatialSliceify`,
+# `__do_cat_with_last_dim*`, `_cat_and_rebuild_parent`) live in
+# `methods/spatial_slice.jl` and are shared with `extract`.

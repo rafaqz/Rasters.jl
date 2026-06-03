@@ -881,9 +881,13 @@ end
 
 function _roundtrip(path, tmpdir)
     out = joinpath(tmpdir, "rt_" * basename(path))
-    orig = RasterStack(path; lazy=false)
+    # `verbose=false`: silence the "no grid_mapping declared, assuming
+    # EPSG:4326 from degrees_north/east" warning that fires for files
+    # without an explicit CRS. Round-trip correctness for those files is
+    # asserted by the test framework itself.
+    orig = RasterStack(path; lazy=false, verbose=false)
     write(out, orig; force=true)
-    reloaded = RasterStack(out; lazy=false)
+    reloaded = RasterStack(out; lazy=false, verbose=false)
     return orig, reloaded, out
 end
 
@@ -931,9 +935,16 @@ function _dangling_refs(path::AbstractString)
 end
 
 # ---- metadata round-trip helpers ----
-# Compare two metadata sources as dicts. `ignore` is a set of keys that are
-# legitimately synthesized on write or stripped on read - their presence /
-# value is not enforced. Any other key must match exactly in both directions.
+# Compare metadata one-sided: every key in `orig` must exist in `reloaded`
+# with the same value. Extra keys on the reload side are allowed - the writer
+# legitimately fills in CF defaults that may have been missing on disk (e.g.
+# `axis="X"`, `standard_name="time"`), which improves CF compliance rather
+# than corrupting the file. We only fail on LOSING information.
+#
+# `ignore` is for keys the writer rebuilds with a possibly-different string
+# of equivalent meaning (`coordinates` reorders aux/refdim names;
+# `grid_mapping` references a var that may be renamed). A proper check would
+# parse and compare references/sets - for now we ignore.
 _md_dict(::Lookups.NoMetadata) = Dict{String,Any}()
 _md_dict(m::Lookups.Metadata) = Dict{String,Any}(string(k) => v for (k, v) in m)
 _md_dict(d::AbstractDict) = Dict{String,Any}(string(k) => v for (k, v) in d)
@@ -945,25 +956,14 @@ function _metadata_match(orig, reloaded; ignore=())
         haskey(mr, k) || return false
         isequal(mo[k], mr[k]) || return false
     end
-    for k in keys(mr)
-        k in ignore && continue
-        haskey(mo, k) || return false
-    end
     return true
 end
 
-# Layer attribs that are synthesized on write or stripped on read.
-# `_FillValue` is written from the missingval pair; `coordinates` is built
-# from aux-coord names; `grid_mapping` from the CRS write; scale/offset are
-# handled via the Mod and won't survive verbatim.
-const _LAYER_IGNORE = Set(("_FillValue", "missing_value", "coordinates",
-                          "grid_mapping", "scale_factor", "add_offset"))
-# Dim attribs that are synthesized on write. `axis` is added by
-# `_cdm_set_axis_attrib!`. `standard_name` is added as a default for Z and
-# Ti dims when not already present (now uses `get!`, so values from the
-# source are preserved) - ignore to avoid false positives where a source
-# file omitted it.
-const _DIM_IGNORE = Set(("_FillValue", "missing_value", "axis", "standard_name"))
+# Keys the writer rebuilds from internal state (aux-coord discovery, CRS
+# resolution) - the string may legitimately differ even when the meaning
+# round-trips. TODO: replace with set/reference comparison helpers.
+const _LAYER_IGNORE = Set(("coordinates", "grid_mapping"))
+const _DIM_IGNORE = Set{String}()
 
 function _layer_metadata_match(orig, reloaded)
     keys(orig) == keys(reloaded) || return false
@@ -985,6 +985,40 @@ function _dim_metadata_match(orig, reloaded)
         # units etc.) live, and silently losing them is exactly the class of
         # bug this test is here to catch.
         _inner_dim_metadata_match(lookup(d), lookup(d_re)) || return false
+    end
+    return true
+end
+
+# Refdims (CF 5.7 scalar coordinate variables) must round-trip - in the
+# DimensionalData model these are the same concept as on disk. We pair them
+# by base type because the order is not guaranteed across write/read. A name
+# collision with a regular dim (e.g. CF 7.12 has both a `time` dim coord and
+# a `time` scalar coord) drops the refdim on write - allowed-broken cases
+# go in `expectations[id].refdims_ok = false`.
+function _refdims_match(orig, reloaded)
+    orig_rd = refdims(orig)
+    reloaded_rd = refdims(reloaded)
+    length(orig_rd) == length(reloaded_rd) || return false
+    for d in orig_rd
+        d_re = DimensionalData.dims(reloaded_rd, DimensionalData.basetypeof(d))
+        isnothing(d_re) && return false
+        # Compare lookup values element-wise (refdim lookups are length 1).
+        collect(lookup(d)) == collect(lookup(d_re)) || return false
+    end
+    return true
+end
+
+# Refdim metadata round-trip is checked separately from structural match so
+# a name-collision or write gap doesn't mask a metadata corruption (the read
+# side used to put the parent layer's attrs on refdims, silently destroying
+# the on-disk scalar coord var attrs during round-trip).
+function _refdims_metadata_match(orig, reloaded)
+    orig_rd = refdims(orig)
+    reloaded_rd = refdims(reloaded)
+    for d in orig_rd
+        d_re = DimensionalData.dims(reloaded_rd, DimensionalData.basetypeof(d))
+        isnothing(d_re) && continue
+        _metadata_match(metadata(d), metadata(d_re); ignore=_DIM_IGNORE) || return false
     end
     return true
 end
@@ -1032,40 +1066,49 @@ end
     # see _LAYER_IGNORE and _DIM_IGNORE above). Real losses like 7.4 dropping
     # `bounds` polygon vars are caught by leaving `bounds` outside the ignore
     # list.
+    # Per-example expectation flags:
+    #   write_ok        - file is writable at all
+    #   dims_ok         - dim structure matches
+    #   dims_meta_ok    - per-dim attribs match (after _DIM_IGNORE)
+    #   layers_ok       - layer values match element-wise
+    #   layer_meta_ok   - layer attribs match (after _LAYER_IGNORE)
+    #   data_ok         - no dangling CF references in the written file
+    #   refdims_ok      - refdim names + values match
+    #   refdims_meta_ok - per-refdim attribs match (after _DIM_IGNORE)
     expectations = Dict(
-        "2.1"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "3.1"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.1"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.2"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.3"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.6"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.8"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.9"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.10"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.11"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.14"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.15"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.16"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.17"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.18"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.19"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.20"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "5.21"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "6.1"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "6.1.2" => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "6.2"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "7.2"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "7.3"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "7.4"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "7.5"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "7.6"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "7.7"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "7.9"   => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "7.10"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "7.11"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "7.12"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "7.13"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
-        "7.14"  => (write_ok=true,  dims_ok=true,  data_ok=true,  meta_ok=true, refs_ok=true),
+        "2.1"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "3.1"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.1"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.2"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.3"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.6"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.8"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.9"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.10"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.11"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.14"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.15"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.16"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.17"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.18"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.19"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.20"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "5.21"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "6.1"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "6.1.2" => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "6.2"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "7.2"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "7.3"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "7.4"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "7.5"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "7.6"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "7.7"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "7.9"   => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "7.10"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "7.11"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "7.12"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "7.13"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
+        "7.14"  => (write_ok=true, dims_ok=true, dims_meta_ok=true, layers_ok=true, layer_meta_ok=true, data_ok=true, refdims_ok=true, refdims_meta_ok=true),
     )
     mktempdir() do tmpdir
         for (id, exp) in pairs(expectations)
@@ -1081,12 +1124,12 @@ end
                 else
                     @test_broken _dims_match(dims(orig), dims(reloaded))
                 end
-                # Only attempt a data comparison when shapes line up. When a
-                # dim is dropped, layers reshape and pairwise comparison would
-                # throw - which would mask the underlying dim bug.
+                # Only attempt a layer-value comparison when shapes line up.
+                # When a dim is dropped, layers reshape and pairwise comparison
+                # would throw - which would mask the underlying dim bug.
                 shapes_match = keys(reloaded) == keys(orig) &&
                     all(k -> size(orig[k]) == size(reloaded[k]), keys(orig))
-                if exp.data_ok && shapes_match
+                if exp.layers_ok && shapes_match
                     @test _layers_match(orig, reloaded)
                 else
                     @test_broken (shapes_match && _layers_match(orig, reloaded))
@@ -1107,15 +1150,19 @@ end
                         @test_broken !isnothing(crs(reloaded))
                     end
                 end
-                # Metadata: layer attribs and per-dim attribs should match
-                # after ignoring keys synthesized on write (see _LAYER_IGNORE,
-                # _DIM_IGNORE). Catches real losses like dropped `bounds`
-                # polygon var references.
-                if exp.meta_ok
+                # Layer attribs match after ignoring keys synthesized on write
+                # (see _LAYER_IGNORE).
+                if exp.layer_meta_ok
                     @test _layer_metadata_match(orig, reloaded)
-                    @test _dim_metadata_match(orig, reloaded)
                 else
                     @test_broken _layer_metadata_match(orig, reloaded)
+                end
+                # Per-dim attribs match after ignoring keys synthesized on
+                # write (see _DIM_IGNORE). Catches real losses like dropped
+                # `bounds` polygon var references.
+                if exp.dims_meta_ok
+                    @test _dim_metadata_match(orig, reloaded)
+                else
                     @test_broken _dim_metadata_match(orig, reloaded)
                 end
                 # Every CF reference attribute (bounds, climatology,
@@ -1125,10 +1172,23 @@ end
                 # silent gaps where the writer preserves the attribute string
                 # but never writes the referenced variable.
                 dangling = _dangling_refs(outpath)
-                if exp.refs_ok
+                if exp.data_ok
                     @test isempty(dangling)
                 else
                     @test_broken isempty(dangling)
+                end
+                # Refdims (CF 5.7 scalar coordinate variables) - names + values.
+                if exp.refdims_ok
+                    @test _refdims_match(orig, reloaded)
+                else
+                    @test_broken _refdims_match(orig, reloaded)
+                end
+                # Refdim attribs round-trip - catches the old read-side bug
+                # where the parent layer's attrs ended up on the refdim.
+                if exp.refdims_meta_ok
+                    @test _refdims_metadata_match(orig, reloaded)
+                else
+                    @test_broken _refdims_metadata_match(orig, reloaded)
                 end
             end
         end

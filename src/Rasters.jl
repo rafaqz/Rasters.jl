@@ -121,9 +121,7 @@ const RasterSeriesOrStack = Union{AbstractRasterSeries,AbstractRasterStack}
 include("utils.jl")
 include("skipmissing.jl")
 
-include("geometry_lookup/geometry_lookup.jl")
-include("geometry_lookup/methods.jl")
-include("geometry_lookup/io.jl")
+include("geometry_lookup.jl")
 
 include("table_ops.jl")
 include("create.jl")
@@ -142,6 +140,7 @@ include("methods/burning/polygon.jl")
 include("methods/burning/extents.jl")
 include("methods/burning/utils.jl")
 
+include("methods/spatial_slice.jl")
 include("methods/mask.jl")
 include("methods/rasterize.jl")
 include("methods/aggregate.jl")

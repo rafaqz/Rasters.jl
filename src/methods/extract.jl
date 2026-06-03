@@ -170,7 +170,10 @@ Base.@constprop :aggressive @inline function extract(x::RasterStackOrArray, data
         gs = _get_geometries(data, geometrycolumn)
         gs, (isempty(gs) || all(ismissing, gs)) ? missing : first(Base.skipmissing(gs))
     end
-    # Taken from zonal.jl and _mapspatialslices there.
+    # Branch on whether `x` has dims beyond X/Y - if not, we extract scalars
+    # per geometry; otherwise we slice through the extra dims and return a
+    # vector data cube. The slice helpers are shared with `zonal`, see
+    # `methods/spatial_slice.jl`.
     spatialdims = (Val{DD.XDim}(), Val{DD.YDim}())
     dimswewant = DD.otherdims(x, spatialdims)
 
@@ -178,10 +181,9 @@ Base.@constprop :aggressive @inline function extract(x::RasterStackOrArray, data
         e = Extractor(x, g1; name, skipmissing, flatten, id, geometry, index)
         id_init = 1
         return _extract(x, e, id_init, g; kw...)
-    else # the raster has other dims than spatial dims, so we need to slice through them 
+    else # the raster has other dims than spatial dims, so we need to slice through them
         # and return...that's right...a VECTOR DATA CUBE!
-        # Taken from zonal.jl and _mapspatialslices there.
-        # just get the first index of the "other" dims.  
+        # Just get the first index of the "other" dims.
         # This assumes they are nonzero in length but that seems reasonable, for now.
         slicedims = rebuild.(dims(x, dimswewant), 1)
         ras_for_extractor_construction = view(x, slicedims...)

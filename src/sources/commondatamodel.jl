@@ -2,8 +2,16 @@ const CDM = CommonDataModel
 
 const CDMallowedType = Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Float32,Float64,Char,String}
 
+# All accepted CF spellings of latitude/longitude `units` for read-side
+# matching. Write code uses the canonical first entry.
 const CF_DEGREES_NORTH = ("degrees_north", "degree_north", "degree_N", "degrees_N", "degreeN", "degreesN")
 const CF_DEGREES_EAST = ("degrees_east", "degree_east", "degree_E", "degrees_E", "degreeE", "degreesE")
+
+# Canonical CF spellings used on the write side. `CF_DEG_N == first(CF_DEGREES_NORTH)`.
+const CF_DEG_N = "degrees_north"
+const CF_DEG_E = "degrees_east"
+const CF_LATITUDE = "latitude"
+const CF_LONGITUDE = "longitude"
 
 const UNNAMED_FILE_KEY = "unnamed"
 
@@ -200,70 +208,86 @@ function _layer_names(ds)
     return _layer_names(ds, names, Dict{String,Any}(), Dict{String,Any}())
 end
 function _layer_names(ds, var_names, vars_dict, attrs_dict)
-    # Keep everything separate for clarity
-    bounds_names = String[]
-    geometry_names = String[]
-    grid_mapping_names = String[]
-    coordinate_names = String[]
-    units_metadata_names = String[]
-    quantization_names = String[]
-    climatology_names = String[]
-    # Sometimes coordinates are not included in var attributes
-    # So we check standard names to know vars are lookups and not data
-    standard_names = String[]
+    # Walk every var and collect every referenced non-layer name into one set.
+    # `var_names \ non_layer` then leaves only the actual data layers.
+    #
+    # UGRID `node_coordinates` (CF 5.21 mesh topology) are intentionally
+    # not filtered: they're 1D coord vars the writer needs to put back. They
+    # surface as layers and the mesh's `node_coordinates` attribute references
+    # them correctly downstream.
+    non_layer = Set{String}(CDM.dimnames(ds))
     for n in var_names
-        var = _get_var!(vars_dict, ds, n)
         attr = _get_attr!(attrs_dict, vars_dict, ds, n)
-        # Coordinate variables. UGRID `node_coordinates` (CF 5.21 mesh
-        # topology) are not filtered here on purpose: they are 1D coord vars
-        # the writer needs to put back. They surface as layers, which the
-        # mesh's `node_coordinates` attribute then references correctly.
-        haskey(attr, "coordinates") && append!(coordinate_names, collect(_cdm_coordinates(attr)))
-        # Bounds variables
-        haskey(attr, "bounds") && push!(bounds_names, attr["bounds"])
-        # Quantization variables (8.4.2)
-        haskey(attr, "quantization") && push!(quantization_names, attr["quantization"])
-        # Climatology variables (7.4)
-        haskey(attr, "climatology") && push!(climatology_names, attr["climatology"])
-        # Geometry variables (7.5)
-        if haskey(attr, "geometry") 
-            geometry_container_name = attr["geometry"]
-            push!(geometry_names, geometry_container_name)
-            geometry_attr = _get_attr!(attrs_dict, vars_dict, ds, geometry_container_name)
-            haskey(geometry_attr, "node_coordinates") && push!(geometry_names, _cf_node_coordinate_names(geometry_attr)...)
-            haskey(geometry_attr, "node_count") && push!(geometry_names, geometry_attr["node_count"])
-            haskey(geometry_attr, "part_node_count") && push!(geometry_names, geometry_attr["part_node_count"])
-            haskey(geometry_attr, "interior_ring") && push!(geometry_names, geometry_attr["interior_ring"])
-        end
-        # Grid mapping variables - there may be multiple
-        haskey(attr, "grid_mapping") && append!(grid_mapping_names, _grid_mapping_keys(attr["grid_mapping"]))
-        # Units metadata variables
-        haskey(attr, "units_metadata") && push!(units_metadata_names, attr["units_metadata"])
-        # Common Standard names - very likely coordinates, but is this needed?
-        # haskey(attr, "standard_name") && attr["standard_name"] in keys(CDM_STANDARD_NAME_MAP) && 
-            # push!(standard_names, n)
+        # Single-string CF references: push the value if present.
+        _push_attr_ref!(non_layer, attr, "bounds")
+        _push_attr_ref!(non_layer, attr, "quantization")      # CF 8.4.2
+        _push_attr_ref!(non_layer, attr, "climatology")       # CF 7.4
+        _push_attr_ref!(non_layer, attr, "units_metadata")
+        # Space-separated multi-name refs.
+        haskey(attr, "coordinates") && union!(non_layer, _cf_coordinates(attr))
+        haskey(attr, "grid_mapping") && union!(non_layer, _grid_mapping_keys(attr["grid_mapping"]))
+        # CF 7.5 geometry container references multiple sub-vars.
+        _collect_geometry_var_names!(non_layer, attr, attrs_dict, vars_dict, ds)
     end
-    dim_names = CDM.dimnames(ds)
-    return setdiff(var_names,
-        dim_names,
-        bounds_names,
-        quantization_names,
-        climatology_names,
-        geometry_names,
-        grid_mapping_names,
-        coordinate_names,
-        units_metadata_names,
-        standard_names
-    )
+    return setdiff(var_names, non_layer)
 end
 
-_cdm_coordinates(attr) = 
-    haskey(attr, "coordinates") ? _split_attribute(attr["coordinates"]) : String[]
-_cdm_node_coordinates(attr) =
-    haskey(attr, "node_coordinates") ? _split_attribute(attr["node_coordinates"]) : String[]
+# Push a single-string CF reference attribute into a names collection.
+_push_attr_ref!(names, attr, key) = haskey(attr, key) && push!(names, attr[key])
 
-_split_attribute(attrib) = 
+_cf_coordinates(attr) =
+    haskey(attr, "coordinates") ? _split_attribute(attr["coordinates"]) : String[]
+
+_split_attribute(attrib) =
     isempty(attrib) ? String[] : String.(split(attrib, ' '))
+
+# Walk a layer's CF `geometry` attribute and push every variable the geometry
+# container references so the caller can filter them out of the layer list.
+# `names` may be any collection that supports `push!` and `union!`.
+function _collect_geometry_var_names!(names, attr, attrs_dict, vars_dict, ds)
+    haskey(attr, "geometry") || return names
+    geometry_container_name = attr["geometry"]
+    push!(names, geometry_container_name)
+    geometry_attr = _get_attr!(attrs_dict, vars_dict, ds, geometry_container_name)
+    haskey(geometry_attr, "node_coordinates") &&
+        union!(names, _cf_node_coordinate_names(geometry_attr))
+    for key in ("node_count", "part_node_count", "interior_ring")
+        haskey(geometry_attr, key) && push!(names, geometry_attr[key])
+    end
+    return names
+end
+
+# Pop an optional CF reference attribute (a single string value pointing at a
+# named variable) from an attrib dict and return it, or `nothing` if missing.
+# Used for `geometry` and `grid_mapping`, which the layer attribs should not
+# round-trip as plain attributes - they're resolved into dims / refdims / crs.
+_pop_optional(attr, key) = haskey(attr, key) ? pop!(attr, key) : nothing
+
+# CF 5.7: a layer's `coordinates` attribute may reference scalar coord vars
+# (0-dimensional). Each becomes a refdim on the parent layer - DD refdims
+# and CF scalar coord vars mean the same thing, so the refdim must round-trip
+# with the coord var's own attrs.
+#
+# When the same coord name is also a dim name in the file (CF 7.12 has a
+# length-1 `time` dim whose only coord is the 0-dim `time` var carrying the
+# climatology bounds), the dim takes precedence - the value is already on
+# the dim's lookup and we'd otherwise create a second same-typed dim as a
+# refdim.
+function _process_scalar_refdims!(refdim_dict, dim_dict, ds, vars_dict, attrs_dict, coord_names)
+    for coord_name in coord_names
+        haskey(refdim_dict, coord_name) && continue
+        haskey(dim_dict, coord_name) && continue
+        coord_var = _get_var!(vars_dict, ds, coord_name)
+        ndims(coord_var) == 0 || continue
+        coord_attr = _get_attr!(attrs_dict, vars_dict, ds, coord_name)
+        data = reshape(collect(coord_var), 1)
+        D = _cdm_dimtype(coord_attr, coord_name)
+        metadata = _metadatadict(sourcetrait(ds), coord_attr)
+        lookup = _cdm_lookup(data, ds, coord_var, coord_attr, coord_name, D, metadata, nothing)
+        refdim_dict[coord_name] = D(lookup)
+    end
+    return refdim_dict
+end
 
 #= Here we convert the surface of the CF standard that we support 
 into DimensionalData.jl objects
@@ -272,7 +296,7 @@ Unhandled
 - flag values 3.5 (ignored, raw data used - could use CategoricalArrays here?)
 - parametric vertical coordinates 4.3.3 (ignored)
 =# 
-function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
+function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw; verbose=true)
     # Start with the names of all variables
     var_names = keys(ds)
     # Define vars and attrs dicts so these are only loaded once
@@ -312,22 +336,18 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
             layer_dimnames_vec[i] = dimnames = CDM.dimnames(var)
         end
         # Get its coordinates
-        coord_names = _cdm_coordinates(attr)
+        coord_names = _cf_coordinates(attr)
         # Remove coordinates from metadata
         if haskey(attr, "coordinates")
             delete!(attr, "coordinates")
         end
-        # Check for a geometry variable (CF 7.5)
-        geometry_key = if haskey(attr, "geometry")
-            pop!(attr, "geometry")
-        end
-        # Check for a grid mapping variable
-        if haskey(attr, "grid_mapping")
-            grid_mapping_key = pop!(attr, "grid_mapping")
-            crs = get!(() -> _cf_crs(ds, grid_mapping_key), crs_dict, grid_mapping_key)
-        else
-            crs = grid_mapping_key = nothing
-        end
+        # Resolve CF reference attributes (7.5 geometry, grid_mapping). Both
+        # are popped from `attr` so they don't survive as plain attributes -
+        # they round-trip via the dim / refdim / crs we build below.
+        geometry_key = _pop_optional(attr, "geometry")
+        grid_mapping_key = _pop_optional(attr, "grid_mapping")
+        crs = isnothing(grid_mapping_key) ? nothing :
+            get!(() -> _cf_crs(ds, grid_mapping_key), crs_dict, grid_mapping_key)
         if eltype(var) <: Char && ndims(var) > 1
             # Remove the char dimension
             layer_dimnames_vec[i] = dimnames = dimnames[2:end]
@@ -347,20 +367,8 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
                 )
             end
         end
-        # Find scalar coordinates to use as refdims (5.7)
-        for coord_name in coord_names
-            haskey(refdim_dict, coord_name) && continue
-            coord_var = _get_var!(vars_dict, ds, coord_name)
-            if ndims(coord_var) == 0
-                coord_attr = _get_attr!(attrs_dict, vars_dict, ds, coord_name)
-                data = reshape(collect(coord_var), 1)
-                D = _cdm_dimtype(coord_attr, coord_name)
-                metadata = _metadatadict(sourcetrait(ds), attr)
-                lookup = _cdm_lookup(data, ds, coord_var, coord_attr, coord_name, D, metadata, nothing)
-                refdim = D(lookup)
-                refdim_dict[coord_name] = refdim
-            end
-        end
+        # Find scalar coordinates to use as refdims (CF 5.7).
+        _process_scalar_refdims!(refdim_dict, dim_dict, ds, vars_dict, attrs_dict, coord_names)
 
         # Format dimensions
         unformatted_dims = map(dimnames) do dimname
@@ -386,17 +394,47 @@ function _organise_dataset(ds::AbstractDataset, names=nokw, group::NoKW=nokw)
         end
     end
 
-    return (; 
-        names_vec=layer_names[used_layers], 
-        layers_vec=output_layers_vec[used_layers], 
-        layerdims_vec=output_layerdims_vec[used_layers], 
-        layermetadata_vec=output_attrs_vec[used_layers], 
+    # If we inferred EPSG:4326 from `degrees_north`/`degrees_east` units on
+    # one or more X/Y dims AND no `grid_mapping` was declared on disk, warn
+    # once - CF has no default CRS (the spec says the user must determine
+    # the implied CRS from context outside CF), so this is our assumption,
+    # not the file's. Silenceable with `verbose=false`.
+    verbose && _warn_inferred_crs(dim_dict, crs_dict)
+    return (;
+        names_vec=layer_names[used_layers],
+        layers_vec=output_layers_vec[used_layers],
+        layerdims_vec=output_layerdims_vec[used_layers],
+        layermetadata_vec=output_attrs_vec[used_layers],
         dim_dict,
         refdim_dict,
     )
 end
-_organise_dataset(ds::AbstractDataset, names, group) =
-    _organise_dataset(ds.group[group], names, nokw)
+_organise_dataset(ds::AbstractDataset, names, group; kw...) =
+    _organise_dataset(ds.group[group], names, nokw; kw...)
+
+# Warn once per file if any X/Y dim's lookup carries an inferred WGS84 that
+# came from the `units` attribute rather than from a declared grid_mapping.
+# `crs_dict` is non-empty iff at least one layer had a `grid_mapping`
+# attribute on disk.
+function _warn_inferred_crs(dim_dict, crs_dict)
+    isempty(crs_dict) || return nothing
+    inferred = false
+    for d in values(dim_dict)
+        l = lookup(d)
+        if l isa Mapped && (d isa XDim || d isa YDim) && crs(l) == EPSG(4326)
+            inferred = true
+            break
+        end
+    end
+    inferred || return nothing
+    @warn """
+    No `grid_mapping` was declared on disk; assuming EPSG:4326 because one or more X/Y dims
+    have `units=degrees_north`/`degrees_east`. CF has no default CRS, so this is Rasters'
+    interpretation - it is usually correct for modern lat/lon data but may be wrong for legacy
+    datasets in other geographic datums (NAD27, Bessel, etc.). Pass `verbose=false` to silence.
+    """
+    return nothing
+end
 
 # Simple version for reading dimensions from a single variable (not full dataset analysis)
 function _cdm_dim(ds, dimname, crs, mappedcrs)
@@ -412,9 +450,15 @@ function _cdm_dim(ds, dimname, crs, mappedcrs)
 end
 
 function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_name, coord_names, dimname, crs, mappedcrs, grid_mapping_key)
-    # First check for geometry dimensions (remove most complicted first)
+    # First check for geometry dimensions (most complicated first). CF (7.5)
+    # geometry container is cached per-dataset in `geometry_dict` so multiple
+    # layers sharing a geometry only decode once.
     if is_geometry(ds, vars_dict, attrs_dict, geometry_key, dimname)
-        return _geometry_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, crs)
+        geometry_attrs = _get_attr!(attrs_dict, vars_dict, ds, geometry_key)
+        geoms = get!(geometry_dict, geometry_key) do
+            _cf_geometry_decode(ds, geometry_attrs)
+        end
+        return Geometry(GeometryLookup(geoms, (X(), Y()); crs))
     end
 
     # Then get all the coordinates for this dimension
@@ -452,10 +496,10 @@ function _cdm_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, var_na
             end
             if is_multidimensional(ds, vars_dict, dimension_coord_names)
                 if is_rotated_longitude_latitude(ds, vars_dict, attrs_dict, dimname, grid_mapping_key)
-                    r = _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs, mappedcrs)
+                    r = _rotated_longitude_latitude_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs, mappedcrs)
                     return r
-                elseif is_unalligned(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, grid_mapping_key)
-                    u = _unalligned_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs, mappedcrs)
+                elseif is_unaligned(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, grid_mapping_key)
+                    u = _unaligned_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs, mappedcrs)
                     return u
                 else
                     return _standard_dim(ds, vars_dict, attrs_dict, dimname, crs)
@@ -518,12 +562,22 @@ function is_rotated_longitude_latitude(ds, vars_dict, attrs_dict, dimname, grid_
     end
     return false
 end
-function is_unalligned(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, grid_mapping_key)
-    units = map(dimension_coord_names) do coord_name
-        coord_attrs = _get_attr!(attrs_dict, vars_dict, ds, coord_name)
-        get(coord_attrs, "units", "")
+function is_unaligned(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, grid_mapping_key)
+    roles = map(dimension_coord_names) do coord_name
+        _cf_aux_role(_get_attr!(attrs_dict, vars_dict, ds, coord_name))
     end
-    return "degrees_north" in units && "degrees_east" in units
+    return (:lat in roles) && (:lon in roles)
+end
+
+# CF role of a coordinate variable, decided from the attribute dict alone.
+# `:lat` / `:lon` / `:none`. Used by both the unaligned detection (read side
+# of `is_unaligned`) and the unaligned lookup builder.
+function _cf_aux_role(coord_attrs)
+    units = get(coord_attrs, "units", "")
+    std = get(coord_attrs, "standard_name", "")
+    ((units in CF_DEGREES_NORTH) || std == "latitude") && return :lat
+    ((units in CF_DEGREES_EAST) || std == "longitude") && return :lon
+    return :none
 end
 # Dimension categorisation
 is_char_categorical(dim_var) = ndims(dim_var) > 1 && eltype(dim_var) <: Char
@@ -547,29 +601,29 @@ function is_geometry(ds, vars_dict, attrs_dict, geometry_key, dimname)
     end
 end
 
-# Check if 2D coordinate variables have polygon bounds (CF 7.2)
+# Look up a coord var's CF `bounds` variable. Returns `nothing` if the
+# coord has no `bounds` attribute or the referenced var doesn't exist.
+function _coord_bounds_var(ds, vars_dict, attrs_dict, coord_name)
+    coord_attrs = _get_attr!(attrs_dict, vars_dict, ds, coord_name)
+    haskey(coord_attrs, "bounds") || return nothing
+    bounds_name = coord_attrs["bounds"]
+    haskey(ds, bounds_name) || return nothing
+    return _get_var!(vars_dict, ds, bounds_name)
+end
+
+# Check if 2D coordinate variables have polygon bounds (CF 7.2). True if any
+# coord carries a bounds matrix whose vertex dim has ≥3 entries.
 function has_polygon_bounds(ds, vars_dict, attrs_dict, dimension_coord_names)
     for coord_name in dimension_coord_names
-        coord_attrs = _get_attr!(attrs_dict, vars_dict, ds, coord_name)
-        if haskey(coord_attrs, "bounds")
-            bounds_name = coord_attrs["bounds"]
-            if haskey(ds, bounds_name)
-                bounds_var = _get_var!(vars_dict, ds, bounds_name)
-                bounds_dimnames = CDM.dimnames(bounds_var)
-                # Bounds should have 3 dims: the coordinate dims plus a vertex dim
-                # with at least 3 vertices for polygons
-                if length(bounds_dimnames) >= 3
-                    # Find the vertex dimension (not in coordinate dimnames)
-                    coord_var = _get_var!(vars_dict, ds, coord_name)
-                    coord_dimnames = CDM.dimnames(coord_var)
-                    vertex_dim = first(filter(d -> d ∉ coord_dimnames, bounds_dimnames))
-                    nv = CDM.dim(ds, vertex_dim)
-                    if nv >= 3
-                        return true
-                    end
-                end
-            end
-        end
+        bounds_var = _coord_bounds_var(ds, vars_dict, attrs_dict, coord_name)
+        isnothing(bounds_var) && continue
+        bounds_dimnames = CDM.dimnames(bounds_var)
+        # Bounds should have ≥3 dims: the coordinate dims plus a vertex dim.
+        length(bounds_dimnames) >= 3 || continue
+        coord_var = _get_var!(vars_dict, ds, coord_name)
+        coord_dimnames = CDM.dimnames(coord_var)
+        vertex_dim = first(filter(d -> d ∉ coord_dimnames, bounds_dimnames))
+        CDM.dim(ds, vertex_dim) >= 3 && return true
     end
     return false
 end
@@ -624,16 +678,6 @@ function _discrete_axis_dim(ds, dimname)
     len = CDM.dim(ds, dimname)
     lookup = NoLookup(Base.OneTo(len))
     D = _cdm_dimtype(NoMetadata(), dimname)
-    return D(lookup)
-end
-
-function _geometry_dim(ds, vars_dict, attrs_dict, geometry_dict, geometry_key, crs)
-    geometry_attrs = _get_attr!(attrs_dict, vars_dict, ds, geometry_key)
-    geoms = get!(geometry_dict, geometry_key) do
-        _cf_geometry_decode(ds, geometry_attrs)
-    end
-    lookup = GeometryLookup(geoms, (X(), Y()); crs)
-    D = Geometry
     return D(lookup)
 end
 
@@ -718,7 +762,7 @@ function _char_categorical_merged_dim(ds, vars_dict, attrs_dict, dimension_coord
 end
 
 # Must have "standard_name" in dimension attributes
-function _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs, mappedcrs=nothing)
+function _rotated_longitude_latitude_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs, mappedcrs=nothing)
     standard_name = _get_attr!(attrs_dict, vars_dict, ds, dimname)["standard_name"]
     D = if standard_name == "grid_latitude"
         Y
@@ -731,7 +775,7 @@ function _rotated_longitude_latudtude_dim(ds, vars_dict, attrs_dict, dimension_c
     return D(lookup)
 end
 # Must have "degrees_north" and "degrees_east" in coordinate units
-function _unalligned_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs, mappedcrs=nothing)
+function _unaligned_dim(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, crs, mappedcrs=nothing)
     # dimname may be just a dimension without a corresponding variable
     dim_attrs = haskey(ds, dimname) ? _get_attr!(attrs_dict, vars_dict, ds, dimname) : NoMetadata()
     D = _cdm_dimtype(dim_attrs, dimname)
@@ -741,18 +785,11 @@ end
 
 function _unaligned_lookup(ds, vars_dict, attrs_dict, dimension_coord_names, dimname, D, crs, mappedcrs=nothing)
     # Identify the lat / lon aux coord vars by CF metadata, not by name.
-    # `units = "degrees_east"` (or `standard_name = "longitude"`) -> lon;
-    # `units = "degrees_north"` (or `standard_name = "latitude"`)  -> lat.
     lon_key = lat_key = ""
     for coord_name in dimension_coord_names
-        coord_attrs = _get_attr!(attrs_dict, vars_dict, ds, coord_name)
-        units = get(coord_attrs, "units", nothing)
-        std = get(coord_attrs, "standard_name", nothing)
-        if units == "degrees_north" || std == "latitude"
-            lat_key = coord_name
-        elseif units == "degrees_east" || std == "longitude"
-            lon_key = coord_name
-        end
+        role = _cf_aux_role(_get_attr!(attrs_dict, vars_dict, ds, coord_name))
+        role === :lat && (lat_key = coord_name)
+        role === :lon && (lon_key = coord_name)
     end
     lat_metadata, lon_metadata = map((lat_key, lon_key)) do key
         _metadatadict(sourcetrait(ds), _get_attr!(attrs_dict, vars_dict, ds, key))
@@ -861,11 +898,15 @@ function _cdm_lookup(ds::AbstractDataset, attr, dimname, D::Type, crs)
     metadata = _metadatadict(sourcetrait(ds), attr)
     _cdm_lookup(data, ds, var, attr, dimname, D, metadata, crs)
 end
-function _cdm_lookup(data::AbstractVector{<:Union{AbstractString,Char}}, ds::AbstractDataset, var, attr, dimname, D::Type, metadata, crs)
-    Categorical(data; order=Unordered(), metadata=metadata)
-end
-function _cdm_lookup(data::AbstractMatrix{Char}, ds::AbstractDataset, var, attr, dimname, D::Type, metadata, crs)
-    Categorical(_cf_chars_to_string.(eachslice(data; dims=2)); order=Unordered(), metadata=metadata)
+# Categorical dim coord. String/Char vectors are used as-is; CF stores
+# variable-length strings as `Matrix{Char}` with one column per string, which
+# we collapse back to a vector of `String` here.
+function _cdm_lookup(
+    data::Union{AbstractVector{<:Union{AbstractString,Char}},AbstractMatrix{Char}},
+    ds::AbstractDataset, var, attr, dimname, D::Type, metadata, crs,
+)
+    strings = data isa AbstractMatrix{Char} ? _cf_chars_to_string.(eachslice(data; dims=2)) : data
+    return Categorical(strings; order=Unordered(), metadata=metadata)
 end
 # For Number and AbstractTime we generate order/span/sampling
 # We need to include `Missing` in unions in case `_FillValue` is used
@@ -913,30 +954,26 @@ function _cdm_lookup(
     end
     return _cdm_lookup(data, D, order, span, sampling, metadata, crs)
 end
-# For X and Y use a Mapped <: AbstractSampled lookup
-function _cdm_lookup(
-    data, D::Type{<:Union{<:XDim,<:YDim}}, order::Order, span, sampling, metadata, crs; dims=nothing
-)
-    # If units are degrees north/east, use EPSG:4326 as the mapped crs
+# Per-dim final dispatch. Multi-dispatch (not if/elseif) so downstream code
+# can specialise on a new XDim/YDim subtype.
+#
+#   X / Y -> Mapped (with CRS handling)
+#   Band  -> Categorical (per GDAL convention, not CF)
+#   else  -> Sampled
+function _cdm_lookup(data, D::Type{<:Union{<:XDim,<:YDim}}, order::Order, span, sampling, metadata, crs)
     units = get(metadata, "units", "")
-    mappedcrs = if (units in CF_DEGREES_NORTH || units in CF_DEGREES_EAST)
-        EPSG(4326)
-    end
-    # Additionally, crs and mappedcrs should be identical for Regular lookups
+    mappedcrs = (units in CF_DEGREES_NORTH || units in CF_DEGREES_EAST) ? EPSG(4326) : nothing
+    # crs and mappedcrs should match for Regular lookups
     if isnokwornothing(crs) && span isa Regular
         crs = mappedcrs
     end
-    dim = DD.basetypeof(D)()
-    return Mapped(data; order, span, sampling, metadata, crs, mappedcrs, dim, dims)
+    return Mapped(data; order, span, sampling, metadata, crs, mappedcrs, dim=DD.basetypeof(D)())
 end
-# Band dims have a Categorical lookup, with order
-# This is not CF, just for consistency with GDAL
 function _cdm_lookup(data, D::Type{<:Band}, order::Order, span, sampling, metadata, crs)
-    Categorical(data, order, metadata)
+    return Categorical(data, order, metadata)
 end
-# Otherwise use a Sampled lookup
 function _cdm_lookup(data, D::Type, order::Order, span, sampling, metadata, crs)
-    Sampled(data, order, span, sampling, metadata)
+    return Sampled(data, order, span, sampling, metadata)
 end
 
 function _cdm_span(data, order)
@@ -1108,14 +1145,20 @@ end
 
 function _maybe_write_domain!(ds::AbstractDataset, source::CDMsource, s::AbstractRasterStack, stack_aux)
     stack_dims = dims(s)
-    isempty(stack_dims) && return nothing
+    stack_refdims = refdims(s)
+    # Nothing to emit if there are no dims AND no refdims.
+    isempty(stack_dims) && isempty(stack_refdims) && return nothing
     layer_keys = keys(s)
     covered_names = if isempty(layer_keys)
         Set{Symbol}()
     else
         Set(DD.name(d) for k in layer_keys for d in dims(s[k]))
     end
-    needs_domain = isempty(layer_keys) || any(d -> !(DD.name(d) in covered_names), stack_dims)
+    # A domain marker is needed for layerless stacks OR when some stack dim
+    # has no covering layer OR when there are stack refdims with no layers
+    # to attach them to.
+    needs_domain = isempty(layer_keys) || any(d -> !(DD.name(d) in covered_names), stack_dims) ||
+        (!isempty(stack_refdims) && isempty(layer_keys))
     needs_domain || return nothing
 
     haskey(ds, "domain") && return nothing
@@ -1134,6 +1177,10 @@ function _maybe_write_domain!(ds::AbstractDataset, source::CDMsource, s::Abstrac
             append!(aux_flat, r)
         end
     end
+    # Scalar coordinate vars (CF 5.7) for the stack's refdims. Always emit -
+    # the domain marker is the only thing that can carry them on a layerless
+    # stack (e.g. CF 5.18).
+    append!(aux_flat, _def_refdim_vars!(ds, stack_refdims))
     isempty(aux_flat) || (attrib["coordinates"] = join(unique(aux_flat), " "))
     grid_mapping_name = _def_grid_mapping!(ds, s)
     isnothing(grid_mapping_name) || (attrib["grid_mapping"] = grid_mapping_name)
@@ -1177,6 +1224,9 @@ function writevar!(ds::AbstractDataset, source::CDMsource, A::AbstractRaster{T,N
             append!(aux_coord_names, r)
         end
     end
+    # CF 5.7 scalar coordinate variables (Rasters refdims). Emitted as 0-dim
+    # vars and listed in the layer's `coordinates` attr alongside aux coords.
+    append!(aux_coord_names, _def_refdim_vars!(ds, refdims(A)))
     metadata = if isnokw(metadata) 
         DD.metadata(A)
     elseif isnothing(metadata)
@@ -1266,6 +1316,35 @@ function _def_dim_var!(ds::AbstractDataset, A)
     # a stack are visited once per layer.
     return map(d -> _def_lookup_var!(ds, d, _cf_name(d), alldims), alldims)
 end
+
+# Define a 0-dim CF scalar coordinate variable (CF 5.7) for one refdim. The
+# coord var name comes from the refdim, the value from the lookup (refdim
+# lookups always carry exactly one value), and the attribs from the lookup's
+# own metadata - which the reader populates from the on-disk scalar coord
+# var. Idempotent across layers in a stack (guards against name collision
+# with both vars and dims). Returns the coord var name, or nothing.
+function _def_refdim_var!(ds::AbstractDataset, refdim::Dimension)
+    name = _cf_name(refdim)
+    haskey(ds, name) && return nothing
+    haskey(ds.dim, name) && return nothing
+    l = lookup(refdim)
+    isempty(l) && return nothing
+    attrib = _attribdict(metadata(l))
+    CDM.defVar(ds, name, fill(first(l)), (); attrib)
+    return name
+end
+
+# Emit all refdims as scalar coord vars and return the names that were
+# written. Names get listed in the layer's `coordinates` attribute (which
+# is what triggers the loader to pick them up as refdims).
+function _def_refdim_vars!(ds::AbstractDataset, refdims_tuple)
+    names = String[]
+    for rd in refdims_tuple
+        n = _def_refdim_var!(ds, rd)
+        isnothing(n) || push!(names, n)
+    end
+    return names
+end
 _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:AbstractNoLookup}, dimname, alldims=()) = nothing
 # Generic fallback for unhandled array-shaped lookups
 _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:LA.AbstractArrayLookup}, dimname, alldims=()) = nothing
@@ -1305,29 +1384,25 @@ function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:ProjectedArrayLo
     else
         x_dimname, y_dimname = _cf_name(x_dim), _cf_name(y_dim)
     end
-    aux_var_name = _aux_role(l) === :lon ? "lon" : "lat"
-    paired_var_name = aux_var_name == "lon" ? "lat" : "lon"
-    # Write the primary
-    if !haskey(ds, aux_var_name)
-        # `l.dims` is set to (Lat, Lon) by the loader, but the NearestNeighbors
-        # extension's `format_unaligned` rebuilds it as basedims(dims) -
-        # (X{Colon}, Y{Colon}) with no lookup attached - so metadata may be
-        # unavailable here. Fall back to an empty attribute dict in that case.
-        primary_md_dim = aux_var_name == "lon" ? l.dims[2] : l.dims[1]
-        attr = _aux_attrib(primary_md_dim)
-        get!(attr, "standard_name", aux_var_name == "lon" ? "longitude" : "latitude")
-        get!(attr, "units", aux_var_name == "lon" ? "degrees_east" : "degrees_north")
-        CDM.defVar(ds, aux_var_name, l.matrix, (x_dimname, y_dimname); attrib=attr)
-    end
-    # Write the paired matrix if the lookup carries it and it isn't on disk.
-    if !isnothing(l.paired_matrix) && !haskey(ds, paired_var_name)
-        paired_md_dim = paired_var_name == "lon" ? l.dims[2] : l.dims[1]
-        attr = _aux_attrib(paired_md_dim)
-        get!(attr, "standard_name", paired_var_name == "lon" ? "longitude" : "latitude")
-        get!(attr, "units", paired_var_name == "lon" ? "degrees_east" : "degrees_north")
-        CDM.defVar(ds, paired_var_name, l.paired_matrix, (x_dimname, y_dimname); attrib=attr)
-    end
-    return isnothing(l.paired_matrix) ? aux_var_name : [aux_var_name, paired_var_name]
+    primary_role = _aux_role(l)
+    primary_name = _write_aux_coord!(ds, l, primary_role, l.matrix, (x_dimname, y_dimname))
+    isnothing(l.paired_matrix) && return primary_name
+    paired_role = primary_role === :lon ? :lat : :lon
+    paired_name = _write_aux_coord!(ds, l, paired_role, l.paired_matrix, (x_dimname, y_dimname))
+    return [primary_name, paired_name]
+end
+
+# Write one CF auxiliary coordinate variable for a ProjectedArrayLookup matrix.
+# Idempotent: if a var with the role name already exists, returns the name and
+# does not rewrite.
+function _write_aux_coord!(ds, l::ProjectedArrayLookup, role::Symbol, matrix, dimnames)
+    name, std_name, units = _aux_role_strings(role)
+    haskey(ds, name) && return name
+    attr = _aux_attrib(_aux_md_dim(l, role))
+    get!(attr, "standard_name", std_name)
+    get!(attr, "units", units)
+    CDM.defVar(ds, name, matrix, dimnames; attrib=attr)
+    return name
 end
 
 # CF aux-coord role for a ProjectedArrayLookup. Reads the `aux_name` field
@@ -1336,6 +1411,15 @@ end
 _aux_role(l::ProjectedArrayLookup) = l.aux_name === :auto ? _aux_role_from_dim(l.dim) : l.aux_name
 _aux_role_from_dim(::XDim) = :lon
 _aux_role_from_dim(::Any) = :lat
+
+# CF write-side strings for an aux-coord role. Centralises the spelling used
+# in `standard_name`, `units`, and the on-disk variable name.
+_aux_role_strings(role::Symbol) = role === :lon ?
+    ("lon", CF_LONGITUDE, CF_DEG_E) :
+    ("lat", CF_LATITUDE, CF_DEG_N)
+
+# l.dims is set to (Lat, Lon) by the loader. Index in by role.
+_aux_md_dim(l::ProjectedArrayLookup, role::Symbol) = role === :lon ? l.dims[2] : l.dims[1]
 
 # Pull attrib dict from an inner aux-coord dim. Inner dims may have been
 # stripped to a bare Colon-valued dim by `format_unaligned`, in which case
@@ -1423,10 +1507,10 @@ function _def_lookup_var!(ds::AbstractDataset, dim::Dimension{<:GeometryLookup},
         CDM.defDim(ds, node_dimname, length(geom.x))
         CDM.defVar(ds, node_count_varname, geom.node_count, (dimname,))
         CDM.defVar(ds, lon_varname, geom.lon, (dimname,); 
-            attrib=["standard_name" => "longitude", "nodes" => coord_names[1]]
+            attrib=["standard_name" => CF_LONGITUDE, "nodes" => coord_names[1]]
         )
         CDM.defVar(ds, lat_varname, geom.lat, (dimname,); 
-            attrib=["standard_name" => "latitude", "nodes" => coord_names[2]]
+            attrib=["standard_name" => CF_LATITUDE, "nodes" => coord_names[2]]
         )
         attrib["node_count"] = node_count_varname
         attrib["coordinates"] = "lat lon"
@@ -1674,8 +1758,8 @@ function _raster(ds::CDM.AbstractDataset;
     scaled, missingval = _raw_check(raw, scaled, missingval, verbose)
     # TODO use a clearer name than filekey
     name1 = filekey(ds, name)
-    (; names_vec, layers_vec, layerdims_vec, layermetadata_vec, dim_dict, refdim_dict) = 
-        _organise_dataset(ds, [string(name1)], group)
+    (; names_vec, layers_vec, layerdims_vec, layermetadata_vec, dim_dict, refdim_dict) =
+        _organise_dataset(ds, [string(name1)], group; verbose)
     var = layers_vec[1]
     # Detect the source from filename
     # Open the dataset and variable specified by `name`, at `group` level if provided
@@ -1711,3 +1795,267 @@ function _raster(ds::CDM.AbstractDataset;
     # Maybe drop a single band dimension
     return _maybe_drop_single_band(raster, dropband, lazy)
 end
+
+# CF (7.5) geometry encode / decode -----------------------------------------
+# Used by `_cdm_dim` (load) and `_def_lookup_var!` for `GeometryLookup`
+# (write). The encoder takes a vector of geometries and returns the CF named
+# arrays. The decoder takes the dataset and the geometry-container attrib dict
+# and returns a vector of geometries.
+
+_cf_geometry_encode(geoms) = _cf_geometry_encode(GI.trait(first(geoms)), geoms)
+_cf_geometry_encode(trait::GI.AbstractTrait, geoms) =
+    throw(ArgumentError("Geometry trait $trait not currently handled by Rasters"))
+function _cf_geometry_encode(::Union{GI.PointTrait,GI.MultiPointTrait}, geoms)
+    if all(x -> GI.trait(x) isa GI.PointTrait, geoms)
+        return (;
+            geometry_type="point",
+            x=GI.x.(geoms),
+            y=GI.y.(geoms),
+        )
+    end
+    # Otherwise there are some multipoints mixed in.
+    flat_xs, flat_ys = _flatten_points(geoms)
+    centroids = GO.centroid.(geoms)
+    return (;
+        geometry_type="line",
+        x=flat_xs,
+        y=flat_ys,
+        lon=first.(centroids),
+        lat=last.(centroids),
+        node_count=GI.npoint.(geoms),
+    )
+end
+function _cf_geometry_encode(::Union{GI.LineStringTrait,GI.MultiLineStringTrait}, geoms)
+    flat_xs, flat_ys = _flatten_points(geoms)
+    centroids = GO.centroid.(geoms)
+    # Fast path: all LineString, no `part_node_count` needed.
+    if all(x -> GI.trait(x) isa GI.LineStringTrait, geoms)
+        return (;
+            geometry_type="line",
+            x=flat_xs,
+            y=flat_ys,
+            lon=first.(centroids),
+            lat=last.(centroids),
+            node_count=GI.npoint.(geoms),
+        )
+    end
+    return (;
+        geometry_type="line",
+        x=flat_xs,
+        y=flat_ys,
+        lon=first.(centroids),
+        lat=last.(centroids),
+        part_node_count=collect(GO.flatten(GI.npoint, GI.LineStringTrait, geoms)),
+        node_count=GI.npoint.(geoms),
+    )
+end
+
+# Flatten all points in `geoms` into parallel `(xs, ys)` Float64 vectors.
+# `GO.flatten` is order-preserving, so the index `i` is shared across both.
+function _flatten_points(geoms)
+    npoints = sum(GI.npoint, geoms)
+    xs = Vector{Float64}(undef, npoints)
+    ys = Vector{Float64}(undef, npoints)
+    i::Int = 0
+    flattener = GO.flatten(GI.PointTrait, geoms) do point
+        i += 1
+        xs[i] = GI.x(point)
+        ys[i] = GI.y(point)
+    end
+    foreach(identity, flattener)
+    return xs, ys
+end
+function _cf_geometry_encode(::Union{GI.PolygonTrait,GI.MultiPolygonTrait}, geoms)
+    ngeoms = length(geoms)
+    nrings = GO.applyreduce(GI.nring, +, GI.PolygonTrait(), geoms; init=0, threaded=false)
+    n_points_per_geom_vec = GI.npoint.(geoms)
+    total_n_points = sum(n_points_per_geom_vec) - nrings
+
+    xs = fill(0.0, total_n_points)
+    ys = fill(0.0, total_n_points)
+    node_count_vec = fill(0, ngeoms)
+    part_node_count_vec = fill(0, nrings)
+    interior_ring_vec = fill(0, nrings)
+
+    current_xy_index = 1
+    current_ring_index = 1
+    for (i, geom) in enumerate(geoms)
+        this_geom_npoints = GI.npoint(geom)
+        # The last point (== first point) of each linear ring is dropped on
+        # encode, so it isn't part of the node count.
+        node_count_vec[i] = this_geom_npoints - GI.nring(geom)
+        for poly in GO.flatten(GI.PolygonTrait, geom)
+            exterior_ring = GI.getexterior(poly)
+            for point_idx in 1:GI.npoint(exterior_ring)-1
+                point = GI.getpoint(exterior_ring, point_idx)
+                xs[current_xy_index] = GI.x(point)
+                ys[current_xy_index] = GI.y(point)
+                current_xy_index += 1
+            end
+            part_node_count_vec[current_ring_index] = GI.npoint(exterior_ring) - 1
+            interior_ring_vec[current_ring_index] = 0
+            current_ring_index += 1
+            GI.nring(poly) == 1 && continue
+            for hole in GI.gethole(poly)
+                for point_idx in 1:GI.npoint(hole)-1
+                    point = GI.getpoint(hole, point_idx)
+                    xs[current_xy_index] = GI.x(point)
+                    ys[current_xy_index] = GI.y(point)
+                    current_xy_index += 1
+                end
+                part_node_count_vec[current_ring_index] = GI.npoint(hole) - 1
+                interior_ring_vec[current_ring_index] = 1
+                current_ring_index += 1
+            end
+        end
+    end
+    # Centroid `lat`/`lon` representative points are not encoded here.
+    centroids = GO.centroid.(geoms)
+    return (;
+        geometry_type="polygon",
+        x=xs,
+        y=ys,
+        lon=first.(centroids),
+        lat=last.(centroids),
+        node_count=node_count_vec,
+        part_node_count=part_node_count_vec,
+        interior_ring=interior_ring_vec,
+    )
+end
+
+# `geometry` is the CF attributes dict from the variable linked to a
+# `geometry` attribute. `ds` is any `CommonDataModel.AbstractDataset`.
+function _cf_geometry_decode(ds::AbstractDataset, geometry; kw...)
+    geometry_type = geometry["geometry_type"]
+    trait = if geometry_type == "point"
+        haskey(geometry, "node_count") ? GI.MultiPointTrait() : GI.PointTrait()
+    elseif geometry_type == "line"
+        haskey(geometry, "part_node_count") ? GI.MultiLineStringTrait() : GI.LineStringTrait()
+    elseif geometry_type == "polygon"
+        haskey(geometry, "part_node_count") ? GI.MultiPolygonTrait() : GI.PolygonTrait()
+    end
+    return _cf_geometry_decode(trait, ds, geometry; kw...)
+end
+function _cf_geometry_decode(::GI.MultiPolygonTrait, ds, geometry; crs=nothing)
+    rings = _split_inner_geoms(ds, geometry; autoclose=true)
+    node_count = _cf_node_count(ds, geometry)
+    interior_ring = _cf_interior_ring(ds, geometry)
+    # TODO: no better way to get the tuple type for now.
+    _lr = GI.LinearRing(first(rings); crs)
+    _p = GI.Polygon([_lr]; crs)
+    _mp = GI.MultiPolygon([_p]; crs)
+    geoms = Vector{typeof(_mp)}(undef, length(node_count))
+
+    current_ring = 1
+    for (geom_idx, total_nodes) in enumerate(node_count)
+        polygon_rings = Tuple{typeof(_lr),Int}[]
+        n_points_added = 0
+        while current_ring <= length(rings) && n_points_added < total_nodes
+            ring = rings[current_ring]
+            push!(polygon_rings, (GI.LinearRing(ring; crs), interior_ring[current_ring]))
+            current_ring += 1
+            n_points_added += length(ring)
+        end
+        polygons = typeof(_p)[]
+        current_exterior = nothing
+        current_holes = typeof(_lr)[]
+        for (ring, is_interior) in polygon_rings
+            if is_interior == 0
+                if !isnothing(current_exterior)
+                    push!(polygons, GI.Polygon([current_exterior, current_holes...]; crs))
+                    current_holes = typeof(_lr)[]
+                end
+                current_exterior = ring
+            else
+                push!(current_holes, ring)
+            end
+        end
+        if !isnothing(current_exterior)
+            push!(polygons, GI.Polygon([current_exterior, current_holes...]; crs))
+        end
+        geoms[geom_idx] = GI.MultiPolygon(polygons; crs)
+    end
+    return geoms
+end
+function _cf_geometry_decode(::GI.MultiLineStringTrait, ds, geometry; crs=nothing)
+    node_count = _cf_node_count(ds, geometry)
+    lines = _split_inner_geoms(ds, geometry; autoclose=false)
+    _ls = GI.LineString(lines[1]; crs)
+    _mls = GI.MultiLineString([_ls]; crs)
+    geoms = Vector{typeof(_mls)}(undef, length(node_count))
+
+    current_line = 1
+    for (geom_idx, total_nodes) in enumerate(node_count)
+        multilinestring_lines = typeof(_ls)[]
+        nodes_added = 0
+        while nodes_added < total_nodes
+            line = lines[current_line]
+            push!(multilinestring_lines, GI.LineString(line; crs))
+            current_line += 1
+            nodes_added += length(line)
+        end
+        geoms[geom_idx] = GI.MultiLineString(multilinestring_lines; crs)
+    end
+    return geoms
+end
+function _cf_geometry_decode(::GI.PointTrait, ds, geometry; crs=nothing)
+    node_coordinates = _cf_node_coordinates(ds, geometry)
+    return GI.Point.(node_coordinates; crs)
+end
+function _cf_geometry_decode(::GI.LineStringTrait, ds, geometry; crs=nothing)
+    node_count = _cf_node_count(ds, geometry)
+    node_coordinates = _cf_node_coordinates(ds, geometry)
+    return map(_node_ranges(node_count)) do range
+        GI.LineString(node_coordinates[range]; crs)
+    end
+end
+function _cf_geometry_decode(::GI.MultiPointTrait, ds, geometry; crs=nothing)
+    node_count = _cf_node_count(ds, geometry)
+    node_coordinates = _cf_node_coordinates(ds, geometry)
+    return map(_node_ranges(node_count)) do range
+        GI.MultiPoint(node_coordinates[range]; crs)
+    end
+end
+function _cf_geometry_decode(::GI.PolygonTrait, ds, geometry; crs=nothing)
+    node_count = _cf_node_count(ds, geometry)
+    node_coordinates = _cf_node_coordinates(ds, geometry)
+    return map(_node_ranges(node_count)) do range
+        GI.Polygon([GI.LinearRing(node_coordinates[range]; crs)]; crs)
+    end
+end
+
+function _node_ranges(node_count)
+    cum_node_count = cumsum(node_count)
+    ranges = Vector{UnitRange{Int}}(undef, length(node_count))
+    for i in eachindex(ranges)
+        ranges[i] = i == 1 ? (1:node_count[i]) : ((cum_node_count[i-1]+1):cum_node_count[i])
+    end
+    return ranges
+end
+
+function _split_inner_geoms(ds, geometry; autoclose=false)
+    part_node_count = _cf_part_node_count(ds, geometry)
+    node_coordinates = _cf_node_coordinates(ds, geometry)
+    start = 1
+    stop = part_node_count[1]
+    rings = [node_coordinates[start:stop]]
+    autoclose && push!(rings[end], node_coordinates[start])
+    for i in 2:length(part_node_count)
+        start = stop + 1
+        stop = start + part_node_count[i] - 1
+        push!(rings, node_coordinates[start:stop])
+        autoclose && push!(rings[end], node_coordinates[start])
+    end
+    return rings
+end
+
+function _cf_node_coordinates(ds, geometry)
+    coords = map(_cf_node_coordinate_names(geometry)) do coordname
+        collect(CDM.variable(ds, coordname))
+    end
+    return collect(zip(coords...))
+end
+_cf_node_coordinate_names(geometry) = split(geometry["node_coordinates"], ' ')
+_cf_node_count(ds, geometry) = collect(CDM.variable(ds, geometry["node_count"]))
+_cf_part_node_count(ds, geometry) = collect(CDM.variable(ds, geometry["part_node_count"]))
+_cf_interior_ring(ds, geometry) = collect(CDM.variable(ds, geometry["interior_ring"]))
