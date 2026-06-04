@@ -1,4 +1,30 @@
+# Rasters with Plots.jl 
+
+## Setup
+
+Install the required packages by entering the Julia REPL package mode (press `]`) and typing:
+
+```julia
+add Rasters RasterDataSources ArchGDAL NCDatasets CFTime Shapefile Plots CairoMakie Statistics Downloads Dates
+```
+
+or from a script/notebook: 
+
+````julia
+using Pkg
+Pkg.add(["Rasters", "RasterDataSources", "ArchGDAL", "NCDatasets",
+         "CFTime", "Shapefile", "Plots", "CairoMakie",
+         "Statistics", "Downloads", "Dates"])
+````
+
+To download data you will need to specify a folder to put it in. You can do this by assigning the environment variable RASTERDATASOURCES_PATH: 
+
+````julia
+ENV["RASTERDATASOURCES_PATH"] = "/home/user/Data/" # your path here
+````
+
 ## Plots, simple
+
 [`Plots.jl`](https://github.com/JuliaPlots/Plots.jl) and [`Makie.jl`](https://makie.org) are fully supported by
 Rasters.jl, with recipes for plotting `Raster` and `RasterStack` provided. `plot`
 will plot a heatmap with axes matching dimension values. If `mappedcrs` is used,
@@ -12,7 +38,7 @@ It can be set manually to change the resolution (e.g. for large or high-quality 
 ````@example plots
 using Rasters, RasterDataSources, ArchGDAL
 using Plots
-import Plots: plot # hide 
+import Plots: plot 
 A = Raster(WorldClim{BioClim}, 5)
 plot(A; max_res=3000)
 ````
@@ -26,9 +52,11 @@ This is an unexported function, since we're not sure how the API will change goi
 
 ## Makie, simple
 
+Loading both Plots and Makie in the same session can cause conflicts, since both export functions with the same name, such as `plot`. To avoid this, we import Makie's names selectively (`using CairoMakie: CairoMakie, Makie`) and prefix the call as `Makie.plot`, so bare `plot` elsewhere still refers to `Plots`.
+
 ````@example plots
 using CairoMakie: CairoMakie, Makie
-CairoMakie.activate!(px_per_unit = 2) # hide
+CairoMakie.activate!(px_per_unit = 2) 
 using Rasters, RasterDataSources, ArchGDAL
 A = Raster(WorldClim{BioClim}, 5)
 Makie.plot(A)
@@ -48,11 +76,10 @@ filename = download(url, "tos_O1_2001-2002.nc");
 A = Raster(filename)
 ````
 
-Objects with Dimensions other than X and Y will produce multi-pane plots. Here we plot every third month in
-the first year in one plot:
+Objects with Dimensions other than X and Y will produce multi-pane plots. Here we plot every third month in the first year in one plot:
 
 ````@example plots
-A[Ti=1:3:12] |> plot
+A[Ti=1:3:12] |> plot # pipe result directly to plot
 ````
 
 Now plot the ocean temperatures around the Americas in the first month of 2001.
@@ -62,6 +89,7 @@ to index it with `Near`.
 
 ````@example plots
 using CFTime
+# Select the time slice nearest Jan 17 2001, within these lat/lon ranges, then plot
 A[Ti(Near(DateTime360Day(2001, 01, 17))), Y(-60.0 .. 90.0), X(45.0 .. 190.0)] |> plot 
 ````
 
@@ -72,29 +100,24 @@ Other plot functions and sliced objects that have only one `X`/`Y`/`Z` dimension
 fall back to generic DimensionalData.jl plotting, which will still correctly
 label plot axes.
 
-<!-- TODO: switch the three code blocks below back to ````@example plots once
-CFTime is fixed. `mean(A; dims=Ti)` on a CFTime-calendar time dim currently
-creates a `StepRange` whose `length` returns `Float64` (via `Dates.len`),
-which breaks `axes`/`OneTo` and aborts the docs build. -->
-
-```julia
+````@example plots
 using Statistics
 # Take the mean
 mean_tos = mean(A; dims=Ti)
-```
+````
 
 ### Plot a contour plot
 
-```julia
+````@example plots
 using Plots
 Plots.contourf(mean_tos; dpi=300, size=(800, 400))
-```
+````
 ### write to disk
 Write the mean values to disk
 
-```julia
+````@example plots
 write("mean_tos.nc", mean_tos)
-```
+````
 
 Plotting recipes in DimensionalData.jl are the fallback for Rasters.jl when the
 object doesn't have 2 `X`/`Y`/`Z` dimensions, or a non-spatial plot command is
@@ -109,11 +132,9 @@ A[Y(Near(20.0)), Ti(1)] |> plot
 In this example we will `mask` the Scandinavian countries with border polygons,
 then `mosaic` together to make a single plot. 
 
-First, get the country boundary shape files using GADM.jl.
+First, get the country boundary shape files from a URL and load them with `Shapefile.jl`.
 
-using Rasters, RasterDataSources, ArchGDAL, Shapefile, Plots, Dates, Downloads, NCDatasets
-
-## Download the shapefile
+### Download the shapefile
 ````@example plots
 using Downloads
 using Shapefile
@@ -126,6 +147,7 @@ nothing # hide
 
 ````@example plots
 shapes = Shapefile.Handle(shapefile_name)
+# Shape indices for each country (found by inspecting shapes.shapes)
 denmark_border = shapes.shapes[71]
 norway_border = shapes.shapes[53]
 sweden_border = shapes.shapes[54];
@@ -140,8 +162,9 @@ using Dates
 climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
 ````
 
-`mask` Denmark, Norway and Sweden from the global dataset using their border polygon,
-then trim the missing values. We pad `trim` with a 10 pixel margin.
+This creates a RasterStack (an extension of [`DimensionalData`](https://rafaqz.github.io/DimensionalData.jl/stable/)'s DimStack) which holds multiple Raster layers that share the same dimensions and lookups.
+
+We define a helper function `mask_trim` that combines two operations: `mask` extracts the data within a border polygon, and `trim` removes the surrounding missing values (padded by a 10 pixel margin).
 
 ````@example plots
 mask_trim(climate, poly) = trim(mask(climate; with=poly); pad=10)
@@ -163,28 +186,30 @@ function borders!(p, poly)
 end
 ````
 
-Now we can plot the individual countries.
+Now we can plot the individual countries:
+
+Denmark,
 
 ````@example plots
 dp = plot(denmark)
 borders!(dp, denmark_border)
 ````
 
-and sweden
+and Sweden,
 
 ````@example plots
 sp = plot(sweden)
 borders!(sp, sweden_border)
 ````
 
-and norway
+and Norway.
 
 ````@example plots
 np = plot(norway)
 borders!(np, norway_border)
 ````
 
-The Norway shape includes a lot of islands. Lets crop them out using `..` intervals:
+The Norway shape includes a lot of islands. Let's crop them out using `..` intervals:
 
 ````@example plots
 norway_region = climate[X(0..40), Y(55..73)]
@@ -198,13 +223,13 @@ np = plot(norway)
 borders!(np, norway_border)
 ````
 
-Now we can combine the countries into a single raster using mosaic. first will take the first value if/when there is an overlap.
+Now we can combine the countries into a single raster using `mosaic`. When pixels overlap between countries, we take the value from the first raster in the list.
 
 ````@example plots
 scandinavia = mosaic(first, denmark, norway, sweden)
 ````
 
-And plot scandinavia, with all borders included:
+And plot Scandinavia, with all borders included:
 
 ````@example plots
 p = plot(scandinavia)
@@ -221,6 +246,6 @@ write("scandinavia.nc", scandinavia)
 write("scandinavia.tif", scandinavia)
 ````
 
-`Rasters.jl` provides a range of other methods that are being added to over time. Where applicable these methods
+`Rasters.jl` provides a range of other methods that are being added to over time. Where applicable, these methods
 read and write lazily to and from disk-based arrays of common raster file types. These methods also work for
 entire RasterStacks and RasterSeries using the same syntax.
