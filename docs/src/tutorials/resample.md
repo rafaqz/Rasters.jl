@@ -47,6 +47,25 @@ and is generally pretty robust.  However, it has the following limitations:
 
 ### `resolution`, `size` and `methods`
 
+Install the required packages by entering the Julia REPL package mode (press `]`) and typing:
+
+```julia
+add Rasters RasterDataSources ArchGDAL DimensionalData NaNStatistics CairoMakie
+```
+
+or from a script/notebook: 
+
+````julia
+using Pkg
+Pkg.add(["Rasters", "RasterDataSources", "ArchGDAL", "DimensionalData", "NaNStatistics", "CairoMakie"])
+````
+
+To download data you will need to specify a folder to put it in. You can do this by assigning the environment variable RASTERDATASOURCES_PATH: 
+
+````julia
+ENV["RASTERDATASOURCES_PATH"] = "/home/user/Data/" # your path here
+````
+
 Let's start by loading the necessary packages:
 
 ````@example resample
