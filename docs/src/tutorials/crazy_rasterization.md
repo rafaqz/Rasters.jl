@@ -9,7 +9,22 @@ where two countries overlap, you want to save the indices of both countries.
 A simple way to do this is to have each pixel of the raster actually be an
 array of integers, which stores the index of each geometry that touches the pixel.
 
-First, let's get some data.  This is a feature collection of all countries in the world.
+## Setup
+
+Install the required packages by entering the Julia REPL package mode (press `]`) and typing:
+
+```julia
+add NaturalEarth CairoMakie Rasters
+```
+
+or from a script/notebook: 
+
+````julia
+using Pkg
+Pkg.add(["NaturalEarth", "CairoMakie", "Rasters"])
+````
+
+Now, let's get some data.  This is a feature collection of all countries in the world.
 
 ```@example crazy
 using NaturalEarth: naturalearth
