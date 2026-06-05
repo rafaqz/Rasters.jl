@@ -2,13 +2,7 @@
 
 ## Setup
 
-Install the required packages by entering the Julia REPL package mode (press `]`) and typing:
-
-```julia
-add Rasters CairoMakie Makie RasterDataSources ArchGDAL
-```
-
-or from a script/notebook: 
+In a script or notebook, install the packages used in this tutorial:
 
 ````julia
 using Pkg
@@ -104,11 +98,11 @@ The data:
 ````@example makie
 layers = (:evenness, :range, :contrast, :correlation) # tuple of the four variable names from HabitatHeterogeneity we want to use
 st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers) # load the four layers together as a RasterStack
-ausbounds = X(100 .. 160), Y(-50 .. -10) # Roughly cut out Australia using the .. selector from DimensionalData.jl
+ausbounds = X(100 .. 160), Y(-50 .. -10) # Roughly cut out Australia using the .. selector to subset the X and Y dimensions by their lookup values
 aus = st[ausbounds...] |> Rasters.trim # crop to the bounds, then trim away the empty (missing) edge rows/columns
 ````
 !!! note
-      Rasters extends [`DimensionalData`](https://rafaqz.github.io/DimensionalData.jl/stable/)'s `DimArray` and `DimStack` to build `Raster` and `RasterStack` objects, and uses its selectors such as `..`
+      Rasters extends [`DimensionalData`](https://rafaqz.github.io/DimensionalData.jl/stable/)'s `DimArray` and `DimStack` to build `Raster` and `RasterStack` objects, and uses its selectors such as `..`, which selects a range of lookup values.
 
 The plot:
 

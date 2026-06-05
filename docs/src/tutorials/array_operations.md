@@ -6,13 +6,7 @@ that take a `dims` argument can also use the dimension name.
 
 ## Setup
 
-Install the required packages by entering the Julia REPL package mode (press `]`) and typing:
-
-```julia
-add Rasters Statistics RasterDataSources
-```
-
-or from a script/notebook: 
+In a script or notebook, install the packages used in this tutorial:
 
 ````julia
 using Pkg

@@ -2,13 +2,7 @@
 
 ## Setup
 
-Install the required packages by entering the Julia REPL package mode (press `]`) and typing:
-
-```julia
-add Rasters RasterDataSources ArchGDAL NCDatasets CFTime Shapefile Plots CairoMakie Statistics Downloads Dates
-```
-
-or from a script/notebook: 
+In a script or notebook, install the packages used in this tutorial:
 
 ````julia
 using Pkg
@@ -86,6 +80,8 @@ Now plot the ocean temperatures around the Americas in the first month of 2001.
 Notice we are using lat/lon coordinates and date/time instead of regular
 indices. The time dimension uses `DateTime360Day`, so we need to load CFTime.jl
 to index it with `Near`.
+
+We use the `..` selector from [`DimensionalData`](https://rafaqz.github.io/DimensionalData.jl/stable/), which selects all indices between two lookup values, excluding the high value.
 
 ````@example plots
 using CFTime

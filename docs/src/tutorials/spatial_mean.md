@@ -14,13 +14,7 @@ Let's get the rainfall over Chile, and compute the average rainfall across the c
 
 ## Setup
 
-Install the required packages by entering the Julia REPL package mode (press `]`) and typing:
-
-```julia
-add Rasters Proj ArchGDAL RasterDataSources NaturalEarth CairoMakie Dates
-```
-
-or from a script/notebook: 
+In a script or notebook, install the packages used in this tutorial:
 
 ````julia
 using Pkg

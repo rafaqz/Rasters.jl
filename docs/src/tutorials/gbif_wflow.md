@@ -6,13 +6,7 @@ It uses GBIF and WorldClim data, which are common datasets in ecology. We'll loa
 
 ## Setup
 
-Install the required packages by entering the Julia REPL package mode (press `]`) and typing:
-
-```julia
-add Rasters GBIF2 RasterDataSources ArchGDAL CairoMakie CSV DataFrames Maxnet MLJGLMInterface SpeciesDistributionModels
-```
-
-or from a script/notebook: 
+In a script or notebook, install the packages used in this tutorial:
 
 ````julia
 using Pkg

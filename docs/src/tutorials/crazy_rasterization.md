@@ -11,13 +11,7 @@ array of integers, which stores the index of each geometry that touches the pixe
 
 ## Setup
 
-Install the required packages by entering the Julia REPL package mode (press `]`) and typing:
-
-```julia
-add NaturalEarth CairoMakie Rasters
-```
-
-or from a script/notebook: 
+In a script or notebook, install the packages used in this tutorial:
 
 ````julia
 using Pkg

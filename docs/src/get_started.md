@@ -2,24 +2,11 @@
 
 ## Installation
 
-Install Rasters.jl by entering the Julia REPL package mode (press `]`) and type 
-
-````julia
-add Rasters
-````
-
-or from a script/notebook:
+In a script or notebook, install Rasters.jl and other packages used in this tutorial:
 
 ````julia
 using Pkg
-Pkg.add("Rasters")
-````
-
-This tutorial also uses the following packages, which you can install the same way:
-
-
-````julia
-Pkg.add(["Dates", "RasterDataSources", "CairoMakie", "ArchGDAL"])
+Pkg.add(["Rasters", "Dates", "RasterDataSources", "CairoMakie", "ArchGDAL"])
 ````
 
 ## Creating a Raster

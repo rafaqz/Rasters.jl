@@ -47,13 +47,7 @@ and is generally pretty robust.  However, it has the following limitations:
 
 ### `resolution`, `size` and `methods`
 
-Install the required packages by entering the Julia REPL package mode (press `]`) and typing:
-
-```julia
-add Rasters RasterDataSources ArchGDAL DimensionalData NaNStatistics CairoMakie
-```
-
-or from a script/notebook: 
+In a script or notebook, install the packages used in this tutorial:
 
 ````julia
 using Pkg
