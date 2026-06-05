@@ -4,6 +4,28 @@ Most base methods work as for regular julia `Array`s, such as `reverse` and
 rotations like `rotl90`. Base, statistics and linear algebra methods like `mean`
 that take a `dims` argument can also use the dimension name. 
 
+## Setup
+
+Install the required packages by entering the Julia REPL package mode (press `]`) and typing:
+
+```julia
+add Rasters Statistics RasterDataSources
+```
+
+or from a script/notebook: 
+
+````julia
+using Pkg
+Pkg.add(["Rasters", "Statistics", "RasterDataSources"])
+````
+
+To download data you will need to specify a folder to put it in. You can do this by assigning the environment variable RASTERDATASOURCES_PATH: 
+
+````julia
+ENV["RASTERDATASOURCES_PATH"] = "/home/user/Data/" # your path here
+````
+
+
 ## Mean over the time dimension:
 
 ````@example operations
