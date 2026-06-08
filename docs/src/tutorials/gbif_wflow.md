@@ -6,7 +6,7 @@ It uses GBIF and WorldClim data, which are common datasets in ecology. We'll loa
 
 ## Setup
 
-In a script or notebook, install the packages used in this tutorial:
+Install the packages used in this tutorial:
 
 ````julia
 using Pkg
@@ -16,7 +16,7 @@ Pkg.add(["Rasters", "GBIF2", "RasterDataSources", "ArchGDAL", "CairoMakie", "CSV
 To download the data you will need to specify a folder to put it in. You can do this by assigning the environment variable RASTERDATASOURCES_PATH: 
 
 ````julia
-ENV["RASTERDATASOURCES_PATH"] = "/home/user/Data/" # your path here
+ENV["RASTERDATASOURCES_PATH"] = joinpath(homedir(), "RasterDataSources") # or "/your/path/here"
 ````
 
 ## Load Rasters, ArchGDAL, RasterDataSources and GBIF

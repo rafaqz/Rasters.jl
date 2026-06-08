@@ -2,7 +2,7 @@
 
 ## Setup
 
-In a script or notebook, install the packages used in this tutorial:
+Install the packages used in this tutorial:
 
 ````julia
 using Pkg
@@ -14,7 +14,7 @@ Pkg.add(["Rasters", "RasterDataSources", "ArchGDAL", "NCDatasets",
 To download data you will need to specify a folder to put it in. You can do this by assigning the environment variable RASTERDATASOURCES_PATH: 
 
 ````julia
-ENV["RASTERDATASOURCES_PATH"] = "/home/user/Data/" # your path here
+ENV["RASTERDATASOURCES_PATH"] = joinpath(homedir(), "RasterDataSources") # or "/your/path/here"
 ````
 
 ## Plots, simple
@@ -158,7 +158,7 @@ using Dates
 climate = RasterStack(WorldClim{Climate}, (:tmin, :tmax, :prec, :wind); month=July)
 ````
 
-This creates a RasterStack (an extension of [`DimensionalData`](https://rafaqz.github.io/DimensionalData.jl/stable/)'s DimStack) which holds multiple Raster layers that share the same dimensions and lookups.
+This creates a RasterStack - which is also an AbstractDimStack from [`DimensionalData`](https://rafaqz.github.io/DimensionalData.jl/stable/) - and holds multiple Raster layers that share the same dimensions and lookups.
 
 We define a helper function `mask_trim` that combines two operations: `mask` extracts the data within a border polygon, and `trim` removes the surrounding missing values (padded by a 10 pixel margin).
 
@@ -191,7 +191,7 @@ dp = plot(denmark)
 borders!(dp, denmark_border)
 ````
 
-and Sweden,
+Sweden,
 
 ````@example plots
 sp = plot(sweden)

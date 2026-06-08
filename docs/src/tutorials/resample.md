@@ -47,7 +47,7 @@ and is generally pretty robust.  However, it has the following limitations:
 
 ### `resolution`, `size` and `methods`
 
-In a script or notebook, install the packages used in this tutorial:
+Install the packages used in this tutorial:
 
 ````julia
 using Pkg
@@ -57,7 +57,7 @@ Pkg.add(["Rasters", "RasterDataSources", "ArchGDAL", "DimensionalData", "NaNStat
 To download data you will need to specify a folder to put it in. You can do this by assigning the environment variable RASTERDATASOURCES_PATH: 
 
 ````julia
-ENV["RASTERDATASOURCES_PATH"] = "/home/user/Data/" # your path here
+ENV["RASTERDATASOURCES_PATH"] = joinpath(homedir(), "RasterDataSources") # or "/your/path/here"
 ````
 
 Let's start by loading the necessary packages:
@@ -199,8 +199,6 @@ nansum(ras_m), nansum(ras_sin)
 and, how does this looks like?
 
 ````@example resample
-fig, ax, plt = heatmap(ras_sin)
-Colorbar(fig[1,2], plt)
 heatmap(ras_sin)
 ````
 
@@ -225,9 +223,7 @@ locus_resampled = DimensionalData.shiftlocus(Center(), ras_epsg)
 
 
 ````@example resample
-fig, ax, plt = heatmap(ras_epsg)
-Colorbar(fig[1,2], plt)
-fig
+heatmap(ras_epsg)
 ````
 
 ### A `Raster` from scratch
@@ -260,9 +256,7 @@ This requires that you run `using Rasters.Lookups`, where the `Intervals` and `S
 and take a look
 
 ````@example resample
-fig, ax, plt = heatmap(ras_scratch)
-Colorbar(fig[1,2], plt)
-fig
+heatmap(ras_scratch)
 ````
 
 and the corresponding resampled projection
@@ -272,9 +266,7 @@ ras_sin_s = resample(ras_scratch; size=(1440,720), crs=SINUSOIDAL_CRS, method="a
 ````
 
 ````@example resample
-fig, ax, plt = heatmap(ras_sin_s)
-Colorbar(fig[1,2], plt)
-fig
+heatmap(ras_sin_s)
 ````
 
 and go back from `sin` to `epsg`:
@@ -283,9 +275,7 @@ and go back from `sin` to `epsg`:
 ras_epsg = resample(ras_sin_s; size=(1440,720), crs=EPSG(4326), method="average")
 locus_resampled = DimensionalData.shiftlocus(Center(), ras_epsg)
 
-fig, ax, plt = heatmap(locus_resampled)
-Colorbar(fig[1,2], plt)
-fig
+heatmap(locus_resampled)
 ````
 
 and compare the total counts again!

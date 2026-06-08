@@ -11,7 +11,7 @@ array of integers, which stores the index of each geometry that touches the pixe
 
 ## Setup
 
-In a script or notebook, install the packages used in this tutorial:
+Install the packages used in this tutorial:
 
 ````julia
 using Pkg

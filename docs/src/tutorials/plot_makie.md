@@ -2,7 +2,7 @@
 
 ## Setup
 
-In a script or notebook, install the packages used in this tutorial:
+Install the packages used in this tutorial:
 
 ````julia
 using Pkg
@@ -12,7 +12,7 @@ Pkg.add(["Rasters", "CairoMakie", "Makie", "RasterDataSources", "ArchGDAL"])
 To download data you will need to specify a folder to put it in. You can do this by assigning the environment variable RASTERDATASOURCES_PATH: 
 
 ````julia
-ENV["RASTERDATASOURCES_PATH"] = "/home/user/Data/" # your path here
+ENV["RASTERDATASOURCES_PATH"] = joinpath(homedir(), "RasterDataSources") # or "/your/path/here"
 ````
 
 ## Plotting in Makie
@@ -96,13 +96,20 @@ using Rasters, RasterDataSources
 The data:
 
 ````@example makie
-layers = (:evenness, :range, :contrast, :correlation) # tuple of the four variable names from HabitatHeterogeneity we want to use
-st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers) # load the four layers together as a RasterStack
-ausbounds = X(100 .. 160), Y(-50 .. -10) # Roughly cut out Australia using the .. selector to subset the X and Y dimensions by their lookup values
-aus = st[ausbounds...] |> Rasters.trim # crop to the bounds, then trim away the empty (missing) edge rows/columns
+# tuple of the four variable names from HabitatHeterogeneity we want to use
+layers = (:evenness, :range, :contrast, :correlation) 
+
+# load the four layers together as a RasterStack
+st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers) 
+
+# Roughly cut out Australia using the .. selector to subset the X and Y dimensions by their lookup values
+ausbounds = X(100 .. 160), Y(-50 .. -10) 
+
+# crop to the bounds, then trim away the empty (missing) edge rows/columns
+aus = st[ausbounds...] |> Rasters.trim 
 ````
 !!! note
-      Rasters extends [`DimensionalData`](https://rafaqz.github.io/DimensionalData.jl/stable/)'s `DimArray` and `DimStack` to build `Raster` and `RasterStack` objects, and uses its selectors such as `..`, which selects a range of lookup values.
+      Rasters are also AbstractDimArrays, and therefore all [`DimensionalData`](https://rafaqz.github.io/DimensionalData.jl/stable/) indexing functionality works on Rasters objects, such as the `..` selector, which selects a range of lookup values.
 
 The plot:
 

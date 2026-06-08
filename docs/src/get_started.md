@@ -2,7 +2,7 @@
 
 ## Installation
 
-In a script or notebook, install Rasters.jl and other packages used in this tutorial:
+Install the packages used in this tutorial:
 
 ````julia
 using Pkg
@@ -92,7 +92,7 @@ with an `Array`. `view` is always lazy, and reads from disk are deferred until
 The next example uses some real world data. To download data you will need to specify a folder to put it in. You can do this by assigning the environment variable RASTERDATASOURCES_PATH: 
 
 ````julia
-ENV["RASTERDATASOURCES_PATH"] = "/home/user/Data/" # your path goes here
+ENV["RASTERDATASOURCES_PATH"] = joinpath(homedir(), "RasterDataSources") # or "/your/path/here"
 ````
 
 Use the `..` selector to take a view of Madagascar:
@@ -100,7 +100,6 @@ Use the `..` selector to take a view of Madagascar:
 ````@example first_raster
 import ArchGDAL
 using Rasters, RasterDataSources
-const RS = Rasters
 using CairoMakie
 CairoMakie.activate!()
 
