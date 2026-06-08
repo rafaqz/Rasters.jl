@@ -201,7 +201,7 @@ and, how does this looks like?
 ````@example resample
 fig, ax, plt = heatmap(ras_sin)
 Colorbar(fig[1,2], plt)
-fig
+heatmap(ras_sin)
 ````
 
 now, let's go back to `latitude` and `longitude` and reduce the resolution
