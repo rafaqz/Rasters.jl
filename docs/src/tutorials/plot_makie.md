@@ -1,3 +1,20 @@
+# Rasters with Makie.jl
+
+## Setup
+
+Install the packages used in this tutorial:
+
+````julia
+using Pkg
+Pkg.add(["Rasters", "CairoMakie", "Makie", "RasterDataSources", "ArchGDAL"])
+````
+
+To download data you will need to specify a folder to put it in. You can do this by assigning the environment variable RASTERDATASOURCES_PATH: 
+
+````julia
+ENV["RASTERDATASOURCES_PATH"] = joinpath(homedir(), "RasterDataSources") # or "/your/path/here"
+````
+
 ## Plotting in Makie
 
 Plotting in Makie works somewhat differently than Plots, since the recipe system is different.
@@ -6,10 +23,13 @@ or even surface for a 3D plot) with ease.
 
 ## 2-D rasters in Makie
 
+We'll start with a single 2-D raster: BioClim variable 5 from the WorldClim dataset, which is the maximum temperature of the warmest month (in °C) on a global grid. 
+
+
 ````@example makie
 using CairoMakie, Makie
 using Rasters, RasterDataSources, ArchGDAL
-A = Raster(WorldClim{BioClim}, 5) # this is a 3D raster, so is not accepted.
+A = Raster(WorldClim{BioClim}, 5)
 ````
 
 ````@example makie
@@ -17,7 +37,7 @@ fig, ax, _ = plot(A)
 contour(fig[1, 2], A)
 ax = Axis(fig[2, 1]; aspect = DataAspect())
 contourf!(ax, A)
-surface(fig[2, 2], A) # even a 3D plot work!
+surface(fig[2, 2], A; axis = (type = LScene,)) # even a 3D plot works!
 fig
 ````
 
@@ -39,8 +59,9 @@ You can pass any theming keywords in, which are interpreted by Makie appropriate
 
 ### Plotting with `Observable`s, animations
 
-`Rasters.rplot` should support Observable input out of the box, but the dimensions of that input
-must remain the same - i.e., the element names of a RasterStack must remain the same.
+An `Observable` is a container object whose stored value you can update interactively. You can create functions or other observables that are executed whenever an observable changes. This is how Makie supports interactive and animated plots. 
+
+`Rasters.rplot` should support Observable input out of the box, but the dimensions of that input must remain the same - i.e., the element names of a RasterStack must remain the same.
 
 ````@example makie
 # `stack` is the WorldClim climate data for January
@@ -67,18 +88,31 @@ Rasters.rplot
 
 ## Using vanilla Makie
 
+So far we've leaned on Rasters' Makie recipes, which take a raster directly and set up the axes and layout for us. For full control over the figure, we can instead build the scaffolding manually.
+
 ````@example makie
 using Rasters, RasterDataSources
 ````
-The data
-````@example makie
-layers = (:evenness, :range, :contrast, :correlation)
-st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers)
-ausbounds = X(100 .. 160), Y(-50 .. -10) # Roughly cut out australia
-aus = st[ausbounds...] |> Rasters.trim
-````
+The data:
 
-The plot
+````@example makie
+# tuple of the four variable names from HabitatHeterogeneity we want to use
+layers = (:evenness, :range, :contrast, :correlation) 
+
+# load the four layers together as a RasterStack
+st = RasterStack(EarthEnv{HabitatHeterogeneity}, layers) 
+
+# Roughly cut out Australia using the .. selector to subset the X and Y dimensions by their lookup values
+ausbounds = X(100 .. 160), Y(-50 .. -10) 
+
+# crop to the bounds, then trim away the empty (missing) edge rows/columns
+aus = st[ausbounds...] |> Rasters.trim 
+````
+!!! note
+      Rasters are also AbstractDimArrays, and therefore all [`DimensionalData`](https://rafaqz.github.io/DimensionalData.jl/stable/) indexing functionality works on Rasters objects, such as the `..` selector, which selects a range of lookup values.
+
+The plot:
+
 ````@example makie
 # colorbar attributes
 colormap = :batlow
