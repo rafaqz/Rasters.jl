@@ -93,7 +93,8 @@ _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) =
 _open(os::OpenStack{<:CDMsource}, key::AbstractString) = _open(dataset(os), key)
 _open(os::OpenStack{<:CDMsource}, key::Symbol) = _open(dataset(os), key)
 _open(os::AbstractDataset, key::AbstractString) = CDM.variable(os, key)
-_open(os::AbstractDataset, key::Symbol) = CDM.variable(os, key)
+# GRIBDatasets only defines CDM.variable for AbstractString, so convert
+_open(os::AbstractDataset, key::Symbol) = _open(os, string(key))
 
 # This allows arbitrary group nesting
 _getgroup(ds, ::Union{Nothing,NoKW}) = ds
