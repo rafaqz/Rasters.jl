@@ -112,6 +112,29 @@ end
         extent=Extent(X=(-180.0, -171.0), Y=(56.0, 59.0)))
 end
 
+@testset "load CopernicusDEM" begin
+    # Tyrrhenian coast: a 2×2 block of 1°×1° tiles where the south-west tile
+    # (N41 E010) is open sea, so it must be substituted with a `Fill` tile.
+    extent = Extent(X=(10.5, 11.5), Y=(41.5, 42.5))
+    @test RasterDataSources.bounds_to_tile_indices(CopernicusDEM, extent) ==
+          CartesianIndices((48:49, 191:192))
+    @test RasterDataSources.HAS_COPERNICUS_DEM_TILE_90M[49, 191] == false
+
+    # Use 90m tiles to keep the download light.
+    ras = Raster(CopernicusDEM; extent, res="90m", lazy=true, missingval=-9999.0f0)
+    @test ras isa Raster{Float32,2}
+    @test missingval(ras) === -9999.0f0
+    @test parent(ras) isa Rasters.DiskArrays.ConcatDiskArray
+    # A pixel firmly inside the ocean tile (lon 10..11, lat 41..42) must return
+    # missingval from the `Fill` substitute.
+    @test ras[X(Near(10.4)), Y(Near(41.4))] === -9999.0f0
+
+    # When a whole tile column is missing we can't reconstruct the X lookup —
+    # the constructor must error before any download is attempted (mid-Pacific).
+    @test_throws ArgumentError Raster(CopernicusDEM;
+        extent=Extent(X=(-140.0, -139.5), Y=(0.0, 0.5)), res="90m")
+end
+
 @testset "load ALWB" begin
     A = Raster(ALWB{Deciles,Day}, :rain_day; date=DateTime(2019, 10, 19), lazy=true)
     @test crs(A) == EPSG(4326)

@@ -49,10 +49,12 @@ function RA.Raster(T::Type{<:WorldClim{<:Future{BioClim, CMIP6}}}, layer::Union{
     return ras
 end
 
-# SRTM is a tiled 5°×5° grid; `getraster` returns either a single tile
-# path or a matrix of tile paths (with `missing` for ocean tiles). Glue the
-# matrix case together lazily into a single Raster via `ConcatDiskArray`.
-function RA.Raster(T::Type{SRTM};
+# SRTM (5°×5° tiles) and Copernicus DEM (1°×1° tiles) are global tiled grids;
+# `getraster` returns either a single tile path or a matrix of tile paths (with
+# `missing` for ocean tiles). Glue the matrix case together lazily into a single
+# Raster via `ConcatDiskArray`.
+const TiledDEM = Union{SRTM,CopernicusDEM}
+function RA.Raster(T::Type{<:TiledDEM};
     lazy=false, crs=_source_crs(T), kw...
 )
     rds_kw, ra_kw = _filterkw(T, kw)
