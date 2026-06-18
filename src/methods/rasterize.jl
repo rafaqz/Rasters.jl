@@ -952,11 +952,11 @@ Base.@assume_effects :total _choose_fill(op::Nothing, a, fc::FillChooser{<:Funct
 # Op is a function, fill is not, missingval===missing
 # apply reducing op to a and fill, or to init and fill if a equals missing and init exists
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser{<:Any,<:Any,Missing}) where F<:Function
-    a1 = ismissing(a) ? fc.init : a
+    a1 = ismissing(a) ? _maybe_copy_init(fc.init) : a
     _apply_op(op, a1, fc.fill)
 end
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser) where F<:Function
-    a1 = a == fc.missingval ? fc.init : a
+    a1 = a == fc.missingval ? _maybe_copy_init(fc.init) : a
     _apply_op(op, a1, fc.fill)
 end
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser{<:Any,Nothing,Missing}) where F<:Function
@@ -980,3 +980,15 @@ Base.@assume_effects :total _apply_op(op::F, a1, fill) where F<:Function = op(a1
 _maybe_namedtuple_itr(nt::NamedTuple{K}) where K = 
     (NamedTuple{K}(xs) for xs in zip(nt...)) 
 _maybe_namedtuple_itr(itr) = itr
+
+# Copy `init` values when they are mutable (arrays, sets, dicts) or
+# propagate through NamedTuples so each cell gets its own instance.
+function _maybe_copy_init(x)
+    if x isa NamedTuple
+        return map(_maybe_copy_init, x)
+    elseif x isa AbstractArray || x isa AbstractSet || x isa Dict
+        return copy(x)
+    else
+        return x
+    end
+end
