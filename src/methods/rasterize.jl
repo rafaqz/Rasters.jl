@@ -767,7 +767,7 @@ function _fill_func!(fillfunc, A::RasterStack, I)
 end
 
 # Some reductions don't need sort, like sum
-@noinline function rasterize_points_op!(op::F, A, points_fill, missingval, init)::Bool where F<:Function
+@noinline function rasterize_points_op!(op::O, A, points_fill, missingval, init)::Bool where O
     hasburned = false
     n = 0
     
