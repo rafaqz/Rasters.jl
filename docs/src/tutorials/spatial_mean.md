@@ -12,6 +12,21 @@ To compute the spatial mean, you need to weight the values by the area of each c
 
 Let's get the rainfall over Chile, and compute the average rainfall across the country for the month of June.
 
+## Setup
+
+Install the packages used in this tutorial:
+
+````julia
+using Pkg
+Pkg.add(["Rasters", "Proj", "ArchGDAL", "RasterDataSources", "NaturalEarth", "CairoMakie", "Dates"])
+````
+
+To download data you will need to specify a folder to put it in. You can do this by assigning the environment variable RASTERDATASOURCES_PATH: 
+
+````julia
+ENV["RASTERDATASOURCES_PATH"] = joinpath(homedir(), "RasterDataSources") # or "/your/path/here"
+````
+
 ## Acquiring the data
 
 We'll get the precipitation data across the globe from [WorldClim](https://www.worldclim.org/data/index.html), via [RasterDataSources.jl](https://github.com/EcoJulia/RasterDataSources.jl), and use the `month` keyword argument to get the June data.
@@ -57,11 +72,10 @@ Now, we mask the data such that any data outside the geometry is set to `missing
 
 ````@example cellarea
 masked_precip = mask(cropped_precip; with = chile)
-heatmap(masked_precip)
+heatmap(masked_precip; axis = (; title = "Precipitation (mm)"))
 ````
 
 This is a lot of missing data, but that's mainly because the Chile geometry we have encompasses the Easter Islands as well, in the middle of the Pacific.
-
 
 ```@docs; canonical=false
 cellarea

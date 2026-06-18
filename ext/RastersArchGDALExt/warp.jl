@@ -5,7 +5,7 @@ function warp(A::AbstractRaster, flags::Dict; filename=nothing, kw...)
         # Handle dimensions other than X, Y, Band
         slices = slice(A, odims)
         warped = map(A -> _warp(A, flags; kw...), slices)
-        return combine(warped, odims)
+        return Rasters.combine(warped, odims)
     else
         return _warp(A, flags; filename, kw...)
     end

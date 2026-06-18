@@ -83,12 +83,18 @@ function _open(f, source::CDMsource, ds::AbstractDataset;
         cleanreturn(f(g)) 
     else
         key = string(_name_or_firstname(g, name))
-        v = CDM.variable(g, key)
+        v = _open(g, key)
         _open(f, source, v; mod)
     end
 end
 _open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) = 
     cleanreturn(f(_maybe_modify(var, mod)))
+# Both needed for ambiguity
+_open(os::OpenStack{<:CDMsource}, key::AbstractString) = _open(dataset(os), key)
+_open(os::OpenStack{<:CDMsource}, key::Symbol) = _open(dataset(os), key)
+_open(os::AbstractDataset, key::AbstractString) = CDM.variable(os, key)
+# GRIBDatasets only defines CDM.variable for AbstractString, so convert
+_open(os::AbstractDataset, key::Symbol) = _open(os, string(key))
 
 # This allows arbitrary group nesting
 _getgroup(ds, ::Union{Nothing,NoKW}) = ds
@@ -129,7 +135,7 @@ end
 function _layers(ds::AbstractDataset, ::NoKW=nokw, ::NoKW=nokw)
     nondim = _nondimnames(ds)
     grid_mapping = String[]
-    vars = map(k -> CDM.variable(ds, k), nondim)
+    vars = map(k -> _open(ds, k), nondim)
     attrs = map(CDM.attribs, vars)
     for attr in attrs
         if haskey(attr, "grid_mapping")
@@ -146,7 +152,7 @@ end
 _layers(ds::AbstractDataset, names, ::NoKW) = 
     _layers(ds, collect(names), nokw)
 function _layers(ds::AbstractDataset, names::Vector, ::NoKW)
-    vars = map(n -> CDM.variable(ds, n), names)
+    vars = map(n -> _open(ds, n), names)
     attrs = map(CDM.attribs, vars)
     (; names, vars, attrs)
 end
@@ -296,7 +302,7 @@ function _cdmlookup(
         _cdmspan(index, order)
     end
     # We only use Explicit if the span is not Regular
-    # This is important for things like rasterizatin and conversion 
+    # This is important for things like rasterizatin and conversion
     # to gdal to be easy, and selectors are faster.
     # TODO are there any possible floating point errors from this?
     if haskey(CDM.attribs(var), "bounds")
@@ -314,6 +320,13 @@ function _cdmlookup(
             end
             Explicit(boundsmatrix), Intervals(locus)
         end
+    end
+    # Replace raw float vectors with a `StableRange` when the span is regular,
+    # so slicing/mosaicking/`Contains` stay bit-stable downstream. Done after
+    # the bounds-locus check above, which relies on disk values matching bounds
+    # bit-exactly via `==`.
+    if span isa Regular && eltype(index) <: AbstractFloat && length(index) > 1
+        index = StableRange(; start=first(index), step=val(span), length=length(index))
     end
 
     # We cant yet check CF standards crs, but we can at least check for units in lat/lon 
@@ -604,6 +617,6 @@ function _def_dim_var!(ds::AbstractDataset, dim::Dimension)
         push!(attrib, "bounds" => boundskey)
         CDM.defVar(ds, boundskey, bounds, ("bnds", dimname))
     end
-    CDM.defVar(ds, dimname, Vector(index(dim)), (dimname,); attrib=attrib)
+    CDM.defVar(ds, dimname, Vector(lookup(dim)), (dimname,); attrib=attrib)
     return nothing
 end

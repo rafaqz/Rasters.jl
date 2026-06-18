@@ -32,7 +32,7 @@ pointtable = map(GI.getpoint(polygon), vals) do geom, v
 end
 pointfc = map(GI.getpoint(polygon), vals) do geom, v
     GI.Feature(geom; properties=(val1=v, val2=2.0f0v))
-end |> GI.FeatureCollection
+end |> GI.FeatureCollection;
 pointdf = DataFrame(pointtable)
 table = (X=first.(pointvec), Y=last.(pointvec), othercol=zero.(last.(pointvec)))
 
@@ -432,6 +432,7 @@ end
         @test name(reduced_raster_count_center) == :count
         @test sum(skipmissing(reduced_raster_sum_center)) == 
               sum(skipmissing(reduced_raster_count_center)) == 16 * 4
+        @test isnothing(missingval(reduced_raster_count_center))
         reduced_raster_sum_touches = rasterize(sum, polygons; res=5, fill=1, boundary=:touches, threaded)
         reduced_raster_count_touches = rasterize(count, polygons; res=5, fill=1, boundary=:touches, threaded)
         @test name(reduced_raster_sum_touches) == :sum
@@ -510,10 +511,10 @@ end
     @test all(covsum[X=120..190] .=== covunion[X=120..190] .* 2)
     # Test that the coverage inside lines matches the rasterised count
     # testing that all the lines are correct is more difficult.
-    @test all(mask(covsum; with=insidecount) .=== replace_missing(insidecount, 0.0))
+    @test all((.!iszero.(insidecount) .* covsum) .== insidecount)
     # And test there is nothing outside of the rasterize touches area
     @test all(mask(covsum; with=touchescount) .=== covsum)
-    @test !all(mask(covunion; with=insidecount) .=== covunion)
+    @test !all(.!iszero.(insidecount) .* covunion .=== covunion)
     # TODO test coverage along all the lines is correct somehow
     
     # test on a single geom
@@ -644,4 +645,16 @@ end
             f, geom; to=A1, fill=true, missingval = false, threaded=true)
         @test_logs rasterize(f, geom; to=A1, fill=true, missingval = false, threaded=false)
     end
+end
+
+# We allow for scalar indexing in this testset since the rasterisation of points will always be scalar.
+@testset "count missingval" begin
+    Rasters.DiskArrays.allowscalar(true)
+    raster_count = rasterize(count, pointvec, to=Extent(X=(-25,5), Y=(5,35)), res=5)
+    @test missingval(raster_count) === nothing
+    raster_count_disk = rasterize(count, pointvec, to=Extent(X=(-25,5), Y=(5,35)), res=5, filename=tempname()*".tif")
+    @test missingval(raster_count_disk) ==  -9223372036854775808
+    raster_count_missing = rasterize(count, pointvec, to=Extent(X=(-25,5), Y=(5,35)), res=5, missingval=-1)
+    @test missingval(raster_count_missing) == -1
+    Rasters.DiskArrays.allowscalar(false)
 end

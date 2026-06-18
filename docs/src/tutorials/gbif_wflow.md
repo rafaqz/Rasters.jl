@@ -4,6 +4,21 @@ This example shows a full Species distribution modelling workflow, from loading 
 
 It uses GBIF and WorldClim data, which are common datasets in ecology. We'll load occurrences for the Mountain Pygmy Possum species using [GBIF2.jl](https://github.com/rafaqz/GBIF2.jl), an interface to the [Global Biodiversity Information Facility](https://www.gbif.org/), and extract environmental variables using BioClim data from [RasterDataSources.jl](https://github.com/EcoJulia/RasterDataSources.jl).
 
+## Setup
+
+Install the packages used in this tutorial:
+
+````julia
+using Pkg
+Pkg.add(["Rasters", "GBIF2", "RasterDataSources", "ArchGDAL", "CairoMakie", "CSV", "DataFrames", "Maxnet", "MLJGLMInterface", "SpeciesDistributionModels"])
+````
+
+To download the data you will need to specify a folder to put it in. You can do this by assigning the environment variable RASTERDATASOURCES_PATH: 
+
+````julia
+ENV["RASTERDATASOURCES_PATH"] = joinpath(homedir(), "RasterDataSources") # or "/your/path/here"
+````
+
 ## Load Rasters, ArchGDAL, RasterDataSources and GBIF
 The GBIF2 library is used to download occurrence data, RasterDataSources to conveniently access Bioclim data. ArchGDAL is necessary to load in the Bioclim data.
 
