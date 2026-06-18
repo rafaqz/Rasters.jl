@@ -986,7 +986,7 @@ _maybe_namedtuple_itr(itr) = itr
 function _maybe_copy_init(x)
     if x isa NamedTuple
         return map(_maybe_copy_init, x)
-    elseif x isa AbstractArray || x isa AbstractSet || x isa Dict
+    elseif Base.ismutable(x)
         return copy(x)
     else
         return x
