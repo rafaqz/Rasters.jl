@@ -617,6 +617,15 @@ end
         @test count(x -> x == [2], result) == 12
         @test count(x -> x == [1, 2], result) == 12
     end 
+
+    @testset "mutable init copy for Set" begin
+        stringvals = ["a", "b", "a", "c", "b"]
+        r = rasterize(pointvec; to=A1, fill=stringvals, op=push!, 
+            init=Set{String}(), missingval=missing, eltype=Union{Set{String}, Missing})
+        @test r[1,31] == Set(["a", "b"])
+        @test r[1,11] == Set(["b"])
+        @test ismissing(r[1,1])
+    end
 end
 
 @testset "threaded reduction warnings" begin
