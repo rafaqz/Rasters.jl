@@ -27,7 +27,7 @@ jobs:
       DISPLAY: ':0'
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Setup Julia
         uses: julia-actions/setup-julia@v3
       - name: Pull Julia cache
