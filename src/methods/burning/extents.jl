@@ -36,7 +36,12 @@ function _extent(::GI.AbstractGeometryTrait, geom; kw...)::XYExtent
     end
 end
 
-_extent(ext::Extent; kw...) = _float64_xy_extent(ext)
+# Keep a user-provided extent's element type, only selecting the X and Y bounds
+function _extent(ext::Extent; kw...)
+    haskey(ext, :X) && haskey(ext, :Y) ||
+        throw(ArgumentError("Extent must have both `X` and `Y` dimensions, got $(keys(ext))"))
+    return Extents.Extent(X=ext.X, Y=ext.Y)
+end
 
 function _float64_xy_extent(ext::Extents.Extent)
     xbounds = map(Float64, ext.X)

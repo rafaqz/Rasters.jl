@@ -598,5 +598,10 @@ end
     ga2 = Raster(A, (X(Float32.(1:2)), Y(Float32.(1:2))))
     ext2 = extent(ga2)
     @test ext2 === Extent(X=(1.0f0, 2.0f0), Y=(1.0f0, 2.0f0))
-    @test Rasters._extent(ext2) === ext # currently this converts to float64!
+    @test Rasters._extent(ext2) === ext2 # element type is preserved
+
+    # only the X and Y bounds are kept, preserving their element type
+    ext3 = Extent(X=(1, 10), Y=(1, 10))
+    @test Rasters._extent(ext3) === ext3
+    @test_throws ArgumentError Rasters._extent(Extent(X=(1, 10)))
 end
