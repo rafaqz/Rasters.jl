@@ -147,8 +147,9 @@ end
 # GRIB, GRD). Backends with real handles override on their dataset type.
 _close_dataset(::Any) = nothing
 
-# Closure-form `_open` built on top of `_open_dataset` / `_close_dataset`.
-# Backends with bespoke lifetimes (e.g. GRD mmap) can still override.
+# Closure-form `_open` from a filename: open the dataset, run `f` on its
+# array, and always close. Built on `_open_dataset` / `_open_array` /
+# `_close_dataset` so backends only define those three.
 function _open(f, source::Source, filename::AbstractString; kw...)
     ds = _open_dataset(source, filename; kw...)
     try
@@ -157,3 +158,7 @@ function _open(f, source::Source, filename::AbstractString; kw...)
         _close_dataset(ds)
     end
 end
+# Closure-form `_open` from an already-open dataset or array: produce the
+# array via `_open_array` and run `f`. The caller owns the handle, so this
+# does not close it (the filename method above wraps the close).
+_open(f, source::Source, x; kw...) = cleanreturn(f(_open_array(source, x; kw...)))

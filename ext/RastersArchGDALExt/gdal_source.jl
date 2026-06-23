@@ -123,11 +123,6 @@ RA._open_array(source::GDALsource, ds::AGDataset; kw...) =
 RA._dataset(rd::AG.RasterDataset) = rd
 RA._close_dataset(rd::AG.RasterDataset) = AG.destroy(rd.ds)
 
-RA._open(f, source::GDALsource, ds::AGDataset; kw...) =
-    RA._open(f, source, AG.RasterDataset(ds); kw...)
-RA._open(f, ::GDALsource, A::AG.RasterDataset; mod=RA.NoMod(), kw...) =
-    RA.cleanreturn(f(RA._maybe_modify(A, mod)))
-
 
 # DimensionalData methods for ArchGDAL types ###############################
 

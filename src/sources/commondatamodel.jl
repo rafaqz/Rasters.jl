@@ -82,23 +82,9 @@ function _open_array(source::CDMsource, ds::AbstractDataset;
     return _maybe_modify(v, mod)
 end
 
-function _open(f, source::CDMsource, ds::AbstractDataset;
-    name=nokw,
-    group=nothing,
-    mod=NoMod(),
-    kw...
-)
-    g = _getgroup(ds, group)
-    if isnokw(name)
-        cleanreturn(f(g))
-    else
-        key = string(_name_or_firstname(g, name))
-        v = _open(g, key)
-        _open(f, source, v; mod)
-    end
-end
-_open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) =
-    cleanreturn(f(_maybe_modify(var, mod)))
+# A bare variable has no group/name selection to do, just modification.
+_open_array(::CDMsource, var::AbstractArray; mod=NoMod(), kw...) =
+    _maybe_modify(var, mod)
 # Both needed for ambiguity
 _open(os::OpenStack{<:CDMsource}, key::AbstractString) = _open(dataset(os), key)
 _open(os::OpenStack{<:CDMsource}, key::Symbol) = _open(dataset(os), key)

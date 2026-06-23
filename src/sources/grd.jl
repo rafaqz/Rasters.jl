@@ -288,18 +288,9 @@ end
 
 # `_close_dataset(::GRDdataset)` falls through to the no-op default.
 
-function _open(f, source::GRDsource, filename::AbstractString; kw...)
-    isfile(filename) || _filenotfound_error(filename)
-    _open(f, source, GRDdataset(filename); kw...)
-end
-function _open(f, source::GRDsource, ds::GRDdataset; write=false, kw...)
-    _mmapgrd(ds; write) do mm
-        A = RasterDiskArray{GRDsource}(mm, DA.eachchunk(ds), DA.haschunks(ds), ds)
-        _open(f, source, A; kw...)
-    end
-end
-_open(f, ::GRDsource, A::RasterDiskArray; mod=NoMod(), kw...) =
-    cleanreturn(f(_maybe_modify(A, mod)))
+# A bare disk array has no dataset to open, just modification.
+_open_array(::GRDsource, A::RasterDiskArray; mod=NoMod(), kw...) =
+    _maybe_modify(A, mod)
 
 haslayers(::GRDsource) = false
 
@@ -308,22 +299,14 @@ Raster(ds::RasterDiskArray{<:GRDsource}; kw...) = _raster(ds; kw...)
 
 # Utils ########################################################################
 
-function _mmapgrd(f, x::Union{FileArray,GRDdataset}; kw...)
-    _mmapgrd(f, filename(x), eltype(x), size(x); kw...)
-end
-function _mmapgrd(f, filename::AbstractString, T::Type, size::Tuple; write=false)
-    arg = write ? "r+" : "r"
-    basename = splitext(filename)[1]
-    open(basename * ".gri", arg) do io
-        mmap = Mmap.mmap(io, Array{T,length(size)}, size)
-        output = f(mmap)
-        close(io)
-        output
-    end
-end
+# Closure form: the mmap stays valid after the handle closes, so this is
+# just `f` applied to the mmapped array.
+_mmapgrd(f, x::Union{FileArray,GRDdataset}; kw...) = f(_mmap_grd_array(x; kw...))
+_mmapgrd(f, filename::AbstractString, T::Type, size::Tuple; kw...) =
+    f(_mmap_grd_array(filename, T, size; kw...))
 
-# Non-closure mmap: the file handle closes immediately, but the mmap remains
-# valid until the array is garbage-collected.
+# Open the `.gri` file, mmap it, and close the handle immediately — the mmap
+# remains valid until the array is garbage-collected.
 function _mmap_grd_array(ds::Union{FileArray,GRDdataset}; write=false)
     _mmap_grd_array(filename(ds), eltype(ds), size(ds); write)
 end

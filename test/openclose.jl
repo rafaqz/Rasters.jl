@@ -5,6 +5,8 @@ using Rasters.DimensionalData
 using NCDatasets
 using ArchGDAL
 
+const ext = ".tif"
+
 @testset "open/close — GDAL Raster" begin
     A = Raster(rand(Float32, 5, 5), (X(1:5), Y(1:5)); name=:test)
     filename = tempname() * ext
