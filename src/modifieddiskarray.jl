@@ -70,6 +70,7 @@ _maybe_modify(A::AbstractArray, ::Nothing) = A
 filename(A::ModifiedDiskArray) = filename(parent(A))
 missingval(A::ModifiedDiskArray) = missingval(A.mod)
 _metadata(A::ModifiedDiskArray, args...) = _metadata(parent(A), args...)
+_dataset(A::ModifiedDiskArray) = _dataset(parent(A))
 
 Base.parent(A::ModifiedDiskArray) = A.data
 Base.size(A::ModifiedDiskArray, args...) = size(parent(A), args...)

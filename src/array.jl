@@ -122,65 +122,88 @@ Base.Array(A::AbstractRaster) = open(O -> Array(parent(O)), A)
 Base.collect(A::AbstractRaster) = open(O -> collect(parent(O)), A)
 
 """
+    open(A::AbstractRaster; write=false)
     open(f, A::AbstractRaster; write=false)
 
-`open` is used to open any `lazy=true` `AbstractRaster` and do multiple operations
-on it in a safe way. The `write` keyword opens the file in write lookup so that it
-can be altered on disk using e.g. a broadcast.
+Open a lazy `AbstractRaster` so its backing file is held open across operations.
 
-`f` is a method that accepts a single argument - an `Raster` object
-which is just an `AbstractRaster` that holds an open disk-based object.
-Often it will be a `do` block:
+Two forms are supported:
 
-`lazy=false` (in-memory) rasters will ignore `open` and pass themselves to `f`.
+- `open(A)` returns an opened `Raster` that must be closed with `close(o)`
+  when finished. Use this when the opened raster needs to escape a single
+  scope or be passed across function boundaries.
+- `open(f, A)` is the classic do-block form. The file is opened, `f(o)` is
+  called on the opened raster, and the file is closed when `f` returns
+  (even if it throws).
+
+`write=true` opens the file in write mode, so values can be altered on disk
+via e.g. broadcasting.
+
+In-memory (`lazy=false`) rasters and rasters with no file backing are
+returned as-is and `close` is a no-op.
 
 ```julia
-# A is an `Raster` wrapping the opened disk-based object.
+# Do-block form (short-lived use)
 open(Raster(filepath); write=true) do A
     mask!(A; with=maskfile)
     A[I...] .*= 2
-    # ...  other things you need to do with the open file
 end
+
+# Explicit form (long-lived use)
+o = open(Raster(filepath))
+sum(o); o[1, 1]
+close(o)
 ```
-
-By using a do block to open files we ensure they are always closed again
-after we finish working with them.
 """
+function Base.open(A::AbstractRaster; kw...)
+    isdisk(A) || return A
+    fas = Flatten.flatten(parent(A), FLATTEN_SELECT, FLATTEN_IGNORE)
+    isempty(fas) && return A
+    vars = map(fa -> _open_filearray(fa; kw...), fas)
+    data = Flatten.reconstruct(parent(A), vars, FLATTEN_SELECT, FLATTEN_IGNORE)
+    return rebuild(A; data)
+end
+
 function Base.open(f::Function, A::AbstractRaster; kw...)
-    if isdisk(A)
-        # Open FileArray to expose the actual dataset object, even inside nested wrappers
-        fas = Flatten.flatten(parent(A), FLATTEN_SELECT, FLATTEN_IGNORE)
-        if fas == ()
-            f(A)
-        else
-            if length(fas) == 1
-                _open_one(f, A, fas[1]; kw...)
-            else
-                _open_many(f, A, fas; kw...)
-            end
-        end
-    else
-        f(A)
+    isdisk(A) || return f(A)
+    O = open(A; kw...)
+    # If nothing was opened (already-open raster, in-memory parent),
+    # don't close — we don't own the resource.
+    O === A && return cleanreturn(f(A))
+    try
+        return cleanreturn(f(O))
+    finally
+        close(O)
     end
 end
 
-function _open_one(f, A::AbstractRaster, fa::FileArray; kw...)
-    open(fa; kw...) do x
-        # Rewrap the opened object where the FileArray was nested in the parent array
-        data = Flatten.reconstruct(parent(A), (x,), FLATTEN_SELECT, FLATTEN_IGNORE)
-        f(rebuild(A; data))
-    end
+function Base.close(A::AbstractRaster)
+    isdisk(A) || return A
+    _close_disk_arrays(parent(A))
+    return A
 end
 
-_open_many(f, A::AbstractRaster, fas::Tuple; kw...) = _open_many(f, A, fas, (); kw...)
-function _open_many(f, A::AbstractRaster, fas::Tuple, oas::Tuple; kw...)
-    open(fas[1]; kw...) do oa
-        _open_many(f, A, Base.tail(fas), (oas..., oa); kw...)
-    end
+function _open_filearray(fa::FileArray{S}; write=fa.write, kw...) where S
+    source = S()
+    ds = _open_dataset(source, filename(fa); write)
+    return _open_array(source, ds;
+        name=name(fa), group=fa.group, mod=mod(fa), write
+    )
 end
-function _open_many(f, A::AbstractRaster, fas::Tuple{}, oas::Tuple; kw...)
-    data = Flatten.reconstruct(parent(A), oas, FLATTEN_SELECT, FLATTEN_IGNORE)
-    f(rebuild(A; data))
+
+# Walk the parent tree, find DiskArray-shaped wrappers, dedupe by dataset
+# identity (so a shared dataset closes once), and close each.
+function _close_disk_arrays(parent)
+    arrays = Flatten.flatten(parent, DiskArrays.AbstractDiskArray, FLATTEN_IGNORE)
+    seen = Any[]
+    for arr in arrays
+        ds = _dataset(arr)
+        ds === nothing && continue
+        any(s -> s === ds, seen) && continue
+        push!(seen, ds)
+        _close_dataset(ds)
+    end
+    return nothing
 end
 
 # Concrete implementation ######################################################

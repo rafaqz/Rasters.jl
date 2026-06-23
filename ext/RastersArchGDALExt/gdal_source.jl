@@ -95,11 +95,7 @@ function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster{T}
     return filename
 end
 
-function RA._open(f, ::GDALsource, filename::AbstractString; 
-    write=false, 
-    mod=RA.NoMod(), 
-    kw...
-)
+function RA._open_dataset(::GDALsource, filename::AbstractString; write=false, kw...)
     # Check the file actually exists because the GDAL error is unhelpful
     if !isfile(filename)
         # Allow gdal virtual file systems
@@ -116,10 +112,17 @@ function RA._open(f, ::GDALsource, filename::AbstractString;
         end
     end
     flags = write ? AG.OF_UPDATE : AG.OF_READONLY
-    return AG.readraster(filename; flags) do A
-        RA.cleanreturn(f(RA._maybe_modify(A, mod))) 
-    end
+    return AG.readraster(filename; flags)
 end
+
+RA._open_array(::GDALsource, rd::AG.RasterDataset; mod=RA.NoMod(), kw...) =
+    RA._maybe_modify(rd, mod)
+RA._open_array(source::GDALsource, ds::AGDataset; kw...) =
+    RA._open_array(source, AG.RasterDataset(ds); kw...)
+
+RA._dataset(rd::AG.RasterDataset) = rd
+RA._close_dataset(rd::AG.RasterDataset) = AG.destroy(rd.ds)
+
 RA._open(f, source::GDALsource, ds::AGDataset; kw...) =
     RA._open(f, source, AG.RasterDataset(ds); kw...)
 RA._open(f, ::GDALsource, A::AG.RasterDataset; mod=RA.NoMod(), kw...) =

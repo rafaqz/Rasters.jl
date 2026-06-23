@@ -13,6 +13,7 @@ Rasters.DiskArrays.allowscalar(false)
 end
 
 @time @safetestset "extensions" begin include("extensions.jl") end
+@time @safetestset "openclose" begin include("openclose.jl") end
 @time @safetestset "array" begin include("array.jl") end
 @time @safetestset "stack" begin include("stack.jl") end
 @time @safetestset "series" begin include("series.jl") end

@@ -273,6 +273,21 @@ function _write_grd(filename, T, dims, missingval, name)
 end
 
 # Rasters methods
+function _open_dataset(::GRDsource, filename::AbstractString; write=false, kw...)
+    isfile(filename) || _filenotfound_error(filename)
+    return GRDdataset(filename; write)
+end
+
+function _open_array(source::GRDsource, ds::GRDdataset; mod=NoMod(), write=ds.write, kw...)
+    # mmap stays valid after the file handle closes, so the array can live
+    # on its own — no dataset close needed.
+    mm = _mmap_grd_array(ds; write)
+    A = RasterDiskArray{GRDsource}(mm, DA.eachchunk(ds), DA.haschunks(ds), ds)
+    return _maybe_modify(A, mod)
+end
+
+# `_close_dataset(::GRDdataset)` falls through to the no-op default.
+
 function _open(f, source::GRDsource, filename::AbstractString; kw...)
     isfile(filename) || _filenotfound_error(filename)
     _open(f, source, GRDdataset(filename); kw...)
@@ -297,13 +312,29 @@ function _mmapgrd(f, x::Union{FileArray,GRDdataset}; kw...)
     _mmapgrd(f, filename(x), eltype(x), size(x); kw...)
 end
 function _mmapgrd(f, filename::AbstractString, T::Type, size::Tuple; write=false)
-    arg = write ? "r+" : "r"  
+    arg = write ? "r+" : "r"
     basename = splitext(filename)[1]
     open(basename * ".gri", arg) do io
         mmap = Mmap.mmap(io, Array{T,length(size)}, size)
         output = f(mmap)
         close(io)
         output
+    end
+end
+
+# Non-closure mmap: the file handle closes immediately, but the mmap remains
+# valid until the array is garbage-collected.
+function _mmap_grd_array(ds::Union{FileArray,GRDdataset}; write=false)
+    _mmap_grd_array(filename(ds), eltype(ds), size(ds); write)
+end
+function _mmap_grd_array(filename::AbstractString, T::Type, sz::Tuple; write=false)
+    arg = write ? "r+" : "r"
+    basename = splitext(filename)[1]
+    io = Base.open(basename * ".gri", arg)
+    try
+        return Mmap.mmap(io, Array{T,length(sz)}, sz)
+    finally
+        close(io)
     end
 end
 

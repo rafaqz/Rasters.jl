@@ -116,4 +116,44 @@ end
 function _open(f, filename::AbstractString; source=sourcetrait(filename), kw...)
     _open(f, source, filename; kw...)
 end
-_open(f, s::Source, filename::AbstractString; kw...) = throw(BackendException(s))
+
+# Open a backend file and return the dataset handle (which may itself be a
+# stack-like container or an array, depending on the backend). Backends
+# define this. Used by both the non-closure `Base.open(::AbstractRaster)`
+# path and the closure-form `_open` (via try/finally).
+_open_dataset(s::Source, filename::AbstractString; kw...) = throw(BackendException(s))
+
+# Open a single array from an already-open dataset. Returns the value to
+# use as the parent of an opened `Raster` — typically the backend array
+# wrapped in `_maybe_modify`. Backends define this.
+_open_array(s::Source, ds; kw...) = throw(BackendException(s))
+
+# Extract the dataset handle backing an opened value (CFVariable,
+# RasterDataset, wrapper, …) or `nothing` if there is no resource to close
+# (in-memory arrays, GRD mmaps). Backends extend with methods on their
+# array/dataset types.
+_dataset(::Any) = nothing
+# Generic peel: a DiskArray wrapper with a distinct parent forwards to it.
+# Concrete leaves (CFVariable, RasterDataset, RasterDiskArray over an mmap)
+# add their own methods; this handles intermediate wrappers like
+# `DiskArrays.SubDiskArray` and `DiskArrays.BroadcastDiskArray` without
+# having to enumerate each one.
+function _dataset(A::DiskArrays.AbstractDiskArray)
+    p = Base.parent(A)
+    return p === A ? nothing : _dataset(p)
+end
+
+# Close a dataset handle. Default is a no-op for stateless backends (Zarr,
+# GRIB, GRD). Backends with real handles override on their dataset type.
+_close_dataset(::Any) = nothing
+
+# Closure-form `_open` built on top of `_open_dataset` / `_close_dataset`.
+# Backends with bespoke lifetimes (e.g. GRD mmap) can still override.
+function _open(f, source::Source, filename::AbstractString; kw...)
+    ds = _open_dataset(source, filename; kw...)
+    try
+        return _open(f, source, ds; kw...)
+    finally
+        _close_dataset(ds)
+    end
+end

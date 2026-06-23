@@ -539,29 +539,78 @@ function DD.modify(f, s::AbstractRasterStack{<:FileStack{<:Any,K}}) where K
     rebuild(s; data)
 end
 
-# Open a single file stack
-function Base.open(f::Function, st::AbstractRasterStack{K}; kw...) where K
-    ost = OpenStack(parent(st))
+"""
+    open(st::AbstractRasterStack; write=false)
+    open(f, st::AbstractRasterStack; write=false)
+
+Open a lazy `AbstractRasterStack` so its backing file(s) stay open across
+operations.
+
+Two forms are supported:
+
+- `open(st)` returns an opened `RasterStack` that must be closed with
+  `close(o)` when finished. Use this when the opened stack needs to escape
+  a single scope or be passed across function boundaries.
+- `open(f, st)` is the classic do-block form: the file(s) are opened,
+  `f(o)` is called on the opened stack, and the file(s) are closed when
+  `f` returns (even if it throws).
+
+For a single-file stack, all layers share the same backing dataset and a
+single close releases it. For a multi-file stack each layer opens and
+closes its own file independently.
+"""
+# Single-file stack — wrap the open dataset in an `OpenStack` and make it
+# the parent of the rebuilt stack.
+function Base.open(st::AbstractRasterStack{<:Any,<:Any,<:Any,<:FileStack}; write=false, kw...)
+    return rebuild(st; data=OpenStack(parent(st); write))
+end
+# Multi-file (NamedTuple-backed) stack — open each layer's FileArrays
+# independently. `close` walks layers and dedupes by dataset identity.
+function Base.open(st::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}; kw...)
+    isdisk(st) || return st
+    any_opened = false
+    data = map(parent(st)) do arr
+        fas = Flatten.flatten(arr, FLATTEN_SELECT, FLATTEN_IGNORE)
+        isempty(fas) && return arr
+        any_opened = true
+        vars = map(fa -> _open_filearray(fa; kw...), fas)
+        Flatten.reconstruct(arr, vars, FLATTEN_SELECT, FLATTEN_IGNORE)
+    end
+    any_opened || return st
+    return rebuild(st; data)
+end
+
+# Closure form for single-file stack — kept explicit (rather than
+# delegating to the non-closure form) so the resource flow is obvious.
+function Base.open(f::Function, st::AbstractRasterStack{<:Any,<:Any,<:Any,<:FileStack}; kw...)
+    ost = OpenStack(parent(st); kw...)
     out = f(rebuild(st; data=ost))
     close(ost)
     return out
 end
-# Open a multi-file stack or just apply f to a memory backed stack
-function Base.open(f::Function, st::AbstractRasterStack{<:Any,<:Any,<:Any,<:NamedTuple}; kw...)
-    isdisk(st) ? _open_layers(f, st; kw...) : f(st)
-end
-
-# Open all layers through nested closures, applying `f` to the rebuilt open stack
-_open_layers(f, st; kw...) = _open_layers(f, st, DD.layers(st); kw...)
-_open_layers(f, st, unopened::NamedTuple; kw...) = _open_layers(f, st, unopened, NamedTuple(); kw...)
-function _open_layers(f, st, unopened::NamedTuple{K}, opened::NamedTuple; kw...) where K
-    open(first(unopened); kw...) do open_layer
-        data_nt = NamedTuple{(first(K),)}((parent(open_layer),))
-        _open_layers(f, st, Base.tail(unopened), merge(opened, data_nt); kw...)
+# Closure form for multi-file or memory-backed stack — delegate to the
+# non-closure form via try/finally.
+function Base.open(f::Function, st::AbstractRasterStack; kw...)
+    isdisk(st) || return f(st)
+    O = open(st; kw...)
+    # If nothing was actually opened (already-open stack, in-memory
+    # layers), don't close — we don't own the resource.
+    O === st && return f(st)
+    try
+        return f(O)
+    finally
+        close(O)
     end
 end
-function _open_layers(f, st, unopened::NamedTuple{()}, opened::NamedTuple; kw...)
-    f(rebuild(st; data=opened))
+
+# Close handlers dispatch on parent type: OpenStack closes via its own
+# `close`; a NamedTuple parent gets walked for opened DiskArrays.
+Base.close(st::AbstractRasterStack{<:Any,<:Any,<:Any,<:OpenStack}) =
+    (close(parent(st)); st)
+function Base.close(st::AbstractRasterStack)
+    isdisk(st) || return st
+    _close_disk_arrays(parent(st))
+    return st
 end
 
 function _postprocess_stack(st, dims;

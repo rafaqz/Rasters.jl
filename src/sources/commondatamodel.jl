@@ -67,27 +67,37 @@ end
 
 Raster(ds::AbstractVariable; kw...) = _raster(ds; kw...)
 
-function _open(f, source::CDMsource, filename::AbstractString; write=false, kw...)
+function _open_dataset(source::CDMsource, filename::AbstractString; write=false, kw...)
     checkfilename(source, filename)
-    ds = sourceconstructor(source)(filename, openmode(write))
-    _open(f, source, ds; kw...)
+    return sourceconstructor(source)(filename, openmode(write))
 end
-function _open(f, source::CDMsource, ds::AbstractDataset; 
-    name=nokw, 
-    group=nothing, 
-    mod=NoMod(), 
+
+function _open_array(source::CDMsource, ds::AbstractDataset;
+    name=nokw, group=nothing, mod=NoMod(), kw...
+)
+    g = _getgroup(ds, group)
+    isnokw(name) && return g
+    key = string(_name_or_firstname(g, name))
+    v = CDM.variable(g, key)
+    return _maybe_modify(v, mod)
+end
+
+function _open(f, source::CDMsource, ds::AbstractDataset;
+    name=nokw,
+    group=nothing,
+    mod=NoMod(),
     kw...
 )
     g = _getgroup(ds, group)
     if isnokw(name)
-        cleanreturn(f(g)) 
+        cleanreturn(f(g))
     else
         key = string(_name_or_firstname(g, name))
         v = _open(g, key)
         _open(f, source, v; mod)
     end
 end
-_open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) = 
+_open(f, ::CDMsource, var::AbstractArray; mod=NoMod(), kw...) =
     cleanreturn(f(_maybe_modify(var, mod)))
 # Both needed for ambiguity
 _open(os::OpenStack{<:CDMsource}, key::AbstractString) = _open(dataset(os), key)
@@ -95,6 +105,11 @@ _open(os::OpenStack{<:CDMsource}, key::Symbol) = _open(dataset(os), key)
 _open(os::AbstractDataset, key::AbstractString) = CDM.variable(os, key)
 # GRIBDatasets only defines CDM.variable for AbstractString, so convert
 _open(os::AbstractDataset, key::Symbol) = _open(os, string(key))
+
+# A CDM variable owns no resource itself — its lifetime is tied to its
+# parent dataset. Per-backend `_close_dataset(::Dataset)` decides whether
+# the underlying close is a no-op (Zarr/GRIB) or a real release (NetCDF).
+_dataset(v::CDM.AbstractVariable) = CDM.dataset(v)
 
 # This allows arbitrary group nesting
 _getgroup(ds, ::Union{Nothing,NoKW}) = ds
