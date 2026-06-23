@@ -40,10 +40,28 @@ function _resolve_mod_eltype(::Type{T}, missingval, scale, offset) where T
     return T3
 end
 
-missingval(m::Mod) = m.missingval
-missingval(m::NoMod) = m.missingval
+# Modifies by dictionary lookup - similar to categorical array
+struct AttributeMod{T, Mi, Di} <: AbstractModifications{T}
+    table::NamedTuple
+    column::Symbol
+    dict::Di
+    missingval::Mi
 
-_inner_missingval(m::Mod) = _inner_missingval(m.missingval)
+    function AttributeMod(table::NamedTuple, column::Symbol, missingval::Mi) where {Mi}
+        keycol = identity.(first(table))
+        valcol = identity.(table[column])
+        dict = DD.OrderedCollections.LittleDict(keycol, valcol) |> DD.OrderedCollections.freeze
+        new{eltype(table[column]), Mi, typeof(dict)}(table, column, dict, missingval)
+    end
+end
+
+## Todo in a DBFTables extension
+_tablemod(args...) = error()
+
+## missingval handling
+missingval(m::AbstractModifications) = m.missingval
+
+_inner_missingval(m::AbstractModifications) = _inner_missingval(m.missingval)
 _inner_missingval(mv) = mv
 _inner_missingval(mv::Pair) = mv[1]
 
@@ -78,7 +96,7 @@ DiskArrays.haschunks(A::ModifiedDiskArray) = DiskArrays.haschunks(parent(A))
 DiskArrays.eachchunk(A::ModifiedDiskArray) = DiskArrays.eachchunk(parent(A))
 
 function DiskArrays.readblock!(
-    A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:Mod}, outer_block, I::AbstractVector...
+    A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:AbstractModifications}, outer_block, I::AbstractVector...
 )
     if isdisk(parent(A))
         inner_block = similar(outer_block, eltype(parent(A)))
@@ -121,6 +139,11 @@ function DiskArrays.writeblock!(
         parent(A)[I...] = block
     end
 end
+function DiskArrays.writeblock!(
+    A::ModifiedDiskArray{<:Any,<:Any,<:Any,<:AttributeMod}, block, I::AbstractVector...
+)
+    error("Writing using an Attribute Table is not supported")
+end
 
 Base.@assume_effects :foldable function _applymod(x, m::Mod)
     if _ismissing(x, _inner_missingval(m))
@@ -130,6 +153,13 @@ Base.@assume_effects :foldable function _applymod(x, m::Mod)
     end
 end
 Base.@assume_effects :foldable _applymod(x, ::NoMod) = x
+Base.@assume_effects :foldable function _applymod(x, m::AttributeMod)
+    if _ismissing(x, _inner_missingval(m))
+        _outer_missingval(m)
+    else 
+        m.dict[x]
+    end
+end
 
 _ismissing(x, mv) = ismissing(x) || x === mv 
 _ismissing(x, ::Nothing) = ismissing(x)
@@ -198,7 +228,7 @@ function get_scale(metadata, scaled::Bool)
 end
 
 _mod_eltype(::AbstractArray{T}, ::NoMod) where T = T
-_mod_eltype(::AbstractArray, m::Mod{T}) where T = T
+_mod_eltype(::AbstractArray, m::AbstractModifications{T}) where T = T
 
 _mod_inverse_eltype(::AbstractArray{T}, ::NoMod) where T = T
 _mod_inverse_eltype(::AbstractArray{T}, m::Mod) where T =
