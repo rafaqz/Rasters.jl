@@ -222,11 +222,11 @@ function _get_eltype_missingval(eltype, missingval, filleltype, fillitr, init::N
 end
 function _get_eltype_missingval(known_eltype, missingval, filleltype, fillitr, init, filename, op, reducer)
     eltype = if isnothing(known_eltype)
-        fillzero = zero(filleltype)
+        fillzero = _zero_or_empty(filleltype)
         if fillitr isa Function
             promote_type(typeof(fillitr(init)), typeof(fillitr(fillzero)))
         elseif op isa Function
-            promote_type(typeof(op(init, init)), typeof(op(init, fillzero)), typeof(op(fillzero, fillzero)))
+            promote_type(typeof(op(_maybe_copy(init), fillzero)))
         elseif reducer isa Function
             promote_type(typeof(reducer((init, init))), typeof(reducer((init, fillzero))), typeof(reducer((fillzero, fillzero))))
         else
@@ -239,6 +239,17 @@ function _get_eltype_missingval(known_eltype, missingval, filleltype, fillitr, i
     # eltype was not the actually array eltype, so promote it with the missingval
     eltype = isnothing(known_eltype) ? promote_type(typeof(missingval), eltype) : eltype
     return eltype, missingval, init
+end
+
+_zero_or_empty(T::Type{<:AbstractString}) = convert(T, "")
+_zero_or_empty(T::Type{<:AbstractChar}) = convert(T, '\0')
+_zero_or_empty(T::Union) = _zero_or_empty(promote_type(Base.uniontypes(T)...))
+function _zero_or_empty(T::Type)
+    try 
+        zero(T)
+    catch
+        throw(ArgumentError("Cannot determine a default value for fill type $T; provide an explicit `eltype` value"))
+    end
 end
 
 _fill_key_error(names, fill) = throw(ArgumentError("fill key $fill not found in table, use one of: $(Tuple(names))"))
@@ -769,7 +780,7 @@ function _fill_func!(fillfunc, A::RasterStack, I)
 end
 
 # Some reductions don't need sort, like sum
-@noinline function rasterize_points_op!(op, A, points_fill, missingval, init)::Bool
+@noinline function rasterize_points_op!(op::O, A, points_fill, missingval, init)::Bool where O
     hasburned = false
     n = 0
     
@@ -954,11 +965,11 @@ Base.@assume_effects :total _choose_fill(op::Nothing, a, fc::FillChooser{<:Funct
 # Op is a function, fill is not, missingval===missing
 # apply reducing op to a and fill, or to init and fill if a equals missing and init exists
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser{<:Any,<:Any,Missing}) where F<:Function
-    a1 = ismissing(a) ? fc.init : a
+    a1 = ismissing(a) ? _maybe_copy(fc.init) : a
     _apply_op(op, a1, fc.fill)
 end
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser) where F<:Function
-    a1 = a == fc.missingval ? fc.init : a
+    a1 = a == fc.missingval ? _maybe_copy(fc.init) : a
     _apply_op(op, a1, fc.fill)
 end
 Base.@assume_effects :total function _choose_fill(op::F, a, fc::FillChooser{<:Any,Nothing,Missing}) where F<:Function
@@ -982,3 +993,15 @@ Base.@assume_effects :total _apply_op(op::F, a1, fill) where F<:Function = op(a1
 _maybe_namedtuple_itr(nt::NamedTuple{K}) where K = 
     (NamedTuple{K}(xs) for xs in zip(nt...)) 
 _maybe_namedtuple_itr(itr) = itr
+
+# Copy `init` values when they are mutable (arrays, sets, dicts) or
+# propagate through NamedTuples so each cell gets its own instance.
+function _maybe_copy(x)
+    if x isa NamedTuple
+        return map(_maybe_copy, x)
+    elseif x isa Union{AbstractSet, AbstractArray, AbstractDict}
+        return copy(x)
+    else
+        return x
+    end
+end
