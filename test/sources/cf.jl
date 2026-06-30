@@ -55,17 +55,22 @@ end |> OrderedDict
 # refdims(last.(rasterstacks[inds])[1])
 
 @testset "2.1 string variable representation" begin
-    rast = RasterStack(examples["2.1"]; lazy=true)
+    rast = RasterStack(examples["2.1"])
+    expected = Union{Missing,String}["alpha", "beta", "gamma", "delta", "epsilon", "zeta"]
+    @test parent(rast.char_variable) == expected
+    @test parent(rast.str_variable) == expected
     @test rast.char_variable == rast.str_variable
-    @test RasterStack(examples["2.1"]; lazy=true).char_variable == rast.str_variable
-    write("test.nc", rast; force=true)
-    rast1 = RasterStack("test.nc"; lazy=true)
-    open(rast1) do R
-        @show parent(R.char_variable)
-        nothing
+    @test metadata(rast.char_variable)["long_name"] == "strings of type char"
+    @test metadata(rast.str_variable)["long_name"] == "strings of type string"
+    # Round-trip through write/read preserves equality of both representations
+    mktempdir() do dir
+        path = joinpath(dir, "string_roundtrip.nc")
+        write(path, rast; force=true)
+        rast2 = RasterStack(path)
+        @test parent(rast2.char_variable) == expected
+        @test parent(rast2.str_variable) == expected
+        @test rast2.char_variable == rast2.str_variable
     end
-    parent(rast.char_variable)
-    parent(rast1.char_variable)
 end
 
 @testset "3.1 units metadata" begin
@@ -104,8 +109,29 @@ end
 
 @testset "5.2 two-dimensional coordinate variables" begin
     rast = RasterStack(examples["5.2"]; lazy=true)
-    # TODO probably should have real data for this
-    @test rast[X=Near(1.0), Y=Near(2.0), Z=1].T isa Float32
+    @test keys(rast) == (:T,)
+    @test size(rast) == (4, 3, 2)
+    @test name.(dims(rast)) == (:X, :Y, :Z)
+    # 2D auxiliary lon/lat coords produce ProjectedArrayLookup on X and Y
+    @test lookup(rast, X) isa Rasters.ProjectedArrayLookup
+    @test lookup(rast, Y) isa Rasters.ProjectedArrayLookup
+    @test size(lookup(rast, X).matrix) == (4, 3)
+    @test size(lookup(rast, Y).matrix) == (4, 3)
+    # Z is a regular 1D pressure axis
+    @test lookup(rast, Z) isa Sampled
+    @test collect(lookup(rast, Z)) == Float32[1000.0, 500.0]
+    @test metadata(dims(rast, Z))["units"] == "hPa"
+    @test metadata(dims(rast, Z))["long_name"] == "pressure level"
+    @test metadata(rast.T)["units"] == "K"
+    @test metadata(rast.T)["long_name"] == "temperature"
+    # Integer indexing through 3D data: T values are 1..24 in order
+    @test rast.T[X=1, Y=1, Z=1] === 1.0f0
+    @test rast.T[X=4, Y=3, Z=2] === 24.0f0
+    # Near() via the 2D lon/lat coordinate matrix
+    # lon[X=1,Y=1]=10, lat[X=1,Y=1]=50 -> T=1
+    @test rast.T[X=Near(10.0), Y=Near(50.0), Z=1] === 1.0f0
+    # lon[X=4,Y=1]=40, lat[X=4,Y=1]=53 -> T=4
+    @test rast.T[X=Near(40.0), Y=Near(53.0), Z=1] === 4.0f0
 end
 
 @testset "5.3 reduced horizontal grid" begin
@@ -183,13 +209,19 @@ end
         @test refdims(rast) isa Tuple{<:Ti}
     end
     @testset "5.17 domain defines dimension and coords" begin
-        # TODO : where to put area data? It could be useful
-        # but currently has no formal location, so its just available
-        # to the user, rather than to the `Rasters.cellarea` function
-        # TODO and do we make polygons out of the vertices so this is a GeometryLookup?
-        # Needs actual data in the file to test this
+        # TODO : cell_measures (cell_area attached to a domain) is not yet a first-class
+        # concept in Rasters. The domain variable is dropped, cell_area is loaded as
+        # a regular layer, and the cell dim merges lon/lat into a MergedLookup.
         rast = RasterStack(examples["5.17"]; lazy=true)
-        span(dims(dims(rast, :cell), X))
+        @test keys(rast) == (:cell_area,)
+        @test name.(dims(rast)) == (:cell, :Ti)
+        @test lookup(rast, :cell) isa MergedLookup
+        @test name.(lookup(rast, :cell).dims) == (:X, :Y)
+        @test length(lookup(rast, :cell)) == 2562
+        @test length(lookup(rast, Ti)) == 12
+        @test metadata(rast.cell_area)["units"] == "m2"
+        @test metadata(rast.cell_area)["standard_name"] == "cell_area"
+        @test metadata(rast.cell_area)["long_name"] == "area of grid cell"
     end
     @testset "5.17 domain with no layers or dimensions, but single coordinates, so refdims" begin
         rast = RasterStack(examples["5.18"]; lazy=true)
@@ -205,14 +237,42 @@ end
     end
 end
 
-@testset "5.20 indexed ragged array " begin
-    # TODO ragged array lookup
+@testset "5.20 indexed ragged array" begin
+    # CF indexed ragged array (Chapter 9): stationIndex(obs) maps each obs to a
+    # station, so the (obs,) flat axis really encodes (station, time) pairs.
+    # Current Rasters: stack is loaded flat - humidity(obs), station_info(station)
+    # are separate layers, no time lookup is built from stationIndex+time.
+    # Ideal: humidity should be unpacked to a (station, time) Raster, with
+    # station coords (lon, lat, alt, station_name) and a Ti lookup.
     rast = RasterStack(examples["5.20"]; lazy=true)
-    dims(rast, :station)
+    @test :humidity in keys(rast)
+    @test :station_info in keys(rast)
+    @test parent(rast.station_info) == [1, 2, 3]
+    @test metadata(rast.humidity)["standard_name"] == "relative_humidity"
+    @test metadata(rast.humidity)["units"] == "%"
+    @test name.(dims(rast)) == (:station, :obs)
+    # --- broken: ragged-array unpacking is not implemented ---
+    # humidity should be unpacked into a 2D (station, time) raster
+    @test_broken size(rast.humidity) == (3, 4)
+    @test_broken hasdim(rast.humidity, Ti)
+    @test_broken hasdim(rast.humidity, :station)
+    # Time values should be parsed into a Ti lookup
+    @test_broken lookup(rast, Ti) == DateTime(1970, 1, 1):Day(1):DateTime(1970, 1, 4)
+    # Per-station coords should attach to the station dim
+    @test_broken lookup(rast, :station) isa MergedLookup
+    # The stationIndex helper variable should not be exposed as a layer once unpacked
+    @test_broken !(:stationIndex in keys(rast))
+    # humidity values for station 1 (Station_A) should be [50, 51, 52, 53]
+    @test_broken parent(rast.humidity[station=1]) == Float32[50, 51, 52, 53]
 end
 
 @testset "5.21 mesh" begin
+    # UGRID mesh topology is not yet interpreted by Rasters - the stack loads as
+    # a flat collection of layers/dims. Skipping deeper assertions until a
+    # MeshLookup (or similar) representation is designed.
     rast = RasterStack(examples["5.21"]; lazy=true)
+    @test :mesh in keys(rast)
+    @test metadata(rast.mesh)["cf_role"] == "mesh_topology"
 end
 
 @testset "taxon name/id" begin
@@ -313,10 +373,23 @@ end
     @test_warn "formula_terms" RasterStack(examples["7.3"]; lazy=true)
 end
 
-@testset "7.3 cell areas" begin
-    # TODO load bounds as polygons
-    # Not sure if we should attach the area to the dimension or its fine as a variable?
-    RasterStack(examples["7.4"]; lazy=true)
+@testset "7.4 cell areas" begin
+    # PS has cell_measures = "area: cell_area". Currently cell_area is loaded as
+    # a sibling layer. Long-term it should be attached to PS (cell_measures support).
+    rast = RasterStack(examples["7.4"]; lazy=true)
+    @test keys(rast) == (:PS, :cell_area)
+    @test size(rast.PS) == (2562, 12)
+    @test size(rast.cell_area) == (2562,)
+    @test name.(dims(rast)) == (:cell, :Ti)
+    @test lookup(rast, :cell) isa MergedLookup
+    @test length(lookup(rast, :cell)) == 2562
+    @test length(lookup(rast, Ti)) == 12
+    @test metadata(rast.PS)["units"] == "Pa"
+    @test metadata(rast.PS)["cell_measures"] == "area: cell_area"
+    @test metadata(rast.cell_area)["units"] == "m2"
+    @test metadata(rast.cell_area)["standard_name"] == "cell_area"
+    # cell_measures should ultimately attach cell_area to PS rather than expose it as a sibling layer
+    @test_broken !(:cell_area in keys(rast))
 end
 
 @testset "7.5 methods applied to a timeseries" begin

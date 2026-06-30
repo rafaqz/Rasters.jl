@@ -1,13 +1,9 @@
 netcdf 5_20_a_domain_containing_a_timeseries_of_station_data_in_the_indexed_ragged_array_representation {
 dimensions:
-  station = 23 ;
+  station = 3 ;
   obs = UNLIMITED ;
-  name_strlen = 23 ;
+  name_strlen = 16 ;
 variables:
-  char domain ;
-    domain:dimensions = "obs" ;
-    domain:coordinates = "time lat lon alt station_name" ;
-    domain:long_name = "Domain with a discrete sampling geometry" ;
   float lon(station) ;
     lon:standard_name = "longitude" ;
     lon:long_name = "station longitude" ;
@@ -34,6 +30,26 @@ variables:
     time:standard_name = "time" ;
     time:long_name = "time of measurement" ;
     time:units = "days since 1970-01-01 00:00:00" ;
+  float humidity(obs) ;
+    humidity:standard_name = "relative_humidity" ;
+    humidity:long_name = "relative humidity at the station" ;
+    humidity:units = "%" ;
+    humidity:coordinates = "time lat lon alt station_name" ;
 // global attributes:
   :featureType = "timeSeries" ;
+data:
+  lon = 10.0, 20.0, 30.0 ;
+  lat = 50.0, 51.0, 52.0 ;
+  alt = 100.0, 200.0, 300.0 ;
+  station_name =
+    "Station_A",
+    "Station_B",
+    "Station_C" ;
+  station_info = 1, 2, 3 ;
+  stationIndex = 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2 ;
+  time = 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3 ;
+  humidity =
+    50, 51, 52, 53,
+    60, 61, 62, 63,
+    70, 71, 72, 73 ;
 }

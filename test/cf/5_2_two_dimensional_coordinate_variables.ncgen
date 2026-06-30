@@ -1,8 +1,8 @@
 netcdf 5_2_two_dimensional_coordinate_variables {
 dimensions:
-  xc = 128 ;
-  yc = 64 ;
-  lev = 18 ;
+  xc = 4 ;
+  yc = 3 ;
+  lev = 2 ;
 variables:
   float T(lev,yc,xc) ;
     T:long_name = "temperature" ;
@@ -25,4 +25,23 @@ variables:
   float lat(yc,xc) ;
     lat:long_name = "latitude" ;
     lat:units = "degrees_north" ;
+data:
+  xc = 1000, 2000, 3000, 4000 ;
+  yc = 1000, 2000, 3000 ;
+  lev = 1000, 500 ;
+  lon =
+    10, 20, 30, 40,
+    11, 21, 31, 41,
+    12, 22, 32, 42 ;
+  lat =
+    50, 51, 52, 53,
+    60, 61, 62, 63,
+    70, 71, 72, 73 ;
+  T =
+     1,  2,  3,  4,
+     5,  6,  7,  8,
+     9, 10, 11, 12,
+    13, 14, 15, 16,
+    17, 18, 19, 20,
+    21, 22, 23, 24 ;
 }
