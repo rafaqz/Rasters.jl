@@ -53,3 +53,29 @@ function Base.show(io::IO, s::SkipMissingVal)
     show(io, s.x)
     print(io, ')')
 end
+
+
+# When passmissing is broadcast over Rasters, replace it with a version
+# that also propagates the Raster's missingval (which may not be `missing`).
+struct _RasterPassMissing{F, M} <: Function
+    f::F
+    missingvals::M  # one per broadcast arg; `nothing` for non-Raster args
+    out_mv          # sentinel returned when a missing input is encountered
+end
+
+@inline function (pm::_RasterPassMissing)(xs...)
+    for (x, mv) in zip(xs, pm.missingvals)
+        ismissing(x) && return pm.out_mv
+        !isnothing(mv) && x === mv && return pm.out_mv
+    end
+    return pm.f(xs...)
+end
+
+# AbstractRaster in the signature makes this not type piracy.
+function Base.Broadcast.broadcasted(f::Missings.PassMissing, A::AbstractRaster, args...)
+    all_args = (A, args...)
+    mvs = missingval.(all_args)
+    out_mv = missingval(A)
+    new_f = _RasterPassMissing(f.f, mvs, out_mv)
+    return Base.Broadcast.broadcasted(new_f, A, args...)
+end
