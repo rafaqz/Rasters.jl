@@ -118,7 +118,6 @@ end
 @testset "MultiPoint" begin
     T = @NamedTuple{geometry::Union{Missing,Tuple{Float64,Float64}},test::Union{Missing,Int64}}
     mp = GI.MultiPoint([(9.0, 0.1), (10.0, 0.2), (10.0, 0.3)])
-    # `skipmissing=false` is the default, and used to throw a TypeError here
     @test all(extract(rast, mp) .=== T[
         (geometry = (9.0, 0.1), test = 1)
         (geometry = (10.0, 0.2), test = 4)
