@@ -515,7 +515,7 @@ end
             _maybe_add_fields(T, props, id, coords, I)
         end
     end
-    return 1
+    return true
 end
 
 # Maybe add optional fields
