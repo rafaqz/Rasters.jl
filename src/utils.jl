@@ -627,9 +627,30 @@ function _as_intervals(ds::Tuple)
     # Rasterization only makes sense on Sampled Intervals
     interval_dims = map(dims(ds, DEFAULT_POINT_ORDER)) do d
         l = parent(d)
-        rebuild(d, rebuild(l; sampling=Intervals(locus(l))))
+        interval_l = rebuild(l; sampling=Intervals(locus(l)))
+        _check_intervals_bounds(d, interval_l)
+        rebuild(d, interval_l)
     end
     return setdims(ds, interval_dims)
+end
+
+# An `Irregular` lookup with undefined bounds cannot be treated as `Intervals`:
+# there is no way to know where each pixel starts and stops, so selectors like
+# `Touches` compare against `nothing` bounds and fail with an opaque `MethodError`.
+# This happens when a `Raster` is built from a plain `Vector` of coordinates rather
+# than an `AbstractRange`, so point out the likely cause and fix.
+_check_intervals_bounds(d::Dimension, l::Lookup) = nothing
+function _check_intervals_bounds(d::Dimension, l::AbstractSampled)
+    if span(l) isa Irregular && any(isnothing, bounds(l))
+        throw(ArgumentError(
+            "Cannot rasterize to the $(name(d)) dimension: its lookup is `Irregular` " *
+            "with undefined bounds, so pixel intervals cannot be determined. This usually " *
+            "means the `Raster` was built from a plain `Vector` of coordinates. Use an " *
+            "`AbstractRange` (e.g. `range(first, last; length)` or `first:step:last`) so the " *
+            "lookup is `Regular`, or set an `Irregular` span with explicit `bounds`."
+        ))
+    end
+    return nothing
 end
 
 nolookup_to_sampled(A) = rebuild(A; dims=nolookup_to_sampled(dims(A)))

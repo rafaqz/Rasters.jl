@@ -489,6 +489,23 @@ end
     @test_warn "Destination is empty" rasterize!(A1[1:0, 1:0], polygon; to=A1[1:0, 1:0], fill=1, missingval=0)
 end
 
+@testset "Cant rasterize to an Irregular lookup with undefined bounds" begin
+    # A `Raster` built from a plain `Vector` of coordinates has an `Irregular` span with
+    # `nothing` bounds, so pixel intervals cannot be determined. We should get an
+    # informative `ArgumentError` rather than an opaque `MethodError`.
+    vecraster = Raster(zeros(Int, 3, 3), (X([1.0, 2.0, 3.0]), Y([1.0, 2.0, 3.0])); missingval=0)
+    @test_throws ArgumentError rasterize(polygon; to=vecraster, fill=1)
+    # A `Regular` lookup built from a range works fine.
+    rangeraster = Raster(zeros(Int, 3, 3), (X(1.0:1.0:3.0), Y(1.0:1.0:3.0)); missingval=0)
+    @test rasterize(last, polygon; to=rangeraster, fill=1) isa Raster
+    # An `Irregular` lookup with explicit bounds is also fine.
+    boundsraster = Raster(zeros(Int, 3, 3),
+        (X(Sampled([1.0, 2.0, 3.0], ForwardOrdered(), Irregular(0.5, 3.5), Intervals(Center()), NoMetadata())),
+         Y(Sampled([1.0, 2.0, 3.0], ForwardOrdered(), Irregular(0.5, 3.5), Intervals(Center()), NoMetadata())));
+        missingval=0)
+    @test rasterize(last, polygon; to=boundsraster, fill=1) isa Raster
+end
+
 @testset "coverage" begin
     @time covsum = coverage(sum, shphandle.shapes; threaded=false, res=1, scale=10)
     @time covunion = coverage(union, shphandle.shapes; threaded=false, res=1, scale=10)
