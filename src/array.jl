@@ -325,10 +325,10 @@ function Raster{T}(::UndefInitializer, ext::Extents.Extent;
     Raster{T}(undef, dims; kw...)
 end
 # Load a Raster from a string filename
-function Raster(filename::AbstractString; source=nokw, kw...)
+function Raster(filename::AbstractString; source=nokw, open_kw::NamedTuple=NamedTuple(), kw...)
     source = sourcetrait(filename, source)
-    _open(filename; source, mod=nothing) do ds
-        _raster(ds; filename, source, kw...)
+    _open(filename; source, mod=nothing, open_kw...) do ds
+        _raster(ds; filename, source, open_kw, kw...)
     end::Raster
 end
 # Load a Raster from an opened Dataset
@@ -356,6 +356,7 @@ function _raster(ds;
     raw::Bool=false,
     mod=nokw,
     f=identity,
+    open_kw::NamedTuple=NamedTuple(),
 )::Raster
     _maybe_warn_replace_missing(replace_missing)
     # `raw` option will ignore `scaled` and `missingval`
@@ -374,7 +375,7 @@ function _raster(ds;
         data_out = if lazy
             # Define a lay FileArray
             FileArray{typeof(source)}(var, filename;
-                name=name1, group, mod, write
+                name=name1, group, mod, write, open_kw
             )
         else
             modvar = _maybe_modify(var, mod)

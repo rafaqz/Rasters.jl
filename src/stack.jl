@@ -415,6 +415,9 @@ function RasterStack(filename::AbstractString;
     coerce=nokw,
     verbose::Bool=true,
     replace_missing=nokw, # deprecated
+    # See `FileArray`. Kept separate from `kw...` so it can't reach (and get
+    # rejected by, or silently mask typos in) strict-kwarg postprocessing.
+    open_kw::NamedTuple=NamedTuple(),
     kw...
 )
     _maybe_warn_replace_missing(replace_missing)
@@ -433,19 +436,19 @@ function RasterStack(filename::AbstractString;
             name
         end
         RasterStack(joinpath.(Ref(filename), filenames);
-            missingval, scaled, coerce, lazy, dropband, group, name, kw...
+            missingval, scaled, coerce, lazy, dropband, group, name, open_kw, kw...
         )
     else
         # Load as a single file
         if haslayers(source) # With multiple named layers
-            l_st = _open(filename; source) do ds
-                RasterStack(ds; filename, source, name, lazy, group, missingval, scaled, coerce, kw...)
+            l_st = _open(filename; source, open_kw...) do ds
+                RasterStack(ds; filename, source, name, lazy, group, missingval, scaled, coerce, open_kw, kw...)
             end
             # Maybe split the stack into separate arrays to remove extra dims.
             isnokw(name) ? l_st : maplayers(identity, l_st)
         else # With bands actings as layers
-            raster = Raster(filename; 
-                source, lazy, missingval, scaled, coerce, dropband=false,
+            raster = Raster(filename;
+                source, lazy, missingval, scaled, coerce, dropband=false, open_kw,
             )
             RasterStack(raster; kw...)
         end
@@ -473,6 +476,7 @@ function RasterStack(ds;
     lazy::Bool=false,
     verbose::Bool=true,
     raw::Bool=false,
+    open_kw::NamedTuple=NamedTuple(),
     kw...
 )
     check_multilayer_dataset(ds)
@@ -509,7 +513,7 @@ function RasterStack(ds;
     data = if lazy
         vars = ntuple(i -> layers.vars[i], length(name))
         mods = ntuple(i -> mod_vec[i], length(name))
-        FileStack{typeof(source)}(ds, filename; name, group, mods, vars)
+        FileStack{typeof(source)}(ds, filename; name, group, mods, vars, open_kw)
     else
         map(layers.vars, layermetadata_vec, mod_vec) do var, md, mod
             modvar = _maybe_modify(var, mod)
