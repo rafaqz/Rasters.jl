@@ -67,10 +67,15 @@ end
 
 Raster(ds::AbstractVariable; kw...) = _raster(ds; kw...)
 
-function _open(f, source::CDMsource, filename::AbstractString; write=false, kw...)
+function _open(f, source::CDMsource, filename::AbstractString;
+    write=false, name=nokw, group=nothing, mod=NoMod(), kw...
+)
     checkfilename(source, filename)
-    ds = sourceconstructor(source)(filename, openmode(write))
-    _open(f, source, ds; kw...)
+    # `name`/`group`/`mod` are pulled out of `kw` so only actual backend
+    # open options (see `FileArray`) reach the dataset constructor, which
+    # accepts only its own fixed keyword list.
+    ds = sourceconstructor(source)(filename, openmode(write); kw...)
+    _open(f, source, ds; name, group, mod, kw...)
 end
 function _open(f, source::CDMsource, ds::AbstractDataset; 
     name=nokw, 
