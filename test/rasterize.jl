@@ -618,6 +618,41 @@ end
         @test count(x -> x == [2], result) == 12
         @test count(x -> x == [1, 2], result) == 12
     end 
+
+    @testset "mutable init copy for Set" begin
+        stringvals = ["a", "b", "a", "c", "b"]
+        r = rasterize(pointvec; to=A1, fill=stringvals, op=push!, 
+            init=Set{String}(), missingval=missing)
+        @test eltype(r) === Union{Set{String}, Missing}
+        @test ismissing(r[1,1])
+        @test r[1,31] == Set(["a", "b"])
+        @test r[1,11] == Set(["b"])
+    end
+
+    @testset "Characters appended to a string" begin
+        charvals = ['a', 'b', 'a', 'c', 'b']
+        r = rasterize(pointvec; to=A1, fill=charvals, op=*, 
+            init="", missingval=missing)
+        @test eltype(r) === Union{String, Missing}
+        @test ismissing(r[1,1])
+        @test r[1,31] == "ab"
+        @test r[1,11] == "b"
+    end
+
+    @testset "Union types" begin
+        vals = Union{Int, Float64}[0, 0, 0, 0, 0.5]
+        r = rasterize(sum, pointvec; to=A1, fill=vals)
+        @test eltype(r) === Union{Float64, Missing}
+        @test ismissing(r[1,1])
+        @test r[1,31] == 0.5
+        @test r[1,11] == 0
+    end
+
+    @testset "Too difficult types throw an informative error" begin
+        vals = Union{Int, String}[1:4; "a"]
+        @test_throws "Cannot determine a default value for fill type Any" rasterize(
+            pointvec; to=A1, fill=vals, op = (x,y) -> string(x) * string(y), init = "")
+    end
 end
 
 @testset "threaded reduction warnings" begin
