@@ -171,3 +171,43 @@ end
     @test dims(dsstack) == dims(zarrstack)
     @test size(dsstack) == size(zarrstack)
 end
+
+@testset "backend-specific open kwargs persist across lazy reopen" begin
+    # Regression test: a lazily-read layer that is only discoverable under a
+    # backend-specific open option (e.g. Zarr `consolidated`) must still be
+    # reachable once the underlying `FileArray` reopens the store to read data,
+    # not just at initial layer discovery.
+    #
+    # Simulates a real-world case (ARCO-ERA5's incomplete store listing, fixed
+    # by ZarrDatasets.jl's `consolidated` keyword): consolidate metadata while
+    # both `a` and `b` exist, then delete `b`'s `.zarray` marker so plain
+    # listing can no longer find it -- but its chunk data and consolidated
+    # metadata entry remain, so `consolidated=true` can still discover and
+    # read it.
+    kwpath = tempname() * ".zarr"
+    kwzg = zgroup(kwpath)
+    ka = zcreate(Float64, kwzg, "a", 4; attrs=Dict("_ARRAY_DIMENSIONS" => ["x"]))
+    ka .= [1.0, 2.0, 3.0, 4.0]
+    kb = zcreate(Float64, kwzg, "b", 4; attrs=Dict("_ARRAY_DIMENSIONS" => ["x"]))
+    kb .= [10.0, 20.0, 30.0, 40.0]
+    Zarr.consolidate_metadata(kwzg.storage, "")
+    rm(joinpath(kwpath, "b", ".zarray"))
+
+    # Without the open option, `b` isn't visible at all.
+    st_plain = RasterStack(kwpath; source=Zarrsource(), lazy=true)
+    @test propertynames(st_plain) == (:a,)
+
+    # With it, `b` is discovered at open time...
+    st_cons = RasterStack(kwpath; source=Zarrsource(), lazy=true, open_kw=(; consolidated=true))
+    @test :b in propertynames(st_cons)
+
+    # ...and reading it -- which reopens the store via `FileArray` -- must
+    # still find it, i.e. `open_kw` has to be reapplied, not just used once.
+    @test collect(st_cons[:b]) == [10.0, 20.0, 30.0, 40.0]
+    @test collect(st_cons[:a]) == [1.0, 2.0, 3.0, 4.0]
+
+    # Unrecognized top-level keywords must still error -- `open_kw` is a
+    # deliberately separate channel, not a generic catch-all that would mask
+    # keyword typos/misuse.
+    @test_throws MethodError RasterStack(kwpath; source=Zarrsource(), lazy=true, totally_bogus_kwarg=true)
+end

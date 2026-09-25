@@ -9,7 +9,7 @@ such as zarr or netcdf.
 
 `S` is a backend type like `NCDsource`, and `Na` is a tuple of `Symbol` keys.
 """
-struct FileStack{S,Na,T,SZ,G<:Union{AbstractString,Symbol,Nothing},EC,HC,M}
+struct FileStack{S,Na,T,SZ,G<:Union{AbstractString,Symbol,Nothing},EC,HC,M,OK<:NamedTuple}
     filename::String
     sizes::SZ
     group::G
@@ -17,25 +17,28 @@ struct FileStack{S,Na,T,SZ,G<:Union{AbstractString,Symbol,Nothing},EC,HC,M}
     haschunks::HC
     mods::M
     write::Bool
+    open_kw::OK
 end
 function FileStack{S,Na,T}(
-    filename::AbstractString, sizes::SZ, group::G, eachchunk::EC, haschunks::HC, mods::M, write::Bool
-) where {S,Na,T,SZ,G,EC,M,HC}
-    FileStack{S,Na,T,SZ,G,EC,HC,M}(String(filename), sizes, group, eachchunk, haschunks, mods, write)
+    filename::AbstractString, sizes::SZ, group::G, eachchunk::EC, haschunks::HC, mods::M, write::Bool,
+    open_kw::OK=NamedTuple(),
+) where {S,Na,T,SZ,G,EC,M,HC,OK}
+    FileStack{S,Na,T,SZ,G,EC,HC,M,OK}(String(filename), sizes, group, eachchunk, haschunks, mods, write, open_kw)
 end
 function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
-    write::Bool=false, 
+    write::Bool=false,
     group=nokw,
-    name::NTuple{N,Symbol}, 
+    name::NTuple{N,Symbol},
     vars,
     mods,
+    open_kw=NamedTuple(),
 ) where {source,N}
     T = NamedTuple{name,Tuple{map(_mod_eltype, vars, mods)...}}
     layersizes = map(size, vars)
     eachchunk = map(DiskArrays.eachchunk, vars)
     haschunks = map(DiskArrays.haschunks, vars)
     group = isnokw(group) ? nothing : group
-    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, mods, write)
+    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, mods, write, open_kw)
 end
 
 # FileStack has `S,Na,T` parameters that are not recoverable from fields.
@@ -61,7 +64,7 @@ function Base.getindex(fs::FileStack{S,Na,T}, name::Symbol) where {S,Na,T}
     haschunks = fs.haschunks[i]
     mod = fs.mods[i]
     N = length(size)
-    return FileArray{S,_itype(T, i),N}(filename(fs), size, name, fs.group, eachchunk, haschunks, mod, fs.write)
+    return FileArray{S,_itype(T, i),N}(filename(fs), size, name, fs.group, eachchunk, haschunks, mod, fs.write, fs.open_kw)
 end
 
 @inline _itype(::Type{<:NamedTuple{<:Any,T}}, i) where T = T.parameters[i]
