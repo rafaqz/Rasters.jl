@@ -2,6 +2,7 @@ using Rasters, Test, Dates, DiskArrays
 using Rasters.Lookups, Rasters.Dimensions
 using Rasters: isdisk, ismem, filename
 using ArchGDAL
+using Missings: passmissing
 
 data1 = cumsum(cumsum(ones(10, 11); dims=1); dims=2)
 data2 = 2cumsum(cumsum(ones(10, 11, 1); dims=1); dims=2)
@@ -182,6 +183,50 @@ end
     @test missingval(rf) === -9999.0
     @test !(missingval(rf) in skipmissing(rf))
     @test length(collect(skipmissing(r))) == 48
+end
+
+@testset "passmissing respects missingval" begin
+    # Custom non-missing sentinel: function must not be called on the sentinel
+    r = Raster([-Inf, 1.0, 16.0], (X(1:3),); missingval=-Inf)
+    result = passmissing(sqrt).(r)
+    @test result[X(1)] === -Inf
+    @test result[X(2)] == 1.0
+    @test result[X(3)] == 4.0
+    @test missingval(result) === missingval(r)
+
+    # Integer sentinel
+    r_int = Raster(Int16[-32768, 1, 2], (X(1:3),); missingval=Int16(-32768))
+    result_int = passmissing(x -> x + Int16(10)).(r_int)
+    @test result_int[X(1)] === Int16(-32768)
+    @test result_int[X(2)] === Int16(11)
+    @test missingval(result_int) === Int16(-32768)
+
+    # missingval = missing: existing behaviour preserved
+    r_miss = Raster([missing, 1.0, 2.0], (X(1:3),))
+    result_miss = passmissing(x -> x^2).(r_miss)
+    @test ismissing(result_miss[X(1)])
+    @test result_miss[X(2)] == 1.0
+    @test ismissing(missingval(result_miss))
+
+    # missingval = nothing: no sentinel, function applied to all elements
+    r_none = Raster([1.0, 2.0, 3.0], (X(1:3),))
+    result_none = passmissing(x -> x^2).(r_none)
+    @test result_none == [1.0, 4.0, 9.0]
+
+    # actual `missing` values in array with a custom sentinel: both are propagated
+    r_both = Raster([NaN, missing, 2.0], (X(1:3),); missingval=NaN)
+    result_both = passmissing(x -> x^2).(r_both)
+    @test isnan(result_both[X(1)])
+    @test isnan(result_both[X(2)])  # missing → out_mv (NaN)
+    @test result_both[X(3)] == 4.0
+
+    # multi-arg broadcast: missing if any arg equals its missingval
+    ra = Raster([Inf, 1.0, 2.0], (X(1:3),); missingval=Inf)
+    rb = Raster([10.0, -Inf, 20.0], (X(1:3),); missingval=-Inf)
+    result_multi = passmissing((x, y) -> x + y).(ra, rb)
+    @test result_multi[1] === result_multi[2] === Inf
+    @test result_multi[X(3)] == 22.0
+    @test missingval(result_multi) === missingval(ra)
 end
 
 @testset "table" begin
