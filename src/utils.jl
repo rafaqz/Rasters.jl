@@ -598,7 +598,8 @@ function _checkobjmem(obj)
 end
 _checkobjmem(f, obj) = _checkmem(f, _sizeof(obj))
 
-_checkmem(f, bytes::Int) = Sys.free_memory() > bytes || _no_memory_error(f, bytes)
+# macOS `Sys.free_memory` counts only free pages, ignoring reclaimable inactive/purgeable/compressed memory
+_checkmem(f, bytes::Int) = (Sys.isapple() ? Sys.total_memory() : Sys.free_memory()) > bytes || _no_memory_error(f, bytes)
 
 function _sizeof(A::AbstractArray{T}) where T 
     if isbits(T)
