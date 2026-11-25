@@ -53,3 +53,34 @@ function Base.show(io::IO, s::SkipMissingVal)
     show(io, s.x)
     print(io, ')')
 end
+
+
+# Specialize broadcasted passmissing to respect raster.
+struct _RasterPassMissing{F, M, O} <: Function
+    f::F
+    missingvals::M  # missingvals of each broadcast arg
+    out_mv::O       # missingval of resulting raster
+end
+
+@inline function (pm::_RasterPassMissing)(xs...)
+    for (x, mv) in zip(xs, pm.missingvals)
+        ismissing(x) && return pm.out_mv
+        !isnothing(mv) && x === mv && return pm.out_mv
+    end
+    return pm.f(xs...)
+end
+
+# Specialize broadcasted calls with a function wrapped in PassMissing
+function Base.Broadcast.broadcasted(f::Missings.PassMissing, A::AbstractRaster, args...)
+    all_args = (A, args...)
+    mvs = missingval.(all_args)
+    mv = missingval(A)
+    # Attempt to fix the missingval before any broadcast
+    ElType = Base.Broadcast.combine_eltypes(f.f, all_args)
+    if Base.isconcretetype(ElType) # without a concrete type this won't work
+        mv_fixed = _fix_missingval(ElType, mv)
+        mv = isnothing(mv_fixed) ? mv : mv_fixed
+    end
+    new_f = _RasterPassMissing(f.f, mvs, mv)
+    return Base.Broadcast.broadcasted(new_f, A, args...)
+end
