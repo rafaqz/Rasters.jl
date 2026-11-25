@@ -194,12 +194,20 @@ end
     @test result[X(3)] == 4.0
     @test missingval(result) === missingval(r)
 
-    # Integer sentinel
+    # Integer sentinel - missingval is converted
     r_int = Raster(Int16[-32768, 1, 2], (X(1:3),); missingval=Int16(-32768))
-    result_int = passmissing(x -> x + Int16(10)).(r_int)
-    @test result_int[X(1)] === Int16(-32768)
-    @test result_int[X(2)] === Int16(11)
-    @test missingval(result_int) === Int16(-32768)
+    result_int = passmissing(x -> x + Int32(10)).(r_int)
+    @test result_int[X(1)] === Int32(-32768)
+    @test result_int[X(2)] === Int32(11)
+    @test missingval(result_int) === Int32(-32768)
+    @test eltype(result_int) === Int32
+
+    # Unsigned integer - missingval is preserved when conversion is not possible
+    result_uint = passmissing(x -> x + UInt32(10)).(r_int)
+    @test result_uint[X(1)] === Int16(-32768)
+    @test result_uint[X(2)] === UInt32(11)
+    @test missingval(result_uint) === Int16(-32768)
+    @test eltype(result_uint) === Integer # concrete type is not possible in this case
 
     # missingval = missing: existing behaviour preserved
     r_miss = Raster([missing, 1.0, 2.0], (X(1:3),))
@@ -207,6 +215,7 @@ end
     @test ismissing(result_miss[X(1)])
     @test result_miss[X(2)] == 1.0
     @test ismissing(missingval(result_miss))
+    @test eltype(result_miss) === Union{Missing, Float64}
 
     # missingval = nothing: no sentinel, function applied to all elements
     r_none = Raster([1.0, 2.0, 3.0], (X(1:3),))
