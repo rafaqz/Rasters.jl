@@ -17,13 +17,13 @@ struct FileStack{S,Na,T,SZ,G<:Union{AbstractString,Symbol,Nothing},EC,HC,M,OK<:N
     haschunks::HC
     mods::M
     write::Bool
-    open_kw::OK
+    constructor_kw::OK
 end
 function FileStack{S,Na,T}(
     filename::AbstractString, sizes::SZ, group::G, eachchunk::EC, haschunks::HC, mods::M, write::Bool,
-    open_kw::OK=NamedTuple(),
+    constructor_kw::OK=NamedTuple(),
 ) where {S,Na,T,SZ,G,EC,M,HC,OK}
-    FileStack{S,Na,T,SZ,G,EC,HC,M,OK}(String(filename), sizes, group, eachchunk, haschunks, mods, write, open_kw)
+    FileStack{S,Na,T,SZ,G,EC,HC,M,OK}(String(filename), sizes, group, eachchunk, haschunks, mods, write, constructor_kw)
 end
 function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
     write::Bool=false,
@@ -31,14 +31,14 @@ function FileStack{source}(ds::AbstractDataset, filename::AbstractString;
     name::NTuple{N,Symbol},
     vars,
     mods,
-    open_kw=NamedTuple(),
+    constructor_kw=NamedTuple(),
 ) where {source,N}
     T = NamedTuple{name,Tuple{map(_mod_eltype, vars, mods)...}}
     layersizes = map(size, vars)
     eachchunk = map(DiskArrays.eachchunk, vars)
     haschunks = map(DiskArrays.haschunks, vars)
     group = isnokw(group) ? nothing : group
-    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, mods, write, open_kw)
+    return FileStack{source,name,T}(filename, layersizes, group, eachchunk, haschunks, mods, write, constructor_kw)
 end
 
 # FileStack has `S,Na,T` parameters that are not recoverable from fields.
@@ -64,7 +64,7 @@ function Base.getindex(fs::FileStack{S,Na,T}, name::Symbol) where {S,Na,T}
     haschunks = fs.haschunks[i]
     mod = fs.mods[i]
     N = length(size)
-    return FileArray{S,_itype(T, i),N}(filename(fs), size, name, fs.group, eachchunk, haschunks, mod, fs.write, fs.open_kw)
+    return FileArray{S,_itype(T, i),N}(filename(fs), size, name, fs.group, eachchunk, haschunks, mod, fs.write, fs.constructor_kw)
 end
 
 @inline _itype(::Type{<:NamedTuple{<:Any,T}}, i) where T = T.parameters[i]

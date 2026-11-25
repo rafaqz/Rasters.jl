@@ -19,7 +19,7 @@ end
 OpenStack{X,K,T}(dataset::DS, mods::M) where {X,K,T,DS,M} =
     OpenStack{X,K,T,DS,M}(dataset, mods)
 OpenStack(fs::FileStack{Source,K,T}) where {Source,K,T} =
-    OpenStack{Source,K,T}(sourceconstructor(Source())(filename(fs)), fs.mods)
+    OpenStack{Source,K,T}(sourceconstructor(Source())(filename(fs); fs.constructor_kw...), fs.mods)
 
 dataset(os::OpenStack) = os.dataset
 

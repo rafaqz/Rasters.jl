@@ -5,11 +5,8 @@ Filearray is a DiskArrays.jl `AbstractDiskArray`. Instead of holding
 an open object, it just holds a filename string that is opened lazily
 when it needs to be read.
 
-`open_kw` holds backend-specific open options (e.g. Zarr `consolidated`),
-reapplied every time the file is reopened. Without this, a layer only
-discoverable under such an option (e.g. one only listed once a Zarr
-store's consolidated metadata is used) would silently lose that option,
-and likely fail to find itself, the next time it's read.
+`constructor_kw` holds keywords for the source package's dataset constructor
+(e.g. Zarr `consolidated`), passed again every time the file is reopened.
 """
 struct FileArray{S,T,N,Na,G,EC,HC,M<:AbstractModifications,OK<:NamedTuple} <: DiskArrays.AbstractDiskArray{T,N}
     filename::String
@@ -20,7 +17,7 @@ struct FileArray{S,T,N,Na,G,EC,HC,M<:AbstractModifications,OK<:NamedTuple} <: Di
     haschunks::HC
     mod::M
     write::Bool
-    open_kw::OK
+    constructor_kw::OK
 end
 function FileArray{S,T,N}(
     filename,
@@ -31,10 +28,10 @@ function FileArray{S,T,N}(
     haschunks::HC,
     mod::M,
     write::Bool,
-    open_kw::OK=NamedTuple(),
+    constructor_kw::OK=NamedTuple(),
 ) where {S,T,N,Na,G,EC,HC,M,OK}
     FileArray{S,T,N,Na,G,EC,HC,M,OK}(
-        String(filename), size, name, group, eachchunk, haschunks, mod, write, open_kw
+        String(filename), size, name, group, eachchunk, haschunks, mod, write, constructor_kw
     )
 end
 function FileArray{S,T,N}(filename::AbstractString, size::Tuple;
@@ -44,11 +41,11 @@ function FileArray{S,T,N}(filename::AbstractString, size::Tuple;
     haschunks=DA.Unchunked(),
     mod,
     write=false,
-    open_kw=NamedTuple(),
+    constructor_kw=NamedTuple(),
 ) where {S,T,N}
     name = isnokw(name) ? nothing : name
     group = isnokw(group) ? nothing : group
-    FileArray{S,T,N}(filename, size, name, group, eachchunk, haschunks, mod, write, open_kw)
+    FileArray{S,T,N}(filename, size, name, group, eachchunk, haschunks, mod, write, constructor_kw)
 end
 function FileArray{S}(
     var::AbstractArray{<:Any,N}, filename; mod, kw...
@@ -64,7 +61,7 @@ ConstructionBase.constructorof(::Type{<:FileArray{S,T,N}}) where {S,T,N} = FileA
 
 filename(A::FileArray) = A.filename
 mod(A::FileArray) = A.mod
-open_kw(A::FileArray) = A.open_kw
+constructor_kw(A::FileArray) = A.constructor_kw
 DD.name(A::FileArray) = A.name
 Base.size(A::FileArray) = A.size
 DA.eachchunk(A::FileArray) = A.eachchunk
@@ -72,7 +69,7 @@ DA.haschunks(A::FileArray) = A.haschunks
 
 # Run function `f` on the result of _open for the file type
 function Base.open(f::Function, A::FileArray{S}; write=A.write, kw...) where S
-    _open(f, S(), filename(A); name=name(A), group=A.group, write, mod=mod(A), open_kw(A)..., kw...)
+    _open(f, S(), filename(A); name=name(A), group=A.group, write, mod=mod(A), constructor_kw=constructor_kw(A), kw...)
 end
 
 function DA.readblock!(A::FileArray, dst, r::AbstractUnitRange...)

@@ -6,18 +6,20 @@ using DimensionalData.Dimensions
 using Dates
 using CommonDataModel
 using ZarrDatasets
-using ZarrDatasets.Zarr
+using Zarr
 using Rasters: FileArray, FileStack, Zarrsource, crs, bounds, name, trim
 
 path = "https://s3.bgc-jena.mpg.de:9000/esdl-esdc-v3.0.2/esdc-16d-2.5deg-46x72x1440-3.0.2.zarr"
+# HTTP stores can't be listed, so they open from consolidated metadata
+constructor_kw = (; consolidated=true)
 
-zraster = Raster(path; name="air_temperature_2m")
-lazyarray = Raster(path; lazy=true, name="air_temperature_2m")
-eagerarray = Raster(path; lazy=false, name="air_temperature_2m")
+zraster = Raster(path; name="air_temperature_2m", constructor_kw)
+lazyarray = Raster(path; lazy=true, name="air_temperature_2m", constructor_kw)
+eagerarray = Raster(path; lazy=false, name="air_temperature_2m", constructor_kw)
 @test_throws ArgumentError Raster("notafile.zarr/")
 
 @testset "Raster from dataset" begin
-    ds = ZarrDatasets.ZarrDataset(path)
+    ds = ZarrDatasets.ZarrDataset(path; constructor_kw...)
     var = CommonDataModel.variable(ds, "air_temperature_2m")
     dsarray = Raster(ds; name=:air_temperature_2m)
     vararray = Raster(var; name=:air_temperature_2m)
@@ -161,12 +163,12 @@ end
 end
 
 
-zarrstack = RasterStack(path; lazy=true)
+zarrstack = RasterStack(path; lazy=true, constructor_kw)
 @testset "RasterStack" begin
-    @test all(zarrstack.snow_sublimation .=== Raster(path; name=:snow_sublimation))
+    @test all(zarrstack.snow_sublimation .=== Raster(path; name=:snow_sublimation, constructor_kw))
 end
 @testset "RasterStack from dataset" begin
-    ds = ZarrDatasets.ZarrDataset(path)
+    ds = ZarrDatasets.ZarrDataset(path; constructor_kw...)
     dsstack = RasterStack(ds; lazy=true)
     @test dims(dsstack) == dims(zarrstack)
     @test size(dsstack) == size(zarrstack)
@@ -198,15 +200,15 @@ end
     @test propertynames(st_plain) == (:a,)
 
     # With it, `b` is discovered at open time...
-    st_cons = RasterStack(kwpath; source=Zarrsource(), lazy=true, open_kw=(; consolidated=true))
+    st_cons = RasterStack(kwpath; source=Zarrsource(), lazy=true, constructor_kw=(; consolidated=true))
     @test :b in propertynames(st_cons)
 
     # ...and reading it -- which reopens the store via `FileArray` -- must
-    # still find it, i.e. `open_kw` has to be reapplied, not just used once.
+    # still find it, i.e. `constructor_kw` has to be reapplied, not just used once.
     @test collect(st_cons[:b]) == [10.0, 20.0, 30.0, 40.0]
     @test collect(st_cons[:a]) == [1.0, 2.0, 3.0, 4.0]
 
-    # Unrecognized top-level keywords must still error -- `open_kw` is a
+    # Unrecognized top-level keywords must still error -- `constructor_kw` is a
     # deliberately separate channel, not a generic catch-all that would mask
     # keyword typos/misuse.
     @test_throws MethodError RasterStack(kwpath; source=Zarrsource(), lazy=true, totally_bogus_kwarg=true)
