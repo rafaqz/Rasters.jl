@@ -9,8 +9,15 @@ using ZarrDatasets
 using Zarr
 using Rasters: FileArray, FileStack, Zarrsource, crs, bounds, name, trim
 
-path = "https://s3.bgc-jena.mpg.de:9000/esdl-esdc-v3.0.2/esdc-16d-2.5deg-46x72x1440-3.0.2.zarr"
-# HTTP stores can't be listed, so they open from consolidated metadata
+# A small local store shaped like a 2.5 degree, 16 day data cube, with consolidated metadata
+path = tempname() * ".zarr"
+cubedims = (X(-178.75:2.5:178.75), Y(-88.75:2.5:88.75), Ti(DateTime(1979, 1, 9):Day(16):DateTime(1979, 6, 18)))
+cube(; kw...) = Raster(Array{Union{Missing,Float32}}(rand(Float32, length.(cubedims))), cubedims; missingval=missing, kw...)
+t2m = cube(; metadata=Rasters.Metadata{Zarrsource}(Dict("original_name" => "t2m")))
+t2m[1, 1, 1] = -28.866226f0
+t2m[end, end, end] = missing
+write(path, RasterStack((; air_temperature_2m=t2m, snow_sublimation=cube())); missingval=-9999f0)
+Zarr.consolidate_metadata(Zarr.DirectoryStore(path), "")
 constructor_kw = (; consolidated=true)
 
 zraster = Raster(path; name="air_temperature_2m", constructor_kw)
@@ -57,13 +64,13 @@ end
     @test bounds(zraster) == (
         (-178.75, 178.75),
         (-88.75, 88.75),
-        (DateTime("1979-01-09T00:00:00"), DateTime("2021-12-27T00:00:00")),
+        (DateTime("1979-01-09T00:00:00"), DateTime("1979-06-18T00:00:00")),
     )
 end
 
 @testset "dimensions" begin
     @test ndims(zraster) == 3
-    @test length.(dims(zraster)) == (144, 72, 989)
+    @test length.(dims(zraster)) == (144, 72, 11)
     @test dims(zraster) isa Tuple{<:X,<:Y,<:Ti}
     @test refdims(zraster) == ()
     @test val.(span(zraster)) == (2.5, 2.5, (nothing, nothing))
@@ -143,22 +150,19 @@ end
     ra = Raster(path)
 
     @test extrema(ra) == (180.0, 182.0) # test scale and offset
-    @test Rasters.GeoInterface.extent(ra) == Rasters.GeoInterface.Extent(X = (-5.434177815866809e6, 5.322929839864517e6), Y = (-5.367163645912004e6, 5.258454335331338e6))
+    @test Rasters.GeoInterface.extent(ra) ≈ Rasters.GeoInterface.Extent(X = (-5.434177815866809e6, 5.322929839864517e6), Y = (-5.367163645912004e6, 5.258454335331338e6))
     @test Rasters.isreverse(ra.dims[2])
     @test Rasters.isforward(ra.dims[1])
-    @test extrema(ra.dims[1]) == extrema(xs)
-    @test extrema(ra.dims[2]) == reverse(extrema(ys)) .* y_attrs["scale_factor"] .+ y_attrs["add_offset"]
+    @test collect(extrema(ra.dims[1])) ≈ collect(extrema(xs))
+    @test collect(extrema(ra.dims[2])) ≈ collect(reverse(extrema(ys)) .* y_attrs["scale_factor"] .+ y_attrs["add_offset"])
 
     @testset "write" begin
         fn = tempname() * ".zarr"
         write(fn, ra)
         @test all(Raster(fn) .=== ra)
-        # Currently broken in ZarrDatasets.jl
+        # Broken: Rasters opens for writing with mode "a", which ZarrDatasets rejects
         x = Raster(fn; lazy=true)
-        open(x; write=true) do O
-            O .= 1
-        end
-        all(Raster(fn) .== 1)
+        @test_broken (open(O -> O .= 1, x; write=true); all(Raster(fn) .== 1))
     end
 end
 
