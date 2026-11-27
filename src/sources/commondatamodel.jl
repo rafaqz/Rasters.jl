@@ -67,9 +67,11 @@ end
 
 Raster(ds::AbstractVariable; kw...) = _raster(ds; kw...)
 
-function _open(f, source::CDMsource, filename::AbstractString; write=false, kw...)
+function _open(f, source::CDMsource, filename::AbstractString;
+    write=false, constructor_kw::NamedTuple=NamedTuple(), kw...
+)
     checkfilename(source, filename)
-    ds = sourceconstructor(source)(filename, openmode(write))
+    ds = sourceconstructor(source)(filename, openmode(write); constructor_kw...)
     _open(f, source, ds; kw...)
 end
 function _open(f, source::CDMsource, ds::AbstractDataset; 

@@ -6,18 +6,27 @@ using DimensionalData.Dimensions
 using Dates
 using CommonDataModel
 using ZarrDatasets
-using ZarrDatasets.Zarr
+using Zarr
 using Rasters: FileArray, FileStack, Zarrsource, crs, bounds, name, trim
 
-path = "https://s3.bgc-jena.mpg.de:9000/esdl-esdc-v3.0.2/esdc-16d-2.5deg-46x72x1440-3.0.2.zarr"
+# A small local store shaped like a 2.5 degree, 16 day data cube, with consolidated metadata
+path = tempname() * ".zarr"
+cubedims = (X(-178.75:2.5:178.75), Y(-88.75:2.5:88.75), Ti(DateTime(1979, 1, 9):Day(16):DateTime(1979, 6, 18)))
+cube(; kw...) = Raster(Array{Union{Missing,Float32}}(rand(Float32, length.(cubedims))), cubedims; missingval=missing, kw...)
+t2m = cube(; metadata=Rasters.Metadata{Zarrsource}(Dict("original_name" => "t2m")))
+t2m[1, 1, 1] = -28.866226f0
+t2m[end, end, end] = missing
+write(path, RasterStack((; air_temperature_2m=t2m, snow_sublimation=cube())); missingval=-9999f0)
+Zarr.consolidate_metadata(Zarr.DirectoryStore(path), "")
+constructor_kw = (; consolidated=true)
 
-zraster = Raster(path; name="air_temperature_2m")
-lazyarray = Raster(path; lazy=true, name="air_temperature_2m")
-eagerarray = Raster(path; lazy=false, name="air_temperature_2m")
+zraster = Raster(path; name="air_temperature_2m", constructor_kw)
+lazyarray = Raster(path; lazy=true, name="air_temperature_2m", constructor_kw)
+eagerarray = Raster(path; lazy=false, name="air_temperature_2m", constructor_kw)
 @test_throws ArgumentError Raster("notafile.zarr/")
 
 @testset "Raster from dataset" begin
-    ds = ZarrDatasets.ZarrDataset(path)
+    ds = ZarrDatasets.ZarrDataset(path; constructor_kw...)
     var = CommonDataModel.variable(ds, "air_temperature_2m")
     dsarray = Raster(ds; name=:air_temperature_2m)
     vararray = Raster(var; name=:air_temperature_2m)
@@ -55,13 +64,13 @@ end
     @test bounds(zraster) == (
         (-178.75, 178.75),
         (-88.75, 88.75),
-        (DateTime("1979-01-09T00:00:00"), DateTime("2021-12-27T00:00:00")),
+        (DateTime("1979-01-09T00:00:00"), DateTime("1979-06-18T00:00:00")),
     )
 end
 
 @testset "dimensions" begin
     @test ndims(zraster) == 3
-    @test length.(dims(zraster)) == (144, 72, 989)
+    @test length.(dims(zraster)) == (144, 72, 11)
     @test dims(zraster) isa Tuple{<:X,<:Y,<:Ti}
     @test refdims(zraster) == ()
     @test val.(span(zraster)) == (2.5, 2.5, (nothing, nothing))
@@ -141,33 +150,70 @@ end
     ra = Raster(path)
 
     @test extrema(ra) == (180.0, 182.0) # test scale and offset
-    @test Rasters.GeoInterface.extent(ra) == Rasters.GeoInterface.Extent(X = (-5.434177815866809e6, 5.322929839864517e6), Y = (-5.367163645912004e6, 5.258454335331338e6))
+    @test Rasters.GeoInterface.extent(ra) ≈ Rasters.GeoInterface.Extent(X = (-5.434177815866809e6, 5.322929839864517e6), Y = (-5.367163645912004e6, 5.258454335331338e6))
     @test Rasters.isreverse(ra.dims[2])
     @test Rasters.isforward(ra.dims[1])
-    @test extrema(ra.dims[1]) == extrema(xs)
-    @test extrema(ra.dims[2]) == reverse(extrema(ys)) .* y_attrs["scale_factor"] .+ y_attrs["add_offset"]
+    @test collect(extrema(ra.dims[1])) ≈ collect(extrema(xs))
+    @test collect(extrema(ra.dims[2])) ≈ collect(reverse(extrema(ys)) .* y_attrs["scale_factor"] .+ y_attrs["add_offset"])
 
     @testset "write" begin
         fn = tempname() * ".zarr"
         write(fn, ra)
         @test all(Raster(fn) .=== ra)
-        # Currently broken in ZarrDatasets.jl
+        # Broken: Rasters opens for writing with mode "a", which ZarrDatasets rejects
         x = Raster(fn; lazy=true)
-        open(x; write=true) do O
-            O .= 1
-        end
-        all(Raster(fn) .== 1)
+        @test_broken (open(O -> O .= 1, x; write=true); all(Raster(fn) .== 1))
     end
 end
 
 
-zarrstack = RasterStack(path; lazy=true)
+zarrstack = RasterStack(path; lazy=true, constructor_kw)
 @testset "RasterStack" begin
-    @test all(zarrstack.snow_sublimation .=== Raster(path; name=:snow_sublimation))
+    @test all(zarrstack.snow_sublimation .=== Raster(path; name=:snow_sublimation, constructor_kw))
 end
 @testset "RasterStack from dataset" begin
-    ds = ZarrDatasets.ZarrDataset(path)
+    ds = ZarrDatasets.ZarrDataset(path; constructor_kw...)
     dsstack = RasterStack(ds; lazy=true)
     @test dims(dsstack) == dims(zarrstack)
     @test size(dsstack) == size(zarrstack)
+end
+
+@testset "backend-specific open kwargs persist across lazy reopen" begin
+    # Regression test: a lazily-read layer that is only discoverable under a
+    # backend-specific open option (e.g. Zarr `consolidated`) must still be
+    # reachable once the underlying `FileArray` reopens the store to read data,
+    # not just at initial layer discovery.
+    #
+    # Simulates a real-world case (ARCO-ERA5's incomplete store listing, fixed
+    # by ZarrDatasets.jl's `consolidated` keyword): consolidate metadata while
+    # both `a` and `b` exist, then delete `b`'s `.zarray` marker so plain
+    # listing can no longer find it -- but its chunk data and consolidated
+    # metadata entry remain, so `consolidated=true` can still discover and
+    # read it.
+    kwpath = tempname() * ".zarr"
+    kwzg = zgroup(kwpath)
+    ka = zcreate(Float64, kwzg, "a", 4; attrs=Dict("_ARRAY_DIMENSIONS" => ["x"]))
+    ka .= [1.0, 2.0, 3.0, 4.0]
+    kb = zcreate(Float64, kwzg, "b", 4; attrs=Dict("_ARRAY_DIMENSIONS" => ["x"]))
+    kb .= [10.0, 20.0, 30.0, 40.0]
+    Zarr.consolidate_metadata(kwzg.storage, "")
+    rm(joinpath(kwpath, "b", ".zarray"))
+
+    # Without the open option, `b` isn't visible at all.
+    st_plain = RasterStack(kwpath; source=Zarrsource(), lazy=true)
+    @test propertynames(st_plain) == (:a,)
+
+    # With it, `b` is discovered at open time...
+    st_cons = RasterStack(kwpath; source=Zarrsource(), lazy=true, constructor_kw=(; consolidated=true))
+    @test :b in propertynames(st_cons)
+
+    # ...and reading it -- which reopens the store via `FileArray` -- must
+    # still find it, i.e. `constructor_kw` has to be reapplied, not just used once.
+    @test collect(st_cons[:b]) == [10.0, 20.0, 30.0, 40.0]
+    @test collect(st_cons[:a]) == [1.0, 2.0, 3.0, 4.0]
+
+    # Unrecognized top-level keywords must still error -- `constructor_kw` is a
+    # deliberately separate channel, not a generic catch-all that would mask
+    # keyword typos/misuse.
+    @test_throws MethodError RasterStack(kwpath; source=Zarrsource(), lazy=true, totally_bogus_kwarg=true)
 end

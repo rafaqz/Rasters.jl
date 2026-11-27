@@ -273,9 +273,11 @@ function _write_grd(filename, T, dims, missingval, name)
 end
 
 # Rasters methods
-function _open(f, source::GRDsource, filename::AbstractString; kw...)
+function _open(f, source::GRDsource, filename::AbstractString;
+    constructor_kw::NamedTuple=NamedTuple(), kw...
+)
     isfile(filename) || _filenotfound_error(filename)
-    _open(f, source, GRDdataset(filename); kw...)
+    _open(f, source, GRDdataset(filename; constructor_kw...); kw...)
 end
 function _open(f, source::GRDsource, ds::GRDdataset; write=false, kw...)
     _mmapgrd(ds; write) do mm

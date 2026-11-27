@@ -6,9 +6,11 @@ RA.checkfilename(::NCDsource, filename) =
 Base.close(os::RA.OpenStack{NCDsource}) = NCD.close(RA.dataset(os))
 
 # NCDatasets.jl needs manual closing of files
-function RA._open(f, source::NCDsource, filename::AbstractString; write=false, kw...)
+function RA._open(f, source::NCDsource, filename::AbstractString;
+    write=false, constructor_kw::NamedTuple=NamedTuple(), kw...
+)
     RA.checkfilename(source, filename)
-    ds = RA.sourceconstructor(source)(filename, RA.openmode(write)) do ds
+    ds = RA.sourceconstructor(source)(filename, RA.openmode(write); constructor_kw...) do ds
         RA._open(f, source, ds; kw...)
     end
 end

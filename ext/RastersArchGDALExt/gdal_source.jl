@@ -96,8 +96,9 @@ function Base.write(filename::AbstractString, ::GDALsource, A::AbstractRaster{T}
 end
 
 function RA._open(f, ::GDALsource, filename::AbstractString; 
-    write=false, 
-    mod=RA.NoMod(), 
+    write=false,
+    mod=RA.NoMod(),
+    constructor_kw::NamedTuple=NamedTuple(),
     kw...
 )
     # Check the file actually exists because the GDAL error is unhelpful
@@ -116,7 +117,7 @@ function RA._open(f, ::GDALsource, filename::AbstractString;
         end
     end
     flags = write ? AG.OF_UPDATE : AG.OF_READONLY
-    return AG.readraster(filename; flags) do A
+    return AG.readraster(filename; flags, constructor_kw...) do A
         RA.cleanreturn(f(RA._maybe_modify(A, mod))) 
     end
 end
